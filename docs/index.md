@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Svton
   text: 全栈应用框架
-  tagline: CLI 工具、共享包和项目模板，快速构建 NestJS + Next.js + Taro 应用
+  tagline: CLI 工具、共享包和项目模板，快速构建全栈应用
   actions:
     - theme: brand
       text: 快速开始
