@@ -1,0 +1,178 @@
+/**
+ * @svton/taro-ui - 主题变量
+ * 可被项目自定义覆盖
+ */
+
+// ==================== 颜色系统 ====================
+
+// 品牌色
+$color-primary: #1890ff !default;
+$color-primary-light: #40a9ff !default;
+$color-primary-lighter: #91d5ff !default;
+$color-primary-lightest: #e6f4ff !default;
+$color-primary-dark: #0077ff !default;
+
+// 功能色
+$color-success: #52c41a !default;
+$color-warning: #ffa940 !default;
+$color-error: #ff4d4f !default;
+$color-info: #1890ff !default;
+
+// 文字色
+$color-text-primary: #1a1a1a !default;    // 标题/主要文字
+$color-text-regular: #333333 !default;    // 正文
+$color-text-secondary: #666666 !default;  // 次要文字
+$color-text-tertiary: #8a8a8a !default;   // 辅助文字
+$color-text-placeholder: #aaaaaa !default; // 占位符
+$color-text-disabled: #cccccc !default;   // 禁用
+$color-text-inverse: #ffffff !default;    // 反色文字
+
+// 背景色
+$color-bg-page: #f7f8fa !default;        // 页面背景
+$color-bg-card: #ffffff !default;        // 卡片背景
+$color-bg-section: #f5f5f5 !default;     // 分区背景
+$color-bg-highlight: #f0f9ff !default;   // 高亮背景
+$color-bg-mask: rgba(0, 0, 0, 0.5) !default; // 遮罩
+
+// 边框色
+$color-border: #e8e8e8 !default;         // 默认边框
+$color-border-light: #f0f0f0 !default;   // 分割线
+$color-border-dashed: #d9d9d9 !default;  // 虚线边框
+
+// ==================== 字体系统 ====================
+
+// 字号（使用rpx单位，自适应）
+$font-size-h1: 36rpx !default;  // 特大标题
+$font-size-h2: 32rpx !default;  // 大标题
+$font-size-h3: 30rpx !default;  // 标题
+$font-size-lg: 28rpx !default;  // 正文大
+$font-size-base: 26rpx !default; // 正文
+$font-size-sm: 24rpx !default;  // 正文小
+$font-size-xs: 22rpx !default;  // 辅助文字
+
+// 字重
+$font-weight-bold: 600 !default;     // 标题、强调
+$font-weight-medium: 500 !default;   // 次级标题
+$font-weight-regular: 400 !default;  // 正文
+$font-weight-light: 300 !default;    // 辅助
+
+// 行高
+$line-height-title: 1.3 !default;    // 标题行高
+$line-height-base: 1.6 !default;     // 正文行高
+$line-height-small: 1.5 !default;    // 辅助行高
+
+// ==================== 间距系统 ====================
+
+// 基础间距
+$spacing-xs: 8rpx !default;
+$spacing-sm: 16rpx !default;
+$spacing-md: 24rpx !default;
+$spacing-lg: 32rpx !default;
+$spacing-xl: 48rpx !default;
+$spacing-xxl: 64rpx !default;
+
+// 内容区边距
+$padding-page: 32rpx !default;      // 页面边距
+$padding-card: 32rpx !default;      // 卡片内边距
+$padding-section: 24rpx !default;   // 分区内边距
+
+// 组件间距
+$gap-xs: 8rpx !default;
+$gap-sm: 16rpx !default;
+$gap-md: 24rpx !default;
+$gap-lg: 32rpx !default;
+$gap-xl: 48rpx !default;
+
+// ==================== 圆角系统 ====================
+
+$radius-none: 0 !default;
+$radius-sm: 12rpx !default;      // 小圆角
+$radius-md: 24rpx !default;      // 中圆角
+$radius-lg: 32rpx !default;      // 大圆角
+$radius-xl: 40rpx !default;      // 超大圆角
+$radius-round: 9999rpx !default; // 全圆角
+
+// ==================== 阴影系统 ====================
+
+$shadow-none: none !default;
+$shadow-xs: 0 2rpx 8rpx rgba(0, 0, 0, 0.04) !default;
+$shadow-sm: 0 4rpx 16rpx rgba(0, 0, 0, 0.06) !default;
+$shadow-md: 0 4rpx 16rpx rgba(0, 0, 0, 0.08) !default;
+$shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.12) !default;
+$shadow-xl: 0 16rpx 48rpx rgba(0, 0, 0, 0.16) !default;
+
+// 彩色阴影
+$shadow-primary: 0 8rpx 24rpx rgba(24, 144, 255, 0.3) !default;
+$shadow-error: 0 8rpx 24rpx rgba(255, 77, 79, 0.3) !default;
+
+// ==================== 组件尺寸 ====================
+
+// 按钮
+$btn-height-lg: 88rpx !default;   // 大按钮
+$btn-height-md: 80rpx !default;   // 中等按钮
+$btn-height-sm: 64rpx !default;   // 小按钮
+$btn-padding-x: 48rpx !default;
+$btn-padding-y: 24rpx !default;
+$btn-radius: $radius-md !default;
+
+// 输入框
+$input-height: 80rpx !default;          // 单行输入框高度
+$input-padding-x: 24rpx !default;
+$input-padding-y: 20rpx !default;
+$input-border-width: 1rpx !default;
+$input-radius: $radius-sm !default;
+
+// 头像
+$avatar-sm: 64rpx !default;
+$avatar-md: 96rpx !default;
+$avatar-lg: 192rpx !default;
+$avatar-xl: 240rpx !default;
+
+// 图标
+$icon-xs: 32rpx !default;
+$icon-sm: 48rpx !default;
+$icon-md: 64rpx !default;
+$icon-lg: 96rpx !default;
+$icon-xl: 128rpx !default;
+
+// 标签
+$tag-height: 56rpx !default;
+$tag-padding-x: 24rpx !default;
+$tag-padding-y: 12rpx !default;
+$tag-radius: $radius-sm !default;
+
+// 卡片
+$card-radius: $radius-lg !default;
+$card-padding: $padding-card !default;
+
+// 最小点击区域
+$hit-area-min: 88rpx !default;
+
+// ==================== 过渡动画 ====================
+
+$transition-fast: 200ms !default;
+$transition-base: 300ms !default;
+$transition-slow: 400ms !default;
+
+$ease-out: ease-out !default;
+$ease-in-out: ease-in-out !default;
+$ease-smooth: cubic-bezier(0.4, 0, 0.2, 1) !default;
+$ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55) !default;
+
+// ==================== Z-index 层级 ====================
+
+$z-index-base: 1 !default;
+$z-index-dropdown: 10 !default;
+$z-index-sticky: 100 !default;
+$z-index-fixed: 200 !default;
+$z-index-overlay: 500 !default;
+$z-index-modal: 1000 !default;
+$z-index-toast: 2000 !default;
+$z-index-top: 9999 !default;
+
+// ==================== 响应式断点 ====================
+
+$breakpoint-xs: 320px !default;  // 小屏手机
+$breakpoint-sm: 375px !default;  // 标准手机
+$breakpoint-md: 414px !default;  // 大屏手机
+$breakpoint-lg: 768px !default;  // 平板

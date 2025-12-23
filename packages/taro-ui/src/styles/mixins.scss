@@ -1,0 +1,254 @@
+/**
+ * @svton/taro-ui - 样式混入
+ * 常用的样式工具函数
+ */
+
+// ==================== 布局相关 ====================
+
+// Flex居中
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// Flex水平居中
+@mixin flex-center-x {
+  display: flex;
+  justify-content: center;
+}
+
+// Flex垂直居中
+@mixin flex-center-y {
+  display: flex;
+  align-items: center;
+}
+
+// Flex两端对齐
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// 绝对定位居中
+@mixin absolute-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+// ==================== 文本相关 ====================
+
+// 单行文本省略
+@mixin text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 多行文本省略
+@mixin text-ellipsis-multi($lines: 2) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: $lines;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// 标题样式
+@mixin heading($level: 1) {
+  @if $level == 1 {
+    font-size: $font-size-h1;
+    font-weight: $font-weight-bold;
+    line-height: $line-height-title;
+    color: $color-text-primary;
+  } @else if $level == 2 {
+    font-size: $font-size-h2;
+    font-weight: $font-weight-bold;
+    line-height: $line-height-title;
+    color: $color-text-primary;
+  } @else if $level == 3 {
+    font-size: $font-size-h3;
+    font-weight: $font-weight-medium;
+    line-height: $line-height-title;
+    color: $color-text-primary;
+  }
+}
+
+// 正文样式
+@mixin body-text($size: 'base') {
+  @if $size == 'lg' {
+    font-size: $font-size-lg;
+  } @else if $size == 'base' {
+    font-size: $font-size-base;
+  } @else if $size == 'sm' {
+    font-size: $font-size-sm;
+  } @else if $size == 'xs' {
+    font-size: $font-size-xs;
+  }
+  font-weight: $font-weight-regular;
+  line-height: $line-height-base;
+  color: $color-text-regular;
+}
+
+// ==================== 边框相关 ====================
+
+// 1px 细线边框（解决retina屏幕边框粗细问题）
+@mixin hairline($color: $color-border, $direction: 'all') {
+  position: relative;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    box-sizing: border-box;
+    
+    @if $direction == 'all' {
+      top: 0;
+      left: 0;
+      width: 200%;
+      height: 200%;
+      border: 1rpx solid $color;
+      transform: scale(0.5);
+      transform-origin: 0 0;
+    } @else if $direction == 'top' {
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1rpx;
+      background: $color;
+      transform: scaleY(0.5);
+    } @else if $direction == 'bottom' {
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1rpx;
+      background: $color;
+      transform: scaleY(0.5);
+    } @else if $direction == 'left' {
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 1rpx;
+      background: $color;
+      transform: scaleX(0.5);
+    } @else if $direction == 'right' {
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 1rpx;
+      background: $color;
+      transform: scaleX(0.5);
+    }
+  }
+}
+
+// ==================== 交互相关 ====================
+
+// 点击态
+@mixin active-state($scale: 0.95, $opacity: 0.8) {
+  transition: all $transition-fast $ease-out;
+  
+  &:active {
+    transform: scale($scale);
+    opacity: $opacity;
+  }
+}
+
+// 禁用状态
+@mixin disabled-state {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+// ==================== 安全区域 ====================
+
+// 安全区域内边距（适配刘海屏）
+@mixin safe-area-inset($direction: 'bottom', $base: 0) {
+  @if $direction == 'top' {
+    padding-top: calc(#{$base} + env(safe-area-inset-top));
+  } @else if $direction == 'bottom' {
+    padding-bottom: calc(#{$base} + env(safe-area-inset-bottom));
+  } @else if $direction == 'left' {
+    padding-left: calc(#{$base} + env(safe-area-inset-left));
+  } @else if $direction == 'right' {
+    padding-right: calc(#{$base} + env(safe-area-inset-right));
+  }
+}
+
+// ==================== 响应式 ====================
+
+// 媒体查询
+@mixin respond-to($breakpoint) {
+  @if $breakpoint == 'xs' {
+    @media (max-width: $breakpoint-xs) {
+      @content;
+    }
+  } @else if $breakpoint == 'sm' {
+    @media (min-width: $breakpoint-sm) {
+      @content;
+    }
+  } @else if $breakpoint == 'md' {
+    @media (min-width: $breakpoint-md) {
+      @content;
+    }
+  } @else if $breakpoint == 'lg' {
+    @media (min-width: $breakpoint-lg) {
+      @content;
+    }
+  }
+}
+
+// ==================== 其他工具 ====================
+
+// 清除浮动
+@mixin clearfix {
+  &::after {
+    content: '';
+    display: table;
+    clear: both;
+  }
+}
+
+// 隐藏滚动条
+@mixin hide-scrollbar {
+  -ms-overflow-style: none;  /* IE 和 Edge */
+  scrollbar-width: none;  /* Firefox */
+  
+  &::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari 和 Opera */
+  }
+}
+
+// 自定义滚动条
+@mixin custom-scrollbar($width: 8rpx, $thumb-color: rgba(0, 0, 0, 0.3), $track-color: transparent) {
+  &::-webkit-scrollbar {
+    width: $width;
+    height: $width;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: $thumb-color;
+    border-radius: $width;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: $track-color;
+  }
+}
+
+// 方形容器
+@mixin square($size) {
+  width: $size;
+  height: $size;
+}
+
+// 圆形容器
+@mixin circle($size) {
+  @include square($size);
+  border-radius: 50%;
+  overflow: hidden;
+}

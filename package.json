@@ -1,0 +1,52 @@
+{
+  "name": "svton",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Svton Framework - Full-stack application framework with CLI, packages, and templates",
+  "keywords": [
+    "svton",
+    "framework",
+    "full-stack",
+    "cli",
+    "nestjs",
+    "nextjs",
+    "taro",
+    "typescript",
+    "monorepo"
+  ],
+  "author": "SVTON Team",
+  "license": "MIT",
+  "homepage": "https://github.com/svton/svton#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/svton/svton.git"
+  },
+  "bugs": {
+    "url": "https://github.com/svton/svton/issues"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "test": "turbo run test",
+    "release": "changeset publish",
+    "version": "changeset version",
+    "docs:dev": "pnpm --filter docs dev",
+    "docs:build": "pnpm --filter docs build"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "turbo": "^1.11.0",
+    "typescript": "^5.3.0",
+    "@types/node": "^20.10.0",
+    "prettier": "^3.1.0",
+    "eslint": "^8.55.0"
+  },
+  "packageManager": "pnpm@8.12.0",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

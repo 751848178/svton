@@ -1,0 +1,76 @@
+{
+  "name": "svton",
+  "version": "1.0.0",
+  "description": "Svton CLI - Create full-stack applications with NestJS, Next.js, and Taro",
+  "keywords": [
+    "cli",
+    "scaffold",
+    "full-stack",
+    "nestjs",
+    "nextjs",
+    "taro",
+    "typescript",
+    "monorepo"
+  ],
+  "author": "SVTON Team",
+  "license": "MIT",
+  "homepage": "https://github.com/svton/create-svton-app#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/svton/create-svton-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/svton/create-svton-app/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "svton": "./bin/svton.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "jest",
+    "prepublishOnly": "pnpm build && pnpm test",
+    "release": "changeset publish"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "inquirer": "^9.2.12",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.1",
+    "fs-extra": "^11.2.0",
+    "mustache": "^4.2.0",
+    "validate-npm-package-name": "^5.0.0"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.7",
+    "@types/mustache": "^4.2.5",
+    "@types/node": "^20.10.0",
+    "@types/validate-npm-package-name": "^4.0.2",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
