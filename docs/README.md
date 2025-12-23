@@ -1,130 +1,123 @@
-# SVTON Documentation
+# 📚 Svton 架构文档
 
-欢迎使用 SVTON 全栈开发框架！这里包含了完整的架构文档、开发指南和最佳实践。
-
-## 📦 核心包文档
-
-### CLI 工具
-```bash
-# 创建新项目
-npx svton create my-app
-
-# 查看帮助
-npx svton create --help
-```
-
-### 主要包
-- **[@svton/cli](https://npmjs.com/package/@svton/cli)** - SVTON CLI脚手架工具 ⭐
-- **[@svton/api-client](https://npmjs.com/package/@svton/api-client)** - TypeScript优先的API客户端
-- **[@svton/types](https://npmjs.com/package/@svton/types)** - 模块增强的类型定义
-- **[@svton/hooks](https://npmjs.com/package/@svton/hooks)** - 生产就绪的React Hooks
-- **[@svton/taro-ui](https://npmjs.com/package/@svton/taro-ui)** - Taro UI组件库
-
-## 📚 架构与设计
-
-### 🏗️ 项目架构
-- [架构文档](architecture/README.md) - 完整的架构设计文档
-- [项目概述](architecture/getting-started/overview.md) - 项目结构和技术栈
-- [快速开始](architecture/getting-started/quick-start.md) - 5分钟上手指南
-- [单体架构设计](architecture/architecture/monorepo.md) - Monorepo架构实现
-
-### 🎨 设计系统
-- [设计提示](design-prompts/README.md) - 完整的设计系统指南
-- [UI设计系统](UI_DESIGN_SYSTEM.md) - 组件设计规范
-- [设计主题](design-prompts/design-theme.md) - 色彩和风格指南
-- [移动端设计规范](../apps/mobile/docs/design-scale-standard.md) - 1.7倍缩放标准
-
-## 📚 开发指南
-
-### 🎯 必读文档
-- [编码规范](CODING_STANDARDS.md) - 统一的开发规范和最佳实践
-- [Hooks使用指南](SHARED-HOOKS-GUIDE.md) - React Hooks详细用法
-- [Taro最佳实践](Taro组件库最佳实践.md) - 移动端开发指南
-
-### 🔧 核心功能模块
-- [配置系统设计](CONFIG_SYSTEM_DESIGN.md) - 动态配置系统架构
-- [存储策略](STORAGE-STRATEGY.md) - 文件存储和管理方案
-- [智能上传指南](SMART-UPLOAD-GUIDE.md) - 文件上传组件使用
-- [字典模块](DICTIONARY_MODULE_GUIDE.md) - 数据字典系统
-- [Miaoduo集成](MIAODUO_GUIDE.md) - 设计稿自动转换
-
-### 📱 UI组件库
-- [UI组件库设计](UI组件库设计文档.md) - 组件库架构设计
-- [组件开发指南](architecture/packages/taro-ui.md) - Taro UI组件开发
-
-## 📖 开发指南
-
-### 🔍 API 开发
-- [API客户端架构](architecture/packages/api-client.md) - 类型安全的API客户端
-- [响应结构指南](guides/RESPONSE_STRUCTURE_GUIDE.md) - 统一的API响应格式
-- [分页指南](guides/CURSOR_PAGINATION_GUIDE.md) - 游标分页实现
-
-### 🗂️ 数据管理
-- [内容分类指南](guides/CONTENT_CLASSIFICATION_GUIDE.md) - 内容分类系统
-- [数据库迁移指南](DATABASE-MIGRATION-GUIDE.md) - 数据库版本管理
-
-### ⚡ 性能优化
-- [性能优化指南](PERFORMANCE-OPTIMIZATION.md) - 全栈性能优化策略
-- [SSR身份验证](guides/ssr-auth.md) - 服务端渲染中的身份验证
-
-## 🏗️ 部署与运维
-
-### 📦 包管理
-- [包架构设计](architecture/packages/) - 各个包的详细设计
-- [部署环境配置](architecture/deployment/environment.md) - 环境变量和配置
-
-### 🐳 容器化部署
-- [Docker部署](architecture/deployment/docker.md) - 容器化部署方案
-
-## 🎨 设计资源
-
-### 📋 页面设计提示
-- [登录页面](design-prompts/01-login-page.md)
-- [首页设计](design-prompts/02-index-page.md)
-- [详情页面](design-prompts/03-detail-page.md)
-- [发布页面](design-prompts/04-publish-page.md)
-- [分类页面](design-prompts/05-category-page.md)
-- [个人中心](design-prompts/06-mine-page.md)
-
-## 🚀 快速开始
-
-1. **创建项目**
-   ```bash
-   npx svton create my-project
-   cd my-project
-   ```
-
-2. **开发环境**
-   ```bash
-   cp apps/backend/.env.example apps/backend/.env
-   pnpm install
-   pnpm dev
-   ```
-
-3. **访问应用**
-   - Admin: http://localhost:3001
-   - Backend: http://localhost:3000
-   - Mobile: 小程序开发工具
-
-## 📖 更多资源
-
-- [GitHub](https://github.com/svton)
-- [npm Packages](https://npmjs.com/org/svton)
-- [发布指南](../RELEASE_GUIDE.md)
+> 基于 NestJS + Next.js + Taro 的全栈 Monorepo 脚手架
 
 ---
 
-**文档结构**:
+## 📖 文档目录
+
+### 🚀 入门指南
+| 文档 | 说明 |
+|------|------|
+| [快速开始](./getting-started/quick-start.md) | 5 分钟快速启动项目 |
+| [项目概览](./getting-started/overview.md) | 项目整体介绍和架构概览 |
+| [环境准备](./getting-started/prerequisites.md) | 开发环境安装和配置 |
+| [项目初始化](./getting-started/initialization.md) | 从零开始创建新项目 |
+
+### 🏗️ 架构设计
+| 文档 | 说明 |
+|------|------|
+| [整体架构](./architecture/overview.md) | 系统架构设计和技术选型 |
+| [Monorepo 结构](./architecture/monorepo.md) | pnpm + Turborepo 工作空间管理 |
+| [目录规范](./architecture/directory-structure.md) | 项目目录结构规范 |
+| [依赖管理](./architecture/dependencies.md) | 包依赖关系和版本管理 |
+
+### 🔧 后端开发 (Backend)
+| 文档 | 说明 |
+|------|------|
+| [NestJS 入门](./backend/nestjs-basics.md) | NestJS 框架基础 |
+| [模块开发](./backend/modules.md) | 如何开发新模块 |
+| [Prisma ORM](./backend/prisma.md) | 数据库操作指南 |
+| [认证授权](./backend/authentication.md) | JWT + Passport 认证系统 |
+| [API 设计](./backend/api-design.md) | RESTful API 设计规范 |
+
+### 💻 管理后台 (Admin)
+| 文档 | 说明 |
+|------|------|
+| [Next.js 入门](./admin/nextjs-basics.md) | Next.js 14 App Router 基础 |
+| [页面开发](./admin/pages.md) | 如何开发新页面 |
+| [组件库](./admin/components.md) | shadcn/ui + Radix UI 组件 |
+| [状态管理](./admin/state-management.md) | Zustand + SWR 状态管理 |
+
+### 📱 移动端 (Mobile)
+| 文档 | 说明 |
+|------|------|
+| [Taro 入门](./mobile/taro-basics.md) | Taro 跨端框架基础 |
+| [页面开发](./mobile/pages.md) | 如何开发小程序页面 |
+| [组件库](./mobile/taro-ui.md) | Taro UI 组件使用 |
+| [样式规范](./mobile/styling.md) | 设计稿转换和样式开发 |
+
+### 📦 共享包 (Packages)
+| 文档 | 说明 |
+|------|------|
+| [cli](./packages/cli.md) | SVTON CLI脚手架工具 |
+| [types](./packages/types.md) | 类型定义包 |
+| [api-client](./packages/api-client.md) | API 客户端包 |
+| [hooks](./packages/hooks.md) | React Hooks 工具包 |
+| [taro-ui](./packages/taro-ui.md) | Taro UI 组件库 |
+
+### 🛠️ 开发工具
+| 文档 | 说明 |
+|------|------|
+| [CLI 命令](./tools/cli.md) | 项目常用命令 |
+| [代码规范](./tools/coding-standards.md) | ESLint + Prettier 配置 |
+| [Git 工作流](./tools/git-workflow.md) | 分支管理和提交规范 |
+| [调试技巧](./tools/debugging.md) | 开发调试技巧 |
+
+### 🚢 部署运维
+| 文档 | 说明 |
+|------|------|
+| [环境配置](./deployment/environment.md) | 环境变量配置指南 |
+| [Docker 部署](./deployment/docker.md) | Docker 容器化部署 |
+| [生产部署](./deployment/production.md) | 生产环境部署流程 |
+| [监控日志](./deployment/monitoring.md) | 日志和监控配置 |
+
+### 📋 参考资料
+| 文档 | 说明 |
+|------|------|
+| [API 文档](./reference/api.md) | 完整 API 接口文档 |
+| [数据库设计](./reference/database.md) | 数据库 Schema 设计 |
+| [配置参考](./reference/configuration.md) | 所有配置项说明 |
+| [常见问题](./reference/faq.md) | FAQ 和问题排查 |
+
+---
+
+## 🎯 技术栈总览
+
 ```
-docs/
-├── architecture/          # 架构设计文档
-├── design-prompts/        # 设计系统和页面提示
-├── guides/               # 开发指南和最佳实践  
-├── CODING_STANDARDS.md   # 编码规范
-├── CONFIG_SYSTEM_DESIGN.md # 配置系统
-├── PERFORMANCE-OPTIMIZATION.md # 性能优化
-└── README.md            # 本文档
+┌─────────────────────────────────────────────────────────────┐
+│                       Svton 架构                             │
+├─────────────────────────────────────────────────────────────┤
+│  Frontend                                                    │
+│  ├── Admin:   Next.js 15 + React 19 + TailwindCSS           │
+│  └── Mobile:  Taro 3.6 + React 18 + SCSS                    │
+├─────────────────────────────────────────────────────────────┤
+│  Backend                                                     │
+│  └── API:     NestJS 10 + Prisma 5 + MySQL 8                │
+├─────────────────────────────────────────────────────────────┤
+│  Shared Packages                                             │
+│  ├── @{org}/types      → 共享类型定义                        │
+│  ├── @{org}/api-client → API 客户端                          │
+│  ├── @{org}/hooks      → React Hooks                        │
+│  └── @{org}/taro-ui    → Taro 组件库                        │
+├─────────────────────────────────────────────────────────────┤
+│  Infrastructure                                              │
+│  ├── pnpm workspace    → Monorepo 管理                       │
+│  ├── Turborepo         → 构建编排                            │
+│  ├── Docker            → 容器化部署                          │
+│  └── Redis             → 缓存服务                            │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**最后更新**: 2024-12-23  
-**SVTON 框架文档 - 完整版**
+---
+
+## 🔗 快速链接
+
+- **脚手架仓库**: https://github.com/nicepkg/svton
+- **API 文档**: http://localhost:3000/api-docs (Swagger)
+- **管理后台**: http://localhost:3001
+
+---
+
+**版本**: 1.0.0  
+**最后更新**: 2024-12

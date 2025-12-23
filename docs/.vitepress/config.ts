@@ -4,6 +4,8 @@ export default defineConfig({
   title: 'Svton',
   description: '基于 NestJS + Next.js + Taro 的全栈 Monorepo 脚手架',
   lang: 'zh-CN',
+  base: '/svton/',
+  ignoreDeadLinks: true,
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
@@ -76,7 +78,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/nicepkg/svton' },
+      { icon: 'github', link: 'https://github.com/751848178/svton' },
     ],
 
     footer: {
@@ -120,7 +122,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: 'https://github.com/nicepkg/svton/edit/main/docs/architecture/:path',
+      pattern: 'https://github.com/751848178/svton/edit/master/docs/:path',
       text: '在 GitHub 上编辑此页',
     },
   },
