@@ -68,13 +68,13 @@ rm -rf my-test-app
 ### 使用 npx（推荐）
 
 ```bash
-npx svton create my-app
+npx @svton/cli create my-app
 ```
 
 ### 全局安装
 
 ```bash
-npm install -g svton
+npm install -g @svton/cli
 svton create my-app
 ```
 
@@ -121,10 +121,10 @@ svton create my-app
 
 ```bash
 # 检查包是否可以搜索到
-npm search svton
+npm search @svton/cli
 
 # 测试安装
-npx svton create test-project
+npx @svton/cli create test-project
 ```
 
 ## 📊 发布后续

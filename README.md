@@ -17,7 +17,7 @@ Svton 是一个完整的全栈应用框架，提供：
 
 | 包名 | 描述 | npm |
 |------|------|-----|
-| `svton` | CLI 脚手架工具 | [![npm](https://img.shields.io/npm/v/svton.svg)](https://www.npmjs.com/package/svton) |
+| `@svton/cli` | CLI 脚手架工具 | [![npm](https://img.shields.io/npm/v/@svton/cli.svg)](https://www.npmjs.com/package/@svton/cli) |
 | `@svton/api-client` | TypeScript API 客户端 | [![npm](https://img.shields.io/npm/v/@svton/api-client.svg)](https://www.npmjs.com/package/@svton/api-client) |
 | `@svton/hooks` | React Hooks 集合 | [![npm](https://img.shields.io/npm/v/@svton/hooks.svg)](https://www.npmjs.com/package/@svton/hooks) |
 | `@svton/taro-ui` | Taro UI 组件库 | [![npm](https://img.shields.io/npm/v/@svton/taro-ui.svg)](https://www.npmjs.com/package/@svton/taro-ui) |
@@ -26,10 +26,10 @@ Svton 是一个完整的全栈应用框架，提供：
 
 ```bash
 # 创建新项目
-npx svton create my-app
+npx @svton/cli create my-app
 
 # 或全局安装后使用
-npm install -g svton
+npm install -g @svton/cli
 svton create my-app
 ```
 

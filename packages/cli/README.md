@@ -1,8 +1,8 @@
-# svton
+# @svton/cli
 
 > Svton CLI - 使用 NestJS、Next.js 和 Taro 创建全栈应用
 
-[![npm version](https://badge.fury.io/js/svton.svg)](https://badge.fury.io/js/svton)
+[![npm version](https://badge.fury.io/js/@svton/cli.svg)](https://badge.fury.io/js/@svton/cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 特性
@@ -18,10 +18,10 @@
 
 ```bash
 # 推荐方式 (npx)
-npx svton create my-app
+npx @svton/cli create my-app
 
 # 全局安装后使用
-npm install -g svton
+npm install -g @svton/cli
 svton create my-app
 ```
 

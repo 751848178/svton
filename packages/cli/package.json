@@ -1,5 +1,5 @@
 {
-  "name": "svton",
+  "name": "@svton/cli",
   "version": "1.0.0",
   "description": "Svton CLI - Create full-stack applications with NestJS, Next.js, and Taro",
   "keywords": [
@@ -14,13 +14,13 @@
   ],
   "author": "SVTON Team",
   "license": "MIT",
-  "homepage": "https://github.com/svton/create-svton-app#readme",
+  "homepage": "https://github.com/751848178/svton#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/svton/create-svton-app.git"
+    "url": "https://github.com/751848178/svton.git"
   },
   "bugs": {
-    "url": "https://github.com/svton/create-svton-app/issues"
+    "url": "https://github.com/751848178/svton/issues"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
