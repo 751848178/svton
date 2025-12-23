@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id          Int      @id @default(autoincrement())
+  phone       String   @unique
+  password    String
+  nickname    String
+  avatar      String?
+  email       String?
+  bio         String?  @db.Text
+  role        String   @default("user") // user, admin, super_admin
+  status      Int      @default(1) // 0: 禁用, 1: 启用
+  lastLoginAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contents    Content[]
+  comments    Comment[]
+
+  @@index([phone])
+  @@index([role])
+  @@index([status])
+  @@map("users")
+}
+
+// 内容模型
+model Content {
+  id           Int      @id @default(autoincrement())
+  title        String
+  content      String   @db.Text
+  images       String?  @db.Text // JSON array
+  status       String   @default("draft") // draft, pending, published, rejected
+  viewCount    Int      @default(0)
+  likeCount    Int      @default(0)
+  commentCount Int      @default(0)
+  authorId     Int
+  author       User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  comments     Comment[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("contents")
+}
+
+// 评论模型
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  contentId Int
+  content_  Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likeCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contentId])
+  @@index([authorId])
+  @@map("comments")
+}
