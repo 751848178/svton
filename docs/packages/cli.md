@@ -1,78 +1,202 @@
 # @svton/cli
 
-CLI 脚手架工具，用于快速创建 Svton 全栈项目。
+> SVTON CLI脚手架工具 - 快速创建SVTON项目
 
-## 安装
+---
 
-```bash
-npm install -g @svton/cli
-```
+## 📦 包信息
 
-## 使用
+| 属性 | 值 |
+|------|---|
+| **包名** | `@svton/cli` |
+| **版本** | `1.0.0` |
+| **命令** | `svton` |
+| **入口** | `bin/index.js` |
 
-```bash
-svton create <project-name> [options]
-svton init <project-name> [options]   # 别名
-svton new <project-name> [options]    # 别名
-```
+---
 
-## 选项
+## 🎯 设计原则
 
-| 选项 | 说明 | 默认值 |
-|------|------|--------|
-| `-o, --org <name>` | 组织名称 | 项目名 |
-| `-t, --template <template>` | 模板类型 | 交互选择 |
-| `-p, --package-manager <pm>` | 包管理器 | pnpm |
-| `--skip-install` | 跳过依赖安装 | false |
-| `--skip-git` | 跳过 Git 初始化 | false |
+1. **简单易用** - `svton create [project-name]` 一键创建项目
+2. **模板丰富** - 支持fullstack、admin、backend、mobile四种模板
+3. **配置灵活** - 支持自定义组织名、跳过安装等选项
+4. **即开即用** - 无需全局安装，使用npx直接运行
 
-## 模板
+---
 
-### full-stack
+## 🛠️ 命令用法
 
-完整全栈应用，包含：
-- **Backend**: NestJS + Prisma + MySQL + Redis
-- **Admin**: Next.js + TailwindCSS + shadcn/ui
-- **Mobile**: Taro + React (微信小程序)
-- **Types**: 共享类型定义
-
-### backend-only
-
-仅后端服务：
-- NestJS API 服务器
-- Prisma ORM
-- JWT 认证
-- Swagger 文档
-
-### admin-only
-
-仅管理后台：
-- Next.js 15 (App Router)
-- TailwindCSS
-- shadcn/ui 组件库
-
-### mobile-only
-
-仅移动端应用：
-- Taro 3.6
-- React 18
-- 微信小程序支持
-
-## 示例
+### 基本命令
 
 ```bash
-# 创建全栈应用
-svton create my-app
+# 创建完整项目(默认)
+npx svton create my-app
 
-# 使用自定义组织名
-svton create my-app --org my-company
+# 创建特定模板
+npx svton create my-app --template admin
+npx svton create my-app --template backend  
+npx svton create my-app --template mobile
 
-# 创建仅后端项目
-svton create my-api --template backend-only
+# 自定义配置
+npx svton create my-app --org my-company --skip-install
 
-# 跳过依赖安装
-svton create my-app --skip-install
-
-# 使用 yarn
-svton create my-app --package-manager yarn
+# 查看帮助
+npx svton create --help
 ```
+
+### 支持的模板
+
+| 模板 | 说明 | 包含内容 |
+|------|------|---------|
+| **fullstack** | 完整项目(默认) | Admin + Backend + Mobile + Types |
+| **admin** | 管理后台 | Next.js + @svton/api-client + SWR |
+| **backend** | 后端API | NestJS + Prisma + JWT Auth |
+| **mobile** | 移动端 | Taro + @svton/taro-ui |
+
+---
+
+## 📁 目录结构
+
+```
+packages/svton/
+├── bin/
+│   └── index.js              # CLI入口文件
+├── templates/                # 项目模板
+│   ├── root/                 # 根目录模板
+│   │   ├── package.json.tpl  # 根package.json模板
+│   │   └── turbo.json.tpl    # Turbo配置模板
+│   ├── apps/                 # 应用模板
+│   │   ├── admin/            # Next.js管理后台模板
+│   │   ├── backend/          # NestJS后端模板
+│   │   └── mobile/           # Taro移动端模板
+│   └── packages/             # 包模板
+│       └── types/            # 类型定义模板
+├── package.json              # CLI包配置
+└── README.md                 # 使用文档
+```
+
+---
+
+## ⚙️ 模板变量替换
+
+CLI使用模板变量系统来自定义生成的项目：
+
+| 变量 | 描述 | 示例 |
+|------|------|------|
+| `{{PROJECT_NAME}}` | 项目名称 | `my-app` |
+| `{{ORG_NAME}}` | 组织名 | `my-org` |
+
+### 共享包固定命名
+
+共享包将发布到npm，使用固定的@svton组织名：
+
+```json
+{
+  "dependencies": {
+    "@svton/api-client": "^1.0.0",
+    "@svton/types": "^1.0.0", 
+    "@svton/hooks": "^1.0.0",
+    "@svton/taro-ui": "^1.0.0"
+  }
+}
+```
+
+**不使用**组织名变量替换：
+- ❌ `"{{ORG_NAME}}/api-client"`
+- ✅ `"@svton/api-client"`
+
+---
+
+## 🔧 模板处理逻辑
+
+### 1. 文件复制和重命名
+
+```javascript
+// 模板文件后缀处理
+'file.tpl' → 'file'           // 移除.tpl后缀
+'gitignore.tpl' → '.gitignore' // 特殊文件重命名
+```
+
+### 2. 变量替换
+
+```javascript
+const replaceVariables = (content, vars) => {
+  return content
+    .replace(/\{\{PROJECT_NAME\}\}/g, vars.projectName)
+    .replace(/\{\{ORG_NAME\}\}/g, vars.orgName);
+};
+```
+
+### 3. 条件文件包含
+
+根据模板类型决定包含哪些文件：
+
+```javascript
+const templateFiles = {
+  fullstack: ['admin', 'backend', 'mobile', 'types'],
+  admin: ['admin', 'types'],
+  backend: ['backend', 'types'], 
+  mobile: ['mobile', 'types']
+};
+```
+
+---
+
+## 🚀 开发工作流
+
+### 本地开发测试
+
+```bash
+# 进入CLI包目录
+cd packages/svton
+
+# 本地链接
+npm link
+
+# 测试命令  
+svton create test-project
+
+# 取消链接
+npm unlink -g @svton/cli
+```
+
+### 模板更新
+
+```bash
+# 修改模板文件
+packages/svton/templates/apps/admin/...
+
+# 测试新模板
+npx svton create test-app --template admin
+```
+
+---
+
+## 📋 发布清单
+
+发布前检查：
+
+- [ ] 版本号已更新
+- [ ] 所有模板文件完整
+- [ ] 共享包使用固定@svton命名
+- [ ] CLI命令测试通过
+- [ ] README文档已更新
+
+```bash
+# 发布到npm
+cd packages/svton
+npm publish --access public
+```
+
+---
+
+## 🔗 相关文档
+
+- [快速开始](../getting-started/quick-start.md) - 使用CLI创建项目
+- [项目模板](../architecture/monorepo.md) - 了解项目结构
+- [包管理](./types.md) - 共享类型包
+
+---
+
+**最后更新**: 2024-12-23
+**维护者**: SVTON CLI团队
