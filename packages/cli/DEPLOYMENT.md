@@ -1,4 +1,4 @@
-# create-svton-app 发布指南
+# svton CLI 发布指南
 
 ## 📦 发布到 npm
 
@@ -48,11 +48,11 @@ npm publish
 
 ```bash
 # 在项目根目录，使用相对路径测试
-node bin/create-svton-app.js my-test-app --skip-install
+node bin/svton.js create my-test-app --skip-install
 
 # 或者全局安装进行测试
 npm install -g .
-create-svton-app my-test-app --skip-install
+svton create my-test-app --skip-install
 ```
 
 ### 清理测试项目
@@ -65,29 +65,17 @@ rm -rf my-test-app
 
 发布后，用户可以通过以下方式使用：
 
-### 使用 npm
+### 使用 npx（推荐）
 
 ```bash
-npm create svton-app my-app
-```
-
-### 使用 yarn
-
-```bash
-yarn create svton-app my-app  
-```
-
-### 使用 pnpm
-
-```bash
-pnpm create svton-app my-app
+npx svton create my-app
 ```
 
 ### 全局安装
 
 ```bash
-npm install -g create-svton-app
-create-svton-app my-app
+npm install -g svton
+svton create my-app
 ```
 
 ## 📋 发布检查清单
@@ -133,10 +121,10 @@ create-svton-app my-app
 
 ```bash
 # 检查包是否可以搜索到
-npm search create-svton-app
+npm search svton
 
 # 测试安装
-npm create svton-app test-project
+npx svton create test-project
 ```
 
 ## 📊 发布后续
