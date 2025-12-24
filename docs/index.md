@@ -56,15 +56,15 @@ features:
 ## 📦 共享包
 
 ```typescript
-// 类型定义 - {org} 为你的项目组织名
+// 类型定义 - 项目私有包，{org} 为你的项目组织名
 import type { UserVo, ContentVo } from '@{org}/types';
 
-// API 客户端
-import { apiAsync } from '@{org}/api-client';
+// API 客户端 - @svton 公共包
+import { apiAsync } from '@svton/api-client';
 
-// React Hooks
-import { usePersistFn, useDebounce } from '@{org}/hooks';
+// React Hooks - @svton 公共包
+import { usePersistFn, useDebounce } from '@svton/hooks';
 
-// Taro UI 组件
-import { NavBar, Button } from '@{org}/taro-ui';
+// Taro UI 组件 - @svton 公共包
+import { NavBar, Button } from '@svton/taro-ui';
 ```

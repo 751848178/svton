@@ -6,14 +6,26 @@
 
 ## 🎯 初始化方式
 
-### 方式一：使用脚手架脚本 (推荐)
+### 方式一：使用 SVTON CLI (推荐)
 
 ```bash
-# 运行项目初始化脚本
-./scripts/init-project.sh my-new-project
+# 全局安装 CLI
+npm install -g @svton/cli
 
-# 或指定完整路径
-bash scripts/init-project.sh /path/to/my-new-project
+# 创建新项目
+svton create my-new-project
+
+# 或使用 npx（无需全局安装）
+npx @svton/cli create my-new-project
+
+# 非交互式创建（使用默认配置）
+svton create my-new-project -y
+
+# 指定模板类型
+svton create my-new-project -t full-stack      # 完整项目（默认）
+svton create my-new-project -t backend-only    # 仅后端
+svton create my-new-project -t admin-only      # 仅管理后台
+svton create my-new-project -t mobile-only     # 仅移动端
 ```
 
 ### 方式二：手动初始化
@@ -152,7 +164,7 @@ cat > package.json << 'EOF'
     "@nestjs/platform-express": "^10.3.0",
     "@nestjs/swagger": "^7.1.17",
     "@prisma/client": "^5.7.1",
-    "@svton/types": "workspace:*",
+    "@my-new-project/types": "workspace:*",
     "bcrypt": "^5.1.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
@@ -212,9 +224,9 @@ cat > package.json << 'EOF'
     "@radix-ui/react-select": "^2.0.0",
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-tabs": "^1.0.4",
-    "@svton/api-client": "workspace:*",
-    "@svton/hooks": "workspace:*",
-    "@svton/types": "workspace:*",
+    "@svton/api-client": "^1.0.0",
+    "@svton/hooks": "^1.0.0",
+    "@my-new-project/types": "workspace:*",
     "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -271,10 +283,10 @@ cat > package.json << 'EOF'
   },
   "dependencies": {
     "@babel/runtime": "^7.23.6",
-    "@svton/api-client": "workspace:*",
-    "@svton/hooks": "workspace:*",
-    "@svton/taro-ui": "workspace:*",
-    "@svton/types": "workspace:*",
+    "@svton/api-client": "^1.0.0",
+    "@svton/hooks": "^1.0.0",
+    "@svton/taro-ui": "^1.0.0",
+    "@my-new-project/types": "workspace:*",
     "@tarojs/components": "3.6.23",
     "@tarojs/plugin-framework-react": "3.6.23",
     "@tarojs/plugin-platform-weapp": "3.6.23",
@@ -304,14 +316,14 @@ mkdir -p src/{pages,components,store,styles,utils}
 
 ## 📝 步骤 6: 初始化共享包
 
-### @svton/types
+### @{org}/types (项目私有包)
 
 ```bash
 cd ../../packages/types
 
 cat > package.json << 'EOF'
 {
-  "name": "@svton/types",
+  "name": "@my-new-project/types",
   "version": "1.0.0",
   "description": "共享类型定义",
   "main": "./dist/index.js",
@@ -330,72 +342,19 @@ EOF
 mkdir -p src/api
 ```
 
-### @svton/api-client
+### 公共包说明
+
+以下公共包已发布到 npm，无需手动创建，直接安装使用即可：
+
+| 包名 | 说明 |
+|------|------|
+| `@svton/api-client` | API 客户端 |
+| `@svton/hooks` | React Hooks 工具 |
+| `@svton/taro-ui` | Taro UI 组件库 |
 
 ```bash
-cd ../api-client
-
-cat > package.json << 'EOF'
-{
-  "name": "@svton/api-client",
-  "version": "0.1.0",
-  "description": "API Client",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch"
-  },
-  "dependencies": {
-    "@svton/types": "workspace:*"
-  },
-  "devDependencies": {
-    "tsup": "^8.0.1",
-    "typescript": "^5.3.3"
-  }
-}
-EOF
-
-mkdir -p src/modules
-```
-
-### @svton/hooks
-
-```bash
-cd ../hooks
-
-cat > package.json << 'EOF'
-{
-  "name": "@svton/hooks",
-  "version": "0.1.0",
-  "description": "通用 React Hooks",
-  "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.ts",
-  "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch"
-  },
-  "peerDependencies": {
-    "react": "^18.0.0"
-  },
-  "devDependencies": {
-    "@types/react": "^18.2.0",
-    "tsup": "^8.0.0",
-    "typescript": "^5.3.0"
-  }
-}
-EOF
-
-mkdir -p src
+# 在 apps/admin 或 apps/mobile 中安装
+pnpm add @svton/api-client @svton/hooks
 ```
 
 ---

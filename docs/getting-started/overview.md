@@ -153,12 +153,11 @@ community-next/
 
 ## 🎨 共享包设计
 
-所有共享代码统一使用 `@svton` 命名空间：
+共享代码分为两类：
+
+**公共包**（使用 `@svton` 命名空间，发布到 npm）：
 
 ```typescript
-// 类型定义
-import type { ContentVo, UserVo } from '@svton/types';
-
 // API 调用
 import { apiAsync, defineApi } from '@svton/api-client';
 
@@ -167,6 +166,13 @@ import { usePersistFn, useDebounce } from '@svton/hooks';
 
 // Taro UI 组件
 import { NavBar, StatusBar, Button } from '@svton/taro-ui';
+```
+
+**私有包**（使用项目组织名，如 `@my-project`）：
+
+```typescript
+// 类型定义（项目私有包）
+import type { ContentVo, UserVo } from '@my-project/types';
 ```
 
 ---

@@ -1,6 +1,6 @@
-# @svton/types
+# @{org}/types
 
-> 共享类型定义包 - 前后端统一的 TypeScript 类型
+> 共享类型定义包 - 前后端统一的 TypeScript 类型（项目私有包）
 
 ---
 
@@ -8,10 +8,12 @@
 
 | 属性 | 值 |
 |------|---|
-| **包名** | `@svton/types` |
+| **包名** | `@{org}/types` (项目私有包，`{org}` 为项目组织名) |
 | **版本** | `1.0.0` |
 | **入口** | `dist/index.js` |
 | **类型** | `dist/index.d.ts` |
+
+> **注意**: `types` 包是项目私有包，不发布到 npm。使用 CLI 创建项目时，包名会自动替换为项目组织名，如 `@my-project/types`。
 
 ---
 
@@ -183,10 +185,10 @@ export interface QueryContentDto {
 ### 安装依赖
 
 ```json
-// 在其他包的 package.json 中
+// 在其他包的 package.json 中（以 @my-project 为例）
 {
   "dependencies": {
-    "@svton/types": "workspace:*"
+    "@my-project/types": "workspace:*"
   }
 }
 ```
@@ -194,8 +196,8 @@ export interface QueryContentDto {
 ### 导入类型
 
 ```typescript
-// 导入单个类型
-import type { UserVo, ContentVo } from '@svton/types';
+// 导入单个类型（以 @my-project 为例）
+import type { UserVo, ContentVo } from '@my-project/types';
 
 // 导入多个类型
 import type {
@@ -203,14 +205,14 @@ import type {
   ApiResponse,
   ContentDetailVo,
   CreateContentDto,
-} from '@svton/types';
+} from '@my-project/types';
 ```
 
 ### 在后端使用
 
 ```typescript
 // apps/backend/src/modules/user/user.service.ts
-import type { UserVo, UpdateUserProfileDto } from '@svton/types';
+import type { UserVo, UpdateUserProfileDto } from '@my-project/types';
 
 @Injectable()
 export class UserService {
@@ -228,7 +230,7 @@ export class UserService {
 
 ```typescript
 // apps/admin/src/lib/api.ts
-import type { ContentVo, PaginatedResponse } from '@svton/types';
+import type { ContentVo, PaginatedResponse } from '@my-project/types';
 
 const { data } = await apiAsync<PaginatedResponse<ContentVo>>(
   'GET:/contents',
@@ -265,10 +267,10 @@ const { data } = await apiAsync<PaginatedResponse<ContentVo>>(
 
 ```bash
 # 构建
-pnpm --filter @svton/types build
+pnpm --filter @my-project/types build
 
 # 监听模式
-pnpm --filter @svton/types dev
+pnpm --filter @my-project/types dev
 ```
 
 ---
@@ -301,7 +303,7 @@ export * from './api/example';
 ### 3. 重新构建
 
 ```bash
-pnpm --filter @svton/types build
+pnpm --filter @my-project/types build
 ```
 
 ---

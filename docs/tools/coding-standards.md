@@ -6,17 +6,23 @@
 
 ## 📦 包命名规范
 
-所有自定义包统一使用 `@svton` 组织名：
+### 项目私有包（使用项目组织名 `@{org}`）
 
 | 包名 | 类型 | 说明 |
 |------|------|------|
-| `@svton/backend` | app | 后端 API |
-| `@svton/admin` | app | 管理后台 |
-| `@svton/mobile` | app | 移动端小程序 |
-| `@svton/types` | package | TypeScript 类型定义 |
+| `@{org}/backend` | app | 后端 API |
+| `@{org}/admin` | app | 管理后台 |
+| `@{org}/mobile` | app | 移动端小程序 |
+| `@{org}/types` | package | TypeScript 类型定义 |
+
+### 公共包（使用 `@svton` 组织名，发布到 npm）
+
+| 包名 | 类型 | 说明 |
+|------|------|------|
 | `@svton/api-client` | package | API 客户端 |
 | `@svton/hooks` | package | React Hooks |
 | `@svton/taro-ui` | package | Taro UI 组件库 |
+| `@svton/cli` | package | CLI 脚手架工具 |
 
 ---
 
@@ -88,11 +94,11 @@ export default function MyPage() {
 
 ## 📐 类型定义规范
 
-### 必须使用 @svton/types
+### 必须使用项目 types 包
 
 ```typescript
-// ✅ 正确：从 @svton/types 导入类型
-import type { UserVo, ContentVo, PaginatedResponse } from '@svton/types';
+// ✅ 正确：从项目 types 包导入类型（以 @my-project 为例）
+import type { UserVo, ContentVo, PaginatedResponse } from '@my-project/types';
 
 // ❌ 错误：自己定义重复类型
 interface UserVo {
@@ -193,7 +199,7 @@ METHOD:/path
 
 ### 类型检查
 
-- [ ] 类型来自 `@svton/types`
+- [ ] 类型来自项目 `@{org}/types` 包
 - [ ] API 响应有正确的类型定义
 
 ### API 检查
