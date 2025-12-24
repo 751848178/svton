@@ -11,14 +11,14 @@
 | **包名** | `@svton/cli` |
 | **版本** | `1.0.0` |
 | **命令** | `svton` |
-| **入口** | `bin/index.js` |
+| **入口** | `bin/svton.js` |
 
 ---
 
 ## 🎯 设计原则
 
 1. **简单易用** - `svton create [project-name]` 一键创建项目
-2. **模板丰富** - 支持fullstack、admin、backend、mobile四种模板
+2. **模板丰富** - 支持 full-stack、admin-only、backend-only、mobile-only 四种模板
 3. **配置灵活** - 支持自定义组织名、跳过安装等选项
 4. **即开即用** - 无需全局安装，使用npx直接运行
 
@@ -29,29 +29,38 @@
 ### 基本命令
 
 ```bash
-# 创建完整项目(默认)
-npx @svton/cli create my-app
+# 全局安装
+npm install -g @svton/cli
+
+# 创建完整项目(默认 full-stack)
+svton create my-app
 
 # 创建特定模板
-npx @svton/cli create my-app --template admin
-npx @svton/cli create my-app --template backend  
-npx @svton/cli create my-app --template mobile
+svton create my-app -t admin-only     # 仅管理后台
+svton create my-app -t backend-only   # 仅后端 API
+svton create my-app -t mobile-only    # 仅移动端
 
 # 自定义配置
-npx @svton/cli create my-app --org my-company --skip-install
+svton create my-app -o my-company --skip-install
+
+# 非交互式模式（跳过所有提示）
+svton create my-app -y
 
 # 查看帮助
-npx @svton/cli create --help
+svton create --help
+
+# 使用 npx 运行（无需全局安装）
+npx @svton/cli create my-app
 ```
 
 ### 支持的模板
 
 | 模板 | 说明 | 包含内容 |
-|------|------|---------|
-| **fullstack** | 完整项目(默认) | Admin + Backend + Mobile + Types |
-| **admin** | 管理后台 | Next.js + @svton/api-client + SWR |
-| **backend** | 后端API | NestJS + Prisma + JWT Auth |
-| **mobile** | 移动端 | Taro + @svton/taro-ui |
+|------|------|--------|
+| **full-stack** | 完整项目(默认) | Admin + Backend + Mobile + Types |
+| **admin-only** | 管理后台 | Next.js + @svton/api-client + SWR |
+| **backend-only** | 后端API | NestJS + Prisma + JWT Auth |
+| **mobile-only** | 移动端 | Taro + @svton/taro-ui |
 
 ---
 
@@ -82,24 +91,31 @@ CLI使用模板变量系统来自定义生成的项目：
 | `{{PROJECT_NAME}}` | 项目名称 | `my-app` |
 | `{{ORG_NAME}}` | 组织名 | `my-org` |
 
-### 共享包固定命名
+### 包命名规则
 
-共享包将发布到npm，使用固定的@svton组织名：
+**公共包**（发布到 npm，使用固定 @svton 组织名）：
 
 ```json
 {
   "dependencies": {
     "@svton/api-client": "^1.0.0",
-    "@svton/types": "^1.0.0", 
     "@svton/hooks": "^1.0.0",
     "@svton/taro-ui": "^1.0.0"
   }
 }
 ```
 
-**不使用**组织名变量替换：
-- ❌ `"{{ORG_NAME}}/api-client"`
-- ✅ `"@svton/api-client"`
+**私有包**（项目内部使用，使用项目组织名）：
+
+```json
+{
+  "dependencies": {
+    "@my-project/types": "workspace:*"
+  }
+}
+```
+
+> **注意**: `types` 包是项目私有包，使用 `{{ORG_NAME}}/types` 模板变量，创建后会替换为项目组织名。
 
 ---
 
@@ -129,10 +145,10 @@ const replaceVariables = (content, vars) => {
 
 ```javascript
 const templateFiles = {
-  fullstack: ['admin', 'backend', 'mobile', 'types'],
-  admin: ['admin', 'types'],
-  backend: ['backend', 'types'], 
-  mobile: ['mobile', 'types']
+  'full-stack': ['admin', 'backend', 'mobile', 'types'],
+  'admin-only': ['admin', 'types'],
+  'backend-only': ['backend', 'types'], 
+  'mobile-only': ['mobile', 'types']
 };
 ```
 
@@ -163,7 +179,7 @@ npm unlink -g @svton/cli
 
 ```bash
 # 测试新版本
-npx @svton/cli create test-app --template admin
+svton create test-app -t admin-only -y
 ```
 
 ---

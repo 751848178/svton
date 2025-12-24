@@ -96,10 +96,10 @@
 │  └── API:     NestJS 10 + Prisma 5 + MySQL 8                │
 ├─────────────────────────────────────────────────────────────┤
 │  Shared Packages                                             │
-│  ├── @{org}/types      → 共享类型定义                        │
-│  ├── @{org}/api-client → API 客户端                          │
-│  ├── @{org}/hooks      → React Hooks                        │
-│  └── @{org}/taro-ui    → Taro 组件库                        │
+│  ├── @{org}/types      → 共享类型定义（项目私有包）            │
+│  ├── @svton/api-client → API 客户端（npm 公共包）             │
+│  ├── @svton/hooks      → React Hooks（npm 公共包）           │
+│  └── @svton/taro-ui    → Taro 组件库（npm 公共包）           │
 ├─────────────────────────────────────────────────────────────┤
 │  Infrastructure                                              │
 │  ├── pnpm workspace    → Monorepo 管理                       │

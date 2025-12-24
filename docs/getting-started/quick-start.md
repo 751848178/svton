@@ -17,13 +17,16 @@
 
 ---
 
-## 🚀 使用CLI创建项目 (推荐)
+## 🚀 使用 CLI 创建项目 (推荐)
 
-### 步骤 1: 使用SVTON CLI创建项目
+### 步骤 1: 使用 SVTON CLI 创建项目
 
 ```bash
+# 全局安装 CLI
+npm install -g @svton/cli
+
 # 创建新项目
-npx @svton/cli create my-project
+svton create my-project
 cd my-project
 ```
 
@@ -192,18 +195,31 @@ pnpm install
 
 **遇到问题?** 查看 [常见问题](../reference/faq.md) 或提交 Issue。
 
-## 🛠️ 使用SVTON CLI
+## 🛠️ 使用 SVTON CLI
 
 ```bash
+# 全局安装 CLI
+npm install -g @svton/cli
+
 # 查看所有可用命令
-npx @svton/cli create --help
+svton create --help
 
 # 创建不同类型的项目
-npx @svton/cli create my-app --template fullstack  # 完整项目(默认)
-npx @svton/cli create my-admin --template admin    # 仅管理后台
-npx @svton/cli create my-api --template backend    # 仅后端API
-npx @svton/cli create my-mobile --template mobile  # 仅移动端
+svton create my-app                              # 完整项目(默认 full-stack)
+svton create my-app -t full-stack                # 完整项目
+svton create my-admin -t admin-only              # 仅管理后台
+svton create my-api -t backend-only              # 仅后端API
+svton create my-mobile -t mobile-only            # 仅移动端
+
+# 非交互式创建（跳过所有提示）
+svton create my-app -y
+
+# 自定义组织名
+svton create my-app -o my-company
 
 # 跳过依赖安装
-npx @svton/cli create my-app --skip-install
+svton create my-app --skip-install
+
+# 使用 npx 运行（无需全局安装）
+npx @svton/cli create my-app
 ```
