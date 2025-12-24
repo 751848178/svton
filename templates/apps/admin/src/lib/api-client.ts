@@ -10,7 +10,7 @@ import {
   createUnauthorizedInterceptor,
 } from '@svton/api-client';
 // 引入类型定义以启用模块增强
-import '@svton/types';
+import '{{ORG_NAME}}/types';
 
 /**
  * Axios 适配器

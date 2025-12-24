@@ -14,7 +14,7 @@ import useSWRMutation, { type SWRMutationConfiguration } from 'swr/mutation';
 import { apiAsync } from '@/lib/api-client';
 import type { ApiName, ApiParams, ApiResponse } from '@svton/api-client';
 // 引入类型定义以启用模块增强
-import '@svton/types';
+import '{{ORG_NAME}}/types';
 
 /**
  * 生成 SWR key
