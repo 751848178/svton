@@ -17,7 +17,7 @@ hero:
       link: /architecture/overview
     - theme: alt
       text: GitHub
-      link: https://github.com/nicepkg/svton
+      link: https://github.com/751848178/svton
 
 features:
   - icon: 🏗️
