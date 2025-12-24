@@ -113,7 +113,7 @@
 
 ## 🔗 快速链接
 
-- **脚手架仓库**: https://github.com/nicepkg/svton
+- **脚手架仓库**: https://github.com/751848178/svton
 - **API 文档**: http://localhost:3000/api-docs (Swagger)
 - **管理后台**: http://localhost:3001
 

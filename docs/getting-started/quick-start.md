@@ -23,15 +23,15 @@
 
 ```bash
 # 创建新项目
-npx svton create my-project
+npx @svton/cli create my-project
 cd my-project
 ```
 
 ### 或者克隆现有项目
 
 ```bash
-git clone <your-repo-url> community-next
-cd community-next
+git clone <your-repo-url> my-project
+cd my-project
 ```
 
 ### 步骤 2: 启动基础服务
@@ -196,14 +196,14 @@ pnpm install
 
 ```bash
 # 查看所有可用命令
-npx svton create --help
+npx @svton/cli create --help
 
 # 创建不同类型的项目
-npx svton create my-app --template fullstack  # 完整项目(默认)
-npx svton create my-admin --template admin    # 仅管理后台
-npx svton create my-api --template backend    # 仅后端API
-npx svton create my-mobile --template mobile  # 仅移动端
+npx @svton/cli create my-app --template fullstack  # 完整项目(默认)
+npx @svton/cli create my-admin --template admin    # 仅管理后台
+npx @svton/cli create my-api --template backend    # 仅后端API
+npx @svton/cli create my-mobile --template mobile  # 仅移动端
 
 # 跳过依赖安装
-npx svton create my-app --skip-install
+npx @svton/cli create my-app --skip-install
 ```

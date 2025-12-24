@@ -30,18 +30,18 @@
 
 ```bash
 # 创建完整项目(默认)
-npx svton create my-app
+npx @svton/cli create my-app
 
 # 创建特定模板
-npx svton create my-app --template admin
-npx svton create my-app --template backend  
-npx svton create my-app --template mobile
+npx @svton/cli create my-app --template admin
+npx @svton/cli create my-app --template backend  
+npx @svton/cli create my-app --template mobile
 
 # 自定义配置
-npx svton create my-app --org my-company --skip-install
+npx @svton/cli create my-app --org my-company --skip-install
 
 # 查看帮助
-npx svton create --help
+npx @svton/cli create --help
 ```
 
 ### 支持的模板
@@ -58,19 +58,15 @@ npx svton create --help
 ## 📁 目录结构
 
 ```
-packages/svton/
+packages/cli/
 ├── bin/
-│   └── index.js              # CLI入口文件
-├── templates/                # 项目模板
-│   ├── root/                 # 根目录模板
-│   │   ├── package.json.tpl  # 根package.json模板
-│   │   └── turbo.json.tpl    # Turbo配置模板
-│   ├── apps/                 # 应用模板
-│   │   ├── admin/            # Next.js管理后台模板
-│   │   ├── backend/          # NestJS后端模板
-│   │   └── mobile/           # Taro移动端模板
-│   └── packages/             # 包模板
-│       └── types/            # 类型定义模板
+│   └── svton.js              # CLI入口文件
+├── src/
+│   ├── commands/             # 命令实现
+│   │   └── create.ts         # create 命令
+│   ├── utils/                # 工具函数
+│   └── index.ts              # 主入口
+├── dist/                     # 构建输出
 ├── package.json              # CLI包配置
 └── README.md                 # 使用文档
 ```
@@ -148,7 +144,10 @@ const templateFiles = {
 
 ```bash
 # 进入CLI包目录
-cd packages/svton
+cd packages/cli
+
+# 构建
+pnpm build
 
 # 本地链接
 npm link
@@ -160,14 +159,11 @@ svton create test-project
 npm unlink -g @svton/cli
 ```
 
-### 模板更新
+### 发布测试
 
 ```bash
-# 修改模板文件
-packages/svton/templates/apps/admin/...
-
-# 测试新模板
-npx svton create test-app --template admin
+# 测试新版本
+npx @svton/cli create test-app --template admin
 ```
 
 ---
@@ -184,7 +180,7 @@ npx svton create test-app --template admin
 
 ```bash
 # 发布到npm
-cd packages/svton
+cd packages/cli
 npm publish --access public
 ```
 
