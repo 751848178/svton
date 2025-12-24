@@ -29,7 +29,7 @@
     "@nestjs/platform-express": "^10.3.0",
     "@nestjs/swagger": "^7.1.17",
     "@prisma/client": "^5.7.1",
-    "@svton/types": "^1.0.0",
+    "@{{ORG_NAME}}/types": "workspace:*",
     "bcrypt": "^5.1.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",

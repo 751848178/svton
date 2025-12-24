@@ -21,7 +21,7 @@
     "@svton/api-client": "^1.0.0",
     "@svton/hooks": "^1.0.0",
     "@svton/taro-ui": "^1.0.0",
-    "@svton/types": "^1.0.0",
+    "@{{ORG_NAME}}/types": "workspace:*",
     "@tarojs/components": "3.6.23",
     "@tarojs/helper": "3.6.23",
     "@tarojs/plugin-framework-react": "3.6.23",

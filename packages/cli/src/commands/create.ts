@@ -16,6 +16,7 @@ export interface CreateOptions {
   skipGit?: boolean;
   template?: string;
   packageManager?: 'npm' | 'yarn' | 'pnpm';
+  yes?: boolean;
 }
 
 export async function createProject(projectName: string, options: CreateOptions = {}) {
@@ -40,50 +41,63 @@ export async function createProject(projectName: string, options: CreateOptions 
     logger.info(chalk.blue('🚀 Welcome to Svton App Generator!'));
     logger.info('');
 
-    // 交互式配置
-    const answers = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'org',
-        message: 'Organization name (will be used as @org/package-name):',
-        default: options.org || projectName,
-        validate: (input: string) => {
-          if (!input.trim()) return 'Organization name is required';
-          return true;
+    // 交互式配置或使用默认值
+    let answers;
+    if (options.yes) {
+      // 非交互式模式，使用默认值或命令行参数
+      answers = {
+        org: options.org || projectName,
+        template: options.template || 'full-stack',
+        packageManager: options.packageManager || 'pnpm',
+        installDeps: !options.skipInstall,
+        initGit: !options.skipGit,
+      };
+    } else {
+      // 交互式模式
+      answers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'org',
+          message: 'Organization name (will be used as @org/package-name):',
+          default: options.org || projectName,
+          validate: (input: string) => {
+            if (!input.trim()) return 'Organization name is required';
+            return true;
+          },
         },
-      },
-      {
-        type: 'list',
-        name: 'template',
-        message: 'Choose a template:',
-        choices: [
-          { name: 'Full Stack (Backend + Admin + Mobile)', value: 'full-stack' },
-          { name: 'Backend Only (NestJS + Prisma)', value: 'backend-only' },
-          { name: 'Admin Only (Next.js)', value: 'admin-only' },
-          { name: 'Mobile Only (Taro)', value: 'mobile-only' },
-        ],
-        default: options.template || 'full-stack',
-      },
-      {
-        type: 'list',
-        name: 'packageManager',
-        message: 'Package manager:',
-        choices: ['pnpm', 'npm', 'yarn'],
-        default: options.packageManager || 'pnpm',
-      },
-      {
-        type: 'confirm',
-        name: 'installDeps',
-        message: 'Install dependencies?',
-        default: !options.skipInstall,
-      },
-      {
-        type: 'confirm',
-        name: 'initGit',
-        message: 'Initialize Git repository?',
-        default: !options.skipGit,
-      },
-    ]);
+        {
+          type: 'list',
+          name: 'template',
+          message: 'Choose a template:',
+          choices: [
+            { name: 'Full Stack (Backend + Admin + Mobile)', value: 'full-stack' },
+            { name: 'Backend Only (NestJS + Prisma)', value: 'backend-only' },
+            { name: 'Admin Only (Next.js)', value: 'admin-only' },
+            { name: 'Mobile Only (Taro)', value: 'mobile-only' },
+          ],
+          default: options.template || 'full-stack',
+        },
+        {
+          type: 'list',
+          name: 'packageManager',
+          message: 'Package manager:',
+          choices: ['pnpm', 'npm', 'yarn'],
+          default: options.packageManager || 'pnpm',
+        },
+        {
+          type: 'confirm',
+          name: 'installDeps',
+          message: 'Install dependencies?',
+          default: !options.skipInstall,
+        },
+        {
+          type: 'confirm',
+          name: 'initGit',
+          message: 'Initialize Git repository?',
+          default: !options.skipGit,
+        },
+      ]);
+    }
 
     const config = {
       projectName,
@@ -106,18 +120,20 @@ export async function createProject(projectName: string, options: CreateOptions 
     logger.info('');
 
     // 确认创建
-    const { proceed } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'proceed',
-        message: 'Proceed with project creation?',
-        default: true,
-      },
-    ]);
+    if (!options.yes) {
+      const { proceed } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'proceed',
+          message: 'Proceed with project creation?',
+          default: true,
+        },
+      ]);
 
-    if (!proceed) {
-      logger.info(chalk.yellow('Project creation cancelled.'));
-      return;
+      if (!proceed) {
+        logger.info(chalk.yellow('Project creation cancelled.'));
+        return;
+      }
     }
 
     // 创建项目
