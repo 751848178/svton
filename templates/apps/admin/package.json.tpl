@@ -24,7 +24,7 @@
     "@radix-ui/react-toast": "^1.1.5",
     "@svton/api-client": "^1.0.0",
     "@svton/hooks": "^1.0.0",
-    "@{{ORG_NAME}}/types": "workspace:*",
+    "{{ORG_NAME}}/types": "workspace:*",
     "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

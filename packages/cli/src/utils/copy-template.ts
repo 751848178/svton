@@ -340,7 +340,7 @@ async function createMinimalTypes(config: TemplateConfig): Promise<void> {
   await fs.ensureDir(dir);
   
   const packageJson = {
-    name: `@${config.orgName}/types`,
+    name: `${config.orgName}/types`,
     version: '1.0.0',
     description: 'Shared type definitions',
     main: './dist/index.js',
