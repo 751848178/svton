@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { logger } from './logger';
+import { downloadTemplateFromGitHub, cleanupTemplateDir } from './github-template';
 
 interface TemplateConfig {
   projectName: string;
@@ -12,20 +13,35 @@ interface TemplateConfig {
 export async function copyTemplateFiles(config: TemplateConfig): Promise<void> {
   const { template, projectPath } = config;
   
-  // 获取模板目录 - 从 CLI 包内部的 templates 目录加载
-  // 路径: packages/cli/dist -> ../../templates
-  const cliDir = path.dirname(path.dirname(__dirname));
-  const frameworkRoot = path.dirname(path.dirname(cliDir));
-  const templateDir = path.join(frameworkRoot, 'templates');
+  let templateDir: string | null = null;
+  let needCleanup = false;
+  
+  // 1. 优先尝试本地开发环境路径（monorepo 根目录的 templates）
+  const cliPackageRoot = path.dirname(__dirname);
+  const frameworkRoot = path.dirname(path.dirname(cliPackageRoot));
+  const localTemplateDir = path.join(frameworkRoot, 'templates');
+  
+  if (await fs.pathExists(localTemplateDir)) {
+    templateDir = localTemplateDir;
+    logger.debug(`Using local template directory: ${templateDir}`);
+  }
+  
+  // 2. 如果本地不存在，从 GitHub 下载
+  if (!templateDir) {
+    logger.info('Downloading templates from GitHub...');
+    try {
+      templateDir = await downloadTemplateFromGitHub();
+      needCleanup = true;
+      logger.info('Templates downloaded successfully');
+    } catch (error) {
+      logger.warn(`Failed to download templates from GitHub: ${error}`);
+      logger.warn('Using built-in minimal templates');
+      await copyBuiltInTemplates(config);
+      return;
+    }
+  }
   
   logger.debug(`Copying template files from: ${templateDir}`);
-  
-  // 检查模板目录是否存在
-  if (!(await fs.pathExists(templateDir))) {
-    logger.warn('Template directory not found, using built-in minimal templates');
-    await copyBuiltInTemplates(config);
-    return;
-  }
 
   // 切换到目标项目目录
   const originalCwd = process.cwd();
@@ -38,23 +54,27 @@ export async function copyTemplateFiles(config: TemplateConfig): Promise<void> {
         await copyBackendTemplate(templateDir, config);
         await copyAdminTemplate(templateDir, config);
         await copyMobileTemplate(templateDir, config);
-        await copyTypesTemplate(templateDir, config);
+        await copySharedPackages(templateDir, config);
         break;
       case 'backend-only':
         await copyBackendTemplate(templateDir, config);
-        await copyTypesTemplate(templateDir, config);
+        await copySharedPackages(templateDir, config);
         break;
       case 'admin-only':
         await copyAdminTemplate(templateDir, config);
-        await copyTypesTemplate(templateDir, config);
+        await copySharedPackages(templateDir, config);
         break;
       case 'mobile-only':
         await copyMobileTemplate(templateDir, config);
-        await copyTypesTemplate(templateDir, config);
+        await copySharedPackages(templateDir, config);
         break;
     }
   } finally {
     process.chdir(originalCwd);
+    // 清理从 GitHub 下载的临时目录
+    if (needCleanup && templateDir) {
+      await cleanupTemplateDir(templateDir);
+    }
   }
 }
 
@@ -114,21 +134,33 @@ async function copyMobileTemplate(sourceDir: string, config: TemplateConfig): Pr
   logger.debug('Mobile template copied');
 }
 
-async function copyTypesTemplate(sourceDir: string, config: TemplateConfig): Promise<void> {
-  const sourcePath = path.join(sourceDir, 'packages/types');
-  const destPath = 'packages/types';
+async function copySharedPackages(sourceDir: string, config: TemplateConfig): Promise<void> {
+  const packagesSourceDir = path.join(sourceDir, 'packages');
+  const packagesDestDir = 'packages';
   
-  await fs.ensureDir(destPath);
-  await fs.copy(sourcePath, destPath, {
-    filter: (src: string) => {
-      const relativePath = path.relative(sourcePath, src);
-      return !relativePath.includes('node_modules') && 
-             !relativePath.includes('dist');
+  await fs.ensureDir(packagesDestDir);
+  
+  // 复制 packages 目录下的所有包
+  const packages = await fs.readdir(packagesSourceDir, { withFileTypes: true });
+  
+  for (const pkg of packages) {
+    if (pkg.isDirectory()) {
+      const sourcePath = path.join(packagesSourceDir, pkg.name);
+      const destPath = path.join(packagesDestDir, pkg.name);
+      
+      await fs.ensureDir(destPath);
+      await fs.copy(sourcePath, destPath, {
+        filter: (src: string) => {
+          const relativePath = path.relative(sourcePath, src);
+          return !relativePath.includes('node_modules') && 
+                 !relativePath.includes('dist');
+        }
+      });
+      
+      await replacePackageNames(destPath, config);
+      logger.debug(`Package ${pkg.name} copied`);
     }
-  });
-
-  await replacePackageNames(destPath, config);
-  logger.debug('Types package copied');
+  }
 }
 
 async function replacePackageNames(directory: string, config: TemplateConfig): Promise<void> {
@@ -141,14 +173,19 @@ async function replacePackageNames(directory: string, config: TemplateConfig): P
     try {
       let content = await fs.readFile(filePath, 'utf8');
       
-      // 替换包名和项目名
+      // 替换模板占位符（不替换 @svton/ 公共包前缀）
       content = content
-        .replace(/@svton\//g, `${orgName}/`)
-        .replace(/community-next/g, projectName)
-        .replace(/community-helper/g, projectName)
-        .replace(/社区助手/g, projectName);
+        .replace(/\{\{ORG_NAME\}\}/g, orgName)
+        .replace(/\{\{PROJECT_NAME\}\}/g, projectName);
       
-      await fs.writeFile(filePath, content);
+      // 如果是 .tpl 文件，重命名为实际文件
+      if (filePath.endsWith('.tpl')) {
+        const newPath = filePath.replace(/\.tpl$/, '');
+        await fs.writeFile(newPath, content);
+        await fs.remove(filePath);
+      } else {
+        await fs.writeFile(filePath, content);
+      }
     } catch (error) {
       logger.debug(`Failed to update file ${filePath}: ${error}`);
     }
@@ -168,7 +205,7 @@ async function findFilesToUpdate(directory: string): Promise<string[]> {
         await traverse(fullPath);
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name);
-        const shouldUpdate = ['.json', '.ts', '.tsx', '.js', '.jsx', '.md', '.yaml', '.yml', '.env.example'].includes(ext);
+        const shouldUpdate = ['.json', '.ts', '.tsx', '.js', '.jsx', '.md', '.yaml', '.yml', '.env.example', '.tpl'].includes(ext) || entry.name.endsWith('.tpl');
         
         if (shouldUpdate) {
           files.push(fullPath);
@@ -303,7 +340,7 @@ async function createMinimalTypes(config: TemplateConfig): Promise<void> {
   await fs.ensureDir(dir);
   
   const packageJson = {
-    name: `${config.orgName}/types`,
+    name: `@${config.orgName}/types`,
     version: '1.0.0',
     description: 'Shared type definitions',
     main: './dist/index.js',

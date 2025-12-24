@@ -1,5 +1,5 @@
 {
-  "name": "@{{ORG_NAME}}/types",
+  "name": "@svton/types",
   "version": "1.0.0",
   "description": "{{PROJECT_NAME}} 共享类型定义",
   "main": "./dist/index.js",

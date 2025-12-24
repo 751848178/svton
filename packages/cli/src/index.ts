@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import { createProject } from './commands/create';
 import { version } from '../package.json';
 
-export function cli() {
+export async function cli() {
   const program = new Command();
 
   program
@@ -23,9 +23,10 @@ export function cli() {
     .option('--skip-git', 'Skip Git initialization')
     .option('-t, --template <template>', 'Template to use', 'full-stack')
     .option('-p, --package-manager <pm>', 'Package manager to use', 'pnpm')
+    .option('-y, --yes', 'Skip all prompts and use defaults')
     .action(createProject);
 
-  program.parse();
+  await program.parseAsync();
 }
 
 // Only run if this file is executed directly
