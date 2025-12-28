@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: ['src/index.ts'],
   format: ['cjs', 'esm'],
-  dts: false,  // 暂时跳过 DTS 构建，因为组件结构需要调整
+  dts: true, // 生成 DTS 类型声明文件
   splitting: false,
   sourcemap: false,
   clean: true,
