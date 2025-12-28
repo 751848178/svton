@@ -1,6 +1,6 @@
 {
   "name": "@svton/taro-ui",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Production-ready Taro UI components library for mini-programs with TypeScript support",
   "keywords": [
     "taro",

@@ -112,9 +112,11 @@ export async function runErrorInterceptors(
 /**
  * Token 请求拦截器
  */
-export function createTokenInterceptor(getToken: () => string | null): RequestInterceptor {
-  return (config) => {
-    const token = getToken();
+export function createTokenInterceptor(
+  getToken: () => string | null | Promise<string | null>,
+): RequestInterceptor {
+  return async (config) => {
+    const token = await getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

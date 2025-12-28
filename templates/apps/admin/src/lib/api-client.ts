@@ -19,12 +19,24 @@ import '{{ORG_NAME}}/types';
 const axiosAdapter = {
   async request(config: any) {
     const response = await axios.request(config);
-    // 后端 ResponseInterceptor 包装格式：{ code: 0, data: {...}, message: 'success' }
-    // 需要提取其中的 data 字段
-    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
-      return response.data.data;
+    const result = response.data;
+
+    // 后端统一包装格式：{ code: 200, message: 'success', data: T, ... }
+    if (result && typeof result === 'object' && 'code' in result) {
+      if ((result as any).code !== 200) {
+        const error: any = new Error((result as any).message || 'Request failed');
+        error.code = (result as any).code;
+        error.response = {
+          status: (result as any).code,
+          data: result,
+        };
+        throw error;
+      }
+      return (result as any).data;
     }
-    return response.data;
+
+    // 兼容未包装响应
+    return result;
   },
 };
 
