@@ -1,30 +1,15 @@
 {
-  "name": "@svton/hooks",
-  "version": "1.1.0",
-  "description": "Production-ready React hooks collection with TypeScript support",
+  "name": "@svton/ui",
+  "version": "1.0.1",
+  "description": "Production-ready React UI components library with TypeScript support",
   "keywords": [
     "react",
-    "hooks",
-    "typescript",
-    "utilities",
-    "persist-fn",
-    "boolean",
-    "toggle",
-    "debounce",
-    "throttle",
-    "mount",
-    "unmount"
+    "ui",
+    "components",
+    "typescript"
   ],
   "author": "SVTON Team",
   "license": "MIT",
-  "homepage": "https://github.com/svton/hooks#readme",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/svton/hooks.git"
-  },
-  "bugs": {
-    "url": "https://github.com/svton/hooks/issues"
-  },
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -44,7 +29,6 @@
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "type-check": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
@@ -52,12 +36,11 @@
     "typescript": ">=4.5.0"
   },
   "dependencies": {
-    "lodash-es": "^4.17.21"
+    "@svton/hooks": "^1.1.0"
   },
   "devDependencies": {
-    "@types/lodash-es": "^4.17.12",
     "@types/react": "^18.2.0",
-    "tsup": "^8.0.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.3.0"
   },
   "publishConfig": {
