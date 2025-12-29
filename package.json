@@ -1,6 +1,7 @@
 {
   "name": "svton",
   "version": "1.0.0",
+  "private": true,
   "description": "Svton Framework - Full-stack application framework with CLI, packages, and templates",
   "keywords": [
     "svton",
@@ -31,8 +32,8 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "test": "turbo run test",
     "changeset:version": "changeset version",
-    "prepublish": "pnpm build",
-    "publish": "changeset publish",
+    "prepub": "pnpm build",
+    "pub": "changeset publish",
     "docs:dev": "pnpm --filter docs dev",
     "docs:build": "pnpm --filter docs build"
   },
