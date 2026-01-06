@@ -1,0 +1,6 @@
+/**
+ * 注入 Token 常量
+ */
+export const OBJECT_STORAGE_CLIENT = Symbol('OBJECT_STORAGE_CLIENT');
+export const OBJECT_STORAGE_OPTIONS = Symbol('OBJECT_STORAGE_OPTIONS');
+export const OBJECT_STORAGE_ADAPTER = Symbol('OBJECT_STORAGE_ADAPTER');

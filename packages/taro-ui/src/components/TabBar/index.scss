@@ -1,5 +1,5 @@
 // TabBar 组件样式
-@import '../../styles/index.scss';
+@use '../../styles/index.scss' as *;
 
 .svton-tab-bar {
   background: $color-bg-card;
