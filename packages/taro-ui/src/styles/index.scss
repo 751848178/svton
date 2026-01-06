@@ -2,15 +2,16 @@
  * @svton/taro-ui - 样式入口
  * 
  * 使用方式：
- * 1. 在组件中导入：@import '../../styles/index.scss';
+ * 1. 在组件中导入：@use '../../styles/index.scss' as *;
  * 2. 在项目中自定义主题：
- *    // custom-theme.scss
- *    $color-primary: #ff6b6b;  // 自定义主品牌色
- *    @import '@svton/taro-ui/src/styles/index.scss';
+ *    @use '@svton/taro-ui/src/styles/variables.scss' with ($color-primary: #ff6b6b);
+ *    @use '@svton/taro-ui/src/styles/index.scss' as *;
  */
 
-// 导入主题变量
-@import './variables.scss';
+// 转发主题变量和混入，使其可被外部使用
+@forward './variables.scss';
+@forward './mixins.scss';
 
-// 导入样式混入
-@import './mixins.scss';
+// 同时在当前作用域导入，供内部使用
+@use './variables.scss' as *;
+@use './mixins.scss' as *;

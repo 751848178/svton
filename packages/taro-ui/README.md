@@ -7,6 +7,45 @@ Svton Taro UI Components Library - 小程序通用组件库
 ```bash
 # 在 monorepo 中使用
 pnpm add @svton/taro-ui@workspace:*
+
+# 或从 npm 安装
+pnpm add @svton/taro-ui
+```
+
+## 🚀 快速开始
+
+### 方式一：自动引入样式（推荐）
+
+直接导入组件即可，样式会自动引入：
+
+```tsx
+import { Button, TabBar, NavBar } from '@svton/taro-ui';
+
+// 样式已自动引入，无需额外操作
+<Button type="primary">按钮</Button>
+```
+
+### 方式二：手动引入样式
+
+如果你的构建工具不支持 CSS 自动导入，可以在入口文件手动引入：
+
+```tsx
+// app.tsx 或入口文件
+import '@svton/taro-ui/style.css';
+
+// 然后正常使用组件
+import { Button } from '@svton/taro-ui';
+```
+
+### 方式三：纯组件（自定义样式）
+
+如果需要完全自定义样式，可以使用纯组件入口：
+
+```tsx
+// 导入不带样式的组件
+import { Button } from '@svton/taro-ui/pure';
+
+// 然后自己编写样式
 ```
 
 ## 🎨 主题定制

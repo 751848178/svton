@@ -1,5 +1,6 @@
 // Button 组件样式
-@import '../../styles/index.scss';
+@use 'sass:color';
+@use '../../styles/index.scss' as *;
 
 .svton-button {
   display: inline-flex;
@@ -58,7 +59,7 @@
     color: $color-text-inverse;
 
     &:active:not(.svton-button--disabled) {
-      background: darken($color-error, 10%);
+      background: color.adjust($color-error, $lightness: -10%);
     }
   }
 

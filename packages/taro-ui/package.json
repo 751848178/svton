@@ -1,6 +1,6 @@
 {
   "name": "@svton/taro-ui",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Production-ready Taro UI components library for mini-programs with TypeScript support",
   "keywords": [
     "taro",
@@ -30,12 +30,25 @@
     "README.md",
     "LICENSE"
   ],
+  "sideEffects": [
+    "*.css",
+    "./dist/index.js",
+    "./dist/index.mjs"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
-    }
+    },
+    "./pure": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.pure.mjs",
+      "require": "./dist/index.pure.js"
+    },
+    "./style": "./dist/index.css",
+    "./style.css": "./dist/index.css",
+    "./styles.css": "./dist/styles.css"
   },
   "scripts": {
     "build": "tsup",
@@ -54,6 +67,10 @@
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
+    "autoprefixer": "^10.4.21",
+    "esbuild-sass-plugin": "^3.3.1",
+    "postcss": "^8.5.4",
+    "sass": "^1.89.1",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },
