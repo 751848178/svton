@@ -1,5 +1,29 @@
 # @svton/taro-ui
 
+## 1.1.4
+
+### Patch Changes
+
+- 修复 NavBar 组件中 nav-left 和 nav-title 重叠的问题
+  - 将 `.nav-left` 从绝对定位改为 flex 布局，使其自然占据空间
+  - 移除 `.nav-title` 的固定 `padding-left`，改用 flex 自动分配空间
+  - 添加 `min-width: 0` 确保文本溢出时能正确截断
+
+## 1.1.3
+
+### Patch Changes
+
+- 修复 NavBar 组件中 nav-left 和 nav-title 重叠的问题
+  - 将 `.nav-left` 从绝对定位改为 flex 布局，使其自然占据空间
+  - 移除 `.nav-title` 的固定 `padding-left`，改用 flex 自动分配空间
+  - 添加 `min-width: 0` 确保文本溢出时能正确截断
+
+## 1.1.2
+
+### Patch Changes
+
+- fix: 修复类型声明文件缺失问题，同时生成 .d.ts 和 .d.mts 以支持不同 moduleResolution 配置
+
 ## 1.1.1
 
 ### Patch Changes

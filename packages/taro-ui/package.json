@@ -1,6 +1,6 @@
 {
   "name": "@svton/taro-ui",
-  "version": "1.1.1",
+  "version": "1.1.4",
   "description": "Production-ready Taro UI components library for mini-programs with TypeScript support",
   "keywords": [
     "taro",
@@ -51,7 +51,7 @@
     "./styles.css": "./dist/styles.css"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && cp dist/index.d.mts dist/index.d.ts",
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "prepublishOnly": "pnpm build"
