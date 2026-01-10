@@ -1,0 +1,48 @@
+// ============================================
+// Dynamic Config - Prisma Schema Template
+// ============================================
+// 将以下模型添加到你的 schema.prisma 文件中
+
+model Config {
+  id           Int      @id @default(autoincrement())
+  key          String   @unique @db.VarChar(100)
+  value        String   @db.Text
+  type         String   @db.VarChar(20)
+  category     String   @db.VarChar(50)
+  label        String   @db.VarChar(100)
+  description  String?  @db.VarChar(500)
+  isPublic     Boolean  @default(false) @map("is_public")
+  isRequired   Boolean  @default(false) @map("is_required")
+  defaultValue String?  @map("default_value") @db.Text
+  options      String?  @db.Text
+  sort         Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([isPublic])
+  @@map("configs")
+}
+
+model Dictionary {
+  id          Int          @id @default(autoincrement())
+  code        String       @db.VarChar(50)
+  parentId    Int?         @map("parent_id")
+  label       String       @db.VarChar(100)
+  value       String       @db.VarChar(200)
+  type        String       @db.VarChar(20)
+  sort        Int          @default(0)
+  isEnabled   Boolean      @default(true) @map("is_enabled")
+  description String?      @db.VarChar(500)
+  extra       String?      @db.Text
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  parent      Dictionary?  @relation("DictionaryTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children    Dictionary[] @relation("DictionaryTree")
+
+  @@unique([code, value])
+  @@index([code])
+  @@index([parentId])
+  @@index([isEnabled])
+  @@map("dictionaries")
+}
