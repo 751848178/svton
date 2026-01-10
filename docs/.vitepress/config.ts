@@ -57,6 +57,7 @@ export default defineConfig({
             { text: 'api-client', link: '/packages/api-client' },
             { text: 'hooks', link: '/packages/hooks' },
             { text: 'taro-ui', link: '/packages/taro-ui' },
+            { text: 'dynamic-config', link: '/packages/dynamic-config' },
           ],
         },
         {
