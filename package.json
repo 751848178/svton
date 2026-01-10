@@ -31,7 +31,7 @@
     "type-check": "turbo run type-check",
     "clean": "turbo run clean && rm -rf node_modules",
     "test": "turbo run test",
-    "changeset:version": "changeset version",
+    "pub:version": "changeset version",
     "prepub": "pnpm build",
     "pub": "changeset publish",
     "docs:dev": "pnpm --filter docs dev",
