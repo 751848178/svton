@@ -56,8 +56,22 @@ export default defineConfig({
             { text: 'types', link: '/packages/types' },
             { text: 'api-client', link: '/packages/api-client' },
             { text: 'hooks', link: '/packages/hooks' },
+            { text: 'ui', link: '/packages/ui' },
             { text: 'taro-ui', link: '/packages/taro-ui' },
             { text: 'dynamic-config', link: '/packages/dynamic-config' },
+          ],
+        },
+        {
+          text: '🔧 NestJS 模块',
+          collapsed: false,
+          items: [
+            { text: 'nestjs-authz', link: '/packages/nestjs-authz' },
+            { text: 'nestjs-config-schema', link: '/packages/nestjs-config-schema' },
+            { text: 'nestjs-http', link: '/packages/nestjs-http' },
+            { text: 'nestjs-logger', link: '/packages/nestjs-logger' },
+            { text: 'nestjs-redis', link: '/packages/nestjs-redis' },
+            { text: 'nestjs-sms', link: '/packages/nestjs-sms' },
+            { text: 'nestjs-object-storage', link: '/packages/nestjs-object-storage' },
           ],
         },
         {
