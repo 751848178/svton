@@ -1,6 +1,6 @@
 {
   "name": "@svton/nestjs-payment",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "NestJS payment module with WeChat Pay and Alipay support",
   "keywords": [
     "nestjs",
@@ -14,7 +14,10 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

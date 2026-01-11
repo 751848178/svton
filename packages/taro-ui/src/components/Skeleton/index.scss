@@ -1,0 +1,118 @@
+@import '../../styles/variables.scss';
+
+.svton-skeleton {
+  display: flex;
+  width: 100%;
+
+  &--animate {
+    .svton-skeleton__avatar,
+    .svton-skeleton__title,
+    .svton-skeleton__row {
+      background: linear-gradient(
+        90deg,
+        $color-bg-section 25%,
+        $color-border-light 37%,
+        $color-bg-section 63%
+      );
+      background-size: 400% 100%;
+      animation: svton-skeleton-loading 1.4s ease infinite;
+    }
+  }
+
+  // 头像
+  &__avatar {
+    flex-shrink: 0;
+    margin-right: $spacing-md;
+    background-color: $color-bg-section;
+
+    &--circle {
+      border-radius: 50%;
+    }
+
+    &--square {
+      border-radius: $radius-md;
+    }
+
+    &--small {
+      width: $avatar-sm;
+      height: $avatar-sm;
+    }
+
+    &--medium {
+      width: $avatar-md;
+      height: $avatar-md;
+    }
+
+    &--large {
+      width: $avatar-lg;
+      height: $avatar-lg;
+    }
+  }
+
+  // 内容区
+  &__content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // 标题
+  &__title {
+    height: 32rpx;
+    margin-bottom: $spacing-md;
+    background-color: $color-bg-section;
+    border-radius: $radius-sm;
+
+    &--round {
+      border-radius: $radius-round;
+    }
+  }
+
+  // 段落行
+  &__row {
+    height: 28rpx;
+    margin-bottom: $spacing-sm;
+    background-color: $color-bg-section;
+    border-radius: $radius-sm;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    &--round {
+      border-radius: $radius-round;
+    }
+  }
+}
+
+@keyframes svton-skeleton-loading {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+// 骨架屏段落
+.svton-skeleton-paragraph {
+  padding: $spacing-md;
+}
+
+// 骨架屏图片
+.svton-skeleton-image {
+  width: 100%;
+  height: 200rpx;
+  background-color: $color-bg-section;
+  border-radius: $radius-md;
+
+  &--animate {
+    background: linear-gradient(
+      90deg,
+      $color-bg-section 25%,
+      $color-border-light 37%,
+      $color-bg-section 63%
+    );
+    background-size: 400% 100%;
+    animation: svton-skeleton-loading 1.4s ease infinite;
+  }
+}

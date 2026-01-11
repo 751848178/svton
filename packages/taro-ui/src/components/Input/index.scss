@@ -1,0 +1,178 @@
+@import '../../styles/variables.scss';
+
+.svton-input {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: $input-height;
+  padding: 0 $input-padding-x;
+  background-color: $color-bg-card;
+  border: $input-border-width solid $color-border;
+  border-radius: $input-radius;
+  box-sizing: border-box;
+  transition: border-color $transition-fast $ease-smooth;
+
+  &:focus-within {
+    border-color: $color-primary;
+  }
+
+  // 无边框
+  &--borderless {
+    border: none;
+    background-color: transparent;
+    padding: 0;
+  }
+
+  // 填充样式
+  &--filled {
+    border: none;
+    background-color: $color-bg-section;
+  }
+
+  // 禁用状态
+  &--disabled {
+    background-color: $color-bg-section;
+    pointer-events: none;
+
+    .svton-input__inner {
+      color: $color-text-disabled;
+    }
+  }
+
+  // 错误状态
+  &--error {
+    border-color: $color-error;
+
+    &:focus-within {
+      border-color: $color-error;
+    }
+  }
+
+  // 前缀
+  &__prefix {
+    flex-shrink: 0;
+    margin-right: $spacing-sm;
+    color: $color-text-tertiary;
+    font-size: $font-size-base;
+  }
+
+  // 输入框
+  &__inner {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    min-height: $input-height;
+    padding: $input-padding-y 0;
+    font-size: $font-size-base;
+    color: $color-text-primary;
+    background-color: transparent;
+    border: none;
+    outline: none;
+    box-sizing: border-box;
+
+    &::placeholder {
+      color: $color-text-placeholder;
+    }
+  }
+
+  // 后缀
+  &__suffix {
+    flex-shrink: 0;
+    margin-left: $spacing-sm;
+    color: $color-text-tertiary;
+    font-size: $font-size-base;
+  }
+
+  // 清除按钮
+  &__clear {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40rpx;
+    height: 40rpx;
+    margin-left: $spacing-sm;
+    color: $color-text-placeholder;
+    font-size: $font-size-lg;
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
+
+  // 字数统计
+  &__count {
+    flex-shrink: 0;
+    margin-left: $spacing-sm;
+    font-size: $font-size-sm;
+    color: $color-text-tertiary;
+  }
+}
+
+// Textarea 样式
+.svton-textarea {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: $input-padding-y $input-padding-x;
+  background-color: $color-bg-card;
+  border: $input-border-width solid $color-border;
+  border-radius: $input-radius;
+  box-sizing: border-box;
+  transition: border-color $transition-fast $ease-smooth;
+
+  &:focus-within {
+    border-color: $color-primary;
+  }
+
+  &--borderless {
+    border: none;
+    background-color: transparent;
+    padding: 0;
+  }
+
+  &--filled {
+    border: none;
+    background-color: $color-bg-section;
+  }
+
+  &--disabled {
+    background-color: $color-bg-section;
+    pointer-events: none;
+
+    .svton-textarea__inner {
+      color: $color-text-disabled;
+    }
+  }
+
+  &--error {
+    border-color: $color-error;
+  }
+
+  &__inner {
+    width: 100%;
+    min-height: 160rpx;
+    font-size: $font-size-base;
+    color: $color-text-primary;
+    background-color: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    line-height: $line-height-base;
+
+    &::placeholder {
+      color: $color-text-placeholder;
+    }
+  }
+
+  &__footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: $spacing-sm;
+  }
+
+  &__count {
+    font-size: $font-size-sm;
+    color: $color-text-tertiary;
+  }
+}

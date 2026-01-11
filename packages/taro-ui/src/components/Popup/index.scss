@@ -1,0 +1,142 @@
+@import '../../styles/variables.scss';
+
+.svton-popup__wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: auto;
+}
+
+.svton-popup__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: $color-bg-mask;
+  transition: opacity $transition-base $ease-smooth;
+
+  &--visible {
+    opacity: 1;
+  }
+
+  &--hidden {
+    opacity: 0;
+  }
+}
+
+.svton-popup {
+  position: absolute;
+  background-color: $color-bg-card;
+  transition: transform $transition-base $ease-smooth, opacity $transition-base $ease-smooth;
+  overflow: hidden;
+  max-height: 100%;
+  max-width: 100%;
+
+  // 位置变体
+  &--bottom {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+
+    &.svton-popup--visible {
+      transform: translateY(0);
+    }
+
+    &.svton-popup--hidden {
+      transform: translateY(100%);
+    }
+
+    &.svton-popup--round {
+      border-radius: $radius-lg $radius-lg 0 0;
+    }
+  }
+
+  &--top {
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+
+    &.svton-popup--visible {
+      transform: translateY(0);
+    }
+
+    &.svton-popup--hidden {
+      transform: translateY(-100%);
+    }
+
+    &.svton-popup--round {
+      border-radius: 0 0 $radius-lg $radius-lg;
+    }
+  }
+
+  &--left {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    height: 100%;
+
+    &.svton-popup--visible {
+      transform: translateX(0);
+    }
+
+    &.svton-popup--hidden {
+      transform: translateX(-100%);
+    }
+
+    &.svton-popup--round {
+      border-radius: 0 $radius-lg $radius-lg 0;
+    }
+  }
+
+  &--right {
+    top: 0;
+    bottom: 0;
+    right: 0;
+    height: 100%;
+
+    &.svton-popup--visible {
+      transform: translateX(0);
+    }
+
+    &.svton-popup--hidden {
+      transform: translateX(100%);
+    }
+
+    &.svton-popup--round {
+      border-radius: $radius-lg 0 0 $radius-lg;
+    }
+  }
+
+  &--center {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: $radius-lg;
+
+    &.svton-popup--visible {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    &.svton-popup--hidden {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.9);
+    }
+  }
+
+  // 安全区域
+  &--safe-bottom {
+    padding-bottom: constant(safe-area-inset-bottom);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  &--safe-top {
+    padding-top: constant(safe-area-inset-top);
+    padding-top: env(safe-area-inset-top);
+  }
+}

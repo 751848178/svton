@@ -1,0 +1,98 @@
+@import '../../styles/variables.scss';
+
+.svton-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: $color-bg-section;
+  color: $color-text-secondary;
+  vertical-align: middle;
+
+  // 尺寸
+  &--small {
+    width: $avatar-sm;
+    height: $avatar-sm;
+    font-size: $font-size-sm;
+  }
+
+  &--medium {
+    width: $avatar-md;
+    height: $avatar-md;
+    font-size: $font-size-lg;
+  }
+
+  &--large {
+    width: $avatar-lg;
+    height: $avatar-lg;
+    font-size: $font-size-h1;
+  }
+
+  &--xlarge {
+    width: $avatar-xl;
+    height: $avatar-xl;
+    font-size: 48rpx;
+  }
+
+  // 形状
+  &--circle {
+    border-radius: 50%;
+  }
+
+  &--square {
+    border-radius: $radius-md;
+  }
+
+  // 图片
+  &__image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  // 文字
+  &__text {
+    font-weight: $font-weight-medium;
+    white-space: nowrap;
+  }
+
+  // 图标
+  &__icon {
+    font-size: inherit;
+  }
+
+  // 默认头像
+  &__default {
+    font-size: inherit;
+    color: $color-text-tertiary;
+  }
+}
+
+// 头像组
+.svton-avatar-group {
+  display: inline-flex;
+  align-items: center;
+
+  .svton-avatar {
+    border: 4rpx solid $color-bg-card;
+    margin-left: -20rpx;
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
+
+  &__rest {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: $color-bg-section;
+    color: $color-text-secondary;
+    font-size: $font-size-sm;
+    font-weight: $font-weight-medium;
+    border: 4rpx solid $color-bg-card;
+    margin-left: -20rpx;
+    border-radius: 50%;
+  }
+}

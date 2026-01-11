@@ -1,6 +1,6 @@
 {
   "name": "@svton/nestjs-queue",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "NestJS queue module with BullMQ support and simplified API",
   "keywords": [
     "nestjs",
@@ -15,7 +15,10 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

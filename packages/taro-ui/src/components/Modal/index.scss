@@ -1,0 +1,111 @@
+@import '../../styles/variables.scss';
+
+.svton-modal {
+  width: 560rpx;
+  background-color: $color-bg-card;
+  border-radius: $radius-lg;
+  overflow: hidden;
+
+  &__header {
+    padding: $spacing-lg $spacing-lg $spacing-sm;
+    text-align: center;
+  }
+
+  &__title {
+    font-size: $font-size-h3;
+    font-weight: $font-weight-bold;
+    color: $color-text-primary;
+    line-height: $line-height-title;
+  }
+
+  &__content {
+    padding: $spacing-sm $spacing-lg $spacing-lg;
+    text-align: center;
+    font-size: $font-size-base;
+    color: $color-text-secondary;
+    line-height: $line-height-base;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  &__footer {
+    display: flex;
+    border-top: 1rpx solid $color-border-light;
+
+    &--vertical {
+      flex-direction: column;
+
+      .svton-modal__btn {
+        border-right: none;
+        border-bottom: 1rpx solid $color-border-light;
+
+        &:last-child {
+          border-bottom: none;
+        }
+      }
+    }
+  }
+
+  &__btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100rpx;
+    font-size: $font-size-lg;
+    background-color: transparent;
+    border: none;
+    border-right: 1rpx solid $color-border-light;
+
+    &:last-child {
+      border-right: none;
+    }
+
+    &:active {
+      background-color: $color-bg-section;
+    }
+
+    &--cancel {
+      color: $color-text-secondary;
+    }
+
+    &--confirm {
+      color: $color-primary;
+      font-weight: $font-weight-medium;
+    }
+
+    &--danger {
+      color: $color-error;
+    }
+
+    &--disabled {
+      color: $color-text-disabled;
+      pointer-events: none;
+    }
+  }
+
+  // 无标题时内容区域调整
+  &--no-title {
+    .svton-modal__content {
+      padding-top: $spacing-lg;
+    }
+  }
+
+  // 关闭按钮
+  &__close {
+    position: absolute;
+    top: $spacing-sm;
+    right: $spacing-sm;
+    width: 48rpx;
+    height: 48rpx;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: $color-text-tertiary;
+    font-size: 36rpx;
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
+}

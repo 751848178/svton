@@ -1,0 +1,85 @@
+@import '../../styles/variables.scss';
+
+.svton-badge {
+  position: relative;
+  display: inline-block;
+
+  &__content {
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(50%, -50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32rpx;
+    height: 32rpx;
+    padding: 0 8rpx;
+    font-size: 20rpx;
+    font-weight: $font-weight-medium;
+    color: $color-text-inverse;
+    background-color: $color-error;
+    border-radius: $radius-round;
+    box-sizing: border-box;
+    white-space: nowrap;
+    z-index: $z-index-base;
+
+    // 独立使用（无子元素）
+    &--standalone {
+      position: relative;
+      top: auto;
+      right: auto;
+      transform: none;
+    }
+  }
+
+  // 红点
+  &__dot {
+    position: absolute;
+    top: 0;
+    right: 0;
+    transform: translate(50%, -50%);
+    width: 16rpx;
+    height: 16rpx;
+    background-color: $color-error;
+    border-radius: 50%;
+    z-index: $z-index-base;
+
+    &--standalone {
+      position: relative;
+      top: auto;
+      right: auto;
+      transform: none;
+    }
+  }
+
+  // 类型
+  &--primary {
+    .svton-badge__content,
+    .svton-badge__dot {
+      background-color: $color-primary;
+    }
+  }
+
+  &--success {
+    .svton-badge__content,
+    .svton-badge__dot {
+      background-color: $color-success;
+    }
+  }
+
+  &--warning {
+    .svton-badge__content,
+    .svton-badge__dot {
+      background-color: $color-warning;
+    }
+  }
+
+  // 偏移
+  &--offset {
+    .svton-badge__content,
+    .svton-badge__dot {
+      // 通过 style 设置具体偏移值
+    }
+  }
+}

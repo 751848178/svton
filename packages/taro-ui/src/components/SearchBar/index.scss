@@ -1,0 +1,93 @@
+@import '../../styles/variables.scss';
+
+.svton-search-bar {
+  display: flex;
+  align-items: center;
+  padding: $spacing-sm $padding-page;
+  background-color: $color-bg-card;
+
+  &__input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    height: 72rpx;
+    padding: 0 $spacing-md;
+    background-color: $color-bg-section;
+    border-radius: $radius-round;
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    margin-right: $spacing-sm;
+    color: $color-text-placeholder;
+    font-size: $font-size-lg;
+  }
+
+  &__input {
+    flex: 1;
+    height: 100%;
+    font-size: $font-size-base;
+    color: $color-text-primary;
+    background-color: transparent;
+    border: none;
+    outline: none;
+
+    &::placeholder {
+      color: $color-text-placeholder;
+    }
+  }
+
+  &__clear {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40rpx;
+    height: 40rpx;
+    margin-left: $spacing-sm;
+    color: $color-text-placeholder;
+    font-size: $font-size-lg;
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
+
+  &__action {
+    flex-shrink: 0;
+    margin-left: $spacing-md;
+    padding: $spacing-sm 0;
+    font-size: $font-size-base;
+    color: $color-primary;
+
+    &:active {
+      opacity: 0.7;
+    }
+
+    &--disabled {
+      color: $color-text-disabled;
+      pointer-events: none;
+    }
+  }
+
+  // 聚焦状态
+  &--focus {
+    .svton-search-bar__input-wrap {
+      background-color: $color-bg-highlight;
+    }
+  }
+
+  // 圆形样式
+  &--round {
+    .svton-search-bar__input-wrap {
+      border-radius: $radius-round;
+    }
+  }
+
+  // 方形样式
+  &--square {
+    .svton-search-bar__input-wrap {
+      border-radius: $radius-sm;
+    }
+  }
+}

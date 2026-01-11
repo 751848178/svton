@@ -1,6 +1,6 @@
 {
   "name": "@svton/nestjs-cache",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "NestJS cache decorators with Redis support (@Cacheable, @CacheEvict, @CachePut)",
   "keywords": [
     "nestjs",
@@ -14,7 +14,10 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
