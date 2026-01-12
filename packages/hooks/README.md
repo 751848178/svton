@@ -216,6 +216,102 @@ sessionStorage 持久化状态。
 const [data, setData, removeData] = useSessionStorage<object>('form_data');
 ```
 
+### DOM/浏览器
+
+#### useScroll
+
+滚动位置监听。
+
+```typescript
+// 监听 window 滚动
+const { x, y } = useScroll();
+
+// 监听指定元素滚动
+const ref = useRef<HTMLDivElement>(null);
+const { x, y } = useScroll(ref);
+
+// 显示返回顶部按钮
+{y > 300 && <BackToTop />}
+```
+
+#### useIntersectionObserver
+
+元素可见性检测（懒加载、曝光埋点）。
+
+```typescript
+const ref = useRef<HTMLDivElement>(null);
+const entry = useIntersectionObserver(ref, { threshold: 0.5 });
+
+useEffect(() => {
+  if (entry?.isIntersecting) {
+    trackExposure('banner');
+  }
+}, [entry?.isIntersecting]);
+```
+
+#### useTextSelection
+
+获取用户选中的文本。
+
+```typescript
+const { text, rects } = useTextSelection();
+
+// 显示选中文本的工具栏
+{text && <Toolbar>复制 | 搜索</Toolbar>}
+```
+
+### 表单/组件
+
+#### useControllableValue
+
+受控/非受控组件值管理（组件库必备）。
+
+```typescript
+// 在组件内部使用
+function Input(props: { value?: string; defaultValue?: string; onChange?: (v: string) => void }) {
+  const [value, setValue] = useControllableValue(props);
+  return <input value={value} onChange={(e) => setValue(e.target.value)} />;
+}
+
+// 非受控使用
+<Input defaultValue="hello" />
+
+// 受控使用
+<Input value={value} onChange={setValue} />
+```
+
+#### useSelections
+
+多选列表管理（全选、反选、部分选中）。
+
+```typescript
+const {
+  selected,
+  allSelected,
+  partiallySelected,
+  isSelected,
+  toggle,
+  toggleAll,
+} = useSelections(list, []);
+
+// 全选复选框
+<Checkbox checked={allSelected} indeterminate={partiallySelected} onChange={toggleAll} />
+
+// 列表项
+{list.map(item => (
+  <Checkbox checked={isSelected(item)} onChange={() => toggle(item)} />
+))}
+```
+
+#### useUpdate
+
+强制组件重新渲染。
+
+```typescript
+const update = useUpdate();
+<button onClick={update}>刷新</button>
+```
+
 ### 请求相关
 
 #### useRequestState

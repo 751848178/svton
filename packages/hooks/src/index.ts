@@ -15,6 +15,7 @@ export * from './useToggle';
 export * from './useSetState';
 export * from './usePrevious';
 export * from './useLatest';
+export * from './useUpdate';
 
 // ============ 值处理 ============
 export * from './useDebounce';
@@ -34,6 +35,15 @@ export * from './useCountdown';
 // ============ 存储 ============
 export * from './useLocalStorage';
 export * from './useSessionStorage';
+
+// ============ DOM/浏览器 ============
+export * from './useScroll';
+export * from './useIntersectionObserver';
+export * from './useTextSelection';
+
+// ============ 表单/组件 ============
+export * from './useControllableValue';
+export * from './useSelections';
 
 // ============ 请求相关 ============
 export * from './useRequestState';
