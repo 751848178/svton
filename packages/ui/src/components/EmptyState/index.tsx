@@ -1,47 +1,34 @@
-import React, { CSSProperties, ReactNode } from 'react';
-
-type Align = 'start' | 'center' | 'end';
-
-type Justify = 'start' | 'center' | 'end';
+import React, { ReactNode } from 'react';
+import { cn } from '../../lib/utils';
 
 export interface EmptyStateProps {
   text?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
   className?: string;
-  style?: CSSProperties;
-  align?: Align;
-  justify?: Justify;
+  align?: 'start' | 'center' | 'end';
+  justify?: 'start' | 'center' | 'end';
 }
 
 export function EmptyState(props: EmptyStateProps) {
-  const {
-    text = 'No data',
-    description,
-    action,
-    className,
-    style,
-    align = 'center',
-    justify = 'center',
-  } = props;
+  const { text = 'No data', description, action, className, align = 'center', justify = 'center' } = props;
 
   return (
     <div
-      className={className}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: align === 'start' ? 'flex-start' : align === 'end' ? 'flex-end' : 'center',
-        justifyContent: justify === 'start' ? 'flex-start' : justify === 'end' ? 'flex-end' : 'center',
-        padding: 24,
-        gap: 8,
-        textAlign: align === 'start' ? 'left' : align === 'end' ? 'right' : 'center',
-        ...style,
-      }}
+      className={cn(
+        'flex flex-col gap-2 p-6',
+        align === 'start' && 'items-start text-left',
+        align === 'center' && 'items-center text-center',
+        align === 'end' && 'items-end text-right',
+        justify === 'start' && 'justify-start',
+        justify === 'center' && 'justify-center',
+        justify === 'end' && 'justify-end',
+        className
+      )}
     >
-      <div style={{ fontSize: 16, color: 'rgba(0,0,0,0.72)' }}>{text}</div>
-      {description ? <div style={{ fontSize: 14, color: 'rgba(0,0,0,0.5)' }}>{description}</div> : null}
-      {action ? <div style={{ marginTop: 8 }}>{action}</div> : null}
+      <div className="text-base text-black/70">{text}</div>
+      {description && <div className="text-sm text-black/50">{description}</div>}
+      {action && <div className="mt-2">{action}</div>}
     </div>
   );
 }

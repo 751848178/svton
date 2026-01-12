@@ -1,70 +1,44 @@
-import React, { CSSProperties } from 'react';
+import React from 'react';
+import { cn } from '../../lib/utils';
+import { cva, type VariantProps } from 'class-variance-authority';
 
-export interface SkeletonProps {
+const skeletonVariants = cva('bg-black/5', {
+  variants: {
+    variant: {
+      text: 'rounded',
+      circular: 'rounded-full',
+      rectangular: 'rounded-none',
+      rounded: 'rounded-lg',
+    },
+    animation: {
+      pulse: 'animate-pulse',
+      wave: 'animate-[shimmer_1.5s_ease-in-out_infinite] bg-gradient-to-r from-black/5 via-black/10 to-black/5 bg-[length:200%_100%]',
+      none: '',
+    },
+  },
+  defaultVariants: {
+    variant: 'text',
+    animation: 'pulse',
+  },
+});
+
+export interface SkeletonProps extends VariantProps<typeof skeletonVariants> {
   width?: number | string;
   height?: number | string;
-  variant?: 'text' | 'circular' | 'rectangular' | 'rounded';
-  animation?: 'pulse' | 'wave' | false;
   className?: string;
-  style?: CSSProperties;
 }
 
 export function Skeleton(props: SkeletonProps) {
-  const {
-    width = '100%',
-    height = 20,
-    variant = 'text',
-    animation = 'pulse',
-    className,
-    style,
-  } = props;
-
-  const getBorderRadius = () => {
-    switch (variant) {
-      case 'circular': return '50%';
-      case 'rectangular': return 0;
-      case 'rounded': return 8;
-      case 'text': default: return 4;
-    }
-  };
-
-  const getAnimationStyle = (): CSSProperties => {
-    if (!animation) return {};
-    if (animation === 'wave') {
-      return {
-        background: 'linear-gradient(90deg, rgba(0,0,0,0.06) 25%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.06) 75%)',
-        backgroundSize: '200% 100%',
-        animation: 'svton-skeleton-wave 1.5s ease-in-out infinite',
-      };
-    }
-    return { animation: 'svton-skeleton-pulse 1.5s ease-in-out infinite' };
-  };
+  const { width = '100%', height = 20, variant, animation, className } = props;
 
   return (
-    <>
-      <div
-        className={className}
-        style={{
-          display: 'block',
-          width: variant === 'circular' ? height : width,
-          height,
-          borderRadius: getBorderRadius(),
-          backgroundColor: 'rgba(0,0,0,0.08)',
-          ...getAnimationStyle(),
-          ...style,
-        }}
-      />
-      <style>{`
-        @keyframes svton-skeleton-pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-        @keyframes svton-skeleton-wave {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-      `}</style>
-    </>
+    <div
+      className={cn(skeletonVariants({ variant, animation }), className)}
+      style={{
+        width: variant === 'circular' ? height : width,
+        height,
+      }}
+    />
   );
 }
 
@@ -73,14 +47,13 @@ export interface SkeletonGroupProps {
   gap?: number;
   children?: React.ReactNode;
   className?: string;
-  style?: CSSProperties;
 }
 
 export function SkeletonGroup(props: SkeletonGroupProps) {
-  const { count = 3, gap = 12, children, className, style } = props;
+  const { count = 3, gap = 12, children, className } = props;
 
   return (
-    <div className={className} style={{ display: 'flex', flexDirection: 'column', gap, ...style }}>
+    <div className={cn('flex flex-col', className)} style={{ gap }}>
       {children || Array.from({ length: count }).map((_, i) => <Skeleton key={i} />)}
     </div>
   );

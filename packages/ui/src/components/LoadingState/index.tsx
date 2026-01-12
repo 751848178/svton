@@ -1,58 +1,34 @@
-import React, { CSSProperties, ReactNode } from 'react';
-
-type Align = 'start' | 'center' | 'end';
-
-type Justify = 'start' | 'center' | 'end';
+import React, { ReactNode } from 'react';
+import { cn } from '../../lib/utils';
 
 export interface LoadingStateProps {
   text?: ReactNode;
   spinner?: boolean;
   className?: string;
-  style?: CSSProperties;
-  align?: Align;
-  justify?: Justify;
+  align?: 'start' | 'center' | 'end';
+  justify?: 'start' | 'center' | 'end';
 }
 
 export function LoadingState(props: LoadingStateProps) {
-  const {
-    text = 'Loading...',
-    spinner = true,
-    className,
-    style,
-    align = 'center',
-    justify = 'center',
-  } = props;
+  const { text = 'Loading...', spinner = true, className, align = 'center', justify = 'center' } = props;
 
   return (
     <div
-      className={className}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: align === 'start' ? 'flex-start' : align === 'end' ? 'flex-end' : 'center',
-        justifyContent: justify === 'start' ? 'flex-start' : justify === 'end' ? 'flex-end' : 'center',
-        padding: 24,
-        gap: 12,
-        ...style,
-      }}
+      className={cn(
+        'flex flex-col gap-3 p-6',
+        align === 'start' && 'items-start',
+        align === 'center' && 'items-center',
+        align === 'end' && 'items-end',
+        justify === 'start' && 'justify-start',
+        justify === 'center' && 'justify-center',
+        justify === 'end' && 'justify-end',
+        className
+      )}
     >
-      {spinner ? (
-        <div
-          aria-label="loading"
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: '50%',
-            border: '3px solid rgba(0,0,0,0.12)',
-            borderTopColor: 'rgba(0,0,0,0.6)',
-            animation: 'svton-ui-spin 0.8s linear infinite',
-          }}
-        />
-      ) : null}
-      {text ? <div style={{ fontSize: 14, color: 'rgba(0,0,0,0.6)' }}>{text}</div> : null}
-      <style>{
-        '@keyframes svton-ui-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}'
-      }</style>
+      {spinner && (
+        <div className="size-6 rounded-full border-[3px] border-black/10 border-t-black/60 animate-spin" />
+      )}
+      {text && <div className="text-sm text-black/60">{text}</div>}
     </div>
   );
 }

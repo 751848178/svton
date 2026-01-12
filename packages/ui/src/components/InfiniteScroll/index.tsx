@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, ReactNode, CSSProperties } from 'react';
+import React, { useEffect, useRef, ReactNode } from 'react';
+import { cn } from '../../lib/utils';
 import { LoadingState } from '../LoadingState';
 
 export interface InfiniteScrollProps {
@@ -10,21 +11,10 @@ export interface InfiniteScrollProps {
   endMessage?: ReactNode;
   children: ReactNode;
   className?: string;
-  style?: CSSProperties;
 }
 
 export function InfiniteScroll(props: InfiniteScrollProps) {
-  const {
-    hasMore,
-    loading = false,
-    onLoadMore,
-    threshold = 100,
-    loader,
-    endMessage,
-    children,
-    className,
-    style,
-  } = props;
+  const { hasMore, loading = false, onLoadMore, threshold = 100, loader, endMessage, children, className } = props;
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(loading);
@@ -52,10 +42,10 @@ export function InfiniteScroll(props: InfiniteScrollProps) {
   }, [onLoadMore, threshold]);
 
   return (
-    <div className={className} style={style}>
+    <div className={className}>
       {children}
-      <div ref={sentinelRef} style={{ height: 1 }} />
-      {loading && (loader || <LoadingState text="Loading more..." style={{ padding: 16 }} />)}
+      <div ref={sentinelRef} className="h-px" />
+      {loading && (loader || <LoadingState text="Loading more..." className="p-4" />)}
       {!hasMore && !loading && endMessage}
     </div>
   );

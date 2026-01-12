@@ -1,7 +1,7 @@
 import React, { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 
-export interface ErrorStateProps {
+export interface PermissionStateProps {
   title?: ReactNode;
   message?: ReactNode;
   action?: ReactNode;
@@ -10,8 +10,15 @@ export interface ErrorStateProps {
   justify?: 'start' | 'center' | 'end';
 }
 
-export function ErrorState(props: ErrorStateProps) {
-  const { title = 'Something went wrong', message, action, className, align = 'center', justify = 'center' } = props;
+export function PermissionState(props: PermissionStateProps) {
+  const {
+    title = 'Access Denied',
+    message = 'You do not have permission to view this content.',
+    action,
+    className,
+    align = 'center',
+    justify = 'center',
+  } = props;
 
   return (
     <div
@@ -26,18 +33,17 @@ export function ErrorState(props: ErrorStateProps) {
         className
       )}
     >
-      <div className="size-12 rounded-full bg-red-500/10 flex items-center justify-center mb-2">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgb(239, 68, 68)" strokeWidth="2">
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
+      <div className="size-12 rounded-full bg-amber-500/10 flex items-center justify-center mb-2">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgb(245, 158, 11)" strokeWidth="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
       </div>
       <div className="text-base font-medium text-black/85">{title}</div>
-      {message && <div className="text-sm text-black/50">{message}</div>}
+      {message && <div className="text-sm text-black/50 max-w-[300px]">{message}</div>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
 }
 
-export const Error = ErrorState;
+export const Permission = PermissionState;
