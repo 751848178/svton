@@ -14,6 +14,33 @@
 
 ---
 
+## 🚀 快速开始
+
+### 安装
+
+```bash
+pnpm add @svton/taro-ui
+```
+
+### 基础使用
+
+```tsx
+import { View } from '@tarojs/components';
+import { NavBar, StatusBar, Button } from '@svton/taro-ui';
+
+export default function MyPage() {
+  return (
+    <View className="page">
+      <StatusBar />
+      <NavBar title="页面标题" />
+      <Button type="primary">主要按钮</Button>
+    </View>
+  );
+}
+```
+
+---
+
 ## 🎯 设计原则
 
 1. **统一样式** - 遵循设计稿 1.7 倍缩放规则
@@ -22,24 +49,71 @@
 
 ---
 
-## 📋 可用组件
+## 📋 组件总览
 
-| 组件 | 用途 |
+### 基础组件
+| 组件 | 说明 |
+|------|------|
+| `Button` | 按钮 |
+| `Cell` / `CellGroup` | 单元格 |
+| `Divider` | 分割线 |
+| `Grid` / `GridItem` | 宫格 |
+| `Card` | 卡片 |
+
+### 表单组件
+| 组件 | 说明 |
+|------|------|
+| `Input` / `Textarea` | 输入框 |
+| `SearchBar` | 搜索栏 |
+| `Switch` | 开关 |
+| `Checkbox` / `CheckboxGroup` | 复选框 |
+| `Radio` / `RadioGroup` | 单选框 |
+| `Rate` | 评分 |
+| `Stepper` | 步进器 |
+| `Form` | 表单 |
+| `ImageUploader` | 图片上传 |
+
+### 展示组件
+| 组件 | 说明 |
+|------|------|
+| `Tag` | 标签 |
+| `Badge` | 徽标 |
+| `Avatar` / `AvatarGroup` | 头像 |
+| `Skeleton` / `SkeletonImage` | 骨架屏 |
+| `Progress` | 进度条 |
+| `Steps` | 步骤条 |
+| `Collapse` / `CollapseItem` | 折叠面板 |
+| `NoticeBar` | 通告栏 |
+| `Countdown` | 倒计时 |
+| `Result` | 结果页 |
+| `ImageGrid` | 图片网格 |
+
+### 反馈组件
+| 组件 | 说明 |
+|------|------|
+| `Popup` | 弹出层 |
+| `Modal` | 弹窗 |
+| `ActionSheet` | 动作面板 |
+| `Toast` | 轻提示 |
+| `SwipeCell` | 滑动单元格 |
+| `LoadingState` / `Loading` | 加载状态 |
+| `EmptyState` / `Empty` | 空状态 |
+| `RequestBoundary` | 请求边界 |
+
+### 导航组件
+| 组件 | 说明 |
 |------|------|
 | `NavBar` | 导航栏 |
-| `StatusBar` | 状态栏占位 |
-| `Button` | 按钮 |
-| `List` | 列表 |
-| `Tabs` | 标签页 |
+| `StatusBar` | 状态栏 |
 | `TabBar` | 底部导航 |
-| `ImageUploader` | 图片上传 |
-| `ImageGrid` | 图片网格 |
-| `Form` | 表单组件 |
+| `Tabs` | 标签页 |
+| `BackTop` | 返回顶部 |
 | `ContentActionBar` | 内容操作栏 |
+| `List` | 列表 |
 
 ---
 
-## 🔧 基础组件使用
+## 🔧 基础组件
 
 ### StatusBar + NavBar
 
@@ -60,7 +134,7 @@ export default function MyPage() {
 }
 ```
 
-### NavBar Props
+#### NavBar Props
 
 ```typescript
 interface NavBarProps {
@@ -73,33 +147,13 @@ interface NavBarProps {
 }
 ```
 
-### 自定义导航栏
-
-```tsx
-<NavBar
-  title="详情"
-  rightContent={
-    <View onClick={handleShare}>
-      <Text>分享</Text>
-    </View>
-  }
-/>
-```
-
----
-
 ### Button
 
 ```tsx
 import { Button } from '@svton/taro-ui';
 
 // 基础用法
-<Button type="primary" onClick={handleClick}>
-  主要按钮
-</Button>
-
-// 不同类型
-<Button type="primary">主要按钮</Button>
+<Button type="primary" onClick={handleClick}>主要按钮</Button>
 <Button type="secondary">次要按钮</Button>
 <Button type="text">文本按钮</Button>
 
@@ -108,17 +162,13 @@ import { Button } from '@svton/taro-ui';
 <Button size="medium">中按钮</Button>
 <Button size="small">小按钮</Button>
 
-// 禁用状态
+// 状态
 <Button disabled>禁用按钮</Button>
-
-// 加载状态
 <Button loading>加载中</Button>
-
-// 块级按钮
 <Button block>块级按钮</Button>
 ```
 
-### Button Props
+#### Button Props
 
 ```typescript
 interface ButtonProps {
@@ -132,296 +182,154 @@ interface ButtonProps {
 }
 ```
 
----
-
-### List
+### Cell 单元格
 
 ```tsx
-import { List } from '@svton/taro-ui';
+import { Cell, CellGroup } from '@svton/taro-ui';
 
-<List>
-  <List.Item
-    title="标题"
-    description="描述文字"
-    arrow
-    onClick={() => handleClick()}
-  />
-  <List.Item
-    title="带图标"
-    icon={<Icon name="setting" />}
-    arrow
-  />
-  <List.Item
-    title="带右侧内容"
-    extra={<Text>更多</Text>}
-  />
-</List>
+<CellGroup title="基础用法">
+  <Cell title="标题" value="内容" />
+  <Cell title="带描述" label="描述信息" value="内容" />
+  <Cell title="带箭头" arrow onClick={() => {}} />
+  <Cell title="必填项" required value="请选择" arrow />
+</CellGroup>
+
+<CellGroup title="带图标" inset>
+  <Cell title="设置" icon={<Icon name="setting" />} arrow />
+</CellGroup>
 ```
 
-### List.Item Props
+#### Cell Props
 
 ```typescript
-interface ListItemProps {
-  title: string;
-  description?: string;
-  icon?: ReactNode;
-  extra?: ReactNode;
-  arrow?: boolean;
+interface CellProps {
+  title?: ReactNode;      // 标题
+  label?: ReactNode;      // 描述信息
+  value?: ReactNode;      // 右侧内容
+  icon?: ReactNode;       // 左侧图标
+  arrow?: boolean;        // 是否显示箭头
+  required?: boolean;     // 是否必填
+  clickable?: boolean;    // 是否可点击
+  disabled?: boolean;     // 是否禁用
   onClick?: () => void;
 }
+
+interface CellGroupProps {
+  title?: string;         // 分组标题
+  border?: boolean;       // 是否显示边框
+  inset?: boolean;        // 是否为内嵌模式
+}
+```
+
+### Divider 分割线
+
+```tsx
+import { Divider } from '@svton/taro-ui';
+
+<Divider />
+<Divider>文字</Divider>
+<Divider contentPosition="left">左侧文字</Divider>
+<Divider dashed>虚线</Divider>
+<Divider direction="vertical" />
+```
+
+### Grid 宫格
+
+```tsx
+import { Grid, GridItem } from '@svton/taro-ui';
+
+<Grid columnNum={4}>
+  <GridItem icon="📷" text="拍照" />
+  <GridItem icon="📁" text="文件" />
+  <GridItem icon="🎵" text="音乐" />
+  <GridItem icon="📹" text="视频" />
+</Grid>
+
+// 自定义列数和边框
+<Grid columnNum={3} border={false} square>
+  <GridItem icon="🏠" text="首页" />
+  <GridItem icon="🔍" text="搜索" />
+  <GridItem icon="👤" text="我的" />
+</Grid>
+```
+
+### Card 卡片
+
+```tsx
+import { Card } from '@svton/taro-ui';
+
+<Card title="卡片标题" extra="更多">
+  卡片内容
+</Card>
+
+<Card
+  title="带封面"
+  cover={<Image src="cover.jpg" />}
+  footer={<Button size="small">操作</Button>}
+>
+  卡片内容
+</Card>
 ```
 
 ---
 
-### Tabs
+## 📝 表单组件
+
+### Input 输入框
 
 ```tsx
-import { useState } from 'react';
-import { Tabs } from '@svton/taro-ui';
+import { Input, Textarea } from '@svton/taro-ui';
 
-function MyComponent() {
-  const [activeIndex, setActiveIndex] = useState(0);
+// 基础输入框
+<Input
+  value={value}
+  placeholder="请输入"
+  onChange={setValue}
+/>
 
-  const tabs = [
-    { title: '全部' },
-    { title: '活动' },
-    { title: '公告' },
-  ];
+// 带清除按钮
+<Input value={value} clearable onChange={setValue} />
 
-  return (
-    <Tabs
-      tabs={tabs}
-      activeIndex={activeIndex}
-      onChange={setActiveIndex}
-    />
-  );
-}
+// 带字数统计
+<Input value={value} maxLength={20} showCount onChange={setValue} />
+
+// 密码输入
+<Input type="text" password placeholder="请输入密码" />
+
+// 前缀后缀
+<Input prefix={<Text>¥</Text>} suffix={<Text>元</Text>} />
+
+// 多行文本
+<Textarea
+  value={content}
+  placeholder="请输入内容"
+  maxLength={200}
+  showCount
+  autoHeight
+  onChange={setContent}
+/>
 ```
 
----
-
-### ImageUploader
-
-```tsx
-import { useState } from 'react';
-import { ImageUploader } from '@svton/taro-ui';
-
-function PublishPage() {
-  const [images, setImages] = useState<string[]>([]);
-
-  return (
-    <ImageUploader
-      value={images}
-      onChange={setImages}
-      maxCount={9}
-      onUpload={async (file) => {
-        // 上传到服务器，返回 URL
-        const url = await uploadFile(file);
-        return url;
-      }}
-    />
-  );
-}
-```
-
-### ImageUploader Props
+#### Input Props
 
 ```typescript
-interface ImageUploaderProps {
-  value: string[];
-  onChange: (urls: string[]) => void;
-  maxCount?: number;
-  onUpload?: (file: File) => Promise<string>;
+interface InputProps {
+  value?: string;
+  placeholder?: string;
+  type?: 'text' | 'number' | 'idcard' | 'digit' | 'nickname';
+  password?: boolean;
+  variant?: 'outlined' | 'borderless' | 'filled';
   disabled?: boolean;
+  readonly?: boolean;
+  error?: boolean;
+  maxLength?: number;
+  clearable?: boolean;
+  showCount?: boolean;
+  prefix?: ReactNode;
+  suffix?: ReactNode;
+  onChange?: (value: string) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+  onConfirm?: (value: string) => void;
 }
 ```
-
----
-
-### ImageGrid
-
-**展示图片列表**
-
-```tsx
-import { ImageGrid } from '@svton/taro-ui';
-
-<ImageGrid
-  images={['url1', 'url2', 'url3']}
-  onPreview={(index) => {
-    // 预览图片
-  }}
-/>
-```
-
----
-
-### TabBar
-
-**底部导航栏**
-
-```tsx
-import { TabBar } from '@svton/taro-ui';
-
-const tabs = [
-  { title: '首页', icon: 'home', selectedIcon: 'home-filled' },
-  { title: '发现', icon: 'discover', selectedIcon: 'discover-filled' },
-  { title: '我的', icon: 'user', selectedIcon: 'user-filled' },
-];
-
-<TabBar
-  tabs={tabs}
-  activeIndex={currentTab}
-  onChange={(index) => setCurrentTab(index)}
-/>
-```
-
----
-
-## 🎨 样式规范
-
-### 1.7 倍缩放规则
-
-所有组件遵循设计稿 1.7 倍缩放：
-
-```scss
-// 导入缩放工具
-@import '../../styles/design-scale.scss';
-
-.button {
-  // 使用预定义变量
-  font-size: $font-size-base;      // scale(16px) = 27.2px
-  padding: $spacing-sm $spacing-base;
-  border-radius: $radius-base;
-  
-  // 使用 scale 函数
-  min-width: scale(80px);          // 136px
-  height: scale(44px);             // 74.8px
-}
-```
-
-### 颜色变量
-
-```scss
-// 主题色
-$color-primary: #1890ff;
-$color-success: #52c41a;
-$color-warning: #faad14;
-$color-error: #ff4d4f;
-
-// 文字颜色
-$color-text-primary: #333333;
-$color-text-secondary: #666666;
-$color-text-placeholder: #999999;
-
-// 背景色
-$color-background: #f5f5f5;
-$color-background-white: #ffffff;
-
-// 边框
-$color-border: #e8e8e8;
-```
-
----
-
-## ➕ 添加新组件
-
-### 1. 创建组件目录
-
-```bash
-mkdir -p packages/taro-ui/src/components/NewComponent
-```
-
-### 2. 编写组件
-
-```tsx
-// packages/taro-ui/src/components/NewComponent/index.tsx
-import { View } from '@tarojs/components';
-import './index.scss';
-
-export interface NewComponentProps {
-  title: string;
-  onClick?: () => void;
-}
-
-export function NewComponent({ title, onClick }: NewComponentProps) {
-  return (
-    <View className="new-component" onClick={onClick}>
-      {title}
-    </View>
-  );
-}
-```
-
-### 3. 编写样式
-
-```scss
-// packages/taro-ui/src/components/NewComponent/index.scss
-@import '../../styles/variables.scss';
-
-.new-component {
-  padding: $spacing-base;
-  font-size: $font-size-base;
-}
-```
-
-### 4. 导出组件
-
-```typescript
-// packages/taro-ui/src/index.ts
-export { NewComponent } from './components/NewComponent';
-export type { NewComponentProps } from './components/NewComponent';
-```
-
----
-
-## ✅ 使用规范
-
-### 代码审查检查清单
-
-- [ ] 页面使用 `<StatusBar />` 和 `<NavBar />`
-- [ ] 按钮使用 `<Button>` 组件
-- [ ] 列表使用 `<List>` 组件
-- [ ] 图片上传使用 `<ImageUploader>`
-- [ ] 样式使用 `design-scale.scss` 变量
-
-### 页面模板
-
-```tsx
-import { View, ScrollView } from '@tarojs/components';
-import { useState } from 'react';
-import { usePersistFn } from '@svton/hooks';
-import { NavBar, StatusBar, Button, List } from '@svton/taro-ui';
-import './index.scss';
-
-export default function ExamplePage() {
-  const [loading, setLoading] = useState(false);
-
-  const handleClick = usePersistFn(() => {
-    // 处理点击
-  });
-
-  return (
-    <View className="example-page">
-      <StatusBar />
-      <NavBar title="示例页面" />
-      
-      <ScrollView scrollY className="content">
-        <List>
-          <List.Item title="选项1" arrow onClick={handleClick} />
-          <List.Item title="选项2" arrow />
-        </List>
-        
-        <View className="actions">
-          <Button type="primary" block onClick={handleClick}>
-            确认
-          </Button>
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
-```
-
----
-
-**相关文档**: [@svton/hooks](./hooks.md) | [样式规范](../mobile/styling.md)
