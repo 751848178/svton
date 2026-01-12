@@ -1,0 +1,31 @@
+@import '../../styles/variables.scss';
+
+.svton-back-top {
+  position: fixed;
+  z-index: $z-index-fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 96rpx;
+  height: 96rpx;
+  background-color: $color-bg-card;
+  border-radius: 50%;
+  box-shadow: $shadow-lg;
+  transition: opacity $transition-fast $ease-smooth, transform $transition-fast $ease-smooth;
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &__icon {
+    font-size: 40rpx;
+    color: $color-text-secondary;
+  }
+
+  &__text {
+    margin-top: 4rpx;
+    font-size: $font-size-xs;
+    color: $color-text-tertiary;
+  }
+}

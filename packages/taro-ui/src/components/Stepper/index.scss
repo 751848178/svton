@@ -1,0 +1,84 @@
+@import '../../styles/variables.scss';
+
+.svton-stepper {
+  display: inline-flex;
+  align-items: center;
+
+  &__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56rpx;
+    height: 56rpx;
+    background-color: $color-bg-section;
+    border-radius: $radius-sm;
+    font-size: $font-size-lg;
+    color: $color-text-primary;
+    transition: background-color $transition-fast $ease-smooth;
+
+    &:active {
+      background-color: $color-border;
+    }
+
+    &--disabled {
+      color: $color-text-disabled;
+      pointer-events: none;
+    }
+  }
+
+  &__minus {
+    border-radius: $radius-sm 0 0 $radius-sm;
+  }
+
+  &__plus {
+    border-radius: 0 $radius-sm $radius-sm 0;
+  }
+
+  &__input {
+    width: 64rpx;
+    height: 56rpx;
+    margin: 0 2rpx;
+    padding: 0;
+    text-align: center;
+    font-size: $font-size-base;
+    color: $color-text-primary;
+    background-color: $color-bg-section;
+    border: none;
+    outline: none;
+  }
+
+  // 禁用状态
+  &--disabled {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  // 尺寸
+  &--small {
+    .svton-stepper__btn {
+      width: 44rpx;
+      height: 44rpx;
+      font-size: $font-size-base;
+    }
+
+    .svton-stepper__input {
+      width: 52rpx;
+      height: 44rpx;
+      font-size: $font-size-sm;
+    }
+  }
+
+  &--large {
+    .svton-stepper__btn {
+      width: 72rpx;
+      height: 72rpx;
+      font-size: $font-size-h2;
+    }
+
+    .svton-stepper__input {
+      width: 80rpx;
+      height: 72rpx;
+      font-size: $font-size-lg;
+    }
+  }
+}

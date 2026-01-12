@@ -1,0 +1,85 @@
+@import '../../styles/variables.scss';
+
+.svton-checkbox {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40rpx;
+    height: 40rpx;
+    border: 2rpx solid $color-border;
+    background-color: $color-bg-card;
+    transition: all $transition-fast $ease-smooth;
+    box-sizing: border-box;
+  }
+
+  &__check {
+    color: $color-text-inverse;
+    font-weight: $font-weight-bold;
+  }
+
+  &__label {
+    margin-left: $spacing-sm;
+    font-size: $font-size-base;
+    color: $color-text-primary;
+    line-height: $line-height-base;
+  }
+
+  // 形状
+  &--square {
+    .svton-checkbox__icon {
+      border-radius: $radius-sm;
+    }
+  }
+
+  &--round {
+    .svton-checkbox__icon {
+      border-radius: 50%;
+    }
+  }
+
+  // 选中状态
+  &--checked {
+    .svton-checkbox__icon {
+      background-color: $color-primary;
+      border-color: $color-primary;
+    }
+  }
+
+  // 禁用状态
+  &--disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+// CheckboxGroup
+.svton-checkbox-group {
+  display: flex;
+
+  &--vertical {
+    flex-direction: column;
+
+    .svton-checkbox {
+      margin-bottom: $spacing-md;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  &--horizontal {
+    flex-direction: row;
+    flex-wrap: wrap;
+
+    .svton-checkbox {
+      margin-right: $spacing-lg;
+      margin-bottom: $spacing-sm;
+    }
+  }
+}

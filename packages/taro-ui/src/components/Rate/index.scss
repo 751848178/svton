@@ -1,0 +1,60 @@
+@import '../../styles/variables.scss';
+
+.svton-rate {
+  display: inline-flex;
+  align-items: center;
+
+  &__item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:not(:last-child) {
+      margin-right: 8rpx;
+    }
+  }
+
+  &__icon {
+    font-size: 48rpx;
+    color: $color-border;
+    transition: color $transition-fast $ease-smooth, transform $transition-fast $ease-smooth;
+
+    &--active {
+      color: #ffc107;
+    }
+
+    &--half {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 50%;
+      overflow: hidden;
+      color: #ffc107;
+    }
+  }
+
+  // 禁用状态
+  &--disabled {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  // 只读状态
+  &--readonly {
+    pointer-events: none;
+  }
+
+  // 尺寸
+  &--small {
+    .svton-rate__icon {
+      font-size: 36rpx;
+    }
+  }
+
+  &--large {
+    .svton-rate__icon {
+      font-size: 64rpx;
+    }
+  }
+}

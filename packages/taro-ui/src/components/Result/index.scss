@@ -1,0 +1,75 @@
+@import '../../styles/variables.scss';
+
+.svton-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: $spacing-xxl $padding-page;
+  text-align: center;
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 160rpx;
+    height: 160rpx;
+    margin-bottom: $spacing-lg;
+    border-radius: 50%;
+    font-size: 80rpx;
+    font-weight: $font-weight-bold;
+
+    &--success {
+      background-color: rgba($color-success, 0.1);
+      color: $color-success;
+    }
+
+    &--error {
+      background-color: rgba($color-error, 0.1);
+      color: $color-error;
+    }
+
+    &--warning {
+      background-color: rgba($color-warning, 0.1);
+      color: $color-warning;
+    }
+
+    &--info {
+      background-color: rgba($color-primary, 0.1);
+      color: $color-primary;
+    }
+
+    &--waiting {
+      background-color: $color-bg-section;
+      color: $color-text-tertiary;
+    }
+  }
+
+  &__image {
+    margin-bottom: $spacing-lg;
+  }
+
+  &__title {
+    margin-bottom: $spacing-sm;
+    font-size: $font-size-h2;
+    font-weight: $font-weight-bold;
+    color: $color-text-primary;
+    line-height: $line-height-title;
+  }
+
+  &__desc {
+    margin-bottom: $spacing-lg;
+    font-size: $font-size-base;
+    color: $color-text-secondary;
+    line-height: $line-height-base;
+  }
+
+  &__content {
+    width: 100%;
+    margin-bottom: $spacing-lg;
+  }
+
+  &__extra {
+    width: 100%;
+    margin-top: $spacing-md;
+  }
+}

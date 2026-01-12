@@ -1,0 +1,9 @@
+@import '../../styles/variables.scss';
+
+.svton-countdown {
+  display: inline-flex;
+  align-items: center;
+  font-size: $font-size-base;
+  color: $color-text-primary;
+  font-variant-numeric: tabular-nums;
+}

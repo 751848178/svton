@@ -1,0 +1,75 @@
+@import '../../styles/variables.scss';
+
+.svton-divider {
+  display: flex;
+  align-items: center;
+  margin: $spacing-md 0;
+
+  // 水平分割线
+  &--horizontal {
+    width: 100%;
+  }
+
+  // 垂直分割线
+  &--vertical {
+    display: inline-block;
+    width: 1rpx;
+    height: 1em;
+    margin: 0 $spacing-sm;
+    vertical-align: middle;
+    border-left: 1rpx solid $color-border;
+
+    &.svton-divider--dashed {
+      border-left-style: dashed;
+    }
+  }
+
+  // 分割线
+  &__line {
+    flex: 1;
+    border-top: 1rpx solid $color-border;
+
+    &--left {
+      margin-right: 0;
+    }
+
+    &--right {
+      margin-left: 0;
+    }
+  }
+
+  // 虚线
+  &--dashed {
+    .svton-divider__line {
+      border-top-style: dashed;
+    }
+  }
+
+  // 内容
+  &__content {
+    padding: 0 $spacing-md;
+    font-size: $font-size-sm;
+    color: $color-text-tertiary;
+    white-space: nowrap;
+  }
+
+  // 内容位置
+  &--content-left {
+    .svton-divider__line--left {
+      max-width: 10%;
+    }
+  }
+
+  &--content-right {
+    .svton-divider__line--right {
+      max-width: 10%;
+    }
+  }
+
+  &--content-center {
+    .svton-divider__line--left,
+    .svton-divider__line--right {
+      flex: 1;
+    }
+  }
+}

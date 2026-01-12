@@ -1,0 +1,96 @@
+@import '../../styles/variables.scss';
+
+.svton-grid {
+  display: flex;
+  flex-wrap: wrap;
+  background-color: $color-bg-card;
+
+  // 有边框
+  &--border {
+    border-top: 1rpx solid $color-border-light;
+    border-left: 1rpx solid $color-border-light;
+
+    .svton-grid-item {
+      border-right: 1rpx solid $color-border-light;
+      border-bottom: 1rpx solid $color-border-light;
+    }
+  }
+
+  // 正方形
+  &--square {
+    .svton-grid-item__content {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+    }
+  }
+
+  // 居中
+  &--center {
+    .svton-grid-item__content {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+}
+
+.svton-grid-item {
+  position: relative;
+  box-sizing: border-box;
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: $spacing-md;
+    background-color: $color-bg-card;
+
+    &:active {
+      background-color: $color-bg-section;
+    }
+  }
+
+  // 图标
+  &__icon {
+    font-size: $icon-lg;
+    margin-bottom: $spacing-sm;
+  }
+
+  // 图片
+  &__image {
+    width: $icon-lg;
+    height: $icon-lg;
+    margin-bottom: $spacing-sm;
+  }
+
+  // 文字
+  &__text {
+    font-size: $font-size-sm;
+    color: $color-text-primary;
+    line-height: $line-height-title;
+    text-align: center;
+    word-break: break-all;
+  }
+
+  // 描述
+  &__desc {
+    margin-top: $spacing-xs;
+    font-size: $font-size-xs;
+    color: $color-text-tertiary;
+    line-height: $line-height-small;
+    text-align: center;
+  }
+
+  // 禁用
+  &--disabled {
+    .svton-grid-item__content {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+  }
+}

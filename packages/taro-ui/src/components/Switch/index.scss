@@ -1,0 +1,104 @@
+@import '../../styles/variables.scss';
+
+.svton-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+
+  &__track {
+    position: relative;
+    width: 100rpx;
+    height: 56rpx;
+    background-color: $color-bg-section;
+    border-radius: $radius-round;
+    transition: background-color $transition-fast $ease-smooth;
+  }
+
+  &__thumb {
+    position: absolute;
+    top: 4rpx;
+    left: 4rpx;
+    width: 48rpx;
+    height: 48rpx;
+    background-color: $color-bg-card;
+    border-radius: 50%;
+    box-shadow: $shadow-sm;
+    transition: transform $transition-fast $ease-smooth;
+  }
+
+  // 选中状态
+  &--checked {
+    .svton-switch__track {
+      background-color: $color-primary;
+    }
+
+    .svton-switch__thumb {
+      transform: translateX(44rpx);
+    }
+  }
+
+  // 禁用状态
+  &--disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  // 加载状态
+  &--loading {
+    pointer-events: none;
+
+    .svton-switch__thumb {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
+  &__loading {
+    width: 32rpx;
+    height: 32rpx;
+    border: 3rpx solid $color-primary;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: svton-switch-spin 0.8s linear infinite;
+  }
+
+  // 尺寸
+  &--small {
+    .svton-switch__track {
+      width: 80rpx;
+      height: 44rpx;
+    }
+
+    .svton-switch__thumb {
+      width: 36rpx;
+      height: 36rpx;
+    }
+
+    &.svton-switch--checked .svton-switch__thumb {
+      transform: translateX(36rpx);
+    }
+  }
+
+  &--large {
+    .svton-switch__track {
+      width: 120rpx;
+      height: 68rpx;
+    }
+
+    .svton-switch__thumb {
+      width: 60rpx;
+      height: 60rpx;
+    }
+
+    &.svton-switch--checked .svton-switch__thumb {
+      transform: translateX(52rpx);
+    }
+  }
+}
+
+@keyframes svton-switch-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

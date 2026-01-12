@@ -1,0 +1,81 @@
+@import '../../styles/variables.scss';
+
+.svton-progress {
+  display: flex;
+  align-items: center;
+
+  // 线性进度条
+  &--line {
+    width: 100%;
+
+    .svton-progress__line {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .svton-progress__track {
+      width: 100%;
+      border-radius: $radius-round;
+      overflow: hidden;
+    }
+
+    .svton-progress__bar {
+      border-radius: $radius-round;
+      transition: width $transition-base $ease-smooth;
+    }
+
+    .svton-progress__text {
+      flex-shrink: 0;
+      margin-left: $spacing-sm;
+      font-size: $font-size-sm;
+      color: $color-text-secondary;
+      white-space: nowrap;
+    }
+  }
+
+  // 环形进度条
+  &--circle {
+    display: inline-flex;
+
+    .svton-progress__circle {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .svton-progress__circle-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .svton-progress__circle-track {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border-style: solid;
+      box-sizing: border-box;
+    }
+
+    .svton-progress__circle-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: 50%;
+      transform: rotate(-90deg);
+    }
+
+    .svton-progress__circle-text {
+      position: relative;
+      z-index: 1;
+      font-size: $font-size-lg;
+      font-weight: $font-weight-medium;
+      color: $color-text-primary;
+    }
+  }
+}

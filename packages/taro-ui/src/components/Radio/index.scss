@@ -1,0 +1,74 @@
+@import '../../styles/variables.scss';
+
+.svton-radio {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40rpx;
+    height: 40rpx;
+    border: 2rpx solid $color-border;
+    border-radius: 50%;
+    background-color: $color-bg-card;
+    transition: all $transition-fast $ease-smooth;
+    box-sizing: border-box;
+  }
+
+  &__dot {
+    width: 20rpx;
+    height: 20rpx;
+    border-radius: 50%;
+    background-color: $color-primary;
+  }
+
+  &__label {
+    margin-left: $spacing-sm;
+    font-size: $font-size-base;
+    color: $color-text-primary;
+    line-height: $line-height-base;
+  }
+
+  // 选中状态
+  &--checked {
+    .svton-radio__icon {
+      border-color: $color-primary;
+    }
+  }
+
+  // 禁用状态
+  &--disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+// RadioGroup
+.svton-radio-group {
+  display: flex;
+
+  &--vertical {
+    flex-direction: column;
+
+    .svton-radio {
+      margin-bottom: $spacing-md;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+
+  &--horizontal {
+    flex-direction: row;
+    flex-wrap: wrap;
+
+    .svton-radio {
+      margin-right: $spacing-lg;
+      margin-bottom: $spacing-sm;
+    }
+  }
+}

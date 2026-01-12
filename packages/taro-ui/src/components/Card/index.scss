@@ -1,0 +1,78 @@
+@import '../../styles/variables.scss';
+
+.svton-card {
+  background-color: $color-bg-card;
+  border-radius: $card-radius;
+  overflow: hidden;
+
+  &--bordered {
+    border: 1rpx solid $color-border-light;
+  }
+
+  &--shadow {
+    box-shadow: $shadow-md;
+  }
+
+  &--clickable {
+    &:active {
+      opacity: 0.9;
+      transform: scale(0.99);
+    }
+  }
+
+  &__cover {
+    width: 100%;
+    overflow: hidden;
+
+    &-image {
+      width: 100%;
+      display: block;
+    }
+  }
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: $card-padding;
+    border-bottom: 1rpx solid $color-border-light;
+
+    &-content {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__title {
+    display: block;
+    font-size: $font-size-lg;
+    font-weight: $font-weight-bold;
+    color: $color-text-primary;
+    line-height: $line-height-title;
+  }
+
+  &__subtitle {
+    display: block;
+    margin-top: $spacing-xs;
+    font-size: $font-size-sm;
+    color: $color-text-tertiary;
+    line-height: $line-height-small;
+  }
+
+  &__extra {
+    flex-shrink: 0;
+    margin-left: $spacing-md;
+  }
+
+  &__body {
+    padding: $card-padding;
+    font-size: $font-size-base;
+    color: $color-text-secondary;
+    line-height: $line-height-base;
+  }
+
+  &__footer {
+    padding: $spacing-md $card-padding;
+    border-top: 1rpx solid $color-border-light;
+  }
+}
