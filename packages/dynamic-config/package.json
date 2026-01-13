@@ -1,6 +1,6 @@
 {
   "name": "@svton/dynamic-config",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Dynamic configuration management system with multi-layer caching",
   "keywords": [
     "config",

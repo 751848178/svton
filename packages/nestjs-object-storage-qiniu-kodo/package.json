@@ -1,6 +1,6 @@
 {
   "name": "@svton/nestjs-object-storage-qiniu-kodo",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Qiniu Kodo adapter for @svton/nestjs-object-storage",
   "keywords": [
     "nestjs",
@@ -32,7 +32,7 @@
     "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
-    "@svton/nestjs-object-storage": "^1.1.0"
+    "@svton/nestjs-object-storage": "^1.2.0"
   },
   "dependencies": {
     "qiniu": "^7.12.0"

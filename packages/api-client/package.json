@@ -1,6 +1,6 @@
 {
   "name": "@svton/api-client",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "TypeScript-first API client with module augmentation, interceptors, and SWR integration",
   "keywords": [
     "api-client",
