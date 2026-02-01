@@ -1,6 +1,6 @@
 {
   "name": "@svton/cli",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Svton CLI - Create full-stack applications with NestJS, Next.js, and Taro",
   "keywords": [
     "cli",
@@ -30,6 +30,7 @@
   "files": [
     "dist",
     "bin",
+    "features.json",
     "README.md",
     "LICENSE"
   ],

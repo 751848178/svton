@@ -46,7 +46,18 @@ export interface FeaturesConfig {
  * 加载功能配置
  */
 export async function loadFeaturesConfig(): Promise<FeaturesConfig> {
-  const configPath = path.join(__dirname, '../../features.json');
+  // 在发布的包中，features.json 在包根目录
+  // __dirname 在编译后指向 dist 目录，所以需要向上一级
+  const configPath = path.join(__dirname, '../features.json');
+  
+  // 如果找不到，尝试开发环境的路径
+  if (!fs.existsSync(configPath)) {
+    const devPath = path.join(__dirname, '../../features.json');
+    if (fs.existsSync(devPath)) {
+      return await fs.readJSON(devPath);
+    }
+  }
+  
   return await fs.readJSON(configPath);
 }
 

@@ -1,5 +1,14 @@
 # @svton/cli
 
+## 1.2.1
+
+### Patch Changes
+
+- fix: include features.json in npm package and fix path resolution
+  - Add features.json to package files
+  - Fix features.json path resolution for published package
+  - Support both development and production environments
+
 ## 1.2.0
 
 ### Minor Changes
