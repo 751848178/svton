@@ -141,7 +141,7 @@ export async function generateEnvExample(
     }),
   ].join('\n');
 
-  await fs.writeFile(path.join(targetPath, '.env.example'), content);
+  await fs.writeFile(path.join(targetPath, 'apps/backend/.env.example'), content);
   logger.info('Generated .env.example');
 }
 
@@ -281,7 +281,7 @@ ${featuresList}
 当你需要使用某个功能时，可以：
 
 1. 查看对应的 skill 文档了解 API 和最佳实践
-2. 参考 \`src/examples/\` 目录下的示例代码
+2. 参考 \`apps/backend/src/examples/\` 目录下的示例代码
 3. 查看官方文档获取更多信息
 
 ## 文档资源
@@ -303,7 +303,7 @@ export async function updatePackageJson(
   config: FeaturesConfig,
   targetPath: string,
 ): Promise<void> {
-  const packageJsonPath = path.join(targetPath, 'package.json');
+  const packageJsonPath = path.join(targetPath, 'apps/backend/package.json');
   const packageJson = await fs.readJSON(packageJsonPath);
 
   const dependencies = collectDependencies(features, config);
@@ -369,7 +369,7 @@ export async function updateAppModule(
   config: FeaturesConfig,
   targetPath: string,
 ): Promise<void> {
-  const appModulePath = path.join(targetPath, 'src/app.module.ts');
+  const appModulePath = path.join(targetPath, 'apps/backend/src/app.module.ts');
 
   if (!(await fs.pathExists(appModulePath))) {
     logger.warn('app.module.ts not found, skipping module injection');

@@ -1,5 +1,17 @@
 # @svton/cli
 
+## 1.2.5
+
+### Patch Changes
+
+- 修复功能集成时的文件路径，将文件放到正确的项目目录中
+  - 修复配置文件路径：从 `src/config/` 改为 `apps/backend/src/config/`
+  - 修复示例代码路径：从 `src/examples/` 改为 `apps/backend/src/examples/`
+  - 修复环境变量文件路径：从 `.env.example` 改为 `apps/backend/.env.example`
+  - 修复 package.json 路径：从根目录改为 `apps/backend/package.json`
+  - 修复 app.module.ts 路径：从 `src/app.module.ts` 改为 `apps/backend/src/app.module.ts`
+  - 更新能力索引文档中的示例代码路径说明
+
 ## 1.2.4
 
 ### Patch Changes

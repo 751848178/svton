@@ -17,7 +17,7 @@
       ],
       "configFiles": [
         {
-          "path": "src/config/cache.config.ts",
+          "path": "apps/backend/src/config/cache.config.ts",
           "template": "configs/cache.config.ts"
         }
       ],
@@ -34,7 +34,7 @@
       },
       "exampleFiles": {
         "source": "examples/cache",
-        "target": "src/examples/cache",
+        "target": "apps/backend/src/examples/cache",
         "description": "缓存装饰器使用示例"
       },
       "skillFile": {
@@ -58,7 +58,7 @@
       ],
       "configFiles": [
         {
-          "path": "src/config/queue.config.ts",
+          "path": "apps/backend/src/config/queue.config.ts",
           "template": "configs/queue.config.ts"
         }
       ],
@@ -75,7 +75,7 @@
       },
       "exampleFiles": {
         "source": "examples/queue",
-        "target": "src/examples/queue",
+        "target": "apps/backend/src/examples/queue",
         "description": "队列任务处理示例"
       },
       "skillFile": {
@@ -104,7 +104,7 @@
       ],
       "configFiles": [
         {
-          "path": "src/config/payment.config.ts",
+          "path": "apps/backend/src/config/payment.config.ts",
           "template": "configs/payment.config.ts"
         }
       ],
@@ -121,7 +121,7 @@
       },
       "exampleFiles": {
         "source": "examples/payment",
-        "target": "src/examples/payment",
+        "target": "apps/backend/src/examples/payment",
         "description": "支付功能示例（微信/支付宝）"
       },
       "skillFile": {
@@ -146,7 +146,7 @@
       ],
       "configFiles": [
         {
-          "path": "src/config/oauth.config.ts",
+          "path": "apps/backend/src/config/oauth.config.ts",
           "template": "configs/oauth.config.ts"
         }
       ],
@@ -163,7 +163,7 @@
       },
       "exampleFiles": {
         "source": "examples/oauth",
-        "target": "src/examples/oauth",
+        "target": "apps/backend/src/examples/oauth",
         "description": "OAuth 登录示例"
       },
       "skillFile": {
@@ -188,7 +188,7 @@
       ],
       "configFiles": [
         {
-          "path": "src/config/sms.config.ts",
+          "path": "apps/backend/src/config/sms.config.ts",
           "template": "configs/sms.config.ts"
         }
       ],
@@ -205,7 +205,7 @@
       },
       "exampleFiles": {
         "source": "examples/sms",
-        "target": "src/examples/sms",
+        "target": "apps/backend/src/examples/sms",
         "description": "短信发送示例"
       },
       "skillFile": {
@@ -232,7 +232,7 @@
       ],
       "configFiles": [
         {
-          "path": "src/config/storage.config.ts",
+          "path": "apps/backend/src/config/storage.config.ts",
           "template": "configs/storage.config.ts"
         }
       ],
@@ -249,7 +249,7 @@
       },
       "exampleFiles": {
         "source": "examples/storage",
-        "target": "src/examples/storage",
+        "target": "apps/backend/src/examples/storage",
         "description": "文件上传示例"
       },
       "skillFile": {
@@ -273,7 +273,7 @@
       ],
       "configFiles": [
         {
-          "path": "src/config/rate-limit.config.ts",
+          "path": "apps/backend/src/config/rate-limit.config.ts",
           "template": "configs/rate-limit.config.ts"
         }
       ],
@@ -290,7 +290,7 @@
       },
       "exampleFiles": {
         "source": "examples/rate-limit",
-        "target": "src/examples/rate-limit",
+        "target": "apps/backend/src/examples/rate-limit",
         "description": "限流使用示例"
       },
       "skillFile": {
@@ -310,7 +310,7 @@
       "envVars": [],
       "configFiles": [
         {
-          "path": "src/config/authz.config.ts",
+          "path": "apps/backend/src/config/authz.config.ts",
           "template": "configs/authz.config.ts"
         }
       ],
@@ -327,7 +327,7 @@
       },
       "exampleFiles": {
         "source": "examples/authz",
-        "target": "src/examples/authz",
+        "target": "apps/backend/src/examples/authz",
         "description": "权限控制示例"
       },
       "skillFile": {
