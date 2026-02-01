@@ -1,0 +1,70 @@
+{
+  "resources": [
+    {
+      "id": "mysql",
+      "name": "MySQL",
+      "description": "MySQL 数据库",
+      "icon": "database",
+      "fields": [
+        { "key": "host", "label": "主机地址", "type": "text", "required": true, "default": "localhost" },
+        { "key": "port", "label": "端口", "type": "number", "required": true, "default": 3306 },
+        { "key": "username", "label": "用户名", "type": "text", "required": true },
+        { "key": "password", "label": "密码", "type": "password", "required": true },
+        { "key": "database", "label": "数据库名", "type": "text", "required": true }
+      ],
+      "envTemplate": "DATABASE_URL=\"mysql://${username}:${password}@${host}:${port}/${database}\""
+    },
+    {
+      "id": "postgresql",
+      "name": "PostgreSQL",
+      "description": "PostgreSQL 数据库",
+      "icon": "database",
+      "fields": [
+        { "key": "host", "label": "主机地址", "type": "text", "required": true, "default": "localhost" },
+        { "key": "port", "label": "端口", "type": "number", "required": true, "default": 5432 },
+        { "key": "username", "label": "用户名", "type": "text", "required": true },
+        { "key": "password", "label": "密码", "type": "password", "required": true },
+        { "key": "database", "label": "数据库名", "type": "text", "required": true }
+      ],
+      "envTemplate": "DATABASE_URL=\"postgresql://${username}:${password}@${host}:${port}/${database}?schema=public\""
+    },
+    {
+      "id": "redis",
+      "name": "Redis",
+      "description": "Redis 缓存/消息队列",
+      "icon": "layers",
+      "fields": [
+        { "key": "host", "label": "主机地址", "type": "text", "required": true, "default": "localhost" },
+        { "key": "port", "label": "端口", "type": "number", "required": true, "default": 6379 },
+        { "key": "password", "label": "密码", "type": "password", "required": false },
+        { "key": "db", "label": "数据库", "type": "number", "required": false, "default": 0 }
+      ],
+      "envTemplate": "REDIS_HOST=${host}\nREDIS_PORT=${port}\nREDIS_PASSWORD=${password}\nREDIS_DB=${db}"
+    },
+    {
+      "id": "qiniu-kodo",
+      "name": "七牛云 Kodo",
+      "description": "七牛云对象存储",
+      "icon": "cloud",
+      "fields": [
+        { "key": "accessKey", "label": "Access Key", "type": "text", "required": true },
+        { "key": "secretKey", "label": "Secret Key", "type": "password", "required": true },
+        { "key": "bucket", "label": "Bucket", "type": "text", "required": true },
+        { "key": "domain", "label": "CDN 域名", "type": "text", "required": true }
+      ],
+      "envTemplate": "QINIU_ACCESS_KEY=${accessKey}\nQINIU_SECRET_KEY=${secretKey}\nQINIU_BUCKET=${bucket}\nQINIU_DOMAIN=${domain}"
+    },
+    {
+      "id": "sms-aliyun",
+      "name": "阿里云短信",
+      "description": "阿里云短信服务",
+      "icon": "message-square",
+      "fields": [
+        { "key": "accessKeyId", "label": "Access Key ID", "type": "text", "required": true },
+        { "key": "accessKeySecret", "label": "Access Key Secret", "type": "password", "required": true },
+        { "key": "signName", "label": "签名", "type": "text", "required": true }
+      ],
+      "envTemplate": "SMS_ACCESS_KEY_ID=${accessKeyId}\nSMS_ACCESS_KEY_SECRET=${accessKeySecret}\nSMS_SIGN_NAME=${signName}"
+    }
+  ]
+}

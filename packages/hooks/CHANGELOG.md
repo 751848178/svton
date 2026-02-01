@@ -1,5 +1,11 @@
 # @svton/hooks
 
+## 1.3.0
+
+### Minor Changes
+
+- Add useSafeState hook to prevent state updates after component unmount
+
 ## 1.2.0
 
 ### Minor Changes

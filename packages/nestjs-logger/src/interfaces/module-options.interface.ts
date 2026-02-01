@@ -3,6 +3,52 @@ import { ModuleMetadata, Type } from '@nestjs/common';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal' | 'silent';
 
 /**
+ * 阿里云 SLS 配置
+ */
+export interface AliyunSlsConfig {
+  /** SLS endpoint (例如: cn-hangzhou.log.aliyuncs.com) */
+  endpoint: string;
+  /** 访问密钥 ID */
+  accessKeyId: string;
+  /** 访问密钥 Secret */
+  accessKeySecret: string;
+  /** 项目名称 */
+  project: string;
+  /** 日志库名称 */
+  logstore: string;
+  /** 日志来源（可选） */
+  source?: string;
+  /** 日志主题（可选） */
+  topic?: string;
+}
+
+/**
+ * 腾讯云 CLS 配置
+ */
+export interface TencentClsConfig {
+  /** CLS endpoint (例如: ap-guangzhou.cls.tencentcs.com) */
+  endpoint: string;
+  /** 密钥 ID */
+  secretId: string;
+  /** 密钥 Key */
+  secretKey: string;
+  /** 日志主题 ID */
+  topicId: string;
+  /** 日志来源（可选） */
+  source?: string;
+}
+
+/**
+ * 云日志服务配置
+ */
+export interface CloudLoggerConfig {
+  /** 阿里云 SLS 配置 */
+  aliyunSls?: AliyunSlsConfig;
+  /** 腾讯云 CLS 配置 */
+  tencentCls?: TencentClsConfig;
+}
+
+/**
  * Logger 模块配置选项
  */
 export interface LoggerModuleOptions {
@@ -26,6 +72,8 @@ export interface LoggerModuleOptions {
   logRequestBody?: boolean;
   /** 是否记录响应体 */
   logResponseBody?: boolean;
+  /** 云日志服务配置 */
+  cloudLogger?: CloudLoggerConfig;
 }
 
 /**

@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 用户与团队 ====================
+
+// 用户模型
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String?
+  name          String?
+  avatar        String?
+  role          String    @default("user")  // user | admin (系统级别)
+  
+  // OAuth 关联
+  accounts      Account[]
+  
+  // 团队关联
+  teamMembers   TeamMember[]
+  
+  // 用户创建的数据（保留创建者信息）
+  createdResources     Resource[]
+  createdPresets       Preset[]
+  createdProjects      Project[]
+  gitConnections       GitConnection[]
+  allocations          ResourceAllocation[]
+  createdSecretKeys    SecretKey[]
+  createdServers       Server[]
+  createdProxyConfigs  ProxyConfig[]
+  createdCDNConfigs    CDNConfig[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 团队
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  
+  // 团队成员
+  members     TeamMember[]
+  
+  // 团队资源
+  servers       Server[]
+  proxyConfigs  ProxyConfig[]
+  cdnConfigs    CDNConfig[]
+  credentials   TeamCredential[]
+  projects      Project[]
+  resources     Resource[]
+  presets       Preset[]
+  secretKeys    SecretKey[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 团队成员
+model TeamMember {
+  id      String @id @default(cuid())
+  teamId  String
+  userId  String
+  role    String @default("member") // owner | admin | member
+  
+  team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+// ==================== OAuth ====================
+
+// OAuth 账号关联
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// Git 连接
+model GitConnection {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String   // github | gitlab | gitee
+  accessToken  String   @db.Text // 加密存储
+  refreshToken String?  @db.Text
+  username     String
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([userId, provider])
+}
+
+// ==================== 服务器管理 ====================
+
+// 服务器
+model Server {
+  id          String   @id @default(cuid())
+  teamId      String
+  createdById String
+  name        String
+  host        String
+  port        Int      @default(22)
+  username    String
+  authType    String   // password | key
+  credentials String   @db.Text // 加密存储的密码或私钥
+  tags        Json?    // string[]
+  status      String   @default("unknown") // online | offline | unknown
+  services    Json?    // 检测到的服务 { nginx: true, docker: true, ... }
+  
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  proxyConfigs ProxyConfig[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([teamId])
+}
+
+// ==================== 代理配置 ====================
+
+// 代理配置（类似 nginx-proxy-manager）
+model ProxyConfig {
+  id           String   @id @default(cuid())
+  teamId       String
+  createdById  String
+  serverId     String?
+  projectId    String?
+  name         String
+  domain       String
+  upstreams    Json     // [{ host: string, port: number, weight?: number }]
+  ssl          Json     // { enabled: boolean, type: 'letsencrypt' | 'custom' | 'none', certificate?: string, privateKey?: string }
+  websocket    Boolean  @default(false)
+  customConfig String?  @db.Text // 自定义 Nginx 配置片段
+  status       String   @default("pending") // pending | active | error
+  lastSyncAt   DateTime?
+  syncError    String?  @db.Text
+  
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  server      Server?  @relation(fields: [serverId], references: [id])
+  project     Project? @relation(fields: [projectId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([teamId])
+  @@index([domain])
+  @@index([projectId])
+}
+
+// ==================== CDN 配置 ====================
+
+// 团队凭证（CDN、云服务等）
+model TeamCredential {
+  id        String   @id @default(cuid())
+  teamId    String
+  type      String   // cdn_qiniu | cdn_aliyun | cdn_cloudflare | cloud_aws | etc.
+  name      String
+  config    String   @db.Text // 加密的凭证配置 JSON
+  
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  cdnConfigs CDNConfig[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([teamId, type])
+}
+
+// CDN 配置
+model CDNConfig {
+  id           String   @id @default(cuid())
+  teamId       String
+  createdById  String
+  projectId    String?
+  credentialId String
+  name         String
+  domain       String
+  origin       String   // 源站地址
+  provider     String   // qiniu | aliyun | cloudflare
+  cacheRules   Json?    // [{ path: string, ttl: number }]
+  status       String   @default("pending") // pending | active | error
+  providerData Json?    // CDN 提供商返回的数据
+  syncError    String?  @db.Text
+  
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy    User     @relation(fields: [createdById], references: [id])
+  project      Project? @relation(fields: [projectId], references: [id])
+  credential   TeamCredential @relation(fields: [credentialId], references: [id])
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([teamId])
+  @@index([domain])
+  @@index([projectId])
+}
+
+// ==================== 项目与资源 ====================
+
+// 资源凭证（团队级别）
+model Resource {
+  id        String   @id @default(cuid())
+  teamId    String
+  createdById String
+  type      String   // mysql | redis | qiniu-kodo | etc.
+  name      String
+  config    String   @db.Text // 加密的 JSON 配置
+  
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([teamId, type])
+}
+
+// 配置预设（团队级别）
+model Preset {
+  id        String   @id @default(cuid())
+  teamId    String
+  createdById String
+  name      String
+  config    Json     // ProjectConfig
+  
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([teamId])
+}
+
+// 生成的项目记录（团队级别）
+model Project {
+  id           String   @id @default(cuid())
+  teamId       String
+  createdById  String
+  name         String
+  description  String?
+  config       Json     // ProjectConfig snapshot
+  gitRepo      String?  // 推送的仓库地址
+  downloadUrl  String?  // ZIP 下载链接（临时）
+  
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy    User     @relation(fields: [createdById], references: [id])
+  allocations  ResourceAllocation[]
+  proxyConfigs ProxyConfig[]
+  cdnConfigs   CDNConfig[]
+  secretKeys   SecretKey[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([teamId])
+  @@index([createdById])
+}
+
+// 密钥中心（团队级别）
+model SecretKey {
+  id          String   @id @default(cuid())
+  teamId      String
+  createdById String
+  projectId   String?  // 关联的项目ID（可选）
+  name        String   // 密钥名称
+  type        String   // jwt_secret | encryption_key | api_key | oauth_secret | database_password | custom
+  value       String   @db.Text // 加密存储的密钥值
+  description String?  // 描述
+  
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  project     Project? @relation(fields: [projectId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([teamId])
+  @@index([projectId])
+}
+
+// ==================== 资源池（系统级别） ====================
+
+// 资源池
+model ResourcePool {
+  id          String   @id @default(cuid())
+  type        String   // mysql | redis | nginx | cdn
+  name        String
+  endpoint    String   // 连接地址
+  adminConfig String   @db.Text // 加密的管理员凭证
+  capacity    Int      // 最大容量
+  allocated   Int      @default(0)  // 已分配数量
+  status      String   @default("active")  // active | maintenance | full
+  
+  allocations ResourceAllocation[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 资源分配记录
+model ResourceAllocation {
+  id           String   @id @default(cuid())
+  poolId       String
+  projectId    String
+  teamId       String
+  userId       String   // 创建者
+  
+  resourceName String   // 如数据库名、Redis DB 号
+  credentials  String   @db.Text // 加密的凭证
+  config       Json     // 其他配置
+  
+  pool         ResourcePool @relation(fields: [poolId], references: [id])
+  project      Project      @relation(fields: [projectId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  
+  status       String   @default("active")  // active | released
+  createdAt    DateTime @default(now())
+  releasedAt   DateTime?
+  
+  @@index([projectId])
+  @@index([teamId])
+  @@index([poolId])
+  @@index([userId])
+}

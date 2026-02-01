@@ -13,6 +13,7 @@ export * from './useThrottleFn';
 export * from './useBoolean';
 export * from './useToggle';
 export * from './useSetState';
+export * from './useSafeState';
 export * from './usePrevious';
 export * from './useLatest';
 export * from './useUpdate';

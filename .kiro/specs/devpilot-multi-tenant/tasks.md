@@ -1,0 +1,291 @@
+# Implementation Plan: Devpilot 多租户与资源管控
+
+## Overview
+
+分阶段实现多租户架构升级，优先完成认证保护和团队基础功能，然后逐步添加服务器管理、域名代理和 CDN 配置功能。
+
+## Tasks
+
+- [x] 1. 前端认证中间件
+  - [x] 1.1 创建 Next.js middleware.ts 实现路由保护
+    - 检查 cookie 中的 token
+    - 公开路由白名单：/login, /register, /
+    - 未登录重定向到 /login?redirect=原路径
+    - _Requirements: 1.1, 1.2, 1.3_
+  - [x] 1.2 创建认证状态 store (auth-store.ts)
+    - 存储 token 和用户信息
+    - 提供 login/logout 方法
+    - 持久化到 localStorage
+    - _Requirements: 1.4_
+  - [x] 1.3 更新登录页面，支持 redirect 参数
+    - 登录成功后跳转到 redirect 或默认页
+    - _Requirements: 1.3_
+
+- [x] 2. 数据库模型更新
+  - [x] 2.1 更新 Prisma schema 添加团队相关模型
+    - Team, TeamMember, Server, ProxyConfig, CDNConfig, TeamCredential
+    - 更新 Project, Resource 添加 teamId
+    - _Requirements: 2.1, 2.2, 2.4_
+  - [x] 2.2 创建数据库迁移
+    - 执行 prisma migrate dev
+    - _Requirements: 2.1_
+
+- [-] 3. 团队模块 (Backend)
+  - [x] 3.1 创建 TeamModule 基础结构
+    - team.module.ts, team.service.ts, team.controller.ts
+    - DTOs: create-team.dto.ts, add-member.dto.ts
+    - _Requirements: 2.1_
+  - [x] 3.2 实现团队 CRUD 接口
+    - POST /api/teams - 创建团队
+    - GET /api/teams - 获取用户的团队列表
+    - GET /api/teams/:id - 获取团队详情
+    - PUT /api/teams/:id - 更新团队
+    - DELETE /api/teams/:id - 删除团队
+    - _Requirements: 2.1, 2.2_
+  - [x] 3.3 实现成员管理接口
+    - POST /api/teams/:id/members - 邀请成员
+    - DELETE /api/teams/:id/members/:memberId - 移除成员
+    - PUT /api/teams/:id/members/:memberId/role - 更新角色
+    - _Requirements: 2.3, 2.4_
+  - [x] 3.4 创建 TeamGuard 中间件
+    - 验证用户是否属于当前团队
+    - 验证用户在团队中的角色权限
+    - _Requirements: 2.6, 7.1_
+  - [x] 3.5 更新现有模块支持团队
+    - 更新 PresetModule 使用 teamId
+    - 更新 KeyCenterModule 使用 teamId
+    - 更新 AdminService 使用新的关系名称
+    - _Requirements: 7.1_
+
+- [x] 4. 团队功能 (Frontend)
+  - [x] 4.1 创建团队上下文 store (team-store.ts)
+    - 当前团队、团队列表
+    - 切换团队方法
+    - _Requirements: 2.5_
+  - [x] 4.2 创建团队切换组件
+    - 在 header 中显示当前团队
+    - 下拉菜单切换团队
+    - _Requirements: 2.5_
+  - [x] 4.3 创建团队管理页面 /teams
+    - 团队列表
+    - 创建团队表单
+    - _Requirements: 2.1_
+  - [x] 4.4 创建团队设置页面 /teams/:id
+    - 成员管理
+    - 团队信息编辑
+    - _Requirements: 2.3, 2.4_
+  - [x] 4.5 更新 API client 支持 teamId header
+    - 自动携带 X-Team-Id header
+    - _Requirements: 2.5_
+  - [x] 4.6 更新侧边栏添加团队管理入口
+    - _Requirements: 全部_
+
+- [x] 5. Checkpoint - 团队基础功能
+  - [x] 认证和团队功能正常工作
+  - [x] 后端路由前缀统一
+  - [x] 创建 Project 模块支持项目 CRUD
+  - [x] 前后端接口对齐
+
+- [x] 6. 服务器模块 (Backend)
+  - [x] 6.1 创建 ServerModule 基础结构
+    - server.module.ts, server.service.ts, server.controller.ts
+    - DTOs: create-server.dto.ts, test-connection.dto.ts
+    - _Requirements: 3.1_
+  - [x] 6.2 实现服务器 CRUD 接口
+    - POST /api/servers - 添加服务器
+    - GET /api/servers - 获取团队服务器列表
+    - GET /api/servers/:id - 获取服务器详情
+    - PUT /api/servers/:id - 更新服务器
+    - DELETE /api/servers/:id - 删除服务器
+    - _Requirements: 3.1, 3.6_
+  - [x] 6.3 实现 SSH 凭证加密存储
+    - 使用 AES-256-GCM 加密
+    - 支持密码和私钥两种认证方式
+    - _Requirements: 3.2_
+  - [x] 6.4 实现服务器连接测试
+    - POST /api/servers/:id/test - 测试连接
+    - 返回连接状态和延迟
+    - _Requirements: 3.3_
+  - [x] 6.5 实现服务检测功能
+    - POST /api/servers/:id/detect - 检测已安装服务
+    - 检测 Nginx, Docker, Node.js 等
+    - _Requirements: 3.4_
+  - [ ]* 6.6 编写凭证加密往返属性测试
+    - **Property 4: Credential Encryption Round-Trip**
+    - **Validates: Requirements 3.2**
+
+- [x] 7. 服务器管理 (Frontend)
+  - [x] 7.1 创建服务器列表页面 /servers
+    - 显示团队所有服务器
+    - 状态指示器
+    - _Requirements: 3.1_
+  - [x] 7.2 创建添加服务器表单
+    - 支持密码和私钥认证
+    - 标签管理
+    - _Requirements: 3.1, 3.6_
+  - [x] 7.3 创建服务器详情页面 /servers/:id
+    - 连接测试按钮
+    - 检测到的服务列表
+    - 关联的代理配置
+    - _Requirements: 3.3, 3.4, 3.5_
+
+- [x] 8. Checkpoint - 服务器管理功能
+  - 确保服务器 CRUD 和连接测试正常
+  - 测试凭证加密存储
+
+- [x] 9. 代理配置模块 (Backend)
+  - [x] 9.1 创建 ProxyConfigModule 基础结构
+    - proxy-config.module.ts, proxy-config.service.ts, proxy-config.controller.ts
+    - DTOs: create-proxy-config.dto.ts
+    - _Requirements: 4.1_
+  - [x] 9.2 实现代理配置 CRUD 接口
+    - POST /api/proxy-configs - 创建配置
+    - GET /api/proxy-configs - 获取团队配置列表
+    - GET /api/proxy-configs/:id - 获取配置详情
+    - PUT /api/proxy-configs/:id - 更新配置
+    - DELETE /api/proxy-configs/:id - 删除配置
+    - _Requirements: 4.1, 4.8_
+  - [x] 9.3 实现 Nginx 配置生成器
+    - 支持单/多 upstream
+    - 支持 SSL 配置
+    - 支持 WebSocket
+    - _Requirements: 4.4, 4.6_
+  - [x] 9.4 实现配置同步到服务器
+    - POST /api/proxy-configs/:id/sync - 同步到服务器
+    - 通过 SSH 写入 Nginx 配置文件
+    - 重载 Nginx
+    - _Requirements: 4.5_
+  - [x] 9.5 实现项目关联
+    - PUT /api/proxy-configs/:id/project - 关联项目
+    - _Requirements: 4.7_
+  - [ ]* 9.6 编写 Nginx 配置生成属性测试
+    - **Property 5: Nginx Config Generation**
+    - **Validates: Requirements 4.4, 4.6**
+  - [ ]* 9.7 编写代理配置完整性属性测试
+    - **Property 6: Proxy Config Completeness**
+    - **Validates: Requirements 4.2**
+
+- [x] 10. 代理配置管理 (Frontend)
+  - [x] 10.1 创建代理配置列表页面 /proxy-configs
+    - 显示所有配置及状态
+    - 快速操作：同步、编辑、删除
+    - _Requirements: 4.8_
+  - [x] 10.2 创建代理配置表单
+    - 域名、upstream 配置
+    - SSL 设置（Let's Encrypt / 自定义）
+    - WebSocket 开关
+    - 服务器选择
+    - _Requirements: 4.1, 4.2, 4.3, 4.6_
+  - [x] 10.3 创建配置预览功能
+    - 显示生成的 Nginx 配置
+    - _Requirements: 4.4_
+  - [x] 10.4 创建代理配置详情页面 /proxy-configs/:id
+    - _Requirements: 4.8_
+
+- [x] 11. Checkpoint - 代理配置功能
+  - 确保代理配置 CRUD 正常
+  - 测试 Nginx 配置生成
+  - 测试同步到服务器（如有测试服务器）
+
+- [x] 12. CDN 配置模块 (Backend)
+  - [x] 12.1 创建 CDNConfigModule 基础结构
+    - cdn-config.module.ts, cdn-config.service.ts, cdn-config.controller.ts
+    - DTOs: create-cdn-config.dto.ts
+    - _Requirements: 5.1_
+  - [x] 12.2 实现 CDN 配置 CRUD 接口
+    - POST /api/cdn-configs - 创建配置
+    - GET /api/cdn-configs - 获取团队配置列表
+    - GET /api/cdn-configs/:id - 获取配置详情
+    - PUT /api/cdn-configs/:id - 更新配置
+    - DELETE /api/cdn-configs/:id - 删除配置
+    - _Requirements: 5.1, 5.5_
+  - [x] 12.3 实现团队凭证管理
+    - POST /api/team-credentials - 添加凭证
+    - GET /api/team-credentials - 获取团队凭证列表
+    - DELETE /api/team-credentials/:id - 删除凭证
+    - _Requirements: 5.3_
+  - [ ] 12.4 实现 CDN 提供商集成（可选）
+    - 七牛云 API 集成
+    - 阿里云 CDN API 集成
+    - _Requirements: 5.2, 5.6_
+  - [x] 12.5 实现缓存清除功能
+    - POST /api/cdn-configs/:id/purge - 清除缓存
+    - _Requirements: 5.7_
+  - [x] 12.6 实现项目关联
+    - PUT /api/cdn-configs/:id/project - 关联项目
+    - _Requirements: 5.4_
+
+- [x] 13. CDN 配置管理 (Frontend)
+  - [x] 13.1 创建 CDN 配置列表页面 /cdn-configs
+    - 显示所有配置及状态
+    - 快速操作：清除缓存、编辑、删除
+    - _Requirements: 5.5_
+  - [x] 13.2 创建 CDN 配置表单
+    - 域名、源站配置
+    - CDN 提供商选择
+    - 缓存规则配置
+    - _Requirements: 5.1, 5.2_
+  - [x] 13.3 创建团队凭证管理页面（集成在 CDN 配置页面）
+    - 添加/删除 CDN 提供商凭证
+    - _Requirements: 5.3_
+  - [x] 13.4 创建 CDN 配置详情页面 /cdn-configs/:id
+    - _Requirements: 5.5_
+
+- [x] 14. 项目资源关联
+  - [x] 14.1 更新项目模型和接口
+    - 添加 teamId 字段
+    - 更新项目 CRUD 接口支持团队
+    - _Requirements: 6.1_
+  - [ ] 14.2 更新项目详情页面
+    - 显示关联的代理配置
+    - 显示关联的 CDN 配置
+    - 显示关联的资源分配
+    - _Requirements: 6.2_
+  - [ ] 14.3 更新项目创建向导
+    - 添加域名配置步骤
+    - 添加 CDN 配置步骤
+    - _Requirements: 6.3, 4.9_
+  - [ ]* 14.4 编写项目资源关联属性测试
+    - **Property 7: Project Resource Association**
+    - **Validates: Requirements 6.1, 6.2**
+
+- [x] 15. 更新现有资源模块
+  - [x] 15.1 更新 Resource 模块支持团队
+    - 添加 teamId 字段
+    - 更新查询逻辑按团队过滤
+    - _Requirements: 7.1_
+  - [x] 15.2 更新 Preset 模块支持团队
+    - 添加 teamId 字段
+    - 更新查询逻辑按团队过滤
+    - _Requirements: 7.1_
+  - [x] 15.3 更新 SecretKey 模块支持团队
+    - 添加 teamId 字段
+    - 更新查询逻辑按团队过滤
+    - _Requirements: 7.1_
+  - [ ]* 15.4 编写角色访问控制属性测试
+    - **Property 8: Role-Based Access Control**
+    - **Validates: Requirements 2.4, 7.2**
+
+- [x] 16. 更新侧边栏导航
+  - [x] 16.1 添加新的导航项
+    - 团队管理
+    - 服务器管理
+    - 代理配置
+    - CDN 配置
+    - _Requirements: 全部_
+  - [ ] 16.2 根据用户角色显示/隐藏管理功能
+    - 管理员功能仅对 owner/admin 可见
+    - _Requirements: 7.2_
+
+- [x] 17. Final Checkpoint
+  - [x] 所有功能正常工作
+  - [x] 团队资源隔离正确
+  - [ ] 所有属性测试通过（可选）
+
+## Notes
+
+- Tasks marked with `*` are optional property-based tests
+- 优先完成认证和团队基础功能（任务 1-5）
+- 服务器管理和代理配置是核心功能（任务 6-11）
+- CDN 配置可以后续迭代（任务 12-13）
+- 每个 Checkpoint 后建议进行手动测试验证

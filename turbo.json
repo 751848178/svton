@@ -22,6 +22,12 @@
     },
     "clean": {
       "cache": false
+    },
+    "prisma:generate": {
+      "cache": false
+    },
+    "prisma:migrate": {
+      "cache": false
     }
   }
 }

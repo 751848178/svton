@@ -83,6 +83,19 @@ const [state, setState] = useSetState({ name: '', age: 0 });
 setState({ name: 'John' }); // { name: 'John', age: 0 }
 ```
 
+#### useSafeState
+
+安全的 useState，在组件卸载后不会更新状态，避免内存泄漏警告。
+
+```typescript
+const [state, setState] = useSafeState(0);
+
+// 即使组件已卸载，调用 setState 也不会报错
+setTimeout(() => {
+  setState(1);
+}, 3000);
+```
+
 #### usePrevious
 
 获取上一次渲染时的值。

@@ -2,6 +2,9 @@ import { DynamicModule, Module } from '@nestjs/common';
 import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
 import { LoggerModuleOptions, LoggerModuleAsyncOptions } from './interfaces';
+import { AliyunSlsTransport } from './transports/aliyun-sls.transport';
+import { TencentClsTransport } from './transports/tencent-cls.transport';
+import * as pino from 'pino';
 
 @Module({})
 export class LoggerModule {
@@ -53,7 +56,48 @@ export class LoggerModule {
       customProps,
       logRequestBody = false,
       logResponseBody = false,
+      cloudLogger,
     } = options;
+
+    // 创建云日志 transport streams
+    const streams: pino.StreamEntry<pino.Level>[] = [];
+
+    // 标准输出 stream
+    if (prettyPrint) {
+      streams.push({
+        level: level as pino.Level,
+        stream: pino.transport({
+          target: 'pino-pretty',
+          options: {
+            colorize: true,
+            singleLine: false,
+            translateTime: 'SYS:standard',
+            ignore: 'pid,hostname',
+          },
+        }),
+      });
+    } else {
+      streams.push({
+        level: level as pino.Level,
+        stream: process.stdout,
+      });
+    }
+
+    // 阿里云 SLS stream
+    if (cloudLogger?.aliyunSls) {
+      streams.push({
+        level: level as pino.Level,
+        stream: new AliyunSlsTransport(cloudLogger.aliyunSls),
+      });
+    }
+
+    // 腾讯云 CLS stream
+    if (cloudLogger?.tencentCls) {
+      streams.push({
+        level: level as pino.Level,
+        stream: new TencentClsTransport(cloudLogger.tencentCls),
+      });
+    }
 
     return {
       pinoHttp: {
@@ -82,17 +126,8 @@ export class LoggerModule {
             statusCode: res.statusCode,
           }),
         },
-        transport: prettyPrint
-          ? {
-              target: 'pino-pretty',
-              options: {
-                colorize: true,
-                singleLine: false,
-                translateTime: 'SYS:standard',
-                ignore: 'pid,hostname',
-              },
-            }
-          : undefined,
+        // 使用 multistream 支持多个输出目标
+        stream: streams.length > 1 ? pino.multistream(streams) : streams[0].stream,
       },
     };
   }

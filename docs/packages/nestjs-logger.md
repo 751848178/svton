@@ -1,6 +1,6 @@
 # @svton/nestjs-logger
 
-> NestJS 日志模块 - 基于 Pino 的高性能结构化日志
+> NestJS 日志模块 - 基于 Pino 的高性能结构化日志，支持阿里云 SLS 和腾讯云 CLS
 
 ---
 
@@ -9,7 +9,7 @@
 | 属性 | 值 |
 |------|---|
 | **包名** | `@svton/nestjs-logger` |
-| **版本** | `1.1.0` |
+| **版本** | `1.2.0` |
 | **入口** | `dist/index.js` (CJS) / `dist/index.mjs` (ESM) |
 | **类型** | `dist/index.d.ts` |
 
@@ -20,6 +20,7 @@
 1. **高性能** - 基于 Pino，JSON 序列化性能优异
 2. **请求追踪** - 自动生成 requestId，贯穿整个请求链路
 3. **环境适配** - 开发环境美化输出，生产环境 JSON 格式
+4. **云原生** - 支持阿里云 SLS 和腾讯云 CLS 日志服务
 
 ---
 
@@ -31,7 +32,7 @@
 pnpm add @svton/nestjs-logger
 ```
 
-### 模块注册
+### 基础使用
 
 ```typescript
 // app.module.ts
@@ -66,7 +67,95 @@ LoggerModule.forRootAsync({
 
 ---
 
+## ☁️ 云日志服务集成
+
+### 阿里云 SLS
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { LoggerModule } from '@svton/nestjs-logger';
+
+@Module({
+  imports: [
+    LoggerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        appName: 'my-api',
+        env: config.get('NODE_ENV'),
+        level: config.get('LOG_LEVEL', 'info'),
+        prettyPrint: config.get('NODE_ENV') !== 'production',
+        cloudLogger: {
+          aliyunSls: {
+            endpoint: config.get('ALIYUN_SLS_ENDPOINT'), // cn-hangzhou.log.aliyuncs.com
+            accessKeyId: config.get('ALIYUN_ACCESS_KEY_ID'),
+            accessKeySecret: config.get('ALIYUN_ACCESS_KEY_SECRET'),
+            project: config.get('ALIYUN_SLS_PROJECT'),
+            logstore: config.get('ALIYUN_SLS_LOGSTORE'),
+            source: 'my-api', // 可选
+            topic: 'app-logs', // 可选
+          },
+        },
+      }),
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+### 腾讯云 CLS
+
+```typescript
+LoggerModule.forRootAsync({
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (config: ConfigService) => ({
+    appName: 'my-api',
+    cloudLogger: {
+      tencentCls: {
+        endpoint: config.get('TENCENT_CLS_ENDPOINT'), // ap-guangzhou.cls.tencentcs.com
+        secretId: config.get('TENCENT_SECRET_ID'),
+        secretKey: config.get('TENCENT_SECRET_KEY'),
+        topicId: config.get('TENCENT_CLS_TOPIC_ID'),
+        source: 'my-api', // 可选
+      },
+    },
+  }),
+});
+```
+
+### 同时使用多个云服务
+
+```typescript
+cloudLogger: {
+  aliyunSls: {
+    endpoint: 'cn-hangzhou.log.aliyuncs.com',
+    accessKeyId: process.env.ALIYUN_ACCESS_KEY_ID,
+    accessKeySecret: process.env.ALIYUN_ACCESS_KEY_SECRET,
+    project: 'my-project',
+    logstore: 'my-logstore',
+  },
+  tencentCls: {
+    endpoint: 'ap-guangzhou.cls.tencentcs.com',
+    secretId: process.env.TENCENT_SECRET_ID,
+    secretKey: process.env.TENCENT_SECRET_KEY,
+    topicId: 'xxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+  },
+}
+```
+
+**特性**：
+- ✅ 批量发送（100条/批次，3秒间隔）
+- ✅ 自动重试和错误处理
+- ✅ 同时输出到控制台和云服务
+- ✅ 零性能影响（异步发送）
+
+---
+
 ## ⚙️ 配置选项
+
+### 基础配置
 
 | 选项 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -80,6 +169,31 @@ LoggerModule.forRootAsync({
 | `customProps` | `(req) => object` | - | 自定义日志字段 |
 | `logRequestBody` | `boolean` | `false` | 是否记录请求体 |
 | `logResponseBody` | `boolean` | `false` | 是否记录响应体 |
+| `cloudLogger` | `CloudLoggerConfig` | - | 云日志服务配置 |
+
+### 云日志服务配置
+
+#### 阿里云 SLS (`cloudLogger.aliyunSls`)
+
+| 选项 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `endpoint` | `string` | 是 | SLS endpoint (例如: cn-hangzhou.log.aliyuncs.com) |
+| `accessKeyId` | `string` | 是 | 访问密钥 ID |
+| `accessKeySecret` | `string` | 是 | 访问密钥 Secret |
+| `project` | `string` | 是 | 项目名称 |
+| `logstore` | `string` | 是 | 日志库名称 |
+| `source` | `string` | 否 | 日志来源 |
+| `topic` | `string` | 否 | 日志主题 |
+
+#### 腾讯云 CLS (`cloudLogger.tencentCls`)
+
+| 选项 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `endpoint` | `string` | 是 | CLS endpoint (例如: ap-guangzhou.cls.tencentcs.com) |
+| `secretId` | `string` | 是 | 密钥 ID |
+| `secretKey` | `string` | 是 | 密钥 Key |
+| `topicId` | `string` | 是 | 日志主题 ID |
+| `source` | `string` | 否 | 日志来源 |
 
 ### 日志级别
 
@@ -279,39 +393,25 @@ LoggerModule.forRoot({
 
 ---
 
-## 📊 日志聚合
+## 🌍 环境变量配置
 
-### 与 ELK 集成
+```env
+# 应用配置
+NODE_ENV=production
+LOG_LEVEL=info
 
-生产环境 JSON 格式可直接被 Filebeat 采集：
+# 阿里云 SLS
+ALIYUN_SLS_ENDPOINT=cn-hangzhou.log.aliyuncs.com
+ALIYUN_ACCESS_KEY_ID=your-access-key-id
+ALIYUN_ACCESS_KEY_SECRET=your-access-key-secret
+ALIYUN_SLS_PROJECT=my-project
+ALIYUN_SLS_LOGSTORE=my-logstore
 
-```yaml
-# filebeat.yml
-filebeat.inputs:
-  - type: log
-    paths:
-      - /var/log/app/*.log
-    json.keys_under_root: true
-    json.add_error_key: true
-```
-
-### 与 Loki 集成
-
-```yaml
-# promtail.yml
-scrape_configs:
-  - job_name: nestjs
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: nestjs
-          __path__: /var/log/app/*.log
-    pipeline_stages:
-      - json:
-          expressions:
-            level: level
-            app: app
+# 腾讯云 CLS
+TENCENT_CLS_ENDPOINT=ap-guangzhou.cls.tencentcs.com
+TENCENT_SECRET_ID=your-secret-id
+TENCENT_SECRET_KEY=your-secret-key
+TENCENT_CLS_TOPIC_ID=xxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 ---
@@ -350,6 +450,28 @@ scrape_configs:
    // ❌ 不要记录密码、token 等
    this.logger.info({ password }, 'User data');
    ```
+
+5. **云日志服务仅在生产环境启用**
+   ```typescript
+   cloudLogger: process.env.NODE_ENV === 'production' ? {
+     aliyunSls: { /* ... */ }
+   } : undefined
+   ```
+
+---
+
+## 🎯 特性总结
+
+- ✅ 基于 pino 高性能日志
+- ✅ 自动 requestId/traceId 追踪
+- ✅ 支持阿里云 SLS
+- ✅ 支持腾讯云 CLS
+- ✅ 批量发送优化（100条/批次，3秒间隔）
+- ✅ 开发环境美化输出
+- ✅ 生产环境 JSON 格式
+- ✅ 路由过滤
+- ✅ 自定义字段
+- ✅ 多目标同时输出
 
 ---
 

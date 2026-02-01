@@ -1,5 +1,34 @@
 # @svton/logger
 
+## 0.5.0
+
+### Minor Changes
+
+- Initial release of @svton/service and @svton/logger packages.
+
+  ### @svton/service
+  - React service-based state management with decorators
+  - Decorators: @Service(), @observable, @computed, @action, @Inject()
+  - createService() for scoped instances
+  - createServiceProvider() for shared instances (Provider pattern)
+  - API: service.useState.xxx(), service.useDerived.xxx(), service.useAction.xxx()
+
+  ### @svton/logger
+  - Frontend logging and error tracking with plugin support
+  - Log levels: debug, info, warn, error
+  - Stack trace support (configurable via stackLevel)
+  - Batch/immediate report strategies
+  - Dynamic config modification
+  - Global error and unhandled rejection capture
+  - Performance monitoring (Web Vitals)
+  - Built-in plugins: sensitive-filter, breadcrumb
+
+## 0.4.0
+
+### Minor Changes
+
+- Add Aliyun SLS transport support for logger
+
 ## 0.3.0
 
 ### Minor Changes

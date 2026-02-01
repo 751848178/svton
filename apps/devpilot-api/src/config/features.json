@@ -1,0 +1,115 @@
+{
+  "features": [
+    {
+      "id": "cache",
+      "name": "缓存",
+      "description": "基于 Redis 的缓存服务，支持装饰器和拦截器方式",
+      "category": "infrastructure",
+      "packages": ["@svton/nestjs-cache", "@svton/nestjs-redis"],
+      "requiredResources": ["redis"],
+      "applicableTo": ["backend"],
+      "codeSnippets": {
+        "moduleImport": "CacheModule.forRootAsync({ inject: [ConfigService], useFactory: (config) => ({ enabled: true, ttl: config.get('CACHE_TTL', 300) }) })",
+        "envVars": ["CACHE_ENABLED=true", "CACHE_TTL=300"]
+      }
+    },
+    {
+      "id": "rate-limit",
+      "name": "限流",
+      "description": "基于 Redis 的 API 限流，支持多种限流策略",
+      "category": "infrastructure",
+      "packages": ["@svton/nestjs-rate-limit", "@svton/nestjs-redis"],
+      "requiredResources": ["redis"],
+      "applicableTo": ["backend"],
+      "codeSnippets": {
+        "moduleImport": "RateLimitModule.forRoot({ ttl: 60, limit: 100 })",
+        "envVars": ["RATE_LIMIT_TTL=60", "RATE_LIMIT_MAX=100"]
+      }
+    },
+    {
+      "id": "queue",
+      "name": "消息队列",
+      "description": "基于 Redis 的消息队列，支持延迟任务和重试",
+      "category": "infrastructure",
+      "packages": ["@svton/nestjs-queue", "@svton/nestjs-redis"],
+      "requiredResources": ["redis"],
+      "applicableTo": ["backend"],
+      "codeSnippets": {
+        "moduleImport": "QueueModule.forRoot()",
+        "envVars": []
+      }
+    },
+    {
+      "id": "object-storage-qiniu",
+      "name": "对象存储 (七牛)",
+      "description": "七牛云 Kodo 对象存储服务",
+      "category": "storage",
+      "packages": ["@svton/nestjs-object-storage", "@svton/nestjs-object-storage-qiniu-kodo"],
+      "requiredResources": ["qiniu-kodo"],
+      "applicableTo": ["backend"],
+      "codeSnippets": {
+        "moduleImport": "ObjectStorageModule.forRootAsync({ inject: [ConfigService], useFactory: (config) => ({ provider: 'qiniu', accessKey: config.get('QINIU_ACCESS_KEY'), secretKey: config.get('QINIU_SECRET_KEY'), bucket: config.get('QINIU_BUCKET') }) })",
+        "envVars": ["QINIU_ACCESS_KEY=", "QINIU_SECRET_KEY=", "QINIU_BUCKET=", "QINIU_DOMAIN="]
+      }
+    },
+    {
+      "id": "sms",
+      "name": "短信服务",
+      "description": "短信发送服务，支持阿里云等多个提供商",
+      "category": "communication",
+      "packages": ["@svton/nestjs-sms"],
+      "requiredResources": ["sms-aliyun"],
+      "applicableTo": ["backend"],
+      "codeSnippets": {
+        "moduleImport": "SmsModule.forRootAsync({ inject: [ConfigService], useFactory: (config) => ({ provider: 'aliyun', accessKeyId: config.get('SMS_ACCESS_KEY_ID'), accessKeySecret: config.get('SMS_ACCESS_KEY_SECRET'), signName: config.get('SMS_SIGN_NAME') }) })",
+        "envVars": ["SMS_ACCESS_KEY_ID=", "SMS_ACCESS_KEY_SECRET=", "SMS_SIGN_NAME="]
+      }
+    },
+    {
+      "id": "oauth",
+      "name": "OAuth 登录",
+      "description": "第三方 OAuth 登录，支持微信、GitHub 等",
+      "category": "auth",
+      "packages": ["@svton/nestjs-oauth"],
+      "requiredResources": [],
+      "applicableTo": ["backend"],
+      "codeSnippets": {
+        "moduleImport": "OAuthModule.forRoot({ providers: ['wechat', 'github'] })",
+        "envVars": ["OAUTH_WECHAT_APP_ID=", "OAUTH_WECHAT_APP_SECRET=", "OAUTH_GITHUB_CLIENT_ID=", "OAUTH_GITHUB_CLIENT_SECRET="]
+      }
+    },
+    {
+      "id": "payment",
+      "name": "支付",
+      "description": "支付服务，支持微信支付、支付宝",
+      "category": "business",
+      "packages": ["@svton/nestjs-payment"],
+      "requiredResources": [],
+      "applicableTo": ["backend"],
+      "codeSnippets": {
+        "moduleImport": "PaymentModule.forRoot({ providers: ['wechat', 'alipay'] })",
+        "envVars": ["WECHAT_PAY_APP_ID=", "WECHAT_PAY_MCH_ID=", "WECHAT_PAY_API_KEY=", "ALIPAY_APP_ID=", "ALIPAY_PRIVATE_KEY="]
+      }
+    },
+    {
+      "id": "authz",
+      "name": "权限控制",
+      "description": "基于 RBAC 的权限控制",
+      "category": "auth",
+      "packages": ["@svton/nestjs-authz"],
+      "requiredResources": [],
+      "applicableTo": ["backend"],
+      "codeSnippets": {
+        "moduleImport": "AuthzModule.forRoot()",
+        "envVars": []
+      }
+    }
+  ],
+  "categories": [
+    { "id": "infrastructure", "name": "基础设施", "order": 1 },
+    { "id": "storage", "name": "存储服务", "order": 2 },
+    { "id": "communication", "name": "通信服务", "order": 3 },
+    { "id": "auth", "name": "认证授权", "order": 4 },
+    { "id": "business", "name": "业务功能", "order": 5 }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@svton/devpilot-web",
+  "version": "0.1.2",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@svton/ui": "workspace:*",
+    "@svton/hooks": "workspace:*",
+    "@svton/service": "workspace:*",
+    "@svton/logger": "workspace:*",
+    "next-auth": "^5.0.0-beta.25",
+    "zod": "^3.23.0",
+    "zustand": "^5.0.0",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.55.0",
+    "eslint-config-next": "^15.0.0"
+  }
+}

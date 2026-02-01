@@ -1,0 +1,69 @@
+{
+  "subProjects": [
+    {
+      "id": "backend",
+      "name": "Backend",
+      "description": "NestJS 后端服务",
+      "framework": "nestjs",
+      "icon": "server",
+      "defaultEnabled": true,
+      "basePackages": [
+        "@svton/nestjs-logger",
+        "@svton/nestjs-config-schema",
+        "@svton/nestjs-http"
+      ],
+      "templateDir": "templates/backend"
+    },
+    {
+      "id": "admin",
+      "name": "Admin",
+      "description": "Next.js 管理后台",
+      "framework": "nextjs",
+      "icon": "layout-dashboard",
+      "defaultEnabled": false,
+      "basePackages": [],
+      "optionalPackages": {
+        "ui": "@svton/ui",
+        "hooks": "@svton/hooks"
+      },
+      "templateDir": "templates/admin"
+    },
+    {
+      "id": "mobile",
+      "name": "Mobile",
+      "description": "Taro 小程序/H5",
+      "framework": "taro",
+      "icon": "smartphone",
+      "defaultEnabled": false,
+      "basePackages": [],
+      "optionalPackages": {
+        "ui": "@svton/taro-ui",
+        "hooks": "@svton/hooks"
+      },
+      "templateDir": "templates/mobile"
+    }
+  ],
+  "frontendLibraries": [
+    {
+      "id": "ui-admin",
+      "name": "@svton/ui",
+      "description": "React UI 组件库",
+      "applicableTo": ["admin"],
+      "package": "@svton/ui"
+    },
+    {
+      "id": "ui-mobile",
+      "name": "@svton/taro-ui",
+      "description": "Taro UI 组件库",
+      "applicableTo": ["mobile"],
+      "package": "@svton/taro-ui"
+    },
+    {
+      "id": "hooks",
+      "name": "@svton/hooks",
+      "description": "React Hooks 工具库",
+      "applicableTo": ["admin", "mobile"],
+      "package": "@svton/hooks"
+    }
+  ]
+}
