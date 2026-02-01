@@ -118,6 +118,7 @@ export function collectEnvVars(
 
 /**
  * 生成 .env.example 文件
+ * 包含所有选中功能的环境变量
  */
 export async function generateEnvExample(
   features: string[],
@@ -126,22 +127,61 @@ export async function generateEnvExample(
 ): Promise<void> {
   const envVars = collectEnvVars(features, config);
 
-  const content = [
-    '# Environment Variables',
-    '# Copy this file to .env and fill in the values',
-    '',
-    ...envVars.map((envVar) => {
-      const lines: string[] = [];
-      if (envVar.description) {
-        lines.push(`# ${envVar.description}`);
-      }
-      lines.push(`${envVar.key}=${envVar.default}`);
-      lines.push('');
-      return lines.join('\n');
-    }),
-  ].join('\n');
+  if (envVars.length === 0) {
+    return;
+  }
 
-  await fs.writeFile(path.join(targetPath, 'apps/backend/.env.example'), content);
+  const content = [
+    '# ========================================',
+    '# Environment Variables',
+    '# ========================================',
+    '# Copy this file to .env and fill in the values',
+    '#',
+    '# IMPORTANT: Never commit .env file to version control!',
+    '# Add .env to your .gitignore file',
+    '#',
+    '',
+    '# ========================================',
+    '# Application Configuration',
+    '# ========================================',
+    'NODE_ENV=development',
+    'PORT=3000',
+    '',
+    '# ========================================',
+    '# Database Configuration',
+    '# ========================================',
+    'DATABASE_URL=mysql://root:root123456@localhost:3306/{{PROJECT_NAME}}',
+    '',
+  ];
+
+  // 按功能分组添加环境变量
+  const featureGroups: Record<string, Array<{ key: string; default: string; description?: string }>> = {};
+  
+  for (const featureKey of features) {
+    const feature = config.features[featureKey];
+    if (feature && feature.envVars.length > 0) {
+      featureGroups[feature.name] = feature.envVars;
+    }
+  }
+
+  // 生成每个功能的环境变量
+  for (const [featureName, vars] of Object.entries(featureGroups)) {
+    content.push('# ========================================');
+    content.push(`# ${featureName} Configuration`);
+    content.push('# ========================================');
+    
+    for (const envVar of vars) {
+      if (envVar.description) {
+        content.push(`# ${envVar.description}`);
+      }
+      content.push(`${envVar.key}=${envVar.default}`);
+      content.push('');
+    }
+  }
+
+  const envPath = path.join(targetPath, 'apps/backend/.env.example');
+  await fs.ensureDir(path.dirname(envPath));
+  await fs.writeFile(envPath, content.join('\n'));
   logger.info('Generated .env.example');
 }
 
@@ -362,49 +402,75 @@ export function generateModuleRegistrations(
 }
 
 /**
- * 更新 app.module.ts 注入模块
+ * 生成模块集成说明文件
+ * 不直接修改 app.module.ts，而是生成说明文档
  */
 export async function updateAppModule(
   features: string[],
   config: FeaturesConfig,
   targetPath: string,
 ): Promise<void> {
-  const appModulePath = path.join(targetPath, 'apps/backend/src/app.module.ts');
-
-  if (!(await fs.pathExists(appModulePath))) {
-    logger.warn('app.module.ts not found, skipping module injection');
+  if (features.length === 0) {
     return;
   }
 
-  let content = await fs.readFile(appModulePath, 'utf-8');
-
   // 生成导入语句
   const imports = generateModuleImports(features, config);
-
-  // 生成模块注册
+  
+  // 生成模块注册代码
   const registrations = generateModuleRegistrations(features, config);
 
-  // 在 imports 数组中添加模块
-  // 这里使用简单的字符串替换，实际项目中可能需要更复杂的 AST 操作
-  const importsMatch = content.match(/imports:\s*\[([\s\S]*?)\]/);
-  if (importsMatch) {
-    const existingImports = importsMatch[1];
-    const newImports = `${existingImports}\n${registrations}`;
-    content = content.replace(
-      /imports:\s*\[([\s\S]*?)\]/,
-      `imports: [${newImports}\n  ]`,
-    );
-  }
+  // 生成集成说明文档
+  const content = `# 功能模块集成说明
 
-  // 添加 import 语句到文件顶部
-  const lastImportIndex = content.lastIndexOf('import ');
-  const lastImportEnd = content.indexOf('\n', lastImportIndex);
-  content =
-    content.slice(0, lastImportEnd + 1) +
-    imports +
-    '\n' +
-    content.slice(lastImportEnd + 1);
+本文档说明如何将选中的功能模块集成到 app.module.ts 中。
 
-  await fs.writeFile(appModulePath, content);
-  logger.info('Updated app.module.ts with feature modules');
+## 1. 添加导入语句
+
+在 \`apps/backend/src/app.module.ts\` 文件顶部添加以下导入：
+
+\`\`\`typescript
+${imports}
+\`\`\`
+
+## 2. 注册模块
+
+在 \`@Module\` 装饰器的 \`imports\` 数组中添加以下模块：
+
+\`\`\`typescript
+@Module({
+  imports: [
+    // ... 其他模块
+${registrations}
+  ],
+  // ...
+})
+export class AppModule {}
+\`\`\`
+
+## 3. 配置文件
+
+每个功能的配置文件已生成在 \`apps/backend/src/config/\` 目录下：
+
+${features.map((key) => {
+  const feature = config.features[key];
+  return `- **${feature.name}**: \`src/config/${key}.config.ts\``;
+}).join('\n')}
+
+## 4. 示例代码
+
+示例代码已生成在 \`apps/backend/src/examples/\` 目录下，可以参考使用。
+
+## 5. 环境变量
+
+请复制 \`.env.example\` 为 \`.env\` 并填写相应的配置值。
+
+## 6. 更多文档
+
+查看 \`.kiro/skills/\` 目录下的详细文档了解每个功能的使用方法。
+`;
+
+  const docPath = path.join(targetPath, 'apps/backend/FEATURE_INTEGRATION.md');
+  await fs.writeFile(docPath, content);
+  logger.info('Generated feature integration guide: apps/backend/FEATURE_INTEGRATION.md');
 }
