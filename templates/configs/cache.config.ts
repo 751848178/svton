@@ -6,9 +6,7 @@ export const useCacheConfig = (
 ): CacheModuleOptions => ({
   ttl: 3600, // 默认缓存时间 1 小时
   prefix: 'cache', // 缓存 key 前缀
-  redis: {
-    host: configService.get('REDIS_HOST') || 'localhost',
-    port: parseInt(configService.get('REDIS_PORT') || '6379', 10),
-    password: configService.get('REDIS_PASSWORD') || undefined,
-  },
+  enabled: true, // 启用缓存
+  // 注意：Redis 连接需要通过 RedisModule 单独配置
+  // 参考：@svton/nestjs-redis
 });
