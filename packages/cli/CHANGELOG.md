@@ -1,5 +1,23 @@
 # @svton/cli
 
+## 1.4.1
+
+### Patch Changes
+
+- 修复配置文件类型错误和命名问题
+
+  **修复内容**：
+  - 修复 OAuth 配置函数命名：`useOauthConfig` → `useOAuthConfig`
+  - 修复 storage.config.ts 中的 provider 类型
+  - 修复 cache.config.ts 中的 redis 配置类型
+  - 修复 oauth.config.ts 中的 platform 类型（使用 `as const`）
+  - 所有 configService.get() 调用添加默认值或类型断言
+
+  **改进**：
+  - 确保生成的配置文件类型安全
+  - 避免 TypeScript 类型错误
+  - 提供更好的类型提示
+
 ## 1.4.0
 
 ### Minor Changes

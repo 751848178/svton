@@ -403,7 +403,13 @@ export function generateModuleRegistrations(
     const feature = config.features[featureKey];
     if (feature && feature.moduleRegistration) {
       const { module: moduleName, type: registrationType } = feature.moduleRegistration;
-      const configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+      // 特殊处理 OAuth 的大小写
+      let configFunctionName: string;
+      if (featureKey === 'oauth') {
+        configFunctionName = 'useOAuthConfig';
+      } else {
+        configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+      }
       
       registrations.push(`    ${moduleName}.${registrationType}({
       imports: [ConfigModule],
@@ -469,7 +475,13 @@ export async function updateAppModule(
       // 添加配置文件导入
       if (feature.configFiles && feature.configFiles.length > 0) {
         const configFileName = path.basename(feature.configFiles[0].path, '.ts');
-        const configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+        // 特殊处理 OAuth 的大小写
+        let configFunctionName: string;
+        if (featureKey === 'oauth') {
+          configFunctionName = 'useOAuthConfig';
+        } else {
+          configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+        }
         
         imports.push({
           from: `./config/${configFileName}`,
@@ -480,7 +492,13 @@ export async function updateAppModule(
       // 生成模块注册表达式
       if (feature.moduleRegistration) {
         const { module: moduleName, type: registrationType } = feature.moduleRegistration;
-        const configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+        // 特殊处理 OAuth 的大小写
+        let configFunctionName: string;
+        if (featureKey === 'oauth') {
+          configFunctionName = 'useOAuthConfig';
+        } else {
+          configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+        }
         
         const moduleExpression = `${moduleName}.${registrationType}({
       imports: [ConfigModule],
