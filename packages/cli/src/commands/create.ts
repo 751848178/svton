@@ -9,6 +9,16 @@ import { generateFromTemplate } from '../utils/template';
 import { installDependencies } from '../utils/install';
 import { initGit } from '../utils/git';
 import { logger } from '../utils/logger';
+import {
+  loadFeaturesConfig,
+  getFeatureChoices,
+  generateEnvExample,
+  copyConfigFiles,
+  copyExampleFiles,
+  copySkillFiles,
+  updatePackageJson,
+  updateAppModule,
+} from '../utils/features';
 
 export interface CreateOptions {
   org?: string;
@@ -41,6 +51,9 @@ export async function createProject(projectName: string, options: CreateOptions 
     logger.info(chalk.blue('🚀 Welcome to Svton App Generator!'));
     logger.info('');
 
+    // 加载功能配置
+    const featuresConfig = await loadFeaturesConfig();
+
     // 交互式配置或使用默认值
     let answers;
     if (options.yes) {
@@ -48,6 +61,7 @@ export async function createProject(projectName: string, options: CreateOptions 
       answers = {
         org: options.org || projectName,
         template: options.template || 'full-stack',
+        features: [], // 默认不选择额外功能
         packageManager: options.packageManager || 'pnpm',
         installDeps: !options.skipInstall,
         initGit: !options.skipGit,
@@ -78,6 +92,13 @@ export async function createProject(projectName: string, options: CreateOptions 
           default: options.template || 'full-stack',
         },
         {
+          type: 'checkbox',
+          name: 'features',
+          message: 'Select features to include (use space to select, enter to confirm):',
+          choices: getFeatureChoices(featuresConfig),
+          when: (answers) => answers.template === 'backend-only' || answers.template === 'full-stack',
+        },
+        {
           type: 'list',
           name: 'packageManager',
           message: 'Package manager:',
@@ -103,6 +124,7 @@ export async function createProject(projectName: string, options: CreateOptions 
       projectName,
       orgName: answers.org.startsWith('@') ? answers.org : `@${answers.org}`,
       template: answers.template,
+      features: answers.features || [],
       packageManager: answers.packageManager,
       installDeps: answers.installDeps,
       initGit: answers.initGit,
@@ -114,6 +136,9 @@ export async function createProject(projectName: string, options: CreateOptions 
     logger.info(`  Project Name: ${chalk.white(config.projectName)}`);
     logger.info(`  Organization: ${chalk.white(config.orgName)}`);
     logger.info(`  Template: ${chalk.white(config.template)}`);
+    if (config.features.length > 0) {
+      logger.info(`  Features: ${chalk.white(config.features.join(', '))}`);
+    }
     logger.info(`  Package Manager: ${chalk.white(config.packageManager)}`);
     logger.info(`  Install Dependencies: ${chalk.white(config.installDeps ? 'Yes' : 'No')}`);
     logger.info(`  Initialize Git: ${chalk.white(config.initGit ? 'Yes' : 'No')}`);
@@ -171,6 +196,7 @@ interface ProjectConfig {
   projectName: string;
   orgName: string;
   template: string;
+  features: string[];
   packageManager: string;
   installDeps: boolean;
   initGit: boolean;
@@ -188,6 +214,33 @@ async function createProjectFromTemplate(config: ProjectConfig) {
     // 生成项目文件
     spinner.text = 'Generating project files...';
     await generateFromTemplate(config);
+
+    // 如果选择了功能，集成功能
+    if (config.features.length > 0) {
+      spinner.text = 'Integrating selected features...';
+      const featuresConfig = await loadFeaturesConfig();
+      const templatePath = path.join(__dirname, '../../../templates');
+
+      // 更新 package.json
+      await updatePackageJson(config.features, featuresConfig, config.projectPath);
+
+      // 复制配置文件
+      await copyConfigFiles(config.features, featuresConfig, templatePath, config.projectPath);
+
+      // 复制示例代码
+      await copyExampleFiles(config.features, featuresConfig, templatePath, config.projectPath);
+
+      // 复制 Skill 文件
+      await copySkillFiles(config.features, featuresConfig, templatePath, config.projectPath);
+
+      // 生成 .env.example
+      await generateEnvExample(config.features, featuresConfig, config.projectPath);
+
+      // 更新 app.module.ts（如果是后端项目）
+      if (config.template === 'backend-only' || config.template === 'full-stack') {
+        await updateAppModule(config.features, featuresConfig, config.projectPath);
+      }
+    }
 
     // 安装依赖
     if (config.installDeps) {

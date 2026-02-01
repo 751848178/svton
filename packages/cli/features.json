@@ -1,0 +1,339 @@
+{
+  "features": {
+    "cache": {
+      "name": "缓存",
+      "description": "基于 Redis 的声明式缓存",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-cache": "latest",
+          "@svton/nestjs-redis": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "REDIS_HOST", "default": "localhost", "description": "Redis 主机地址" },
+        { "key": "REDIS_PORT", "default": "6379", "description": "Redis 端口" },
+        { "key": "REDIS_PASSWORD", "default": "", "description": "Redis 密码（可选）" }
+      ],
+      "configFiles": [
+        {
+          "path": "src/config/cache.config.ts",
+          "template": "configs/cache.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-cache",
+          "import": "CacheModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "CacheModule",
+        "config": "useCacheConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/cache",
+        "target": "src/examples/cache",
+        "description": "缓存装饰器使用示例"
+      },
+      "skillFile": {
+        "template": "skills/cache.skill.md",
+        "target": ".kiro/skills/cache.md"
+      }
+    },
+    "queue": {
+      "name": "消息队列",
+      "description": "基于 BullMQ 的异步任务处理",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-queue": "latest",
+          "@svton/nestjs-redis": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "REDIS_HOST", "default": "localhost", "description": "Redis 主机地址" },
+        { "key": "REDIS_PORT", "default": "6379", "description": "Redis 端口" }
+      ],
+      "configFiles": [
+        {
+          "path": "src/config/queue.config.ts",
+          "template": "configs/queue.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-queue",
+          "import": "QueueModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "QueueModule",
+        "config": "useQueueConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/queue",
+        "target": "src/examples/queue",
+        "description": "队列任务处理示例"
+      },
+      "skillFile": {
+        "template": "skills/queue.skill.md",
+        "target": ".kiro/skills/queue.md"
+      }
+    },
+    "payment": {
+      "name": "支付",
+      "description": "微信支付 + 支付宝",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-payment": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "WECHAT_MCH_ID", "default": "", "description": "微信商户号" },
+        { "key": "WECHAT_PRIVATE_KEY", "default": "", "description": "微信商户 API 私钥路径" },
+        { "key": "WECHAT_SERIAL_NO", "default": "", "description": "微信商户 API 证书序列号" },
+        { "key": "WECHAT_API_V3_KEY", "default": "", "description": "微信 APIv3 密钥" },
+        { "key": "WECHAT_APP_ID", "default": "", "description": "微信关联的 AppID" },
+        { "key": "ALIPAY_APP_ID", "default": "", "description": "支付宝应用 ID" },
+        { "key": "ALIPAY_PRIVATE_KEY", "default": "", "description": "支付宝应用私钥路径" },
+        { "key": "ALIPAY_PUBLIC_KEY", "default": "", "description": "支付宝公钥路径" }
+      ],
+      "configFiles": [
+        {
+          "path": "src/config/payment.config.ts",
+          "template": "configs/payment.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-payment",
+          "import": "PaymentModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "PaymentModule",
+        "config": "usePaymentConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/payment",
+        "target": "src/examples/payment",
+        "description": "支付功能示例（微信/支付宝）"
+      },
+      "skillFile": {
+        "template": "skills/payment.skill.md",
+        "target": ".kiro/skills/payment.md"
+      }
+    },
+    "oauth": {
+      "name": "OAuth 登录",
+      "description": "微信登录（开放平台/公众号/小程序）",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-oauth": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "WECHAT_OPEN_APP_ID", "default": "", "description": "微信开放平台 AppID" },
+        { "key": "WECHAT_OPEN_APP_SECRET", "default": "", "description": "微信开放平台 AppSecret" },
+        { "key": "WECHAT_MINI_APP_ID", "default": "", "description": "微信小程序 AppID" },
+        { "key": "WECHAT_MINI_APP_SECRET", "default": "", "description": "微信小程序 AppSecret" }
+      ],
+      "configFiles": [
+        {
+          "path": "src/config/oauth.config.ts",
+          "template": "configs/oauth.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-oauth",
+          "import": "OAuthModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "OAuthModule",
+        "config": "useOAuthConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/oauth",
+        "target": "src/examples/oauth",
+        "description": "OAuth 登录示例"
+      },
+      "skillFile": {
+        "template": "skills/oauth.skill.md",
+        "target": ".kiro/skills/oauth.md"
+      }
+    },
+    "sms": {
+      "name": "短信",
+      "description": "阿里云/腾讯云短信发送",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-sms": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "SMS_PROVIDER", "default": "aliyun", "description": "短信服务商 (aliyun/tencent)" },
+        { "key": "SMS_ACCESS_KEY_ID", "default": "", "description": "AccessKey ID" },
+        { "key": "SMS_ACCESS_KEY_SECRET", "default": "", "description": "AccessKey Secret" },
+        { "key": "SMS_SIGN_NAME", "default": "", "description": "短信签名" }
+      ],
+      "configFiles": [
+        {
+          "path": "src/config/sms.config.ts",
+          "template": "configs/sms.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-sms",
+          "import": "SmsModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "SmsModule",
+        "config": "useSmsConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/sms",
+        "target": "src/examples/sms",
+        "description": "短信发送示例"
+      },
+      "skillFile": {
+        "template": "skills/sms.skill.md",
+        "target": ".kiro/skills/sms.md"
+      }
+    },
+    "storage": {
+      "name": "对象存储",
+      "description": "七牛云/阿里云 OSS",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-object-storage": "latest",
+          "@svton/nestjs-object-storage-qiniu-kodo": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "STORAGE_PROVIDER", "default": "qiniu", "description": "存储服务商 (qiniu/aliyun)" },
+        { "key": "QINIU_ACCESS_KEY", "default": "", "description": "七牛云 AccessKey" },
+        { "key": "QINIU_SECRET_KEY", "default": "", "description": "七牛云 SecretKey" },
+        { "key": "QINIU_BUCKET", "default": "", "description": "七牛云存储空间名称" },
+        { "key": "QINIU_DOMAIN", "default": "", "description": "七牛云 CDN 域名" }
+      ],
+      "configFiles": [
+        {
+          "path": "src/config/storage.config.ts",
+          "template": "configs/storage.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-object-storage",
+          "import": "ObjectStorageModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "ObjectStorageModule",
+        "config": "useStorageConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/storage",
+        "target": "src/examples/storage",
+        "description": "文件上传示例"
+      },
+      "skillFile": {
+        "template": "skills/storage.skill.md",
+        "target": ".kiro/skills/storage.md"
+      }
+    },
+    "rateLimit": {
+      "name": "限流",
+      "description": "接口访问频率限制",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-rate-limit": "latest",
+          "@svton/nestjs-redis": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "REDIS_HOST", "default": "localhost", "description": "Redis 主机地址" },
+        { "key": "REDIS_PORT", "default": "6379", "description": "Redis 端口" }
+      ],
+      "configFiles": [
+        {
+          "path": "src/config/rate-limit.config.ts",
+          "template": "configs/rate-limit.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-rate-limit",
+          "import": "RateLimitModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "RateLimitModule",
+        "config": "useRateLimitConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/rate-limit",
+        "target": "src/examples/rate-limit",
+        "description": "限流使用示例"
+      },
+      "skillFile": {
+        "template": "skills/rate-limit.skill.md",
+        "target": ".kiro/skills/rate-limit.md"
+      }
+    },
+    "authz": {
+      "name": "权限控制",
+      "description": "RBAC 权限管理",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-authz": "latest"
+        }
+      },
+      "envVars": [],
+      "configFiles": [
+        {
+          "path": "src/config/authz.config.ts",
+          "template": "configs/authz.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-authz",
+          "import": "AuthzModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "AuthzModule",
+        "config": "useAuthzConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/authz",
+        "target": "src/examples/authz",
+        "description": "权限控制示例"
+      },
+      "skillFile": {
+        "template": "skills/authz.skill.md",
+        "target": ".kiro/skills/authz.md"
+      }
+    }
+  }
+}
