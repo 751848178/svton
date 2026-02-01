@@ -336,6 +336,36 @@ ${featuresList}
 }
 
 /**
+ * 复制 Prisma 模板文件
+ */
+export async function copyPrismaTemplates(
+  templateDir: string,
+  targetPath: string,
+): Promise<void> {
+  const prismaTemplatesDir = path.join(templateDir, 'apps/backend/prisma');
+  const prismaDestDir = path.join(targetPath, 'apps/backend/prisma');
+
+  if (await fs.pathExists(prismaTemplatesDir)) {
+    await fs.ensureDir(prismaDestDir);
+    await fs.copy(prismaTemplatesDir, prismaDestDir);
+    
+    // 处理 .tpl 文件
+    const files = await fs.readdir(prismaDestDir);
+    for (const file of files) {
+      if (file.endsWith('.tpl')) {
+        const filePath = path.join(prismaDestDir, file);
+        const newPath = filePath.replace(/\.tpl$/, '');
+        await fs.rename(filePath, newPath);
+      }
+    }
+    
+    logger.info('Copied Prisma templates');
+  } else {
+    logger.warn(`Prisma templates not found: ${prismaTemplatesDir}`);
+  }
+}
+
+/**
  * 更新 package.json 添加依赖
  */
 export async function updatePackageJson(

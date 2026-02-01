@@ -1,5 +1,45 @@
 # @svton/cli
 
+## 2.0.0
+
+### Major Changes
+
+- 9c7222f: 重大修复：修复所有模板文件的类型错误和 API 使用问题
+
+  这是一个重大版本更新，修复了生成项目中的所有 TypeScript 错误，确保生成的项目可以直接编译运行。
+
+  **修复清单**：
+  1. ✅ **authz.config.ts** - 移除不存在的 roles 配置
+  2. ✅ **cache.config.ts** - 移除 redis 配置（Redis 通过 RedisModule 单独配置）
+  3. ✅ **storage.config.ts** - 使用 adapter 模式配置（createQiniuAdapter）
+  4. ✅ **oauth.config.ts** - 修复函数命名（useOAuthConfig）
+  5. ✅ **authz/user.controller.ts** - 移除不存在的 Permissions 装饰器
+  6. ✅ **cache/user.service.ts** - 将 pattern 改为 allEntries
+  7. ✅ **storage/upload.service.ts** - 使用 ObjectStorageClient 和 @InjectObjectStorage()
+  8. ✅ **oauth/auth.service.ts** - 修复 OAuth API 使用（正确处理 OAuthResult 包装类型）
+  9. ✅ **storage/upload.controller.ts** - 添加 @types/multer 依赖说明
+  10. ✅ **backend/package.json.tpl** - 添加 zod 和 @types/multer 依赖
+  11. ✅ **ast-helper.ts** - 修复重复导入问题（检查已存在的 import）
+  12. ✅ **Prisma 模板** - 创建 schema.prisma.tpl 和 seed.ts.tpl
+  13. ✅ **features.ts** - 添加 copyPrismaTemplates 函数自动复制 Prisma 模板
+  14. ✅ **create.ts** - 在创建后端项目时自动复制 Prisma 模板
+
+  **主要改进**：
+  - **OAuth API 修复**：所有 OAuth 方法现在正确返回 `OAuthResult<T>` 类型，需要检查 `success` 和访问 `data` 属性
+  - **对象存储修复**：使用 adapter 模式配置，通过 `@InjectObjectStorage()` 注入客户端
+  - **缓存装饰器修复**：使用 `allEntries: true` 替代不存在的 `pattern` 选项
+  - **AST 注入改进**：避免重复导入相同的模块
+  - **Prisma 支持**：自动生成 Prisma schema 和 seed 文件
+  - **依赖完整性**：添加所有缺失的依赖（zod, @types/multer）
+
+  **破坏性变更**：
+  - OAuth API 调用方式已更改（需要处理 OAuthResult 包装类型）
+  - 对象存储配置结构已更改（使用 adapter 模式）
+  - 缓存装饰器选项已更改（pattern → allEntries）
+
+  **迁移指南**：
+  使用新版本创建的项目将自动包含所有修复，无需手动迁移。
+
 ## 1.4.1
 
 ### Patch Changes

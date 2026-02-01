@@ -37,7 +37,8 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.1",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.2.1",
@@ -46,6 +47,7 @@
     "@types/bcrypt": "^5.0.2",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.11",
+    "@types/multer": "^1.4.11",
     "@types/node": "^20.10.0",
     "@types/passport-jwt": "^3.0.13",
     "jest": "^29.7.0",

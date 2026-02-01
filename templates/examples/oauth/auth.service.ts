@@ -25,13 +25,22 @@ export class AuthService {
   async handleWechatOpenCallback(code: string) {
     // 获取 access_token
     const tokenResult = await this.oauthService.wechat.getAccessToken('open', code);
+    
+    if (!tokenResult.success || !tokenResult.data) {
+      throw new Error(tokenResult.error?.message || 'Failed to get access token');
+    }
 
     // 获取用户信息
-    const userInfo = await this.oauthService.wechat.getUserInfo(
-      'open',
-      tokenResult.access_token,
-      tokenResult.openid,
+    const userInfoResult = await this.oauthService.wechat.getUserInfo(
+      tokenResult.data.access_token,
+      tokenResult.data.openid,
     );
+
+    if (!userInfoResult.success || !userInfoResult.data) {
+      throw new Error(userInfoResult.error?.message || 'Failed to get user info');
+    }
+
+    const userInfo = userInfoResult.data;
 
     // TODO: 根据 openid 查询或创建用户
     // const user = await this.userService.findOrCreateByWechatOpenId(userInfo.unionid);
@@ -50,11 +59,20 @@ export class AuthService {
   async handleWechatMpCallback(code: string) {
     const tokenResult = await this.oauthService.wechat.getAccessToken('mp', code);
 
-    const userInfo = await this.oauthService.wechat.getUserInfo(
-      'mp',
-      tokenResult.access_token,
-      tokenResult.openid,
+    if (!tokenResult.success || !tokenResult.data) {
+      throw new Error(tokenResult.error?.message || 'Failed to get access token');
+    }
+
+    const userInfoResult = await this.oauthService.wechat.getUserInfo(
+      tokenResult.data.access_token,
+      tokenResult.data.openid,
     );
+
+    if (!userInfoResult.success || !userInfoResult.data) {
+      throw new Error(userInfoResult.error?.message || 'Failed to get user info');
+    }
+
+    const userInfo = userInfoResult.data;
 
     // TODO: 根据 openid 查询或创建用户
     // const user = await this.userService.findOrCreateByWechatMpOpenId(userInfo.openid);
@@ -72,26 +90,36 @@ export class AuthService {
   async miniprogramLogin(code: string) {
     const result = await this.oauthService.wechat.code2Session(code);
 
+    if (!result.success || !result.data) {
+      throw new Error(result.error?.message || 'Failed to login');
+    }
+
     // TODO: 根据 openid 查询或创建用户
-    // const user = await this.userService.findOrCreateByWechatMiniOpenId(result.openid);
+    // const user = await this.userService.findOrCreateByWechatMiniOpenId(result.data.openid);
 
     return {
-      openid: result.openid,
-      sessionKey: result.session_key,
-      unionid: result.unionid,
+      openid: result.data.openid,
+      sessionKey: result.data.session_key,
+      unionid: result.data.unionid,
     };
   }
 
   /**
    * 小程序获取手机号
+   * @param code 手机号授权码
+   * @param accessToken 小程序 access_token（需要先调用 getAccessToken 获取）
    */
-  async getMiniprogramPhoneNumber(code: string) {
-    const result = await this.oauthService.wechat.getPhoneNumber(code);
+  async getMiniprogramPhoneNumber(code: string, accessToken: string) {
+    const result = await this.oauthService.wechat.getPhoneNumber(code, accessToken);
+
+    if (!result.success || !result.data) {
+      throw new Error(result.error?.message || 'Failed to get phone number');
+    }
 
     return {
-      phoneNumber: result.phone_info.phoneNumber,
-      purePhoneNumber: result.phone_info.purePhoneNumber,
-      countryCode: result.phone_info.countryCode,
+      phoneNumber: result.data.phoneNumber,
+      purePhoneNumber: result.data.purePhoneNumber,
+      countryCode: result.data.countryCode,
     };
   }
 }

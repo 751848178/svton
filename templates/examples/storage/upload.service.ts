@@ -1,18 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { ObjectStorageService } from '@svton/nestjs-object-storage';
+import { Injectable, Inject } from '@nestjs/common';
+import { ObjectStorageClient, InjectObjectStorage } from '@svton/nestjs-object-storage';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class UploadService {
-  constructor(private readonly storageService: ObjectStorageService) {}
-
-  /**
-   * 获取上传凭证（用于客户端直传）
-   */
-  async getUploadToken(key?: string): Promise<string> {
-    return this.storageService.getUploadToken(key);
-  }
+  constructor(
+    @InjectObjectStorage()
+    private readonly storageClient: ObjectStorageClient,
+  ) {}
 
   /**
    * 上传文件
@@ -24,18 +20,26 @@ export class UploadService {
     const key = `uploads/${filename}`;
 
     // 上传文件
-    const result = await this.storageService.upload(file.buffer, key);
+    const result = await this.storageClient.putObject({
+      key,
+      body: file.buffer,
+      contentType: file.mimetype,
+    });
+
+    // 获取公开访问 URL
+    const url = this.storageClient.getPublicUrl({ key });
 
     return {
-      key,
-      url: result.url,
+      key: result.key,
+      url,
       size: file.size,
       mimeType: file.mimetype,
+      etag: result.etag,
     };
   }
 
   /**
-   * 上传图片（带压缩）
+   * 上传图片
    */
   async uploadImage(file: Express.Multer.File) {
     // 验证是否为图片
@@ -48,17 +52,25 @@ export class UploadService {
     const key = `images/${filename}`;
 
     // 上传原图
-    const result = await this.storageService.upload(file.buffer, key);
+    const result = await this.storageClient.putObject({
+      key,
+      body: file.buffer,
+      contentType: file.mimetype,
+    });
+
+    // 获取公开访问 URL
+    const url = this.storageClient.getPublicUrl({ key });
 
     // 生成缩略图 URL（七牛云图片处理）
-    const thumbnailUrl = `${result.url}?imageView2/1/w/200/h/200`;
+    const thumbnailUrl = `${url}?imageView2/1/w/200/h/200`;
 
     return {
-      key,
-      url: result.url,
+      key: result.key,
+      url,
       thumbnailUrl,
       size: file.size,
       mimeType: file.mimetype,
+      etag: result.etag,
     };
   }
 
@@ -77,47 +89,41 @@ export class UploadService {
    * 删除文件
    */
   async deleteFile(key: string): Promise<void> {
-    await this.storageService.delete(key);
+    await this.storageClient.deleteObject({ key });
   }
 
   /**
-   * 获取文件信息
+   * 获取预签名上传 URL（用于客户端直传）
    */
-  async getFileInfo(key: string) {
-    const info = await this.storageService.getFileInfo(key);
-
-    // 兼容不同存储提供商的返回格式
-    return {
+  async getPresignedUploadUrl(key: string, contentType?: string) {
+    const result = await this.storageClient.presign({
       key,
-      size: info.fsize || info.size || 0,
-      mimeType: info.mimeType || info.type || 'application/octet-stream',
-      hash: info.hash || info.etag || '',
-      putTime: info.putTime 
-        ? new Date(info.putTime / 10000)  // 七牛云格式
-        : info.lastModified 
-        ? new Date(info.lastModified)  // 其他格式
-        : new Date(),
+      method: 'PUT',
+      expiresIn: 3600, // 1 小时
+      contentType,
+    });
+
+    return {
+      url: result.url,
+      method: result.method,
+      headers: result.headers,
+      expiresIn: 3600,
     };
   }
 
   /**
-   * 获取私有文件访问 URL
+   * 获取预签名下载 URL（用于私有文件访问）
    */
-  async getPrivateUrl(key: string, expires: number = 3600): Promise<string> {
-    return this.storageService.getPrivateUrl(key, expires);
-  }
+  async getPresignedDownloadUrl(key: string, expiresIn: number = 3600) {
+    const result = await this.storageClient.presign({
+      key,
+      method: 'GET',
+      expiresIn,
+    });
 
-  /**
-   * 移动文件
-   */
-  async moveFile(sourceKey: string, destKey: string): Promise<void> {
-    await this.storageService.move(sourceKey, destKey);
-  }
-
-  /**
-   * 复制文件
-   */
-  async copyFile(sourceKey: string, destKey: string): Promise<void> {
-    await this.storageService.copy(sourceKey, destKey);
+    return {
+      url: result.url,
+      expiresIn,
+    };
   }
 }

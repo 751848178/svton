@@ -16,25 +16,54 @@ export function addImportToFile(
     plugins: ['typescript', 'decorators-legacy'],
   });
 
-  // 找到最后一个 import 语句的位置
+  // 收集已存在的 import
+  const existingImports = new Map<string, Set<string>>();
   let lastImportIndex = -1;
   
   traverse(ast, {
     ImportDeclaration(path) {
+      const source = path.node.source.value;
       const start = path.node.start;
+      
       if (start !== null && start !== undefined && start > lastImportIndex) {
         lastImportIndex = start;
       }
+
+      // 记录已存在的 import
+      if (!existingImports.has(source)) {
+        existingImports.set(source, new Set());
+      }
+      
+      const importSet = existingImports.get(source)!;
+      path.node.specifiers.forEach((spec) => {
+        if (t.isImportSpecifier(spec) && t.isIdentifier(spec.imported)) {
+          importSet.add(spec.imported.name);
+        }
+      });
     },
   });
 
-  // 生成新的 import 语句
-  const newImports = importDeclarations.map(({ from, imports }) => {
-    const specifiers = imports.map((imp) =>
-      t.importSpecifier(t.identifier(imp), t.identifier(imp)),
-    );
-    return t.importDeclaration(specifiers, t.stringLiteral(from));
-  });
+  // 过滤掉已存在的 import
+  const newImports: t.ImportDeclaration[] = [];
+  
+  for (const { from, imports } of importDeclarations) {
+    const existingSet = existingImports.get(from);
+    const newImportNames = existingSet 
+      ? imports.filter(imp => !existingSet.has(imp))
+      : imports;
+    
+    if (newImportNames.length > 0) {
+      const specifiers = newImportNames.map((imp) =>
+        t.importSpecifier(t.identifier(imp), t.identifier(imp)),
+      );
+      newImports.push(t.importDeclaration(specifiers, t.stringLiteral(from)));
+    }
+  }
+
+  // 如果没有新的 import 需要添加，直接返回原代码
+  if (newImports.length === 0) {
+    return code;
+  }
 
   // 插入新的 import 语句
   if (lastImportIndex >= 0) {

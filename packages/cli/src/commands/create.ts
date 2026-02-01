@@ -17,6 +17,7 @@ import {
   copyConfigFiles,
   copyExampleFiles,
   copySkillFiles,
+  copyPrismaTemplates,
   updatePackageJson,
   updateAppModule,
 } from '../utils/features';
@@ -270,6 +271,11 @@ async function createProjectFromTemplate(config: ProjectConfig) {
 
       // 复制 Skill 文件
       await copySkillFiles(config.features, featuresConfig, templateDir, config.projectPath);
+
+      // 复制 Prisma 模板（如果是后端项目）
+      if (config.template === 'backend-only' || config.template === 'full-stack') {
+        await copyPrismaTemplates(templateDir, config.projectPath);
+      }
 
       // 生成 .env.example
       await generateEnvExample(config.features, featuresConfig, config.projectPath);

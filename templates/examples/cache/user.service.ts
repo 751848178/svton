@@ -54,9 +54,9 @@ export class UserService {
   }
 
   /**
-   * 批量清除缓存（使用通配符）
+   * 批量清除缓存（清除所有 user: 前缀的缓存）
    */
-  @CacheEvict({ key: 'user:*', pattern: true })
+  @CacheEvict({ key: 'user:*', allEntries: true })
   async clearAllCache(): Promise<void> {
     console.log('Clearing all user cache...');
   }

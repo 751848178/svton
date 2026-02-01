@@ -8,7 +8,7 @@ import {
   Param,
   UseGuards,
 } from '@nestjs/common';
-import { Roles, Permissions, RolesGuard } from '@svton/nestjs-authz';
+import { Roles, RolesGuard } from '@svton/nestjs-authz';
 
 @Controller('examples/users')
 @UseGuards(RolesGuard)
@@ -52,10 +52,10 @@ export class UserController {
   }
 
   /**
-   * 更新用户 - 需要 user:update 权限
+   * 更新用户 - 需要 admin 或 manager 角色
    */
   @Put(':id')
-  @Permissions('user:update')
+  @Roles('admin', 'manager')
   update(@Param('id') id: string, @Body() data: any) {
     return {
       message: 'User updated',
@@ -64,11 +64,10 @@ export class UserController {
   }
 
   /**
-   * 删除用户 - 需要 admin 角色和 user:delete 权限
+   * 删除用户 - 需要 admin 角色
    */
   @Delete(':id')
   @Roles('admin')
-  @Permissions('user:delete')
   delete(@Param('id') id: string) {
     return {
       message: 'User deleted',
@@ -77,11 +76,10 @@ export class UserController {
   }
 
   /**
-   * 批量删除 - 需要 admin 角色和 user:batch-delete 权限
+   * 批量删除 - 需要 admin 角色
    */
   @Delete()
   @Roles('admin')
-  @Permissions('user:batch-delete')
   batchDelete(@Body() data: { ids: string[] }) {
     return {
       message: 'Users deleted',
@@ -102,10 +100,10 @@ export class UserController {
   }
 
   /**
-   * 重置密码 - 需要 user:reset-password 权限
+   * 重置密码 - 需要 admin 角色
    */
   @Post(':id/reset-password')
-  @Permissions('user:reset-password')
+  @Roles('admin')
   resetPassword(@Param('id') id: string) {
     return {
       message: 'Password reset',
