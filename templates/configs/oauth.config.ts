@@ -1,9 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { OAuthModuleOptions } from '@svton/nestjs-oauth';
 
-import { ConfigService } from '@nestjs/config';
-import { OAuthModuleOptions } from '@svton/nestjs-oauth';
-
 export const useOAuthConfig = (
   configService: ConfigService,
 ): OAuthModuleOptions => ({
