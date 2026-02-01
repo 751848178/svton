@@ -1,5 +1,15 @@
 # @svton/cli
 
+## 1.2.2
+
+### Patch Changes
+
+- fix: bundle templates directory in npm package
+  - Add templates directory to npm package files
+  - Create prebuild script to copy templates from project root
+  - Update template path resolution to check packaged templates first
+  - Ensure CLI works correctly when installed globally via npm
+
 ## 1.2.1
 
 ### Patch Changes

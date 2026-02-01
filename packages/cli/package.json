@@ -1,6 +1,6 @@
 {
   "name": "@svton/cli",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Svton CLI - Create full-stack applications with NestJS, Next.js, and Taro",
   "keywords": [
     "cli",
@@ -31,10 +31,12 @@
     "dist",
     "bin",
     "features.json",
+    "templates",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "prebuild": "node scripts/copy-templates.js",
     "build": "tsup src/index.ts --format cjs,esm --dts",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "type-check": "tsc --noEmit",
