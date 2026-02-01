@@ -1,5 +1,15 @@
 # @svton/cli
 
+## 1.2.4
+
+### Patch Changes
+
+- 修复功能集成时的模板路径解析错误
+  - 修复 `copyConfigFiles`、`copyExampleFiles`、`copySkillFiles` 函数中硬编码的 `templates/` 路径
+  - 统一使用 `templateDir` 参数，支持从本地开发环境或 GitHub 下载的模板
+  - 添加文件不存在时的警告日志
+  - 添加模板目录清理逻辑，避免临时文件残留
+
 ## 1.2.3
 
 ### Patch Changes

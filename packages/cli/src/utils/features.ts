@@ -151,19 +151,23 @@ export async function generateEnvExample(
 export async function copyConfigFiles(
   features: string[],
   config: FeaturesConfig,
-  templatePath: string,
+  templateDir: string,
   targetPath: string,
 ): Promise<void> {
   for (const featureKey of features) {
     const feature = config.features[featureKey];
     if (feature && feature.configFiles) {
       for (const configFile of feature.configFiles) {
-        const sourcePath = path.join(templatePath, configFile.template);
+        const sourcePath = path.join(templateDir, configFile.template);
         const destPath = path.join(targetPath, configFile.path);
 
-        await fs.ensureDir(path.dirname(destPath));
-        await fs.copy(sourcePath, destPath);
-        logger.info(`Copied config: ${configFile.path}`);
+        if (await fs.pathExists(sourcePath)) {
+          await fs.ensureDir(path.dirname(destPath));
+          await fs.copy(sourcePath, destPath);
+          logger.info(`Copied config: ${configFile.path}`);
+        } else {
+          logger.warn(`Config template not found: ${sourcePath}`);
+        }
       }
     }
   }
@@ -175,19 +179,21 @@ export async function copyConfigFiles(
 export async function copyExampleFiles(
   features: string[],
   config: FeaturesConfig,
-  templatePath: string,
+  templateDir: string,
   targetPath: string,
 ): Promise<void> {
   for (const featureKey of features) {
     const feature = config.features[featureKey];
     if (feature && feature.exampleFiles) {
-      const sourcePath = path.join(templatePath, feature.exampleFiles.source);
+      const sourcePath = path.join(templateDir, feature.exampleFiles.source);
       const destPath = path.join(targetPath, feature.exampleFiles.target);
 
       if (await fs.pathExists(sourcePath)) {
         await fs.ensureDir(path.dirname(destPath));
         await fs.copy(sourcePath, destPath);
         logger.info(`Copied examples: ${feature.exampleFiles.target}`);
+      } else {
+        logger.warn(`Example template not found: ${sourcePath}`);
       }
     }
   }
@@ -199,7 +205,7 @@ export async function copyExampleFiles(
 export async function copySkillFiles(
   features: string[],
   config: FeaturesConfig,
-  templatePath: string,
+  templateDir: string,
   targetPath: string,
 ): Promise<void> {
   // 确保 .kiro/skills 目录存在
@@ -207,24 +213,28 @@ export async function copySkillFiles(
   await fs.ensureDir(skillsDir);
 
   // 复制基础 skill
-  const baseSkillSource = path.join(templatePath, 'skills/base.skill.md');
+  const baseSkillSource = path.join(templateDir, 'skills/base.skill.md');
   const baseSkillDest = path.join(skillsDir, 'project-capabilities.md');
   if (await fs.pathExists(baseSkillSource)) {
     await fs.copy(baseSkillSource, baseSkillDest);
     logger.info('Copied base skill file');
+  } else {
+    logger.warn(`Base skill template not found: ${baseSkillSource}`);
   }
 
   // 复制功能 skill 文件
   for (const featureKey of features) {
     const feature = config.features[featureKey];
     if (feature && feature.skillFile) {
-      const sourcePath = path.join(templatePath, feature.skillFile.template);
+      const sourcePath = path.join(templateDir, feature.skillFile.template);
       const destPath = path.join(targetPath, feature.skillFile.target);
 
       if (await fs.pathExists(sourcePath)) {
         await fs.ensureDir(path.dirname(destPath));
         await fs.copy(sourcePath, destPath);
         logger.info(`Copied skill: ${feature.skillFile.target}`);
+      } else {
+        logger.warn(`Skill template not found: ${sourcePath}`);
       }
     }
   }

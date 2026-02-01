@@ -9,6 +9,7 @@ import { generateFromTemplate } from '../utils/template';
 import { installDependencies } from '../utils/install';
 import { initGit } from '../utils/git';
 import { logger } from '../utils/logger';
+import { downloadTemplateFromGitHub, cleanupTemplateDir } from '../utils/github-template';
 import {
   loadFeaturesConfig,
   getFeatureChoices,
@@ -203,8 +204,35 @@ interface ProjectConfig {
   projectPath: string;
 }
 
+/**
+ * 获取 template 目录
+ * 优先使用本地开发环境，否则从 GitHub 下载
+ */
+async function getTemplateDirectory(): Promise<string> {
+  // 1. 尝试本地开发环境路径（monorepo 根目录的 templates）
+  const cliPackageRoot = path.dirname(__dirname);
+  const frameworkRoot = path.dirname(path.dirname(cliPackageRoot));
+  const localTemplateDir = path.join(frameworkRoot, 'templates');
+  
+  if (await fs.pathExists(localTemplateDir)) {
+    logger.debug(`Using local template directory: ${localTemplateDir}`);
+    return localTemplateDir;
+  }
+  
+  // 2. 从 GitHub 下载（生产环境）
+  logger.debug('Downloading templates from GitHub for feature integration...');
+  try {
+    const templateDir = await downloadTemplateFromGitHub();
+    logger.debug('Templates downloaded successfully');
+    return templateDir;
+  } catch (error) {
+    throw new Error(`Failed to download templates from GitHub: ${error}`);
+  }
+}
+
 async function createProjectFromTemplate(config: ProjectConfig) {
   const spinner = ora('Creating project...').start();
+  let templateDirToCleanup: string | null = null;
 
   try {
     // 创建项目目录
@@ -219,19 +247,29 @@ async function createProjectFromTemplate(config: ProjectConfig) {
     if (config.features.length > 0) {
       spinner.text = 'Integrating selected features...';
       const featuresConfig = await loadFeaturesConfig();
-      const templatePath = path.join(__dirname, '../../../templates');
+      
+      // 获取 template 目录（与 copy-template.ts 逻辑一致）
+      const templateDir = await getTemplateDirectory();
+      
+      // 检查是否需要清理（如果不是本地开发环境）
+      const cliPackageRoot = path.dirname(__dirname);
+      const frameworkRoot = path.dirname(path.dirname(cliPackageRoot));
+      const localTemplateDir = path.join(frameworkRoot, 'templates');
+      if (templateDir !== localTemplateDir) {
+        templateDirToCleanup = templateDir;
+      }
 
       // 更新 package.json
       await updatePackageJson(config.features, featuresConfig, config.projectPath);
 
       // 复制配置文件
-      await copyConfigFiles(config.features, featuresConfig, templatePath, config.projectPath);
+      await copyConfigFiles(config.features, featuresConfig, templateDir, config.projectPath);
 
       // 复制示例代码
-      await copyExampleFiles(config.features, featuresConfig, templatePath, config.projectPath);
+      await copyExampleFiles(config.features, featuresConfig, templateDir, config.projectPath);
 
       // 复制 Skill 文件
-      await copySkillFiles(config.features, featuresConfig, templatePath, config.projectPath);
+      await copySkillFiles(config.features, featuresConfig, templateDir, config.projectPath);
 
       // 生成 .env.example
       await generateEnvExample(config.features, featuresConfig, config.projectPath);
@@ -258,5 +296,10 @@ async function createProjectFromTemplate(config: ProjectConfig) {
   } catch (error) {
     spinner.fail('Failed to create project');
     throw error;
+  } finally {
+    // 清理从 GitHub 下载的临时目录
+    if (templateDirToCleanup) {
+      await cleanupTemplateDir(templateDirToCleanup);
+    }
   }
 }
