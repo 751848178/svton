@@ -365,13 +365,25 @@ export function generateModuleImports(
   config: FeaturesConfig,
 ): string {
   const imports: string[] = [];
+  const seen = new Set<string>();
 
   for (const featureKey of features) {
     const feature = config.features[featureKey];
     if (feature && feature.moduleImports) {
       for (const moduleImport of feature.moduleImports) {
-        imports.push(`import { ${moduleImport.import} } from '${moduleImport.from}';`);
+        const importKey = `${moduleImport.from}:${moduleImport.import}`;
+        if (!seen.has(importKey)) {
+          imports.push(`import { ${moduleImport.import} } from '${moduleImport.from}';`);
+          seen.add(importKey);
+        }
       }
+    }
+
+    // 添加配置文件导入
+    if (feature && feature.configFiles && feature.configFiles.length > 0) {
+      const configFileName = path.basename(feature.configFiles[0].path, '.ts');
+      const configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+      imports.push(`import { ${configFunctionName} } from './config/${configFileName}';`);
     }
   }
 
@@ -390,10 +402,13 @@ export function generateModuleRegistrations(
   for (const featureKey of features) {
     const feature = config.features[featureKey];
     if (feature && feature.moduleRegistration) {
-      const { module: moduleName, config: moduleConfig } = feature.moduleRegistration;
-      registrations.push(`    ${moduleName}.${feature.moduleRegistration.type}({
-      useFactory: (configService: ConfigService) => ${moduleConfig},
+      const { module: moduleName, type: registrationType } = feature.moduleRegistration;
+      const configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+      
+      registrations.push(`    ${moduleName}.${registrationType}({
+      imports: [ConfigModule],
       inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ${configFunctionName}(configService),
     }),`);
     }
   }
@@ -402,8 +417,8 @@ export function generateModuleRegistrations(
 }
 
 /**
- * 生成模块集成说明文件
- * 不直接修改 app.module.ts，而是生成说明文档
+ * 更新 app.module.ts 注入模块
+ * 使用 AST 操作安全地修改文件
  */
 export async function updateAppModule(
   features: string[],
@@ -414,16 +429,96 @@ export async function updateAppModule(
     return;
   }
 
-  // 生成导入语句
+  const appModulePath = path.join(targetPath, 'apps/backend/src/app.module.ts');
+
+  if (!(await fs.pathExists(appModulePath))) {
+    logger.warn('app.module.ts not found, skipping module injection');
+    return;
+  }
+
+  try {
+    // 收集所有需要导入的模块
+    const imports: Array<{ from: string; imports: string[] }> = [];
+    const moduleExpressions: string[] = [];
+
+    // 添加 ConfigService 导入（如果还没有）
+    const needsConfigService = features.some((key) => {
+      const feature = config.features[key];
+      return feature && feature.moduleRegistration;
+    });
+
+    if (needsConfigService) {
+      // ConfigService 通常已经存在，这里不重复添加
+    }
+
+    // 收集每个功能的导入和模块注册
+    for (const featureKey of features) {
+      const feature = config.features[featureKey];
+      if (!feature) continue;
+
+      // 添加模块导入
+      if (feature.moduleImports) {
+        for (const moduleImport of feature.moduleImports) {
+          imports.push({
+            from: moduleImport.from,
+            imports: [moduleImport.import],
+          });
+        }
+      }
+
+      // 添加配置文件导入
+      if (feature.configFiles && feature.configFiles.length > 0) {
+        const configFileName = path.basename(feature.configFiles[0].path, '.ts');
+        const configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+        
+        imports.push({
+          from: `./config/${configFileName}`,
+          imports: [configFunctionName],
+        });
+      }
+
+      // 生成模块注册表达式
+      if (feature.moduleRegistration) {
+        const { module: moduleName, type: registrationType } = feature.moduleRegistration;
+        const configFunctionName = `use${featureKey.charAt(0).toUpperCase() + featureKey.slice(1)}Config`;
+        
+        const moduleExpression = `${moduleName}.${registrationType}({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ${configFunctionName}(configService),
+    })`;
+        
+        moduleExpressions.push(moduleExpression);
+      }
+    }
+
+    // 使用 AST 工具更新文件
+    const { updateAppModuleFile } = await import('./ast-helper');
+    await updateAppModuleFile(appModulePath, imports, moduleExpressions);
+    
+    logger.info('Successfully updated app.module.ts with feature modules');
+  } catch (error) {
+    logger.error(`Failed to update app.module.ts: ${error instanceof Error ? error.message : String(error)}`);
+    
+    // 生成手动集成说明作为备选方案
+    await generateManualIntegrationGuide(features, config, targetPath);
+  }
+}
+
+/**
+ * 生成手动集成说明（备选方案）
+ */
+async function generateManualIntegrationGuide(
+  features: string[],
+  config: FeaturesConfig,
+  targetPath: string,
+): Promise<void> {
   const imports = generateModuleImports(features, config);
-  
-  // 生成模块注册代码
   const registrations = generateModuleRegistrations(features, config);
 
-  // 生成集成说明文档
   const content = `# 功能模块集成说明
 
-本文档说明如何将选中的功能模块集成到 app.module.ts 中。
+⚠️ 自动集成失败，请手动完成以下步骤：
 
 ## 1. 添加导入语句
 
@@ -450,27 +545,14 @@ export class AppModule {}
 
 ## 3. 配置文件
 
-每个功能的配置文件已生成在 \`apps/backend/src/config/\` 目录下：
+每个功能的配置文件已生成在 \`apps/backend/src/config/\` 目录下。
 
-${features.map((key) => {
-  const feature = config.features[key];
-  return `- **${feature.name}**: \`src/config/${key}.config.ts\``;
-}).join('\n')}
-
-## 4. 示例代码
-
-示例代码已生成在 \`apps/backend/src/examples/\` 目录下，可以参考使用。
-
-## 5. 环境变量
+## 4. 环境变量
 
 请复制 \`.env.example\` 为 \`.env\` 并填写相应的配置值。
-
-## 6. 更多文档
-
-查看 \`.kiro/skills/\` 目录下的详细文档了解每个功能的使用方法。
 `;
 
   const docPath = path.join(targetPath, 'apps/backend/FEATURE_INTEGRATION.md');
   await fs.writeFile(docPath, content);
-  logger.info('Generated feature integration guide: apps/backend/FEATURE_INTEGRATION.md');
+  logger.warn('Generated manual integration guide: apps/backend/FEATURE_INTEGRATION.md');
 }
