@@ -1,5 +1,15 @@
 # @svton/cli
 
+## 1.2.3
+
+### Patch Changes
+
+- refactor: use GitHub templates instead of bundling in package
+  - Remove templates from npm package to reduce package size
+  - Always download templates from GitHub repository
+  - Ensures users always get the latest templates
+  - Reduces npm package size significantly
+
 ## 1.2.2
 
 ### Patch Changes

@@ -16,27 +16,17 @@ export async function copyTemplateFiles(config: TemplateConfig): Promise<void> {
   let templateDir: string | null = null;
   let needCleanup = false;
   
-  // 1. 优先尝试 npm 包中的 templates 目录（发布后的位置）
+  // 1. 尝试本地开发环境路径（monorepo 根目录的 templates）
   const cliPackageRoot = path.dirname(__dirname);
-  const packagedTemplateDir = path.join(cliPackageRoot, '../templates');
+  const frameworkRoot = path.dirname(path.dirname(cliPackageRoot));
+  const localTemplateDir = path.join(frameworkRoot, 'templates');
   
-  if (await fs.pathExists(packagedTemplateDir)) {
-    templateDir = packagedTemplateDir;
-    logger.debug(`Using packaged template directory: ${templateDir}`);
+  if (await fs.pathExists(localTemplateDir)) {
+    templateDir = localTemplateDir;
+    logger.debug(`Using local template directory: ${templateDir}`);
   }
   
-  // 2. 尝试本地开发环境路径（monorepo 根目录的 templates）
-  if (!templateDir) {
-    const frameworkRoot = path.dirname(path.dirname(cliPackageRoot));
-    const localTemplateDir = path.join(frameworkRoot, 'templates');
-    
-    if (await fs.pathExists(localTemplateDir)) {
-      templateDir = localTemplateDir;
-      logger.debug(`Using local template directory: ${templateDir}`);
-    }
-  }
-  
-  // 3. 如果本地不存在，从 GitHub 下载
+  // 2. 从 GitHub 下载（生产环境）
   if (!templateDir) {
     logger.info('Downloading templates from GitHub...');
     try {
