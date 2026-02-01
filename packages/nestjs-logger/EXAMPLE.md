@@ -163,8 +163,8 @@ LOG_LEVEL=info
 # 腾讯云 CLS
 TENCENT_CLS_ENDPOINT=ap-guangzhou.cls.tencentcs.com
 TENCENT_SECRET_ID=your-tencent-secret-id
-TENCENT_SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TENCENT_CLS_TOPIC_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+TENCENT_SECRET_KEY=your-tencent-secret-key
+TENCENT_CLS_TOPIC_ID=your-topic-id
 ```
 
 ## 双云服务集成示例
