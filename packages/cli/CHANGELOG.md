@@ -1,5 +1,21 @@
 # @svton/cli
 
+## 2.0.1
+
+### Patch Changes
+
+- 修复剩余的模板问题并改进项目初始化流程
+
+  **修复内容**：
+  1. **OAuth Controller** - 修复小程序获取手机号接口，添加缺失的 accessToken 参数
+  2. **Storage Controller** - 修复文件上传控制器，使用正确的 presigned URL 方法替代不存在的方法
+  3. **Prisma 自动生成** - 在安装依赖后自动运行 `prisma:generate`，无需手动执行
+
+  **改进**：
+  - 小程序获取手机号现在需要传入 `code` 和 `accessToken` 两个参数
+  - 文件上传示例使用 `getPresignedUploadUrl` 和 `getPresignedDownloadUrl` 方法
+  - 项目创建后自动生成 Prisma 客户端，提升开发体验
+
 ## 2.0.0
 
 ### Major Changes

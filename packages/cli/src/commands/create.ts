@@ -3,7 +3,6 @@ import chalk from 'chalk';
 import ora from 'ora';
 import fs from 'fs-extra';
 import path from 'path';
-import { execSync } from 'child_process';
 import validateNpmPackageName from 'validate-npm-package-name';
 import { generateFromTemplate } from '../utils/template';
 import { installDependencies } from '../utils/install';
@@ -290,6 +289,21 @@ async function createProjectFromTemplate(config: ProjectConfig) {
     if (config.installDeps) {
       spinner.text = 'Installing dependencies...';
       await installDependencies(config.packageManager);
+      
+      // 如果是后端项目，运行 prisma generate
+      if (config.template === 'backend-only' || config.template === 'full-stack') {
+        spinner.text = 'Generating Prisma client...';
+        try {
+          const { execSync } = require('child_process');
+          execSync(`${config.packageManager} --filter=backend prisma:generate`, {
+            cwd: config.projectPath,
+            stdio: 'inherit',
+          });
+          logger.info('Prisma client generated successfully');
+        } catch (error) {
+          logger.warn('Failed to generate Prisma client. Please run "pnpm --filter=backend prisma:generate" manually.');
+        }
+      }
     }
 
     // 初始化 Git

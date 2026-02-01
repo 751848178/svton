@@ -86,10 +86,14 @@ export class AuthController {
 
   /**
    * 小程序获取手机号
+   * 注意：需要先获取小程序 access_token
    */
   @Post('wechat/miniprogram/phone')
-  async getMiniprogramPhone(@Body() body: { code: string }) {
-    const result = await this.authService.getMiniprogramPhoneNumber(body.code);
+  async getMiniprogramPhone(@Body() body: { code: string; accessToken: string }) {
+    const result = await this.authService.getMiniprogramPhoneNumber(
+      body.code,
+      body.accessToken,
+    );
 
     return {
       message: 'Phone number retrieved successfully',
