@@ -62,6 +62,7 @@ export async function createProject(projectName: string, options: CreateOptions 
       answers = {
         org: options.org || projectName,
         template: options.template || 'full-stack',
+        database: 'mysql', // 默认使用 MySQL
         features: [], // 默认不选择额外功能
         packageManager: options.packageManager || 'pnpm',
         installDeps: !options.skipInstall,
@@ -91,6 +92,18 @@ export async function createProject(projectName: string, options: CreateOptions 
             { name: 'Mobile Only (Taro)', value: 'mobile-only' },
           ],
           default: options.template || 'full-stack',
+        },
+        {
+          type: 'list',
+          name: 'database',
+          message: 'Choose a database:',
+          choices: [
+            { name: 'MySQL', value: 'mysql' },
+            { name: 'PostgreSQL', value: 'postgresql' },
+            { name: 'SQLite', value: 'sqlite' },
+          ],
+          default: 'mysql',
+          when: (answers) => answers.template === 'backend-only' || answers.template === 'full-stack',
         },
         {
           type: 'checkbox',
@@ -125,6 +138,7 @@ export async function createProject(projectName: string, options: CreateOptions 
       projectName,
       orgName: answers.org.startsWith('@') ? answers.org : `@${answers.org}`,
       template: answers.template,
+      database: answers.database || 'mysql',
       features: answers.features || [],
       packageManager: answers.packageManager,
       installDeps: answers.installDeps,
@@ -137,6 +151,9 @@ export async function createProject(projectName: string, options: CreateOptions 
     logger.info(`  Project Name: ${chalk.white(config.projectName)}`);
     logger.info(`  Organization: ${chalk.white(config.orgName)}`);
     logger.info(`  Template: ${chalk.white(config.template)}`);
+    if (config.template === 'backend-only' || config.template === 'full-stack') {
+      logger.info(`  Database: ${chalk.white(config.database)}`);
+    }
     if (config.features.length > 0) {
       logger.info(`  Features: ${chalk.white(config.features.join(', '))}`);
     }
@@ -197,6 +214,7 @@ interface ProjectConfig {
   projectName: string;
   orgName: string;
   template: string;
+  database: string;
   features: string[];
   packageManager: string;
   installDeps: boolean;
@@ -273,11 +291,11 @@ async function createProjectFromTemplate(config: ProjectConfig) {
 
       // 复制 Prisma 模板（如果是后端项目）
       if (config.template === 'backend-only' || config.template === 'full-stack') {
-        await copyPrismaTemplates(templateDir, config.projectPath);
+        await copyPrismaTemplates(templateDir, config.projectPath, config.database);
       }
 
       // 生成 .env.example
-      await generateEnvExample(config.features, featuresConfig, config.projectPath);
+      await generateEnvExample(config.features, featuresConfig, config.projectPath, config.database);
 
       // 更新 app.module.ts（如果是后端项目）
       if (config.template === 'backend-only' || config.template === 'full-stack') {

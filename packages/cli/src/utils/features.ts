@@ -124,12 +124,20 @@ export async function generateEnvExample(
   features: string[],
   config: FeaturesConfig,
   targetPath: string,
+  database: string = 'mysql',
 ): Promise<void> {
   const envVars = collectEnvVars(features, config);
 
   if (envVars.length === 0) {
     return;
   }
+
+  // 根据数据库类型生成不同的 DATABASE_URL
+  const databaseUrls: Record<string, string> = {
+    mysql: 'mysql://root:root123456@localhost:3306/{{PROJECT_NAME}}',
+    postgresql: 'postgresql://postgres:postgres@localhost:5432/{{PROJECT_NAME}}',
+    sqlite: 'file:./dev.db',
+  };
 
   const content = [
     '# ========================================',
@@ -150,7 +158,7 @@ export async function generateEnvExample(
     '# ========================================',
     '# Database Configuration',
     '# ========================================',
-    'DATABASE_URL=mysql://root:root123456@localhost:3306/{{PROJECT_NAME}}',
+    `DATABASE_URL=${databaseUrls[database] || databaseUrls.mysql}`,
     '',
   ];
 
@@ -341,6 +349,7 @@ ${featuresList}
 export async function copyPrismaTemplates(
   templateDir: string,
   targetPath: string,
+  database: string = 'mysql',
 ): Promise<void> {
   const prismaTemplatesDir = path.join(templateDir, 'apps/backend/prisma');
   const prismaDestDir = path.join(targetPath, 'apps/backend/prisma');
@@ -349,17 +358,24 @@ export async function copyPrismaTemplates(
     await fs.ensureDir(prismaDestDir);
     await fs.copy(prismaTemplatesDir, prismaDestDir);
     
-    // 处理 .tpl 文件
+    // 处理 .tpl 文件并替换数据库类型
     const files = await fs.readdir(prismaDestDir);
     for (const file of files) {
       if (file.endsWith('.tpl')) {
         const filePath = path.join(prismaDestDir, file);
         const newPath = filePath.replace(/\.tpl$/, '');
-        await fs.rename(filePath, newPath);
+        
+        // 读取文件内容并替换数据库类型
+        let content = await fs.readFile(filePath, 'utf-8');
+        content = content.replace(/provider\s*=\s*"postgresql"/, `provider = "${database}"`);
+        
+        // 写入新文件并删除 .tpl 文件
+        await fs.writeFile(newPath, content);
+        await fs.remove(filePath);
       }
     }
     
-    logger.info('Copied Prisma templates');
+    logger.info(`Copied Prisma templates with ${database} database`);
   } else {
     logger.warn(`Prisma templates not found: ${prismaTemplatesDir}`);
   }
