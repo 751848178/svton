@@ -215,20 +215,26 @@
     },
     "storage": {
       "name": "对象存储",
-      "description": "七牛云/阿里云 OSS",
+      "description": "七牛云/腾讯云 COS",
       "category": "backend",
       "packages": {
         "dependencies": {
           "@svton/nestjs-object-storage": "latest",
-          "@svton/nestjs-object-storage-qiniu-kodo": "latest"
+          "@svton/nestjs-object-storage-qiniu-kodo": "latest",
+          "@svton/nestjs-object-storage-tencent-cos": "latest"
         }
       },
       "envVars": [
-        { "key": "STORAGE_PROVIDER", "default": "qiniu", "description": "存储服务商 (qiniu/aliyun)" },
+        { "key": "STORAGE_PROVIDER", "default": "qiniu", "description": "存储服务商 (qiniu/tencent-cos)" },
         { "key": "QINIU_ACCESS_KEY", "default": "", "description": "七牛云 AccessKey" },
         { "key": "QINIU_SECRET_KEY", "default": "", "description": "七牛云 SecretKey" },
         { "key": "QINIU_BUCKET", "default": "", "description": "七牛云存储空间名称" },
-        { "key": "QINIU_DOMAIN", "default": "", "description": "七牛云 CDN 域名" }
+        { "key": "QINIU_DOMAIN", "default": "", "description": "七牛云 CDN 域名" },
+        { "key": "COS_SECRET_ID", "default": "", "description": "腾讯云 COS SecretId" },
+        { "key": "COS_SECRET_KEY", "default": "", "description": "腾讯云 COS SecretKey" },
+        { "key": "COS_BUCKET", "default": "", "description": "腾讯云 COS 存储桶名称" },
+        { "key": "COS_REGION", "default": "ap-guangzhou", "description": "腾讯云 COS 地域" },
+        { "key": "COS_DOMAIN", "default": "", "description": "腾讯云 COS 自定义域名（可选）" }
       ],
       "configFiles": [
         {

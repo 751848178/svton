@@ -1,5 +1,15 @@
 # @svton/cli
 
+## 2.2.0
+
+### Minor Changes
+
+- feat: 添加腾讯云 COS 对象存储支持
+  - 新增 @svton/nestjs-object-storage-tencent-cos 包
+  - 支持腾讯云 COS 对象存储服务
+  - 实现上传、删除、获取公开 URL、生成预签名 URL 等功能
+  - CLI 支持选择腾讯云 COS 作为对象存储提供商
+
 ## 2.1.0
 
 ### Minor Changes
