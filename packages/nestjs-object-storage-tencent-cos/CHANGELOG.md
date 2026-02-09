@@ -1,5 +1,14 @@
 # @svton/nestjs-object-storage-tencent-cos
 
+## 1.2.0
+
+### Minor Changes
+
+- feat: 添加腾讯云 COS 对象存储支持，优化 NavBar 组件
+  - 新增 @svton/nestjs-object-storage-tencent-cos 包，支持腾讯云 COS 对象存储
+  - NavBar 组件新增 showStatusBar 属性，支持控制状态栏显示
+  - StatusBar 只在小程序环境中显示，H5 环境自动忽略
+
 ## 1.1.0
 
 ### Minor Changes

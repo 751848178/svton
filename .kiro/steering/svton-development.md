@@ -366,13 +366,55 @@ import type { UserVo, ContentVo } from '@{org}/types';
 ```
 
 #### @{org}/api-client
-TypeScript API 客户端，用于前端调用后端接口：
+TypeScript API 客户端，用于前端调用后端接口。
+
+**基础使用**：
 
 ```typescript
 import { apiAsync } from '@{org}/api-client';
 
-const { data } = await apiAsync.get('/users/1');
+const user = await apiAsync('GET:/users/:id', { id: 1 });
 ```
+
+**使用统一响应适配器（推荐）**：
+
+如果后端使用统一响应格式（如 `@svton/nestjs-http`、Spring Boot 等），使用内置适配器自动处理：
+
+```typescript
+// lib/api-client.ts
+import { createApiClient, createTokenInterceptor } from '@svton/api-client';
+import { createUnifiedResponseAdapter } from '@svton/api-client/adapters';
+import '@{org}/types';
+
+const adapter = createUnifiedResponseAdapter(fetch, {
+  successCode: 0,  // 根据后端调整：0, 200, "SUCCESS" 等
+  onError: (response) => {
+    if (response.code === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+  },
+});
+
+export const { apiAsync } = createApiClient(adapter, {
+  baseURL: 'https://api.example.com',
+  interceptors: {
+    request: [
+      createTokenInterceptor(() => localStorage.getItem('token'))
+    ]
+  }
+});
+```
+
+适配器会自动：
+- 提取 `response.data` 作为返回值
+- 检查 `response.code` 并在错误时抛出 `ApiError`
+- 保留 `traceId` 和 `timestamp` 用于调试
+
+**兼容框架**：
+- `@svton/nestjs-http` - code: 0
+- Spring Boot - code: 200
+- 自定义格式 - code: "SUCCESS" 等
 
 ## 🎯 开发规范
 

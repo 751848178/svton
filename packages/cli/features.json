@@ -340,6 +340,352 @@
         "template": "skills/authz.skill.md",
         "target": ".kiro/skills/authz.md"
       }
+    },
+    "logger": {
+      "name": "日志",
+      "description": "基于 Pino 的结构化日志，支持阿里云 SLS 和腾讯云 CLS",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-logger": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "LOG_LEVEL", "default": "info", "description": "日志级别 (trace/debug/info/warn/error/fatal)" },
+        { "key": "LOG_PRETTY_PRINT", "default": "true", "description": "开发环境美化输出" },
+        { "key": "ALIYUN_SLS_ENDPOINT", "default": "", "description": "阿里云 SLS Endpoint（可选）" },
+        { "key": "ALIYUN_SLS_ACCESS_KEY_ID", "default": "", "description": "阿里云 AccessKey ID（可选）" },
+        { "key": "ALIYUN_SLS_ACCESS_KEY_SECRET", "default": "", "description": "阿里云 AccessKey Secret（可选）" },
+        { "key": "ALIYUN_SLS_PROJECT", "default": "", "description": "阿里云 SLS Project（可选）" },
+        { "key": "ALIYUN_SLS_LOGSTORE", "default": "", "description": "阿里云 SLS Logstore（可选）" }
+      ],
+      "configFiles": [
+        {
+          "path": "apps/backend/src/config/logger.config.ts",
+          "template": "configs/logger.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-logger",
+          "import": "LoggerModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "LoggerModule",
+        "config": "useLoggerConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/logger",
+        "target": "apps/backend/src/examples/logger",
+        "description": "日志使用示例"
+      },
+      "skillFile": {
+        "template": "skills/logger.skill.md",
+        "target": ".kiro/skills/logger.md"
+      }
+    },
+    "http": {
+      "name": "HTTP 响应",
+      "description": "统一的 HTTP 响应格式化和异常处理",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-http": "latest"
+        }
+      },
+      "envVars": [],
+      "configFiles": [],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-http",
+          "import": "HttpModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRoot",
+        "module": "HttpModule"
+      },
+      "exampleFiles": {
+        "source": "examples/http",
+        "target": "apps/backend/src/examples/http",
+        "description": "HTTP 响应格式化示例"
+      },
+      "skillFile": {
+        "template": "skills/http.skill.md",
+        "target": ".kiro/skills/http.md"
+      }
+    },
+    "configSchema": {
+      "name": "配置验证",
+      "description": "基于 Zod 的配置模式验证",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-config-schema": "latest"
+        }
+      },
+      "envVars": [],
+      "configFiles": [],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-config-schema",
+          "import": "ConfigSchemaModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRoot",
+        "module": "ConfigSchemaModule"
+      },
+      "exampleFiles": {
+        "source": "examples/config-schema",
+        "target": "apps/backend/src/examples/config-schema",
+        "description": "配置验证示例"
+      },
+      "skillFile": {
+        "template": "skills/config-schema.skill.md",
+        "target": ".kiro/skills/config-schema.md"
+      }
+    },
+    "redis": {
+      "name": "Redis",
+      "description": "Redis 客户端模块",
+      "category": "backend",
+      "packages": {
+        "dependencies": {
+          "@svton/nestjs-redis": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "REDIS_HOST", "default": "localhost", "description": "Redis 主机地址" },
+        { "key": "REDIS_PORT", "default": "6379", "description": "Redis 端口" },
+        { "key": "REDIS_PASSWORD", "default": "", "description": "Redis 密码（可选）" },
+        { "key": "REDIS_DB", "default": "0", "description": "Redis 数据库索引" }
+      ],
+      "configFiles": [
+        {
+          "path": "apps/backend/src/config/redis.config.ts",
+          "template": "configs/redis.config.ts"
+        }
+      ],
+      "moduleImports": [
+        {
+          "from": "@svton/nestjs-redis",
+          "import": "RedisModule"
+        }
+      ],
+      "moduleRegistration": {
+        "type": "forRootAsync",
+        "module": "RedisModule",
+        "config": "useRedisConfig(configService)"
+      },
+      "exampleFiles": {
+        "source": "examples/redis",
+        "target": "apps/backend/src/examples/redis",
+        "description": "Redis 使用示例"
+      },
+      "skillFile": {
+        "template": "skills/redis.skill.md",
+        "target": ".kiro/skills/redis.md"
+      }
+    },
+    "hooks": {
+      "name": "React Hooks",
+      "description": "高质量的自定义 Hooks 工具包",
+      "category": "frontend",
+      "packages": {
+        "dependencies": {
+          "@svton/hooks": "latest"
+        }
+      },
+      "envVars": [],
+      "configFiles": [],
+      "moduleImports": [],
+      "exampleFiles": {
+        "source": "examples/hooks",
+        "target": "apps/web/src/examples/hooks",
+        "description": "React Hooks 使用示例"
+      },
+      "skillFile": {
+        "template": "skills/hooks.skill.md",
+        "target": ".kiro/skills/hooks.md"
+      }
+    },
+    "ui": {
+      "name": "React UI",
+      "description": "基于 Tailwind CSS 的 React UI 组件库",
+      "category": "frontend",
+      "packages": {
+        "dependencies": {
+          "@svton/ui": "latest"
+        }
+      },
+      "envVars": [],
+      "configFiles": [
+        {
+          "path": "apps/web/tailwind.config.js",
+          "template": "configs/tailwind.config.js"
+        }
+      ],
+      "moduleImports": [],
+      "exampleFiles": {
+        "source": "examples/ui",
+        "target": "apps/web/src/examples/ui",
+        "description": "UI 组件使用示例"
+      },
+      "skillFile": {
+        "template": "skills/ui.skill.md",
+        "target": ".kiro/skills/ui.md"
+      }
+    },
+    "taroUi": {
+      "name": "Taro UI",
+      "description": "Taro 小程序 UI 组件库",
+      "category": "frontend",
+      "packages": {
+        "dependencies": {
+          "@svton/taro-ui": "latest"
+        }
+      },
+      "envVars": [],
+      "configFiles": [],
+      "moduleImports": [],
+      "exampleFiles": {
+        "source": "examples/taro-ui",
+        "target": "apps/mobile/src/examples/taro-ui",
+        "description": "Taro UI 组件使用示例"
+      },
+      "skillFile": {
+        "template": "skills/taro-ui.skill.md",
+        "target": ".kiro/skills/taro-ui.md"
+      }
+    },
+    "service": {
+      "name": "状态管理",
+      "description": "基于装饰器的类式状态管理",
+      "category": "frontend",
+      "packages": {
+        "dependencies": {
+          "@svton/service": "latest"
+        }
+      },
+      "envVars": [],
+      "configFiles": [],
+      "moduleImports": [],
+      "exampleFiles": {
+        "source": "examples/service",
+        "target": "apps/web/src/examples/service",
+        "description": "状态管理使用示例"
+      },
+      "skillFile": {
+        "template": "skills/service.skill.md",
+        "target": ".kiro/skills/service.md"
+      }
+    },
+    "frontendLogger": {
+      "name": "前端日志",
+      "description": "前端日志与错误追踪",
+      "category": "frontend",
+      "packages": {
+        "dependencies": {
+          "@svton/logger": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "NEXT_PUBLIC_LOG_REPORT_URL", "default": "", "description": "日志上报地址（可选）" },
+        { "key": "NEXT_PUBLIC_APP_NAME", "default": "my-app", "description": "应用名称" },
+        { "key": "NEXT_PUBLIC_APP_ENV", "default": "production", "description": "应用环境" }
+      ],
+      "configFiles": [
+        {
+          "path": "apps/web/src/lib/logger.ts",
+          "template": "configs/frontend-logger.ts"
+        }
+      ],
+      "moduleImports": [],
+      "exampleFiles": {
+        "source": "examples/frontend-logger",
+        "target": "apps/web/src/examples/logger",
+        "description": "前端日志使用示例"
+      },
+      "skillFile": {
+        "template": "skills/frontend-logger.skill.md",
+        "target": ".kiro/skills/frontend-logger.md"
+      }
+    },
+    "apiClient": {
+      "name": "API 客户端",
+      "description": "TypeScript API 客户端",
+      "category": "utility",
+      "packages": {
+        "dependencies": {
+          "@svton/api-client": "latest"
+        }
+      },
+      "envVars": [
+        { "key": "NEXT_PUBLIC_API_BASE_URL", "default": "http://localhost:3000", "description": "API 基础地址" }
+      ],
+      "configFiles": [
+        {
+          "path": "apps/web/src/lib/api.ts",
+          "template": "configs/api-client.ts"
+        }
+      ],
+      "moduleImports": [],
+      "exampleFiles": {
+        "source": "examples/api-client",
+        "target": "apps/web/src/examples/api-client",
+        "description": "API 客户端使用示例"
+      },
+      "skillFile": {
+        "template": "skills/api-client.skill.md",
+        "target": ".kiro/skills/api-client.md"
+      }
+    },
+    "types": {
+      "name": "类型定义",
+      "description": "共享的 TypeScript 类型定义",
+      "category": "utility",
+      "packages": {
+        "dependencies": {
+          "@svton/types": "latest"
+        }
+      },
+      "envVars": [],
+      "configFiles": [],
+      "moduleImports": [],
+      "exampleFiles": {
+        "source": "examples/types",
+        "target": "apps/web/src/examples/types",
+        "description": "类型定义使用示例"
+      },
+      "skillFile": {
+        "template": "skills/types.skill.md",
+        "target": ".kiro/skills/types.md"
+      }
+    },
+    "dynamicConfig": {
+      "name": "动态配置",
+      "description": "运行时动态配置管理",
+      "category": "utility",
+      "packages": {
+        "dependencies": {
+          "@svton/dynamic-config": "latest"
+        }
+      },
+      "envVars": [],
+      "configFiles": [],
+      "moduleImports": [],
+      "exampleFiles": {
+        "source": "examples/dynamic-config",
+        "target": "apps/web/src/examples/dynamic-config",
+        "description": "动态配置使用示例"
+      },
+      "skillFile": {
+        "template": "skills/dynamic-config.skill.md",
+        "target": ".kiro/skills/dynamic-config.md"
+      }
     }
   }
 }

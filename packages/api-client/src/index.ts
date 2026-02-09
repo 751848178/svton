@@ -30,7 +30,11 @@ export type { ApiDefinition } from './global-types';
 export {
   createApiClient,
   type HttpAdapter,
+  type HttpRequestConfig,
 } from './client';
 
 // ========== 辅助类型 ==========
 export * from './types';
+
+// ========== Adapters ==========
+export * from './adapters';

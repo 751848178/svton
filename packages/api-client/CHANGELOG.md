@@ -1,5 +1,40 @@
 # @svton/api-client
 
+## 1.3.0
+
+### Minor Changes
+
+- feat: 添加统一响应适配器（Unified Response Adapter）
+
+  新增 `@svton/api-client/adapters` 子包，提供统一响应格式的适配器：
+
+  **核心功能**：
+  - 自动提取 `response.data` 作为返回值
+  - 检查 `response.code` 并在错误时抛出 `ApiError`
+  - 支持多种 code 类型（数字、字符串）
+  - 支持自定义错误处理回调
+  - 保留 `traceId` 和 `timestamp` 用于调试
+
+  **兼容框架**：
+  - `@svton/nestjs-http` (code: 0)
+  - Spring Boot (code: 200)
+  - 自定义格式 (code: "SUCCESS" 等)
+
+  使用方式：
+
+  ```typescript
+  import { createUnifiedResponseAdapter } from "@svton/api-client/adapters";
+
+  const adapter = createUnifiedResponseAdapter(fetch, {
+    successCode: 0,
+    onError: (response) => {
+      if (response.code === 401) {
+        window.location.href = "/login";
+      }
+    },
+  });
+  ```
+
 ## 1.1.0
 
 ### Minor Changes

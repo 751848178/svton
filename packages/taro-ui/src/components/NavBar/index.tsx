@@ -24,6 +24,12 @@ interface CustomNavBarProps {
    * 用于实现滚动时导航栏逐渐显示的效果
    */
   scrollOpacity?: number;
+  /**
+   * 是否显示状态栏
+   * 默认 true，只在小程序环境中显示
+   * H5 环境会自动忽略
+   */
+  showStatusBar?: boolean;
 }
 
 /**
@@ -41,10 +47,12 @@ export default function CustomNavBar({
   rightContent,
   fixed = false,
   scrollOpacity = 1,
+  showStatusBar = true,
 }: CustomNavBarProps) {
   const [navBarContentHeight, setNavBarContentHeight] = useState(44);
   const [statusBarHeight, setStatusBarHeight] = useState(44);
   const [menuButtonLeft, setMenuButtonLeft] = useState(0);
+  const [isMiniProgram, setIsMiniProgram] = useState(false);
 
   // 根据滚动透明度计算实际背景色
   const getBackgroundColor = () => {
@@ -62,6 +70,16 @@ export default function CustomNavBar({
   };
 
   useEffect(() => {
+    // 判断是否为小程序环境
+    const env = Taro.getEnv();
+    const isMini = env === Taro.ENV_TYPE.WEAPP || 
+                   env === Taro.ENV_TYPE.ALIPAY || 
+                   env === Taro.ENV_TYPE.SWAN ||
+                   env === Taro.ENV_TYPE.TT ||
+                   env === Taro.ENV_TYPE.QQ ||
+                   env === Taro.ENV_TYPE.JD;
+    setIsMiniProgram(isMini);
+
     const info = systemInfoManager.getInfo();
     if (info) {
       // 导航栏内容高度 = 完整导航栏高度 - 状态栏高度
@@ -133,12 +151,16 @@ export default function CustomNavBar({
   const navBarClass = `custom-nav-bar ${fixed ? 'fixed' : ''}`;
   const actualBgColor = getBackgroundColor();
   
+  // 是否应该渲染 StatusBar（只在小程序环境且用户允许时显示）
+  const shouldShowStatusBar = isMiniProgram && showStatusBar;
+  
   // 计算导航栏总高度（状态栏 + 内容区）
-  const totalHeight = statusBarHeight + navBarContentHeight;
+  // 只有在小程序环境且显示状态栏时才计入状态栏高度
+  const totalHeight = (shouldShowStatusBar ? statusBarHeight : 0) + navBarContentHeight;
 
   const navBarContent = (
     <View className={navBarClass} style={{ backgroundColor: actualBgColor }}>
-      <StatusBar backgroundColor={actualBgColor} />
+      {shouldShowStatusBar && <StatusBar backgroundColor={actualBgColor} />}
 
       <View
         className="nav-bar-content"

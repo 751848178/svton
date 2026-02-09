@@ -11,6 +11,7 @@ TypeScript-first API client with module augmentation, interceptors, and SWR inte
 - ⚡ **SWR Integration**: Built for React with SWR hooks
 - 🛡️ **Type Safety**: Compile-time API validation
 - 📦 **Modular**: Clean separation of concerns
+- 🔌 **Adapters**: Built-in support for `@svton/nestjs-http` and custom adapters
 
 ## Installation
 
@@ -49,12 +50,47 @@ interface UserVo {
 
 ### 2. Create API Client
 
+#### With Unified Response Adapter (Recommended)
+
+If your backend uses unified response format (like `@svton/nestjs-http`, Spring Boot, etc.):
+
+```typescript
+// lib/api-client.ts
+import { createApiClient, createTokenInterceptor } from '@svton/api-client';
+import { createUnifiedResponseAdapter } from '@svton/api-client/adapters';
+import '@svton/types'; // Enable module augmentation
+
+// Create adapter for unified response format
+const adapter = createUnifiedResponseAdapter(fetch, {
+  successCode: 0,  // Adjust based on your backend (0, 200, "SUCCESS", etc.)
+  onError: (response) => {
+    if (response.code === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+  },
+});
+
+export const { api, apiAsync } = createApiClient(adapter, {
+  baseURL: 'https://api.example.com',
+  interceptors: {
+    request: [
+      createTokenInterceptor(() => localStorage.getItem('token'))
+    ]
+  }
+});
+```
+
+#### With Custom Adapter
+
+For other response formats, create a custom adapter:
+
 ```typescript
 // lib/api-client.ts
 import { createApiClient, createTokenInterceptor } from '@svton/api-client';
 import '@svton/types'; // Enable module augmentation
 
-const axiosAdapter = {
+const customAdapter = {
   async request(config: any) {
     const response = await fetch(config.url, {
       method: config.method,
@@ -65,7 +101,7 @@ const axiosAdapter = {
   }
 };
 
-export const { api, apiAsync } = createApiClient(axiosAdapter, {
+export const { api, apiAsync } = createApiClient(customAdapter, {
   baseURL: 'https://api.example.com',
   interceptors: {
     request: [
@@ -266,11 +302,12 @@ try {
 
 1. **Type Safety First**: Always use `@svton/types` for API definitions
 2. **Module Augmentation**: Organize APIs by feature modules in separate files
-3. **Interceptors**: Use interceptors for cross-cutting concerns (auth, logging, error handling)
-4. **Path Parameters**: Prefer path parameters over query parameters for resource identifiers
-5. **SWR Integration**: Use `useQuery`/`useMutation` hooks for React components
-6. **Generator API**: Use generator functions for complex sequential API calls
-7. **Error Boundaries**: Implement proper error handling at component boundaries
+3. **Use Unified Response Adapter**: If your backend uses unified response format (code/message/data), use the built-in adapter
+4. **Interceptors**: Use interceptors for cross-cutting concerns (auth, logging, error handling)
+5. **Path Parameters**: Prefer path parameters over query parameters for resource identifiers
+6. **SWR Integration**: Use `useQuery`/`useMutation` hooks for React components
+7. **Generator API**: Use generator functions for complex sequential API calls
+8. **Error Boundaries**: Implement proper error handling at component boundaries
 
 ## Migration from v0.x
 

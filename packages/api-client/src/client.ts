@@ -13,16 +13,21 @@ import {
 } from './interceptors';
 
 /**
+ * HTTP 请求配置
+ */
+export interface HttpRequestConfig {
+  method: HttpMethod;
+  url: string;
+  data?: any;
+  params?: any;
+  headers?: Record<string, string>;
+}
+
+/**
  * HTTP 请求接口（适配器模式）
  */
 export interface HttpAdapter {
-  request<T = any>(config: {
-    method: HttpMethod;
-    url: string;
-    data?: any;
-    params?: any;
-    headers?: Record<string, string>;
-  }): Promise<T>;
+  request<T = any>(config: HttpRequestConfig): Promise<T>;
 }
 
 /**
