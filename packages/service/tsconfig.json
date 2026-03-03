@@ -19,6 +19,6 @@
     "emitDecoratorMetadata": true,
     "useDefineForClassFields": false
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "test-types.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -17,6 +17,45 @@ export interface ServiceMetadata {
 }
 
 /**
+ * 提取非函数属性（observable 候选）
+ */
+type NonFunctionKeys<T> = {
+  [K in keyof T]: T[K] extends (...args: any[]) => any ? never : K;
+}[keyof T];
+
+/**
+ * 提取函数属性（action 候选）
+ */
+type FunctionKeys<T> = {
+  [K in keyof T]: T[K] extends (...args: any[]) => any ? K : never;
+}[keyof T];
+
+/**
+ * 状态 Hooks 类型
+ * 包含所有非函数属性，每个属性对应一个返回该属性值的 Hook
+ */
+export type StateHooks<T> = {
+  [K in NonFunctionKeys<T>]: () => T[K];
+};
+
+/**
+ * 计算属性 Hooks 类型
+ * 包含所有非函数属性（因为 getter 在类型层面看起来像属性）
+ * 每个属性对应一个返回该属性值的 Hook
+ */
+export type DerivedHooks<T> = {
+  [K in NonFunctionKeys<T>]: () => T[K];
+};
+
+/**
+ * Action Hooks 类型
+ * 包含所有函数属性，每个方法对应一个返回该方法的 Hook
+ */
+export type ActionHooks<T> = {
+  [K in FunctionKeys<T>]: () => T[K];
+};
+
+/**
  * Service 实例接口
  */
 export interface ServiceInstance<T> {
@@ -24,57 +63,6 @@ export interface ServiceInstance<T> {
   useDerived: DerivedHooks<T>;
   useAction: ActionHooks<T>;
 }
-
-/**
- * 状态 Hooks 类型
- */
-export type StateHooks<T> = {
-  [K in ObservableKeys<T>]: () => T[K];
-};
-
-/**
- * 计算属性 Hooks 类型
- */
-export type DerivedHooks<T> = {
-  [K in ComputedKeys<T>]: () => ComputedReturnType<T, K>;
-};
-
-/**
- * Action Hooks 类型
- */
-export type ActionHooks<T> = {
-  [K in ActionKeys<T>]: () => T[K];
-};
-
-/**
- * 获取 observable 属性键
- */
-export type ObservableKeys<T> = {
-  [K in keyof T]: T[K] extends Function ? never : K;
-}[keyof T];
-
-/**
- * 获取 computed getter 键
- */
-export type ComputedKeys<T> = {
-  [K in keyof T]: T[K] extends Function
-    ? K extends `get${string}`
-      ? never
-      : never
-    : never;
-}[keyof T] & string;
-
-/**
- * 获取 action 方法键
- */
-export type ActionKeys<T> = {
-  [K in keyof T]: T[K] extends Function ? K : never;
-}[keyof T];
-
-/**
- * 获取 computed 返回类型
- */
-export type ComputedReturnType<T, K extends keyof T> = T[K] extends () => infer R ? R : T[K];
 
 /**
  * Provider 组件 Props

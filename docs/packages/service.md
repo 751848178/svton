@@ -505,6 +505,85 @@ export function TodoApp() {
 
 ---
 
+## 📘 TypeScript 类型系统
+
+### 自动类型推断
+
+`@svton/service` 提供完整的 TypeScript 类型支持，所有属性都从 Service 类直接推断：
+
+```typescript
+@Service()
+class UserService {
+  @observable user: User | null = null;
+  @observable loading = false;
+
+  @computed
+  get isLoggedIn() {
+    return this.user !== null;
+  }
+
+  @action
+  async login(username: string, password: string) {
+    // ...
+  }
+}
+
+const useUserService = createService(UserService);
+
+function MyComponent() {
+  const service = useUserService();
+
+  // ✅ 类型自动推断，无需可选链
+  const user = service.useState.user();        // User | null
+  const loading = service.useState.loading();  // boolean
+  const isLoggedIn = service.useDerived.isLoggedIn(); // boolean
+  const login = service.useAction.login();     // (username: string, password: string) => Promise<void>
+}
+```
+
+### Go to Definition 支持
+
+所有属性都支持 Go to Definition（Cmd/Ctrl + Click）跳转到原始 Service 类的定义。
+
+### 运行时验证
+
+虽然 TypeScript 无法区分 `@observable` 和 `@computed`（它们在类型层面都是非函数属性），但运行时会验证装饰器的正确使用：
+
+```typescript
+@Service()
+class MyService {
+  @observable count = 0;
+  
+  @computed
+  get doubled() {
+    return this.count * 2;
+  }
+}
+
+const service = useMyService();
+
+// ❌ 运行时错误：Property "doubled" is not decorated with @observable
+const wrong = service.useState.doubled();
+
+// ✅ 正确
+const correct = service.useDerived.doubled();
+```
+
+### 配置要求
+
+需要在 `tsconfig.json` 中启用装饰器：
+
+```json
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}
+```
+
+---
+
 ## ✅ 最佳实践
 
 1. **单一职责**

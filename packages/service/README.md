@@ -231,6 +231,70 @@ XxxProvider.useService()
 }
 ```
 
+## TypeScript 类型推断
+
+### 自动类型推断
+
+`@svton/service` 提供完整的 TypeScript 类型支持：
+
+```typescript
+@Service()
+class UserService {
+  @observable user: User | null = null;
+  @observable loading = false;
+
+  @computed
+  get isLoggedIn() {
+    return this.user !== null;
+  }
+
+  @action
+  async login(username: string, password: string) {
+    // ...
+  }
+}
+
+const useUserService = createService(UserService);
+
+function MyComponent() {
+  const service = useUserService();
+
+  // ✅ 类型自动推断
+  const user = service.useState.user();        // User | null
+  const loading = service.useState.loading();  // boolean
+  const isLoggedIn = service.useDerived.isLoggedIn(); // boolean
+  const login = service.useAction.login();     // (username: string, password: string) => Promise<void>
+}
+```
+
+### Computed 属性类型
+
+所有属性都从 Service 类直接推断，无需使用可选链：
+
+```typescript
+// ✅ 直接调用，无需可选链
+const doubled = service.useDerived.doubled();
+
+// ✅ 类型完全匹配
+const doubled: number = service.useDerived.doubled();
+```
+
+**注意**: 虽然 TypeScript 无法区分 `@observable` 和 `@computed`（它们在类型层面都是非函数属性），但运行时会验证装饰器的正确使用。如果在错误的地方使用属性（如在 `useState` 中使用 `@computed` 属性），会抛出清晰的错误提示。
+
+### Go to Definition 支持
+
+为了支持 IDE 的"跳转到定义"功能，确保：
+
+1. 使用 `experimentalDecorators: true`
+2. Service 类的属性和方法有明确的类型注解
+3. 使用最新版本的 TypeScript (>= 5.0)
+
+如果"跳转到定义"不工作，可能是因为：
+- IDE 缓存问题：重启 IDE 或重新加载窗口
+- 类型定义未生成：运行 `pnpm build` 重新生成类型定义
+
+**详细的 TypeScript 使用指南请参考 [TYPESCRIPT_GUIDE.md](./TYPESCRIPT_GUIDE.md)**
+
 ## License
 
 MIT
