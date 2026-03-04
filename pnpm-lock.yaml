@@ -779,6 +779,9 @@ importers:
 
   packages/service:
     dependencies:
+      '@svton/api-client':
+        specifier: workspace:*
+        version: link:../api-client
       reflect-metadata:
         specifier: ^0.2.1
         version: 0.2.2

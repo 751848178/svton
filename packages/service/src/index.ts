@@ -19,5 +19,7 @@ export type {
   StateHooks,
   DerivedHooks,
   ActionHooks,
+  ActionHook,
+  ActionWithLoading,
   ProviderProps,
 } from './types';

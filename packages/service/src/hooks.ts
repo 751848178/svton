@@ -152,6 +152,14 @@ function createDerivedHooks<T extends object>(
 }
 
 /**
+ * Action Hook 返回类型（带 loading 状态）
+ */
+export type ActionWithLoading<T extends (...args: any[]) => any> = [
+  action: T,
+  loading: boolean,
+];
+
+/**
  * 创建 Action Hooks
  */
 function createActionHooks<T extends object>(
@@ -178,7 +186,8 @@ function createActionHooks<T extends object>(
   });
 
   allKeys.forEach((key) => {
-    (hooks as any)[key] = () => {
+    // 创建基础 Hook（返回函数）
+    const baseHook = () => {
       // 检查是否是 action
       if (!metadata.actions.has(key)) {
         throw new Error(
@@ -198,6 +207,56 @@ function createActionHooks<T extends object>(
         [],
       );
     };
+
+    // 创建带 loading 的 Hook
+    const withLoadingHook = () => {
+      // 检查是否是 action
+      if (!metadata.actions.has(key)) {
+        throw new Error(
+          `Method "${String(key)}" is not decorated with @action. ` +
+          `Please add @action decorator to use it.`
+        );
+      }
+
+      const method = (internal.target as any)[key];
+      if (typeof method !== 'function') {
+        throw new Error(`Action "${String(key)}" is not a function`);
+      }
+
+      const [loading, setLoading] = useState(false);
+      const loadingRef = useRef(false);
+
+      // 包装方法，自动管理 loading 状态
+      const wrappedMethod = useCallback(
+        async (...args: any[]) => {
+          // 防止重复执行
+          if (loadingRef.current) {
+            return;
+          }
+
+          loadingRef.current = true;
+          setLoading(true);
+
+          try {
+            const result = await method.apply(internal.target, args);
+            return result;
+          } finally {
+            loadingRef.current = false;
+            setLoading(false);
+          }
+        },
+        [],
+      );
+
+      return [wrappedMethod, loading] as const;
+    };
+
+    // 将两个 Hook 都挂载到对象上
+    const hookWithLoading = Object.assign(baseHook, {
+      withLoading: withLoadingHook,
+    });
+
+    (hooks as any)[key] = hookWithLoading;
   });
 
   return hooks;

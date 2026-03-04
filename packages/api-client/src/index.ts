@@ -9,6 +9,8 @@
 // ========== 核心框架 ==========
 export * from './define';
 export * from './interceptors';
+export * from './abort';
+export * from './catch-error';
 
 // ========== 全局类型扩展点 ==========
 // 供 @svton/types 扩展的空接口和类型工具

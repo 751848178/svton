@@ -11,6 +11,7 @@ import {
   runResponseInterceptors,
   runErrorInterceptors,
 } from './interceptors';
+import { createAbortSignal, isAbortSignal } from './abort';
 
 /**
  * HTTP 请求配置
@@ -184,6 +185,8 @@ export function createApiClient(
   /**
    * Generator API 调用（采用 client-v2.ts 的 Generator 实现）
    *
+   * 当请求失败时，返回一个特殊的中止信号，让 Generator 静默停止执行
+   * 
    * @example
    * ```ts
    * function* loadData() {
@@ -200,8 +203,20 @@ export function createApiClient(
     ...args: ApiParams<K> extends void ? [] : [ApiParams<K>]
   ): Generator<Promise<ApiResponse<K>>, ApiResponse<K>, ApiResponse<K>> {
     const params = args[0] as ApiParams<K>;
-    const promise = executeRequest(apiName, params);
-    const result = yield promise;
+    
+    // 创建一个 Promise，在失败时返回中止信号而不是 reject
+    const promise = executeRequest(apiName, params).catch((error) => {
+      return createAbortSignal(error);
+    });
+    
+    const result = yield promise as any;
+    
+    // 检查是否是中止信号
+    if (isAbortSignal(result)) {
+      // 返回一个特殊值，让 runGenerator 知道应该停止
+      return result as any;
+    }
+    
     return result;
   }
 
@@ -224,6 +239,8 @@ export function createApiClient(
 
   /**
    * 执行 Generator（采用 client-v2.ts 的稳定实现）
+   * 
+   * 支持中止信号：当 API 请求失败时，Generator 会静默停止执行
    *
    * @example
    * ```ts
@@ -234,19 +251,25 @@ export function createApiClient(
    * }
    *
    * const result = await runGenerator(loadMultiple())
+   * // 如果第一个请求失败，result 将是 undefined，不会抛出错误
    * ```
    */
-  async function runGenerator<R>(generator: Generator<Promise<any>, R, any>): Promise<R> {
+  async function runGenerator<R>(generator: Generator<Promise<any>, R, any>): Promise<R | undefined> {
     let result = generator.next();
 
     while (!result.done) {
-      try {
-        const value = await result.value;
-        result = generator.next(value);
-      } catch (error) {
-        generator.throw?.(error);
-        throw error;
+      const value = await result.value;
+      
+      // 检查是否是中止信号
+      if (isAbortSignal(value)) {
+        // 静默停止，不抛出错误
+        if (generator.return) {
+          generator.return(undefined as any);
+        }
+        return undefined;
       }
+      
+      result = generator.next(value);
     }
 
     return result.value;

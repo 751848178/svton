@@ -1,5 +1,32 @@
 # @svton/api-client
 
+## 1.4.0
+
+### Minor Changes
+
+- feat: 实现静默中止机制、自动 loading 状态管理和 catchError 工具
+
+  **@svton/api-client:**
+  - 实现静默中止机制（Silent Abort Mechanism）
+  - 添加 ApiAbortError 和 isAbortSignal
+  - Generator 函数请求失败时静默停止，不抛出错误
+  - 新增 catchError 工具函数，允许捕获错误而不中止执行
+  - 使用标准 ES Module import 替代 require()
+
+  **@svton/service:**
+  - 实现 action 自动 loading 状态管理
+  - 添加 withLoading() 方法：`const [action, loading] = service.useAction.xxx.withLoading()`
+  - 自动管理 loading、防止重复执行、自动清理
+  - 所有装饰器改为函数形式：@Service()、@observable()、@computed()、@action()、@Inject()
+  - 移除 useApi 和 useApiOnMount hooks（项目应自行封装）
+  - 集成静默中止机制
+  - 添加 @svton/api-client 依赖
+
+  **Breaking Changes:**
+  - 所有装饰器必须使用函数形式调用：`@Service()` 而不是 `@Service`
+  - 移除了 `useApi` 和 `useApiOnMount` hooks，请使用 Service 的 `withLoading()` 方法或自行封装
+  - 禁止手动管理 loading 状态，应使用 `withLoading()` 自动管理
+
 ## 1.3.0
 
 ### Minor Changes

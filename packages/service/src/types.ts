@@ -38,13 +38,32 @@ export type DerivedHooks<T> = {
 };
 
 /**
+ * Action Hook 带 loading 的返回类型
+ */
+export type ActionWithLoading<T extends (...args: any[]) => any> = readonly [
+  action: T,
+  loading: boolean,
+];
+
+/**
+ * Action Hook 类型（支持 withLoading）
+ */
+export type ActionHook<T> = T extends (...args: any[]) => any
+  ? {
+      (): T;
+      withLoading(): ActionWithLoading<T>;
+    }
+  : never;
+
+/**
  * Action Hooks 类型
  * 包含所有函数属性，每个方法对应一个返回该方法的 Hook
+ * 支持 .withLoading() 获取带 loading 状态的版本
  * 
  * 使用索引签名保留对原始类型的引用，支持 Go to Definition
  */
 export type ActionHooks<T> = {
-  [K in keyof T as T[K] extends (...args: any[]) => any ? K : never]: () => T[K];
+  [K in keyof T as T[K] extends (...args: any[]) => any ? K : never]: ActionHook<T[K]>;
 };
 
 /**
