@@ -67,7 +67,7 @@ export function computed(): MethodDecorator {
   ): PropertyDescriptor => {
     const constructor = target.constructor as ServiceClass;
     const metadata = getServiceMetadata(constructor);
-    metadata.computed.add(propertyKey);
+    metadata.computeds.add(propertyKey);
     return descriptor;
   };
 }
