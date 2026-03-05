@@ -9,7 +9,7 @@
 | 属性 | 值 |
 |------|---|
 | **包名** | `@svton/logger` |
-| **版本** | `0.2.0` |
+| **版本** | `0.5.0` |
 | **入口** | `dist/index.js` (CJS) / `dist/index.mjs` (ESM) |
 | **类型** | `dist/index.d.ts` |
 

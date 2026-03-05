@@ -11,9 +11,9 @@ export interface ServiceOptions {
 }
 
 /**
- * @Service 装饰器
+ * @Service() 装饰器
  * 标记一个类为 Service
- * 
+ *
  * @example
  * ```typescript
  * @Service()
@@ -30,9 +30,9 @@ export function Service(options: ServiceOptions = {}): ClassDecorator {
 }
 
 /**
- * @observable 装饰器
+ * @observable() 装饰器
  * 标记属性为响应式状态
- * 
+ *
  * @example
  * ```typescript
  * @observable()
@@ -48,9 +48,9 @@ export function observable(): PropertyDecorator {
 }
 
 /**
- * @computed 装饰器
+ * @computed() 装饰器
  * 标记 getter 为计算属性
- * 
+ *
  * @example
  * ```typescript
  * @computed()
@@ -67,18 +67,18 @@ export function computed(): MethodDecorator {
   ): PropertyDescriptor => {
     const constructor = target.constructor as ServiceClass;
     const metadata = getServiceMetadata(constructor);
-    metadata.computeds.add(propertyKey);
+    metadata.computed.add(propertyKey);
     return descriptor;
   };
 }
 
 /**
- * @action 装饰器
+ * @action() 装饰器
  * 标记方法为 action，自动支持 async 和 generator 函数
- * 
+ *
  * - async 函数：正常执行
  * - generator 函数：自动执行，请求失败时静默停止（不抛出错误）
- * 
+ *
  * @example
  * ```typescript
  * // Async 函数
@@ -87,14 +87,14 @@ export function computed(): MethodDecorator {
  *   const user = await apiAsync('GET:/users/:id', { id });
  *   this.user = user;
  * }
- * 
+ *
  * // Generator 函数（推荐用于复杂流程）
  * @action()
  * *loadUserData(id: number) {
  *   // 请求失败会静默停止，不会执行后续代码，也不会抛出错误
  *   const user = yield* api('GET:/users/:id', { id });
  *   this.user = user;
- *   
+ *
  *   // 只有上面成功，这里才会执行
  *   const posts = yield* api('GET:/users/:id/posts', { id });
  *   this.posts = posts;
@@ -110,9 +110,9 @@ export function action(): MethodDecorator {
     const constructor = target.constructor as ServiceClass;
     const metadata = getServiceMetadata(constructor);
     metadata.actions.add(propertyKey);
-    
+
     const originalMethod = descriptor.value;
-    
+
     // 检查是否是 generator 函数
     if (originalMethod && originalMethod.constructor.name === 'GeneratorFunction') {
       // 包装 generator 函数，自动执行
@@ -122,14 +122,14 @@ export function action(): MethodDecorator {
       };
     }
     // async 函数和普通函数保持不变
-    
+
     return descriptor;
   };
 }
 
 /**
  * 执行 Generator 函数（静默模式）
- * 
+ *
  * 当 API 请求失败时，Generator 会静默停止执行，不会抛出错误
  * 这样在 Service 的 action 中就不需要 try-catch
  */
@@ -140,7 +140,7 @@ async function runGeneratorSilently<R>(
 
   while (!result.done) {
     const value = await result.value;
-    
+
     // 检查是否是中止信号
     if (isAbortSignal(value)) {
       // 静默停止，不抛出错误
@@ -149,7 +149,7 @@ async function runGeneratorSilently<R>(
       }
       return undefined;
     }
-    
+
     result = generator.next(value);
   }
 
@@ -157,14 +157,14 @@ async function runGeneratorSilently<R>(
 }
 
 /**
- * @Inject 装饰器
+ * @Inject() 装饰器
  * 注入其他 Service（自动推断类型）
- * 
+ *
  * @example
  * ```typescript
  * @Inject()
  * userService!: UserService;
- * 
+ *
  * // 或指定类型
  * @Inject(UserService)
  * userService!: UserService;

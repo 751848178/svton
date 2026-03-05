@@ -9,7 +9,7 @@
 | 属性 | 值 |
 |------|---|
 | **包名** | `@svton/nestjs-queue` |
-| **版本** | `1.1.0` |
+| **版本** | `2.0.0` |
 | **入口** | `dist/index.js` (CJS) / `dist/index.mjs` (ESM) |
 | **类型** | `dist/index.d.ts` |
 

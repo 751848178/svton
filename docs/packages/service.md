@@ -9,7 +9,7 @@
 | 属性 | 值 |
 |------|---|
 | **包名** | `@svton/service` |
-| **版本** | `0.2.0` |
+| **版本** | `0.6.0` |
 | **入口** | `dist/index.js` (CJS) / `dist/index.mjs` (ESM) |
 | **类型** | `dist/index.d.ts` |
 
@@ -20,6 +20,8 @@
 1. **类式编程** - 使用类和装饰器定义状态逻辑
 2. **自动响应** - 状态变化自动触发组件更新
 3. **依赖注入** - 支持 Service 之间的依赖注入
+4. **静默中止** - Generator 函数支持 API 失败时的静默停止
+5. **自动 Loading** - `withLoading()` 方法自动管理 action 的 loading 状态
 
 ---
 
@@ -212,6 +214,45 @@ class TodoService {
       this.loading = false;
     }
   }
+
+  // Generator 函数：请求失败时静默停止
+  @action
+  *loadUserData(id: number) {
+    // 如果请求失败，会静默停止，不会执行后续代码
+    const user = yield* api('GET:/users/:id', { id });
+    this.user = user;
+
+    // 只有上面成功，这里才会执行
+    const posts = yield* api('GET:/users/:id/posts', { id });
+    this.posts = posts;
+  }
+}
+```
+
+**Generator 函数静默中止机制：**
+
+在 Generator action 中使用 `yield* api()`，当请求失败时会自动停止执行，不会抛出错误。这简化了错误处理流程。
+
+使用 `catchError` 可以捕获个别错误，不中止整个流程：
+
+```typescript
+import { catchError } from '@svton/api-client';
+
+@action
+*loadData(id: number) {
+  // 这个请求必须成功，否则整个流程中止
+  const user = yield* api('GET:/users/:id', { id });
+  this.data = user;
+
+  // 这个请求可以失败，不会中止整个流程
+  const result = yield* catchError(api('GET:/users/:id/avatar', { id }));
+
+  if (result.error) {
+    // 使用默认头像
+    this.data = { ...user, avatar: '/default.png' };
+  } else {
+    this.data = { ...user, avatar: result.data };
+  }
 }
 ```
 
@@ -303,6 +344,44 @@ const decrement = counter.useAction.decrement();
 <button onClick={increment}>+</button>
 <button onClick={() => decrement()}>-</button>
 ```
+
+### 自动 Loading 状态
+
+使用 `withLoading()` 自动管理 action 的 loading 状态：
+
+```typescript
+@Service()
+class TodoService {
+  @observable
+  todos: Todo[] = [];
+
+  @action
+  async addTodo(text: string) {
+    await api.post('/todos', { text });
+  }
+}
+
+function TodoForm() {
+  const todo = useTodoService();
+
+  // 带 loading 状态
+  const [addTodo, loading] = todo.useAction.addTodo.withLoading();
+
+  return (
+    <form onSubmit={() => addTodo('new item')}>
+      <button type="submit" disabled={loading}>
+        {loading ? '添加中...' : '添加'}
+      </button>
+    </form>
+  );
+}
+```
+
+### withLoading() 工作原理
+
+1. 自动在 action 执行开始时设置 `loading = true`
+2. action 完成或失败后设置 `loading = false`
+3. 返回 tuple: `[action, loading]`
 
 ---
 

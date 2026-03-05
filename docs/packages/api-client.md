@@ -9,7 +9,7 @@
 | 属性 | 值 |
 |------|---|
 | **包名** | `@svton/api-client` |
-| **版本** | `1.0.0` |
+| **版本** | `1.4.0` |
 | **入口** | `dist/index.js` (CJS) / `dist/index.mjs` (ESM) |
 | **类型** | `dist/index.d.ts` |
 
@@ -20,6 +20,8 @@
 1. **类型安全** - API 定义包含完整的请求/响应类型
 2. **统一管理** - 所有 API 集中定义，避免散落
 3. **跨平台** - 支持 Admin (Axios) 和 Mobile (Taro.request)
+4. **静默中止** - 与 @svton/service 配合的 Generator 函数支持
+5. **catchError** - 优雅的错误捕获工具
 
 ---
 
@@ -101,6 +103,106 @@ function defineApi<TParams, TResponse>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
   path: string
 ): ApiDefinition<TParams, TResponse>;
+```
+
+---
+
+## 🔧 便捷 API
+
+### api() 函数
+
+`api()` 函数提供了一个简洁的方式来调用 API，支持路径参数自动替换：
+
+```typescript
+import { api } from '@svton/api-client';
+
+// 基础调用
+const user = await api('GET:/users/:id', { id: 123 });
+
+// 查询参数会自动放到 URL 中
+const list = await api('GET:/users', { page: 1, size: 10 });
+
+// POST 请求
+const created = await api('POST:/users', { name: 'John' });
+
+// 在 Generator 中使用
+@Service()
+class UserService {
+  @action
+  *loadUser(id: number) {
+    // 使用 yield*，失败时静默中止
+    const user = yield* api('GET:/users/:id', { id });
+    this.user = user;
+  }
+}
+```
+
+### catchError 工具
+
+`catchError` 用于捕获 API 请求中的错误，返回包含 error 或 data 的结果对象：
+
+```typescript
+import { catchError } from '@svton/api-client';
+
+// 基础用法
+const result = await catchError(
+  api('GET:/users/:id', { id: 123 })
+);
+
+if (result.error) {
+  console.error('请求失败:', result.error);
+} else {
+  console.log('请求成功:', result.data);
+}
+
+// 在 Generator 中使用
+@Service()
+class DataService {
+  @observable
+  user: User | null = null;
+  @observable
+  avatar: string | null = null;
+
+  @action
+  *loadUserData(id: number) {
+    // 第一个请求失败会中止整个流程
+    const user = yield* api('GET:/users/:id', { id });
+    this.user = user;
+
+    // 第二个请求可以失败，不会中止
+    const result = yield* catchError(
+      api('GET:/users/:id/avatar', { id })
+    );
+
+    if (result.error) {
+      // 使用默认头像
+      this.avatar = '/default.png';
+    } else {
+      this.avatar = result.data;
+    }
+  }
+}
+```
+
+**catchError 返回值：**
+
+```typescript
+interface CatchErrorResult<T> {
+  data?: T;      // 请求成功时的数据
+  error?: Error; // 请求失败时的错误
+  hasError: boolean; // 是否有错误
+}
+
+// 示例
+const result = await catchError(api(...));
+
+if (result.hasError) {
+  // 处理错误
+  console.error(result.error);
+} else {
+  // 使用数据
+  console.log(result.data);
+}
 ```
 
 ---
