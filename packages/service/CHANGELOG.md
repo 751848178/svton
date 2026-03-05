@@ -1,5 +1,16 @@
 # @svton/service
 
+## 0.7.0
+
+### Minor Changes
+
+- 4b8d78c: API 文档更新和代码改进
+
+### Patch Changes
+
+- Updated dependencies [4b8d78c]
+  - @svton/api-client@1.5.0
+
 ## 0.6.0
 
 ### Minor Changes
