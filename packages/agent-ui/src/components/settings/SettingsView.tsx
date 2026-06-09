@@ -33,6 +33,32 @@ export interface McpServerInfo {
   name: string;
 }
 
+// ── CRUD data types ──
+
+export interface SkillFormData {
+  name: string;
+  description: string;
+  instructions: string;
+  scope?: 'user' | 'repo';
+}
+
+export interface McpServerConfig {
+  name: string;
+  transport: 'stdio' | 'http';
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  enabled: boolean;
+}
+
+export interface MemoryEntry {
+  key: string;
+  content: string;
+  source: string;
+  timestamp?: number;
+}
+
 // ════════════════════════════════════════════════════════════
 // ISettingsAdapter — platform abstraction
 // ════════════════════════════════════════════════════════════
@@ -78,9 +104,23 @@ export interface ISettingsAdapter {
   // ── Memory ───────────────────────────────────────────────
   addMemory(text: string): void | Promise<void>;
   clearMemory(): void | Promise<void>;
+  getMemoryEntries?(): MemoryEntry[];
+  deleteMemoryEntry?(key: string): void | Promise<void>;
+
+  // ── Skills CRUD ──────────────────────────────────────────
+  addSkill?(skill: SkillFormData): void | Promise<void>;
+  updateSkill?(name: string, updates: SkillFormData): void | Promise<void>;
+  deleteSkill?(name: string): void | Promise<void>;
+
+  // ── MCP Server CRUD ──────────────────────────────────────
+  getMcpServerConfigs?(): McpServerConfig[];
+  addMcpServer?(config: McpServerConfig): void | Promise<void>;
+  removeMcpServer?(name: string): void | Promise<void>;
+  toggleMcpServer?(name: string, enabled: boolean): void | Promise<void>;
 
   // ── Platform info ────────────────────────────────────────
   getWorkingDir?(): string;
+  setWorkingDir?(dir: string): void | Promise<void>;
   openInEditor?(): void | Promise<void>;
   getStorageDescription(): string;
 
@@ -336,7 +376,9 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
           <div className="max-w-2xl mx-auto px-8 py-6">
             {activeSection === 'general' && (
               <GeneralSection allModels={allModels} defaultModel={s.defaultModel} onModelChange={(k) => { adapter.setDefaultModel(k); s.setDefaultModel(k); }}
-                workingDir={adapter.getWorkingDir?.()} storageDescription={adapter.getStorageDescription()} />
+                workingDir={adapter.getWorkingDir?.()}
+                onWorkingDirChange={adapter.setWorkingDir?.bind(adapter)}
+                storageDescription={adapter.getStorageDescription()} />
             )}
             {activeSection === 'providers' && (
               <ProvidersSection providers={s.providers} showKey={showKey} setShowKey={setShowKey}
@@ -364,18 +406,30 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
             )}
             {activeSection === 'skills' && (
               <SkillsListSection skills={skills} disabledSkills={s.disabledSkills} hasAgent={!!agent}
-                onToggle={(name) => { const next = s.disabledSkills.includes(name) ? s.disabledSkills.filter((n) => n !== name) : [...s.disabledSkills, name]; s.setDisabledSkills(next); adapter.saveDisabledSkills(next); }} />
+                onToggle={(name) => { const next = s.disabledSkills.includes(name) ? s.disabledSkills.filter((n) => n !== name) : [...s.disabledSkills, name]; s.setDisabledSkills(next); adapter.saveDisabledSkills(next); }}
+                onAdd={adapter.addSkill?.bind(adapter)} onUpdate={adapter.updateSkill?.bind(adapter)} onDelete={adapter.deleteSkill?.bind(adapter)}
+                onReload={() => s.reload()} />
             )}
-            {activeSection === 'mcp' && <McpSection servers={agent?.mcpServers ?? []} />}
+            {activeSection === 'mcp' && (
+              <McpSection servers={agent?.mcpServers ?? []}
+                configs={adapter.getMcpServerConfigs?.() ?? []}
+                onAdd={adapter.addMcpServer?.bind(adapter)}
+                onRemove={adapter.removeMcpServer?.bind(adapter)}
+                onToggle={adapter.toggleMcpServer?.bind(adapter)}
+                supportsStdio={!!adapter.getWorkingDir?.()}
+                onReload={() => s.reload()} />
+            )}
             {activeSection === 'permissions' && (
               <PermissionsSection mode={s.permissionMode}
                 onChange={(m) => { s.setPermissionMode(m); adapter.savePermissionMode(m); showToast('权限模式已更新'); }} />
             )}
             {activeSection === 'memory' && agent && (
               <MemorySection hasMemory={agent.hasMemory} memoryText={agent.memoryText}
+                entries={adapter.getMemoryEntries?.() ?? []}
                 memoryInput={memoryInput} setMemoryInput={setMemoryInput}
                 onAdd={async () => { await adapter.addMemory(memoryInput); setMemoryInput(''); await s.reload(); showToast('记忆已添加'); }}
-                onClear={async () => { await adapter.clearMemory(); await s.reload(); showToast('记忆已清除'); }} />
+                onClear={async () => { await adapter.clearMemory(); await s.reload(); showToast('记忆已清除'); }}
+                onDeleteEntry={async (key) => { if (adapter.deleteMemoryEntry) { await adapter.deleteMemoryEntry(key); await s.reload(); showToast('已删除'); } }} />
             )}
             {activeSection === 'search' && adapter.getSearchEndpoint && (
               <SearchSection endpoint={s.searchEndpoint} onChange={s.setSearchEndpoint}
@@ -395,10 +449,11 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
 // Section components (unchanged UI, simplified props)
 // ════════════════════════════════════════════════════════════
 
-function GeneralSection({ allModels, defaultModel, onModelChange, workingDir, storageDescription }: {
+function GeneralSection({ allModels, defaultModel, onModelChange, workingDir, onWorkingDirChange, storageDescription }: {
   allModels: Array<{ providerId: string; providerName: string; modelId: string; modelName: string }>;
   defaultModel: string; onModelChange: (k: string) => void;
-  workingDir?: string; storageDescription: string;
+  workingDir?: string; onWorkingDirChange?: (dir: string) => void | Promise<void>;
+  storageDescription: string;
 }) {
   return (
     <div>
@@ -421,7 +476,17 @@ function GeneralSection({ allModels, defaultModel, onModelChange, workingDir, st
       {workingDir && (
         <Card className="mb-6">
           <div className="flex items-center gap-2 mb-4"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span className="text-sm text-gray-200 font-medium">工作目录</span></div>
-          <div className="text-sm text-gray-400 font-mono bg-[#171717] rounded-lg px-3 py-2 border border-[#2a2a2a]">{workingDir}</div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 text-sm text-gray-400 font-mono bg-[#171717] rounded-lg px-3 py-2 border border-[#2a2a2a] truncate">{workingDir}</div>
+            {onWorkingDirChange && (
+              <button onClick={() => {
+                const dir = prompt('输入新的工作目录路径:', workingDir);
+                if (dir?.trim()) onWorkingDirChange(dir.trim());
+              }} className="px-3 py-2 text-[11px] font-medium rounded-lg bg-[#222] border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex-shrink-0">
+                修改
+              </button>
+            )}
+          </div>
           <p className="text-[10px] text-gray-600 mt-1">Agent 在此目录下执行文件和命令操作</p>
         </Card>
       )}
@@ -605,21 +670,91 @@ function ToolsListSection({ tools, disabledTools, hasAgent, onToggle }: { tools:
   );
 }
 
-function SkillsListSection({ skills, disabledSkills, hasAgent, onToggle }: { skills: SkillInfo[]; disabledSkills: string[]; hasAgent: boolean; onToggle: (name: string) => void }) {
+function SkillsListSection({ skills, disabledSkills, hasAgent, onToggle, onAdd, onUpdate, onDelete, onReload }: {
+  skills: SkillInfo[]; disabledSkills: string[]; hasAgent: boolean; onToggle: (name: string) => void;
+  onAdd?: (skill: SkillFormData) => void | Promise<void>;
+  onUpdate?: (name: string, updates: SkillFormData) => void | Promise<void>;
+  onDelete?: (name: string) => void | Promise<void>;
+  onReload: () => void;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingSkill, setEditingSkill] = useState<string | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formDesc, setFormDesc] = useState('');
+  const [formInstructions, setFormInstructions] = useState('');
+
+  const resetForm = () => { setFormName(''); setFormDesc(''); setFormInstructions(''); setShowAdd(false); setEditingSkill(null); };
+
+  const handleAdd = async () => {
+    if (!onAdd || !formName.trim()) return;
+    await onAdd({ name: formName.trim(), description: formDesc.trim(), instructions: formInstructions });
+    resetForm();
+    onReload();
+  };
+
+  const handleEdit = async () => {
+    if (!onUpdate || !editingSkill) return;
+    await onUpdate(editingSkill, { name: formName.trim(), description: formDesc.trim(), instructions: formInstructions });
+    resetForm();
+    onReload();
+  };
+
+  const handleDelete = async (name: string) => {
+    if (!onDelete) return;
+    await onDelete(name);
+    onReload();
+  };
+
+  const startEdit = (s: SkillInfo) => {
+    setEditingSkill(s.name);
+    setFormName(s.name);
+    setFormDesc(s.description);
+    setFormInstructions('');
+    setShowAdd(false);
+  };
+
   return (
     <div>
-      <h2 className="text-lg text-white font-medium mb-1">技能</h2>
-      <p className="text-xs text-gray-500 mb-6">预定义的技能模板，匹配用户消息时自动注入上下文。</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg text-white font-medium">技能</h2>
+          <p className="text-xs text-gray-500 mt-0.5">预定义的技能模板，匹配用户消息时自动注入上下文。</p>
+        </div>
+        {onAdd && !showAdd && !editingSkill && (
+          <button onClick={() => { resetForm(); setShowAdd(true); }} className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors">+ 添加技能</button>
+        )}
+      </div>
+
+      {/* Add / Edit form */}
+      {(showAdd || editingSkill) && (
+        <Card className="mb-4 !border-cyan-900/50">
+          <div className="text-sm text-cyan-400 font-medium mb-3">{editingSkill ? `编辑: ${editingSkill}` : '添加新技能'}</div>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><FieldLabel>名称</FieldLabel><input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="my-skill" className={INPUT_CLS} disabled={!!editingSkill} /></div>
+              <div><FieldLabel>描述</FieldLabel><input type="text" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="描述技能用途..." className={INPUT_CLS} /></div>
+            </div>
+            <div><FieldLabel>指令内容</FieldLabel><textarea value={formInstructions} onChange={(e) => setFormInstructions(e.target.value)} placeholder="技能的详细指令（Markdown 格式）..." className="w-full text-xs text-gray-300 bg-[#171717] rounded-lg p-3 border border-[#2a2a2a] focus:border-cyan-600 outline-none placeholder:text-gray-600 resize-none h-32" /></div>
+            <div className="flex items-center gap-2">
+              <button onClick={editingSkill ? handleEdit : handleAdd} disabled={!formName.trim()} className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50 transition-colors">{editingSkill ? '保存修改' : '添加'}</button>
+              <button onClick={resetForm} className="px-3 py-1.5 text-[11px] text-gray-500 hover:text-gray-300">取消</button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {!hasAgent ? <Card><div className="text-center py-6 text-gray-600 text-sm">Agent 未初始化。请先配置 API Key 后重试。</div></Card> :
       skills.length === 0 ? <Card><div className="text-center py-6 text-gray-600 text-sm">无已加载技能</div></Card> : (
         <Card className="!p-0 divide-y divide-[#2a2a2a]">
           {skills.map((s) => { const d = disabledSkills.includes(s.name); return (
-            <div key={s.name} className={cn('px-4 py-3 flex items-center gap-3 transition-opacity', d && 'opacity-40')}>
+            <div key={s.name} className={cn('px-4 py-3 flex items-center gap-3 transition-opacity group', d && 'opacity-40')}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5"><span className="text-sm text-gray-200 font-mono">{s.name}</span>{s.scope && <Badge color="blue">{s.scope}</Badge>}{s.trigger?.type === 'explicit' && <Badge color="gray">显式</Badge>}{s.trigger?.type === 'implicit' && <Badge color="yellow">隐式</Badge>}</div>
                 <div className="text-[11px] text-gray-500 truncate">{s.description}</div>
                 {s.requiredTools?.length ? (<div className="mt-1 flex items-center gap-1 text-[10px] text-gray-600"><span>依赖:</span>{s.requiredTools.map((t) => (<span key={t} className="font-mono bg-[#222] px-1 py-0.5 rounded">{t}</span>))}</div>) : null}
               </div>
+              {onUpdate && <button onClick={() => startEdit(s)} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-opacity text-[10px]">编辑</button>}
+              {onDelete && <button onClick={() => handleDelete(s.name)} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-opacity text-[10px]">删除</button>}
               <Toggle checked={!d} onChange={() => onToggle(s.name)} />
             </div>
           ); })}
@@ -629,15 +764,114 @@ function SkillsListSection({ skills, disabledSkills, hasAgent, onToggle }: { ski
   );
 }
 
-function McpSection({ servers }: { servers: McpServerInfo[] }) {
+function McpSection({ servers, configs, onAdd, onRemove, onToggle, supportsStdio, onReload }: {
+  servers: McpServerInfo[];
+  configs: McpServerConfig[];
+  onAdd?: (config: McpServerConfig) => void | Promise<void>;
+  onRemove?: (name: string) => void | Promise<void>;
+  onToggle?: (name: string, enabled: boolean) => void | Promise<void>;
+  supportsStdio: boolean;
+  onReload: () => void;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [formName, setFormName] = useState('');
+  const [formTransport, setFormTransport] = useState<'stdio' | 'http'>(supportsStdio ? 'stdio' : 'http');
+  const [formCommand, setFormCommand] = useState('');
+  const [formArgs, setFormArgs] = useState('');
+  const [formUrl, setFormUrl] = useState('');
+
+  const handleAdd = async () => {
+    if (!onAdd || !formName.trim()) return;
+    const config: McpServerConfig = {
+      name: formName.trim(),
+      transport: formTransport,
+      enabled: true,
+      ...(formTransport === 'stdio' ? { command: formCommand.trim(), args: formArgs.trim() ? formArgs.trim().split(/\s+/) : [] } : { url: formUrl.trim() }),
+    };
+    await onAdd(config);
+    setFormName(''); setFormCommand(''); setFormArgs(''); setFormUrl('');
+    setShowAdd(false);
+    onReload();
+  };
+
   return (
     <div>
-      <h2 className="text-lg text-white font-medium mb-1">MCP 服务器</h2>
-      <p className="text-xs text-gray-500 mb-6">连接外部 MCP 服务器，扩展工具能力。</p>
-      <Card>
-        {servers.length > 0 ? (<div className="divide-y divide-[#2a2a2a]">{servers.map((s, i) => (<div key={i} className="py-2 first:pt-0 last:pb-0 flex items-center gap-2 text-sm"><span className="w-1.5 h-1.5 rounded-full bg-green-400" /><span className="text-gray-300 font-mono">{s.name}</span></div>))}</div>
-        ) : (<div className="text-center py-6"><p className="text-gray-600 text-sm mb-2">暂无已连接的 MCP 服务器</p><p className="text-[11px] text-gray-600">在配置文件中添加 MCP 服务器配置</p></div>)}
-      </Card>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg text-white font-medium">MCP 服务器</h2>
+          <p className="text-xs text-gray-500 mt-0.5">连接外部 MCP 服务器，扩展工具能力。</p>
+        </div>
+        {onAdd && !showAdd && (
+          <button onClick={() => setShowAdd(true)} className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors">+ 添加服务器</button>
+        )}
+      </div>
+
+      {/* Connected servers (from runtime) */}
+      {servers.length > 0 && (
+        <Card className="mb-4">
+          <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">已连接</div>
+          <div className="divide-y divide-[#2a2a2a]">
+            {servers.map((s, i) => (<div key={i} className="py-2 first:pt-0 last:pb-0 flex items-center gap-2 text-sm"><span className="w-1.5 h-1.5 rounded-full bg-green-400" /><span className="text-gray-300 font-mono">{s.name}</span></div>))}
+          </div>
+        </Card>
+      )}
+
+      {/* Configured servers with CRUD */}
+      {configs.length > 0 && (
+        <Card className="!p-0 divide-y divide-[#2a2a2a] mb-4">
+          {configs.map((c) => (
+            <div key={c.name} className="px-4 py-3 flex items-center gap-3 group">
+              <span className={cn('w-2 h-2 rounded-full flex-shrink-0', c.enabled ? 'bg-green-400' : 'bg-gray-600')} />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-gray-200 font-mono">{c.name}</div>
+                <div className="text-[11px] text-gray-500">
+                  {c.transport === 'stdio' ? <span>stdio: <span className="font-mono">{c.command} {(c.args || []).join(' ')}</span></span> : <span>http: <span className="font-mono">{c.url}</span></span>}
+                </div>
+              </div>
+              {onToggle && <Toggle checked={c.enabled} onChange={(v) => { onToggle(c.name, v); onReload(); }} />}
+              {onRemove && <button onClick={async () => { await onRemove(c.name); onReload(); }} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-opacity text-[10px]">删除</button>}
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {configs.length === 0 && servers.length === 0 && !showAdd && (
+        <Card>
+          <div className="text-center py-6">
+            <p className="text-gray-600 text-sm mb-2">暂无已配置的 MCP 服务器</p>
+            <p className="text-[11px] text-gray-600">点击上方按钮添加</p>
+          </div>
+        </Card>
+      )}
+
+      {/* Add form */}
+      {showAdd && (
+        <Card className="!border-cyan-900/50">
+          <div className="text-sm text-cyan-400 font-medium mb-3">添加 MCP 服务器</div>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div><FieldLabel>名称</FieldLabel><input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="my-server" className={INPUT_CLS} /></div>
+              {supportsStdio ? (
+                <div><FieldLabel>传输类型</FieldLabel><select value={formTransport} onChange={(e) => setFormTransport(e.target.value as 'stdio' | 'http')} className={SELECT_CLS}><option value="stdio">Stdio</option><option value="http">HTTP</option></select></div>
+              ) : (
+                <div><FieldLabel>传输类型</FieldLabel><div className="px-3 py-2 text-sm text-gray-500 bg-[#222] border border-[#333] rounded-lg">HTTP (仅支持)</div></div>
+              )}
+            </div>
+            {formTransport === 'stdio' ? (
+              <>
+                <div><FieldLabel>命令</FieldLabel><input type="text" value={formCommand} onChange={(e) => setFormCommand(e.target.value)} placeholder="npx, uvx, node..." className={INPUT_CLS} /></div>
+                <div><FieldLabel>参数（空格分隔）</FieldLabel><input type="text" value={formArgs} onChange={(e) => setFormArgs(e.target.value)} placeholder="-y @modelcontextprotocol/server-memory" className={INPUT_CLS} /></div>
+              </>
+            ) : (
+              <div><FieldLabel>URL</FieldLabel><input type="text" value={formUrl} onChange={(e) => setFormUrl(e.target.value)} placeholder="https://mcp.example.com/sse" className={INPUT_CLS} /></div>
+            )}
+            <div className="flex items-center gap-2">
+              <button onClick={handleAdd} disabled={!formName.trim() || (formTransport === 'stdio' ? !formCommand.trim() : !formUrl.trim())} className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50 transition-colors">添加</button>
+              <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 text-[11px] text-gray-500 hover:text-gray-300">取消</button>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
@@ -664,17 +898,41 @@ function PermissionsSection({ mode, onChange }: { mode: string; onChange: (m: st
   );
 }
 
-function MemorySection({ hasMemory, memoryText, memoryInput, setMemoryInput, onAdd, onClear }: {
-  hasMemory: boolean; memoryText: string; memoryInput: string;
-  setMemoryInput: (v: string) => void; onAdd: () => void; onClear: () => void;
+function MemorySection({ hasMemory, memoryText, entries, memoryInput, setMemoryInput, onAdd, onClear, onDeleteEntry }: {
+  hasMemory: boolean; memoryText: string; entries: MemoryEntry[];
+  memoryInput: string; setMemoryInput: (v: string) => void;
+  onAdd: () => void; onClear: () => void;
+  onDeleteEntry: (key: string) => void;
 }) {
   return (
     <div>
       <h2 className="text-lg text-white font-medium mb-1">记忆</h2>
       <p className="text-xs text-gray-500 mb-6">持久化的上下文记忆。Agent 在对话中会参考这些信息。</p>
+
+      {/* Memory entries list */}
+      {entries.length > 0 && (
+        <Card className="!p-0 divide-y divide-[#2a2a2a] mb-4">
+          {entries.map((e) => (
+            <div key={e.key} className="px-4 py-3 group">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-gray-300 whitespace-pre-wrap break-words">{e.content}</div>
+                  <div className="mt-1 flex items-center gap-2 text-[10px] text-gray-600">
+                    <span>{e.source}</span>
+                    {e.timestamp && <span>{new Date(e.timestamp).toLocaleString()}</span>}
+                  </div>
+                </div>
+                <button onClick={() => onDeleteEntry(e.key)} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-opacity flex-shrink-0 mt-0.5">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
+
       <Card>
         <div className="flex items-center gap-2 mb-4"><span className={cn('w-2 h-2 rounded-full', hasMemory ? 'bg-green-400' : 'bg-gray-600')} /><span className={cn('text-sm', hasMemory ? 'text-green-400' : 'text-gray-500')}>{hasMemory ? '已启用' : '暂无记忆'}</span></div>
-        {memoryText && (<div className="mb-4"><FieldLabel>当前记忆内容</FieldLabel><pre className="text-xs text-gray-500 bg-[#171717] rounded-lg p-3 overflow-x-auto max-h-40 overflow-y-auto whitespace-pre-wrap border border-[#2a2a2a]">{memoryText}</pre></div>)}
         <div>
           <FieldLabel>添加新记忆</FieldLabel>
           <textarea value={memoryInput} onChange={(e) => setMemoryInput(e.target.value)} placeholder="输入你想让 Agent 记住的内容..." className="w-full text-xs text-gray-300 bg-[#171717] rounded-lg p-3 border border-[#2a2a2a] focus:border-cyan-600 outline-none placeholder:text-gray-600 resize-none h-24" />

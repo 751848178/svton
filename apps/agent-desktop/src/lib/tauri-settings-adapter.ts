@@ -1,5 +1,6 @@
 import type { TauriPlatform } from '@svton/agent-platform';
 import type { AgentConfig } from '@svton/agent-core';
+import { SkillLoader } from '@svton/agent-core';
 import {
   type ISettingsAdapter,
   type AgentData,
@@ -7,6 +8,9 @@ import {
   type ToolInfo,
   type SkillInfo,
   type McpServerInfo,
+  type SkillFormData,
+  type McpServerConfig,
+  type MemoryEntry,
 } from '@svton/agent-ui';
 import {
   loadConfig,
@@ -22,12 +26,15 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
   private onUpdate?: () => void;
   private _disabledTools: string[] = [];
   private _disabledSkills: string[] = [];
+  private _customInstructions: string = '';
+  private _permissionMode: string = 'default';
+  private _mcpServers: McpServerConfig[] = [];
 
   constructor(platform: TauriPlatform, agentConfig?: AgentConfig, onUpdate?: () => void) {
     this.platform = platform;
     this._agentConfig = agentConfig;
     this.onUpdate = onUpdate;
-    // Load persisted disabled lists from storage
+    // Load persisted values from storage
     platform.storage.get<string[]>('agent:disabled_tools').then((v) => {
       if (Array.isArray(v)) this._disabledTools = v;
     }).catch(() => {});
@@ -36,6 +43,15 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
     }).catch(() => {});
     platform.storage.get<string>('desktop:customInstructions').then((v) => {
       if (typeof v === 'string') this._customInstructions = v;
+    }).catch(() => {});
+    platform.storage.get<string>('agent:permission_mode').then((v) => {
+      if (v) {
+        this._permissionMode = v;
+        this._agentConfig?.capabilities?.permissionManager?.setMode?.(v as any);
+      }
+    }).catch(() => {});
+    platform.storage.get<McpServerConfig[]>('agent:mcp_servers').then((v) => {
+      if (Array.isArray(v)) this._mcpServers = v;
     }).catch(() => {});
   }
 
@@ -118,13 +134,10 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
   }
 
   async reloadAgent(): Promise<void> {
-    // TODO: full agent re-init (like web's initAgentConfig)
     this.onUpdate?.();
   }
 
   // ── Personalization ──────────────────────────────────────
-  private _customInstructions: string = '';
-
   getCustomInstructions(): string {
     return this._customInstructions;
   }
@@ -136,11 +149,13 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
 
   // ── Permission mode ──────────────────────────────────────
   getPermissionMode(): string {
-    return this._agentConfig?.capabilities?.permissionManager?.getMode?.() ?? 'default';
+    return this._permissionMode;
   }
 
   savePermissionMode(mode: string): void {
+    this._permissionMode = mode;
     this._agentConfig?.capabilities?.permissionManager?.setMode?.(mode as any);
+    this.platform.storage.set('agent:permission_mode', mode).catch(() => {});
   }
 
   // ── Tool / skill toggles ─────────────────────────────────
@@ -166,11 +181,88 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
     await this._agentConfig.capabilities.memoryManager.clearAutoMemory();
   }
 
-  // ── Platform info ────────────────────────────────────────
+  getMemoryEntries(): MemoryEntry[] {
+    if (!this._agentConfig?.capabilities?.memoryManager) return [];
+    return this._agentConfig.capabilities.memoryManager.getAllEntries().map((e: any) => ({
+      key: e.key,
+      content: e.content,
+      source: e.source || '',
+      timestamp: e.timestamp,
+    }));
+  }
+
+  async deleteMemoryEntry(key: string): Promise<void> {
+    if (!this._agentConfig?.capabilities?.memoryManager) return;
+    await this._agentConfig.capabilities.memoryManager.deleteEntry(key);
+  }
+
+  // ── Skills CRUD ──────────────────────────────────────────
+  async addSkill(skill: SkillFormData): Promise<void> {
+    const def = {
+      name: skill.name,
+      description: skill.description,
+      instructions: skill.instructions,
+      scope: (skill.scope || 'user') as 'user' | 'repo',
+    };
+    await SkillLoader.saveToStorage(this.platform.storage, def);
+    this._agentConfig?.capabilities?.skillManager?.register(def);
+  }
+
+  async updateSkill(name: string, updates: SkillFormData): Promise<void> {
+    await this.deleteSkill(name);
+    await this.addSkill(updates);
+  }
+
+  async deleteSkill(name: string): Promise<void> {
+    await SkillLoader.removeFromStorage(this.platform.storage, name);
+    this._agentConfig?.capabilities?.skillManager?.unregister(name);
+    this._disabledSkills = this._disabledSkills.filter((s) => s !== name);
+    await this.platform.storage.set('agent:disabled_skills', this._disabledSkills);
+  }
+
+  // ── MCP Server CRUD ──────────────────────────────────────
+  getMcpServerConfigs(): McpServerConfig[] {
+    return this._mcpServers;
+  }
+
+  async addMcpServer(config: McpServerConfig): Promise<void> {
+    this._mcpServers = [...this._mcpServers, config];
+    await this.platform.storage.set('agent:mcp_servers', this._mcpServers);
+  }
+
+  async removeMcpServer(name: string): Promise<void> {
+    this._mcpServers = this._mcpServers.filter((s) => s.name !== name);
+    await this.platform.storage.set('agent:mcp_servers', this._mcpServers);
+    // Unregister MCP tools from registry
+    const registry = this._agentConfig?.toolRegistry;
+    if (registry) {
+      const prefix = `mcp__${name}__`;
+      for (const tool of registry.listDefinitions()) {
+        if (tool.name.startsWith(prefix)) {
+          registry.unregister(tool.name);
+        }
+      }
+    }
+  }
+
+  async toggleMcpServer(name: string, enabled: boolean): Promise<void> {
+    this._mcpServers = this._mcpServers.map((s) =>
+      s.name === name ? { ...s, enabled } : s,
+    );
+    await this.platform.storage.set('agent:mcp_servers', this._mcpServers);
+  }
+
+  // ── Working Directory ────────────────────────────────────
   getWorkingDir(): string {
     return this._agentConfig?.workingDir || '';
   }
 
+  async setWorkingDir(dir: string): Promise<void> {
+    await this.platform.storage.set('agent:workingDir', dir);
+    this.onUpdate?.();
+  }
+
+  // ── Platform info ────────────────────────────────────────
   async openInEditor(): Promise<void> {
     await openConfigInEditor(this.platform);
   }

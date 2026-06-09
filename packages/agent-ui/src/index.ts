@@ -54,4 +54,4 @@ export type { VersionTabsProps, VersionedContent } from './components/chat/Versi
 
 // Settings Components
 export { SettingsView } from './components/settings/SettingsView';
-export type { SettingsViewProps, ISettingsAdapter, AgentData, ProviderInfo, ToolInfo, SkillInfo, McpServerInfo } from './components/settings/SettingsView';
+export type { SettingsViewProps, ISettingsAdapter, AgentData, ProviderInfo, ToolInfo, SkillInfo, McpServerInfo, SkillFormData, McpServerConfig, MemoryEntry } from './components/settings/SettingsView';

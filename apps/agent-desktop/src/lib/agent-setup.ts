@@ -165,7 +165,11 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   // ── Capability managers ──
   const skillManager = new SkillManager();
   const promptManager = new PromptManager();
-  const permissionManager = new PermissionManager({ mode: 'default' });
+
+  // Restore saved permission mode
+  const savedPermissionMode = await platform.storage.get<string>('agent:permission_mode');
+  const permissionManager = new PermissionManager({ mode: (savedPermissionMode as any) || 'default' });
+
   const hookManager = new HookManager();
 
   // Load skills: from storage (user-created) + built-in (fetched from public/)
@@ -182,7 +186,9 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   }
 
   // Load project memory from AGENT.md files if available
-  const workingDir = platform.process.getCwd();
+  // Use saved workingDir from storage, or fall back to getCwd()
+  const savedWorkingDir = await platform.storage.get<string>('agent:workingDir');
+  const workingDir = savedWorkingDir || platform.process.getCwd() || '/';
   try {
     await memoryManager.loadProjectMemory(platform.fs, workingDir);
   } catch {

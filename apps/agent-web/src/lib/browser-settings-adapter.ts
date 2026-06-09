@@ -1,6 +1,7 @@
-import type { ISettingsAdapter, AgentData, ProviderInfo, ToolInfo, SkillInfo } from '@svton/agent-ui';
+import type { ISettingsAdapter, AgentData, ProviderInfo, ToolInfo, SkillInfo, SkillFormData, McpServerConfig, MemoryEntry } from '@svton/agent-ui';
 import type { BrowserPlatform } from '@svton/agent-platform';
 import type { AgentConfig } from '@svton/agent-core';
+import { SkillLoader } from '@svton/agent-core';
 import { initAgentConfig } from '@/lib/agent-setup';
 import {
   loadSettings, saveSettings, loadJsonList, loadString, saveJson, saveString,
@@ -8,6 +9,8 @@ import {
   LS_DISABLED_TOOLS, LS_PERMISSION_MODE, LS_CUSTOM_INSTRUCTIONS,
   LS_DISABLED_SKILLS, LS_SEARCH_ENDPOINT, LS_DEFAULT_MODEL,
 } from '@/lib/settings-store';
+
+const LS_MCP_SERVERS = 'agent-web:mcp_servers';
 
 export class BrowserSettingsAdapter implements ISettingsAdapter {
   private _agentConfig: AgentConfig | null = null;
@@ -127,6 +130,70 @@ export class BrowserSettingsAdapter implements ISettingsAdapter {
   async clearMemory(): Promise<void> {
     if (!this._agentConfig?.capabilities?.memoryManager) return;
     await this._agentConfig.capabilities.memoryManager.clearAutoMemory();
+  }
+
+  getMemoryEntries(): MemoryEntry[] {
+    if (!this._agentConfig?.capabilities?.memoryManager) return [];
+    return this._agentConfig.capabilities.memoryManager.getAllEntries().map((e: any) => ({
+      key: e.key,
+      content: e.content,
+      source: e.source || '',
+      timestamp: e.timestamp,
+    }));
+  }
+
+  async deleteMemoryEntry(key: string): Promise<void> {
+    if (!this._agentConfig?.capabilities?.memoryManager) return;
+    await this._agentConfig.capabilities.memoryManager.deleteEntry(key);
+  }
+
+  // ── Skills CRUD ──────────────────────────────────────────
+  async addSkill(skill: SkillFormData): Promise<void> {
+    const def = {
+      name: skill.name,
+      description: skill.description,
+      instructions: skill.instructions,
+      scope: (skill.scope || 'user') as 'user' | 'repo',
+    };
+    await SkillLoader.saveToStorage(this._platform.storage, def);
+    this._agentConfig?.capabilities?.skillManager?.register(def);
+  }
+
+  async updateSkill(name: string, updates: SkillFormData): Promise<void> {
+    await this.deleteSkill(name);
+    await this.addSkill(updates);
+  }
+
+  async deleteSkill(name: string): Promise<void> {
+    await SkillLoader.removeFromStorage(this._platform.storage, name);
+    this._agentConfig?.capabilities?.skillManager?.unregister(name);
+    const disabled = loadJsonList(LS_DISABLED_SKILLS).filter((s) => s !== name);
+    saveJson(LS_DISABLED_SKILLS, disabled);
+  }
+
+  // ── MCP Server CRUD (HTTP only) ──────────────────────────
+  getMcpServerConfigs(): McpServerConfig[] {
+    try {
+      return JSON.parse(localStorage.getItem(LS_MCP_SERVERS) || '[]');
+    } catch { return []; }
+  }
+
+  async addMcpServer(config: McpServerConfig): Promise<void> {
+    const servers = this.getMcpServerConfigs();
+    servers.push({ ...config, transport: 'http' }); // Force HTTP for web
+    localStorage.setItem(LS_MCP_SERVERS, JSON.stringify(servers));
+  }
+
+  async removeMcpServer(name: string): Promise<void> {
+    const servers = this.getMcpServerConfigs().filter((s) => s.name !== name);
+    localStorage.setItem(LS_MCP_SERVERS, JSON.stringify(servers));
+  }
+
+  async toggleMcpServer(name: string, enabled: boolean): Promise<void> {
+    const servers = this.getMcpServerConfigs().map((s) =>
+      s.name === name ? { ...s, enabled } : s,
+    );
+    localStorage.setItem(LS_MCP_SERVERS, JSON.stringify(servers));
   }
 
   // ── Platform info ────────────────────────────────────────
