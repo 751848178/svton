@@ -16,8 +16,10 @@ import { DynamicConfigService } from './config.service';
  * @example
  * ```typescript
  * // 用户项目中
+ * import { AuthzGuard, Public, Roles } from '@svton/nestjs-authz';
+ *
  * @Controller('config')
- * @UseGuards(JwtAuthGuard, RolesGuard)
+ * @UseGuards(JwtAuthGuard, AuthzGuard)
  * export class ConfigController extends BaseConfigController {
  *   constructor(configService: DynamicConfigService) {
  *     super(configService);

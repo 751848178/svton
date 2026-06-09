@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { Portal } from '../Portal';
+import { useFloatingPosition, Placement } from '../../hooks/useFloatingPosition';
 
-type Placement = 'top' | 'bottom' | 'left' | 'right';
 type Trigger = 'click' | 'hover';
 
 export interface PopoverProps {
@@ -15,55 +15,31 @@ export interface PopoverProps {
   className?: string;
 }
 
-export function Popover(props: PopoverProps) {
+export const Popover = React.forwardRef<HTMLSpanElement, PopoverProps>(function Popover(props, ref) {
   const { content, children, placement = 'bottom', trigger = 'click', visible: controlledVisible, onVisibleChange, className } = props;
   const [internalVisible, setInternalVisible] = useState(false);
   const visible = controlledVisible ?? internalVisible;
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const triggerRef = useRef<HTMLSpanElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
+
+  const { position, triggerRef, floatingRef } = useFloatingPosition(visible, placement);
+
+  const setTriggerRef = useCallback((node: HTMLSpanElement | null) => {
+    (triggerRef as React.MutableRefObject<HTMLSpanElement | null>).current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      (ref as React.MutableRefObject<HTMLSpanElement | null>).current = node;
+    }
+  }, [ref, triggerRef]);
 
   const setVisible = (v: boolean) => {
     setInternalVisible(v);
     onVisibleChange?.(v);
   };
 
-  const updatePosition = () => {
-    if (!triggerRef.current || !popoverRef.current) return;
-    const triggerRect = triggerRef.current.getBoundingClientRect();
-    const popoverRect = popoverRef.current.getBoundingClientRect();
-    const gap = 8;
-
-    let top = 0, left = 0;
-    switch (placement) {
-      case 'top':
-        top = triggerRect.top - popoverRect.height - gap;
-        left = triggerRect.left + (triggerRect.width - popoverRect.width) / 2;
-        break;
-      case 'bottom':
-        top = triggerRect.bottom + gap;
-        left = triggerRect.left + (triggerRect.width - popoverRect.width) / 2;
-        break;
-      case 'left':
-        top = triggerRect.top + (triggerRect.height - popoverRect.height) / 2;
-        left = triggerRect.left - popoverRect.width - gap;
-        break;
-      case 'right':
-        top = triggerRect.top + (triggerRect.height - popoverRect.height) / 2;
-        left = triggerRect.right + gap;
-        break;
-    }
-    setPosition({ top: top + window.scrollY, left: left + window.scrollX });
-  };
-
-  useEffect(() => {
-    if (visible) updatePosition();
-  }, [visible]);
-
   useEffect(() => {
     if (!visible || trigger !== 'click') return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (!triggerRef.current?.contains(e.target as Node) && !popoverRef.current?.contains(e.target as Node)) {
+      if (!triggerRef.current?.contains(e.target as Node) && !floatingRef.current?.contains(e.target as Node)) {
         setVisible(false);
       }
     };
@@ -77,14 +53,14 @@ export function Popover(props: PopoverProps) {
 
   return (
     <>
-      <span ref={triggerRef} onClick={handleClick} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="inline-block">
+      <span ref={setTriggerRef} onClick={handleClick} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="inline-block">
         {children}
       </span>
       {visible && (
         <Portal>
           <div
-            ref={popoverRef}
-            className={cn('absolute p-3 bg-white rounded-lg shadow-lg z-[1000]', className)}
+            ref={floatingRef}
+            className={cn('absolute p-3 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-[1000]', className)}
             style={{ top: position.top, left: position.left }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -95,4 +71,4 @@ export function Popover(props: PopoverProps) {
       )}
     </>
   );
-}
+});

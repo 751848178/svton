@@ -6,15 +6,35 @@ import {
   Inject,
   Optional,
 } from '@nestjs/common';
+import {
+  createAuthorizer,
+  normalizePermissionGrants,
+  normalizeRoleAssignments,
+  type AuthzPermissionGrant,
+  type AuthzPermissionInput,
+  type AuthzRoleAssignment,
+  type AuthzSchema,
+  type AuthzSubject,
+} from '@svton/authz';
 import { Reflector } from '@nestjs/core';
+import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { AUTHZ_OPTIONS } from '../constants';
+import type {
+  AuthzAssignmentsResolver,
+  AuthzResolvedAssignments,
+  AuthzScopeResolver,
+} from '../interfaces';
 
 interface AuthzOptions {
   userRoleField?: string;
+  userPermissionsField?: string;
   enableGlobalGuard?: boolean;
   allowNoRoles?: boolean;
+  schema?: AuthzSchema;
+  getAssignments?: AuthzAssignmentsResolver;
+  getScope?: AuthzScopeResolver;
 }
 
 /**
@@ -28,7 +48,9 @@ export class RolesGuard implements CanActivate {
     @Optional() @Inject(AUTHZ_OPTIONS) private options?: AuthzOptions,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const authorizer = createAuthorizer(this.options?.schema);
+
     // 检查是否为公开路由
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -44,71 +66,181 @@ export class RolesGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+    const requiredPermissions = this.reflector.getAllAndOverride<AuthzPermissionInput[]>(
+      PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    // 如果没有设置角色要求，根据配置决定是否放行
-    if (!requiredRoles || requiredRoles.length === 0) {
+    // 如果没有设置权限要求，根据配置决定是否放行
+    if (
+      (!requiredRoles || requiredRoles.length === 0) &&
+      (!requiredPermissions || requiredPermissions.length === 0)
+    ) {
       return this.options?.allowNoRoles !== false;
     }
 
-    // 获取用户信息
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    const user = request?.user as Record<string, unknown> | undefined;
+    const subject = await this.resolveSubject(context, user);
 
-    if (!user) {
+    if (
+      !user &&
+      subject.roles.length === 0 &&
+      subject.permissions.length === 0
+    ) {
       throw new ForbiddenException('User not authenticated');
     }
 
-    // 获取用户角色
-    const userRoleField = this.options?.userRoleField || 'role';
-    const userRole = this.getUserRole(user, userRoleField);
+    const scope = await this.options?.getScope?.(context);
 
-    if (!userRole) {
-      throw new ForbiddenException('User has no role assigned');
+    if (requiredRoles && requiredRoles.length > 0) {
+      const roleDecision = authorizer.hasRole({
+        subject,
+        roles: requiredRoles,
+        scope,
+      });
+
+      if (!roleDecision.allowed) {
+        throw new ForbiddenException(
+          `Access denied. Required roles: ${requiredRoles.join(', ')}`,
+        );
+      }
     }
 
-    // 检查用户角色是否在所需角色列表中
-    const hasRole = this.checkRole(userRole, requiredRoles);
+    if (requiredPermissions && requiredPermissions.length > 0) {
+      let denied = false;
 
-    if (!hasRole) {
+      for (const permission of requiredPermissions) {
+        const decision = authorizer.can({
+          subject,
+          permission,
+          scope,
+        });
+
+        if (decision.allowed) {
+          return true;
+        }
+
+        if (decision.reason === 'denied') {
+          denied = true;
+        }
+      }
+
       throw new ForbiddenException(
-        `Access denied. Required roles: ${requiredRoles.join(', ')}`,
+        denied
+          ? 'Access denied by authorization policy'
+          : 'Access denied. Missing required permissions',
       );
     }
 
     return true;
   }
 
-  private getUserRole(user: Record<string, unknown>, field: string): string | string[] | undefined {
-    // 支持嵌套字段，如 'profile.role'
-    const parts = field.split('.');
-    let value: unknown = user;
+  private async resolveSubject(
+    context: ExecutionContext,
+    user?: Record<string, unknown>,
+  ): Promise<AuthzSubject & {
+    roles: AuthzRoleAssignment[];
+    permissions: AuthzPermissionGrant[];
+  }> {
+    const resolvedAssignments = (await this.options?.getAssignments?.(context)) ?? {};
+    const userRoles = this.getUserRoles(user, this.options?.userRoleField || 'role');
+    const userPermissions = this.getUserPermissions(
+      user,
+      this.options?.userPermissionsField || 'permissions',
+    );
 
-    for (const part of parts) {
-      if (value && typeof value === 'object') {
-        value = (value as Record<string, unknown>)[part];
-      } else {
-        return undefined;
-      }
-    }
+    return {
+      roles: [
+        ...normalizeRoleAssignments(userRoles),
+        ...normalizeRoleAssignments(resolvedAssignments.roles),
+      ],
+      permissions: [
+        ...normalizePermissionGrants(userPermissions),
+        ...normalizePermissionGrants(resolvedAssignments.permissions),
+      ],
+    };
+  }
+
+  private getUserRoles(
+    user: Record<string, unknown> | undefined,
+    field: string,
+  ): string[] | AuthzRoleAssignment[] | undefined {
+    const value = this.getRoleFieldValue(user, field);
 
     if (typeof value === 'string') {
-      return value;
+      return [value];
     }
 
-    if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
+    if (Array.isArray(value) && value.every((item) => typeof item === 'string')) {
       return value as string[];
+    }
+
+    if (
+      Array.isArray(value) &&
+      value.every(
+        (item) =>
+          item &&
+          typeof item === 'object' &&
+          'role' in (item as Record<string, unknown>) &&
+          typeof (item as Record<string, unknown>).role === 'string',
+      )
+    ) {
+      return value as AuthzRoleAssignment[];
     }
 
     return undefined;
   }
 
-  private checkRole(userRole: string | string[], requiredRoles: string[]): boolean {
-    if (Array.isArray(userRole)) {
-      // 用户有多个角色，检查是否有任一匹配
-      return userRole.some((role) => requiredRoles.includes(role));
+  private getUserPermissions(
+    user: Record<string, unknown> | undefined,
+    field: string,
+  ): AuthzResolvedAssignments['permissions'] | undefined {
+    const value = this.getNestedValue(user, field);
+
+    if (!Array.isArray(value)) {
+      return undefined;
     }
 
-    // 单个角色
-    return requiredRoles.includes(userRole);
+    return value as AuthzResolvedAssignments['permissions'];
+  }
+
+  private getNestedValue(
+    source: Record<string, unknown> | undefined,
+    field: string,
+  ): unknown {
+    if (!source) {
+      return undefined;
+    }
+
+    const parts = field.split('.');
+    let value: unknown = source;
+
+    for (const part of parts) {
+      if (value && typeof value === 'object') {
+        value = (value as Record<string, unknown>)[part];
+        continue;
+      }
+
+      return undefined;
+    }
+
+    return value;
+  }
+
+  private getRoleFieldValue(
+    user: Record<string, unknown> | undefined,
+    field: string,
+  ): unknown {
+    const directValue = this.getNestedValue(user, field);
+    if (directValue !== undefined) {
+      return directValue;
+    }
+
+    if (field === 'role') {
+      return this.getNestedValue(user, 'roles');
+    }
+
+    return undefined;
   }
 }

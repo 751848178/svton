@@ -1,0 +1,200 @@
+import 'reflect-metadata';
+import { Service, observable, action } from '@svton/service';
+import type { IStorage } from '@svton/agent-platform';
+
+export interface SessionInfo {
+  id: string;
+  title: string;
+  model: string;
+  messageCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SessionData {
+  id: string;
+  title: string;
+  model: string;
+  /** Stored messages — serialized DisplayMessage[] for lossless persistence */
+  messages: unknown[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+const STORAGE_PREFIX = 'agent:session:';
+const LIST_KEY = 'agent:session_list';
+
+@Service()
+export class SessionService {
+  @observable() sessions: SessionInfo[] = [];
+  @observable() currentSessionId: string | null = null;
+  @observable() ready: boolean = false;
+
+  private storage: IStorage | null = null;
+
+  /**
+   * Initialize with storage backend.
+   */
+  @action()
+  async init(storage: IStorage): Promise<void> {
+    if (this.ready) return;
+    this.storage = storage;
+    await this.loadSessionList();
+    this.ready = true;
+  }
+
+  /**
+   * Create a new session.
+   * All async I/O is done BEFORE setting observables to avoid cascading re-renders.
+   */
+  @action()
+  async create(title?: string, model?: string): Promise<string> {
+    if (!Array.isArray(this.sessions)) {
+      console.error('[SessionService] create() — sessions corrupted, resetting');
+      this.sessions = [];
+    }
+
+    const id = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const now = Date.now();
+
+    const session: SessionData = {
+      id,
+      title: title || `Chat ${this.sessions.length + 1}`,
+      model: model || 'gpt-4o',
+      messages: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const info: SessionInfo = {
+      id,
+      title: session.title,
+      model: session.model,
+      messageCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // All async I/O first — no observable changes yet
+    const newSessions = [info, ...this.sessions];
+    await this.storage!.set(`${STORAGE_PREFIX}${id}`, session);
+    await this.storage!.set(LIST_KEY, newSessions);
+
+    // Apply observable changes last
+    this.sessions = newSessions;
+    this.currentSessionId = id;
+
+    return id;
+  }
+
+  /**
+   * Load a session's messages.
+   */
+  async loadSession(id: string): Promise<SessionData | null> {
+    return this.storage!.get<SessionData>(`${STORAGE_PREFIX}${id}`);
+  }
+
+  /**
+   * Save session data.
+   * All async I/O before observable changes.
+   */
+  async saveSession(data: SessionData): Promise<void> {
+    if (!Array.isArray(this.sessions)) return;
+
+    const now = Date.now();
+    const toSave: SessionData = {
+      id: data.id,
+      title: data.title,
+      model: data.model,
+      messages: data.messages,
+      createdAt: data.createdAt,
+      updatedAt: now,
+    };
+    await this.storage!.set(`${STORAGE_PREFIX}${data.id}`, toSave);
+
+    const updatedSessions = this.sessions.map((s) =>
+      s.id === data.id
+        ? { ...s, title: data.title, messageCount: data.messages.length, updatedAt: now }
+        : s,
+    );
+    await this.storage!.set(LIST_KEY, updatedSessions);
+
+    this.sessions = updatedSessions;
+  }
+
+  /**
+   * Delete a session.
+   */
+  @action()
+  async delete(id: string): Promise<void> {
+    if (!Array.isArray(this.sessions)) {
+      this.sessions = [];
+    }
+    await this.storage!.delete(`${STORAGE_PREFIX}${id}`);
+    const newSessions = this.sessions.filter((s) => s.id !== id);
+    await this.storage!.set(LIST_KEY, newSessions);
+
+    this.sessions = newSessions;
+    if (this.currentSessionId === id) {
+      this.currentSessionId = newSessions[0]?.id || null;
+    }
+  }
+
+  /**
+   * Switch to a session.
+   */
+  @action()
+  switchTo(id: string): void {
+    this.currentSessionId = id;
+  }
+
+  // ----------------------------------------------------------
+  // Private
+  // ----------------------------------------------------------
+
+  private async loadSessionList(): Promise<void> {
+    const raw = await this.storage!.get<unknown>(LIST_KEY);
+
+    if (raw == null || !Array.isArray(raw)) {
+      this.sessions = [];
+      if (raw != null) {
+        await this.storage!.delete(LIST_KEY);
+      }
+      return;
+    }
+
+    const list = raw as SessionInfo[];
+
+    if (list.length > 200) {
+      console.warn(`[SessionService] loadSessionList: ${list.length} entries — corrupted, clearing`);
+      await this.nukeAllSessionData();
+      return;
+    }
+
+    const valid = list.filter(
+      (item): item is SessionInfo =>
+        item != null &&
+        typeof item === 'object' &&
+        typeof (item as any).id === 'string' &&
+        typeof (item as any).title === 'string',
+    );
+
+    if (valid.length !== list.length) {
+      console.warn(`[SessionService] loadSessionList: ${valid.length}/${list.length} valid — clearing`);
+      await this.nukeAllSessionData();
+      return;
+    }
+
+    this.sessions = valid;
+  }
+
+  private async nukeAllSessionData(): Promise<void> {
+    const allKeys = await this.storage!.list(STORAGE_PREFIX);
+    for (const key of allKeys) {
+      await this.storage!.delete(key);
+    }
+    await this.storage!.delete(LIST_KEY);
+    await this.storage!.set(LIST_KEY, []);
+    this.sessions = [];
+  }
+}

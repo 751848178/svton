@@ -1,6 +1,9 @@
 // Utils
 export { cn } from './lib/utils';
 
+// i18n
+export { t, setLocale, getLocale, type Locale } from './i18n';
+
 // State Components
 export { LoadingState, Loading } from './components/LoadingState';
 export type { LoadingStateProps } from './components/LoadingState';
@@ -87,3 +90,4 @@ export type { VisuallyHiddenProps } from './components/VisuallyHidden';
 
 export { ClickOutside } from './components/ClickOutside';
 export type { ClickOutsideProps } from './components/ClickOutside';
+

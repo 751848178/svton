@@ -1,4 +1,4 @@
-import { DynamicModule, Module, Provider, InjectionToken } from '@nestjs/common';
+import { DynamicModule, Module, Provider, InjectionToken, CanActivate } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import {
   AuthzModuleOptions,
@@ -7,6 +7,10 @@ import {
 } from './interfaces';
 import { AUTHZ_OPTIONS } from './constants';
 import { RolesGuard } from './guards/roles.guard';
+
+const PASS_THROUGH_GUARD: CanActivate = {
+  canActivate: () => true,
+};
 
 @Module({})
 export class AuthzModule {
@@ -89,6 +93,13 @@ export class AuthzModule {
         inject: (options.inject || []) as InjectionToken[],
       });
     }
+
+    providers.push({
+      provide: APP_GUARD,
+      useFactory: (authzOptions: AuthzModuleOptions, rolesGuard: RolesGuard): CanActivate =>
+        authzOptions.enableGlobalGuard ? rolesGuard : PASS_THROUGH_GUARD,
+      inject: [AUTHZ_OPTIONS, RolesGuard],
+    });
 
     return providers;
   }

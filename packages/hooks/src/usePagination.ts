@@ -62,9 +62,11 @@ export function usePagination<TItem, TParams extends Record<string, any> = Recor
   const [error, setError] = useState<Error | null>(null);
   const [page, setPage] = useState(initialPage);
   const [hasMore, setHasMore] = useState(true);
+  const pageRef = useRef(initialPage);
 
   const paramsRef = useRef(initialParams);
   paramsRef.current = initialParams;
+  pageRef.current = page;
 
   const loadingRef = useRef(false);
 
@@ -76,7 +78,7 @@ export function usePagination<TItem, TParams extends Record<string, any> = Recor
     setError(null);
 
     try {
-      const currentPage = page;
+      const currentPage = pageRef.current;
       const params = {
         ...(paramsRef.current || {}),
         [pageKey]: currentPage,
@@ -86,8 +88,11 @@ export function usePagination<TItem, TParams extends Record<string, any> = Recor
       const result = await fetcher(params);
       const items = (getItems as any)(result) as TItem[];
 
-      setData((prev) => [...prev, ...items]);
-      setPage((p) => p + 1);
+      setData((prev) => (currentPage === initialPage ? items : [...prev, ...items]));
+
+      const nextPage = currentPage + 1;
+      pageRef.current = nextPage;
+      setPage(nextPage);
 
       if (getHasMore) {
         setHasMore(getHasMore(result, items, pageSize));
@@ -104,6 +109,7 @@ export function usePagination<TItem, TParams extends Record<string, any> = Recor
   });
 
   const reset = usePersistFn(() => {
+    pageRef.current = initialPage;
     setData([]);
     setError(null);
     setLoading(false);

@@ -34,5 +34,13 @@ pnpm-debug.log*
 # Testing
 coverage/
 
+# Tauri
+src-tauri/target/
+
+# Next.js
+apps/agent-web/.next/
+apps/agent-web/out/
+
 # Misc
 *.tsbuildinfo
+skills/*/dist/

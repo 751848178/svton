@@ -17,13 +17,15 @@ import type { CreateDictionaryInput, UpdateDictionaryInput } from '../core/types
  * @example
  * ```typescript
  * // 用户项目中
+ * import { AuthzGuard, Roles } from '@svton/nestjs-authz';
+ *
  * @Controller('dictionary')
  * export class DictionaryController extends BaseDictionaryController {
  *   constructor(dictionaryService: DynamicDictionaryService) {
  *     super(dictionaryService);
  *   }
  *
- *   @UseGuards(JwtAuthGuard, RolesGuard)
+ *   @UseGuards(JwtAuthGuard, AuthzGuard)
  *   @Roles('admin')
  *   @Post()
  *   async create(@Body() data: CreateDictionaryInput) {

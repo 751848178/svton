@@ -1,5 +1,6 @@
 import type {
   ConfigItem,
+  ConfigValueType,
   CreateConfigInput,
   UpdateConfigInput,
   DictionaryItem,
@@ -49,7 +50,9 @@ export interface ConfigRepository {
   /**
    * 批量更新配置值
    */
-  batchUpdateValues(updates: Array<{ key: string; value: string }>): Promise<void>;
+  batchUpdateValues(
+    updates: Array<{ key: string; value: string; type: ConfigValueType; category: string; label: string }>,
+  ): Promise<void>;
 }
 
 /**

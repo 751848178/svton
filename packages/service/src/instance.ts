@@ -1,20 +1,21 @@
 import { getMergedMetadata } from './metadata';
-import { container } from './container';
 import type { ServiceClass, InternalServiceInstance, Subscriber } from './types';
+import type { ServiceScope } from './scope';
 
 /**
  * 创建内部 Service 实例
  */
 export function createInternalInstance<T extends object>(
   ServiceClass: ServiceClass<T>,
+  scope: ServiceScope,
+  target: T,
 ): InternalServiceInstance<T> {
   const metadata = getMergedMetadata(ServiceClass);
-  const target = new ServiceClass();
 
   // 处理依赖注入
   metadata.injects.forEach((InjectClass, key) => {
-    const injectedInstance = container.resolve(InjectClass);
-    (target as any)[key] = injectedInstance;
+    const injectedInstance = scope.resolveInternal(InjectClass);
+    (target as any)[key] = injectedInstance.target;
   });
 
   const subscribers = new Map<string | symbol, Set<Subscriber>>();

@@ -6,9 +6,10 @@ import {
   Inject,
   Optional,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { Reflector } from '@nestjs/core';
 import { Observable, of, from } from 'rxjs';
-import { tap, switchMap } from 'rxjs/operators';
+import { map, switchMap } from 'rxjs/operators';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '@svton/nestjs-redis';
 import {
@@ -39,19 +40,16 @@ export class CacheInterceptor implements NestInterceptor {
 
     const handler = context.getHandler();
 
-    // 检查 @Cacheable
     const cacheableOpts = this.reflector.get<CacheableOptions>(CACHEABLE_METADATA, handler);
     if (cacheableOpts) {
       return this.handleCacheable(context, next, cacheableOpts);
     }
 
-    // 检查 @CacheEvict
     const evictOpts = this.reflector.get<CacheEvictOptions>(CACHE_EVICT_METADATA, handler);
     if (evictOpts) {
       return this.handleCacheEvict(context, next, evictOpts);
     }
 
-    // 检查 @CachePut
     const putOpts = this.reflector.get<CachePutOptions>(CACHE_PUT_METADATA, handler);
     if (putOpts) {
       return this.handleCachePut(context, next, putOpts);
@@ -66,6 +64,7 @@ export class CacheInterceptor implements NestInterceptor {
     options: CacheableOptions,
   ): Observable<unknown> {
     const cacheKey = this.buildCacheKey(context, options.key);
+    const ttl = options.ttl ?? this.options?.ttl ?? 3600;
 
     return from(this.redis.get(cacheKey)).pipe(
       switchMap((cached) => {
@@ -78,15 +77,9 @@ export class CacheInterceptor implements NestInterceptor {
         }
 
         return next.handle().pipe(
-          tap((result) => {
-            const ttl = options.ttl ?? this.options?.ttl ?? 3600;
-            const value = typeof result === 'string' ? result : JSON.stringify(result);
-            if (ttl > 0) {
-              this.redis.setex(cacheKey, ttl, value);
-            } else {
-              this.redis.set(cacheKey, value);
-            }
-          }),
+          switchMap((result) =>
+            from(this.writeCacheValue(cacheKey, result, ttl)).pipe(map(() => result)),
+          ),
         );
       }),
     );
@@ -98,23 +91,24 @@ export class CacheInterceptor implements NestInterceptor {
     options: CacheEvictOptions,
   ): Observable<unknown> {
     const cacheKey = this.buildCacheKey(context, options.key);
+    const cachePattern = this.buildCachePattern(context, options.key);
 
     const evict = async () => {
       if (options.allEntries) {
-        const keys = await this.redis.keys(cacheKey);
-        if (keys.length > 0) {
-          await this.redis.del(...keys);
-        }
-      } else {
-        await this.redis.del(cacheKey);
+        await this.deleteByPattern(cachePattern);
+        return;
       }
+
+      await this.redis.del(cacheKey);
     };
 
     if (options.beforeInvocation) {
       return from(evict()).pipe(switchMap(() => next.handle()));
     }
 
-    return next.handle().pipe(tap(() => evict()));
+    return next.handle().pipe(
+      switchMap((result) => from(evict()).pipe(map(() => result))),
+    );
   }
 
   private handleCachePut(
@@ -123,17 +117,12 @@ export class CacheInterceptor implements NestInterceptor {
     options: CachePutOptions,
   ): Observable<unknown> {
     const cacheKey = this.buildCacheKey(context, options.key);
+    const ttl = options.ttl ?? this.options?.ttl ?? 3600;
 
     return next.handle().pipe(
-      tap((result) => {
-        const ttl = options.ttl ?? this.options?.ttl ?? 3600;
-        const value = typeof result === 'string' ? result : JSON.stringify(result);
-        if (ttl > 0) {
-          this.redis.setex(cacheKey, ttl, value);
-        } else {
-          this.redis.set(cacheKey, value);
-        }
-      }),
+      switchMap((result) =>
+        from(this.writeCacheValue(cacheKey, result, ttl)).pipe(map(() => result)),
+      ),
     );
   }
 
@@ -143,37 +132,203 @@ export class CacheInterceptor implements NestInterceptor {
     const methodName = context.getHandler().name;
 
     if (!keyTemplate) {
-      return `${prefix}:${className}:${methodName}`;
+      const namespace = `${prefix}:${className}:${methodName}`;
+      const signature = this.buildRequestSignature(context);
+      return signature ? `${namespace}:${signature}` : namespace;
     }
 
-    // 解析 #param 风格的表达式
-    const args = context.getArgs();
-    const request = args[0];
-    let key = keyTemplate;
-
-    // 替换 #0, #1 等位置参数
-    key = key.replace(/#(\d+)/g, (_, index) => {
-      const arg = args[parseInt(index, 10)];
-      return arg !== undefined ? String(arg) : '';
-    });
-
-    // 替换 #paramName 风格 (从 request.params 或方法参数)
-    key = key.replace(/#(\w+)/g, (match, paramName) => {
-      // 尝试从 HTTP request params
-      if (request?.params?.[paramName] !== undefined) {
-        return String(request.params[paramName]);
-      }
-      // 尝试从 request body
-      if (request?.body?.[paramName] !== undefined) {
-        return String(request.body[paramName]);
-      }
-      // 尝试从 request query
-      if (request?.query?.[paramName] !== undefined) {
-        return String(request.query[paramName]);
-      }
-      return match;
-    });
-
-    return `${prefix}:${key}`;
+    return `${prefix}:${this.resolveKeyTemplate(context, keyTemplate)}`;
   }
+
+  private buildCachePattern(context: ExecutionContext, keyTemplate?: string): string {
+    const prefix = this.options?.prefix ?? 'cache';
+
+    if (keyTemplate) {
+      return `${prefix}:${this.resolveKeyTemplate(context, keyTemplate)}`;
+    }
+
+    const className = context.getClass().name;
+    const methodName = context.getHandler().name;
+    return `${prefix}:${className}:${methodName}*`;
+  }
+
+  private resolveKeyTemplate(context: ExecutionContext, keyTemplate: string): string {
+    const args = context.getArgs();
+    const request = args[0] as RequestLike | undefined;
+
+    return keyTemplate.replace(/#([A-Za-z0-9_.]+)/g, (match, expression) => {
+      const value = this.resolveExpressionValue(expression, args, request);
+      return value === undefined ? match : this.serializeKeyPart(value);
+    });
+  }
+
+  private resolveExpressionValue(
+    expression: string,
+    args: unknown[],
+    request?: RequestLike,
+  ): unknown {
+    const [root, ...rest] = expression.split('.');
+
+    if (/^\d+$/.test(root)) {
+      return this.getNestedValue(args[parseInt(root, 10)], rest);
+    }
+
+    for (const source of [request?.params, request?.body, request?.query]) {
+      const value = this.getNestedValue(source, [root, ...rest]);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+
+    for (const arg of args) {
+      const value = this.getNestedValue(arg, [root, ...rest]);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
+  private getNestedValue(source: unknown, path: string[]): unknown {
+    if (!source) {
+      return undefined;
+    }
+
+    let current: unknown = source;
+    for (const segment of path) {
+      if (!segment) {
+        continue;
+      }
+
+      if (current && typeof current === 'object' && segment in (current as Record<string, unknown>)) {
+        current = (current as Record<string, unknown>)[segment];
+        continue;
+      }
+
+      return undefined;
+    }
+
+    return current;
+  }
+
+  private serializeKeyPart(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    return this.stableStringify(value);
+  }
+
+  private buildRequestSignature(context: ExecutionContext): string | undefined {
+    const args = context.getArgs();
+    const request = args[0] as RequestLike | undefined;
+
+    const payload =
+      request && typeof request === 'object'
+        ? this.compactValue({
+            params: request.params,
+            query: request.query,
+            body: request.body,
+          })
+        : undefined;
+
+    const fallback = !payload && args.length > 0 ? this.compactValue({ args }) : undefined;
+    const content = payload ?? fallback;
+
+    if (!content || (typeof content === 'object' && Object.keys(content).length === 0)) {
+      return undefined;
+    }
+
+    return createHash('sha1').update(this.stableStringify(content)).digest('hex');
+  }
+
+  private compactValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      const items = value
+        .map((item) => this.compactValue(item))
+        .filter((item) => item !== undefined);
+      return items.length > 0 ? items : undefined;
+    }
+
+    if (value && typeof value === 'object') {
+      const compacted = Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>(
+        (result, [key, item]) => {
+          const nextValue = this.compactValue(item);
+          if (nextValue !== undefined) {
+            result[key] = nextValue;
+          }
+          return result;
+        },
+        {},
+      );
+
+      return Object.keys(compacted).length > 0 ? compacted : undefined;
+    }
+
+    if (value === undefined) {
+      return undefined;
+    }
+
+    return value;
+  }
+
+  private stableStringify(value: unknown): string {
+    const seen = new WeakSet<object>();
+
+    return JSON.stringify(value, (_, currentValue) => {
+      if (!currentValue || typeof currentValue !== 'object') {
+        return currentValue;
+      }
+
+      if (seen.has(currentValue)) {
+        return '[Circular]';
+      }
+      seen.add(currentValue);
+
+      if (Array.isArray(currentValue)) {
+        return currentValue;
+      }
+
+      return Object.keys(currentValue as Record<string, unknown>)
+        .sort()
+        .reduce<Record<string, unknown>>((result, key) => {
+          result[key] = (currentValue as Record<string, unknown>)[key];
+          return result;
+        }, {});
+    });
+  }
+
+  private async writeCacheValue(cacheKey: string, result: unknown, ttl: number): Promise<void> {
+    const value = typeof result === 'string' ? result : JSON.stringify(result);
+
+    if (ttl > 0) {
+      await this.redis.setex(cacheKey, ttl, value);
+      return;
+    }
+
+    await this.redis.set(cacheKey, value);
+  }
+
+  private async deleteByPattern(pattern: string): Promise<void> {
+    let cursor = '0';
+
+    do {
+      const [nextCursor, keys] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      if (keys.length > 0) {
+        await this.redis.del(...keys);
+      }
+    } while (cursor !== '0');
+  }
+}
+
+interface RequestLike {
+  params?: Record<string, unknown>;
+  query?: Record<string, unknown>;
+  body?: Record<string, unknown>;
 }

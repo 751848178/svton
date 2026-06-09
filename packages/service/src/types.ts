@@ -3,7 +3,7 @@ import type { ComponentType, ReactNode } from 'react';
 /**
  * Service 类构造函数类型
  */
-export type ServiceClass<T = any> = new () => T;
+export type ServiceClass<T extends object = any> = new () => T;
 
 /**
  * Service 元数据

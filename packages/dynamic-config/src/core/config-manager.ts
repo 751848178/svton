@@ -138,14 +138,15 @@ export class ConfigManager {
     try {
       const valueStr = stringifyConfigValue(value);
       const existing = await this.repository.findByKey(key);
+      const type = this.resolveStoredType(value, existing?.type);
 
       if (existing) {
-        await this.repository.update(key, { value: valueStr });
+        await this.repository.update(key, { value: valueStr, type });
       } else {
         await this.repository.create({
           key,
           value: valueStr,
-          type: inferValueType(value),
+          type,
           category: extractCategory(key),
           label: key,
         });
@@ -176,9 +177,17 @@ export class ConfigManager {
       }
 
       // 准备更新数据
+      const existingConfigs = await Promise.all(
+        configs.map(async (config) => [config.key, await this.repository.findByKey(config.key)] as const),
+      );
+      const existingMap = new Map(existingConfigs);
+
       const updates = configs.map(({ key, value }) => ({
         key,
         value: stringifyConfigValue(value),
+        type: this.resolveStoredType(value, existingMap.get(key)?.type),
+        category: extractCategory(key),
+        label: existingMap.get(key)?.label || key,
       }));
 
       // 批量更新数据库
@@ -266,5 +275,13 @@ export class ConfigManager {
    */
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  private resolveStoredType(value: any, currentType?: ConfigValueType): ConfigValueType {
+    if (currentType === 'password' || currentType === 'enum') {
+      return currentType;
+    }
+
+    return inferValueType(value);
   }
 }

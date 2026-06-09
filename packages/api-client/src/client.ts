@@ -1,6 +1,6 @@
 /**
  * API 客户端 - 模块增强架构
- * 保持模块增强类型系统，采用 client-v2.ts 的核心实现
+ * 基于模块增强的字符串路由 API 客户端
  */
 
 import { ApiError, type HttpMethod } from './types';
@@ -68,7 +68,7 @@ export function createApiClient(
 ) {
   
   /**
-   * 核心请求函数（采用 client-v2.ts 的完善实现）
+   * 核心请求函数
    */
   async function executeRequest<K extends ApiName>(
     apiName: K,
@@ -158,12 +158,12 @@ export function createApiClient(
       const result = await adapter.request(requestConfig);
 
       // 执行响应拦截器
-      await runResponseInterceptors(
+      const response = await runResponseInterceptors(
         { data: result, status: 200, headers: {} },
         config?.interceptors?.response,
       );
 
-      return result;
+      return response.data as ApiResponse<K>;
     } catch (error: any) {
       // 转换为 ApiError
       const apiError =
@@ -183,7 +183,7 @@ export function createApiClient(
   }
 
   /**
-   * Generator API 调用（采用 client-v2.ts 的 Generator 实现）
+   * Generator API 调用
    *
    * 当请求失败时，返回一个特殊的中止信号，让 Generator 静默停止执行
    * 
@@ -238,7 +238,7 @@ export function createApiClient(
   }
 
   /**
-   * 执行 Generator（采用 client-v2.ts 的稳定实现）
+   * 执行 Generator
    * 
    * 支持中止信号：当 API 请求失败时，Generator 会静默停止执行
    *
@@ -258,18 +258,25 @@ export function createApiClient(
     let result = generator.next();
 
     while (!result.done) {
-      const value = await result.value;
-      
-      // 检查是否是中止信号
-      if (isAbortSignal(value)) {
-        // 静默停止，不抛出错误
-        if (generator.return) {
-          generator.return(undefined as any);
+      try {
+        const value = await result.value;
+
+        // 检查是否是中止信号
+        if (isAbortSignal(value)) {
+          // 静默停止，不抛出错误
+          if (generator.return) {
+            generator.return(undefined as any);
+          }
+          return undefined;
         }
-        return undefined;
+
+        result = generator.next(value);
+      } catch (error) {
+        if (!generator.throw) {
+          throw error;
+        }
+        result = generator.throw(error);
       }
-      
-      result = generator.next(value);
     }
 
     return result.value;

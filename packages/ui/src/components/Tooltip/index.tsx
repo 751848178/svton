@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, ReactNode } from 'react';
+import React, { useState, useRef, useCallback, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { Portal } from '../Portal';
-
-type Placement = 'top' | 'bottom' | 'left' | 'right';
+import { useFloatingPosition, Placement } from '../../hooks/useFloatingPosition';
+import { useTransitionState } from '../../hooks/useTransitionState';
 
 export interface TooltipProps {
   content: ReactNode;
@@ -13,67 +13,47 @@ export interface TooltipProps {
   className?: string;
 }
 
-export function Tooltip(props: TooltipProps) {
+export const Tooltip = React.forwardRef<HTMLSpanElement, TooltipProps>(function Tooltip(props, ref) {
   const { content, children, placement = 'top', delay = 100, disabled = false, className } = props;
-  const [visible, setVisible] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const triggerRef = useRef<HTMLSpanElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<number>();
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<number>(undefined);
 
-  const updatePosition = () => {
-    if (!triggerRef.current || !tooltipRef.current) return;
-    const triggerRect = triggerRef.current.getBoundingClientRect();
-    const tooltipRect = tooltipRef.current.getBoundingClientRect();
-    const gap = 8;
+  const { position, triggerRef, floatingRef } = useFloatingPosition(open, placement);
+  const { state } = useTransitionState(open, 150);
 
-    let top = 0, left = 0;
-    switch (placement) {
-      case 'top':
-        top = triggerRect.top - tooltipRect.height - gap;
-        left = triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
-        break;
-      case 'bottom':
-        top = triggerRect.bottom + gap;
-        left = triggerRect.left + (triggerRect.width - tooltipRect.width) / 2;
-        break;
-      case 'left':
-        top = triggerRect.top + (triggerRect.height - tooltipRect.height) / 2;
-        left = triggerRect.left - tooltipRect.width - gap;
-        break;
-      case 'right':
-        top = triggerRect.top + (triggerRect.height - tooltipRect.height) / 2;
-        left = triggerRect.right + gap;
-        break;
+  const setTriggerRef = useCallback((node: HTMLSpanElement | null) => {
+    (triggerRef as React.MutableRefObject<HTMLSpanElement | null>).current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      (ref as React.MutableRefObject<HTMLSpanElement | null>).current = node;
     }
-    setPosition({ top: top + window.scrollY, left: left + window.scrollX });
-  };
-
-  useEffect(() => {
-    if (visible) updatePosition();
-  }, [visible]);
+  }, [ref, triggerRef]);
 
   const handleMouseEnter = () => {
     if (disabled) return;
-    timerRef.current = window.setTimeout(() => setVisible(true), delay);
+    timerRef.current = window.setTimeout(() => setOpen(true), delay);
   };
 
   const handleMouseLeave = () => {
     clearTimeout(timerRef.current);
-    setVisible(false);
+    setOpen(false);
   };
+
+  const anim = state === 'entering' ? 'anim-fade-in' : state === 'exiting' ? 'anim-fade-out' : '';
 
   return (
     <>
-      <span ref={triggerRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="inline-block">
+      <span ref={setTriggerRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="inline-block">
         {children}
       </span>
-      {visible && (
+      {state !== 'closed' && (
         <Portal>
           <div
-            ref={tooltipRef}
+            ref={floatingRef}
             className={cn(
               'absolute px-2.5 py-1.5 text-xs text-white bg-black/75 rounded z-[1000] pointer-events-none whitespace-nowrap',
+              anim,
               className
             )}
             style={{ top: position.top, left: position.left }}
@@ -84,4 +64,4 @@ export function Tooltip(props: TooltipProps) {
       )}
     </>
   );
-}
+});

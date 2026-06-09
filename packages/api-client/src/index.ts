@@ -7,7 +7,6 @@
  */
 
 // ========== 核心框架 ==========
-export * from './define';
 export * from './interceptors';
 export * from './abort';
 export * from './catch-error';
@@ -21,7 +20,7 @@ export type {
   ApiResponse,
 } from './global-types';
 
-// ApiDefinition 需要同时作为类型和值导出以支持模块增强
+// ApiDefinition 通过根入口暴露，供外部包做模块增强
 export type { ApiDefinition } from './global-types';
 
 // ========== API Registry ==========

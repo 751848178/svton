@@ -56,6 +56,7 @@ export interface CreateConfigInput {
  */
 export interface UpdateConfigInput {
   value?: string;
+  type?: ConfigValueType;
   label?: string;
   description?: string;
   isPublic?: boolean;

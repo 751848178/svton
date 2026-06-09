@@ -17,8 +17,7 @@
   "files": [
     "dist",
     "tailwind-preset.js",
-    "README.md",
-    "LICENSE"
+    "README.md"
   ],
   "exports": {
     ".": {
@@ -31,7 +30,7 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts && pnpm build:css",
-    "build:css": "tailwindcss -i ./src/styles/index.css -o ./dist/styles.css --minify",
+    "build:css": "tailwindcss -c ./tailwind.config.js -i ./src/styles/index.css -o ./dist/styles.css",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "type-check": "tsc --noEmit",
     "prepublishOnly": "pnpm build"
@@ -53,8 +52,8 @@
     "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",

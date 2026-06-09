@@ -4,10 +4,9 @@ import React, {
   useRef,
   useMemo,
   type ComponentType,
-  type ReactNode,
 } from 'react';
+import { container } from './container';
 import { getMergedMetadata } from './metadata';
-import { createInternalInstance } from './instance';
 import { createServiceWrapper } from './hooks';
 import type {
   ServiceClass,
@@ -16,6 +15,9 @@ import type {
   InternalServiceInstance,
   ProviderProps,
 } from './types';
+import type { ServiceScope } from './scope';
+
+const ServiceScopeContext = createContext<ServiceScope | null>(null);
 
 /**
  * 创建 Service Provider
@@ -32,16 +34,26 @@ export function createServiceProvider<T extends object>(
 
   // Provider 组件
   const Provider = ({ children }: ProviderProps): JSX.Element => {
+    const parentScope = useContext(ServiceScopeContext);
+    const scopeRef = useRef<ServiceScope | null>(null);
     const internalRef = useRef<InternalServiceInstance<T> | null>(null);
 
+    if (!scopeRef.current) {
+      scopeRef.current = container.createScope(parentScope ?? undefined);
+    }
+
     if (!internalRef.current) {
-      internalRef.current = createInternalInstance(ServiceClass);
+      internalRef.current = scopeRef.current.ensureOwnInternal(ServiceClass);
     }
 
     return React.createElement(
-      ServiceContext.Provider,
-      { value: internalRef.current },
-      children,
+      ServiceScopeContext.Provider,
+      { value: scopeRef.current },
+      React.createElement(
+        ServiceContext.Provider,
+        { value: internalRef.current },
+        children,
+      ),
     );
   };
 

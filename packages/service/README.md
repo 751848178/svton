@@ -66,21 +66,18 @@ class OrderService {
 ```typescript
 import { createService, createServiceProvider } from '@svton/service';
 
-// Scoped 模式（每次调用创建新实例）
+// Scoped 模式（每次调用创建独立的局部 Service Scope）
 export const useOrderService = createService(OrderService);
 
-// Provider 模式（共享实例）
+// Provider 模式（在当前 Provider 子树内共享同一组 Service 实例）
 export const OrderProvider = createServiceProvider(OrderService);
 ```
 
 ### Scoped 模式使用
 
-每个组件独立实例，互不影响：
+每个组件独立实例，互不影响。`@Inject()` 解析到的依赖也会落在当前 Scoped 实例树里，不会偷偷复用全局单例：
 
 ```tsx
-import { useApi } from '@svton/service';
-import { apiAsync } from './lib/api-client';
-
 function OrderPanel() {
   const service = useOrderService();
 
@@ -100,28 +97,11 @@ function OrderPanel() {
     </div>
   );
 }
-
-// 或者使用 useApi Hook（推荐）
-function UserProfile({ userId }: { userId: number }) {
-  const { data: user, loading, error } = useApi(
-    (id: number) => apiAsync('GET:/users/:id', { id })
-  );
-  
-  useEffect(() => {
-    execute(userId);
-  }, [userId]);
-  
-  if (loading) return <Spinner />;
-  if (error) return <Error message={error.message} />;
-  if (!user) return null;
-  
-  return <div>{user.name}</div>;
-}
 ```
 
 ### Provider 模式使用
 
-子组件共享同一实例：
+子组件共享同一实例。嵌套 Provider 时，内层 Service 可以复用外层已经提供过的依赖：
 
 ```tsx
 // 组件模式
@@ -179,7 +159,7 @@ function OrderPage() {
   return (
     <OrderProvider>
       <SharedOrderList />
-      {/* 独立实例，不受 Provider 影响 */}
+      {/* 独立实例，拥有自己的局部依赖树 */}
       <IndependentPanel />
     </OrderProvider>
   );
@@ -190,6 +170,8 @@ function IndependentPanel() {
   // ...
 }
 ```
+
+Scoped Hook 仍然不会自动绑定到外层 Provider 的根实例；它只在自己的局部 scope 中解析依赖。
 
 ## API
 
@@ -256,61 +238,6 @@ async loadUser(id: number) {
 |------|------|
 | `createService(Class)` | 创建 Scoped Hook |
 | `createServiceProvider(Class)` | 创建 Provider |
-| `useApi(apiFn, options)` | 在组件中执行 API 请求（推荐） |
-| `useApiOnMount(apiFn, args, options)` | 组件挂载时自动执行 API 请求 |
-
-### useApi Hook
-
-在组件中使用 API 请求的推荐方式，自动管理 loading、error 状态：
-
-```typescript
-import { useApi } from '@svton/service';
-import { apiAsync } from './lib/api-client';
-
-function UserProfile({ userId }: { userId: number }) {
-  const { data: user, loading, error, execute } = useApi(
-    (id: number) => apiAsync('GET:/users/:id', { id }),
-    {
-      onSuccess: (user) => console.log('User loaded:', user),
-      onError: (error) => console.error('Failed:', error),
-    }
-  );
-  
-  useEffect(() => {
-    execute(userId);
-  }, [userId]);
-  
-  if (loading) return <Spinner />;
-  if (error) return <Error message={error.message} />;
-  if (!user) return null;
-  
-  return <div>{user.name}</div>;
-}
-```
-
-### useApiOnMount Hook
-
-组件挂载时自动执行 API 请求：
-
-```typescript
-function UserProfile({ userId }: { userId: number }) {
-  const { data: user, loading, error, refetch } = useApiOnMount(
-    (id: number) => apiAsync('GET:/users/:id', { id }),
-    [userId]
-  );
-  
-  if (loading) return <Spinner />;
-  if (error) return <Error message={error.message} />;
-  if (!user) return null;
-  
-  return (
-    <div>
-      <div>{user.name}</div>
-      <button onClick={refetch}>Refresh</button>
-    </div>
-  );
-}
-```
 
 ### Service 实例
 
@@ -400,21 +327,21 @@ async loadUserProfile(userId: number) {
 }
 ```
 
-### 2. 在组件中使用 useApi Hook
+### 2. 在组件中通过 Service action 加载数据
 
 ```typescript
-// ✅ 推荐：使用 useApi Hook
+// ✅ 推荐：通过 Service action 驱动数据流
 function UserProfile({ userId }: { userId: number }) {
-  const { data: user, loading, error, execute } = useApi(
-    (id: number) => apiAsync('GET:/users/:id', { id })
-  );
-  
+  const service = useUserService();
+  const user = service.useState.user();
+  const loading = service.useState.loading();
+  const loadUser = service.useAction.loadUser();
+
   useEffect(() => {
-    execute(userId);
-  }, [userId]);
-  
+    loadUser(userId);
+  }, [userId, loadUser]);
+
   if (loading) return <Spinner />;
-  if (error) return <Error />;
   return <div>{user?.name}</div>;
 }
 
@@ -542,18 +469,7 @@ function UserList() {
   return <List data={users} />;
 }
 
-// ✅ 推荐：使用 useApi
-function UserList() {
-  const { data: users, loading } = useApiOnMount(
-    () => apiAsync('GET:/users'),
-    []
-  );
-  
-  if (loading) return <Spinner />;
-  return <List data={users} />;
-}
-
-// ✅ 或者使用 Service
+// ✅ 推荐：使用 Service
 function UserList() {
   const service = useUserService();
   const users = service.useState.users();

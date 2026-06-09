@@ -267,51 +267,6 @@ function UserProfile({ userId }: { userId: number }) {
 }
 ```
 
-### 使用 useApi Hook（推荐）
-
-```typescript
-import { useApi } from '@svton/service';
-import { apiAsync } from './lib/api-client';
-
-function UserProfile({ userId }: { userId: number }) {
-  const { data: user, loading, error, execute } = useApi(
-    (id: number) => apiAsync('GET:/users/:id', { id })
-  );
-  
-  useEffect(() => {
-    execute(userId);
-  }, [userId]);
-  
-  if (loading) return <Spinner />;
-  if (error) return <Error message={error.message} />;
-  if (!user) return null;
-  
-  return <div>{user.name}</div>;
-}
-```
-
-### 使用 useApiOnMount Hook
-
-```typescript
-function UserProfile({ userId }: { userId: number }) {
-  const { data: user, loading, error, refetch } = useApiOnMount(
-    (id: number) => apiAsync('GET:/users/:id', { id }),
-    [userId]
-  );
-  
-  if (loading) return <Spinner />;
-  if (error) return <Error message={error.message} />;
-  if (!user) return null;
-  
-  return (
-    <div>
-      <div>{user.name}</div>
-      <button onClick={refetch}>Refresh</button>
-    </div>
-  );
-}
-```
-
 ## 最佳实践
 
 ### 1. 优先使用 Generator 函数
@@ -370,16 +325,20 @@ service.loadUser(1).then(result => {
 }
 ```
 
-### 3. 在组件中使用 useApi Hook
+### 3. 在组件中通过 Service action 加载数据
 
 ```typescript
 // ✅ 推荐
 function UserList() {
-  const { data: users, loading } = useApiOnMount(
-    () => apiAsync('GET:/users'),
-    []
-  );
-  
+  const service = useUserService();
+  const users = service.useState.users();
+  const loading = service.useState.loading();
+  const loadUsers = service.useAction.loadUsers();
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
   if (loading) return <Spinner />;
   return <List data={users} />;
 }
@@ -473,13 +432,16 @@ function UserList() {
   return <List data={users} />;
 }
 
-// ✅ 推荐：使用 useApi
+// ✅ 推荐：使用 Service
 function UserList() {
-  const { data: users } = useApiOnMount(
-    () => apiAsync('GET:/users'),
-    []
-  );
-  
+  const service = useUserService();
+  const users = service.useState.users();
+  const loadUsers = service.useAction.loadUsers();
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
   return <List data={users} />;
 }
 ```
@@ -546,12 +508,12 @@ service.loadUser(1).finally(() => {
 });
 ```
 
-或者使用 useApi Hook，它会自动管理状态：
+或者把 `loading` 做成 observable 状态，由 action 负责驱动它：
 
 ```typescript
-const { data, loading } = useApi(
-  (id: number) => service.loadUser(id)
-);
+const user = service.useState.user();
+const loading = service.useState.loading();
+const loadUser = service.useAction.loadUser();
 ```
 
 ### Q: 如何知道请求是否失败？
@@ -578,12 +540,12 @@ A:
 - 难以管理 loading、error 状态
 - 代码重复
 - 不利于测试
-- 推荐使用 useApi Hook 或 Service
+- 推荐使用 Service
 
 ## 总结
 
 - ✅ 优先使用 Generator 函数处理复杂流程
-- ✅ 在组件中使用 useApi Hook
+- ✅ 在组件中通过 Service action 驱动数据加载
 - ✅ 让错误自然抛出，在调用处统一处理
 - ✅ 必要时使用 await 等待请求
 - ❌ 不要在 Generator 中使用 await

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { Portal } from '../Portal';
+import { useTransitionState } from '../../hooks/useTransitionState';
 
 type NotificationType = 'info' | 'success' | 'warning' | 'error';
 type Placement = 'topRight' | 'topLeft' | 'bottomRight' | 'bottomLeft';
@@ -23,26 +24,28 @@ const typeStyles: Record<NotificationType, string> = {
   error: 'text-red-500',
 };
 
-export function Notification(props: NotificationProps) {
+function NotificationItemInternal(props: NotificationProps) {
   const { title, description, type = 'info', duration = 4500, onClose, closable = true, icon, className } = props;
-  const [visible, setVisible] = useState(true);
+  const [open, setOpen] = useState(true);
+  const { state } = useTransitionState(open, 200);
 
+  // Auto-close after duration (starts counting after enter animation)
   useEffect(() => {
-    if (duration > 0) {
-      const timer = setTimeout(() => {
-        setVisible(false);
-        onClose?.();
-      }, duration);
-      return () => clearTimeout(timer);
-    }
-  }, [duration, onClose]);
+    if (state !== 'visible' || duration <= 0) return;
+    const timer = setTimeout(() => setOpen(false), duration);
+    return () => clearTimeout(timer);
+  }, [state, duration]);
 
-  if (!visible) return null;
+  // Notify parent when exit animation finishes
+  useEffect(() => {
+    if (state === 'closed') onClose?.();
+  }, [state, onClose]);
 
-  const handleClose = () => {
-    setVisible(false);
-    onClose?.();
-  };
+  if (state === 'closed') return null;
+
+  const anim = state === 'entering' ? 'anim-slide-in-right' : state === 'exiting' ? 'anim-fade-out' : '';
+
+  const handleClose = () => setOpen(false);
 
   const defaultIcon = (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={typeStyles[type]}>
@@ -54,7 +57,11 @@ export function Notification(props: NotificationProps) {
   );
 
   return (
-    <div className={cn('flex gap-3 p-4 bg-white rounded-lg shadow-lg w-80', className)}>
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn('flex gap-3 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg w-80', anim, className)}
+    >
       {icon ?? defaultIcon}
       <div className="flex-1">
         <div className={cn('font-medium', description && 'mb-1')}>{title}</div>
@@ -67,19 +74,21 @@ export function Notification(props: NotificationProps) {
   );
 }
 
-interface NotificationItem extends NotificationProps {
+interface NotificationData extends NotificationProps {
   id: string;
 }
 
-let setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>> | null = null;
+let setNotifications: React.Dispatch<React.SetStateAction<NotificationData[]>> | null = null;
 
 export function NotificationContainer({ placement = 'topRight' }: { placement?: Placement }) {
-  const [items, setItems] = useState<NotificationItem[]>([]);
+  const [items, setItems] = useState<NotificationData[]>([]);
   setNotifications = setItems;
 
   return (
     <Portal>
       <div
+        aria-live="polite"
+        aria-atomic="false"
         className={cn(
           'fixed z-[2000] flex flex-col gap-3',
           placement.includes('top') ? 'top-6' : 'bottom-6',
@@ -87,7 +96,7 @@ export function NotificationContainer({ placement = 'topRight' }: { placement?: 
         )}
       >
         {items.map((item) => (
-          <Notification key={item.id} {...item} onClose={() => setItems((prev) => prev.filter((n) => n.id !== item.id))} />
+          <NotificationItemInternal key={item.id} {...item} onClose={() => setItems((prev) => prev.filter((n) => n.id !== item.id))} />
         ))}
       </div>
     </Portal>
@@ -106,3 +115,6 @@ export const notification = {
   warning: (config: Omit<NotificationProps, 'type'>) => notification.open({ ...config, type: 'warning' }),
   error: (config: Omit<NotificationProps, 'type'>) => notification.open({ ...config, type: 'error' }),
 };
+
+/** @deprecated Use notification.open() or NotificationContainer instead. This component is for internal use. */
+export const Notification = NotificationItemInternal;

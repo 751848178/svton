@@ -9,6 +9,7 @@ export default defineConfig({
   clean: true,
   skipNodeModulesBundle: true,
   external: [
+    '@svton/authz',
     '@nestjs/common',
     '@nestjs/core',
     'reflect-metadata',

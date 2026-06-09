@@ -1,6 +1,7 @@
 import type { ConfigRepository } from '../core/repository';
 import type {
   ConfigItem,
+  ConfigValueType,
   CreateConfigInput,
   UpdateConfigInput,
 } from '../core/types';
@@ -69,15 +70,17 @@ export class PrismaConfigRepository implements ConfigRepository {
     });
   }
 
-  async batchUpdateValues(updates: Array<{ key: string; value: string }>): Promise<void> {
+  async batchUpdateValues(
+    updates: Array<{ key: string; value: string; type: ConfigValueType; category: string; label: string }>,
+  ): Promise<void> {
     await this.prisma.$transaction(async (tx: any) => {
-      for (const { key, value } of updates) {
+      for (const { key, value, type, category, label } of updates) {
         const existing = await tx.config.findUnique({ where: { key } });
 
         if (existing) {
           await tx.config.update({
             where: { key },
-            data: { value },
+            data: { value, type },
           });
         } else {
           // 如果不存在，创建新配置
@@ -85,9 +88,9 @@ export class PrismaConfigRepository implements ConfigRepository {
             data: {
               key,
               value,
-              type: 'string',
-              category: key.split('.')[0] || 'default',
-              label: key,
+              type,
+              category,
+              label,
             },
           });
         }

@@ -85,12 +85,10 @@ export class UploadService {
 import { Controller, UseGuards, Delete, Param } from '@nestjs/common';
 import { BaseConfigController, DynamicConfigService } from '@svton/dynamic-config/nestjs';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
-import { RolesGuard } from './auth/guards/roles.guard';
-import { Roles } from './auth/decorators/roles.decorator';
-import { Public } from './auth/decorators/public.decorator';
+import { AuthzGuard, Public, Roles } from '@svton/nestjs-authz';
 
 @Controller('config')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AuthzGuard)
 export class ConfigController extends BaseConfigController {
   constructor(configService: DynamicConfigService) {
     super(configService);

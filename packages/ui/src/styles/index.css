@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── highlight.js theme — muted dark variant ── */
+.hljs{color:#adbac7;background:transparent}.hljs-comment,.hljs-quote{color:#636e7b;font-style:italic}.hljs-keyword,.hljs-selector-tag,.hljs-type{color:#f47067}.hljs-literal,.hljs-number,.hljs-tag .hljs-attr,.hljs-template-variable,.hljs-variable{color:#6cb6ff}.hljs-string,.hljs-doctag{color:#96d0ff}.hljs-title,.hljs-section,.hljs-selector-id{color:#b083f0;font-weight:700}.hljs-subst{color:#adbac7}.hljs-tag .hljs-keyword,.hljs-tag .hljs-title{color:#57ab5a}.hljs-bullet,.hljs-link{color:#57ab5a}.hljs-meta{color:#6cb6ff}.hljs-deletion{color:#f47067;background-color:#490202}.hljs-addition{color:#57ab5a;background-color:#0f5323}.hljs-built_in,.hljs-class .hljs-title,.hljs-title.class_{color:#e0a565}.hljs-attr,.hljs-attribute,.hljs-params{color:#adbac7}.hljs-name,.hljs-tag{color:#57ab5a}.hljs-symbol{color:#6cb6ff}.hljs-regexp{color:#96d0ff}.hljs-property,.hljs-selector-class{color:#6cb6ff}.hljs-emphasis{font-style:italic}.hljs-strong{font-weight:700}
+
 /* Custom animations */
 @keyframes shimmer {
   0% { background-position: 200% 0; }
@@ -10,6 +13,75 @@
 
 .animate-shimmer {
   animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Transition utilities for enter/exit animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes slideOutLeft {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+@keyframes slideInTop {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+@keyframes slideOutTop {
+  from { transform: translateY(0); }
+  to { transform: translateY(-100%); }
+}
+@keyframes slideInBottom {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes slideOutBottom {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes scaleOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.95); }
+}
+
+.anim-fade-in { animation: fadeIn 200ms ease-out forwards; }
+.anim-fade-out { animation: fadeOut 200ms ease-in forwards; }
+.anim-slide-in-right { animation: slideInRight 250ms ease-out forwards; }
+.anim-slide-out-right { animation: slideOutRight 200ms ease-in forwards; }
+.anim-slide-in-left { animation: slideInLeft 250ms ease-out forwards; }
+.anim-slide-out-left { animation: slideOutLeft 200ms ease-in forwards; }
+.anim-slide-in-top { animation: slideInTop 250ms ease-out forwards; }
+.anim-slide-out-top { animation: slideOutTop 200ms ease-in forwards; }
+.anim-slide-in-bottom { animation: slideInBottom 250ms ease-out forwards; }
+.anim-slide-out-bottom { animation: slideOutBottom 200ms ease-in forwards; }
+.anim-scale-in { animation: scaleIn 200ms ease-out forwards; }
+.anim-scale-out { animation: scaleOut 150ms ease-in forwards; }
+
+/* Collapse height transition */
+.collapse-panel {
+  overflow: hidden;
+  transition: height 200ms ease-out;
 }
 
 /* Scrollbar utilities */

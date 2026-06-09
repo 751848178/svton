@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { container } from './container';
 import { getMergedMetadata } from './metadata';
-import { createInternalInstance } from './instance';
 import type {
   ServiceClass,
   ServiceInstance,
@@ -9,6 +9,7 @@ import type {
   DerivedHooks,
   ActionHooks,
 } from './types';
+import type { ServiceScope } from './scope';
 
 /**
  * 创建状态 Hooks
@@ -285,11 +286,16 @@ export function createService<T extends object>(
   ServiceClass: ServiceClass<T>,
 ): () => ServiceInstance<T> {
   return () => {
-    // 每次调用创建新实例
+    // 每个 Hook 调用拥有自己的独立作用域
+    const scopeRef = useRef<ServiceScope | null>(null);
     const internalRef = useRef<InternalServiceInstance<T> | null>(null);
 
+    if (!scopeRef.current) {
+      scopeRef.current = container.createScope();
+    }
+
     if (!internalRef.current) {
-      internalRef.current = createInternalInstance(ServiceClass);
+      internalRef.current = scopeRef.current.ensureOwnInternal(ServiceClass);
     }
 
     return useMemo(

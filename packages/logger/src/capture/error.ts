@@ -19,12 +19,17 @@ export function setupErrorCapture(logger: Logger, options: ErrorCaptureOptions =
   const { captureConsoleError = false, filter, transform } = options;
 
   const cleanups: (() => void)[] = [];
+  let isCapturingConsoleError = false;
 
   // 捕获 console.error
   if (captureConsoleError && typeof console !== 'undefined') {
     const originalConsoleError = console.error;
 
     console.error = (...args: unknown[]) => {
+      if (isCapturingConsoleError) {
+        return;
+      }
+
       originalConsoleError.apply(console, args);
 
       const message = args
@@ -39,10 +44,15 @@ export function setupErrorCapture(logger: Logger, options: ErrorCaptureOptions =
 
       const data = error && transform ? transform(error) : undefined;
 
-      logger.error(`Console Error: ${message}`, {
-        ...data,
-        args: args.filter((arg) => !(arg instanceof Error)),
-      });
+      isCapturingConsoleError = true;
+      try {
+        logger.error(`Console Error: ${message}`, {
+          ...data,
+          args: args.filter((arg) => !(arg instanceof Error)),
+        });
+      } finally {
+        isCapturingConsoleError = false;
+      }
     };
 
     cleanups.push(() => {
