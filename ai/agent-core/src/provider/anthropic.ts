@@ -127,6 +127,9 @@ export class AnthropicProvider implements IProvider {
     // Merge consecutive same-role messages (Anthropic requirement)
     const merged = this.mergeMessages(conversationMessages);
 
+    // Validate: ensure every tool_use has a matching tool_result
+    this.sanitizeToolUseChain(merged);
+
     const body: Record<string, unknown> = {
       model: options.model,
       messages: merged,
@@ -357,6 +360,43 @@ export class AnthropicProvider implements IProvider {
       type: 'done',
       stopReason: data.stop_reason || 'end_turn',
     };
+  }
+
+  /**
+   * Ensure every tool_use block has a matching tool_result.
+   * Strip orphaned tool_use blocks to prevent API errors.
+   */
+  private sanitizeToolUseChain(messages: AnthropicMessage[]): void {
+    const toolUseIds = new Set<string>();
+    const toolResultIds = new Set<string>();
+
+    for (const msg of messages) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const block of msg.content) {
+        if (block.type === 'tool_use') toolUseIds.add(block.id);
+        if (block.type === 'tool_result') toolResultIds.add((block as { tool_use_id: string }).tool_use_id);
+      }
+    }
+
+    if (toolResultIds.size >= toolUseIds.size) return;
+
+    const orphaned = new Set<string>();
+    for (const id of toolUseIds) {
+      if (!toolResultIds.has(id)) orphaned.add(id);
+    }
+
+    if (orphaned.size === 0) return;
+
+    for (const msg of messages) {
+      if (!Array.isArray(msg.content)) continue;
+      // Remove orphaned tool_use blocks
+      const filtered = msg.content.filter((block) =>
+        block.type !== 'tool_use' || !orphaned.has((block as { id: string }).id)
+      );
+      if (filtered.length !== msg.content.length) {
+        msg.content = filtered;
+      }
+    }
   }
 }
 

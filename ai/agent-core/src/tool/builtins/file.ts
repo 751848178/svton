@@ -204,9 +204,10 @@ export class FileEditExecutor implements IToolExecutor {
     );
 
     try {
+      const oldContent = await ctx.platform.fs.readFile(resolvedPath);
+
       if (replace_all) {
-        const content = await ctx.platform.fs.readFile(resolvedPath);
-        const count = content.split(old_string).length - 1;
+        const count = oldContent.split(old_string).length - 1;
         if (count === 0) {
           return {
             callId: call.id,
@@ -214,11 +215,12 @@ export class FileEditExecutor implements IToolExecutor {
             isError: true,
           };
         }
-        const newContent = content.replaceAll(old_string, new_string);
+        const newContent = oldContent.replaceAll(old_string, new_string);
         await ctx.platform.fs.writeFile(resolvedPath, newContent);
+        const diff = buildEditDiff(path, oldContent, newContent);
         return {
           callId: call.id,
-          output: `Replaced ${count} occurrence(s) in ${resolvedPath}`,
+          output: `Replaced ${count} occurrence(s) in ${resolvedPath}\n${diff}`,
         };
       } else {
         const success = await ctx.platform.fs.editFile(
@@ -227,9 +229,11 @@ export class FileEditExecutor implements IToolExecutor {
           new_string,
         );
         if (success) {
+          const newContent = oldContent.replace(old_string, new_string);
+          const diff = buildEditDiff(path, oldContent, newContent);
           return {
             callId: call.id,
-            output: `Edit applied to ${resolvedPath}`,
+            output: `Edit applied to ${resolvedPath}\n${diff}`,
           };
         } else {
           return {
@@ -247,4 +251,55 @@ export class FileEditExecutor implements IToolExecutor {
       };
     }
   }
+}
+
+/**
+ * Build a minimal unified diff showing what changed.
+ * Only includes changed regions with a few context lines.
+ */
+function buildEditDiff(filePath: string, oldContent: string, newContent: string): string {
+  const oldLines = oldContent.split('\n');
+  const newLines = newContent.split('\n');
+
+  // Find the first and last differing lines
+  let startIdx = 0;
+  while (startIdx < oldLines.length && startIdx < newLines.length && oldLines[startIdx] === newLines[startIdx]) {
+    startIdx++;
+  }
+
+  let oldEnd = oldLines.length - 1;
+  let newEnd = newLines.length - 1;
+  while (oldEnd > startIdx && newEnd > startIdx && oldLines[oldEnd] === newLines[newEnd]) {
+    oldEnd--;
+    newEnd--;
+  }
+
+  // Add context lines
+  const contextLines = 3;
+  const ctxStart = Math.max(0, startIdx - contextLines);
+  const ctxOldEnd = Math.min(oldLines.length - 1, oldEnd + contextLines);
+  const ctxNewEnd = Math.min(newLines.length - 1, newEnd + contextLines);
+
+  const lines: string[] = [
+    `--- a/${filePath}`,
+    `+++ b/${filePath}`,
+    `@@ -${ctxStart + 1},${ctxOldEnd - ctxStart + 1} +${ctxStart + 1},${ctxNewEnd - ctxStart + 1} @@`,
+  ];
+
+  for (let i = ctxStart; i <= Math.max(ctxOldEnd, ctxNewEnd); i++) {
+    if (i <= ctxOldEnd && i <= ctxNewEnd) {
+      if (oldLines[i] === newLines[i]) {
+        lines.push(` ${oldLines[i]}`);
+      } else {
+        lines.push(`-${oldLines[i]}`);
+        lines.push(`+${newLines[i]}`);
+      }
+    } else if (i <= ctxOldEnd) {
+      lines.push(`-${oldLines[i]}`);
+    } else {
+      lines.push(`+${newLines[i]}`);
+    }
+  }
+
+  return lines.join('\n');
 }

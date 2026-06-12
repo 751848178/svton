@@ -1,15 +1,15 @@
 {
   "name": "@svton/agent-core",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Core runtime for Svton AI Agent - Provider, Tool, Agent Runtime, MCP, Memory, Skills",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js"
     }
   },
   "files": [
@@ -20,7 +20,11 @@
     "dev": "tsup --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@svton/agent-platform": "workspace:*"

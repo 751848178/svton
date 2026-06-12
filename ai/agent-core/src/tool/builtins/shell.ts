@@ -51,6 +51,8 @@ export class BashExecutor implements IToolExecutor {
         signal: ctx.signal,
       });
 
+      const exitCode = result.exitCode ?? 0;
+
       let output = '';
       if (result.stdout) output += result.stdout;
       if (result.stderr) {
@@ -58,17 +60,17 @@ export class BashExecutor implements IToolExecutor {
         output += `[stderr] ${result.stderr}`;
       }
 
-      if (result.exitCode !== 0) {
-        output += `\n[exit code: ${result.exitCode}]`;
+      if (exitCode !== 0) {
+        output += `\n[exit code: ${exitCode}]`;
       }
 
       return {
         callId: call.id,
         output: output || '(no output)',
-        isError: result.exitCode !== 0,
+        isError: exitCode !== 0,
         metadata: {
-          exitCode: result.exitCode,
-          timedOut: result.timedOut,
+          exitCode,
+          timedOut: result.timedOut ?? false,
         },
       };
     } catch (error) {

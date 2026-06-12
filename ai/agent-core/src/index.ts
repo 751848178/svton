@@ -64,6 +64,30 @@ export {
   PlanGetStatusExecutor,
   planUpdateStepDef,
   PlanUpdateStepExecutor,
+  // Computer Use tools
+  screenshotDef,
+  ScreenshotExecutor,
+  mouseClickDef,
+  MouseClickExecutor,
+  mouseMoveDef,
+  MouseMoveExecutor,
+  keyboardTypeDef,
+  KeyboardTypeExecutor,
+  keyboardPressKeyDef,
+  KeyboardPressKeyExecutor,
+  // Chrome CDP tools
+  chromeNavigateDef,
+  ChromeNavigateExecutor,
+  chromeScreenshotDef,
+  ChromeScreenshotExecutor,
+  chromeClickDef,
+  ChromeClickExecutor,
+  chromeTypeDef,
+  ChromeTypeExecutor,
+  chromeEvaluateDef,
+  ChromeEvaluateExecutor,
+  chromeGetContentDef,
+  ChromeGetContentExecutor,
 } from './tool/builtins';
 
 // Agent runtime
@@ -76,6 +100,7 @@ export type {
   ContextConfig,
   PendingApproval,
   IRuntime,
+  McpServerToolConfig,
 } from './agent/types';
 
 export { AgentRuntime } from './agent/runtime';
@@ -124,15 +149,37 @@ export type {
 export { MCPClient } from './mcp/client';
 export { MCPServer } from './mcp/server';
 export { HTTPTransport, SSETransport } from './mcp/transport/http';
+export { StdioTransport } from './mcp/transport/stdio';
+export { McpMarketplace } from './mcp/marketplace';
+export type {
+  McpMarketplaceServer,
+  McpMarketplaceServerDetail,
+  McpServerConnection,
+  McpServerToolInfo,
+  McpMarketplaceResult,
+} from './mcp/marketplace';
 
 // Subagent system
 export type { SubagentConfig, SubagentResult } from './subagent/types';
 export { SubagentManager } from './subagent/manager';
 
 // Skills system
-export type { SkillDefinition, SkillScope, SkillTrigger, SkillSummary } from './skill/types';
+export type { SkillDefinition, SkillScope, SkillTrigger, SkillSummary, SkillSource, SkillInstallRecord } from './skill/types';
 export { SkillManager } from './skill/manager';
 export { SkillLoader } from './skill/loader';
+export { SkillInstaller } from './skill/installer';
+export type { InstallResult } from './skill/installer';
+
+// Skill marketplace (skills.sh integration)
+export { SkillMarketplace } from './skill/marketplace';
+export type {
+  RemoteSkill,
+  RemoteSkillDetail,
+  RemoteSkillFile,
+  AuditEntry,
+  AuditResponse,
+  MarketplaceSkill,
+} from './skill/marketplace';
 
 // Memory system
 export type { MemoryEntry, MemoryScope } from './memory/types';
@@ -141,6 +188,10 @@ export { MemoryManager } from './memory/manager';
 // Planning system
 export type { Plan, PlanStep, PlanStepStatus } from './planning/types';
 export { PlanningManager } from './planning/manager';
+
+// Plugin system
+export type { PluginManifest, PluginMcpServer, PluginHook, PluginInstallRecord } from './plugin/types';
+export { PluginManager } from './plugin/manager';
 
 // Logger utility
 export { logger } from './utils/logger';

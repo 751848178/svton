@@ -1,0 +1,193 @@
+/**
+ * Computer Use tools: screenshot capture and input simulation.
+ *
+ * These tools enable the agent to see and interact with the user's screen.
+ * Backend is implemented as Tauri commands (Rust side).
+ */
+
+import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+
+// ── Screenshot ──────────────────────────────────────────────
+
+export const screenshotDef: ToolDefinition = {
+  name: 'screenshot',
+  description:
+    'Capture a screenshot of the current display. Returns a base64-encoded PNG image. Use this to see what is on the screen before interacting with it.',
+  parameters: {
+    type: 'object',
+    properties: {
+      display: {
+        type: 'number',
+        description: 'Display index (0 = primary). Defaults to 0.',
+      },
+    },
+  },
+  annotations: {
+    readOnlyHint: true,
+    openWorldHint: false,
+  },
+};
+
+export class ScreenshotExecutor implements IToolExecutor {
+  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+    try {
+      const api = await import('@tauri-apps/api/core' as string);
+      const invoke = (api as any).invoke;
+      const displayIndex = (call.arguments as any).display ?? 0;
+      const base64 = await invoke('screenshot_display', { displayIndex });
+      return {
+        callId: call.id,
+        output: JSON.stringify({
+          type: 'image',
+          data: base64,
+          mimeType: 'image/png',
+        }),
+      };
+    } catch (err: any) {
+      return {
+        callId: call.id,
+        output: `Screenshot failed: ${err.message || err}`,
+        isError: true,
+      };
+    }
+  }
+}
+
+// ── Mouse Click ─────────────────────────────────────────────
+
+export const mouseClickDef: ToolDefinition = {
+  name: 'mouse_click',
+  description:
+    'Click the mouse at the specified screen coordinates. Use "left", "right", or "middle" for the button.',
+  parameters: {
+    type: 'object',
+    properties: {
+      x: { type: 'number', description: 'X coordinate (pixels)' },
+      y: { type: 'number', description: 'Y coordinate (pixels)' },
+      button: {
+        type: 'string',
+        description: 'Mouse button: "left" (default), "right", "middle"',
+        enum: ['left', 'right', 'middle'],
+      },
+    },
+    required: ['x', 'y'],
+  },
+  annotations: {
+    destructiveHint: true,
+    openWorldHint: true,
+  },
+};
+
+export class MouseClickExecutor implements IToolExecutor {
+  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+    try {
+      const api = await import('@tauri-apps/api/core' as string);
+      const invoke = (api as any).invoke;
+      const { x, y, button } = call.arguments as any;
+      await invoke('mouse_click', { x, y, button: button || 'left' });
+      return { callId: call.id, output: `Clicked ${button || 'left'} at (${x}, ${y})` };
+    } catch (err: any) {
+      return { callId: call.id, output: `Mouse click failed: ${err.message || err}`, isError: true };
+    }
+  }
+}
+
+// ── Mouse Move ──────────────────────────────────────────────
+
+export const mouseMoveDef: ToolDefinition = {
+  name: 'mouse_move',
+  description: 'Move the mouse cursor to the specified screen coordinates without clicking.',
+  parameters: {
+    type: 'object',
+    properties: {
+      x: { type: 'number', description: 'X coordinate (pixels)' },
+      y: { type: 'number', description: 'Y coordinate (pixels)' },
+    },
+    required: ['x', 'y'],
+  },
+  annotations: {
+    destructiveHint: false,
+    openWorldHint: true,
+  },
+};
+
+export class MouseMoveExecutor implements IToolExecutor {
+  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+    try {
+      const api = await import('@tauri-apps/api/core' as string);
+      const invoke = (api as any).invoke;
+      const { x, y } = call.arguments as any;
+      await invoke('mouse_move', { x, y });
+      return { callId: call.id, output: `Moved mouse to (${x}, ${y})` };
+    } catch (err: any) {
+      return { callId: call.id, output: `Mouse move failed: ${err.message || err}`, isError: true };
+    }
+  }
+}
+
+// ── Keyboard Type ───────────────────────────────────────────
+
+export const keyboardTypeDef: ToolDefinition = {
+  name: 'keyboard_type',
+  description: 'Type a string of text using the keyboard. For special keys, use keyboard_press_key instead.',
+  parameters: {
+    type: 'object',
+    properties: {
+      text: { type: 'string', description: 'Text to type' },
+    },
+    required: ['text'],
+  },
+  annotations: {
+    destructiveHint: true,
+    openWorldHint: true,
+  },
+};
+
+export class KeyboardTypeExecutor implements IToolExecutor {
+  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+    try {
+      const api = await import('@tauri-apps/api/core' as string);
+      const invoke = (api as any).invoke;
+      const { text } = call.arguments as any;
+      await invoke('keyboard_type_text', { text });
+      return { callId: call.id, output: `Typed: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"` };
+    } catch (err: any) {
+      return { callId: call.id, output: `Keyboard type failed: ${err.message || err}`, isError: true };
+    }
+  }
+}
+
+// ── Keyboard Press Key ──────────────────────────────────────
+
+export const keyboardPressKeyDef: ToolDefinition = {
+  name: 'keyboard_press_key',
+  description: 'Press a special key. Supported: enter, tab, escape, backspace, delete, up, down, left, right, home, end, pageup, pagedown, space.',
+  parameters: {
+    type: 'object',
+    properties: {
+      key: {
+        type: 'string',
+        description: 'Key name (e.g. "enter", "tab", "escape")',
+      },
+    },
+    required: ['key'],
+  },
+  annotations: {
+    destructiveHint: true,
+    openWorldHint: true,
+  },
+};
+
+export class KeyboardPressKeyExecutor implements IToolExecutor {
+  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+    try {
+      const api = await import('@tauri-apps/api/core' as string);
+      const invoke = (api as any).invoke;
+      const { key } = call.arguments as any;
+      await invoke('keyboard_press_key', { key });
+      return { callId: call.id, output: `Pressed key: ${key}` };
+    } catch (err: any) {
+      return { callId: call.id, output: `Key press failed: ${err.message || err}`, isError: true };
+    }
+  }
+}

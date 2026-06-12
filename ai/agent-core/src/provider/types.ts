@@ -33,7 +33,12 @@ export interface ToolResultContent {
   isError?: boolean;
 }
 
-export type ContentBlock = TextContent | ImageContent | ToolUseContent | ToolResultContent;
+export interface ReasoningContent {
+  type: 'reasoning';
+  text: string;
+}
+
+export type ContentBlock = TextContent | ImageContent | ToolUseContent | ToolResultContent | ReasoningContent;
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';

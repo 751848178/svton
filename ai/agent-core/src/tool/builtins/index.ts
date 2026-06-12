@@ -41,3 +41,31 @@ export {
   planUpdateStepDef,
   PlanUpdateStepExecutor,
 } from './planning';
+
+export {
+  screenshotDef,
+  ScreenshotExecutor,
+  mouseClickDef,
+  MouseClickExecutor,
+  mouseMoveDef,
+  MouseMoveExecutor,
+  keyboardTypeDef,
+  KeyboardTypeExecutor,
+  keyboardPressKeyDef,
+  KeyboardPressKeyExecutor,
+} from './computer-use';
+
+export {
+  chromeNavigateDef,
+  ChromeNavigateExecutor,
+  chromeScreenshotDef,
+  ChromeScreenshotExecutor,
+  chromeClickDef,
+  ChromeClickExecutor,
+  chromeTypeDef,
+  ChromeTypeExecutor,
+  chromeEvaluateDef,
+  ChromeEvaluateExecutor,
+  chromeGetContentDef,
+  ChromeGetContentExecutor,
+} from './chrome';

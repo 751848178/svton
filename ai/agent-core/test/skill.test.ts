@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { SkillDefinition } from '@svton/agent-core';
-import { SkillManager, SkillLoader } from '@svton/agent-core';
-import type { IStorage } from '@svton/agent-platform';
+import { SkillManager, SkillLoader, SkillInstaller } from '@svton/agent-core';
+import type { IStorage, IPlatform } from '@svton/agent-platform';
 
 // ============================================================
 // Mock Storage
@@ -30,6 +30,67 @@ class MockStorage implements IStorage {
   async clear(): Promise<void> {
     this.data.clear();
   }
+}
+
+// ============================================================
+// Mock Platform Helper
+// ============================================================
+
+interface MockFsOverrides {
+  exists?: (path: string) => Promise<boolean>;
+  listDir?: () => Promise<Array<{ name: string; path: string; isFile: boolean; isDirectory: boolean }>>;
+  readFile?: (path: string) => Promise<string>;
+}
+
+function createMockPlatform(overrides: { fs?: MockFsOverrides } = {}): IPlatform {
+  const defaultFs = {
+    exists: async () => false,
+    listDir: async () => [],
+    readFile: async () => '',
+    writeFile: async () => {},
+    editFile: async () => false,
+    deleteFile: async () => {},
+    stat: async () => ({ isFile: false, isDirectory: false, size: 0, modifiedAt: 0, createdAt: 0 }),
+    watch: () => ({ close() {} }),
+    join: (...paths: string[]) => paths.join('/'),
+    resolve: (p: string) => p,
+    relative: () => '',
+    dirname: (p: string) => p.split('/').slice(0, -1).join('/'),
+    basename: (p: string) => p.split('/').pop() || '',
+  };
+
+  return {
+    type: 'electron',
+    capabilities: {
+      filesystem: true,
+      process: true,
+      watch: false,
+      mcpStdio: false,
+      clipboard: false,
+      notification: false,
+      sandboxing: false,
+      pty: false,
+    },
+    fs: { ...defaultFs, ...overrides.fs },
+    process: {
+      exec: async () => ({ stdout: '', stderr: '', exitCode: 0, timedOut: false }),
+      spawn: () => ({
+        pid: null,
+        onStdout: () => {},
+        onStderr: () => {},
+        onExit: () => {},
+        kill: () => {},
+        write: async () => {},
+      }),
+      getEnv: () => undefined,
+      getCwd: () => '/test',
+    },
+    storage: new MockStorage(),
+    search: {
+      grep: async () => [],
+      glob: async () => [],
+    },
+  };
 }
 
 // ============================================================
@@ -240,7 +301,7 @@ Just do the thing.`;
     const skill = SkillLoader.parseMarkdown(markdown);
 
     expect(skill.name).toBe('unnamed-skill');
-    expect(skill.description).toBe('Custom skill');
+    expect(skill.description).toBe('');
     expect(skill.scope).toBe('user');
     expect(skill.instructions).toBe('# My Custom Skill\n\nJust do the thing.');
     expect(skill.trigger).toBeUndefined();
@@ -326,5 +387,478 @@ Some instructions here.`;
 
     await SkillLoader.removeFromStorage(storage, 'remove-me');
     expect(await storage.get('agent:skill:remove-me')).toBeNull();
+  });
+
+  it('parseMarkdown with YAML-list style array values (indented - item lines)', () => {
+    const markdown = `---
+name: list-style-skill
+description: Uses YAML list style
+requiredTools:
+  - bash
+  - file_read
+  - file_write
+---
+
+Do stuff.`;
+
+    const skill = SkillLoader.parseMarkdown(markdown);
+
+    expect(skill.name).toBe('list-style-skill');
+    expect(skill.requiredTools).toEqual(['bash', 'file_read', 'file_write']);
+  });
+
+  it('parseMarkdown with bracket-array values', () => {
+    const markdown = `---
+name: bracket-skill
+description: Bracket arrays
+requiredTools: [bash, file_read, file_write]
+---
+
+Do stuff.`;
+
+    const skill = SkillLoader.parseMarkdown(markdown);
+
+    expect(skill.name).toBe('bracket-skill');
+    expect(skill.requiredTools).toEqual(['bash', 'file_read', 'file_write']);
+  });
+
+  it('parseMarkdown with trigger patterns builds trigger object', () => {
+    const markdown = `---
+name: triggered-skill
+description: Has trigger
+trigger: implicit
+patterns:
+  - write tests
+  - unit test
+  - test coverage
+---
+
+Do stuff.`;
+
+    const skill = SkillLoader.parseMarkdown(markdown);
+
+    expect(skill.trigger).toEqual({
+      type: 'implicit',
+      patterns: ['write tests', 'unit test', 'test coverage'],
+    });
+  });
+
+  it('parseMarkdown with explicit trigger and no patterns', () => {
+    const markdown = `---
+name: explicit-trigger-skill
+description: Explicit trigger
+trigger: explicit
+---
+
+Do stuff.`;
+
+    const skill = SkillLoader.parseMarkdown(markdown);
+
+    expect(skill.trigger).toEqual({ type: 'explicit' });
+  });
+
+  it('parseMarkdown with implicit trigger type', () => {
+    const markdown = `---
+name: implicit-skill
+description: Implicit trigger
+trigger: implicit
+---
+
+Auto-triggered.`;
+
+    const skill = SkillLoader.parseMarkdown(markdown);
+
+    expect(skill.trigger).toEqual({ type: 'implicit' });
+  });
+
+  it('parseMarkdown with all optional fields', () => {
+    const markdown = `---
+name: full-skill
+description: All fields
+version: "1.2.0"
+requiredTools: bash, git
+allowedTools: bash, git, editor
+disallowedTools: rm, sudo
+whenToUse:
+  - when you need to deploy
+  - when releasing
+avoidWhen:
+  - during development
+  - on local machine
+triggerSignals:
+  - deploy
+  - release
+---
+
+Full skill instructions.`;
+
+    const skill = SkillLoader.parseMarkdown(markdown);
+
+    expect(skill.version).toBe('1.2.0');
+    expect(skill.requiredTools).toEqual(['bash', 'git']);
+    expect(skill.allowedTools).toEqual(['bash', 'git', 'editor']);
+    expect(skill.disallowedTools).toEqual(['rm', 'sudo']);
+    expect(skill.whenToUse).toEqual(['when you need to deploy', 'when releasing']);
+    expect(skill.avoidWhen).toEqual(['during development', 'on local machine']);
+    expect(skill.triggerSignals).toEqual(['deploy', 'release']);
+  });
+
+  it('parseMarkdown with kebab-case keys normalizes to camelCase', () => {
+    const markdown = `---
+name: kebab-skill
+description: Kebab keys
+required-tools: bash, git
+allowed-tools: editor
+disallowed-tools: rm
+when-to-use:
+  - deploying
+avoid-when:
+  - local dev
+trigger-signals:
+  - deploy
+---
+
+Kebab skill.`;
+
+    const skill = SkillLoader.parseMarkdown(markdown);
+
+    expect(skill.requiredTools).toEqual(['bash', 'git']);
+    expect(skill.allowedTools).toEqual(['editor']);
+    expect(skill.disallowedTools).toEqual(['rm']);
+    expect(skill.whenToUse).toEqual(['deploying']);
+    expect(skill.avoidWhen).toEqual(['local dev']);
+    expect(skill.triggerSignals).toEqual(['deploy']);
+  });
+
+  it('fromInstalled / saveInstalled / removeInstalled storage operations', async () => {
+    const storage = new MockStorage();
+
+    const skillA: SkillDefinition = {
+      name: 'installed-a',
+      description: 'Installed A',
+      instructions: 'Do A',
+      scope: 'user',
+    };
+    const skillB: SkillDefinition = {
+      name: 'installed-b',
+      description: 'Installed B',
+      instructions: 'Do B',
+      scope: 'user',
+    };
+
+    // Save
+    await SkillLoader.saveInstalled(storage, skillA);
+    await SkillLoader.saveInstalled(storage, skillB);
+
+    // Verify keys
+    const keys = await storage.list('agent:skill-installed:');
+    expect(keys.sort()).toEqual([
+      'agent:skill-installed:installed-a',
+      'agent:skill-installed:installed-b',
+    ]);
+
+    // Load all
+    const skills = await SkillLoader.fromInstalled(storage);
+    expect(skills).toHaveLength(2);
+    expect(skills.map((s) => s.name).sort()).toEqual(['installed-a', 'installed-b']);
+
+    // Remove one
+    await SkillLoader.removeInstalled(storage, 'installed-a');
+    const remaining = await SkillLoader.fromInstalled(storage);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].name).toBe('installed-b');
+
+    // Check raw key gone
+    expect(await storage.get('agent:skill-installed:installed-a')).toBeNull();
+  });
+
+  it('discover returns skills from builtin URLs (mock fetch)', async () => {
+    const storage = new MockStorage();
+    const platform = createMockPlatform();
+
+    // Mock fetch to return a SKILL.md
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        `---\nname: builtin-skill\ndescription: Built-in\nscope: user\n---\n\nBuilt-in instructions.`,
+    }) as any;
+
+    const { skills, errors } = await SkillLoader.discover(
+      storage,
+      platform,
+      ['https://example.com/skills/builtin/SKILL.md'],
+    );
+
+    globalThis.fetch = originalFetch;
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe('builtin-skill');
+    expect(skills[0].source).toEqual({ type: 'builtin' });
+    expect(errors).toEqual([]);
+  });
+
+  it('discover returns skills from project dir (mock platform.fs)', async () => {
+    const storage = new MockStorage();
+    const platform = createMockPlatform({
+      fs: {
+        exists: async (path: string) => path.includes('.svton/skills'),
+        listDir: async () => [
+          { name: 'my-project-skill', path: '', isFile: false, isDirectory: true },
+        ],
+        readFile: async () =>
+          '---\nname: project-skill\ndescription: Project skill\n---\n\nProject instructions.',
+      },
+    });
+
+    const { skills, errors } = await SkillLoader.discover(
+      storage,
+      platform,
+      [],
+      '/project',
+    );
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe('project-skill');
+    expect(skills[0].scope).toBe('project');
+    expect(errors).toEqual([]);
+  });
+
+  it('discover returns user skills from storage', async () => {
+    const storage = new MockStorage();
+    const platform = createMockPlatform();
+
+    const userSkill: SkillDefinition = {
+      name: 'user-skill',
+      description: 'User-created',
+      instructions: 'Do user stuff',
+      scope: 'user',
+    };
+    await storage.set('agent:skill:user-skill', userSkill);
+
+    const { skills } = await SkillLoader.discover(storage, platform, []);
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe('user-skill');
+    expect(skills[0].source).toEqual({ type: 'storage' });
+  });
+
+  it('discover priority merging (installed overrides user)', async () => {
+    const storage = new MockStorage();
+    const platform = createMockPlatform();
+
+    // User version
+    const userSkill: SkillDefinition = {
+      name: 'shared-name',
+      description: 'User version',
+      instructions: 'User instructions',
+      scope: 'user',
+    };
+    await storage.set('agent:skill:shared-name', userSkill);
+
+    // Installed version (same name, should override)
+    const installedSkill: SkillDefinition = {
+      name: 'shared-name',
+      description: 'Installed version',
+      instructions: 'Installed instructions',
+      scope: 'user',
+    };
+    await storage.set('agent:skill-installed:shared-name', installedSkill);
+
+    const { skills } = await SkillLoader.discover(storage, platform, []);
+
+    expect(skills).toHaveLength(1);
+    expect(skills[0].description).toBe('Installed version');
+  });
+});
+
+// ============================================================
+// SkillInstaller Tests
+// ============================================================
+
+describe('SkillInstaller', () => {
+  let storage: MockStorage;
+
+  beforeEach(() => {
+    storage = new MockStorage();
+  });
+
+  it('installFromUrl success', async () => {
+    const installer = new SkillInstaller(storage);
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        `---\nname: url-skill\ndescription: From URL\n---\n\nURL instructions.`,
+    }) as any;
+
+    const result = await installer.installFromUrl('https://example.com/SKILL.md');
+
+    globalThis.fetch = originalFetch;
+
+    expect(result.success).toBe(true);
+    expect(result.skill?.name).toBe('url-skill');
+    expect(result.skill?.source).toEqual({ type: 'url', url: 'https://example.com/SKILL.md' });
+
+    // Verify saved to installed storage
+    const saved = await storage.get<SkillDefinition>('agent:skill-installed:url-skill');
+    expect(saved).not.toBeNull();
+    expect(saved!.name).toBe('url-skill');
+
+    // Verify registry record
+    const record = await storage.get<any>('agent:skill-registry:url-skill');
+    expect(record).not.toBeNull();
+    expect(record.source.type).toBe('url');
+  });
+
+  it('installFromUrl HTTP error returns failure', async () => {
+    const installer = new SkillInstaller(storage);
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    }) as any;
+
+    const result = await installer.installFromUrl('https://example.com/missing.md');
+
+    globalThis.fetch = originalFetch;
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('HTTP 404: Not Found');
+  });
+
+  it('installFromUrl fetch throws returns failure', async () => {
+    const installer = new SkillInstaller(storage);
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error')) as any;
+
+    const result = await installer.installFromUrl('https://example.com/SKILL.md');
+
+    globalThis.fetch = originalFetch;
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Network error');
+  });
+
+  it('installFromUrl SKILL.md without name returns failure', async () => {
+    const installer = new SkillInstaller(storage);
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '# No Name Skill\n\nJust instructions, no frontmatter.',
+    }) as any;
+
+    const result = await installer.installFromUrl('https://example.com/SKILL.md');
+
+    globalThis.fetch = originalFetch;
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('SKILL.md missing required "name" field');
+  });
+
+  it('installFromGit no platform.process returns failure', async () => {
+    const installer = new SkillInstaller(storage, undefined);
+
+    const result = await installer.installFromGit('https://github.com/example/repo.git');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('desktop');
+  });
+
+  it('installFromLocalDir no platform.fs returns failure', async () => {
+    const installer = new SkillInstaller(storage, undefined);
+
+    const result = await installer.installFromLocalDir('/some/dir');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('desktop');
+  });
+
+  it('installFromLocalDir success', async () => {
+    const platform = createMockPlatform({
+      fs: {
+        exists: async () => true,
+        readFile: async () =>
+          '---\nname: local-skill\ndescription: Local\n---\n\nLocal instructions.',
+      },
+    });
+
+    const installer = new SkillInstaller(storage, platform);
+    const result = await installer.installFromLocalDir('/path/to/skill');
+
+    expect(result.success).toBe(true);
+    expect(result.skill?.name).toBe('local-skill');
+    expect(result.skill?.source).toEqual({ type: 'local', path: '/path/to/skill' });
+  });
+
+  it('installFromLocalDir SKILL.md not found returns failure', async () => {
+    const platform = createMockPlatform({
+      fs: {
+        exists: async () => false,
+      },
+    });
+
+    const installer = new SkillInstaller(storage, platform);
+    const result = await installer.installFromLocalDir('/path/to/skill');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('SKILL.md not found');
+  });
+
+  it('uninstall removes from both installed and registry storage', async () => {
+    const installer = new SkillInstaller(storage);
+
+    // Manually set up installed skill and registry record
+    const skill: SkillDefinition = {
+      name: 'to-uninstall',
+      description: 'Will be removed',
+      instructions: 'N/A',
+      scope: 'user',
+    };
+    await storage.set('agent:skill-installed:to-uninstall', skill);
+    await storage.set('agent:skill-registry:to-uninstall', {
+      name: 'to-uninstall',
+      source: { type: 'url', url: 'https://example.com' },
+      installedAt: Date.now(),
+    });
+
+    // Confirm they exist
+    expect(await storage.get('agent:skill-installed:to-uninstall')).not.toBeNull();
+    expect(await storage.get('agent:skill-registry:to-uninstall')).not.toBeNull();
+
+    await installer.uninstall('to-uninstall');
+
+    // Confirm both removed
+    expect(await storage.get('agent:skill-installed:to-uninstall')).toBeNull();
+    expect(await storage.get('agent:skill-registry:to-uninstall')).toBeNull();
+  });
+
+  it('listInstalled returns records from storage', async () => {
+    const installer = new SkillInstaller(storage);
+
+    await storage.set('agent:skill-registry:skill-x', {
+      name: 'skill-x',
+      source: { type: 'url', url: 'https://example.com/x.md' },
+      installedAt: 1000,
+      version: '1.0.0',
+    });
+    await storage.set('agent:skill-registry:skill-y', {
+      name: 'skill-y',
+      source: { type: 'local', path: '/tmp/skill-y' },
+      installedAt: 2000,
+    });
+    // Non-registry key should be ignored
+    await storage.set('agent:skill:other', { name: 'other' });
+
+    const records = await installer.listInstalled();
+
+    expect(records).toHaveLength(2);
+    expect(records.map((r) => r.name).sort()).toEqual(['skill-x', 'skill-y']);
+    expect(records.find((r) => r.name === 'skill-x')?.version).toBe('1.0.0');
   });
 });

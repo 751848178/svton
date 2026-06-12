@@ -2,6 +2,7 @@ import type { ToolCall, ToolResult, ToolContext } from '../tool/types';
 import type { ToolRegistry } from '../tool/registry';
 import type { PermissionManager } from '../permission/manager';
 import type { HookManager } from '../hooks/manager';
+import type { SkillDefinition } from '../skill/types';
 import type { AgentEvent } from './types';
 import type { IPlatform } from '@svton/agent-platform';
 import type { ContextManager } from './context';
@@ -14,6 +15,9 @@ import { logger } from '../utils/logger';
  * and make it independently testable.
  */
 export class ToolExecutionService {
+  /** Skills active in the current run, set by AgentRuntime before tool execution */
+  private activeSkills: SkillDefinition[] = [];
+
   constructor(
     private readonly toolRegistry: ToolRegistry,
     private readonly contextManager: ContextManager,
@@ -27,6 +31,11 @@ export class ToolExecutionService {
       timestamp: number;
     }>,
   ) {}
+
+  /** Set the currently active skills (called by AgentRuntime after skill injection) */
+  setActiveSkills(skills: SkillDefinition[]): void {
+    this.activeSkills = skills;
+  }
 
   /**
    * Execute a tool call through the full pipeline:
@@ -97,6 +106,38 @@ export class ToolExecutionService {
             },
           };
           this.addToolResultToContext(call.id, 'Tool call rejected by user', true);
+          return;
+        }
+      }
+    }
+
+    // 2.5 Skill-scoped tool check
+    if (this.activeSkills.length > 0) {
+      for (const skill of this.activeSkills) {
+        // Check disallowedTools
+        if (skill.disallowedTools?.includes(call.name)) {
+          yield {
+            type: 'tool_call_end',
+            result: {
+              callId: call.id,
+              output: `Tool "${call.name}" is disallowed by active skill "${skill.name}"`,
+              isError: true,
+            },
+          };
+          this.addToolResultToContext(call.id, `Disallowed by skill "${skill.name}"`, true);
+          return;
+        }
+        // Check allowedTools (whitelist — if defined, tool must be in it)
+        if (skill.allowedTools?.length && !skill.allowedTools.includes(call.name)) {
+          yield {
+            type: 'tool_call_end',
+            result: {
+              callId: call.id,
+              output: `Tool "${call.name}" is not in the allowed list for active skill "${skill.name}"`,
+              isError: true,
+            },
+          };
+          this.addToolResultToContext(call.id, `Not allowed by skill "${skill.name}"`, true);
           return;
         }
       }

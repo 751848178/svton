@@ -1,11 +1,12 @@
 import type { IProvider, ChatMessage, ChatOptions, StreamEvent } from '../provider/types';
 import type { ToolCall, ToolResult, ToolContext } from '../tool/types';
 import type { ToolRegistry } from '../tool/registry';
-import type { AgentEvent, AgentConfig, AgentCapabilities, RunOptions, PendingApproval, IRuntime } from './types';
+import type { AgentEvent, AgentConfig, AgentCapabilities, RunOptions, PendingApproval, IRuntime, McpServerToolConfig } from './types';
 import type { IPlatform } from '@svton/agent-platform';
 import type { PermissionManager } from '../permission/manager';
 import type { HookManager } from '../hooks/manager';
 import type { SkillManager } from '../skill/manager';
+import type { SkillDefinition } from '../skill/types';
 import type { MemoryManager } from '../memory/manager';
 import type { PromptManager } from '../prompt/manager';
 import type { MCPClient } from '../mcp/client';
@@ -49,6 +50,7 @@ export class AgentRuntime implements IRuntime {
   private readonly permissionManager: PermissionManager | null;
   private readonly hookManager: HookManager | null;
   private readonly mcpClients: MCPClient[];
+  private readonly mcpServerConfigs: Map<string, McpServerToolConfig>;
   private subagentManager: SubagentManager | null;
   private readonly planningManager: PlanningManager | null;
 
@@ -56,6 +58,8 @@ export class AgentRuntime implements IRuntime {
   private pendingApprovals = new Map<string, PendingApproval>();
   private currentController: AbortController | null = null;
   private toolExecService: ToolExecutionService;
+  /** Skills currently active in this run (set by injectSkillContext, read by tool execution) */
+  private activeSkills: SkillDefinition[] = [];
 
   private constructor(
     config: AgentConfig,
@@ -76,6 +80,7 @@ export class AgentRuntime implements IRuntime {
     this.permissionManager = caps?.permissionManager ?? null;
     this.hookManager = caps?.hookManager ?? null;
     this.mcpClients = caps?.mcpClients ?? [];
+    this.mcpServerConfigs = caps?.mcpServerConfigs ?? new Map();
     this.subagentManager = caps?.subagentManager ?? null;
     this.planningManager = caps?.planningManager ?? null;
 
@@ -181,7 +186,7 @@ export class AgentRuntime implements IRuntime {
     });
 
     // Inject relevant skill instructions (text-based matching)
-    this.injectSkillContext(messageText);
+    await this.injectSkillContext(messageText);
 
     const maxIterations = options?.maxIterations ?? this.maxIterations;
 
@@ -223,6 +228,7 @@ export class AgentRuntime implements IRuntime {
         };
 
         let fullText = '';
+        let thinkingText = '';
         let stopReason = '';
         const toolCalls: ToolCall[] = [];
         const toolCallBuffers = new Map<string, { name: string; args: string }>();
@@ -238,6 +244,7 @@ export class AgentRuntime implements IRuntime {
               break;
 
             case 'thinking_delta':
+              thinkingText += event.thinking;
               yield { type: 'thinking_delta', thinking: event.thinking };
               break;
 
@@ -289,7 +296,7 @@ export class AgentRuntime implements IRuntime {
 
         // Add assistant message to context FIRST (must precede tool results)
         this.contextManager.addMessage(
-          this.buildAssistantMessage(fullText, toolCalls),
+          this.buildAssistantMessage(fullText, toolCalls, thinkingText || undefined),
         );
 
         // Emit parsed arguments for UI update (tool_call_start sends empty {})
@@ -298,6 +305,7 @@ export class AgentRuntime implements IRuntime {
         }
 
         // NOW execute tools and add results to context (correct ordering)
+        this.toolExecService.setActiveSkills(this.activeSkills);
         for (const toolCall of toolCalls) {
           yield* this.toolExecService.execute(toolCall);
         }
@@ -381,13 +389,41 @@ export class AgentRuntime implements IRuntime {
     for (const client of this.mcpClients) {
       if (!client.connected) continue;
       try {
+        const serverName = client.info?.name ?? '';
+        const serverConfig = serverName ? this.mcpServerConfigs.get(serverName) : undefined;
         const mcpTools = await client.listTools();
         const toolDefs = client.toToolDefinitions(mcpTools);
+
         for (const def of toolDefs) {
           const parts = def.name.split('__');
           const originalName = parts[parts.length - 1];
+
+          // Apply per-server tool filtering
+          if (serverConfig) {
+            // Deny mode: skip registration entirely
+            if (serverConfig.approvalMode === 'deny') continue;
+
+            // enabledTools whitelist: only register listed tools
+            if (serverConfig.enabledTools && serverConfig.enabledTools.length > 0) {
+              if (!serverConfig.enabledTools.includes(originalName)) continue;
+            }
+
+            // disabledTools: skip listed tools
+            if (serverConfig.disabledTools && serverConfig.disabledTools.includes(originalName)) {
+              continue;
+            }
+          }
+
           const executor = client.createToolExecutor(originalName);
           this.toolRegistry.register(def, executor);
+
+          // Add permission rule based on server approval mode
+          if (serverConfig?.approvalMode === 'auto' && this.permissionManager) {
+            this.permissionManager.addRule({
+              tool: def.name,
+              effect: 'allow',
+            });
+          }
         }
       } catch (error) {
         console.error(`Failed to bridge MCP tools from ${client.info?.name ?? 'unknown'}:`, error);
@@ -412,6 +448,7 @@ export class AgentRuntime implements IRuntime {
         tools: this.toolRegistry.listDefinitions(),
         skillsSummary: this.skillManager?.getSummaries() || undefined,
         memoryNotes: this.memoryManager?.getAllMemoryText() || undefined,
+        workingDir: this.workingDir || undefined,
       });
     }
     return this.buildDefaultSystemPrompt();
@@ -423,9 +460,12 @@ export class AgentRuntime implements IRuntime {
 
   /**
    * Check if any skills match the user message and inject their instructions.
+   * Also computes skill-scoped tool constraints and stores them for tool execution.
+   * On desktop, resolves dynamic context commands (!`command`) in skill instructions.
    */
-  private injectSkillContext(userMessage: string): void {
+  private async injectSkillContext(userMessage: string): Promise<void> {
     if (!this.skillManager) return;
+    this.activeSkills = [];
 
     const relevantSkills = this.skillManager.findRelevant(userMessage);
     if (relevantSkills.length === 0) {
@@ -445,13 +485,29 @@ export class AgentRuntime implements IRuntime {
     });
 
     if (usableSkills.length === 0) return;
+    this.activeSkills = usableSkills;
 
-    const skillInstructions = usableSkills
-      .map((s) => {
-        const instructions = this.skillManager!.loadInstructions(s.name);
-        return `### Skill: ${s.name}\n${instructions ?? s.description}`;
-      })
-      .join('\n\n');
+    const allToolNames = this.toolRegistry.listDefinitions().map((t) => t.name);
+    const blocks: string[] = [];
+    for (const s of usableSkills) {
+      let instructions = this.skillManager!.loadInstructions(s.name) ?? s.description;
+
+      // Resolve dynamic context on desktop (!`command` pattern)
+      if (this.platform.capabilities.process) {
+        instructions = await this.resolveDynamicContext(instructions);
+      }
+
+      let block = `### Skill: ${s.name}\n${instructions}`;
+
+      // Append tool constraint info for this skill
+      const effectiveTools = this.skillManager!.getEffectiveTools(s, allToolNames);
+      if (effectiveTools) {
+        block += `\n\n**Tools available for this skill:** ${effectiveTools.join(', ')}`;
+      }
+
+      blocks.push(block);
+    }
+    const skillInstructions = blocks.join('\n\n');
 
     this.contextManager.addMessage({
       role: 'user',
@@ -459,16 +515,48 @@ export class AgentRuntime implements IRuntime {
     });
   }
 
+  /**
+   * Resolve !`command` patterns in skill instructions by executing commands.
+   * Desktop only — replaces placeholders with command output.
+   */
+  private async resolveDynamicContext(instructions: string): Promise<string> {
+    const pattern = /!`([^`]+)`/g;
+    const matches: { match: string; command: string }[] = [];
+    let m;
+    while ((m = pattern.exec(instructions)) !== null) {
+      matches.push({ match: m[0], command: m[1] });
+    }
+    if (matches.length === 0) return instructions;
+
+    let result = instructions;
+    for (const { match, command } of matches) {
+      try {
+        const { stdout, exitCode } = await this.platform.process.exec(command, {
+          cwd: this.workingDir,
+          timeout: 10000,
+        });
+        result = result.replace(match, exitCode === 0 ? stdout.trim() : `[Command failed (exit ${exitCode})]`);
+      } catch (err) {
+        result = result.replace(match, `[Error: ${err instanceof Error ? err.message : String(err)}]`);
+      }
+    }
+    return result;
+  }
+
   // ----------------------------------------------------------
   // Private — Tool Execution
   // ----------------------------------------------------------
 
-  private buildAssistantMessage(text: string, toolCalls: ToolCall[]): ChatMessage {
-    if (toolCalls.length === 0) {
+  private buildAssistantMessage(text: string, toolCalls: ToolCall[], thinking?: string): ChatMessage {
+    if (toolCalls.length === 0 && !thinking) {
       return { role: 'assistant', content: text };
     }
 
     const content: import('../provider/types').ContentBlock[] = [];
+
+    if (thinking) {
+      content.push({ type: 'reasoning', text: thinking });
+    }
 
     if (text) {
       content.push({ type: 'text', text });

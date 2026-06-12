@@ -70,6 +70,13 @@ export interface AgentConfig {
 // Agent Capabilities (all optional, backward-compatible)
 // ============================================================
 
+/** Per-MCP-server tool permission configuration */
+export interface McpServerToolConfig {
+  approvalMode?: 'auto' | 'ask' | 'deny';
+  enabledTools?: string[];
+  disabledTools?: string[];
+}
+
 export interface AgentCapabilities {
   skillManager?: import('../skill/manager').SkillManager;
   memoryManager?: import('../memory/manager').MemoryManager;
@@ -77,6 +84,8 @@ export interface AgentCapabilities {
   permissionManager?: import('../permission/manager').PermissionManager;
   hookManager?: import('../hooks/manager').HookManager;
   mcpClients?: import('../mcp/client').MCPClient[];
+  mcpServerConfigs?: Map<string, McpServerToolConfig>;
+  pluginManager?: import('../plugin/manager').PluginManager;
   subagentManager?: import('../subagent/manager').SubagentManager;
   planningManager?: import('../planning/manager').PlanningManager;
 }

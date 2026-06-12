@@ -38,12 +38,19 @@ export class PromptManager {
     baseTemplate?: string;
     skillsSummary?: string;
     memoryNotes?: string;
+    workingDir?: string;
+    projectName?: string;
   }): string {
     const parts: string[] = [];
 
     // Base template
     const base = options.baseTemplate || this.getDefaultTemplate();
     parts.push(base);
+
+    // Working directory context
+    if (options.workingDir) {
+      parts.push(`\n## Environment\n\nCurrent working directory: \`${options.workingDir}\`${options.projectName ? `\nProject: ${options.projectName}` : ''}\n`);
+    }
 
     // Tool descriptions
     if (options.tools && options.tools.length > 0) {

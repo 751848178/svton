@@ -15,3 +15,12 @@ export type {
 export { MCPClient } from './client';
 export { MCPServer } from './server';
 export { HTTPTransport, SSETransport } from './transport/http';
+export { StdioTransport } from './transport/stdio';
+export { McpMarketplace } from './marketplace';
+export type {
+  McpMarketplaceServer,
+  McpMarketplaceServerDetail,
+  McpServerConnection,
+  McpServerToolInfo,
+  McpMarketplaceResult,
+} from './marketplace';

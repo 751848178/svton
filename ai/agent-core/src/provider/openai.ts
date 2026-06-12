@@ -110,6 +110,9 @@ export class OpenAIProvider implements IProvider {
       formattedMessages.push(this.formatMessage(msg));
     }
 
+    // Validate: strip orphaned tool_use without matching tool_result
+    this.sanitizeToolUseChain(formattedMessages);
+
     const body: Record<string, unknown> = {
       model: options.model,
       messages: formattedMessages,
@@ -139,6 +142,7 @@ export class OpenAIProvider implements IProvider {
     const content: OpenAIContentPart[] = [];
     const toolCalls: OpenAIToolCall[] = [];
     let toolCallId: string | undefined;
+    let reasoningText: string | undefined;
 
     for (const block of msg.content as ContentBlock[]) {
       switch (block.type) {
@@ -171,10 +175,17 @@ export class OpenAIProvider implements IProvider {
         case 'tool_result':
           toolCallId = block.toolUseId;
           break;
+        case 'reasoning':
+          reasoningText = block.text;
+          break;
       }
     }
 
     const result: OpenAIChatMessage = { role: msg.role, content: '' };
+
+    if (reasoningText) {
+      result.reasoning_content = reasoningText;
+    }
 
     if (msg.role === 'tool' && toolCallId) {
       result.role = 'tool';
@@ -330,6 +341,51 @@ export class OpenAIProvider implements IProvider {
       stopReason: choice.finish_reason || 'stop',
     };
   }
+
+  /**
+   * Ensure every assistant message with tool_calls has matching tool results.
+   * Orphaned tool_calls (no following tool messages) are stripped from the message.
+   */
+  private sanitizeToolUseChain(messages: OpenAIChatMessage[]): void {
+    const toolCallIds = new Set<string>();
+    const toolResultIds = new Set<string>();
+
+    // Collect all tool_call IDs and tool_result IDs
+    for (const msg of messages) {
+      if (msg.tool_calls) {
+        for (const tc of msg.tool_calls) {
+          toolCallIds.add(tc.id);
+        }
+      }
+      if (msg.tool_call_id) {
+        toolResultIds.add(msg.tool_call_id);
+      }
+    }
+
+    // If every tool_call has a matching tool_result, nothing to do
+    if (toolResultIds.size >= toolCallIds.size) return;
+
+    // Find orphaned tool_call IDs (no matching result)
+    const orphaned = new Set<string>();
+    for (const id of toolCallIds) {
+      if (!toolResultIds.has(id)) orphaned.add(id);
+    }
+
+    if (orphaned.size === 0) return;
+
+    // For each assistant message with tool_calls, remove orphaned ones
+    for (const msg of messages) {
+      if (msg.tool_calls && orphaned.has(msg.tool_calls[0]?.id)) {
+        // If ALL tool_calls are orphaned (most common case), remove the entire field
+        const remaining = msg.tool_calls.filter((tc) => !orphaned.has(tc.id));
+        if (remaining.length === 0) {
+          delete msg.tool_calls;
+        } else {
+          msg.tool_calls = remaining;
+        }
+      }
+    }
+  }
 }
 
 // ============================================================
@@ -339,6 +395,7 @@ export class OpenAIProvider implements IProvider {
 interface OpenAIChatMessage {
   role: string;
   content: string | OpenAIContentPart[] | null;
+  reasoning_content?: string;
   tool_calls?: OpenAIToolCall[];
   tool_call_id?: string;
 }
