@@ -18,9 +18,15 @@
         "height": 800,
         "decorations": true,
         "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "transparent": true,
+        "windowEffects": {
+          "effects": ["sidebar", "hudWindow"],
+          "state": "followsWindowActiveState"
+        }
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
     }

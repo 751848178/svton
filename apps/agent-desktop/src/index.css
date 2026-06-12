@@ -4,7 +4,7 @@
 @tailwind utilities;
 
 :root {
-  --background: #000000;
+  --background: transparent;
   --foreground: #ededed;
 }
 
@@ -13,13 +13,15 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  background: transparent !important;
 }
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background: transparent !important;
   font-family: 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', monospace;
   -webkit-font-smoothing: antialiased;
+  -webkit-background-clip: padding-box;
 }
 
 /* Remove default focus ring in Tauri webview */

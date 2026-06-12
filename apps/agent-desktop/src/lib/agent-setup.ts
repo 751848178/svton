@@ -1,8 +1,7 @@
 import 'reflect-metadata';
 
 import type { TauriPlatform } from '@svton/agent-platform';
-import type { IStorage } from '@svton/agent-platform';
-import type { AgentConfig, AgentCapabilities } from '@svton/agent-core';
+import type { AgentConfig, AgentCapabilities, McpServerToolConfig } from '@svton/agent-core';
 import {
   ToolRegistry,
   OpenAIProvider,
@@ -39,6 +38,30 @@ import {
   PlanGetStatusExecutor,
   planUpdateStepDef,
   PlanUpdateStepExecutor,
+  // Computer Use tools
+  screenshotDef,
+  ScreenshotExecutor,
+  mouseClickDef,
+  MouseClickExecutor,
+  mouseMoveDef,
+  MouseMoveExecutor,
+  keyboardTypeDef,
+  KeyboardTypeExecutor,
+  keyboardPressKeyDef,
+  KeyboardPressKeyExecutor,
+  // Chrome CDP tools
+  chromeNavigateDef,
+  ChromeNavigateExecutor,
+  chromeScreenshotDef,
+  ChromeScreenshotExecutor,
+  chromeClickDef,
+  ChromeClickExecutor,
+  chromeTypeDef,
+  ChromeTypeExecutor,
+  chromeEvaluateDef,
+  ChromeEvaluateExecutor,
+  chromeGetContentDef,
+  ChromeGetContentExecutor,
   // Managers
   SkillManager,
   SkillLoader,
@@ -47,7 +70,14 @@ import {
   PermissionManager,
   HookManager,
   PlanningManager,
+  // MCP
+  MCPClient,
+  HTTPTransport,
+  StdioTransport,
+  // Plugin
+  PluginManager,
 } from '@svton/agent-core';
+import type { McpServerConfig } from '@svton/agent-ui';
 import { loadConfig, type LoadConfigResult } from './config-store';
 
 export type InitResult =
@@ -162,6 +192,21 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   toolRegistry.register(planGetStatusDef, new PlanGetStatusExecutor(planningManager));
   toolRegistry.register(planUpdateStepDef, new PlanUpdateStepExecutor(planningManager));
 
+  // Computer Use tools (desktop only — rely on Tauri commands)
+  toolRegistry.register(screenshotDef, new ScreenshotExecutor());
+  toolRegistry.register(mouseClickDef, new MouseClickExecutor());
+  toolRegistry.register(mouseMoveDef, new MouseMoveExecutor());
+  toolRegistry.register(keyboardTypeDef, new KeyboardTypeExecutor());
+  toolRegistry.register(keyboardPressKeyDef, new KeyboardPressKeyExecutor());
+
+  // Chrome CDP tools (requires Chrome with --remote-debugging-port=9222)
+  toolRegistry.register(chromeNavigateDef, new ChromeNavigateExecutor());
+  toolRegistry.register(chromeScreenshotDef, new ChromeScreenshotExecutor());
+  toolRegistry.register(chromeClickDef, new ChromeClickExecutor());
+  toolRegistry.register(chromeTypeDef, new ChromeTypeExecutor());
+  toolRegistry.register(chromeEvaluateDef, new ChromeEvaluateExecutor());
+  toolRegistry.register(chromeGetContentDef, new ChromeGetContentExecutor());
+
   // ── Capability managers ──
   const skillManager = new SkillManager();
   const promptManager = new PromptManager();
@@ -172,8 +217,21 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
 
   const hookManager = new HookManager();
 
-  // Load skills: from storage (user-created) + built-in (fetched from public/)
-  await loadDesktopSkills(skillManager, platform.storage);
+  // Determine working directory early (needed for skills, memory, MCP)
+  const savedWorkingDir = await platform.storage.get<string>('agent:workingDir');
+  const homeDir = platform.process.getEnv('HOME') || platform.process.getEnv('USERPROFILE') || '/';
+  const workingDir = savedWorkingDir || homeDir;
+
+  // Load skills via multi-scope discovery
+  const { skills: discoveredSkills } = await SkillLoader.discover(
+    platform.storage,
+    platform,
+    BUILTIN_SKILL_PATHS,
+    workingDir,
+  );
+  for (const skill of discoveredSkills) {
+    skillManager.register(skill);
+  }
 
   // Apply disabled tools/skills filtering
   const disabledTools = await platform.storage.get<string[]>('agent:disabled_tools');
@@ -186,9 +244,6 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   }
 
   // Load project memory from AGENT.md files if available
-  // Use saved workingDir from storage, or fall back to getCwd()
-  const savedWorkingDir = await platform.storage.get<string>('agent:workingDir');
-  const workingDir = savedWorkingDir || platform.process.getCwd() || '/';
   try {
     await memoryManager.loadProjectMemory(platform.fs, workingDir);
   } catch {
@@ -203,6 +258,88 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
     hookManager,
     planningManager,
   };
+
+  // ── Connect MCP servers ──
+  const mcpConfigs = await platform.storage.get<McpServerConfig[]>('agent:mcp_servers');
+  const mcpClients: import('@svton/agent-core').MCPClient[] = [];
+
+  if (Array.isArray(mcpConfigs)) {
+    for (const cfg of mcpConfigs) {
+      if (!cfg.enabled) continue;
+      try {
+        const client = new MCPClient();
+        const transport = cfg.transport === 'stdio'
+          ? new StdioTransport(platform.process, cfg.command!, cfg.args ?? [], cfg.env, workingDir)
+          : new HTTPTransport({ url: cfg.url! });
+        await client.connect(transport);
+        mcpClients.push(client);
+      } catch (err) {
+        console.error(`MCP server "${cfg.name}" connection failed:`, err);
+      }
+    }
+  }
+
+  capabilities.mcpClients = mcpClients;
+
+  // Build per-server tool configs for runtime filtering
+  if (Array.isArray(mcpConfigs)) {
+    const mcpServerConfigs = new Map<string, McpServerToolConfig>();
+    for (const cfg of mcpConfigs) {
+      if (cfg.approvalMode || cfg.enabledTools?.length || cfg.disabledTools?.length) {
+        mcpServerConfigs.set(cfg.name, {
+          approvalMode: cfg.approvalMode,
+          enabledTools: cfg.enabledTools,
+          disabledTools: cfg.disabledTools,
+        });
+      }
+    }
+    if (mcpServerConfigs.size > 0) {
+      capabilities.mcpServerConfigs = mcpServerConfigs;
+    }
+  }
+
+  // ── Initialize PluginManager ──
+  const pluginManager = new PluginManager();
+  await pluginManager.init(platform.storage);
+  capabilities.pluginManager = pluginManager;
+
+  // Load enabled plugin skills + MCP servers
+  const enabledPlugins = pluginManager.getEnabledPlugins();
+  for (const plugin of enabledPlugins) {
+    // Load plugin skills
+    if (plugin.manifest.skills?.length && plugin.path) {
+      for (const skillPath of plugin.manifest.skills) {
+        try {
+          const fullPath = platform.fs.join(plugin.path, skillPath);
+          const content = await platform.fs.readFile(fullPath);
+          const skill = SkillLoader.parseMarkdown(content);
+          if (skill) {
+            skillManager.register({ ...skill, source: { type: 'local', path: fullPath } });
+          }
+        } catch (err) {
+          console.error(`Plugin "${plugin.name}": failed to load skill ${skillPath}:`, err);
+        }
+      }
+    }
+
+    // Load plugin MCP servers
+    if (plugin.manifest.mcpServers?.length) {
+      for (const mcp of plugin.manifest.mcpServers) {
+        if (mcp.enabled === false) continue;
+        try {
+          const client = new MCPClient();
+          const transport = mcp.transport === 'stdio'
+            ? new StdioTransport(platform.process, mcp.command!, mcp.args ?? [], mcp.env, workingDir)
+            : new HTTPTransport({ url: mcp.url! });
+          await client.connect(transport);
+          mcpClients.push(client);
+        } catch (err) {
+          console.error(`Plugin "${plugin.name}": MCP server "${mcp.name}" failed:`, err);
+        }
+      }
+      capabilities.mcpClients = mcpClients;
+    }
+  }
 
   return {
     kind: 'ready',
@@ -226,37 +363,3 @@ const BUILTIN_SKILL_PATHS = [
   '/skills/engineering-craft-principles/SKILL.md',
   '/skills/universal-craft-principles/SKILL.md',
 ];
-
-/**
- * Load skills for desktop:
- * 1. Custom skills from IStorage (user-created)
- * 2. Built-in skills from public/ directory (fetched via HTTP)
- */
-async function loadDesktopSkills(skillManager: SkillManager, storage: IStorage): Promise<void> {
-  // 1. Load user-created skills from storage
-  try {
-    const stored = await SkillLoader.fromStorage(storage);
-    for (const skill of stored) {
-      skillManager.register(skill);
-    }
-  } catch {
-    // Storage read failed — skip
-  }
-
-  // 2. Load built-in skills from bundled assets
-  for (const url of BUILTIN_SKILL_PATHS) {
-    try {
-      const resp = await fetch(url);
-      if (resp.ok) {
-        const content = await resp.text();
-        const skill = SkillLoader.parseMarkdown(content);
-        // Don't overwrite storage skills with same name
-        if (!skillManager.list().find((s) => s.name === skill.name)) {
-          skillManager.register(skill);
-        }
-      }
-    } catch {
-      // Skip skills that fail to load
-    }
-  }
-}

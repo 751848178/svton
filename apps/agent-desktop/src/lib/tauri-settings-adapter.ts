@@ -1,6 +1,7 @@
 import type { TauriPlatform } from '@svton/agent-platform';
 import type { AgentConfig } from '@svton/agent-core';
-import { SkillLoader } from '@svton/agent-core';
+import { SkillLoader, SkillInstaller, SkillMarketplace, McpMarketplace } from '@svton/agent-core';
+import type { MarketplaceSkill } from '@svton/agent-core';
 import {
   type ISettingsAdapter,
   type AgentData,
@@ -29,6 +30,7 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
   private _customInstructions: string = '';
   private _permissionMode: string = 'default';
   private _mcpServers: McpServerConfig[] = [];
+  private marketplace = new SkillMarketplace();
 
   constructor(platform: TauriPlatform, agentConfig?: AgentConfig, onUpdate?: () => void) {
     this.platform = platform;
@@ -47,7 +49,10 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
     platform.storage.get<string>('agent:permission_mode').then((v) => {
       if (v) {
         this._permissionMode = v;
-        this._agentConfig?.capabilities?.permissionManager?.setMode?.(v as any);
+        // NOTE: Do NOT call setMode() here — the PermissionManager is already
+        // initialized with the correct mode in agent-setup.ts. Calling setMode()
+        // here would race with MainLayout's own initialization and could override
+        // the user's explicit mode choice with a stale stored value.
       }
     }).catch(() => {});
     platform.storage.get<McpServerConfig[]>('agent:mcp_servers').then((v) => {
@@ -202,7 +207,7 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
       name: skill.name,
       description: skill.description,
       instructions: skill.instructions,
-      scope: (skill.scope || 'user') as 'user' | 'repo',
+      scope: (skill.scope || 'user') as 'user' | 'project',
     };
     await SkillLoader.saveToStorage(this.platform.storage, def);
     this._agentConfig?.capabilities?.skillManager?.register(def);
@@ -252,6 +257,28 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
     await this.platform.storage.set('agent:mcp_servers', this._mcpServers);
   }
 
+  async getMcpServerTools(serverName: string): Promise<string[]> {
+    const clients = this._agentConfig?.capabilities?.mcpClients ?? [];
+    const client = clients.find((c) => c.info?.name === serverName);
+    if (!client || !client.connected) return [];
+    try {
+      const tools = await client.listTools();
+      return tools.map((t) => t.name);
+    } catch {
+      return [];
+    }
+  }
+
+  async updateMcpServerToolConfig(
+    serverName: string,
+    config: { approvalMode?: 'auto' | 'ask' | 'deny'; enabledTools?: string[]; disabledTools?: string[] },
+  ): Promise<void> {
+    this._mcpServers = this._mcpServers.map((s) =>
+      s.name === serverName ? { ...s, ...config } : s,
+    );
+    await this.platform.storage.set('agent:mcp_servers', this._mcpServers);
+  }
+
   // ── Working Directory ────────────────────────────────────
   getWorkingDir(): string {
     return this._agentConfig?.workingDir || '';
@@ -269,5 +296,93 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
 
   getStorageDescription(): string {
     return '桌面端配置存储在 ~/.svton/config.toml 文件中。也可使用 Cmd+, 快捷键在编辑器中打开。';
+  }
+
+  // ── Skill Installation ───────────────────────────────────
+  async installSkillFromUrl(url: string): Promise<{ success: boolean; error?: string }> {
+    const installer = new SkillInstaller(this.platform.storage, this.platform);
+    const result = await installer.installFromUrl(url);
+    if (result.success && result.skill) {
+      this._agentConfig?.capabilities?.skillManager?.register(result.skill);
+      this.onUpdate?.();
+    }
+    return { success: result.success, error: result.error };
+  }
+
+  async installSkillFromGit(repo: string): Promise<{ success: boolean; error?: string }> {
+    const installer = new SkillInstaller(this.platform.storage, this.platform);
+    const result = await installer.installFromGit(repo);
+    if (result.success && result.skill) {
+      this._agentConfig?.capabilities?.skillManager?.register(result.skill);
+      this.onUpdate?.();
+    }
+    return { success: result.success, error: result.error };
+  }
+
+  async installSkillFromLocal(path: string): Promise<{ success: boolean; error?: string }> {
+    const installer = new SkillInstaller(this.platform.storage, this.platform);
+    const result = await installer.installFromLocalDir(path);
+    if (result.success && result.skill) {
+      this._agentConfig?.capabilities?.skillManager?.register(result.skill);
+      this.onUpdate?.();
+    }
+    return { success: result.success, error: result.error };
+  }
+
+  supportsAdvancedInstall(): boolean {
+    return true;
+  }
+
+  // ── Skill Marketplace (skills.sh) ──────────────────────
+  async searchMarketplace(query: string): Promise<MarketplaceSkill[]> {
+    const remote = await this.marketplace.search(query, 20);
+    return this.marketplace.toMarketplaceSkills(remote, this.platform.storage);
+  }
+
+  async browseMarketplace(options?: { view?: string; page?: number }): Promise<{ skills: MarketplaceSkill[]; total: number }> {
+    const result = await this.marketplace.list({
+      view: (options?.view as 'all-time' | 'trending' | 'hot') || 'trending',
+      page: options?.page ?? 0,
+      perPage: 20,
+    });
+    const skills = await this.marketplace.toMarketplaceSkills(result.skills, this.platform.storage);
+    return { skills, total: result.total };
+  }
+
+  async installFromMarketplace(skillId: string): Promise<{ success: boolean; error?: string }> {
+    const result = await this.marketplace.install(skillId, this.platform.storage);
+    if (result.success && result.skill) {
+      this._agentConfig?.capabilities?.skillManager?.register(result.skill);
+      this.onUpdate?.();
+    }
+    return { success: result.success, error: result.error };
+  }
+
+  // ── MCP Marketplace (Smithery) ───────────────────────────
+  private mcpMarketplace = new McpMarketplace();
+
+  async searchMcpMarketplace(query: string): Promise<{ servers: Array<{ id: string; qualifiedName: string; displayName: string; description: string; useCount: number; verified: boolean }>; pagination: { totalCount: number } }> {
+    const result = await this.mcpMarketplace.search(query);
+    return {
+      servers: result.servers.map((s: { id: string; qualifiedName: string; displayName: string; description: string; useCount: number; verified: boolean }) => ({
+        id: s.id,
+        qualifiedName: s.qualifiedName,
+        displayName: s.displayName,
+        description: s.description,
+        useCount: s.useCount,
+        verified: s.verified,
+      })),
+      pagination: { totalCount: result.pagination.totalCount },
+    };
+  }
+
+  async installFromMcpMarketplace(qualifiedName: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.mcpMarketplace.install(qualifiedName, this.platform.storage);
+      this.onUpdate?.();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Install failed' };
+    }
   }
 }

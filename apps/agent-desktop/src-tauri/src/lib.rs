@@ -21,12 +21,14 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .setup(|app| {
+            let window = app.get_webview_window("main").unwrap();
+
             // Open devtools in debug builds (Cmd+Option+I also works after this)
             #[cfg(debug_assertions)]
             {
-                let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
             Ok(())
@@ -44,6 +46,9 @@ pub fn run() {
             process_exec,
             process_get_env,
             process_get_cwd,
+            process_spawn,
+            process_stdin_write,
+            process_kill,
             // Search
             search_grep,
             search_glob,
@@ -53,9 +58,18 @@ pub fn run() {
             storage_delete,
             storage_list,
             storage_clear,
+            // Dialog
+            dialog_open_folder,
+            dialog_open_file,
             // Path
             path_resolve,
             path_relative,
+            // Computer Use
+            screenshot_display,
+            mouse_click,
+            mouse_move,
+            keyboard_type_text,
+            keyboard_press_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

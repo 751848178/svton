@@ -7,8 +7,10 @@ import {
   type ToolCallInfo,
   type SplitScreenContent,
   type SlashCommand,
+  type MentionItem,
 } from '@svton/agent-ui';
 import { useChat, useToolApproval } from '@svton/agent-client';
+import { InputControls } from './InputControls';
 
 const PRESETS: PresetItem[] = [
   { label: '帮我写一个 React 组件', prompt: '帮我写一个 React 组件，要求使用 TypeScript，支持 props 类型检查' },
@@ -17,13 +19,49 @@ const PRESETS: PresetItem[] = [
   { label: '优化代码性能', prompt: '请帮我审查并优化代码的性能，找出潜在的性能瓶颈' },
 ];
 
-export function ChatContent({ modelSelector, slashCommands, matchedSkills, onAbort }: {
+interface ProjectInfo {
+  id: string;
+  name: string;
+}
+
+export function ChatContent({
+  modelSelector,
+  slashCommands,
+  matchedSkills,
+  onAbort,
+  permissionMode,
+  onPermissionModeChange,
+  planMode,
+  onPlanModeChange,
+  plugins,
+  onPluginToggle,
+  gitBranch,
+  projectName,
+  projects,
+  currentProjectId,
+  onSelectProject,
+  mentionItems,
+  onMentionSelect,
+}: {
   modelSelector: React.ReactNode;
   slashCommands: SlashCommand[];
   matchedSkills: string[];
   onAbort?: () => void;
+  permissionMode: 'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto';
+  onPermissionModeChange: (mode: 'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto') => void;
+  planMode: boolean;
+  onPlanModeChange: (enabled: boolean) => void;
+  plugins: Array<{ name: string; enabled: boolean }>;
+  onPluginToggle: (name: string, enabled: boolean) => void;
+  gitBranch?: string | null;
+  projectName?: string | null;
+  projects?: ProjectInfo[];
+  currentProjectId?: string | null;
+  onSelectProject?: (id: string | null) => void;
+  mentionItems?: MentionItem[];
+  onMentionSelect?: (item: MentionItem) => string;
 }) {
-  const { messages, isStreaming, lastUsage, send, retry, editMessage } = useChat();
+  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage } = useChat();
   const { approve, reject } = useToolApproval();
   const [splitScreen, setSplitScreen] = useState<SplitScreenContent | null>(null);
 
@@ -43,8 +81,10 @@ export function ChatContent({ modelSelector, slashCommands, matchedSkills, onAbo
           thinking: msg.thinking,
           error: msg.error,
           toolCalls: msg.toolCalls as ToolCallInfo[] | undefined,
+          blocks: msg.blocks as import('@svton/agent-ui').ContentBlock[] | undefined,
           isStreaming: msg.isStreaming,
           systemType: msg.systemType,
+          duration: msg.duration,
           usage: isLastAssistant && lastUsage ? lastUsage : undefined,
         };
       }),
@@ -56,35 +96,72 @@ export function ChatContent({ modelSelector, slashCommands, matchedSkills, onAbo
     [send],
   );
 
+  // Whether project selector should be shown (only when no messages in conversation)
+  const showProjectSelector = messages.length === 0 && projects && projects.length > 0;
+
+  // Build the leading slot: model selector + controls, all in one row
+  const inputLeadingSlot = useMemo(() => (
+    <>
+      {modelSelector}
+      <InputControls
+        permissionMode={permissionMode}
+        onPermissionModeChange={onPermissionModeChange}
+        planMode={planMode}
+        onPlanModeChange={onPlanModeChange}
+        plugins={plugins}
+        onPluginToggle={onPluginToggle}
+        gitBranch={gitBranch}
+        projectName={projectName}
+        projects={showProjectSelector ? projects : undefined}
+        currentProjectId={currentProjectId}
+        onSelectProject={onSelectProject}
+      />
+    </>
+  ), [modelSelector, permissionMode, onPermissionModeChange, planMode, onPlanModeChange, plugins, onPluginToggle, gitBranch, projectName, showProjectSelector, projects, currentProjectId, onSelectProject]);
+
   return (
-    <div className="flex flex-1 min-w-0 min-h-0">
-      <div className={splitScreen ? 'w-1/2 min-w-0 flex flex-col' : 'flex-1 flex flex-col'}>
+    <div className="flex flex-1 min-w-0 min-h-0 relative">
+      <div className={splitScreen ? 'w-1/2 min-w-0 min-h-0 flex flex-col' : 'flex-1 min-h-0 flex flex-col'}>
         <ChatPanel
           messages={panelMessages}
           onSend={handleSend}
           onAbort={onAbort}
           onApproveTool={approve}
           onRejectTool={reject}
-          onRetry={retry}
+          onRetry={(messageId?: string) => messageId ? retryFromMessage(messageId) : retry()}
           onEditMessage={editMessage}
           onOpenDocument={handleOpenDocument}
           onOpenEditor={handleOpenEditor}
           isStreaming={isStreaming}
-          placeholder="描述你想做的事情...  输入 / 查看命令"
+          placeholder="描述你想做的事情...  输入 / 查看命令  @ 引用"
           emptyMessage={(
             <div className="text-center py-8">
               <h2 className="text-2xl text-white font-light tracking-tight mb-2">
                 开始与 AI Agent 对话
               </h2>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 mb-6">
                 输入指令，AI 将帮你搜索、分析、生成内容
               </p>
             </div>
           )}
           presets={presets}
-          inputLeadingSlot={modelSelector as React.ReactNode}
+          inputLeadingSlot={inputLeadingSlot}
           slashCommands={slashCommands}
+          mentionItems={mentionItems}
+          onMentionSelect={onMentionSelect}
           matchedSkills={matchedSkills}
+          onFileReference={async () => {
+            try {
+              const api = await import('@tauri-apps/api/core' as string);
+              const invoke = (api as any).invoke;
+              const filePath = await invoke('dialog_open_file') as string | null;
+              if (!filePath) return;
+              const content = await invoke('fs_read_file', { path: filePath }) as string;
+              const name = filePath.replace(/\\/g, '/').split('/').pop() || 'file';
+              const text = `📄 ${name}\n\`\`\`\n${content}\n\`\`\``;
+              send(text);
+            } catch { /* cancelled or error */ }
+          }}
           className="bg-transparent"
         />
       </div>
