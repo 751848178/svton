@@ -19,6 +19,7 @@ export default defineConfig({
       { text: '首页', link: '/' },
       { text: '快速开始', link: '/getting-started/quick-start' },
       { text: '架构设计', link: '/architecture/overview' },
+      { text: 'AI Agent', link: '/packages/agent-sdk' },
       { text: '共享包', link: '/packages/types' },
     ],
 
@@ -47,6 +48,17 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: '模块开发', link: '/backend/modules' },
+          ],
+        },
+        {
+          text: '🤖 AI Agent',
+          collapsed: false,
+          items: [
+            { text: 'SDK 快速接入', link: '/packages/agent-sdk' },
+            { text: 'agent-core', link: '/packages/agent-core' },
+            { text: 'agent-client', link: '/packages/agent-client' },
+            { text: 'agent-platform', link: '/packages/agent-platform' },
+            { text: 'agent-web 应用', link: '/packages/agent-web' },
           ],
         },
         {
