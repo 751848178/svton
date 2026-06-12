@@ -9,8 +9,8 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { TeamGuard, TeamRoles } from '../team/guards/team.guard';
 import { ServerService } from './server.service';
 import { CreateServerDto, UpdateServerDto } from './dto/server.dto';
 
@@ -20,12 +20,13 @@ interface AuthRequest {
 }
 
 @Controller('servers')
-@UseGuards(JwtAuthGuard, TeamGuard)
+@UseGuards(JwtAuthGuard, AuthzGuard)
+@Roles('team_member')
 export class ServerController {
   constructor(private readonly serverService: ServerService) {}
 
   @Post()
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   create(@Request() req: AuthRequest, @Body() dto: CreateServerDto) {
     return this.serverService.create(req.teamId, req.user.id, dto);
   }
@@ -41,7 +42,7 @@ export class ServerController {
   }
 
   @Put(':id')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   update(
     @Request() req: AuthRequest,
     @Param('id') id: string,
@@ -51,7 +52,7 @@ export class ServerController {
   }
 
   @Delete(':id')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   remove(@Request() req: AuthRequest, @Param('id') id: string) {
     return this.serverService.remove(req.teamId, id);
   }
@@ -62,7 +63,7 @@ export class ServerController {
   }
 
   @Post(':id/detect')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   detectServices(@Request() req: AuthRequest, @Param('id') id: string) {
     return this.serverService.detectServices(req.teamId, id);
   }

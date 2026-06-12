@@ -10,18 +10,19 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { TeamGuard } from '../team/guards/team.guard';
 import { KeyCenterService } from './key-center.service';
 import { GenerateKeyDto, StoreKeyDto } from './dto/key-center.dto';
 
 interface AuthRequest {
-  user: { sub: string };
+  user: { id: string };
   teamId: string;
 }
 
 @Controller('keys')
-@UseGuards(JwtAuthGuard, TeamGuard)
+@UseGuards(JwtAuthGuard, AuthzGuard)
+@Roles('team_member')
 export class KeyCenterController {
   constructor(private readonly keyCenterService: KeyCenterService) {}
 
@@ -34,7 +35,7 @@ export class KeyCenterController {
   // 存储密钥
   @Post()
   storeKey(@Body() dto: StoreKeyDto, @Request() req: AuthRequest) {
-    return this.keyCenterService.storeKey(req.teamId, req.user.sub, dto);
+    return this.keyCenterService.storeKey(req.teamId, req.user.id, dto);
   }
 
   // 获取团队的所有密钥
@@ -83,7 +84,7 @@ export class KeyCenterController {
   ) {
     return this.keyCenterService.generateProjectKeys(
       req.teamId,
-      req.user.sub,
+      req.user.id,
       projectId,
       body.projectName,
     );

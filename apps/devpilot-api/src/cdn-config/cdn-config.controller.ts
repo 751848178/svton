@@ -10,8 +10,8 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { TeamGuard, TeamRoles } from '../team/guards/team.guard';
 import { CDNConfigService } from './cdn-config.service';
 import { CreateCDNConfigDto, UpdateCDNConfigDto, CreateCredentialDto } from './dto/cdn-config.dto';
 
@@ -21,12 +21,13 @@ interface AuthRequest {
 }
 
 @Controller('cdn-configs')
-@UseGuards(JwtAuthGuard, TeamGuard)
+@UseGuards(JwtAuthGuard, AuthzGuard)
+@Roles('team_member')
 export class CDNConfigController {
   constructor(private readonly cdnConfigService: CDNConfigService) {}
 
   @Post()
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   create(@Request() req: AuthRequest, @Body() dto: CreateCDNConfigDto) {
     return this.cdnConfigService.create(req.teamId, req.user.id, dto);
   }
@@ -42,7 +43,7 @@ export class CDNConfigController {
   }
 
   @Put(':id')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   update(
     @Request() req: AuthRequest,
     @Param('id') id: string,
@@ -52,13 +53,13 @@ export class CDNConfigController {
   }
 
   @Delete(':id')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   remove(@Request() req: AuthRequest, @Param('id') id: string) {
     return this.cdnConfigService.remove(req.teamId, id);
   }
 
   @Post(':id/purge')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   purgeCache(
     @Request() req: AuthRequest,
     @Param('id') id: string,
@@ -69,12 +70,13 @@ export class CDNConfigController {
 }
 
 @Controller('team-credentials')
-@UseGuards(JwtAuthGuard, TeamGuard)
+@UseGuards(JwtAuthGuard, AuthzGuard)
+@Roles('team_member')
 export class TeamCredentialController {
   constructor(private readonly cdnConfigService: CDNConfigService) {}
 
   @Post()
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   create(@Request() req: AuthRequest, @Body() dto: CreateCredentialDto) {
     return this.cdnConfigService.createCredential(req.teamId, dto);
   }
@@ -85,7 +87,7 @@ export class TeamCredentialController {
   }
 
   @Delete(':id')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   remove(@Request() req: AuthRequest, @Param('id') id: string) {
     return this.cdnConfigService.removeCredential(req.teamId, id);
   }

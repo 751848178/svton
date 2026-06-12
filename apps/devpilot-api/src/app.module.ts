@@ -6,6 +6,7 @@ import { CacheModule } from '@svton/nestjs-cache';
 import { AuthzModule } from '@svton/nestjs-authz';
 import { HealthController } from './health.controller';
 import { PrismaModule } from './prisma/prisma.module';
+import { PrismaService } from './prisma/prisma.service';
 import { AuthModule } from './auth/auth.module';
 import { TeamModule } from './team/team.module';
 import { RegistryModule } from './registry/registry.module';
@@ -22,6 +23,7 @@ import { ResourcePoolModule } from './resource-pool/resource-pool.module';
 import { DomainModule } from './domain/domain.module';
 import { CDNModule } from './cdn/cdn.module';
 import { KeyCenterModule } from './key-center/key-center.module';
+import { useAuthzConfig } from './authz.config';
 
 @Module({
   imports: [
@@ -63,15 +65,15 @@ import { KeyCenterModule } from './key-center/key-center.module';
       }),
     }),
 
-    // RBAC 授权模块
-    AuthzModule.forRoot({
-      userRoleField: 'role',
-      enableGlobalGuard: false, // 手动在需要的地方使用
-      allowNoRoles: true,
-    }),
-
     // Prisma 数据库模块
     PrismaModule,
+
+    // RBAC 授权模块
+    AuthzModule.forRootAsync({
+      imports: [PrismaModule],
+      inject: [PrismaService],
+      useFactory: (prisma: PrismaService) => useAuthzConfig(prisma),
+    }),
 
     // 认证模块
     AuthModule,

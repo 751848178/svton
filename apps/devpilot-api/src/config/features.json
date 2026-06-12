@@ -94,13 +94,13 @@
     {
       "id": "authz",
       "name": "权限控制",
-      "description": "基于 RBAC 的权限控制",
+      "description": "角色与权限授权",
       "category": "auth",
       "packages": ["@svton/nestjs-authz"],
       "requiredResources": [],
       "applicableTo": ["backend"],
       "codeSnippets": {
-        "moduleImport": "AuthzModule.forRoot()",
+        "moduleImport": "AuthzModule.forRootAsync({ ... })",
         "envVars": []
       }
     }

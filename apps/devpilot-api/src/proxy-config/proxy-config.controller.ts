@@ -9,8 +9,8 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { TeamGuard, TeamRoles } from '../team/guards/team.guard';
 import { ProxyConfigService } from './proxy-config.service';
 import { CreateProxyConfigDto, UpdateProxyConfigDto } from './dto/proxy-config.dto';
 
@@ -20,12 +20,13 @@ interface AuthRequest {
 }
 
 @Controller('proxy-configs')
-@UseGuards(JwtAuthGuard, TeamGuard)
+@UseGuards(JwtAuthGuard, AuthzGuard)
+@Roles('team_member')
 export class ProxyConfigController {
   constructor(private readonly proxyConfigService: ProxyConfigService) {}
 
   @Post()
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   create(@Request() req: AuthRequest, @Body() dto: CreateProxyConfigDto) {
     return this.proxyConfigService.create(req.teamId, req.user.id, dto);
   }
@@ -41,7 +42,7 @@ export class ProxyConfigController {
   }
 
   @Put(':id')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   update(
     @Request() req: AuthRequest,
     @Param('id') id: string,
@@ -51,7 +52,7 @@ export class ProxyConfigController {
   }
 
   @Delete(':id')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   remove(@Request() req: AuthRequest, @Param('id') id: string) {
     return this.proxyConfigService.remove(req.teamId, id);
   }
@@ -62,7 +63,7 @@ export class ProxyConfigController {
   }
 
   @Post(':id/sync')
-  @TeamRoles('owner', 'admin')
+  @Roles('team_admin')
   sync(@Request() req: AuthRequest, @Param('id') id: string) {
     return this.proxyConfigService.sync(req.teamId, id);
   }

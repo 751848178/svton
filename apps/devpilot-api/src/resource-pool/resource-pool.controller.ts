@@ -11,7 +11,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard, Roles } from '@svton/nestjs-authz';
+import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { ResourcePoolService } from './resource-pool.service';
 import {
   CreateResourcePoolDto,
@@ -26,7 +26,7 @@ export class ResourcePoolController {
 
   // 管理员：创建资源池
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(AuthzGuard)
   @Roles('admin')
   async createPool(@Body() dto: CreateResourcePoolDto) {
     return this.resourcePoolService.createPool(dto);
@@ -34,7 +34,7 @@ export class ResourcePoolController {
 
   // 管理员：获取所有资源池
   @Get()
-  @UseGuards(RolesGuard)
+  @UseGuards(AuthzGuard)
   @Roles('admin')
   async getPools(@Query('type') type?: string) {
     return this.resourcePoolService.getPools(type);
@@ -42,7 +42,7 @@ export class ResourcePoolController {
 
   // 管理员：获取资源池详情
   @Get(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(AuthzGuard)
   @Roles('admin')
   async getPool(@Param('id') id: string) {
     return this.resourcePoolService.getPool(id);
@@ -50,7 +50,7 @@ export class ResourcePoolController {
 
   // 管理员：更新资源池
   @Put(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(AuthzGuard)
   @Roles('admin')
   async updatePool(@Param('id') id: string, @Body() dto: UpdateResourcePoolDto) {
     return this.resourcePoolService.updatePool(id, dto);
@@ -58,7 +58,7 @@ export class ResourcePoolController {
 
   // 管理员：删除资源池
   @Delete(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(AuthzGuard)
   @Roles('admin')
   async deletePool(@Param('id') id: string) {
     return this.resourcePoolService.deletePool(id);

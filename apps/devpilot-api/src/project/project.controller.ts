@@ -9,8 +9,8 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { TeamGuard } from '../team/guards/team.guard';
 import { ProjectService } from './project.service';
 import { CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
 
@@ -20,7 +20,8 @@ interface AuthRequest {
 }
 
 @Controller('projects')
-@UseGuards(JwtAuthGuard, TeamGuard)
+@UseGuards(JwtAuthGuard, AuthzGuard)
+@Roles('team_member')
 export class ProjectController {
   constructor(private readonly projectService: ProjectService) {}
 

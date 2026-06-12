@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCDNConfigDto, UpdateCDNConfigDto, CreateCredentialDto } from './dto/cdn-config.dto';
 import * as crypto from 'crypto';
@@ -9,6 +10,10 @@ export class CDNConfigService {
   private readonly encryptionKey = process.env.ENCRYPTION_KEY || 'default-key-32-chars-long!!!!!';
 
   constructor(private readonly prisma: PrismaService) {}
+
+  private toJsonValue(value: unknown): Prisma.InputJsonValue {
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
 
   private encrypt(text: string): string {
     const iv = crypto.randomBytes(12);
@@ -34,19 +39,24 @@ export class CDNConfigService {
 
   // CDN 配置 CRUD
   async create(teamId: string, userId: string, dto: CreateCDNConfigDto) {
+    const data: Prisma.CDNConfigUncheckedCreateInput = {
+      teamId,
+      createdById: userId,
+      name: dto.name,
+      domain: dto.domain,
+      origin: dto.origin,
+      provider: dto.provider,
+      credentialId: dto.credentialId,
+      cacheRules: this.toJsonValue(dto.cacheRules ?? []),
+      status: 'pending',
+    };
+
+    if (dto.projectId !== undefined) {
+      data.projectId = dto.projectId;
+    }
+
     const config = await this.prisma.cDNConfig.create({
-      data: {
-        teamId,
-        createdById: userId,
-        name: dto.name,
-        domain: dto.domain,
-        origin: dto.origin,
-        provider: dto.provider,
-        credentialId: dto.credentialId,
-        cacheRules: dto.cacheRules || [],
-        projectId: dto.projectId,
-        status: 'pending',
-      },
+      data,
       include: {
         credential: { select: { id: true, name: true, type: true } },
         project: { select: { id: true, name: true } },
@@ -95,12 +105,33 @@ export class CDNConfigService {
       throw new NotFoundException('CDN 配置不存在');
     }
 
+    const data: Prisma.CDNConfigUncheckedUpdateInput = {
+      status: 'pending',
+    };
+
+    if (dto.name !== undefined) {
+      data.name = dto.name;
+    }
+
+    if (dto.domain !== undefined) {
+      data.domain = dto.domain;
+    }
+
+    if (dto.origin !== undefined) {
+      data.origin = dto.origin;
+    }
+
+    if (dto.cacheRules !== undefined) {
+      data.cacheRules = this.toJsonValue(dto.cacheRules);
+    }
+
+    if (dto.projectId !== undefined) {
+      data.projectId = dto.projectId;
+    }
+
     const config = await this.prisma.cDNConfig.update({
       where: { id },
-      data: {
-        ...dto,
-        status: 'pending',
-      },
+      data,
       include: {
         credential: { select: { id: true, name: true, type: true } },
         project: { select: { id: true, name: true } },

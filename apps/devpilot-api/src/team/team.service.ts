@@ -268,13 +268,13 @@ export class TeamService {
   }
 
   // 获取用户在团队中的角色
-  async getMemberRole(teamId: string, userId: string): Promise<string | null> {
+  async getMemberRole(teamId: string, userId: string): Promise<MemberRole | null> {
     const membership = await this.prisma.teamMember.findUnique({
       where: {
         teamId_userId: { teamId, userId },
       },
     });
 
-    return membership?.role || null;
+    return (membership?.role as MemberRole | undefined) ?? null;
   }
 }

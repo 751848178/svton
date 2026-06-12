@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { PresetService } from './preset.service';
 import { CreatePresetDto, UpdatePresetDto, ImportPresetDto } from './dto/preset.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { TeamGuard } from '../team/guards/team.guard';
 
 interface AuthRequest {
   user: { id: string };
@@ -10,7 +10,8 @@ interface AuthRequest {
 }
 
 @Controller('presets')
-@UseGuards(JwtAuthGuard, TeamGuard)
+@UseGuards(JwtAuthGuard, AuthzGuard)
+@Roles('team_member')
 export class PresetController {
   constructor(private readonly presetService: PresetService) {}
 

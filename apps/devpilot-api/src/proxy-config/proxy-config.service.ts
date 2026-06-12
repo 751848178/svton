@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProxyConfigDto, UpdateProxyConfigDto } from './dto/proxy-config.dto';
 
@@ -8,21 +9,36 @@ export class ProxyConfigService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  private toJsonValue(value: unknown): Prisma.InputJsonValue {
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  }
+
   async create(teamId: string, userId: string, dto: CreateProxyConfigDto) {
+    const data: Prisma.ProxyConfigUncheckedCreateInput = {
+      teamId,
+      createdById: userId,
+      name: dto.name,
+      domain: dto.domain,
+      upstreams: this.toJsonValue(dto.upstreams),
+      ssl: this.toJsonValue(dto.ssl),
+      websocket: dto.websocket ?? false,
+      status: 'pending',
+    };
+
+    if (dto.customConfig !== undefined) {
+      data.customConfig = dto.customConfig;
+    }
+
+    if (dto.serverId !== undefined) {
+      data.serverId = dto.serverId;
+    }
+
+    if (dto.projectId !== undefined) {
+      data.projectId = dto.projectId;
+    }
+
     const config = await this.prisma.proxyConfig.create({
-      data: {
-        teamId,
-        createdById: userId,
-        name: dto.name,
-        domain: dto.domain,
-        upstreams: dto.upstreams,
-        ssl: dto.ssl,
-        websocket: dto.websocket || false,
-        customConfig: dto.customConfig,
-        serverId: dto.serverId,
-        projectId: dto.projectId,
-        status: 'pending',
-      },
+      data,
       include: {
         server: { select: { id: true, name: true, host: true } },
         project: { select: { id: true, name: true } },
@@ -71,12 +87,45 @@ export class ProxyConfigService {
       throw new NotFoundException('代理配置不存在');
     }
 
+    const data: Prisma.ProxyConfigUncheckedUpdateInput = {
+      status: 'pending', // 修改后需要重新同步
+    };
+
+    if (dto.name !== undefined) {
+      data.name = dto.name;
+    }
+
+    if (dto.domain !== undefined) {
+      data.domain = dto.domain;
+    }
+
+    if (dto.upstreams !== undefined) {
+      data.upstreams = this.toJsonValue(dto.upstreams);
+    }
+
+    if (dto.ssl !== undefined) {
+      data.ssl = this.toJsonValue(dto.ssl);
+    }
+
+    if (dto.websocket !== undefined) {
+      data.websocket = dto.websocket;
+    }
+
+    if (dto.customConfig !== undefined) {
+      data.customConfig = dto.customConfig;
+    }
+
+    if (dto.serverId !== undefined) {
+      data.serverId = dto.serverId;
+    }
+
+    if (dto.projectId !== undefined) {
+      data.projectId = dto.projectId;
+    }
+
     const config = await this.prisma.proxyConfig.update({
       where: { id },
-      data: {
-        ...dto,
-        status: 'pending', // 修改后需要重新同步
-      },
+      data,
       include: {
         server: { select: { id: true, name: true, host: true } },
         project: { select: { id: true, name: true } },
