@@ -2,10 +2,10 @@ export { ChatPanel } from './ChatPanel';
 export type { ChatPanelProps, ChatPanelMessage } from './ChatPanel';
 
 export { ChatMessage } from './ChatMessage';
-export type { ChatMessageProps } from './ChatMessage';
+export type { ChatMessageProps, ContentBlock } from './ChatMessage';
 
 export { ChatInput } from './ChatInput';
-export type { ChatInputProps, SlashCommand } from './ChatInput';
+export type { ChatInputProps, SlashCommand, MentionItem } from './ChatInput';
 
 export { StreamingText } from './StreamingText';
 export type { StreamingTextProps } from './StreamingText';

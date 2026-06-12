@@ -31,6 +31,8 @@ export interface SkillInfo {
 
 export interface McpServerInfo {
   name: string;
+  tools?: string[];
+  connected?: boolean;
 }
 
 // ── CRUD data types ──
@@ -50,6 +52,21 @@ export interface McpServerConfig {
   env?: Record<string, string>;
   url?: string;
   enabled: boolean;
+  /** Per-server tool approval mode */
+  approvalMode?: 'auto' | 'ask' | 'deny';
+  /** Tool names explicitly enabled (empty/undefined = all) */
+  enabledTools?: string[];
+  /** Tool names explicitly disabled */
+  disabledTools?: string[];
+}
+
+export interface MarketplaceSkill {
+  id: string;
+  name: string;
+  source: string;
+  installs: number;
+  url: string;
+  installed: boolean;
 }
 
 export interface MemoryEntry {
@@ -112,11 +129,34 @@ export interface ISettingsAdapter {
   updateSkill?(name: string, updates: SkillFormData): void | Promise<void>;
   deleteSkill?(name: string): void | Promise<void>;
 
+  // ── Skill Installation ────────────────────────────────────
+  installSkillFromUrl?(url: string): Promise<{ success: boolean; error?: string }>;
+  installSkillFromGit?(repo: string): Promise<{ success: boolean; error?: string }>;
+  installSkillFromLocal?(path: string): Promise<{ success: boolean; error?: string }>;
+  getInstalledSkills?(): Array<{ name: string; source: string; installedAt: number }>;
+  /** Whether the platform supports git/local installation (desktop only) */
+  supportsAdvancedInstall?(): boolean;
+
+  // ── Skill Marketplace (skills.sh) ──────────────────────
+  searchMarketplace?(query: string): Promise<MarketplaceSkill[]>;
+  browseMarketplace?(options?: { view?: string; page?: number }): Promise<{ skills: MarketplaceSkill[]; total: number }>;
+  installFromMarketplace?(skillId: string): Promise<{ success: boolean; error?: string }>;
+
   // ── MCP Server CRUD ──────────────────────────────────────
   getMcpServerConfigs?(): McpServerConfig[];
   addMcpServer?(config: McpServerConfig): void | Promise<void>;
   removeMcpServer?(name: string): void | Promise<void>;
   toggleMcpServer?(name: string, enabled: boolean): void | Promise<void>;
+  getMcpServerTools?(serverName: string): Promise<string[]>;
+  updateMcpServerToolConfig?(serverName: string, config: {
+    approvalMode?: 'auto' | 'ask' | 'deny';
+    enabledTools?: string[];
+    disabledTools?: string[];
+  }): Promise<void>;
+
+  // ── MCP Marketplace (Smithery) ───────────────────────────
+  searchMcpMarketplace?(query: string): Promise<{ servers: Array<{ id: string; qualifiedName: string; displayName: string; description: string; useCount: number; verified: boolean }>; pagination: { totalCount: number } }>;
+  installFromMcpMarketplace?(qualifiedName: string): Promise<{ success: boolean; error?: string }>;
 
   // ── Platform info ────────────────────────────────────────
   getWorkingDir?(): string;
@@ -199,7 +239,7 @@ export interface SettingsViewProps {
 
 type SectionId =
   | 'general' | 'providers' | 'personalization'
-  | 'tools' | 'skills' | 'mcp'
+  | 'tools' | 'skills' | 'marketplace' | 'mcp'
   | 'permissions' | 'memory' | 'search' | 'automation';
 
 interface SectionDef { id: SectionId; label: string; group: string; }
@@ -210,6 +250,7 @@ const DEFAULT_SECTIONS: SectionDef[] = [
   { id: 'personalization', label: '个性化', group: '个人' },
   { id: 'tools', label: '工具', group: '集成' },
   { id: 'skills', label: '技能', group: '集成' },
+  { id: 'marketplace', label: '技能市场', group: '集成' },
   { id: 'mcp', label: 'MCP 服务器', group: '集成' },
   { id: 'permissions', label: '权限', group: '编码' },
   { id: 'memory', label: '记忆', group: '编码' },
@@ -248,6 +289,7 @@ const ICONS: Record<string, React.ReactNode> = {
   personalization: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
   tools: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
   skills: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+  marketplace: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>,
   mcp: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>,
   permissions: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
   memory: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2z"/></svg>,
@@ -408,7 +450,10 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
               <SkillsListSection skills={skills} disabledSkills={s.disabledSkills} hasAgent={!!agent}
                 onToggle={(name) => { const next = s.disabledSkills.includes(name) ? s.disabledSkills.filter((n) => n !== name) : [...s.disabledSkills, name]; s.setDisabledSkills(next); adapter.saveDisabledSkills(next); }}
                 onAdd={adapter.addSkill?.bind(adapter)} onUpdate={adapter.updateSkill?.bind(adapter)} onDelete={adapter.deleteSkill?.bind(adapter)}
-                onReload={() => s.reload()} />
+                onReload={() => s.reload()} adapter={adapter} />
+            )}
+            {activeSection === 'marketplace' && adapter.searchMarketplace && (
+              <MarketplaceSection adapter={adapter} onReload={() => s.reload()} />
             )}
             {activeSection === 'mcp' && (
               <McpSection servers={agent?.mcpServers ?? []}
@@ -416,6 +461,10 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
                 onAdd={adapter.addMcpServer?.bind(adapter)}
                 onRemove={adapter.removeMcpServer?.bind(adapter)}
                 onToggle={adapter.toggleMcpServer?.bind(adapter)}
+                getMcpServerTools={adapter.getMcpServerTools?.bind(adapter)}
+                updateMcpServerToolConfig={adapter.updateMcpServerToolConfig?.bind(adapter)}
+                searchMcpMarketplace={adapter.searchMcpMarketplace?.bind(adapter)}
+                installFromMcpMarketplace={adapter.installFromMcpMarketplace?.bind(adapter)}
                 supportsStdio={!!adapter.getWorkingDir?.()}
                 onReload={() => s.reload()} />
             )}
@@ -455,6 +504,16 @@ function GeneralSection({ allModels, defaultModel, onModelChange, workingDir, on
   workingDir?: string; onWorkingDirChange?: (dir: string) => void | Promise<void>;
   storageDescription: string;
 }) {
+  const [editingDir, setEditingDir] = useState(false);
+  const [dirInput, setDirInput] = useState(workingDir || '');
+
+  const handleSaveDir = () => {
+    if (dirInput.trim() && dirInput.trim() !== workingDir && onWorkingDirChange) {
+      onWorkingDirChange(dirInput.trim());
+    }
+    setEditingDir(false);
+  };
+
   return (
     <div>
       <h2 className="text-lg text-white font-medium mb-1">常规</h2>
@@ -476,17 +535,27 @@ function GeneralSection({ allModels, defaultModel, onModelChange, workingDir, on
       {workingDir && (
         <Card className="mb-6">
           <div className="flex items-center gap-2 mb-4"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span className="text-sm text-gray-200 font-medium">工作目录</span></div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 text-sm text-gray-400 font-mono bg-[#171717] rounded-lg px-3 py-2 border border-[#2a2a2a] truncate">{workingDir}</div>
-            {onWorkingDirChange && (
-              <button onClick={() => {
-                const dir = prompt('输入新的工作目录路径:', workingDir);
-                if (dir?.trim()) onWorkingDirChange(dir.trim());
-              }} className="px-3 py-2 text-[11px] font-medium rounded-lg bg-[#222] border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex-shrink-0">
-                修改
-              </button>
-            )}
-          </div>
+          {editingDir ? (
+            <div className="space-y-2">
+              <input type="text" value={dirInput} onChange={(e) => setDirInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveDir(); if (e.key === 'Escape') setEditingDir(false); }}
+                className={INPUT_CLS} autoFocus />
+              <div className="flex items-center gap-2">
+                <button onClick={handleSaveDir} className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors">保存</button>
+                <button onClick={() => setEditingDir(false)} className="px-3 py-1.5 text-[11px] text-gray-500 hover:text-gray-300">取消</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 text-sm text-gray-400 font-mono bg-[#171717] rounded-lg px-3 py-2 border border-[#2a2a2a] truncate">{workingDir}</div>
+              {onWorkingDirChange && (
+                <button onClick={() => { setDirInput(workingDir); setEditingDir(true); }}
+                  className="px-3 py-2 text-[11px] font-medium rounded-lg bg-[#222] border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex-shrink-0">
+                  修改
+                </button>
+              )}
+            </div>
+          )}
           <p className="text-[10px] text-gray-600 mt-1">Agent 在此目录下执行文件和命令操作</p>
         </Card>
       )}
@@ -670,18 +739,189 @@ function ToolsListSection({ tools, disabledTools, hasAgent, onToggle }: { tools:
   );
 }
 
-function SkillsListSection({ skills, disabledSkills, hasAgent, onToggle, onAdd, onUpdate, onDelete, onReload }: {
+// ── Marketplace Section ─────────────────────────────────────
+
+function MarketplaceSection({ adapter, onReload }: { adapter: ISettingsAdapter; onReload: () => void }) {
+  const [skills, setSkills] = useState<MarketplaceSkill[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'trending' | 'all-time' | 'hot'>('trending');
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [installingId, setInstallingId] = useState<string | null>(null);
+  const [installStatus, setInstallStatus] = useState<string | null>(null);
+
+  const loadSkills = useCallback(async (opts?: { query?: string; view?: string; page?: number }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (opts?.query) {
+        const results = await adapter.searchMarketplace!(opts.query);
+        setSkills(results);
+        setTotal(results.length);
+      } else {
+        const result = await adapter.browseMarketplace!({
+          view: opts?.view || viewMode,
+          page: opts?.page ?? page,
+        });
+        setSkills(result.skills);
+        setTotal(result.total);
+      }
+    } catch (e: any) {
+      setError(e.message || '加载失败');
+    }
+    setLoading(false);
+  }, [adapter, viewMode, page]);
+
+  useEffect(() => { loadSkills(); }, []);
+
+  const handleSearch = () => {
+    setPage(0);
+    if (searchQuery.trim()) {
+      loadSkills({ query: searchQuery.trim() });
+    } else {
+      loadSkills({ view: viewMode, page: 0 });
+    }
+  };
+
+  const handleViewChange = (v: 'trending' | 'all-time' | 'hot') => {
+    setViewMode(v);
+    setPage(0);
+    setSearchQuery('');
+    loadSkills({ view: v, page: 0 });
+  };
+
+  const handleInstall = async (skillId: string) => {
+    if (!adapter.installFromMarketplace) return;
+    setInstallingId(skillId);
+    setInstallStatus(null);
+    try {
+      const r = await adapter.installFromMarketplace(skillId);
+      setInstallStatus(r.success ? '安装成功' : `失败: ${r.error}`);
+      if (r.success) {
+        onReload();
+        // Update local installed status
+        setSkills((prev) => prev.map((s) => s.id === skillId ? { ...s, installed: true } : s));
+      }
+    } catch (e: any) {
+      setInstallStatus(`失败: ${e.message}`);
+    }
+    setInstallingId(null);
+  };
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-lg text-white font-medium">技能市场</h2>
+        <p className="text-xs text-gray-500 mt-0.5">浏览 skills.sh 上的社区技能，搜索并一键安装。</p>
+      </div>
+
+      {/* Search + View toggle */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex-1 flex items-center gap-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="搜索技能..."
+            className={cn(INPUT_CLS, 'flex-1')}
+          />
+          <button onClick={handleSearch} disabled={loading} className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50 transition-colors whitespace-nowrap">搜索</button>
+        </div>
+        <div className="flex items-center gap-1 bg-[#171717] rounded-lg p-0.5">
+          {(['trending', 'all-time', 'hot'] as const).map((v) => (
+            <button key={v} onClick={() => handleViewChange(v)}
+              className={cn('px-2.5 py-1 text-[10px] rounded-md transition-colors',
+                viewMode === v && !searchQuery ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-gray-300')}>
+              {v === 'trending' ? '趋势' : v === 'all-time' ? '全部' : '热门'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Status */}
+      {installStatus && (
+        <div className={cn('text-[11px] px-3 py-2 rounded-lg mb-3', installStatus.startsWith('安装成功') ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20')}>{installStatus}</div>
+      )}
+      {error && (
+        <div className="text-[11px] px-3 py-2 rounded-lg mb-3 text-red-400 bg-red-900/20">{error}</div>
+      )}
+
+      {/* Skills grid */}
+      {loading ? (
+        <Card><div className="text-center py-8 text-gray-600 text-sm">加载中...</div></Card>
+      ) : skills.length === 0 ? (
+        <Card><div className="text-center py-8 text-gray-600 text-sm">无匹配技能</div></Card>
+      ) : (
+        <div className="space-y-2">
+          {skills.map((skill) => (
+            <Card key={skill.id} className="!py-3 !px-4 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-sm text-gray-200 font-medium truncate">{skill.name}</span>
+                  {skill.installed && <Badge color="green">已安装</Badge>}
+                </div>
+                <div className="text-[11px] text-gray-500 truncate">
+                  {skill.source} · {skill.installs.toLocaleString()} 次安装
+                </div>
+              </div>
+              <button
+                onClick={() => skill.installed ? null : handleInstall(skill.id)}
+                disabled={installingId === skill.id || skill.installed}
+                className={cn(
+                  'px-3 py-1.5 text-[11px] font-medium rounded-lg transition-colors whitespace-nowrap flex-shrink-0',
+                  skill.installed
+                    ? 'bg-[#222] text-gray-600 cursor-default'
+                    : 'bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50',
+                )}
+              >
+                {installingId === skill.id ? '安装中...' : skill.installed ? '已安装' : '安装'}
+              </button>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!searchQuery && total > 20 && (
+        <div className="flex items-center justify-center gap-2 mt-4">
+          <button onClick={() => { const p = Math.max(0, page - 1); setPage(p); loadSkills({ view: viewMode, page: p }); }}
+            disabled={page === 0 || loading} className="px-3 py-1.5 text-[11px] text-gray-400 hover:text-white border border-[#333] rounded-lg disabled:opacity-30">
+            上一页
+          </button>
+          <span className="text-[11px] text-gray-600">第 {page + 1} 页 · 共 {Math.ceil(total / 20)} 页</span>
+          <button onClick={() => { const p = page + 1; setPage(p); loadSkills({ view: viewMode, page: p }); }}
+            disabled={(page + 1) * 20 >= total || loading} className="px-3 py-1.5 text-[11px] text-gray-400 hover:text-white border border-[#333] rounded-lg disabled:opacity-30">
+            下一页
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SkillsListSection({ skills, disabledSkills, hasAgent, onToggle, onAdd, onUpdate, onDelete, onReload, adapter }: {
   skills: SkillInfo[]; disabledSkills: string[]; hasAgent: boolean; onToggle: (name: string) => void;
   onAdd?: (skill: SkillFormData) => void | Promise<void>;
   onUpdate?: (name: string, updates: SkillFormData) => void | Promise<void>;
   onDelete?: (name: string) => void | Promise<void>;
   onReload: () => void;
+  adapter: ISettingsAdapter;
 }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [showInstall, setShowInstall] = useState(false);
   const [editingSkill, setEditingSkill] = useState<string | null>(null);
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formInstructions, setFormInstructions] = useState('');
+  const [installUrl, setInstallUrl] = useState('');
+  const [installGit, setInstallGit] = useState('');
+  const [installLocal, setInstallLocal] = useState('');
+  const [installStatus, setInstallStatus] = useState<string | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const advancedInstall = adapter.supportsAdvancedInstall?.() ?? false;
 
   const resetForm = () => { setFormName(''); setFormDesc(''); setFormInstructions(''); setShowAdd(false); setEditingSkill(null); };
 
@@ -713,6 +953,37 @@ function SkillsListSection({ skills, disabledSkills, hasAgent, onToggle, onAdd, 
     setShowAdd(false);
   };
 
+  const handleInstallUrl = async () => {
+    if (!adapter.installSkillFromUrl || !installUrl.trim()) return;
+    setInstalling(true); setInstallStatus(null);
+    try {
+      const r = await adapter.installSkillFromUrl(installUrl.trim());
+      setInstallStatus(r.success ? '安装成功' : `失败: ${r.error}`);
+      if (r.success) { setInstallUrl(''); onReload(); }
+    } catch (e: any) { setInstallStatus(`失败: ${e.message}`); }
+    setInstalling(false);
+  };
+  const handleInstallGit = async () => {
+    if (!adapter.installSkillFromGit || !installGit.trim()) return;
+    setInstalling(true); setInstallStatus(null);
+    try {
+      const r = await adapter.installSkillFromGit(installGit.trim());
+      setInstallStatus(r.success ? '安装成功' : `失败: ${r.error}`);
+      if (r.success) { setInstallGit(''); onReload(); }
+    } catch (e: any) { setInstallStatus(`失败: ${e.message}`); }
+    setInstalling(false);
+  };
+  const handleInstallLocal = async () => {
+    if (!adapter.installSkillFromLocal || !installLocal.trim()) return;
+    setInstalling(true); setInstallStatus(null);
+    try {
+      const r = await adapter.installSkillFromLocal(installLocal.trim());
+      setInstallStatus(r.success ? '安装成功' : `失败: ${r.error}`);
+      if (r.success) { setInstallLocal(''); onReload(); }
+    } catch (e: any) { setInstallStatus(`失败: ${e.message}`); }
+    setInstalling(false);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -720,10 +991,52 @@ function SkillsListSection({ skills, disabledSkills, hasAgent, onToggle, onAdd, 
           <h2 className="text-lg text-white font-medium">技能</h2>
           <p className="text-xs text-gray-500 mt-0.5">预定义的技能模板，匹配用户消息时自动注入上下文。</p>
         </div>
-        {onAdd && !showAdd && !editingSkill && (
-          <button onClick={() => { resetForm(); setShowAdd(true); }} className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors">+ 添加技能</button>
-        )}
+        <div className="flex items-center gap-2">
+          {adapter.installSkillFromUrl && !showAdd && !editingSkill && (
+            <button onClick={() => setShowInstall(!showInstall)} className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors">{showInstall ? '关闭' : '安装技能'}</button>
+          )}
+          {onAdd && !showAdd && !editingSkill && (
+            <button onClick={() => { resetForm(); setShowAdd(true); }} className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors">+ 添加技能</button>
+          )}
+        </div>
       </div>
+
+      {/* Install panel */}
+      {showInstall && (
+        <Card className="mb-4 !border-cyan-900/50">
+          <div className="text-sm text-cyan-400 font-medium mb-3">安装技能</div>
+          <div className="space-y-3">
+            <div>
+              <FieldLabel>从 URL 安装 (SKILL.md 地址)</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="text" value={installUrl} onChange={(e) => setInstallUrl(e.target.value)} placeholder="https://example.com/SKILL.md" className={cn(INPUT_CLS, 'flex-1')} />
+                <button onClick={handleInstallUrl} disabled={installing || !installUrl.trim()} className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50 transition-colors whitespace-nowrap">安装</button>
+              </div>
+            </div>
+            {advancedInstall && adapter.installSkillFromGit && (
+              <div>
+                <FieldLabel>从 Git 仓库安装</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <input type="text" value={installGit} onChange={(e) => setInstallGit(e.target.value)} placeholder="https://github.com/user/skill-repo" className={cn(INPUT_CLS, 'flex-1')} />
+                  <button onClick={handleInstallGit} disabled={installing || !installGit.trim()} className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50 transition-colors whitespace-nowrap">安装</button>
+                </div>
+              </div>
+            )}
+            {advancedInstall && adapter.installSkillFromLocal && (
+              <div>
+                <FieldLabel>从本地目录安装</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <input type="text" value={installLocal} onChange={(e) => setInstallLocal(e.target.value)} placeholder="/path/to/skill-directory" className={cn(INPUT_CLS, 'flex-1')} />
+                  <button onClick={handleInstallLocal} disabled={installing || !installLocal.trim()} className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50 transition-colors whitespace-nowrap">安装</button>
+                </div>
+              </div>
+            )}
+            {installStatus && (
+              <div className={cn('text-[11px] px-3 py-2 rounded-lg', installStatus.startsWith('安装成功') ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20')}>{installStatus}</div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Add / Edit form */}
       {(showAdd || editingSkill) && (
@@ -764,21 +1077,65 @@ function SkillsListSection({ skills, disabledSkills, hasAgent, onToggle, onAdd, 
   );
 }
 
-function McpSection({ servers, configs, onAdd, onRemove, onToggle, supportsStdio, onReload }: {
+function McpSection({ servers, configs, onAdd, onRemove, onToggle, getMcpServerTools, updateMcpServerToolConfig, searchMcpMarketplace, installFromMcpMarketplace, supportsStdio, onReload }: {
   servers: McpServerInfo[];
   configs: McpServerConfig[];
   onAdd?: (config: McpServerConfig) => void | Promise<void>;
   onRemove?: (name: string) => void | Promise<void>;
   onToggle?: (name: string, enabled: boolean) => void | Promise<void>;
+  getMcpServerTools?: (serverName: string) => Promise<string[]>;
+  updateMcpServerToolConfig?: (serverName: string, config: {
+    approvalMode?: 'auto' | 'ask' | 'deny';
+    enabledTools?: string[];
+    disabledTools?: string[];
+  }) => Promise<void>;
+  searchMcpMarketplace?: (query: string) => Promise<{ servers: Array<{ id: string; qualifiedName: string; displayName: string; description: string; useCount: number; verified: boolean }>; pagination: { totalCount: number } }>;
+  installFromMcpMarketplace?: (qualifiedName: string) => Promise<{ success: boolean; error?: string }>;
   supportsStdio: boolean;
   onReload: () => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [mcpTab, setMcpTab] = useState<'config' | 'market'>('config');
+  const [expandedServer, setExpandedServer] = useState<string | null>(null);
+  const [serverTools, setServerTools] = useState<Record<string, string[]>>({});
   const [formName, setFormName] = useState('');
   const [formTransport, setFormTransport] = useState<'stdio' | 'http'>(supportsStdio ? 'stdio' : 'http');
   const [formCommand, setFormCommand] = useState('');
   const [formArgs, setFormArgs] = useState('');
   const [formUrl, setFormUrl] = useState('');
+  const [marketQuery, setMarketQuery] = useState('');
+  const [marketResults, setMarketResults] = useState<Array<{ id: string; qualifiedName: string; displayName: string; description: string; useCount: number; verified: boolean }>>([]);
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [installingName, setInstallingName] = useState<string | null>(null);
+
+  const connectedNames = new Set(servers.map((s) => s.name));
+
+  const toggleExpand = async (name: string) => {
+    if (expandedServer === name) {
+      setExpandedServer(null);
+      return;
+    }
+    setExpandedServer(name);
+    if (!serverTools[name] && getMcpServerTools) {
+      const tools = await getMcpServerTools(name);
+      setServerTools((prev) => ({ ...prev, [name]: tools }));
+    }
+  };
+
+  const handleToggleTool = async (serverName: string, toolName: string, enable: boolean) => {
+    const cfg = configs.find((c) => c.name === serverName);
+    if (!cfg || !updateMcpServerToolConfig) return;
+    const current = cfg.disabledTools ?? [];
+    const disabledTools = enable ? current.filter((t) => t !== toolName) : [...current.filter((t) => t !== toolName), toolName];
+    await updateMcpServerToolConfig(serverName, { disabledTools });
+    onReload();
+  };
+
+  const handleApprovalMode = async (serverName: string, mode: 'auto' | 'ask' | 'deny') => {
+    if (!updateMcpServerToolConfig) return;
+    await updateMcpServerToolConfig(serverName, { approvalMode: mode });
+    onReload();
+  };
 
   const handleAdd = async () => {
     if (!onAdd || !formName.trim()) return;
@@ -796,46 +1153,93 @@ function McpSection({ servers, configs, onAdd, onRemove, onToggle, supportsStdio
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg text-white font-medium">MCP 服务器</h2>
           <p className="text-xs text-gray-500 mt-0.5">连接外部 MCP 服务器，扩展工具能力。</p>
         </div>
-        {onAdd && !showAdd && (
-          <button onClick={() => setShowAdd(true)} className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors">+ 添加服务器</button>
-        )}
       </div>
 
-      {/* Connected servers (from runtime) */}
-      {servers.length > 0 && (
-        <Card className="mb-4">
-          <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">已连接</div>
-          <div className="divide-y divide-[#2a2a2a]">
-            {servers.map((s, i) => (<div key={i} className="py-2 first:pt-0 last:pb-0 flex items-center gap-2 text-sm"><span className="w-1.5 h-1.5 rounded-full bg-green-400" /><span className="text-gray-300 font-mono">{s.name}</span></div>))}
-          </div>
-        </Card>
-      )}
+      {/* Tab navigation */}
+      <div className="flex gap-1 mb-4 border-b border-[#2a2a2a]">
+        <button onClick={() => setMcpTab('config')} className={cn('px-3 py-1.5 text-[12px] border-b-2 transition-colors', mcpTab === 'config' ? 'text-white border-cyan-500' : 'text-gray-500 border-transparent hover:text-gray-300')}>已配置</button>
+        <button onClick={() => setMcpTab('market')} className={cn('px-3 py-1.5 text-[12px] border-b-2 transition-colors', mcpTab === 'market' ? 'text-white border-cyan-500' : 'text-gray-500 border-transparent hover:text-gray-300')}>市场</button>
+      </div>
 
-      {/* Configured servers with CRUD */}
+      {mcpTab === 'config' && (<>
+        <div className="flex justify-end mb-3">
+          {onAdd && !showAdd && (
+            <button onClick={() => setShowAdd(true)} className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors">+ 添加服务器</button>
+          )}
+        </div>
+
+      {/* Configured servers with CRUD + tool permissions */}
       {configs.length > 0 && (
         <Card className="!p-0 divide-y divide-[#2a2a2a] mb-4">
           {configs.map((c) => (
-            <div key={c.name} className="px-4 py-3 flex items-center gap-3 group">
-              <span className={cn('w-2 h-2 rounded-full flex-shrink-0', c.enabled ? 'bg-green-400' : 'bg-gray-600')} />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-gray-200 font-mono">{c.name}</div>
-                <div className="text-[11px] text-gray-500">
-                  {c.transport === 'stdio' ? <span>stdio: <span className="font-mono">{c.command} {(c.args || []).join(' ')}</span></span> : <span>http: <span className="font-mono">{c.url}</span></span>}
+            <div key={c.name}>
+              <div className="px-4 py-3 flex items-center gap-3 group">
+                <span className={cn('w-2 h-2 rounded-full flex-shrink-0', c.enabled && connectedNames.has(c.name) ? 'bg-green-400' : c.enabled ? 'bg-yellow-500' : 'bg-gray-600')} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-gray-200 font-mono">{c.name}</div>
+                  <div className="text-[11px] text-gray-500">
+                    {c.transport === 'stdio' ? <span>stdio: <span className="font-mono">{c.command} {(c.args || []).join(' ')}</span></span> : <span>http: <span className="font-mono">{c.url}</span></span>}
+                  </div>
                 </div>
+                {connectedNames.has(c.name) && (
+                  <button onClick={() => toggleExpand(c.name)} className="text-[10px] text-gray-500 hover:text-cyan-400 transition-colors">
+                    {expandedServer === c.name ? '收起' : '工具'}
+                  </button>
+                )}
+                {onToggle && <Toggle checked={c.enabled} onChange={(v) => { onToggle(c.name, v); onReload(); }} />}
+                {onRemove && <button onClick={async () => { await onRemove(c.name); onReload(); }} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-opacity text-[10px]">删除</button>}
               </div>
-              {onToggle && <Toggle checked={c.enabled} onChange={(v) => { onToggle(c.name, v); onReload(); }} />}
-              {onRemove && <button onClick={async () => { await onRemove(c.name); onReload(); }} className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-opacity text-[10px]">删除</button>}
+
+              {/* Expanded tool permissions */}
+              {expandedServer === c.name && connectedNames.has(c.name) && (
+                <div className="px-4 pb-3 border-t border-[#2a2a2a] bg-[#1a1a1a]/50">
+                  {/* Approval mode */}
+                  <div className="flex items-center gap-3 mt-2 mb-3">
+                    <span className="text-[11px] text-gray-500">审批模式:</span>
+                    <select
+                      value={c.approvalMode ?? 'ask'}
+                      onChange={(e) => handleApprovalMode(c.name, e.target.value as 'auto' | 'ask' | 'deny')}
+                      className={cn(SELECT_CLS, '!py-1 !text-[11px]')}
+                    >
+                      <option value="auto">自动批准</option>
+                      <option value="ask">需确认 (默认)</option>
+                      <option value="deny">全部拒绝</option>
+                    </select>
+                  </div>
+
+                  {/* Tool list */}
+                  {(serverTools[c.name]?.length ?? 0) > 0 ? (
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">工具列表</div>
+                      {serverTools[c.name]?.map((tool) => {
+                        const isDisabled = c.disabledTools?.includes(tool) ?? false;
+                        return (
+                          <div key={tool} className="flex items-center gap-2 py-1">
+                            <Toggle
+                              checked={!isDisabled}
+                              onChange={(v) => handleToggleTool(c.name, tool, v)}
+                            />
+                            <span className={cn('text-[12px] font-mono', isDisabled ? 'text-gray-600 line-through' : 'text-gray-300')}>{tool}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-gray-600 py-1">加载工具列表中...</div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </Card>
       )}
 
-      {configs.length === 0 && servers.length === 0 && !showAdd && (
+      {configs.length === 0 && !showAdd && (
         <Card>
           <div className="text-center py-6">
             <p className="text-gray-600 text-sm mb-2">暂无已配置的 MCP 服务器</p>
@@ -871,6 +1275,101 @@ function McpSection({ servers, configs, onAdd, onRemove, onToggle, supportsStdio
             </div>
           </div>
         </Card>
+      )}
+      </>)}
+
+      {/* Market tab */}
+      {mcpTab === 'market' && (
+        <div>
+          {/* Search bar */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={marketQuery}
+              onChange={(e) => setMarketQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchMcpMarketplace) {
+                  setMarketLoading(true);
+                  searchMcpMarketplace(marketQuery)
+                    .then((r) => setMarketResults(r.servers))
+                    .catch(() => setMarketResults([]))
+                    .finally(() => setMarketLoading(false));
+                }
+              }}
+              placeholder="搜索 MCP 服务器..."
+              className="flex-1 text-sm text-gray-300 bg-[#171717] rounded-lg px-3 py-2 border border-[#2a2a2a] focus:border-cyan-600 outline-none placeholder:text-gray-600"
+            />
+            <button
+              onClick={() => {
+                if (!searchMcpMarketplace) return;
+                setMarketLoading(true);
+                searchMcpMarketplace(marketQuery)
+                  .then((r) => setMarketResults(r.servers))
+                  .catch(() => setMarketResults([]))
+                  .finally(() => setMarketLoading(false));
+              }}
+              disabled={marketLoading || !searchMcpMarketplace}
+              className="px-4 py-2 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50 transition-colors"
+            >
+              {marketLoading ? '搜索中...' : '搜索'}
+            </button>
+          </div>
+
+          {/* Results */}
+          {marketResults.length > 0 ? (
+            <div className="space-y-2">
+              {marketResults.map((s) => (
+                <Card key={s.id} className="group">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-200 font-medium">{s.displayName || s.qualifiedName}</span>
+                        {s.verified && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-900/40 text-green-400 border border-green-800/50">已验证</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">{s.description}</p>
+                      <div className="text-[10px] text-gray-600 mt-1.5">
+                        <span>{s.useCount.toLocaleString()} 次安装</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!installFromMcpMarketplace) return;
+                        setInstallingName(s.qualifiedName);
+                        try {
+                          const res = await installFromMcpMarketplace(s.qualifiedName);
+                          if (res.success) {
+                            onReload();
+                          } else {
+                            console.error('Install failed:', res.error);
+                          }
+                        } finally {
+                          setInstallingName(null);
+                        }
+                      }}
+                      disabled={installingName === s.qualifiedName || !installFromMcpMarketplace}
+                      className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-cyan-800 text-cyan-400 hover:bg-cyan-900/30 disabled:opacity-50 transition-colors flex-shrink-0"
+                    >
+                      {installingName === s.qualifiedName ? '安装中...' : '安装'}
+                    </button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : marketLoading ? (
+            <Card>
+              <div className="text-center py-8 text-gray-600 text-sm">搜索中...</div>
+            </Card>
+          ) : (
+            <Card>
+              <div className="text-center py-8">
+                <p className="text-gray-600 text-sm mb-1">搜索 Smithery MCP 市场</p>
+                <p className="text-[11px] text-gray-600">输入关键词后按回车或点击搜索</p>
+              </div>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );

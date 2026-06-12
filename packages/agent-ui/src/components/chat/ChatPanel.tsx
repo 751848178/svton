@@ -25,7 +25,7 @@ export interface ChatPanelProps {
   onAbort?: () => void;
   onApproveTool?: (callId: string) => void;
   onRejectTool?: (callId: string) => void;
-  onRetry?: () => void;
+  onRetry?: (messageId?: string) => void;
   onEditMessage?: (messageId: string, newContent: string) => void;
   onOpenEditor?: (content: string) => void;
   onOpenDocument?: (doc: import('./SplitScreenPanel').SplitScreenContent) => void;
@@ -35,14 +35,18 @@ export interface ChatPanelProps {
   emptyMessage?: React.ReactNode;
   /** Starter suggestions shown when message list is empty */
   presets?: PresetItem[];
-  /** Extra element in the input bar (e.g. model selector) */
+  /** Extra element in the input bar (e.g. model selector + controls) */
   inputLeadingSlot?: React.ReactNode;
   /** Extra action buttons in the input bar */
   inputTrailingSlot?: React.ReactNode;
-  /** Footer row in the input card (e.g. project/mode/branch selectors) */
-  inputFooterSlot?: React.ReactNode;
   /** Slash commands for the input */
   slashCommands?: SlashCommand[];
+  /** Items shown when user types @ */
+  mentionItems?: import('./ChatInput').MentionItem[];
+  /** Called when user selects a mention item */
+  onMentionSelect?: (item: import('./ChatInput').MentionItem) => string;
+  /** Called when user clicks "引用文件" in attach menu */
+  onFileReference?: () => void;
   /** Names of currently matched skills (shown as status bar) */
   matchedSkills?: string[];
   /** Active plan to display progress for */
@@ -91,8 +95,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   presets,
   inputLeadingSlot,
   inputTrailingSlot,
-  inputFooterSlot,
   slashCommands,
+  mentionItems,
+  onMentionSelect,
+  onFileReference,
   matchedSkills,
   activePlan,
   className,
@@ -146,7 +152,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto relative"
+        className="flex-1 min-h-0 overflow-y-auto relative"
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full px-6">
@@ -187,9 +193,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   thinking={msg.thinking}
                   error={msg.error}
                   toolCalls={msg.toolCalls}
+                  blocks={msg.blocks}
                   isStreaming={msg.isStreaming}
                   isLast={i === messages.length - 1}
                   systemType={msg.systemType}
+                  duration={msg.duration}
                   onApproveTool={onApproveTool}
                   onRejectTool={onRejectTool}
                   onRetry={onRetry}
@@ -244,8 +252,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         placeholder={placeholder}
         leadingSlot={inputLeadingSlot}
         trailingSlot={inputTrailingSlot}
-        footerSlot={inputFooterSlot}
         slashCommands={slashCommands}
+        mentionItems={mentionItems}
+        onMentionSelect={onMentionSelect}
+        onFileReference={onFileReference}
       />
 
       {/* Tool approval modal — auto-opens when a tool needs permission */}

@@ -3,10 +3,10 @@ export { ChatPanel } from './components/chat/ChatPanel';
 export type { ChatPanelProps, ChatPanelMessage, PresetItem } from './components/chat/ChatPanel';
 
 export { ChatMessage } from './components/chat/ChatMessage';
-export type { ChatMessageProps } from './components/chat/ChatMessage';
+export type { ChatMessageProps, ContentBlock } from './components/chat/ChatMessage';
 
 export { ChatInput } from './components/chat/ChatInput';
-export type { ChatInputProps, SlashCommand, ImageAttachment } from './components/chat/ChatInput';
+export type { ChatInputProps, SlashCommand, ImageAttachment, MentionItem } from './components/chat/ChatInput';
 
 export { StreamingText } from './components/chat/StreamingText';
 export type { StreamingTextProps } from './components/chat/StreamingText';
