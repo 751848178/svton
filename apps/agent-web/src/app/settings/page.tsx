@@ -14,8 +14,10 @@ export default function SettingsPage() {
   const [adapter] = useState(() => new BrowserSettingsAdapter(platform));
 
   useEffect(() => {
-    const defaultModel = loadString(LS_DEFAULT_MODEL) || undefined;
-    initAgentConfig(defaultModel, platform)
+    const saved = loadString(LS_DEFAULT_MODEL) || undefined;
+    // Settings stores "providerId::modelId", extract modelId for initAgentConfig
+    const modelId = saved?.includes('::') ? saved.split('::')[1] : saved;
+    initAgentConfig(modelId || undefined, platform)
       .then((cfg) => {
         adapter.setAgentConfig(cfg);
         setRefreshKey((k) => k + 1);

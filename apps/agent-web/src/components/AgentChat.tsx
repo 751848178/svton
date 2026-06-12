@@ -9,29 +9,29 @@ import { loadSettings } from '@/lib/settings-store';
 import { AgentLayout } from './AgentLayout';
 
 export default function AgentChat() {
+  // Initialize models + currentModel synchronously from localStorage to avoid flash
+  const [models] = useState(() => {
+    const settings = loadSettings();
+    return settings.flatMap((p) =>
+      p.models.map((m) => ({ ...m, providerId: p.id, providerName: p.name })),
+    );
+  });
+
+  const [currentModel, setCurrentModel] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const saved = localStorage.getItem('agent-web:defaultModel');
+    // Settings stores "providerId::modelId", extract modelId part
+    const modelId = saved?.includes('::') ? saved.split('::')[1] : saved;
+    return modelId || '';
+  });
+
   const [config, setConfig] = useState<AgentConfig | null>(null);
-  const [currentModel, setCurrentModel] = useState('');
-  const [models, setModels] = useState<{ id: string; name: string; providerName: string }[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
   // R4 fix: use useState initializer instead of render-time side effect
   const [platform] = useState(() => new BrowserPlatform());
-
-  // Load models from providers
-  useEffect(() => {
-    const settings = loadSettings();
-    const allModels = settings.flatMap((p) =>
-      p.models.map((m) => ({ ...m, providerId: p.id, providerName: p.name })),
-    );
-    setModels(allModels);
-    if (!currentModel) {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem('agent-web:defaultModel') : null;
-      const defaultModel = saved && allModels.some(m => m.id === saved) ? saved : allModels[0]?.id;
-      if (defaultModel) setCurrentModel(defaultModel);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -45,13 +45,16 @@ export default function AgentChat() {
   // Init agent when model changes
   useEffect(() => {
     if (!currentModel) return;
-    localStorage.setItem('agent-web:defaultModel', currentModel);
+    // Find provider for this model to write in "providerId::modelId" format (matching settings page convention)
+    const provider = models.find(m => m.id === currentModel);
+    const storageKey = provider ? `${provider.providerId}::${currentModel}` : currentModel;
+    localStorage.setItem('agent-web:defaultModel', storageKey);
     let cancelled = false;
     initAgentConfig(currentModel, platform)
       .then((cfg) => { if (!cancelled) setConfig(cfg); })
       .catch((e) => console.error(e));
     return () => { cancelled = true; };
-  }, [currentModel, platform]);
+  }, [currentModel, platform, models]);
 
   if (!config) {
     if (!currentModel) {

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type SlashCommand } from '@svton/agent-ui';
-import { useChat, useSession } from '@svton/agent-client';
+import { type SlashCommand, type MentionItem } from '@svton/agent-ui';
+import { useChat, useSession, useAgentContext } from '@svton/agent-client';
 import type { AgentConfig } from '@svton/agent-core';
 import type { View } from './Sidebar';
 import { Sidebar } from './Sidebar';
@@ -34,6 +34,7 @@ export function AgentLayout({
 }: AgentLayoutProps) {
   const { sessions, currentSessionId, create, switchTo, delete: deleteSession } = useSession();
   const { status, abort, messages, send } = useChat();
+  const { platform } = useAgentContext();
   const [matchedSkills, setMatchedSkills] = useState<string[]>([]);
   const [view, setView] = useState<View>('chat');
 
@@ -51,22 +52,33 @@ export function AgentLayout({
   }, [models]);
 
   // Model selector
+  const [modelDropPos, setModelDropPos] = useState<{ left: number; bottom: number }>({ left: 0, bottom: 0 });
   const modelSelector = (
-    <div ref={dropRef} className="relative">
+    <div ref={dropRef} className="relative flex-shrink-0">
       <button
-        onClick={() => setDropdownOpen(!dropdownOpen)}
-        className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-[#222] hover:bg-[#333] text-gray-400 hover:text-gray-200 border border-[#333] transition-colors"
+        onClick={() => {
+          if (!dropdownOpen && dropRef.current) {
+            const rect = dropRef.current.getBoundingClientRect();
+            setModelDropPos({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
+          }
+          setDropdownOpen(!dropdownOpen);
+        }}
+        className="flex items-center gap-1.5 px-2 py-0.5 text-[11px] rounded-md bg-[#222] hover:bg-[#333] text-gray-400 hover:text-gray-200 border border-[#333] transition-colors"
       >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="text-gray-500">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" className="text-gray-500">
           <circle cx="8" cy="8" r="3" />
         </svg>
-        {modelProvider ? `${modelProvider} · ${modelName}` : modelName}
-        <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor" className="text-gray-500">
+        <span className="max-w-[100px] truncate">{modelProvider ? `${modelProvider} · ${modelName}` : modelName}</span>
+        <svg width="8" height="8" viewBox="0 0 12 12" fill="currentColor" className="text-gray-500">
           <path d="M3 5l3 3 3-3H3z" />
         </svg>
       </button>
       {dropdownOpen && (
-        <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl z-50 py-1 overflow-hidden max-h-80 overflow-y-auto">
+        <div
+          style={{ position: 'fixed', left: modelDropPos.left, bottom: modelDropPos.bottom, zIndex: 9999 }}
+          className="w-56 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl py-1 overflow-hidden max-h-80 overflow-y-auto"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           {modelGroups.map(([provider, ms], gi) => (
             <div key={provider}>
               {gi > 0 && <div className="border-t border-[#2a2a2a] my-1" />}
@@ -76,8 +88,9 @@ export function AgentLayout({
               {ms.map((m) => (
                 <button
                   key={m.id}
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => { setCurrentModel(m.id); setDropdownOpen(false); }}
-                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                  className={`w-full text-left px-3 py-1.5 text-[11px] transition-colors ${
                     m.id === currentModel
                       ? 'text-white bg-[#2a2a2a] font-medium'
                       : 'text-gray-400 hover:bg-[#2a2a2a]/60 hover:text-gray-200'
@@ -130,6 +143,86 @@ export function AgentLayout({
   const tools = useMemo(() => config.toolRegistry?.listDefinitions() ?? [], [config.toolRegistry]);
   const agentSkills = useMemo(() => config.capabilities?.skillManager?.list() ?? [], [config.capabilities]);
 
+  // ── Mention items (skills + tools, no files in browser) ──
+  const mentionItems: MentionItem[] = useMemo(() => {
+    const items: MentionItem[] = [];
+    const skills = config.capabilities?.skillManager?.list() ?? [];
+    for (const s of skills) {
+      items.push({
+        label: s.name,
+        description: s.description,
+        icon: <span className="text-purple-400 text-[10px]">✦</span>,
+        category: 'skill',
+      });
+    }
+    const toolDefs = config.toolRegistry?.listDefinitions() ?? [];
+    for (const t of toolDefs.slice(0, 20)) {
+      items.push({
+        label: t.name,
+        description: t.description,
+        icon: <span className="text-cyan-400 text-[10px]">⚙</span>,
+        category: 'tool',
+      });
+    }
+    return items;
+  }, [config.capabilities, config.toolRegistry]);
+
+  const handleMentionSelect = useCallback((item: MentionItem): string => {
+    return `@${item.label}`;
+  }, []);
+
+  // ── Permission mode ──
+  const [permissionMode, setPermissionMode] = useState<'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto'>(
+    () => (config.capabilities?.permissionManager?.getMode() as any) ?? 'default'
+  );
+  const handlePermissionModeChange = useCallback(async (mode: 'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto') => {
+    setPermissionMode(mode);
+    config.capabilities?.permissionManager?.setMode(mode);
+    await platform.storage.set('agent:permission_mode', mode);
+    // Sync planMode state
+    setPlanMode(mode === 'plan');
+  }, [config, platform]);
+
+  // ── Plan mode ──
+  const [planMode, setPlanMode] = useState(() => {
+    const savedMode = config.capabilities?.permissionManager?.getMode();
+    return savedMode === 'plan';
+  });
+  const prePlanModeRef = useRef<'read_only' | 'default' | 'accept_edits' | 'auto'>(
+    (() => {
+      const m = config.capabilities?.permissionManager?.getMode();
+      return (m === 'plan' ? 'default' : m) as 'read_only' | 'default' | 'accept_edits' | 'auto';
+    })()
+  );
+  const handlePlanModeChange = useCallback(async (enabled: boolean) => {
+    if (enabled) {
+      const currentMode = config.capabilities?.permissionManager?.getMode();
+      if (currentMode && currentMode !== 'plan') {
+        prePlanModeRef.current = currentMode as 'read_only' | 'default' | 'accept_edits' | 'auto';
+      }
+      setPlanMode(true);
+      setPermissionMode('plan');
+      config.capabilities?.permissionManager?.setMode('plan');
+      await platform.storage.set('agent:permission_mode', 'plan');
+    } else {
+      const restore = prePlanModeRef.current;
+      setPlanMode(false);
+      setPermissionMode(restore);
+      config.capabilities?.permissionManager?.setMode(restore);
+      await platform.storage.set('agent:permission_mode', restore);
+    }
+  }, [config, platform]);
+
+  // ── Plugins ──
+  const plugins = useMemo(() =>
+    (config.capabilities?.pluginManager?.list() ?? []).map((p: any) => ({ name: p.name, enabled: p.enabled })),
+  [config.capabilities]);
+  const handlePluginToggle = useCallback(async (name: string, enabled: boolean) => {
+    const pm = config.capabilities?.pluginManager;
+    if (!pm) return;
+    if (enabled) { await pm.enable(name); } else { await pm.disable(name); }
+  }, [config.capabilities]);
+
   return (
     <div className="flex h-screen bg-black text-gray-100 font-mono">
       <Sidebar
@@ -161,13 +254,26 @@ export function AgentLayout({
         {/* Content area */}
         <div className="flex-1 flex overflow-hidden">
           {(view === 'chat' || view === 'search') && (
-            <ChatContent modelSelector={modelSelector} slashCommands={slashCommands} matchedSkills={matchedSkills} onAbort={abort} />
+            <ChatContent
+              modelSelector={modelSelector}
+              slashCommands={slashCommands}
+              matchedSkills={matchedSkills}
+              onAbort={abort}
+              mentionItems={mentionItems}
+              onMentionSelect={handleMentionSelect}
+              permissionMode={permissionMode}
+              onPermissionModeChange={handlePermissionModeChange}
+              planMode={planMode}
+              onPlanModeChange={handlePlanModeChange}
+              plugins={plugins}
+              onPluginToggle={handlePluginToggle}
+            />
           )}
           {view === 'automation' && (
-            <AutomationPanel tools={tools} />
+            <AutomationPanel tools={tools} onManage={() => window.location.href = '/settings'} />
           )}
           {view === 'skills' && (
-            <SkillsPanel skills={agentSkills} />
+            <SkillsPanel skills={agentSkills} onManage={() => window.location.href = '/settings'} />
           )}
         </div>
       </div>
@@ -182,10 +288,13 @@ interface ToolDefinition {
   description?: string;
 }
 
-function AutomationPanel({ tools }: { tools: ToolDefinition[] }) {
+function AutomationPanel({ tools, onManage }: { tools: ToolDefinition[]; onManage?: () => void }) {
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <h2 className="text-lg text-white font-light mb-4">自动化工具</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg text-white font-light">自动化工具</h2>
+        {onManage && <button onClick={onManage} className="text-[11px] text-cyan-500 hover:text-cyan-400">在设置中管理 →</button>}
+      </div>
       {tools.length === 0 ? (
         <p className="text-gray-500 text-sm">暂无注册的工具</p>
       ) : (
@@ -210,10 +319,13 @@ interface SkillDefinition {
   scope?: string;
 }
 
-function SkillsPanel({ skills }: { skills: SkillDefinition[] }) {
+function SkillsPanel({ skills, onManage }: { skills: SkillDefinition[]; onManage?: () => void }) {
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <h2 className="text-lg text-white font-light mb-4">技能</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg text-white font-light">技能</h2>
+        {onManage && <button onClick={onManage} className="text-[11px] text-cyan-500 hover:text-cyan-400">在设置中管理 →</button>}
+      </div>
       {skills.length === 0 ? (
         <p className="text-gray-500 text-sm">暂无注册的技能</p>
       ) : (

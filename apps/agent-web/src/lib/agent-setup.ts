@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import type { BrowserPlatform } from '@svton/agent-platform';
-import type { AgentConfig, AgentCapabilities } from '@svton/agent-core';
+import type { AgentConfig, AgentCapabilities, McpServerToolConfig } from '@svton/agent-core';
 import {
   ToolRegistry,
   OpenAIProvider,
@@ -26,7 +26,11 @@ import {
   PermissionManager,
   HookManager,
   PlanningManager,
+  MCPClient,
+  HTTPTransport,
+  PluginManager,
 } from '@svton/agent-core';
+import type { McpServerConfig } from '@svton/agent-ui';
 import {
   loadSettings,
   loadString,
@@ -117,9 +121,16 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
   toolRegistry.register(memorySaveDef, new MemorySaveExecutor(memoryManager));
   toolRegistry.register(memoryRecallDef, new MemoryRecallExecutor(memoryManager));
 
-  // SkillManager — load skills from public directory
+  // SkillManager — multi-scope discovery (web: no filesystem, no project scope)
   const skillManager = new SkillManager();
-  await loadBrowserSkills(skillManager);
+  const { skills: discoveredSkills } = await SkillLoader.discover(
+    platform.storage,
+    platform,
+    SKILL_PATHS,
+  );
+  for (const skill of discoveredSkills) {
+    skillManager.register(skill);
+  }
 
   // PromptManager — will compose system prompt with tools + skills + memory
   const promptManager = new PromptManager();
@@ -163,9 +174,70 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
     permissionManager,
     hookManager,
     planningManager,
-    // mcpClients: none for browser
     // subagentManager: set post-creation via setSubagentManager()
   };
+
+  // ── Connect MCP servers (HTTP only for browser) ──
+  const LS_MCP_SERVERS = 'agent-web:mcp_servers';
+  let mcpConfigs: McpServerConfig[] = [];
+  try {
+    mcpConfigs = JSON.parse(localStorage.getItem(LS_MCP_SERVERS) || '[]');
+  } catch { /* ignore */ }
+
+  const mcpClients: import('@svton/agent-core').MCPClient[] = [];
+  for (const cfg of mcpConfigs) {
+    if (!cfg.enabled || cfg.transport === 'stdio') continue;
+    try {
+      const client = new MCPClient();
+      const transport = new HTTPTransport({ url: cfg.url! });
+      await client.connect(transport);
+      mcpClients.push(client);
+    } catch (err) {
+      console.error(`MCP server "${cfg.name}" connection failed:`, err);
+    }
+  }
+  if (mcpClients.length > 0) {
+    capabilities.mcpClients = mcpClients;
+  }
+
+  // Build per-server tool configs for runtime filtering
+  const mcpServerConfigs = new Map<string, McpServerToolConfig>();
+  for (const cfg of mcpConfigs) {
+    if (cfg.approvalMode || cfg.enabledTools?.length || cfg.disabledTools?.length) {
+      mcpServerConfigs.set(cfg.name, {
+        approvalMode: cfg.approvalMode,
+        enabledTools: cfg.enabledTools,
+        disabledTools: cfg.disabledTools,
+      });
+    }
+  }
+  if (mcpServerConfigs.size > 0) {
+    capabilities.mcpServerConfigs = mcpServerConfigs;
+  }
+
+  // ── Initialize PluginManager ──
+  const pluginManager = new PluginManager();
+  await pluginManager.init(platform.storage);
+  capabilities.pluginManager = pluginManager;
+
+  // Load enabled plugin MCP servers (HTTP only for web)
+  const enabledPlugins = pluginManager.getEnabledPlugins();
+  for (const plugin of enabledPlugins) {
+    if (plugin.manifest.mcpServers?.length) {
+      for (const mcp of plugin.manifest.mcpServers) {
+        if (mcp.enabled === false || mcp.transport === 'stdio') continue;
+        try {
+          const client = new MCPClient();
+          const transport = new HTTPTransport({ url: mcp.url! });
+          await client.connect(transport);
+          mcpClients.push(client);
+        } catch (err) {
+          console.error(`Plugin "${plugin.name}": MCP server "${mcp.name}" failed:`, err);
+        }
+      }
+      capabilities.mcpClients = mcpClients;
+    }
+  }
 
   // Custom instructions → append to system prompt
   const customInstructions = loadString(LS_CUSTOM_INSTRUCTIONS);
@@ -178,22 +250,4 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
     capabilities,
     ...(customInstructions ? { systemPrompt: `\n\n### Custom Instructions\n${customInstructions}` } : {}),
   };
-}
-
-/**
- * Load skills from the public directory via fetch.
- */
-async function loadBrowserSkills(sm: SkillManager): Promise<void> {
-  for (const url of SKILL_PATHS) {
-    try {
-      const resp = await fetch(url);
-      if (resp.ok) {
-        const content = await resp.text();
-        const skill = SkillLoader.parseMarkdown(content);
-        sm.register(skill);
-      }
-    } catch {
-      // Skip skills that fail to load
-    }
-  }
 }
