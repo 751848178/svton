@@ -78,6 +78,8 @@ export interface IChildProcess {
   onStderr(handler: (data: string) => void): void;
   onExit(handler: (code: number | null, signal?: string) => void): void;
   kill(signal?: string): void;
+  /** Write data to the child process stdin */
+  write(data: string): Promise<void>;
 }
 
 export interface SpawnOptions {

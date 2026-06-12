@@ -152,6 +152,7 @@ class TauriFileSystem implements IFileSystem {
 
 class TauriChildProcess implements IChildProcess {
   readonly pid: number | null;
+  private _processId: string;
   private _killed = false;
   private stdoutHandlers: Array<(data: string) => void> = [];
   private stderrHandlers: Array<(data: string) => void> = [];
@@ -160,6 +161,7 @@ class TauriChildProcess implements IChildProcess {
 
   constructor(pid: number, processId: string) {
     this.pid = pid;
+    this._processId = processId;
 
     // Listen for stdout/stderr/exit events
     (async () => {
@@ -205,8 +207,12 @@ class TauriChildProcess implements IChildProcess {
   kill(signal?: string): void {
     if (this._killed) return;
     this._killed = true;
-    invoke('process_kill', { pid: this.pid, signal: signal ?? 'SIGTERM' }).catch(() => {});
+    invoke('process_kill', { processId: this._processId, signal: signal ?? 'SIGTERM' }).catch(() => {});
     this.unlistenFn?.();
+  }
+
+  async write(data: string): Promise<void> {
+    await invoke('process_stdin_write', { processId: this._processId, data });
   }
 }
 
@@ -223,10 +229,6 @@ class TauriProcess implements IProcess {
   spawn(command: string, args: string[], options?: SpawnOptions): IChildProcess {
     // Synchronous return pattern — the Rust side creates the process and returns pid + processId
     // We create the child process object and wire up events asynchronously
-    let child: TauriChildProcess | null = null;
-
-    // We need to invoke spawn and get the pid synchronously-ish
-    // Since spawn must return IChildProcess immediately, we use a workaround:
     // Create a placeholder that gets wired up
     const placeholder = new TauriChildProcess(-1, '');
 
@@ -244,8 +246,9 @@ class TauriProcess implements IProcess {
         for (const h of placeholder['stdoutHandlers']) real.onStdout(h);
         for (const h of placeholder['stderrHandlers']) real.onStderr(h);
         for (const h of placeholder['exitHandlers']) real.onExit(h);
-        // Patch pid
+        // Patch pid and processId on placeholder
         (placeholder as any).pid = result.pid;
+        (placeholder as any)._processId = result.processId;
       } catch (err) {
         for (const h of placeholder['exitHandlers']) h(1, 'error');
       }

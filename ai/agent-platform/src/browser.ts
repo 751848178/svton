@@ -99,6 +99,15 @@ class BrowserProcess implements IProcess {
   }
 }
 
+class BrowserChildProcess implements IChildProcess {
+  readonly pid: number | null = null;
+  onStdout(): void { throw new Error('Not supported in browser'); }
+  onStderr(): void { throw new Error('Not supported in browser'); }
+  onExit(): void { throw new Error('Not supported in browser'); }
+  kill(): void { throw new Error('Not supported in browser'); }
+  write(_data: string): Promise<void> { throw new Error('Not supported in browser'); }
+}
+
 // ============================================================
 // Browser Storage - uses IndexedDB
 // ============================================================
