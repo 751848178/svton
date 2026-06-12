@@ -1,5 +1,7 @@
 packages:
   - 'packages/*'
   - 'packages/nestjs-*'
+  - 'ai/*'
   - 'apps/*'
   - 'docs'
+  - 'skills/*'
