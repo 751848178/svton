@@ -151,14 +151,14 @@ import type { ContentVo } from '@svton/types';
 
 ### 2. API 契约优先
 
-API 定义集中在 `@svton/api-client` 中：
+API 类型通过 `@svton/api-client` 的模块增强入口集中管理：
 
 ```typescript
-// packages/api-client/src/modules/content/index.ts
-export const getContentDetail = defineApi<
-  { id: number },
-  ContentDetailVo
->('GET', '/contents/:id');
+declare module '@svton/api-client' {
+  interface GlobalApiRegistry {
+    'GET:/contents/:id': ApiDefinition<{ id: number }, ContentDetailVo>;
+  }
+}
 ```
 
 ### 3. 代码复用
@@ -279,7 +279,7 @@ enum Role {
 }
 
 // 装饰器使用
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, AuthzGuard)
 @Roles(Role.ADMIN)
 @Controller('admin')
 export class AdminController {}

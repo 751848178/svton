@@ -159,7 +159,7 @@ community-next/
 
 ```typescript
 // API 调用
-import { apiAsync, defineApi } from '@svton/api-client';
+import { apiAsync } from '@svton/api-client';
 
 // React Hooks
 import { usePersistFn, useDebounce } from '@svton/hooks';

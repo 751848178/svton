@@ -51,9 +51,11 @@
 | 文档 | 说明 |
 |------|------|
 | [cli](./packages/cli.md) | SVTON CLI脚手架工具 |
+| [authz](./packages/authz.md) | RBAC 核心授权包 |
 | [types](./packages/types.md) | 类型定义包 |
 | [api-client](./packages/api-client.md) | API 客户端包 |
 | [hooks](./packages/hooks.md) | React Hooks 工具包 |
+| [ui](./packages/ui.md) | React UI 组件库 |
 | [taro-ui](./packages/taro-ui.md) | Taro UI 组件库 |
 
 ### 🛠️ 开发工具

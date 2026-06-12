@@ -29,21 +29,9 @@
 
 ```
 packages/api-client/src/
-├── modules/                # API 模块定义
-│   ├── auth/               # 认证相关 API
-│   ├── user/               # 用户相关 API
-│   ├── content/            # 内容相关 API
-│   ├── category/           # 分类相关 API
-│   ├── tag/                # 标签相关 API
-│   ├── comment/            # 评论相关 API
-│   ├── upload/             # 上传相关 API
-│   ├── search/             # 搜索相关 API
-│   └── index.ts            # 模块导出
-├── client.ts               # 基础客户端
-├── client-v2.ts            # V2 客户端
-├── define.ts               # API 定义工具
+├── client.ts               # API 客户端
+├── global-types.ts         # 模块增强类型入口
 ├── interceptors.ts         # 拦截器
-├── registry.ts             # API 注册表
 ├── types.ts                # 内部类型
 └── index.ts                # 导出入口
 ```
@@ -52,11 +40,11 @@ packages/api-client/src/
 
 ## 📝 API 定义
 
-### 使用 defineApi
+### 使用模块增强定义 API
 
 ```typescript
-// packages/api-client/src/modules/content/index.ts
-import { defineApi } from '../../define';
+// packages/types/src/api-client/content.ts
+import type { ApiDefinition } from '@svton/api-client';
 import type {
   ContentVo,
   ContentDetailVo,
@@ -65,44 +53,15 @@ import type {
   PaginatedResponse,
 } from '@svton/types';
 
-// 获取内容列表
-export const getContentList = defineApi<
-  QueryContentDto,
-  PaginatedResponse<ContentVo>
->('GET', '/contents');
-
-// 获取内容详情
-export const getContentDetail = defineApi<
-  { id: number },
-  ContentDetailVo
->('GET', '/contents/:id');
-
-// 创建内容
-export const createContent = defineApi<
-  CreateContentDto,
-  ContentDetailVo
->('POST', '/contents');
-
-// 更新内容
-export const updateContent = defineApi<
-  { id: number } & Partial<CreateContentDto>,
-  ContentDetailVo
->('PUT', '/contents/:id');
-
-// 删除内容
-export const deleteContent = defineApi<
-  { id: number },
-  void
->('DELETE', '/contents/:id');
-```
-
-### defineApi 函数签名
-
-```typescript
-function defineApi<TParams, TResponse>(
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
-  path: string
-): ApiDefinition<TParams, TResponse>;
+declare module '@svton/api-client' {
+  interface GlobalApiRegistry {
+    'GET:/contents': ApiDefinition<QueryContentDto, PaginatedResponse<ContentVo>>;
+    'GET:/contents/:id': ApiDefinition<{ id: number }, ContentDetailVo>;
+    'POST:/contents': ApiDefinition<{ data: CreateContentDto }, ContentDetailVo>;
+    'PUT:/contents/:id': ApiDefinition<{ id: number; data: Partial<CreateContentDto> }, ContentDetailVo>;
+    'DELETE:/contents/:id': ApiDefinition<{ id: number }, void>;
+  }
+}
 ```
 
 ---
@@ -425,25 +384,22 @@ export function createResponseInterceptor(onUnauthorized?: () => void) {
 ### 1. 定义 API
 
 ```typescript
-// packages/api-client/src/modules/example/index.ts
-import { defineApi } from '../../define';
+// packages/types/src/api-client/example.ts
+import type { ApiDefinition } from '@svton/api-client';
 import type { ExampleVo, CreateExampleDto } from '@svton/types';
 
-export const getExampleList = defineApi<
-  { page: number },
-  { list: ExampleVo[]; total: number }
->('GET', '/examples');
-
-export const createExample = defineApi<
-  CreateExampleDto,
-  ExampleVo
->('POST', '/examples');
+declare module '@svton/api-client' {
+  interface GlobalApiRegistry {
+    'GET:/examples': ApiDefinition<{ page: number }, { list: ExampleVo[]; total: number }>;
+    'POST:/examples': ApiDefinition<{ data: CreateExampleDto }, ExampleVo>;
+  }
+}
 ```
 
 ### 2. 导出模块
 
 ```typescript
-// packages/api-client/src/modules/index.ts
+// packages/types/src/api-client/index.ts
 export * from './example';
 ```
 

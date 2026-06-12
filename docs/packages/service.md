@@ -392,20 +392,20 @@ function TodoForm() {
 ```typescript
 import { createServiceProvider } from '@svton/service';
 
-const { Provider, useService } = createServiceProvider(CounterService);
+const CounterProvider = createServiceProvider(CounterService);
 
 // 在应用根组件使用 Provider
 function App() {
   return (
-    <Provider>
+    <CounterProvider>
       <Counter />
-    </Provider>
+    </CounterProvider>
   );
 }
 
 // 在子组件中使用
 function Counter() {
-  const counter = useService();
+  const counter = CounterProvider.useService();
   const count = counter.useState.count();
   // ...
 }
@@ -414,8 +414,8 @@ function Counter() {
 ### 多个 Service
 
 ```typescript
-const { Provider: AuthProvider, useService: useAuth } = createServiceProvider(AuthService);
-const { Provider: TodoProvider, useService: useTodo } = createServiceProvider(TodoService);
+const AuthProvider = createServiceProvider(AuthService);
+const TodoProvider = createServiceProvider(TodoService);
 
 function App() {
   return (
@@ -427,6 +427,8 @@ function App() {
   );
 }
 ```
+
+`TodoProvider` 内通过 `@Inject()` 解析到的 `AuthService`，会优先复用外层 `AuthProvider` 已经创建好的实例；没有现成实例时，才会在当前局部 scope 创建新的依赖。
 
 ---
 
