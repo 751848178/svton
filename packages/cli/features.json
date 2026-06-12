@@ -306,7 +306,7 @@
     },
     "authz": {
       "name": "权限控制",
-      "description": "RBAC 权限管理",
+      "description": "角色与权限授权",
       "category": "backend",
       "packages": {
         "dependencies": {

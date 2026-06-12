@@ -14,6 +14,7 @@ import { UserModule } from './user/user.module';
 // import { AuthzModule } from '@svton/nestjs-authz';
 // import { ObjectStorageModule } from '@svton/nestjs-object-storage';
 // import { createQiniuAdapter } from '@svton/nestjs-object-storage-qiniu-kodo';
+// import { useAuthzConfig } from './config/authz.config';
 // import { envSchema } from './config/env.schema';
 
 @Module({
@@ -52,10 +53,11 @@ import { UserModule } from './user/user.module';
     //   }),
     // }),
 
-    // RBAC 权限模块
-    // AuthzModule.forRoot({
-    //   userRoleField: 'role',
-    //   enableGlobalGuard: false,
+    // 授权模块
+    // AuthzModule.forRootAsync({
+    //   imports: [ConfigModule],
+    //   inject: [ConfigService],
+    //   useFactory: (config: ConfigService) => useAuthzConfig(config),
     // }),
 
     // 对象存储模块（七牛云示例）

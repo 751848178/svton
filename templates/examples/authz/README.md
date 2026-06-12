@@ -1,104 +1,115 @@
 # 权限控制示例
 
-本示例展示如何使用 `@svton/nestjs-authz` 模块实现 RBAC 权限管理。
+本示例展示如何使用 `@svton/nestjs-authz` 实现角色与权限授权。
 
 ## 文件说明
 
-- `user.controller.ts` - 用户控制器，展示权限控制
-- `roles.guard.ts` - 角色守卫，验证用户权限
+- `user.controller.ts` - 展示 `@Roles()`、`@Permissions()`、`AuthzGuard`
+- `README.md` - 当前说明文档
+
+守卫由 `@svton/nestjs-authz` 包直接提供，不需要在示例目录里再维护一个本地 `roles.guard.ts`。
 
 ## 核心装饰器
 
-### @Roles - 角色权限
-
-限制只有特定角色才能访问：
-
-```typescript
-@Roles('admin')
-@Get('admin')
-async adminOnly() {
-  return { message: 'Admin only' };
-}
-```
-
-支持多个角色（满足其一即可）：
+### `@Roles()`
 
 ```typescript
 @Roles('admin', 'manager')
-@Get('list')
-async list() {
+@Get()
+findAll() {
   return { message: 'Admin or Manager' };
 }
 ```
 
-### @Permissions - 细粒度权限
-
-基于权限点的访问控制：
+### `@Permissions()`
 
 ```typescript
-@Permissions('user:delete')
+@Permissions('users:delete')
 @Delete(':id')
-async delete(@Param('id') id: string) {
-  return { message: 'User deleted' };
+delete(@Param('id') id: string) {
+  return { message: 'User deleted', id };
 }
 ```
 
-支持多个权限（需要全部满足）：
+传入多个权限时，命中任一项即可通过：
 
 ```typescript
-@Permissions('user:update', 'user:sensitive')
-@Put(':id/sensitive')
-async updateSensitive() {
-  return { message: 'Updated' };
-}
+@Permissions('users:update', 'users:reset-password')
+@Post(':id/ops')
+runUserOperation() {}
 ```
 
 ### 组合使用
 
-同时检查角色和权限：
-
 ```typescript
 @Roles('admin')
-@Permissions('user:delete')
+@Permissions('users:delete')
 @Delete(':id')
-async delete() {
-  // 需要 admin 角色且有 user:delete 权限
+delete() {
+  // 需要 admin 角色，并且满足 users:delete 权限
 }
 ```
 
-## 权限模型
+## 当前示例的权限点
 
-### 角色（Roles）
+- `users:read`
+- `users:create`
+- `users:update`
+- `users:delete`
+- `users:export`
+- `users:reset-password`
 
-- `admin` - 管理员，拥有所有权限
-- `manager` - 管理者，拥有部分管理权限
-- `user` - 普通用户，基础权限
-- `guest` - 访客，只读权限
+## 守卫接线
 
-### 权限点（Permissions）
+```typescript
+import { AuthzGuard, Permissions, Roles } from '@svton/nestjs-authz';
 
-- `user:create` - 创建用户
-- `user:read` - 查看用户
-- `user:update` - 更新用户
-- `user:delete` - 删除用户
-- `user:batch-delete` - 批量删除用户
-- `user:reset-password` - 重置密码
+@Controller('examples/users')
+@UseGuards(AuthzGuard)
+export class UserController {}
+```
+
+`RolesGuard` 依然可用；`AuthzGuard` 是语义更直接的别名。
+
+## 配置示例
+
+在 `src/config/authz.config.ts` 中可以这样配置：
+
+```typescript
+export const useAuthzConfig = (configService: ConfigService) => ({
+  userRoleField: 'role',
+  userPermissionsField: 'permissions',
+  enableGlobalGuard: false,
+  schema: {
+    roles: {
+      admin: {
+        permissions: ['*'],
+      },
+      manager: {
+        permissions: [
+          'users:read',
+          'users:create',
+          'users:update',
+          'users:export',
+          'users:reset-password',
+        ],
+      },
+    },
+  },
+});
+```
+
+如果你的用户对象使用 `req.user.roles`，也可以直接把 `userRoleField` 配成 `'roles'`；不显式配置时，默认也会在 `role` 不存在时自动回退尝试 `roles`。
 
 ## 测试接口
 
-### 查看用户列表（需要 admin 或 manager）
+### 查看用户列表
 
 ```bash
 curl http://localhost:3000/examples/users
 ```
 
-### 查看用户详情（所有用户）
-
-```bash
-curl http://localhost:3000/examples/users/1
-```
-
-### 创建用户（需要 admin）
+### 创建用户
 
 ```bash
 curl -X POST http://localhost:3000/examples/users \
@@ -106,7 +117,7 @@ curl -X POST http://localhost:3000/examples/users \
   -d '{"name":"New User","email":"user@example.com"}'
 ```
 
-### 更新用户（需要 user:update 权限）
+### 更新用户
 
 ```bash
 curl -X PUT http://localhost:3000/examples/users/1 \
@@ -114,159 +125,18 @@ curl -X PUT http://localhost:3000/examples/users/1 \
   -d '{"name":"Updated Name"}'
 ```
 
-### 删除用户（需要 admin 角色和 user:delete 权限）
+### 删除用户
 
 ```bash
 curl -X DELETE http://localhost:3000/examples/users/1
 ```
 
-## 权限配置
-
-在 `src/config/authz.config.ts` 中配置：
-
-```typescript
-export const useAuthzConfig = (configService: ConfigService) => ({
-  roles: ['admin', 'manager', 'user', 'guest'],
-  defaultRole: 'guest',
-  rolePermissions: {
-    admin: ['*'], // 所有权限
-    manager: [
-      'user:read',
-      'user:update',
-      'user:reset-password',
-    ],
-    user: [
-      'user:read',
-    ],
-    guest: [],
-  },
-});
-```
-
-## 实现原理
-
-### 1. 定义守卫
-
-```typescript
-@Injectable()
-export class RolesGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.get('roles', context.getHandler());
-    const user = context.switchToHttp().getRequest().user;
-    
-    return requiredRoles.some(role => user.role === role);
-  }
-}
-```
-
-### 2. 应用守卫
-
-```typescript
-@Controller('users')
-@UseGuards(RolesGuard)
-export class UserController {
-  // 所有接口都会应用权限检查
-}
-```
-
-### 3. 使用装饰器
-
-```typescript
-@Roles('admin')
-@Get('admin')
-async adminOnly() { }
-```
-
 ## 最佳实践
 
-1. **最小权限原则**：只授予必要的权限
-2. **角色分层**：设计合理的角色层级
-3. **权限粒度**：根据业务需求设计权限点
-4. **动态权限**：支持运行时动态调整权限
-5. **权限缓存**：缓存用户权限，提高性能
-
-## 常见场景
-
-### 用户管理
-
-```typescript
-@Roles('admin')
-@Get('users')
-async getUsers() { }  // 只有管理员可以查看用户列表
-
-@Permissions('user:update')
-@Put('users/:id')
-async updateUser() { }  // 需要更新权限
-```
-
-### 内容管理
-
-```typescript
-@Roles('admin', 'editor')
-@Post('articles')
-async createArticle() { }  // 管理员和编辑可以创建文章
-
-@Permissions('article:publish')
-@Post('articles/:id/publish')
-async publishArticle() { }  // 需要发布权限
-```
-
-### 数据导出
-
-```typescript
-@Roles('admin', 'manager')
-@Get('export')
-async export() { }  // 管理员和管理者可以导出数据
-```
-
-## 高级用法
-
-### 动态权限检查
-
-```typescript
-@Get(':id')
-async findOne(@Param('id') id: string, @Req() req) {
-  const user = req.user;
-  
-  // 用户只能查看自己的数据，管理员可以查看所有
-  if (user.role !== 'admin' && user.id !== parseInt(id)) {
-    throw new ForbiddenException('Access denied');
-  }
-  
-  return this.userService.findOne(id);
-}
-```
-
-### 资源级权限
-
-```typescript
-@Put(':id')
-async update(@Param('id') id: string, @Req() req) {
-  const resource = await this.userService.findOne(id);
-  
-  // 检查用户是否有权限修改这个资源
-  if (!this.authzService.canModify(req.user, resource)) {
-    throw new ForbiddenException('Access denied');
-  }
-  
-  return this.userService.update(id, data);
-}
-```
-
-### 条件权限
-
-```typescript
-@Post('approve')
-@Permissions('order:approve')
-async approve(@Body() data, @Req() req) {
-  // 只能审批金额小于 10000 的订单
-  if (data.amount > 10000 && !req.user.permissions.includes('order:approve-large')) {
-    throw new ForbiddenException('Cannot approve large orders');
-  }
-  
-  return this.orderService.approve(data.id);
-}
-```
+1. 认证守卫放前面，授权守卫放后面
+2. 角色用于入口控制，权限用于动作控制
+3. 把角色继承和 deny 规则集中放在 `schema` 中
+4. 有资源范围时，优先通过 `getScope()` 做统一解析
 
 ## 更多信息
 
