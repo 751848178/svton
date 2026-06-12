@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SVTON Skill Source Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "title",
+    "description",
+    "summary",
+    "whenToUse",
+    "triggerSignals",
+    "workflow",
+    "rules",
+    "reviewChecklist",
+    "references"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
+    "description": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 240
+    },
+    "interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "minLength": 3
+        },
+        "shortDescription": {
+          "type": "string",
+          "minLength": 25,
+          "maxLength": 64
+        },
+        "iconSmall": {
+          "type": "string",
+          "minLength": 3
+        },
+        "iconLarge": {
+          "type": "string",
+          "minLength": 3
+        },
+        "brandColor": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "defaultPrompt": {
+          "type": "string",
+          "minLength": 12
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 10
+    },
+    "whenToUse": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 4
+      }
+    },
+    "avoidWhen": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "minLength": 4
+      }
+    },
+    "triggerSignals": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 4
+      }
+    },
+    "workflow": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string",
+        "minLength": 6
+      }
+    },
+    "preferredMoves": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string",
+        "minLength": 6
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 6
+      }
+    },
+    "reviewChecklist": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string",
+        "minLength": 4
+      }
+    },
+    "references": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "path",
+          "description"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^references/.+\\.md$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 4
+          }
+        }
+      }
+    }
+  }
+}

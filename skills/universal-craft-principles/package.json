@@ -1,0 +1,18 @@
+{
+  "name": "@svton/skill-universal-craft-principles",
+  "version": "0.1.0",
+  "description": "Framework-agnostic coding principles skill package.",
+  "license": "MIT",
+  "scripts": {
+    "build": "node ../scripts/build-one.mjs universal-craft-principles",
+    "validate": "node ../scripts/validate-one.mjs universal-craft-principles",
+    "clean": "node ../scripts/clean-one.mjs universal-craft-principles",
+    "prepack": "pnpm build && pnpm validate"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
