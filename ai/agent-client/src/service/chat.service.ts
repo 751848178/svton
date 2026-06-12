@@ -21,13 +21,16 @@ export type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress };
 
 @Service()
 export class ChatService {
+  /** Messages for the currently active (displayed) session */
   @observable() messages: DisplayMessage[] = [];
   @observable() status: ChatStatus = 'idle';
   @observable() currentModel = '';
   @observable() lastUsage: TokenUsage | null = null;
   @observable() activePlan: PlanProgress | null = null;
+  @observable() activeSessionId: string | null = null;
 
   private runtime: AgentRuntime | null = null;
+  private runtimeWorkingDir: string | undefined = undefined;
   private platform: IPlatform | null = null;
   private pendingToolCalls = new Map<string, {
     call: import('@svton/agent-core').ToolCall;
@@ -35,6 +38,32 @@ export class ChatService {
   }>();
   private messageCounter = 0;
   private lastEventType: string | null = null;
+
+  /**
+   * Callback invoked when a background stream completes.
+   * The argument is the session ID of the completed stream.
+   */
+  onBackgroundStreamEnd: ((sessionId: string) => void) | null = null;
+
+  /**
+   * Per-session message cache. When user switches away from a session,
+   * its messages are stored here. When switching back, messages are
+   * restored from this cache (which may have been updated by a
+   * background stream).
+   */
+  private sessionMessages = new Map<string, DisplayMessage[]>();
+
+  /**
+   * The session ID that currently has an active stream running in the background.
+   * null if no background stream is active.
+   */
+  private backgroundSessionId: string | null = null;
+
+  /**
+   * The assistant message ID for the currently running (or background) stream.
+   * Used to route streaming events to the correct session's message array.
+   */
+  private streamingAssistantMsgId: string | null = null;
 
   @computed()
   get isStreaming(): boolean {
@@ -47,14 +76,21 @@ export class ChatService {
   }
 
   /**
+   * Whether a specific session has a background stream running.
+   */
+  isSessionStreaming(sessionId: string): boolean {
+    return this.backgroundSessionId === sessionId;
+  }
+
+  /**
    * Initialize with platform and agent config.
    * Guard: skip re-initialization if already running with the same config.
    * Model switch: preserves message history and restores context to the new runtime.
    */
   @action()
   async init(platform: IPlatform, config: AgentConfig): Promise<void> {
-    // Skip if already initialized with the same config (prevents state wipe during streaming)
-    if (this.runtime && this.currentModel === config.model) {
+    // Skip if already initialized with the same model AND working directory
+    if (this.runtime && this.currentModel === config.model && this.runtimeWorkingDir === config.workingDir) {
       return;
     }
 
@@ -84,6 +120,7 @@ export class ChatService {
     }
 
     this.currentModel = config.model;
+    this.runtimeWorkingDir = config.workingDir;
 
     // Restore preserved messages or start fresh
     if (preservedMessages) {
@@ -170,6 +207,22 @@ export class ChatService {
   }
 
   /**
+   * Retry from a specific user message: truncate everything after it, re-run.
+   */
+  @action()
+  async retryFromMessage(messageId: string): Promise<void> {
+    if (!this.runtime || this.status === 'running') return;
+
+    const idx = this.messages.findIndex((m) => m.id === messageId);
+    if (idx === -1 || this.messages[idx].role !== 'user') return;
+
+    const userMsg = this.messages[idx];
+    this.messages = this.messages.slice(0, idx + 1);
+    logger.info('Chat', 'Retrying from message', { messageId, contentLength: userMsg.content.length });
+    await this.runAssistant(userMsg.content);
+  }
+
+  /**
    * Edit a user message: replace it, remove all subsequent messages, re-run.
    */
   @action()
@@ -190,14 +243,20 @@ export class ChatService {
 
   /**
    * Core method: run the assistant and stream results.
+   * Events are routed to the correct session's message array:
+   * - If the streaming session is the active session → update this.messages
+   * - If it's in the background → update sessionMessages cache
    */
   private async runAssistant(userContent: string, images?: Array<{ data: string; mimeType?: string }>): Promise<void> {
     // Add placeholder assistant message for streaming
     const assistantMsg = this.createDisplayMessage('assistant', '');
     assistantMsg.isStreaming = true;
+    const startedAt = Date.now();
     this.messages = [...this.messages, assistantMsg];
     this.status = 'running';
     this.lastEventType = null;
+    this.streamingAssistantMsgId = assistantMsg.id;
+    this.backgroundSessionId = this.activeSessionId;
 
     try {
       // Build structured content if images are present
@@ -218,16 +277,55 @@ export class ChatService {
         this.handleEvent(event, assistantMsg.id);
       }
     } catch (error) {
-      this.status = 'error';
-      this.updateMessage(assistantMsg.id, {
+      this.handleStreamEnd(assistantMsg.id, {
         error: error instanceof Error ? error.message : String(error),
-        isStreaming: false,
       });
       return;
     }
 
-    this.status = 'idle';
-    this.updateMessage(assistantMsg.id, { isStreaming: false });
+    // IMPORTANT: mark isStreaming=false BEFORE setting status='idle'.
+    // The status='idle' setter synchronously triggers auto-save subscribers
+    // which call getMessagesForSave(). If isStreaming is still true,
+    // the assistant message gets filtered out and lost.
+    const duration = Date.now() - startedAt;
+    this.handleStreamEnd(assistantMsg.id, { isStreaming: false, duration });
+  }
+
+  /**
+   * Handle stream completion — route the finalization to the correct session.
+   */
+  private handleStreamEnd(
+    assistantMsgId: string,
+    updates: Partial<DisplayMessage>,
+  ): void {
+    const bgId = this.backgroundSessionId;
+    const isActive = bgId === this.activeSessionId;
+
+    if (bgId && !isActive) {
+      // Stream completed in the background — update the cache only
+      const cached = this.sessionMessages.get(bgId);
+      if (cached) {
+        const updated = cached.map((m) =>
+          m.id === assistantMsgId ? { ...m, ...updates } : m,
+        );
+        this.sessionMessages.set(bgId, updated);
+      }
+      // Notify listener (useSession) that background stream completed
+      // so it can save the cached messages to storage
+      this.backgroundSessionId = null;
+      this.streamingAssistantMsgId = null;
+      if (this.onBackgroundStreamEnd) {
+        this.onBackgroundStreamEnd(bgId);
+      }
+    } else {
+      // Stream is for the active session — update this.messages directly
+      this.messages = this.messages.map((m) =>
+        m.id === assistantMsgId ? { ...m, ...updates } : m,
+      );
+      this.backgroundSessionId = null;
+      this.streamingAssistantMsgId = null;
+      this.status = 'idle';
+    }
   }
 
   /**
@@ -266,15 +364,99 @@ export class ChatService {
   @action()
   abort(): void {
     this.runtime?.abort();
-    // Mark any streaming assistant messages as complete
+    // Mark any streaming assistant messages as complete in the active session
     this.messages = this.messages.map((m) =>
       m.isStreaming ? { ...m, isStreaming: false } : m,
     );
+    // Also finalize in background cache if applicable
+    if (this.backgroundSessionId) {
+      const cached = this.sessionMessages.get(this.backgroundSessionId);
+      if (cached) {
+        this.sessionMessages.set(this.backgroundSessionId,
+          cached.map((m) => m.isStreaming ? { ...m, isStreaming: false } : m),
+        );
+      }
+    }
+    this.backgroundSessionId = null;
+    this.streamingAssistantMsgId = null;
     this.status = 'idle';
   }
 
   /**
-   * Clear all messages.
+   * Bind this ChatService to a specific session.
+   */
+  @action()
+  bindSession(sessionId: string | null): void {
+    this.activeSessionId = sessionId;
+  }
+
+  /**
+   * Abort if currently streaming. Returns true if an abort happened.
+   */
+  @action()
+  abortIfStreaming(): boolean {
+    if (this.status === 'running' || this.status === 'waiting_approval') {
+      this.abort();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Cache the current messages for a session (used when switching away).
+   * The stream continues running in the background, updating this cache.
+   */
+  cacheSessionMessages(sessionId: string, messages: DisplayMessage[]): void {
+    this.sessionMessages.set(sessionId, messages);
+  }
+
+  /**
+   * Get cached messages for a session (used when switching back).
+   * Returns undefined if no cache exists for this session.
+   */
+  getCachedMessages(sessionId: string): DisplayMessage[] | undefined {
+    return this.sessionMessages.get(sessionId);
+  }
+
+  /**
+   * Get messages for saving, for a specific session.
+   * If the session is the active one, returns current messages.
+   * If it's a background session, returns from cache.
+   * Filters out streaming and system messages.
+   */
+  getMessagesForSessionSave(sessionId: string): DisplayMessage[] {
+    let msgs: DisplayMessage[];
+    if (sessionId === this.activeSessionId) {
+      msgs = this.messages;
+    } else {
+      msgs = this.sessionMessages.get(sessionId) ?? [];
+    }
+    return msgs.filter(
+      (m) => m.role !== 'system' && !m.isStreaming,
+    );
+  }
+
+  /**
+   * Get serializable messages for saving the active session.
+   */
+  getMessagesForSave(): DisplayMessage[] {
+    return this.messages.filter(
+      (m) => m.role !== 'system' && !m.isStreaming,
+    );
+  }
+
+  /**
+   * Force-prepare messages for save — marks all as non-streaming.
+   * Used for shutdown/flush saves where we must persist even in-progress messages.
+   */
+  forcePrepareForSave(): DisplayMessage[] {
+    return this.messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({ ...m, isStreaming: false }));
+  }
+
+  /**
+   * Clear all messages (active session only).
    */
   @action()
   clearMessages(): void {
@@ -296,53 +478,71 @@ export class ChatService {
 
     // Feed history into runtime context so the LLM has prior conversation
     if (this.runtime) {
-      const chatMessages: import('@svton/agent-core').ChatMessage[] = messages
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => {
-          // Restore images if present
-          if (m.role === 'user' && m.images && m.images.length > 0) {
-            const blocks: import('@svton/agent-core').ContentBlock[] = [
-              ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
-              ...m.images.map((img) => ({
-                type: 'image' as const,
-                data: img.data,
-                mimeType: img.mimeType,
-              })),
-            ];
-            return { role: 'user' as const, content: blocks };
-          }
+      const chatMessages: import('@svton/agent-core').ChatMessage[] = [];
+      const filtered = messages.filter((m) => m.role === 'user' || m.role === 'assistant');
 
-          // Restore tool calls if present (assistant messages with tool use)
-          if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
-            const blocks: import('@svton/agent-core').ContentBlock[] = [
-              ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
-              ...m.toolCalls.map((tc) => ({
-                type: 'tool_use' as const,
-                id: tc.id,
-                name: tc.name,
-                input: tc.arguments,
-              })),
-            ];
-            return { role: 'assistant' as const, content: blocks };
-          }
+      for (const m of filtered) {
+        // Restore images if present
+        if (m.role === 'user' && m.images && m.images.length > 0) {
+          const blocks: import('@svton/agent-core').ContentBlock[] = [
+            ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
+            ...m.images.map((img) => ({
+              type: 'image' as const,
+              data: img.data,
+              mimeType: img.mimeType,
+            })),
+          ];
+          chatMessages.push({ role: 'user', content: blocks });
+          continue;
+        }
 
-          return {
+        // Restore tool calls if present (assistant messages with tool use)
+        if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+          const blocks: import('@svton/agent-core').ContentBlock[] = [
+            ...(m.thinking ? [{ type: 'reasoning' as const, text: m.thinking }] : []),
+            ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
+            ...m.toolCalls.map((tc) => ({
+              type: 'tool_use' as const,
+              id: tc.id,
+              name: tc.name,
+              input: tc.arguments,
+            })),
+          ];
+          chatMessages.push({ role: 'assistant', content: blocks });
+
+          // Reconstruct tool_result messages so the API sees valid tool_use → tool_result pairs
+          for (const tc of m.toolCalls) {
+            const output = tc.result?.output ?? '';
+            chatMessages.push({
+              role: 'tool',
+              content: [{
+                type: 'tool_result' as const,
+                toolUseId: tc.id,
+                output: typeof output === 'string' ? output : JSON.stringify(output),
+                isError: tc.result?.isError ?? tc.status === 'error',
+              }],
+            });
+          }
+          continue;
+        }
+
+        // Plain message — but assistant with thinking needs reasoning block
+        if (m.role === 'assistant' && m.thinking) {
+          const blocks: import('@svton/agent-core').ContentBlock[] = [
+            { type: 'reasoning' as const, text: m.thinking },
+            ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
+          ];
+          chatMessages.push({ role: 'assistant', content: blocks });
+        } else {
+          chatMessages.push({
             role: m.role as 'user' | 'assistant',
             content: m.content,
-          };
-        });
+          });
+        }
+      }
       this.runtime.setMessages(chatMessages);
       logger.info('Chat', 'Restored context to runtime', { messageCount: chatMessages.length });
     }
-  }
-
-  /**
-   * Get serializable messages for saving to session.
-   */
-  getMessagesForSave(): DisplayMessage[] {
-    return this.messages.filter(
-      (m) => m.role !== 'system' && !m.isStreaming,
-    );
   }
 
   // ----------------------------------------------------------
@@ -395,26 +595,62 @@ export class ChatService {
     };
   }
 
+  /**
+   * Route an event to the correct session's messages:
+   * - If the streaming session IS the active session → update this.messages (observable)
+   * - If it's a BACKGROUND session → update sessionMessages cache (no re-render)
+   */
   private handleEvent(event: AgentEvent, assistantMsgId: string): void {
+    const bgId = this.backgroundSessionId;
+    const isActive = bgId === this.activeSessionId;
+
     switch (event.type) {
       case 'text_delta': {
-        this.messages = this.messages.map((m) =>
-          m.id === assistantMsgId
-            ? { ...m, content: m.content + event.text }
-            : m,
-        );
+        const applyText = (m: DisplayMessage): DisplayMessage => {
+          if (m.id !== assistantMsgId) return m;
+          const newContent = m.content + event.text;
+          const blocks = [...(m.blocks || [])];
+          const lastBlock = blocks[blocks.length - 1];
+          if (lastBlock && lastBlock.type === 'text') {
+            blocks[blocks.length - 1] = { type: 'text', text: lastBlock.text + event.text };
+          } else {
+            blocks.push({ type: 'text', text: event.text });
+          }
+          return { ...m, content: newContent, blocks };
+        };
+
+        if (isActive) {
+          this.messages = this.messages.map(applyText);
+        } else if (bgId) {
+          const cached = this.sessionMessages.get(bgId);
+          if (cached) this.sessionMessages.set(bgId, cached.map(applyText));
+        }
         break;
       }
 
       case 'thinking_delta': {
-        // Separate thinking from different ReAct iterations with a divider
         const separator = (this.lastEventType === 'tool_call_end' || this.lastEventType === 'done')
           ? '\n---\n' : '';
-        this.messages = this.messages.map((m) =>
-          m.id === assistantMsgId
-            ? { ...m, thinking: (m.thinking || '') + separator + event.thinking }
-            : m,
-        );
+
+        const applyThinking = (m: DisplayMessage): DisplayMessage => {
+          if (m.id !== assistantMsgId) return m;
+          const newThinking = (m.thinking || '') + separator + event.thinking;
+          const blocks = [...(m.blocks || [])];
+          const lastBlock = blocks[blocks.length - 1];
+          if (lastBlock && lastBlock.type === 'thinking') {
+            blocks[blocks.length - 1] = { type: 'thinking', text: lastBlock.text + separator + event.thinking };
+          } else {
+            blocks.push({ type: 'thinking', text: event.thinking });
+          }
+          return { ...m, thinking: newThinking, blocks };
+        };
+
+        if (isActive) {
+          this.messages = this.messages.map(applyThinking);
+        } else if (bgId) {
+          const cached = this.sessionMessages.get(bgId);
+          if (cached) this.sessionMessages.set(bgId, cached.map(applyThinking));
+        }
         break;
       }
 
@@ -426,87 +662,122 @@ export class ChatService {
           status: 'running',
         };
 
-        this.messages = this.messages.map((m) =>
-          m.id === assistantMsgId
-            ? { ...m, toolCalls: [...(m.toolCalls || []), toolCall] }
-            : m,
-        );
+        const applyToolStart = (m: DisplayMessage): DisplayMessage => {
+          if (m.id !== assistantMsgId) return m;
+          const blocks = [...(m.blocks || [])];
+          blocks.push({ type: 'tool_call', call: toolCall });
+          return { ...m, toolCalls: [...(m.toolCalls || []), toolCall], blocks };
+        };
+
+        if (isActive) {
+          this.messages = this.messages.map(applyToolStart);
+        } else if (bgId) {
+          const cached = this.sessionMessages.get(bgId);
+          if (cached) this.sessionMessages.set(bgId, cached.map(applyToolStart));
+        }
         break;
       }
 
       case 'tool_call_progress': {
-        // Update tool call arguments with parsed values (tool_call_start sends empty {})
         if (event.arguments) {
           const callId = event.callId;
-          this.messages = this.messages.map((m) =>
-            m.id === assistantMsgId
-              ? {
-                  ...m,
-                  toolCalls: (m.toolCalls || []).map((tc) =>
-                    tc.id === callId ? { ...tc, arguments: event.arguments! } : tc
-                  ),
-                }
-              : m,
-          );
+          const applyProgress = (m: DisplayMessage): DisplayMessage => {
+            if (m.id !== assistantMsgId) return m;
+            const updatedCalls = (m.toolCalls || []).map((tc) =>
+              tc.id === callId ? { ...tc, arguments: event.arguments! } : tc
+            );
+            const blocks = (m.blocks || []).map((b) =>
+              b.type === 'tool_call' && b.call.id === callId
+                ? { ...b, call: { ...b.call, arguments: event.arguments! } }
+                : b
+            );
+            return { ...m, toolCalls: updatedCalls, blocks };
+          };
+
+          if (isActive) {
+            this.messages = this.messages.map(applyProgress);
+          } else if (bgId) {
+            const cached = this.sessionMessages.get(bgId);
+            if (cached) this.sessionMessages.set(bgId, cached.map(applyProgress));
+          }
         }
         break;
       }
 
       case 'tool_call_end': {
         const { result } = event;
-        this.messages = this.messages.map((m) =>
-          m.id === assistantMsgId
-            ? {
-                ...m,
-                toolCalls: (m.toolCalls || []).map((tc) =>
-                  tc.id === result.callId
-                    ? {
-                        ...tc,
-                        result,
-                        status: result.isError ? 'error' : 'completed',
-                      }
-                    : tc,
-                ),
-              }
-            : m,
-        );
-        // Track plan progress from tool output
+        const endStatus = result.isError ? 'error' as const : 'completed' as const;
+        const applyEnd = (m: DisplayMessage): DisplayMessage => {
+          if (m.id !== assistantMsgId) return m;
+          const updatedCalls = (m.toolCalls || []).map((tc) =>
+            tc.id === result.callId
+              ? { ...tc, result, status: endStatus }
+              : tc
+          );
+          const blocks = (m.blocks || []).map((b) =>
+            b.type === 'tool_call' && b.call.id === result.callId
+              ? { ...b, call: { ...b.call, result, status: endStatus } }
+              : b
+          );
+          return { ...m, toolCalls: updatedCalls, blocks };
+        };
+
+        if (isActive) {
+          this.messages = this.messages.map(applyEnd);
+        } else if (bgId) {
+          const cached = this.sessionMessages.get(bgId);
+          if (cached) this.sessionMessages.set(bgId, cached.map(applyEnd));
+        }
         this.updatePlanProgress(result);
         break;
       }
 
       case 'tool_approval_needed': {
         this.status = 'waiting_approval';
-        // Store the pending call info so UI can track it
         this.pendingToolCalls.set(event.call.id, {
           call: event.call,
-          resolve: () => {}, // actual resolution goes through runtime
+          resolve: () => {},
         });
-        this.updateToolCallStatus(event.call.id, 'pending_approval');
+        // Only update displayed messages if it's the active session
+        if (isActive) {
+          this.updateToolCallStatus(event.call.id, 'pending_approval');
+        }
         break;
       }
 
       case 'error': {
-        this.messages = this.messages.map((m) =>
-          m.id === assistantMsgId
-            ? { ...m, error: event.error.message }
-            : m,
-        );
+        const applyError = (m: DisplayMessage): DisplayMessage => {
+          if (m.id !== assistantMsgId) return m;
+          const blocks = [...(m.blocks || [])];
+          blocks.push({ type: 'error', text: event.error.message });
+          return { ...m, error: event.error.message, blocks };
+        };
+
+        if (isActive) {
+          this.messages = this.messages.map(applyError);
+        } else if (bgId) {
+          const cached = this.sessionMessages.get(bgId);
+          if (cached) this.sessionMessages.set(bgId, cached.map(applyError));
+        }
         break;
       }
 
       case 'done': {
         this.lastUsage = event.usage;
-        if (this.status !== 'waiting_approval') {
+        // Only update status for the active session.
+        // Background sessions don't affect the displayed status.
+        if (isActive && this.status !== 'waiting_approval') {
           this.status = 'idle';
         }
         break;
       }
 
       case 'context_compacted': {
-        const sysMsg = this.createDisplayMessage('system', L.contextCompacted);
-        sysMsg.systemType = 'context_compacted';
-        this.messages = [...this.messages, sysMsg];
+        if (isActive) {
+          const sysMsg = this.createDisplayMessage('system', L.contextCompacted);
+          sysMsg.systemType = 'context_compacted';
+          this.messages = [...this.messages, sysMsg];
+        }
         break;
       }
     }

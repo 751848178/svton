@@ -5,13 +5,17 @@
  */
 
 // Provider
-export { AgentProvider, useAgentContext } from './service/provider';
+export { AgentProvider, useAgentContext, globalFlush } from './service/provider';
 
 // Services (for direct usage)
 export { ChatService } from './service/chat.service';
 export type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress } from './service/chat.service';
 export { SessionService } from './service/session.service';
 export type { SessionInfo, SessionData } from './service/session.service';
+export { ProjectService } from './service/project.service';
+
+// Types
+export type { Project, ContentBlock } from './types';
 
 // Hooks
 export { useAgent } from './hooks/useAgent';

@@ -3,7 +3,7 @@ import 'reflect-metadata';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { TauriPlatform } from '@svton/agent-platform';
 import type { AgentConfig } from '@svton/agent-core';
-import { AgentProvider, useChat, useSession } from '@svton/agent-client';
+import { AgentProvider } from '@svton/agent-client';
 import { ChatPanel, type ChatPanelMessage } from '@svton/agent-ui';
 import { initAgent } from '@/lib/agent-setup';
 import { loadConfig, createDefaultConfig, openConfigInEditor } from '@/lib/config-store';

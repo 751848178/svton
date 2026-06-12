@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAgentContext } from '../service/provider';
+import { useAgentContext, setFlushFn } from '../service/provider';
 import type { DisplayMessage } from '../service/chat.service';
+import type { SessionInfo } from '../service/session.service';
 
 /**
  * Session management hook.
@@ -9,9 +10,13 @@ import type { DisplayMessage } from '../service/chat.service';
  * Design: session switching is handled entirely through explicit actions
  * (switchTo, create), not through a reactive watcher on currentSessionId.
  * This avoids race conditions between save/load during rapid switching.
+ *
+ * Background streaming: when user switches away from a session with an
+ * active stream, the stream continues in the background. Messages are
+ * cached per-session. Switching back loads the latest state from cache.
  */
 export function useSession() {
-  const { chatService, sessionService, chatInternal, sessionInternal } = useAgentContext();
+  const { chatService, sessionService, projectService, chatInternal, sessionInternal } = useAgentContext();
 
   const [sessions, setSessions] = useState(() => {
     const s = sessionInternal.getState('sessions');
@@ -23,6 +28,10 @@ export function useSession() {
 
   const activeSessionId = useRef<string | null>(null);
   const isCreating = useRef(false);
+  // Guard: prevent auto-save from firing during switch/create/delete
+  const isSwitching = useRef(false);
+  // Track the session that has a background stream running
+  const backgroundStreamingId = useRef<string | null>(null);
 
   // ── Subscribe to observable changes (for UI reactivity only) ──
   useEffect(() => {
@@ -44,17 +53,33 @@ export function useSession() {
     if (messages.length === 0) return;
     const chatMessages = displayToStoredMessages(messages);
     const existing = await sessionService.loadSession(sessionId);
-    if (!existing) return;
-    const title = deriveTitle(existing.title, messages);
-    await sessionService.saveSession({
-      id: existing.id,
-      title,
-      model: existing.model,
-      messages: chatMessages,
-      createdAt: existing.createdAt,
-      updatedAt: Date.now(),
-    });
-  }, [sessionService]);
+    if (existing) {
+      const title = deriveTitle(existing.title, messages);
+      await sessionService.saveSession({
+        id: existing.id,
+        title,
+        model: existing.model,
+        messages: chatMessages,
+        createdAt: existing.createdAt,
+        updatedAt: Date.now(),
+        projectId: existing.projectId,
+      });
+    } else {
+      // Session record not yet in storage — create from the session list entry
+      const sessList = sessionInternal.getState('sessions');
+      const info = (sessList as SessionInfo[]).find((s) => s.id === sessionId);
+      if (!info) return;
+      await sessionService.saveSession({
+        id: info.id,
+        title: deriveTitle(info.title, messages),
+        model: info.model || '',
+        messages: chatMessages,
+        createdAt: info.createdAt || Date.now(),
+        updatedAt: Date.now(),
+        projectId: info.projectId,
+      });
+    }
+  }, [sessionService, sessionInternal]);
 
   // ── Startup: restore or create session ────────────────────
   const [sessionReady, setSessionReady] = useState(() => sessionInternal.getState('ready'));
@@ -79,6 +104,7 @@ export function useSession() {
           chatService.loadMessages(storedToDisplayMessages(d.messages));
         }
       }
+      chatService.bindSession(sid);
       activeSessionId.current = sid;
       startupDone.current = true;
     };
@@ -102,15 +128,36 @@ export function useSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionReady]);
 
+  // ── Background stream completion handler ─────────────────
+  useEffect(() => {
+    chatService.onBackgroundStreamEnd = (sessionId: string) => {
+      const bgMsgs = chatService.getCachedMessages(sessionId);
+      if (bgMsgs && bgMsgs.length > 0) {
+        const filtered = bgMsgs.filter((m: DisplayMessage) => m.role !== 'system' && !m.isStreaming);
+        if (filtered.length > 0) {
+          saveSessionMessages(sessionId, filtered);
+        }
+      }
+      if (backgroundStreamingId.current === sessionId) {
+        backgroundStreamingId.current = null;
+      }
+    };
+    return () => { chatService.onBackgroundStreamEnd = null; };
+  }, [chatService, saveSessionMessages]);
+
   // ── Auto-save when chat completes (status → idle) ────────
-  // Subscribe directly to the observable (bypasses React batching)
+  // Only fires for the active session's streams.
+  // Background stream saves are handled by onBackgroundStreamEnd callback.
   useEffect(() => {
     let prevStatus = chatInternal.getState('status');
     const unsub = chatInternal.subscribe('status', () => {
       const newStatus = chatInternal.getState('status');
-      if (newStatus === 'idle' && prevStatus !== 'idle' && activeSessionId.current) {
-        const snapshot = chatService.getMessagesForSave();
-        saveSessionMessages(activeSessionId.current, snapshot);
+      if (newStatus === 'idle' && prevStatus !== 'idle' && !isSwitching.current) {
+        const activeId = activeSessionId.current;
+        if (activeId) {
+          const snapshot = chatService.getMessagesForSave();
+          saveSessionMessages(activeId, snapshot);
+        }
       }
       prevStatus = newStatus;
     });
@@ -120,109 +167,241 @@ export function useSession() {
   // ── Save on hide (page close / minimize) ──────────────────
   useEffect(() => {
     const handler = () => {
-      if (document.visibilityState === 'hidden' && activeSessionId.current) {
-        const snapshot = chatService.getMessagesForSave();
-        saveSessionMessages(activeSessionId.current, snapshot);
+      if (document.visibilityState === 'hidden') {
+        // Force-save: mark streaming messages as complete to prevent data loss
+        if (activeSessionId.current) {
+          const snapshot = chatService.forcePrepareForSave();
+          saveSessionMessages(activeSessionId.current, snapshot);
+        }
+        // Also save any background session's cached messages
+        const bgId = backgroundStreamingId.current;
+        if (bgId) {
+          const bgMsgs = chatService.getCachedMessages(bgId);
+          if (bgMsgs && bgMsgs.length > 0) {
+            const filtered = bgMsgs.filter((m: DisplayMessage) => m.role !== 'system').map((m) => ({ ...m, isStreaming: false }));
+            if (filtered.length > 0) {
+              saveSessionMessages(bgId, filtered);
+            }
+          }
+        }
       }
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
-  }, [saveSessionMessages]);
+  }, [chatService, saveSessionMessages]);
+
+  // ── Flush: force-save all pending messages (for app shutdown) ──
+  const flush = useCallback(async () => {
+    const activeId = activeSessionId.current;
+    if (activeId) {
+      const snapshot = chatService.forcePrepareForSave();
+      await saveSessionMessages(activeId, snapshot);
+    }
+    // Background sessions
+    const bgId = backgroundStreamingId.current;
+    if (bgId) {
+      const bgMsgs = chatService.getCachedMessages(bgId);
+      if (bgMsgs && bgMsgs.length > 0) {
+        const filtered = bgMsgs.filter((m: DisplayMessage) => m.role !== 'system').map((m) => ({ ...m, isStreaming: false }));
+        if (filtered.length > 0) {
+          await saveSessionMessages(bgId, filtered);
+        }
+      }
+    }
+  }, [chatService, saveSessionMessages]);
+
+  // Register global flush for external callers (e.g. Tauri onCloseRequested)
+  useEffect(() => { setFlushFn(flush); return () => setFlushFn(async () => {}); }, [flush]);
+
+  // ── First message: immediate title + projectId + sidebar visibility ──
+  useEffect(() => {
+    let prevLen = (chatInternal.getState('messages') as DisplayMessage[]).length;
+    const unsub = chatInternal.subscribe('messages', () => {
+      const msgs = chatInternal.getState('messages') as DisplayMessage[];
+      const currentLen = msgs.length;
+
+      // Detect first user message in a new session
+      if (prevLen === 0 && currentLen > 0 && activeSessionId.current && !isSwitching.current) {
+        const firstMsg = msgs[0];
+        if (firstMsg.role === 'user') {
+          const text = firstMsg.content.replace(/\n/g, ' ').trim();
+          const title = text.length > 40 ? text.slice(0, 40) + '...' : text;
+          const projectId = projectService.currentProjectId ?? undefined;
+          sessionService.updateSessionInfo(activeSessionId.current, {
+            title,
+            projectId,
+            messageCount: 1,
+          });
+        }
+      }
+      prevLen = currentLen;
+    });
+    return () => unsub();
+  }, [chatInternal, sessionService, projectService]);
 
   // ── Actions ───────────────────────────────────────────────
 
   /**
    * Create a new session:
-   * 1. Save current session's messages (snapshot)
-   * 2. Create new session via service
-   * 3. Clear chat messages for new empty session
+   * 1. Cache current messages (don't abort if streaming)
+   * 2. Save current session
+   * 3. Create new session
+   * 4. Clear chat messages
+   *
+   * Always creates a fresh session to avoid message misbinding.
    */
-  const create = useCallback(async (title?: string, model?: string) => {
+  const create = useCallback(async (title?: string, model?: string, projectId?: string) => {
     if (isCreating.current) return;
-    const msgs = chatService.getMessagesForSave();
-    if (msgs.length === 0 && activeSessionId.current) {
-      return activeSessionId.current;
-    }
     isCreating.current = true;
+    isSwitching.current = true;
     try {
-      // 1. Save current session
-      if (activeSessionId.current && msgs.length > 0) {
-        await saveSessionMessages(activeSessionId.current, msgs);
+      const oldSessionId = activeSessionId.current;
+
+      if (oldSessionId) {
+        // Cache current messages (including streaming ones)
+        const currentMsgs = [...chatService.messages];
+        chatService.cacheSessionMessages(oldSessionId, currentMsgs);
+
+        // If streaming, mark as background session
+        if (chatService.status === 'running' || chatService.status === 'waiting_approval') {
+          backgroundStreamingId.current = oldSessionId;
+        } else {
+          // Not streaming — save to storage
+          const snapshot = chatService.getMessagesForSave();
+          if (snapshot.length > 0) {
+            await saveSessionMessages(oldSessionId, snapshot);
+          }
+        }
       }
-      // 2. Create new session (this sets currentSessionId observable)
-      const id = await sessionService.create(title, model);
-      // 3. Clear messages for new empty session
+
+      // Create new session
+      const id = await sessionService.create(title, model, projectId);
       chatService.clearMessages();
+      chatService.bindSession(id);
       activeSessionId.current = id;
       return id;
     } finally {
       isCreating.current = false;
+      isSwitching.current = false;
     }
   }, [saveSessionMessages, sessionService, chatService]);
 
   /**
    * Switch to another session:
-   * 1. Snapshot current messages
-   * 2. Save current session
-   * 3. Switch observable (updates sidebar)
-   * 4. Load target session's messages
+   * 1. Cache current messages (stream continues in background)
+   * 2. Switch observable (updates sidebar)
+   * 3. Load target session from cache or storage
    */
   const switchTo = useCallback(async (id: string) => {
     if (id === activeSessionId.current) return;
 
-    // 1. Snapshot current messages before any async
-    const snapshot = chatService.getMessagesForSave();
+    isSwitching.current = true;
+    try {
+      const oldSessionId = activeSessionId.current;
 
-    // 2. Save current session
-    if (activeSessionId.current && snapshot.length > 0) {
-      await saveSessionMessages(activeSessionId.current, snapshot);
+      if (oldSessionId) {
+        // Cache current messages (the stream will continue updating this cache)
+        const currentMsgs = [...chatService.messages];
+        chatService.cacheSessionMessages(oldSessionId, currentMsgs);
+
+        // If streaming, mark this as the background streaming session
+        if (chatService.status === 'running' || chatService.status === 'waiting_approval') {
+          backgroundStreamingId.current = oldSessionId;
+          // Set displayed status to idle so the new session's UI shows idle
+          // The background stream continues running and updates the cache.
+          chatService.status = 'idle';
+        } else {
+          // Not streaming — save to storage immediately
+          const snapshot = chatService.getMessagesForSave();
+          if (snapshot.length > 0) {
+            await saveSessionMessages(oldSessionId, snapshot);
+          }
+        }
+      }
+
+      // Switch observable (updates currentSessionId for sidebar highlight)
+      sessionService.switchTo(id);
+      chatService.bindSession(id);
+
+      // Try cache first, then fall back to storage
+      const cached = chatService.getCachedMessages(id);
+      if (cached) {
+        chatService.loadMessages(cached);
+      } else {
+        const data = await sessionService.loadSession(id);
+        if (data?.messages?.length) {
+          chatService.loadMessages(storedToDisplayMessages(data.messages));
+        } else {
+          chatService.clearMessages();
+        }
+      }
+
+      activeSessionId.current = id;
+    } finally {
+      isSwitching.current = false;
     }
-
-    // 3. Switch observable (updates currentSessionId for sidebar highlight)
-    sessionService.switchTo(id);
-
-    // 4. Load target session's messages
-    const data = await sessionService.loadSession(id);
-    if (data?.messages?.length) {
-      chatService.loadMessages(storedToDisplayMessages(data.messages));
-    } else {
-      chatService.clearMessages();
-    }
-
-    activeSessionId.current = id;
   }, [saveSessionMessages, sessionService, chatService]);
 
   const deleteSession = useCallback(async (id: string) => {
-    // If deleting the active session, save first
-    if (id === activeSessionId.current) {
-      const snapshot = chatService.getMessagesForSave();
-      if (snapshot.length > 0) {
-        await saveSessionMessages(id, snapshot);
+    isSwitching.current = true;
+    try {
+      // If deleting the active session, abort any stream and save
+      if (id === activeSessionId.current) {
+        chatService.abortIfStreaming();
+        const snapshot = chatService.getMessagesForSave();
+        if (snapshot.length > 0) {
+          await saveSessionMessages(id, snapshot);
+        }
+        chatService.cacheSessionMessages(id, []);
       }
-    }
-    await sessionService.delete(id);
-    if (activeSessionId.current === id) {
-      // Switch to remaining session or clear
-      const remaining = sessionInternal.getState('sessions');
-      if (remaining.length > 0) {
-        activeSessionId.current = remaining[0].id;
-      } else {
-        activeSessionId.current = null;
+      await sessionService.delete(id);
+      if (activeSessionId.current === id) {
+        // Switch to the next remaining session
+        const remaining = sessionInternal.getState('sessions');
+        if (remaining.length > 0) {
+          const nextSession = remaining[0];
+          sessionService.switchTo(nextSession.id);
+          chatService.bindSession(nextSession.id);
+          // Try cache first, then storage
+          const cached = chatService.getCachedMessages(nextSession.id);
+          if (cached) {
+            chatService.loadMessages(cached);
+          } else {
+            const data = await sessionService.loadSession(nextSession.id);
+            if (data?.messages?.length) {
+              chatService.loadMessages(storedToDisplayMessages(data.messages));
+            } else {
+              chatService.clearMessages();
+            }
+          }
+          activeSessionId.current = nextSession.id;
+        } else {
+          chatService.bindSession(null);
+          chatService.clearMessages();
+          activeSessionId.current = null;
+        }
       }
+    } finally {
+      isSwitching.current = false;
     }
-  }, [saveSessionMessages, sessionService, sessionInternal]);
+  }, [saveSessionMessages, sessionService, sessionInternal, chatService]);
+
+  const updateProjectId = useCallback(async (sessionId: string, projectId: string | undefined) => {
+    await sessionService.updateProjectId(sessionId, projectId);
+  }, [sessionService]);
 
   return {
     sessions, currentSessionId, create,
     delete: deleteSession, switchTo,
     load: (id: string) => sessionService.loadSession(id),
-    saveSessionMessages,
+    saveSessionMessages, flush,
+    updateProjectId,
   };
 }
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function deriveTitle(currentTitle: string, messages: DisplayMessage[]): string {
+export function deriveTitle(currentTitle: string, messages: DisplayMessage[]): string {
   if (!currentTitle.startsWith('Chat ')) return currentTitle;
   const first = messages.find((m) => m.role === 'user');
   if (!first?.content) return currentTitle;
@@ -230,7 +409,7 @@ function deriveTitle(currentTitle: string, messages: DisplayMessage[]): string {
   return text.length > 40 ? text.slice(0, 40) + '...' : text;
 }
 
-function displayToStoredMessages(msgs: DisplayMessage[]): unknown[] {
+export function displayToStoredMessages(msgs: DisplayMessage[]): unknown[] {
   return msgs
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .map((m) => ({
@@ -238,31 +417,69 @@ function displayToStoredMessages(msgs: DisplayMessage[]): unknown[] {
       content: m.content,
       thinking: m.thinking || undefined,
       images: m.images || undefined,
+      duration: m.duration || undefined,
       toolCalls: m.toolCalls?.length ? m.toolCalls.map((tc) => ({
         id: tc.id, name: tc.name, arguments: tc.arguments, status: tc.status,
         result: tc.result ? { callId: tc.result.callId, output: tc.result.output, isError: tc.result.isError } : undefined,
       })) : undefined,
+      blocks: m.blocks?.length ? m.blocks.map((b) => {
+        if (b.type === 'tool_call' && b.call) {
+          return {
+            type: b.type,
+            call: {
+              id: b.call.id, name: b.call.name, arguments: b.call.arguments, status: b.call.status,
+              result: b.call.result ? { callId: b.call.result.callId, output: b.call.result.output, isError: b.call.result.isError } : undefined,
+            },
+          };
+        }
+        return b;
+      }) : undefined,
     }));
 }
 
-function storedToDisplayMessages(msgs: unknown[]): DisplayMessage[] {
+export function storedToDisplayMessages(msgs: unknown[]): DisplayMessage[] {
   let c = 0;
   const out: DisplayMessage[] = [];
   for (const raw of msgs) {
     const m = raw as Record<string, unknown>;
     if (!m.role || !m.content) continue;
     const tc = m.toolCalls as Array<{ id: string; name: string; arguments: Record<string, unknown>; status: string; result?: { callId: string; output: string; isError?: boolean } }> | undefined;
+    const restoredTc = tc?.map((t) => ({
+      id: t.id, name: t.name, arguments: t.arguments,
+      status: t.status as 'running' | 'completed' | 'error' | 'pending_approval',
+      result: t.result ? { callId: t.result.callId, output: t.result.output, isError: t.result.isError } : undefined,
+    })) || [];
+    let blocks: import('../types').ContentBlock[] | undefined;
+    const rawBlocks = m.blocks as Array<Record<string, unknown>> | undefined;
+    if (rawBlocks && rawBlocks.length > 0) {
+      blocks = rawBlocks.map((b) => {
+        if (b.type === 'tool_call') {
+          const call = b.call as { id: string; name: string; arguments: Record<string, unknown>; status: string; result?: { callId: string; output: string; isError?: boolean } } | undefined;
+          return {
+            type: 'tool_call' as const,
+            call: call ? {
+              id: call.id, name: call.name, arguments: call.arguments,
+              status: call.status as 'running' | 'completed' | 'error' | 'pending_approval',
+              result: call.result ? { callId: call.result.callId, output: call.result.output, isError: call.result.isError } : undefined,
+            } : undefined as any,
+          };
+        }
+        return b as import('../types').ContentBlock;
+      }).filter((b) => b.type !== 'tool_call' || (b as any).call);
+    } else if ((m as any).thinking || restoredTc.length > 0) {
+      blocks = [];
+      if ((m as any).thinking) blocks.push({ type: 'thinking', text: (m as any).thinking as string });
+      for (const t of restoredTc) blocks.push({ type: 'tool_call', call: t });
+    }
     out.push({
       id: `restored_${++c}_${Date.now()}`,
       role: m.role as 'user' | 'assistant',
       content: m.content as string,
       thinking: m.thinking as string | undefined,
       images: m.images as Array<{ data: string; mimeType?: string }> | undefined,
-      toolCalls: tc?.map((t) => ({
-        id: t.id, name: t.name, arguments: t.arguments,
-        status: t.status as 'running' | 'completed' | 'error' | 'pending_approval',
-        result: t.result ? { callId: t.result.callId, output: t.result.output, isError: t.result.isError } : undefined,
-      })) || [],
+      toolCalls: restoredTc,
+      blocks,
+      duration: m.duration as number | undefined,
       timestamp: Date.now(),
     });
   }
