@@ -48,6 +48,7 @@ export function useChat() {
 
     send: (content: string, images?: Array<{ data: string; mimeType?: string }>) => chatService.sendMessage(content, images),
     retry: () => chatService.retry(),
+    retryFromMessage: (id: string) => chatService.retryFromMessage(id),
     editMessage: (id: string, content: string) => chatService.editMessage(id, content),
     abort: () => chatService.abort(),
     clear: () => chatService.clearMessages(),

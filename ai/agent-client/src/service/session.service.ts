@@ -9,6 +9,7 @@ export interface SessionInfo {
   messageCount: number;
   createdAt: number;
   updatedAt: number;
+  projectId?: string;
 }
 
 export interface SessionData {
@@ -19,6 +20,7 @@ export interface SessionData {
   messages: unknown[];
   createdAt: number;
   updatedAt: number;
+  projectId?: string;
 }
 
 const STORAGE_PREFIX = 'agent:session:';
@@ -48,7 +50,7 @@ export class SessionService {
    * All async I/O is done BEFORE setting observables to avoid cascading re-renders.
    */
   @action()
-  async create(title?: string, model?: string): Promise<string> {
+  async create(title?: string, model?: string, projectId?: string): Promise<string> {
     if (!Array.isArray(this.sessions)) {
       console.error('[SessionService] create() — sessions corrupted, resetting');
       this.sessions = [];
@@ -64,6 +66,7 @@ export class SessionService {
       messages: [],
       createdAt: now,
       updatedAt: now,
+      projectId,
     };
 
     const info: SessionInfo = {
@@ -73,6 +76,7 @@ export class SessionService {
       messageCount: 0,
       createdAt: now,
       updatedAt: now,
+      projectId,
     };
 
     // All async I/O first — no observable changes yet
@@ -109,12 +113,13 @@ export class SessionService {
       messages: data.messages,
       createdAt: data.createdAt,
       updatedAt: now,
+      projectId: data.projectId,
     };
     await this.storage!.set(`${STORAGE_PREFIX}${data.id}`, toSave);
 
     const updatedSessions = this.sessions.map((s) =>
       s.id === data.id
-        ? { ...s, title: data.title, messageCount: data.messages.length, updatedAt: now }
+        ? { ...s, title: data.title, messageCount: data.messages.length, updatedAt: now, projectId: data.projectId }
         : s,
     );
     await this.storage!.set(LIST_KEY, updatedSessions);
@@ -146,6 +151,61 @@ export class SessionService {
   @action()
   switchTo(id: string): void {
     this.currentSessionId = id;
+  }
+
+  /**
+   * Update the projectId of a session.
+   */
+  @action()
+  async updateProjectId(sessionId: string, projectId: string | undefined): Promise<void> {
+    if (!Array.isArray(this.sessions)) return;
+
+    // Update in-memory list
+    const updatedSessions = this.sessions.map((s) =>
+      s.id === sessionId ? { ...s, projectId } : s,
+    );
+
+    // Persist list
+    await this.storage!.set(LIST_KEY, updatedSessions);
+
+    // Also update the session data itself (for loadSession to return correct projectId)
+    const data = await this.storage!.get<SessionData>(`${STORAGE_PREFIX}${sessionId}`);
+    if (data) {
+      await this.storage!.set(`${STORAGE_PREFIX}${sessionId}`, { ...data, projectId });
+    }
+
+    this.sessions = updatedSessions;
+  }
+
+  /**
+   * Lightweight metadata update for immediate sidebar response.
+   * Updates title, projectId, and/or messageCount without a full saveSession.
+   */
+  @action()
+  async updateSessionInfo(
+    id: string,
+    updates: Partial<Pick<SessionInfo, 'title' | 'projectId' | 'messageCount'>>,
+  ): Promise<void> {
+    if (!Array.isArray(this.sessions)) return;
+
+    const updatedSessions = this.sessions.map((s) =>
+      s.id === id ? { ...s, ...updates } : s,
+    );
+
+    await this.storage!.set(LIST_KEY, updatedSessions);
+
+    // Also patch the session data record (title + projectId)
+    const data = await this.storage!.get<SessionData>(`${STORAGE_PREFIX}${id}`);
+    if (data) {
+      const patched: SessionData = {
+        ...data,
+        ...(updates.title ? { title: updates.title } : {}),
+        ...(updates.projectId !== undefined ? { projectId: updates.projectId } : {}),
+      };
+      await this.storage!.set(`${STORAGE_PREFIX}${id}`, patched);
+    }
+
+    this.sessions = updatedSessions;
   }
 
   // ----------------------------------------------------------
