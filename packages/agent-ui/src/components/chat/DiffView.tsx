@@ -29,10 +29,10 @@ function parseDiff(text: string): DiffLine[] {
 }
 
 const LINE_STYLES: Record<DiffLine['type'], string> = {
-  add: 'bg-green-50 text-green-800',
-  delete: 'bg-red-50 text-red-800',
+  add: 'bg-green-950/40 text-green-400',
+  delete: 'bg-red-950/40 text-red-400',
   context: 'text-gray-500',
-  hunk: 'text-blue-600 bg-blue-50/50',
+  hunk: 'text-blue-400 bg-blue-950/30',
   header: 'text-gray-500 italic',
 };
 
@@ -52,8 +52,8 @@ export const DiffView: React.FC<DiffViewProps> = ({ diff, className }) => {
   const lines = parseDiff(diff);
 
   return (
-    <div className={cn('rounded-lg border border-[#2a2a2a] overflow-hidden my-1', className)}>
-      <div className="overflow-x-auto">
+    <div className={cn('rounded-lg border border-[#2a2a2a] overflow-hidden my-1 max-h-80', className)}>
+      <div className="overflow-x-auto overflow-y-auto max-h-80">
         <table className="w-full text-xs font-mono">
           <tbody>
             {lines.map((line, i) => (

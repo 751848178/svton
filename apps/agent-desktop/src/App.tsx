@@ -145,20 +145,46 @@ export default function App() {
             models={models}
             currentModel={currentModel}
             setCurrentModel={setCurrentModel}
+            onReinit={async (workingDir?: string) => {
+              if (workingDir) {
+                await platform.storage.set('agent:workingDir', workingDir);
+                // Immediately update workingDir for UI responsiveness (mention cache, etc.)
+                setAgentConfig(prev => prev ? { ...prev, workingDir } : prev);
+              }
+              // Full re-init in background for skills, MCP, memory
+              const result = await initAgent(platform, currentModel);
+              if (result.kind === 'ready') {
+                setAgentConfig(result.config);
+              }
+            }}
           />
         </AgentProvider>
+      ) : unconfiguredView === 'settings' && platform ? (
+        // Settings: full-screen — no Sidebar
+        <div className="flex flex-col h-screen bg-black text-gray-100 font-mono">
+          {/* Draggable spacer for macOS traffic light buttons */}
+          <div
+            onMouseDown={() => {}}
+            className="h-9 flex-shrink-0 cursor-default select-none"
+          />
+          <SettingsPanel platform={platform} onBack={() => setUnconfiguredView('chat')} />
+        </div>
       ) : (
-        <div className="flex h-screen bg-black text-gray-100 font-mono">
+        <div className="flex h-screen bg-transparent text-gray-100 font-mono">
           {platform && (
             <Sidebar
               config={null}
-              platform={platform}
               sessions={[]}
               currentSessionId={null}
+              projects={[]}
+              currentProjectId={null}
               onNewChat={() => {}}
               onSwitchSession={() => {}}
               onDeleteSession={() => {}}
               onNavigate={(v) => setUnconfiguredView(v)}
+              onSwitchProject={() => {}}
+              onOpenProjectFolder={() => {}}
+              onDeleteProject={() => {}}
               activeView={unconfiguredView}
             />
           )}
@@ -192,9 +218,6 @@ export default function App() {
                 presets={[]}
                 className="bg-transparent"
               />
-            )}
-            {unconfiguredView === 'settings' && platform && (
-              <SettingsPanel platform={platform} onBack={() => setUnconfiguredView('chat')} />
             )}
             {(unconfiguredView === 'automation' || unconfiguredView === 'skills') && (
               <div className="flex-1 flex items-center justify-center">
