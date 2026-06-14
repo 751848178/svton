@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { cn, t } from '@svton/ui';
 import { DiffView, isDiff } from './DiffView';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { ScreenshotView, isImageOutput } from './ScreenshotView';
 import { getToolDisplayName } from './tool-names';
 
 export interface ToolCallInfo {
@@ -30,6 +31,15 @@ const SHELL_TOOLS = new Set(['bash', 'shell', 'exec', 'run_command', 'terminal']
 
 /** Tools that edit files */
 const FILE_EDIT_TOOLS = new Set(['file_edit', 'edit', 'write_file', 'create_file', 'apply_diff']);
+
+/** Computer Use + Chrome CDP tools */
+const COMPUTER_USE_TOOLS = new Set([
+  'screenshot', 'mouse_click', 'mouse_double_click', 'mouse_move', 'mouse_down', 'mouse_up', 'mouse_drag', 'scroll', 'keyboard_type', 'keyboard_press_key',
+  'chrome_navigate', 'chrome_screenshot', 'chrome_click', 'chrome_type', 'chrome_evaluate', 'chrome_get_content',
+]);
+
+/** Screenshot-producing tools */
+const SCREENSHOT_TOOLS = new Set(['screenshot', 'chrome_screenshot']);
 
 /** Max lines of output to show when expanded (head + tail budget) */
 const OUTPUT_MAX_LINES = 20;
@@ -66,6 +76,7 @@ function truncateOutput(output: string, maxLines: number): { text: string; trunc
  * Codex-style tool call card.
  * - Shell commands: inline command with dimmed output
  * - File edits: compact card with diff preview
+ * - Computer Use: purple accent with screenshot rendering
  * - Generic tools: standard parameter + output view
  */
 export const ToolCallCard: React.FC<ToolCallCardProps> = ({
@@ -81,6 +92,8 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
   const icon = STATUS_ICON[toolCall.status];
   const isShell = SHELL_TOOLS.has(toolCall.name);
   const isFileEdit = FILE_EDIT_TOOLS.has(toolCall.name);
+  const isComputerUse = COMPUTER_USE_TOOLS.has(toolCall.name);
+  const isScreenshotTool = SCREENSHOT_TOOLS.has(toolCall.name);
   const displayName = getToolDisplayName(toolCall.name);
 
   // For shell tools, extract the command for inline display
@@ -98,13 +111,14 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
     : '';
 
   const output = toolCall.result?.output ?? '';
-  const isMarkdownOutput = output && (
+  const isDiffOutput = isDiff(output);
+  const isImageOutputResult = isScreenshotTool && isImageOutput(output);
+  const isMarkdownOutput = output && !isImageOutputResult && (
     output.includes('##') ||
     output.includes('```') ||
     output.includes('- ') ||
     output.includes('1. ')
   );
-  const isDiffOutput = isDiff(output);
 
   return (
     <div className={cn('text-sm', className)}>
@@ -128,6 +142,17 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
             <span className="text-gray-600 mx-1">→</span>
             <span className="text-gray-300">{fileName}</span>
           </span>
+        ) : isComputerUse ? (
+          /* Computer Use: purple accent with action summary */
+          <span className="text-xs text-gray-400 truncate flex-1">
+            <span className="text-purple-500">{displayName}</span>
+            {argsPreview && (
+              <>
+                <span className="text-gray-600 mx-1">→</span>
+                <span className="text-gray-300">{argsPreview}</span>
+              </>
+            )}
+          </span>
         ) : (
           /* Generic tool */
           <>
@@ -140,14 +165,20 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
         </span>
       </button>
 
-      {/* Collapsed preview — compact one-liner for completed tools */}
+      {/* Collapsed preview — thumbnail for screenshot tools, text for others */}
       {!expanded && toolCall.result && !toolCall.result.isError && output && !isFileEdit && (
-        <div className="mt-0.5 pl-4">
-          <span className="text-xs text-gray-600 line-clamp-1">
-            {output.slice(0, 120)}
-            {output.length > 120 && '…'}
-          </span>
-        </div>
+        isScreenshotTool && isImageOutput(output) ? (
+          <div className="mt-0.5 pl-4">
+            <ScreenshotView output={output} className="max-w-[120px] max-h-16" />
+          </div>
+        ) : !isScreenshotTool ? (
+          <div className="mt-0.5 pl-4">
+            <span className="text-xs text-gray-600 line-clamp-1">
+              {output.slice(0, 120)}
+              {output.length > 120 && '…'}
+            </span>
+          </div>
+        ) : null
       )}
 
       {/* Error preview when collapsed */}
@@ -181,8 +212,8 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
             </div>
           )}
 
-          {/* Generic tool parameters (non-shell, non-file-edit) */}
-          {!isShell && !isFileEdit && (
+          {/* Generic tool parameters (non-shell, non-file-edit, non-computer-use) */}
+          {!isShell && !isFileEdit && !isComputerUse && (
             <div>
               <div className="text-[10px] text-gray-500 mb-0.5">{t('tool.parameters')}</div>
               <pre className="text-xs text-gray-400 bg-[#1a1a1a] rounded-md px-3 py-1.5 overflow-x-auto overflow-y-auto max-h-60 border border-[#252525]">
@@ -197,7 +228,9 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
               <div className="text-[10px] text-gray-500 mb-0.5">
                 {toolCall.result.isError ? t('tool.error') : t('tool.output')}
               </div>
-              {isDiffOutput ? (
+              {isImageOutputResult ? (
+                <ScreenshotView output={output} className="flex-1 min-w-0" />
+              ) : isDiffOutput ? (
                 <DiffView diff={output} className="flex-1 min-w-0" />
               ) : isMarkdownOutput && !toolCall.result.isError ? (
                 <div className={cn(

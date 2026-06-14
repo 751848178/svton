@@ -6,15 +6,58 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { ExportManager } from './ExportManager';
 import { DocumentCard, detectDocumentContent, type DocumentKind } from './DocumentCard';
 import type { SplitScreenContent } from './SplitScreenPanel';
+import { PlanBlockView, type PlanInfo } from './blocks/PlanBlockView';
+import { FileChangeView, type FileChangeEntry } from './blocks/FileChangeView';
+import { SubagentBlockView } from './blocks/SubagentBlockView';
+import { WarningBlockView } from './blocks/WarningBlockView';
+import { ReferenceBlockView, type ReferenceEntry } from './blocks/ReferenceBlockView';
+import { WebSearchBlockView, type SearchResultEntry } from './blocks/WebSearchBlockView';
+import { ProgressBlockView } from './blocks/ProgressBlockView';
+import { TurnDiffView } from './blocks/TurnDiffView';
+import { CommandBlockView } from './blocks/CommandBlockView';
+import { FileTreeBlockView, type FileTreeNode } from './blocks/FileTreeBlockView';
+import { RedactedThinkingView } from './blocks/RedactedThinkingView';
+import { CodeReviewBlock, type ReviewFinding } from './CodeReviewBlock';
+import { ImageResultBlock, type GeneratedImage } from './ImageResultBlock';
+import { CsvFanoutBlock } from './CsvFanoutBlock';
 
 /**
  * Ordered content block for rendering in execution order.
  * Mirrors the ContentBlock type from agent-client.
  */
 export interface ContentBlock {
-  type: 'thinking' | 'tool_call' | 'text' | 'error';
+  type: 'thinking' | 'tool_call' | 'text' | 'error' | 'plan' | 'file_change' | 'subagent' | 'warning'
+      | 'reference' | 'web_search' | 'progress' | 'turn_diff' | 'command' | 'file_tree' | 'redacted_thinking'
+      | 'image_generated' | 'code_review' | 'csv_fanout' | 'auto_review';
   text?: string;
   call?: ToolCallInfo;
+  plan?: PlanInfo;
+  changes?: FileChangeEntry[];
+  agentId?: string;
+  task?: string;
+  status?: string;
+  summary?: string;
+  source?: string;
+  // New block types
+  refs?: ReferenceEntry[];
+  query?: string;
+  results?: SearchResultEntry[];
+  label?: string;
+  action?: string;
+  icon?: string;
+  tree?: FileTreeNode[];
+  reason?: string;
+  // Feature-specific blocks
+  images?: GeneratedImage[];
+  model?: string;
+  findings?: ReviewFinding[];
+  totalRows?: number;
+  succeeded?: number;
+  failed?: number;
+  rows?: Array<{ rowIndex: number; status: string; rowData: Record<string, string>; summary?: string }>;
+  verdict?: string;
+  ruleId?: string;
+  toolName?: string;
 }
 
 export interface ChatMessageProps {
@@ -41,6 +84,10 @@ export interface ChatMessageProps {
   onOpenEditor?: (content: string) => void;
   /** Open a document in the split-screen panel */
   onOpenDocument?: (doc: SplitScreenContent) => void;
+  /** Open a file reference (from reference block) */
+  onOpenReference?: (path: string, line?: number) => void;
+  /** Execute a command (from command block) */
+  onCommand?: (action: string) => void;
   className?: string;
 }
 
@@ -67,6 +114,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   onEdit,
   onOpenEditor,
   onOpenDocument,
+  onOpenReference,
+  onCommand,
   className,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -177,7 +226,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
           ) : (
             <>
-              <div className="bg-[#1c1c1c] rounded-2xl px-4 py-2.5 min-w-0">
+              <div className="bg-[#1c1c1c] rounded-2xl px-4 py-2.5 min-w-0 w-fit">
                 <div className="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap break-words">
                   {content}
                 </div>
@@ -263,8 +312,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const hasBlocks = blocks && blocks.length > 0;
   const isCompleted = !isStreaming;
 
-  // Count process blocks (thinking + tool calls) for the collapsed summary
-  const hasProcess = hasBlocks && blocks!.some((b) => b.type === 'thinking' || b.type === 'tool_call');
+  // Find the index of the last text block — that's the "conclusion" that stays visible
+  const lastTextIdx = hasBlocks
+    ? (() => { for (let i = blocks!.length - 1; i >= 0; i--) { if (blocks![i].type === 'text' && blocks![i].text) return i; } return -1; })()
+    : -1;
+
+  // A block is "process" if it's NOT the final text conclusion.
+  // All non-text block types are process blocks. Only the last text block is the conclusion.
+  const isProcessBlock = (block: ContentBlock, idx: number): boolean => {
+    if (block.type === 'text') return idx !== lastTextIdx;
+    return true; // All other types are process
+  };
+
+  // Has any process blocks to collapse?
+  const hasProcess = hasBlocks && blocks!.some((b, i) => isProcessBlock(b, i));
 
   // Format duration for display
   const formatDuration = (ms: number) => {
@@ -277,7 +338,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
   return (
     <div
-      className={cn('px-6 py-3 group', className)}
+      className={cn('px-6 py-3 group min-w-0 overflow-hidden', className)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -287,7 +348,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           {!processExpanded && hasProcess && (
             <button
               onClick={() => setProcessExpanded(true)}
-              className="w-full flex items-center gap-2 px-2 py-1.5 mb-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 hover:bg-[#1c1c1c] transition-colors text-left"
+              className="w-full flex items-center gap-2 py-1.5 mb-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors text-left"
             >
               <span className="text-gray-400 select-none">▸</span>
               <span className="text-gray-400">已处理</span>
@@ -299,7 +360,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           {processExpanded && !isStreaming && hasProcess && (
             <button
               onClick={() => setProcessExpanded(false)}
-              className="w-full flex items-center gap-2 px-2 py-1 mb-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 hover:bg-[#1c1c1c] transition-colors text-left"
+              className="w-full flex items-center gap-2 py-1.5 mb-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors text-left"
             >
               <span className="text-gray-400 select-none">▾</span>
               <span className="text-gray-400">已处理</span>
@@ -311,7 +372,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
           {/* Render ALL blocks in original order — thinking/tools/text interleaved */}
           {blocks!.map((block, i) => {
-            const isProcess = block.type === 'thinking' || block.type === 'tool_call';
+            const isProcess = isProcessBlock(block, i);
 
             // Process blocks: respect expand/collapse state
             if (isProcess && !(processExpanded || isStreaming)) return null;
@@ -363,6 +424,56 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   <div className="text-sm text-red-600 leading-relaxed">{block.text}</div>
                 </div>
               );
+            }
+            if (block.type === 'plan' && block.plan) {
+              return <PlanBlockView key={`plan-${i}`} plan={block.plan} />;
+            }
+            if (block.type === 'file_change' && block.changes) {
+              return <FileChangeView key={`fc-${i}`} changes={block.changes} />;
+            }
+            if (block.type === 'subagent') {
+              return (
+                <SubagentBlockView
+                  key={`sub-${i}`}
+                  agentId={block.agentId || ''}
+                  task={block.task || ''}
+                  status={(block.status as 'running' | 'completed') || 'completed'}
+                  summary={block.summary}
+                />
+              );
+            }
+            if (block.type === 'warning' && block.text) {
+              return <WarningBlockView key={`warn-${i}`} text={block.text} source={block.source} />;
+            }
+            if (block.type === 'reference' && block.refs) {
+              return <ReferenceBlockView key={`ref-${i}`} refs={block.refs} onOpen={onOpenReference} />;
+            }
+            if (block.type === 'web_search' && block.query) {
+              return <WebSearchBlockView key={`ws-${i}`} query={block.query} results={block.results || []} />;
+            }
+            if (block.type === 'progress') {
+              return <ProgressBlockView key={`prog-${i}`} text={block.text || ''} status={(block.status as 'running' | 'done') || 'done'} />;
+            }
+            if (block.type === 'turn_diff' && block.changes) {
+              return <TurnDiffView key={`td-${i}`} changes={block.changes} />;
+            }
+            if (block.type === 'command') {
+              return <CommandBlockView key={`cmd-${i}`} label={block.label || ''} action={block.action || ''} icon={block.icon} onCommand={onCommand} />;
+            }
+            if (block.type === 'file_tree' && block.tree) {
+              return <FileTreeBlockView key={`ft-${i}`} tree={block.tree} />;
+            }
+            if (block.type === 'redacted_thinking') {
+              return <RedactedThinkingView key={`rt-${i}`} reason={block.reason} />;
+            }
+            if (block.type === 'image_generated' && block.images) {
+              return <ImageResultBlock key={`img-${i}`} images={block.images} model={block.model || 'unknown'} />;
+            }
+            if (block.type === 'code_review' && block.findings) {
+              return <CodeReviewBlock key={`cr-${i}`} findings={block.findings} onFileClick={onOpenReference} />;
+            }
+            if (block.type === 'csv_fanout' && block.totalRows !== undefined) {
+              return <CsvFanoutBlock key={`csv-${i}`} rows={(block.rows || []) as any} totalRows={block.totalRows} />;
             }
             return null;
           })}

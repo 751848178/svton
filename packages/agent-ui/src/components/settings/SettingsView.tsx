@@ -1,5 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { cn } from '@svton/ui';
+import { SandboxSettings } from './SandboxSettings';
+import { AutoReviewerSettings } from './AutoReviewerSettings';
+import { IntegrationsPanel, type IntegrationCardData } from './IntegrationsPanel';
 
 // ════════════════════════════════════════════════════════════
 // Shared types
@@ -124,6 +127,14 @@ export interface ISettingsAdapter {
   getMemoryEntries?(): MemoryEntry[];
   deleteMemoryEntry?(key: string): void | Promise<void>;
 
+  // ── Sandbox ─────────────────────────────────────────────
+  getSandboxConfig?(): { enabled: boolean; mode: string };
+  saveSandboxConfig?(config: { enabled: boolean; mode: string }): void;
+
+  // ── Auto-reviewer ───────────────────────────────────────
+  getAutoReviewerConfig?(): { mode: string; rules: Array<{ id: string; description: string; verdict: string }> };
+  saveAutoReviewerMode?(mode: string): void;
+
   // ── Skills CRUD ──────────────────────────────────────────
   addSkill?(skill: SkillFormData): void | Promise<void>;
   updateSkill?(name: string, updates: SkillFormData): void | Promise<void>;
@@ -167,6 +178,11 @@ export interface ISettingsAdapter {
   // ── Optional: web search ─────────────────────────────────
   getSearchEndpoint?(): string;
   saveSearchEndpoint?(url: string): void;
+
+  // ── Integrations ────────────────────────────────────────
+  getIntegrations?(): IntegrationCardData[];
+  toggleIntegration?(id: string, enabled: boolean): void | Promise<void>;
+  setIntegrationCredential?(id: string, key: string, value: string): void | Promise<void>;
 }
 
 /** Agent runtime data exposed by the adapter */
@@ -240,7 +256,8 @@ export interface SettingsViewProps {
 type SectionId =
   | 'general' | 'providers' | 'personalization'
   | 'tools' | 'skills' | 'marketplace' | 'mcp'
-  | 'permissions' | 'memory' | 'search' | 'automation';
+  | 'permissions' | 'memory' | 'search' | 'automation'
+  | 'sandbox' | 'auto_reviewer' | 'integrations' | 'preview';
 
 interface SectionDef { id: SectionId; label: string; group: string; }
 
@@ -252,9 +269,13 @@ const DEFAULT_SECTIONS: SectionDef[] = [
   { id: 'skills', label: '技能', group: '集成' },
   { id: 'marketplace', label: '技能市场', group: '集成' },
   { id: 'mcp', label: 'MCP 服务器', group: '集成' },
+  { id: 'integrations', label: '第三方集成', group: '集成' },
   { id: 'permissions', label: '权限', group: '编码' },
+  { id: 'preview', label: '预览模式', group: '编码' },
   { id: 'memory', label: '记忆', group: '编码' },
   { id: 'automation', label: '自动化', group: '编码' },
+  { id: 'sandbox', label: '沙箱', group: '编码' },
+  { id: 'auto_reviewer', label: '自动审核', group: '编码' },
 ];
 
 const GROUPS = ['个人', '集成', '编码'] as const;
@@ -295,6 +316,10 @@ const ICONS: Record<string, React.ReactNode> = {
   memory: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2z"/></svg>,
   search: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
   automation: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  sandbox: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>,
+  auto_reviewer: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/><circle cx="12" cy="12" r="10"/></svg>,
+  integrations: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+  preview: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>,
 };
 
 // ════════════════════════════════════════════════════════════
@@ -486,6 +511,36 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
             )}
             {activeSection === 'automation' && agent && (
               <AutomationSection hasSubagent={agent.hasSubagent} hasPlanning={agent.hasPlanning} tools={agent.tools} />
+            )}
+            {activeSection === 'preview' && (
+              <PreviewModeSection adapter={adapter} />
+            )}
+            {activeSection === 'sandbox' && (
+              <SandboxSettings
+                enabled={adapter.getSandboxConfig?.()?.enabled ?? false}
+                mode={(adapter.getSandboxConfig?.()?.mode as 'read_only' | 'workspace_write' | 'full_access') ?? 'workspace_write'}
+                onChange={(cfg) => {
+                  adapter.saveSandboxConfig?.(cfg);
+                  showToast(cfg.enabled ? '沙箱已启用' : '沙箱已禁用');
+                }}
+              />
+            )}
+            {activeSection === 'auto_reviewer' && (
+              <AutoReviewerSettings
+                mode={(adapter.getAutoReviewerConfig?.()?.mode as 'auto_review' | 'manual') ?? 'manual'}
+                rules={adapter.getAutoReviewerConfig?.()?.rules ?? []}
+                onModeChange={(mode) => {
+                  adapter.saveAutoReviewerMode?.(mode);
+                  showToast(mode === 'auto_review' ? '已切换到自动审核' : '已切换到手动模式');
+                }}
+              />
+            )}
+            {activeSection === 'integrations' && (
+              <IntegrationsPanel
+                integrations={adapter.getIntegrations?.() ?? []}
+                onToggle={(id, enabled) => { adapter.toggleIntegration?.(id, enabled); }}
+                onCredentialChange={(id, key, value) => { adapter.setIntegrationCredential?.(id, key, value); }}
+              />
             )}
           </div>
         </div>
@@ -1487,6 +1542,67 @@ function AutomationSection({ hasSubagent, hasPlanning, tools }: { hasSubagent: b
           <div key={ev} className="flex items-center gap-2 text-[11px] p-1.5 rounded bg-[#171717] border border-[#2a2a2a]"><span className="font-mono text-cyan-400">{ev}</span><span className="text-gray-500">{desc}</span></div>
         ))}</div>
       </Card>
+    </div>
+  );
+}
+
+// ── Preview Mode Section ─────────────────────────────────
+function PreviewModeSection({ adapter }: { adapter: ISettingsAdapter }) {
+  const [mode, setMode] = useState<'sidebar' | 'window'>(
+    typeof localStorage !== 'undefined'
+      ? (localStorage.getItem('agent:preview_mode') as 'sidebar' | 'window') || 'sidebar'
+      : 'sidebar'
+  );
+
+  const handleModeChange = (newMode: 'sidebar' | 'window') => {
+    setMode(newMode);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('agent:preview_mode', newMode);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-sm font-medium text-gray-200">文档预览模式</h3>
+      <p className="text-xs text-gray-500">
+        选择点击文档卡片时的预览方式。新窗口模式会打开一个独立窗口（不含侧边栏和对话），仅展示预览内容。
+      </p>
+      <div className="space-y-2">
+        <label
+          className={cn(
+            'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+            mode === 'sidebar' ? 'border-cyan-600 bg-cyan-900/10' : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
+          )}
+        >
+          <input
+            type="radio"
+            checked={mode === 'sidebar'}
+            onChange={() => handleModeChange('sidebar')}
+            className="accent-cyan-500"
+          />
+          <div>
+            <div className="text-sm text-gray-200">侧栏预览</div>
+            <div className="text-[11px] text-gray-500">在当前窗口右侧分屏展示文档</div>
+          </div>
+        </label>
+        <label
+          className={cn(
+            'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+            mode === 'window' ? 'border-cyan-600 bg-cyan-900/10' : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
+          )}
+        >
+          <input
+            type="radio"
+            checked={mode === 'window'}
+            onChange={() => handleModeChange('window')}
+            className="accent-cyan-500"
+          />
+          <div>
+            <div className="text-sm text-gray-200">新窗口预览</div>
+            <div className="text-[11px] text-gray-500">打开独立窗口，不含侧边栏和对话，仅展示文档</div>
+          </div>
+        </label>
+      </div>
     </div>
   );
 }

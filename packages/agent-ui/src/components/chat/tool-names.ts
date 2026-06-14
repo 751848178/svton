@@ -1,5 +1,7 @@
-/** Tool name → friendly display name — single source of truth */
-export const TOOL_DISPLAY_NAMES: Record<string, string> = {
+import { t } from '@svton/ui';
+
+/** Legacy static names for tools not yet migrated to i18n */
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
   subagent_spawn: 'Subagent',
   plan_create: 'Create Plan',
   plan_get_status: 'Plan Status',
@@ -8,6 +10,28 @@ export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   web_search: 'Web Search',
 };
 
+/** i18n keys for Computer Use + Chrome CDP tools */
+const I18N_TOOL_KEYS: Record<string, string> = {
+  screenshot: 'tool.screenshot',
+  mouse_click: 'tool.mouse_click',
+  mouse_double_click: 'tool.mouse_double_click',
+  mouse_move: 'tool.mouse_move',
+  mouse_down: 'tool.mouse_down',
+  mouse_up: 'tool.mouse_up',
+  mouse_drag: 'tool.mouse_drag',
+  scroll: 'tool.scroll',
+  keyboard_type: 'tool.keyboard_type',
+  keyboard_press_key: 'tool.keyboard_press_key',
+  chrome_navigate: 'tool.chrome_navigate',
+  chrome_screenshot: 'tool.chrome_screenshot',
+  chrome_click: 'tool.chrome_click',
+  chrome_type: 'tool.chrome_type',
+  chrome_evaluate: 'tool.chrome_evaluate',
+  chrome_get_content: 'tool.chrome_get_content',
+};
+
 export function getToolDisplayName(name: string): string {
+  const i18nKey = I18N_TOOL_KEYS[name];
+  if (i18nKey) return t(i18nKey);
   return TOOL_DISPLAY_NAMES[name] || name;
 }

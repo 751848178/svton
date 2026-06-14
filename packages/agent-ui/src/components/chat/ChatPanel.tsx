@@ -29,6 +29,10 @@ export interface ChatPanelProps {
   onEditMessage?: (messageId: string, newContent: string) => void;
   onOpenEditor?: (content: string) => void;
   onOpenDocument?: (doc: import('./SplitScreenPanel').SplitScreenContent) => void;
+  /** Open a file reference (from reference block) */
+  onOpenReference?: (path: string, line?: number) => void;
+  /** Execute a command (from command block) */
+  onCommand?: (action: string) => void;
   isStreaming?: boolean;
   disabled?: boolean;
   placeholder?: string;
@@ -88,6 +92,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onEditMessage,
   onOpenEditor,
   onOpenDocument,
+  onOpenReference,
+  onCommand,
   isStreaming,
   disabled,
   placeholder,
@@ -204,6 +210,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   onEdit={onEditMessage}
                   onOpenEditor={onOpenEditor}
                   onOpenDocument={onOpenDocument}
+                  onOpenReference={onOpenReference}
+                  onCommand={onCommand}
                 />
               </React.Fragment>
             ))}
