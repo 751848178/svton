@@ -334,6 +334,35 @@ export function InputControls({
           ))}
         </div>
       )}
+
+      {showReasoning && (
+        <div
+          id="reasoning-dropdown"
+          style={{ position: 'fixed', left: reasoningPos.left, bottom: reasoningPos.bottom, zIndex: 9999 }}
+          className="w-52 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl py-1"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1 text-[10px] text-gray-600 uppercase tracking-wide">推理强度</div>
+          {REASONING_OPTIONS.map((opt) => (
+            <button
+              key={opt.label}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => { onReasoningEffortChange?.(opt.value); setShowReasoning(false); }}
+              className={cn(
+                'w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors',
+                opt.value === reasoningEffort ? 'bg-cyan-950/30 text-cyan-300' : 'text-gray-400 hover:bg-[#252525] hover:text-gray-200',
+              )}
+            >
+              <span className="text-[10px] text-gray-500 w-6 text-center">{opt.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px]">{opt.label}</div>
+                <div className="text-[9px] text-gray-600">{opt.hint}</div>
+              </div>
+              {opt.value === reasoningEffort && <span className="text-cyan-400 text-[10px]">&#10003;</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </>
   );
 }

@@ -5,7 +5,10 @@ import { sanitizeHtml } from '../../lib/sanitize';
 
 export type SplitScreenContent =
   | { type: 'document'; title: string; content: string }
-  | { type: 'code'; title: string; code: string; language?: string };
+  | { type: 'code'; title: string; code: string; language?: string }
+  | { type: 'pdf'; title: string; images: string[]; currentPage?: number }
+  | { type: 'image'; title: string; src: string; alt?: string }
+  | { type: 'preview_images'; title: string; images: string[] };
 
 export interface SplitScreenPanelProps {
   content: SplitScreenContent | null;
@@ -28,6 +31,8 @@ export function SplitScreenPanel({ content, onClose, className }: SplitScreenPan
       setEditContent(content.content);
     } else if (content?.type === 'code') {
       setEditContent(content.code);
+    } else {
+      setEditContent('');
     }
     setMode('preview');
   }, [content]);
@@ -61,6 +66,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
 
   const handleExport = useCallback(() => {
     if (!content) return;
+    if (content.type !== 'document' && content.type !== 'code') return;
     const text = content.type === 'document' ? content.content : content.code;
     const ext = content.type === 'code' ? (content.language === 'html' ? 'html' : content.language === 'css' ? 'css' : 'js') : 'md';
     const mimeType = 'text/plain';
@@ -87,11 +93,12 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
             {content.title}
           </span>
           <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#2a2a2a] text-gray-500 uppercase">
-            {content.type === 'code' ? (content.language || 'CODE') : 'MD'}
+            {content.type === 'code' ? (content.language || 'CODE') : content.type === 'pdf' ? 'PDF' : content.type === 'image' ? 'IMG' : content.type === 'preview_images' ? 'PREVIEW' : 'MD'}
           </span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          {/* Mode toggle */}
+          {/* Mode toggle — only for document/code */}
+          {(content.type === 'document' || content.type === 'code') && (
           <div className="flex items-center bg-[#222] rounded-lg p-0.5">
             <button
               onClick={() => setMode('preview')}
@@ -112,8 +119,10 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
               Edit
             </button>
           </div>
+          )}
 
-          {/* Export */}
+          {/* Export — only for text-based content */}
+          {(content.type === 'document' || content.type === 'code') && (
           <button
             onClick={handleExport}
             className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-[#2a2a2a] transition-colors"
@@ -125,6 +134,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
               <line x1="8" y1="2" x2="8" y2="9" />
             </svg>
           </button>
+          )}
 
           {/* Close */}
           <button
@@ -179,6 +189,47 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
               placeholder="Edit code..."
               spellCheck={false}
             />
+          </div>
+        )}
+
+        {/* PDF preview — render page images */}
+        {content.type === 'pdf' && (
+          <div className="h-full overflow-auto bg-[#222] p-4 flex flex-col items-center gap-3">
+            {content.images.length === 0 ? (
+              <p className="text-gray-500 text-sm mt-8">PDF 渲染失败。请确认系统已安装 poppler-utils。</p>
+            ) : content.images.map((img, i) => (
+              <img
+                key={i}
+                src={`data:image/png;base64,${img}`}
+                alt={`Page ${i + 1}`}
+                className="max-w-full shadow-lg border border-[#333] rounded"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Image preview */}
+        {content.type === 'image' && (
+          <div className="h-full overflow-auto bg-[#222] flex items-center justify-center p-4">
+            <img
+              src={content.src.startsWith('data:') ? content.src : `data:image/png;base64,${content.src}`}
+              alt={content.alt || content.title}
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+        )}
+
+        {/* Preview images (Excel/PPTX rendered as images) */}
+        {content.type === 'preview_images' && (
+          <div className="h-full overflow-auto bg-[#222] p-4 flex flex-col items-center gap-3">
+            {content.images.map((img, i) => (
+              <img
+                key={i}
+                src={img.startsWith('data:') ? img : `data:image/png;base64,${img}`}
+                alt={`Preview ${i + 1}`}
+                className="max-w-full shadow-lg border border-[#333] rounded"
+              />
+            ))}
           </div>
         )}
       </div>

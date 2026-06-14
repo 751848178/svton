@@ -246,3 +246,42 @@ AuthzModule.forRoot({
 @Post('teams/:teamId/members')
 inviteMember() {}
 ```
+
+## 动态权限
+
+**已支持：用户的角色/权限实时来自数据库**
+
+通过 `getAssignments()` 在每个请求里查库，**用户被授予/撤销角色或权限时立即生效**，无需重启服务。`RolesGuard` 每次请求都会重新构建授权器，没有跨请求的缓存问题。
+
+```typescript
+AuthzModule.forRootAsync({
+  inject: [PrismaService],
+  useFactory: (prisma: PrismaService) => ({
+    schema: { /* 静态角色定义 */ },
+    getAssignments: async (context) => {
+      const request = context.switchToHttp().getRequest();
+      // 每个请求实时查库，DB 改了立刻生效
+      const userRoles = await prisma.userRole.findMany({
+        where: { userId: request.user.id },
+      });
+      return {
+        roles: userRoles.map((r) => ({
+          role: r.role,
+          scope: r.teamId ? { type: 'team', id: r.teamId } : undefined,
+        })),
+      };
+    },
+  }),
+});
+```
+
+**不支持（也不建议支持）：schema 热更新**
+
+角色定义（`schema.roles`）应作为业务建模的一部分，**跟随代码版本化、review、灰度发布**。让运营人员在后台动态创建角色定义会引入难以回滚的风险——一旦误删某个关键角色的权限，整个系统可能挂掉。
+
+如果确实需要"角色名由运营自定义"，常见做法是：
+- schema 中预留通配角色（如 `custom:*`）
+- 在 `getAssignments()` 里把 DB 中的自定义角色名映射到 schema 中的固定角色
+
+更多能力边界说明参见 [`@svton/authz` README](https://www.npmjs.com/package/@svton/authz)。
+

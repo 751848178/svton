@@ -93,6 +93,8 @@ export type StreamEvent =
 // Chat Options
 // ============================================================
 
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
+
 export interface ChatOptions {
   model: string;
   temperature?: number;
@@ -102,6 +104,7 @@ export interface ChatOptions {
   systemPrompt?: string;
   signal?: AbortSignal;
   thinkingBudget?: number;   // for providers that support extended thinking
+  reasoningEffort?: ReasoningEffort;  // user-facing reasoning intensity
 }
 
 // ============================================================

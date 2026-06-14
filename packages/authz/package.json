@@ -1,6 +1,6 @@
 {
   "name": "@svton/authz",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Core RBAC authorization primitives with scoped grants and role inheritance",
   "keywords": [
     "authorization",
