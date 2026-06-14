@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { NavItem } from './NavItem';
 import { PlusIcon, SearchIcon, GearIcon, ChatIcon, AutomationIcon, SkillIcon, TrashIcon, CloseIcon } from './icons';
 
-export type View = 'chat' | 'search' | 'automation' | 'skills' | 'settings';
+export type View = 'chat' | 'search' | 'automation' | 'skills' | 'agents' | 'integrations' | 'settings';
 
 interface SidebarProps {
   sessions: Array<{ id: string; title: string }>;
@@ -43,8 +43,8 @@ export function Sidebar({
       {/* Header */}
       <div className="px-4 pt-3 pb-3 flex items-center justify-between border-b border-[#2a2a2a]">
         <div className="flex items-center gap-2">
+          <img src="/agent-icon.svg" alt="" className="w-5 h-5" />
           <span className="text-white text-[15px] font-semibold tracking-tight">Svton</span>
-          <span className="text-gray-600 text-sm">{'\u2192'}</span>
         </div>
         {/* Mobile close button */}
         <button onClick={onToggle} className="text-gray-500 hover:text-gray-300 p-1 md:hidden">
@@ -58,6 +58,8 @@ export function Sidebar({
         <NavItem icon={<AutomationIcon />} label="自动化" active={activeView === 'automation'} onClick={() => onNavigate(activeView === 'automation' ? 'chat' : 'automation')} />
         <NavItem icon={<ChatIcon />} label="对话" active={activeView === 'chat'} onClick={() => onNavigate('chat')} />
         <NavItem icon={<SkillIcon />} label="技能" active={activeView === 'skills'} onClick={() => onNavigate(activeView === 'skills' ? 'chat' : 'skills')} />
+        <NavItem icon={<ChatIcon />} label="Agents" active={activeView === 'agents'} onClick={() => onNavigate(activeView === 'agents' ? 'chat' : 'agents')} />
+        <NavItem icon={<SkillIcon />} label="集成" active={activeView === 'integrations'} onClick={() => onNavigate(activeView === 'integrations' ? 'chat' : 'integrations')} />
       </nav>
 
       {/* Search bar */}

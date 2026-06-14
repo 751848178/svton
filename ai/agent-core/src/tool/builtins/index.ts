@@ -47,8 +47,18 @@ export {
   ScreenshotExecutor,
   mouseClickDef,
   MouseClickExecutor,
+  mouseDoubleClickDef,
+  MouseDoubleClickExecutor,
   mouseMoveDef,
   MouseMoveExecutor,
+  mouseDownDef,
+  MouseDownExecutor,
+  mouseUpDef,
+  MouseUpExecutor,
+  mouseDragDef,
+  MouseDragExecutor,
+  scrollDef,
+  ScrollExecutor,
   keyboardTypeDef,
   KeyboardTypeExecutor,
   keyboardPressKeyDef,
@@ -69,3 +79,29 @@ export {
   chromeGetContentDef,
   ChromeGetContentExecutor,
 } from './chrome';
+
+// Git-based code review tools
+export {
+  gitDiffDef,
+  GitDiffExecutor,
+  gitLogRangeDef,
+  GitLogRangeExecutor,
+} from './git_review';
+
+// Image generation tool
+export {
+  imageGenerateDef,
+  ImageGenerateExecutor,
+} from './image_generate';
+
+// CSV fan-out tool
+export {
+  csvFanoutDef,
+  CsvFanoutExecutor,
+} from './csv_fanout';
+
+// Document preview tool
+export {
+  previewDocumentDef,
+  PreviewDocumentExecutor,
+} from './preview_document';

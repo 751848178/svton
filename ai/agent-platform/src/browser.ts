@@ -250,6 +250,7 @@ const BROWSER_CAPABILITIES: IPlatformCapabilities = {
   notification: typeof Notification !== 'undefined',
   sandboxing: false,
   pty: false,
+  documentPreview: false,
 };
 
 export class BrowserPlatform implements IPlatform {
@@ -259,6 +260,7 @@ export class BrowserPlatform implements IPlatform {
   readonly process: IProcess;
   readonly storage: IStorage;
   readonly search: ISearch;
+  readonly preview: undefined;
 
   constructor() {
     this.fs = new BrowserFileSystem();

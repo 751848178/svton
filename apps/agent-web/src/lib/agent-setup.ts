@@ -19,6 +19,15 @@ import {
   PlanGetStatusExecutor,
   planUpdateStepDef,
   PlanUpdateStepExecutor,
+  // Git code review (works with pasted diffs even on web)
+  gitDiffDef,
+  GitDiffExecutor,
+  gitLogRangeDef,
+  GitLogRangeExecutor,
+  // Image generation
+  imageGenerateDef,
+  ImageGenerateExecutor,
+  // Skills
   SkillManager,
   SkillLoader,
   MemoryManager,
@@ -26,8 +35,19 @@ import {
   PermissionManager,
   HookManager,
   PlanningManager,
+  // New managers
+  SessionResumeManager,
+  AgentDefinitionManager,
+  IntegrationManager,
+  SlackIntegration,
+  LinearIntegration,
+  codeReviewSkill,
+  ImageGenRegistry,
+  OpenAIImageProvider,
+  // MCP
   MCPClient,
   HTTPTransport,
+  // Plugin
   PluginManager,
 } from '@svton/agent-core';
 import type { McpServerConfig } from '@svton/agent-ui';
@@ -151,6 +171,41 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
   toolRegistry.register(planGetStatusDef, new PlanGetStatusExecutor(planningManager));
   toolRegistry.register(planUpdateStepDef, new PlanUpdateStepExecutor(planningManager));
 
+  // ── New managers (browser-safe subset) ──
+
+  // Session Resume (checkpoint)
+  const resumeManager = new SessionResumeManager(platform.storage);
+
+  // Custom Agent Definitions (browser: load from storage only, no TOML files)
+  const agentDefinitionManager = new AgentDefinitionManager(platform.storage);
+  await agentDefinitionManager.loadFromStorage();
+  for (const def of agentDefinitionManager.getBuiltinDefaults()) {
+    agentDefinitionManager.register(def);
+  }
+
+  // Integrations (Slack / Linear — HTTP APIs work in browser)
+  const integrationManager = new IntegrationManager(platform.storage);
+  integrationManager.registerManifest(SlackIntegration);
+  integrationManager.registerManifest(LinearIntegration);
+  await integrationManager.init();
+  for (const { definition, executor } of integrationManager.resolveAllTools()) {
+    toolRegistry.register(definition, executor);
+  }
+
+  // Image Generation (browser-safe via fetch)
+  const imageGenRegistry = new ImageGenRegistry();
+  if (providerSetting.type === 'openai' && providerSetting.apiKey) {
+    imageGenRegistry.register(new OpenAIImageProvider(), providerSetting.apiKey);
+  }
+  toolRegistry.register(imageGenerateDef, new ImageGenerateExecutor(imageGenRegistry));
+
+  // Code review skill + git tools (will work if user pastes diffs)
+  skillManager.register(codeReviewSkill);
+
+  // Git review tools (will error gracefully on web without process access)
+  toolRegistry.register(gitDiffDef, new GitDiffExecutor());
+  toolRegistry.register(gitLogRangeDef, new GitLogRangeExecutor());
+
   // Filter out disabled tools
   const disabledTools = loadJsonList(LS_DISABLED_TOOLS);
   if (disabledTools.length > 0) {
@@ -174,6 +229,8 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
     permissionManager,
     hookManager,
     planningManager,
+    resumeManager,
+    agentDefinitionManager,
     // subagentManager: set post-creation via setSubagentManager()
   };
 

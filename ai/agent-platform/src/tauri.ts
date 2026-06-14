@@ -10,7 +10,12 @@ import type {
   IProcess,
   IStorage,
   ISearch,
+  ISandbox,
+  SandboxMode,
+  SandboxProfile,
   IPlatformCapabilities,
+  IDocumentPreview,
+  DocumentPreviewResult,
   ExecOptions,
   ExecResult,
   FileStat,
@@ -335,6 +340,31 @@ class TauriSearch implements ISearch {
 }
 
 // ============================================================
+// Tauri Document Preview
+// ============================================================
+
+class TauriDocumentPreview implements IDocumentPreview {
+  async previewPdf(
+    path: string,
+    pageRange?: { from: number; to: number },
+  ): Promise<DocumentPreviewResult> {
+    return invoke<DocumentPreviewResult>('preview_pdf', {
+      path,
+      from: pageRange?.from,
+      to: pageRange?.to,
+    });
+  }
+
+  async previewExcel(path: string): Promise<DocumentPreviewResult> {
+    return invoke<DocumentPreviewResult>('preview_excel', { path });
+  }
+
+  async previewPptx(path: string): Promise<DocumentPreviewResult> {
+    return invoke<DocumentPreviewResult>('preview_pptx', { path });
+  }
+}
+
+// ============================================================
 // Tauri Platform
 // ============================================================
 
@@ -345,9 +375,57 @@ const TAURI_CAPABILITIES: IPlatformCapabilities = {
   mcpStdio: true,
   clipboard: true,
   notification: true,
-  sandboxing: false,
+  sandboxing: true,
   pty: true,
+  documentPreview: true,
 };
+
+// ============================================================
+// Tauri Sandbox (Seatbelt on macOS, bwrap on Linux)
+// ============================================================
+
+class TauriSandbox implements ISandbox {
+  createProfile(mode: SandboxMode, workingDir: string): SandboxProfile {
+    switch (mode) {
+      case 'read_only':
+        return {
+          mode,
+          writablePaths: [],
+          networkAccess: false,
+        };
+      case 'workspace_write':
+        return {
+          mode,
+          writablePaths: [workingDir],
+          networkAccess: false,
+        };
+      case 'full_access':
+        return {
+          mode,
+          writablePaths: [],
+          networkAccess: true,
+        };
+    }
+  }
+
+  async exec(
+    command: string,
+    options: ExecOptions,
+    profile: SandboxProfile,
+  ): Promise<ExecResult> {
+    return invoke<ExecResult>('sandbox_exec', {
+      command,
+      cwd: options.cwd ?? null,
+      env: options.env ?? null,
+      timeoutMs: options.timeout ?? null,
+      profile: {
+        mode: profile.mode,
+        writable_paths: profile.writablePaths,
+        network_access: profile.networkAccess,
+      },
+    });
+  }
+}
 
 export class TauriPlatform implements IPlatform {
   readonly type = 'tauri' as const;
@@ -356,11 +434,15 @@ export class TauriPlatform implements IPlatform {
   readonly process: IProcess;
   readonly storage: IStorage;
   readonly search: ISearch;
+  readonly sandbox: ISandbox;
+  readonly preview: IDocumentPreview;
 
   constructor() {
     this.fs = new TauriFileSystem();
     this.process = new TauriProcess();
     this.storage = new TauriStorage();
     this.search = new TauriSearch();
+    this.sandbox = new TauriSandbox();
+    this.preview = new TauriDocumentPreview();
   }
 }

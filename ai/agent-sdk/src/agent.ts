@@ -73,6 +73,19 @@ export class Agent {
     this.runtime.rejectToolCall(callId);
   }
 
+  /**
+   * Set the reasoning effort level for subsequent runs.
+   * @param effort 'low' | 'medium' | 'high' | 'xhigh', or undefined to reset
+   */
+  setReasoningEffort(effort: import('@svton/agent-core').ReasoningEffort | undefined): void {
+    this.runtime.setReasoningEffort(effort);
+  }
+
+  /** Get the current reasoning effort level. */
+  getReasoningEffort(): import('@svton/agent-core').ReasoningEffort | undefined {
+    return this.runtime.getReasoningEffort();
+  }
+
   // ============================================================
   // Session Management
   // ============================================================
@@ -85,6 +98,27 @@ export class Agent {
   /** Restore conversation history (e.g. loading a saved session). */
   setMessages(messages: ChatMessage[]): void {
     this.runtime.setMessages(messages);
+  }
+
+  /**
+   * Save a checkpoint of the current runtime state for later resume.
+   * Requires SessionResumeManager capability.
+   */
+  async checkpoint(sessionId: string): Promise<void> {
+    const mgr = this.runtime.getResumeManager();
+    if (!mgr) return;
+    await mgr.checkpoint(sessionId, this.runtime);
+  }
+
+  /**
+   * Restore a session from a saved checkpoint.
+   * Requires SessionResumeManager capability.
+   * @returns true if restored, false if no checkpoint found
+   */
+  async resume(sessionId: string): Promise<boolean> {
+    const mgr = this.runtime.getResumeManager();
+    if (!mgr) return false;
+    return mgr.restore(sessionId, this.runtime);
   }
 
   // ============================================================

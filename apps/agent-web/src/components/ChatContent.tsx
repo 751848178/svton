@@ -161,6 +161,17 @@ export function ChatContent({
           onEditMessage={editMessage}
           onOpenEditor={handleOpenEditor}
           onOpenDocument={handleOpenDocument}
+          onOpenReference={(path) => {
+            // Web: open file path in new tab if it's a URL, otherwise copy to clipboard
+            if (path.startsWith('http')) {
+              window.open(path, '_blank');
+            } else {
+              navigator.clipboard.writeText(path).catch(() => {});
+            }
+          }}
+          onCommand={(action) => {
+            console.log('Command action:', action);
+          }}
           isStreaming={isStreaming}
           placeholder="描述你想做的事情...  输入 / 查看命令  @ 引用"
           emptyMessage={(

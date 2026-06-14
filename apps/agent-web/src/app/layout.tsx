@@ -5,6 +5,9 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Svton Agent',
   description: 'AI Agent powered by Svton',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

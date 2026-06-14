@@ -110,6 +110,8 @@ export function AgentLayout({
   const slashCommands: SlashCommand[] = useMemo(() => [
     { name: 'new', description: '创建新对话', action: () => create() },
     { name: 'clear', description: '清空当前对话', action: () => create() },
+    { name: 'review', description: '审查代码变更 — 对比分支/提交/未提交更改', action: () => { send('/review'); } },
+    { name: 'agent', description: '切换 Agent 定义 — 用法: /agent <name>', action: () => {} },
     { name: 'help', description: '显示帮助信息', action: () => { send('请帮我了解你可以做什么，有哪些能力和工具'); } },
     { name: 'status', description: '查看当前状态和能力', action: () => {
       send(`当前 Agent 状态:\n- 模型: ${config.model}\n请简要介绍你的能力。`);
@@ -270,10 +272,53 @@ export function AgentLayout({
             />
           )}
           {view === 'automation' && (
-            <AutomationPanel tools={tools} onManage={() => window.location.href = '/settings'} />
+            <div className="flex-1 overflow-y-auto p-6">
+              <h2 className="text-lg text-white font-light mb-4">自动化任务</h2>
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-8 text-center">
+                <p className="text-gray-400 text-sm mb-2">自动化任务需要桌面端运行</p>
+                <p className="text-gray-600 text-xs">定时任务和事件触发需要后台进程支持，请在 Svton Desktop 中使用此功能。</p>
+              </div>
+            </div>
           )}
           {view === 'skills' && (
             <SkillsPanel skills={agentSkills} onManage={() => window.location.href = '/settings'} />
+          )}
+          {view === 'agents' && (
+            <div className="flex-1 overflow-y-auto p-6">
+              <h2 className="text-lg text-white font-light mb-4">自定义 Agents</h2>
+              {(() => {
+                const mgr = config.capabilities?.agentDefinitionManager;
+                if (!mgr) return <p className="text-gray-500 text-sm">Agent 管理器未初始化</p>;
+                const agents = mgr.list();
+                return (
+                  <div className="space-y-2">
+                    {agents.length === 0 ? (
+                      <p className="text-gray-500 text-sm">暂无自定义 Agent。在对话中输入 /agent &lt;name&gt; 切换。</p>
+                    ) : agents.map((a: any) => (
+                      <div key={a.name} className="bg-gray-900 border border-gray-800 rounded-lg p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-white font-medium">{a.title || a.name}</span>
+                          {a.icon && <span className="text-xs">{a.icon}</span>}
+                        </div>
+                        {a.description && <div className="text-xs text-gray-500 mt-1">{a.description}</div>}
+                        {a.model && <div className="text-[10px] text-gray-600 mt-1">Model: {a.model}</div>}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+          {view === 'integrations' && (
+            <div className="flex-1 overflow-y-auto p-6">
+              <h2 className="text-lg text-white font-light mb-4">集成</h2>
+              <p className="text-[11px] text-gray-500 mb-4">配置 Slack、Linear 等第三方集成。配置 API Key 后，Agent 可直接调用对应工具。</p>
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 text-center">
+                <p className="text-gray-400 text-sm mb-2">请在设置页面配置集成</p>
+                <p className="text-gray-600 text-xs">Slack 和 Linear 集成需要在设置中配置 API Key 和凭证。</p>
+                <button onClick={() => window.location.href = '/settings'} className="mt-3 px-3 py-1 text-[11px] text-cyan-400 hover:text-cyan-300 border border-cyan-900/50 rounded-md">前往设置 →</button>
+              </div>
+            </div>
           )}
         </div>
       </div>

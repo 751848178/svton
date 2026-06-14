@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 280px; font-family: -apple-system, system-ui, sans-serif; background: #1a1a1a; color: #e0e0e0; padding: 16px; }
+    .header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .logo { width: 24px; height: 24px; background: linear-gradient(135deg, #3B82F6, #60A5FA); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: white; }
+    .title { font-size: 14px; font-weight: 600; }
+    .status { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; }
+    .status.connected { background: rgba(34, 197, 94, 0.1); }
+    .status.disconnected { background: rgba(239, 68, 68, 0.1); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot.green { background: #22c55e; }
+    .dot.red { background: #ef4444; }
+    .status-text { font-size: 12px; }
+    .tabs-list { margin-bottom: 12px; max-height: 200px; overflow-y: auto; }
+    .tab-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 11px; margin-bottom: 4px; background: #222; cursor: pointer; }
+    .tab-item:hover { background: #2a2a2a; }
+    .tab-item.attached { border: 1px solid #3B82F6; }
+    .tab-favicon { width: 16px; height: 16px; flex-shrink: 0; }
+    .tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ccc; }
+    .tab-badge { font-size: 9px; padding: 1px 4px; border-radius: 3px; background: #3B82F6; color: white; }
+    .btn { width: 100%; padding: 8px; border: none; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: 500; }
+    .btn-primary { background: #3B82F6; color: white; }
+    .btn-primary:hover { background: #60A5FA; }
+    .hint { font-size: 10px; color: #666; margin-top: 8px; text-align: center; }
+    .empty { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">S</div>
+    <div class="title">Svton CDP Relay</div>
+  </div>
+
+  <div id="status" class="status disconnected">
+    <div class="dot red"></div>
+    <span class="status-text">未连接 Svton</span>
+  </div>
+
+  <div id="tabs-section" style="display:none;">
+    <div style="font-size:11px;color:#888;margin-bottom:6px;">已附加的标签页：</div>
+    <div id="tabs-list" class="tabs-list"></div>
+  </div>
+
+  <button id="reconnect" class="btn btn-primary">重新连接</button>
+
+  <div class="hint">
+    Svton Desktop 运行时自动连接<br>
+    无需特殊启动参数
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

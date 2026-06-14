@@ -5,6 +5,9 @@ export type {
   IStorage,
   ISearch,
   IPlatformCapabilities,
+  ISandbox,
+  SandboxMode,
+  SandboxProfile,
   FileStat,
   DirEntry,
   FileWatchEvent,
@@ -16,6 +19,8 @@ export type {
   SpawnOptions,
   GrepOptions,
   GrepMatch,
+  IDocumentPreview,
+  DocumentPreviewResult,
 } from './types';
 
 export { BrowserPlatform } from './browser';

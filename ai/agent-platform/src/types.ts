@@ -134,6 +134,50 @@ export interface ISearch {
 }
 
 // ============================================================
+// Sandbox (OS-level process isolation)
+// ============================================================
+
+export type SandboxMode = 'read_only' | 'workspace_write' | 'full_access';
+
+export interface SandboxProfile {
+  mode: SandboxMode;
+  /** Paths the sandbox allows writing to */
+  writablePaths: string[];
+  /** Whether network access is permitted */
+  networkAccess: boolean;
+  /** Additional environment variables to set */
+  env?: Record<string, string>;
+}
+
+/**
+ * Wraps commands with OS-level sandbox isolation.
+ * On macOS: uses Seatbelt (sandbox-exec).
+ * On Linux: uses bubblewrap (bwrap).
+ * Implementations that lack OS sandboxing should pass through unchanged.
+ */
+export interface ISandbox {
+  /** Create a sandbox profile from a mode + working directory */
+  createProfile(mode: SandboxMode, workingDir: string): SandboxProfile;
+  /** Wrap a command to execute within the sandbox profile */
+  exec(command: string, options: ExecOptions, profile: SandboxProfile): Promise<ExecResult>;
+}
+
+// ============================================================
+// Document Preview
+// ============================================================
+
+export type DocumentPreviewResult =
+  | { kind: 'images'; images: string[] }     // base64-encoded page images
+  | { kind: 'structured'; data: unknown }    // JSON-structured content (e.g. spreadsheet)
+  | { kind: 'text'; text: string };          // plain text extraction
+
+export interface IDocumentPreview {
+  previewPdf(path: string, pageRange?: { from: number; to: number }): Promise<DocumentPreviewResult>;
+  previewExcel(path: string): Promise<DocumentPreviewResult>;
+  previewPptx(path: string): Promise<DocumentPreviewResult>;
+}
+
+// ============================================================
 // Platform Capabilities
 // ============================================================
 
@@ -154,6 +198,8 @@ export interface IPlatformCapabilities {
   sandboxing: boolean;
   /** PTY multiplexer (pseudo-terminal for integrated terminal) */
   pty: boolean;
+  /** Document preview (PDF, Excel, PPTX) */
+  documentPreview: boolean;
 }
 
 // ============================================================
@@ -167,4 +213,8 @@ export interface IPlatform {
   readonly process: IProcess;
   readonly storage: IStorage;
   readonly search: ISearch;
+  /** OS-level sandbox (optional, present when capabilities.sandboxing === true) */
+  readonly sandbox?: ISandbox;
+  /** Document preview (optional, present when capabilities.documentPreview === true) */
+  readonly preview?: IDocumentPreview;
 }

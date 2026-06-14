@@ -17,6 +17,7 @@ import {
   SkillManager,
   PlanningManager,
   SubagentManager,
+  SessionResumeManager,
   MCPClient,
   HTTPTransport,
   SSETransport,
@@ -138,6 +139,9 @@ export async function createAgent(config: CreateAgentConfig): Promise<Agent> {
     toolRegistry.register(planUpdateStepDef, new PlanUpdateStepExecutor(planningManager));
   }
 
+  // Session resume (always enabled — lightweight)
+  const resumeManager = new SessionResumeManager(platform.storage);
+
   // ----------------------------------------------------------
   // 5. User-defined custom tools
   // ----------------------------------------------------------
@@ -211,6 +215,7 @@ export async function createAgent(config: CreateAgentConfig): Promise<Agent> {
       mcpClients,
       mcpServerConfigs: mcpServerConfigs.size > 0 ? mcpServerConfigs : undefined,
       planningManager,
+      resumeManager,
     },
   };
 
