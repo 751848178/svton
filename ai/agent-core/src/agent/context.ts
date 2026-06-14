@@ -177,7 +177,13 @@ export class ContextManager {
     if (Array.isArray(message.content)) {
       return message.content.reduce((sum, block) => {
         if (block.type === 'text') return sum + this.estimateTokensForText(block.text);
-        if (block.type === 'tool_result') return sum + this.estimateTokensForText(block.output);
+        if (block.type === 'tool_result') {
+          const output = block.output;
+          // Image payloads are sent as short text to the API, not the full base64.
+          // Count them as a small fixed cost to avoid false compaction triggers.
+          if (output && output.includes('"type":"image"')) return sum + 20;
+          return sum + this.estimateTokensForText(output);
+        }
         if (block.type === 'tool_use') {
           return sum + this.estimateTokensForText(JSON.stringify(block.input));
         }

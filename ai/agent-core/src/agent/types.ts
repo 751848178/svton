@@ -29,6 +29,7 @@ export type AgentEvent =
   | { type: 'context_compacted'; summary: string }
   | { type: 'subagent_start'; agentId: string; task: string }
   | { type: 'subagent_end'; agentId: string; summary: string }
+  | { type: 'warning'; text: string; source?: string }
   | { type: 'error'; error: Error }
   | { type: 'done'; stopReason: string; usage: TokenUsage };
 
@@ -42,6 +43,8 @@ export interface RunOptions {
   mode?: AgentMode;
   signal?: AbortSignal;
   maxIterations?: number;
+  /** Session ID for checkpoint/resume. Passed to SessionResumeManager. */
+  sessionId?: string;
 }
 
 // ============================================================
@@ -88,6 +91,10 @@ export interface AgentCapabilities {
   pluginManager?: import('../plugin/manager').PluginManager;
   subagentManager?: import('../subagent/manager').SubagentManager;
   planningManager?: import('../planning/manager').PlanningManager;
+  resumeManager?: import('../checkpoint/manager').SessionResumeManager;
+  agentDefinitionManager?: import('../agent-definition/manager').AgentDefinitionManager;
+  worktreeManager?: import('../worktree/manager').WorktreeManager;
+  autoReviewer?: import('../auto-reviewer/manager').AutoReviewerManager;
 }
 
 // ============================================================

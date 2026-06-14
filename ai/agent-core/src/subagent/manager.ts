@@ -74,6 +74,159 @@ export class SubagentManager {
     return Promise.all(configs.map((config) => this.spawn(config)));
   }
 
+  /**
+   * Spawn subagents for each row of a CSV, filling the task template
+   * with column values via {{column_name}} placeholders.
+   *
+   * Rows are processed with limited concurrency (default 4 at a time).
+   */
+  async spawnOnCsv(opts: {
+    csvContent: string;
+    taskTemplate: string; // {{column_name}} placeholders
+    concurrency?: number; // default 4
+    onRowStart?: (rowIndex: number, row: Record<string, string>) => void;
+    onRowComplete?: (
+      rowIndex: number,
+      row: Record<string, string>,
+      result: SubagentResult,
+    ) => void;
+  }): Promise<{
+    results: Array<{ row: Record<string, string>; result: SubagentResult }>;
+  }> {
+    const { csvContent, taskTemplate, onRowStart, onRowComplete } = opts;
+    const concurrency = Math.max(1, opts.concurrency ?? 4);
+
+    const { headers, rows } = this.parseCsv(csvContent);
+
+    if (headers.length === 0 || rows.length === 0) {
+      return { results: [] };
+    }
+
+    // Build task per row by substituting placeholders
+    const tasks = rows.map((row) => {
+      const task = this.fillTemplate(taskTemplate, row);
+      return { row, task };
+    });
+
+    const results: Array<{ row: Record<string, string>; result: SubagentResult }> = [];
+
+    // Process in concurrency-limited chunks
+    for (let i = 0; i < tasks.length; i += concurrency) {
+      const chunk = tasks.slice(i, i + concurrency);
+      const chunkResults = await Promise.all(
+        chunk.map(async (item, offsetInChunk) => {
+          const rowIndex = i + offsetInChunk;
+          onRowStart?.(rowIndex, item.row);
+          const result = await this.spawn({ task: item.task });
+          onRowComplete?.(rowIndex, item.row, result);
+          return { row: item.row, result };
+        }),
+      );
+      results.push(...chunkResults);
+    }
+
+    return { results };
+  }
+
+  // ----------------------------------------------------------
+  // CSV helpers
+  // ----------------------------------------------------------
+
+  /**
+   * Simple split-based CSV parser with basic quote handling.
+   * Splits by newlines, then each line by comma. Quoted fields
+   * (surrounded by double quotes) may contain commas and are
+   * handled by collapsing multi-line quoted values.
+   */
+  private parseCsv(content: string): {
+    headers: string[];
+    rows: Record<string, string>[];
+  } {
+    if (!content || !content.trim()) {
+      return { headers: [], rows: [] };
+    }
+
+    // Normalize line endings
+    const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Split into records, respecting quoted newlines
+    const records: string[][] = [];
+    let currentRow: string[] = [];
+    let currentField = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < normalized.length; i++) {
+      const char = normalized[i];
+
+      if (inQuotes) {
+        if (char === '"') {
+          // Check for escaped quote
+          if (normalized[i + 1] === '"') {
+            currentField += '"';
+            i++; // skip next quote
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          currentField += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          currentRow.push(currentField);
+          currentField = '';
+        } else if (char === '\n') {
+          currentRow.push(currentField);
+          records.push(currentRow);
+          currentRow = [];
+          currentField = '';
+        } else {
+          currentField += char;
+        }
+      }
+    }
+
+    // Push the last field/row if any content remains
+    if (currentField.length > 0 || currentRow.length > 0) {
+      currentRow.push(currentField);
+      records.push(currentRow);
+    }
+
+    // Drop trailing empty record (e.g. from final newline)
+    const filtered = records.filter(
+      (r) => !(r.length === 1 && r[0] === ''),
+    );
+    if (filtered.length === 0) {
+      return { headers: [], rows: [] };
+    }
+
+    const headers = filtered[0].map((h) => h.trim());
+
+    const rows: Record<string, string>[] = [];
+    for (let r = 1; r < filtered.length; r++) {
+      const record = filtered[r];
+      const row: Record<string, string> = {};
+      for (let c = 0; c < headers.length; c++) {
+        row[headers[c]] = record[c] ?? '';
+      }
+      rows.push(row);
+    }
+
+    return { headers, rows };
+  }
+
+  /**
+   * Replace {{column_name}} placeholders with row values.
+   * Missing columns are replaced with empty strings.
+   */
+  private fillTemplate(template: string, row: Record<string, string>): string {
+    return template.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (match, key: string) => {
+      const value = row[key];
+      return value !== undefined ? value : '';
+    });
+  }
+
   // ----------------------------------------------------------
   // Private
   // ----------------------------------------------------------

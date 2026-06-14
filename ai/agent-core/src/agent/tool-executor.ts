@@ -4,19 +4,32 @@ import type { PermissionManager } from '../permission/manager';
 import type { HookManager } from '../hooks/manager';
 import type { SkillDefinition } from '../skill/types';
 import type { AgentEvent } from './types';
-import type { IPlatform } from '@svton/agent-platform';
+import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 import type { ContextManager } from './context';
+import type { AutoReviewerManager } from '../auto-reviewer/manager';
+import type { SessionResumeManager } from '../checkpoint/manager';
 import { logger } from '../utils/logger';
 
 /**
- * Handles tool execution with permission gating and hook lifecycle.
- *
- * Extracted from AgentRuntime to isolate the tool execution pipeline
- * and make it independently testable.
+ * Additional options for tool execution pipeline.
+ * These are set post-construction because some managers are wired after runtime creation.
+ */
+export interface ToolExecOptions {
+  autoReviewer?: AutoReviewerManager | null;
+  resumeManager?: SessionResumeManager | null;
+  sandboxProfile?: SandboxProfile | null;
+  sessionId?: string;
+}
+
+/**
+ * Handles tool execution with permission gating, auto-review, sandbox wrapping,
+ * and hook lifecycle.
  */
 export class ToolExecutionService {
   /** Skills active in the current run, set by AgentRuntime before tool execution */
   private activeSkills: SkillDefinition[] = [];
+  /** Extra options settable post-construction */
+  private execOptions: ToolExecOptions = {};
 
   constructor(
     private readonly toolRegistry: ToolRegistry,
@@ -31,6 +44,11 @@ export class ToolExecutionService {
       timestamp: number;
     }>,
   ) {}
+
+  /** Set additional execution options (auto-reviewer, sandbox, session ID) */
+  setExecOptions(options: Partial<ToolExecOptions>): void {
+    this.execOptions = { ...this.execOptions, ...options };
+  }
 
   /** Set the currently active skills (called by AgentRuntime after skill injection) */
   setActiveSkills(skills: SkillDefinition[]): void {
@@ -92,21 +110,66 @@ export class ToolExecutionService {
       }
 
       if (decision.needsApproval) {
-        // 3. User approval
-        yield { type: 'tool_approval_needed', call };
+        // 2a. Auto-reviewer check (if configured)
+        if (this.execOptions.autoReviewer) {
+          const review = await this.execOptions.autoReviewer.review({
+            toolCall: call,
+            toolName: call.name,
+            args: call.arguments,
+            workingDir: this.workingDir,
+          });
 
-        const approved = await this.waitForApproval(call);
-        if (!approved) {
-          yield {
-            type: 'tool_call_end',
-            result: {
-              callId: call.id,
-              output: 'Tool call rejected by user',
-              isError: true,
-            },
-          };
-          this.addToolResultToContext(call.id, 'Tool call rejected by user', true);
-          return;
+          if (review.verdict === 'approve') {
+            logger.info('Tool', `Auto-approved by rule: ${review.ruleId ?? 'auto'}`, { tool: call.name });
+            // Skip user approval — proceed to execution
+            // (fall through past the approval block)
+          } else if (review.verdict === 'deny') {
+            yield {
+              type: 'tool_call_end',
+              result: {
+                callId: call.id,
+                output: `Auto-reviewer denied: ${review.reason}`,
+                isError: true,
+              },
+            };
+            this.addToolResultToContext(call.id, `Auto-reviewer denied: ${review.reason}`, true);
+            return;
+          } else {
+            // ask_user — fall through to user approval
+            // 3. User approval
+            yield { type: 'tool_approval_needed', call };
+
+            const approved = await this.waitForApproval(call);
+            if (!approved) {
+              yield {
+                type: 'tool_call_end',
+                result: {
+                  callId: call.id,
+                  output: 'Tool call rejected by user',
+                  isError: true,
+                },
+              };
+              this.addToolResultToContext(call.id, 'Tool call rejected by user', true);
+              return;
+            }
+          }
+        } else {
+          // 3. User approval (no auto-reviewer)
+          yield { type: 'tool_approval_needed', call };
+
+          const approved = await this.waitForApproval(call);
+          if (!approved) {
+            yield {
+              type: 'tool_call_end',
+              result: {
+                callId: call.id,
+                output: 'Tool call rejected by user',
+                isError: true,
+              },
+            };
+            this.addToolResultToContext(call.id, 'Tool call rejected by user', true);
+            return;
+          }
         }
       }
     }
@@ -146,7 +209,7 @@ export class ToolExecutionService {
     // 4. Execute the tool
     const toolCtx: ToolContext = {
       platform: this.platform,
-      sessionId: '',
+      sessionId: this.execOptions.sessionId ?? '',
       workingDir: this.workingDir,
     };
 

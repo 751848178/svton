@@ -256,12 +256,19 @@ export class SkillMarketplace {
 
   private async fetch(path: string): Promise<Response> {
     const url = `${this.baseUrl}${path}`;
-    const resp = await globalThis.fetch(url, {
-      headers: this.headers,
-    });
-    if (!resp.ok) {
-      throw new Error(`skills.sh API error: ${resp.status} ${resp.statusText}`);
+    try {
+      const resp = await globalThis.fetch(url, {
+        headers: this.headers,
+      });
+      if (!resp.ok) {
+        throw new Error(`API returned ${resp.status} ${resp.statusText}`);
+      }
+      return resp;
+    } catch (e: any) {
+      if (e?.message?.includes('Failed to fetch') || e?.name === 'TypeError') {
+        throw new Error(`无法连接到技能市场 (${this.baseUrl})。请检查网络连接。`);
+      }
+      throw e;
     }
-    return resp;
   }
 }

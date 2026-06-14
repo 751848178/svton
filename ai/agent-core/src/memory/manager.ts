@@ -214,6 +214,108 @@ export class MemoryManager {
   }
 
   // ----------------------------------------------------------
+  // Auto-Extraction (harness-style learning)
+  // ----------------------------------------------------------
+
+  /**
+   * Extract memorable facts from a conversation using the LLM.
+   * Called after each conversation turn to auto-build memory.
+   * Non-blocking: returns immediately, extraction happens in background.
+   */
+  async extractFromConversation(
+    messages: Array<{ role: string; content: string }>,
+    provider?: { chat: (msgs: any[], opts?: any) => AsyncGenerator<any> },
+    model?: string,
+  ): Promise<number> {
+    if (!provider || !model || messages.length < 4) return 0;
+
+    try {
+      // Build a condensed conversation summary for extraction
+      const convText = messages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .slice(-10) // Last 10 messages max
+        .map(m => `${m.role}: ${m.content.slice(0, 500)}`)
+        .join('\n\n');
+
+      if (convText.length < 100) return 0;
+
+      const extractMessages = [
+        {
+          role: 'system',
+          content: `Extract memorable facts from this conversation. Focus on:
+- User preferences (coding style, language, tools, workflow)
+- Important decisions or conclusions
+- Project context (architecture, tech stack, conventions)
+- Corrections the user made to the assistant
+
+Output ONLY new facts not already in the existing memory. One fact per line, prefixed with "- ". If nothing memorable, output "NOTHING".`,
+        },
+        {
+          role: 'user',
+          content: `Existing memory:\n${this.getAutoMemoryText() || '(empty)'}\n\nConversation:\n${convText}`,
+        },
+      ];
+
+      let extraction = '';
+      for await (const event of provider.chat(extractMessages, {
+        model,
+        maxTokens: 500,
+        stream: true,
+      })) {
+        if (event.type === 'text_delta') extraction += event.text;
+      }
+
+      extraction = extraction.trim();
+      if (!extraction || extraction === 'NOTHING') return 0;
+
+      // Parse bullet points and save each as a memory
+      const facts = extraction
+        .split('\n')
+        .map(l => l.replace(/^[-*]\s*/, '').trim())
+        .filter(l => l.length > 5 && l.length < 300);
+
+      let saved = 0;
+      for (const fact of facts.slice(0, 5)) { // Max 5 new memories per turn
+        // Avoid duplicates
+        const exists = this.autoEntries.some(e =>
+          e.content.toLowerCase().includes(fact.toLowerCase().slice(0, 40))
+        );
+        if (!exists) {
+          await this.saveAutoMemory(fact, 'auto-extract');
+          saved++;
+        }
+      }
+
+      return saved;
+    } catch {
+      return 0; // Non-fatal — extraction failure shouldn't break the conversation
+    }
+  }
+
+  /**
+   * Get memories relevant to the current user message (simple keyword matching).
+   * Future: use embeddings for semantic similarity.
+   */
+  getRelevantMemories(userMessage: string, limit: number = 5): MemoryEntry[] {
+    const msg = userMessage.toLowerCase();
+    const words = msg.split(/\s+/).filter(w => w.length > 3);
+
+    return this.autoEntries
+      .map(entry => {
+        const content = entry.content.toLowerCase();
+        let score = 0;
+        for (const word of words) {
+          if (content.includes(word)) score++;
+        }
+        return { entry, score };
+      })
+      .filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(x => x.entry);
+  }
+
+  // ----------------------------------------------------------
   // Private
   // ----------------------------------------------------------
 

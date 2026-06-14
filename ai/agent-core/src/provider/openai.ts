@@ -8,6 +8,7 @@ import type {
   ToolDefinition,
   ContentBlock,
   ToolResultContent,
+  ReasoningEffort,
 } from './types';
 import { countTokens } from '../utils/token';
 import { readSSELines } from './sse-reader';
@@ -89,6 +90,15 @@ export class OpenAIProvider implements IProvider {
     return info?.supportsVision ?? false;
   }
 
+  /**
+   * Map reasoningEffort to OpenAI's reasoning_effort field.
+   * OpenAI supports 'low' | 'medium' | 'high'. 'xhigh' is capped to 'high'.
+   */
+  private mapEffort(effort: ReasoningEffort): string {
+    if (effort === 'xhigh') return 'high';
+    return effort;
+  }
+
   // ----------------------------------------------------------
   // Private helpers
   // ----------------------------------------------------------
@@ -128,6 +138,11 @@ export class OpenAIProvider implements IProvider {
     if (options.tools && options.tools.length > 0) {
       body.tools = options.tools.map(this.formatTool);
       body.tool_choice = 'auto';
+    }
+
+    // Reasoning effort for o-series models
+    if (options.reasoningEffort) {
+      body.reasoning_effort = this.mapEffort(options.reasoningEffort);
     }
 
     return body;
@@ -193,7 +208,20 @@ export class OpenAIProvider implements IProvider {
       const resultBlock = (msg.content as ContentBlock[]).find(
         (b) => b.type === 'tool_result',
       ) as ToolResultContent | undefined;
-      result.content = resultBlock?.output || '';
+      const output = resultBlock?.output || '';
+      // Detect image-type tool results — send text placeholder to avoid
+      // API errors with non-vision models (e.g. DeepSeek). The screenshot
+      // is still displayed in the UI via ScreenshotView component.
+      try {
+        const parsed = JSON.parse(output);
+        if (parsed.type === 'image' && parsed.data) {
+          result.content = 'Screenshot captured. Image is displayed in the chat UI.';
+        } else {
+          result.content = output;
+        }
+      } catch {
+        result.content = output;
+      }
     } else if (toolCalls.length > 0) {
       result.content = content.length > 0 ? content : null;
       result.tool_calls = toolCalls;

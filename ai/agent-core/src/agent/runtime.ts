@@ -1,4 +1,4 @@
-import type { IProvider, ChatMessage, ChatOptions, StreamEvent } from '../provider/types';
+import type { IProvider, ChatMessage, ChatOptions, StreamEvent, ReasoningEffort } from '../provider/types';
 import type { ToolCall, ToolResult, ToolContext } from '../tool/types';
 import type { ToolRegistry } from '../tool/registry';
 import type { AgentEvent, AgentConfig, AgentCapabilities, RunOptions, PendingApproval, IRuntime, McpServerToolConfig } from './types';
@@ -12,6 +12,7 @@ import type { PromptManager } from '../prompt/manager';
 import type { MCPClient } from '../mcp/client';
 import type { SubagentManager } from '../subagent/manager';
 import type { PlanningManager } from '../planning/manager';
+import type { SessionResumeManager } from '../checkpoint/manager';
 import { ContextManager } from './context';
 import { ToolExecutionService } from './tool-executor';
 import { logger } from '../utils/logger';
@@ -53,11 +54,15 @@ export class AgentRuntime implements IRuntime {
   private readonly mcpServerConfigs: Map<string, McpServerToolConfig>;
   private subagentManager: SubagentManager | null;
   private readonly planningManager: PlanningManager | null;
+  private readonly resumeManager: SessionResumeManager | null;
+  private readonly autoReviewer: import('../auto-reviewer/manager').AutoReviewerManager | null;
+  private readonly agentDefinitionManager: import('../agent-definition/manager').AgentDefinitionManager | null;
 
   private aborted = false;
   private pendingApprovals = new Map<string, PendingApproval>();
   private currentController: AbortController | null = null;
   private toolExecService: ToolExecutionService;
+  private reasoningEffort: ReasoningEffort | undefined;
   /** Skills currently active in this run (set by injectSkillContext, read by tool execution) */
   private activeSkills: SkillDefinition[] = [];
 
@@ -83,6 +88,9 @@ export class AgentRuntime implements IRuntime {
     this.mcpServerConfigs = caps?.mcpServerConfigs ?? new Map();
     this.subagentManager = caps?.subagentManager ?? null;
     this.planningManager = caps?.planningManager ?? null;
+    this.resumeManager = caps?.resumeManager ?? null;
+    this.autoReviewer = caps?.autoReviewer ?? null;
+    this.agentDefinitionManager = caps?.agentDefinitionManager ?? null;
 
     // Build the system prompt using PromptManager if available
     this.systemPrompt = config.systemPrompt || this.composeSystemPrompt();
@@ -100,6 +108,18 @@ export class AgentRuntime implements IRuntime {
       this.hookManager,
       this.pendingApprovals,
     );
+
+    // Wire extra exec options (auto-reviewer, sandbox profile)
+    this.toolExecService.setExecOptions({
+      autoReviewer: this.autoReviewer,
+      resumeManager: this.resumeManager,
+      sandboxProfile: this.platform.sandbox
+        ? this.platform.sandbox.createProfile(
+            (caps?.autoReviewer ? 'workspace_write' : 'full_access'),
+            this.workingDir,
+          )
+        : null,
+    });
   }
 
   /**
@@ -166,6 +186,59 @@ export class AgentRuntime implements IRuntime {
   }
 
   /**
+   * Set the reasoning effort level for subsequent runs.
+   * Maps to provider-specific reasoning parameters (e.g. Anthropic thinkingBudget, OpenAI reasoning_effort).
+   */
+  setReasoningEffort(effort: ReasoningEffort | undefined): void {
+    this.reasoningEffort = effort;
+  }
+
+  /** Get the current reasoning effort level. */
+  getReasoningEffort(): ReasoningEffort | undefined {
+    return this.reasoningEffort;
+  }
+
+  /** Get the resume manager if available. */
+  getResumeManager(): SessionResumeManager | null {
+    return this.resumeManager;
+  }
+
+  /** Get the agent definition manager if available. */
+  getAgentDefinitionManager(): import('../agent-definition/manager').AgentDefinitionManager | null {
+    return this.agentDefinitionManager;
+  }
+
+  /**
+   * Switch active agent definition — updates system prompt, permissions, and tool filtering.
+   * Called when user types `/agent <name>`.
+   */
+  switchAgentDefinition(name: string): boolean {
+    if (!this.agentDefinitionManager) return false;
+    const def = this.agentDefinitionManager.get(name);
+    if (!def) return false;
+
+    // Update system prompt if the definition provides one
+    if (def.systemPrompt) {
+      if (this.promptManager) {
+        this.promptManager.clearInstructions();
+        this.promptManager.addInstructions(def.systemPrompt);
+      }
+      this.systemPrompt = this.composeSystemPrompt();
+    }
+
+    // Update permission mode if specified
+    if (def.permissions && this.permissionManager) {
+      this.permissionManager.setMode(def.permissions);
+    }
+
+    logger.info('Runtime', `Switched to agent: ${name}`, {
+      model: def.model,
+      permissions: def.permissions,
+    });
+    return true;
+  }
+
+  /**
    * Run the agent loop with the given user message.
    * Accepts either a plain string or structured content (text + images).
    */
@@ -173,6 +246,21 @@ export class AgentRuntime implements IRuntime {
     this.aborted = false;
     const messageText = typeof userMessage === 'string' ? userMessage : userMessage.filter(b => b.type === 'text').map(b => b.type === 'text' ? b.text : '').join('');
     logger.info('Runtime', 'Run started', { model: this.model, messageLength: messageText.length });
+
+    // Handle /agent <name> command — switch agent definition
+    const agentMatch = messageText.match(/^\/agent\s+(\S+)/);
+    if (agentMatch && this.agentDefinitionManager) {
+      const agentName = agentMatch[1];
+      const switched = this.switchAgentDefinition(agentName);
+      yield {
+        type: 'text_delta',
+        text: switched
+          ? `Switched to agent: ${agentName}`
+          : `Agent "${agentName}" not found. Available: ${this.agentDefinitionManager.list().map(a => a.name).join(', ')}`,
+      };
+      yield this.doneEvent('stop');
+      return;
+    }
 
     // Fire session_start hooks
     if (this.hookManager) {
@@ -225,6 +313,7 @@ export class AgentRuntime implements IRuntime {
           stream: true,
           systemPrompt: this.systemPrompt,
           signal: this.currentController.signal,
+          reasoningEffort: this.reasoningEffort,
         };
 
         let fullText = '';
@@ -306,6 +395,7 @@ export class AgentRuntime implements IRuntime {
 
         // NOW execute tools and add results to context (correct ordering)
         this.toolExecService.setActiveSkills(this.activeSkills);
+        this.toolExecService.setExecOptions({ sessionId: options?.sessionId });
         for (const toolCall of toolCalls) {
           yield* this.toolExecService.execute(toolCall);
         }
@@ -324,6 +414,24 @@ export class AgentRuntime implements IRuntime {
         if (toolCalls.length === 0) {
           logger.info('Runtime', 'Run complete', { stopReason, iterations: iteration + 1 });
           yield { type: 'done', stopReason: stopReason || 'stop', usage: lastUsage };
+          // Fire-and-forget checkpoint save with real session ID
+          if (this.resumeManager) {
+            const sid = options?.sessionId ?? 'default';
+            this.resumeManager.checkpoint(sid, this).catch(() => {});
+          }
+          // Fire-and-forget auto memory extraction
+          if (this.memoryManager && this.provider) {
+            const messages = this.contextManager.getMessages();
+            const convMessages = messages.map(m => ({
+              role: m.role,
+              content: typeof m.content === 'string'
+                ? m.content
+                : JSON.stringify(m.content).slice(0, 500),
+            }));
+            this.memoryManager
+              .extractFromConversation(convMessages, this.provider as any, this.model)
+              .catch(() => {});
+          }
           return;
         }
       } catch (error) {

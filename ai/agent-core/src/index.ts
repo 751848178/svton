@@ -21,6 +21,7 @@ export type {
   ImageContent,
   ToolUseContent,
   ToolResultContent,
+  ReasoningEffort,
 } from './provider/types';
 
 export { OpenAIProvider } from './provider/openai';
@@ -69,8 +70,18 @@ export {
   ScreenshotExecutor,
   mouseClickDef,
   MouseClickExecutor,
+  mouseDoubleClickDef,
+  MouseDoubleClickExecutor,
   mouseMoveDef,
   MouseMoveExecutor,
+  mouseDownDef,
+  MouseDownExecutor,
+  mouseUpDef,
+  MouseUpExecutor,
+  mouseDragDef,
+  MouseDragExecutor,
+  scrollDef,
+  ScrollExecutor,
   keyboardTypeDef,
   KeyboardTypeExecutor,
   keyboardPressKeyDef,
@@ -88,6 +99,20 @@ export {
   ChromeEvaluateExecutor,
   chromeGetContentDef,
   ChromeGetContentExecutor,
+  // Git code review tools
+  gitDiffDef,
+  GitDiffExecutor,
+  gitLogRangeDef,
+  GitLogRangeExecutor,
+  // Image generation tool
+  imageGenerateDef,
+  ImageGenerateExecutor,
+  // CSV fan-out tool
+  csvFanoutDef,
+  CsvFanoutExecutor,
+  // Document preview tool
+  previewDocumentDef,
+  PreviewDocumentExecutor,
 } from './tool/builtins';
 
 // Agent runtime
@@ -163,12 +188,35 @@ export type {
 export type { SubagentConfig, SubagentResult } from './subagent/types';
 export { SubagentManager } from './subagent/manager';
 
+// Custom Agent Definitions
+export type { AgentDefinition, AgentDefinitionSource } from './agent-definition/types';
+export { AgentDefinitionManager } from './agent-definition/manager';
+
+// Git Worktrees
+export type { WorktreeInfo, CreateWorktreeOptions } from './worktree/types';
+export { WorktreeManager } from './worktree/manager';
+
+// Auto-reviewer
+export type {
+  ReviewVerdict,
+  ReviewerMode,
+  ReviewContext,
+  ReviewResult,
+  ReviewRule,
+  ReviewerConfig,
+} from './auto-reviewer/types';
+export { AutoReviewerManager } from './auto-reviewer/manager';
+export { BUILTIN_RULES } from './auto-reviewer/builtin-rules';
+
 // Skills system
 export type { SkillDefinition, SkillScope, SkillTrigger, SkillSummary, SkillSource, SkillInstallRecord } from './skill/types';
 export { SkillManager } from './skill/manager';
 export { SkillLoader } from './skill/loader';
 export { SkillInstaller } from './skill/installer';
 export type { InstallResult } from './skill/installer';
+
+// Built-in skills
+export { codeReviewSkill } from './skill/builtin/code-review';
 
 // Skill marketplace (skills.sh integration)
 export { SkillMarketplace } from './skill/marketplace';
@@ -189,9 +237,56 @@ export { MemoryManager } from './memory/manager';
 export type { Plan, PlanStep, PlanStepStatus } from './planning/types';
 export { PlanningManager } from './planning/manager';
 
+// Chronicle screen memory
+export type { ScreenCapture, ChronicleConfig } from './chronicle/types';
+export { ChronicleManager } from './chronicle/manager';
+
+// Automation / scheduled tasks
+export type {
+  AutomationTriggerType,
+  AutomationTrigger,
+  AutomationDefinition,
+  AutomationRunStatus,
+  AutomationRun,
+} from './automation/types';
+export type { IAutomationScheduler } from './automation/scheduler';
+export { TimerScheduler } from './automation/scheduler';
+export { AutomationManager } from './automation/manager';
+export { createAutomationDef, CreateAutomationExecutor } from './automation/create-tool';
+
+// Image generation (multi-vendor)
+export type {
+  ImageGenerationRequest,
+  GeneratedImage,
+  ImageGenerationResult,
+  IImageGenerationProvider,
+} from './image-gen';
+export {
+  OpenAIImageProvider,
+  StabilityProvider,
+  GoogleImagenProvider,
+  ImageGenRegistry,
+} from './image-gen';
+
+// Session checkpoint / resume
+export type { SerializedRuntime, CheckpointMeta } from './checkpoint/types';
+export { SessionResumeManager } from './checkpoint/manager';
+
 // Plugin system
 export type { PluginManifest, PluginMcpServer, PluginHook, PluginInstallRecord } from './plugin/types';
 export { PluginManager } from './plugin/manager';
+
+// Integrations (Slack, Linear, etc.)
+export type {
+  IntegrationCategory,
+  AuthType,
+  AuthField,
+  IntegrationManifest,
+  IntegrationConfig,
+} from './integrations/types';
+export { IntegrationManager } from './integrations/manager';
+export { SlackIntegration } from './integrations/builtin/slack';
+export { LinearIntegration } from './integrations/builtin/linear';
 
 // Logger utility
 export { logger } from './utils/logger';

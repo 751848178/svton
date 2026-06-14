@@ -97,7 +97,7 @@ export class PermissionManager {
 
   private getModeDefault(toolCall: ToolCall): PermissionDecision {
     const name = toolCall.name;
-    const readOnlyTools = ['file_read', 'grep', 'glob', 'web_search', 'web_fetch'];
+    const readOnlyTools = ['file_read', 'grep', 'glob', 'web_search', 'web_fetch', 'screenshot', 'chrome_screenshot', 'chrome_get_content', 'scroll', 'mouse_move'];
     const editTools = ['file_write', 'file_edit'];
 
     switch (this.mode) {

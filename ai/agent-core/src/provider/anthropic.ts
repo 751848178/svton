@@ -8,6 +8,7 @@ import type {
   ToolDefinition,
   ContentBlock,
   ToolResultContent,
+  ReasoningEffort,
 } from './types';
 import { countTokens } from '../utils/token';
 import { readSSELines } from './sse-reader';
@@ -102,6 +103,20 @@ export class AnthropicProvider implements IProvider {
     return info?.supportsVision ?? true;
   }
 
+  /**
+   * Map reasoningEffort to thinkingBudget tokens.
+   * Returns undefined when not set (no extended thinking).
+   */
+  private effortToBudget(effort?: ReasoningEffort): number | undefined {
+    switch (effort) {
+      case 'low': return 1024;
+      case 'medium': return 4096;
+      case 'high': return 10000;
+      case 'xhigh': return 32000;
+      default: return undefined;
+    }
+  }
+
   // ----------------------------------------------------------
   // Private helpers
   // ----------------------------------------------------------
@@ -150,15 +165,16 @@ export class AnthropicProvider implements IProvider {
       body.temperature = options.temperature;
     }
 
-    // Extended thinking
-    if (options.thinkingBudget && options.thinkingBudget > 0) {
+    // Extended thinking — reasoningEffort maps to thinkingBudget if not explicitly set
+    const thinkingBudget = options.thinkingBudget ?? this.effortToBudget(options.reasoningEffort);
+    if (thinkingBudget && thinkingBudget > 0) {
       body.thinking = {
         type: 'enabled',
-        budget_tokens: options.thinkingBudget,
+        budget_tokens: thinkingBudget,
       };
       // Anthropic requires max_tokens > thinking budget
       if (!options.maxTokens) {
-        body.max_tokens = options.thinkingBudget + 16384;
+        body.max_tokens = thinkingBudget + 16384;
       }
     }
 
@@ -207,14 +223,25 @@ export class AnthropicProvider implements IProvider {
             input: block.input,
           });
           break;
-        case 'tool_result':
+        case 'tool_result': {
+          const output = block.output;
+          let toolContent: any = output;
+          // Detect image-type tool results — send text placeholder to avoid
+          // API errors with non-vision models. The screenshot is displayed in the UI.
+          try {
+            const parsed = JSON.parse(output);
+            if (parsed.type === 'image' && parsed.data) {
+              toolContent = 'Screenshot captured. Image is displayed in the chat UI.';
+            }
+          } catch { /* not JSON image, keep as text */ }
           parts.push({
             type: 'tool_result',
             tool_use_id: block.toolUseId,
-            content: block.output,
+            content: toolContent,
             is_error: block.isError,
           });
           break;
+        }
       }
     }
 

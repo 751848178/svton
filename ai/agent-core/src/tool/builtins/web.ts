@@ -52,9 +52,23 @@ export class WebSearchExecutor implements IToolExecutor {
         throw new Error(`Search API returned ${response.status}`);
       }
       const data = await response.json();
+      // Extract structured search results for UI rendering
+      const results = Array.isArray(data)
+        ? data
+        : Array.isArray(data.results)
+          ? data.results
+          : Array.isArray(data.items)
+            ? data.items
+            : [];
+      const searchResults = results.slice(0, 10).map((r: any) => ({
+        title: r.title || r.name || 'Untitled',
+        url: r.url || r.link || r.href || '#',
+        snippet: r.snippet || r.description || r.summary || '',
+      }));
       return {
         callId: call.id,
         output: typeof data === 'string' ? data : JSON.stringify(data, null, 2),
+        metadata: { searchResults, query },
       };
     } catch (error) {
       return {
