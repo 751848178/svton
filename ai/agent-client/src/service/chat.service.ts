@@ -111,9 +111,14 @@ export class ChatService {
           config.toolRegistry,
         );
         this.runtime.setSubagentManager(subagentMgr);
+        config.capabilities.subagentManager = subagentMgr;
 
         // Register subagent tool so the LLM can spawn subagents
         config.toolRegistry.register(subagentSpawnDef, new SubagentSpawnExecutor(subagentMgr));
+
+        // Register CSV fan-out tool (needs SubagentManager instance)
+        const { csvFanoutDef, CsvFanoutExecutor } = await import('@svton/agent-core');
+        config.toolRegistry.register(csvFanoutDef, new CsvFanoutExecutor(subagentMgr));
       } catch {
         // SubagentManager not available — non-critical
       }
@@ -271,7 +276,7 @@ export class ChatService {
           ]
         : userContent;
 
-      const stream = this.runtime!.run(content);
+      const stream = this.runtime!.run(content, { sessionId: this.activeSessionId ?? undefined });
 
       for await (const event of stream) {
         this.handleEvent(event, assistantMsg.id);
@@ -279,6 +284,7 @@ export class ChatService {
     } catch (error) {
       this.handleStreamEnd(assistantMsg.id, {
         error: error instanceof Error ? error.message : String(error),
+        isStreaming: false,
       });
       return;
     }
@@ -388,6 +394,16 @@ export class ChatService {
   @action()
   bindSession(sessionId: string | null): void {
     this.activeSessionId = sessionId;
+  }
+
+  /**
+   * Set reasoning effort on the underlying runtime.
+   * The change takes effect on the next run.
+   */
+  setReasoningEffort(effort: import('@svton/agent-core').ReasoningEffort | undefined): void {
+    if (this.runtime) {
+      this.runtime.setReasoningEffort(effort);
+    }
   }
 
   /**
@@ -541,6 +557,13 @@ export class ChatService {
         }
       }
       this.runtime.setMessages(chatMessages);
+
+      // Also restore checkpoint state (reasoning effort, plan state) if available
+      const resumeMgr = this.runtime.getResumeManager();
+      if (resumeMgr && this.activeSessionId) {
+        resumeMgr.restore(this.activeSessionId, this.runtime).catch(() => {});
+      }
+
       logger.info('Chat', 'Restored context to runtime', { messageCount: chatMessages.length });
     }
   }
@@ -580,9 +603,9 @@ export class ChatService {
 
   /**
    * Update plan progress from structured tool result metadata.
-   * Planning executors include a planProgress object in metadata.
+   * Also pushes/updates a plan block inline in the assistant message.
    */
-  private updatePlanProgress(result: import('@svton/agent-core').ToolResult): void {
+  private updatePlanProgress(result: import('@svton/agent-core').ToolResult, assistantMsgId: string): void {
     if (result.isError || !result.metadata) return;
 
     const progress = result.metadata.planProgress as PlanProgress | undefined;
@@ -593,6 +616,29 @@ export class ChatService {
       title: progress.title,
       steps: progress.steps,
     };
+
+    // Push or update a plan block in the assistant message
+    const bgId = this.backgroundSessionId;
+    const isActive = bgId === this.activeSessionId;
+    const applyPlan = (m: DisplayMessage): DisplayMessage => {
+      if (m.id !== assistantMsgId) return m;
+      const blocks = [...(m.blocks || [])];
+      const existingIdx = blocks.findIndex(b => b.type === 'plan' && b.plan?.planId === progress.planId);
+      const planBlock = { type: 'plan' as const, plan: { planId: progress.planId, title: progress.title, steps: progress.steps } };
+      if (existingIdx >= 0) {
+        blocks[existingIdx] = planBlock;
+      } else {
+        blocks.push(planBlock);
+      }
+      return { ...m, blocks };
+    };
+
+    if (isActive) {
+      this.messages = this.messages.map(applyPlan);
+    } else if (bgId) {
+      const cached = this.sessionMessages.get(bgId);
+      if (cached) this.sessionMessages.set(bgId, cached.map(applyPlan));
+    }
   }
 
   /**
@@ -662,10 +708,27 @@ export class ChatService {
           status: 'running',
         };
 
+        const isSubagent = event.call.name === 'subagent_spawn' || event.call.name === 'spawn_subagent';
+        const SLOW_TOOLS = new Set(['grep', 'glob', 'file_read', 'read', 'web_search', 'list_files', 'list_dir']);
+        const isSlowTool = SLOW_TOOLS.has(event.call.name);
+
         const applyToolStart = (m: DisplayMessage): DisplayMessage => {
           if (m.id !== assistantMsgId) return m;
           const blocks = [...(m.blocks || [])];
-          blocks.push({ type: 'tool_call', call: toolCall });
+          // Push a transient progress indicator for slow tools
+          if (isSlowTool && !isSubagent) {
+            const verb = event.call.name === 'web_search' ? 'Searching the web'
+              : event.call.name === 'grep' || event.call.name === 'glob' ? 'Searching codebase'
+              : event.call.name === 'file_read' || event.call.name === 'read' ? 'Reading file'
+              : 'Listing files';
+            blocks.push({ type: 'progress', text: verb, status: 'running' });
+          }
+          if (isSubagent) {
+            const task = (event.call.arguments as any)?.task || 'Subagent task';
+            blocks.push({ type: 'subagent', agentId: event.call.id, task, status: 'running' });
+          } else {
+            blocks.push({ type: 'tool_call', call: toolCall });
+          }
           return { ...m, toolCalls: [...(m.toolCalls || []), toolCall], blocks };
         };
 
@@ -707,18 +770,153 @@ export class ChatService {
       case 'tool_call_end': {
         const { result } = event;
         const endStatus = result.isError ? 'error' as const : 'completed' as const;
+
+        // Find the tool call to determine its name for special handling
+        const lastMsg = isActive
+          ? this.messages.find((m) => m.id === assistantMsgId)
+          : bgId ? (this.sessionMessages.get(bgId)?.find((m) => m.id === assistantMsgId)) : undefined;
+        const tc = lastMsg?.toolCalls?.find((t) => t.id === result.callId);
+        const toolName = tc?.name || '';
+
+        // Detect file-changing tools
+        const FILE_TOOLS = new Set(['file_write', 'file_edit', 'write_file', 'edit_file', 'apply_diff']);
+        const isFileChange = FILE_TOOLS.has(toolName) && !result.isError;
+        const isSubagentTool = toolName === 'subagent_spawn' || toolName === 'spawn_subagent';
+
         const applyEnd = (m: DisplayMessage): DisplayMessage => {
           if (m.id !== assistantMsgId) return m;
-          const updatedCalls = (m.toolCalls || []).map((tc) =>
-            tc.id === result.callId
-              ? { ...tc, result, status: endStatus }
-              : tc
+          const updatedCalls = (m.toolCalls || []).map((tc2) =>
+            tc2.id === result.callId
+              ? { ...tc2, result, status: endStatus }
+              : tc2
           );
-          const blocks = (m.blocks || []).map((b) =>
-            b.type === 'tool_call' && b.call.id === result.callId
-              ? { ...b, call: { ...b.call, result, status: endStatus } }
+          let blocks = (m.blocks || []).map((b) => {
+            // Update tool_call block
+            if (b.type === 'tool_call' && b.call.id === result.callId) {
+              return { ...b, call: { ...b.call, result, status: endStatus } };
+            }
+            // Update subagent block
+            if (b.type === 'subagent' && b.agentId === result.callId) {
+              return { ...b, status: 'completed' as const, summary: result.output };
+            }
+            return b;
+          });
+
+          // Push a file_change block for file-editing tools
+          if (isFileChange && tc) {
+            const filePath = (tc.arguments as any)?.path || (tc.arguments as any)?.file_path || 'unknown';
+            const existingIdx = blocks.findIndex(b => b.type === 'file_change');
+            const changeType = toolName.includes('write') || toolName.includes('create') ? 'create' : 'modify';
+            const newChange = { path: filePath, changeType: changeType as 'create' | 'modify', diff: result.output };
+            if (existingIdx >= 0 && blocks[existingIdx].type === 'file_change') {
+              const existing = blocks[existingIdx];
+              blocks[existingIdx] = { ...existing, changes: [...(existing.changes || []), newChange] };
+            } else {
+              blocks.push({ type: 'file_change', changes: [newChange] });
+            }
+          }
+
+          // Push a reference block for file-reading tools
+          const READ_TOOLS = new Set(['file_read', 'read', 'read_file']);
+          if (READ_TOOLS.has(toolName) && tc && !result.isError) {
+            const filePath = (tc.arguments as any)?.path || (tc.arguments as any)?.file_path || '';
+            if (filePath) {
+              blocks.push({ type: 'reference', refs: [{ path: filePath }] });
+            }
+          }
+
+          // Push a web_search block from metadata
+          if (toolName === 'web_search' && result.metadata?.searchResults && !result.isError) {
+            const searchResults = result.metadata.searchResults as any[];
+            const query = result.metadata.query as string || (tc?.arguments as any)?.query || '';
+            blocks.push({
+              type: 'web_search',
+              query,
+              results: searchResults.map((r: any) => ({
+                title: r.title || '',
+                url: r.url || '',
+                snippet: r.snippet,
+              })),
+            });
+          }
+
+          // Push a file_tree block for list_files/dir tools
+          const LIST_TOOLS = new Set(['list_files', 'list_dir', 'ls', 'glob']);
+          if (LIST_TOOLS.has(toolName) && !result.isError) {
+            try {
+              const parsed = JSON.parse(result.output);
+              if (Array.isArray(parsed)) {
+                const tree = parsed.map((item: any) => ({
+                  name: item.name || item.path?.split('/').pop() || 'unknown',
+                  type: item.isDirectory || item.type === 'dir' || item.type === 'directory' ? 'dir' as const : 'file' as const,
+                  children: item.children,
+                }));
+                if (tree.length > 0) {
+                  blocks.push({ type: 'file_tree', tree });
+                }
+              }
+            } catch { /* not JSON, skip */ }
+          }
+
+          // Push an image_generated block for image_generate tool
+          if (toolName === 'image_generate' && !result.isError) {
+            try {
+              const parsed = JSON.parse(result.output);
+              if (parsed.images || parsed.image) {
+                const images = parsed.images || [parsed.image];
+                blocks.push({
+                  type: 'image_generated',
+                  images: images.map((img: any) => ({
+                    url: img.url,
+                    base64: img.base64,
+                    revisedPrompt: img.revisedPrompt || img.revised_prompt,
+                  })),
+                  model: parsed.model || (tc?.arguments as any)?.model || 'unknown',
+                });
+              }
+            } catch { /* not JSON, skip */ }
+          }
+
+          // Push a csv_fanout block
+          if (toolName === 'csv_fanout' && !result.isError) {
+            try {
+              const parsed = JSON.parse(result.output);
+              if (parsed.totalRows !== undefined) {
+                blocks.push({
+                  type: 'csv_fanout',
+                  totalRows: parsed.totalRows,
+                  succeeded: parsed.succeeded,
+                  failed: parsed.failed,
+                  rows: [],
+                });
+              }
+            } catch { /* not JSON, skip */ }
+          }
+
+          // Push a code_review block for git_diff results that look like review findings
+          if (toolName === 'git_diff' && !result.isError && result.output) {
+            // The diff output is shown as text — the LLM will analyze it.
+          }
+
+          // Push a preview_images block for preview_document results
+          if (toolName === 'preview_document' && !result.isError && result.metadata?.previewResult) {
+            const previewResult = result.metadata.previewResult as any;
+            if (previewResult.kind === 'images' && previewResult.images?.length > 0) {
+              blocks.push({
+                type: 'preview_images',
+                images: previewResult.images,
+                title: (tc?.arguments as any)?.path || 'Document Preview',
+              } as any);
+            }
+          }
+
+          // Update progress blocks to done
+          blocks = blocks.map((b) =>
+            b.type === 'progress' && b.status === 'running'
+              ? { ...b, status: 'done' as const }
               : b
           );
+
           return { ...m, toolCalls: updatedCalls, blocks };
         };
 
@@ -728,7 +926,7 @@ export class ChatService {
           const cached = this.sessionMessages.get(bgId);
           if (cached) this.sessionMessages.set(bgId, cached.map(applyEnd));
         }
-        this.updatePlanProgress(result);
+        this.updatePlanProgress(result, assistantMsgId);
         break;
       }
 
@@ -764,8 +962,30 @@ export class ChatService {
 
       case 'done': {
         this.lastUsage = event.usage;
+        // Aggregate file_change blocks into a turn_diff if there are multiple
+        const applyTurnDiff = (m: DisplayMessage): DisplayMessage => {
+          if (m.id !== assistantMsgId) return m;
+          const blocks = [...(m.blocks || [])];
+          const fileChanges = blocks.filter(b => b.type === 'file_change');
+          if (fileChanges.length >= 2) {
+            // Collect all changes from all file_change blocks
+            const allChanges = fileChanges.flatMap(b =>
+              b.type === 'file_change' ? b.changes : []
+            );
+            // Replace individual file_change blocks with a single turn_diff
+            const filtered = blocks.filter(b => b.type !== 'file_change');
+            filtered.push({ type: 'turn_diff', changes: allChanges });
+            return { ...m, blocks: filtered };
+          }
+          return m;
+        };
+        if (isActive) {
+          this.messages = this.messages.map(applyTurnDiff);
+        } else if (bgId) {
+          const cached = this.sessionMessages.get(bgId);
+          if (cached) this.sessionMessages.set(bgId, cached.map(applyTurnDiff));
+        }
         // Only update status for the active session.
-        // Background sessions don't affect the displayed status.
         if (isActive && this.status !== 'waiting_approval') {
           this.status = 'idle';
         }
@@ -777,6 +997,23 @@ export class ChatService {
           const sysMsg = this.createDisplayMessage('system', L.contextCompacted);
           sysMsg.systemType = 'context_compacted';
           this.messages = [...this.messages, sysMsg];
+        }
+        break;
+      }
+
+      case 'warning': {
+        const applyWarning = (m: DisplayMessage): DisplayMessage => {
+          if (m.id !== assistantMsgId) return m;
+          const blocks = [...(m.blocks || [])];
+          blocks.push({ type: 'warning', text: event.text, source: event.source });
+          return { ...m, blocks };
+        };
+
+        if (isActive) {
+          this.messages = this.messages.map(applyWarning);
+        } else if (bgId) {
+          const cached = this.sessionMessages.get(bgId);
+          if (cached) this.sessionMessages.set(bgId, cached.map(applyWarning));
         }
         break;
       }
