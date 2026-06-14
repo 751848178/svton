@@ -67,9 +67,37 @@ pub fn run() {
             // Computer Use
             screenshot_display,
             mouse_click,
+            mouse_double_click,
             mouse_move,
+            mouse_down,
+            mouse_up,
+            mouse_drag,
+            scroll,
             keyboard_type_text,
             keyboard_press_key,
+            // macOS Permissions
+            check_macos_permissions,
+            request_accessibility_permission,
+            request_screen_recording_permission,
+            open_system_settings,
+            // Chrome CDP
+            check_chrome_cdp,
+            launch_chrome_debug,
+            // Sandbox
+            sandbox_exec,
+            // Window (pop-out threads)
+            popout_session,
+            close_popout,
+            list_popouts,
+            popout_preview,
+            // Document preview
+            preview_pdf,
+            preview_excel,
+            preview_pptx,
+            // Chronicle (screen memory)
+            chronicle_capture,
+            chronicle_active_window,
+            chronicle_ocr,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
