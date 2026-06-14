@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { TauriPlatform } from '@svton/agent-platform';
 import type { AgentConfig } from '@svton/agent-core';
+import type { AgentExtra } from '@/lib/agent-setup';
 import { SettingsView } from '@svton/agent-ui';
 import { loadConfig } from '@/lib/config-store';
 import { TauriSettingsAdapter } from '@/lib/tauri-settings-adapter';
@@ -8,11 +9,15 @@ import { TauriSettingsAdapter } from '@/lib/tauri-settings-adapter';
 interface SettingsPanelProps {
   platform: TauriPlatform;
   agentConfig?: AgentConfig;
+  extra?: AgentExtra;
   onBack: () => void;
+  onReinit?: (workingDir?: string) => void;
 }
 
-export function SettingsPanel({ platform, agentConfig, onBack }: SettingsPanelProps) {
-  const [adapter] = useState(() => new TauriSettingsAdapter(platform, agentConfig));
+export function SettingsPanel({ platform, agentConfig, extra, onBack, onReinit }: SettingsPanelProps) {
+  const [adapter] = useState(() => new TauriSettingsAdapter(platform, agentConfig, () => {
+    setRefreshKey((k) => k + 1);
+  }, onReinit));
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -26,8 +31,11 @@ export function SettingsPanel({ platform, agentConfig, onBack }: SettingsPanelPr
 
   useEffect(() => {
     adapter.setAgentConfig(agentConfig);
+    if (extra?.integrationManager) {
+      adapter.setIntegrationManager(extra.integrationManager);
+    }
     setRefreshKey((k) => k + 1);
-  }, [agentConfig, adapter]);
+  }, [agentConfig, adapter, extra]);
 
   return (
     <SettingsView

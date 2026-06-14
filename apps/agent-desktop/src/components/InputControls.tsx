@@ -1,6 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReasoningEffort } from '@svton/agent-ui';
 
 type PermissionMode = 'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto';
+
+const REASONING_OPTIONS: Array<{ value: ReasoningEffort; label: string; icon: string; hint: string }> = [
+  { value: undefined, label: 'Auto', icon: '◇', hint: '由模型自动决定' },
+  { value: 'low', label: 'Low', icon: '▸', hint: '快速，最少的推理' },
+  { value: 'medium', label: 'Medium', icon: '▸▸', hint: '速度与深度平衡' },
+  { value: 'high', label: 'High', icon: '▸▸▸', hint: '更深入的推理，较慢' },
+  { value: 'xhigh', label: 'Xhigh', icon: '▸▸▸▸', hint: '最大推理强度' },
+];
 
 const PERMISSION_MODES: Array<{ id: PermissionMode; label: string; desc: string }> = [
   { id: 'read_only', label: '只读', desc: '只能读取文件' },
@@ -33,6 +42,9 @@ interface InputControlsProps {
   projects?: ProjectInfo[];
   currentProjectId?: string | null;
   onSelectProject?: (id: string | null) => void;
+  /** Reasoning effort level (low/medium/high/xhigh or undefined for auto) */
+  reasoningEffort?: ReasoningEffort;
+  onReasoningEffortChange?: (effort: ReasoningEffort) => void;
 }
 
 const cn = (...classes: (string | false | undefined | null)[]) => classes.filter(Boolean).join(' ');
@@ -54,70 +66,93 @@ export function InputControls({
   projects,
   currentProjectId,
   onSelectProject,
+  reasoningEffort,
+  onReasoningEffortChange,
 }: InputControlsProps) {
   const [showPerms, setShowPerms] = useState(false);
   const [showPlugins, setShowPlugins] = useState(false);
   const [showProjects, setShowProjects] = useState(false);
+  const [showReasoning, setShowReasoning] = useState(false);
   const permsBtnRef = useRef<HTMLButtonElement>(null);
   const pluginsBtnRef = useRef<HTMLButtonElement>(null);
   const projectsBtnRef = useRef<HTMLButtonElement>(null);
+  const reasoningBtnRef = useRef<HTMLButtonElement>(null);
   const [permsPos, setPermsPos] = useState<{ left: number; bottom: number }>({ left: 0, bottom: 0 });
   const [pluginsPos, setPluginsPos] = useState<{ left: number; bottom: number }>({ left: 0, bottom: 0 });
   const [projectsPos, setProjectsPos] = useState<{ left: number; bottom: number }>({ left: 0, bottom: 0 });
+  const [reasoningPos, setReasoningPos] = useState<{ left: number; bottom: number }>({ left: 0, bottom: 0 });
 
   const currentPerm = PERMISSION_MODES.find((m) => m.id === permissionMode) ?? PERMISSION_MODES[2];
+  const selectedReasoning = REASONING_OPTIONS.find((o) => o.value === reasoningEffort) ?? REASONING_OPTIONS[0];
+
+  const closeAll = useCallback(() => {
+    setShowPerms(false);
+    setShowPlugins(false);
+    setShowProjects(false);
+    setShowReasoning(false);
+  }, []);
 
   const openPerms = useCallback(() => {
     if (permsBtnRef.current) {
       const rect = permsBtnRef.current.getBoundingClientRect();
       setPermsPos({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
     }
+    closeAll();
     setShowPerms(true);
-    setShowPlugins(false);
-    setShowProjects(false);
-  }, []);
+  }, [closeAll]);
 
   const openPlugins = useCallback(() => {
     if (pluginsBtnRef.current) {
       const rect = pluginsBtnRef.current.getBoundingClientRect();
       setPluginsPos({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
     }
+    closeAll();
     setShowPlugins(true);
-    setShowPerms(false);
-    setShowProjects(false);
-  }, []);
+  }, [closeAll]);
 
   const openProjects = useCallback(() => {
     if (projectsBtnRef.current) {
       const rect = projectsBtnRef.current.getBoundingClientRect();
       setProjectsPos({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
     }
+    closeAll();
     setShowProjects(true);
-    setShowPerms(false);
-    setShowPlugins(false);
-  }, []);
+  }, [closeAll]);
+
+  const openReasoning = useCallback(() => {
+    if (reasoningBtnRef.current) {
+      const rect = reasoningBtnRef.current.getBoundingClientRect();
+      setReasoningPos({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
+    }
+    closeAll();
+    setShowReasoning(true);
+  }, [closeAll]);
 
   // Close popups on outside click
   useEffect(() => {
-    if (!showPerms && !showPlugins && !showProjects) return;
+    if (!showPerms && !showPlugins && !showProjects && !showReasoning) return;
     const fn = (e: MouseEvent) => {
       const target = e.target as Node;
       const permDropEl = document.getElementById('perm-dropdown');
       const pluginDropEl = document.getElementById('plugin-dropdown');
       const projectDropEl = document.getElementById('project-dropdown');
+      const reasoningDropEl = document.getElementById('reasoning-dropdown');
       const clickedPermDrop = showPerms && permDropEl?.contains(target);
       const clickedPluginDrop = showPlugins && pluginDropEl?.contains(target);
       const clickedProjectDrop = showProjects && projectDropEl?.contains(target);
+      const clickedReasoningDrop = showReasoning && reasoningDropEl?.contains(target);
       const clickedPermBtn = permsBtnRef.current?.contains(target);
       const clickedPluginBtn = pluginsBtnRef.current?.contains(target);
       const clickedProjectBtn = projectsBtnRef.current?.contains(target);
+      const clickedReasoningBtn = reasoningBtnRef.current?.contains(target);
       if (!clickedPermDrop && !clickedPermBtn) setShowPerms(false);
       if (!clickedPluginDrop && !clickedPluginBtn) setShowPlugins(false);
       if (!clickedProjectDrop && !clickedProjectBtn) setShowProjects(false);
+      if (!clickedReasoningDrop && !clickedReasoningBtn) setShowReasoning(false);
     };
     document.addEventListener('mousedown', fn);
     return () => document.removeEventListener('mousedown', fn);
-  }, [showPerms, showPlugins, showProjects]);
+  }, [showPerms, showPlugins, showProjects, showReasoning]);
 
   // Find current project name for display
   const activeProject = projects?.find((p) => p.id === currentProjectId);
@@ -137,6 +172,20 @@ export function InputControls({
         <span className="text-[11px]">{currentPerm.label}</span>
         <svg width="6" height="6" viewBox="0 0 12 12" fill="currentColor"><path d="M3 5l3 3 3-3H3z" /></svg>
       </button>
+
+      {/* Reasoning effort selector — built-in button + fixed dropdown */}
+      {onReasoningEffortChange && (
+        <button
+          ref={reasoningBtnRef}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={showReasoning ? () => setShowReasoning(false) : openReasoning}
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-gray-500 hover:text-gray-300 hover:bg-[#2a2a2a]/60 transition-colors flex-shrink-0"
+        >
+          <span className="text-[10px] text-gray-500">{selectedReasoning.icon}</span>
+          <span className="text-[11px]">{selectedReasoning.label}</span>
+          <svg width="6" height="6" viewBox="0 0 12 12" fill="currentColor"><path d="M3 5l3 3 3-3H3z" /></svg>
+        </button>
+      )}
 
       {/* Plan mode toggle */}
       <button
@@ -199,8 +248,8 @@ export function InputControls({
       {showPerms && (
         <div
           id="perm-dropdown"
-          style={{ position: 'fixed', left: permsPos.left, bottom: permsPos.bottom, zIndex: 9999 }}
-          className="w-48 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl py-1"
+          style={{ position: 'fixed', left: permsPos.left, bottom: permsPos.bottom, zIndex: 9999, maxHeight: '50vh' }}
+          className="w-48 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl py-1 overflow-y-auto"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {PERMISSION_MODES.map((m) => (

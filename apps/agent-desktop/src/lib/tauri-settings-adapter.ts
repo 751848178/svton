@@ -12,6 +12,7 @@ import {
   type SkillFormData,
   type McpServerConfig,
   type MemoryEntry,
+  type IntegrationCardData,
 } from '@svton/agent-ui';
 import {
   loadConfig,
@@ -32,10 +33,13 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
   private _mcpServers: McpServerConfig[] = [];
   private marketplace = new SkillMarketplace();
 
-  constructor(platform: TauriPlatform, agentConfig?: AgentConfig, onUpdate?: () => void) {
+  private onReinit?: (workingDir?: string) => void;
+
+  constructor(platform: TauriPlatform, agentConfig?: AgentConfig, onUpdate?: () => void, onReinit?: (workingDir?: string) => void) {
     this.platform = platform;
     this._agentConfig = agentConfig;
     this.onUpdate = onUpdate;
+    this.onReinit = onReinit;
     // Load persisted values from storage
     platform.storage.get<string[]>('agent:disabled_tools').then((v) => {
       if (Array.isArray(v)) this._disabledTools = v;
@@ -62,6 +66,9 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
 
   setConfig(config: SvtonConfig | null) { this.config = config; }
   setAgentConfig(cfg: AgentConfig | undefined) { this._agentConfig = cfg; }
+
+  private _integrationManager: any = null;
+  setIntegrationManager(mgr: any) { this._integrationManager = mgr; }
 
   // ── Providers ────────────────────────────────────────────
   getProviders(): ProviderInfo[] {
@@ -286,7 +293,13 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
 
   async setWorkingDir(dir: string): Promise<void> {
     await this.platform.storage.set('agent:workingDir', dir);
+    // Update in-memory config for immediate UI feedback
+    if (this._agentConfig) {
+      this._agentConfig.workingDir = dir;
+    }
     this.onUpdate?.();
+    // Trigger full agent re-initialization with new working directory
+    this.onReinit?.(dir);
   }
 
   // ── Platform info ────────────────────────────────────────
@@ -384,5 +397,64 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
     } catch (err: any) {
       return { success: false, error: err.message || 'Install failed' };
     }
+  }
+
+  // ── Sandbox ─────────────────────────────────────────────
+  getSandboxConfig(): { enabled: boolean; mode: string } {
+    const caps = this._agentConfig?.capabilities;
+    const hasSandbox = !!this.platform.capabilities.sandboxing && !!this.platform.sandbox;
+    return { enabled: hasSandbox, mode: 'workspace_write' };
+  }
+
+  saveSandboxConfig(config: { enabled: boolean; mode: string }): void {
+    // Persist sandbox mode preference; actual enforcement is via runtime autoReviewer + sandbox profile
+    this.platform.storage.set('agent:sandbox_config', config).catch(() => {});
+  }
+
+  // ── Auto-reviewer ───────────────────────────────────────
+  getAutoReviewerConfig(): { mode: string; rules: Array<{ id: string; description: string; verdict: string }> } {
+    const reviewer = this._agentConfig?.capabilities?.autoReviewer;
+    if (!reviewer) return { mode: 'manual', rules: [] };
+    const rules = reviewer.listRules().map(r => ({ id: r.id, description: r.description, verdict: r.verdict }));
+    return { mode: reviewer.getMode(), rules };
+  }
+
+  saveAutoReviewerMode(mode: string): void {
+    const reviewer = this._agentConfig?.capabilities?.autoReviewer;
+    if (reviewer) {
+      reviewer.setMode(mode as 'auto_review' | 'manual');
+    }
+    this.platform.storage.set('agent:auto_reviewer_mode', mode).catch(() => {});
+  }
+
+  // ── Integrations ────────────────────────────────────────
+  getIntegrations(): IntegrationCardData[] {
+    if (!this._integrationManager) return [];
+    try {
+      return this._integrationManager.list().map((m: any) => ({
+        id: m.id,
+        name: m.name,
+        description: m.description,
+        enabled: m.enabled,
+        credentials: m.credentials || {},
+        credentialFields: m.credentialFields || [],
+      }));
+    } catch { return []; }
+  }
+
+  async toggleIntegration(id: string, enabled: boolean): Promise<void> {
+    if (!this._integrationManager) return;
+    try {
+      if (enabled) await this._integrationManager.enable(id);
+      else await this._integrationManager.disable(id);
+      this.onUpdate?.();
+    } catch {}
+  }
+
+  async setIntegrationCredential(id: string, key: string, value: string): Promise<void> {
+    if (!this._integrationManager) return;
+    try {
+      await this._integrationManager.setCredential(id, key, value);
+    } catch {}
   }
 }

@@ -8,6 +8,7 @@ import {
   type SplitScreenContent,
   type SlashCommand,
   type MentionItem,
+  type ReasoningEffort,
 } from '@svton/agent-ui';
 import { useChat, useToolApproval } from '@svton/agent-client';
 import { InputControls } from './InputControls';
@@ -42,6 +43,8 @@ export function ChatContent({
   onSelectProject,
   mentionItems,
   onMentionSelect,
+  reasoningEffort,
+  onReasoningEffortChange,
 }: {
   modelSelector: React.ReactNode;
   slashCommands: SlashCommand[];
@@ -60,12 +63,40 @@ export function ChatContent({
   onSelectProject?: (id: string | null) => void;
   mentionItems?: MentionItem[];
   onMentionSelect?: (item: MentionItem) => string;
+  reasoningEffort?: ReasoningEffort;
+  onReasoningEffortChange?: (effort: ReasoningEffort) => void;
 }) {
   const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage } = useChat();
   const { approve, reject } = useToolApproval();
   const [splitScreen, setSplitScreen] = useState<SplitScreenContent | null>(null);
+  /** Preview content stored for popout windows to read */
+  const [popoutContent, setPopoutContent] = useState<SplitScreenContent | null>(null);
 
-  const handleOpenDocument = useCallback((doc: SplitScreenContent) => { setSplitScreen(doc); }, []);
+  const handleOpenDocument = useCallback(async (doc: SplitScreenContent) => {
+    const previewMode = localStorage.getItem('agent:preview_mode') || 'sidebar';
+
+    if (previewMode === 'window') {
+      try {
+        const key = Date.now().toString();
+
+        // Store content in localStorage BEFORE opening the window.
+        // localStorage is shared across all Tauri webviews with the same origin,
+        // so the preview window can read it immediately on mount.
+        localStorage.setItem(`svton-preview-${key}`, JSON.stringify(doc));
+
+        // Open the preview window — the URL includes the key so it can find the content
+        const { invoke } = await import('@tauri-apps/api/core' as string);
+        await invoke('popout_preview', { key });
+      } catch (e) {
+        console.error('Popout preview failed:', e);
+        // Fallback to sidebar mode
+        setSplitScreen(doc);
+      }
+    } else {
+      setSplitScreen(doc);
+    }
+  }, []);
+
   const handleOpenEditor = useCallback((content: string) => { setSplitScreen({ type: 'document', title: 'Edit', content }); }, []);
 
   const presets: PresetItem[] = useMemo(() => PRESETS, []);
@@ -115,9 +146,11 @@ export function ChatContent({
         projects={showProjectSelector ? projects : undefined}
         currentProjectId={currentProjectId}
         onSelectProject={onSelectProject}
+        reasoningEffort={reasoningEffort}
+        onReasoningEffortChange={onReasoningEffortChange}
       />
     </>
-  ), [modelSelector, permissionMode, onPermissionModeChange, planMode, onPlanModeChange, plugins, onPluginToggle, gitBranch, projectName, showProjectSelector, projects, currentProjectId, onSelectProject]);
+  ), [modelSelector, permissionMode, onPermissionModeChange, planMode, onPlanModeChange, plugins, onPluginToggle, gitBranch, projectName, showProjectSelector, projects, currentProjectId, onSelectProject, reasoningEffort, onReasoningEffortChange]);
 
   return (
     <div className="flex flex-1 min-w-0 min-h-0 relative">
@@ -132,6 +165,21 @@ export function ChatContent({
           onEditMessage={editMessage}
           onOpenDocument={handleOpenDocument}
           onOpenEditor={handleOpenEditor}
+          onOpenReference={async (path, line) => {
+            try {
+              const api = await import('@tauri-apps/api/core' as string);
+              const invoke = (api as any).invoke;
+              // Resolve relative path against working directory
+              const fullPath = path.startsWith('/') ? path : `${''}/${path}`;
+              await invoke('process_exec', { command: ['open', fullPath], cwd: null });
+            } catch (e) {
+              console.error('Failed to open file:', e);
+            }
+          }}
+          onCommand={async (action) => {
+            // Command actions can be extended; for now, log and handle common ones
+            console.log('Command action:', action);
+          }}
           isStreaming={isStreaming}
           placeholder="描述你想做的事情...  输入 / 查看命令  @ 引用"
           emptyMessage={(

@@ -43,8 +43,18 @@ import {
   ScreenshotExecutor,
   mouseClickDef,
   MouseClickExecutor,
+  mouseDoubleClickDef,
+  MouseDoubleClickExecutor,
   mouseMoveDef,
   MouseMoveExecutor,
+  mouseDownDef,
+  MouseDownExecutor,
+  mouseUpDef,
+  MouseUpExecutor,
+  mouseDragDef,
+  MouseDragExecutor,
+  scrollDef,
+  ScrollExecutor,
   keyboardTypeDef,
   KeyboardTypeExecutor,
   keyboardPressKeyDef,
@@ -62,6 +72,17 @@ import {
   ChromeEvaluateExecutor,
   chromeGetContentDef,
   ChromeGetContentExecutor,
+  // Git code review tools
+  gitDiffDef,
+  GitDiffExecutor,
+  gitLogRangeDef,
+  GitLogRangeExecutor,
+  // Image generation tool
+  imageGenerateDef,
+  ImageGenerateExecutor,
+  previewDocumentDef,
+  PreviewDocumentExecutor,
+  // CSV fan-out tool (registered later, needs subagent manager)
   // Managers
   SkillManager,
   SkillLoader,
@@ -70,6 +91,22 @@ import {
   PermissionManager,
   HookManager,
   PlanningManager,
+  SessionResumeManager,
+  AgentDefinitionManager,
+  WorktreeManager,
+  AutoReviewerManager,
+  BUILTIN_RULES,
+  AutomationManager,
+  TimerScheduler,
+  IntegrationManager,
+  SlackIntegration,
+  LinearIntegration,
+  ChronicleManager,
+  ImageGenRegistry,
+  OpenAIImageProvider,
+  StabilityProvider,
+  GoogleImagenProvider,
+  codeReviewSkill,
   // MCP
   MCPClient,
   HTTPTransport,
@@ -81,10 +118,19 @@ import type { McpServerConfig } from '@svton/agent-ui';
 import { loadConfig, type LoadConfigResult } from './config-store';
 
 export type InitResult =
-  | { kind: 'ready'; config: AgentConfig }
+  | { kind: 'ready'; config: AgentConfig; extra?: AgentExtra }
   | { kind: 'no_config' }
   | { kind: 'no_api_key' }
   | { kind: 'error'; message: string };
+
+/** Extra managers exposed for UI consumption (not part of AgentConfig). */
+export interface AgentExtra {
+  chronicleManager: ChronicleManager;
+  automationManager: AutomationManager;
+  integrationManager: IntegrationManager;
+  worktreeManager: WorktreeManager;
+  imageGenRegistry: ImageGenRegistry;
+}
 
 /**
  * Initialize the desktop agent with ALL tools registered.
@@ -138,7 +184,7 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   const modelInfos = modelEntries.map(([id, name]) => ({
     id,
     name,
-    contextWindow: 128000,
+    contextWindow: 512000,
     supportsToolUse: true,
     supportsVision: true,
     supportsStreaming: true,
@@ -195,7 +241,12 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   // Computer Use tools (desktop only — rely on Tauri commands)
   toolRegistry.register(screenshotDef, new ScreenshotExecutor());
   toolRegistry.register(mouseClickDef, new MouseClickExecutor());
+  toolRegistry.register(mouseDoubleClickDef, new MouseDoubleClickExecutor());
   toolRegistry.register(mouseMoveDef, new MouseMoveExecutor());
+  toolRegistry.register(mouseDownDef, new MouseDownExecutor());
+  toolRegistry.register(mouseUpDef, new MouseUpExecutor());
+  toolRegistry.register(mouseDragDef, new MouseDragExecutor());
+  toolRegistry.register(scrollDef, new ScrollExecutor());
   toolRegistry.register(keyboardTypeDef, new KeyboardTypeExecutor());
   toolRegistry.register(keyboardPressKeyDef, new KeyboardPressKeyExecutor());
 
@@ -206,6 +257,10 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   toolRegistry.register(chromeTypeDef, new ChromeTypeExecutor());
   toolRegistry.register(chromeEvaluateDef, new ChromeEvaluateExecutor());
   toolRegistry.register(chromeGetContentDef, new ChromeGetContentExecutor());
+
+  // Git code review tools
+  toolRegistry.register(gitDiffDef, new GitDiffExecutor());
+  toolRegistry.register(gitLogRangeDef, new GitLogRangeExecutor());
 
   // ── Capability managers ──
   const skillManager = new SkillManager();
@@ -250,6 +305,83 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
     // No AGENT.md found — that's fine
   }
 
+  // ── Session Resume (checkpoint) ──
+  const resumeManager = new SessionResumeManager(platform.storage);
+
+  // ── Custom Agent Definitions ──
+  const agentDefinitionManager = new AgentDefinitionManager(platform.storage);
+  await agentDefinitionManager.loadFromStorage();
+  for (const def of agentDefinitionManager.getBuiltinDefaults()) {
+    agentDefinitionManager.register(def);
+  }
+  // Load project-level and user-level agent definitions from .svton/agents/*.md
+  const _homeDir = platform.process.getEnv('HOME') || platform.process.getEnv('USERPROFILE') || '';
+  await agentDefinitionManager.loadFromDirectories(platform.fs, workingDir, _homeDir);
+
+  // ── Git Worktrees ──
+  const worktreeManager = new WorktreeManager(platform);
+
+  // ── Auto-reviewer ──
+  const autoReviewer = new AutoReviewerManager({
+    mode: 'manual',  // Start in manual mode, user can switch
+    rules: BUILTIN_RULES,
+  });
+
+  // ── Image Generation ──
+  const imageGenRegistry = new ImageGenRegistry();
+  // Register providers if API keys are available
+  const openaiKey = providers.openai?.api_key;
+  if (openaiKey) {
+    imageGenRegistry.register(new OpenAIImageProvider(), openaiKey);
+  }
+  // Stability AI (search common config key names)
+  const stabilityKey = providers['stability']?.api_key || providers['stabilityai']?.api_key;
+  if (stabilityKey) {
+    imageGenRegistry.register(new StabilityProvider(), stabilityKey);
+  }
+  // Google Imagen
+  const googleKey = providers['google']?.api_key || providers['googleai']?.api_key || providers['vertex']?.api_key;
+  if (googleKey) {
+    imageGenRegistry.register(new GoogleImagenProvider('svton-agent'), googleKey);
+  }
+
+  // Register image generation tool
+  toolRegistry.register(imageGenerateDef, new ImageGenerateExecutor(imageGenRegistry));
+
+  // Document preview tool (desktop — uses platform.preview for PDF/Excel/PPTX)
+  toolRegistry.register(previewDocumentDef, new PreviewDocumentExecutor());
+
+  // ── Integrations (Slack / Linear) ──
+  const integrationManager = new IntegrationManager(platform.storage);
+  integrationManager.registerManifest(SlackIntegration);
+  integrationManager.registerManifest(LinearIntegration);
+  await integrationManager.init();
+  // Register tools from enabled integrations
+  for (const { definition, executor } of integrationManager.resolveAllTools()) {
+    toolRegistry.register(definition, executor);
+  }
+
+  // ── Chronicle (screen memory) ──
+  const chronicleManager = new ChronicleManager(platform.storage, platform);
+  await chronicleManager.init();
+
+  // ── Automations ──
+  const automationManager = new AutomationManager(platform.storage, new TimerScheduler());
+  await automationManager.init();
+  // Set trigger handler — when an automation fires, it logs for now.
+  // Full integration (spawning agent sessions) requires ChatService access,
+  // which is wired in the React layer.
+  automationManager.setTriggerHandler(async (automation) => {
+    console.log(`[Automation] Triggered: ${automation.name}`, { id: automation.id });
+  });
+
+  // Register create_automation tool — lets the LLM create scheduled tasks
+  const { createAutomationDef, CreateAutomationExecutor } = await import('@svton/agent-core');
+  toolRegistry.register(createAutomationDef, new CreateAutomationExecutor(automationManager));
+
+  // Register code review skill
+  skillManager.register(codeReviewSkill);
+
   const capabilities: AgentCapabilities = {
     skillManager,
     memoryManager,
@@ -257,6 +389,10 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
     permissionManager,
     hookManager,
     planningManager,
+    resumeManager,
+    agentDefinitionManager,
+    worktreeManager,
+    autoReviewer,
   };
 
   // ── Connect MCP servers ──
@@ -349,6 +485,18 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
       toolRegistry,
       workingDir,
       capabilities,
+      contextConfig: {
+        maxTokens: 512000,
+        compactionThreshold: 0.8,
+        preserveRecentMessages: 6,
+      },
+    },
+    extra: {
+      chronicleManager,
+      automationManager,
+      integrationManager,
+      worktreeManager,
+      imageGenRegistry,
     },
   };
 }

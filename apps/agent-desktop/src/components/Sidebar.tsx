@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { cn } from '@svton/ui';
 import type { AgentConfig } from '@svton/agent-core';
 import type { SessionInfo, Project } from '@svton/agent-client';
-import { PlusIcon, SearchIcon, FolderIcon, GearIcon, TrashIcon, ChatIcon, AutomationIcon, SkillIcon } from './icons';
+import { PlusIcon, SearchIcon, FolderIcon, GearIcon, TrashIcon, ChatIcon, AutomationIcon, SkillIcon, PluginIcon, AgentIcon, WorktreeIcon, ChronicleIcon, IntegrationIcon } from './icons';
 
 // Tauri v2 window drag helper (shared with MainLayout)
 let startDraggingFn: (() => Promise<void>) | null = null;
@@ -17,7 +17,7 @@ async function startDrag() {
 }
 const handleDragStart = () => { startDrag(); };
 
-export type View = 'chat' | 'search' | 'automation' | 'skills' | 'settings';
+export type View = 'chat' | 'search' | 'automation' | 'skills' | 'plugins' | 'agents' | 'worktrees' | 'chronicle' | 'integrations' | 'settings';
 
 interface SidebarProps {
   config: AgentConfig | null;
@@ -98,11 +98,11 @@ export function Sidebar({
   activeView,
   className,
 }: SidebarProps) {
-  const [searchQuery, setSearchQuery] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [confirmDeleteProjectId, setConfirmDeleteProjectId] = useState<string | null>(null);
   const [projectMenuId, setProjectMenuId] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const safeSessions = Array.isArray(sessions) ? sessions : [];
@@ -133,17 +133,12 @@ export function Sidebar({
     return groups;
   }, [visibleSessions, projects]);
 
-  // Filter by search
-  const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return groupedSessions;
-    const q = searchQuery.toLowerCase();
-    const result = new Map<string, SessionInfo[]>();
-    for (const [key, sessions] of groupedSessions) {
-      const filtered = sessions.filter((s) => s.title.toLowerCase().includes(q));
-      if (filtered.length > 0) result.set(key, filtered);
-    }
-    return result;
-  }, [groupedSessions, searchQuery]);
+  // All sessions for search modal
+  const allSessions = useMemo(() => {
+    return visibleSessions.slice().sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [visibleSessions]);
+
+  const filteredGroups = groupedSessions;
 
   const toggleGroup = (key: string) => {
     setCollapsedGroups((prev) => {
@@ -163,6 +158,25 @@ export function Sidebar({
     return () => document.removeEventListener('mousedown', fn);
   }, [projectMenuId]);
 
+  // Cmd+K / Ctrl+K to open search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(prev => !prev);
+      }
+      if (e.key === 'Escape') setSearchOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const handleSearchSelect = useCallback((id: string) => {
+    onSwitchSession(id);
+    onNavigate('chat');
+    setSearchOpen(false);
+  }, [onSwitchSession, onNavigate]);
+
   // Find current project for header display
   const currentProject = projects.find((p) => p.id === currentProjectId);
 
@@ -176,32 +190,23 @@ export function Sidebar({
       {/* Header — also serves as drag region */}
       <div onMouseDown={handleDragStart} className="px-4 pt-9 pb-3 flex items-center justify-between border-b border-white/[0.06] cursor-default">
         <div className="flex items-center gap-2">
+          <img src="/agent-icon.svg" alt="" className="w-5 h-5" />
           <span className="text-white text-[15px] font-semibold tracking-tight">Svton</span>
-          <span className="text-gray-600 text-sm">{'\u2192'}</span>
         </div>
       </div>
 
       {/* Top navigation */}
       <nav className="px-2 pt-2 space-y-0.5">
-        <NavItem icon={<SearchIcon />} label="搜索" active={activeView === 'search'} onClick={() => onNavigate(activeView === 'search' ? 'chat' : 'search')} />
+        <NavItem icon={<SearchIcon />} label="搜索" onClick={() => setSearchOpen(true)} />
         <NavItem icon={<AutomationIcon />} label="自动化" active={activeView === 'automation'} onClick={() => onNavigate(activeView === 'automation' ? 'chat' : 'automation')} />
         <NavItem icon={<ChatIcon />} label="对话" active={activeView === 'chat'} onClick={() => onNavigate('chat')} />
         <NavItem icon={<SkillIcon />} label="技能" active={activeView === 'skills'} onClick={() => onNavigate(activeView === 'skills' ? 'chat' : 'skills')} />
+        <NavItem icon={<PluginIcon />} label="插件" active={activeView === 'plugins'} onClick={() => onNavigate(activeView === 'plugins' ? 'chat' : 'plugins')} />
+        <NavItem icon={<AgentIcon />} label="Agents" active={activeView === 'agents'} onClick={() => onNavigate(activeView === 'agents' ? 'chat' : 'agents')} />
+        <NavItem icon={<WorktreeIcon />} label="工作树" active={activeView === 'worktrees'} onClick={() => onNavigate(activeView === 'worktrees' ? 'chat' : 'worktrees')} />
+        <NavItem icon={<IntegrationIcon />} label="集成" active={activeView === 'integrations'} onClick={() => onNavigate(activeView === 'integrations' ? 'chat' : 'integrations')} />
+        <NavItem icon={<ChronicleIcon />} label="屏幕记忆" active={activeView === 'chronicle'} onClick={() => onNavigate(activeView === 'chronicle' ? 'chat' : 'chronicle')} />
       </nav>
-
-      {/* Search bar */}
-      <div className="px-3 py-2">
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-[#222] border border-[#2a2a2a]">
-          <span className="text-gray-500"><SearchIcon /></span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索会话..."
-            className="flex-1 bg-transparent text-[12px] text-gray-300 placeholder:text-gray-600 outline-none"
-          />
-        </div>
-      </div>
 
       {/* New chat button */}
       <div className="px-3 pb-1">
@@ -346,6 +351,15 @@ export function Sidebar({
           onClick={() => onNavigate(activeView === 'settings' ? 'chat' : 'settings')}
         />
       </div>
+
+      {/* Search Modal */}
+      {searchOpen && (
+        <SearchModal
+          sessions={allSessions}
+          onSelect={handleSearchSelect}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -393,6 +407,135 @@ function SessionItem({
           <TrashIcon />
         </button>
       )}
+    </div>
+  );
+}
+
+// ── Search Modal (Command Palette) ────────────────────────
+
+function SearchModal({ sessions, onSelect, onClose }: {
+  sessions: SessionInfo[];
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Filter sessions
+  const filtered = useMemo(() => {
+    if (!query.trim()) return sessions;
+    const q = query.toLowerCase();
+    return sessions.filter(s => s.title.toLowerCase().includes(q));
+  }, [sessions, query]);
+
+  // Focus input on mount
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Reset selection when query changes
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [query]);
+
+  // Keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(i => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const session = filtered[selectedIndex];
+      if (session) onSelect(session.id);
+    }
+  };
+
+  // Scroll selected item into view
+  useEffect(() => {
+    const el = listRef.current?.children[selectedIndex] as HTMLElement;
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [selectedIndex]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-start justify-center pt-[15vh] bg-black/50 backdrop-blur-sm"
+      onMouseDown={onClose}
+    >
+      <div
+        className="w-[480px] max-w-[90vw] bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] shadow-2xl overflow-hidden"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {/* Search input */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[#2a2a2a]">
+          <span className="text-gray-500"><SearchIcon /></span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="搜索对话..."
+            className="flex-1 bg-transparent text-sm text-gray-100 placeholder:text-gray-600 outline-none"
+          />
+          <kbd className="text-[10px] text-gray-600 border border-[#333] rounded px-1.5 py-0.5">ESC</kbd>
+        </div>
+
+        {/* Results */}
+        <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-1">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-8 text-center text-[13px] text-gray-600">
+              {query.trim() ? '没有找到匹配的对话' : '暂无对话'}
+            </div>
+          ) : (
+            <>
+              {!query.trim() && (
+                <div className="px-4 pt-2 pb-1 text-[10px] font-medium text-gray-600 uppercase tracking-wider">
+                  近期对话
+                </div>
+              )}
+              {filtered.map((session, i) => (
+                <button
+                  key={session.id}
+                  onClick={() => onSelect(session.id)}
+                  onMouseEnter={() => setSelectedIndex(i)}
+                  className={cn(
+                    'w-full text-left px-4 py-2.5 transition-colors',
+                    i === selectedIndex ? 'bg-[#2a2a2a]' : 'hover:bg-[#222]',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[13px] text-gray-200 truncate flex-1">
+                      {session.title || '新对话'}
+                    </span>
+                    <span className="text-[10px] text-gray-600 flex-shrink-0">
+                      {formatRelativeTime(session.updatedAt)}
+                    </span>
+                  </div>
+                  {session.messageCount > 0 && (
+                    <div className="text-[11px] text-gray-600 mt-0.5">
+                      {session.messageCount} 条消息
+                    </div>
+                  )}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-4 py-2 border-t border-[#2a2a2a] text-[10px] text-gray-600">
+          <div className="flex items-center gap-3">
+            <span><kbd className="text-gray-500">↑↓</kbd> 导航</span>
+            <span><kbd className="text-gray-500">↵</kbd> 选择</span>
+          </div>
+          <span>{filtered.length} 个对话</span>
+        </div>
+      </div>
     </div>
   );
 }

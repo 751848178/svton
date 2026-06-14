@@ -2,11 +2,20 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentConfig } from '@svton/agent-core';
 import type { TauriPlatform } from '@svton/agent-platform';
 import { useChat, useSession, useAgentContext } from '@svton/agent-client';
-import { type SlashCommand, type MentionItem } from '@svton/agent-ui';
+import { type SlashCommand, type MentionItem, type ReasoningEffort } from '@svton/agent-ui';
 import { Sidebar, type View } from '@/components/Sidebar';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { ChatContent } from '@/components/ChatContent';
 import { useGitBranch } from '@/hooks/useGitBranch';
+import { PopoutIcon } from '@/components/icons';
+import type { AgentExtra } from '@/lib/agent-setup';
+import {
+  AutomationPanelExtra,
+  WorktreePanelExtra,
+  AgentsPanelExtra,
+  IntegrationsPanelView,
+  ChroniclePanelExtra,
+} from '@/components/ExtraPanels';
 
 // Tauri v2 window drag — use startDragging() for reliable cross-platform support
 let startDraggingFn: (() => Promise<void>) | null = null;
@@ -32,17 +41,19 @@ interface SkillDefinition {
   scope?: string;
 }
 
-export function MainLayout({ config, platform, models, currentModel, setCurrentModel, onReinit }: {
+export function MainLayout({ config, platform, models, currentModel, setCurrentModel, onReinit, extra }: {
   config: AgentConfig;
   platform: TauriPlatform;
   models: { id: string; name: string; providerName: string }[];
   currentModel: string;
   setCurrentModel: (id: string) => void;
   onReinit?: (workingDir?: string) => void;
+  /** Extra agent managers (chronicle, automation, integration, worktree, imageGen) — currently for future UI panels. */
+  extra?: AgentExtra;
 }) {
   const { sessions, currentSessionId, create, switchTo, delete: deleteSession, updateProjectId } = useSession();
   const { status, abort, messages, send } = useChat();
-  const { projectService } = useAgentContext();
+  const { projectService, chatService } = useAgentContext();
   const [matchedSkills, setMatchedSkills] = useState<string[]>([]);
   const [view, setView] = useState<View>('chat');
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -192,6 +203,17 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
     }
   }, [projectService, platform, onReinit]);
 
+  // Pop out the current session into a secondary window
+  const handlePopout = useCallback(async () => {
+    if (!currentSessionId) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('popout_session', { sessionId: currentSessionId });
+    } catch (e) {
+      console.error('Popout failed:', e);
+    }
+  }, [currentSessionId]);
+
   // Automation and Skills data
   const tools = useMemo(() => (config.toolRegistry?.listDefinitions() ?? []) as ToolDefinition[], [config.toolRegistry]);
   const agentSkills = useMemo(() => (config.capabilities?.skillManager?.list() ?? []) as SkillDefinition[], [config.capabilities]);
@@ -207,6 +229,13 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
     // Sync planMode state: if user explicitly sets a non-plan mode, plan mode is off
     setPlanMode(mode === 'plan');
   }, [config, platform]);
+
+  // Reasoning effort — applied to the runtime via ChatService
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(undefined);
+  const handleReasoningEffortChange = useCallback((effort: ReasoningEffort) => {
+    setReasoningEffort(effort);
+    chatService?.setReasoningEffort(effort);
+  }, [chatService]);
 
   // Plan mode — initialize from permission manager state (sync with stored mode)
   const [planMode, setPlanMode] = useState(() => {
@@ -263,12 +292,16 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
     { name: 'status', description: '查看当前状态和能力', action: () => {
       send(`当前 Agent 状态:\n- 模型: ${config.model}\n请简要介绍你的能力。`);
     }},
+    { name: 'review', description: '审查代码变更 — 对比分支/提交/未提交更改', action: () => { send('请帮我审查当前的代码变更。先用 git diff 查看未提交的更改，再分析每个变更的质量、潜在风险和改进建议。'); } },
+    { name: 'agent', description: '切换 Agent 定义 — 用法: /agent <name>', action: () => { send('请列出当前可用的 Agent 定义，并说明各自的适用场景。'); } },
   ], [create, send, config]);
 
   // Git branch + project name for input footer
   const workingDir = config?.workingDir || '/';
-  const gitBranch = useGitBranch(platform, workingDir);
   const currentProject = projects.find((p) => p.id === currentProjectId);
+  // Use project path when available, fallback to config working dir
+  const effectiveWorkingDir = currentProject?.path || workingDir;
+  const gitBranch = useGitBranch(platform, effectiveWorkingDir);
   const projectName = currentProject?.name ?? null;
 
   // Mention items for @ references — categorized: skills, tools, files
@@ -286,8 +319,8 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
       });
     }
     // Tools
-    const tools = config.toolRegistry?.listDefinitions() ?? [];
-    for (const t of tools.slice(0, 20)) {
+    const toolDefs = config.toolRegistry?.listDefinitions() ?? [];
+    for (const t of toolDefs.slice(0, 20)) {
       items.push({
         label: t.name,
         description: t.description,
@@ -337,7 +370,7 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
           onMouseDown={handleDragStart}
           className="h-9 flex-shrink-0 cursor-default select-none"
         />
-        <SettingsPanel platform={platform} agentConfig={config} onBack={() => setView('chat')} />
+        <SettingsPanel platform={platform} agentConfig={config} extra={extra} onBack={() => setView('chat')} onReinit={onReinit} />
       </div>
     );
   }
@@ -378,6 +411,16 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
                 {gitBranch}
               </span>
             )}
+            {currentSessionId && (
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={handlePopout}
+                title="在新窗口中打开此会话"
+                className="flex items-center justify-center w-6 h-6 rounded text-gray-600 hover:text-gray-300 hover:bg-[#2a2a2a] transition-colors"
+              >
+                <PopoutIcon />
+              </button>
+            )}
           </div>
         </div>
 
@@ -402,13 +445,34 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
               onSelectProject={handleSwitchProject}
               mentionItems={mentionItems}
               onMentionSelect={handleMentionSelect}
+              reasoningEffort={reasoningEffort}
+              onReasoningEffortChange={handleReasoningEffortChange}
             />
           )}
           {view === 'automation' && (
-            <AutomationPanel tools={tools} onManage={() => setView('settings')} />
+            <AutomationPanelExtra automationManager={extra?.automationManager} onManage={() => setView('settings')} onTrigger={(prompt) => { send(prompt); setView('chat'); }} />
           )}
           {view === 'skills' && (
-            <SkillsPanel skills={agentSkills} onManage={() => setView('settings')} />
+            <SkillsPanel skills={agentSkills} platform={platform} onManage={() => setView('settings')} />
+          )}
+          {view === 'plugins' && (
+            <PluginsPanel config={config} platform={platform} tools={tools} />
+          )}
+          {view === 'agents' && (
+            <AgentsPanelExtra config={config} onManage={() => setView('settings')} onSwitchAgent={(name) => { send(`/agent ${name}`); setView('chat'); }} />
+          )}
+          {view === 'worktrees' && (
+            <WorktreePanelExtra
+              worktreeManager={extra?.worktreeManager ?? config.capabilities?.worktreeManager}
+              workingDir={effectiveWorkingDir}
+              onManage={() => setView('settings')}
+            />
+          )}
+          {view === 'integrations' && (
+            <IntegrationsPanelView integrationManager={extra?.integrationManager} onManage={() => setView('settings')} />
+          )}
+          {view === 'chronicle' && (
+            <ChroniclePanelExtra chronicleManager={extra?.chronicleManager} onManage={() => setView('settings')} />
           )}
         </div>
       </div>
@@ -443,30 +507,366 @@ function AutomationPanel({ tools, onManage }: { tools: ToolDefinition[]; onManag
 
 // ── Skills panel ──────────────────────────────────────────
 
-function SkillsPanel({ skills, onManage }: { skills: SkillDefinition[]; onManage?: () => void }) {
+function SkillsPanel({ skills, platform, onManage }: { skills: SkillDefinition[]; platform: TauriPlatform; onManage?: () => void }) {
+  const [search, setSearch] = useState('');
+  const [disabledSkills, setDisabledSkills] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    platform.storage.get<string[]>('agent:disabled_skills').then(v => {
+      if (Array.isArray(v)) setDisabledSkills(new Set(v));
+    }).catch(() => {});
+  }, [platform.storage]);
+
+  const toggleSkill = useCallback(async (name: string) => {
+    const next = new Set(disabledSkills);
+    if (next.has(name)) next.delete(name); else next.add(name);
+    setDisabledSkills(next);
+    await platform.storage.set('agent:disabled_skills', Array.from(next));
+  }, [disabledSkills, platform.storage]);
+
+  // Categorize: plugin skills (scope includes 'plugin') vs workspace/personal
+  const filtered = useMemo(() => {
+    if (!search.trim()) return skills;
+    const q = search.toLowerCase();
+    return skills.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      (s.description?.toLowerCase().includes(q))
+    );
+  }, [skills, search]);
+
+  const workspaceSkills = filtered.filter(s => !s.scope?.includes('plugin'));
+  const pluginSkills = filtered.filter(s => s.scope?.includes('plugin'));
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
-      <div className="flex items-center justify-between mb-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
         <h2 className="text-lg text-white font-light">技能</h2>
-        {onManage && <button onClick={onManage} className="text-[11px] text-cyan-500 hover:text-cyan-400">在设置中管理 →</button>}
+        <div className="flex items-center gap-2">
+          {onManage && <button onClick={onManage} className="text-[11px] text-cyan-500 hover:text-cyan-400">在设置中管理 →</button>}
+        </div>
       </div>
+      <p className="text-[11px] text-gray-500 mb-4">管理项目级与用户级技能。启用后可在聊天里通过 $skill-name 使用。</p>
+
+      {/* Search bar */}
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#222] border border-[#2a2a2a] mb-4">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-500"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="搜索技能..."
+          className="flex-1 bg-transparent text-[12px] text-gray-300 placeholder:text-gray-600 outline-none"
+        />
+      </div>
+
       {skills.length === 0 ? (
-        <p className="text-gray-500 text-sm">暂无注册的技能</p>
+        <p className="text-gray-500 text-sm text-center py-8">暂无注册的技能</p>
       ) : (
-        <div className="space-y-2">
-          {skills.map((skill) => (
-            <div key={skill.name} className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-white font-medium">{skill.name}</span>
-                {skill.scope && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-900/30 text-cyan-400">{skill.scope}</span>
-                )}
+        <>
+          {/* Workspace & Personal Skills */}
+          {workspaceSkills.length > 0 && (
+            <div className="mb-6">
+              <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-2">工作区与个人技能</div>
+              <div className="space-y-2">
+                {workspaceSkills.map((skill) => {
+                  const isDisabled = disabledSkills.has(skill.name);
+                  return (
+                    <div key={skill.name} className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3 flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-medium ${isDisabled ? 'text-gray-600' : 'text-white'}`}>{skill.name}</span>
+                          {skill.scope && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#333] text-gray-500">{skill.scope === 'user' ? '个人' : skill.scope}</span>
+                          )}
+                          {!isDisabled && (
+                            <span className="text-[9px] text-gray-600 font-mono">${skill.name}</span>
+                          )}
+                        </div>
+                        {skill.description && <div className={`text-xs mt-0.5 truncate ${isDisabled ? 'text-gray-700' : 'text-gray-500'}`}>{skill.description}</div>}
+                      </div>
+                      <Toggle enabled={!isDisabled} onChange={() => toggleSkill(skill.name)} />
+                    </div>
+                  );
+                })}
               </div>
-              {skill.description && <div className="text-xs text-gray-500 mt-1">{skill.description}</div>}
+            </div>
+          )}
+
+          {/* Plugin Skills */}
+          {pluginSkills.length > 0 && (
+            <div>
+              <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wider mb-2">Plugin 技能</div>
+              <p className="text-[10px] text-gray-600 mb-2">由插件注册，修改请到对应插件中进行。</p>
+              <div className="space-y-2">
+                {pluginSkills.map((skill) => {
+                  const isDisabled = disabledSkills.has(skill.name);
+                  return (
+                    <div key={skill.name} className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3 flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-medium ${isDisabled ? 'text-gray-600' : 'text-white'}`}>{skill.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">Plugin</span>
+                        </div>
+                        {skill.description && <div className={`text-xs mt-0.5 truncate ${isDisabled ? 'text-gray-700' : 'text-gray-500'}`}>{skill.description}</div>}
+                      </div>
+                      <Toggle enabled={!isDisabled} onChange={() => toggleSkill(skill.name)} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {filtered.length === 0 && (
+            <p className="text-gray-600 text-sm text-center py-8">没有找到匹配的技能</p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Plugins panel ─────────────────────────────────────────
+
+const COMPUTER_USE_TOOLS = ['screenshot', 'mouse_click', 'mouse_double_click', 'mouse_move', 'mouse_down', 'mouse_up', 'mouse_drag', 'scroll', 'keyboard_type_text', 'keyboard_press_key'];
+const CHROME_CDP_TOOLS = ['chrome_navigate', 'chrome_screenshot', 'chrome_click', 'chrome_type', 'chrome_evaluate', 'chrome_get_content'];
+
+function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platform: TauriPlatform; tools: ToolDefinition[] }) {
+  const [disabledTools, setDisabledTools] = useState<Set<string>>(new Set());
+  const [permissions, setPermissions] = useState<{ accessibility: boolean; screen_recording: boolean } | null>(null);
+  const [cdpConnected, setCdpConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const disabled = await platform.storage.get<string[]>('agent:disabled_tools') ?? [];
+      setDisabledTools(new Set(disabled));
+      try {
+        const api = await import('@tauri-apps/api/core' as string);
+        const invoke = (api as any).invoke;
+        setPermissions(await invoke('check_macos_permissions'));
+        const cdp = await invoke('check_chrome_cdp');
+        setCdpConnected(cdp.connected);
+      } catch { setPermissions({ accessibility: true, screen_recording: true }); }
+    })();
+  }, [platform.storage]);
+
+  useEffect(() => {
+    const onFocus = async () => {
+      try {
+        const api = await import('@tauri-apps/api/core' as string);
+        const invoke = (api as any).invoke;
+        setPermissions(await invoke('check_macos_permissions'));
+        const cdp = await invoke('check_chrome_cdp');
+        setCdpConnected(cdp.connected);
+      } catch {}
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+
+  const toggleGroup = useCallback(async (names: string[], enable: boolean) => {
+    const next = new Set(disabledTools);
+    enable ? names.forEach(n => next.delete(n)) : names.forEach(n => next.add(n));
+    setDisabledTools(next);
+    await platform.storage.set('agent:disabled_tools', Array.from(next));
+    const registry = config.toolRegistry;
+    if (registry && !enable) names.forEach(n => registry.unregister(n));
+  }, [disabledTools, platform.storage, config.toolRegistry]);
+
+  const toggleTool = useCallback(async (name: string) => {
+    const next = new Set(disabledTools);
+    next.has(name) ? next.delete(name) : next.add(name);
+    setDisabledTools(next);
+    await platform.storage.set('agent:disabled_tools', Array.from(next));
+    if (config.toolRegistry && next.has(name)) config.toolRegistry.unregister(name);
+  }, [disabledTools, platform.storage, config.toolRegistry]);
+
+  const requestPerm = useCallback(async (type: 'accessibility' | 'screen_recording') => {
+    try {
+      const api = await import('@tauri-apps/api/core' as string);
+      const invoke = (api as any).invoke;
+      await invoke(type === 'accessibility' ? 'request_accessibility_permission' : 'request_screen_recording_permission');
+      await new Promise(r => setTimeout(r, 500));
+      await invoke('open_system_settings', { pane: type });
+    } catch {}
+  }, []);
+
+  const launchChrome = useCallback(async () => {
+    try {
+      const api = await import('@tauri-apps/api/core' as string);
+      await (api as any).invoke('launch_chrome_debug');
+      await new Promise(r => setTimeout(r, 2000));
+      const cdp = await (api as any).invoke('check_chrome_cdp');
+      setCdpConnected(cdp.connected);
+    } catch {}
+  }, []);
+
+  const [extConnected, setExtConnected] = useState<boolean | null>(null);
+  const detectExtension = useCallback(async () => {
+    try {
+      const resp = await fetch('http://localhost:9223/ping', { method: 'GET', signal: AbortSignal.timeout(2000) });
+      setExtConnected(resp.ok);
+    } catch {
+      setExtConnected(false);
+    }
+  }, []);
+
+  const handleInstallExtension = useCallback(async () => {
+    try {
+      // Find the extension directory relative to the app resources
+      // In dev: the extensions/ folder is at the project root
+      // In production: it's bundled with the app
+      const api: any = await import('@tauri-apps/api/core' as string);
+
+      // Try to open the local extension folder in Finder
+      // The extension is at <app_dir>/extensions/chrome-cdp-relay
+      try {
+        await api.invoke('plugin:shell|open', { path: '/extensions/chrome-cdp-relay' });
+      } catch {
+        // Fallback: try opening from the app resource directory
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window' as string);
+          // Open Chrome extensions page
+          await api.invoke('plugin:shell|open', { path: 'chrome://extensions' });
+        } catch { /* ignore */ }
+      }
+
+      // Also open Chrome extensions page
+      setTimeout(async () => {
+        try {
+          await api.invoke('plugin:shell|open', { path: 'chrome://extensions' });
+        } catch { /* ignore */ }
+      }, 500);
+    } catch (e) {
+      console.error('Failed to open extension folder:', e);
+      // Fallback: open GitHub
+      window.open('https://github.com/svton/svton/tree/main/extensions/chrome-cdp-relay', '_blank');
+    }
+  }, []);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      <h2 className="text-lg text-white font-light mb-4">插件管理</h2>
+
+      {/* System permissions */}
+      {permissions && (
+        <div className="mb-6 space-y-2">
+          <h3 className="text-[13px] text-gray-400 font-medium mb-2">系统权限</h3>
+          {[
+            { key: 'accessibility' as const, label: '辅助功能', desc: '鼠标和键盘控制需要此权限', granted: permissions.accessibility },
+            { key: 'screen_recording' as const, label: '屏幕录制', desc: '截图功能需要此权限', granted: permissions.screen_recording },
+          ].map(p => (
+            <div key={p.key} className="flex items-center justify-between bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className={`w-2 h-2 rounded-full ${p.granted ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                <div><div className="text-sm text-white">{p.label}</div><div className="text-[11px] text-gray-500">{p.desc}</div></div>
+              </div>
+              {p.granted ? <span className="text-[11px] text-green-500">已授权</span> : <button onClick={() => requestPerm(p.key)} className="px-3 py-1 text-[11px] text-white bg-[#3B82F6] hover:bg-[#60A5FA] rounded-md transition-colors">请求权限</button>}
             </div>
           ))}
         </div>
       )}
+
+      {/* Chrome Connection — Extension (preferred) + Launch Parameter (fallback) */}
+      <div className="mb-6 space-y-2">
+        <h3 className="text-[13px] text-gray-400 font-medium mb-2">Chrome 连接</h3>
+
+        {/* Method 1: Chrome Extension (recommended) */}
+        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <span className={`w-2 h-2 rounded-full ${extConnected === true ? 'bg-green-500' : extConnected === false ? 'bg-gray-500' : 'bg-gray-600'}`} />
+              <div>
+                <div className="text-sm text-white">Chrome 扩展 <span className="text-[10px] text-cyan-400 ml-1">推荐</span></div>
+                <div className="text-[11px] text-gray-500">{extConnected === true ? '扩展已连接' : extConnected === false ? '扩展未连接' : '点击检测扩展连接'}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {extConnected ? (
+                <span className="text-[11px] text-green-500">已连接</span>
+              ) : (
+                <>
+                  <button onClick={detectExtension} className="px-2 py-1 text-[11px] text-gray-300 border border-[#333] rounded-md hover:bg-[#222]">检测</button>
+                  <button onClick={handleInstallExtension} className="px-2 py-1 text-[11px] text-blue-400 hover:text-blue-300">安装扩展 →</button>
+                </>
+              )}
+            </div>
+          </div>
+          {extConnected === false && (
+            <div className="text-[10px] text-gray-600 mt-2 space-y-0.5">
+              <p>1. 点击「安装扩展」打开扩展文件夹</p>
+              <p>2. Chrome 打开 chrome://extensions</p>
+              <p>3. 开启右上角「开发者模式」</p>
+              <p>4. 点击「加载已解压的扩展程序」，选择打开的文件夹</p>
+            </div>
+          )}
+        </div>
+
+        {/* Method 2: Launch Parameter (fallback) */}
+        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className={`w-2 h-2 rounded-full ${cdpConnected ? 'bg-green-500' : 'bg-gray-500'}`} />
+              <div>
+                <div className="text-sm text-gray-400">启动参数 <span className="text-[10px] text-gray-600 ml-1">备用</span></div>
+                <div className="text-[11px] text-gray-500">{cdpConnected ? 'Chrome 已连接 (端口 9222)' : '未启动调试端口'}</div>
+              </div>
+            </div>
+            {cdpConnected ? (
+              <span className="text-[11px] text-green-500">已连接</span>
+            ) : (
+              <button onClick={launchChrome} className="px-3 py-1 text-[11px] text-gray-300 border border-[#333] rounded-md hover:bg-[#222]">启动 Chrome</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Computer Use */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[13px] text-gray-400 font-medium">Computer Use</h3>
+          <Toggle enabled={COMPUTER_USE_TOOLS.some(t => !disabledTools.has(t))} onChange={(v) => toggleGroup(COMPUTER_USE_TOOLS, v)} />
+        </div>
+        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg divide-y divide-[#252525]">
+          {COMPUTER_USE_TOOLS.map(name => (
+            <div key={name} className="flex items-center justify-between px-4 py-2">
+              <span className="text-[13px] text-gray-300">{name}</span>
+              <Toggle enabled={!disabledTools.has(name)} onChange={() => toggleTool(name)} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Chrome CDP Tools */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[13px] text-gray-400 font-medium">Chrome CDP</h3>
+          <Toggle enabled={CHROME_CDP_TOOLS.some(t => !disabledTools.has(t))} onChange={(v) => toggleGroup(CHROME_CDP_TOOLS, v)} />
+        </div>
+        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg divide-y divide-[#252525]">
+          {CHROME_CDP_TOOLS.map(name => (
+            <div key={name} className="flex items-center justify-between px-4 py-2">
+              <span className="text-[13px] text-gray-300">{name}</span>
+              <Toggle enabled={!disabledTools.has(name)} onChange={() => toggleTool(name)} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="text-[11px] text-gray-600">禁用工具在下次新会话时完全生效。</p>
     </div>
+  );
+}
+
+// ── Toggle ──────────────────────────────────────────────
+
+function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!enabled)}
+      className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-[#3B82F6]' : 'bg-[#333]'}`}
+    >
+      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all duration-200 ${enabled ? 'left-[18px]' : 'left-0.5'}`} />
+    </button>
   );
 }

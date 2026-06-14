@@ -4,17 +4,72 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { TauriPlatform } from '@svton/agent-platform';
 import type { AgentConfig } from '@svton/agent-core';
 import { AgentProvider } from '@svton/agent-client';
-import { ChatPanel, type ChatPanelMessage } from '@svton/agent-ui';
-import { initAgent } from '@/lib/agent-setup';
+import { ChatPanel, SplitScreenPanel, type ChatPanelMessage, type SplitScreenContent } from '@svton/agent-ui';
+import { initAgent, type AgentExtra } from '@/lib/agent-setup';
 import { loadConfig, createDefaultConfig, openConfigInEditor } from '@/lib/config-store';
 import { Sidebar, type View } from '@/components/Sidebar';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MainLayout } from '@/components/MainLayout';
 
+// ── Preview Window ───────────────────────────────────────
+function PreviewWindow() {
+  const [content, setContent] = useState<SplitScreenContent | null>(null);
+
+  useEffect(() => {
+    // Read content from localStorage (shared across Tauri windows of same origin)
+    const params = new URLSearchParams(window.location.search);
+    const key = params.get('key');
+    if (key) {
+      const storageKey = `svton-preview-${key}`;
+      // Poll for a short time in case localStorage write hasn't completed yet
+      let attempts = 0;
+      const tryRead = () => {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored) as SplitScreenContent;
+            setContent(parsed);
+            // Clean up after reading
+            localStorage.removeItem(storageKey);
+          } catch { /* ignore parse error */ }
+        } else if (attempts < 20) {
+          attempts++;
+          setTimeout(tryRead, 100);
+        }
+      };
+      tryRead();
+    }
+  }, []);
+
+  return (
+    <div className="h-screen bg-[#1c1c1c] text-gray-100">
+      <SplitScreenPanel
+        content={content}
+        onClose={() => {
+          (async () => {
+            try {
+              const { getCurrentWindow } = await import('@tauri-apps/api/window' as string);
+              getCurrentWindow().close();
+            } catch { window.close(); }
+          })();
+        }}
+      />
+    </div>
+  );
+}
+
 // ── App ──────────────────────────────────────────────────
 export default function App() {
+  // Check if this is a standalone preview window
+  const isPreviewWindow = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('preview') === '1';
+
+  if (isPreviewWindow) {
+    return <PreviewWindow />;
+  }
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
+  const [agentExtra, setAgentExtra] = useState<AgentExtra | null>(null);
   const [platform, setPlatform] = useState<TauriPlatform | null>(null);
   const [unconfigured, setUnconfigured] = useState(false);
   const [unconfiguredMessages, setUnconfiguredMessages] = useState<ChatPanelMessage[]>([]);
@@ -48,6 +103,7 @@ export default function App() {
 
         if (result.kind === 'ready') {
           setAgentConfig(result.config);
+          setAgentExtra(result.extra ?? null);
           setCurrentModel(result.config.model);
         } else {
           setUnconfigured(true);
@@ -79,6 +135,7 @@ export default function App() {
         if (cancelled) return;
         if (result.kind === 'ready') {
           setAgentConfig(result.config);
+          setAgentExtra(result.extra ?? null);
         }
       })
       .catch((e) => console.error('[App] model switch failed:', e));
@@ -106,6 +163,7 @@ export default function App() {
         const result = await initAgent(platform);
         if (result.kind === 'ready') {
           setAgentConfig(result.config);
+          setAgentExtra(result.extra ?? null);
           setCurrentModel(result.config.model);
           setUnconfigured(false);
         }
@@ -155,8 +213,10 @@ export default function App() {
               const result = await initAgent(platform, currentModel);
               if (result.kind === 'ready') {
                 setAgentConfig(result.config);
+                setAgentExtra(result.extra ?? null);
               }
             }}
+            extra={agentExtra ?? undefined}
           />
         </AgentProvider>
       ) : unconfiguredView === 'settings' && platform ? (
