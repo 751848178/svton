@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps<{
   name: string;
@@ -7,10 +7,25 @@ const props = defineProps<{
   title?: string;
 }>();
 
-const containerRef = ref<HTMLElement | null>(null);
-const demoHeight = computed(() => props.height || '560px');
+const iframeRef = ref<HTMLIFrameElement | null>(null);
+const autoHeight = ref<number | null>(null);
 const demoTitle = computed(() => props.title || '可交互 Demo');
-const src = computed(() => `/svton/demos/?demo=${props.name}&t=${Date.now()}`);
+const src = computed(() => `/svton/demos/?demo=${props.name}`);
+
+const demoHeight = computed(() => {
+  if (autoHeight.value) return autoHeight.value + 'px';
+  return props.height || '560px';
+});
+
+// Listen for height reports from iframe
+function onMessage(e: MessageEvent) {
+  if (e.data?.type === 'demo-height' && typeof e.data.height === 'number') {
+    autoHeight.value = e.data.height;
+  }
+}
+
+onMounted(() => window.addEventListener('message', onMessage));
+onUnmounted(() => window.removeEventListener('message', onMessage));
 </script>
 
 <template>
@@ -20,8 +35,9 @@ const src = computed(() => `/svton/demos/?demo=${props.name}&t=${Date.now()}`);
       <span class="demo-title">{{ demoTitle }}</span>
     </div>
     <iframe
+      ref="iframeRef"
       :src="src"
-      :style="{ width: '100%', height: demoHeight, border: '1px solid #2a2a2a', borderRadius: '8px', background: '#0a0a0a' }"
+      :style="{ width: '100%', height: demoHeight, border: '1px solid #2a2a2a', borderRadius: '8px', background: '#0a0a0a', transition: 'height 0.2s' }"
       loading="lazy"
       frameborder="0"
       sandbox="allow-scripts allow-same-origin"

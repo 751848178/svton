@@ -136,7 +136,7 @@ export default defineConfig({
                 { text: 'Tauri 平台', link: '/agent-platform/tauri' },
               ],
             },
-            { text: 'agent-web 应用', link: '/packages/agent-web' },
+            { text: 'agent-web 应用', link: '/agent-web/' },
           ],
         },
         {

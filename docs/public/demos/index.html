@@ -525,6 +525,19 @@ const demos = {
 const params = new URLSearchParams(location.search);
 const name = params.get('demo') || 'plan-block';
 document.getElementById('app').innerHTML = demos[name] ? demos[name]() : '<div class="dh">Demo not found: ' + name + '</div>';
+
+// Auto-report height to parent for dynamic sizing
+function reportHeight() {
+  const h = document.body.scrollHeight;
+  parent.postMessage({ type: 'demo-height', height: h }, '*');
+}
+// Report after render + on DOM changes
+setTimeout(reportHeight, 100);
+setTimeout(reportHeight, 500);
+window.addEventListener('load', reportHeight);
+// Re-report when interactive elements change content
+const observer = new MutationObserver(() => setTimeout(reportHeight, 50));
+observer.observe(document.getElementById('app'), { childList: true, subtree: true });
 </script>
 </body>
 </html>
