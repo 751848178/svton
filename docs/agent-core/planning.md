@@ -1,6 +1,30 @@
 # 规划系统(Planning)
 
+> 多步骤任务规划与执行跟踪 — 支持计划创建、步骤依赖、状态更新和持久化存储。
+
 `PlanningManager` 管理多步骤任务的规划与执行跟踪。支持计划创建、步骤依赖、状态更新、进度查询和持久化存储。配合 3 个内置规划工具,Agent 可以自主创建和执行结构化计划。
+
+## 快速使用
+
+```typescript
+import { PlanningManager } from '@svton/agent-core';
+
+const planner = new PlanningManager(storage);
+await planner.init();
+
+// 创建一个多步骤计划
+const plan = await planner.createPlan({
+  title: '重构认证模块',
+  steps: [
+    { title: '分析现有代码', description: '阅读 src/auth/ 下所有文件' },
+    { title: '设计新架构', description: '绘制架构图并确认方案' },
+    { title: '实现重构', description: '编写代码并运行测试' },
+  ],
+});
+
+// 更新步骤状态
+await planner.updateStepStatus(plan.id, 0, 'completed');
+```
 
 ## 类型定义
 
@@ -324,3 +348,11 @@ const runtime = await AgentRuntime.createAsync(
 - **善用依赖**:通过 `dependencies` 确保执行顺序,避免并行冲突。
 - **记录结果**:每个步骤完成后用 `result` 记录关键信息,便于回溯。
 - **用 plan 模式规划**:配合 `RunOptions.mode: 'plan'`,Agent 在只读模式下分析任务并生成计划,确认后再切换模式执行。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — 运行时集成 PlanningManager
+- [工具系统](./tools) — 3 个内置规划工具
+- [子代理](./subagent) — 配合子代理拆分复杂任务
+- [权限系统](./permission) — plan 模式下的只读权限

@@ -1,6 +1,38 @@
 # 生命周期钩子(Hooks)
 
+> 8 种生命周期事件的钩子机制 — 拦截、修改或拒绝操作，实现日志、审计和预处理。
+
 `HookManager` 提供 8 种生命周期事件的钩子注册和触发机制。钩子可以拦截、修改或拒绝操作,实现日志记录、审计、自定义权限、输入预处理等。
+
+## 快速使用
+
+```typescript
+import { HookManager } from '@svton/agent-core';
+
+const hookManager = new HookManager();
+
+// 注册工具执行前的审计钩子
+hookManager.register({
+  event: 'pre_tool_use',
+  priority: 100,
+  handler: async (ctx) => {
+    console.log(`[AUDIT] ${ctx.toolName}:`, ctx.input);
+    return { action: 'continue' };
+  },
+});
+
+// 注册拒绝特定操作的安全钩子
+hookManager.register({
+  event: 'pre_tool_use',
+  priority: 1,
+  handler: async (ctx) => {
+    if (ctx.toolName === 'bash' && ctx.input.command.includes('rm -rf')) {
+      return { action: 'deny', reason: '禁止删除操作' };
+    }
+    return { action: 'continue' };
+  },
+});
+```
 
 ## 8 种钩子事件
 
@@ -336,3 +368,10 @@ hookManager.register({ event: 'pre_tool_use', priority: 100, handler: fn3 }); //
 - **钩子要快速**:钩子是同步等待的,慢钩子会阻塞整个 ReAct 循环。
 - **异常处理**:钩子内的异常会被自动 catch,不会中断 Agent,但应尽量避免。
 - **使用唯一 ID**:为重要钩子指定 `id`,方便后续动态移除。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — 运行时触发各种钩子事件
+- [权限系统](./permission) — `permission_request` 钩子与权限系统协作
+- [工具系统](./tools) — `pre_tool_use` / `post_tool_use` 钩子

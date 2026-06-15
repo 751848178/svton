@@ -1,6 +1,26 @@
 # 权限系统(Permission)
 
+> 控制工具调用权限 — 5 种模式 + 精细规则系统，平衡自动化效率与安全。
+
 `PermissionManager` 控制工具调用的权限,决定哪些工具可以自动执行、哪些需要用户审批、哪些被完全禁止。通过 5 种模式和精细的规则系统,平衡自动化效率与安全。
+
+## 快速使用
+
+```typescript
+import { PermissionManager } from '@svton/agent-core';
+
+const permission = new PermissionManager({
+  mode: 'default',  // 只读工具自动通过,写操作需审批
+  rules: [
+    { tool: 'bash(git *)', effect: 'allow' },   // 允许 git 命令
+    { tool: 'bash(rm *)', effect: 'deny' },      // 禁止 rm 命令
+  ],
+});
+
+// 检查工具权限
+const decision = permission.check('file_edit', { path: '/README.md' });
+// → { allowed: false, needsApproval: true }
+```
 
 ## 5 种权限模式
 
@@ -306,3 +326,11 @@ rules: [
   { tool: 'bash', effect: 'ask' },
 ]
 ```
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — 运行时权限检查
+- [工具系统](./tools) — annotations 影响权限判断
+- [生命周期钩子](./hooks) — `permission_request` 钩子可自定义决策
+- [自定义 Agent](./agent-definition) — 通过 AgentDefinition 配置权限模式

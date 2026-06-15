@@ -1,9 +1,27 @@
 # Provider(LLM 提供商)
 
+> 统一的 `IProvider` 接口抽象不同 LLM 服务商（OpenAI / Anthropic），支持流式输出、工具调用与扩展思考。
+
 `@svton/agent-core` 通过统一的 `IProvider` 接口抽象不同的 LLM 服务商,目前内置支持:
 
 - **OpenAIProvider** — 兼容所有 OpenAI Chat Completions 格式的服务(OpenAI、Azure OpenAI、Ollama、vLLM、DeepSeek 等)。
 - **AnthropicProvider** — Anthropic Claude 系列,支持流式、工具调用和扩展思考(extended thinking)。
+
+## 快速使用
+
+```typescript
+import { OpenAIProvider } from '@svton/agent-core';
+
+const provider = new OpenAIProvider({
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: process.env.OPENAI_API_KEY!,
+  models: [{ id: 'gpt-4o', name: 'GPT-4o', contextWindow: 128000 }],
+});
+
+for await (const event of provider.chat(messages, { model: 'gpt-4o' })) {
+  if (event.type === 'text') process.stdout.write(event.text);
+}
+```
 
 ## IProvider 接口
 
@@ -269,3 +287,10 @@ console.log(`估算 tokens: ${tokens}`);
 ```
 
 > 注意:这是粗略估算,与 Provider 实际计费可能略有差异。如需精确计数,建议使用各自的官方 tokenizer。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — ReAct 循环核心，调用 Provider
+- [工具系统](./tools) — 工具定义与执行
+- [技能系统](./skills) — 渐进式加载领域知识

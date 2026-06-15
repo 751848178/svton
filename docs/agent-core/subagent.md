@@ -1,6 +1,26 @@
 # 子代理系统(Subagent)
 
+> 隔离的子代理 — 独立上下文窗口、受限工具集，完成后仅返回摘要。
+
 `SubagentManager` 管理隔离的子代理——每个子代理拥有独立的上下文窗口、受限的工具集和独立的生命周期。子代理执行完成后,只有摘要返回给父代理,不会污染父代理的上下文。
+
+## 快速使用
+
+```typescript
+import { SubagentManager } from '@svton/agent-core';
+
+const subagentManager = new SubagentManager(config, runtime, platform, toolRegistry);
+runtime.setSubagentManager(subagentManager);
+
+// 生成一个子代理执行分析任务
+const summary = await subagentManager.spawn({
+  task: '审查 src/ 目录的代码质量',
+  tools: ['file_read', 'grep', 'glob'],  // 只读工具白名单
+  maxIterations: 15,
+});
+
+console.log(summary);
+```
 
 ## 核心原则
 
@@ -264,3 +284,11 @@ runtime.setSubagentManager(subagentManager);
 - **利用并行**:多个独立任务使用 `spawnParallel` 而非顺序 `spawn`。
 - **使用 CSV 扇出**处理批量同构任务。
 - **小模型子代理**:非关键任务可以用 `model` 指定更小的模型降低成本。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — 父代理的运行时
+- [权限系统](./permission) — 子代理继承的权限规则
+- [工具系统](./tools) — 子代理可用工具白名单/黑名单
+- [规划系统](./planning) — 与子代理配合处理复杂任务

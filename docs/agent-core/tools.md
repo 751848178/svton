@@ -1,6 +1,23 @@
 # 工具系统(Tools)
 
+> Agent 与外部世界交互的桥梁 — 基于"定义与执行分离"原则，内置 30+ 工具。
+
 Agent 通过工具(Tools)与外部世界交互:`@svton/agent-core` 的工具系统基于"定义与执行分离"原则——工具定义是纯数据(JSON Schema),执行器是平台相关的实现。
+
+## 快速使用
+
+```typescript
+import { ToolRegistry, builtins } from '@svton/agent-core';
+
+const registry = new ToolRegistry();
+
+// 注册内置工具
+registry.register(builtins.fileReadDef, new builtins.FileReadExecutor(fs));
+registry.register(builtins.bashDef, new builtins.BashExecutor(platform));
+
+// 执行工具
+const result = await registry.execute('file_read', { path: '/README.md' });
+```
 
 ## 核心类型
 
@@ -383,3 +400,11 @@ for (const [def, executor] of builtinPairs) {
 - **使用 annotations**:`readOnlyHint`、`destructiveHint` 等注解会被权限系统使用,务必正确标注。
 - **错误处理**:执行器内部抛出的异常会被 `ToolRegistry.execute` 捕获并转换为 `isError: true` 的 `ToolResult`,不会中断 Agent 循环。
 - **进度回调**:通过 `ctx.onProgress` 可以向 UI 推送工具执行进度。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — 通过 ToolRegistry 执行工具
+- [权限系统](./permission) — 工具调用权限控制
+- [MCP 协议](./mcp) — 动态注册外部 MCP 工具
+- [第三方集成](./integrations) — 通过集成注入外部服务工具

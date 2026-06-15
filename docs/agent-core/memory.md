@@ -1,6 +1,30 @@
 # 记忆系统(Memory)
 
+> 跨会话记忆 — 管理项目规则、用户偏好和自动提取的历史经验。
+
 `MemoryManager` 管理跨会话的记忆,让 Agent 能够记住项目规则、用户偏好和历史经验。
+
+## 快速使用
+
+```typescript
+import { MemoryManager } from '@svton/agent-core';
+
+const memory = new MemoryManager(storage, provider);
+
+// 初始化:加载项目 AGENT.md + 已有自动记忆
+await memory.init(workingDir);
+
+// 手动保存一条记忆
+await memory.saveEntry({
+  key: 'user-prefers-tabs',
+  content: '用户偏好使用 Tab 缩进',
+  scope: 'user',
+  source: 'manual',
+});
+
+// 搜索相关记忆
+const results = await memory.recall('代码风格偏好');
+```
 
 ## 两类记忆
 
@@ -319,3 +343,10 @@ const runtime = await AgentRuntime.createAsync(
 - **使用小模型提取**:`extractFromConversation` 推荐使用 Haiku 等小模型,降低成本。
 - **定期清理**:通过 `clearAutoMemory` 或 `deleteEntry` 清理过时记忆。
 - **不存储敏感信息**:记忆会注入系统提示词,避免保存密钥、密码等。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — 运行时自动注入记忆上下文
+- [技能系统](./skills) — 与项目记忆类似的渐进式加载策略
+- [自定义 Agent](./agent-definition) — 可通过 AgentDefinition 配置记忆行为

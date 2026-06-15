@@ -1,6 +1,29 @@
 # 技能系统(Skills)
 
+> 可复用的指令集 — 遵循 Agent Skills Open Standard，让 Agent 获得特定领域的专业能力。
+
 `@svton/agent-core` 的技能系统遵循 [Agent Skills Open Standard](https://agentskills.io),并融合了 Claude Code 和 Codex CLI 的实践模式。技能是可复用的指令集,让 Agent 获得特定领域的专业能力。
+
+## 快速使用
+
+```typescript
+import { SkillManager, SkillLoader } from '@svton/agent-core';
+
+const skillManager = new SkillManager(provider);
+
+// 从项目目录加载技能
+const loader = new SkillLoader(storage);
+await loader.loadFromDirectory('.svton/skills/');
+
+// 注册技能
+for (const skill of loader.skills) {
+  skillManager.register(skill);
+}
+
+// 根据用户消息自动匹配并激活技能
+await skillManager.matchSkills('帮我写一个 React 组件');
+// → 激活 "react-expert" 技能,注入领域知识
+```
 
 ## 核心组件
 
@@ -374,3 +397,10 @@ const runtime = await AgentRuntime.createAsync(
 - **设置 avoidWhen**:避免不相关场景误触发。
 - **技能级权限**:对危险技能用 `allowedTools` 限制可用工具。
 - **项目级技能**:放在 `.svton/skills/` 目录,团队共享。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — 运行时注入技能上下文
+- [自定义 Agent](./agent-definition) — 与技能互补的人格定义
+- [记忆系统](./memory) — 类似的渐进式上下文注入策略

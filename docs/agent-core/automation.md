@@ -1,6 +1,32 @@
 # 自动化任务(Automation)
 
+> 定时与事件驱动的自动化任务 — 支持 cron 表达式、定时间隔和事件触发三种方式。
+
 `AutomationManager` 管理 Agent 的定时和事件触发的自动化任务。支持 cron 表达式、定时间隔和事件驱动三种触发方式,定义持久化到 `IStorage`,可通过自然语言创建调度。
+
+## 快速使用
+
+```typescript
+import { AutomationManager } from '@svton/agent-core';
+
+const manager = new AutomationManager(storage);
+
+// 用自然语言创建定时任务
+await manager.create({
+  name: '每日站会提醒',
+  trigger: AutomationManager.parseSchedule('every day at 9am'),
+  prompt: '检查项目进度并生成今日待办',
+});
+
+// 注册触发处理器
+manager.setTriggerHandler(async (automation) => {
+  const runtime = await AgentRuntime.createAsync(config);
+  await runtime.run(automation.prompt).next();
+});
+
+// 手动触发事件
+await manager.triggerEvent('deploy_completed', { service: 'api' });
+```
 
 ## 触发类型
 
@@ -357,3 +383,10 @@ await manager.create({
 // 5. 手动触发事件
 await manager.triggerEvent('deploy_completed', { service: 'api' });
 ```
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — 触发处理器中调用 Runtime
+- [规划系统](./planning) — 结构化任务分解
+- [第三方集成](./integrations) — 事件可来自外部服务

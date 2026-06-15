@@ -1,6 +1,28 @@
 # 第三方集成(Integrations)
 
+> 外部服务集成 — 通过 Manifest 声明凭证和工具，动态启用/禁用 Slack、Linear 等。
+
 `IntegrationManager` 管理外部服务的集成——如 Slack、Linear 等。集成通过 Manifest 声明所需凭证、提供的工具,可以动态启用/禁用。凭证持久化在 `IStorage` 中,启用后工具自动注册到 Agent。
+
+## 快速使用
+
+```typescript
+import { IntegrationManager } from '@svton/agent-core';
+
+const integrations = new IntegrationManager(storage);
+
+// 初始化:加载内置 + 自定义集成清单
+await integrations.init();
+
+// 启用 Slack 集成并提供凭证
+await integrations.enable('slack', {
+  botToken: process.env.SLACK_BOT_TOKEN!,
+});
+
+// 启用后,Slack 工具自动注册到 ToolRegistry
+const tools = integrations.resolveAllTools();
+// → [{ name: 'slack_search', ... }, { name: 'slack_post', ... }]
+```
 
 ## 类型定义
 
@@ -366,3 +388,11 @@ for await (const event of runtime.run('在 #general 频道搜索关于 v2 发布
 - **使用 MCP 模板**:如果目标服务有 MCP 服务器,优先用 `mcpServerTemplate` 而非手写执行器。
 - **按需注册工具**:`resolveAllTools()` 只返回已启用集成的工具,自然实现按需加载。
 - **分类清晰**:自定义集成要正确设置 `category`,便于 UI 分组展示。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [工具系统](./tools) — 启用后集成工具注册到 ToolRegistry
+- [MCP 协议](./mcp) — 替代集成的 MCP 服务器方式
+- [自动化任务](./automation) — 集成事件可触发自动化
+- [权限系统](./permission) — 集成工具的权限控制

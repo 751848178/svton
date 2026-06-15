@@ -1,6 +1,25 @@
 # MCP 协议(Model Context Protocol)
 
+> 内置 MCP 客户端 — 连接外部服务器发现和使用工具、资源、提示模板，集成 Smithery 市场。
+
 `@svton/agent-core` 内置完整的 MCP(Model Context Protocol)客户端实现,支持连接外部 MCP 服务器来发现和使用工具、资源、提示模板。同时集成 Smithery 市场,可以一键安装 MCP 服务器。
+
+## 快速使用
+
+```typescript
+import { MCPClient, HTTPTransport } from '@svton/agent-core';
+
+const client = new MCPClient();
+
+// 连接到远程 MCP 服务器
+await client.connect(new HTTPTransport({
+  url: 'https://mcp.example.com/sse',
+  headers: { Authorization: `Bearer ${token}` },
+}));
+
+// 列出可用工具
+const tools = await client.listTools();
+```
 
 ## 支持的传输方式
 
@@ -335,3 +354,10 @@ for await (const event of runtime.run('查看 svton/svton 仓库最近的 5 个 
   // ...
 }
 ```
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [工具系统](./tools) — MCP 工具自动桥接到 ToolRegistry
+- [第三方集成](./integrations) — 替代 MCP 的集成方式
+- [AgentRuntime](./runtime) — 运行时通过 capabilities 配置 MCP 客户端

@@ -1,6 +1,25 @@
 # AgentRuntime 与 ReAct 循环
 
+> 核心运行时 — 实现 Think → Act → Observe 的 ReAct 循环，集成所有能力管理器。
+
 `AgentRuntime` 是 `@svton/agent-core` 的核心,实现了 Think → Act → Observe 的 ReAct(Reasoning + Acting)循环。它集成所有能力管理器(Prompt、Skill、Memory、Permission、Hook、MCP、Subagent、Planning 等),对外暴露一个简单的 `run()` 异步生成器。
+
+## 快速使用
+
+```typescript
+import { AgentRuntime, OpenAIProvider, ToolRegistry } from '@svton/agent-core';
+
+const runtime = await AgentRuntime.createAsync({
+  provider: new OpenAIProvider({ apiKey: process.env.OPENAI_API_KEY! }),
+  model: 'gpt-4o',
+  toolRegistry: new ToolRegistry(),
+  workingDir: '/project',
+});
+
+for await (const event of runtime.run('分析项目结构')) {
+  console.log(event.type);
+}
+```
 
 ## 架构概览
 
@@ -341,3 +360,13 @@ for await (const event of runtime.run('分析项目结构', { mode: 'plan' })) {
 ## 默认最大迭代
 
 `DEFAULT_MAX_ITERATIONS = 50`。如果 Agent 在 50 次工具调用后仍未完成,会自动停止。可以通过 `AgentConfig.maxIterations` 或 `RunOptions.maxIterations` 调整。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [Provider](./provider) — LLM 提供商接口
+- [工具系统](./tools) — 工具注册与执行
+- [权限系统](./permission) — 运行时权限检查
+- [生命周期钩子](./hooks) — 运行时事件拦截
+- [记忆系统](./memory) — 上下文注入
+- [规划系统](./planning) — 多步骤计划追踪

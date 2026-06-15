@@ -1,6 +1,26 @@
 # 自定义 Agent(Agent Definition)
 
+> 可复用的 Agent 人格定义 — 覆盖模型、系统提示词、工具集和权限模式。
+
 `AgentDefinitionManager` 管理可复用的 Agent 人格定义。一个 AgentDefinition 可以覆盖模型、系统提示词、工具集、权限模式等,让用户可以针对不同任务快速切换 Agent 角色。
+
+## 快速使用
+
+```typescript
+import { AgentDefinitionManager } from '@svton/agent-core';
+
+const manager = new AgentDefinitionManager(storage);
+
+// 加载内置 + 用户级 + 项目级定义
+await manager.loadFromDirectories(fs, projectDir, homeDir);
+
+// 列出可用定义
+const defs = manager.list();
+// → [{ name: 'coder', ... }, { name: 'researcher', ... }, ...]
+
+// 运行时切换
+runtime.switchAgentDefinition('researcher');
+```
 
 ## 定义来源
 
@@ -354,3 +374,11 @@ for await (const event of runtime.run('审查最近的 5 个 commit')) {
 - **用户级定义放 home**:放在 `~/.svton/agents/` 下,跨项目使用。
 - **合理限制工具**:只读 Agent 用 `tools` 白名单限制为只读工具。
 - **设置权限模式**:配合 `permissions` 字段双重保障安全。
+
+## 相关文档
+
+- [index](./index) — agent-core 总览
+- [AgentRuntime](./runtime) — 运行时切换 AgentDefinition
+- [权限系统](./permission) — AgentDefinition 中的权限配置
+- [技能系统](./skills) — 与 AgentDefinition 互补的能力扩展
+- [Provider](./provider) — AgentDefinition 可指定模型
