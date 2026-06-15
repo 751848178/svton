@@ -682,6 +682,13 @@ export class ChatService {
           if (m.id !== assistantMsgId) return m;
           const newThinking = (m.thinking || '') + separator + event.thinking;
           const blocks = [...(m.blocks || [])];
+
+          // Check for redacted thinking content (Anthropic encrypted thinking)
+          if (event.thinking.includes('__REDACTED__') || event.thinking.startsWith('[REDACTED]')) {
+            blocks.push({ type: 'redacted_thinking', reason: 'Provider returned encrypted thinking content' });
+            return { ...m, thinking: newThinking, blocks };
+          }
+
           const lastBlock = blocks[blocks.length - 1];
           if (lastBlock && lastBlock.type === 'thinking') {
             blocks[blocks.length - 1] = { type: 'thinking', text: lastBlock.text + separator + event.thinking };
@@ -893,9 +900,34 @@ export class ChatService {
             } catch { /* not JSON, skip */ }
           }
 
-          // Push a code_review block for git_diff results that look like review findings
+          // Push a code_review block for git_diff results
           if (toolName === 'git_diff' && !result.isError && result.output) {
-            // The diff output is shown as text — the LLM will analyze it.
+            // Parse diff for basic findings (files changed, additions, deletions)
+            const lines = result.output.split('\n');
+            const findings: any[] = [];
+            for (const line of lines) {
+              if (line.startsWith('+++ ') || line.startsWith('--- ')) {
+                const path = line.replace(/^(\+\+\+|---) /, '').replace(/^b\//, '').replace(/^a\//, '');
+                if (path !== '/dev/null') {
+                  findings.push({ file: path, severity: 'info' as const, comment: '文件变更' });
+                }
+              }
+            }
+            if (findings.length > 0) {
+              blocks.push({ type: 'code_review', findings: findings.slice(0, 10) });
+            }
+          }
+
+          // Push an auto_review block from AutoReviewerManager verdicts
+          if (result.metadata?.autoReviewVerdict && !result.isError) {
+            const verdict = result.metadata.autoReviewVerdict as any;
+            blocks.push({
+              type: 'auto_review',
+              toolName,
+              verdict: verdict.verdict || 'approve',
+              reason: verdict.reason || '',
+              ruleId: verdict.ruleId,
+            });
           }
 
           // Push a preview_images block for preview_document results
@@ -962,10 +994,30 @@ export class ChatService {
 
       case 'done': {
         this.lastUsage = event.usage;
-        // Aggregate file_change blocks into a turn_diff if there are multiple
+        // Post-process: extract commands from text, aggregate file_changes
         const applyTurnDiff = (m: DisplayMessage): DisplayMessage => {
           if (m.id !== assistantMsgId) return m;
-          const blocks = [...(m.blocks || [])];
+          let blocks = [...(m.blocks || [])];
+
+          // Extract command blocks from text ([label](action:xxx) patterns)
+          for (let i = 0; i < blocks.length; i++) {
+            const block = blocks[i];
+            if (block.type === 'text' && block.text) {
+              const cmdPattern = /\[([^\]]+)\]\(action:([^)]+)\)/g;
+              let match;
+              const commands: any[] = [];
+              while ((match = cmdPattern.exec(block.text)) !== null) {
+                commands.push({ type: 'command', label: match[1], action: match[2] });
+              }
+              if (commands.length > 0) {
+                const cleanText = block.text.replace(cmdPattern, '').trim();
+                blocks[i] = { type: 'text', text: cleanText };
+                blocks.push(...commands);
+              }
+            }
+          }
+
+          // Aggregate file_change blocks into turn_diff
           const fileChanges = blocks.filter(b => b.type === 'file_change');
           if (fileChanges.length >= 2) {
             // Collect all changes from all file_change blocks

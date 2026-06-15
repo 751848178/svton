@@ -264,7 +264,15 @@ export class AgentRuntime implements IRuntime {
 
     // Fire session_start hooks
     if (this.hookManager) {
-      await this.hookManager.trigger('session_start', { event: 'session_start' });
+      const hookResult = await this.hookManager.trigger('session_start', { event: 'session_start' });
+      if (hookResult.action === 'deny') {
+        yield { type: 'warning', text: `Session blocked by hook: ${hookResult.reason}`, source: 'hook' };
+      }
+    }
+
+    // Warn if no tools registered
+    if (this.toolRegistry.listDefinitions().length === 0) {
+      yield { type: 'warning', text: 'No tools registered. The agent will only be able to respond with text.', source: 'runtime' };
     }
 
     // Add user message to context
