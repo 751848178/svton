@@ -11,6 +11,7 @@ import {
   type SplitScreenContent,
   type MentionItem,
   type ContentBlock,
+  type ReasoningEffort,
 } from '@svton/agent-ui';
 import { useChat, useToolApproval } from '@svton/agent-client';
 
@@ -34,6 +35,8 @@ interface ChatContentProps {
   onPlanModeChange: (enabled: boolean) => void;
   plugins: Array<{ name: string; enabled: boolean }>;
   onPluginToggle: (name: string, enabled: boolean) => void;
+  reasoningEffort?: ReasoningEffort;
+  onReasoningEffortChange?: (effort: ReasoningEffort) => void;
 }
 
 export function ChatContent({
@@ -49,8 +52,10 @@ export function ChatContent({
   onPlanModeChange,
   plugins,
   onPluginToggle,
+  reasoningEffort,
+  onReasoningEffortChange,
 }: ChatContentProps) {
-  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage } = useChat();
+  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage, activePlan } = useChat();
   const { approve, reject } = useToolApproval();
   const [splitScreen, setSplitScreen] = useState<SplitScreenContent | null>(null);
 
@@ -190,6 +195,25 @@ export function ChatContent({
           mentionItems={mentionItems}
           onMentionSelect={onMentionSelect}
           matchedSkills={matchedSkills}
+          activePlan={activePlan}
+          onFileReference={async () => {
+            // Web: read a text file via hidden <input type="file"> and send its content
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'text/*,.ts,.tsx,.js,.jsx,.json,.md,.py,.go,.rs,.java,.c,.cpp,.h,.yml,.yaml,.toml,.ini,.env,.sh';
+            input.onchange = async () => {
+              const file = input.files?.[0];
+              if (!file) return;
+              try {
+                const content = await file.text();
+                const text = `📄 ${file.name}\n\`\`\`\n${content}\n\`\`\``;
+                send(text);
+              } catch (e) {
+                console.error('Failed to read file:', e);
+              }
+            };
+            input.click();
+          }}
           className="bg-transparent"
         />
       </div>

@@ -66,7 +66,7 @@ export function ChatContent({
   reasoningEffort?: ReasoningEffort;
   onReasoningEffortChange?: (effort: ReasoningEffort) => void;
 }) {
-  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage } = useChat();
+  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage, activePlan } = useChat();
   const { approve, reject } = useToolApproval();
   const [splitScreen, setSplitScreen] = useState<SplitScreenContent | null>(null);
   /** Preview content stored for popout windows to read */
@@ -199,6 +199,7 @@ export function ChatContent({
           mentionItems={mentionItems}
           onMentionSelect={onMentionSelect}
           matchedSkills={matchedSkills}
+          activePlan={activePlan}
           onFileReference={async () => {
             try {
               const api = await import('@tauri-apps/api/core' as string);

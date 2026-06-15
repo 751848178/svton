@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type SlashCommand, type MentionItem } from '@svton/agent-ui';
+import { type SlashCommand, type MentionItem, type ReasoningEffort } from '@svton/agent-ui';
 import { useChat, useSession, useAgentContext } from '@svton/agent-client';
 import type { AgentConfig } from '@svton/agent-core';
 import type { View } from './Sidebar';
@@ -34,7 +34,7 @@ export function AgentLayout({
 }: AgentLayoutProps) {
   const { sessions, currentSessionId, create, switchTo, delete: deleteSession } = useSession();
   const { status, abort, messages, send } = useChat();
-  const { platform } = useAgentContext();
+  const { platform, chatService } = useAgentContext();
   const [matchedSkills, setMatchedSkills] = useState<string[]>([]);
   const [view, setView] = useState<View>('chat');
 
@@ -190,6 +190,12 @@ export function AgentLayout({
     const savedMode = config.capabilities?.permissionManager?.getMode();
     return savedMode === 'plan';
   });
+  // ── Reasoning effort — applied to runtime via ChatService ──
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(undefined);
+  const handleReasoningEffortChange = useCallback((effort: ReasoningEffort) => {
+    setReasoningEffort(effort);
+    chatService?.setReasoningEffort(effort);
+  }, [chatService]);
   const prePlanModeRef = useRef<'read_only' | 'default' | 'accept_edits' | 'auto'>(
     (() => {
       const m = config.capabilities?.permissionManager?.getMode();
@@ -269,6 +275,8 @@ export function AgentLayout({
               onPlanModeChange={handlePlanModeChange}
               plugins={plugins}
               onPluginToggle={handlePluginToggle}
+              reasoningEffort={reasoningEffort}
+              onReasoningEffortChange={handleReasoningEffortChange}
             />
           )}
           {view === 'automation' && (

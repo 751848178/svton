@@ -27,6 +27,11 @@ import {
   // Image generation
   imageGenerateDef,
   ImageGenerateExecutor,
+  // Image generation providers
+  ImageGenRegistry,
+  OpenAIImageProvider,
+  StabilityProvider,
+  GoogleImagenProvider,
   // Skills
   SkillManager,
   SkillLoader,
@@ -42,8 +47,9 @@ import {
   SlackIntegration,
   LinearIntegration,
   codeReviewSkill,
-  ImageGenRegistry,
-  OpenAIImageProvider,
+  // Document preview
+  previewDocumentDef,
+  PreviewDocumentExecutor,
   // MCP
   MCPClient,
   HTTPTransport,
@@ -197,7 +203,20 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
   if (providerSetting.type === 'openai' && providerSetting.apiKey) {
     imageGenRegistry.register(new OpenAIImageProvider(), providerSetting.apiKey);
   }
+  // Stability AI (API key stored under agent-web:stability_key)
+  const stabilityKey = loadString('agent-web:stability_key');
+  if (stabilityKey) {
+    imageGenRegistry.register(new StabilityProvider(), stabilityKey);
+  }
+  // Google Imagen (API key stored under agent-web:google_key)
+  const googleKey = loadString('agent-web:google_key');
+  if (googleKey) {
+    imageGenRegistry.register(new GoogleImagenProvider('svton-agent'), googleKey);
+  }
   toolRegistry.register(imageGenerateDef, new ImageGenerateExecutor(imageGenRegistry));
+
+  // Document preview (renders in split-screen panel)
+  toolRegistry.register(previewDocumentDef, new PreviewDocumentExecutor());
 
   // Code review skill + git tools (will work if user pastes diffs)
   skillManager.register(codeReviewSkill);
