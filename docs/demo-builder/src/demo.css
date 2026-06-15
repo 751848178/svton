@@ -1,0 +1,30 @@
+/* Demo container styles */
+.demo-wrapper {
+  padding: 16px;
+  background: #0a0a0a;
+  min-height: 100vh;
+}
+
+.demo-header {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #252525;
+}
+
+.demo-content {
+  background: #0d0d0d;
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 200px;
+}
+
+/* Dark theme for agent-ui components */
+:root {
+  --background: transparent;
+  --foreground: #ededed;
+  color-scheme: dark;
+}

@@ -54,13 +54,89 @@ export default defineConfig({
           text: '🤖 AI Agent',
           collapsed: false,
           items: [
-            { text: 'SDK 快速接入', link: '/packages/agent-sdk' },
-            { text: 'agent-core', link: '/packages/agent-core' },
-            { text: 'agent-client', link: '/packages/agent-client' },
-            { text: 'agent-ui 组件库', link: '/packages/agent-ui' },
-            { text: 'agent-platform', link: '/packages/agent-platform' },
-            { text: 'agent-web 应用', link: '/packages/agent-web' },
             { text: '集成指南', link: '/guide/agent-integration' },
+            // agent-sdk
+            {
+              text: 'agent-sdk',
+              collapsed: true,
+              items: [
+                { text: '总览', link: '/agent-sdk/' },
+                { text: 'React SDK', link: '/agent-sdk/react' },
+              ],
+            },
+            // agent-core
+            {
+              text: 'agent-core',
+              collapsed: true,
+              items: [
+                { text: '总览', link: '/agent-core/' },
+                { text: 'Provider 提供商', link: '/agent-core/provider' },
+                { text: '工具系统', link: '/agent-core/tools' },
+                { text: 'AgentRuntime', link: '/agent-core/runtime' },
+                { text: '记忆系统', link: '/agent-core/memory' },
+                { text: '自动化任务', link: '/agent-core/automation' },
+                { text: '子代理', link: '/agent-core/subagent' },
+                { text: 'MCP 协议', link: '/agent-core/mcp' },
+                { text: '权限系统', link: '/agent-core/permission' },
+                { text: '生命周期钩子', link: '/agent-core/hooks' },
+                { text: '规划系统', link: '/agent-core/planning' },
+                { text: '技能系统', link: '/agent-core/skills' },
+                { text: '自定义 Agent', link: '/agent-core/agent-definition' },
+                { text: '第三方集成', link: '/agent-core/integrations' },
+              ],
+            },
+            // agent-client
+            {
+              text: 'agent-client',
+              collapsed: true,
+              items: [
+                { text: '总览', link: '/agent-client/' },
+                { text: 'React Hooks', link: '/agent-client/hooks' },
+                { text: 'Service 层', link: '/agent-client/services' },
+              ],
+            },
+            // agent-ui
+            {
+              text: 'agent-ui 组件库',
+              collapsed: false,
+              items: [
+                { text: '总览', link: '/agent-ui/' },
+                { text: 'ChatPanel', link: '/agent-ui/chat-panel' },
+                { text: 'ChatMessage', link: '/agent-ui/chat-message' },
+                { text: 'ChatInput', link: '/agent-ui/chat-input' },
+                { text: 'ToolCallCard', link: '/agent-ui/tool-call-card' },
+                { text: 'SettingsView', link: '/agent-ui/settings' },
+                {
+                  text: '消息块 Demo',
+                  collapsed: false,
+                  items: [
+                    { text: 'Plan 计划进度', link: '/agent-ui/blocks/plan' },
+                    { text: 'FileChange 文件变更', link: '/agent-ui/blocks/file-change' },
+                    { text: 'Subagent 子代理', link: '/agent-ui/blocks/subagent' },
+                    { text: 'Warning 警告', link: '/agent-ui/blocks/warning' },
+                    { text: 'Reference 引用', link: '/agent-ui/blocks/reference' },
+                    { text: 'WebSearch 搜索', link: '/agent-ui/blocks/web-search' },
+                    { text: 'Progress 进度', link: '/agent-ui/blocks/progress' },
+                    { text: 'TurnDiff 变更汇总', link: '/agent-ui/blocks/turn-diff' },
+                    { text: 'Command 操作按钮', link: '/agent-ui/blocks/command' },
+                    { text: 'FileTree 目录树', link: '/agent-ui/blocks/file-tree' },
+                    { text: 'RedactedThinking 隐藏思考', link: '/agent-ui/blocks/redacted-thinking' },
+                    { text: 'DiffView', link: '/agent-ui/blocks/diff-view' },
+                    { text: 'CodeBlock', link: '/agent-ui/blocks/code-block' },
+                  ],
+                },
+              ],
+            },
+            // agent-platform
+            {
+              text: 'agent-platform',
+              collapsed: true,
+              items: [
+                { text: '总览', link: '/agent-platform/' },
+                { text: 'Tauri 平台', link: '/agent-platform/tauri' },
+              ],
+            },
+            { text: 'agent-web 应用', link: '/packages/agent-web' },
           ],
         },
         {
