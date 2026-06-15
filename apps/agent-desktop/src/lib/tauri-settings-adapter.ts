@@ -457,4 +457,31 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
       await this._integrationManager.setCredential(id, key, value);
     } catch {}
   }
+
+  // ── Hooks ───────────────────────────────────────────────
+  getHooks(): Array<{ event: string; id: string; priority: number }> {
+    return this._agentConfig?.capabilities?.hookManager?.listHooks() ?? [];
+  }
+
+  unregisterHook(event: string, id: string): void {
+    this._agentConfig?.capabilities?.hookManager?.unregister(event as any, id);
+    this.onUpdate?.();
+  }
+
+  // ── Session Checkpoints ─────────────────────────────────
+  async listCheckpoints(): Promise<Array<{ sessionId: string; messageCount: number; model: string; updatedAt: number }>> {
+    const mgr = this._agentConfig?.capabilities?.resumeManager;
+    if (!mgr) return [];
+    try {
+      return await mgr.listAll();
+    } catch {
+      return [];
+    }
+  }
+
+  async deleteCheckpoint(sessionId: string): Promise<void> {
+    const mgr = this._agentConfig?.capabilities?.resumeManager;
+    if (mgr) await mgr.delete(sessionId);
+    this.onUpdate?.();
+  }
 }

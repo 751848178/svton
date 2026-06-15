@@ -73,4 +73,17 @@ export class HookManager {
       this.hooks.clear();
     }
   }
+
+  /**
+   * List all registered hooks (metadata only, no handler function).
+   */
+  listHooks(): Array<{ event: HookEvent; id: string; priority: number }> {
+    const result: Array<{ event: HookEvent; id: string; priority: number }> = [];
+    for (const [event, list] of this.hooks) {
+      for (const hook of list) {
+        result.push({ event: event as HookEvent, id: hook.id || '', priority: hook.priority ?? 100 });
+      }
+    }
+    return result;
+  }
 }

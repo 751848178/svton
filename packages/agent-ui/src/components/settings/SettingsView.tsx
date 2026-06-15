@@ -183,6 +183,14 @@ export interface ISettingsAdapter {
   getIntegrations?(): IntegrationCardData[];
   toggleIntegration?(id: string, enabled: boolean): void | Promise<void>;
   setIntegrationCredential?(id: string, key: string, value: string): void | Promise<void>;
+
+  // ── Hooks ───────────────────────────────────────────────
+  getHooks?(): Array<{ event: string; id: string; priority: number }>;
+  unregisterHook?(event: string, id: string): void;
+
+  // ── Session Checkpoints ─────────────────────────────────
+  listCheckpoints?(): Promise<Array<{ sessionId: string; messageCount: number; model: string; updatedAt: number }>>;
+  deleteCheckpoint?(sessionId: string): Promise<void>;
 }
 
 /** Agent runtime data exposed by the adapter */
@@ -510,7 +518,7 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
                 onSave={() => { adapter.saveSearchEndpoint!(s.searchEndpoint); showToast('已保存'); }} />
             )}
             {activeSection === 'automation' && agent && (
-              <AutomationSection hasSubagent={agent.hasSubagent} hasPlanning={agent.hasPlanning} tools={agent.tools} />
+              <AutomationSection hasSubagent={agent.hasSubagent} hasPlanning={agent.hasPlanning} tools={agent.tools} adapter={adapter} />
             )}
             {activeSection === 'preview' && (
               <PreviewModeSection adapter={adapter} />
@@ -1515,12 +1523,29 @@ function SearchSection({ endpoint, onChange, onSave }: { endpoint: string; onCha
   );
 }
 
-function AutomationSection({ hasSubagent, hasPlanning, tools }: { hasSubagent: boolean; hasPlanning: boolean; tools: ToolInfo[] }) {
+function AutomationSection({ hasSubagent, hasPlanning, tools, adapter }: { hasSubagent: boolean; hasPlanning: boolean; tools: ToolInfo[]; adapter?: ISettingsAdapter }) {
   const planTools = useMemo(() => tools.filter((t) => t.name.startsWith('plan_')), [tools]);
+  const [hooks, setHooks] = useState<Array<{ event: string; id: string; priority: number }>>([]);
+  const [checkpoints, setCheckpoints] = useState<Array<{ sessionId: string; messageCount: number; model: string; updatedAt: number }>>([]);
+
+  useEffect(() => {
+    if (adapter?.getHooks) setHooks(adapter.getHooks());
+    if (adapter?.listCheckpoints) adapter.listCheckpoints().then(setCheckpoints).catch(() => {});
+  }, [adapter]);
+
+  const HOOK_EVENTS: Array<[string, string]> = [
+    ['session_start', '会话开始'], ['session_end', '会话结束'],
+    ['pre_tool_use', '工具执行前'], ['post_tool_use', '工具执行后'],
+    ['permission_request', '权限请求'], ['context_compact', '上下文压缩'],
+    ['message_sent', '消息发送'], ['message_received', '消息接收'],
+  ];
+
   return (
     <div>
       <h2 className="text-lg text-white font-medium mb-1">自动化</h2>
-      <p className="text-xs text-gray-500 mb-6">任务规划、子代理、生命周期钩子等高级自动化功能。</p>
+      <p className="text-xs text-gray-500 mb-6">任务规划、子代理、生命周期钩子和会话检查点。</p>
+
+      {/* Planning */}
       <Card className="mb-4">
         <div className="flex items-center justify-between mb-3"><span className="text-sm text-gray-200 font-medium">规划 (Planning)</span><Badge color={hasPlanning ? 'green' : 'gray'}>{hasPlanning ? '已启用' : '未启用'}</Badge></div>
         <div className="p-2.5 rounded-lg bg-[#171717] border border-[#2a2a2a]"><div className="space-y-1">
@@ -1529,6 +1554,8 @@ function AutomationSection({ hasSubagent, hasPlanning, tools }: { hasSubagent: b
           ))}
         </div></div>
       </Card>
+
+      {/* Subagent */}
       <Card className="mb-4">
         <div className="flex items-center justify-between mb-3"><span className="text-sm text-gray-200 font-medium">子代理 (Subagent)</span><Badge color={hasSubagent ? 'green' : 'gray'}>{hasSubagent ? '已启用' : '未启用'}</Badge></div>
         <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -1536,11 +1563,61 @@ function AutomationSection({ hasSubagent, hasPlanning, tools }: { hasSubagent: b
           <div className="p-2 rounded bg-[#171717] border border-[#2a2a2a]"><span className="text-gray-500">超时时间</span><span className="ml-2 font-mono text-gray-400">120s</span></div>
         </div>
       </Card>
-      <Card>
+
+      {/* Hooks — show registered hooks + all event types */}
+      <Card className="mb-4">
         <span className="text-sm text-gray-200 font-medium block mb-3">钩子 (Hooks)</span>
-        <div className="grid grid-cols-2 gap-1.5">{[['session_start', '会话开始'], ['session_end', '会话结束'], ['pre_tool_use', '工具执行前'], ['post_tool_use', '工具执行后'], ['context_compact', '上下文压缩'], ['message_sent', '消息发送']].map(([ev, desc]) => (
-          <div key={ev} className="flex items-center gap-2 text-[11px] p-1.5 rounded bg-[#171717] border border-[#2a2a2a]"><span className="font-mono text-cyan-400">{ev}</span><span className="text-gray-500">{desc}</span></div>
-        ))}</div>
+        {hooks.length > 0 && (
+          <div className="mb-3 space-y-1">
+            <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">已注册</div>
+            {hooks.map((h) => (
+              <div key={h.id} className="flex items-center justify-between p-1.5 rounded bg-[#171717] border border-[#2a2a2a]">
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span className="font-mono text-cyan-400">{h.event}</span>
+                  <span className="text-gray-600">priority: {h.priority}</span>
+                </div>
+                <button onClick={() => { adapter?.unregisterHook?.(h.event, h.id); if (adapter?.getHooks) setHooks(adapter.getHooks()); }} className="text-[10px] text-gray-400 hover:text-red-400">移除</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">支持的事件</div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {HOOK_EVENTS.map(([ev, desc]) => {
+            const active = hooks.some(h => h.event === ev);
+            return (
+              <div key={ev} className={`flex items-center gap-2 text-[11px] p-1.5 rounded border ${active ? 'bg-green-950/20 border-green-900/30' : 'bg-[#171717] border-[#2a2a2a]'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-green-400' : 'bg-gray-600'}`} />
+                <span className="font-mono text-cyan-400">{ev}</span>
+                <span className="text-gray-500">{desc}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Session Checkpoints */}
+      <Card>
+        <span className="text-sm text-gray-200 font-medium block mb-3">会话检查点 (Checkpoints)</span>
+        {checkpoints.length === 0 ? (
+          <p className="text-xs text-gray-600 text-center py-3">暂无检查点。对话结束后会自动保存。</p>
+        ) : (
+          <div className="space-y-1">
+            {checkpoints.map((cp) => (
+              <div key={cp.sessionId} className="flex items-center justify-between p-2 rounded bg-[#171717] border border-[#2a2a2a]">
+                <div className="min-w-0 flex-1">
+                  <span className="text-[11px] text-gray-300 font-mono">{cp.sessionId}</span>
+                  <span className="ml-2 text-[10px] text-gray-600">{cp.messageCount} 条消息</span>
+                  <span className="ml-2 text-[10px] text-gray-600">{cp.model}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-[10px] text-gray-600">{new Date(cp.updatedAt).toLocaleString()}</span>
+                  <button onClick={() => { adapter?.deleteCheckpoint?.(cp.sessionId); if (adapter?.listCheckpoints) adapter.listCheckpoints().then(setCheckpoints); }} className="text-[10px] text-gray-400 hover:text-red-400">删除</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );
