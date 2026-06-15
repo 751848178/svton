@@ -57,8 +57,10 @@ export default defineConfig({
             { text: 'SDK 快速接入', link: '/packages/agent-sdk' },
             { text: 'agent-core', link: '/packages/agent-core' },
             { text: 'agent-client', link: '/packages/agent-client' },
+            { text: 'agent-ui 组件库', link: '/packages/agent-ui' },
             { text: 'agent-platform', link: '/packages/agent-platform' },
             { text: 'agent-web 应用', link: '/packages/agent-web' },
+            { text: '集成指南', link: '/guide/agent-integration' },
           ],
         },
         {
