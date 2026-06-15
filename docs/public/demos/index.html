@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#e0e0e0;font-family:-apple-system,system-ui,sans-serif;padding:16px;min-height:100vh}
+.dh{font-size:13px;color:#666;margin-bottom:12px;padding:8px 12px;background:#1a1a1a;border-radius:8px;border:1px solid #252525}
+.dc{background:#0d0d0d;border-radius:12px;padding:16px;min-height:100px}
+
+/* Plan */
+.plan-card{border:1px solid #2a2a2a;background:#1c1c1c;border-radius:8px;overflow:hidden}
+.plan-hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer}
+.plan-ico{font-size:12px}.plan-ttl{font-size:12px;font-weight:500;color:#e0e0e0;flex:1}
+.plan-cnt{font-size:10px;color:#666}.plan-bar{width:64px;height:4px;background:#333;border-radius:2px;overflow:hidden}
+.plan-bar-fill{height:100%;background:#4ade80;transition:width .3s}
+.plan-chev{color:#555;font-size:10px}
+.plan-body{padding:6px 12px;border-top:1px solid #252525}
+.plan-step{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px}
+.step-done{color:#4ade80}.step-run{color:#60a5fa;animation:pulse 1.5s infinite}.step-pend{color:#666}.step-text-done{color:#666;text-decoration:line-through}.step-text{color:#ccc}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* FileChange */
+.fc-hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #252525;font-size:11px;color:#888}
+.fc-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #1a1a1a;cursor:pointer}
+.fc-item:hover{background:#181818}
+.fc-add{color:#4ade80;font-family:monospace;width:12px;text-align:center}
+.fc-mod{color:#fbbf24;font-family:monospace;width:12px;text-align:center}
+.fc-del{color:#f87171;font-family:monospace;width:12px;text-align:center}
+.fc-path{font-size:11px;color:#ccc;font-family:monospace;flex:1;overflow:hidden;text-overflow:ellipsis}
+.fc-diff{margin:4px 12px 8px;padding:8px;background:#0d0d0d;border:1px solid #252525;border-radius:4px;font-family:monospace;font-size:10px;max-height:200px;overflow:auto}
+.diff-add{color:#4ade80}.diff-del{color:#f87171}.diff-hdr{color:#666}.diff-hnk{color:#60a5fa}
+
+/* Subagent */
+.sub-card{border:1px solid #2a2a2a;background:#1c1c1c;border-radius:8px;overflow:hidden;margin-bottom:8px}
+.sub-hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer}
+.sub-ico{font-size:12px}.sub-task{font-size:11px;color:#888;flex:1;overflow:hidden;text-overflow:ellipsis}
+.sub-run{font-size:10px;color:#60a5fa;animation:pulse 1.5s infinite}.sub-done{font-size:10px;color:#4ade80}
+.sub-body{padding:8px 12px;border-top:1px solid #252525;font-size:11px;color:#888;line-height:1.5}
+
+/* Warning */
+.warn-box{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border:1px solid rgba(234,179,8,.3);background:rgba(234,179,8,.1);border-radius:8px}
+.warn-ico{color:#fbbf24;font-size:12px;flex-shrink:0;margin-top:1px}
+.warn-txt{font-size:12px;color:rgba(254,240,138,.9);line-height:1.4}
+.warn-tag{font-size:10px;color:#92400e;border:1px solid rgba(234,179,8,.3);border-radius:3px;padding:0 4px;margin-left:6px}
+
+/* Reference */
+.ref-wrap{display:flex;flex-wrap:wrap;gap:6px}
+.ref-card{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid #333;background:#1c1c1c;border-radius:6px;font-size:11px}
+.ref-ico{color:#666}.ref-path{font-family:monospace;color:#ccc;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ref-line{font-size:10px;color:#555}
+
+/* WebSearch */
+.ws-card{border:1px solid #2a2a2a;background:#1c1c1c;border-radius:8px;overflow:hidden}
+.ws-hdr{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer}
+.ws-ico{font-size:12px}.ws-q{font-size:11px;color:#ccc;flex:1}.ws-cnt{font-size:10px;color:#555}
+.ws-res{border-top:1px solid #252525}
+.ws-res-item{padding:8px 12px;border-bottom:1px solid #1a1a1a}
+.ws-res-item:hover{background:#181818}
+.ws-res-ttl{font-size:12px;color:#60a5fa;text-decoration:none;display:block}
+.ws-res-ttl:hover{text-decoration:underline}
+.ws-res-url{font-size:10px;color:#555}.ws-res-snip{font-size:11px;color:#666;margin-top:2px}
+
+/* Progress */
+.prog{display:flex;align-items:center;gap:8px;padding:6px 8px}
+.prog-run{color:#60a5fa;font-size:10px;animation:pulse 1.5s infinite}
+.prog-done{color:#4ade80;font-size:10px}
+.prog-txt-run{font-size:11px;color:#999}.prog-txt-done{font-size:11px;color:#666}
+
+/* Command */
+.cmd-wrap{display:flex;gap:8px;flex-wrap:wrap}
+.cmd-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid rgba(59,130,246,.3);background:rgba(59,130,246,.1);border-radius:8px;font-size:11px;color:#60a5fa;cursor:pointer;transition:all .2s}
+.cmd-btn:hover{background:rgba(59,130,246,.2);border-color:rgba(59,130,246,.5)}
+
+/* FileTree */
+.ft-card{border:1px solid #2a2a2a;background:#1c1c1c;border-radius:8px;overflow:hidden}
+.ft-hdr{padding:6px 12px;border-bottom:1px solid #252525;font-size:11px;color:#555}
+.ft-item{display:flex;align-items:center;gap:6px;padding:2px 4px;font-size:11px;cursor:default;border-radius:3px}
+.ft-item:hover{background:#222}
+.ft-dir{color:#ccc}.ft-file{color:#888}
+.ft-chev{font-size:8px;color:#555}.ft-ico-dir{font-size:12px}.ft-ico-file{font-size:12px;margin-left:14px}
+
+/* Redacted */
+.red-box{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid #2a2a2a;background:#181818;border-radius:8px;margin-bottom:8px}
+.red-ico{color:#555;font-size:12px}.red-txt{font-size:11px;color:#555}.red-rsn{font-size:10px;color:#444}
+
+/* DiffView */
+.diff-tbl{width:100%;font-family:monospace;font-size:11px;border:1px solid #2a2a2a;border-radius:8px;overflow:hidden}
+.diff-tbl td{padding:1px 8px;white-space:pre}.diff-add{background:rgba(34,197,94,.1);color:#4ade80}
+.diff-del{background:rgba(248,113,113,.1);color:#f87171}.diff-ctx{color:#666}
+.diff-hnk{color:#60a5fa;background:rgba(59,130,246,.05)}.diff-hdr{color:#555;border-bottom:1px solid #2a2a2a}
+
+/* ToolCall */
+.tc-card{font-size:13px}.tc-btn{display:flex;align-items:flex-start;gap:6px;width:100%;text-align:left;padding:4px 0}
+.tc-sts-done{color:#4ade80;font-size:12px;flex-shrink:0;margin-top:1px}
+.tc-sts-run{color:#60a5fa;font-size:12px;flex-shrink:0;margin-top:1px;animation:pulse 1.5s infinite}
+.tc-sts-err{color:#f87171;font-size:12px;flex-shrink:0;margin-top:1px}
+.tc-name{font-family:monospace;font-size:12px;color:#0891b2;flex-shrink:0}
+.tc-args{font-size:11px;color:#666;flex:1;overflow:hidden;text-overflow:ellipsis}
+.tc-out{margin-left:16px;margin-top:4px;padding:6px 8px;background:#1a1a1a;border:1px solid #252525;border-radius:4px;font-family:monospace;font-size:10px;color:#666;max-height:120px;overflow:auto}
+.tc-err-out{color:#f87171}
+
+/* CodeBlock */
+.cb-card{border:1px solid #161b22;border-radius:8px;overflow:hidden}
+.cb-hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#161b22}
+.cb-lang{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.5px}
+.cb-body{padding:12px;background:#0d1117;font-family:monospace;font-size:11px;color:#c9d1d9;overflow-x:auto;max-height:300px}
+.cb-copy{font-size:10px;color:#555;cursor:pointer;padding:2px 8px;border:1px solid #252525;border-radius:4px}
+.cb-copy:hover{color:#ccc}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.str{color:#a5d6ff}.cm{color:#8b949e}.nm{color:#79c0ff}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const demos = {
+  'plan-block': () => `
+    <div class="dh">PlanBlockView — 计划进度块</div>
+    <div class="dc">
+      <div class="plan-card">
+        <div class="plan-hdr"><span class="plan-ico">📋</span><span class="plan-ttl">实现用户认证功能</span><span class="plan-cnt">2/5</span><div class="plan-bar"><div class="plan-bar-fill" style="width:40%"></div></div><span class="plan-chev">▾</span></div>
+        <div class="plan-body">
+          <div class="plan-step"><span class="step-done">✓</span><span class="step-text-done">分析现有认证代码</span></div>
+          <div class="plan-step"><span class="step-done">✓</span><span class="step-text-done">设计 JWT token 结构</span></div>
+          <div class="plan-step"><span class="step-run">●</span><span class="step-text">实现登录接口</span></div>
+          <div class="plan-step"><span class="step-pend">○</span><span class="step-text">编写单元测试</span></div>
+          <div class="plan-step"><span class="step-pend">○</span><span class="step-text">集成测试</span></div>
+        </div>
+      </div>
+    </div>`,
+  'file-change': () => `
+    <div class="dh">FileChangeView — 文件变更块</div>
+    <div class="dc">
+      <div class="plan-card">
+        <div class="fc-hdr">📄 2 files changed</div>
+        <div class="fc-item"><span class="fc-add">+</span><span class="fc-path">src/auth/login.ts</span><span style="color:#555;font-size:10px">▸</span></div>
+        <div class="fc-diff"><span class="diff-add">+export async function login(user, pass) {</span><br><span class="diff-add">+  const token = await authenticate(user, pass);</span><br><span class="diff-add">+  return token;</span><br><span class="diff-add">+}</span></div>
+        <div class="fc-item"><span class="fc-mod">~</span><span class="fc-path">src/config.ts</span><span style="color:#555;font-size:10px">▸</span></div>
+        <div class="fc-diff"><span class="diff-del">-export const TIMEOUT = 5000;</span><br><span class="diff-add">+export const TIMEOUT = 10000;</span><br><span class="diff-add">+export const RETRY = 3;</span></div>
+      </div>
+    </div>`,
+  'subagent': () => `
+    <div class="dh">SubagentBlockView — 子代理块</div>
+    <div class="dc">
+      <div class="sub-card"><div class="sub-hdr"><span class="sub-ico">🤖</span><span class="sub-task">搜索所有使用 deprecated API 的文件</span><span class="sub-done">✓ 完成</span><span style="color:#555;font-size:10px">▾</span></div><div class="sub-body">找到 3 个文件使用了 deprecated API：src/old-api.ts, src/legacy.ts, src/utils.ts。建议迁移到新的 v2 API。</div></div>
+      <div class="sub-card"><div class="sub-hdr"><span class="sub-ico">🤖</span><span class="sub-task">分析数据库查询性能</span><span class="sub-run">● 运行中</span></div></div>
+    </div>`,
+  'warning': () => `
+    <div class="dh">WarningBlockView — 警告块</div>
+    <div class="dc">
+      <div class="warn-box"><span class="warn-ico">⚠</span><span class="warn-txt">检测到 config.toml 中的 API key 已过期，请及时更新。<span class="warn-tag">config-check</span></span></div>
+    </div>`,
+  'reference': () => `
+    <div class="dh">ReferenceBlockView — 引用块</div>
+    <div class="dc">
+      <div class="ref-wrap">
+        <div class="ref-card"><span class="ref-ico">📄</span><span class="ref-path">src/index.ts</span><span class="ref-line">:42</span></div>
+        <div class="ref-card"><span class="ref-ico">📄</span><span class="ref-path">.../chat/ChatMessage.tsx</span></div>
+        <div class="ref-card"><span class="ref-ico">📄</span><span class="ref-path">.../agent/runtime.ts</span><span class="ref-line">:201</span></div>
+      </div>
+    </div>`,
+  'web-search': () => `
+    <div class="dh">WebSearchBlockView — 搜索结果块</div>
+    <div class="dc">
+      <div class="ws-card">
+        <div class="ws-hdr"><span class="ws-ico">🔍</span><span class="ws-q">Tauri 2 desktop app development guide</span><span class="ws-cnt">3 results ▾</span></div>
+        <div class="ws-res">
+          <div class="ws-res-item"><a class="ws-res-ttl" href="https://tauri.app/docs" target="_blank">Tauri 2.0 Documentation</a><span class="ws-res-url">tauri.app</span><p class="ws-res-snip">Official documentation for Tauri 2.0 framework for building desktop applications.</p></div>
+          <div class="ws-res-item"><a class="ws-res-ttl" href="https://tauri.app/start" target="_blank">Getting Started with Tauri 2</a><span class="ws-res-url">tauri.app</span><p class="ws-res-snip">Learn how to create your first Tauri 2 app with this step-by-step guide.</p></div>
+          <div class="ws-res-item"><a class="ws-res-ttl" href="https://blog.example.com/tauri-vs-electron" target="_blank">Tauri 2 vs Electron</a><span class="ws-res-url">blog.example.com</span><p class="ws-res-snip">Comparison of Tauri 2 and Electron for desktop app development.</p></div>
+        </div>
+      </div>
+    </div>`,
+  'progress': () => `
+    <div class="dh">ProgressBlockView — 进度指示块</div>
+    <div class="dc">
+      <div class="prog"><span class="prog-run">●</span><span class="prog-txt-run">正在搜索代码库...</span></div>
+      <div class="prog"><span class="prog-done">✓</span><span class="prog-txt-done">已读取 src/index.ts</span></div>
+      <div class="prog"><span class="prog-run">●</span><span class="prog-txt-run">正在执行测试...</span></div>
+      <div class="prog"><span class="prog-done">✓</span><span class="prog-txt-done">测试完成 (12 通过)</span></div>
+    </div>`,
+  'turn-diff': () => `
+    <div class="dh">TurnDiffView — 变更汇总块</div>
+    <div class="dc">
+      <div class="plan-card">
+        <div class="plan-hdr"><span class="plan-ico">📝</span><span class="plan-ttl">3 files changed</span><span class="plan-cnt" style="color:#4ade80">+7</span><span class="plan-cnt" style="color:#f87171">-1</span><span class="plan-chev">▾</span></div>
+        <div class="plan-body">
+          <div class="fc-item" style="padding:4px 0"><span style="font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(34,197,94,.2);color:#4ade80">新建</span><span class="fc-path">src/auth/login.ts</span></div>
+          <div class="fc-item" style="padding:4px 0"><span style="font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(234,179,8,.2);color:#fbbf24">修改</span><span class="fc-path">src/auth/logout.ts</span></div>
+          <div class="fc-item" style="padding:4px 0"><span style="font-size:9px;padding:1px 4px;border-radius:3px;background:rgba(234,179,8,.2);color:#fbbf24">修改</span><span class="fc-path">src/config.ts</span></div>
+        </div>
+      </div>
+    </div>`,
+  'command': () => `
+    <div class="dh">CommandBlockView — 操作按钮块</div>
+    <div class="dc">
+      <div class="cmd-wrap">
+        <div class="cmd-btn" onclick="alert('执行: run_tests')"><span>▶</span><span>运行测试</span></div>
+        <div class="cmd-btn" onclick="alert('执行: view_results')"><span>📋</span><span>查看结果</span></div>
+        <div class="cmd-btn" onclick="alert('执行: deploy')"><span>🚀</span><span>部署</span></div>
+      </div>
+    </div>`,
+  'file-tree': () => `
+    <div class="dh">FileTreeBlockView — 目录树块</div>
+    <div class="dc">
+      <div class="ft-card">
+        <div class="ft-hdr">📁 目录结构</div>
+        <div style="padding:4px">
+          <div class="ft-item ft-dir"><span class="ft-chev">▾</span><span class="ft-ico-dir">📁</span><span>src</span></div>
+          <div style="padding-left:12px">
+            <div class="ft-item ft-file"><span class="ft-ico-file">📄</span><span>index.ts</span></div>
+            <div class="ft-item ft-file"><span class="ft-ico-file">📄</span><span>app.tsx</span></div>
+            <div class="ft-item ft-dir"><span class="ft-chev">▸</span><span class="ft-ico-dir">📁</span><span>components</span></div>
+          </div>
+          <div class="ft-item ft-file"><span class="ft-ico-file">📄</span><span>package.json</span></div>
+          <div class="ft-item ft-file"><span class="ft-ico-file">📄</span><span>tsconfig.json</span></div>
+        </div>
+      </div>
+    </div>`,
+  'redacted-thinking': () => `
+    <div class="dh">RedactedThinkingView — 隐藏思考块</div>
+    <div class="dc">
+      <div class="red-box"><span class="red-ico">🔒</span><span class="red-txt">Thinking content redacted <span class="red-rsn">· contains sensitive credentials</span></span></div>
+      <div class="red-box"><span class="red-ico">🔒</span><span class="red-txt">Thinking content redacted</span></div>
+    </div>`,
+  'diff-view': () => `
+    <div class="dh">DiffView — Diff 渲染</div>
+    <div class="dc">
+      <table class="diff-tbl">
+        <tr><td class="diff-hdr">--- a/src/utils.ts</td></tr>
+        <tr><td class="diff-hdr">+++ b/src/utils.ts</td></tr>
+        <tr><td class="diff-hnk">@@ -10,7 +10,12 @@</td></tr>
+        <tr><td class="diff-ctx"> export function formatDate(date) {</td></tr>
+        <tr><td class="diff-del">-  return date.toISOString();</td></tr>
+        <tr><td class="diff-add">+  const y = date.getFullYear();</td></tr>
+        <tr><td class="diff-add">+  const m = String(date.getMonth()+1).padStart(2,'0');</td></tr>
+        <tr><td class="diff-add">+  return \`\${y}-\${m}\`;</td></tr>
+        <tr><td class="diff-ctx"> }</td></tr>
+      </table>
+    </div>`,
+  'code-block': () => `
+    <div class="dh">CodeBlock — 代码块</div>
+    <div class="dc">
+      <div class="cb-card">
+        <div class="cb-hdr"><span class="cb-lang">TYPESCRIPT · example.ts</span><span class="cb-copy" onclick="this.textContent='Copied!'">Copy</span></div>
+        <div class="cb-body">
+<span class="kw">const</span> agent = <span class="fn">createAgent</span>({<br>
+&nbsp;&nbsp;model: <span class="str">'gpt-4o'</span>,<br>
+&nbsp;&nbsp;apiKey: process.env.<span class="nm">OPENAI_API_KEY</span>,<br>
+&nbsp;&nbsp;tools: [<span class="fn">fileRead</span>, <span class="fn">bash</span>],<br>
+});<br><br>
+<span class="kw">const</span> result = <span class="kw">await</span> agent.<span class="fn">run</span>(<span class="str">'分析项目结构'</span>);
+        </div>
+      </div>
+    </div>`,
+  'tool-call': () => `
+    <div class="dh">ToolCallCard — 通用工具调用</div>
+    <div class="dc">
+      <div class="tc-card">
+        <div class="tc-btn"><span class="tc-sts-done">✓</span><span class="tc-name">file_read</span><span class="tc-args">path: src/index.ts</span></div>
+        <div class="tc-out">export function main() {<br>&nbsp;&nbsp;console.log("Hello!");<br>}</div>
+      </div>
+    </div>`,
+  'tool-call-shell': () => `
+    <div class="dh">ToolCallCard — Shell 命令</div>
+    <div class="dc">
+      <div class="tc-card">
+        <div class="tc-btn"><span class="tc-sts-done">✓</span><span class="tc-name">bash</span><span class="tc-args">command: ls -la src/ && wc -l src/*.ts</span></div>
+        <div class="tc-out">total 24<br>-rw-r--r-- 1 user staff 200 index.ts<br>-rw-r--r-- 1 user staff 180 app.tsx<br>---<br>&nbsp;&nbsp;&nbsp;&nbsp;10 src/index.ts<br>&nbsp;&nbsp;&nbsp;&nbsp;15 src/app.tsx</div>
+      </div>
+    </div>`,
+  'tool-call-error': () => `
+    <div class="dh">ToolCallCard — 失败的工具调用</div>
+    <div class="dc">
+      <div class="tc-card">
+        <div class="tc-btn"><span class="tc-sts-err">✗</span><span class="tc-name" style="color:#f87171">file_read</span><span class="tc-args">path: /nonexistent/file.ts</span></div>
+        <div class="tc-out tc-err-out">Error: ENOENT: no such file or directory</div>
+      </div>
+    </div>`,
+};
+
+const params = new URLSearchParams(location.search);
+const name = params.get('demo') || 'plan-block';
+document.getElementById('app').innerHTML = demos[name] ? demos[name]() : '<div class="dh">Demo not found: ' + name + '</div>';
+</script>
+</body>
+</html>
