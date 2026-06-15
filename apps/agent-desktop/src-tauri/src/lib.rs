@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod ws_relay;
 
 use commands::*;
 use db::Database;
@@ -17,19 +18,27 @@ pub fn run() {
         db: Mutex::new(database),
     };
 
+    // Create WebSocket relay state (server starts in setup callback where Tokio runtime is available)
+    let ws_state = ws_relay::create_relay_state();
+    let ws_state_for_setup = ws_state.clone();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(state)
-        .setup(|app| {
-            let window = app.get_webview_window("main").unwrap();
+        .manage(ws_state_for_setup.clone())
+        .setup(move |app| {
+            let _window = app.get_webview_window("main").unwrap();
+
+            // Start WebSocket relay server (Tokio runtime is available inside setup)
+            ws_relay::start_ws_relay(ws_state_for_setup.clone());
 
             // Open devtools in debug builds (Cmd+Option+I also works after this)
             #[cfg(debug_assertions)]
             {
-                window.open_devtools();
+                _window.open_devtools();
             }
             Ok(())
         })
@@ -84,6 +93,7 @@ pub fn run() {
             check_chrome_cdp,
             launch_chrome_debug,
             export_chrome_extension,
+            check_extension_connected,
             // Sandbox
             sandbox_exec,
             // Window (pop-out threads)

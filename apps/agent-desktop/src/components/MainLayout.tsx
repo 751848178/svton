@@ -705,10 +705,18 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
   const [extConnected, setExtConnected] = useState<boolean | null>(null);
   const detectExtension = useCallback(async () => {
     try {
-      const resp = await fetch('http://localhost:9223/ping', { method: 'GET', signal: AbortSignal.timeout(2000) });
-      setExtConnected(resp.ok);
+      // Check WebSocket relay connection via Tauri command
+      const api: any = await import('@tauri-apps/api/core' as string);
+      const connected = await api.invoke('check_extension_connected');
+      setExtConnected(connected === true);
     } catch {
-      setExtConnected(false);
+      // Fallback: HTTP ping
+      try {
+        const resp = await fetch('http://localhost:9223/ping', { method: 'GET', signal: AbortSignal.timeout(2000) });
+        setExtConnected(resp.ok);
+      } catch {
+        setExtConnected(false);
+      }
     }
   }, []);
 

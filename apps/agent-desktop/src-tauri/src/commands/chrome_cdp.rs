@@ -60,6 +60,14 @@ pub async fn launch_chrome_debug(port: Option<u16>) -> Result<(), String> {
     Ok(())
 }
 
+/// Check if the Chrome extension is connected via WebSocket relay.
+#[tauri::command]
+pub async fn check_extension_connected(
+    ws_state: tauri::State<'_, crate::ws_relay::ExtSender>,
+) -> Result<bool, String> {
+    Ok(crate::ws_relay::is_extension_connected(&ws_state).await)
+}
+
 /// Export the bundled Chrome CDP relay extension to a temp directory
 /// and open it in the system file manager. Returns the path.
 #[tauri::command]
@@ -105,60 +113,29 @@ pub async fn export_chrome_extension() -> Result<String, String> {
 "#,
     ).map_err(|e| format!("Failed to write manifest: {}", e))?;
 
-    // Write background.js
-    // Read extension files from the project extensions directory.
-    // Try multiple relative paths to handle different build environments.
-    let read_file = |name: &str| -> Result<String, String> {
-        let candidates = [
-            format!("extensions/chrome-cdp-relay/{}", name),
-            format!("../extensions/chrome-cdp-relay/{}", name),
-            format!("../../extensions/chrome-cdp-relay/{}", name),
-            format!("../../../extensions/chrome-cdp-relay/{}", name),
-            format!("../../../../extensions/chrome-cdp-relay/{}", name),
-            format!("../../../../../extensions/chrome-cdp-relay/{}", name),
-        ];
-        for path in &candidates {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                return Ok(content);
-            }
-        }
-        Err(format!("Failed to find {}", name))
-    };
-
-    let read_bytes = |name: &str| -> Result<Vec<u8>, String> {
-        let candidates = [
-            format!("extensions/chrome-cdp-relay/icons/{}", name),
-            format!("../extensions/chrome-cdp-relay/icons/{}", name),
-            format!("../../extensions/chrome-cdp-relay/icons/{}", name),
-            format!("../../../extensions/chrome-cdp-relay/icons/{}", name),
-            format!("../../../../extensions/chrome-cdp-relay/icons/{}", name),
-            format!("../../../../../extensions/chrome-cdp-relay/icons/{}", name),
-        ];
-        for path in &candidates {
-            if let Ok(content) = std::fs::read(path) {
-                return Ok(content);
-            }
-        }
-        Err(format!("Failed to find icons/{}", name))
-    };
-
-    let background_js = read_file("background.js")?;
+    // Write background.js — embedded at compile time via include_str!
+    let background_js = include_str!("../../../../../extensions/chrome-cdp-relay/background.js");
     std::fs::write(ext_dir.join("background.js"), background_js)
         .map_err(|e| format!("Failed to write background.js: {}", e))?;
 
-    let popup_html = read_file("popup.html")?;
-    let popup_js = read_file("popup.js")?;
+    let popup_html = include_str!("../../../../../extensions/chrome-cdp-relay/popup.html");
+    std::fs::write(ext_dir.join("popup.html"), popup_html)
+        .map_err(|e| format!("Failed to write popup.html: {}", e))?;
+
+    let popup_js = include_str!("../../../../../extensions/chrome-cdp-relay/popup.js");
+    std::fs::write(ext_dir.join("popup.js"), popup_js)
+        .map_err(|e| format!("Failed to write popup.js: {}", e))?;
 
     let icons_dir = ext_dir.join("icons");
     std::fs::create_dir_all(&icons_dir).map_err(|e| format!("Failed to create icons dir: {}", e))?;
-    let icon16 = read_bytes("icon16.png")?;
-    let icon48 = read_bytes("icon48.png")?;
-    let icon128 = read_bytes("icon128.png")?;
-    let icon48_active = read_bytes("icon48-active.png")?;
-    std::fs::write(icons_dir.join("icon16.png"), &icon16).map_err(|e| format!("Failed to write icon16: {}", e))?;
-    std::fs::write(icons_dir.join("icon48.png"), &icon48).map_err(|e| format!("Failed to write icon48: {}", e))?;
-    std::fs::write(icons_dir.join("icon128.png"), &icon128).map_err(|e| format!("Failed to write icon128: {}", e))?;
-    std::fs::write(icons_dir.join("icon48-active.png"), &icon48_active).map_err(|e| format!("Failed to write icon48-active: {}", e))?;
+    let icon16 = include_bytes!("../../../../../extensions/chrome-cdp-relay/icons/icon16.png");
+    let icon48 = include_bytes!("../../../../../extensions/chrome-cdp-relay/icons/icon48.png");
+    let icon128 = include_bytes!("../../../../../extensions/chrome-cdp-relay/icons/icon128.png");
+    let icon48_active = include_bytes!("../../../../../extensions/chrome-cdp-relay/icons/icon48-active.png");
+    std::fs::write(icons_dir.join("icon16.png"), icon16).map_err(|e| format!("Failed to write icon16: {}", e))?;
+    std::fs::write(icons_dir.join("icon48.png"), icon48).map_err(|e| format!("Failed to write icon48: {}", e))?;
+    std::fs::write(icons_dir.join("icon128.png"), icon128).map_err(|e| format!("Failed to write icon128: {}", e))?;
+    std::fs::write(icons_dir.join("icon48-active.png"), icon48_active).map_err(|e| format!("Failed to write icon48-active: {}", e))?;
 
     // Open the directory in Finder/Explorer
     #[cfg(target_os = "macos")]
