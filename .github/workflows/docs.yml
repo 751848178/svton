@@ -8,9 +8,7 @@ on:
       - 'docs/**'
       - 'apps/agent-web/**'
       - 'packages/agent-ui/**'
-      - 'ai/agent-core/**'
-      - 'ai/agent-client/**'
-      - 'ai/agent-platform/**'
+      - 'ai/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -45,11 +43,8 @@ jobs:
       - name: Install all dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build agent-web and all dependencies (topological order)
-        run: pnpm --filter agent-web... build
-
-      - name: Build docs
-        run: pnpm --filter docs build
+      - name: Build agent-web and all dependencies
+        run: NODE_ENV=production pnpm --filter agent-web... build
 
       - name: Build docs
         run: pnpm --filter docs build
