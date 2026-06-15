@@ -48,6 +48,7 @@ jobs:
       - name: Build core packages
         run: |
           pnpm --filter @svton/agent-core build
+          pnpm --filter @svton/agent-platform build
           pnpm --filter @svton/agent-client build
           pnpm --filter @svton/agent-ui build
 
