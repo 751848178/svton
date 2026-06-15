@@ -165,12 +165,13 @@ export function ChatContent({
           onEditMessage={editMessage}
           onOpenDocument={handleOpenDocument}
           onOpenEditor={handleOpenEditor}
-          onOpenReference={async (path, line) => {
+          onOpenReference={async (path, _line) => {
             try {
               const api = await import('@tauri-apps/api/core' as string);
               const invoke = (api as any).invoke;
               // Resolve relative path against working directory
-              const fullPath = path.startsWith('/') ? path : `${''}/${path}`;
+              const workingDir = (window as any).__svtonWorkingDir || '';
+              const fullPath = path.startsWith('/') || path.startsWith('~') ? path : `${workingDir}/${path}`;
               await invoke('process_exec', { command: ['open', fullPath], cwd: null });
             } catch (e) {
               console.error('Failed to open file:', e);

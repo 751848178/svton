@@ -313,11 +313,34 @@ export function AgentLayout({
             <div className="flex-1 overflow-y-auto p-6">
               <h2 className="text-lg text-white font-light mb-4">集成</h2>
               <p className="text-[11px] text-gray-500 mb-4">配置 Slack、Linear 等第三方集成。配置 API Key 后，Agent 可直接调用对应工具。</p>
-              <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 text-center">
-                <p className="text-gray-400 text-sm mb-2">请在设置页面配置集成</p>
-                <p className="text-gray-600 text-xs">Slack 和 Linear 集成需要在设置中配置 API Key 和凭证。</p>
-                <button onClick={() => window.location.href = '/settings'} className="mt-3 px-3 py-1 text-[11px] text-cyan-400 hover:text-cyan-300 border border-cyan-900/50 rounded-md">前往设置 →</button>
-              </div>
+              {(() => {
+                const intMgr = (config as any)?.capabilities?.integrationManager;
+                if (!intMgr) return (
+                  <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 text-center">
+                    <p className="text-gray-400 text-sm mb-2">集成管理器未初始化</p>
+                    <button onClick={() => window.location.href = '/settings'} className="mt-3 px-3 py-1 text-[11px] text-cyan-400 hover:text-cyan-300 border border-cyan-900/50 rounded-md">前往设置 →</button>
+                  </div>
+                );
+                const integrations = intMgr.list?.() ?? [];
+                return (
+                  <div className="space-y-2">
+                    {integrations.length === 0 ? (
+                      <p className="text-gray-500 text-sm">暂无已注册集成。</p>
+                    ) : integrations.map((intg: any) => (
+                      <div key={intg.id} className="bg-gray-900 border border-gray-800 rounded-lg p-3 flex items-center justify-between">
+                        <div>
+                          <span className="text-sm text-white font-medium">{intg.name}</span>
+                          {intg.description && <p className="text-xs text-gray-500 mt-0.5">{intg.description}</p>}
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded ${intg.enabled ? 'bg-green-900/30 text-green-400' : 'bg-gray-800 text-gray-500'}`}>
+                          {intg.enabled ? '已启用' : '未启用'}
+                        </span>
+                      </div>
+                    ))}
+                    <button onClick={() => window.location.href = '/settings'} className="mt-2 text-[11px] text-cyan-400 hover:text-cyan-300">在设置中配置凭证 →</button>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

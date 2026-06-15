@@ -475,6 +475,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             if (block.type === 'csv_fanout' && block.totalRows !== undefined) {
               return <CsvFanoutBlock key={`csv-${i}`} rows={(block.rows || []) as any} totalRows={block.totalRows} />;
             }
+            if (block.type === 'auto_review' && block.verdict) {
+              const verdictColor = block.verdict === 'approve' ? 'text-green-400' : block.verdict === 'deny' ? 'text-red-400' : 'text-yellow-400';
+              const verdictIcon = block.verdict === 'approve' ? '✓' : block.verdict === 'deny' ? '✗' : '⚠';
+              return (
+                <div key={`ar-${i}`} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2a2a2a] bg-[#1c1c1c] my-1">
+                  <span className={`text-xs ${verdictColor}`}>{verdictIcon}</span>
+                  <span className="text-[12px] text-gray-300">
+                    Auto-Review: <span className={verdictColor}>{block.verdict}</span>
+                    {block.toolName && <span className="text-gray-600"> · {block.toolName}</span>}
+                  </span>
+                  {block.reason && <span className="text-[11px] text-gray-500 truncate flex-1">{block.reason}</span>}
+                </div>
+              );
+            }
             return null;
           })}
         </>
