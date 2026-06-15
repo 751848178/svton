@@ -83,6 +83,7 @@ pub fn run() {
             // Chrome CDP
             check_chrome_cdp,
             launch_chrome_debug,
+            export_chrome_extension,
             // Sandbox
             sandbox_exec,
             // Window (pop-out threads)

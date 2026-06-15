@@ -714,34 +714,25 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
 
   const handleInstallExtension = useCallback(async () => {
     try {
-      // Find the extension directory relative to the app resources
-      // In dev: the extensions/ folder is at the project root
-      // In production: it's bundled with the app
       const api: any = await import('@tauri-apps/api/core' as string);
 
-      // Try to open the local extension folder in Finder
-      // The extension is at <app_dir>/extensions/chrome-cdp-relay
-      try {
-        await api.invoke('plugin:shell|open', { path: '/extensions/chrome-cdp-relay' });
-      } catch {
-        // Fallback: try opening from the app resource directory
-        try {
-          const { getCurrentWindow } = await import('@tauri-apps/api/window' as string);
-          // Open Chrome extensions page
-          await api.invoke('plugin:shell|open', { path: 'chrome://extensions' });
-        } catch { /* ignore */ }
-      }
+      // 1. Export extension to temp dir and open in Finder
+      const extPath = await api.invoke('export_chrome_extension');
+      console.log('Extension exported to:', extPath);
 
-      // Also open Chrome extensions page
+      // 2. Open Chrome extensions page after a short delay
       setTimeout(async () => {
         try {
           await api.invoke('plugin:shell|open', { path: 'chrome://extensions' });
-        } catch { /* ignore */ }
-      }, 500);
+        } catch {
+          // shell open might not allow chrome:// URL — try opening Chrome directly
+          try {
+            window.open('chrome://extensions', '_blank');
+          } catch { /* ignore */ }
+        }
+      }, 1000);
     } catch (e) {
-      console.error('Failed to open extension folder:', e);
-      // Fallback: open GitHub
-      window.open('https://github.com/svton/svton/tree/main/extensions/chrome-cdp-relay', '_blank');
+      console.error('Failed to export extension:', e);
     }
   }, []);
 
