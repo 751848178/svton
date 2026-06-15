@@ -45,15 +45,11 @@ jobs:
       - name: Install all dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build core packages
-        run: |
-          pnpm --filter @svton/agent-core build
-          pnpm --filter @svton/agent-platform build
-          pnpm --filter @svton/agent-client build
-          pnpm --filter @svton/agent-ui build
+      - name: Build agent-web and all dependencies (topological order)
+        run: pnpm --filter agent-web... build
 
-      - name: Build agent-web (static export)
-        run: pnpm --filter agent-web build
+      - name: Build docs
+        run: pnpm --filter docs build
 
       - name: Build docs
         run: pnpm --filter docs build
