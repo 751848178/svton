@@ -19,7 +19,7 @@ export default defineConfig({
       { text: '首页', link: '/' },
       { text: '快速开始', link: '/getting-started/quick-start' },
       { text: '架构设计', link: '/architecture/overview' },
-      { text: 'AI Agent', link: '/packages/agent-sdk' },
+      { text: 'AI Agent', link: '/agent-sdk/' },
       { text: '共享包', link: '/packages/types' },
     ],
 

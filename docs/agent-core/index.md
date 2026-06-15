@@ -1,6 +1,6 @@
 # @svton/agent-core
 
-Svton Agent 的核心运行时 — Provider、工具系统、Agent Runtime、MCP、记忆、自动化等。
+> Svton Agent 的核心运行时 — Provider、工具系统、Agent Runtime、MCP、记忆、自动化等。
 
 ## 安装
 

@@ -1,4 +1,5 @@
 # @svton/agent-client
+> Svton Agent 的 React 集成层 — 连接 agent-core 和 agent-ui，提供 Hooks 和 Service
 
 React 集成层 — 连接 agent-core 和 agent-ui，提供 Hooks 和 Service。
 

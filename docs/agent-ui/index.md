@@ -1,6 +1,8 @@
 # @svton/agent-ui
 
-Svton Agent 的 React 组件库 — 提供完整的聊天界面、19 种消息块、设置面板和工具管理。
+> Svton Agent 的 React 组件库 — 聊天界面、19 种消息块、设置面板和工具管理
+
+## 安装
 
 ## 安装
 

@@ -1,4 +1,5 @@
 # Services
+> Service 层 — ChatService、SessionService、ProjectService
 
 `@svton/agent-client` 内置三个核心 Service 类，它们通过 `@svton/service` 的依赖注入容器管理，提供 Agent 运行时、会话持久化、项目管理等能力。通常你通过 `useAgent()` / `useChat()` 等 Hook 间接使用它们，但也可以直接获取实例进行高级操作。
 

@@ -1,4 +1,5 @@
 # Hooks
+> React Hooks — useChat、useSession、useAgent、useToolApproval
 
 `@svton/agent-client` 提供了 4 个 React Hook，用于在 React 组件中接入 Agent 的聊天、会话、工具审批等能力。所有 Hook 必须在 `<AgentProvider>` 内部使用，它们通过 `useAgentContext()` 获取共享的 Service 实例。
 

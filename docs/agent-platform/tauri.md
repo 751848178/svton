@@ -1,4 +1,5 @@
 # TauriPlatform 详解
+> Tauri 平台 — SQLite 存储、Rust grep、沙箱、文档预览
 
 `TauriPlatform` 是 Svton Agent 在 Tauri 桌面应用中的完整平台实现。它通过 Tauri 的 `invoke()` IPC 机制将所有系统操作委托给 Rust 后端，提供文件系统、进程执行、SQLite 存储、ripgrep 搜索、OS 级沙箱和文档预览的全部能力。
 

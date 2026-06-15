@@ -1,4 +1,5 @@
 # @svton/agent-sdk
+> 高层 SDK — 一个 createAgent() 调用完成所有配置
 
 高层 SDK — 通过一个 `createAgent()` 异步调用完成 Provider、ToolRegistry、Memory、Planning、MCP、Hooks 等全部配置，屏蔽底层 `@svton/agent-core` 的复杂装配逻辑。
 

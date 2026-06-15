@@ -1,4 +1,5 @@
 # React SDK 集成
+> React SDK — AgentProvider、useChat、useToolApproval
 
 `@svton/agent-sdk/react` 提供与 React 深度集成的 Provider 和 Hooks，自动管理 Agent 生命周期、消息流式渲染、工具审批状态，无需手动处理 `agent-core` 的底层事件流。
 
