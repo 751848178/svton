@@ -1,11 +1,22 @@
-# ToolCallCard 工具调用卡片组件
+# ToolCallCard
 
-`ToolCallCard` 用于渲染 Agent 执行工具调用的过程与结果。它根据工具名称自动分类（Shell 命令、文件编辑、Computer Use、截图），并采用级联渲染策略展示不同格式的输出内容。卡片支持运行中、已完成、出错和待审批四种状态。
+> 工具调用卡片 — 自动分类（Shell/文件/截图）+ 4 种状态 + 级联渲染输出
 
+## 效果展示
 
----
+三种工具调用状态：
 
-## 概述
+<Demo name="tool-call" :height="200" />
+
+Shell 命令调用：
+
+<Demo name="tool-call-shell" :height="240" />
+
+失败的工具调用：
+
+<Demo name="tool-call-error" :height="160" />
+
+## 快速开始
 
 ToolCallCard 的核心设计：
 

@@ -2,13 +2,15 @@
 
 > Svton Agent 的 Web 应用 — 基于 Next.js，完整聊天界面 + 多视图管理
 
-## 何时使用
+## Agent 能力演示
 
-当你需要在浏览器中运行 Svton Agent（无需安装桌面应用）时使用 agent-web。支持所有非桌面专属功能：聊天、技能、Agent 定义、MCP、集成等。
+以下是一个完整的 Agent 对话演示，展示思考、工具调用、计划追踪、文件变更等全部能力：
 
-## 在线体验
+<Demo name="chat-panel" />
 
-在下方 Demo 中配置你的 API Key 和 Base URL，直接与 Agent 对话：
+## 实战体验 — 配置你的 API
+
+在下方 Playground 中配置 API Key 和 Base URL，直接与 AI Agent 对话：
 
 <iframe src="/svton/demos/playground.html" style="width:100%;height:600px;border:1px solid #2a2a2a;border-radius:8px;background:#0a0a0a" frameborder="0" sandbox="allow-scripts allow-same-origin" />
 

@@ -1,11 +1,14 @@
-# ChatInput 输入框组件
+# ChatInput
 
-`ChatInput` 是 Codex 风格的圆角卡片式聊天输入组件，集成斜杠命令（Slash Command）自动补全、`@` 提及弹窗、文件引用、图片附件等功能。组件设计为自包含的单体输入卡片，前后插槽（`leadingSlot` / `trailingSlot`）可嵌入模型选择器、模式切换等自定义控件。
+> 聊天输入框 — 斜杠命令自动补全 + @提及弹窗 + 文件引用 + 图片附件
 
+## 效果展示
 
----
+斜杠命令和 @提及的交互效果：
 
-## 概述
+<Demo name="chat-input" />
+
+## 快速开始
 
 ChatInput 的核心交互特性：
 
