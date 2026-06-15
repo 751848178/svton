@@ -9,6 +9,8 @@
 
 ## 快速使用
 
+<Demo name="provider-config" :height="500" />
+
 ```typescript
 import { OpenAIProvider } from '@svton/agent-core';
 

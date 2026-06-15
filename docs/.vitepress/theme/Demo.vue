@@ -8,7 +8,7 @@ const props = defineProps<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-const demoHeight = computed(() => props.height || '320px');
+const demoHeight = computed(() => props.height || '560px');
 const demoTitle = computed(() => props.title || '可交互 Demo');
 const src = computed(() => `/svton/demos/?demo=${props.name}&t=${Date.now()}`);
 </script>

@@ -6,6 +6,8 @@
 
 ## 快速使用
 
+<Demo name="hooks-flow" :height="500" />
+
 ```typescript
 import { HookManager } from '@svton/agent-core';
 

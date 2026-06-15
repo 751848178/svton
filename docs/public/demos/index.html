@@ -278,6 +278,248 @@ const demos = {
         <div class="tc-out tc-err-out">Error: ENOENT: no such file or directory</div>
       </div>
     </div>`,
+
+  // ─── agent-core demos ──────────────────────────────
+
+  'react-loop': () => `
+    <div class="dh">AgentRuntime — ReAct 循环可视化</div>
+    <div class="dc">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="padding:10px;border:1px solid #60a5fa;background:rgba(96,165,250,.08);border-radius:8px">
+          <div style="font-size:10px;color:#60a5fa;margin-bottom:4px">迭代 1 · 思考</div>
+          <div style="font-size:11px;color:#aaa">用户想要了解项目结构。我需要先查看目录...</div>
+        </div>
+        <div style="text-align:center;color:#555">↓</div>
+        <div style="padding:10px;border:1px solid #0891b2;background:rgba(8,145,178,.08);border-radius:8px">
+          <div style="font-size:10px;color:#0891b2;margin-bottom:4px">工具调用 · file_read</div>
+          <div style="font-size:11px;color:#888;font-family:monospace">path: "src/index.ts"</div>
+        </div>
+        <div style="text-align:center;color:#555">↓</div>
+        <div style="padding:10px;border:1px solid #4ade80;background:rgba(74,222,128,.08);border-radius:8px">
+          <div style="font-size:10px;color:#4ade80;margin-bottom:4px">工具结果</div>
+          <div style="font-size:11px;color:#888;font-family:monospace">export function main() { ... }</div>
+        </div>
+        <div style="text-align:center;color:#555">↓</div>
+        <div style="padding:10px;border:1px solid #60a5fa;background:rgba(96,165,250,.08);border-radius:8px">
+          <div style="font-size:10px;color:#60a5fa;margin-bottom:4px">迭代 2 · 思考</div>
+          <div style="font-size:11px;color:#aaa">文件结构清楚了，现在我来总结...</div>
+        </div>
+        <div style="text-align:center;color:#555">↓</div>
+        <div style="padding:10px;border:1px solid #4ade80;background:rgba(74,222,128,.15);border-radius:8px">
+          <div style="font-size:10px;color:#4ade80;margin-bottom:4px">✓ 完成 · stop</div>
+          <div style="font-size:11px;color:#ccc">项目采用 monorepo 架构，使用 pnpm workspace...</div>
+        </div>
+      </div>
+    </div>`,
+
+  'permission-modes': () => `
+    <div class="dh">PermissionManager — 5 种权限模式对比</div>
+    <div class="dc">
+      <div id="perm-demo">
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+          <button onclick="document.querySelectorAll('.perm-detail').forEach(e=>e.style.display='none');document.getElementById('perm-ro').style.display='block'" style="padding:6px 12px;font-size:11px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">read_only</button>
+          <button onclick="document.querySelectorAll('.perm-detail').forEach(e=>e.style.display='none');document.getElementById('perm-plan').style.display='block'" style="padding:6px 12px;font-size:11px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">plan</button>
+          <button onclick="document.querySelectorAll('.perm-detail').forEach(e=>e.style.display='none');document.getElementById('perm-default').style.display='block'" style="padding:6px 12px;font-size:11px;border:1px solid #3B82F6;background:rgba(59,130,246,.2);color:#60a5fa;border-radius:6px;cursor:pointer">default</button>
+          <button onclick="document.querySelectorAll('.perm-detail').forEach(e=>e.style.display='none');document.getElementById('perm-accept').style.display='block'" style="padding:6px 12px;font-size:11px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">accept_edits</button>
+          <button onclick="document.querySelectorAll('.perm-detail').forEach(e=>e.style.display='none');document.getElementById('perm-auto').style.display='block'" style="padding:6px 12px;font-size:11px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">auto</button>
+        </div>
+        <div id="perm-default" class="perm-detail" style="display:block">
+          <div style="font-size:12px;color:#60a5fa;margin-bottom:8px">default 模式 — 读写分离</div>
+          <table style="width:100%;font-size:11px;border-collapse:collapse">
+            <tr><td style="padding:4px 8px">file_read, grep, glob</td><td style="color:#4ade80">✓ 自动允许</td></tr>
+            <tr><td style="padding:4px 8px">web_search, screenshot</td><td style="color:#4ade80">✓ 自动允许</td></tr>
+            <tr><td style="padding:4px 8px">file_write, file_edit</td><td style="color:#fbbf24">⚠ 需要确认</td></tr>
+            <tr><td style="padding:4px 8px">bash, shell</td><td style="color:#fbbf24">⚠ 需要确认</td></tr>
+          </table>
+        </div>
+        <div id="perm-ro" class="perm-detail" style="display:none">
+          <div style="font-size:12px;color:#fbbf24;margin-bottom:8px">read_only 模式 — 完全只读</div>
+          <table style="width:100%;font-size:11px;border-collapse:collapse">
+            <tr><td style="padding:4px 8px">file_read, grep, glob</td><td style="color:#4ade80">✓ 允许</td></tr>
+            <tr><td style="padding:4px 8px">web_search, screenshot</td><td style="color:#4ade80">✓ 允许</td></tr>
+            <tr><td style="padding:4px 8px">file_write, file_edit, bash</td><td style="color:#f87171">✗ 拒绝</td></tr>
+          </table>
+        </div>
+        <div id="perm-plan" class="perm-detail" style="display:none">
+          <div style="font-size:12px;color:#a78bfa;margin-bottom:8px">plan 模式 — 只做规划</div>
+          <table style="width:100%;font-size:11px;border-collapse:collapse">
+            <tr><td style="padding:4px 8px">file_read, grep, glob</td><td style="color:#4ade80">✓ 允许</td></tr>
+            <tr><td style="padding:4px 8px">所有写操作和执行</td><td style="color:#f87171">✗ 拒绝</td></tr>
+          </table>
+        </div>
+        <div id="perm-accept" class="perm-detail" style="display:none">
+          <div style="font-size:12px;color:#4ade80;margin-bottom:8px">accept_edits 模式 — 编辑免确认</div>
+          <table style="width:100%;font-size:11px;border-collapse:collapse">
+            <tr><td style="padding:4px 8px">file_read, grep, glob</td><td style="color:#4ade80">✓ 自动</td></tr>
+            <tr><td style="padding:4px 8px">file_write, file_edit</td><td style="color:#4ade80">✓ 自动允许</td></tr>
+            <tr><td style="padding:4px 8px">bash, shell</td><td style="color:#fbbf24">⚠ 需要确认</td></tr>
+          </table>
+        </div>
+        <div id="perm-auto" class="perm-detail" style="display:none">
+          <div style="font-size:12px;color:#4ade80;margin-bottom:8px">auto 模式 — 全自动</div>
+          <table style="width:100%;font-size:11px;border-collapse:collapse">
+            <tr><td style="padding:4px 8px">所有工具</td><td style="color:#4ade80">✓ 自动执行</td></tr>
+          </table>
+          <div style="font-size:10px;color:#f87171;margin-top:8px">⚠ 注意：AI 可以执行任何操作，包括删除文件</div>
+        </div>
+      </div>
+    </div>`,
+
+  'nl-scheduler': () => `
+    <div class="dh">AutomationManager — 自然语言调度解析器</div>
+    <div class="dc">
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;color:#666;display:block;margin-bottom:4px">输入自然语言调度指令：</label>
+        <div style="display:flex;gap:8px">
+          <input id="nl-input" type="text" value="every day at 9am" style="flex:1;padding:8px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#e0e0e0;font-size:12px;outline:none" oninput="parseNL()" />
+          <button onclick="parseNL()" style="padding:8px 16px;background:#3B82F6;border:none;border-radius:6px;color:white;font-size:11px;cursor:pointer">解析</button>
+        </div>
+        <div style="font-size:10px;color:#555;margin-top:4px">试试: "every 30 minutes", "daily at 9:00", "weekly on monday at 10:00", "0 */6 * * *"</div>
+      </div>
+      <div id="nl-result" style="padding:12px;background:#1a1a1a;border:1px solid #252525;border-radius:8px;font-family:monospace;font-size:11px;color:#4ade80"></div>
+      <script>
+        function parseNL(){
+          var s=document.getElementById('nl-input').value.toLowerCase().trim();var r;
+          var m=s.match(/every\\s+(\\d+)\\s*(min|hour)/);if(m){var n=parseInt(m[1]);r=m[2].startsWith('hour')?'{ type: "interval", minutes: '+(n*60)+' }':'{ type: "interval", minutes: '+n+' }'}
+          else if(s.includes('hourly')||s.match(/^every\\s+hour/)){r='{ type: "interval", minutes: 60 }'}
+          else{m=s.match(/(?:every\\s+day|daily)\\s+at\\s+(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?/);if(m){var h=parseInt(m[1]);var min=m[2]?parseInt(m[2]):0;if(m[3]==='pm'&&h<12)h+=12;if(m[3]==='am'&&h===12)h=0;r='{ type: "cron", expression: "'+min+' '+h+' * * *" }'}}
+          else{m=s.match(/weekly\\s+on\\s+(\\w+)/);if(m){var dm={sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6};var d=dm[m[1].slice(0,3).toLowerCase()]||1;r='{ type: "cron", expression: "0 9 * * '+d+'" }'}}
+          else if(/^[\\d*/,-]+\\s+[\\d*/,-]+\\s+[\\d*/,-]+\\s+[\\d*/,-]+\\s+[\\d*/,-]+$/.test(s)){r='{ type: "cron", expression: "'+s+'" }'}
+          else{r='{ type: "event", eventType: "'+s.replace(/\\s+/g,'_')+'" }'}
+          document.getElementById('nl-result').textContent='→ '+r;
+        }
+        parseNL();
+      <\/script>
+    </div>`,
+
+  'memory-flow': () => `
+    <div class="dh">MemoryManager — 记忆自动提取流程</div>
+    <div class="dc">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="padding:10px;border:1px solid #333;background:#1a1a1a;border-radius:8px">
+          <div style="font-size:10px;color:#666;margin-bottom:4px">用户消息</div>
+          <div style="font-size:11px;color:#aaa">"帮我用 TypeScript 写，不要用 var，用 const"</div>
+        </div>
+        <div style="text-align:center;color:#555">↓ 对话完成</div>
+        <div style="padding:10px;border:1px solid #a78bfa;background:rgba(167,139,250,.08);border-radius:8px">
+          <div style="font-size:10px;color:#a78bfa;margin-bottom:4px">自动提取（done 事件触发）</div>
+          <div style="font-size:11px;color:#888">分析最近 10 条消息，提取记忆点...</div>
+        </div>
+        <div style="text-align:center;color:#555">↓</div>
+        <div style="padding:10px;border:1px solid #4ade80;background:rgba(74,222,128,.08);border-radius:8px">
+          <div style="font-size:10px;color:#4ade80;margin-bottom:4px">✓ 新增记忆</div>
+          <div style="font-size:11px;color:#ccc">• 用户偏好 TypeScript<br>• 编码规范：使用 const 而非 var</div>
+        </div>
+        <div style="text-align:center;color:#555">↓ 下次对话</div>
+        <div style="padding:10px;border:1px solid #60a5fa;background:rgba(96,165,250,.08);border-radius:8px">
+          <div style="font-size:10px;color:#60a5fa;margin-bottom:4px">自动回忆（注入系统提示词）</div>
+          <div style="font-size:11px;color:#888">## Learned Preferences<br>- 用户偏好 TypeScript<br>- 编码规范：使用 const 而非 var</div>
+        </div>
+      </div>
+    </div>`,
+
+  'tool-registration': () => `
+    <div class="dh">ToolRegistry — 工具注册与分类</div>
+    <div class="dc">
+      <div style="font-size:11px;color:#666;margin-bottom:8px">点击工具类别查看详情：</div>
+      <div id="tool-demo">
+        <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+          <button onclick="showTools('file')" style="padding:6px 10px;font-size:10px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">文件操作 (3)</button>
+          <button onclick="showTools('search')" style="padding:6px 10px;font-size:10px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">搜索 (2)</button>
+          <button onclick="showTools('shell')" style="padding:6px 10px;font-size:10px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">Shell (1)</button>
+          <button onclick="showTools('web')" style="padding:6px 10px;font-size:10px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">Web (2)</button>
+          <button onclick="showTools('computer')" style="padding:6px 10px;font-size:10px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">Computer Use (10)</button>
+          <button onclick="showTools('chrome')" style="padding:6px 10px;font-size:10px;border:1px solid #333;background:#1c1c1c;color:#888;border-radius:6px;cursor:pointer">Chrome CDP (6)</button>
+        </div>
+        <div id="tool-list" style="font-size:11px"></div>
+        <script>
+          var tools={file:[['file_read','读取文件'],['file_write','写入文件'],['file_edit','编辑文件']],search:[['grep','文本搜索'],['glob','文件匹配']],shell:[['bash','执行命令']],web:[['web_search','网络搜索'],['web_fetch','获取网页']],computer:[['screenshot','截屏'],['mouse_click','鼠标点击'],['mouse_double_click','双击'],['mouse_move','移动鼠标'],['mouse_down','按下'],['mouse_up','释放'],['mouse_drag','拖拽'],['scroll','滚动'],['keyboard_type_text','输入文本'],['keyboard_press_key','按键']],chrome:[['chrome_navigate','导航'],['chrome_screenshot','截图'],['chrome_click','点击'],['chrome_type','输入'],['chrome_evaluate','执行JS'],['chrome_get_content','获取内容']]};
+          function showTools(cat){var l=tools[cat]||[];var h='<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">';for(var i=0;i<l.length;i++){h+='<div style="padding:6px 8px;background:#1a1a1a;border:1px solid #252525;border-radius:4px"><span style="font-family:monospace;color:#0891b2">'+l[i][0]+'</span><br><span style="color:#666;font-size:10px">'+l[i][1]+'</span></div>'}document.getElementById('tool-list').innerHTML=h+'</div>'}
+          showTools('file');
+        <\/script>
+      </div>
+    </div>`,
+
+  'provider-config': () => `
+    <div class="dh">Provider — OpenAI / Anthropic 配置对比</div>
+    <div class="dc">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="padding:12px;border:1px solid #0891b2;background:rgba(8,145,178,.05);border-radius:8px">
+          <div style="font-size:12px;color:#0891b2;margin-bottom:8px;font-weight:600">OpenAIProvider</div>
+          <pre style="font-size:10px;color:#888;line-height:1.5;white-space:pre-wrap">new OpenAIProvider({
+  baseUrl: 'https://api.openai.com/v1',
+  apiKey: process.env.OPENAI_API_KEY,
+  models: [{
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    contextWindow: 128000,
+    supportsVision: true,
+  }],
+})</pre>
+        </div>
+        <div style="padding:12px;border:1px solid #d97706;background:rgba(217,119,6,.05);border-radius:8px">
+          <div style="font-size:12px;color:#d97706;margin-bottom:8px;font-weight:600">AnthropicProvider</div>
+          <pre style="font-size:10px;color:#888;line-height:1.5;white-space:pre-wrap">new AnthropicProvider({
+  baseUrl: 'https://api.anthropic.com',
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  models: [{
+    id: 'claude-sonnet-4-20250514',
+    name: 'Claude Sonnet 4',
+    contextWindow: 200000,
+    supportsVision: true,
+  }],
+})</pre>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding:8px;background:#1a1a1a;border-radius:6px;font-size:10px;color:#666">
+        两者都实现 IProvider 接口：chat() 流式对话 + streamChat() SSE 流
+      </div>
+    </div>`,
+
+  'hooks-flow': () => `
+    <div class="dh">HookManager — 8 种生命周期事件</div>
+    <div class="dc">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="padding:8px 12px;border:1px solid #252525;border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(96,165,250,.2);color:#60a5fa;border-radius:3px">START</span><span style="font-family:monospace;font-size:11px;color:#0891b2">session_start</span><span style="font-size:10px;color:#666">会话开始时触发</span></div>
+        <div style="padding:8px 12px;border:1px solid #fbbf24;background:rgba(251,191,36,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(251,191,36,.2);color:#fbbf24;border-radius:3px">BEFORE</span><span style="font-family:monospace;font-size:11px;color:#0891b2">pre_tool_use</span><span style="font-size:10px;color:#666">工具执行前 — 可拦截/修改</span></div>
+        <div style="padding:8px 12px;border:1px solid #4ade80;background:rgba(74,222,128,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(74,222,128,.2);color:#4ade80;border-radius:3px">AFTER</span><span style="font-family:monospace;font-size:11px;color:#0891b2">post_tool_use</span><span style="font-size:10px;color:#666">工具执行后</span></div>
+        <div style="padding:8px 12px;border:1px solid #a78bfa;background:rgba(167,139,250,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(167,139,250,.2);color:#a78bfa;border-radius:3px">SYSTEM</span><span style="font-family:monospace;font-size:11px;color:#0891b2">context_compact</span><span style="font-size:10px;color:#666">上下文压缩时</span></div>
+        <div style="padding:8px 12px;border:1px solid #252525;border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(120,120,120,.2);color:#999;border-radius:3px">MSG</span><span style="font-family:monospace;font-size:11px;color:#0891b2">message_sent / message_received</span><span style="font-size:10px;color:#666">消息收发</span></div>
+        <div style="padding:8px 12px;border:1px solid #f87171;background:rgba(248,113,113,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(248,113,113,.2);color:#f87171;border-radius:3px">END</span><span style="font-family:monospace;font-size:11px;color:#0891b2">session_end</span><span style="font-size:10px;color:#666">会话结束时</span></div>
+      </div>
+      <div style="margin-top:10px;padding:8px;background:#1a1a1a;border-radius:6px;font-size:10px;color:#666;line-height:1.5">
+        <b style="color:#4ade80">continue</b> → 继续 ｜ <b style="color:#60a5fa">modify</b> → 修改上下文 ｜ <b style="color:#f87171">deny</b> → 拒绝执行 ｜ <b style="color:#4ade80">approve</b> → 批准
+      </div>
+    </div>`,
+
+  'create-agent': () => `
+    <div class="dh">createAgent() — SDK 一键创建 Agent</div>
+    <div class="dc">
+      <pre style="font-size:11px;color:#c9d1d9;line-height:1.6;white-space:pre-wrap;font-family:monospace"><span style="color:#ff7b72">import</span> { <span style="color:#d2a8ff">createAgent</span> } <span style="color:#ff7b72">from</span> <span style="color:#a5d6ff">'@svton/agent-sdk'</span>;
+
+<span style="color:#ff7b72">const</span> <span style="color:#79c0ff">agent</span> = <span style="color:#d2a8ff">createAgent</span>({
+  <span style="color:#79c0ff">model</span>: <span style="color:#a5d6ff">'gpt-4o'</span>,
+  <span style="color:#79c0ff">apiKey</span>: process.env.<span style="color:#79c0ff">OPENAI_API_KEY</span>,
+
+  <span style="color:#79c0ff">tools</span>: [
+    {
+      <span style="color:#79c0ff">name</span>: <span style="color:#a5d6ff">'get_weather'</span>,
+      <span style="color:#79c0ff">description</span>: <span style="color:#a5d6ff">'获取天气'</span>,
+      <span style="color:#79c0ff">parameters</span>: { <span style="color:#79c0ff">type</span>: <span style="color:#a5d6ff">'object'</span>, <span style="color:#79c0ff">properties</span>: { <span style="color:#79c0ff">city</span>: { <span style="color:#79c0ff">type</span>: <span style="color:#a5d6ff">'string'</span> } } },
+      <span style="color:#79c0ff">execute</span>: <span style="color:#ff7b72">async</span> (args) => <span style="color:#a5d6ff">'晴天 25°C'</span>,
+    }
+  ],
+
+  <span style="color:#79c0ff">mcpServers</span>: [
+    { <span style="color:#79c0ff">url</span>: <span style="color:#a5d6ff">'http://localhost:3000/mcp'</span>, <span style="color:#79c0ff">name</span>: <span style="color:#a5d6ff">'my-server'</span> }
+  ],
+
+  <span style="color:#79c0ff">skills</span>: [<span style="color:#a5d6ff">'code-review'</span>, <span style="color:#a5d6ff">'testing'</span>],
+});
+
+<span style="color:#6e7681">// 一个调用完成所有配置</span>
+<span style="color:#ff7b72">const</span> result = <span style="color:#ff7b72">await</span> agent.<span style="color:#d2a8ff">run</span>(<span style="color:#a5d6ff">'北京天气怎么样？'</span>);</pre>
+    </div>`,
 };
 
 const params = new URLSearchParams(location.search);

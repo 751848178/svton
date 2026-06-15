@@ -2,7 +2,6 @@
 
 `SettingsView` 是 `@svton/agent-ui` 的全功能设置面板，通过平台适配器（`ISettingsAdapter`）抽象层实现跨平台配置管理。面板分为"个人"、"集成"、"编码"三大分组，共 15 个设置区域，涵盖 Provider 管理、个性化、工具/技能配置、MCP 服务器、权限、沙箱、自动审核等全部配置项。
 
-> 源码位置：`packages/agent-ui/src/components/settings/SettingsView.tsx`
 
 ---
 

@@ -2,7 +2,6 @@
 
 `ChatPanel` 是 `@svton/agent-ui` 的核心聊天容器组件，负责将消息列表、输入框、工具审批弹窗、计划面板和回合格式化器（Turn Separator）整合为一个完整的对话界面。组件采用 Codex 风格：用户与助手消息之间无气泡框，通过分隔线区分每一轮对话，并可显示 token 使用量。
 
-> 源码位置：`packages/agent-ui/src/components/chat/ChatPanel.tsx`
 
 ---
 

@@ -6,6 +6,8 @@
 
 ## 快速使用
 
+<Demo name="nl-scheduler" :height="500" />
+
 ```typescript
 import { AutomationManager } from '@svton/agent-core';
 

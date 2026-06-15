@@ -19,4 +19,3 @@ import { CodeBlockView } from '@svton/agent-ui';
 |------|------|------|------|
 | `className` | `string` | 否 | 自定义 CSS 类名 |
 
-详细 API 请参考 [组件源码](https://github.com/751848178/svton/tree/main/packages/agent-ui/src/components/chat/blocks/CodeBlockView.tsx)。

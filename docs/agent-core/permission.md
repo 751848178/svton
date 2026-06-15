@@ -6,6 +6,8 @@
 
 ## 快速使用
 
+<Demo name="permission-modes" :height="500" />
+
 ```typescript
 import { PermissionManager } from '@svton/agent-core';
 

@@ -2,7 +2,6 @@
 
 `ChatMessage` 负责渲染单条聊天消息，支持用户、助手和系统三种角色。组件采用 Codex 风格的结构化布局（无气泡框），核心特性是 **有序内容块（ContentBlock）** 渲染机制 —— 将思考过程、工具调用、文本回复、文件变更等内容按执行顺序交错展示。
 
-> 源码位置：`packages/agent-ui/src/components/chat/ChatMessage.tsx`
 
 ---
 

@@ -6,6 +6,8 @@
 
 ## 快速使用
 
+<Demo name="memory-flow" :height="500" />
+
 ```typescript
 import { MemoryManager } from '@svton/agent-core';
 

@@ -2,7 +2,6 @@
 
 `ToolCallCard` 用于渲染 Agent 执行工具调用的过程与结果。它根据工具名称自动分类（Shell 命令、文件编辑、Computer Use、截图），并采用级联渲染策略展示不同格式的输出内容。卡片支持运行中、已完成、出错和待审批四种状态。
 
-> 源码位置：`packages/agent-ui/src/components/chat/ToolCallCard.tsx`
 
 ---
 

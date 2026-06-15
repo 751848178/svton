@@ -6,6 +6,8 @@
 
 ## 快速使用
 
+<Demo name="react-loop" :height="500" />
+
 ```typescript
 import { AgentRuntime, OpenAIProvider, ToolRegistry } from '@svton/agent-core';
 
