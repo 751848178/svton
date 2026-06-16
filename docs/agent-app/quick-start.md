@@ -1,7 +1,7 @@
 # 快速开始
 
 ::: tip 🚀 不想安装？先在线体验
-[**点击这里 →**](/svton/agent-app-demo/) 输入 API Key 即可在浏览器中直接体验，无需创建项目。
+[**点击这里 →**](https://751848178.github.io/svton/agent-app-demo/) 输入 API Key 即可在浏览器中直接体验，无需创建项目。
 :::
 
 ## 环境要求
