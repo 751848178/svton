@@ -24,7 +24,7 @@
   "dependencies": {
     "@svton/agent-core": "^0.3.0",
     "@svton/agent-platform": "^0.3.0",
-    "@svton/agent-client": "^0.3.0",
+    "@svton/agent-client": "^0.3.1",
     "@svton/agent-ui": "^0.1.0",
     "@svton/ui": "^1.2.0"
   },

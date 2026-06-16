@@ -48051,12 +48051,12 @@ try{${content3.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
       }
     );
     if (view === "settings") {
-      return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex flex-col h-screen bg-[#0a0a0a] text-gray-100 font-mono", children: [
+      return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex flex-col h-screen bg-[#000000] text-gray-100 font-mono", children: [
         /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(SettingsHeader, { title, onBack: () => setView("chat") }),
         /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "flex-1 overflow-hidden", children: /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(SettingsView, { adapter, onBack: () => setView("chat") }) })
       ] });
     }
-    return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex h-screen bg-[#0a0a0a] text-gray-100 font-mono overflow-hidden", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex h-screen bg-[#000000] text-gray-100 font-mono overflow-hidden", children: [
       /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(
         SimpleSidebar,
         {
@@ -48076,7 +48076,7 @@ try{${content3.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
         }
       ),
       /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex-1 flex flex-col min-w-0", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a]", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex items-center justify-between px-4 py-2 border-b border-[#222]", children: [
           modelSelector,
           /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex items-center gap-2", children: [
             /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(
@@ -48084,7 +48084,7 @@ try{${content3.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
               {
                 value: permissionMode,
                 onChange: (e) => handlePermissionModeChange(e.target.value),
-                className: "bg-[#1a1a1a] text-gray-400 text-[11px] rounded px-2 py-1 border border-[#2a2a2a] outline-none cursor-pointer hover:text-gray-200",
+                className: "bg-[#1c1c1c] text-gray-400 text-[11px] rounded px-2 py-1 border border-[#2a2a2a] outline-none cursor-pointer hover:text-gray-200",
                 children: [
                   /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("option", { value: "read_only", children: "\u53EA\u8BFB" }),
                   /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("option", { value: "default", children: "\u9ED8\u8BA4" }),
@@ -48101,7 +48101,7 @@ try{${content3.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
                   const val = e.target.value;
                   handleReasoningEffortChange(val === "auto" ? void 0 : val);
                 },
-                className: "bg-[#1a1a1a] text-gray-400 text-[11px] rounded px-2 py-1 border border-[#2a2a2a] outline-none cursor-pointer hover:text-gray-200",
+                className: "bg-[#1c1c1c] text-gray-400 text-[11px] rounded px-2 py-1 border border-[#2a2a2a] outline-none cursor-pointer hover:text-gray-200",
                 children: [
                   /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("option", { value: "auto", children: "Auto" }),
                   /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("option", { value: "low", children: "Low" }),
@@ -48151,13 +48151,13 @@ try{${content3.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
     onOpenSettings
   }) {
     const [confirmDelete, setConfirmDelete] = (0, import_react80.useState)(null);
-    return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "w-60 flex-shrink-0 bg-[#0d0d0d] border-r border-[#1a1a1a] flex flex-col", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "px-3 py-3 border-b border-[#1a1a1a]", children: /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "text-sm font-medium text-gray-200", children: title }) }),
+    return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "w-60 flex-shrink-0 bg-[#171717] border-r border-[#222] flex flex-col", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "px-3 py-3 border-b border-[#222]", children: /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "text-sm font-medium text-gray-200", children: title }) }),
       /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "px-2 py-2", children: /* @__PURE__ */ (0, import_jsx_runtime69.jsx)(
         "button",
         {
           onClick: onNewChat,
-          className: "w-full px-3 py-1.5 text-[13px] font-medium rounded-md border border-dashed border-[#333] text-gray-400 hover:text-white hover:border-gray-500 hover:bg-[#1a1a1a]/60 transition-colors flex items-center justify-center gap-1.5",
+          className: "w-full px-3 py-1.5 text-[13px] font-medium rounded-md border border-dashed border-[#333] text-gray-400 hover:text-white hover:border-gray-500 hover:bg-[#1c1c1c]/60 transition-colors flex items-center justify-center gap-1.5",
           children: "+ \u65B0\u5BF9\u8BDD"
         }
       ) }),
@@ -48166,7 +48166,7 @@ try{${content3.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
         {
           className: cn(
             "group flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer text-[12px] mb-0.5 transition-colors",
-            s.id === currentSessionId ? "bg-[#1a1a1a] text-gray-200" : "text-gray-500 hover:bg-[#151515] hover:text-gray-300"
+            s.id === currentSessionId ? "bg-[#1c1c1c] text-gray-200" : "text-gray-500 hover:bg-[#1c1c1c]/60 hover:text-gray-300"
           ),
           onClick: () => onSwitchSession(s.id),
           children: [
@@ -48192,11 +48192,11 @@ try{${content3.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
         },
         s.id
       )) }),
-      /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "px-2 py-2 border-t border-[#1a1a1a]", children: /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(
+      /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "px-2 py-2 border-t border-[#222]", children: /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(
         "button",
         {
           onClick: onOpenSettings,
-          className: "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-[#1a1a1a] transition-colors text-[12px]",
+          className: "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-[#1c1c1c] transition-colors text-[12px]",
           children: [
             /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("svg", { width: "12", height: "12", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "1.5", children: [
               /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("circle", { cx: "12", cy: "12", r: "3" }),
@@ -48231,7 +48231,7 @@ try{${content3.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
           ]
         }
       ),
-      open && /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "absolute top-full left-0 mt-1 min-w-[200px] bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] shadow-xl z-50 py-1 max-h-80 overflow-y-auto", children: providers.map((providerName) => /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { children: [
+      open && /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "absolute top-full left-0 mt-1 min-w-[200px] bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl z-50 py-1 max-h-80 overflow-y-auto", children: providers.map((providerName) => /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("div", { className: "px-3 py-1 text-[10px] text-gray-600 uppercase", children: providerName }),
         models.filter((m) => m.providerName === providerName).map((m) => /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)(
           "button",
@@ -48255,7 +48255,7 @@ try{${content3.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
     ] });
   }
   function SettingsHeader({ title, onBack }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex items-center gap-3 px-4 py-3 border-b border-[#1a1a1a]", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("div", { className: "flex items-center gap-3 px-4 py-3 border-b border-[#222]", children: [
       /* @__PURE__ */ (0, import_jsx_runtime69.jsx)("button", { onClick: onBack, className: "text-gray-500 hover:text-gray-300 text-[12px]", children: "\u2190 \u8FD4\u56DE" }),
       /* @__PURE__ */ (0, import_jsx_runtime69.jsxs)("span", { className: "text-sm text-gray-300", children: [
         title,
@@ -48628,14 +48628,14 @@ ${customInstructions}` } : {}
       localStorage.setItem("svton-app:defaultModel", model);
     }, []);
     if (error) {
-      return /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className: `flex items-center justify-center h-screen bg-[#0a0a0a] text-gray-100 font-mono ${className ?? ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)("div", { className: "text-center max-w-md", children: [
+      return /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className: `flex items-center justify-center h-screen bg-[#000000] text-gray-100 font-mono ${className ?? ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime70.jsxs)("div", { className: "text-center max-w-md", children: [
         /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className: "text-red-400 text-sm mb-2", children: "\u521D\u59CB\u5316\u5931\u8D25" }),
         /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className: "text-gray-500 text-xs", children: error }),
         /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className: "text-gray-600 text-xs mt-4", children: "\u8BF7\u68C0\u67E5 Provider \u914D\u7F6E\u548C API Key" })
       ] }) });
     }
     if (!agentConfig) {
-      return /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className: `flex items-center justify-center h-screen bg-[#0a0a0a] text-gray-100 font-mono ${className ?? ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className: "text-gray-500 text-sm", children: "\u521D\u59CB\u5316\u4E2D..." }) });
+      return /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className: `flex items-center justify-center h-screen bg-[#000000] text-gray-100 font-mono ${className ?? ""}`, children: /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className: "text-gray-500 text-sm", children: "\u521D\u59CB\u5316\u4E2D..." }) });
     }
     return /* @__PURE__ */ (0, import_jsx_runtime70.jsx)("div", { className, "data-theme": theme, children: /* @__PURE__ */ (0, import_jsx_runtime70.jsx)(AgentProvider, { platform, config: agentConfig, children: /* @__PURE__ */ (0, import_jsx_runtime70.jsx)(
       AgentShell,

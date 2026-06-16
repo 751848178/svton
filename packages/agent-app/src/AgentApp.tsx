@@ -123,7 +123,7 @@ export function AgentApp(props: AgentAppProps) {
   // Error state
   if (error) {
     return (
-      <div className={`flex items-center justify-center h-screen bg-[#0a0a0a] text-gray-100 font-mono ${className ?? ''}`}>
+      <div className={`flex items-center justify-center h-screen bg-[#000000] text-gray-100 font-mono ${className ?? ''}`}>
         <div className="text-center max-w-md">
           <div className="text-red-400 text-sm mb-2">初始化失败</div>
           <div className="text-gray-500 text-xs">{error}</div>
@@ -136,7 +136,7 @@ export function AgentApp(props: AgentAppProps) {
   // Loading state
   if (!agentConfig) {
     return (
-      <div className={`flex items-center justify-center h-screen bg-[#0a0a0a] text-gray-100 font-mono ${className ?? ''}`}>
+      <div className={`flex items-center justify-center h-screen bg-[#000000] text-gray-100 font-mono ${className ?? ''}`}>
         <div className="text-gray-500 text-sm">初始化中...</div>
       </div>
     );

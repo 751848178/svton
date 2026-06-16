@@ -150,7 +150,7 @@ export function AgentShell({
   // ── Settings view ──
   if (view === 'settings') {
     return (
-      <div className="flex flex-col h-screen bg-[#0a0a0a] text-gray-100 font-mono">
+      <div className="flex flex-col h-screen bg-[#000000] text-gray-100 font-mono">
         <SettingsHeader title={title} onBack={() => setView('chat')} />
         <div className="flex-1 overflow-hidden">
           <SettingsView adapter={adapter} onBack={() => setView('chat')} />
@@ -160,7 +160,7 @@ export function AgentShell({
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] text-gray-100 font-mono overflow-hidden">
+    <div className="flex h-screen bg-[#000000] text-gray-100 font-mono overflow-hidden">
       {/* Sidebar */}
       <SimpleSidebar
         title={title}
@@ -175,14 +175,14 @@ export function AgentShell({
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a]">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-[#222]">
           {modelSelector}
           <div className="flex items-center gap-2">
             {/* Permission mode selector */}
             <select
               value={permissionMode}
               onChange={(e) => handlePermissionModeChange(e.target.value)}
-              className="bg-[#1a1a1a] text-gray-400 text-[11px] rounded px-2 py-1 border border-[#2a2a2a] outline-none cursor-pointer hover:text-gray-200"
+              className="bg-[#1c1c1c] text-gray-400 text-[11px] rounded px-2 py-1 border border-[#2a2a2a] outline-none cursor-pointer hover:text-gray-200"
             >
               <option value="read_only">只读</option>
               <option value="default">默认</option>
@@ -197,7 +197,7 @@ export function AgentShell({
                 const val = e.target.value;
                 handleReasoningEffortChange(val === 'auto' ? undefined : val as ReasoningEffort);
               }}
-              className="bg-[#1a1a1a] text-gray-400 text-[11px] rounded px-2 py-1 border border-[#2a2a2a] outline-none cursor-pointer hover:text-gray-200"
+              className="bg-[#1c1c1c] text-gray-400 text-[11px] rounded px-2 py-1 border border-[#2a2a2a] outline-none cursor-pointer hover:text-gray-200"
             >
               <option value="auto">Auto</option>
               <option value="low">Low</option>
@@ -265,9 +265,9 @@ function SimpleSidebar({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   return (
-    <div className="w-60 flex-shrink-0 bg-[#0d0d0d] border-r border-[#1a1a1a] flex flex-col">
+    <div className="w-60 flex-shrink-0 bg-[#171717] border-r border-[#222] flex flex-col">
       {/* Header */}
-      <div className="px-3 py-3 border-b border-[#1a1a1a]">
+      <div className="px-3 py-3 border-b border-[#222]">
         <div className="text-sm font-medium text-gray-200">{title}</div>
       </div>
 
@@ -275,7 +275,7 @@ function SimpleSidebar({
       <div className="px-2 py-2">
         <button
           onClick={onNewChat}
-          className="w-full px-3 py-1.5 text-[13px] font-medium rounded-md border border-dashed border-[#333] text-gray-400 hover:text-white hover:border-gray-500 hover:bg-[#1a1a1a]/60 transition-colors flex items-center justify-center gap-1.5"
+          className="w-full px-3 py-1.5 text-[13px] font-medium rounded-md border border-dashed border-[#333] text-gray-400 hover:text-white hover:border-gray-500 hover:bg-[#1c1c1c]/60 transition-colors flex items-center justify-center gap-1.5"
         >
           + 新对话
         </button>
@@ -292,8 +292,8 @@ function SimpleSidebar({
               className={cn(
                 'group flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer text-[12px] mb-0.5 transition-colors',
                 s.id === currentSessionId
-                  ? 'bg-[#1a1a1a] text-gray-200'
-                  : 'text-gray-500 hover:bg-[#151515] hover:text-gray-300'
+                  ? 'bg-[#1c1c1c] text-gray-200'
+                  : 'text-gray-500 hover:bg-[#1c1c1c]/60 hover:text-gray-300'
               )}
               onClick={() => onSwitchSession(s.id)}
             >
@@ -317,10 +317,10 @@ function SimpleSidebar({
       </div>
 
       {/* Settings */}
-      <div className="px-2 py-2 border-t border-[#1a1a1a]">
+      <div className="px-2 py-2 border-t border-[#222]">
         <button
           onClick={onOpenSettings}
-          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-[#1a1a1a] transition-colors text-[12px]"
+          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-[#1c1c1c] transition-colors text-[12px]"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           设置
@@ -361,7 +361,7 @@ function ModelSelector({
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 min-w-[200px] bg-[#1a1a1a] rounded-lg border border-[#2a2a2a] shadow-xl z-50 py-1 max-h-80 overflow-y-auto">
+        <div className="absolute top-full left-0 mt-1 min-w-[200px] bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl z-50 py-1 max-h-80 overflow-y-auto">
           {providers.map(providerName => (
             <div key={providerName}>
               <div className="px-3 py-1 text-[10px] text-gray-600 uppercase">{providerName}</div>
@@ -389,7 +389,7 @@ function ModelSelector({
 // ── Settings Header ──
 function SettingsHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b border-[#1a1a1a]">
+    <div className="flex items-center gap-3 px-4 py-3 border-b border-[#222]">
       <button onClick={onBack} className="text-gray-500 hover:text-gray-300 text-[12px]">
         ← 返回
       </button>
