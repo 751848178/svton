@@ -2,7 +2,13 @@
  * Demo entry — fully self-contained bundle (React included).
  * Loaded as a regular <script>, not module.
  */
-import 'reflect-metadata';
+
+// reflect-metadata polyfill — inline to avoid resolution issues
+// Minimal implementation: decorators metadata storage
+;(globalThis as any).Reflect = (globalThis as any).Reflect || {};
+const R = (globalThis as any).Reflect;
+R.metadata = R.metadata || function(k: string, v: any) { return function(target: any, propertyKey?: string | symbol) { if (target) { const existing = target.__metadata__ || {}; existing[k] = v; target.__metadata__ = existing; } }; };
+
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { AgentApp } from '../../../packages/agent-app/src';
