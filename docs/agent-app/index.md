@@ -2,6 +2,11 @@
 
 Out-of-the-box AI agent application. One component, full chat capability, zero configuration.
 
+::: tip 🚀 在线体验
+[**点击这里立即体验 →**](/agent-app-demo/)
+输入你的 API Key 即可在浏览器中完整体验 AgentApp 的全部能力，无需安装任何东西。
+:::
+
 ## 安装
 
 ```bash
