@@ -1,6 +1,6 @@
 {
   "name": "@svton/agent-platform",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Platform abstraction layer for Svton AI Agent",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

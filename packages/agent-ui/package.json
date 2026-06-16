@@ -1,6 +1,6 @@
 {
   "name": "@svton/agent-ui",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI Agent UI components — ChatPanel, SettingsView, and related components",
   "author": "SVTON Team",
   "license": "MIT",
@@ -32,7 +32,7 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
-    "@svton/ui": "workspace:*",
+    "@svton/ui": "^1.2.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "highlight.js": "^11.11.0"

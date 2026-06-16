@@ -20,6 +20,7 @@ export default defineConfig({
       { text: '快速开始', link: '/getting-started/quick-start' },
       { text: '架构设计', link: '/architecture/overview' },
       { text: 'AI Agent', link: '/agent-sdk/' },
+      { text: '开箱即用', link: '/agent-app/' },
       { text: '共享包', link: '/packages/types' },
     ],
 
@@ -134,6 +135,14 @@ export default defineConfig({
               items: [
                 { text: '总览', link: '/agent-platform/' },
                 { text: 'Tauri 平台', link: '/agent-platform/tauri' },
+              ],
+            },
+            {
+              text: 'agent-app 开箱即用',
+              collapsed: false,
+              items: [
+                { text: '总览', link: '/agent-app/' },
+                { text: '快速开始', link: '/agent-app/quick-start' },
               ],
             },
             { text: 'agent-web 应用', link: '/agent-web/' },

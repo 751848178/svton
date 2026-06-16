@@ -1,0 +1,42 @@
+{
+  "name": "@svton/agent-app",
+  "version": "0.1.1",
+  "description": "Out-of-the-box AI agent application component — full chat with zero config",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.tsx --format cjs,esm --dts",
+    "dev": "tsup src/index.tsx --format cjs,esm --dts --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@svton/agent-core": "^0.3.0",
+    "@svton/agent-platform": "^0.3.0",
+    "@svton/agent-client": "^0.3.0",
+    "@svton/agent-ui": "^0.1.0",
+    "@svton/ui": "^1.2.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "reflect-metadata": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.5.0",
+    "tsup": "^8.0.0"
+  }
+}

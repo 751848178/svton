@@ -1,6 +1,6 @@
 {
   "name": "@svton/agent-core",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Core runtime for Svton AI Agent - Provider, Tool, Agent Runtime, MCP, Memory, Skills",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -27,7 +27,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@svton/agent-platform": "workspace:*"
+    "@svton/agent-platform": "^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
