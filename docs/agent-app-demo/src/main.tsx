@@ -1,5 +1,6 @@
 /**
- * Demo entry — bundled at build time, loads via importmap for react.
+ * Demo entry — fully self-contained bundle (React included).
+ * Loaded as a regular <script>, not module.
  */
 import 'reflect-metadata';
 import React from 'react';
@@ -20,15 +21,10 @@ function getConfig(): DemoConfig | null {
   } catch { return null; }
 }
 
-function init() {
+function mountAgent() {
   const container = document.getElementById('app')!;
   const config = getConfig();
-
-  if (!config || !config.apiKey) {
-    document.getElementById('gate')!.classList.remove('hidden');
-    container.innerHTML = '';
-    return;
-  }
+  if (!config || !config.apiKey) return;
 
   document.getElementById('gate')!.classList.add('hidden');
   container.innerHTML = '<div class="loading">正在初始化 Agent...</div>';
@@ -49,18 +45,40 @@ function init() {
   );
 }
 
-function setupGate() {
-  const MODELS: Record<string, Array<{ id: string; name: string }>> = {
-    openai: [
-      { id: 'gpt-4o', name: 'GPT-4o' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-    ],
-    anthropic: [
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-      { id: 'claude-haiku-4-20250506', name: 'Claude Haiku 4' },
-    ],
-  };
+// ── Gate form setup ──
+const MODELS: Record<string, Array<{ id: string; name: string }>> = {
+  openai: [
+    { id: 'gpt-4o', name: 'GPT-4o' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+  ],
+  anthropic: [
+    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+    { id: 'claude-haiku-4-20250506', name: 'Claude Haiku 4' },
+  ],
+};
 
+let selectedModels = new Set<string>(['gpt-4o']);
+let useCustom = false;
+
+function updateModels() {
+  const providerSelect = document.getElementById('providerType') as HTMLSelectElement;
+  const modelTagsEl = document.getElementById('modelTags')!;
+  const baseUrlInput = document.getElementById('baseUrl') as HTMLInputElement;
+  const customModelId = document.getElementById('customModelId') as HTMLInputElement;
+
+  const type = providerSelect.value;
+  const models = MODELS[type] || [];
+  selectedModels = new Set([models[0]?.id]);
+  modelTagsEl.innerHTML = models.map(m =>
+    `<span class="gate-model-tag ${selectedModels.has(m.id) ? 'selected' : ''}" data-id="${m.id}">${m.name}</span>`
+  ).join('');
+  baseUrlInput.placeholder = type === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com';
+  customModelId.placeholder = type === 'openai'
+    ? '例如: gpt-4-turbo, o1, deepseek-chat'
+    : '例如: claude-3-opus-20240229';
+}
+
+function setupGate() {
   const providerSelect = document.getElementById('providerType') as HTMLSelectElement;
   const modelTagsEl = document.getElementById('modelTags')!;
   const apiKeyInput = document.getElementById('apiKey') as HTMLInputElement;
@@ -72,27 +90,10 @@ function setupGate() {
   const customModelName = document.getElementById('customModelName') as HTMLInputElement;
   const presetLabel = document.getElementById('presetLabel')!;
 
-  let selectedModels = new Set<string>(['gpt-4o']);
-  let useCustom = false;
-
-  function updateModels() {
-    const type = providerSelect.value;
-    const models = MODELS[type] || [];
-    selectedModels = new Set([models[0]?.id]);
-    modelTagsEl.innerHTML = models.map(m =>
-      `<span class="gate-model-tag ${selectedModels.has(m.id) ? 'selected' : ''}" data-id="${m.id}">${m.name}</span>`
-    ).join('');
-    baseUrlInput.placeholder = type === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com';
-    // Update custom model placeholder based on provider
-    customModelId.placeholder = type === 'openai'
-      ? '例如: gpt-4-turbo, o1, text-embedding-3-small'
-      : '例如: claude-3-opus-20240229';
-  }
-
-  modelTagsEl.addEventListener('click', (e) => {
+  modelTagsEl.addEventListener('click', (e: Event) => {
     const tag = (e.target as HTMLElement).closest('.gate-model-tag');
     if (!tag) return;
-    const id = tag.dataset.id!;
+    const id = tag.getAttribute('data-id')!;
     if (selectedModels.has(id)) { if (selectedModels.size > 1) selectedModels.delete(id); }
     else { selectedModels.add(id); }
     modelTagsEl.querySelectorAll('.gate-model-tag').forEach((t: Element) =>
@@ -128,10 +129,10 @@ function setupGate() {
     }
 
     localStorage.setItem('svton-demo:config', JSON.stringify({ type, apiKey, baseUrl, models }));
-    init();
+    mountAgent();
   });
 
-  apiKeyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') startBtn.click(); });
+  apiKeyInput.addEventListener('keydown', (e: KeyboardEvent) => { if (e.key === 'Enter') startBtn.click(); });
 
   const saved = getConfig();
   if (saved?.apiKey) {
@@ -139,9 +140,13 @@ function setupGate() {
     apiKeyInput.value = saved.apiKey;
     if (saved.baseUrl) baseUrlInput.value = saved.baseUrl;
   }
-
-  updateModels();
 }
 
-setupGate();
-init();
+// ── Init on DOM ready ──
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { setupGate(); updateModels(); mountAgent(); });
+} else {
+  setupGate();
+  updateModels();
+  mountAgent();
+}
