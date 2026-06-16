@@ -4,83 +4,73 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Svton Agent — 在线体验</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="importmap">
+  { "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "reflect-metadata": "https://esm.sh/reflect-metadata@0.2.2"
+  }}
+  </script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e5e5e5; }
-
-    /* Gate screen */
-    .gate {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      min-height: 100vh; padding: 2rem;
-    }
-    .gate h1 { font-size: 1.75rem; font-weight: 600; margin-bottom: 0.5rem; color: #fff; }
-    .gate p { color: #888; font-size: 0.875rem; margin-bottom: 2rem; text-align: center; max-width: 420px; line-height: 1.6; }
-    .gate-form { width: 100%; max-width: 420px; }
-    .gate-form label { display: block; font-size: 0.75rem; color: #666; margin-bottom: 0.375rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .gate-form select, .gate-form input {
-      width: 100%; padding: 0.625rem 0.75rem; background: #161616; border: 1px solid #2a2a2a;
-      border-radius: 8px; color: #e5e5e5; font-size: 0.875rem; outline: none; margin-bottom: 1rem;
-      transition: border-color 0.2s;
-    }
-    .gate-form select:focus, .gate-form input:focus { border-color: #3B82F6; }
-    .gate-form input[type="password"] { font-family: monospace; }
-    .gate-btn {
-      width: 100%; padding: 0.75rem; background: #3B82F6; color: #fff; border: none;
-      border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer;
-      transition: background 0.2s;
-    }
-    .gate-btn:hover { background: #2563EB; }
-    .gate-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
-    .gate-note {
-      margin-top: 1.5rem; font-size: 0.75rem; color: #555; text-align: center;
-      display: flex; align-items: center; gap: 0.5rem; justify-content: center;
-    }
-    .gate-models { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
-    .gate-model-tag {
-      padding: 0.25rem 0.625rem; background: #1a1a1a; border: 1px solid #2a2a2a;
-      border-radius: 6px; font-size: 0.75rem; color: #888; cursor: pointer;
-      transition: all 0.2s;
-    }
-    .gate-model-tag:hover { border-color: #3B82F6; color: #3B82F6; }
-    .gate-model-tag.selected { border-color: #3B82F6; color: #3B82F6; background: rgba(59,130,246,0.1); }
-
-    /* App container */
-    #app { height: 100vh; }
-    #app:empty { display: none; }
-    .gate.hidden { display: none; }
-
-    /* Loading */
-    .loading {
-      display: flex; align-items: center; justify-content: center; height: 100vh;
-      color: #555; font-size: 0.875rem;
-    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#0a0a0a; color:#e5e5e5; }
+    #gate { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:2rem; }
+    #gate h1 { font-size:1.75rem; font-weight:600; margin-bottom:.5rem; color:#fff; }
+    #gate .desc { color:#888; font-size:.875rem; margin-bottom:2rem; text-align:center; max-width:420px; line-height:1.6; }
+    .gate-form { width:100%; max-width:420px; }
+    .gate-form label { display:block; font-size:.75rem; color:#666; margin-bottom:.375rem; text-transform:uppercase; letter-spacing:.05em; }
+    .gate-form select, .gate-form input { width:100%; padding:.625rem .75rem; background:#161616; border:1px solid #2a2a2a; border-radius:8px; color:#e5e5e5; font-size:.875rem; outline:none; margin-bottom:1rem; }
+    .gate-form select:focus, .gate-form input:focus { border-color:#3B82F6; }
+    .gate-form input[type=password] { font-family:monospace; }
+    .gate-btn { width:100%; padding:.75rem; background:#3B82F6; color:#fff; border:none; border-radius:8px; font-size:.875rem; font-weight:500; cursor:pointer; }
+    .gate-btn:hover { background:#2563EB; }
+    .gate-note { margin-top:1.5rem; font-size:.75rem; color:#555; text-align:center; display:flex; align-items:center; gap:.5rem; justify-content:center; }
+    .gate-models { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
+    .gate-model-tag { padding:.25rem .625rem; background:#1a1a1a; border:1px solid #2a2a2a; border-radius:6px; font-size:.75rem; color:#888; cursor:pointer; transition:all .2s; }
+    .gate-model-tag:hover { border-color:#3B82F6; color:#3B82F6; }
+    .gate-model-tag.selected { border-color:#3B82F6; color:#3B82F6; background:rgba(59,130,246,.1); }
+    .custom-model-row { display:none; margin-bottom:1rem; }
+    .custom-toggle-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.75rem; font-size:.75rem; color:#888; cursor:pointer; }
+    .custom-toggle-row input { width:auto; margin:0; }
+    #app:empty { display:none; }
+    #gate.hidden { display:none; }
+    .loading { display:flex; align-items:center; justify-content:center; height:100vh; color:#555; font-size:.875rem; }
   </style>
 </head>
 <body>
 
-<!-- API Key Gate -->
-<div class="gate" id="gate">
+<div id="gate">
   <h1>Svton Agent</h1>
-  <p>输入你的 API Key 即可体验完整的 AI Agent 能力。Key 仅存储在你的浏览器 localStorage 中，不会发送到任何服务器。</p>
-
+  <p class="desc">输入你的 API Key 即可体验完整的 AI Agent 能力。Key 仅存储在你的浏览器本地，不会发送到任何服务器。</p>
   <div class="gate-form">
     <label>选择 Provider</label>
-    <select id="providerType" onchange="updateProviderInfo()">
+    <select id="providerType">
       <option value="openai">OpenAI</option>
       <option value="anthropic">Anthropic (Claude)</option>
     </select>
-
     <label>API Key</label>
     <input type="password" id="apiKey" placeholder="sk-..." />
-
     <label>Base URL（可选，用于代理或自部署）</label>
     <input type="text" id="baseUrl" placeholder="https://api.openai.com" />
 
-    <label>选择模型</label>
+    <label class="custom-toggle-row">
+      <input type="checkbox" id="customModelToggle" />
+      使用自定义模型（手动输入模型 ID）
+    </label>
+
+    <div id="customModelRow" class="custom-model-row">
+      <label>模型 ID</label>
+      <input type="text" id="customModelId" placeholder="例如: gpt-4-turbo, deepseek-chat, qwen-max" />
+      <label>显示名称（可选）</label>
+      <input type="text" id="customModelName" placeholder="GPT-4 Turbo" />
+    </div>
+
+    <label id="presetLabel">或选择预设模型</label>
     <div class="gate-models" id="modelTags"></div>
 
-    <button class="gate-btn" id="startBtn" onclick="startDemo()">启动 Agent →</button>
-
+    <button class="gate-btn" id="startBtn">启动 Agent →</button>
     <div class="gate-note">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       API Key 仅存储在本地浏览器
@@ -88,136 +78,9 @@
   </div>
 </div>
 
-<!-- App mount point -->
 <div id="app"></div>
 
-<script type="module">
-  // Dynamic import from esm.sh — no build step needed
-  import 'https://esm.sh/reflect-metadata@0.2.2';
-
-  const MODELS = {
-    openai: [
-      { id: 'gpt-4o', name: 'GPT-4o' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-      { id: 'o1', name: 'o1' },
-      { id: 'o3-mini', name: 'o3-mini' },
-    ],
-    anthropic: [
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-      { id: 'claude-haiku-4-20250506', name: 'Claude Haiku 4' },
-    ],
-  };
-
-  let selectedModels = new Set(['gpt-4o']);
-
-  window.updateProviderInfo = function() {
-    const type = document.getElementById('providerType').value;
-    const models = MODELS[type] || [];
-    selectedModels = new Set([models[0]?.id]);
-    const container = document.getElementById('modelTags');
-    container.innerHTML = models.map(m =>
-      `<span class="gate-model-tag ${selectedModels.has(m.id) ? 'selected' : ''}" onclick="toggleModel('${m.id}', this)">${m.name}</span>`
-    ).join('');
-
-    const baseUrl = document.getElementById('baseUrl');
-    if (type === 'openai') baseUrl.placeholder = 'https://api.openai.com';
-    else baseUrl.placeholder = 'https://api.anthropic.com';
-  };
-
-  window.toggleModel = function(id, el) {
-    if (selectedModels.has(id)) {
-      if (selectedModels.size > 1) selectedModels.delete(id);
-    } else {
-      selectedModels.add(id);
-    }
-    document.querySelectorAll('.gate-model-tag').forEach(tag => {
-      const modelId = tag.getAttribute('onclick').match(/'([^']+)'/)[1];
-      tag.classList.toggle('selected', selectedModels.has(modelId));
-    });
-  };
-
-  window.startDemo = async function() {
-    const type = document.getElementById('providerType').value;
-    const apiKey = document.getElementById('apiKey').value.trim();
-    const baseUrl = document.getElementById('baseUrl').value.trim();
-
-    if (!apiKey) {
-      alert('请输入 API Key');
-      return;
-    }
-
-    const models = (MODELS[type] || []).filter(m => selectedModels.has(m.id));
-    if (models.length === 0) {
-      alert('请至少选择一个模型');
-      return;
-    }
-
-    // Show loading
-    document.getElementById('gate').classList.add('hidden');
-    document.getElementById('app').innerHTML = '<div class="loading">正在初始化 Agent...</div>';
-
-    try {
-      // Dynamic import agent-app from esm.sh
-      const { AgentApp } = await import('https://esm.sh/@svton/agent-app@0.1.1?deps=react@18.3.1');
-      const React = await import('https://esm.sh/react@18.3.1');
-      const { createRoot } = await import('https://esm.sh/react-dom@18.3.1/client');
-
-      // Save config
-      localStorage.setItem('svton-demo:config', JSON.stringify({ type, apiKey, baseUrl, models }));
-
-      const providers = [{
-        type,
-        apiKey,
-        ...(baseUrl ? { baseUrl } : {}),
-        models,
-      }];
-
-      const root = createRoot(document.getElementById('app'));
-      root.render(
-        React.createElement(AgentApp, {
-          providers,
-          defaultModel: models[0].id,
-          title: 'Svton Agent Demo',
-          features: {
-            imageGeneration: true,
-            codeReview: true,
-            documentPreview: true,
-            webSearch: false,
-          },
-        })
-      );
-    } catch (err) {
-      document.getElementById('app').innerHTML = `
-        <div class="loading" style="color: #ef4444; flex-direction: column; gap: 0.5rem;">
-          <div>加载失败</div>
-          <div style="font-size: 0.75rem; color: #666; max-width: 400px; text-align: center;">${err.message}</div>
-          <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #333; color: #ccc; border: none; border-radius: 6px; cursor: pointer;">重试</button>
-        </div>
-      `;
-    }
-  };
-
-  // Auto-fill if returning
-  const saved = localStorage.getItem('svton-demo:config');
-  if (saved) {
-    try {
-      const config = JSON.parse(saved);
-      if (config.apiKey) {
-        document.getElementById('providerType').value = config.type;
-        document.getElementById('apiKey').value = config.apiKey;
-        if (config.baseUrl) document.getElementById('baseUrl').value = config.baseUrl;
-        updateProviderInfo();
-      }
-    } catch {}
-  } else {
-    updateProviderInfo();
-  }
-
-  // Enter key to submit
-  document.getElementById('apiKey').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') startDemo();
-  });
-</script>
+<script type="module" src="./bundle.js"></script>
 
 </body>
 </html>
