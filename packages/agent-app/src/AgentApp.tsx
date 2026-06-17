@@ -38,6 +38,8 @@ export function AgentApp(props: AgentAppProps) {
     className,
     title,
     theme = 'dark',
+    sidebarConfig,
+    sidebarItems,
   } = props;
 
   const [platform] = useState(() => new BrowserPlatform());
@@ -154,6 +156,8 @@ export function AgentApp(props: AgentAppProps) {
           adapter={adapter}
           title={title}
           onReinit={() => setRefreshKey(k => k + 1)}
+          sidebarConfig={sidebarConfig}
+          sidebarItems={sidebarItems}
         />
       </AgentProvider>
     </div>

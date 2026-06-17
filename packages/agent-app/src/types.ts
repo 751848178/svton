@@ -3,7 +3,7 @@
  */
 
 import type { AgentConfig } from '@svton/agent-core';
-import type { SplitScreenContent } from '@svton/agent-ui';
+import type { SplitScreenContent, SidebarConfig, SidebarItem } from '@svton/agent-ui';
 
 // ============================================================
 // Provider Configuration
@@ -77,6 +77,10 @@ export interface AgentAppProps {
   className?: string;
   /** App title shown in sidebar header */
   title?: string;
+  /** Sidebar configuration */
+  sidebarConfig?: Partial<SidebarConfig>;
+  /** Extra sidebar nav items */
+  sidebarItems?: SidebarItem[];
   /** Theme */
   theme?: 'dark' | 'light';
 }

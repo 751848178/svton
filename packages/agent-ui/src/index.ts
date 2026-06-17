@@ -100,6 +100,10 @@ export type { IntegrationsPanelProps, IntegrationCardData, IntegrationAuthField 
 export { AgentEditorPanel } from './components/settings/AgentEditorPanel';
 export type { AgentEditorPanelProps } from './components/settings/AgentEditorPanel';
 
+// Layout Components
+export { Sidebar } from './components/layout/Sidebar';
+export type { SidebarProps, SidebarItem, SidebarConfig } from './components/layout/Sidebar';
+
 // Settings Components
 export { SettingsView } from './components/settings/SettingsView';
 export type { SettingsViewProps, ISettingsAdapter, AgentData, ProviderInfo, ToolInfo, SkillInfo, McpServerInfo, SkillFormData, McpServerConfig, MemoryEntry } from './components/settings/SettingsView';

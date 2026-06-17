@@ -10,11 +10,14 @@ import { cn } from '@svton/ui';
 import {
   ChatPanel,
   SettingsView,
+  Sidebar,
   type ChatPanelMessage,
   type SlashCommand,
   type MentionItem,
   type SplitScreenContent,
   type ReasoningEffort,
+  type SidebarConfig,
+  type SidebarItem,
 } from '@svton/agent-ui';
 import {
   useChat,
@@ -30,9 +33,11 @@ interface AgentShellProps {
   models: ModelOption[];
   currentModel: string;
   onModelChange: (model: string) => void;
-  adapter: any; // ISettingsAdapter
+  adapter: any;
   title?: string;
   onReinit?: () => void;
+  sidebarConfig?: Partial<SidebarConfig>;
+  sidebarItems?: SidebarItem[];
 }
 
 export function AgentShell({
@@ -43,6 +48,8 @@ export function AgentShell({
   adapter,
   title = 'Svton Agent',
   onReinit,
+  sidebarConfig,
+  sidebarItems = [],
 }: AgentShellProps) {
   const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage } = useChat();
   const { sessions, currentSessionId, create, switchTo, delete: deleteSession } = useSession();
@@ -161,9 +168,21 @@ export function AgentShell({
 
   return (
     <div className="flex h-screen bg-[#000000] text-gray-100 font-mono overflow-hidden">
-      {/* Sidebar */}
-      <SimpleSidebar
-        title={title}
+      {/* Sidebar — shared component */}
+      <Sidebar
+        config={{
+          title,
+          items: sidebarItems,
+          collapsible: sidebarConfig?.collapsible ?? true,
+          showSettings: sidebarConfig?.showSettings ?? true,
+          showNewChat: sidebarConfig?.showNewChat ?? true,
+          showSessions: sidebarConfig?.showSessions ?? true,
+          defaultCollapsed: sidebarConfig?.defaultCollapsed ?? false,
+          width: sidebarConfig?.width,
+          collapsedWidth: sidebarConfig?.collapsedWidth,
+        }}
+        activeView={view}
+        onNavigate={(v) => setView(v as View)}
         sessions={sessions.map(s => ({ id: s.id, title: s.title || '新对话' }))}
         currentSessionId={currentSessionId}
         onNewChat={() => { create(); setView('chat'); }}
