@@ -1,6 +1,6 @@
 {
   "name": "@svton/agent-app",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Out-of-the-box AI agent application component — full chat with zero config",
   "license": "MIT",
   "main": "./dist/index.js",
