@@ -10,6 +10,7 @@ import type {
   AgentRuntime,
   ChatMessage,
   ContentBlock,
+  AgentCapabilities,
   SkillDefinition,
   ToolRegistry,
 } from '@svton/agent-core';
@@ -29,6 +30,7 @@ export class Agent {
     toolRegistry: ToolRegistry,
     platform: IPlatform,
     mcpClients: import('@svton/agent-core').MCPClient[] = [],
+    private readonly capabilities: AgentCapabilities = {},
   ) {
     this.runtime = runtime;
     this.toolRegistry = toolRegistry;
@@ -152,13 +154,7 @@ export class Agent {
    * Requires skillManager capability to be enabled.
    */
   addSkill(skill: SkillDefinition): void {
-    // Access skillManager from the runtime's capabilities
-    const capabilities = (this.runtime as unknown as {
-      _capabilities?: { skillManager?: { register(skill: SkillDefinition): void } };
-    })._capabilities;
-    if (capabilities?.skillManager) {
-      capabilities.skillManager.register(skill);
-    }
+    this.capabilities.skillManager?.register(skill);
   }
 
   /**
@@ -166,12 +162,7 @@ export class Agent {
    * Requires skillManager capability to be enabled.
    */
   removeSkill(name: string): void {
-    const capabilities = (this.runtime as unknown as {
-      _capabilities?: { skillManager?: { unregister(name: string): boolean } };
-    })._capabilities;
-    if (capabilities?.skillManager) {
-      capabilities.skillManager.unregister(name);
-    }
+    this.capabilities.skillManager?.unregister(name);
   }
 
   // ============================================================

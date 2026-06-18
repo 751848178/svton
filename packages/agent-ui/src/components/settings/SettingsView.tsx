@@ -178,6 +178,8 @@ export interface ISettingsAdapter {
   // ── Optional: web search ─────────────────────────────────
   getSearchEndpoint?(): string;
   saveSearchEndpoint?(url: string): void;
+  getPreviewMode?(): 'sidebar' | 'window';
+  savePreviewMode?(mode: 'sidebar' | 'window'): void;
 
   // ── Integrations ────────────────────────────────────────
   getIntegrations?(): IntegrationCardData[];
@@ -1626,14 +1628,17 @@ function AutomationSection({ hasSubagent, hasPlanning, tools, adapter }: { hasSu
 // ── Preview Mode Section ─────────────────────────────────
 function PreviewModeSection({ adapter }: { adapter: ISettingsAdapter }) {
   const [mode, setMode] = useState<'sidebar' | 'window'>(
-    typeof localStorage !== 'undefined'
-      ? (localStorage.getItem('agent:preview_mode') as 'sidebar' | 'window') || 'sidebar'
-      : 'sidebar'
+    adapter.getPreviewMode?.()
+      ?? (typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('agent:preview_mode') as 'sidebar' | 'window') || 'sidebar'
+        : 'sidebar')
   );
 
   const handleModeChange = (newMode: 'sidebar' | 'window') => {
     setMode(newMode);
-    if (typeof localStorage !== 'undefined') {
+    if (adapter.savePreviewMode) {
+      adapter.savePreviewMode(newMode);
+    } else if (typeof localStorage !== 'undefined') {
       localStorage.setItem('agent:preview_mode', newMode);
     }
   };

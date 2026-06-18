@@ -16,11 +16,13 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { BrowserPlatform } from '@svton/agent-platform';
-import { AgentProvider, ChatService } from '@svton/agent-client';
+import { AgentProvider } from '@svton/agent-client';
 import type { AgentConfig } from '@svton/agent-core';
 import { AgentShell } from './components/AgentShell';
 import { DefaultSettingsAdapter } from './lib/default-settings-adapter';
 import { createAgentConfig } from './lib/create-agent-config';
+import { createAgentAppStorage } from './lib/storage';
+import { buildModelOptions } from './lib/model-selection';
 import type { AgentAppProps, ModelOption } from './types';
 
 export function AgentApp(props: AgentAppProps) {
@@ -33,6 +35,12 @@ export function AgentApp(props: AgentAppProps) {
     features,
     skills,
     mcpServers,
+    imageProviders,
+    settings,
+    storage,
+    integrations,
+    marketplace,
+    runtime,
     maxIterations,
     contextConfig,
     className,
@@ -42,42 +50,70 @@ export function AgentApp(props: AgentAppProps) {
     sidebarItems,
   } = props;
 
-  const [platform] = useState(() => new BrowserPlatform());
+  const platform = useMemo(() => new BrowserPlatform({
+    storageName: `${storage?.namespace ?? 'svton-app'}:storage`,
+  }), [storage?.namespace]);
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentModel, setCurrentModel] = useState(defaultModel || '');
+  const appStorage = useMemo(() => createAgentAppStorage(storage?.namespace), [storage?.namespace]);
+  const [currentModel, setCurrentModel] = useState(() => {
+    if (defaultModel) return defaultModel;
+    return createAgentAppStorage(storage?.namespace).getString('defaultModel');
+  });
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const settingsKey = JSON.stringify(settings ?? {});
+  const integrationsKey = JSON.stringify({
+    enabled: integrations?.enabled,
+    builtin: integrations?.builtin,
+    manifests: integrations?.manifests?.map((manifest) => manifest.id),
+  });
+  const marketplaceKey = JSON.stringify(marketplace ?? {});
+
+  // Initialize adapter
+  const adapter = useMemo(
+    () => new DefaultSettingsAdapter(propProviders, platform, settings, storage?.namespace, integrations, marketplace),
+    [propProviders, platform, settingsKey, storage?.namespace, integrationsKey, marketplaceKey],
+  );
+
+  const runtimeProviders = useMemo(() => adapter.getProviderConfigs(), [adapter, refreshKey]);
+  const runtimeMcpServers = useMemo(
+    () => [...(mcpServers ?? []), ...adapter.getMcpServerEntries()],
+    [adapter, mcpServers, refreshKey],
+  );
+  const runtimeSearchEndpoint = searchEndpoint ?? adapter.getSearchEndpoint();
 
   // Build model list from all providers
   const models: ModelOption[] = useMemo(() => {
-    return propProviders.flatMap(p =>
-      p.models.map(m => ({
-        id: m.id,
-        name: m.name,
-        providerName: p.name || p.type,
-        providerType: p.type,
-      }))
-    );
-  }, [propProviders]);
+    return buildModelOptions(runtimeProviders);
+  }, [runtimeProviders]);
 
-  // Initialize adapter
-  const adapter = useMemo(() => new DefaultSettingsAdapter(propProviders), [propProviders]);
+  useEffect(() => {
+    if (!currentModel && models[0]) {
+      setCurrentModel(models[0].key);
+    }
+  }, [currentModel, models]);
 
   // Initialize agent
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        if (!currentModel && models.length > 0) return;
         const config = await createAgentConfig({
-          providers: propProviders,
+          providers: runtimeProviders,
           model: currentModel,
           platform,
           features,
-          searchEndpoint,
+          searchEndpoint: runtimeSearchEndpoint,
           systemPrompt,
           workingDir,
           skills,
-          mcpServers,
+          mcpServers: runtimeMcpServers,
+          imageProviders,
+          storageNamespace: storage?.namespace,
+          integrations,
+          marketplace,
           maxIterations,
           contextConfig,
         });
@@ -94,13 +130,17 @@ export function AgentApp(props: AgentAppProps) {
             description: s.description,
           })),
           permissionMode: config.capabilities?.permissionManager?.getMode() || 'default',
-          hasMemory: true,
-          memoryText: '',
-          mcpServers: [],
-          hasSubagent: false,
+          hasMemory: !!config.capabilities?.memoryManager,
+          memoryText: config.capabilities?.memoryManager?.getAllMemoryText?.() ?? '',
+          mcpServers: (config.capabilities?.mcpClients ?? []).map((client: any) => ({
+            name: client.info?.name || 'mcp',
+            connected: client.connected,
+          })),
+          hasSubagent: !!config.capabilities?.subagentManager,
           hasPlanning: !!config.capabilities?.planningManager,
         });
         adapter.onUpdate = () => setRefreshKey(k => k + 1);
+        adapter.setAgentConfig(config);
 
         if (!cancelled) {
           setAgentConfig(config);
@@ -113,14 +153,14 @@ export function AgentApp(props: AgentAppProps) {
       }
     })();
     return () => { cancelled = true; };
-  }, [platform, currentModel, propProviders, features, searchEndpoint, systemPrompt, workingDir, skills, mcpServers, maxIterations, contextConfig, adapter, refreshKey]);
+  }, [platform, currentModel, models.length, runtimeProviders, features, runtimeSearchEndpoint, systemPrompt, workingDir, skills, runtimeMcpServers, imageProviders, storage?.namespace, integrations, marketplace, maxIterations, contextConfig, adapter, refreshKey]);
 
   // Model change handler
   const handleModelChange = useCallback((model: string) => {
     setCurrentModel(model);
     // Save selection
-    localStorage.setItem('svton-app:defaultModel', model);
-  }, []);
+    appStorage.setString('defaultModel', model);
+  }, [appStorage]);
 
   // Error state
   if (error) {
@@ -147,7 +187,7 @@ export function AgentApp(props: AgentAppProps) {
   // Ready — render with AgentProvider (creates @svton/service scope)
   return (
     <div className={className} data-theme={theme}>
-      <AgentProvider platform={platform} config={agentConfig}>
+      <AgentProvider platform={platform} config={agentConfig} runtimeKey={runtime?.key}>
         <AgentShell
           config={agentConfig}
           models={models}
@@ -155,9 +195,9 @@ export function AgentApp(props: AgentAppProps) {
           onModelChange={handleModelChange}
           adapter={adapter}
           title={title}
-          onReinit={() => setRefreshKey(k => k + 1)}
           sidebarConfig={sidebarConfig}
           sidebarItems={sidebarItems}
+          storageNamespace={storage?.namespace}
         />
       </AgentProvider>
     </div>

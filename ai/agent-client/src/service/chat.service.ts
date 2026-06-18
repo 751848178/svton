@@ -1,6 +1,11 @@
 import 'reflect-metadata';
 import { Service, observable, action, computed } from '@svton/service';
-import { logger } from '@svton/agent-core';
+import {
+  logger,
+  SubagentManager,
+  csvFanoutDef,
+  CsvFanoutExecutor,
+} from '@svton/agent-core';
 import type {
   AgentEvent,
   AgentConfig,
@@ -31,6 +36,8 @@ export class ChatService {
 
   private runtime: AgentRuntime | null = null;
   private runtimeWorkingDir: string | undefined = undefined;
+  private runtimeConfig: AgentConfig | null = null;
+  private runtimeKey: string | undefined = undefined;
   private platform: IPlatform | null = null;
   private pendingToolCalls = new Map<string, {
     call: import('@svton/agent-core').ToolCall;
@@ -88,9 +95,11 @@ export class ChatService {
    * Model switch: preserves message history and restores context to the new runtime.
    */
   @action()
-  async init(platform: IPlatform, config: AgentConfig): Promise<void> {
-    // Skip if already initialized with the same model AND working directory
-    if (this.runtime && this.currentModel === config.model && this.runtimeWorkingDir === config.workingDir) {
+  async init(platform: IPlatform, config: AgentConfig, runtimeKey?: string): Promise<void> {
+    const sameRuntime = runtimeKey
+      ? this.runtimeKey === runtimeKey
+      : this.runtimeConfig === config;
+    if (this.runtime && sameRuntime) {
       return;
     }
 
@@ -103,7 +112,6 @@ export class ChatService {
     // Wire SubagentManager post-creation (requires runtime reference)
     if (config.capabilities && !config.capabilities.subagentManager) {
       try {
-        const { SubagentManager } = await import('@svton/agent-core');
         const subagentMgr = new SubagentManager(
           config,
           this.runtime,
@@ -117,8 +125,9 @@ export class ChatService {
         config.toolRegistry.register(subagentSpawnDef, new SubagentSpawnExecutor(subagentMgr));
 
         // Register CSV fan-out tool (needs SubagentManager instance)
-        const { csvFanoutDef, CsvFanoutExecutor } = await import('@svton/agent-core');
-        config.toolRegistry.register(csvFanoutDef, new CsvFanoutExecutor(subagentMgr));
+        if ((config.capabilities as any).csvFanoutEnabled !== false) {
+          config.toolRegistry.register(csvFanoutDef, new CsvFanoutExecutor(subagentMgr));
+        }
       } catch {
         // SubagentManager not available — non-critical
       }
@@ -126,6 +135,8 @@ export class ChatService {
 
     this.currentModel = config.model;
     this.runtimeWorkingDir = config.workingDir;
+    this.runtimeConfig = config;
+    this.runtimeKey = runtimeKey;
 
     // Restore preserved messages or start fresh
     if (preservedMessages) {

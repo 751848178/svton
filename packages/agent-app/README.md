@@ -40,6 +40,9 @@ That's it. You get a full AI agent with:
 - Image generation
 - Code review (`/review`)
 - Document preview (split-screen)
+- HTTP/SSE MCP servers
+- Slack / Linear integrations
+- Skill URL / marketplace installation
 - Session management (create / switch / delete)
 - Memory system
 - Planning system
@@ -74,12 +77,18 @@ That's it. You get a full AI agent with:
 | Prop | Type | Required | Description |
 |------|------|----------|-------------|
 | `providers` | `ProviderConfig[]` | Yes | LLM provider configs |
-| `defaultModel` | `string` | No | Initial model ID |
+| `defaultModel` | `string` | No | Initial model ID or `providerId::modelId` |
 | `systemPrompt` | `string` | No | Extra system prompt |
 | `searchEndpoint` | `string` | No | Web search API endpoint |
 | `features` | `FeatureFlags` | No | Toggle individual features |
 | `skills` | `SkillDefinition[]` | No | Custom skills |
 | `mcpServers` | `McpServerEntry[]` | No | MCP server configs (HTTP/SSE) |
+| `imageProviders` | `object` | No | Stability / Google Imagen API keys |
+| `settings` | `object` | No | Provider settings persistence mode and secret storage policy |
+| `storage` | `object` | No | Browser storage namespace, useful for multi-instance embedding |
+| `integrations` | `object` | No | Built-in/custom integration manifests |
+| `marketplace` | `object` | No | Skill/MCP marketplace behavior |
+| `runtime` | `object` | No | Runtime recreation key for host-controlled config changes |
 | `title` | `string` | No | App title (default: "Svton Agent") |
 | `maxIterations` | `number` | No | ReAct loop limit (default: 50) |
 | `contextConfig` | `object` | No | Context window config |
@@ -90,15 +99,58 @@ That's it. You get a full AI agent with:
 <AgentApp
   providers={[...]}
   features={{
+    webFetch: true,
+    memory: true,
+    planning: true,
     imageGeneration: false,  // disable image gen
     codeReview: true,        // enable code review
     documentPreview: true,
+    csvFanout: true,
     webSearch: false,
     sessionResume: true,
     agentDefinitions: true,
+    plugins: true,
+    integrations: true,
   }}
 />
 ```
+
+## Settings Persistence
+
+```tsx
+<AgentApp
+  providers={[...]}
+  settings={{
+    mode: 'merge',                    // persisted | controlled | merge
+    persistProviderSecrets: true,      // persist API keys saved in Settings
+    persistInitialProviderSecrets: false,
+  }}
+/>
+```
+
+By default, AgentApp merges props with saved settings, persists keys entered in Settings,
+and does not seed API keys from the initial `providers` prop into localStorage.
+
+## Embedding Isolation
+
+```tsx
+<AgentApp
+  providers={[...]}
+  storage={{ namespace: 'my-product-agent' }}
+  runtime={{ key: projectId }}
+  integrations={{
+    builtin: ['slack'],
+    manifests: [customIntegration],
+  }}
+  marketplace={{
+    skills: false,
+    mcp: false,
+  }}
+/>
+```
+
+`storage.namespace` isolates localStorage and IndexedDB data. Model selections are stored as
+`providerId::modelId` internally, so multiple providers can safely expose the same model ID.
 
 ## Architecture
 

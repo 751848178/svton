@@ -40,4 +40,25 @@ export default defineConfig(async () => ({
       ignored: ['**/src-tauri/**'],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('/@tauri-apps/')) return 'tauri';
+            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
+              return 'react';
+            }
+            return 'vendor';
+          }
+          if (id.includes('/ai/agent-core/') || id.includes('/ai/agent-client/')) {
+            return 'agent-runtime';
+          }
+          if (id.includes('/packages/agent-ui/')) {
+            return 'agent-ui';
+          }
+        },
+      },
+    },
+  },
 }));

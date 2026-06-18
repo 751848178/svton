@@ -1,6 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { cn, t } from '@svton/ui';
 
+const MAX_IMAGE_ATTACHMENTS = 8;
+const MAX_INLINE_FILE_CHARS = 20000;
+
 // ── Slash command definitions ──────────────────────────────
 
 export interface SlashCommand {
@@ -174,7 +177,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
-    if ((!trimmed && images.length === 0) || disabled) return;
+    if ((!trimmed && images.length === 0) || disabled || isStreaming) return;
 
     // Check if it's a slash command
     if (trimmed.startsWith('/') && slashCommands.length > 0) {
@@ -198,7 +201,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [value, images, disabled, onSend, slashCommands]);
+  }, [value, images, disabled, isStreaming, onSend, slashCommands]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Navigate command list
@@ -320,7 +323,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   const processFiles = useCallback((files: FileList | File[]) => {
-    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    const imageFiles = Array.from(files)
+      .filter((f) => f.type.startsWith('image/'))
+      .slice(0, Math.max(0, MAX_IMAGE_ATTACHMENTS - images.length));
     for (const file of imageFiles) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -331,7 +336,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       };
       reader.readAsDataURL(file);
     }
-  }, []);
+  }, [images.length]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -598,13 +603,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               const file = e.target.files?.[0];
               if (file) {
                 const reader = new FileReader();
-                reader.onload = (ev) => {
-                  const text = ev.target?.result as string;
-                  if (text) {
-                    const prefix = value ? '\n' : '';
-                    setValue(prefix + `📄 ${file.name}\n\`\`\`\n${text}\n\`\`\``);
-                    textareaRef.current?.focus();
-                  }
+	                reader.onload = (ev) => {
+	                  const text = ev.target?.result as string;
+	                  if (text) {
+	                    const truncated = text.length > MAX_INLINE_FILE_CHARS;
+	                    const inlineText = truncated ? text.slice(0, MAX_INLINE_FILE_CHARS) : text;
+	                    const prefix = value ? '\n' : '';
+	                    setValue(prefix + `📄 ${file.name}${truncated ? ' (truncated)' : ''}\n\`\`\`\n${inlineText}\n\`\`\`${truncated ? '\n[File truncated in the input preview.]' : ''}`);
+	                    textareaRef.current?.focus();
+	                  }
                 };
                 reader.readAsText(file);
               }
@@ -631,9 +638,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </svg>
           </button>
         ) : (
-          <button
-            onClick={handleSend}
-            disabled={disabled || (!value.trim() && images.length === 0)}
+	          <button
+	            onClick={handleSend}
+	            disabled={disabled || isStreaming || (!value.trim() && images.length === 0)}
             className={cn(
               'flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center',
               'bg-gray-100 text-gray-900 hover:bg-gray-200',

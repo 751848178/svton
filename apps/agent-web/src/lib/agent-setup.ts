@@ -44,8 +44,7 @@ import {
   SessionResumeManager,
   AgentDefinitionManager,
   IntegrationManager,
-  SlackIntegration,
-  LinearIntegration,
+  resolveBuiltinIntegrationManifests,
   codeReviewSkill,
   // Document preview
   previewDocumentDef,
@@ -191,8 +190,9 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
 
   // Integrations (Slack / Linear — HTTP APIs work in browser)
   const integrationManager = new IntegrationManager(platform.storage);
-  integrationManager.registerManifest(SlackIntegration);
-  integrationManager.registerManifest(LinearIntegration);
+  for (const manifest of resolveBuiltinIntegrationManifests()) {
+    integrationManager.registerManifest(manifest);
+  }
   await integrationManager.init();
   for (const { definition, executor } of integrationManager.resolveAllTools()) {
     toolRegistry.register(definition, executor);

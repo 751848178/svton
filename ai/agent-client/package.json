@@ -1,6 +1,6 @@
 {
   "name": "@svton/agent-client",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "React integration layer for Svton AI Agent - Hooks, Service, Provider",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -26,8 +26,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@svton/agent-core": "^0.3.0",
-    "@svton/agent-platform": "^0.3.0",
+    "@svton/agent-core": "^0.3.1",
+    "@svton/agent-platform": "^0.3.1",
     "@svton/service": "^0.7.0"
   },
   "peerDependencies": {

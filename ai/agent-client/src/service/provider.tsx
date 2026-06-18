@@ -46,6 +46,7 @@ export async function globalFlush() {
 interface AgentProviderProps {
   platform: IPlatform;
   config: AgentConfig;
+  runtimeKey?: string;
   children: React.ReactNode;
 }
 
@@ -53,11 +54,12 @@ interface AgentProviderProps {
  * Top-level provider that initializes Agent services.
  * Uses the @svton/service container to create reactive instances.
  */
-export function AgentProvider({ platform, config, children }: AgentProviderProps) {
+export function AgentProvider({ platform, config, runtimeKey, children }: AgentProviderProps) {
   const scopeRef = useRef(container.createScope());
   // Track what config we've already initialized with, to avoid re-init on every render
   const initConfigRef = useRef<AgentConfig | null>(null);
   const initStorageRef = useRef<IPlatform['storage'] | null>(null);
+  const initRuntimeKeyRef = useRef<string | undefined>(undefined);
 
   // Create service instances in useMemo (pure, no side effects)
   const instances = useMemo(() => {
@@ -71,15 +73,20 @@ export function AgentProvider({ platform, config, children }: AgentProviderProps
   // Initialize services in useEffect — ONLY when config actually changes
   useEffect(() => {
     // Skip re-initialization if we already initialized with this config
-    if (initConfigRef.current === config && initStorageRef.current === platform.storage) {
+    if (
+      initConfigRef.current === config
+      && initStorageRef.current === platform.storage
+      && initRuntimeKeyRef.current === runtimeKey
+    ) {
       return;
     }
     initConfigRef.current = config;
     initStorageRef.current = platform.storage;
-    instances.chatInternal.target.init(platform, config);
+    initRuntimeKeyRef.current = runtimeKey;
+    instances.chatInternal.target.init(platform, config, runtimeKey);
     instances.sessionInternal.target.init(platform.storage);
     instances.projectInternal.target.init(platform.storage);
-  }, [platform, config, instances]);
+  }, [platform, config, runtimeKey, instances]);
 
   const value = useMemo(() => ({
     platform,

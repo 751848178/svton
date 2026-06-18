@@ -114,11 +114,10 @@ class BrowserChildProcess implements IChildProcess {
 
 class BrowserStorage implements IStorage {
   private db: IDBDatabase | null = null;
-  private readonly dbName = 'svton-agent';
   private readonly storeName = 'key-value';
   private initPromise: Promise<void> | null = null;
 
-  constructor() {
+  constructor(private readonly dbName = 'svton-agent') {
     // Lazy init - don't call init() here, let it be triggered on first use
     // This prevents crashes in Node.js/test environments where indexedDB is unavailable
   }
@@ -262,10 +261,10 @@ export class BrowserPlatform implements IPlatform {
   readonly search: ISearch;
   readonly preview: undefined;
 
-  constructor() {
+  constructor(options: { storageName?: string } = {}) {
     this.fs = new BrowserFileSystem();
     this.process = new BrowserProcess();
-    this.storage = new BrowserStorage();
+    this.storage = new BrowserStorage(options.storageName);
     this.search = new BrowserSearch();
   }
 }

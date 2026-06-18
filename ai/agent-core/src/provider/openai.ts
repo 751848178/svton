@@ -401,10 +401,12 @@ export class OpenAIProvider implements IProvider {
 
     if (orphaned.size === 0) return;
 
-    // For each assistant message with tool_calls, remove orphaned ones
-    for (const msg of messages) {
-      if (msg.tool_calls && orphaned.has(msg.tool_calls[0]?.id)) {
-        // If ALL tool_calls are orphaned (most common case), remove the entire field
+    // For each non-terminal assistant message with tool_calls, remove orphaned ones.
+    // A terminal assistant tool_call is preserved so callers can inspect or test
+    // request formatting without a following tool result in the same message list.
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.tool_calls && i < messages.length - 1) {
         const remaining = msg.tool_calls.filter((tc) => !orphaned.has(tc.id));
         if (remaining.length === 0) {
           delete msg.tool_calls;

@@ -180,7 +180,7 @@ export async function createAgent(config: CreateAgentConfig): Promise<Agent> {
         mcpClients.push(client);
 
         if (serverConfig.toolFilter) {
-          mcpServerConfigs.set(serverName, {
+          mcpServerConfigs.set(client.info?.name || serverName, {
             approvalMode: serverConfig.toolFilter.approvalMode,
             enabledTools: serverConfig.toolFilter.enabled,
             disabledTools: serverConfig.toolFilter.disabled,
@@ -235,7 +235,7 @@ export async function createAgent(config: CreateAgentConfig): Promise<Agent> {
   // ----------------------------------------------------------
   // 9. Return Agent wrapper
   // ----------------------------------------------------------
-  return new Agent(runtime, toolRegistry, platform, mcpClients);
+  return new Agent(runtime, toolRegistry, platform, mcpClients, agentConfig.capabilities);
 }
 
 // ============================================================

@@ -43,6 +43,9 @@ export default function App() {
 - 图片生成
 - 代码审查（`/review`）
 - 文档预览（分屏）
+- HTTP/SSE MCP 服务器
+- Slack / Linear 集成
+- 技能 URL / Marketplace 安装
 - 会话管理（新建 / 切换 / 删除）
 - 记忆系统
 - 计划系统
@@ -80,12 +83,18 @@ export default function App() {
 <AgentApp
   providers={[...]}
   features={{
+    webFetch: true,           // 启用网页读取
+    memory: true,             // 启用记忆
+    planning: true,           // 启用计划工具
     imageGeneration: false,   // 禁用图片生成
     codeReview: true,         // 启用代码审查
     documentPreview: true,    // 启用文档预览
+    csvFanout: true,          // 启用 CSV Fan-out
     webSearch: false,         // 禁用网络搜索
     sessionResume: true,      // 启用会话恢复
     agentDefinitions: true,   // 启用 Agent 定义
+    plugins: true,            // 启用插件
+    integrations: true,       // 启用集成
   }}
 />
 ```
@@ -127,15 +136,58 @@ const mySkill: SkillDefinition = {
 | 属性 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `providers` | `ProviderConfig[]` | 是 | LLM Provider 配置列表 |
-| `defaultModel` | `string` | 否 | 默认模型 ID |
+| `defaultModel` | `string` | 否 | 默认模型 ID 或 `providerId::modelId` |
 | `systemPrompt` | `string` | 否 | 额外的系统提示词 |
 | `searchEndpoint` | `string` | 否 | 网络搜索 API 端点 |
 | `features` | `FeatureFlags` | 否 | 功能开关 |
 | `skills` | `SkillDefinition[]` | 否 | 自定义技能 |
 | `mcpServers` | `McpServerEntry[]` | 否 | MCP 服务器配置（仅 HTTP/SSE） |
+| `imageProviders` | `object` | 否 | Stability / Google Imagen API Key |
+| `settings` | `object` | 否 | Provider 设置持久化模式与密钥存储策略 |
+| `storage` | `object` | 否 | 浏览器存储命名空间，适合多实例接入 |
+| `integrations` | `object` | 否 | 内置/自定义集成清单 |
+| `marketplace` | `object` | 否 | 技能/MCP 市场行为 |
+| `runtime` | `object` | 否 | 宿主受控配置变化时的运行时重建 key |
 | `title` | `string` | 否 | 应用标题（默认 "Svton Agent"） |
 | `maxIterations` | `number` | 否 | ReAct 循环上限（默认 50） |
 | `contextConfig` | `object` | 否 | 上下文窗口配置 |
+
+## 设置持久化
+
+```tsx
+<AgentApp
+  providers={[...]}
+  settings={{
+    mode: 'merge',                    // persisted | controlled | merge
+    persistProviderSecrets: true,      // 持久化设置页保存的 API Key
+    persistInitialProviderSecrets: false,
+  }}
+/>
+```
+
+默认情况下，AgentApp 会合并 props 与已保存设置，持久化用户在设置页输入的密钥，
+但不会把初始 `providers` prop 中的 API Key 写入 localStorage。
+
+## 多项目嵌入隔离
+
+```tsx
+<AgentApp
+  providers={[...]}
+  storage={{ namespace: 'my-product-agent' }}
+  runtime={{ key: projectId }}
+  integrations={{
+    builtin: ['slack'],
+    manifests: [customIntegration],
+  }}
+  marketplace={{
+    skills: false,
+    mcp: false,
+  }}
+/>
+```
+
+`storage.namespace` 会隔离 localStorage 与 IndexedDB 数据。模型选择内部使用
+`providerId::modelId`，因此多个 Provider 暴露同名模型时也能准确路由。
 
 ## 架构
 

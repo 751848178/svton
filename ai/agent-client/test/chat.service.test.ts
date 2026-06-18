@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import 'reflect-metadata';
 import { ChatService } from '../src/service/chat.service';
 import type { DisplayMessage } from '../src/types';
@@ -158,13 +158,36 @@ describe('ChatService', () => {
       expect(service.messages.length).toBeGreaterThanOrEqual(2);
     });
 
-    it('skips re-initialization with same model and workingDir', async () => {
+    it('skips re-initialization with the same config object', async () => {
+      const spy = vi.spyOn(AgentRuntime, 'createAsync');
       const config = createConfig(provider);
       await service.init(mockPlatform, config);
       const beforeModel = service.currentModel;
       // Init again with same config
       await service.init(mockPlatform, config);
       expect(service.currentModel).toBe(beforeModel);
+      expect(spy).toHaveBeenCalledTimes(1);
+      spy.mockRestore();
+    });
+
+    it('re-initializes when runtime config changes without changing model or workingDir', async () => {
+      const spy = vi.spyOn(AgentRuntime, 'createAsync');
+      const config1 = createConfig(provider);
+      const config2 = createConfig(provider);
+      await service.init(mockPlatform, config1);
+      await service.init(mockPlatform, config2);
+      expect(spy).toHaveBeenCalledTimes(2);
+      spy.mockRestore();
+    });
+
+    it('uses runtimeKey to skip semantically identical configs', async () => {
+      const spy = vi.spyOn(AgentRuntime, 'createAsync');
+      const config1 = createConfig(provider);
+      const config2 = createConfig(provider);
+      await service.init(mockPlatform, config1, 'same-runtime');
+      await service.init(mockPlatform, config2, 'same-runtime');
+      expect(spy).toHaveBeenCalledTimes(1);
+      spy.mockRestore();
     });
   });
 

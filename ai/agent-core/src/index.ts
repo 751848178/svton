@@ -287,6 +287,11 @@ export type {
 export { IntegrationManager } from './integrations/manager';
 export { SlackIntegration } from './integrations/builtin/slack';
 export { LinearIntegration } from './integrations/builtin/linear';
+export {
+  BUILTIN_INTEGRATIONS,
+  resolveBuiltinIntegrationManifests,
+  type BuiltinIntegrationId,
+} from './integrations/builtin';
 
 // Logger utility
 export { logger } from './utils/logger';

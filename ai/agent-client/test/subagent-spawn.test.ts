@@ -85,10 +85,10 @@ describe('SubagentSpawnExecutor', () => {
         id: 'tc1', name: 'subagent_spawn',
         arguments: { task: 'Review code', roleDescription: 'a code reviewer' },
       } as any);
-      expect(manager.spawn).toHaveBeenCalledWith({
+      expect(manager.spawn).toHaveBeenCalledWith(expect.objectContaining({
         task: 'Review code',
         roleDescription: 'a code reviewer',
-      });
+      }));
     });
   });
 

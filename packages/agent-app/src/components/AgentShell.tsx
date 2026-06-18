@@ -35,9 +35,9 @@ interface AgentShellProps {
   onModelChange: (model: string) => void;
   adapter: any;
   title?: string;
-  onReinit?: () => void;
   sidebarConfig?: Partial<SidebarConfig>;
   sidebarItems?: SidebarItem[];
+  storageNamespace?: string;
 }
 
 export function AgentShell({
@@ -47,11 +47,11 @@ export function AgentShell({
   onModelChange,
   adapter,
   title = 'Svton Agent',
-  onReinit,
   sidebarConfig,
   sidebarItems = [],
+  storageNamespace = 'svton-app',
 }: AgentShellProps) {
-  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage } = useChat();
+  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage, abort } = useChat();
   const { sessions, currentSessionId, create, switchTo, delete: deleteSession } = useSession();
   const { approve, reject } = useToolApproval();
   const [view, setView] = useState<View>('chat');
@@ -68,8 +68,8 @@ export function AgentShell({
   const handlePermissionModeChange = useCallback((mode: string) => {
     setPermissionMode(mode as any);
     config.capabilities?.permissionManager?.setMode(mode as any);
-    localStorage.setItem('svton-app:permissionMode', mode);
-  }, [config]);
+    adapter.savePermissionMode?.(mode);
+  }, [adapter, config]);
 
   // ── Reasoning effort ──
   const { chatService } = useAgentContext();
@@ -130,18 +130,6 @@ export function AgentShell({
     })),
   [messages, lastUsage]);
 
-  // ── Tools for settings ──
-  const tools = useMemo(() =>
-    config.toolRegistry.listDefinitions().map(t => ({ name: t.name, description: t.description })),
-  [config]);
-
-  const agentSkills = useMemo(() =>
-    (config.capabilities?.skillManager?.list() ?? []).map(s => ({
-      name: s.name,
-      description: s.description,
-    })),
-  [config]);
-
   // ── Model selector ──
   const modelSelector = (
     <ModelSelector
@@ -180,6 +168,7 @@ export function AgentShell({
           defaultCollapsed: sidebarConfig?.defaultCollapsed ?? false,
           width: sidebarConfig?.width,
           collapsedWidth: sidebarConfig?.collapsedWidth,
+          collapseStorageKey: sidebarConfig?.collapseStorageKey ?? `${storageNamespace}:sidebarCollapsed`,
         }}
         activeView={view}
         onNavigate={(v) => setView(v as View)}
@@ -204,6 +193,7 @@ export function AgentShell({
               className="bg-[#1c1c1c] text-gray-400 text-[11px] rounded px-2 py-1 border border-[#2a2a2a] outline-none cursor-pointer hover:text-gray-200"
             >
               <option value="read_only">只读</option>
+              <option value="plan">计划</option>
               <option value="default">默认</option>
               <option value="accept_edits">接受编辑</option>
               <option value="auto">全自动</option>
@@ -236,7 +226,7 @@ export function AgentShell({
               slashCommands={slashCommands}
               matchedSkills={matchedSkills}
               onSend={send}
-              onAbort={() => useChat().abort()}
+              onAbort={abort}
               onApproveTool={approve}
               onRejectTool={reject}
               onRetry={(id?: string) => id ? retryFromMessage(id) : retry()}
@@ -263,92 +253,6 @@ function SplitScreenPanelLazy({ content, onClose }: { content: SplitScreenConten
   return <SplitScreenPanel content={content} onClose={onClose} />;
 }
 
-// ── Simple Sidebar ──
-function SimpleSidebar({
-  title,
-  sessions,
-  currentSessionId,
-  onNewChat,
-  onSwitchSession,
-  onDeleteSession,
-  onOpenSettings,
-}: {
-  title: string;
-  sessions: Array<{ id: string; title: string }>;
-  currentSessionId: string | null;
-  onNewChat: () => void;
-  onSwitchSession: (id: string) => void;
-  onDeleteSession: (id: string) => void;
-  onOpenSettings: () => void;
-}) {
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-
-  return (
-    <div className="w-60 flex-shrink-0 bg-[#171717] border-r border-[#222] flex flex-col">
-      {/* Header */}
-      <div className="px-3 py-3 border-b border-[#222]">
-        <div className="text-sm font-medium text-gray-200">{title}</div>
-      </div>
-
-      {/* New chat */}
-      <div className="px-2 py-2">
-        <button
-          onClick={onNewChat}
-          className="w-full px-3 py-1.5 text-[13px] font-medium rounded-md border border-dashed border-[#333] text-gray-400 hover:text-white hover:border-gray-500 hover:bg-[#1c1c1c]/60 transition-colors flex items-center justify-center gap-1.5"
-        >
-          + 新对话
-        </button>
-      </div>
-
-      {/* Session list */}
-      <div className="flex-1 overflow-y-auto px-1.5">
-        {sessions.length === 0 ? (
-          <div className="text-center text-gray-600 text-xs py-4">暂无对话</div>
-        ) : (
-          sessions.map(s => (
-            <div
-              key={s.id}
-              className={cn(
-                'group flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer text-[12px] mb-0.5 transition-colors',
-                s.id === currentSessionId
-                  ? 'bg-[#1c1c1c] text-gray-200'
-                  : 'text-gray-500 hover:bg-[#1c1c1c]/60 hover:text-gray-300'
-              )}
-              onClick={() => onSwitchSession(s.id)}
-            >
-              <span className="flex-1 truncate">{s.title}</span>
-              {confirmDelete === s.id ? (
-                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => { onDeleteSession(s.id); setConfirmDelete(null); }} className="text-[9px] text-red-500">删除</button>
-                  <button onClick={() => setConfirmDelete(null)} className="text-[9px] text-gray-500">取消</button>
-                </div>
-              ) : (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setConfirmDelete(s.id); }}
-                  className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-opacity text-[10px]"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Settings */}
-      <div className="px-2 py-2 border-t border-[#222]">
-        <button
-          onClick={onOpenSettings}
-          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-[#1c1c1c] transition-colors text-[12px]"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          设置
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ── Model Selector ──
 function ModelSelector({
   models,
@@ -365,7 +269,7 @@ function ModelSelector({
   setOpen: (v: boolean) => void;
   dropRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const current = models.find(m => m.id === currentModel);
+  const current = models.find(m => m.key === currentModel) ?? models.find(m => m.id === currentModel);
   const providers = [...new Set(models.map(m => m.providerName))];
 
   return (
@@ -386,15 +290,15 @@ function ModelSelector({
               <div className="px-3 py-1 text-[10px] text-gray-600 uppercase">{providerName}</div>
               {models.filter(m => m.providerName === providerName).map(m => (
                 <button
-                  key={m.id}
-                  onClick={() => { onChange(m.id); setOpen(false); }}
+	                  key={m.key}
+	                  onClick={() => { onChange(m.key); setOpen(false); }}
                   className={cn(
                     'w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#222] transition-colors',
-                    m.id === currentModel ? 'text-cyan-400' : 'text-gray-400'
+	                    m.key === currentModel || m.id === currentModel ? 'text-cyan-400' : 'text-gray-400'
                   )}
                 >
                   {m.name}
-                  {m.id === currentModel && <span className="float-right">✓</span>}
+	                  {(m.key === currentModel || m.id === currentModel) && <span className="float-right">✓</span>}
                 </button>
               ))}
             </div>

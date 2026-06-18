@@ -49,6 +49,11 @@ export interface SidebarConfig {
   showSessions?: boolean;
   /** App title in header */
   title?: string;
+  /**
+   * localStorage key for uncontrolled collapsed state.
+   * Set to false to disable persistence. Default: "svton-sidebar-collapsed".
+   */
+  collapseStorageKey?: string | false;
 }
 
 export interface SidebarProps {
@@ -118,11 +123,13 @@ export function Sidebar({
     collapsedWidth = 48,
     showSessions = true,
     title = 'Svton Agent',
+    collapseStorageKey = 'svton-sidebar-collapsed',
   } = config;
 
   // Uncontrolled collapse state
   const [internalCollapsed, setInternalCollapsed] = useState(() => {
-    try { return localStorage.getItem('svton-sidebar-collapsed') === 'true'; } catch { return defaultCollapsed; }
+    if (!collapseStorageKey) return defaultCollapsed;
+    try { return localStorage.getItem(collapseStorageKey) === 'true'; } catch { return defaultCollapsed; }
   });
   const isCollapsed = collapsedProp ?? internalCollapsed;
 
@@ -132,9 +139,11 @@ export function Sidebar({
       onCollapsedChange(next);
     } else {
       setInternalCollapsed(next);
-      try { localStorage.setItem('svton-sidebar-collapsed', String(next)); } catch {}
+      if (collapseStorageKey) {
+        try { localStorage.setItem(collapseStorageKey, String(next)); } catch {}
+      }
     }
-  }, [isCollapsed, onCollapsedChange]);
+  }, [collapseStorageKey, isCollapsed, onCollapsedChange]);
 
   const visibleItems = items.filter(item => item.visible !== false);
   const currentWidth = isCollapsed ? collapsedWidth : width;

@@ -99,9 +99,10 @@ import {
   AutomationManager,
   TimerScheduler,
   IntegrationManager,
-  SlackIntegration,
-  LinearIntegration,
+  resolveBuiltinIntegrationManifests,
   ChronicleManager,
+  createAutomationDef,
+  CreateAutomationExecutor,
   ImageGenRegistry,
   OpenAIImageProvider,
   StabilityProvider,
@@ -353,8 +354,9 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
 
   // ── Integrations (Slack / Linear) ──
   const integrationManager = new IntegrationManager(platform.storage);
-  integrationManager.registerManifest(SlackIntegration);
-  integrationManager.registerManifest(LinearIntegration);
+  for (const manifest of resolveBuiltinIntegrationManifests()) {
+    integrationManager.registerManifest(manifest);
+  }
   await integrationManager.init();
   // Register tools from enabled integrations
   for (const { definition, executor } of integrationManager.resolveAllTools()) {
@@ -376,7 +378,6 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   });
 
   // Register create_automation tool — lets the LLM create scheduled tasks
-  const { createAutomationDef, CreateAutomationExecutor } = await import('@svton/agent-core');
   toolRegistry.register(createAutomationDef, new CreateAutomationExecutor(automationManager));
 
   // Register code review skill
