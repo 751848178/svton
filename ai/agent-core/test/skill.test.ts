@@ -323,6 +323,46 @@ Some instructions here.`;
     expect(skill.requiredTools).toBeUndefined();
   });
 
+  it('parseMarkdown extracts matching metadata from standard body sections', () => {
+    const markdown = `---
+name: body-section-skill
+description: Standard frontmatter with body sections
+---
+
+# Body Section Skill
+
+## Use When
+
+- React TSX component refactor
+- 拆分复杂页面和弹窗
+
+## Avoid When
+
+- Backend service work
+
+## Trigger Signals
+
+- useState useEffect variant mode
+- fallback retry in view
+
+## Rules
+
+- Keep the body intact.`;
+
+    const skill = SkillLoader.parseMarkdown(markdown);
+
+    expect(skill.whenToUse).toEqual([
+      'React TSX component refactor',
+      '拆分复杂页面和弹窗',
+    ]);
+    expect(skill.avoidWhen).toEqual(['Backend service work']);
+    expect(skill.triggerSignals).toEqual([
+      'useState useEffect variant mode',
+      'fallback retry in view',
+    ]);
+    expect(skill.instructions).toContain('## Trigger Signals');
+  });
+
   it('fromStorage loads from storage with agent:skill: prefix', async () => {
     const storage = new MockStorage();
 

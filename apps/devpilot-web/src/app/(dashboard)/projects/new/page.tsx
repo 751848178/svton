@@ -18,6 +18,23 @@ const steps = [
   { id: 'preview', title: '预览确认', component: StepPreview },
 ];
 
+function readStoredAuthToken(): string {
+  const stored = localStorage.getItem('auth-storage');
+  if (!stored) return '';
+
+  try {
+    const { state } = JSON.parse(stored);
+    return state?.token || state?.accessToken || '';
+  } catch {
+    return '';
+  }
+}
+
+function readCookie(name: string): string {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : '';
+}
+
 export default function NewProjectPage() {
   const router = useRouter();
   const { currentStep, setCurrentStep, config, reset } = useProjectConfigStore();
@@ -39,11 +56,14 @@ export default function NewProjectPage() {
     setIsSubmitting(true);
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3101';
+      const token = readStoredAuthToken();
+      const teamId = readCookie('teamId');
       const response = await fetch(`${API_URL}/api/projects/generate`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth-storage') ? JSON.parse(localStorage.getItem('auth-storage') || '{}').state?.accessToken : ''}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(teamId ? { 'X-Team-Id': teamId } : {}),
         },
         body: JSON.stringify(config),
       });
@@ -60,8 +80,9 @@ export default function NewProjectPage() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
+        const projectId = response.headers.get('X-Project-Id');
         reset();
-        router.push('/');
+        router.push(projectId ? `/projects/${projectId}` : '/projects');
       } else {
         const error = await response.json().catch(() => ({ message: '生成失败' }));
         alert(error.message || '生成项目失败');

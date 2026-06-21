@@ -4,6 +4,15 @@ import { persist } from 'zustand/middleware';
 // 子项目类型
 export type SubProjectType = 'backend' | 'admin' | 'mobile';
 
+export type ResourceConfigMode = 'manual' | 'credential' | 'skipped';
+
+export interface ProjectResourceConfig {
+  type: string;
+  mode: ResourceConfigMode;
+  config?: Record<string, string>;
+  credentialId?: string;
+}
+
 // 项目配置
 export interface ProjectConfig {
   basicInfo: {
@@ -18,7 +27,7 @@ export interface ProjectConfig {
     mobile: boolean;
   };
   features: string[];
-  resources: Record<string, string>; // resourceType -> credentialId
+  resources: Record<string, ProjectResourceConfig>;
   uiLibrary: {
     admin: boolean;
     mobile: boolean;
@@ -41,7 +50,8 @@ interface ProjectConfigState {
   setSubProjects: (subProjects: Partial<ProjectConfig['subProjects']>) => void;
   toggleFeature: (featureId: string) => void;
   setFeatures: (features: string[]) => void;
-  setResource: (resourceType: string, credentialId: string) => void;
+  setResource: (resourceType: string, resource: ProjectResourceConfig | null) => void;
+  setResources: (resources: Record<string, ProjectResourceConfig>) => void;
   setUiLibrary: (lib: Partial<ProjectConfig['uiLibrary']>) => void;
   setHooks: (enabled: boolean) => void;
   setGitConfig: (config: ProjectConfig['gitConfig']) => void;
@@ -108,12 +118,21 @@ export const useProjectConfigStore = create<ProjectConfigState>()(
           config: { ...state.config, features },
         })),
 
-      setResource: (resourceType, credentialId) =>
+      setResource: (resourceType, resource) =>
         set((state) => ({
           config: {
             ...state.config,
-            resources: { ...state.config.resources, [resourceType]: credentialId },
+            resources: resource
+              ? { ...state.config.resources, [resourceType]: resource }
+              : Object.fromEntries(
+                  Object.entries(state.config.resources).filter(([type]) => type !== resourceType)
+                ),
           },
+        })),
+
+      setResources: (resources) =>
+        set((state) => ({
+          config: { ...state.config, resources },
         })),
 
       setUiLibrary: (lib) =>

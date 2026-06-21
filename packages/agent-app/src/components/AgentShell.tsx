@@ -51,7 +51,7 @@ export function AgentShell({
   sidebarItems = [],
   storageNamespace = 'svton-app',
 }: AgentShellProps) {
-  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage, abort } = useChat();
+  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage, abort, inputHistory } = useChat();
   const { sessions, currentSessionId, create, switchTo, delete: deleteSession } = useSession();
   const { approve, reject } = useToolApproval();
   const [view, setView] = useState<View>('chat');
@@ -235,6 +235,7 @@ export function AgentShell({
               onOpenEditor={(content) => setSplitScreen({ type: 'document', title: 'Edit', content })}
               onMentionSelect={(item) => `@${item.label}`}
               mentionItems={mentionItems}
+              inputHistory={inputHistory}
             />
           </div>
 

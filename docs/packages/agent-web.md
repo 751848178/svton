@@ -29,7 +29,7 @@
 │      ├── BrowserPlatform (IndexedDB)                          │
 │      ├── Provider (OpenAI / Anthropic / DeepSeek)             │
 │      ├── ToolRegistry (11 工具)                                │
-│      ├── SkillManager (5 内置技能)                              │
+│      ├── SkillManager (7 内置技能)                              │
 │      ├── MemoryManager (Auto Memory)                          │
 │      ├── PromptManager (系统提示词组装)                         │
 │      ├── PermissionManager (5 权限模式)                        │
@@ -160,7 +160,7 @@ Provider 配置界面：
 
 | 管理器 | 初始化 | 持久化 |
 |--------|--------|--------|
-| SkillManager | 从 `/public/skills/*/SKILL.md` 加载 5 个技能 | 无 |
+| SkillManager | 从 `/public/skills/*/SKILL.md` 加载 7 个技能 | 无 |
 | MemoryManager | `init(platform.storage)` 加载 auto memory | IndexedDB |
 | PromptManager | 默认实例 | 无 |
 | PermissionManager | 恢复 localStorage 保存的模式 | localStorage |
@@ -169,7 +169,7 @@ Provider 配置界面：
 
 ### 内置技能
 
-5 个技能从 `apps/agent-web/public/skills/` 目录加载：
+7 个技能从 `apps/agent-web/public/skills/` 目录加载：
 
 | 技能 | 路径 |
 |------|------|
@@ -178,6 +178,8 @@ Provider 配置界面：
 | svton-service | `/skills/svton-service/SKILL.md` |
 | engineering-craft-principles | `/skills/engineering-craft-principles/SKILL.md` |
 | universal-craft-principles | `/skills/universal-craft-principles/SKILL.md` |
+| verify-before-done | `/skills/verify-before-done/SKILL.md` |
+| plan-before-code | `/skills/plan-before-code/SKILL.md` |
 
 ---
 
@@ -292,7 +294,7 @@ Provider 配置界面：
 | 子代理 | 隔离的子任务处理 |
 | 图片上传 | 粘贴/选择图片，视觉模型分析 |
 | 会话持久化 | IndexedDB 保存/恢复对话 |
-| 技能系统 | 5 个内置技能，匹配时自动注入 |
+| 技能系统 | 7 个内置技能，匹配时自动注入 |
 | 权限控制 | 5 种权限模式 |
 | 上下文压缩 | LLM 摘要或截断 |
 | 流式输出 | SSE 流式文本 + 思维链 |

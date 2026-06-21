@@ -8,22 +8,34 @@ import { loadString, LS_DEFAULT_MODEL } from '@/lib/settings-store';
 import { BrowserSettingsAdapter } from '@/lib/browser-settings-adapter';
 
 export default function SettingsPage() {
-  // R5 fix: use useState initializer instead of render-time side effect
-  const [platform] = useState(() => new BrowserPlatform());
+  const [platform, setPlatform] = useState<BrowserPlatform | null>(null);
+  const [adapter, setAdapter] = useState<BrowserSettingsAdapter | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [adapter] = useState(() => new BrowserSettingsAdapter(platform));
 
   useEffect(() => {
+    const nextPlatform = new BrowserPlatform();
+    const nextAdapter = new BrowserSettingsAdapter(nextPlatform);
+    setPlatform(nextPlatform);
+    setAdapter(nextAdapter);
+
     const saved = loadString(LS_DEFAULT_MODEL) || undefined;
     // Settings stores "providerId::modelId", extract modelId for initAgentConfig
     const modelId = saved?.includes('::') ? saved.split('::')[1] : saved;
-    initAgentConfig(modelId || undefined, platform)
+    initAgentConfig(modelId || undefined, nextPlatform)
       .then((cfg) => {
-        adapter.setAgentConfig(cfg);
+        nextAdapter.setAgentConfig(cfg);
         setRefreshKey((k) => k + 1);
       })
       .catch(() => {});
-  }, [adapter, platform]);
+  }, []);
+
+  if (!adapter || !platform) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-sm text-gray-500">
+        正在加载设置...
+      </div>
+    );
+  }
 
   return (
     <SettingsView

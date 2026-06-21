@@ -267,4 +267,64 @@ describe('ChatInput', () => {
       expect(screen.getByText('read_file')).toBeInTheDocument();
     });
   });
+
+  // ----------------------------------------------------------
+  // 7. Input history
+  // ----------------------------------------------------------
+  describe('input history', () => {
+    it('navigates submitted input history with arrow keys', () => {
+      render(<ChatInput onSend={vi.fn()} inputHistory={['first prompt', 'second prompt']} />);
+
+      const textarea = screen.getByRole('textbox');
+      fireEvent.keyDown(textarea, { key: 'ArrowUp' });
+      expect(textarea).toHaveValue('second prompt');
+
+      fireEvent.keyDown(textarea, { key: 'ArrowUp' });
+      expect(textarea).toHaveValue('first prompt');
+
+      fireEvent.keyDown(textarea, { key: 'ArrowDown' });
+      expect(textarea).toHaveValue('second prompt');
+
+      fireEvent.keyDown(textarea, { key: 'ArrowDown' });
+      expect(textarea).toHaveValue('');
+    });
+
+    it('restores the draft when returning past the newest history item', async () => {
+      const user = userEvent.setup();
+      render(<ChatInput onSend={vi.fn()} inputHistory={['previous prompt']} />);
+
+      const textarea = screen.getByRole('textbox');
+      await user.type(textarea, 'draft text');
+
+      fireEvent.keyDown(textarea, { key: 'ArrowUp' });
+      expect(textarea).toHaveValue('previous prompt');
+
+      fireEvent.keyDown(textarea, { key: 'ArrowDown' });
+      expect(textarea).toHaveValue('draft text');
+    });
+
+    it('keeps arrow keys scoped to slash command navigation when commands are open', async () => {
+      const user = userEvent.setup();
+      const commands: SlashCommand[] = [
+        { name: 'help', description: 'Show help', action: vi.fn() },
+        { name: 'clear', description: 'Clear chat', action: vi.fn() },
+      ];
+
+      render(
+        <ChatInput
+          onSend={vi.fn()}
+          slashCommands={commands}
+          inputHistory={['previous prompt']}
+        />,
+      );
+
+      const textarea = screen.getByRole('textbox');
+      await user.type(textarea, '/');
+
+      fireEvent.keyDown(textarea, { key: 'ArrowDown' });
+      expect(textarea).toHaveValue('/');
+      expect(screen.getByText('/help')).toBeInTheDocument();
+      expect(screen.getByText('/clear')).toBeInTheDocument();
+    });
+  });
 });

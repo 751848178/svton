@@ -55,7 +55,7 @@ export function ChatContent({
   reasoningEffort,
   onReasoningEffortChange,
 }: ChatContentProps) {
-  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage, activePlan } = useChat();
+  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage, activePlan, inputHistory } = useChat();
   const { approve, reject } = useToolApproval();
   const [splitScreen, setSplitScreen] = useState<SplitScreenContent | null>(null);
 
@@ -194,6 +194,7 @@ export function ChatContent({
           slashCommands={slashCommands}
           mentionItems={mentionItems}
           onMentionSelect={onMentionSelect}
+          inputHistory={inputHistory}
           matchedSkills={matchedSkills}
           activePlan={activePlan}
           onFileReference={async () => {

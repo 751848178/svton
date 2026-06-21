@@ -25,6 +25,7 @@ interface ResourceAllocation {
   id: string;
   poolId: string;
   projectId: string;
+  teamId: string;
   userId: string;
   resourceName: string;
   credentials: string;
@@ -161,7 +162,7 @@ export class ResourcePoolService {
   }
 
   // 分配资源
-  async allocateResource(dto: AllocateResourceDto, userId: string) {
+  async allocateResource(dto: AllocateResourceDto, userId: string, teamId: string) {
     const pool = await (this.prisma as any).resourcePool.findUnique({
       where: { id: dto.poolId },
     });
@@ -200,6 +201,7 @@ export class ResourcePoolService {
         data: {
           poolId: pool.id,
           projectId: dto.projectId,
+          teamId,
           userId,
           resourceName,
           credentials: this.encrypt(JSON.stringify(credentials)),
@@ -219,9 +221,9 @@ export class ResourcePoolService {
   }
 
   // 释放资源
-  async releaseResource(allocationId: string) {
-    const allocation = await (this.prisma as any).resourceAllocation.findUnique({
-      where: { id: allocationId },
+  async releaseResource(teamId: string, allocationId: string) {
+    const allocation = await (this.prisma as any).resourceAllocation.findFirst({
+      where: { id: allocationId, teamId },
       include: { pool: true },
     });
 
@@ -260,9 +262,9 @@ export class ResourcePoolService {
   }
 
   // 获取项目的资源分配
-  async getProjectAllocations(projectId: string) {
+  async getProjectAllocations(teamId: string, projectId: string) {
     const allocations = await (this.prisma as any).resourceAllocation.findMany({
-      where: { projectId, status: 'active' },
+      where: { teamId, projectId, status: 'active' },
       include: { pool: true },
     });
 

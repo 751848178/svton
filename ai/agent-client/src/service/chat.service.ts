@@ -22,6 +22,10 @@ const L = {
   contextCompacted: '上下文已压缩',
 };
 
+const INPUT_HISTORY_KEY = 'agent:input_history:v1';
+const MAX_INPUT_HISTORY_ITEMS = 100;
+const MAX_INPUT_HISTORY_CHARS = 20000;
+
 export type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress };
 
 @Service()
@@ -33,6 +37,7 @@ export class ChatService {
   @observable() lastUsage: TokenUsage | null = null;
   @observable() activePlan: PlanProgress | null = null;
   @observable() activeSessionId: string | null = null;
+  @observable() inputHistory: string[] = [];
 
   private runtime: AgentRuntime | null = null;
   private runtimeWorkingDir: string | undefined = undefined;
@@ -45,6 +50,8 @@ export class ChatService {
   }>();
   private messageCounter = 0;
   private lastEventType: string | null = null;
+  private inputHistoryLoaded = false;
+  private pendingInputHistoryValues: string[] = [];
 
   /**
    * Callback invoked when a background stream completes.
@@ -107,6 +114,7 @@ export class ChatService {
     const preservedMessages = this.messages.length > 0 ? [...this.messages] : null;
 
     this.platform = platform;
+    await this.loadInputHistory();
     this.runtime = await AgentRuntime.createAsync(config, platform);
 
     // Wire SubagentManager post-creation (requires runtime reference)
@@ -189,6 +197,7 @@ export class ChatService {
     if (!this.runtime || this.status === 'running') return;
 
     logger.info('Chat', 'Sending message', { length: content.length, hasImages: !!images?.length });
+    this.recordInputHistory(content);
 
     // Add user message
     const userMsg = this.createDisplayMessage('user', content);
@@ -502,6 +511,7 @@ export class ChatService {
     this.status = 'idle';
     this.lastUsage = null;
     this.pendingToolCalls.clear();
+    this.recordMessagesInInputHistory(messages);
 
     // Feed history into runtime context so the LLM has prior conversation
     if (this.runtime) {
@@ -594,6 +604,126 @@ export class ChatService {
       toolCalls: [],
       timestamp: Date.now(),
     };
+  }
+
+  private async loadInputHistory(): Promise<void> {
+    if (this.inputHistoryLoaded || !this.platform) return;
+
+    try {
+      const raw = await this.platform.storage.get<unknown>(INPUT_HISTORY_KEY);
+      const stored = Array.isArray(raw) ? raw : [];
+      const pending = this.pendingInputHistoryValues;
+      this.pendingInputHistoryValues = [];
+      const next = this.normalizeInputHistory([...stored, ...pending]);
+      this.inputHistory = next;
+      this.inputHistoryLoaded = true;
+      if (pending.length > 0) {
+        void this.persistInputHistory(next);
+      }
+    } catch (error) {
+      this.inputHistoryLoaded = true;
+      logger.warn('Chat', 'Failed to load input history', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private recordMessagesInInputHistory(messages: DisplayMessage[]): void {
+    const userInputs = messages
+      .filter((message) => message.role === 'user')
+      .map((message) => message.content);
+
+    this.addInputHistoryItems(userInputs, false);
+  }
+
+  private recordInputHistory(content: string): void {
+    this.addInputHistoryItems([content]);
+  }
+
+  private addInputHistoryItems(values: unknown[], moveExistingToEnd = true): void {
+    const items = this.normalizeInputHistory(values);
+    if (items.length === 0) return;
+
+    if (!this.inputHistoryLoaded) {
+      this.pendingInputHistoryValues = this.mergeInputHistory(
+        this.pendingInputHistoryValues,
+        items,
+        moveExistingToEnd,
+      );
+      const optimistic = this.mergeInputHistory(this.inputHistory, items, moveExistingToEnd);
+      if (!this.areStringArraysEqual(this.inputHistory, optimistic)) {
+        this.inputHistory = optimistic;
+      }
+      return;
+    }
+
+    this.setInputHistory(this.mergeInputHistory(this.inputHistory, items, moveExistingToEnd));
+  }
+
+  private setInputHistory(values: unknown[]): void {
+    const next = this.normalizeInputHistory(values);
+    if (this.areStringArraysEqual(this.inputHistory, next)) return;
+
+    this.inputHistory = next;
+    void this.persistInputHistory(next);
+  }
+
+  private normalizeInputHistory(values: unknown[]): string[] {
+    const normalized: string[] = [];
+
+    for (const value of values) {
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      if (trimmed.length > MAX_INPUT_HISTORY_CHARS) continue;
+
+      const existingIndex = normalized.indexOf(trimmed);
+      if (existingIndex !== -1) normalized.splice(existingIndex, 1);
+      normalized.push(trimmed);
+    }
+
+    return normalized.slice(-MAX_INPUT_HISTORY_ITEMS);
+  }
+
+  private mergeInputHistory(
+    base: unknown[],
+    values: unknown[],
+    moveExistingToEnd: boolean,
+  ): string[] {
+    const merged = this.normalizeInputHistory(base);
+
+    for (const value of values) {
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      if (trimmed.length > MAX_INPUT_HISTORY_CHARS) continue;
+
+      const existingIndex = merged.indexOf(trimmed);
+      if (existingIndex !== -1) {
+        if (!moveExistingToEnd) continue;
+        merged.splice(existingIndex, 1);
+      }
+      merged.push(trimmed);
+    }
+
+    return merged.slice(-MAX_INPUT_HISTORY_ITEMS);
+  }
+
+  private async persistInputHistory(history: string[]): Promise<void> {
+    if (!this.platform) return;
+
+    try {
+      await this.platform.storage.set(INPUT_HISTORY_KEY, history);
+    } catch (error) {
+      logger.warn('Chat', 'Failed to persist input history', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private areStringArraysEqual(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) return false;
+    return a.every((value, index) => value === b[index]);
   }
 
   private updateMessage(id: string, updates: Partial<DisplayMessage>): void {

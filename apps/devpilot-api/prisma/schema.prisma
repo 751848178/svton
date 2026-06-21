@@ -34,6 +34,10 @@ model User {
   createdServers       Server[]
   createdProxyConfigs  ProxyConfig[]
   createdCDNConfigs    CDNConfig[]
+  createdResourceTypes ResourceType[] @relation("ResourceTypeCreator")
+  resourceRequests     ResourceRequest[] @relation("ResourceRequester")
+  reviewedResourceRequests ResourceRequest[] @relation("ResourceReviewer")
+  resourceAuditLogs    ResourceAuditLog[] @relation("ResourceAuditActor")
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -57,6 +61,9 @@ model Team {
   resources     Resource[]
   presets       Preset[]
   secretKeys    SecretKey[]
+  resourceRequests ResourceRequest[]
+  resourceInstances ResourceInstance[]
+  resourceAuditLogs ResourceAuditLog[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -277,6 +284,8 @@ model Project {
   proxyConfigs ProxyConfig[]
   cdnConfigs   CDNConfig[]
   secretKeys   SecretKey[]
+  resourceRequests ResourceRequest[]
+  resourceInstances ResourceInstance[]
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -350,4 +359,133 @@ model ResourceAllocation {
   @@index([teamId])
   @@index([poolId])
   @@index([userId])
+}
+
+// ==================== 动态资源申请 ====================
+
+// 动态资源类型（系统级别）
+model ResourceType {
+  id                 String   @id @default(cuid())
+  key                String   @unique
+  name               String
+  description        String?  @db.Text
+  category           String?
+  icon               String?
+  enabled            Boolean  @default(true)
+  requestSchema      Json?    // 申请表单 schema
+  deliverySchema     Json?    // 交付结果 schema
+  envTemplate        String?  @db.Text
+  approvalMode       String   @default("manual") // manual | auto | none
+  provisioningMode   String   @default("manual") // manual | pool | webhook | api | script | credential_only
+  provisioningConfig Json?
+  createdById        String?
+
+  createdBy          User?    @relation("ResourceTypeCreator", fields: [createdById], references: [id])
+  requests           ResourceRequest[]
+  instances          ResourceInstance[]
+  auditLogs          ResourceAuditLog[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([category])
+  @@index([enabled])
+  @@index([createdById])
+}
+
+// 统一资源申请单（团队级别）
+model ResourceRequest {
+  id             String   @id @default(cuid())
+  teamId         String
+  projectId      String?
+  resourceTypeId String
+  requesterId    String
+  reviewerId     String?
+  title          String
+  environment    String?
+  purpose        String?  @db.Text
+  spec           Json
+  status         String   @default("pending") // pending | approved | rejected | completed | canceled
+  approvalComment String? @db.Text
+  result         Json?
+  requestedAt    DateTime @default(now())
+  reviewedAt     DateTime?
+  completedAt    DateTime?
+  canceledAt     DateTime?
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project? @relation(fields: [projectId], references: [id])
+  resourceType   ResourceType @relation(fields: [resourceTypeId], references: [id])
+  requester      User     @relation("ResourceRequester", fields: [requesterId], references: [id])
+  reviewer       User?    @relation("ResourceReviewer", fields: [reviewerId], references: [id])
+  instance       ResourceInstance?
+  auditLogs      ResourceAuditLog[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([teamId])
+  @@index([projectId])
+  @@index([resourceTypeId])
+  @@index([requesterId])
+  @@index([reviewerId])
+  @@index([status])
+}
+
+// 资源实例（申请交付后的实际资源）
+model ResourceInstance {
+  id             String   @id @default(cuid())
+  teamId         String
+  projectId      String?
+  requestId      String?  @unique
+  resourceTypeId String
+  name           String
+  status         String   @default("active") // active | released | expired | revoked
+  config         Json?
+  credentials    String?  @db.Text // 加密存储的敏感交付结果
+  delivery       Json?
+  expiresAt      DateTime?
+  releasedAt     DateTime?
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project? @relation(fields: [projectId], references: [id])
+  request        ResourceRequest? @relation(fields: [requestId], references: [id])
+  resourceType   ResourceType @relation(fields: [resourceTypeId], references: [id])
+  auditLogs      ResourceAuditLog[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([teamId])
+  @@index([projectId])
+  @@index([resourceTypeId])
+  @@index([status])
+}
+
+// 资源申请审计日志
+model ResourceAuditLog {
+  id             String   @id @default(cuid())
+  teamId         String
+  resourceTypeId String?
+  requestId      String?
+  instanceId     String?
+  actorId        String?
+  action         String
+  message        String?  @db.Text
+  metadata       Json?
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  resourceType   ResourceType? @relation(fields: [resourceTypeId], references: [id])
+  request        ResourceRequest? @relation(fields: [requestId], references: [id])
+  instance       ResourceInstance? @relation(fields: [instanceId], references: [id])
+  actor          User?    @relation("ResourceAuditActor", fields: [actorId], references: [id])
+
+  createdAt      DateTime @default(now())
+
+  @@index([teamId])
+  @@index([resourceTypeId])
+  @@index([requestId])
+  @@index([instanceId])
+  @@index([actorId])
+  @@index([action])
 }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plan Before Code"
+  short_description: "Clarify requirements and track TODOs before coding"
+  default_prompt: "Use $plan-before-code before starting this development request to clarify scope, write a TODO document, and keep task status updated."

@@ -14,6 +14,7 @@ export function useChat() {
   const [status, setStatus] = useState(() => chatInternal.getState('status'));
   const [lastUsage, setLastUsage] = useState(() => chatInternal.getState('lastUsage'));
   const [activePlan, setActivePlan] = useState<PlanProgress | null>(() => chatInternal.getState('activePlan'));
+  const [inputHistory, setInputHistory] = useState<string[]>(() => chatInternal.getState('inputHistory'));
 
   useEffect(() => {
     const unsubMessages = chatInternal.subscribe('messages', () => {
@@ -28,12 +29,16 @@ export function useChat() {
     const unsubPlan = chatInternal.subscribe('activePlan', () => {
       setActivePlan(chatInternal.getState('activePlan'));
     });
+    const unsubInputHistory = chatInternal.subscribe('inputHistory', () => {
+      setInputHistory(chatInternal.getState('inputHistory'));
+    });
 
     return () => {
       unsubMessages();
       unsubStatus();
       unsubUsage();
       unsubPlan();
+      unsubInputHistory();
     };
   }, [chatInternal]);
 
@@ -45,6 +50,7 @@ export function useChat() {
     isStreaming,
     lastUsage,
     activePlan,
+    inputHistory,
 
     send: (content: string, images?: Array<{ data: string; mimeType?: string }>) => chatService.sendMessage(content, images),
     retry: () => chatService.retry(),

@@ -23,6 +23,7 @@ import { ResourcePoolModule } from './resource-pool/resource-pool.module';
 import { DomainModule } from './domain/domain.module';
 import { CDNModule } from './cdn/cdn.module';
 import { KeyCenterModule } from './key-center/key-center.module';
+import { ResourceRequestModule } from './resource-request/resource-request.module';
 import { useAuthzConfig } from './authz.config';
 
 @Module({
@@ -122,6 +123,9 @@ import { useAuthzConfig } from './authz.config';
 
     // 密钥中心模块
     KeyCenterModule,
+
+    // 动态资源申请模块
+    ResourceRequestModule,
   ],
   controllers: [HealthController],
   providers: [],

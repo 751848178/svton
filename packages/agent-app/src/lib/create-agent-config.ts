@@ -57,6 +57,7 @@ import {
 } from '@svton/agent-core';
 import type { BrowserPlatform } from '@svton/agent-platform';
 import type { ProviderConfig, FeatureFlags, McpServerEntry, ImageProviderConfig, IntegrationConfig, MarketplaceConfig } from '../types';
+import { BUILTIN_SKILLS } from './builtin-skills';
 import { createAgentAppStorage, type AgentAppStorage } from './storage';
 import { resolveAgentAppIntegrationManifests } from './integrations';
 import { findProviderForModel } from './model-selection';
@@ -221,6 +222,13 @@ export async function createAgentConfig(opts: CreateAgentConfigOptions): Promise
 
   // Skills
   const skillManager = new SkillManager();
+
+  // Register built-in skills (compiled into the package)
+  for (const skill of BUILTIN_SKILLS) {
+    skillManager.register(skill);
+  }
+
+  // Also discover from platform storage / working dir
   const { skills: discoveredSkills } = await SkillLoader.discover(
     platform.storage,
     platform,

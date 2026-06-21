@@ -51,6 +51,8 @@ export interface ChatPanelProps {
   onMentionSelect?: (item: import('./ChatInput').MentionItem) => string;
   /** Called when user clicks "引用文件" in attach menu */
   onFileReference?: () => void;
+  /** Previously submitted text prompts, oldest to newest */
+  inputHistory?: string[];
   /** Names of currently matched skills (shown as status bar) */
   matchedSkills?: string[];
   /** Active plan to display progress for */
@@ -105,6 +107,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   mentionItems,
   onMentionSelect,
   onFileReference,
+  inputHistory,
   matchedSkills,
   activePlan,
   className,
@@ -264,6 +267,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         mentionItems={mentionItems}
         onMentionSelect={onMentionSelect}
         onFileReference={onFileReference}
+        inputHistory={inputHistory}
       />
 
       {/* Tool approval modal — auto-opens when a tool needs permission */}

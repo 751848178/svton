@@ -31,6 +31,8 @@ svton create my-app
 svton create <project-name> [options]
 svton init <project-name> [options]   # 别名
 svton new <project-name> [options]    # 别名
+svton skill install [source] [options]
+svton skill build [skill] [options]
 ```
 
 ### 选项
@@ -55,6 +57,57 @@ svton create my-api --template backend-only
 
 # 跳过依赖安装
 svton create my-app --skip-install
+```
+
+## Skill 命令
+
+`svton skill` 用于安装和构建符合 AI agent skill 规范的技能产物，默认输出到 `.svton/skills`，可被 Svton Agent 的项目级 skill loader 自动发现。
+
+### 安装 Skill
+
+```bash
+# 交互式安装
+svton skill install
+
+# 从本地源目录安装单个 skill 或目录下全部 skills
+svton skill install --source-dir ./skills/my-skill
+svton skill install ./skills
+
+# 从 Git 仓库安装，可指定仓库内源目录和 ref
+svton skill install --repo https://github.com/acme/agent-skills.git --source-dir skills/reviewer --ref main
+
+# 从直接的 SKILL.md URL 安装
+svton skill install https://example.com/skills/reviewer/SKILL.md
+
+# 从 skills.sh 或兼容 SkillHub 安装
+svton skill install --hub https://skills.sh --skill owner/repo/skill-name
+
+# 覆盖同名 skill
+svton skill install ./skills/my-skill --force
+```
+
+### 构建 Skills
+
+```bash
+# 构建 ./skills 下所有 skill 到 ./.svton/skills
+svton skill build
+
+# 构建指定 skill
+svton skill build engineering-craft-principles
+
+# 指定源目录和输出目录
+svton skill build --skills-dir ./skills --out-dir ./dist/skills --clean
+```
+
+构建器支持两种源格式：
+- `skill.config.json` + 可选 `references/`、`scripts/`、`assets/`、`agents/`
+- 已经符合规范的 `SKILL.md` + 可选资源目录
+
+### 查看已安装 Skill
+
+```bash
+svton skill list
+svton skill list --out-dir ./dist/skills
 ```
 
 ## 模板

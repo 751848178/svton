@@ -64,7 +64,8 @@ export class GenerateProjectDto {
   features: string[];
 
   @IsObject()
-  resources: Record<string, string>;
+  @IsOptional()
+  resources?: Record<string, unknown>;
 
   @ValidateNested()
   @Type(() => UiLibraryDto)

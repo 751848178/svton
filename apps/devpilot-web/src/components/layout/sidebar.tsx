@@ -24,6 +24,8 @@ const sidebarItems = [
     title: '资源',
     items: [
       { href: '/resources', label: '资源凭证' },
+      { href: '/resource-requests', label: '资源申请' },
+      { href: '/resource-instances', label: '资源实例' },
       { href: '/keys', label: '密钥中心' },
     ],
   },
@@ -44,6 +46,7 @@ const sidebarItems = [
     title: '管理员',
     items: [
       { href: '/admin/resource-pools', label: '资源池管理' },
+      { href: '/admin/resource-types', label: '资源类型' },
     ],
   },
 ];

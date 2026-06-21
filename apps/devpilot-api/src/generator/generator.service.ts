@@ -15,6 +15,13 @@ export interface ResourceCredential {
   config: Record<string, unknown>;
 }
 
+interface ProjectResourceConfig {
+  type?: string;
+  mode?: 'manual' | 'credential' | 'skipped';
+  config?: Record<string, unknown>;
+  credentialId?: string;
+}
+
 @Injectable()
 export class GeneratorService {
   private readonly logger = new Logger(GeneratorService.name);
@@ -48,7 +55,10 @@ export class GeneratorService {
     }
 
     // 生成环境变量文件
-    files.push(...this.generateEnvFiles(config, resourceCredentials));
+    files.push(...this.generateEnvFiles(
+      config,
+      resourceCredentials ?? this.resolveResourceCredentials(config),
+    ));
 
     // 生成 Docker Compose
     files.push(this.generateDockerCompose(config));
@@ -803,6 +813,29 @@ export default function Index() {
     }
 
     return files;
+  }
+
+  private resolveResourceCredentials(config: GenerateProjectDto): ResourceCredential[] {
+    const resources = config.resources || {};
+    const credentials: ResourceCredential[] = [];
+
+    for (const [resourceType, resource] of Object.entries(resources)) {
+      if (!resource || typeof resource !== 'object') {
+        continue;
+      }
+
+      const value = resource as ProjectResourceConfig;
+      if (value.mode !== 'manual' || !value.config) {
+        continue;
+      }
+
+      credentials.push({
+        type: value.type || resourceType,
+        config: value.config,
+      });
+    }
+
+    return credentials;
   }
 
   private generateDockerCompose(config: GenerateProjectDto): GeneratedFile {

@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
-import { Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -8,8 +7,8 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
-  // 使用 Pino Logger
-  app.useLogger(app.get(PinoLogger));
+  // 使用 Nest 默认日志，避免预览环境中 Pino provider 注入差异导致启动失败。
+  app.useLogger(new Logger());
 
   // 全局验证管道
   app.useGlobalPipes(

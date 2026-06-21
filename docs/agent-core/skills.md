@@ -235,6 +235,21 @@ SkillLoader 支持的 frontmatter 字段(括号内为 kebab-case 等价形式):
 
 数组值支持:`[a, b, c]`、`a, b, c`、或 YAML list(`- item`)。
 
+如果一个 `SKILL.md` 为了兼容通用 AI agent skill 规范而只在 frontmatter 中保留 `name` 和 `description`，`SkillLoader` 也会从正文中的标准区块提取触发信息：
+
+```markdown
+## Use When
+- React TSX component refactor
+
+## Avoid When
+- Backend service work
+
+## Trigger Signals
+- useState useEffect variant mode
+```
+
+这些条目会分别补充为 `whenToUse`、`avoidWhen` 和 `triggerSignals`，用于 `SkillManager.findRelevant()` 自动匹配。
+
 ---
 
 ## SkillInstaller
@@ -378,6 +393,34 @@ const runtime = await AgentRuntime.createAsync(
 2. Agent 使用 `findRelevant()` 自动匹配用户意图。
 3. 用户可通过 `/skill-name` 显式激活技能。
 4. 激活后,技能的 `allowedTools`/`disallowedTools` 限制生效。
+
+---
+
+## svton CLI
+
+`@svton/cli` 提供项目级 skill 安装和构建命令，默认写入 `.svton/skills`：
+
+```bash
+# 交互式安装
+svton skill install
+
+# 本地目录
+svton skill install --source-dir ./skills/my-skill
+
+# Git 仓库，可指定仓库内源目录和 ref
+svton skill install --repo https://github.com/acme/agent-skills.git --source-dir skills/reviewer --ref main
+
+# 直接 SKILL.md URL
+svton skill install https://example.com/skills/reviewer/SKILL.md
+
+# skills.sh 或兼容 SkillHub
+svton skill install --hub https://skills.sh --skill owner/repo/skill-name
+
+# 构建 skills 目录到标准产物
+svton skill build --skills-dir ./skills --out-dir ./.svton/skills
+```
+
+构建器支持 `skill.config.json` 源格式，也支持已有 `SKILL.md` 的标准 skill 目录。
 
 ---
 

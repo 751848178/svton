@@ -2,6 +2,7 @@
 
 import { useProjectConfigStore } from '@/store/project-config';
 import { useState } from 'react';
+import type { ProjectResourceConfig } from '@/store/project-config';
 
 interface StepProps {
   onNext: () => void;
@@ -61,9 +62,23 @@ const featureResourceMap: Record<string, string[]> = {
 };
 
 export function StepResources({ onNext, onPrev }: StepProps) {
-  const { config } = useProjectConfigStore();
-  const [resourceConfigs, setResourceConfigs] = useState<Record<string, Record<string, string>>>({});
-  const [skipResources, setSkipResources] = useState<Set<string>>(new Set());
+  const { config, setResources } = useProjectConfigStore();
+  const [resourceConfigs, setResourceConfigs] = useState<Record<string, Record<string, string>>>(() => {
+    const initial: Record<string, Record<string, string>> = {};
+    for (const [type, resource] of Object.entries(config.resources)) {
+      if (resource.mode === 'manual' && resource.config) {
+        initial[type] = resource.config;
+      }
+    }
+    return initial;
+  });
+  const [skipResources, setSkipResources] = useState<Set<string>>(
+    () => new Set(
+      Object.entries(config.resources)
+        .filter(([, resource]) => resource.mode === 'skipped')
+        .map(([type]) => type)
+    )
+  );
 
   // 获取需要配置的资源
   const requiredResources = new Set<string>();
@@ -99,6 +114,38 @@ export function StepResources({ onNext, onPrev }: StepProps) {
     });
   };
 
+  const buildResourceConfig = (resourceType: string): ProjectResourceConfig => {
+    if (skipResources.has(resourceType)) {
+      return { type: resourceType, mode: 'skipped' };
+    }
+
+    const resource = resourceTypes[resourceType];
+    const configuredFields = resourceConfigs[resourceType] || {};
+    const resolvedConfig: Record<string, string> = {};
+
+    for (const field of resource.fields) {
+      const value = configuredFields[field.key];
+      resolvedConfig[field.key] = value || field.default?.toString() || '';
+    }
+
+    return {
+      type: resourceType,
+      mode: 'manual',
+      config: resolvedConfig,
+    };
+  };
+
+  const handleNext = () => {
+    const resources: Record<string, ProjectResourceConfig> = {};
+    for (const resourceType of Array.from(requiredResources)) {
+      if (resourceTypes[resourceType]) {
+        resources[resourceType] = buildResourceConfig(resourceType);
+      }
+    }
+    setResources(resources);
+    onNext();
+  };
+
   if (requiredResources.size === 0) {
     return (
       <div className="space-y-6">
@@ -116,7 +163,10 @@ export function StepResources({ onNext, onPrev }: StepProps) {
             上一步
           </button>
           <button
-            onClick={onNext}
+            onClick={() => {
+              setResources({});
+              onNext();
+            }}
             className="px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
           >
             下一步
@@ -199,7 +249,7 @@ export function StepResources({ onNext, onPrev }: StepProps) {
           上一步
         </button>
         <button
-          onClick={onNext}
+          onClick={handleNext}
           className="px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
         >
           下一步

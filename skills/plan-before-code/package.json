@@ -1,0 +1,18 @@
+{
+  "name": "@svton/skill-plan-before-code",
+  "version": "0.1.0",
+  "description": "Requirement clarification and development TODO tracking skill package.",
+  "license": "MIT",
+  "scripts": {
+    "build": "node ../scripts/build-one.mjs plan-before-code",
+    "validate": "node ../scripts/validate-one.mjs plan-before-code",
+    "clean": "node ../scripts/clean-one.mjs plan-before-code",
+    "prepack": "pnpm build && pnpm validate"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Before Done"
+  short_description: "Completion gate for code change verification"
+  default_prompt: "Use $verify-before-done before finalizing this code change to check requirement fit and verification evidence."

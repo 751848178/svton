@@ -66,25 +66,40 @@ export class ResourcePoolController {
 
   // 用户：分配资源
   @Post('allocate')
-  async allocateResource(@Body() dto: AllocateResourceDto, @Request() req: { user: { sub: string } }) {
-    return this.resourcePoolService.allocateResource(dto, req.user.sub);
+  @UseGuards(AuthzGuard)
+  @Roles('team_member')
+  async allocateResource(
+    @Body() dto: AllocateResourceDto,
+    @Request() req: { user: { id: string }; teamId: string },
+  ) {
+    return this.resourcePoolService.allocateResource(dto, req.user.id, req.teamId);
   }
 
   // 用户：释放资源
   @Post('release/:allocationId')
-  async releaseResource(@Param('allocationId') allocationId: string) {
-    return this.resourcePoolService.releaseResource(allocationId);
+  @UseGuards(AuthzGuard)
+  @Roles('team_member')
+  async releaseResource(
+    @Param('allocationId') allocationId: string,
+    @Request() req: { teamId: string },
+  ) {
+    return this.resourcePoolService.releaseResource(req.teamId, allocationId);
   }
 
   // 用户：获取我的资源分配
   @Get('my/allocations')
-  async getMyAllocations(@Request() req: { user: { sub: string } }) {
-    return this.resourcePoolService.getUserAllocations(req.user.sub);
+  async getMyAllocations(@Request() req: { user: { id: string } }) {
+    return this.resourcePoolService.getUserAllocations(req.user.id);
   }
 
   // 用户：获取项目的资源分配
   @Get('project/:projectId/allocations')
-  async getProjectAllocations(@Param('projectId') projectId: string) {
-    return this.resourcePoolService.getProjectAllocations(projectId);
+  @UseGuards(AuthzGuard)
+  @Roles('team_member')
+  async getProjectAllocations(
+    @Param('projectId') projectId: string,
+    @Request() req: { teamId: string },
+  ) {
+    return this.resourcePoolService.getProjectAllocations(req.teamId, projectId);
   }
 }

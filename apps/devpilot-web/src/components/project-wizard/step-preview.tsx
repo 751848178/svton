@@ -1,7 +1,7 @@
 'use client';
 
 import { useProjectConfigStore } from '@/store/project-config';
-import type { ProjectConfig } from '@/store/project-config';
+import type { ProjectConfig, ProjectResourceConfig } from '@/store/project-config';
 
 interface StepProps {
   onPrev: () => void;
@@ -141,7 +141,7 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
         {Object.keys(config.resources).length > 0 ? (
           <div className="space-y-1">
             {Object.entries(config.resources).map(([type, value]) => (
-              <PreviewItem key={type} label={type} value={value ? '已配置' : '跳过'} />
+              <PreviewItem key={type} label={type} value={formatResourceValue(value)} />
             ))}
           </div>
         ) : (
@@ -172,6 +172,19 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
       </div>
     </div>
   );
+}
+
+function formatResourceValue(resource: ProjectResourceConfig): string {
+  if (resource.mode === 'skipped') {
+    return '跳过';
+  }
+
+  if (resource.mode === 'credential') {
+    return resource.credentialId ? '已选择凭证' : '未选择凭证';
+  }
+
+  const configuredCount = Object.values(resource.config || {}).filter(Boolean).length;
+  return configuredCount > 0 ? `已填写 ${configuredCount} 项` : '未填写';
 }
 
 function PreviewSection({ title, children }: { title: string; children: React.ReactNode }) {

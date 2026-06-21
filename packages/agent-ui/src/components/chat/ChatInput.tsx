@@ -46,6 +46,8 @@ export interface ChatInputProps {
   onMentionSelect?: (item: MentionItem) => string;
   /** Called when user selects a file to reference — return the text to insert */
   onFileReference?: () => void;
+  /** Previously submitted text prompts, oldest to newest */
+  inputHistory?: string[];
   className?: string;
 }
 
@@ -65,9 +67,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   mentionItems = [],
   onMentionSelect,
   onFileReference,
+  inputHistory = [],
   className,
 }) => {
   const [value, setValue] = useState('');
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null);
+  const [draftBeforeHistory, setDraftBeforeHistory] = useState('');
   const [focused, setFocused] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const [selectedCmd, setSelectedCmd] = useState(0);
@@ -175,6 +180,68 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Build mention category groups from filtered items
   const mentionGroups = React.useMemo(() => buildMentionGroups(filteredMentions), [filteredMentions]);
 
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+  }, []);
+
+  const applyHistoryValue = useCallback((nextValue: string) => {
+    setValue(nextValue);
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(nextValue.length, nextValue.length);
+      resizeTextarea();
+    });
+  }, [resizeTextarea]);
+
+  const resetHistoryNavigation = useCallback(() => {
+    setHistoryIndex(null);
+    setDraftBeforeHistory('');
+  }, []);
+
+  const isCaretOnFirstLine = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || textarea.selectionStart !== textarea.selectionEnd) return false;
+    return value.lastIndexOf('\n', textarea.selectionStart - 1) === -1;
+  }, [value]);
+
+  const isCaretOnLastLine = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || textarea.selectionStart !== textarea.selectionEnd) return false;
+    return value.indexOf('\n', textarea.selectionEnd) === -1;
+  }, [value]);
+
+  const navigateInputHistory = useCallback((direction: 'previous' | 'next') => {
+    if (inputHistory.length === 0) return false;
+
+    if (direction === 'previous') {
+      const nextIndex = historyIndex === null
+        ? inputHistory.length - 1
+        : Math.max(0, historyIndex - 1);
+      if (historyIndex === null) setDraftBeforeHistory(value);
+      setHistoryIndex(nextIndex);
+      applyHistoryValue(inputHistory[nextIndex]);
+      return true;
+    }
+
+    if (historyIndex === null) return false;
+    if (historyIndex < inputHistory.length - 1) {
+      const nextIndex = historyIndex + 1;
+      setHistoryIndex(nextIndex);
+      applyHistoryValue(inputHistory[nextIndex]);
+      return true;
+    }
+
+    setHistoryIndex(null);
+    applyHistoryValue(draftBeforeHistory);
+    setDraftBeforeHistory('');
+    return true;
+  }, [applyHistoryValue, draftBeforeHistory, historyIndex, inputHistory, value]);
+
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
     if ((!trimmed && images.length === 0) || disabled || isStreaming) return;
@@ -186,6 +253,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       if (cmd) {
         cmd.action();
         setValue('');
+        resetHistoryNavigation();
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
         return;
       }
@@ -196,12 +264,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     setImages([]);
     setShowCommands(false);
     setShowMentions(false);
+    resetHistoryNavigation();
 
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [value, images, disabled, isStreaming, onSend, slashCommands]);
+  }, [value, images, disabled, isStreaming, onSend, slashCommands, resetHistoryNavigation]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Navigate command list
@@ -308,18 +377,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
     }
 
+    const isComposing = (e.nativeEvent as KeyboardEvent).isComposing;
+    const hasModifier = e.shiftKey || e.altKey || e.ctrlKey || e.metaKey;
+    if (!isComposing && !hasModifier && e.key === 'ArrowUp' && isCaretOnFirstLine()) {
+      if (navigateInputHistory('previous')) {
+        e.preventDefault();
+        return;
+      }
+    }
+    if (!isComposing && !hasModifier && e.key === 'ArrowDown' && isCaretOnLastLine()) {
+      if (navigateInputHistory('next')) {
+        e.preventDefault();
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setValue(e.target.value);
+    resetHistoryNavigation();
+  };
+
   const handleInput = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
-    }
+    resizeTextarea();
   };
 
   const processFiles = useCallback((files: FileList | File[]) => {
@@ -499,7 +584,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           onInput={handleInput}
           onFocus={() => setFocused(true)}

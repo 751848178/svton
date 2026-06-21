@@ -1,6 +1,6 @@
 ---
 name: engineering-craft-principles
-description: "Use for React/TypeScript UI refactors: split overloaded TSX components, narrow variant boundaries, replace duplicated derived state, and move async or fallback behavior out of views into hooks or models."
+description: "Use for React/TypeScript TSX refactors: split overloaded components/pages, clarify variant or mode boundaries, remove duplicated useState/useEffect derived state, and move async fallback behavior into hooks or models."
 ---
 
 <!-- Generated from skills/engineering-craft-principles/skill.config.json. Edit source instead of .skills output. -->
@@ -24,6 +24,8 @@ Apply this when a frontend surface has collapsed presentation, state, and fallba
 
 ## Trigger Signals
 
+- React TSX component page useState useEffect props variant mode readonly compact frontend refactor。
+- 组件 重构 页面 表单 弹窗 卡片 列表 详情 Hook Model 派生状态 异步 兜底。
 - 一个 TSX 文件同时处理多种数据形态、多个布局意图和多段副作用。
 - 组件里出现大量 `mode`、`variant`、`readonly`、`compact` 之类的 prop 分支切换。
 - 由 props、query 结果或 store 可直接推导的值又被复制进 `useState`。

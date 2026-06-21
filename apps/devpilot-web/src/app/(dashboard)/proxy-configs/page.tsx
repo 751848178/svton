@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { createElement, Suspense as ReactSuspense, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
 import { api } from '@/lib/api';
+
+function SuspenseBoundary({ children, fallback }: { children: ReactNode; fallback: ReactNode }): any {
+  return createElement(ReactSuspense as any, { fallback }, children);
+}
 
 interface ProxyConfig {
   id: string;
@@ -200,9 +204,9 @@ function ProxyConfigsContent() {
 
 export default function ProxyConfigsPage() {
   return (
-    <Suspense fallback={<div className="text-center py-12 text-muted-foreground">加载中...</div>}>
+    <SuspenseBoundary fallback={<div className="text-center py-12 text-muted-foreground">加载中...</div>}>
       <ProxyConfigsContent />
-    </Suspense>
+    </SuspenseBoundary>
   );
 }
 

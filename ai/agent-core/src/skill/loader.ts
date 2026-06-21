@@ -89,6 +89,53 @@ function parseFrontmatter(text: string): Record<string, string | string[]> {
   return result;
 }
 
+function normalizeSectionTitle(title: string): string {
+  return title.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function extractListSection(body: string, titles: string[]): string[] | undefined {
+  const wanted = new Set(titles.map(normalizeSectionTitle));
+  const lines = body.split('\n');
+  const items: string[] = [];
+  let collecting = false;
+  let sectionLevel = 0;
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\r$/, '');
+    const heading = line.match(/^(#{1,6})\s+(.+?)\s*$/);
+
+    if (heading) {
+      const level = heading[1].length;
+      const title = normalizeSectionTitle(heading[2]);
+
+      if (wanted.has(title)) {
+        collecting = true;
+        sectionLevel = level;
+        continue;
+      }
+
+      if (collecting && level <= sectionLevel) {
+        break;
+      }
+    }
+
+    if (!collecting) continue;
+
+    const bullet = line.match(/^\s*[-*]\s+(.+?)\s*$/);
+    if (bullet) {
+      items.push(bullet[1].trim());
+      continue;
+    }
+
+    const numbered = line.match(/^\s*\d+\.\s+(.+?)\s*$/);
+    if (numbered) {
+      items.push(numbered[1].trim());
+    }
+  }
+
+  return items.length > 0 ? items : undefined;
+}
+
 // ── SkillLoader ──────────────────────────────────────────
 
 /**
@@ -115,6 +162,9 @@ export class SkillLoader {
 
     const meta = parseFrontmatter(fmMatch[1]);
     const body = fmMatch[2].trim();
+    const bodyWhenToUse = extractListSection(body, ['Use When', 'When To Use']);
+    const bodyAvoidWhen = extractListSection(body, ['Avoid When', 'When Not To Use']);
+    const bodyTriggerSignals = extractListSection(body, ['Trigger Signals', 'Trigger Keywords']);
 
     // Build trigger from parsed data
     let trigger: SkillDefinition['trigger'];
@@ -137,9 +187,9 @@ export class SkillLoader {
       requiredCapabilities: meta.requiredCapabilities as string[] | undefined,
       allowedTools: meta.allowedTools as string[] | undefined,
       disallowedTools: meta.disallowedTools as string[] | undefined,
-      whenToUse: meta.whenToUse as string[] | undefined,
-      avoidWhen: meta.avoidWhen as string[] | undefined,
-      triggerSignals: meta.triggerSignals as string[] | undefined,
+      whenToUse: (meta.whenToUse as string[] | undefined) ?? bodyWhenToUse,
+      avoidWhen: (meta.avoidWhen as string[] | undefined) ?? bodyAvoidWhen,
+      triggerSignals: (meta.triggerSignals as string[] | undefined) ?? bodyTriggerSignals,
       version: (meta.version as string) || undefined,
     };
   }

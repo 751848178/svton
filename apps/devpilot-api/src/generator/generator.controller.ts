@@ -1,22 +1,38 @@
 import { Controller, Post, Body, Res, UseGuards, Request, HttpCode } from '@nestjs/common';
+import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { Response } from 'express';
 import { GeneratorService } from './generator.service';
 import { GenerateProjectDto } from './dto/generate.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ProjectService } from '../project/project.service';
+
+interface GenerateProjectRequest {
+  user: { id: string };
+  teamId: string;
+}
 
 @Controller('projects')
 export class GeneratorController {
-  constructor(private readonly generatorService: GeneratorService) {}
+  constructor(
+    private readonly generatorService: GeneratorService,
+    private readonly projectService: ProjectService,
+  ) {}
 
   @Post('generate')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AuthzGuard)
+  @Roles('team_member')
   async generateProject(
     @Body() dto: GenerateProjectDto,
-    @Request() req: { user: { id: string } },
+    @Request() req: GenerateProjectRequest,
     @Res() res: Response,
   ) {
     // 生成项目文件
     const files = await this.generatorService.generateProject(dto);
+    const project = await this.projectService.create(req.teamId, req.user.id, {
+      name: dto.basicInfo.name,
+      description: dto.basicInfo.description,
+      config: dto,
+    });
 
     // 创建 ZIP 文件
     const zipBuffer = await this.generatorService.createZipBuffer(files);
@@ -26,6 +42,8 @@ export class GeneratorController {
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="${dto.basicInfo.name}.zip"`,
       'Content-Length': zipBuffer.length,
+      'X-Project-Id': project.id,
+      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, X-Project-Id',
     });
 
     res.send(zipBuffer);

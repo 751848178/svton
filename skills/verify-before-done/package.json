@@ -1,0 +1,18 @@
+{
+  "name": "@svton/skill-verify-before-done",
+  "version": "0.1.0",
+  "description": "Completion gate skill for code changes, requirement fit checks, and automated verification.",
+  "license": "MIT",
+  "scripts": {
+    "build": "node ../scripts/build-one.mjs verify-before-done",
+    "validate": "node ../scripts/validate-one.mjs verify-before-done",
+    "clean": "node ../scripts/clean-one.mjs verify-before-done",
+    "prepack": "pnpm build && pnpm validate"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

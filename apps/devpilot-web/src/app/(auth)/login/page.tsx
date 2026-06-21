@@ -1,9 +1,14 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { createElement, Suspense as ReactSuspense, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth-store';
+
+function SuspenseBoundary({ children, fallback }: { children: ReactNode; fallback: ReactNode }): any {
+  return createElement(ReactSuspense as any, { fallback }, children);
+}
 
 function LoginForm() {
   const router = useRouter();
@@ -131,9 +136,9 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <Suspense fallback={<div className="text-muted-foreground">加载中...</div>}>
+      <SuspenseBoundary fallback={<div className="text-muted-foreground">加载中...</div>}>
         <LoginForm />
-      </Suspense>
+      </SuspenseBoundary>
     </div>
   );
 }

@@ -511,4 +511,7 @@ const BUILTIN_SKILL_PATHS = [
   '/skills/svton-service/SKILL.md',
   '/skills/engineering-craft-principles/SKILL.md',
   '/skills/universal-craft-principles/SKILL.md',
+  '/skills/verify-before-done/SKILL.md',
+  '/skills/plan-before-code/SKILL.md',
+  '/skills/codegraph-cli-navigation/SKILL.md',
 ];

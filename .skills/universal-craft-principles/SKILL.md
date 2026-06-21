@@ -1,6 +1,6 @@
 ---
 name: universal-craft-principles
-description: "Use for framework-agnostic refactors: untangle modules, services, and handlers; isolate orchestration from execution; centralize fallback behavior; and remove redundant persisted state."
+description: "Use for framework-agnostic refactors: untangle modules, services, handlers, jobs, and controllers; isolate orchestration from execution; centralize fallback/retry behavior; and remove redundant persisted state."
 ---
 
 <!-- Generated from skills/universal-craft-principles/skill.config.json. Edit source instead of .skills output. -->
@@ -24,6 +24,8 @@ Apply this when general-purpose code has collapsed orchestration, execution, sta
 
 ## Trigger Signals
 
+- module service handler controller job queue dispatcher switch fallback retry provider state orchestration refactor。
+- 模块 服务 处理器 任务消费者 分发 编排 执行 fallback 重试 供应商 派生字段 冗余状态。
 - 一个模块同时负责路由分支、执行细节、状态写入、日志副作用和异常降级。
 - 调用方必须知道太多空值细节、失败分支、备用策略或执行顺序。
 - 多个对等实现通过参数开关、字符串常量或大段 `if/else` 硬塞在同一个文件里。

@@ -39,10 +39,10 @@
     "pub": "changeset publish",
     "docs:dev": "pnpm --filter docs dev",
     "docs:build": "pnpm --filter docs build",
-    "init:dev": "turbo run dev --filter=@svton/initializer-web --filter=@svton/initializer-api",
-    "init:web": "pnpm --filter @svton/initializer-web dev",
-    "init:api": "pnpm --filter @svton/initializer-api dev",
-    "init:build": "turbo run build --filter=@svton/initializer-web --filter=@svton/initializer-api"
+    "init:dev": "turbo run dev --filter=@svton/devpilot-web --filter=@svton/devpilot-api",
+    "init:web": "pnpm --filter @svton/devpilot-web dev",
+    "init:api": "pnpm --filter @svton/devpilot-api dev",
+    "init:build": "turbo run build --filter=@svton/devpilot-web --filter=@svton/devpilot-api"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",

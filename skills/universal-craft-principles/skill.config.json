@@ -2,11 +2,11 @@
   "$schema": "../skill.schema.json",
   "name": "universal-craft-principles",
   "title": "Universal Craft Principles",
-  "description": "Use for framework-agnostic refactors: untangle modules, services, and handlers; isolate orchestration from execution; centralize fallback behavior; and remove redundant persisted state.",
+  "description": "Use for framework-agnostic refactors: untangle modules, services, handlers, jobs, and controllers; isolate orchestration from execution; centralize fallback/retry behavior; and remove redundant persisted state.",
   "interface": {
     "displayName": "Universal Craft Principles",
     "shortDescription": "Module and service refactor guidance across stacks",
-    "defaultPrompt": "Use $universal-craft-principles to redesign this code around clearer contracts, narrower module responsibilities, type-driven dispatch, and service-owned fallback behavior."
+    "defaultPrompt": "Use $universal-craft-principles or /universal-craft-principles to redesign this code around clearer contracts, narrower module responsibilities, type-driven dispatch, and service-owned fallback behavior."
   },
   "summary": "Apply this when general-purpose code has collapsed orchestration, execution, state mutation, and fallback policy into the same place. The skill favors explicit contracts, single-purpose modules, dispatcher shells, and service-owned complexity.",
   "whenToUse": [
@@ -21,6 +21,8 @@
     "用户只需要换名、补注释或风格一致性处理，而不是结构性设计收敛。"
   ],
   "triggerSignals": [
+    "module service handler controller job queue dispatcher switch fallback retry provider state orchestration refactor。",
+    "模块 服务 处理器 任务消费者 分发 编排 执行 fallback 重试 供应商 派生字段 冗余状态。",
     "一个模块同时负责路由分支、执行细节、状态写入、日志副作用和异常降级。",
     "调用方必须知道太多空值细节、失败分支、备用策略或执行顺序。",
     "多个对等实现通过参数开关、字符串常量或大段 `if/else` 硬塞在同一个文件里。",

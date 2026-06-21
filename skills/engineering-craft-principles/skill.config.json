@@ -2,11 +2,11 @@
   "$schema": "../skill.schema.json",
   "name": "engineering-craft-principles",
   "title": "Engineering Craft Principles",
-  "description": "Use for React/TypeScript UI refactors: split overloaded TSX components, narrow variant boundaries, replace duplicated derived state, and move async or fallback behavior out of views into hooks or models.",
+  "description": "Use for React/TypeScript TSX refactors: split overloaded components/pages, clarify variant or mode boundaries, remove duplicated useState/useEffect derived state, and move async fallback behavior into hooks or models.",
   "interface": {
     "displayName": "Engineering Craft Principles",
     "shortDescription": "React/TS refactor patterns for overloaded UI components",
-    "defaultPrompt": "Use $engineering-craft-principles to restructure this React/TypeScript UI around cleaner component boundaries, explicit variants, derived state, and model-owned async behavior."
+    "defaultPrompt": "Use $engineering-craft-principles or /engineering-craft-principles to restructure this React/TypeScript UI around cleaner component boundaries, explicit variants, derived state, and model-owned async behavior."
   },
   "summary": "Apply this when a frontend surface has collapsed presentation, state, and fallback behavior into one place. The skill favors narrower components, explicit variant boundaries, derived state, and hook or model owned async control.",
   "whenToUse": [
@@ -21,6 +21,8 @@
     "用户只是想做视觉样式微调、命名整理或格式化，并没有结构性重构需求。"
   ],
   "triggerSignals": [
+    "React TSX component page useState useEffect props variant mode readonly compact frontend refactor。",
+    "组件 重构 页面 表单 弹窗 卡片 列表 详情 Hook Model 派生状态 异步 兜底。",
     "一个 TSX 文件同时处理多种数据形态、多个布局意图和多段副作用。",
     "组件里出现大量 `mode`、`variant`、`readonly`、`compact` 之类的 prop 分支切换。",
     "由 props、query 结果或 store 可直接推导的值又被复制进 `useState`。",

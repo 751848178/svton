@@ -1216,7 +1216,13 @@ importers:
 
   skills/engineering-craft-principles: {}
 
+  skills/codegraph-cli-navigation: {}
+
+  skills/plan-before-code: {}
+
   skills/universal-craft-principles: {}
+
+  skills/verify-before-done: {}
 
 packages:
 
