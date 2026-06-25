@@ -637,5 +637,5 @@ async function main() {
 ## 下一步
 
 - [平台抽象层总览](./index) — IPlatform 接口和 BrowserPlatform
-- [Agent SDK](../agent-sdk) — createAgent 与 TauriPlatform 集成
-- [agent-core](../agent-core) — 底层核心如何使用平台能力
+- [Agent SDK](../sdk) — createAgent 与 TauriPlatform 集成
+- [agent-core](../core) — 底层核心如何使用平台能力

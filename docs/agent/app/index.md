@@ -200,9 +200,9 @@ const mySkill: SkillDefinition = {
 ```
 
 基于以下包构建：
-- [@svton/agent-core](/agent-core/) — 运行时引擎
-- [@svton/agent-client](/agent-client/) — React Hooks + Services
-- [@svton/agent-ui](/agent-ui/) — UI 组件库
+- [@svton/agent-core](/agent/core/) — 运行时引擎
+- [@svton/agent-client](/agent/client/) — React Hooks + Services
+- [@svton/agent-ui](/agent/ui/) — UI 组件库
 - [@svton/service](https://www.npmjs.com/package/@svton/service) — 响应式状态管理
 
 ## 导出

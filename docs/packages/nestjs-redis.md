@@ -377,4 +377,4 @@ export class HealthService {
 
 ---
 
-**相关文档**: [@svton/dynamic-config](./dynamic-config.md) | [环境配置](../deployment/environment.md)
+**相关文档**: [@svton/dynamic-config](./dynamic-config.md) | [环境配置](../framework/deployment/environment.md)

@@ -557,5 +557,5 @@ function MainLayout() {
 ## 下一步
 
 - [Agent SDK 核心 API](./index) — createAgent / Agent 类 / 自定义工具
-- [agent-platform](../agent-platform) — 平台抽象层详解
-- [agent-ui](../agent-ui) — 预构建的 UI 组件库（基于本 React SDK）
+- [agent-platform](../platform) — 平台抽象层详解
+- [agent-ui](../ui) — 预构建的 UI 组件库（基于本 React SDK）

@@ -498,4 +498,4 @@ interface PaymentNotification {
 
 ---
 
-**相关文档**: [@svton/nestjs-oauth](./nestjs-oauth.md) | [后端模块开发](../backend/modules.md)
+**相关文档**: [@svton/nestjs-oauth](./nestjs-oauth.md) | [后端模块开发](../framework/backend/modules.md)

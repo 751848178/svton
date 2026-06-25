@@ -250,4 +250,4 @@ src/
 
 ## 📚 详细规范
 
-完整编码规范请参考：[CODING_STANDARDS.md](../../CODING_STANDARDS.md)
+完整编码规范请参考：CODING_STANDARDS.md

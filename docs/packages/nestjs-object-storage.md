@@ -440,4 +440,4 @@ async uploadFromBuffer(buffer: Buffer, filename: string) {
 
 ---
 
-**相关文档**: [@svton/nestjs-redis](./nestjs-redis.md) | [后端模块开发](../backend/modules.md)
+**相关文档**: [@svton/nestjs-redis](./nestjs-redis.md) | [后端模块开发](../framework/backend/modules.md)

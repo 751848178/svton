@@ -254,9 +254,9 @@ npm publish --access public
 
 ## 🔗 相关文档
 
-- [快速开始](../getting-started/quick-start.md) - 使用CLI创建项目
-- [项目模板](../architecture/monorepo.md) - 了解项目结构
-- [包管理](./types.md) - 共享类型包
+- [快速开始](../start/quick-start.md) - 使用CLI创建项目
+- [项目模板](./architecture/monorepo.md) - 了解项目结构
+- [包管理](../packages/types.md) - 共享类型包
 
 ---
 

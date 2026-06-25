@@ -405,4 +405,4 @@ interface WechatPhoneInfo {
 
 ---
 
-**相关文档**: [@svton/nestjs-authz](./nestjs-authz.md) | [后端模块开发](../backend/modules.md)
+**相关文档**: [@svton/nestjs-authz](./nestjs-authz.md) | [后端模块开发](../framework/backend/modules.md)

@@ -387,4 +387,4 @@ pnpm prisma:generate
 
 ---
 
-**下一步**: [Prisma ORM](./prisma.md)
+**下一步**: Prisma ORM

@@ -1473,4 +1473,4 @@ export default function ExamplePage() {
 
 ---
 
-**相关文档**: [@svton/hooks](./hooks.md) | [样式规范](../mobile/styling.md)
+**相关文档**: [@svton/hooks](./hooks.md) | 样式规范

@@ -390,4 +390,4 @@ types ← api-client          ❌
 
 ---
 
-**下一步**: [目录规范](./directory-structure.md)
+**下一步**: 目录规范

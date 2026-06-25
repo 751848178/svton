@@ -507,5 +507,5 @@ for await (const event of agent.chat('你好')) {
 ## 下一步
 
 - [React 集成](./react) — AgentProvider / useChat / useToolApproval
-- [平台抽象层](../agent-platform) — BrowserPlatform / TauriPlatform
-- [agent-core 文档](../agent-core) — 底层核心 API
+- [平台抽象层](../platform) — BrowserPlatform / TauriPlatform
+- [agent-core 文档](../core) — 底层核心 API

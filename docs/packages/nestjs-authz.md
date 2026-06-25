@@ -290,4 +290,4 @@ inviteMember() {}
 
 ---
 
-**相关文档**: [@svton/authz](./authz.md) | [@svton/nestjs-http](./nestjs-http.md) | [后端模块开发](../backend/modules.md)
+**相关文档**: [@svton/authz](./authz.md) | [@svton/nestjs-http](./nestjs-http.md) | [后端模块开发](../framework/backend/modules.md)

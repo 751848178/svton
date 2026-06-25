@@ -189,11 +189,11 @@ pnpm install
 
 - [项目概览](./overview.md) - 了解整体架构
 - [环境准备](./prerequisites.md) - 详细环境配置
-- [编码规范](../tools/coding-standards.md) - 开发规范
+- [编码规范](../framework/coding-standards.md) - 开发规范
 
 ---
 
-**遇到问题?** 查看 [常见问题](../reference/faq.md) 或提交 Issue。
+**遇到问题?** 查看 常见问题 或提交 Issue。
 
 ## 🛠️ 使用 SVTON CLI
 

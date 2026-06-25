@@ -9,24 +9,24 @@
 ### 🚀 入门指南
 | 文档 | 说明 |
 |------|------|
-| [快速开始](./getting-started/quick-start.md) | 5 分钟快速启动项目 |
-| [项目概览](./getting-started/overview.md) | 项目整体介绍和架构概览 |
-| [环境准备](./getting-started/prerequisites.md) | 开发环境安装和配置 |
-| [项目初始化](./getting-started/initialization.md) | 从零开始创建新项目 |
+| [快速开始](./start/quick-start.md) | 5 分钟快速启动项目 |
+| [项目概览](./start/overview.md) | 项目整体介绍和架构概览 |
+| [环境准备](./start/prerequisites.md) | 开发环境安装和配置 |
+| [项目初始化](./start/initialization.md) | 从零开始创建新项目 |
 
 ### 🏗️ 架构设计
 | 文档 | 说明 |
 |------|------|
-| [整体架构](./architecture/overview.md) | 系统架构设计和技术选型 |
-| [Monorepo 结构](./architecture/monorepo.md) | pnpm + Turborepo 工作空间管理 |
-| [目录规范](./architecture/directory-structure.md) | 项目目录结构规范 |
-| [依赖管理](./architecture/dependencies.md) | 包依赖关系和版本管理 |
+| [整体架构](./framework/architecture/overview.md) | 系统架构设计和技术选型 |
+| [Monorepo 结构](./framework/architecture/monorepo.md) | pnpm + Turborepo 工作空间管理 |
+| [目录规范](./framework/architecture/directory-structure.md) | 项目目录结构规范 |
+| [依赖管理](./framework/architecture/dependencies.md) | 包依赖关系和版本管理 |
 
 ### 🔧 后端开发 (Backend)
 | 文档 | 说明 |
 |------|------|
 | [NestJS 入门](./backend/nestjs-basics.md) | NestJS 框架基础 |
-| [模块开发](./backend/modules.md) | 如何开发新模块 |
+| [模块开发](./framework/backend/modules.md) | 如何开发新模块 |
 | [Prisma ORM](./backend/prisma.md) | 数据库操作指南 |
 | [认证授权](./backend/authentication.md) | JWT + Passport 认证系统 |
 | [API 设计](./backend/api-design.md) | RESTful API 设计规范 |
@@ -50,7 +50,7 @@
 ### 📦 共享包 (Packages)
 | 文档 | 说明 |
 |------|------|
-| [cli](./packages/cli.md) | SVTON CLI脚手架工具 |
+| [cli](./framework/cli.md) | SVTON CLI脚手架工具 |
 | [authz](./packages/authz.md) | RBAC 核心授权包 |
 | [types](./packages/types.md) | 类型定义包 |
 | [api-client](./packages/api-client.md) | API 客户端包 |
@@ -62,17 +62,17 @@
 | 文档 | 说明 |
 |------|------|
 | [CLI 命令](./tools/cli.md) | 项目常用命令 |
-| [代码规范](./tools/coding-standards.md) | ESLint + Prettier 配置 |
+| [代码规范](./framework/coding-standards.md) | ESLint + Prettier 配置 |
 | [Git 工作流](./tools/git-workflow.md) | 分支管理和提交规范 |
 | [调试技巧](./tools/debugging.md) | 开发调试技巧 |
 
 ### 🚢 部署运维
 | 文档 | 说明 |
 |------|------|
-| [环境配置](./deployment/environment.md) | 环境变量配置指南 |
-| [Docker 部署](./deployment/docker.md) | Docker 容器化部署 |
-| [生产部署](./deployment/production.md) | 生产环境部署流程 |
-| [监控日志](./deployment/monitoring.md) | 日志和监控配置 |
+| [环境配置](./framework/deployment/environment.md) | 环境变量配置指南 |
+| [Docker 部署](./framework/deployment/docker.md) | Docker 容器化部署 |
+| [生产部署](./framework/deployment/production.md) | 生产环境部署流程 |
+| [监控日志](./framework/deployment/monitoring.md) | 日志和监控配置 |
 
 ### 📋 参考资料
 | 文档 | 说明 |

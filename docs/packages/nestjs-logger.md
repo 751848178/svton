@@ -475,4 +475,4 @@ TENCENT_CLS_TOPIC_ID=xxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 ---
 
-**相关文档**: [@svton/nestjs-http](./nestjs-http.md) | [环境配置](../deployment/environment.md)
+**相关文档**: [@svton/nestjs-http](./nestjs-http.md) | [环境配置](../framework/deployment/environment.md)

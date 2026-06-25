@@ -593,5 +593,5 @@ setPlatform(new ElectronPlatform());
 ## 下一步
 
 - [Tauri 平台详解](./tauri) — TauriPlatform 的 Rust 后端命令和沙箱实现
-- [Agent SDK](../agent-sdk) — 通过 `createAgent({ platform })` 集成平台
-- [agent-core](../agent-core) — 底层核心如何消费 IPlatform 接口
+- [Agent SDK](../sdk) — 通过 `createAgent({ platform })` 集成平台
+- [agent-core](../core) — 底层核心如何消费 IPlatform 接口

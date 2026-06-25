@@ -182,11 +182,11 @@ import type { ContentVo, UserVo } from '@my-project/types';
 | 我想要... | 查看文档 |
 |----------|---------|
 | 快速运行项目 | [快速开始](./quick-start.md) |
-| 了解如何开发后端模块 | [模块开发](../backend/modules.md) |
-| 了解如何开发 Admin 页面 | [页面开发](../admin/pages.md) |
-| 了解如何开发小程序页面 | [页面开发](../mobile/pages.md) |
+| 了解如何开发后端模块 | [模块开发](../framework/backend/modules.md) |
+| 了解如何开发 Admin 页面 | 页面开发 |
+| 了解如何开发小程序页面 | 页面开发 |
 | 创建新的共享包 | [共享包](../packages/types.md) |
-| 部署到生产环境 | [生产部署](../deployment/production.md) |
+| 部署到生产环境 | 生产部署 |
 
 ---
 

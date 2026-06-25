@@ -296,4 +296,4 @@ createZodValidate(envSchema, {
 
 ---
 
-**相关文档**: [@svton/nestjs-logger](./nestjs-logger.md) | [环境配置](../deployment/environment.md)
+**相关文档**: [@svton/nestjs-logger](./nestjs-logger.md) | [环境配置](../framework/deployment/environment.md)
