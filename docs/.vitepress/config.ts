@@ -152,6 +152,7 @@ export default defineConfig({
           text: '📦 共享包',
           collapsed: false,
           items: [
+            { text: 'cli', link: '/packages/cli' },
             { text: 'types', link: '/packages/types' },
             { text: 'api-client', link: '/packages/api-client' },
             { text: 'hooks', link: '/packages/hooks' },
