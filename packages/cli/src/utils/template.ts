@@ -2,6 +2,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import { logger } from './logger';
 import { copyTemplateFiles } from './copy-template';
+import { generateDockerCompose } from './compose';
+import { version as cliVersion } from '../../package.json';
 
 interface ProjectConfig {
   projectName: string;
@@ -27,7 +29,7 @@ export async function generateFromTemplate(config: ProjectConfig): Promise<void>
 }
 
 async function createRootFiles(config: ProjectConfig): Promise<void> {
-  const { projectName, orgName, packageManager } = config;
+  const { projectName, orgName, packageManager, template } = config;
   
   // package.json
   const packageJson = {
@@ -46,6 +48,7 @@ async function createRootFiles(config: ProjectConfig): Promise<void> {
       clean: 'turbo run clean && rm -rf node_modules'
     },
     devDependencies: {
+      '@svton/cli': `^${cliVersion}`,
       turbo: '^1.11.0',
       typescript: '^5.3.0',
       '@types/node': '^20.10.0',
@@ -56,6 +59,9 @@ async function createRootFiles(config: ProjectConfig): Promise<void> {
     engines: {
       node: '>=18.0.0',
       pnpm: '>=8.0.0'
+    },
+    svton: {
+      schema: 1
     }
   };
 
@@ -142,44 +148,37 @@ strict-peer-dependencies=false
 `;
   await fs.writeFile('.npmrc', npmrc);
 
-  // docker-compose.yml
-  const dockerCompose = `version: '3.8'
-
-services:
-  mysql:
-    image: mysql:8.0
-    container_name: ${projectName}-mysql
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: root123456
-      MYSQL_DATABASE: ${projectName}
-      MYSQL_USER: ${projectName}
-      MYSQL_PASSWORD: ${projectName}123456
-    ports:
-      - '3306:3306'
-    volumes:
-      - mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password
-
-  redis:
-    image: redis:7-alpine
-    container_name: ${projectName}-redis
-    restart: unless-stopped
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-
-volumes:
-  mysql_data:
-  redis_data:
-`;
+  // docker-compose.yml（与 `svton services init` 共用同一生成器）
+  const dockerCompose = generateDockerCompose({ projectName });
 
   await fs.writeFile('docker-compose.yml', dockerCompose);
 
   // README.md
   const readme = await generateReadme(config);
   await fs.writeFile('README.md', readme);
+
+  // svton.config.ts —— Svton 架构规范清单（新建项目即可被 `svton dev` 等命令识别）
+  // apps 按所选模板生成，避免引用不存在的目录
+  const hasBackend = template === 'full-stack' || template === 'backend-only';
+  const hasAdmin = template === 'full-stack' || template === 'admin-only';
+  const hasMobile = template === 'full-stack' || template === 'mobile-only';
+  const appsLines: string[] = [];
+  if (hasBackend) appsLines.push("    backend: { dir: 'apps/backend', type: 'nest', port: 3000 },");
+  if (hasAdmin) appsLines.push("    admin: { dir: 'apps/admin', type: 'next', port: 3001 },");
+  if (hasMobile) appsLines.push("    mobile: { dir: 'apps/mobile', type: 'taro' },");
+  const databaseLine = hasBackend ? `\n  database: { orm: 'prisma', dir: 'apps/backend' },` : '';
+
+  const svtonConfig = `import { defineSvtonProject } from '@svton/cli';
+
+export default defineSvtonProject({
+  schema: 1,
+  apps: {
+${appsLines.join('\n')}
+  },${databaseLine}
+  services: { compose: 'docker-compose.yml' },
+});
+`;
+  await fs.writeFile('svton.config.ts', svtonConfig);
 }
 
 async function generateReadme(config: ProjectConfig): Promise<string> {

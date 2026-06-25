@@ -3,14 +3,25 @@
 import { Command } from 'commander';
 import { createProject } from './commands/create';
 import { buildSkills, installSkill, listSkills } from './commands/skills';
+import { dev, build, start, lint, typecheck, test, clean } from './commands/lifecycle';
+import { info } from './commands/info';
+import { doctor } from './commands/doctor';
+import { envCheck } from './commands/env';
+import { db } from './commands/db';
+import { services } from './commands/services';
+import { generate } from './commands/generate';
 import { version } from '../package.json';
+
+// 公共导出：供用户 svton.config.ts 使用
+export { defineSvtonProject } from './config/schema';
+export type { SvtonProjectConfig, SvtonAppConfig, AppType } from './config/types';
 
 export async function cli() {
   const program = new Command();
 
   program
     .name('svton')
-    .description('Svton CLI - Create full-stack applications with NestJS, Next.js, and Taro')
+    .description('Svton CLI - Scaffold, run, and operate Svton full-stack projects')
     .version(version);
 
   // svton create <project-name> - 创建新项目
@@ -59,6 +70,90 @@ export async function cli() {
     .description('List built or installed skills')
     .option('--out-dir <path>', 'Skill directory to inspect', '.svton/skills')
     .action(listSkills);
+
+  // ---- 生命周期命令（委托 turbo / 包管理器） ----
+  program
+    .command('dev [target]')
+    .description('Start dev servers (delegates to turbo run dev); optional app name')
+    .action(dev);
+
+  program
+    .command('build [target]')
+    .description('Build all or a single app (turbo run build)')
+    .action(build);
+
+  program
+    .command('start [target]')
+    .description('Start a production app (runs its own start script; not a turbo task)')
+    .option('--all', 'Start every app that has a start script')
+    .action(start);
+
+  program
+    .command('lint [target]')
+    .description('Lint all or a single app (turbo run lint)')
+    .option('--fix', 'Pass --fix through to the linters')
+    .action(lint);
+
+  program
+    .command('typecheck [target]')
+    .description('Type-check (turbo run type-check)')
+    .action(typecheck);
+
+  program
+    .command('test [target]')
+    .description('Run tests (turbo run test)')
+    .action(test);
+
+  program
+    .command('clean')
+    .description('Clean build outputs (and node_modules by default)')
+    .option('--keep-deps', 'Keep node_modules')
+    .action(clean);
+
+  program
+    .command('info')
+    .description('Print the resolved Svton project manifest (apps, ports, db, services)')
+    .option('--json', 'Emit the manifest as JSON')
+    .action(info);
+
+  program
+    .command('doctor')
+    .description('Run environment & project sanity checks')
+    .option('--fix', 'Apply auto-fixable actions (e.g. create missing .env)')
+    .action(doctor);
+
+  const envCommand = program.command('env').description('Manage environment files');
+  envCommand
+    .command('check [target]')
+    .description('Diff .env against .env.example (root and each app)')
+    .option('--fix', 'Create missing .env from .env.example')
+    .action(envCheck);
+  envCommand
+    .command('pull [target]')
+    .description('Copy .env.example to .env')
+    .action((target: string | undefined) => envCheck(target, { fix: true }));
+
+  program
+    .command('db <command>')
+    .description('Run Prisma lifecycle (generate|migrate|migrate:deploy|studio|seed|init) in the database app')
+    .option('--name <name>', 'Migration name (used by `migrate`)')
+    .action(db);
+
+  program
+    .command('services <command>')
+    .description('Manage local MySQL/Redis via docker compose (init|up|down|status)')
+    .option('--force', 'init: overwrite an existing docker-compose.yml')
+    .option('--volumes', 'down: also remove named volumes')
+    .action(services);
+
+  program
+    .command('generate <kind> [name]')
+    .alias('g')
+    .description('Scaffold code (module | app | package | api-contract)')
+    .option('--app <name>', 'Target app (needed when multiple apps match)')
+    .option('--dry-run', 'Print the plan without writing files')
+    .option('--force', 'Overwrite existing files')
+    .action(generate);
 
   await program.parseAsync();
 }

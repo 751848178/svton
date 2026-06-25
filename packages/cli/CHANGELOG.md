@@ -1,5 +1,16 @@
 # @svton/cli
 
+## 2.3.0
+
+### Minor Changes
+
+- feat: 新增「项目生命周期 + Svton 架构规范」,让 `svton` 不仅能创建项目,还能运行与操作项目。
+  - **生命周期命令**(委托 turbo/pnpm):`svton dev/build/start/lint/typecheck/test/clean [target]`,支持单 app 过滤;`typecheck` 自动映射 turbo 任务 `type-check`。
+  - **统一 manifest(混合方案)**:类型安全的 `svton.config.ts`(`defineSvtonProject`)+ 根 `package.json` 的 `"svton": { "schema": 1 }` 标记。**无 manifest 也能用** —— 自动检测 apps/端口/全局前缀/健康探针/prisma 目录/包管理器。
+  - **新增命令**:`info [--json]`(打印解析后的清单)、`doctor`(环境体检:Node/pnpm/turbo/脚本契约/env/端口/Docker)、`env check/pull`(env 与 .env.example 比对)、`db <generate|migrate|migrate:deploy|studio|seed|init>`(prisma 生命周期)、`services <init|up|down|status>`(docker compose)、`generate|g <module|app|package|api-contract>`(脚手架生成器,`module` 已实现并自动接线进 app.module.ts)。
+  - **`svton create` 升级**:生成的项目根自动带 `svton.config.ts`(apps 按所选模板生成)+ `"svton"` 标记 + `@svton/cli` devDep;`docker-compose.yml` 生成逻辑抽到 `utils/compose.ts`,与 `services init` 共用。
+  - 新增依赖:`jiti`(运行时加载 `svton.config.ts`)、`cross-spawn`(可靠的子进程 spawn)。
+
 ## 2.2.0
 
 ### Minor Changes

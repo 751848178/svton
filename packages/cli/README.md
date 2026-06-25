@@ -13,6 +13,7 @@
 - 🛠️ **开发体验** - ESLint、Prettier、TypeScript 预配置
 - 🐳 **Docker 支持** - 内置 MySQL 和 Redis 容器配置
 - 📚 **类型安全** - 共享类型定义和 API 接口
+- 🧭 **项目运行 & 体检** - 不仅创建项目,还能 `svton dev/build/...` 一键运行,`svton doctor` 体检,`svton db/services/generate` 操作项目
 
 ## 快速开始
 
@@ -28,9 +29,22 @@ svton create my-app
 ## 使用方法
 
 ```bash
+# 创建项目
 svton create <project-name> [options]
 svton init <project-name> [options]   # 别名
 svton new <project-name> [options]    # 别名
+
+# 运行 & 操作项目(在 Svton 项目根目录下)
+svton dev [app]          # 启动开发服务器(委托 turbo,可指定单个 app)
+svton build [app]        # 构建
+svton info [--json]      # 打印解析出的项目清单
+svton doctor [--fix]     # 环境 & 项目体检
+svton env check [app]    # 比对 .env 与 .env.example
+svton db <generate|migrate|studio|...>   # Prisma 生命周期
+svton services <init|up|down|status>     # 本地 MySQL/Redis(docker compose)
+svton generate <module|app|package|api-contract> [name]   # 代码生成(别名 g)
+
+# AI agent skills
 svton skill install [source] [options]
 svton skill build [skill] [options]
 ```
@@ -110,6 +124,60 @@ svton skill list
 svton skill list --out-dir ./dist/skills
 ```
 
+## 运行 Svton 项目
+
+用 `svton create` 生成的项目(以及任何符合 Svton 架构的 monorepo)都能直接用以下命令运行与操作。**无需任何配置即可使用** —— CLI 会自动检测工作区结构、各 app 端口、prisma 目录、包管理器等;想要更精确的控制,可在项目根放一份 `svton.config.ts`。
+
+### 生命周期命令(委托 turbo / 包管理器)
+
+| 命令 | 作用 |
+|------|------|
+| `svton dev [app]` | 启动开发服务器(`turbo run dev`);带 app 名则只跑该 app |
+| `svton build [app]` | 构建 |
+| `svton start [app]` | 生产启动(跑各 app 的 `start` 脚本;`--all` 启动全部) |
+| `svton lint [app]` | Lint(`--fix` 透传给 linter) |
+| `svton typecheck [app]` | 类型检查(映射 turbo 任务 `type-check`) |
+| `svton test [app]` | 运行测试 |
+| `svton clean [--keep-deps]` | 清理构建产物(默认含 node_modules) |
+| `svton info [--json]` | 打印解析出的项目清单(apps/端口/db/services) |
+| `svton doctor [--fix]` | 环境 & 项目体检(Node/pnpm/turbo/脚本契约/env/端口/Docker) |
+| `svton env check [app]` | 比对 `.env` 与 `.env.example`,列出缺失 key(`--fix` 自动补建) |
+| `svton db <generate\|migrate\|migrate:deploy\|studio\|seed\|init>` | Prisma 生命周期(自动定位含 `prisma/schema.prisma` 的 app) |
+| `svton services <init\|up\|down\|status>` | 本地 MySQL/Redis(`docker compose`;无 compose 时先 `init` 生成) |
+| `svton generate <module\|app\|package\|api-contract> [name]` | 代码生成器(别名 `g`;`module` 已实现,自动接线进 `app.module.ts`) |
+
+> 生命周期命令的设计原则是**不重造 turbo** —— 仅做稳定入口 + Svton 专有的人性化(端口/健康/env/db/生成器)。
+
+### 项目清单 `svton.config.ts`(混合 manifest)
+
+Svton 架构规范用**混合方式**声明一个项目:
+
+1. **主配置 `svton.config.ts`**(类型安全,推荐):
+   ```ts
+   import { defineSvtonProject } from '@svton/cli';
+
+   export default defineSvtonProject({
+     schema: 1,
+     apps: {
+       api: { dir: 'apps/backend', type: 'nest', port: 4000, baseURL: 'http://localhost:4000/api', ready: { http: 'http://localhost:4000/api/health' } },
+       web: { dir: 'apps/admin', type: 'next', port: 3000, ready: { http: 'http://localhost:3000' } },
+       mobile: { dir: 'apps/mobile', type: 'taro' },
+     },
+     database: { orm: 'prisma', dir: 'apps/backend' },
+     services: { compose: 'docker-compose.yml' },
+   });
+   ```
+2. **根 `package.json` 的 `"svton"` 标记**(快速检测):
+   ```json
+   { "svton": { "schema": 1 } }
+   ```
+
+`schema` 是规范版本(当前为 `1`),用于向前兼容与迁移。`apps` 里 `port`/`ready`/`dependsOn` 等字段会被 `info`/`doctor` 用于健康探测。**没有 manifest 时**,CLI 会自动推断一份等价清单(基于 `pnpm-workspace.yaml`、各 app 的 `package.json` 脚本与 `main.ts` 等),所以旧项目零改造即可用 `svton dev`。
+
+`defineSvtonProject`、`SvtonProjectConfig` 等类型从 `@svton/cli` 公共导出,供你的 `svton.config.ts` 获得编辑器自动补全。
+
+---
+
 ## 模板
 
 ### 全栈模板 (`full-stack`)
@@ -158,27 +226,30 @@ my-app/
 
 ## 创建后的步骤
 
+`svton create` 生成的项目根已带 `svton.config.ts`,可直接用 `svton` 命令操作:
+
 1. **启动数据库**（全栈/后端模板）：
    ```bash
-   docker-compose up -d
+   svton services up          # = docker compose up -d(无 compose 时先 svton services init)
    ```
 
 2. **配置环境变量**：
    ```bash
-   cp apps/backend/.env.example apps/backend/.env
-   # 编辑 .env 文件配置你的设置
+   svton env check --fix      # 自动从 .env.example 补建缺失的 .env,再手动编辑
    ```
 
-3. **运行数据库迁移**（后端模板）：
+3. **初始化数据库**（后端模板）：
    ```bash
-   pnpm --filter @my-org/backend prisma:generate
-   pnpm --filter @my-org/backend prisma:migrate
+   svton db init              # = prisma generate + migrate dev
    ```
 
-4. **启动开发服务器**：
+4. **体检 & 启动开发服务器**：
    ```bash
-   pnpm dev
+   svton doctor               # 检查 node/pnpm/端口/env/prisma client 等
+   svton dev                  # 启动全部 app(= pnpm dev / turbo run dev)
    ```
+
+> 也可以继续用底层命令(`docker-compose up -d`、`pnpm --filter @my-org/backend prisma:migrate`、`pnpm dev`),`svton` 命令只是更省心的封装。
 
 ## 环境要求
 

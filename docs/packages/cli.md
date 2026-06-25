@@ -9,7 +9,7 @@
 | 属性 | 值 |
 |------|---|
 | **包名** | `@svton/cli` |
-| **版本** | `1.0.0` |
+| **版本** | `2.3.0` |
 | **命令** | `svton` |
 | **入口** | `bin/svton.js` |
 
@@ -21,12 +21,13 @@
 2. **模板丰富** - 支持 full-stack、admin-only、backend-only、mobile-only 四种模板
 3. **配置灵活** - 支持自定义组织名、跳过安装等选项
 4. **即开即用** - 无需全局安装，使用npx直接运行
+5. **运行 & 操作** - 不仅能创建项目,还能用 `svton dev/doctor/db/services/generate` 运行与操作项目
 
 ---
 
 ## 🛠️ 命令用法
 
-### 基本命令
+### 创建项目
 
 ```bash
 # 全局安装
@@ -52,6 +53,55 @@ svton create --help
 # 使用 npx 运行（无需全局安装）
 npx @svton/cli create my-app
 ```
+
+### 运行项目 & Svton 清单
+
+`svton create` 生成的项目(及任何符合 Svton 架构的 monorepo)可直接用以下命令运行与操作。**零配置可用** —— CLI 自动检测工作区结构、各 app 端口、prisma 目录、包管理器。
+
+```bash
+# 生命周期(委托 turbo / 包管理器)
+svton dev [app]                      # 启动开发服务器;带 app 名只跑该 app
+svton build [app]                    # 构建
+svton start [app] [--all]            # 生产启动(各 app 的 start 脚本)
+svton lint [app] [--fix]             # Lint
+svton typecheck [app]                # 类型检查(→ turbo 任务 type-check)
+svton test [app]                     # 测试
+svton clean [--keep-deps]            # 清理构建产物
+
+# 体检与配置
+svton info [--json]                  # 打印解析出的项目清单
+svton doctor [--fix]                 # 环境 & 项目体检
+svton env check [app] [--fix]        # 比对 .env 与 .env.example
+
+# 项目操作
+svton db <generate|migrate|migrate:deploy|studio|seed|init>   # Prisma 生命周期
+svton services <init|up|down|status>                           # 本地 MySQL/Redis(docker compose)
+svton generate <module|app|package|api-contract> [name]        # 代码生成(别名 g;module 自动接线 app.module.ts)
+```
+
+#### Svton 清单(混合 manifest)
+
+用混合方式声明一个 Svton 项目:
+
+- **主配置 `svton.config.ts`**(类型安全):用 `defineSvtonProject` 包裹 `{ schema, apps, database, services, ... }`。
+- **根 `package.json` 标记**(快速检测):`{ "svton": { "schema": 1 } }`。
+
+```ts
+import { defineSvtonProject } from '@svton/cli';
+
+export default defineSvtonProject({
+  schema: 1,
+  apps: {
+    api: { dir: 'apps/backend', type: 'nest', port: 4000, ready: { http: 'http://localhost:4000/api/health' } },
+    web: { dir: 'apps/admin', type: 'next', port: 3000 },
+  },
+  database: { orm: 'prisma', dir: 'apps/backend' },
+});
+```
+
+没有 manifest 时 CLI 会自动推断等价清单,旧项目零改造即可 `svton dev`。详见 [CLI README](https://github.com/svton/svton/tree/master/packages/cli)。
+
+---
 
 ### 支持的模板
 
@@ -210,5 +260,5 @@ npm publish --access public
 
 ---
 
-**最后更新**: 2024-12-23
+**最后更新**: 2026-06-25
 **维护者**: SVTON CLI团队
