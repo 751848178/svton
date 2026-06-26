@@ -3,6 +3,7 @@ import path from 'path';
 import { logger } from './logger';
 import { copyTemplateFiles } from './copy-template';
 import { generateDockerCompose } from './compose';
+import { generateAppDockerfile, generateProdDockerCompose, generateDockerignore, AppDockerTarget } from './docker-gen';
 import { version as cliVersion } from '../../package.json';
 
 interface ProjectConfig {
@@ -26,6 +27,9 @@ export async function generateFromTemplate(config: ProjectConfig): Promise<void>
     template: config.template,
     projectPath: config.projectPath
   });
+
+  // 写入 Docker 产物(在 apps/ 复制完成后,这样 apps/<app>/Dockerfile 能写入)
+  await writeDockerArtifacts(config);
 }
 
 async function createRootFiles(config: ProjectConfig): Promise<void> {
@@ -168,17 +172,37 @@ strict-peer-dependencies=false
   if (hasMobile) appsLines.push("    mobile: { dir: 'apps/mobile', type: 'taro' },");
   const databaseLine = hasBackend ? `\n  database: { orm: 'prisma', dir: 'apps/backend' },` : '';
 
-  const svtonConfig = `import { defineSvtonProject } from '@svton/cli';
-
-export default defineSvtonProject({
+  // svton.config.ts 用零依赖的纯对象(不 import @svton/cli),
+  // 这样项目未 install 也能被 `svton` 加载,避免 MODULE_NOT_FOUND。
+  // 想要类型提示可手动改为:import { defineSvtonProject } from '@svton/cli'
+  const svtonConfig = `// Svton 项目清单。纯对象,无需安装 @svton/cli 即可被 svton 识别。
+// 如需编辑器类型提示:pnpm add -D @svton/cli,再把下面改为 defineSvtonProject({...})。
+export default {
   schema: 1,
   apps: {
 ${appsLines.join('\n')}
   },${databaseLine}
   services: { compose: 'docker-compose.yml' },
-});
+};
 `;
   await fs.writeFile('svton.config.ts', svtonConfig);
+}
+
+/** 写入 Docker 产物(Dockerfile + 生产 compose + .dockerignore)。在 copyTemplateFiles 之后调用,确保 apps/<app>/ 已存在。 */
+async function writeDockerArtifacts(config: ProjectConfig): Promise<void> {
+  const { projectName, template } = config;
+  const hasBackend = template === 'full-stack' || template === 'backend-only';
+  const hasAdmin = template === 'full-stack' || template === 'admin-only';
+  // 给可容器化的 app(nest/next)生成 Dockerfile;mobile(taro)是构建产物,不容器化。
+  const dockerApps: AppDockerTarget[] = [];
+  if (hasBackend) dockerApps.push({ name: 'backend', dir: 'apps/backend', type: 'nest', port: 3000 });
+  if (hasAdmin) dockerApps.push({ name: 'admin', dir: 'apps/admin', type: 'next', port: 3001 });
+  if (dockerApps.length === 0) return;
+  for (const app of dockerApps) {
+    await fs.writeFile(path.join(app.dir, 'Dockerfile'), generateAppDockerfile(app));
+  }
+  await fs.writeFile('docker-compose.prod.yml', generateProdDockerCompose({ projectName, apps: dockerApps }));
+  await fs.writeFile('.dockerignore', generateDockerignore());
 }
 
 async function generateReadme(config: ProjectConfig): Promise<string> {

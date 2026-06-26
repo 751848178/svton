@@ -1,5 +1,50 @@
 # @svton/cli
 
+## 2.4.0
+
+### Minor Changes
+
+- feat:`svton docker` —— 给 svton 架构项目生成「镜像内构建」的 Docker,生产部署一条命令搞定(`svton docker up` = 构建镜像 + 起容器,无需手动 `svton build`)。
+  - **`svton docker init`**:为 nest/next app 生成多阶段 Dockerfile(backend 用 `pnpm deploy`+`prisma generate` 扁平化依赖;admin 用 Next **standalone** 自包含)、根 `docker-compose.prod.yml`(apps + mysql + redis,环境变量接好)、`.dockerignore`;给 next app 自动补 `output:'standalone'`。
+  - **`svton docker build|up|down|logs`**:委托 `docker compose` 构建与编排。
+  - **`svton create`** 现在自带这些 Dockerfile + prod compose(新项目开箱可 `svton docker up`)。
+  - manifest 新增 `docker?: { prodCompose }` 字段(schema 不变)。
+  - 关键修正:`prisma generate` 必须在 `nest build` **之前**跑(否则无 Prisma 类型,noImplicitAny 报错)。
+
+## 2.3.5
+
+### Patch Changes
+
+- fix:`svton start` 在项目未构建时报的 next/nest 原始错误(`Cannot find module 'dist/main'`、`Could not find a production build in '.next'`)很费解。现在 `start` 会先检测各 app 的构建产物(next 看 `.next/BUILD_ID`,其余看 `dist/`),缺失时给出明确指引:`Run build first, or use svton dev`。(`start` 本就是生产模式,语义上需要先 build;开发请用 `svton dev`。)
+
+## 2.3.4
+
+### Patch Changes
+
+- fix(根因,取代 2.3.3 的 alias 做法):`svton.config.ts` 里 `import '@svton/cli'` 在项目未本地安装时报 `Cannot find module '@svton/cli'`。`@svton/cli` 是项目的**正式依赖**,正确做法是用项目的包管理器装上,而不是别名绕过。现在 loader 在检测到该 import 解析失败、且 `@svton/cli` 已在 package.json 声明时,**自动 `<pm> install` 后重试**;未声明则给出 `add -D @svton/cli` 的明确报错(不静默吞掉)。新增项目生成的 config 本就是零依赖纯对象,不会触发此问题。
+
+## 2.3.3
+
+### Patch Changes
+
+- (已被 2.3.4 取代)曾用 jiti `alias` 把 config 里的 `@svton/cli` 指向运行中的 CLI;改为更正规的「用包管理器安装」。
+
+## 2.3.2
+
+### Patch Changes
+
+- fix: `svton start`(无参数)从"报错要求 --all"改为**并行启动所有含 start 脚本的 app**(与 `svton dev` 行为一致);并修复了原先 `--all` 串行执行时第一个 server 永久阻塞、后续 app 起不来的 bug。新增 `spawnParallel`(逐行前缀日志 + 信号转发)。
+
+## 2.3.1
+
+### Patch Changes
+
+- fix: `svton` 命令在项目未 `pnpm install` 时崩溃(`Cannot find module '@svton/cli'`)。
+  - 根因:生成的 `svton.config.ts` 里 `import { defineSvtonProject } from '@svton/cli'`,而该包未装进项目本地(只在全局),jiti 从项目目录解析失败。
+  - 修复 1(loader 容错):`svton.config.ts` 加载失败时不再崩溃,改为告警并回退自动探测 —— 任何 `svton` 命令都能继续跑。
+  - 修复 2(生成器零依赖):`svton create` 生成的 `svton.config.ts` 改为纯对象(无 import),未安装也能被加载;想要类型提示可手动加 import。
+  - 顺带修了 jest 下 chalk shim 对 `chalk_1.default.x` 的解析。
+
 ## 2.3.0
 
 ### Minor Changes

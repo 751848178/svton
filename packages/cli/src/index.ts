@@ -10,6 +10,7 @@ import { envCheck } from './commands/env';
 import { db } from './commands/db';
 import { services } from './commands/services';
 import { generate } from './commands/generate';
+import { docker } from './commands/docker';
 import { version } from '../package.json';
 
 // 公共导出：供用户 svton.config.ts 使用
@@ -145,6 +146,14 @@ export async function cli() {
     .option('--force', 'init: overwrite an existing docker-compose.yml')
     .option('--volumes', 'down: also remove named volumes')
     .action(services);
+
+  program
+    .command('docker <command>')
+    .description('Build & run svton apps in Docker — build inside the image (init|build|up|down|logs)')
+    .option('--force', 'init: overwrite Dockerfiles / prod compose')
+    .option('--volumes', 'down: also remove named volumes')
+    .option('--service <name>', 'build/logs: operate on a single app')
+    .action(docker);
 
   program
     .command('generate <kind> [name]')

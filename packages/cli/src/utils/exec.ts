@@ -98,3 +98,83 @@ export async function runAndStream(
   logger.debug(`$ ${command} ${args.join(' ')}`);
   await spawnStreaming(command, args, options);
 }
+
+export interface ParallelCommand {
+  name: string;
+  command: string;
+  args: string[];
+  cwd: string;
+}
+
+/** 给一个流加逐行前缀(如 `[backend] `),便于多进程并行时区分输出。 */
+function prefixStream(prefix: string, src: NodeJS.ReadableStream, dest: NodeJS.WritableStream): void {
+  let buf = '';
+  src.on('data', (chunk: Buffer) => {
+    buf += chunk.toString();
+    let idx: number;
+    while ((idx = buf.indexOf('\n')) >= 0) {
+      dest.write(`${prefix}${buf.slice(0, idx)}\n`);
+      buf = buf.slice(idx + 1);
+    }
+  });
+  src.on('end', () => {
+    if (buf.length) dest.write(`${prefix}${buf}\n`);
+  });
+}
+
+/**
+ * 并行运行多个长驻命令(如同时 `start` 多个 app)。
+ * 每个进程的输出按 `[name] ` 前缀分流到 stdout/stderr;父进程收到 SIGINT/SIGTERM
+ * 时转发给所有子进程。任一子进程退出则全部终止;全部退出(0)后 resolve。
+ */
+export async function spawnParallel(commands: ParallelCommand[]): Promise<void> {
+  if (commands.length === 0) return;
+  const children = commands.map((c) => {
+    const ch = spawn(c.command, c.args, {
+      cwd: c.cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
+    const prefix = `[${c.name}] `;
+    if (ch.stdout) prefixStream(prefix, ch.stdout, process.stdout);
+    if (ch.stderr) prefixStream(prefix, ch.stderr, process.stderr);
+    return ch;
+  });
+
+  const killAll = (signal: NodeJS.Signals) => {
+    for (const ch of children) {
+      try {
+        ch.kill(signal);
+      } catch {
+        /* 已退出 */
+      }
+    }
+  };
+  process.on('SIGINT', killAll);
+  process.on('SIGTERM', killAll);
+
+  await new Promise<void>((resolve) => {
+    let remaining = children.length;
+    let exited = false;
+    const onExit = () => {
+      if (exited) return;
+      exited = true;
+      process.removeListener('SIGINT', killAll);
+      process.removeListener('SIGTERM', killAll);
+      killAll('SIGTERM'); // 任一退出 → 收尾其余
+      resolve();
+    };
+    for (const ch of children) {
+      ch.on('close', () => {
+        if (--remaining === 0) {
+          process.removeListener('SIGINT', killAll);
+          process.removeListener('SIGTERM', killAll);
+          resolve();
+        } else {
+          onExit();
+        }
+      });
+      ch.on('error', onExit);
+    }
+  });
+}

@@ -1,10 +1,10 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { logger } from '../utils/logger';
-import { runAndStream, spawnStreaming, PackageManager } from '../utils/exec';
+import { runAndStream, spawnStreaming, spawnParallel, PackageManager } from '../utils/exec';
 import { findProjectRoot } from '../utils/project-root';
 import { loadManifest } from '../config/loader';
-import { SvtonProjectConfig } from '../config/types';
+import { SvtonProjectConfig, SvtonAppConfig } from '../config/types';
 
 /** svton 命令名 → turbo 任务名（`typecheck` 别名到连字符的 `type-check`）。 */
 const TASK_ALIAS: Record<string, string> = {
@@ -154,34 +154,55 @@ export async function clean(options: LifecycleOptions = {}): Promise<void> {
   }
 }
 
-export async function start(target: string | undefined, options: LifecycleOptions = {}): Promise<void> {
+/** 某 app 是否已有生产构建产物(start 前置条件)。next 看 .next/BUILD_ID,其它看 dist/。 */
+async function hasBuildOutput(root: string, app: SvtonAppConfig): Promise<boolean> {
+  const base = path.join(root, app.dir);
+  if (app.type === 'next') return fs.pathExists(path.join(base, '.next', 'BUILD_ID'));
+  return fs.pathExists(path.join(base, 'dist'));
+}
+
+export async function start(target: string | undefined, _options: LifecycleOptions = {}): Promise<void> {
   const root = await findProjectRoot();
   const manifest = await loadManifest(root);
   const candidates = await appsWithScript(manifest, root, 'start');
+  const pm: PackageManager = manifest.pm ?? 'pnpm';
 
   if (candidates.length === 0) {
     logger.error('No app exposes a "start" script.');
     process.exit(1);
   }
 
+  // start 是生产模式,需要先 build。检测缺失的构建产物,给出明确指引(而不是让 next/nest 崩)。
+  const targets = target ? [target] : candidates;
+  const unbuilt: string[] = [];
+  for (const name of targets) {
+    const app = manifest.apps[name];
+    if (app && !(await hasBuildOutput(root, app))) unbuilt.push(name);
+  }
+  if (unbuilt.length > 0) {
+    logger.error(`No production build for: ${unbuilt.join(', ')}`);
+    logger.error(`Run \`${pm} run build\` first, or build via svton: \`svton build${unbuilt.length > 1 ? '' : ` ${unbuilt[0]}`}\`.`);
+    logger.info('Tip: for development with hot-reload, use `svton dev` (no build needed).');
+    logger.info('Tip: for containerized production (build inside the image), use `svton docker up`.');
+    process.exit(1);
+  }
+
+  // 指定单个 app:直接跑(终端直连)
   if (target) {
     await runAppScript(manifest, root, 'start', target);
     return;
   }
 
-  if (options.all) {
-    for (const key of candidates) {
-      await runAppScript(manifest, root, 'start', key);
-    }
-    return;
-  }
-
+  // 未指定:单 app 跑它;多 app 并行跑全部(与 `svton dev` 行为一致)
   if (candidates.length === 1) {
     await runAppScript(manifest, root, 'start', candidates[0]);
     return;
   }
 
-  logger.error('Multiple apps have a "start" script. Specify one, or use --all.');
-  logger.info(`Candidates: ${candidates.join(', ')}`);
-  process.exit(1);
+  const commands = candidates.map((name) => {
+    const app = manifest.apps[name];
+    return { name, command: pm, args: ['run', 'start'], cwd: path.join(root, app.dir) };
+  });
+  logger.info(`Starting ${candidates.length} apps in parallel: ${candidates.join(', ')} …`);
+  await spawnParallel(commands);
 }

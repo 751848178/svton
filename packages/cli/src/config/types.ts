@@ -56,6 +56,11 @@ export interface SvtonServicesConfig {
   compose?: string;
 }
 
+export interface SvtonDockerConfig {
+  /** 生产 compose 文件相对路径，默认 `docker-compose.prod.yml`。 */
+  prodCompose?: string;
+}
+
 export interface SvtonProjectConfig {
   schema: typeof SVTON_SCHEMA_VERSION;
   /** 以稳定名称为 key 的应用映射（名称需与 `dev:<name>` 脚本后缀一致）。 */
@@ -67,4 +72,5 @@ export interface SvtonProjectConfig {
   /** 包管理器覆盖；默认从 `packageManager` 字段 / 锁文件探测。 */
   pm?: 'pnpm' | 'npm' | 'yarn';
   services?: SvtonServicesConfig;
+  docker?: SvtonDockerConfig;
 }

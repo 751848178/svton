@@ -180,9 +180,15 @@ async function replacePackageNames(directory: string, config: TemplateConfig): P
       
       // 如果是 .tpl 文件，重命名为实际文件
       if (filePath.endsWith('.tpl')) {
-        const newPath = filePath.replace(/\.tpl$/, '');
-        await fs.writeFile(newPath, content);
-        await fs.remove(filePath);
+        // schema.prisma.tpl 等会与静态 schema.prisma 冲突(把正确的丰富 schema 覆盖成最小版)。
+        // 这类 prisma 模板仅由 features 流程(copyPrismaTemplates)按需处理,这里直接删除、不重命名。
+        if (/\.prisma\.tpl$/.test(filePath)) {
+          await fs.remove(filePath);
+        } else {
+          const newPath = filePath.replace(/\.tpl$/, '');
+          await fs.writeFile(newPath, content);
+          await fs.remove(filePath);
+        }
       } else {
         await fs.writeFile(filePath, content);
       }

@@ -2,8 +2,10 @@ import fs from 'fs-extra';
 import path from 'path';
 import createJITI from 'jiti';
 import { SVTON_SCHEMA_VERSION, SvtonProjectConfig } from './types';
-import { detectProject } from './detect';
+import { detectProject, detectPackageManager } from './detect';
 import { findProjectRoot } from '../utils/project-root';
+import { spawnStreaming } from '../utils/exec';
+import { logger } from '../utils/logger';
 
 const CONFIG_FILES = ['svton.config.ts', 'svton.config.js', 'svton.config.mjs', 'svton.config.cjs'];
 
@@ -38,27 +40,66 @@ async function loadConfigFile(absPath: string, root: string): Promise<SvtonProje
   return config;
 }
 
+/** 加载 config 并与探测结果合并(配置声明 apps 时权威,否则用探测填充)。 */
+async function tryLoad(configPath: string, root: string): Promise<SvtonProjectConfig> {
+  const config = await loadConfigFile(configPath, root);
+  if (config.apps && Object.keys(config.apps).length > 0) return config;
+  const detected = await detectProject(root);
+  return { ...detected, ...config, apps: { ...detected.apps, ...(config.apps ?? {}) } };
+}
+
+/** 错误是否为「config 里 import 了 @svton/cli 但解析不到」。 */
+export function isMissingCliError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /Cannot find module '@svton\/cli'|Cannot resolve '@svton\/cli'|Failed to resolve '@svton\/cli'/.test(msg);
+}
+
+/** @svton/cli 是否已在根 package.json 的依赖中声明。 */
+export async function cliDeclared(root: string): Promise<boolean> {
+  const pkgPath = path.join(root, 'package.json');
+  if (!(await fs.pathExists(pkgPath))) return false;
+  try {
+    const pkg = await fs.readJSON(pkgPath);
+    return Boolean(
+      (pkg.dependencies && '@svton/cli' in pkg.dependencies) ||
+        (pkg.devDependencies && '@svton/cli' in pkg.devDependencies),
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 解析并返回当前项目的完整清单。
  *
  * 解析顺序：
  *  1. `findProjectRoot()` 定位根
- *  2. 若存在 `svton.config.{ts,js,mjs,cjs}` → 加载并校验（有 apps 时权威，否则与探测结果合并）
+ *  2. 若存在 `svton.config.{ts,js,mjs,cjs}` → 加载并校验
  *  3. 否则 `detectProject()`（marker-only 或完全无配置的 day-0 路径）
+ *
+ * 若 config 里 `import '@svton/cli'` 但项目未安装、且已声明为依赖 ——
+ * 用**项目的包管理器**自动 `install` 后重试(而非别名/吞错)。
+ * 其它加载失败一律抛出明确错误,不静默回退。
  */
 export async function loadManifest(from?: string): Promise<SvtonProjectConfig> {
   const root = await findProjectRoot(from);
   const configPath = await locateConfig(root);
+  if (!configPath) return detectProject(root);
 
-  if (configPath) {
-    const config = await loadConfigFile(configPath, root);
-    if (config.apps && Object.keys(config.apps).length > 0) {
-      return config;
+  try {
+    return await tryLoad(configPath, root);
+  } catch (err) {
+    if (isMissingCliError(err) && (await cliDeclared(root))) {
+      const pm = await detectPackageManager(root);
+      logger.info(`svton.config.ts imports "@svton/cli" but it isn't installed — running \`${pm} install\` …`);
+      await spawnStreaming(pm, ['install'], { cwd: root });
+      return await tryLoad(configPath, root); // 装完重试;再失败则抛出
     }
-    // 配置文件存在但未声明 apps → 用探测结果填充，保留用户显式字段
-    const detected = await detectProject(root);
-    return { ...detected, ...config, apps: { ...detected.apps, ...(config.apps ?? {}) } };
+    const rel = path.relative(root, configPath);
+    const msg = err instanceof Error ? err.message : String(err);
+    const hint = isMissingCliError(err)
+      ? ' Run `<pm> add -D @svton/cli` to add it as a dependency, or remove the import from svton.config.ts.'
+      : '';
+    throw new Error(`Could not load ${rel}: ${msg}.${hint}`);
   }
-
-  return detectProject(root);
 }
