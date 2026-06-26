@@ -149,10 +149,24 @@ export async function cli() {
 
   program
     .command('docker <command>')
-    .description('Build & run svton apps in Docker — build inside the image (init|build|up|down|logs)')
-    .option('--force', 'init: overwrite Dockerfiles / prod compose')
+    .description('Production Docker for svton projects — build inside the image (init|build|up|down|logs)')
+    .option('--force', 'init: overwrite generated files')
+    .option('--template <root|per-app>', 'init: Dockerfile style (default root)', 'root')
+    .option('--db <mysql|postgres|none>', 'init: database engine')
+    .option('--mobile', 'init: enable mobile (taro) nginx service')
+    .option('--no-mobile', 'init: disable mobile service')
+    .option('--no-healthchecks', 'init: omit healthcheck blocks')
+    .option('--service <name>', 'build/up/logs: operate on a single app')
+    .option('--no-cache', 'build: docker build --no-cache')
+    .option('--build-arg <k=v>', 'build: pass build arg (repeatable)', (v: string, acc: string[]) => { acc.push(v); return acc; }, [])
+    .option('--tag <tag>', 'build --push: image tag (default git sha)')
+    .option('--push', 'build: build then push (requires docker.image.registry)')
+    .option('--profile <name>', 'up/down: compose profile (repeatable, default db)', (v: string, acc: string[]) => { acc.push(v); return acc; }, [])
+    .option('--no-build', 'up: skip --build')
     .option('--volumes', 'down: also remove named volumes')
-    .option('--service <name>', 'build/logs: operate on a single app')
+    .option('--rmi <all|local>', 'down: also remove images')
+    .option('--tail <n>', 'logs: tail N lines', (v: string) => Number(v))
+    .option('--file <path>', 'override prod compose file path')
     .action(docker);
 
   program

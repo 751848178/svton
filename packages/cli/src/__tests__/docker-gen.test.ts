@@ -1,68 +1,99 @@
 import {
-  generateBackendDockerfile,
-  generateAdminDockerfile,
+  resolveDockerContext,
+  generateRootDockerfile,
   generateProdDockerCompose,
+  generateMobileNginxConf,
+  generateDockerEnvExample,
   generateDockerignore,
-  generateAppDockerfile,
 } from '../utils/docker-gen';
+import { SvtonProjectConfig } from '../config/types';
 
-describe('docker-gen', () => {
-  it('backend Dockerfile builds inside image (pnpm deploy + prisma generate + migrate)', () => {
-    const df = generateBackendDockerfile({ name: 'backend', dir: 'apps/backend', type: 'nest', port: 3000 });
-    expect(df).toMatch(/FROM node:18-alpine AS builder/);
-    expect(df).toMatch(/npm install -g pnpm@/);
-    expect(df).toMatch(/COPY \. \./); // whole workspace as context
-    expect(df).toMatch(/turbo run build --filter=\.\/apps\/backend\.\.\./);
-    expect(df).toMatch(/exec prisma generate/); // before build (Prisma types must exist)
-    expect(df).toMatch(/FROM node:18-alpine AS runner/);
-    expect(df).toMatch(/COPY --from=builder \/repo \/app/); // whole built workspace
-    expect(df).toMatch(/EXPOSE 3000/);
-    expect(df).toMatch(/prisma migrate deploy && node dist\/main/);
+const manifest: SvtonProjectConfig = {
+  schema: 1,
+  pm: 'pnpm',
+  apps: {
+    backend: { dir: 'apps/backend', type: 'nest', port: 3100, ready: { http: 'http://localhost:3100/api' } },
+    admin: { dir: 'apps/admin', type: 'next', port: 3101, ready: { http: 'http://localhost:3101/' } },
+    mobile: { dir: 'apps/mobile', type: 'taro', port: 10086 },
+  },
+  database: { orm: 'prisma', dir: 'apps/backend' },
+};
+
+const ctx = () => resolveDockerContext(manifest, 'twgg', '8.12.0');
+
+describe('docker-gen (production-grade)', () => {
+  it('resolveDockerContext: defaults (127.0.0.1 bind, mysql, mobile opt-in, healthcheck from ready)', () => {
+    const c = ctx();
+    expect(c.projectName).toBe('twgg');
+    expect(c.nodeVersion).toBe('20-alpine');
+    expect(c.apps.map((a) => a.name)).toEqual(['backend', 'admin']); // mobile excluded (taro)
+    expect(c.apps[0].healthPath).toBe('/api'); // from ready.http
+    expect(c.apps[1].healthPath).toBe('/');
+    expect(c.db?.bindHost).toBe('127.0.0.1');
+    expect(c.db?.enabled).toBe(true);
+    expect(c.mobile?.enabled).toBe(false); // opt-in
+    expect(c.redis?.bindHost).toBe('127.0.0.1');
   });
 
-  it('admin Dockerfile uses Next standalone', () => {
-    const df = generateAdminDockerfile({ name: 'admin', dir: 'apps/admin', type: 'next', port: 3001 });
-    expect(df).toMatch(/turbo run build --filter=\.\/apps\/admin\.\.\./);
-    expect(df).toMatch(/\.next\/standalone/);
-    expect(df).toMatch(/\.next\/static/);
-    expect(df).toMatch(/public \.\/public/);
-    expect(df).toMatch(/CMD \["node", "server\.js"\]/);
-    expect(df).not.toMatch(/pnpm deploy/); // standalone is self-contained, no deploy
-    expect(df).toMatch(/EXPOSE 3001/);
+  it('root Dockerfile: multi-stage + twgg patterns', () => {
+    const df = generateRootDockerfile(ctx());
+    expect(df).toMatch(/FROM node:20-alpine AS base/);
+    expect(df).toMatch(/corepack prepare pnpm@8\.12\.0 --activate/);
+    expect(df).toMatch(/--frozen-lockfile/); // NOT --no-frozen
+    expect(df).toMatch(/FROM base AS deps-prod/); // slim prod-deps stage
+    expect(df).toMatch(/pnpm install --prod --frozen-lockfile/);
+    expect(df).toMatch(/FROM node:20-alpine AS backend-prod/);
+    expect(df).toMatch(/adduser -S backendjs/); // non-root
+    expect(df).toMatch(/\/app\/prisma-cli/); // independent prisma CLI
+    expect(df).toMatch(/prisma generate.*migrate deploy.*node/); // startup ordering
+    expect(df).toMatch(/FROM node:20-alpine AS admin-prod/);
+    expect(df).toMatch(/\.next\/standalone/); // next standalone
+    expect(df).toMatch(/adduser -S adminjs/);
   });
 
-  it('generateAppDockerfile dispatches by type', () => {
-    expect(generateAppDockerfile({ name: 'b', dir: 'apps/b', type: 'nest' })).toMatch(/prisma generate/);
-    expect(generateAppDockerfile({ name: 'a', dir: 'apps/a', type: 'next' })).toMatch(/standalone/);
-    expect(generateAppDockerfile({ name: 'd', dir: 'apps/d', type: 'node' })).toMatch(/pnpm deploy/);
+  it('prod compose: anchors + healthcheck + condition depends_on + 127.0.0.1 + ${VAR} + profile', () => {
+    const compose = generateProdDockerCompose(ctx());
+    expect(compose).toMatch(/x-logging: &default-logging/);
+    expect(compose).toMatch(/x-healthcheck-web: &healthcheck-web/);
+    expect(compose).toMatch(/max-size: "10m"/);
+    // DB bound to loopback + profile
+    expect(compose).toMatch(/'127\.0\.0\.1:3306:3306'/);
+    expect(compose).toMatch(/profiles: \['db'\]/);
+    // secrets via ${VAR} (NOT hardcoded password)
+    expect(compose).toMatch(/MYSQL_ROOT_PASSWORD: \$\{MYSQL_ROOT_PASSWORD/);
+    expect(compose).not.toMatch(/MYSQL_ROOT_PASSWORD: root123456/);
+    // app healthcheck uses container port + derived path
+    expect(compose).toMatch(/wget -qO- http:\/\/127\.0\.0\.1:3100\/api/);
+    // depends_on with condition (not plain list)
+    expect(compose).toMatch(/mysql:\n        condition: service_healthy/);
+    // image names
+    expect(compose).toMatch(/image: twgg-backend:prod/);
+    // mobile omitted (opt-in, default off)
+    expect(compose).not.toMatch(/container_name: twgg-mobile/);
   });
 
-  it('prod compose wires apps + db with ports, env, depends_on', () => {
-    const compose = generateProdDockerCompose({
-      projectName: 'demo',
-      apps: [
-        { name: 'backend', dir: 'apps/backend', type: 'nest', port: 3000 },
-        { name: 'admin', dir: 'apps/admin', type: 'next', port: 3001 },
-      ],
-    });
-    expect(compose).toMatch(/build:\s*\n\s*context: \.\s*\n\s*dockerfile: apps\/backend\/Dockerfile/);
-    expect(compose).toMatch(/container_name: demo-backend/);
-    expect(compose).toMatch(/'3000:3000'/);
-    expect(compose).toMatch(/DATABASE_URL: mysql:\/\/root:root123456@mysql:3306\/demo/);
-    expect(compose).toMatch(/depends_on:\s*\n\s*- mysql\s*\n\s*- redis/);
-    expect(compose).toMatch(/NEXT_PUBLIC_API_URL: http:\/\/localhost:3000\/api/);
-    expect(compose).toMatch(/image: mysql:8\.0/);
-    expect(compose).toMatch(/image: redis:7-alpine/);
-    expect(compose).toMatch(/volumes:\s*\n\s*mysql_data:/);
+  it('mobile enabled → compose includes mobile service', () => {
+    const m = { ...manifest, docker: { mobile: { enabled: true } } };
+    const c = resolveDockerContext(m, 'twgg', '8.12.0');
+    const compose = generateProdDockerCompose(c);
+    expect(compose).toMatch(/container_name: twgg-mobile/);
+    expect(generateRootDockerfile(c)).toMatch(/FROM nginx:alpine AS mobile-prod/);
   });
 
-  it('dockerignore excludes build artifacts & secrets', () => {
-    const di = generateDockerignore();
-    expect(di).toMatch(/\*\*\/node_modules/);
-    expect(di).toMatch(/\*\*\/dist/);
-    expect(di).toMatch(/\*\*\/\.next/);
-    expect(di).toMatch(/\.git/);
-    expect(di).toMatch(/\.env/);
-    expect(di).toMatch(/!\.env\.example/);
+  it('postgres engine', () => {
+    const m = { ...manifest, docker: { db: { engine: 'postgres' as const } } };
+    const c = resolveDockerContext(m, 'twgg', '8.12.0');
+    expect(c.db?.engine).toBe('postgres');
+    expect(c.db?.version).toBe('16-alpine');
+    expect(generateProdDockerCompose(c)).toMatch(/image: postgres:16-alpine/);
+  });
+
+  it('mobile nginx conf + env.example + dockerignore', () => {
+    expect(generateMobileNginxConf(10086)).toMatch(/listen 10086/);
+    expect(generateMobileNginxConf()).toMatch(/try_files \$uri \$uri\/ \/index\.html/);
+    const env = generateDockerEnvExample(ctx());
+    expect(env).toMatch(/MYSQL_ROOT_PASSWORD=change-me-root/);
+    expect(env).toMatch(/DATABASE_URL=mysql:\/\/twgg/);
+    expect(generateDockerignore()).toMatch(/\*\*\/node_modules/);
   });
 });

@@ -3,7 +3,7 @@ import path from 'path';
 import { logger } from './logger';
 import { copyTemplateFiles } from './copy-template';
 import { generateDockerCompose } from './compose';
-import { generateAppDockerfile, generateProdDockerCompose, generateDockerignore, AppDockerTarget } from './docker-gen';
+import { resolveDockerContext, generateRootDockerfile, generateProdDockerCompose, generateDockerignore, generateMobileNginxConf, generateHostNginxExample, generateDockerEnvExample } from './docker-gen';
 import { version as cliVersion } from '../../package.json';
 
 interface ProjectConfig {
@@ -188,21 +188,38 @@ ${appsLines.join('\n')}
   await fs.writeFile('svton.config.ts', svtonConfig);
 }
 
-/** 写入 Docker 产物(Dockerfile + 生产 compose + .dockerignore)。在 copyTemplateFiles 之后调用,确保 apps/<app>/ 已存在。 */
+/** 写入生产级 Docker 产物(根多阶段 Dockerfile + 生产 compose + .dockerignore + mobile nginx + .env.example)。
+ *  在 copyTemplateFiles 之后调用,确保 apps/<app>/ 已存在。 */
 async function writeDockerArtifacts(config: ProjectConfig): Promise<void> {
-  const { projectName, template } = config;
+  const { projectName, template, packageManager } = config;
   const hasBackend = template === 'full-stack' || template === 'backend-only';
   const hasAdmin = template === 'full-stack' || template === 'admin-only';
-  // 给可容器化的 app(nest/next)生成 Dockerfile;mobile(taro)是构建产物,不容器化。
-  const dockerApps: AppDockerTarget[] = [];
-  if (hasBackend) dockerApps.push({ name: 'backend', dir: 'apps/backend', type: 'nest', port: 3000 });
-  if (hasAdmin) dockerApps.push({ name: 'admin', dir: 'apps/admin', type: 'next', port: 3001 });
-  if (dockerApps.length === 0) return;
-  for (const app of dockerApps) {
-    await fs.writeFile(path.join(app.dir, 'Dockerfile'), generateAppDockerfile(app));
-  }
-  await fs.writeFile('docker-compose.prod.yml', generateProdDockerCompose({ projectName, apps: dockerApps }));
+  const hasMobile = template === 'full-stack' || template === 'mobile-only';
+  if (!hasBackend && !hasAdmin) return;
+
+  // 构造与 manifest 等价的结构,用 resolveDockerContext 算出上下文(复用 docker init 的同套生成器)
+  const apps: Record<string, { dir: string; type: 'nest' | 'next' | 'taro'; port?: number; ready?: { http: string } }> = {};
+  if (hasBackend) apps.backend = { dir: 'apps/backend', type: 'nest', port: 3000, ready: { http: 'http://localhost:3000/api' } };
+  if (hasAdmin) apps.admin = { dir: 'apps/admin', type: 'next', port: 3001, ready: { http: 'http://localhost:3001/' } };
+  if (hasMobile) apps.mobile = { dir: 'apps/mobile', type: 'taro', port: 10086 };
+  const manifestLike = {
+    schema: 1 as const,
+    apps,
+    ...(hasBackend ? { database: { orm: 'prisma' as const, dir: 'apps/backend' } } : {}),
+  };
+  const pnpmVersion = (packageManager && packageManager.startsWith('pnpm@')) ? packageManager.slice('pnpm@'.length) : '8.12.0';
+  const ctx = resolveDockerContext(manifestLike, projectName, pnpmVersion);
+
+  await fs.writeFile('Dockerfile', generateRootDockerfile(ctx));
+  await fs.writeFile('docker-compose.prod.yml', generateProdDockerCompose(ctx));
   await fs.writeFile('.dockerignore', generateDockerignore());
+  await fs.writeFile('.env.example', generateDockerEnvExample(ctx));
+  if (hasMobile) {
+    await fs.ensureDir('apps/mobile');
+    await fs.writeFile('apps/mobile/nginx.conf', generateMobileNginxConf(10086));
+  }
+  await fs.ensureDir('nginx');
+  await fs.writeFile(`nginx/${projectName}.conf.example`, generateHostNginxExample(ctx));
 }
 
 async function generateReadme(config: ProjectConfig): Promise<string> {

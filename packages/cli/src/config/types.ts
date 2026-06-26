@@ -56,9 +56,96 @@ export interface SvtonServicesConfig {
   compose?: string;
 }
 
+export interface SvtonDockerHealthcheck {
+  /** 健康检查 HTTP 路径(追加到容器内 baseURL)。默认从 app.ready.http 自动推导。 */
+  path?: string;
+  interval?: string; // 默认 '15s'
+  timeout?: string; // 默认 '5s'
+  retries?: number; // 默认 10
+  startPeriod?: string; // 默认 '30s'
+}
+
+export interface SvtonDockerImageConfig {
+  /** runtime 基础镜像 tag,默认 '20-alpine'。 */
+  nodeVersion?: string;
+  /** pnpm 版本;默认读根 packageManager,回退 '8.12.0'。 */
+  pnpmVersion?: string;
+  /** 镜像 tag 策略:'sha'(git 短 sha,默认)|'version'(package.json 版本)|'latest'。 */
+  tagPolicy?: 'sha' | 'version' | 'latest';
+  /** registry 前缀(如 'ghcr.io/myorg');设了才允许 --push。 */
+  registry?: string;
+}
+
+export interface SvtonDockerDbConfig {
+  /** 引擎,默认 'mysql'(有 backend 时)。 */
+  engine?: 'mysql' | 'postgres';
+  /** 镜像 tag(不含引擎前缀),默认 '8.0' / '16-alpine'。 */
+  version?: string;
+  /** 绑定主机,默认 '127.0.0.1'(仅本机可达)。 */
+  bindHost?: string;
+  /** 主机端口,默认 3306 / 5432。 */
+  port?: number;
+  /** compose profile 门控,默认 'db'。 */
+  profile?: string;
+  /** false=用外部托管 DB(移除 db 服务),默认 true。 */
+  enabled?: boolean;
+  /** DB 启动参数(command:),默认 twgg 调参集。 */
+  commandArgs?: string[];
+}
+
+export interface SvtonDockerRedisConfig {
+  version?: string; // 默认 '7-alpine'
+  bindHost?: string; // 默认 '127.0.0.1'
+  port?: number; // 默认 6379
+  enabled?: boolean; // 默认 true
+}
+
+export interface SvtonDockerMobileConfig {
+  /** 是否生成 mobile(taro h5)nginx 静态服务,默认 false(opt-in)。 */
+  enabled?: boolean;
+  /** nginx 监听端口,默认 10086。 */
+  port?: number;
+}
+
+export interface SvtonDockerLoggingConfig {
+  driver?: 'json-file' | 'local'; // 默认 'json-file'
+  maxSize?: string; // 默认 '10m'
+  maxFile?: number; // 默认 3
+}
+
+export interface SvtonDockerAppOverride {
+  /** 覆盖容器端口映射,默认取 app.port。 */
+  port?: number;
+  healthcheck?: SvtonDockerHealthcheck;
+  /** 关闭该 app 的自动健康检查。 */
+  healthcheckDisabled?: boolean;
+  /** 显式 depends_on(带 service_healthy),默认从 app.dependsOn 推。 */
+  dependsOn?: string[];
+}
+
 export interface SvtonDockerConfig {
-  /** 生产 compose 文件相对路径，默认 `docker-compose.prod.yml`。 */
+  /** 生产 compose 文件相对路径,默认 'docker-compose.prod.yml'。 */
   prodCompose?: string;
+  /** 用单根多阶段 Dockerfile(twgg 模式,默认 true)还是 per-app。 */
+  rootDockerfile?: boolean;
+  /** 根 Dockerfile 路径(rootDockerfile=true 时),默认 'Dockerfile'。 */
+  dockerfilePath?: string;
+  /** 是否生成宿主机 nginx 反向代理参考配置(单域名 /api→backend),默认 true。 */
+  hostNginxExample?: boolean;
+
+  image?: SvtonDockerImageConfig;
+  db?: SvtonDockerDbConfig;
+  redis?: SvtonDockerRedisConfig;
+  mobile?: SvtonDockerMobileConfig;
+  logging?: SvtonDockerLoggingConfig;
+  /** 所有服务重启策略,默认 'unless-stopped'。 */
+  restart?: 'unless-stopped' | 'always' | 'on-failure' | 'no';
+  /** 按 manifest.apps 名称索引的 per-app 覆盖。 */
+  apps?: Record<string, SvtonDockerAppOverride>;
+  /** 额外 build arg(注入每次构建)。 */
+  buildArgs?: Record<string, string>;
+  /** 额外 env_file(除 .env 外 compose 加载)。 */
+  envFiles?: string[];
 }
 
 export interface SvtonProjectConfig {

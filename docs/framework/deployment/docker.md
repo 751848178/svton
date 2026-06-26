@@ -64,11 +64,48 @@ svton docker down
 
 ---
 
-## 环境变量
+## 可配 / CLI flag / 写死 —— 边界
 
-生产 compose 默认注入:
+`svton docker` 的设计原则:**零配置即出生产级栈**(全靠写死的观点默认),每个 config 字段都是 override;**密钥绝不进 config**(走 `.env`)。
 
-- 后端:`DATABASE_URL=mysql://root:root123456@mysql:3306/<project>`、`REDIS_URL=redis://redis:6379`、`PORT`。
+### 可配(`svton.config.ts` 的 `docker:` 段,持久、非密钥)
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `image.nodeVersion` | `20-alpine` | runtime 基础镜像 |
+| `image.pnpmVersion` | 取根 `packageManager` | 跟随仓库声明 |
+| `image.tagPolicy` | `sha` | `sha`(git 短 sha)/`version`/`latest` |
+| `image.registry` | 无 | 设了才允许 `--push` |
+| `db.engine` | `mysql` | `mysql`/`postgres`;`db.enabled:false` 用外部托管 DB |
+| `db.version` / `db.bindHost`(默认 `127.0.0.1`) / `db.port` / `db.commandArgs` | `8.0`/loopback/3306/调参 | |
+| `redis.{version,bindHost,port,enabled}` | `7-alpine`/loopback/6379/`true` | |
+| `mobile.enabled` / `mobile.port` | `false`(opt-in) / `10086` | taro h5→nginx 静态 |
+| `logging.{driver,maxSize,maxFile}` | `json-file`/`10m`/`3` | 日志轮转 |
+| `restart` | `unless-stopped` | |
+| `apps.<name>.healthcheck.path` | 自动从 `app.ready.http` 推 | 覆盖健康路径 |
+| `buildArgs` / `envFiles` | `{}` / `[]` | 额外 build arg / env_file |
+
+### CLI flags(每次调用)
+`init`: `--force` `--template root|per-app` `--db mysql|postgres|none` `--mobile`/`--no-mobile` `--no-healthchecks`
+`build`: `--service <n>` `--no-cache` `--build-arg K=V` `--push`(需 registry)
+`up`: `--service <n>` `--profile <n>`(默认 `db`) `--no-build`
+`down`: `--volumes` `--rmi all|local`
+`logs`: `--service <n>` `--tail <n>`
+所有: `--file <path>`
+
+### 写死(观点默认,需改则编辑生成文件)
+多阶段拓扑(base→deps→builder→deps-prod→`<app>-prod`)、`--frozen-lockfile`、非 root 用户、alpine+apk 安全集、Next standalone、backend 独立 prisma-cli + `generate→migrate deploy→start` 启动序、healthcheck/logging 的 anchor 形态、`depends_on: service_healthy`、`.dockerignore`、容器命名 `<project>-<app>`。
+
+> 这些是「正确做法」的固化,暴露成 config 只会引入错误组合。要偏离就编辑生成的 `Dockerfile`/`docker-compose.prod.yml`(它们是普通文件,可读可改)。
+
+---
+
+## 环境变量(密钥)
+
+**密钥不放 config,放 `.env`**(gitignored);compose 用 `${VAR}` 插值。`svton docker init` 生成 `.env.example` 作 schema:
+
+```bash
+cp .env.example .env   # 填入真实值
+```
 - 前端:`NEXT_PUBLIC_API_URL=http://localhost:<backendPort>/api`、`PORT`。
 
 > 生产环境请改 `MYSQL_ROOT_PASSWORD` 等敏感值(编辑 `docker-compose.prod.yml` 或用 `.env` + `env_file`)。

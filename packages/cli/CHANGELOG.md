@@ -1,5 +1,16 @@
 # @svton/cli
 
+## 2.5.0
+
+### Minor Changes
+
+- feat:`svton docker` 升级到**生产级**(吸收 twgg 生产最佳实践),成为生态基建默认。
+  - **单根多阶段 Dockerfile**(base→deps→builder→deps-prod→`<app>-prod`):非 root 用户、`--frozen-lockfile`、deps-prod 精简 prod 依赖、backend 独立 prisma-cli(避开 workspace 协议)、Next standalone、mobile→nginx 静态、apk 安全集。
+  - **生产 compose**:x-logging/x-healthcheck anchors、每服务 healthcheck(路径从 `app.ready.http` 自动推)、`depends_on: condition: service_healthy`、MySQL/Redis 仅绑 `127.0.0.1`、MySQL 调参、**密钥全部 `${VAR}` 插值**(不再硬编码)、db 用 compose `profile: db` 门控、image tag。
+  - **明确「可配 / flag / 写死」边界**(详见文档):`svton.config.ts` 的 `docker:` 段管形状(image 版本/db 引擎与绑定/mobile/logging…),CLI flags 管操作(`--db`/`--mobile`/`--no-cache`/`--build-arg`/`--push`/`--profile`/`--rmi`/`--tail`…),多阶段拓扑/安全默认/prisma 流程写死。密钥走 `.env`(生成 `.env.example`)。
+  - 新增:mobile nginx 静态配置、宿主机 nginx 反代示例(`nginx/<project>.conf.example`)。
+  - 修复回归:`--no-frozen`→`--frozen`、硬编码 db 密码→`${VAR}`、`depends_on` 列表→condition、taro 无条件过滤→看 `docker.mobile.enabled`。
+
 ## 2.4.0
 
 ### Minor Changes
