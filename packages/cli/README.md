@@ -42,6 +42,7 @@ svton doctor [--fix]     # 环境 & 项目体检
 svton env check [app]    # 比对 .env 与 .env.example
 svton db <generate|migrate|studio|...>   # Prisma 生命周期
 svton services <init|up|down|status>     # 本地 MySQL/Redis(docker compose)
+svton docker <init|build|up|down|logs>   # 容器化生产(镜像内构建,无需手动 build)
 svton generate <module|app|package|api-contract> [name]   # 代码生成(别名 g)
 
 # AI agent skills
@@ -144,6 +145,7 @@ svton skill list --out-dir ./dist/skills
 | `svton env check [app]` | 比对 `.env` 与 `.env.example`,列出缺失 key(`--fix` 自动补建) |
 | `svton db <generate\|migrate\|migrate:deploy\|studio\|seed\|init>` | Prisma 生命周期(自动定位含 `prisma/schema.prisma` 的 app) |
 | `svton services <init\|up\|down\|status>` | 本地 MySQL/Redis(`docker compose`;无 compose 时先 `init` 生成) |
+| `svton docker <init\|build\|up\|down\|logs>` | 容器化生产部署:**镜像内构建** + 起整套(apps + mysql + redis);无需手动 `svton build` |
 | `svton generate <module\|app\|package\|api-contract> [name]` | 代码生成器(别名 `g`;`module` 已实现,自动接线进 `app.module.ts`) |
 
 > 生命周期命令的设计原则是**不重造 turbo** —— 仅做稳定入口 + Svton 专有的人性化(端口/健康/env/db/生成器)。

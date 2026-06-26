@@ -77,7 +77,16 @@ svton env check [app] [--fix]        # 比对 .env 与 .env.example
 svton db <generate|migrate|migrate:deploy|studio|seed|init>   # Prisma 生命周期
 svton services <init|up|down|status>                           # 本地 MySQL/Redis(docker compose)
 svton generate <module|app|package|api-contract> [name]        # 代码生成(别名 g;module 自动接线 app.module.ts)
+
+# 容器化生产(镜像内构建,无需手动 build)
+svton docker init        # 生成 Dockerfile + docker-compose.prod.yml + .dockerignore(给 next 补 standalone)
+svton docker build [app] # 构建镜像
+svton docker up [app]    # 构建并起整套(apps + mysql + redis)
+svton docker down        # 停止(--volumes 连带数据卷)
+svton docker logs [app]  # 跟踪日志
 ```
+
+> 生产部署首选 `svton docker up`(详见 [Docker 部署](./deployment/docker))。`svton start` 是本地裸跑已构建产物,需先 `svton build`;`svton dev` 是开发热重载。已有自定义 Dockerfile/compose 的项目(如自带 nginx 方案)可不用 `svton docker`,直接用自己的 compose。
 
 #### Svton 清单(混合 manifest)
 
