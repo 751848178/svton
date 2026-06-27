@@ -45,6 +45,7 @@ describe('docker-gen (production-grade)', () => {
     expect(df).toMatch(/FROM node:20-alpine AS backend-prod/);
     expect(df).toMatch(/adduser -S backendjs/); // non-root
     expect(df).toMatch(/\/app\/prisma-cli/); // independent prisma CLI
+    expect(df).toMatch(/npm install --userconfig=\/app\/\.npmrc prisma@5/); // uses generated registry
     expect(df).toMatch(/prisma generate.*migrate deploy.*node/); // startup ordering
     expect(df).toMatch(/FROM node:20-alpine AS admin-prod/);
     expect(df).toMatch(/\.next\/standalone/); // next standalone

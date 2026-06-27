@@ -36,6 +36,7 @@ export async function cli() {
     .option('--skip-git', 'Skip Git initialization')
     .option('-t, --template <template>', 'Template to use', 'full-stack')
     .option('-p, --package-manager <pm>', 'Package manager to use', 'pnpm')
+    .option('--registry <url>', 'NPM registry for generated project and dependency install')
     .option('-y, --yes', 'Skip all prompts and use defaults')
     .action(createProject);
 
@@ -149,7 +150,7 @@ export async function cli() {
 
   program
     .command('docker <command>')
-    .description('Production Docker for svton projects — build inside the image (init|build|up|down|logs)')
+    .description('Production Docker for svton projects — build inside the image (init|build|up|restart|down|logs|check)')
     .option('--force', 'init: overwrite generated files')
     .option('--template <root|per-app>', 'init: Dockerfile style (default root)', 'root')
     .option('--db <mysql|postgres|none>', 'init: database engine')
@@ -163,6 +164,9 @@ export async function cli() {
     .option('--push', 'build: build then push (requires docker.image.registry)')
     .option('--profile <name>', 'up/down: compose profile (repeatable, default db)', (v: string, acc: string[]) => { acc.push(v); return acc; }, [])
     .option('--no-build', 'up: skip --build')
+    .option('--build', 'restart: rebuild images and recreate containers')
+    .option('--serial', 'build/up: build apps one at a time (lower peak memory on small servers)')
+    .option('--no-serial', 'build/up: build in parallel (default)')
     .option('--volumes', 'down: also remove named volumes')
     .option('--rmi <all|local>', 'down: also remove images')
     .option('--tail <n>', 'logs: tail N lines', (v: string) => Number(v))

@@ -36,8 +36,9 @@ export interface ResolvedDockerContext {
     profile: string;
     enabled: boolean;
     commandArgs: string[];
+    volumePath?: string;
   };
-  redis: { version: string; bindHost: string; port: number; enabled: boolean };
+  redis: { version: string; bindHost: string; port: number; enabled: boolean; volumePath?: string };
   logging: { driver: string; maxSize: string; maxFile: number };
   restart: string;
   imageRegistry?: string;
@@ -111,12 +112,14 @@ export function resolveDockerContext(
       profile: d.db?.profile ?? 'db',
       enabled: d.db?.enabled ?? hasBackend,
       commandArgs: d.db?.commandArgs ?? DEFAULT_MYSQL_ARGS,
+      volumePath: d.db?.volumePath,
     },
     redis: {
       version: d.redis?.version ?? '7-alpine',
       bindHost: d.redis?.bindHost ?? '127.0.0.1',
       port: d.redis?.port ?? 6379,
       enabled: d.redis?.enabled ?? true,
+      volumePath: d.redis?.volumePath,
     },
     logging: {
       driver: d.logging?.driver ?? 'json-file',
@@ -226,7 +229,7 @@ function generateAppTarget(app: AppDockerTarget): string[] {
     app.type === 'nest'
       ? [
           '# 独立 prisma CLI(避开 workspace 协议):启动时 generate + migrate deploy',
-          'RUN mkdir -p /app/prisma-cli && cd /app/prisma-cli && npm init -y >/dev/null && npm install prisma@5 >/dev/null',
+          'RUN mkdir -p /app/prisma-cli && cd /app/prisma-cli && npm init -y >/dev/null && npm install --userconfig=/app/.npmrc prisma@5 >/dev/null',
           `ENV NODE_PATH=/app/${app.dir}/node_modules:/app/node_modules`,
           `CMD ["sh", "-c", "/app/prisma-cli/node_modules/.bin/prisma generate --schema=./${app.dir}/prisma/schema.prisma && /app/prisma-cli/node_modules/.bin/prisma migrate deploy --schema=./${app.dir}/prisma/schema.prisma && node ${app.dir}/${distMain}"]`,
         ]
@@ -278,7 +281,7 @@ export function generateProdDockerCompose(ctx: ResolvedDockerContext): string {
     ports:
       - '${db.bindHost}:${db.port}:3306'
     volumes:
-      - mysql_data:/var/lib/mysql
+      - ${db.volumePath ? `'${db.volumePath}'` : 'mysql_data'}:/var/lib/mysql
     healthcheck:
       test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 --silent']
       interval: 5s
@@ -296,7 +299,7 @@ export function generateProdDockerCompose(ctx: ResolvedDockerContext): string {
     ports:
       - '${redis.bindHost}:${redis.port}:6379'
     volumes:
-      - redis_data:/data
+      - ${redis.volumePath ? `'${redis.volumePath}'` : 'redis_data'}:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -369,8 +372,8 @@ ${envLines.map((l) => `      ${l}`).join('\n')}${hc}${depBlock}`,
   }
 
   const volumes = [];
-  if (hasDb) volumes.push('  mysql_data:');
-  if (redis?.enabled) volumes.push('  redis_data:');
+  if (hasDb && !db.volumePath) volumes.push('  mysql_data:');
+  if (redis?.enabled && !redis.volumePath) volumes.push('  redis_data:');
 
   return `# 由 @svton/cli 生成 —— 生产编排(镜像内构建)
 # 密钥从仓库根 .env 插值(复制 .env.example 为 .env 并填值)

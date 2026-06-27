@@ -5,12 +5,14 @@ import { copyTemplateFiles } from './copy-template';
 import { generateDockerCompose } from './compose';
 import { resolveDockerContext, generateRootDockerfile, generateProdDockerCompose, generateDockerignore, generateMobileNginxConf, generateHostNginxExample, generateDockerEnvExample } from './docker-gen';
 import { version as cliVersion } from '../../package.json';
+import { createNpmrc } from './registry';
 
 interface ProjectConfig {
   projectName: string;
   orgName: string;
   template: string;
   packageManager: string;
+  registry: string;
   installDeps: boolean;
   initGit: boolean;
   projectPath: string;
@@ -33,7 +35,7 @@ export async function generateFromTemplate(config: ProjectConfig): Promise<void>
 }
 
 async function createRootFiles(config: ProjectConfig): Promise<void> {
-  const { projectName, orgName, packageManager, template } = config;
+  const { projectName, orgName, packageManager, registry, template } = config;
   
   // package.json
   const packageJson = {
@@ -147,10 +149,7 @@ coverage/
   await fs.writeFile('.gitignore', gitignore);
 
   // .npmrc
-  const npmrc = `auto-install-peers=true
-strict-peer-dependencies=false
-`;
-  await fs.writeFile('.npmrc', npmrc);
+  await fs.writeFile('.npmrc', createNpmrc(registry));
 
   // docker-compose.yml（与 `svton services init` 共用同一生成器）
   const dockerCompose = generateDockerCompose({ projectName });

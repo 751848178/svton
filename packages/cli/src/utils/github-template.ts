@@ -1,29 +1,59 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import os from 'os';
 import { logger } from './logger';
 
-const GITHUB_REPO = '751848178/svton';
-const GITHUB_BRANCH = 'master';
+const DEFAULT_GITHUB_REPO = '751848178/svton';
+const DEFAULT_GITHUB_BRANCH = 'master';
+const DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 30;
 
 interface DownloadOptions {
   repo?: string;
   branch?: string;
+  archiveUrl?: string;
+  timeoutSeconds?: number;
+}
+
+export function resolveTemplateArchiveUrl(options: DownloadOptions = {}): string {
+  if (options.archiveUrl || process.env.SVTON_TEMPLATE_ARCHIVE_URL) {
+    return (options.archiveUrl || process.env.SVTON_TEMPLATE_ARCHIVE_URL)!;
+  }
+
+  const repo = options.repo || process.env.SVTON_TEMPLATE_REPO || DEFAULT_GITHUB_REPO;
+  const branch = options.branch || process.env.SVTON_TEMPLATE_BRANCH || DEFAULT_GITHUB_BRANCH;
+  return `https://github.com/${repo}/archive/refs/heads/${branch}.tar.gz`;
+}
+
+function resolveTimeoutSeconds(options: DownloadOptions): number {
+  const value = options.timeoutSeconds ?? Number(process.env.SVTON_TEMPLATE_DOWNLOAD_TIMEOUT || DEFAULT_DOWNLOAD_TIMEOUT_SECONDS);
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_DOWNLOAD_TIMEOUT_SECONDS;
+}
+
+async function findTemplateDir(tempDir: string): Promise<string | null> {
+  const direct = path.join(tempDir, 'templates');
+  if (await fs.pathExists(direct)) return direct;
+
+  const entries = await fs.readdir(tempDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const templateDir = path.join(tempDir, entry.name, 'templates');
+    if (await fs.pathExists(templateDir)) return templateDir;
+  }
+
+  return null;
 }
 
 /**
- * 从 GitHub 下载模板到临时目录
+ * 从远端归档下载模板到临时目录
  * @returns 模板目录路径
  */
 export async function downloadTemplateFromGitHub(options: DownloadOptions = {}): Promise<string> {
-  const repo = options.repo || GITHUB_REPO;
-  const branch = options.branch || GITHUB_BRANCH;
-  
   const tempDir = path.join(os.tmpdir(), `svton-template-${Date.now()}`);
-  const archiveUrl = `https://github.com/${repo}/archive/refs/heads/${branch}.tar.gz`;
+  const archiveUrl = resolveTemplateArchiveUrl(options);
+  const timeoutSeconds = String(resolveTimeoutSeconds(options));
   
-  logger.debug(`Downloading template from GitHub: ${archiveUrl}`);
+  logger.debug(`Downloading template archive: ${archiveUrl}`);
   
   try {
     // 创建临时目录
@@ -33,7 +63,7 @@ export async function downloadTemplateFromGitHub(options: DownloadOptions = {}):
     const tarFile = path.join(tempDir, 'template.tar.gz');
     
     // 使用 curl 下载（-L 跟随重定向，-f 失败时返回错误码）
-    execSync(`curl -fsSL "${archiveUrl}" -o "${tarFile}"`, {
+    execFileSync('curl', ['-fsSL', '--connect-timeout', timeoutSeconds, '--max-time', timeoutSeconds, archiveUrl, '-o', tarFile], {
       stdio: 'pipe',
     });
     
@@ -44,21 +74,16 @@ export async function downloadTemplateFromGitHub(options: DownloadOptions = {}):
     }
     
     // 解压
-    execSync(`tar -xzf "${tarFile}" -C "${tempDir}"`, {
+    execFileSync('tar', ['-xzf', tarFile, '-C', tempDir], {
       stdio: 'pipe',
     });
     
     // 删除压缩包
     await fs.remove(tarFile);
     
-    // 找到解压后的目录（格式为 repo-branch）
-    const repoName = repo.split('/')[1];
-    const extractedDir = path.join(tempDir, `${repoName}-${branch}`);
+    const templateDir = await findTemplateDir(tempDir);
     
-    // 返回 templates 目录路径
-    const templateDir = path.join(extractedDir, 'templates');
-    
-    if (await fs.pathExists(templateDir)) {
+    if (templateDir) {
       logger.debug(`Template downloaded to: ${templateDir}`);
       return templateDir;
     }
@@ -76,11 +101,14 @@ export async function downloadTemplateFromGitHub(options: DownloadOptions = {}):
  */
 export async function cleanupTemplateDir(templateDir: string): Promise<void> {
   try {
-    // 向上两级找到临时根目录
-    const tempRoot = path.dirname(path.dirname(templateDir));
-    if (tempRoot.includes('svton-template-')) {
-      await fs.remove(tempRoot);
-      logger.debug(`Cleaned up temp directory: ${tempRoot}`);
+    let current = templateDir;
+    while (current !== path.dirname(current)) {
+      if (path.basename(current).startsWith('svton-template-')) {
+        await fs.remove(current);
+        logger.debug(`Cleaned up temp directory: ${current}`);
+        return;
+      }
+      current = path.dirname(current);
     }
   } catch (error) {
     logger.debug(`Failed to cleanup temp directory: ${error}`);

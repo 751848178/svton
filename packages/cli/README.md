@@ -57,6 +57,7 @@ svton skill build [skill] [options]
 - `--skip-git` - 跳过 Git 初始化
 - `-t, --template <template>` - 使用的模板（full-stack、backend-only、admin-only、mobile-only）
 - `-p, --package-manager <pm>` - 包管理器（npm、yarn、pnpm）
+- `--registry <url>` - 生成项目 `.npmrc` 和本次自动安装使用的 npm registry（默认：`https://registry.npmmirror.com`）
 
 ### 示例
 
@@ -72,7 +73,29 @@ svton create my-api --template backend-only
 
 # 跳过依赖安装
 svton create my-app --skip-install
+
+# 使用公司内网 npm 镜像
+svton create my-app --registry https://npm.my-company.internal
 ```
+
+### 网络源配置
+
+`svton create` 生成的项目默认写入 `.npmrc`：
+
+```ini
+registry=https://registry.npmmirror.com
+auto-install-peers=true
+strict-peer-dependencies=false
+```
+
+如需临时覆盖，可使用 `--registry <url>`；如需在 CI 或团队环境统一覆盖，可设置 `SVTON_NPM_REGISTRY`。
+
+CLI 发布包会优先使用随包携带的 `templates/`，正常创建项目不需要访问 GitHub。仅当包内模板和仓库根模板都缺失时才会下载远端模板；可用以下环境变量覆盖远端来源：
+
+- `SVTON_TEMPLATE_ARCHIVE_URL` - 直接指定模板 tar.gz 地址
+- `SVTON_TEMPLATE_REPO` - 指定 GitHub 形式的 `owner/repo`
+- `SVTON_TEMPLATE_BRANCH` - 指定模板分支
+- `SVTON_TEMPLATE_DOWNLOAD_TIMEOUT` - 指定下载超时时间（秒）
 
 ## Skill 命令
 

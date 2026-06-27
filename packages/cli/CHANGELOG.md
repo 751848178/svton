@@ -1,5 +1,47 @@
 # @svton/cli
 
+## 2.5.6
+
+### Patch Changes
+
+- fix: **内存不足时自动串行构建** —— 不再需要手动加 `--serial`。检测 `/proc/meminfo`(`MemAvailable < 3GB` + `SwapTotal < 2GB`)→ 自动启用串行(一个一个 build,防 OOM);内存充足的大机器仍然并行(快)。可用 `--no-serial` 覆盖或 `docker.serial:true` 固化。
+
+## 2.5.5
+
+### Patch Changes
+
+- feat: `svton docker check` + 自动预检 —— `up`/`build`/`restart` 前自动检查项目状态,问题不再变成 mysql 崩溃等哑错。检测项:
+  - **错误(阻断)**:.env 缺失/变量空、pnpm-lock.yaml 缺失(--frozen-lockfile 会失败)。
+  - **警告(交互式确认)**:.npmrc 无镜像源(build 慢)、prisma migrations 不存在、backend 无健康端点、DATABASE_URL 用了 localhost(容器连不到)、内存/swap 太低(可能 OOM)。
+  - TTY 下警告会交互式问 y/N;非 TTY 直接放行。
+  - 新增 `svton docker check` 命令单独跑预检(不需 Docker/compose)。
+
+## 2.5.4
+
+### Patch Changes
+
+- feat: `svton docker restart` —— 新增重启命令。默认快速重启(不重建,= `docker compose restart`);`--build` 则重新构建镜像并重建容器(走 up 的 build+recreate,串行/并行与 `up` 一致)。支持 `--service <name>` 重启单个 app。
+
+## 2.5.3
+
+### Patch Changes
+
+- fix:`svton docker up/down` 起飞前检查 `.env` —— compose 用 `${VAR}` 插值,`.env` 缺失或缺关键变量(MYSQL_ROOT_PASSWORD/DATABASE_URL/JWT_SECRET)时,直接报「`cp .env.example .env` 并填值」,不再让 mysql 崩成 `password option is not specified` 的哑错。占位值(change-me-…)非空、可用于首跑,放行。
+
+## 2.5.2
+
+### Patch Changes
+
+- fix: `svton docker build/up --serial` —— 串行构建各 app 镜像(一次只 build 一个),避免 BuildKit 并行构建(next+taro+nest 同时跑)在小内存服务器上打爆内存导致 SSH 断开/OOM。`docker.serial` 可作项目默认(小服务器建议开);`--profile` 默认改为读 `config.docker.db.profile`(此前写死 `db`)。
+
+## 2.5.1
+
+### Patch Changes
+
+- fix: `svton create` 默认使用 `https://registry.npmmirror.com` 写入生成项目 `.npmrc`,并在自动安装依赖时透传 registry;支持 `--registry` 与 `SVTON_NPM_REGISTRY` 覆盖。
+- fix: 发布包优先携带并读取内置 `templates`,正常创建项目不再依赖 GitHub 模板下载;远程模板回退支持 `SVTON_TEMPLATE_ARCHIVE_URL` / `SVTON_TEMPLATE_REPO` / `SVTON_TEMPLATE_BRANCH` 配置。
+- fix: Docker 生成的 Prisma helper 安装改为读取项目 `.npmrc`,避免构建阶段绕过镜像源。
+
 ## 2.5.0
 
 ### Minor Changes

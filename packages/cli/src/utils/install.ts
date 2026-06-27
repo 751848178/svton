@@ -1,13 +1,17 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { logger } from './logger';
 
-export async function installDependencies(packageManager: string): Promise<void> {
+interface InstallOptions {
+  registry?: string;
+}
+
+export async function installDependencies(packageManager: string, options: InstallOptions = {}): Promise<void> {
   try {
-    const command = getInstallCommand(packageManager);
+    const { command, args } = getInstallCommand(packageManager, options.registry);
     
-    logger.debug(`Running: ${command}`);
+    logger.debug(`Running: ${[command, ...args].join(' ')}`);
     
-    execSync(command, {
+    execFileSync(command, args, {
       stdio: 'inherit',
       cwd: process.cwd(),
     });
@@ -17,14 +21,19 @@ export async function installDependencies(packageManager: string): Promise<void>
   }
 }
 
-function getInstallCommand(packageManager: string): string {
+export function getInstallCommand(packageManager: string, registry?: string): { command: string; args: string[] } {
+  const args = ['install'];
+  if (registry) {
+    args.push(`--registry=${registry}`);
+  }
+
   switch (packageManager) {
     case 'npm':
-      return 'npm install';
+      return { command: 'npm', args };
     case 'yarn':
-      return 'yarn install';
+      return { command: 'yarn', args };
     case 'pnpm':
-      return 'pnpm install';
+      return { command: 'pnpm', args };
     default:
       throw new Error(`Unsupported package manager: ${packageManager}`);
   }
@@ -32,7 +41,7 @@ function getInstallCommand(packageManager: string): string {
 
 export function checkPackageManagerAvailable(packageManager: string): boolean {
   try {
-    execSync(`${packageManager} --version`, { stdio: 'ignore' });
+    execFileSync(packageManager, ['--version'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;

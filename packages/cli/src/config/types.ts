@@ -91,6 +91,8 @@ export interface SvtonDockerDbConfig {
   enabled?: boolean;
   /** DB 启动参数(command:),默认 twgg 调参集。 */
   commandArgs?: string[];
+  /** 宿主机数据卷挂载路径;不设=Docker 命名卷(mysql_data)。如 '/data/twgg/mysql'。 */
+  volumePath?: string;
 }
 
 export interface SvtonDockerRedisConfig {
@@ -98,6 +100,8 @@ export interface SvtonDockerRedisConfig {
   bindHost?: string; // 默认 '127.0.0.1'
   port?: number; // 默认 6379
   enabled?: boolean; // 默认 true
+  /** 宿主机数据卷挂载路径;不设=Docker 命名卷(redis_data)。如 '/data/twgg/redis'。 */
+  volumePath?: string;
 }
 
 export interface SvtonDockerMobileConfig {
@@ -144,6 +148,8 @@ export interface SvtonDockerConfig {
   apps?: Record<string, SvtonDockerAppOverride>;
   /** 额外 build arg(注入每次构建)。 */
   buildArgs?: Record<string, string>;
+  /** 串行构建各 app 镜像(一次只 build 一个),降低峰值内存,适合小内存服务器。默认 false。 */
+  serial?: boolean;
   /** 额外 env_file(除 .env 外 compose 加载)。 */
   envFiles?: string[];
 }

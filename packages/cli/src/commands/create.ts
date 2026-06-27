@@ -8,7 +8,8 @@ import { generateFromTemplate } from '../utils/template';
 import { installDependencies } from '../utils/install';
 import { initGit } from '../utils/git';
 import { logger } from '../utils/logger';
-import { downloadTemplateFromGitHub, cleanupTemplateDir } from '../utils/github-template';
+import { resolveNpmRegistry } from '../utils/registry';
+import { cleanupResolvedTemplateDir, resolveTemplateDir, ResolvedTemplateDir } from '../utils/template-source';
 import {
   loadFeaturesConfig,
   getFeatureChoices,
@@ -27,6 +28,7 @@ export interface CreateOptions {
   skipGit?: boolean;
   template?: string;
   packageManager?: 'npm' | 'yarn' | 'pnpm';
+  registry?: string;
   yes?: boolean;
 }
 
@@ -65,6 +67,7 @@ export async function createProject(projectName: string, options: CreateOptions 
         database: 'mysql', // 默认使用 MySQL
         features: [], // 默认不选择额外功能
         packageManager: options.packageManager || 'pnpm',
+        registry: options.registry,
         installDeps: !options.skipInstall,
         initGit: !options.skipGit,
       };
@@ -141,6 +144,7 @@ export async function createProject(projectName: string, options: CreateOptions 
       database: answers.database || 'mysql',
       features: answers.features || [],
       packageManager: answers.packageManager,
+      registry: resolveNpmRegistry(options.registry || answers.registry),
       installDeps: answers.installDeps,
       initGit: answers.initGit,
       projectPath,
@@ -158,6 +162,7 @@ export async function createProject(projectName: string, options: CreateOptions 
       logger.info(`  Features: ${chalk.white(config.features.join(', '))}`);
     }
     logger.info(`  Package Manager: ${chalk.white(config.packageManager)}`);
+    logger.info(`  NPM Registry: ${chalk.white(config.registry)}`);
     logger.info(`  Install Dependencies: ${chalk.white(config.installDeps ? 'Yes' : 'No')}`);
     logger.info(`  Initialize Git: ${chalk.white(config.initGit ? 'Yes' : 'No')}`);
     logger.info('');
@@ -217,40 +222,15 @@ interface ProjectConfig {
   database: string;
   features: string[];
   packageManager: string;
+  registry: string;
   installDeps: boolean;
   initGit: boolean;
   projectPath: string;
 }
 
-/**
- * 获取 template 目录
- * 优先使用本地开发环境，否则从 GitHub 下载
- */
-async function getTemplateDirectory(): Promise<string> {
-  // 1. 尝试本地开发环境路径（monorepo 根目录的 templates）
-  const cliPackageRoot = path.dirname(__dirname);
-  const frameworkRoot = path.dirname(path.dirname(cliPackageRoot));
-  const localTemplateDir = path.join(frameworkRoot, 'templates');
-  
-  if (await fs.pathExists(localTemplateDir)) {
-    logger.debug(`Using local template directory: ${localTemplateDir}`);
-    return localTemplateDir;
-  }
-  
-  // 2. 从 GitHub 下载（生产环境）
-  logger.debug('Downloading templates from GitHub for feature integration...');
-  try {
-    const templateDir = await downloadTemplateFromGitHub();
-    logger.debug('Templates downloaded successfully');
-    return templateDir;
-  } catch (error) {
-    throw new Error(`Failed to download templates from GitHub: ${error}`);
-  }
-}
-
 async function createProjectFromTemplate(config: ProjectConfig) {
   const spinner = ora('Creating project...').start();
-  let templateDirToCleanup: string | null = null;
+  let templateDirToCleanup: ResolvedTemplateDir | null = null;
 
   try {
     // 创建项目目录
@@ -267,15 +247,9 @@ async function createProjectFromTemplate(config: ProjectConfig) {
       const featuresConfig = await loadFeaturesConfig();
       
       // 获取 template 目录（与 copy-template.ts 逻辑一致）
-      const templateDir = await getTemplateDirectory();
-      
-      // 检查是否需要清理（如果不是本地开发环境）
-      const cliPackageRoot = path.dirname(__dirname);
-      const frameworkRoot = path.dirname(path.dirname(cliPackageRoot));
-      const localTemplateDir = path.join(frameworkRoot, 'templates');
-      if (templateDir !== localTemplateDir) {
-        templateDirToCleanup = templateDir;
-      }
+      const resolvedTemplate = await resolveTemplateDir();
+      const templateDir = resolvedTemplate.templateDir;
+      templateDirToCleanup = resolvedTemplate.cleanup ? resolvedTemplate : null;
 
       // 更新 package.json
       await updatePackageJson(config.features, featuresConfig, config.projectPath);
@@ -306,7 +280,7 @@ async function createProjectFromTemplate(config: ProjectConfig) {
     // 安装依赖
     if (config.installDeps) {
       spinner.text = 'Installing dependencies...';
-      await installDependencies(config.packageManager);
+      await installDependencies(config.packageManager, { registry: config.registry });
       
       // 如果是后端项目，运行 prisma generate
       if (config.template === 'backend-only' || config.template === 'full-stack') {
@@ -336,8 +310,6 @@ async function createProjectFromTemplate(config: ProjectConfig) {
     throw error;
   } finally {
     // 清理从 GitHub 下载的临时目录
-    if (templateDirToCleanup) {
-      await cleanupTemplateDir(templateDirToCleanup);
-    }
+    await cleanupResolvedTemplateDir(templateDirToCleanup);
   }
 }

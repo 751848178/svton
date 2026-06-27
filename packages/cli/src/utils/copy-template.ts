@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { logger } from './logger';
-import { downloadTemplateFromGitHub, cleanupTemplateDir } from './github-template';
+import { cleanupResolvedTemplateDir, resolveTemplateDir, ResolvedTemplateDir } from './template-source';
 
 interface TemplateConfig {
   projectName: string;
@@ -13,33 +13,18 @@ interface TemplateConfig {
 export async function copyTemplateFiles(config: TemplateConfig): Promise<void> {
   const { template, projectPath } = config;
   
-  let templateDir: string | null = null;
-  let needCleanup = false;
-  
-  // 1. 尝试本地开发环境路径（monorepo 根目录的 templates）
-  const cliPackageRoot = path.dirname(__dirname);
-  const frameworkRoot = path.dirname(path.dirname(cliPackageRoot));
-  const localTemplateDir = path.join(frameworkRoot, 'templates');
-  
-  if (await fs.pathExists(localTemplateDir)) {
-    templateDir = localTemplateDir;
-    logger.debug(`Using local template directory: ${templateDir}`);
+  let resolvedTemplate: ResolvedTemplateDir | null = null;
+
+  try {
+    resolvedTemplate = await resolveTemplateDir();
+  } catch (error) {
+    logger.warn(`Failed to resolve templates: ${error}`);
+    logger.warn('Using built-in minimal templates');
+    await copyBuiltInTemplates(config);
+    return;
   }
-  
-  // 2. 从 GitHub 下载（生产环境）
-  if (!templateDir) {
-    logger.info('Downloading templates from GitHub...');
-    try {
-      templateDir = await downloadTemplateFromGitHub();
-      needCleanup = true;
-      logger.info('Templates downloaded successfully');
-    } catch (error) {
-      logger.warn(`Failed to download templates from GitHub: ${error}`);
-      logger.warn('Using built-in minimal templates');
-      await copyBuiltInTemplates(config);
-      return;
-    }
-  }
+
+  const templateDir = resolvedTemplate.templateDir;
   
   logger.debug(`Copying template files from: ${templateDir}`);
 
@@ -71,10 +56,7 @@ export async function copyTemplateFiles(config: TemplateConfig): Promise<void> {
     }
   } finally {
     process.chdir(originalCwd);
-    // 清理从 GitHub 下载的临时目录
-    if (needCleanup && templateDir) {
-      await cleanupTemplateDir(templateDir);
-    }
+    await cleanupResolvedTemplateDir(resolvedTemplate);
   }
 }
 

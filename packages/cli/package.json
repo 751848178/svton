@@ -1,6 +1,6 @@
 {
   "name": "@svton/cli",
-  "version": "2.5.0",
+  "version": "2.5.8",
   "description": "Svton CLI - Create full-stack applications with NestJS, Next.js, and Taro",
   "keywords": [
     "cli",
@@ -17,7 +17,7 @@
   "homepage": "https://github.com/751848178/svton#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/751848178/svton.git"
+    "url": "git+https://github.com/751848178/svton.git"
   },
   "bugs": {
     "url": "https://github.com/751848178/svton/issues"
@@ -25,22 +25,25 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "svton": "./bin/svton.js"
+    "svton": "bin/svton.js"
   },
   "files": [
     "dist",
     "bin",
+    "templates",
     "features.json",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "prebuild": "node scripts/sync-templates.mjs",
+    "prepack": "node scripts/sync-templates.mjs",
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "type-check": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "jest",
-    "prepublishOnly": "pnpm build",
+    "prepublishOnly": "npm run build",
     "release": "changeset publish"
   },
   "engines": {
