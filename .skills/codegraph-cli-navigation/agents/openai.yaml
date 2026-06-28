@@ -1,4 +1,0 @@
-interface:
-  display_name: "CodeGraph CLI Navigation"
-  short_description: "Controlled graph navigation for complex code work"
-  default_prompt: "Use $codegraph-cli-navigation to map the affected code graph before fixing this complex requirement or bug."

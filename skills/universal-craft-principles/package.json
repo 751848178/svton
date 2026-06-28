@@ -7,10 +7,14 @@
     "build": "node ../scripts/build-one.mjs universal-craft-principles",
     "validate": "node ../scripts/validate-one.mjs universal-craft-principles",
     "clean": "node ../scripts/clean-one.mjs universal-craft-principles",
-    "prepack": "pnpm build && pnpm validate"
+    "prepack": "npm run build && npm run validate"
   },
   "files": [
-    "dist"
+    "SKILL.md",
+    "agents",
+    "assets",
+    "references",
+    "scripts"
   ],
   "publishConfig": {
     "access": "public"

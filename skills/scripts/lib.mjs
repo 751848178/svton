@@ -9,7 +9,6 @@ const __dirname = path.dirname(__filename);
 
 export const repoRoot = path.resolve(__dirname, '../..');
 export const skillsRoot = path.join(repoRoot, 'skills');
-export const generatedSkillsRoot = path.join(repoRoot, '.skills');
 export const codexHome = process.env.CODEX_HOME
   ? path.resolve(process.env.CODEX_HOME)
   : path.join(os.homedir(), '.codex');
@@ -23,7 +22,6 @@ const REQUIRED_ARRAY_FIELDS = [
   ['rules', 5],
   ['reviewChecklist', 4],
 ];
-const STANDARD_RESOURCE_DIRS = ['references', 'scripts', 'assets', 'agents'];
 const INTERFACE_FIELDS = [
   ['displayName', 'display_name'],
   ['shortDescription', 'short_description'],
@@ -56,8 +54,6 @@ export function getSkillPaths(skillName) {
     sourceSkillMdPath: path.join(packageDir, 'SKILL.md'),
     sourceOpenAIYamlPath: path.join(packageDir, 'agents', 'openai.yaml'),
     sourceReferencesDir: path.join(packageDir, 'references'),
-    distDir: path.join(packageDir, 'dist'),
-    generatedDir: path.join(generatedSkillsRoot, skillName),
   };
 }
 
@@ -367,7 +363,7 @@ name: ${config.name}
 description: ${yamlQuote(config.description)}
 ---
 
-<!-- Generated from skills/${skillName}/skill.config.json. Edit source instead of .skills output. -->
+<!-- Generated from skills/${skillName}/skill.config.json. Edit skill.config.json instead of this file. -->
 
 # ${config.title}
 
@@ -380,7 +376,6 @@ ${sections.join('\n\n')}
 export function validateSkill(skill, options = {}) {
   const {
     requireSourceArtifacts = true,
-    requireBuiltArtifacts = true,
     runStandardValidation = true,
   } = options;
   const { skillName, paths, packageJson, config } = skill;
@@ -558,11 +553,6 @@ export function validateSkill(skill, options = {}) {
     errors.push(...validateBuiltSkillDir(paths.packageDir, config, 'source'));
   }
 
-  if (requireBuiltArtifacts && runStandardValidation) {
-    errors.push(...validateBuiltSkillDir(paths.distDir, config, 'dist'));
-    errors.push(...validateBuiltSkillDir(paths.generatedDir, config, '.skills'));
-  }
-
   return {
     errors,
     warnings,
@@ -571,40 +561,9 @@ export function validateSkill(skill, options = {}) {
   };
 }
 
-export function ensureCleanDir(targetDir) {
-  fs.rmSync(targetDir, { recursive: true, force: true });
-  fs.mkdirSync(targetDir, { recursive: true });
-}
-
-export function copyReferenceFiles(sourceDir, targetDir) {
-  fs.mkdirSync(targetDir, { recursive: true });
-
-  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) {
-      continue;
-    }
-
-    fs.copyFileSync(path.join(sourceDir, entry.name), path.join(targetDir, entry.name));
-  }
-}
-
-export function copyStandardResourceDirs(sourceDir, targetDir) {
-  for (const dirName of STANDARD_RESOURCE_DIRS) {
-    const fromPath = path.join(sourceDir, dirName);
-    const toPath = path.join(targetDir, dirName);
-
-    if (!fs.existsSync(fromPath)) {
-      continue;
-    }
-
-    fs.cpSync(fromPath, toPath, { recursive: true });
-  }
-}
-
 export function buildSkill(skill) {
   const validation = validateSkill(skill, {
     requireSourceArtifacts: false,
-    requireBuiltArtifacts: false,
     runStandardValidation: false,
   });
 
@@ -615,8 +574,6 @@ export function buildSkill(skill) {
   const { skillName, paths, config } = skill;
 
   fs.mkdirSync(path.dirname(paths.sourceSkillMdPath), { recursive: true });
-  ensureCleanDir(paths.distDir);
-  ensureCleanDir(paths.generatedDir);
 
   fs.writeFileSync(paths.sourceSkillMdPath, validation.rendered);
 
@@ -628,12 +585,6 @@ export function buildSkill(skill) {
       errors: [...validation.errors, `failed to generate agents/openai.yaml: ${formatProcessError(error)}`],
     };
   }
-
-  fs.writeFileSync(path.join(paths.distDir, 'SKILL.md'), validation.rendered);
-  fs.writeFileSync(path.join(paths.generatedDir, 'SKILL.md'), validation.rendered);
-
-  copyStandardResourceDirs(paths.packageDir, paths.distDir);
-  copyStandardResourceDirs(paths.packageDir, paths.generatedDir);
 
   return validateSkill(loadSkill(skillName));
 }

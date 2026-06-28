@@ -1,9 +1,9 @@
 ---
 name: plan-before-code
-description: "Use at the start of non-trivial code or product work: clarify ambiguous requirements with restraint, create a persistent TODO document, summarize it, execute from it, and update each item status as completed."
+description: "Use only before starting a non-trivial code change that needs scope clarification, acceptance criteria, and a persistent TODO plan. Skip simple edits, ordinary questions, and already-scoped tasks."
 ---
 
-<!-- Generated from skills/plan-before-code/skill.config.json. Edit source instead of .skills output. -->
+<!-- Generated from skills/plan-before-code/skill.config.json. Edit skill.config.json instead of this file. -->
 
 # Plan Before Code
 
@@ -24,12 +24,10 @@ Apply this before implementation begins. The skill turns an initial user request
 
 ## Trigger Signals
 
-- start requirement clarify plan todo document status before code implementation feature bug fix refactor。
-- 需求 开始前 澄清 用户要求 开发 todo 文档 状态 更新 开发计划。
-- 用户提出一个需要实现、修改、修复、重构、接入、构建、优化或迁移的项目需求。
-- 需求里出现不确定的验收标准、目标用户、数据来源、交互流程、兼容范围或发布边界。
-- 任务需要先按需求功能维度拆分，再继续拆出原子化、可预测、上下文尽量纯净的子 TODO。
-- 已有讨论需要整理成正式开发清单，避免后续执行时忘记约束、假设或用户澄清。
+- 非平凡代码变更开始前计划 scope clarification acceptance criteria persistent TODO
+- 开始开发前 制定开发计划 写 TODO 文档 需求澄清 验收标准 范围边界
+- 跨模块多步骤改动 需要任务拆解 需要先写开发 TODO 需要明确验收路径
+- plan-before-code implementation plan development TODO non-trivial scoped code change
 
 ## Default Workflow
 

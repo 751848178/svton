@@ -94,6 +94,20 @@ export class ResourcePoolService {
     return pools.map((pool: ResourcePool) => this.formatPoolResponse(pool));
   }
 
+  async getAvailablePools(type?: string) {
+    const pools = await (this.prisma as any).resourcePool.findMany({
+      where: {
+        ...(type ? { type } : {}),
+        status: PoolStatus.ACTIVE,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return pools
+      .filter((pool: ResourcePool) => pool.allocated < pool.capacity)
+      .map((pool: ResourcePool) => this.formatPoolResponse(pool));
+  }
+
   // 获取资源池详情
   async getPool(id: string) {
     const pool = await (this.prisma as any).resourcePool.findUnique({
@@ -119,6 +133,38 @@ export class ResourcePoolService {
         userName: a.user?.name || a.user?.email,
         createdAt: a.createdAt,
       })),
+    };
+  }
+
+  async resolveAllocationInputAccessScope(teamId: string, dto: AllocateResourceDto) {
+    const project = await (this.prisma as any).project.findFirst({
+      where: { id: dto.projectId, teamId },
+      select: { id: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('项目不存在或不属于当前团队');
+    }
+
+    return {
+      projectId: project.id,
+      environmentId: null,
+    };
+  }
+
+  async getAllocationAccessScope(teamId: string, allocationId: string) {
+    const allocation = await (this.prisma as any).resourceAllocation.findFirst({
+      where: { id: allocationId, teamId },
+      select: { id: true, projectId: true },
+    });
+
+    if (!allocation) {
+      throw new NotFoundException('Allocation not found');
+    }
+
+    return {
+      projectId: allocation.projectId,
+      environmentId: null,
     };
   }
 
@@ -215,6 +261,7 @@ export class ResourcePoolService {
 
     return {
       id: allocation.id,
+      type: pool.type,
       resourceName: allocation.resourceName,
       credentials,
     };
@@ -311,23 +358,47 @@ export class ResourcePoolService {
   }
 
   // 开通资源（实际实现需要连接到资源服务器）
-  private async provisionResource(pool: { type: string; adminConfig: string }, resourceName: string) {
-    const adminConfig = JSON.parse(this.decrypt(pool.adminConfig));
+  private async provisionResource(
+    pool: { type: string; endpoint: string; adminConfig: string },
+    resourceName: string,
+  ) {
+    const adminConfig = JSON.parse(this.decrypt(pool.adminConfig)) as Record<string, unknown>;
 
     switch (pool.type) {
-      case 'mysql':
+      case 'mysql': {
         // 实际实现：连接 MySQL 创建数据库和用户
+        const mysqlEndpoint = this.parseEndpoint(pool.endpoint, 3306);
         return {
+          host: mysqlEndpoint.host,
+          port: mysqlEndpoint.port,
           database: resourceName,
           username: `user_${resourceName}`,
           password: crypto.randomBytes(16).toString('hex'),
         };
-      case 'redis':
-        // 实际实现：分配 Redis DB 或 key prefix
+      }
+      case 'postgresql': {
+        // 实际实现：连接 PostgreSQL 创建数据库和用户
+        const postgresqlEndpoint = this.parseEndpoint(pool.endpoint, 5432);
         return {
+          host: postgresqlEndpoint.host,
+          port: postgresqlEndpoint.port,
+          database: resourceName,
+          schema: 'public',
+          username: `user_${resourceName}`,
+          password: crypto.randomBytes(16).toString('hex'),
+        };
+      }
+      case 'redis': {
+        // 实际实现：分配 Redis DB 或 key prefix
+        const redisEndpoint = this.parseEndpoint(pool.endpoint, 6379);
+        return {
+          host: redisEndpoint.host,
+          port: redisEndpoint.port,
           db: Math.floor(Math.random() * 15) + 1,
+          password: typeof adminConfig.password === 'string' ? adminConfig.password : '',
           keyPrefix: `${resourceName}:`,
         };
+      }
       default:
         return { resourceName };
     }
@@ -337,6 +408,23 @@ export class ResourcePoolService {
   private async deprovisionResource(pool: { type: string; adminConfig: string }, resourceName: string) {
     // 实际实现：连接到资源服务器删除资源
     this.logger.log(`Deprovisioning ${pool.type} resource: ${resourceName}`);
+  }
+
+  private parseEndpoint(endpoint: string, defaultPort: number) {
+    try {
+      const normalized = endpoint.includes('://') ? endpoint : `tcp://${endpoint}`;
+      const url = new URL(normalized);
+      return {
+        host: url.hostname || endpoint,
+        port: url.port ? Number(url.port) : defaultPort,
+      };
+    } catch {
+      const [host, port] = endpoint.split(':');
+      return {
+        host: host || endpoint,
+        port: port ? Number(port) : defaultPort,
+      };
+    }
   }
 
   private formatPoolResponse(pool: {

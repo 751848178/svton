@@ -329,6 +329,6 @@ export class RegistryService implements OnModuleInit {
       envTemplate = envTemplate.replace(new RegExp(`\\$\\{${key}\\}`, 'g'), String(value || ''));
     }
     
-    return envTemplate;
+    return envTemplate.replace(/\$\{[^}]+\}/g, '');
   }
 }

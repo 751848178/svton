@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
+    rawBody: true,
   });
 
   // 使用 Nest 默认日志，避免预览环境中 Pino provider 注入差异导致启动失败。

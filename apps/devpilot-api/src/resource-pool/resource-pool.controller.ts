@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthzGuard, Roles } from '@svton/nestjs-authz';
+import { ControlAccessPolicyService } from '../control-access-policy';
 import { ResourcePoolService } from './resource-pool.service';
 import {
   CreateResourcePoolDto,
@@ -22,7 +23,10 @@ import {
 @Controller('resource-pools')
 @UseGuards(JwtAuthGuard)
 export class ResourcePoolController {
-  constructor(private readonly resourcePoolService: ResourcePoolService) {}
+  constructor(
+    private readonly resourcePoolService: ResourcePoolService,
+    private readonly accessPolicyService: ControlAccessPolicyService,
+  ) {}
 
   // 管理员：创建资源池
   @Post()
@@ -38,6 +42,13 @@ export class ResourcePoolController {
   @Roles('admin')
   async getPools(@Query('type') type?: string) {
     return this.resourcePoolService.getPools(type);
+  }
+
+  @Get('available')
+  @UseGuards(AuthzGuard)
+  @Roles('team_member')
+  async getAvailablePools(@Query('type') type?: string) {
+    return this.resourcePoolService.getAvailablePools(type);
   }
 
   // 管理员：获取资源池详情
@@ -72,6 +83,18 @@ export class ResourcePoolController {
     @Body() dto: AllocateResourceDto,
     @Request() req: { user: { id: string }; teamId: string },
   ) {
+    const scope = await this.resourcePoolService.resolveAllocationInputAccessScope(req.teamId, dto);
+    await this.accessPolicyService.assertCanSelfServiceWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId: scope.projectId,
+      environmentId: scope.environmentId,
+      category: 'resource_pool',
+      action: 'resource_pool.allocate',
+      targetType: 'resource_pool',
+      targetId: dto.poolId,
+      risk: 'medium',
+    });
     return this.resourcePoolService.allocateResource(dto, req.user.id, req.teamId);
   }
 
@@ -81,8 +104,20 @@ export class ResourcePoolController {
   @Roles('team_member')
   async releaseResource(
     @Param('allocationId') allocationId: string,
-    @Request() req: { teamId: string },
+    @Request() req: { user: { id: string }; teamId: string },
   ) {
+    const scope = await this.resourcePoolService.getAllocationAccessScope(req.teamId, allocationId);
+    await this.accessPolicyService.assertCanSelfServiceWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId: scope.projectId,
+      environmentId: scope.environmentId,
+      category: 'resource_pool',
+      action: 'resource_pool.release',
+      targetType: 'resource_allocation',
+      targetId: allocationId,
+      risk: 'high',
+    });
     return this.resourcePoolService.releaseResource(req.teamId, allocationId);
   }
 

@@ -244,6 +244,51 @@ describe('SkillManager', () => {
     expect(results.map((s) => s.name).sort()).toEqual(['a', 'b']);
   });
 
+  // ── CJK matching (the matcher must not require English keywords) ──
+
+  it('findRelevant matches short CJK trigger signals (>=2 chars)', () => {
+    manager.register(
+      makeSkill({
+        name: 'nav',
+        description: 'navigate code graph',
+        triggerSignals: ['调用 调用方 影响面 caller callee'],
+      }),
+    );
+
+    // 2-char CJK words like 调用 / 影响面 must survive tokenization
+    const hit = manager.findRelevant('这个函数在哪里被调用？');
+    expect(hit).toHaveLength(1);
+    expect(hit[0].name).toBe('nav');
+  });
+
+  it('findRelevant matches a 3-char Latin keyword embedded in CJK punctuation', () => {
+    manager.register(
+      makeSkill({
+        name: 'verify',
+        description: 'verify before done',
+        triggerSignals: ['验证 测试 bug、修复 done'],
+      }),
+    );
+
+    // "bug" (3 chars) is now kept, and 、 no longer glues it to the next token
+    const hit = manager.findRelevant('帮我修一下登录的 bug');
+    expect(hit).toHaveLength(1);
+    expect(hit[0].name).toBe('verify');
+  });
+
+  it('findRelevant does not over-trigger on common filler words', () => {
+    manager.register(
+      makeSkill({
+        name: 'lonely',
+        description: 'a skill',
+        triggerSignals: ['the for and of'], // all <=3 Latin -> dropped, no tokens
+      }),
+    );
+
+    const results = manager.findRelevant('the quick brown fox jumps over the lazy dog');
+    expect(results.map((s) => s.name)).not.toContain('lonely');
+  });
+
   it('isSkillAvailable returns true when no requiredTools', () => {
     const skill = makeSkill({ name: 'x' });
     expect(manager.isSkillAvailable(skill, [])).toBe(true);

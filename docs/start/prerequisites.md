@@ -134,6 +134,32 @@ redis-cli ping  # 应返回 PONG
 
 ---
 
+## 🔐 可选 Live Adapter 开关
+
+Devpilot 的生产资源 live 操作默认关闭。只在确认目标环境、凭据和访问策略后再开启：
+
+```bash
+# 允许日志中心通过 cloud_aliyun TeamCredential 执行 SLS GetLogs 只读 live 查询
+LOG_CENTER_SLS_LIVE_QUERY_ENABLED=false
+
+# SLS live 查询超时与重试
+LOG_CENTER_SLS_QUERY_TIMEOUT_MS=10000
+LOG_CENTER_SLS_QUERY_RETRY_ATTEMPTS=1
+LOG_CENTER_SLS_QUERY_RETRY_BASE_DELAY_MS=200
+
+# 默认关闭 SLS 按日志流回填调度；启用后仍只处理 slsBackfill.enabled=true 的流
+LOG_CENTER_SLS_BACKFILL_SCHEDULER_ENABLED=false
+LOG_CENTER_SLS_BACKFILL_SCHEDULER_DRY_RUN=true
+LOG_CENTER_SLS_BACKFILL_SCHEDULER_INTERVAL_SECONDS=300
+LOG_CENTER_SLS_BACKFILL_SCHEDULER_SCAN_LIMIT=100
+LOG_CENTER_SLS_BACKFILL_DEFAULT_INTERVAL_MINUTES=15
+```
+
+日志中心页面仍需要用户显式勾选 live 读取并确认线上日志读取，后端也会检查 `params.confirmLiveRead=true`。
+定时回填还需要在单条 SLS 日志流上保存 `slsBackfill.enabled=true`；如果要 live 回填，还要该流保存 live 和确认读取配置。
+
+---
+
 ## 🔧 IDE 配置
 
 ### VS Code (推荐)
@@ -190,7 +216,21 @@ redis-cli ping  # 应返回 PONG
 
 ## 🌐 网络配置
 
-### 代理设置 (如需)
+### npm/pnpm 源
+
+`@svton/cli create` 生成的新项目默认会写入 `registry=https://registry.npmmirror.com`，并在自动安装依赖时使用同一个源。需要使用公司内网源时，可以在创建项目时覆盖：
+
+```bash
+svton create my-app --registry https://npm.my-company.internal
+```
+
+也可以在 CI 或 shell 中统一设置：
+
+```bash
+export SVTON_NPM_REGISTRY=https://npm.my-company.internal
+```
+
+### 全局代理设置 (如需)
 
 ```bash
 # npm/pnpm 代理

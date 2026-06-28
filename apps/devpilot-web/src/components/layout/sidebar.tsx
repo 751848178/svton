@@ -10,12 +10,20 @@ const sidebarItems = [
     items: [
       { href: '/projects/new', label: '创建项目' },
       { href: '/projects', label: '我的项目' },
+      { href: '/applications', label: '应用服务' },
     ],
   },
   {
     title: '基础设施',
     items: [
       { href: '/servers', label: '服务器管理' },
+      { href: '/resource-control', label: '资源管控' },
+      { href: '/backups', label: '备份计划' },
+      { href: '/monitoring', label: '监控告警' },
+      { href: '/logs', label: '日志中心' },
+      { href: '/execution-governance', label: '执行治理' },
+      { href: '/execution-policies', label: '执行策略' },
+      { href: '/sites', label: '站点管控' },
       { href: '/proxy-configs', label: '代理配置' },
       { href: '/cdn-configs', label: 'CDN 配置' },
     ],
@@ -34,6 +42,9 @@ const sidebarItems = [
     items: [
       { href: '/presets', label: '配置预设' },
       { href: '/git', label: 'Git 连接' },
+      { href: '/audit-events', label: '审计事件' },
+      { href: '/operation-approvals', label: '操作审批' },
+      { href: '/access-policies', label: '访问策略' },
     ],
   },
   {

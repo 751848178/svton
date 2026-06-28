@@ -15,11 +15,11 @@ export class ServerService {
     const iv = crypto.randomBytes(12);
     const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    
+
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
     const authTag = cipher.getAuthTag().toString('hex');
-    
+
     return `${iv.toString('hex')}:${authTag}:${encrypted}`;
   }
 
@@ -29,13 +29,13 @@ export class ServerService {
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
     const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
-    
+
     const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
     decipher.setAuthTag(authTag);
-    
+
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
   }
 
@@ -73,6 +73,17 @@ export class ServerService {
         _count: {
           select: { proxyConfigs: true },
         },
+        environmentBindings: {
+          where: { status: 'active' },
+          select: {
+            id: true,
+            projectId: true,
+            environmentId: true,
+            role: true,
+            environment: { select: { id: true, key: true, name: true, status: true } },
+            project: { select: { id: true, name: true } },
+          },
+        },
       },
     });
 
@@ -92,6 +103,17 @@ export class ServerService {
             name: true,
             domain: true,
             status: true,
+          },
+        },
+        environmentBindings: {
+          where: { status: 'active' },
+          select: {
+            id: true,
+            projectId: true,
+            environmentId: true,
+            role: true,
+            environment: { select: { id: true, key: true, name: true, status: true } },
+            project: { select: { id: true, name: true } },
           },
         },
       },
@@ -158,14 +180,14 @@ export class ServerService {
     }
 
     const startTime = Date.now();
-    
+
     try {
       // 简化的连接测试：使用 TCP 连接测试端口是否开放
       const isReachable = await this.checkPortReachable(server.host, server.port);
       const latency = Date.now() - startTime;
 
       const status = isReachable ? 'online' : 'offline';
-      
+
       await this.prisma.server.update({
         where: { id },
         data: { status },
@@ -247,24 +269,24 @@ export class ServerService {
     return new Promise((resolve) => {
       const net = require('net');
       const socket = new net.Socket();
-      
+
       socket.setTimeout(5000);
-      
+
       socket.on('connect', () => {
         socket.destroy();
         resolve(true);
       });
-      
+
       socket.on('timeout', () => {
         socket.destroy();
         resolve(false);
       });
-      
+
       socket.on('error', () => {
         socket.destroy();
         resolve(false);
       });
-      
+
       socket.connect(port, host);
     });
   }

@@ -4,13 +4,16 @@ import { persist } from 'zustand/middleware';
 // 子项目类型
 export type SubProjectType = 'backend' | 'admin' | 'mobile';
 
-export type ResourceConfigMode = 'manual' | 'credential' | 'skipped';
+export type ResourceConfigMode = 'manual' | 'credential' | 'instance' | 'pool' | 'skipped';
 
 export interface ProjectResourceConfig {
   type: string;
   mode: ResourceConfigMode;
   config?: Record<string, string>;
   credentialId?: string;
+  instanceId?: string;
+  poolId?: string;
+  resourceName?: string;
 }
 
 // 项目配置

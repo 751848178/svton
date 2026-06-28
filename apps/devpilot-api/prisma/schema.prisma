@@ -17,28 +17,57 @@ model User {
   name          String?
   avatar        String?
   role          String    @default("user")  // user | admin (系统级别)
-  
+
   // OAuth 关联
   accounts      Account[]
-  
+
   // 团队关联
   teamMembers   TeamMember[]
-  
+
   // 用户创建的数据（保留创建者信息）
   createdResources     Resource[]
   createdPresets       Preset[]
   createdProjects      Project[]
+  createdApplications   Application[] @relation("ApplicationCreator")
   gitConnections       GitConnection[]
   allocations          ResourceAllocation[]
   createdSecretKeys    SecretKey[]
   createdServers       Server[]
   createdProxyConfigs  ProxyConfig[]
+  createdSites         Site[] @relation("SiteCreator")
+  siteSyncRuns         SiteSyncRun[] @relation("SiteSyncRunActor")
   createdCDNConfigs    CDNConfig[]
+  createdProjectWebhooks ProjectWebhook[] @relation("ProjectWebhookCreator")
+  createdManagedResources ManagedResource[] @relation("ManagedResourceCreator")
+  resourceSyncRuns     ResourceSyncRun[] @relation("ResourceSyncRunActor")
+  resourceActionRuns   ResourceActionRun[] @relation("ResourceActionRunActor")
+  resourceConnectionRuns ResourceConnectionRun[] @relation("ResourceConnectionRunActor")
+  resourceQueryRuns    ResourceQueryRun[] @relation("ResourceQueryRunActor")
+  deploymentRuns       DeploymentRun[] @relation("DeploymentRunActor")
+  serverExecutionLeases ServerExecutionLease[] @relation("ServerExecutionLeaseActor")
+  serverExecutionJobs ServerExecutionJob[] @relation("ServerExecutionJobActor")
+  createdServerCommandPolicyTemplates ServerCommandPolicyTemplate[] @relation("ServerCommandPolicyTemplateCreator")
+  createdControlAccessPolicies ControlAccessPolicy[] @relation("ControlAccessPolicyCreator")
+  principalControlAccessPolicies ControlAccessPolicy[] @relation("ControlAccessPolicyPrincipalUser")
+  applicationServiceOperationRuns ApplicationServiceOperationRun[] @relation("ApplicationServiceOperationRunActor")
+  auditEvents          AuditEvent[] @relation("AuditEventActor")
+  requestedOperationApprovals OperationApproval[] @relation("OperationApprovalRequester")
+  reviewedOperationApprovals  OperationApproval[] @relation("OperationApprovalReviewer")
+  createdBackupPlans  BackupPlan[] @relation("BackupPlanCreator")
+  backupRuns          BackupRun[] @relation("BackupRunActor")
+  createdAlertRules   AlertRule[] @relation("AlertRuleCreator")
+  createdAlertSilences AlertSilence[] @relation("AlertSilenceCreator")
+  createdAlertNotificationChannels AlertNotificationChannel[] @relation("AlertNotificationChannelCreator")
+  alertEvents         AlertEvent[] @relation("AlertEventActor")
+  createdLogStreams   LogStream[] @relation("LogStreamCreator")
+  logEntries          LogEntry[] @relation("LogEntryActor")
+  logCollectionRuns   LogCollectionRun[] @relation("LogCollectionRunActor")
+  logRetentionRuns    LogRetentionRun[] @relation("LogRetentionRunActor")
   createdResourceTypes ResourceType[] @relation("ResourceTypeCreator")
   resourceRequests     ResourceRequest[] @relation("ResourceRequester")
   reviewedResourceRequests ResourceRequest[] @relation("ResourceReviewer")
   resourceAuditLogs    ResourceAuditLog[] @relation("ResourceAuditActor")
-  
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -48,23 +77,56 @@ model Team {
   id          String   @id @default(cuid())
   name        String
   description String?
-  
+
   // 团队成员
   members     TeamMember[]
-  
+
   // 团队资源
   servers       Server[]
   proxyConfigs  ProxyConfig[]
+  sites         Site[]
+  siteSyncRuns SiteSyncRun[]
   cdnConfigs    CDNConfig[]
   credentials   TeamCredential[]
   projects      Project[]
+  projectEnvironments ProjectEnvironment[]
+  projectEnvironmentServers ProjectEnvironmentServer[]
+  applications  Application[]
+  applicationServices ApplicationService[]
+  applicationServiceOperationRuns ApplicationServiceOperationRun[]
+  auditEvents  AuditEvent[]
+  operationApprovals OperationApproval[]
+  backupPlans BackupPlan[]
+  backupRuns  BackupRun[]
+  alertRules  AlertRule[]
+  alertSilences AlertSilence[]
+  alertEvents AlertEvent[]
+  alertNotificationChannels AlertNotificationChannel[]
+  alertNotificationDeliveries AlertNotificationDelivery[]
+  logStreams  LogStream[]
+  logEntries  LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+  logRetentionRuns LogRetentionRun[]
   resources     Resource[]
   presets       Preset[]
   secretKeys    SecretKey[]
+  managedResources ManagedResource[]
+  resourceSyncRuns ResourceSyncRun[]
+  resourceActionRuns ResourceActionRun[]
+  resourceMetricSnapshots ResourceMetricSnapshot[]
+  resourceConnectionRuns ResourceConnectionRun[]
+  resourceQueryRuns ResourceQueryRun[]
+  deploymentRuns DeploymentRun[]
+  serverExecutionLeases ServerExecutionLease[]
+  serverExecutionJobs ServerExecutionJob[]
+  serverCommandPolicyTemplates ServerCommandPolicyTemplate[]
+  controlAccessPolicies ControlAccessPolicy[]
+  projectWebhooks ProjectWebhook[]
+  webhookDeliveries WebhookDelivery[]
   resourceRequests ResourceRequest[]
   resourceInstances ResourceInstance[]
   resourceAuditLogs ResourceAuditLog[]
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -75,12 +137,12 @@ model TeamMember {
   teamId  String
   userId  String
   role    String @default("member") // owner | admin | member
-  
+
   team    Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   createdAt DateTime @default(now())
-  
+
   @@unique([teamId, userId])
   @@index([userId])
 }
@@ -99,9 +161,9 @@ model Account {
   expires_at        Int?
   token_type        String?
   scope             String?
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@unique([provider, providerAccountId])
   @@index([userId])
 }
@@ -114,12 +176,12 @@ model GitConnection {
   accessToken  String   @db.Text // 加密存储
   refreshToken String?  @db.Text
   username     String
-  
+
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
+
   @@unique([userId, provider])
 }
 
@@ -139,15 +201,176 @@ model Server {
   tags        Json?    // string[]
   status      String   @default("unknown") // online | offline | unknown
   services    Json?    // 检测到的服务 { nginx: true, docker: true, ... }
-  
+
   team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy   User     @relation(fields: [createdById], references: [id])
   proxyConfigs ProxyConfig[]
-  
+  sites       Site[]
+  siteSyncRuns SiteSyncRun[]
+  environmentBindings ProjectEnvironmentServer[]
+  applicationServices ApplicationService[]
+  applicationServiceOperationRuns ApplicationServiceOperationRun[]
+  auditEvents  AuditEvent[]
+  operationApprovals OperationApproval[]
+  backupPlans BackupPlan[]
+  backupRuns  BackupRun[]
+  alertRules  AlertRule[]
+  alertEvents AlertEvent[]
+  logStreams  LogStream[]
+  logEntries  LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+  managedResources ManagedResource[]
+  resourceSyncRuns ResourceSyncRun[]
+  deploymentRuns DeploymentRun[]
+  serverExecutionLeases ServerExecutionLease[]
+  serverExecutionJobs ServerExecutionJob[]
+  resourceConnectionRuns ResourceConnectionRun[]
+  resourceQueryRuns ResourceQueryRun[]
+  resourceMetricSnapshots ResourceMetricSnapshot[]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   @@index([teamId])
+}
+
+// Server executor live 执行互斥 lease
+model ServerExecutionLease {
+  id           String   @id @default(cuid())
+  teamId       String
+  actorId      String?
+  serverId     String?
+  activeKey    String?  @unique
+  operationKey String
+  adapterKey   String
+  transport    String
+  dryRun       Boolean  @default(false)
+  status       String   @default("running") // running | completed | failed | blocked | expired
+  metadata     Json?
+  acquiredAt   DateTime @default(now())
+  releasedAt   DateTime?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor        User?    @relation("ServerExecutionLeaseActor", fields: [actorId], references: [id], onDelete: SetNull)
+  server       Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([actorId])
+  @@index([serverId])
+  @@index([operationKey])
+  @@index([adapterKey])
+  @@index([transport])
+  @@index([dryRun])
+  @@index([status])
+  @@index([acquiredAt])
+  @@index([releasedAt])
+  @@index([expiresAt])
+}
+
+// Server executor 执行任务历史与重试入口
+model ServerExecutionJob {
+  id            String   @id @default(cuid())
+  teamId        String
+  actorId       String?
+  serverId      String?
+  retryOfId     String?
+  operationKey  String
+  adapterKey    String
+  transport     String
+  dryRun        Boolean  @default(true)
+  status        String   @default("running") // queued | running | completed | failed | blocked | cancelled
+  queueMode     String   @default("inline") // inline | queued
+  priority      Int      @default(0)
+  attempt       Int      @default(1)
+  maxAttempts   Int      @default(1)
+  inputSnapshot Json
+  commandPlan   Json?
+  logs          Json?
+  result        Json?
+  error         String?  @db.Text
+  metadata      Json?
+  queuedAt      DateTime @default(now())
+  availableAt   DateTime @default(now())
+  lockedAt      DateTime?
+  lockOwner     String?
+  lockExpiresAt DateTime?
+  lastHeartbeatAt DateTime?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  cancelRequestedAt DateTime?
+  cancelledAt   DateTime?
+  recoveredAt   DateTime?
+  recoveryReason String? @db.Text
+  recoveryCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor         User?    @relation("ServerExecutionJobActor", fields: [actorId], references: [id], onDelete: SetNull)
+  server        Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  retryOf       ServerExecutionJob? @relation("ServerExecutionJobRetry", fields: [retryOfId], references: [id], onDelete: SetNull)
+  retryAttempts ServerExecutionJob[] @relation("ServerExecutionJobRetry")
+  deploymentRuns DeploymentRun[]
+  siteSyncRuns SiteSyncRun[]
+  resourceActionRuns ResourceActionRun[]
+  applicationServiceOperationRuns ApplicationServiceOperationRun[]
+  backupRuns BackupRun[]
+  logCollectionRuns LogCollectionRun[]
+
+  @@index([teamId])
+  @@index([actorId])
+  @@index([serverId])
+  @@index([retryOfId])
+  @@index([operationKey])
+  @@index([adapterKey])
+  @@index([transport])
+  @@index([dryRun])
+  @@index([status])
+  @@index([queueMode])
+  @@index([queuedAt])
+  @@index([availableAt])
+  @@index([lockedAt])
+  @@index([lockOwner])
+  @@index([lockExpiresAt])
+  @@index([cancelRequestedAt])
+  @@index([recoveredAt])
+  @@index([startedAt])
+  @@index([finishedAt])
+}
+
+// Server executor 命令策略模板
+model ServerCommandPolicyTemplate {
+  id              String   @id @default(cuid())
+  teamId          String
+  createdById     String?
+  projectId       String?
+  environmentId   String?
+  name            String
+  description     String?  @db.Text
+  enabled         Boolean  @default(true)
+  priority        Int      @default(0)
+  adapterKeys     Json?
+  operationKeys   Json?
+  allowedPatterns Json?
+  blockedPatterns Json?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy       User?    @relation("ServerCommandPolicyTemplateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment     ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([enabled])
+  @@index([priority])
 }
 
 // ==================== 代理配置 ====================
@@ -168,18 +391,132 @@ model ProxyConfig {
   status       String   @default("pending") // pending | active | error
   lastSyncAt   DateTime?
   syncError    String?  @db.Text
-  
+
   team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy   User     @relation(fields: [createdById], references: [id])
   server      Server?  @relation(fields: [serverId], references: [id])
   project     Project? @relation(fields: [projectId], references: [id])
-  
+  sites       Site[]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   @@index([teamId])
   @@index([domain])
   @@index([projectId])
+}
+
+// ==================== 站点管控 ====================
+
+// 站点（面向域名、运行时、TLS、访问策略的上层管控对象）
+model Site {
+  id            String   @id @default(cuid())
+  teamId        String
+  createdById   String
+  projectId     String?
+  serverId      String?
+  environmentId String?
+  proxyConfigId String?
+  name          String
+  primaryDomain String
+  aliases       Json?
+  runtimeType   String   @default("reverse_proxy") // reverse_proxy | static | docker | runtime
+  runtimeConfig Json?
+  tls           Json?
+  accessPolicy  Json?
+  status        String   @default("draft") // draft | pending | active | error
+  lastSyncAt    DateTime?
+  syncError     String?  @db.Text
+
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy     User     @relation("SiteCreator", fields: [createdById], references: [id])
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment   ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  server        Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  proxyConfig   ProxyConfig? @relation(fields: [proxyConfigId], references: [id], onDelete: SetNull)
+  applicationServices ApplicationService[]
+  syncRuns      SiteSyncRun[]
+  auditEvents   AuditEvent[]
+  operationApprovals OperationApproval[]
+  alertRules    AlertRule[]
+  alertEvents   AlertEvent[]
+  logStreams    LogStream[]
+  logEntries    LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([serverId])
+  @@index([proxyConfigId])
+  @@index([primaryDomain])
+  @@index([runtimeType])
+  @@index([status])
+}
+
+// 站点同步/回滚运行记录
+model SiteSyncRun {
+  id               String   @id @default(cuid())
+  teamId           String
+  actorId          String?
+  siteId           String
+  projectId        String?
+  environmentId    String?
+  serverId         String?
+  sourceRunId      String?
+  operationApprovalId String?
+  serverExecutionJobId String?
+  mode             String   @default("sync") // sync | rollback
+  trigger          String   @default("manual") // manual | manual_rollback | webhook | api
+  executorKey      String   @default("server-executor")
+  adapterKey       String   @default("nginx-site-plan")
+  dryRun           Boolean  @default(true)
+  status           String   @default("running") // queued | running | completed | failed | blocked | cancelled
+  targetConfigPath String?
+  nginxConfig      String   @db.Text
+  commandPlan      Json?
+  configDiff       Json?
+  executionPlan    Json?
+  logs             Json?
+  result           Json?
+  warnings         Json?
+  error            String?  @db.Text
+  startedAt        DateTime @default(now())
+  finishedAt       DateTime?
+  createdAt        DateTime @default(now())
+
+  team             Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor            User?    @relation("SiteSyncRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  site             Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  project          Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment      ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  server           Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  sourceRun        SiteSyncRun? @relation("SiteSyncRollbackSource", fields: [sourceRunId], references: [id], onDelete: SetNull)
+  rollbackRuns     SiteSyncRun[] @relation("SiteSyncRollbackSource")
+  operationApproval OperationApproval? @relation(fields: [operationApprovalId], references: [id], onDelete: SetNull)
+  serverExecutionJob ServerExecutionJob? @relation(fields: [serverExecutionJobId], references: [id], onDelete: SetNull)
+  auditEvents      AuditEvent[]
+
+  @@index([teamId])
+  @@index([actorId])
+  @@index([siteId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([serverId])
+  @@index([sourceRunId])
+  @@index([operationApprovalId])
+  @@index([serverExecutionJobId])
+  @@index([mode])
+  @@index([trigger])
+  @@index([executorKey])
+  @@index([adapterKey])
+  @@index([dryRun])
+  @@index([status])
+  @@index([startedAt])
 }
 
 // ==================== CDN 配置 ====================
@@ -191,13 +528,18 @@ model TeamCredential {
   type      String   // cdn_qiniu | cdn_aliyun | cdn_cloudflare | cloud_aws | etc.
   name      String
   config    String   @db.Text // 加密的凭证配置 JSON
-  
+
   team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   cdnConfigs CDNConfig[]
-  
+  managedResources ManagedResource[]
+  resourceSyncRuns ResourceSyncRun[]
+  resourceActionRuns ResourceActionRun[]
+  resourceConnectionRuns ResourceConnectionRun[]
+  resourceQueryRuns ResourceQueryRun[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([teamId, type])
 }
 
@@ -207,6 +549,7 @@ model CDNConfig {
   teamId       String
   createdById  String
   projectId    String?
+  environmentId String?
   credentialId String
   name         String
   domain       String
@@ -216,18 +559,20 @@ model CDNConfig {
   status       String   @default("pending") // pending | active | error
   providerData Json?    // CDN 提供商返回的数据
   syncError    String?  @db.Text
-  
+
   team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy    User     @relation(fields: [createdById], references: [id])
   project      Project? @relation(fields: [projectId], references: [id])
+  environment  ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
   credential   TeamCredential @relation(fields: [credentialId], references: [id])
-  
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
+
   @@index([teamId])
   @@index([domain])
   @@index([projectId])
+  @@index([environmentId])
 }
 
 // ==================== 项目与资源 ====================
@@ -240,13 +585,13 @@ model Resource {
   type      String   // mysql | redis | qiniu-kodo | etc.
   name      String
   config    String   @db.Text // 加密的 JSON 配置
-  
+
   team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy User     @relation(fields: [createdById], references: [id])
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([teamId, type])
 }
 
@@ -257,13 +602,13 @@ model Preset {
   createdById String
   name      String
   config    Json     // ProjectConfig
-  
+
   team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy User     @relation(fields: [createdById], references: [id])
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([teamId])
 }
 
@@ -277,21 +622,459 @@ model Project {
   config       Json     // ProjectConfig snapshot
   gitRepo      String?  // 推送的仓库地址
   downloadUrl  String?  // ZIP 下载链接（临时）
-  
+
   team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy    User     @relation(fields: [createdById], references: [id])
   allocations  ResourceAllocation[]
+  environments ProjectEnvironment[]
   proxyConfigs ProxyConfig[]
+  sites        Site[]
+  siteSyncRuns SiteSyncRun[]
+  applications Application[]
+  applicationServices ApplicationService[]
+  applicationServiceOperationRuns ApplicationServiceOperationRun[]
+  auditEvents  AuditEvent[]
+  operationApprovals OperationApproval[]
+  backupPlans BackupPlan[]
+  backupRuns  BackupRun[]
+  alertRules  AlertRule[]
+  alertSilences AlertSilence[]
+  alertEvents AlertEvent[]
+  logStreams  LogStream[]
+  logEntries  LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+  resourceConnectionRuns ResourceConnectionRun[]
+  resourceQueryRuns ResourceQueryRun[]
+  resourceMetricSnapshots ResourceMetricSnapshot[]
   cdnConfigs   CDNConfig[]
   secretKeys   SecretKey[]
+  managedResources ManagedResource[]
   resourceRequests ResourceRequest[]
   resourceInstances ResourceInstance[]
-  
+  deploymentRuns DeploymentRun[]
+  projectWebhooks ProjectWebhook[]
+  webhookDeliveries WebhookDelivery[]
+  environmentServers ProjectEnvironmentServer[]
+  serverCommandPolicyTemplates ServerCommandPolicyTemplate[]
+  controlAccessPolicies ControlAccessPolicy[]
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  
+
   @@index([teamId])
   @@index([createdById])
+}
+
+// 项目环境
+model ProjectEnvironment {
+  id          String   @id @default(cuid())
+  teamId      String
+  projectId   String
+  key         String
+  name        String
+  description String?  @db.Text
+  status      String   @default("active") // active | archived
+  sortOrder   Int      @default(0)
+  config      Json?
+
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  serverBindings ProjectEnvironmentServer[]
+  applicationServices ApplicationService[]
+  applicationServiceOperationRuns ApplicationServiceOperationRun[]
+  sites       Site[]
+  siteSyncRuns SiteSyncRun[]
+  deploymentRuns DeploymentRun[]
+  managedResources ManagedResource[]
+  resourceRequests ResourceRequest[]
+  resourceInstances ResourceInstance[]
+  cdnConfigs CDNConfig[]
+  secretKeys SecretKey[]
+  auditEvents AuditEvent[]
+  operationApprovals OperationApproval[]
+  backupPlans BackupPlan[]
+  backupRuns  BackupRun[]
+  alertRules AlertRule[]
+  alertSilences AlertSilence[]
+  alertEvents AlertEvent[]
+  logStreams LogStream[]
+  logEntries LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+  resourceConnectionRuns ResourceConnectionRun[]
+  resourceQueryRuns ResourceQueryRun[]
+  resourceMetricSnapshots ResourceMetricSnapshot[]
+  serverCommandPolicyTemplates ServerCommandPolicyTemplate[]
+  controlAccessPolicies ControlAccessPolicy[]
+  projectWebhooks ProjectWebhook[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([projectId, key])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([key])
+  @@index([status])
+}
+
+// 控制面访问策略：项目/环境/动作级 RBAC
+model ControlAccessPolicy {
+  id              String   @id @default(cuid())
+  teamId          String
+  createdById     String?
+  principalUserId String?
+  projectId       String?
+  environmentId   String?
+  name            String
+  description     String?  @db.Text
+  enabled         Boolean  @default(true)
+  effect          String   @default("allow") // allow | deny
+  principalType   String   @default("team_role") // team_role | user | any
+  principalRole   String?  // owner | admin | member
+  categories      Json?
+  actions         Json?
+  riskLevels      Json?
+  priority        Int      @default(0)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy       User?    @relation("ControlAccessPolicyCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  principalUser   User?    @relation("ControlAccessPolicyPrincipalUser", fields: [principalUserId], references: [id], onDelete: SetNull)
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment     ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([principalUserId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([enabled])
+  @@index([effect])
+  @@index([principalType])
+  @@index([principalRole])
+  @@index([priority])
+}
+
+// 项目环境与服务器的绑定关系
+model ProjectEnvironmentServer {
+  id            String   @id @default(cuid())
+  teamId        String
+  projectId     String
+  environmentId String
+  serverId      String
+  role          String?
+  status        String   @default("active") // active | archived
+  metadata      Json?
+
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment   ProjectEnvironment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  server        Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([environmentId, serverId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([serverId])
+  @@index([role])
+  @@index([status])
+}
+
+// 项目应用
+model Application {
+  id            String   @id @default(cuid())
+  teamId        String
+  projectId     String
+  createdById   String?
+  name          String
+  description   String?  @db.Text
+  repositoryUrl String?
+  repoPath      String?
+  defaultBranch String?
+  status        String   @default("active") // active | archived
+  config        Json?
+
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy     User?    @relation("ApplicationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  services      ApplicationService[]
+  deploymentRuns DeploymentRun[]
+  operationRuns ApplicationServiceOperationRun[]
+  auditEvents   AuditEvent[]
+  operationApprovals OperationApproval[]
+  alertRules    AlertRule[]
+  alertEvents   AlertEvent[]
+  logStreams    LogStream[]
+  logEntries    LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([projectId, name])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([createdById])
+  @@index([status])
+}
+
+// 应用在项目环境中的服务实例
+model ApplicationService {
+  id                String   @id @default(cuid())
+  teamId            String
+  projectId         String
+  applicationId     String
+  environmentId     String
+  serverId          String?
+  siteId            String?
+  managedResourceId String?
+  name              String
+  kind              String   @default("docker-compose") // docker-compose | container | static | external
+  runtime           String?
+  image             String?
+  ports             Json?
+  env               Json?
+  secretKeyIds      Json?
+  deployConfig      Json?
+  status            String   @default("active") // active | inactive | archived
+  metadata          Json?
+
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  application       Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  environment       ProjectEnvironment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  server            Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  site              Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  managedResource   ManagedResource? @relation(fields: [managedResourceId], references: [id], onDelete: SetNull)
+  deploymentRuns    DeploymentRun[]
+  operationRuns     ApplicationServiceOperationRun[]
+  auditEvents       AuditEvent[]
+  operationApprovals OperationApproval[]
+  alertRules        AlertRule[]
+  alertEvents       AlertEvent[]
+  logStreams        LogStream[]
+  logEntries        LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([applicationId, environmentId, name])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([applicationId])
+  @@index([environmentId])
+  @@index([serverId])
+  @@index([siteId])
+  @@index([managedResourceId])
+  @@index([kind])
+  @@index([status])
+}
+
+// 应用服务运行态操作记录
+model ApplicationServiceOperationRun {
+  id                   String   @id @default(cuid())
+  teamId               String
+  projectId            String
+  applicationId        String
+  applicationServiceId String
+  environmentId        String?
+  serverId             String?
+  actorId              String?
+  operationApprovalId  String?
+  serverExecutionJobId String?
+  action               String   // status | logs | restart | rollback
+  executorKey          String   @default("server-executor")
+  adapterKey           String   @default("script-plan")
+  dryRun               Boolean  @default(true)
+  risk                 String   @default("low") // low | medium | high
+  status               String   @default("running") // running | completed | failed | blocked
+  params               Json?
+  commandPlan          Json?
+  logs                 Json?
+  result               Json?
+  error                String?  @db.Text
+  startedAt            DateTime @default(now())
+  finishedAt           DateTime?
+  createdAt            DateTime @default(now())
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  application          Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  applicationService   ApplicationService @relation(fields: [applicationServiceId], references: [id], onDelete: Cascade)
+  environment          ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  server               Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  actor                User?    @relation("ApplicationServiceOperationRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  operationApproval    OperationApproval? @relation(fields: [operationApprovalId], references: [id], onDelete: SetNull)
+  serverExecutionJob   ServerExecutionJob? @relation(fields: [serverExecutionJobId], references: [id], onDelete: SetNull)
+  auditEvents          AuditEvent[]
+
+  @@index([teamId])
+  @@index([projectId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([environmentId])
+  @@index([serverId])
+  @@index([actorId])
+  @@index([operationApprovalId])
+  @@index([serverExecutionJobId])
+  @@index([action])
+  @@index([executorKey])
+  @@index([adapterKey])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// 项目部署运行记录
+model DeploymentRun {
+  id               String   @id @default(cuid())
+  teamId           String
+  projectId        String
+  actorId          String?
+  serverId         String?
+  environmentId    String?
+  applicationId     String?
+  applicationServiceId String?
+  serverExecutionJobId String?
+  operationApprovalId String?
+  sourceRunId      String?
+  environment      String?
+  mode             String   @default("deploy") // deploy | rollback
+  source           String   @default("manual") // manual | webhook | api
+  trigger          String   @default("manual") // manual | git_push | api
+  targetType       String   // docker-compose | server | kubernetes | external-ci
+  executorKey      String   @default("server-executor")
+  adapterKey       String   @default("script-plan")
+  dryRun           Boolean  @default(true)
+  status           String   @default("running") // running | completed | failed | blocked
+  gitRepo          String?
+  branch           String?
+  commitSha        String?
+  workingDirectory String?
+  buildCommand     String?  @db.Text
+  deployCommand    String?  @db.Text
+  healthCheckUrl   String?
+  params           Json?
+  commandPlan      Json?
+  logs             Json?
+  result           Json?
+  error            String?  @db.Text
+  startedAt        DateTime @default(now())
+  finishedAt       DateTime?
+  createdAt        DateTime @default(now())
+  webhookDeliveries WebhookDelivery[]
+
+  team             Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectEnvironment ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  application      Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  applicationService ApplicationService? @relation(fields: [applicationServiceId], references: [id], onDelete: SetNull)
+  actor            User?    @relation("DeploymentRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  server           Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  serverExecutionJob ServerExecutionJob? @relation(fields: [serverExecutionJobId], references: [id], onDelete: SetNull)
+  operationApproval OperationApproval? @relation(fields: [operationApprovalId], references: [id], onDelete: SetNull)
+  sourceRun        DeploymentRun? @relation("DeploymentRollbackSource", fields: [sourceRunId], references: [id], onDelete: SetNull)
+  rollbackRuns     DeploymentRun[] @relation("DeploymentRollbackSource")
+  auditEvents      AuditEvent[]
+  logStreams       LogStream[]
+  logEntries       LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+
+  @@index([teamId])
+  @@index([projectId])
+  @@index([actorId])
+  @@index([serverId])
+  @@index([environmentId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([serverExecutionJobId])
+  @@index([operationApprovalId])
+  @@index([sourceRunId])
+  @@index([environment])
+  @@index([mode])
+  @@index([source])
+  @@index([targetType])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// 项目 Git Webhook 配置
+model ProjectWebhook {
+  id             String   @id @default(cuid())
+  teamId         String
+  projectId      String
+  environmentId  String?
+  createdById    String?
+  name           String
+  provider       String   @default("github") // github | gitlab | gitee | generic
+  urlToken       String   @unique
+  secret         String   @db.Text
+  enabled        Boolean  @default(true)
+  eventTypes     Json?
+  branchPattern  String?
+  tagPattern     String?
+  deploymentMode String   @default("dry_run") // dry_run | queue | live_request
+  maxAttempts    Int      @default(1)
+  lastDeliveryAt DateTime?
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment    ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  createdBy      User?    @relation("ProjectWebhookCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries     WebhookDelivery[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([teamId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([createdById])
+  @@index([provider])
+  @@index([enabled])
+  @@index([deploymentMode])
+}
+
+// Webhook 投递记录
+model WebhookDelivery {
+  id               String   @id @default(cuid())
+  webhookId        String
+  teamId           String
+  projectId        String
+  deploymentRunId  String?
+  eventType        String
+  providerEventId  String?
+  idempotencyKey   String?
+  sourceIp         String?
+  signatureStatus  String   @default("unchecked") // valid | invalid | missing | unchecked
+  payloadHash      String
+  payload          Json?
+  status           String   @default("received") // received | accepted | ignored | failed
+  message          String?  @db.Text
+  receivedAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  webhook          ProjectWebhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  team             Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deploymentRun    DeploymentRun? @relation(fields: [deploymentRunId], references: [id], onDelete: SetNull)
+
+  @@index([webhookId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([deploymentRunId])
+  @@index([eventType])
+  @@index([providerEventId])
+  @@index([idempotencyKey])
+  @@index([signatureStatus])
+  @@index([status])
+  @@index([receivedAt])
+  @@unique([webhookId, idempotencyKey])
 }
 
 // 密钥中心（团队级别）
@@ -300,20 +1083,23 @@ model SecretKey {
   teamId      String
   createdById String
   projectId   String?  // 关联的项目ID（可选）
+  environmentId String?
   name        String   // 密钥名称
   type        String   // jwt_secret | encryption_key | api_key | oauth_secret | database_password | custom
   value       String   @db.Text // 加密存储的密钥值
   description String?  // 描述
-  
+
   team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy   User     @relation(fields: [createdById], references: [id])
   project     Project? @relation(fields: [projectId], references: [id])
-  
+  environment ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   @@index([teamId])
   @@index([projectId])
+  @@index([environmentId])
 }
 
 // ==================== 资源池（系统级别） ====================
@@ -328,9 +1114,9 @@ model ResourcePool {
   capacity    Int      // 最大容量
   allocated   Int      @default(0)  // 已分配数量
   status      String   @default("active")  // active | maintenance | full
-  
+
   allocations ResourceAllocation[]
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -342,19 +1128,19 @@ model ResourceAllocation {
   projectId    String
   teamId       String
   userId       String   // 创建者
-  
+
   resourceName String   // 如数据库名、Redis DB 号
   credentials  String   @db.Text // 加密的凭证
   config       Json     // 其他配置
-  
+
   pool         ResourcePool @relation(fields: [poolId], references: [id])
   project      Project      @relation(fields: [projectId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
-  
+
   status       String   @default("active")  // active | released
   createdAt    DateTime @default(now())
   releasedAt   DateTime?
-  
+
   @@index([projectId])
   @@index([teamId])
   @@index([poolId])
@@ -398,6 +1184,7 @@ model ResourceRequest {
   id             String   @id @default(cuid())
   teamId         String
   projectId      String?
+  environmentId  String?
   resourceTypeId String
   requesterId    String
   reviewerId     String?
@@ -415,6 +1202,7 @@ model ResourceRequest {
 
   team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   project        Project? @relation(fields: [projectId], references: [id])
+  projectEnvironment ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
   resourceType   ResourceType @relation(fields: [resourceTypeId], references: [id])
   requester      User     @relation("ResourceRequester", fields: [requesterId], references: [id])
   reviewer       User?    @relation("ResourceReviewer", fields: [reviewerId], references: [id])
@@ -426,6 +1214,7 @@ model ResourceRequest {
 
   @@index([teamId])
   @@index([projectId])
+  @@index([environmentId])
   @@index([resourceTypeId])
   @@index([requesterId])
   @@index([reviewerId])
@@ -437,6 +1226,7 @@ model ResourceInstance {
   id             String   @id @default(cuid())
   teamId         String
   projectId      String?
+  environmentId  String?
   requestId      String?  @unique
   resourceTypeId String
   name           String
@@ -449,8 +1239,10 @@ model ResourceInstance {
 
   team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   project        Project? @relation(fields: [projectId], references: [id])
+  projectEnvironment ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
   request        ResourceRequest? @relation(fields: [requestId], references: [id])
   resourceType   ResourceType @relation(fields: [resourceTypeId], references: [id])
+  managedResources ManagedResource[]
   auditLogs      ResourceAuditLog[]
 
   createdAt      DateTime @default(now())
@@ -458,6 +1250,7 @@ model ResourceInstance {
 
   @@index([teamId])
   @@index([projectId])
+  @@index([environmentId])
   @@index([resourceTypeId])
   @@index([status])
 }
@@ -488,4 +1281,1022 @@ model ResourceAuditLog {
   @@index([instanceId])
   @@index([actorId])
   @@index([action])
+}
+
+// ==================== 基础设施资源管控 ====================
+
+// 已纳管或已发现的服务器/云资源清单
+model ManagedResource {
+  id                 String   @id @default(cuid())
+  teamId             String
+  createdById        String?
+  serverId           String?
+  projectId          String?
+  environmentId      String?
+  resourceInstanceId String?
+  credentialId       String?
+  sourceType         String   // server | cloud | manual
+  provider           String   // docker | aliyun-rds | aliyun-sls | tencent-cos
+  kind               String   // docker_container | mysql | redis | database | log_service | object_storage
+  name               String
+  externalId         String
+  status             String   @default("unknown") // running | stopped | active | inactive | unknown | error
+  endpoint           String?
+  metadata           Json?
+  config             Json?
+  lastSyncAt         DateTime?
+  syncError          String?  @db.Text
+
+  team               Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy          User?    @relation("ManagedResourceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  server             Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  project            Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment        ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  resourceInstance   ResourceInstance? @relation(fields: [resourceInstanceId], references: [id], onDelete: SetNull)
+  credential         TeamCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  applicationServices ApplicationService[]
+  actionRuns         ResourceActionRun[]
+  metricSnapshots    ResourceMetricSnapshot[]
+  connectionRuns     ResourceConnectionRun[]
+  queryRuns          ResourceQueryRun[]
+  auditEvents        AuditEvent[]
+  operationApprovals OperationApproval[]
+  backupPlans        BackupPlan[]
+  backupRuns         BackupRun[]
+  alertRules         AlertRule[]
+  alertEvents        AlertEvent[]
+  logStreams         LogStream[]
+  logEntries         LogEntry[]
+  logCollectionRuns  LogCollectionRun[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([teamId, sourceType, provider, externalId])
+  @@index([teamId])
+  @@index([createdById])
+  @@index([serverId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([resourceInstanceId])
+  @@index([credentialId])
+  @@index([sourceType])
+  @@index([provider])
+  @@index([kind])
+  @@index([status])
+}
+
+// 资源同步运行记录
+model ResourceSyncRun {
+  id           String   @id @default(cuid())
+  teamId       String
+  actorId      String?
+  serverId     String?
+  credentialId String?
+  sourceType   String   // server | cloud
+  provider     String   // docker | aliyun-rds | aliyun-sls | tencent-cos | all
+  scope        String?
+  status       String   @default("running") // running | completed | failed
+  discovered   Int      @default(0)
+  metadata     Json?
+  error        String?  @db.Text
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor        User?    @relation("ResourceSyncRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  server       Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  credential   TeamCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([actorId])
+  @@index([serverId])
+  @@index([credentialId])
+  @@index([sourceType])
+  @@index([provider])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// 资源控制动作执行记录
+model ResourceActionRun {
+  id           String   @id @default(cuid())
+  teamId       String
+  actorId      String?
+  resourceId   String
+  credentialId String?
+  operationApprovalId String?
+  serverExecutionJobId String?
+  action       String
+  executorKey  String
+  adapterKey   String
+  dryRun       Boolean  @default(true)
+  risk         String   @default("low") // low | medium | high
+  status       String   @default("running") // running | completed | failed | blocked
+  params       Json?
+  commandPlan  Json?
+  result       Json?
+  error        String?  @db.Text
+  startedAt    DateTime @default(now())
+  finishedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor        User?    @relation("ResourceActionRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  resource     ManagedResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  credential   TeamCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  operationApproval OperationApproval? @relation(fields: [operationApprovalId], references: [id], onDelete: SetNull)
+  serverExecutionJob ServerExecutionJob? @relation(fields: [serverExecutionJobId], references: [id], onDelete: SetNull)
+  auditEvents  AuditEvent[]
+  metricSnapshots ResourceMetricSnapshot[]
+
+  @@index([teamId])
+  @@index([actorId])
+  @@index([resourceId])
+  @@index([credentialId])
+  @@index([operationApprovalId])
+  @@index([serverExecutionJobId])
+  @@index([action])
+  @@index([executorKey])
+  @@index([adapterKey])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// 资源指标快照，当前用于 Docker stats，后续可扩展到云资源/Agent 指标
+model ResourceMetricSnapshot {
+  id                  String   @id @default(cuid())
+  teamId              String
+  resourceId          String
+  resourceActionRunId String?
+  serverId            String?
+  projectId           String?
+  environmentId       String?
+  sourceType          String
+  provider            String
+  kind                String
+  metricSource        String   @default("docker_stats")
+  status              String   @default("collected") // collected | partial
+  sampledAt           DateTime @default(now())
+  cpuPercent          Float?
+  memoryUsageBytes    Float?
+  memoryLimitBytes    Float?
+  memoryPercent       Float?
+  networkInputBytes   Float?
+  networkOutputBytes  Float?
+  blockInputBytes     Float?
+  blockOutputBytes    Float?
+  pids                Int?
+  raw                 Json?
+  createdAt           DateTime @default(now())
+
+  team                Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  resource            ManagedResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  resourceActionRun   ResourceActionRun? @relation(fields: [resourceActionRunId], references: [id], onDelete: SetNull)
+  server              Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  project             Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment         ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([resourceId])
+  @@index([resourceActionRunId])
+  @@index([serverId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([sourceType])
+  @@index([provider])
+  @@index([kind])
+  @@index([metricSource])
+  @@index([status])
+  @@index([sampledAt])
+  @@index([resourceId, sampledAt])
+}
+
+// 资源连接/授权探测运行记录
+model ResourceConnectionRun {
+  id             String   @id @default(cuid())
+  teamId         String
+  actorId        String?
+  resourceId     String
+  credentialId   String?
+  projectId      String?
+  environmentId  String?
+  serverId       String?
+  sourceType     String
+  provider       String
+  kind           String
+  targetEndpoint String?
+  authAdapterKey String
+  executorKey    String
+  adapterKey     String
+  dryRun         Boolean  @default(true)
+  status         String   @default("running") // running | completed | failed | blocked
+  params         Json?
+  connectionPlan Json?
+  result         Json?
+  error          String?  @db.Text
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor          User?    @relation("ResourceConnectionRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  resource       ManagedResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  credential     TeamCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment    ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  server         Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  auditEvents    AuditEvent[]
+
+  @@index([teamId])
+  @@index([actorId])
+  @@index([resourceId])
+  @@index([credentialId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([serverId])
+  @@index([sourceType])
+  @@index([provider])
+  @@index([kind])
+  @@index([authAdapterKey])
+  @@index([executorKey])
+  @@index([adapterKey])
+  @@index([dryRun])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// 资源只读查询/浏览运行记录
+model ResourceQueryRun {
+  id             String   @id @default(cuid())
+  teamId         String
+  actorId        String?
+  resourceId     String
+  credentialId   String?
+  projectId      String?
+  environmentId  String?
+  serverId       String?
+  sourceType     String
+  provider       String
+  kind           String
+  queryType      String   // sql | redis_scan | sls_query | cos_list | metadata
+  query          String?  @db.Text
+  authAdapterKey String
+  executorKey    String
+  adapterKey     String
+  dryRun         Boolean  @default(true)
+  status         String   @default("running") // running | completed | failed | blocked
+  params         Json?
+  queryPlan      Json?
+  result         Json?
+  error          String?  @db.Text
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor          User?    @relation("ResourceQueryRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  resource       ManagedResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  credential     TeamCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment    ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  server         Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  auditEvents    AuditEvent[]
+
+  @@index([teamId])
+  @@index([actorId])
+  @@index([resourceId])
+  @@index([credentialId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([serverId])
+  @@index([sourceType])
+  @@index([provider])
+  @@index([kind])
+  @@index([queryType])
+  @@index([authAdapterKey])
+  @@index([executorKey])
+  @@index([adapterKey])
+  @@index([dryRun])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// 备份计划
+model BackupPlan {
+  id              String   @id @default(cuid())
+  teamId          String
+  createdById     String?
+  projectId       String?
+  environmentId   String?
+  resourceId      String
+  serverId        String?
+  name            String
+  backupType      String   @default("logical") // logical | snapshot | file
+  schedule        String?
+  retentionDays   Int      @default(7)
+  destinationType String   @default("local") // local | cos | oss | s3
+  destination     Json?
+  config          Json?
+  status          String   @default("active") // active | paused | archived
+  lastRunAt       DateTime?
+  lastStatus      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy       User?    @relation("BackupPlanCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment     ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  resource        ManagedResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  server          Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  runs            BackupRun[]
+  alertRules      AlertRule[]
+  alertEvents     AlertEvent[]
+  logStreams      LogStream[]
+  logEntries      LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([resourceId])
+  @@index([serverId])
+  @@index([backupType])
+  @@index([destinationType])
+  @@index([status])
+  @@index([lastRunAt])
+}
+
+// 备份运行记录
+model BackupRun {
+  id              String   @id @default(cuid())
+  teamId          String
+  planId          String?
+  actorId         String?
+  projectId       String?
+  environmentId   String?
+  resourceId      String
+  serverId        String?
+  serverExecutionJobId String?
+  trigger         String   @default("manual") // manual | schedule | api
+  backupType      String   @default("logical")
+  executorKey     String   @default("server-executor")
+  adapterKey      String   @default("backup-script-plan")
+  dryRun          Boolean  @default(true)
+  status          String   @default("running") // running | completed | failed | blocked
+  destinationType String   @default("local")
+  destination     Json?
+  commandPlan     Json?
+  logs            Json?
+  result          Json?
+  error           String?  @db.Text
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  plan            BackupPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  actor           User?    @relation("BackupRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment     ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  resource        ManagedResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  server          Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  serverExecutionJob ServerExecutionJob? @relation(fields: [serverExecutionJobId], references: [id], onDelete: SetNull)
+  auditEvents     AuditEvent[]
+  logStreams      LogStream[]
+  logEntries      LogEntry[]
+  logCollectionRuns LogCollectionRun[]
+
+  @@index([teamId])
+  @@index([planId])
+  @@index([actorId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([resourceId])
+  @@index([serverId])
+  @@index([serverExecutionJobId])
+  @@index([trigger])
+  @@index([backupType])
+  @@index([executorKey])
+  @@index([adapterKey])
+  @@index([dryRun])
+  @@index([status])
+  @@index([startedAt])
+}
+
+// 监控告警规则
+model AlertRule {
+  id                   String   @id @default(cuid())
+  teamId               String
+  createdById          String?
+  projectId            String?
+  environmentId        String?
+  applicationId        String?
+  applicationServiceId String?
+  serverId             String?
+  siteId               String?
+  managedResourceId    String?
+  backupPlanId         String?
+  name                 String
+  category             String   @default("service") // service | server | site | resource | backup | deployment
+  metric               String   // health_status | service_status | backup_status | certificate_expiry | deployment_status
+  severity             String   @default("warning") // info | warning | critical
+  condition            Json?
+  enabled              Boolean  @default(true)
+  evaluationMode       String   @default("manual") // manual | schedule | webhook
+  intervalSeconds      Int      @default(300)
+  lastEvaluatedAt      DateTime?
+  lastStatus           String?  // ok | firing | insufficient_data | error
+  lastMessage          String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy            User?    @relation("AlertRuleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  project              Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment          ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  application          Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  applicationService   ApplicationService? @relation(fields: [applicationServiceId], references: [id], onDelete: SetNull)
+  server               Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  site                 Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  managedResource      ManagedResource? @relation(fields: [managedResourceId], references: [id], onDelete: SetNull)
+  backupPlan           BackupPlan? @relation(fields: [backupPlanId], references: [id], onDelete: SetNull)
+  events               AlertEvent[]
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([serverId])
+  @@index([siteId])
+  @@index([managedResourceId])
+  @@index([backupPlanId])
+  @@index([category])
+  @@index([metric])
+  @@index([severity])
+  @@index([enabled])
+  @@index([lastEvaluatedAt])
+  @@index([lastStatus])
+}
+
+// 告警静默规则
+model AlertSilence {
+  id             String   @id @default(cuid())
+  teamId         String
+  createdById    String?
+  projectId      String?
+  environmentId  String?
+  name           String
+  status         String   @default("active") // active | paused | archived
+  category       String?
+  metric         String?
+  severityFilter Json?
+  startsAt       DateTime @default(now())
+  endsAt         DateTime?
+  reason         String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy      User?    @relation("AlertSilenceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment    ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([status])
+  @@index([category])
+  @@index([metric])
+  @@index([startsAt])
+  @@index([endsAt])
+}
+
+// 监控告警事件
+model AlertEvent {
+  id                   String   @id @default(cuid())
+  teamId               String
+  ruleId               String?
+  actorId              String?
+  projectId            String?
+  environmentId        String?
+  applicationId        String?
+  applicationServiceId String?
+  serverId             String?
+  siteId               String?
+  managedResourceId    String?
+  backupPlanId         String?
+  category             String
+  metric               String
+  severity             String   @default("warning") // info | warning | critical
+  status               String   @default("firing") // firing | resolved | acknowledged | suppressed | error
+  value                Json?
+  condition            Json?
+  summary              String?  @db.Text
+  metadata             Json?
+  occurredAt           DateTime @default(now())
+  acknowledgedAt       DateTime?
+  resolvedAt           DateTime?
+  createdAt            DateTime @default(now())
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  rule                 AlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  actor                User?    @relation("AlertEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project              Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment          ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  application          Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  applicationService   ApplicationService? @relation(fields: [applicationServiceId], references: [id], onDelete: SetNull)
+  server               Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  site                 Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  managedResource      ManagedResource? @relation(fields: [managedResourceId], references: [id], onDelete: SetNull)
+  backupPlan           BackupPlan? @relation(fields: [backupPlanId], references: [id], onDelete: SetNull)
+  auditEvents          AuditEvent[]
+  logStreams           LogStream[]
+  logEntries           LogEntry[]
+  logCollectionRuns    LogCollectionRun[]
+  notificationDeliveries AlertNotificationDelivery[]
+
+  @@index([teamId])
+  @@index([ruleId])
+  @@index([actorId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([serverId])
+  @@index([siteId])
+  @@index([managedResourceId])
+  @@index([backupPlanId])
+  @@index([category])
+  @@index([metric])
+  @@index([severity])
+  @@index([status])
+  @@index([occurredAt])
+}
+
+// 告警通知通道
+model AlertNotificationChannel {
+  id              String   @id @default(cuid())
+  teamId          String
+  createdById     String?
+  projectId       String?
+  environmentId   String?
+  name            String
+  type            String   @default("webhook") // webhook | email | feishu | dingtalk | wecom
+  status          String   @default("active") // active | paused | archived
+  config          Json?
+  secretConfig    Json?
+  eventStatuses   Json?
+  severityFilter  Json?
+  lastStatus      String?
+  lastDeliveredAt DateTime?
+  lastError       String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy       User?    @relation("AlertNotificationChannelCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries      AlertNotificationDelivery[]
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([type])
+  @@index([status])
+  @@index([lastDeliveredAt])
+}
+
+// 告警通知投递记录
+model AlertNotificationDelivery {
+  id             String   @id @default(cuid())
+  teamId         String
+  channelId      String
+  alertEventId   String
+  channelType    String
+  status         String   @default("planned") // planned | sent | failed | skipped
+  dryRun         Boolean  @default(true)
+  target         String?
+  requestPayload Json?
+  responseStatus Int?
+  responseBody   String?  @db.Text
+  error          String?  @db.Text
+  attemptedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  channel        AlertNotificationChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  alertEvent     AlertEvent @relation(fields: [alertEventId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([channelId])
+  @@index([alertEventId])
+  @@index([channelType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// 日志流
+model LogStream {
+  id                   String   @id @default(cuid())
+  teamId               String
+  createdById          String?
+  projectId            String?
+  environmentId        String?
+  applicationId        String?
+  applicationServiceId String?
+  serverId             String?
+  siteId               String?
+  managedResourceId    String?
+  deploymentRunId      String?
+  backupPlanId         String?
+  backupRunId          String?
+  alertEventId         String?
+  name                 String
+  sourceType           String   @default("manual") // manual | server_executor | docker | nginx | sls | deployment | backup | alert
+  sourceKey            String?
+  status               String   @default("active") // active | archived
+  retentionDays        Int      @default(14)
+  labels               Json?
+  metadata             Json?
+  lastEntryAt          DateTime?
+  lastLevel            String?
+  lastMessage          String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy            User?    @relation("LogStreamCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  project              Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment          ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  application          Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  applicationService   ApplicationService? @relation(fields: [applicationServiceId], references: [id], onDelete: SetNull)
+  server               Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  site                 Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  managedResource      ManagedResource? @relation(fields: [managedResourceId], references: [id], onDelete: SetNull)
+  deploymentRun        DeploymentRun? @relation(fields: [deploymentRunId], references: [id], onDelete: SetNull)
+  backupPlan           BackupPlan? @relation(fields: [backupPlanId], references: [id], onDelete: SetNull)
+  backupRun            BackupRun? @relation(fields: [backupRunId], references: [id], onDelete: SetNull)
+  alertEvent           AlertEvent? @relation(fields: [alertEventId], references: [id], onDelete: SetNull)
+  entries              LogEntry[]
+  collectionRuns       LogCollectionRun[]
+  retentionRuns        LogRetentionRun[]
+  auditEvents          AuditEvent[]
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([serverId])
+  @@index([siteId])
+  @@index([managedResourceId])
+  @@index([deploymentRunId])
+  @@index([backupPlanId])
+  @@index([backupRunId])
+  @@index([alertEventId])
+  @@index([sourceType])
+  @@index([sourceKey])
+  @@index([status])
+  @@index([lastEntryAt])
+}
+
+// 日志条目
+model LogEntry {
+  id                   String   @id @default(cuid())
+  teamId               String
+  streamId             String
+  actorId              String?
+  projectId            String?
+  environmentId        String?
+  applicationId        String?
+  applicationServiceId String?
+  serverId             String?
+  siteId               String?
+  managedResourceId    String?
+  deploymentRunId      String?
+  backupPlanId         String?
+  backupRunId          String?
+  alertEventId         String?
+  timestamp            DateTime @default(now())
+  level                String   @default("info") // trace | debug | info | warn | error | fatal
+  message              String   @db.Text
+  source               String?
+  labels               Json?
+  context              Json?
+  raw                  Json?
+  createdAt            DateTime @default(now())
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  stream               LogStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  actor                User?    @relation("LogEntryActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project              Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment          ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  application          Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  applicationService   ApplicationService? @relation(fields: [applicationServiceId], references: [id], onDelete: SetNull)
+  server               Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  site                 Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  managedResource      ManagedResource? @relation(fields: [managedResourceId], references: [id], onDelete: SetNull)
+  deploymentRun        DeploymentRun? @relation(fields: [deploymentRunId], references: [id], onDelete: SetNull)
+  backupPlan           BackupPlan? @relation(fields: [backupPlanId], references: [id], onDelete: SetNull)
+  backupRun            BackupRun? @relation(fields: [backupRunId], references: [id], onDelete: SetNull)
+  alertEvent           AlertEvent? @relation(fields: [alertEventId], references: [id], onDelete: SetNull)
+  auditEvents          AuditEvent[]
+
+  @@index([teamId])
+  @@index([streamId])
+  @@index([actorId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([serverId])
+  @@index([siteId])
+  @@index([managedResourceId])
+  @@index([deploymentRunId])
+  @@index([backupPlanId])
+  @@index([backupRunId])
+  @@index([alertEventId])
+  @@index([timestamp])
+  @@index([level])
+  @@index([source])
+}
+
+// 日志采集运行记录
+model LogCollectionRun {
+  id                   String   @id @default(cuid())
+  teamId               String
+  streamId             String
+  actorId              String?
+  projectId            String?
+  environmentId        String?
+  applicationId        String?
+  applicationServiceId String?
+  serverId             String?
+  siteId               String?
+  managedResourceId    String?
+  deploymentRunId      String?
+  backupPlanId         String?
+  backupRunId          String?
+  alertEventId         String?
+  serverExecutionJobId String?
+  sourceType           String
+  sourceKey            String?
+  executorKey          String   @default("server-executor")
+  adapterKey           String   @default("log-collection-plan")
+  dryRun               Boolean  @default(true)
+  tail                 Int      @default(200)
+  status               String   @default("running") // queued | running | completed | failed | blocked | cancelled
+  params               Json?
+  commandPlan          Json?
+  logs                 Json?
+  result               Json?
+  error                String?  @db.Text
+  ingestionStatus      String?  // pending | completed | skipped | failed
+  ingestedEntryCount   Int      @default(0)
+  ingestionError       String?  @db.Text
+  ingestedAt           DateTime?
+  startedAt            DateTime @default(now())
+  finishedAt           DateTime?
+  createdAt            DateTime @default(now())
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  stream               LogStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  actor                User?    @relation("LogCollectionRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project              Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment          ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  application          Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  applicationService   ApplicationService? @relation(fields: [applicationServiceId], references: [id], onDelete: SetNull)
+  server               Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  site                 Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  managedResource      ManagedResource? @relation(fields: [managedResourceId], references: [id], onDelete: SetNull)
+  deploymentRun        DeploymentRun? @relation(fields: [deploymentRunId], references: [id], onDelete: SetNull)
+  backupPlan           BackupPlan? @relation(fields: [backupPlanId], references: [id], onDelete: SetNull)
+  backupRun            BackupRun? @relation(fields: [backupRunId], references: [id], onDelete: SetNull)
+  alertEvent           AlertEvent? @relation(fields: [alertEventId], references: [id], onDelete: SetNull)
+  serverExecutionJob   ServerExecutionJob? @relation(fields: [serverExecutionJobId], references: [id], onDelete: SetNull)
+  auditEvents          AuditEvent[]
+
+  @@index([teamId])
+  @@index([streamId])
+  @@index([actorId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([serverId])
+  @@index([siteId])
+  @@index([managedResourceId])
+  @@index([deploymentRunId])
+  @@index([backupPlanId])
+  @@index([backupRunId])
+  @@index([alertEventId])
+  @@index([serverExecutionJobId])
+  @@index([sourceType])
+  @@index([sourceKey])
+  @@index([executorKey])
+  @@index([adapterKey])
+  @@index([dryRun])
+  @@index([status])
+  @@index([ingestionStatus])
+  @@index([startedAt])
+}
+
+// 日志保留清理运行记录
+model LogRetentionRun {
+  id                String   @id @default(cuid())
+  teamId            String
+  streamId          String?
+  actorId           String?
+  projectId         String?
+  environmentId     String?
+  dryRun            Boolean  @default(true)
+  retentionDays     Int
+  cutoffAt          DateTime
+  matchedEntryCount Int      @default(0)
+  deletedEntryCount Int      @default(0)
+  status            String   @default("running") // running | completed | failed
+  error             String?  @db.Text
+  startedAt         DateTime @default(now())
+  finishedAt        DateTime?
+  createdAt         DateTime @default(now())
+
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  stream            LogStream? @relation(fields: [streamId], references: [id], onDelete: SetNull)
+  actor             User?    @relation("LogRetentionRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  auditEvents       AuditEvent[]
+
+  @@index([teamId])
+  @@index([streamId])
+  @@index([actorId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([dryRun])
+  @@index([status])
+  @@index([cutoffAt])
+  @@index([startedAt])
+}
+
+// 操作审批
+model OperationApproval {
+  id                   String   @id @default(cuid())
+  teamId               String
+  requesterId          String?
+  reviewerId           String?
+  projectId            String?
+  environmentId        String?
+  applicationId        String?
+  applicationServiceId String?
+  serverId             String?
+  siteId               String?
+  managedResourceId    String?
+  category             String   // resource_action | service_operation | deployment
+  action               String
+  targetType           String
+  targetId             String?
+  risk                 String   @default("medium") // low | medium | high
+  status               String   @default("pending") // pending | approved | rejected | cancelled
+  summary              String?  @db.Text
+  reason               String?  @db.Text
+  reviewComment        String?  @db.Text
+  metadata             Json?
+  requestedAt          DateTime @default(now())
+  reviewedAt           DateTime?
+  consumedAt           DateTime?
+  expiresAt            DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  requester            User?    @relation("OperationApprovalRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  reviewer             User?    @relation("OperationApprovalReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  project              Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment          ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  application          Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  applicationService   ApplicationService? @relation(fields: [applicationServiceId], references: [id], onDelete: SetNull)
+  server               Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  site                 Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  managedResource      ManagedResource? @relation(fields: [managedResourceId], references: [id], onDelete: SetNull)
+  siteSyncRuns         SiteSyncRun[]
+  resourceActionRuns   ResourceActionRun[]
+  applicationServiceOperationRuns ApplicationServiceOperationRun[]
+  deploymentRuns       DeploymentRun[]
+  auditEvents          AuditEvent[]
+
+  @@index([teamId])
+  @@index([requesterId])
+  @@index([reviewerId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([serverId])
+  @@index([siteId])
+  @@index([managedResourceId])
+  @@index([category])
+  @@index([action])
+  @@index([targetType])
+  @@index([targetId])
+  @@index([risk])
+  @@index([status])
+  @@index([requestedAt])
+  @@index([reviewedAt])
+  @@index([consumedAt])
+}
+
+// 统一审计事件
+model AuditEvent {
+  id                                String   @id @default(cuid())
+  teamId                            String
+  actorId                           String?
+  projectId                         String?
+  environmentId                     String?
+  applicationId                     String?
+  applicationServiceId              String?
+  serverId                          String?
+  siteId                            String?
+  managedResourceId                 String?
+  deploymentRunId                   String?
+  resourceActionRunId               String?
+  resourceConnectionRunId           String?
+  resourceQueryRunId                String?
+  applicationServiceOperationRunId  String?
+  siteSyncRunId                     String?
+  operationApprovalId               String?
+  backupRunId                       String?
+  alertEventId                      String?
+  logStreamId                       String?
+  logEntryId                        String?
+  logCollectionRunId                String?
+  logRetentionRunId                 String?
+  category                          String
+  action                            String
+  targetType                        String
+  targetId                          String?
+  risk                              String   @default("low") // low | medium | high
+  status                            String   @default("completed") // running | completed | failed | blocked
+  summary                           String?  @db.Text
+  metadata                          Json?
+  occurredAt                        DateTime @default(now())
+  createdAt                         DateTime @default(now())
+
+  team                              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor                             User?    @relation("AuditEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  project                           Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment                       ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  application                       Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  applicationService                ApplicationService? @relation(fields: [applicationServiceId], references: [id], onDelete: SetNull)
+  server                            Server?  @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  site                              Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  managedResource                   ManagedResource? @relation(fields: [managedResourceId], references: [id], onDelete: SetNull)
+  deploymentRun                     DeploymentRun? @relation(fields: [deploymentRunId], references: [id], onDelete: SetNull)
+  resourceActionRun                 ResourceActionRun? @relation(fields: [resourceActionRunId], references: [id], onDelete: SetNull)
+  resourceConnectionRun             ResourceConnectionRun? @relation(fields: [resourceConnectionRunId], references: [id], onDelete: SetNull)
+  resourceQueryRun                  ResourceQueryRun? @relation(fields: [resourceQueryRunId], references: [id], onDelete: SetNull)
+  applicationServiceOperationRun    ApplicationServiceOperationRun? @relation(fields: [applicationServiceOperationRunId], references: [id], onDelete: SetNull)
+  siteSyncRun                       SiteSyncRun? @relation(fields: [siteSyncRunId], references: [id], onDelete: SetNull)
+  operationApproval                 OperationApproval? @relation(fields: [operationApprovalId], references: [id], onDelete: SetNull)
+  backupRun                         BackupRun? @relation(fields: [backupRunId], references: [id], onDelete: SetNull)
+  alertEvent                        AlertEvent? @relation(fields: [alertEventId], references: [id], onDelete: SetNull)
+  logStream                         LogStream? @relation(fields: [logStreamId], references: [id], onDelete: SetNull)
+  logEntry                          LogEntry? @relation(fields: [logEntryId], references: [id], onDelete: SetNull)
+  logCollectionRun                  LogCollectionRun? @relation(fields: [logCollectionRunId], references: [id], onDelete: SetNull)
+  logRetentionRun                   LogRetentionRun? @relation(fields: [logRetentionRunId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([actorId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([serverId])
+  @@index([siteId])
+  @@index([managedResourceId])
+  @@index([deploymentRunId])
+  @@index([resourceActionRunId])
+  @@index([resourceConnectionRunId])
+  @@index([resourceQueryRunId])
+  @@index([applicationServiceOperationRunId])
+  @@index([siteSyncRunId])
+  @@index([operationApprovalId])
+  @@index([backupRunId])
+  @@index([alertEventId])
+  @@index([logStreamId])
+  @@index([logEntryId])
+  @@index([logCollectionRunId])
+  @@index([logRetentionRunId])
+  @@index([category])
+  @@index([action])
+  @@index([targetType])
+  @@index([targetId])
+  @@index([risk])
+  @@index([status])
+  @@index([occurredAt])
 }

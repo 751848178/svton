@@ -1,9 +1,9 @@
 ---
 name: verify-before-done
-description: "Use before finalizing any code change, bug fix, refactor, or feature: compare the work against the user's request, identify gaps, run appropriate automated verification including e2e, and require real data for data-dependent checks."
+description: "Use only after code edits are complete and before the final response when concrete verification evidence is needed. Check the diff, run relevant tests, and report gaps or risks."
 ---
 
-<!-- Generated from skills/verify-before-done/skill.config.json. Edit source instead of .skills output. -->
+<!-- Generated from skills/verify-before-done/skill.config.json. Edit skill.config.json instead of this file. -->
 
 # Verify Before Done
 
@@ -22,9 +22,10 @@ Apply this as a completion gate after code edits and before the final response. 
 
 ## Trigger Signals
 
-- 完成 修改 修复 实现 代码 改动 收尾 final done verify e2e test validation real data。
-- before final response code change bug fix feature implementation refactor automated verification requirement fit。
-- 项目 真实数据 自动化验证 单测 集成测试 e2e 回归 测试 用户需求 是否符合。
+- 完成代码变更后验证 收尾验证 验证证据 diff 对照用户需求
+- 代码改动完成后运行 typecheck lint unit e2e regression checks
+- 发布前验证 上线前验证 回归测试 需求符合性检查 真实数据验证
+- verify-before-done completion gate after patch before final response
 
 ## Default Workflow
 

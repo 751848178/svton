@@ -139,6 +139,23 @@ export class ResourceService {
     return JSON.parse(this.decrypt(resource.config));
   }
 
+  async getCredentialForGeneration(teamId: string, id: string) {
+    const resource = await this.prisma.resource.findFirst({
+      where: { id, teamId },
+    });
+
+    if (!resource) {
+      throw new NotFoundException('资源不存在');
+    }
+
+    return {
+      id: resource.id,
+      type: resource.type,
+      name: resource.name,
+      config: JSON.parse(this.decrypt(resource.config)) as Record<string, string>,
+    };
+  }
+
   // 更新资源
   async update(teamId: string, id: string, dto: UpdateResourceDto) {
     const existing = await this.prisma.resource.findFirst({

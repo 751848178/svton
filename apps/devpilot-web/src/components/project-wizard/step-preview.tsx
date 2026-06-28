@@ -183,6 +183,14 @@ function formatResourceValue(resource: ProjectResourceConfig): string {
     return resource.credentialId ? '已选择凭证' : '未选择凭证';
   }
 
+  if (resource.mode === 'instance') {
+    return resource.instanceId ? '已选择资源实例' : '未选择资源实例';
+  }
+
+  if (resource.mode === 'pool') {
+    return resource.poolId ? '将从资源池分配' : '未选择资源池';
+  }
+
   const configuredCount = Object.values(resource.config || {}).filter(Boolean).length;
   return configuredCount > 0 ? `已填写 ${configuredCount} 项` : '未填写';
 }

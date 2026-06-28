@@ -7,10 +7,14 @@
     "build": "node ../scripts/build-one.mjs plan-before-code",
     "validate": "node ../scripts/validate-one.mjs plan-before-code",
     "clean": "node ../scripts/clean-one.mjs plan-before-code",
-    "prepack": "pnpm build && pnpm validate"
+    "prepack": "npm run build && npm run validate"
   },
   "files": [
-    "dist"
+    "SKILL.md",
+    "agents",
+    "assets",
+    "references",
+    "scripts"
   ],
   "publishConfig": {
     "access": "public"

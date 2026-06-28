@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as archiver from 'archiver';
 import { Writable } from 'stream';
 import { RegistryService } from '../registry/registry.service';
+import { ResourceService } from '../resource/resource.service';
+import { ResourcePoolService } from '../resource-pool/resource-pool.service';
+import { ResourceRequestService } from '../resource-request/resource-request.service';
 import { GenerateProjectDto } from './dto/generate.dto';
 
 export interface GeneratedFile {
@@ -13,20 +16,44 @@ export interface GeneratedFile {
 export interface ResourceCredential {
   type: string;
   config: Record<string, unknown>;
+  mode?: ProjectResourceConfig['mode'];
+  sourceId?: string;
+  name?: string;
+}
+
+export interface ResourceResolutionSummary {
+  type: string;
+  mode: ProjectResourceConfig['mode'];
+  sourceId?: string;
+  name?: string;
+  resourceName?: string;
+}
+
+export interface ResourceResolutionResult {
+  credentials: ResourceCredential[];
+  summary: ResourceResolutionSummary[];
 }
 
 interface ProjectResourceConfig {
   type?: string;
-  mode?: 'manual' | 'credential' | 'skipped';
+  mode?: 'manual' | 'credential' | 'instance' | 'pool' | 'skipped';
   config?: Record<string, unknown>;
   credentialId?: string;
+  instanceId?: string;
+  poolId?: string;
+  resourceName?: string;
 }
 
 @Injectable()
 export class GeneratorService {
   private readonly logger = new Logger(GeneratorService.name);
 
-  constructor(private readonly registryService: RegistryService) {}
+  constructor(
+    private readonly registryService: RegistryService,
+    private readonly resourceService: ResourceService,
+    private readonly resourceRequestService: ResourceRequestService,
+    private readonly resourcePoolService: ResourcePoolService,
+  ) {}
 
   async generateProject(config: GenerateProjectDto, resourceCredentials?: ResourceCredential[]): Promise<GeneratedFile[]> {
     const files: GeneratedFile[] = [];
@@ -66,6 +93,108 @@ export class GeneratorService {
     this.logger.log(`Generated ${files.length} files for project: ${basicInfo.name}`);
 
     return files;
+  }
+
+  async resolveProjectResources(
+    teamId: string,
+    userId: string,
+    projectId: string,
+    config: GenerateProjectDto,
+  ): Promise<ResourceResolutionResult> {
+    const resources = config.resources || {};
+    const credentials: ResourceCredential[] = [];
+    const summary: ResourceResolutionSummary[] = [];
+
+    for (const [resourceType, resource] of Object.entries(resources)) {
+      if (!resource || typeof resource !== 'object') {
+        continue;
+      }
+
+      const value = resource as ProjectResourceConfig;
+      const type = value.type || resourceType;
+
+      if (value.mode === 'skipped') {
+        summary.push({ type, mode: 'skipped' });
+        continue;
+      }
+
+      if (value.mode === 'credential' && value.credentialId) {
+        const credential = await this.resourceService.getCredentialForGeneration(teamId, value.credentialId);
+        credentials.push({
+          type: credential.type,
+          config: credential.config,
+          mode: 'credential',
+          sourceId: credential.id,
+          name: credential.name,
+        });
+        summary.push({
+          type: credential.type,
+          mode: 'credential',
+          sourceId: credential.id,
+          name: credential.name,
+        });
+        continue;
+      }
+
+      if (value.mode === 'instance' && value.instanceId) {
+        const instance = await this.resourceRequestService.getInstanceCredentialForGeneration(
+          teamId,
+          value.instanceId,
+        );
+        credentials.push({
+          type: instance.type,
+          config: instance.config,
+          mode: 'instance',
+          sourceId: instance.id,
+          name: instance.name,
+        });
+        summary.push({
+          type: instance.type,
+          mode: 'instance',
+          sourceId: instance.id,
+          name: instance.name,
+        });
+        continue;
+      }
+
+      if (value.mode === 'pool' && value.poolId) {
+        const allocation = await this.resourcePoolService.allocateResource(
+          {
+            poolId: value.poolId,
+            projectId,
+            resourceName: value.resourceName,
+          },
+          userId,
+          teamId,
+        );
+        credentials.push({
+          type: allocation.type || type,
+          config: allocation.credentials,
+          mode: 'pool',
+          sourceId: allocation.id,
+          name: allocation.resourceName,
+        });
+        summary.push({
+          type: allocation.type || type,
+          mode: 'pool',
+          sourceId: allocation.id,
+          name: allocation.resourceName,
+          resourceName: allocation.resourceName,
+        });
+        continue;
+      }
+
+      if (value.mode === 'manual' && value.config) {
+        credentials.push({
+          type,
+          config: value.config,
+          mode: 'manual',
+        });
+        summary.push({ type, mode: 'manual' });
+      }
+    }
+
+    return { credentials, summary };
   }
 
   private resolveAllPackages(config: GenerateProjectDto): Set<string> {
@@ -766,21 +895,35 @@ export default function Index() {
   private generateEnvFiles(config: GenerateProjectDto, resourceCredentials?: ResourceCredential[]): GeneratedFile[] {
     const files: GeneratedFile[] = [];
     const envVars = this.registryService.generateEnvVars(config.features);
+    const resourceExampleEnvVars = this.resolveResourceExampleEnvVars(config);
+    const hasResourceDatabaseUrl = resourceExampleEnvVars.some((content) => (
+      content.split('\n').some((line) => line.startsWith('DATABASE_URL='))
+    ));
 
     // 基础环境变量
     const baseEnvVars = [
       '# Application',
       'NODE_ENV=development',
       'PORT=3000',
-      '',
-      '# Database',
-      'DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mydb?schema=public"',
     ];
+
+    if (!hasResourceDatabaseUrl) {
+      baseEnvVars.push(
+        '',
+        '# Database',
+        'DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mydb?schema=public"',
+      );
+    }
 
     // 添加功能相关的环境变量
     if (envVars.length > 0) {
       baseEnvVars.push('', '# Features');
       baseEnvVars.push(...envVars);
+    }
+
+    if (resourceExampleEnvVars.length > 0) {
+      baseEnvVars.push('', '# Resource Configuration');
+      baseEnvVars.push(...resourceExampleEnvVars);
     }
 
     // .env.example (所有变量，值为空或默认值)
@@ -813,6 +956,36 @@ export default function Index() {
     }
 
     return files;
+  }
+
+  private resolveResourceExampleEnvVars(config: GenerateProjectDto): string[] {
+    const resources = config.resources || {};
+    const envVars: string[] = [];
+
+    for (const [resourceType, resource] of Object.entries(resources)) {
+      if (!resource || typeof resource !== 'object') {
+        continue;
+      }
+
+      const value = resource as ProjectResourceConfig;
+      const type = value.type || resourceType;
+      const registryResource = this.registryService.getResourceType(type);
+      if (!registryResource) {
+        continue;
+      }
+
+      const templateConfig = registryResource.fields.reduce<Record<string, unknown>>((acc, field) => {
+        acc[field.key] = field.default ?? '';
+        return acc;
+      }, {});
+      const envContent = this.registryService.generateResourceEnvVars(type, templateConfig);
+
+      if (envContent) {
+        envVars.push(envContent);
+      }
+    }
+
+    return [...new Set(envVars)];
   }
 
   private resolveResourceCredentials(config: GenerateProjectDto): ResourceCredential[] {

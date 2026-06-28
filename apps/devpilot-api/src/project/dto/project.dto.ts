@@ -1,4 +1,8 @@
-import { IsString, IsOptional, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsIn } from 'class-validator';
+
+export const PROJECT_ORIGINS = ['generated', 'imported', 'external'] as const;
+
+export type ProjectOrigin = (typeof PROJECT_ORIGINS)[number];
 
 export class CreateProjectDto {
   @IsString()
@@ -9,11 +13,16 @@ export class CreateProjectDto {
   description?: string;
 
   @IsObject()
-  config: object;
+  @IsOptional()
+  config?: object;
 
   @IsString()
   @IsOptional()
   gitRepo?: string;
+
+  @IsIn([...PROJECT_ORIGINS])
+  @IsOptional()
+  origin?: ProjectOrigin;
 }
 
 export class UpdateProjectDto {
@@ -32,4 +41,8 @@ export class UpdateProjectDto {
   @IsString()
   @IsOptional()
   gitRepo?: string;
+
+  @IsIn([...PROJECT_ORIGINS])
+  @IsOptional()
+  origin?: ProjectOrigin;
 }

@@ -1,6 +1,7 @@
 import { Controller, Post, Body, Res, UseGuards, Request, HttpCode } from '@nestjs/common';
 import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { Response } from 'express';
+import { ControlAccessPolicyService } from '../control-access-policy';
 import { GeneratorService } from './generator.service';
 import { GenerateProjectDto } from './dto/generate.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -12,27 +13,57 @@ interface GenerateProjectRequest {
 }
 
 @Controller('projects')
+@UseGuards(JwtAuthGuard, AuthzGuard)
+@Roles('team_member')
 export class GeneratorController {
   constructor(
     private readonly generatorService: GeneratorService,
     private readonly projectService: ProjectService,
+    private readonly accessPolicyService: ControlAccessPolicyService,
   ) {}
 
   @Post('generate')
-  @UseGuards(JwtAuthGuard, AuthzGuard)
-  @Roles('team_member')
   async generateProject(
     @Body() dto: GenerateProjectDto,
     @Request() req: GenerateProjectRequest,
     @Res() res: Response,
   ) {
-    // 生成项目文件
-    const files = await this.generatorService.generateProject(dto);
+    await this.accessPolicyService.assertCanSelfServiceWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      category: 'project',
+      action: 'project.generate',
+      targetType: 'project',
+      risk: 'medium',
+    });
+
     const project = await this.projectService.create(req.teamId, req.user.id, {
       name: dto.basicInfo.name,
       description: dto.basicInfo.description,
       config: dto,
     });
+
+    const resourceResolution = await this.generatorService.resolveProjectResources(
+      req.teamId,
+      req.user.id,
+      project.id,
+      dto,
+    );
+
+    const resolvedConfig = {
+      ...dto,
+      resolvedResources: resourceResolution.summary,
+    };
+
+    await this.projectService.update(req.teamId, project.id, {
+      config: resolvedConfig,
+    });
+
+    // 生成项目文件
+    const files = await this.generatorService.generateProject(
+      dto,
+      resourceResolution.credentials,
+    );
 
     // 创建 ZIP 文件
     const zipBuffer = await this.generatorService.createZipBuffer(files);
@@ -51,9 +82,21 @@ export class GeneratorController {
 
   @Post('preview')
   @HttpCode(200)
-  async previewProject(@Body() dto: GenerateProjectDto) {
+  async previewProject(
+    @Body() dto: GenerateProjectDto,
+    @Request() req: GenerateProjectRequest,
+  ) {
+    await this.accessPolicyService.assertCanSelfServiceWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      category: 'project',
+      action: 'project.preview',
+      targetType: 'project_preview',
+      risk: 'low',
+    });
+
     const files = await this.generatorService.generateProject(dto);
-    
+
     return {
       files: files.map(f => ({
         path: f.path,

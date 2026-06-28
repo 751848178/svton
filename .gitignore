@@ -35,12 +35,23 @@ pnpm-debug.log*
 coverage/
 
 # Tauri
+target/
 **/src-tauri/target/
 
 # Next.js
 apps/agent-web/.next/
 apps/agent-web/out/
 
+# Agent/local generated artifacts
+.agents/
+.claude/
+.codegraph/
+.codex-runs/
+.skills/
+skills/*/.turbo/
+skills/*/dist/
+apps/agent-web/public/skills/*/.turbo/
+apps/agent-web/public/skills/*/dist/
+
 # Misc
 *.tsbuildinfo
-skills/*/dist/

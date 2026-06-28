@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ControlAccessPolicyService } from '../control-access-policy';
 import {
   CompleteResourceRequestDto,
   CreateResourceRequestDto,
@@ -70,46 +71,143 @@ export class ResourceTypeController {
 @UseGuards(JwtAuthGuard, AuthzGuard)
 @Roles('team_member')
 export class ResourceRequestsController {
-  constructor(private readonly resourceRequestService: ResourceRequestService) {}
+  constructor(
+    private readonly resourceRequestService: ResourceRequestService,
+    private readonly accessPolicyService: ControlAccessPolicyService,
+  ) {}
 
   @Post()
-  create(@Request() req: AuthRequest, @Body() dto: CreateResourceRequestDto) {
+  async create(@Request() req: AuthRequest, @Body() dto: CreateResourceRequestDto) {
+    const scope = await this.resourceRequestService.resolveRequestInputAccessScope(req.teamId, dto);
+    await this.assertCanSelfServiceRequest(
+      req,
+      'resource_request.create',
+      null,
+      scope.projectId,
+      scope.environmentId,
+      'medium',
+    );
     return this.resourceRequestService.createRequest(req.teamId, req.user.id, dto);
   }
 
   @Get()
-  findAll(@Request() req: AuthRequest, @Query() query: ListResourceRequestsQueryDto) {
-    return this.resourceRequestService.listRequests(req.teamId, query);
+  async findAll(@Request() req: AuthRequest, @Query() query: ListResourceRequestsQueryDto) {
+    const requests = await this.resourceRequestService.listRequests(req.teamId, query);
+    const allowed = await Promise.all(
+      requests.map(async (request: any) => ({
+        request,
+        allowed: await this.accessPolicyService.canRead({
+          teamId: req.teamId,
+          actorId: req.user.id,
+          projectId: request.projectId,
+          environmentId: request.environmentId,
+          category: 'resource_request',
+          action: 'resource_request.read',
+          targetType: 'resource_request',
+          targetId: request.id,
+          risk: 'low',
+        }),
+      })),
+    );
+    return allowed.filter((item) => item.allowed).map((item) => item.request);
   }
 
   @Get(':id')
-  findOne(@Request() req: AuthRequest, @Param('id') id: string) {
+  async findOne(@Request() req: AuthRequest, @Param('id') id: string) {
+    const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
+    await this.assertCanReadRequest(req, 'resource_request.read', id, scope.projectId, scope.environmentId);
     return this.resourceRequestService.getRequest(req.teamId, id);
   }
 
   @Post(':id/review')
-  @Roles('team_admin')
-  review(
+  async review(
     @Request() req: AuthRequest,
     @Param('id') id: string,
     @Body() dto: ReviewResourceRequestDto,
   ) {
+    const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
+    await this.assertCanWriteRequest(req, 'resource_request.review', id, scope.projectId, scope.environmentId, 'medium');
     return this.resourceRequestService.reviewRequest(req.teamId, req.user.id, id, dto);
   }
 
   @Post(':id/complete')
-  @Roles('team_admin')
-  complete(
+  async complete(
     @Request() req: AuthRequest,
     @Param('id') id: string,
     @Body() dto: CompleteResourceRequestDto,
   ) {
+    const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
+    await this.assertCanWriteRequest(req, 'resource_request.complete', id, scope.projectId, scope.environmentId, 'high');
     return this.resourceRequestService.completeRequest(req.teamId, req.user.id, id, dto);
   }
 
   @Post(':id/cancel')
-  cancel(@Request() req: AuthRequest, @Param('id') id: string) {
+  async cancel(@Request() req: AuthRequest, @Param('id') id: string) {
+    const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
+    await this.assertCanSelfServiceRequest(req, 'resource_request.cancel', id, scope.projectId, scope.environmentId, 'medium');
     return this.resourceRequestService.cancelRequest(req.teamId, req.user.id, id);
+  }
+
+  private assertCanWriteRequest(
+    req: AuthRequest,
+    action: string,
+    requestId: string | null,
+    projectId?: string | null,
+    environmentId?: string | null,
+    risk: string = 'medium',
+  ) {
+    return this.accessPolicyService.assertCanWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId,
+      environmentId,
+      category: 'resource_request',
+      action,
+      targetType: 'resource_request',
+      targetId: requestId,
+      risk,
+    });
+  }
+
+  private assertCanSelfServiceRequest(
+    req: AuthRequest,
+    action: string,
+    requestId: string | null,
+    projectId?: string | null,
+    environmentId?: string | null,
+    risk: string = 'medium',
+  ) {
+    return this.accessPolicyService.assertCanSelfServiceWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId,
+      environmentId,
+      category: 'resource_request',
+      action,
+      targetType: 'resource_request',
+      targetId: requestId,
+      risk,
+    });
+  }
+
+  private assertCanReadRequest(
+    req: AuthRequest,
+    action: string,
+    requestId: string,
+    projectId?: string | null,
+    environmentId?: string | null,
+  ) {
+    return this.accessPolicyService.assertCanRead({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId,
+      environmentId,
+      category: 'resource_request',
+      action,
+      targetType: 'resource_request',
+      targetId: requestId,
+      risk: 'low',
+    });
   }
 }
 
@@ -117,21 +215,64 @@ export class ResourceRequestsController {
 @UseGuards(JwtAuthGuard, AuthzGuard)
 @Roles('team_member')
 export class ResourceInstancesController {
-  constructor(private readonly resourceRequestService: ResourceRequestService) {}
+  constructor(
+    private readonly resourceRequestService: ResourceRequestService,
+    private readonly accessPolicyService: ControlAccessPolicyService,
+  ) {}
 
   @Get()
-  findAll(@Request() req: AuthRequest, @Query() query: ListResourceInstancesQueryDto) {
-    return this.resourceRequestService.listInstances(req.teamId, query);
+  async findAll(@Request() req: AuthRequest, @Query() query: ListResourceInstancesQueryDto) {
+    const instances = await this.resourceRequestService.listInstances(req.teamId, query);
+    const allowed = await Promise.all(
+      instances.map(async (instance: any) => ({
+        instance,
+        allowed: await this.accessPolicyService.canRead({
+          teamId: req.teamId,
+          actorId: req.user.id,
+          projectId: instance.projectId,
+          environmentId: instance.environmentId,
+          category: 'resource_instance',
+          action: 'resource_instance.read',
+          targetType: 'resource_instance',
+          targetId: instance.id,
+          risk: 'low',
+        }),
+      })),
+    );
+    return allowed.filter((item) => item.allowed).map((item) => item.instance);
   }
 
   @Get(':id')
-  findOne(@Request() req: AuthRequest, @Param('id') id: string) {
+  async findOne(@Request() req: AuthRequest, @Param('id') id: string) {
+    const scope = await this.resourceRequestService.getInstanceAccessScope(req.teamId, id);
+    await this.accessPolicyService.assertCanRead({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId: scope.projectId,
+      environmentId: scope.environmentId,
+      category: 'resource_instance',
+      action: 'resource_instance.read',
+      targetType: 'resource_instance',
+      targetId: id,
+      risk: 'low',
+    });
     return this.resourceRequestService.getInstance(req.teamId, id);
   }
 
   @Post(':id/release')
-  @Roles('team_admin')
-  release(@Request() req: AuthRequest, @Param('id') id: string) {
+  async release(@Request() req: AuthRequest, @Param('id') id: string) {
+    const scope = await this.resourceRequestService.getInstanceAccessScope(req.teamId, id);
+    await this.accessPolicyService.assertCanWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId: scope.projectId,
+      environmentId: scope.environmentId,
+      category: 'resource_instance',
+      action: 'resource_instance.release',
+      targetType: 'resource_instance',
+      targetId: id,
+      risk: 'high',
+    });
     return this.resourceRequestService.releaseInstance(req.teamId, req.user.id, id);
   }
 }

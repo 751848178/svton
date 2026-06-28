@@ -1,4 +1,0 @@
-interface:
-  display_name: "Engineering Craft Principles"
-  short_description: "React/TS refactor patterns for overloaded UI components"
-  default_prompt: "Use $engineering-craft-principles or /engineering-craft-principles to restructure this React/TypeScript UI around cleaner component boundaries, explicit variants, derived state, and model-owned async behavior."

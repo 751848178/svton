@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as crypto from 'crypto';
 import { GenerateKeyDto, StoreKeyDto, KeyType } from './dto/key-center.dto';
@@ -95,6 +95,9 @@ export class KeyCenterService {
 
   // 存储密钥
   async storeKey(teamId: string, userId: string, dto: StoreKeyDto) {
+    const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
+    const projectId = environmentRef?.projectId ?? dto.projectId;
+    await this.ensureProject(teamId, projectId);
     const encryptedValue = this.encrypt(dto.value);
 
     const key = await this.prisma.secretKey.create({
@@ -105,8 +108,10 @@ export class KeyCenterService {
         type: dto.type,
         value: encryptedValue,
         description: dto.description,
-        projectId: dto.projectId,
+        projectId,
+        environmentId: environmentRef?.id,
       },
+      include: this.keyInclude(),
     });
 
     this.logger.log(`Stored key: ${dto.name} for team ${teamId}`);
@@ -114,23 +119,42 @@ export class KeyCenterService {
   }
 
   // 获取团队的所有密钥（不返回值）
-  async getKeys(teamId: string, projectId?: string) {
+  async getKeys(teamId: string, projectId?: string, environmentId?: string) {
     const where: any = { teamId };
     if (projectId) {
       where.projectId = projectId;
+    }
+    if (environmentId) {
+      where.environmentId = environmentId;
     }
 
     const keys = await this.prisma.secretKey.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        createdBy: {
-          select: { id: true, name: true, email: true },
-        },
-      },
+      include: this.keyInclude(),
     });
 
     return keys.map((k: any) => this.formatKeyResponse(k));
+  }
+
+  async listKeyScopes(teamId: string, projectId?: string, environmentId?: string) {
+    const where: any = { teamId };
+    if (projectId) {
+      where.projectId = projectId;
+    }
+    if (environmentId) {
+      where.environmentId = environmentId;
+    }
+
+    return this.prisma.secretKey.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        projectId: true,
+        environmentId: true,
+      },
+    });
   }
 
   // 获取密钥值（需要验证）
@@ -149,6 +173,32 @@ export class KeyCenterService {
     return this.decrypt(key.value);
   }
 
+  async resolveKeyInputAccessScope(teamId: string, dto: Partial<StoreKeyDto>) {
+    const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
+    const projectId = environmentRef?.projectId ?? dto.projectId ?? null;
+    await this.ensureProject(teamId, projectId || undefined);
+    return {
+      projectId,
+      environmentId: environmentRef?.id ?? null,
+    };
+  }
+
+  async getKeyAccessScope(teamId: string, keyId: string) {
+    const key = await this.prisma.secretKey.findFirst({
+      where: { id: keyId, teamId },
+      select: { id: true, projectId: true, environmentId: true },
+    });
+
+    if (!key) {
+      throw new NotFoundException('Key not found');
+    }
+
+    return {
+      projectId: key.projectId,
+      environmentId: key.environmentId,
+    };
+  }
+
   // 更新密钥
   async updateKey(teamId: string, keyId: string, dto: Partial<StoreKeyDto>) {
     const key = await this.prisma.secretKey.findFirst({
@@ -163,10 +213,23 @@ export class KeyCenterService {
     if (dto.name) updateData.name = dto.name;
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.value) updateData.value = this.encrypt(dto.value);
+    if (dto.projectId !== undefined || dto.environmentId !== undefined) {
+      const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
+      const projectId = environmentRef?.projectId ?? dto.projectId;
+      await this.ensureProject(teamId, projectId);
+      if (dto.projectId !== undefined) updateData.projectId = projectId || null;
+      if (dto.environmentId !== undefined) {
+        updateData.environmentId = environmentRef?.id || null;
+        if (environmentRef) {
+          updateData.projectId = environmentRef.projectId;
+        }
+      }
+    }
 
     const updated = await this.prisma.secretKey.update({
       where: { id: keyId },
       data: updateData,
+      include: this.keyInclude(),
     });
 
     return this.formatKeyResponse(updated);
@@ -211,9 +274,13 @@ export class KeyCenterService {
   }
 
   // 导出项目密钥为 .env 格式
-  async exportAsEnv(teamId: string, projectId: string): Promise<string> {
+  async exportAsEnv(teamId: string, projectId: string, keyIds?: string[]): Promise<string> {
     const keys = await this.prisma.secretKey.findMany({
-      where: { teamId, projectId },
+      where: {
+        teamId,
+        projectId,
+        ...(keyIds ? { id: { in: keyIds } } : {}),
+      },
     });
 
     const lines = ['# Auto-generated secrets', `# Project ID: ${projectId}`, ''];
@@ -233,9 +300,60 @@ export class KeyCenterService {
       type: key.type,
       description: key.description,
       projectId: key.projectId,
+      environmentId: key.environmentId,
+      environment: key.environment,
       createdBy: key.createdBy,
       createdAt: key.createdAt,
       updatedAt: key.updatedAt,
     };
+  }
+
+  private keyInclude() {
+    return {
+      createdBy: {
+        select: { id: true, name: true, email: true },
+      },
+      environment: {
+        select: { id: true, key: true, name: true, status: true },
+      },
+    };
+  }
+
+  private async ensureProject(teamId: string, projectId?: string) {
+    if (!projectId) return null;
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, teamId },
+      select: { id: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('项目不存在或不属于当前团队');
+    }
+
+    return project;
+  }
+
+  private async resolveProjectEnvironment(
+    teamId: string,
+    environmentId?: string,
+    projectId?: string,
+  ) {
+    if (!environmentId) return null;
+
+    const environment = await this.prisma.projectEnvironment.findFirst({
+      where: { id: environmentId, teamId, status: 'active' },
+      select: { id: true, projectId: true, key: true, name: true },
+    });
+
+    if (!environment) {
+      throw new NotFoundException('项目环境不存在或已归档');
+    }
+
+    if (projectId && environment.projectId !== projectId) {
+      throw new BadRequestException('项目环境不属于所选项目');
+    }
+
+    return environment;
   }
 }

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ControlAccessPolicyModule } from '../control-access-policy';
 import { PrismaModule } from '../prisma/prisma.module';
 import {
   ResourceAuditLogsController,
@@ -9,7 +10,7 @@ import {
 import { ResourceRequestService } from './resource-request.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, ControlAccessPolicyModule],
   controllers: [
     ResourceTypeController,
     ResourceRequestsController,

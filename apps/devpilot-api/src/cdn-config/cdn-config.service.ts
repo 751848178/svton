@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCDNConfigDto, UpdateCDNConfigDto, CreateCredentialDto } from './dto/cdn-config.dto';
@@ -39,6 +39,10 @@ export class CDNConfigService {
 
   // CDN 配置 CRUD
   async create(teamId: string, userId: string, dto: CreateCDNConfigDto) {
+    const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
+    const projectId = environmentRef?.projectId ?? dto.projectId;
+    await this.ensureProject(teamId, projectId);
+
     const data: Prisma.CDNConfigUncheckedCreateInput = {
       teamId,
       createdById: userId,
@@ -47,19 +51,18 @@ export class CDNConfigService {
       origin: dto.origin,
       provider: dto.provider,
       credentialId: dto.credentialId,
+      projectId,
+      environmentId: environmentRef?.id,
       cacheRules: this.toJsonValue(dto.cacheRules ?? []),
       status: 'pending',
     };
-
-    if (dto.projectId !== undefined) {
-      data.projectId = dto.projectId;
-    }
 
     const config = await this.prisma.cDNConfig.create({
       data,
       include: {
         credential: { select: { id: true, name: true, type: true } },
         project: { select: { id: true, name: true } },
+        environment: { select: { id: true, key: true, name: true, status: true } },
       },
     });
 
@@ -74,6 +77,7 @@ export class CDNConfigService {
       include: {
         credential: { select: { id: true, name: true, type: true } },
         project: { select: { id: true, name: true } },
+        environment: { select: { id: true, key: true, name: true, status: true } },
         createdBy: { select: { id: true, name: true, email: true } },
       },
     });
@@ -85,6 +89,7 @@ export class CDNConfigService {
       include: {
         credential: { select: { id: true, name: true, type: true } },
         project: { select: { id: true, name: true } },
+        environment: { select: { id: true, key: true, name: true, status: true } },
         createdBy: { select: { id: true, name: true, email: true } },
       },
     });
@@ -96,6 +101,27 @@ export class CDNConfigService {
     return config;
   }
 
+  async resolveConfigInputAccessScope(
+    teamId: string,
+    dto: Pick<CreateCDNConfigDto | UpdateCDNConfigDto, 'projectId' | 'environmentId'>,
+  ) {
+    const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
+    const projectId = environmentRef?.projectId ?? dto.projectId ?? null;
+    await this.ensureProject(teamId, projectId || undefined);
+    return {
+      projectId,
+      environmentId: environmentRef?.id ?? null,
+    };
+  }
+
+  async getConfigAccessScope(teamId: string, id: string) {
+    const config = await this.findOne(teamId, id);
+    return {
+      projectId: config.projectId,
+      environmentId: config.environmentId,
+    };
+  }
+
   async update(teamId: string, id: string, dto: UpdateCDNConfigDto) {
     const existing = await this.prisma.cDNConfig.findFirst({
       where: { id, teamId },
@@ -104,6 +130,10 @@ export class CDNConfigService {
     if (!existing) {
       throw new NotFoundException('CDN 配置不存在');
     }
+
+    const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
+    const projectId = environmentRef?.projectId ?? dto.projectId;
+    await this.ensureProject(teamId, projectId);
 
     const data: Prisma.CDNConfigUncheckedUpdateInput = {
       status: 'pending',
@@ -126,7 +156,14 @@ export class CDNConfigService {
     }
 
     if (dto.projectId !== undefined) {
-      data.projectId = dto.projectId;
+      data.projectId = projectId || null;
+    }
+
+    if (dto.environmentId !== undefined) {
+      data.environmentId = environmentRef?.id || null;
+      if (environmentRef) {
+        data.projectId = environmentRef.projectId;
+      }
     }
 
     const config = await this.prisma.cDNConfig.update({
@@ -135,6 +172,7 @@ export class CDNConfigService {
       include: {
         credential: { select: { id: true, name: true, type: true } },
         project: { select: { id: true, name: true } },
+        environment: { select: { id: true, key: true, name: true, status: true } },
       },
     });
 
@@ -226,5 +264,43 @@ export class CDNConfigService {
     await this.prisma.teamCredential.delete({ where: { id } });
     this.logger.log(`TeamCredential deleted: ${id}`);
     return { success: true };
+  }
+
+  private async ensureProject(teamId: string, projectId?: string) {
+    if (!projectId) return null;
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, teamId },
+      select: { id: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('项目不存在或不属于当前团队');
+    }
+
+    return project;
+  }
+
+  private async resolveProjectEnvironment(
+    teamId: string,
+    environmentId?: string,
+    projectId?: string,
+  ) {
+    if (!environmentId) return null;
+
+    const environment = await this.prisma.projectEnvironment.findFirst({
+      where: { id: environmentId, teamId, status: 'active' },
+      select: { id: true, projectId: true, key: true, name: true },
+    });
+
+    if (!environment) {
+      throw new NotFoundException('项目环境不存在或已归档');
+    }
+
+    if (projectId && environment.projectId !== projectId) {
+      throw new BadRequestException('项目环境不属于所选项目');
+    }
+
+    return environment;
   }
 }

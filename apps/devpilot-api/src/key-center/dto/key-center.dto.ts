@@ -45,6 +45,10 @@ export class StoreKeyDto {
   @IsString()
   @IsOptional()
   projectId?: string;
+
+  @IsString()
+  @IsOptional()
+  environmentId?: string;
 }
 
 export class KeyResponseDto {
@@ -53,6 +57,7 @@ export class KeyResponseDto {
   type: string;
   description?: string;
   projectId?: string;
+  environmentId?: string;
   createdAt: Date;
   // value 不返回，需要单独获取
 }

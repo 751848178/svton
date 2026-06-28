@@ -2,6 +2,7 @@ import { IsString, IsNumber, IsOptional, IsEnum, IsObject, Min } from 'class-val
 
 export enum PoolType {
   MYSQL = 'mysql',
+  POSTGRESQL = 'postgresql',
   REDIS = 'redis',
   NGINX = 'nginx',
   CDN = 'cdn',

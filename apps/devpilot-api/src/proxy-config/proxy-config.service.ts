@@ -13,6 +13,48 @@ export class ProxyConfigService {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
 
+  async resolveConfigInputAccessScope(
+    teamId: string,
+    dto: { projectId?: string | null },
+  ) {
+    if (!dto.projectId?.trim()) {
+      return {
+        projectId: null,
+        environmentId: null,
+      };
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: dto.projectId, teamId },
+      select: { id: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('项目不存在或不属于当前团队');
+    }
+
+    return {
+      projectId: project.id,
+      environmentId: null,
+    };
+  }
+
+  async getConfigAccessScope(teamId: string, id: string) {
+    const config = await this.prisma.proxyConfig.findFirst({
+      where: { id, teamId },
+      select: { id: true, projectId: true },
+    });
+
+    if (!config) {
+      throw new NotFoundException('代理配置不存在');
+    }
+
+    return {
+      projectId: config.projectId,
+      environmentId: null,
+    };
+  }
+
   async create(teamId: string, userId: string, dto: CreateProxyConfigDto) {
     const data: Prisma.ProxyConfigUncheckedCreateInput = {
       teamId,
@@ -173,7 +215,7 @@ export class ProxyConfigService {
 
     // Server 配置
     nginxConfig += `server {\n`;
-    
+
     if (ssl.enabled) {
       nginxConfig += `    listen 443 ssl http2;\n`;
       nginxConfig += `    listen [::]:443 ssl http2;\n`;
@@ -181,7 +223,7 @@ export class ProxyConfigService {
       nginxConfig += `    listen 80;\n`;
       nginxConfig += `    listen [::]:80;\n`;
     }
-    
+
     nginxConfig += `    server_name ${config.domain};\n\n`;
 
     // SSL 配置
@@ -199,11 +241,11 @@ export class ProxyConfigService {
 
     // Location 配置
     nginxConfig += `    location / {\n`;
-    
-    const proxyPass = upstreams.length > 1 
+
+    const proxyPass = upstreams.length > 1
       ? `http://${upstreamName}`
       : `http://${upstreams[0].host}:${upstreams[0].port || 80}`;
-    
+
     nginxConfig += `        proxy_pass ${proxyPass};\n`;
     nginxConfig += `        proxy_http_version 1.1;\n`;
     nginxConfig += `        proxy_set_header Host $host;\n`;

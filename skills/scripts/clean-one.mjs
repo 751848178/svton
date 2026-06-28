@@ -1,5 +1,6 @@
 import fs from 'node:fs';
-import { loadSkill } from './lib.mjs';
+import path from 'node:path';
+import { loadSkill, repoRoot } from './lib.mjs';
 
 const skillName = process.argv[2];
 
@@ -10,7 +11,10 @@ if (!skillName) {
 
 const { paths } = loadSkill(skillName);
 
-for (const target of [paths.distDir, paths.generatedDir]) {
+for (const target of [
+  path.join(paths.packageDir, 'dist'),
+  path.join(repoRoot, '.skills', skillName),
+]) {
   fs.rmSync(target, { recursive: true, force: true });
 }
 

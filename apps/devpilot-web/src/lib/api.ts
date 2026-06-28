@@ -85,8 +85,55 @@ class ApiClient {
     });
   }
 
+  patch<T>(endpoint: string, data?: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
   delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
+  }
+
+  async stream(endpoint: string, options: RequestOptions = {}): Promise<Response> {
+    const { params, skipTeamId, ...fetchOptions } = options;
+    let url = `${this.baseUrl}/api${endpoint}`;
+
+    if (params) {
+      const searchParams = new URLSearchParams(params);
+      url += `?${searchParams.toString()}`;
+    }
+
+    const token = this.getToken();
+    const teamId = this.getTeamId();
+    const headers: Record<string, string> = {
+      Accept: 'text/event-stream',
+      ...(fetchOptions.headers as Record<string, string>),
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    if (teamId && !skipTeamId) {
+      headers['X-Team-Id'] = teamId;
+    }
+
+    const response = await fetch(url, {
+      ...fetchOptions,
+      method: fetchOptions.method || 'GET',
+      headers,
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    }
+
+    return response;
   }
 }
 

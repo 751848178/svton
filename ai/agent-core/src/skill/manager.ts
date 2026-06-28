@@ -61,6 +61,54 @@ export class SkillManager {
     return skill?.instructions ?? null;
   }
 
+  /** Common English filler words excluded from Latin keyword matching. */
+  private static readonly STOPWORDS = new Set([
+    'the', 'and', 'for', 'not', 'but', 'all', 'any', 'our', 'its', 'was', 'has', 'had',
+    'with', 'from', 'this', 'that', 'were', 'have', 'will', 'can', 'out', 'off', 'over',
+    'into', 'they', 'them', 'their', 'there', 'here', 'than', 'then', 'been', 'also',
+    'just', 'only', 'some', 'such', 'each', 'more', 'most', 'other', 'same', 'about',
+    'after', 'before', 'under', 'these', 'those', 'who', 'how', 'why', 'when', 'what',
+    'where', 'which', 'while', 'use', 'using', 'used', 'your', 'make', 'like', 'want',
+    'need', 'get', 'run', 'try', 'see', 'say', 'way', 'one', 'two', 'new', 'now', 'yes',
+    'via', 'per', 'did', 'does', 'are', 'you', 'she', 'him', 'his', 'her',
+  ]);
+
+  private static readonly CJK_RE = /[一-鿿぀-ヿ가-힯]/;
+
+  /**
+   * Split a trigger phrase into meaningful keyword tokens.
+   *
+   * Script-aware so the matcher works for CJK requests, not just English:
+   * - CJK tokens of length >= 2 are kept (验证 / 测试 / 调用 / 需求 are real words).
+   * - Latin/digit tokens must be length >= 3 and not a common stopword, so
+   *   "bug" / "e2e" / "fix" survive but "the" / "and" / "for" don't.
+   * - Splits on whitespace and common CJK/Latin separators (、，。；;,) and strips
+   *   edge punctuation, so "CodeGraph。" matches "codegraph".
+   */
+  private static tokenize(signal: string): string[] {
+    return signal
+      .toLowerCase()
+      .split(/[\s、，。；;,]+/)
+      .map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ''))
+      .filter((w) => {
+        if (!w) return false;
+        return SkillManager.CJK_RE.test(w)
+          ? w.length >= 2
+          : w.length >= 3 && !SkillManager.STOPWORDS.has(w);
+      });
+  }
+
+  /**
+   * Match a token against the message. CJK tokens use substring matching (CJK has
+   * no word boundaries); Latin tokens use whole-word matching so "bug" matches
+   * "the login bug" but not "debug", and "test" matches "run tests" but not "latest".
+   */
+  private static tokenMatches(token: string, lower: string): boolean {
+    if (SkillManager.CJK_RE.test(token)) return lower.includes(token);
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`).test(lower);
+  }
+
   /**
    * Find skills relevant to a user message using multi-signal matching.
    *
@@ -87,7 +135,7 @@ export class SkillManager {
       // Check triggerSignals (high-weight signal)
       if (skill.triggerSignals?.length) {
         const matched = skill.triggerSignals.some((sig) =>
-          sig.toLowerCase().split(/\s+/).some((word) => word.length > 3 && lower.includes(word)),
+          SkillManager.tokenize(sig).some((word) => SkillManager.tokenMatches(word, lower)),
         );
         if (matched) {
           relevant.push(skill);
@@ -107,8 +155,8 @@ export class SkillManager {
       // Check whenToUse (medium-weight signal)
       if (skill.whenToUse?.length) {
         const matched = skill.whenToUse.some((phrase) => {
-          const words = phrase.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
-          return words.length > 0 && words.some((w) => lower.includes(w));
+          const words = SkillManager.tokenize(phrase);
+          return words.length > 0 && words.some((w) => SkillManager.tokenMatches(w, lower));
         });
         if (matched) {
           relevant.push(skill);
@@ -122,8 +170,8 @@ export class SkillManager {
       if (!skill.avoidWhen?.length) return true;
       // If ANY avoidWhen phrase fully matches, exclude
       return !skill.avoidWhen.some((phrase) => {
-        const words = phrase.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-        return words.length > 0 && words.every((w) => lower.includes(w));
+        const words = SkillManager.tokenize(phrase);
+        return words.length > 0 && words.every((w) => SkillManager.tokenMatches(w, lower));
       });
     });
   }

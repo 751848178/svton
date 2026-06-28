@@ -34,6 +34,10 @@ export class CreateCDNConfigDto {
   @IsString()
   @IsOptional()
   projectId?: string;
+
+  @IsString()
+  @IsOptional()
+  environmentId?: string;
 }
 
 export class UpdateCDNConfigDto {
@@ -58,6 +62,10 @@ export class UpdateCDNConfigDto {
   @IsString()
   @IsOptional()
   projectId?: string;
+
+  @IsString()
+  @IsOptional()
+  environmentId?: string;
 }
 
 export class CreateCredentialDto {

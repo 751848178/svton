@@ -5,9 +5,10 @@ import { GitController } from './git.controller';
 import { GithubProvider } from './providers/github.provider';
 import { GitlabProvider } from './providers/gitlab.provider';
 import { GiteeProvider } from './providers/gitee.provider';
+import { ControlAccessPolicyModule } from '../control-access-policy';
 
 @Module({
-  imports: [HttpModule],
+  imports: [HttpModule, ControlAccessPolicyModule],
   controllers: [GitController],
   providers: [GitService, GithubProvider, GitlabProvider, GiteeProvider],
   exports: [GitService],

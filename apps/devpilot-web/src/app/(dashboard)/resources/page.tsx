@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -11,19 +11,31 @@ interface Resource {
   createdAt: string;
 }
 
-const resourceTypeNames: Record<string, string> = {
-  mysql: 'MySQL',
-  postgresql: 'PostgreSQL',
-  redis: 'Redis',
-  'qiniu-kodo': '七牛云 Kodo',
-  'sms-aliyun': '阿里云短信',
-};
+interface ResourceField {
+  key: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  default?: string | number;
+}
+
+interface ResourceType {
+  id: string;
+  name: string;
+  description?: string;
+  fields: ResourceField[];
+}
 
 export default function ResourcesPage() {
   const { isAuthenticated } = useAuthStore();
   const [resources, setResources] = useState<Resource[]>([]);
+  const [resourceTypes, setResourceTypes] = useState<ResourceType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  const resourceTypeMap = useMemo(() => {
+    return Object.fromEntries(resourceTypes.map((type) => [type.id, type]));
+  }, [resourceTypes]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -33,8 +45,12 @@ export default function ResourcesPage() {
 
   const loadResources = async () => {
     try {
-      const data = await api.get<Resource[]>('/resources');
-      setResources(data);
+      const [resourceData, typeData] = await Promise.all([
+        api.get<Resource[]>('/resources'),
+        api.get<ResourceType[]>('/registry/resource-types'),
+      ]);
+      setResources(resourceData);
+      setResourceTypes(typeData);
     } catch (error) {
       console.error('Failed to load resources:', error);
     } finally {
@@ -47,7 +63,7 @@ export default function ResourcesPage() {
 
     try {
       await api.delete(`/resources/${id}`);
-      setResources(resources.filter((r) => r.id !== id));
+      setResources(resources.filter((resource) => resource.id !== id));
     } catch (error) {
       console.error('Failed to delete resource:', error);
     }
@@ -102,7 +118,7 @@ export default function ResourcesPage() {
               <div>
                 <h3 className="font-medium">{resource.name}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {resourceTypeNames[resource.type] || resource.type}
+                  {resourceTypeMap[resource.type]?.name || resource.type}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -120,6 +136,7 @@ export default function ResourcesPage() {
 
       {showAddModal && (
         <AddResourceModal
+          resourceTypes={resourceTypes}
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false);
@@ -132,41 +149,31 @@ export default function ResourcesPage() {
 }
 
 function AddResourceModal({
+  resourceTypes,
   onClose,
   onSuccess,
 }: {
+  resourceTypes: ResourceType[];
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [type, setType] = useState('mysql');
+  const [type, setType] = useState(resourceTypes[0]?.id || '');
   const [name, setName] = useState('');
   const [config, setConfig] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const resourceFields: Record<string, { key: string; label: string; type: string }[]> = {
-    mysql: [
-      { key: 'host', label: '主机地址', type: 'text' },
-      { key: 'port', label: '端口', type: 'number' },
-      { key: 'username', label: '用户名', type: 'text' },
-      { key: 'password', label: '密码', type: 'password' },
-      { key: 'database', label: '数据库名', type: 'text' },
-    ],
-    redis: [
-      { key: 'host', label: '主机地址', type: 'text' },
-      { key: 'port', label: '端口', type: 'number' },
-      { key: 'password', label: '密码', type: 'password' },
-      { key: 'db', label: '数据库', type: 'number' },
-    ],
-    'qiniu-kodo': [
-      { key: 'accessKey', label: 'Access Key', type: 'text' },
-      { key: 'secretKey', label: 'Secret Key', type: 'password' },
-      { key: 'bucket', label: 'Bucket', type: 'text' },
-      { key: 'domain', label: 'CDN 域名', type: 'text' },
-    ],
-  };
+  const selectedResourceType = useMemo(() => {
+    return resourceTypes.find((resourceType) => resourceType.id === type);
+  }, [resourceTypes, type]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (!type && resourceTypes[0]) {
+      setType(resourceTypes[0].id);
+    }
+  }, [resourceTypes, type]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setIsSubmitting(true);
 
     try {
@@ -182,69 +189,80 @@ function AddResourceModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background rounded-lg p-6 w-full max-w-md">
+      <div className="bg-background rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-bold mb-4">添加资源</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">资源类型</label>
-            <select
-              value={type}
-              onChange={(e) => {
-                setType(e.target.value);
-                setConfig({});
-              }}
-              className="w-full px-3 py-2 border rounded-md bg-background"
-            >
-              <option value="mysql">MySQL</option>
-              <option value="redis">Redis</option>
-              <option value="qiniu-kodo">七牛云 Kodo</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">资源名称</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full px-3 py-2 border rounded-md bg-background"
-              placeholder="如：生产环境数据库"
-            />
-          </div>
-
-          {resourceFields[type]?.map((field) => (
-            <div key={field.key}>
-              <label className="block text-sm font-medium mb-1">{field.label}</label>
-              <input
-                type={field.type}
-                value={config[field.key] || ''}
-                onChange={(e) =>
-                  setConfig({ ...config, [field.key]: e.target.value })
-                }
+        {resourceTypes.length === 0 ? (
+          <div className="text-sm text-muted-foreground">暂无可用资源类型</div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">资源类型</label>
+              <select
+                value={type}
+                onChange={(event) => {
+                  setType(event.target.value);
+                  setConfig({});
+                }}
                 className="w-full px-3 py-2 border rounded-md bg-background"
+              >
+                {resourceTypes.map((resourceType) => (
+                  <option key={resourceType.id} value={resourceType.id}>
+                    {resourceType.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">资源名称</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+                className="w-full px-3 py-2 border rounded-md bg-background"
+                placeholder="如：生产环境数据库"
               />
             </div>
-          ))}
 
-          <div className="flex justify-end gap-2 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border rounded-md hover:bg-accent transition-colors"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {isSubmitting ? '添加中...' : '添加'}
-            </button>
-          </div>
-        </form>
+            {selectedResourceType?.fields.map((field) => (
+              <div key={field.key}>
+                <label className="block text-sm font-medium mb-1">
+                  {field.label}
+                  {field.required && <span className="text-destructive ml-1">*</span>}
+                </label>
+                <input
+                  type={field.type}
+                  value={config[field.key] || ''}
+                  onChange={(event) =>
+                    setConfig({ ...config, [field.key]: event.target.value })
+                  }
+                  required={field.required}
+                  placeholder={field.default?.toString()}
+                  className="w-full px-3 py-2 border rounded-md bg-background"
+                />
+              </div>
+            ))}
+
+            <div className="flex justify-end gap-2 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border rounded-md hover:bg-accent transition-colors"
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || !type}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? '添加中...' : '添加'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

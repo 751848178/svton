@@ -129,6 +129,10 @@ export class CreateResourceRequestDto {
 
   @IsString()
   @IsOptional()
+  environmentId?: string;
+
+  @IsString()
+  @IsOptional()
   environment?: string;
 
   @IsString()
@@ -185,6 +189,10 @@ export class ListResourceRequestsQueryDto {
 
   @IsString()
   @IsOptional()
+  environmentId?: string;
+
+  @IsString()
+  @IsOptional()
   resourceTypeId?: string;
 
   @IsString()
@@ -200,6 +208,10 @@ export class ListResourceInstancesQueryDto {
   @IsString()
   @IsOptional()
   projectId?: string;
+
+  @IsString()
+  @IsOptional()
+  environmentId?: string;
 
   @IsString()
   @IsOptional()

@@ -3,7 +3,7 @@ name: universal-craft-principles
 description: "Use for framework-agnostic refactors: untangle modules, services, handlers, jobs, and controllers; isolate orchestration from execution; centralize fallback/retry behavior; and remove redundant persisted state."
 ---
 
-<!-- Generated from skills/universal-craft-principles/skill.config.json. Edit source instead of .skills output. -->
+<!-- Generated from skills/universal-craft-principles/skill.config.json. Edit skill.config.json instead of this file. -->
 
 # Universal Craft Principles
 

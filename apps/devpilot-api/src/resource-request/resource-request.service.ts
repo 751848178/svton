@@ -67,6 +67,36 @@ const DEFAULT_RESOURCE_TYPES: CreateResourceTypeDto[] = [
     envTemplate: 'DATABASE_URL="mysql://${username}:${password}@${host}:${port}/${database}"',
   },
   {
+    key: 'postgresql',
+    name: 'PostgreSQL 数据库',
+    description: '申请项目使用的 PostgreSQL 数据库实例、库名或账号',
+    category: 'database',
+    icon: 'database',
+    approvalMode: 'manual',
+    provisioningMode: 'manual',
+    requestSchema: {
+      fields: [
+        environmentField,
+        { key: 'database', label: '数据库名', type: 'text', required: true, placeholder: 'svton_dev' },
+        { key: 'version', label: '版本', type: 'text', default: '15' },
+        { key: 'schema', label: 'Schema', type: 'text', default: 'public' },
+        { key: 'capacity', label: '规格/容量', type: 'text', default: '1C2G' },
+        { key: 'notes', label: '补充说明', type: 'textarea' },
+      ],
+    },
+    deliverySchema: {
+      fields: [
+        { key: 'host', label: '主机', type: 'text', required: true, sensitive: false },
+        { key: 'port', label: '端口', type: 'number', required: true, sensitive: false },
+        { key: 'username', label: '用户名', type: 'text', required: true, sensitive: false },
+        { key: 'password', label: '密码', type: 'password', required: true, sensitive: true },
+        { key: 'database', label: '数据库名', type: 'text', required: true, sensitive: false },
+        { key: 'schema', label: 'Schema', type: 'text', default: 'public', sensitive: false },
+      ],
+    },
+    envTemplate: 'DATABASE_URL="postgresql://${username}:${password}@${host}:${port}/${database}?schema=${schema}"',
+  },
+  {
     key: 'redis',
     name: 'Redis 缓存',
     description: '申请 Redis 实例、DB 或缓存账号',
@@ -417,6 +447,19 @@ export class ResourceRequestService implements OnModuleInit {
     return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
   }
 
+  private decrypt(encryptedText: string): string {
+    const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
+    const iv = Buffer.from(ivHex, 'hex');
+    const authTag = Buffer.from(authTagHex, 'hex');
+    const decipher = crypto.createDecipheriv(this.algorithm, this.encryptionKey, iv);
+    decipher.setAuthTag(authTag);
+
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+
+    return decrypted;
+  }
+
   private resourceRequestInclude() {
     return {
       resourceType: {
@@ -432,6 +475,9 @@ export class ResourceRequestService implements OnModuleInit {
       },
       project: {
         select: { id: true, name: true },
+      },
+      projectEnvironment: {
+        select: { id: true, key: true, name: true, status: true },
       },
       requester: {
         select: { id: true, name: true, email: true },
@@ -452,6 +498,9 @@ export class ResourceRequestService implements OnModuleInit {
       },
       project: {
         select: { id: true, name: true },
+      },
+      projectEnvironment: {
+        select: { id: true, key: true, name: true, status: true },
       },
       request: {
         select: { id: true, title: true, status: true },
@@ -565,6 +614,29 @@ export class ResourceRequestService implements OnModuleInit {
     return project;
   }
 
+  private async resolveProjectEnvironment(
+    teamId: string,
+    environmentId?: string,
+    projectId?: string,
+  ) {
+    if (!environmentId) return null;
+
+    const environment = await (this.prisma as PrismaAny).projectEnvironment.findFirst({
+      where: { id: environmentId, teamId, status: 'active' },
+      select: { id: true, projectId: true, key: true, name: true },
+    });
+
+    if (!environment) {
+      throw new NotFoundException('项目环境不存在或已归档');
+    }
+
+    if (projectId && environment.projectId !== projectId) {
+      throw new BadRequestException('项目环境不属于所选项目');
+    }
+
+    return environment;
+  }
+
   private async ensureResourceType(resourceTypeId: string) {
     const resourceType = await (this.prisma as PrismaAny).resourceType.findFirst({
       where: { id: resourceTypeId, enabled: true },
@@ -577,18 +649,63 @@ export class ResourceRequestService implements OnModuleInit {
     return resourceType;
   }
 
+  async resolveRequestInputAccessScope(teamId: string, dto: CreateResourceRequestDto) {
+    const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
+    const projectId = environmentRef?.projectId ?? dto.projectId ?? null;
+    await this.ensureProject(teamId, projectId || undefined);
+    return {
+      projectId,
+      environmentId: environmentRef?.id ?? null,
+    };
+  }
+
+  async getRequestAccessScope(teamId: string, id: string) {
+    const request = await (this.prisma as PrismaAny).resourceRequest.findFirst({
+      where: { id, teamId },
+      select: { id: true, projectId: true, environmentId: true },
+    });
+
+    if (!request) {
+      throw new NotFoundException('资源申请不存在');
+    }
+
+    return {
+      projectId: request.projectId,
+      environmentId: request.environmentId,
+    };
+  }
+
+  async getInstanceAccessScope(teamId: string, id: string) {
+    const instance = await (this.prisma as PrismaAny).resourceInstance.findFirst({
+      where: { id, teamId },
+      select: { id: true, projectId: true, environmentId: true },
+    });
+
+    if (!instance) {
+      throw new NotFoundException('资源实例不存在');
+    }
+
+    return {
+      projectId: instance.projectId,
+      environmentId: instance.environmentId,
+    };
+  }
+
   async createRequest(teamId: string, userId: string, dto: CreateResourceRequestDto) {
     const resourceType = await this.ensureResourceType(dto.resourceTypeId);
-    await this.ensureProject(teamId, dto.projectId);
+    const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
+    const projectId = environmentRef?.projectId ?? dto.projectId;
+    await this.ensureProject(teamId, projectId);
 
     const request = await (this.prisma as PrismaAny).resourceRequest.create({
       data: {
         teamId,
-        projectId: dto.projectId,
+        projectId,
+        environmentId: environmentRef?.id,
         resourceTypeId: dto.resourceTypeId,
         requesterId: userId,
         title: dto.title,
-        environment: dto.environment,
+        environment: dto.environment || environmentRef?.key,
         purpose: dto.purpose,
         spec: dto.spec,
         status: resourceType.approvalMode === 'none' ? 'approved' : 'pending',
@@ -614,6 +731,7 @@ export class ResourceRequestService implements OnModuleInit {
     const where: Record<string, unknown> = { teamId };
     if (query.status) where.status = query.status;
     if (query.projectId) where.projectId = query.projectId;
+    if (query.environmentId) where.environmentId = query.environmentId;
     if (query.resourceTypeId) where.resourceTypeId = query.resourceTypeId;
     if (query.requesterId) where.requesterId = query.requesterId;
 
@@ -688,6 +806,7 @@ export class ResourceRequestService implements OnModuleInit {
         data: {
           teamId,
           projectId: existing.projectId,
+          environmentId: existing.environmentId,
           requestId: existing.id,
           resourceTypeId: existing.resourceTypeId,
           name: dto.instanceName || existing.title,
@@ -763,6 +882,7 @@ export class ResourceRequestService implements OnModuleInit {
     const where: Record<string, unknown> = { teamId };
     if (query.status) where.status = query.status;
     if (query.projectId) where.projectId = query.projectId;
+    if (query.environmentId) where.environmentId = query.environmentId;
     if (query.resourceTypeId) where.resourceTypeId = query.resourceTypeId;
 
     const instances = await (this.prisma as PrismaAny).resourceInstance.findMany({
@@ -791,6 +911,42 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     return this.maskInstance(instance);
+  }
+
+  async getInstanceCredentialForGeneration(teamId: string, id: string) {
+    const instance = await (this.prisma as PrismaAny).resourceInstance.findFirst({
+      where: { id, teamId },
+      include: {
+        resourceType: {
+          select: { id: true, key: true, name: true },
+        },
+      },
+    });
+
+    if (!instance) {
+      throw new NotFoundException('资源实例不存在');
+    }
+
+    if (instance.status !== 'active') {
+      throw new BadRequestException('只有 active 状态的资源实例可以用于生成项目');
+    }
+
+    const delivery = (instance.delivery && typeof instance.delivery === 'object')
+      ? instance.delivery
+      : {};
+    const credentials = instance.credentials
+      ? JSON.parse(this.decrypt(instance.credentials))
+      : {};
+
+    return {
+      id: instance.id,
+      type: instance.resourceType.key,
+      name: instance.name,
+      config: {
+        ...delivery,
+        ...credentials,
+      } as Record<string, unknown>,
+    };
   }
 
   async releaseInstance(teamId: string, userId: string, id: string) {

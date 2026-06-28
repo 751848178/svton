@@ -1,0 +1,4 @@
+interface:
+  display_name: "Isolate Tool Output"
+  short_description: "Delegate noisy tools and preserve concise summaries"
+  default_prompt: "Use $isolate-tool-output to delegate noisy commands, save full logs, and return concise summaries."

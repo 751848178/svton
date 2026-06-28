@@ -1,9 +1,9 @@
 ---
 name: codegraph-cli-navigation
-description: "Use CodeGraph CLI, not MCP, for complex code work, impact analysis, caller/callee tracing, affected tests, or UI/style chains; if CLI is unavailable, manually map relevant code and verify via source, tests, logs, or browser checks."
+description: "Use when a change spans multiple files: callers/callees, blast radius, affected tests, state flow, or route/component/style chains. Map the graph via CodeGraph CLI (not MCP), or by hand with search + source if it is missing."
 ---
 
-<!-- Generated from skills/codegraph-cli-navigation/skill.config.json. Edit source instead of .skills output. -->
+<!-- Generated from skills/codegraph-cli-navigation/skill.config.json. Edit skill.config.json instead of this file. -->
 
 # CodeGraph CLI Navigation
 
@@ -24,13 +24,11 @@ Apply this when a user request is complex enough that the agent should build a c
 
 ## Trigger Signals
 
-- CodeGraph CLI codegraph graph map impact callers callees affected tests complex bug requirement UI component style chain。
-- 复杂需求 复杂问题 图谱 调用链 影响面 逻辑排查 样式排查 组件链路 代码结构 CodeGraph。
-- 用户需求涉及多个模块、多个入口、多个组件、调用方/被调用方关系、状态流或样式来源。
-- 需要先判断问题是否复杂，再决定是否用 CodeGraph CLI 建立相关代码图谱。
-- 执行环境缺少 CodeGraph，但需求仍然复杂，需要人工全量阅读相关代码并整理手工图谱。
-- 逻辑修复需要知道函数、类、Hook、service、handler、controller、job 或 test 之间的关系。
-- UI 或样式修复需要知道 route、component、state、hook、CSS/class、layout 和测试之间的链路。
+- 调用 调用方 被调用 调用链 调用关系 谁调用 哪里调用 caller callee callers callees
+- 影响 影响面 影响范围 影响哪些 改动影响 受影响 影响测试 impact blast radius
+- 排查 复杂 bug 调用链 状态流 数据流 跨文件 跨模块 跨层 逻辑排查 入口 副作用
+- 样式排查 组件链路 组件结构 界面链路 route component 状态流 样式来源 布局 哪里渲染
+- 代码图谱 代码结构 代码关系 结构梳理 graph map 复杂需求 复杂问题
 
 ## Default Workflow
 

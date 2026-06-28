@@ -24,6 +24,19 @@ import { DomainModule } from './domain/domain.module';
 import { CDNModule } from './cdn/cdn.module';
 import { KeyCenterModule } from './key-center/key-center.module';
 import { ResourceRequestModule } from './resource-request/resource-request.module';
+import { ResourceControlModule } from './resource-control/resource-control.module';
+import { DeploymentModule } from './deployment/deployment.module';
+import { ProjectWebhookModule } from './project-webhook/project-webhook.module';
+import { SiteModule } from './site/site.module';
+import { ProjectEnvironmentModule } from './project-environment/project-environment.module';
+import { ApplicationModule } from './application/application.module';
+import { AuditEventModule } from './audit-event/audit-event.module';
+import { OperationApprovalModule } from './operation-approval/operation-approval.module';
+import { BackupModule } from './backup/backup.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { LogCenterModule } from './log-center/log-center.module';
+import { ServerExecutorModule } from './server-executor/server-executor.module';
+import { ControlAccessPolicyModule } from './control-access-policy';
 import { useAuthzConfig } from './authz.config';
 
 @Module({
@@ -91,6 +104,12 @@ import { useAuthzConfig } from './authz.config';
     // 项目管理模块
     ProjectModule,
 
+    // 项目环境模块
+    ProjectEnvironmentModule,
+
+    // 应用服务工作区模块
+    ApplicationModule,
+
     // 服务器管理模块
     ServerModule,
 
@@ -126,6 +145,39 @@ import { useAuthzConfig } from './authz.config';
 
     // 动态资源申请模块
     ResourceRequestModule,
+
+    // 基础设施资源管控模块
+    ResourceControlModule,
+
+    // 项目构建部署模块
+    DeploymentModule,
+
+    // 项目 Webhook 模块
+    ProjectWebhookModule,
+
+    // 站点管控模块
+    SiteModule,
+
+    // 统一审计事件模块
+    AuditEventModule,
+
+    // 高风险操作审批模块
+    OperationApprovalModule,
+
+    // Server executor 执行治理模块
+    ServerExecutorModule,
+
+    // 控制面访问策略模块
+    ControlAccessPolicyModule,
+
+    // 资源备份计划模块
+    BackupModule,
+
+    // 监控告警模块
+    MonitoringModule,
+
+    // 日志中心模块
+    LogCenterModule,
   ],
   controllers: [HealthController],
   providers: [],
