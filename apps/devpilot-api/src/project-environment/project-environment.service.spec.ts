@@ -5,7 +5,7 @@ import { ProjectEnvironmentService } from './project-environment.service';
 
 type PrismaMock = {
   project: { findFirst: jest.Mock };
-  projectEnvironment: { findMany: jest.Mock; findFirst: jest.Mock };
+  projectEnvironment: { findMany: jest.Mock; findFirst: jest.Mock; upsert: jest.Mock };
   projectEnvironmentServer: { findMany: jest.Mock; findFirst: jest.Mock; upsert: jest.Mock; delete: jest.Mock };
   server: { findFirst: jest.Mock };
   teamCredential: { findFirst: jest.Mock };
@@ -81,6 +81,7 @@ describe('ProjectEnvironmentService sync suggestions', () => {
           );
           return Promise.resolve(environment || null);
         }),
+        upsert: jest.fn().mockResolvedValue({ id: 'env-upserted' }),
       },
       projectEnvironmentServer: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -197,6 +198,36 @@ describe('ProjectEnvironmentService sync suggestions', () => {
       prisma as unknown as PrismaService,
       auditEventService as never,
     );
+  });
+
+  it('creates dev/test/staging/prod defaults when project config has no environments', async () => {
+    await service.ensureDefaultsForProject('team-1', 'project-1', {});
+
+    expect(prisma.projectEnvironment.upsert).toHaveBeenCalledTimes(4);
+    expect(prisma.projectEnvironment.upsert.mock.calls.map(([call]) => call.where.projectId_key.key)).toEqual([
+      'dev',
+      'test',
+      'staging',
+      'prod',
+    ]);
+    expect(prisma.projectEnvironment.upsert.mock.calls.map(([call]) => call.create.sortOrder)).toEqual([
+      0,
+      10,
+      20,
+      30,
+    ]);
+  });
+
+  it('preserves explicit project environment config while normalizing duplicates', async () => {
+    await service.ensureDefaultsForProject('team-1', 'project-1', {
+      environments: ['prod', ' Staging ', 'staging', 'qa env'],
+    });
+
+    expect(prisma.projectEnvironment.upsert.mock.calls.map(([call]) => call.where.projectId_key.key)).toEqual([
+      'prod',
+      'staging',
+      'qa-env',
+    ]);
   });
 
   it('builds read-only sync suggestions against the production reference environment', async () => {

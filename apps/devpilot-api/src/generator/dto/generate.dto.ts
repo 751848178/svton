@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsObject, IsBoolean, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsObject, IsBoolean, ValidateNested, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class BasicInfoDto {
@@ -36,6 +36,12 @@ class UiLibraryDto {
   mobile: boolean;
 }
 
+class DatabaseConfigDto {
+  @IsString()
+  @IsIn(['mysql', 'postgresql', 'sqlite'])
+  engine: 'mysql' | 'postgresql' | 'sqlite';
+}
+
 class GitConfigDto {
   @IsString()
   provider: 'github' | 'gitlab' | 'gitee';
@@ -66,6 +72,11 @@ export class GenerateProjectDto {
   @IsObject()
   @IsOptional()
   resources?: Record<string, unknown>;
+
+  @ValidateNested()
+  @Type(() => DatabaseConfigDto)
+  @IsOptional()
+  database?: DatabaseConfigDto;
 
   @ValidateNested()
   @Type(() => UiLibraryDto)

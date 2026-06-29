@@ -67,6 +67,7 @@ model User {
   resourceRequests     ResourceRequest[] @relation("ResourceRequester")
   reviewedResourceRequests ResourceRequest[] @relation("ResourceReviewer")
   resourceAuditLogs    ResourceAuditLog[] @relation("ResourceAuditActor")
+  resourceProvisioningRuns ResourceProvisioningRun[] @relation("ResourceProvisioningRunActor")
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -126,6 +127,7 @@ model Team {
   resourceRequests ResourceRequest[]
   resourceInstances ResourceInstance[]
   resourceAuditLogs ResourceAuditLog[]
+  resourceProvisioningRuns ResourceProvisioningRun[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -536,6 +538,7 @@ model TeamCredential {
   resourceActionRuns ResourceActionRun[]
   resourceConnectionRuns ResourceConnectionRun[]
   resourceQueryRuns ResourceQueryRun[]
+  resourceProvisioningRuns ResourceProvisioningRun[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -651,6 +654,7 @@ model Project {
   managedResources ManagedResource[]
   resourceRequests ResourceRequest[]
   resourceInstances ResourceInstance[]
+  resourceProvisioningRuns ResourceProvisioningRun[]
   deploymentRuns DeploymentRun[]
   projectWebhooks ProjectWebhook[]
   webhookDeliveries WebhookDelivery[]
@@ -688,6 +692,7 @@ model ProjectEnvironment {
   managedResources ManagedResource[]
   resourceRequests ResourceRequest[]
   resourceInstances ResourceInstance[]
+  resourceProvisioningRuns ResourceProvisioningRun[]
   cdnConfigs CDNConfig[]
   secretKeys SecretKey[]
   auditEvents AuditEvent[]
@@ -1170,6 +1175,7 @@ model ResourceType {
   requests           ResourceRequest[]
   instances          ResourceInstance[]
   auditLogs          ResourceAuditLog[]
+  provisioningRuns   ResourceProvisioningRun[]
 
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -1208,6 +1214,7 @@ model ResourceRequest {
   reviewer       User?    @relation("ResourceReviewer", fields: [reviewerId], references: [id])
   instance       ResourceInstance?
   auditLogs      ResourceAuditLog[]
+  provisioningRuns ResourceProvisioningRun[]
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1262,6 +1269,7 @@ model ResourceAuditLog {
   resourceTypeId String?
   requestId      String?
   instanceId     String?
+  provisioningRunId String?
   actorId        String?
   action         String
   message        String?  @db.Text
@@ -1271,6 +1279,7 @@ model ResourceAuditLog {
   resourceType   ResourceType? @relation(fields: [resourceTypeId], references: [id])
   request        ResourceRequest? @relation(fields: [requestId], references: [id])
   instance       ResourceInstance? @relation(fields: [instanceId], references: [id])
+  provisioningRun ResourceProvisioningRun? @relation(fields: [provisioningRunId], references: [id], onDelete: SetNull)
   actor          User?    @relation("ResourceAuditActor", fields: [actorId], references: [id])
 
   createdAt      DateTime @default(now())
@@ -1279,8 +1288,85 @@ model ResourceAuditLog {
   @@index([resourceTypeId])
   @@index([requestId])
   @@index([instanceId])
+  @@index([provisioningRunId])
   @@index([actorId])
   @@index([action])
+}
+
+// 资源申请外部交付运行记录
+model ResourceProvisioningRun {
+  id             String   @id @default(cuid())
+  teamId         String
+  actorId        String?
+  replayOfRunId  String?
+  requestId      String
+  resourceTypeId String
+  projectId      String?
+  environmentId  String?
+  credentialId   String?
+  mode           String   // api | webhook
+  trigger        String   // approval | manual_retry | auto_retry
+  boundary       String   @default("http_adapter")
+  executorKey    String   @default("resource-request")
+  adapterKey     String
+  authAdapterKey String?
+  idempotencyKey String
+  providerRunId  String?
+  status         String   @default("running") // queued | running | planned | blocked | completed | failed
+  queueMode      String   @default("inline") // inline | queued
+  attempt        Int      @default(0)
+  maxAttempts    Int      @default(1)
+  retryable      Boolean  @default(false)
+  autoRetry      Boolean  @default(false)
+  params         Json?
+  result         Json?
+  error          String?  @db.Text
+  startedAt      DateTime @default(now())
+  queuedAt       DateTime?
+  availableAt    DateTime?
+  lockedAt       DateTime?
+  lockOwner      String?
+  finishedAt     DateTime?
+  recoveredAt    DateTime?
+  recoveryReason String?  @db.Text
+  recoveryCount  Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  actor          User?    @relation("ResourceProvisioningRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  replayOf       ResourceProvisioningRun? @relation("ResourceProvisioningRunReplay", fields: [replayOfRunId], references: [id], onDelete: SetNull)
+  replayAttempts ResourceProvisioningRun[] @relation("ResourceProvisioningRunReplay")
+  request        ResourceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  resourceType   ResourceType @relation(fields: [resourceTypeId], references: [id])
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment    ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  credential     TeamCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  auditLogs      ResourceAuditLog[]
+
+  @@index([teamId])
+  @@index([actorId])
+  @@index([replayOfRunId])
+  @@index([requestId])
+  @@index([resourceTypeId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([credentialId])
+  @@index([mode])
+  @@index([trigger])
+  @@index([boundary])
+  @@index([executorKey])
+  @@index([adapterKey])
+  @@index([authAdapterKey])
+  @@index([idempotencyKey])
+  @@index([providerRunId])
+  @@index([status])
+  @@index([queueMode])
+  @@index([startedAt])
+  @@index([availableAt])
+  @@index([lockedAt])
+  @@index([recoveredAt])
+  @@index([teamId, status, queueMode, availableAt])
 }
 
 // ==================== 基础设施资源管控 ====================

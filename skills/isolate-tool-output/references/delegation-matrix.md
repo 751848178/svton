@@ -10,6 +10,7 @@ Delegate these by default:
 - Root or broad-directory `rg`, `find`, `grep`.
 - Searches through `.next`, `dist`, `build`, lockfiles, generated artifacts, coverage, or log files.
 - Large `git diff`, full-file `nl -ba`, long `cat`, full build output, package tarball listing, dependency tree dumps.
+- Codex/Claude session JSONL audits, especially searches that may return complete JSONL lines.
 - Web research, multi-source investigation, and final verification.
 
 ## Never Broadly Scan Generated Directories
@@ -47,6 +48,10 @@ Run these directly when they are genuinely small:
 
 - Use `git status --short`; when noisy, filter by relevant paths.
 - Add `head`, `sed -n`, `--max-count`, `--glob`, `--files-with-matches`, or equivalent limits to large-output commands.
+- For broad `rg`, use `scripts/smart-rg.mjs` or a two-stage shape: first `rg -l` / `--count`, then inspect only selected files.
+- For long source or docs files, use `scripts/safe-read.mjs` or read a 40-120 line window around a symbol or match.
+- For `git diff`, use `scripts/diff-summary.mjs` or first run `--stat`, `--name-status`, `--numstat`, and `--check`; write full diff to a log.
+- For Codex session JSONL, use `scripts/codex-session-token-audit.mjs`; never return raw matching JSONL lines from `rg`.
 - Do not run whole-repository `find .`, `du .`, `wc -c`, broad `cat`, or full-file `nl -ba` without pruning or narrowing the path.
 - If a command needs shell pipes to cap output, run it through the capture script with `--shell`.
 

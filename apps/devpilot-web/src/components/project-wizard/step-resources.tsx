@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { useProjectConfigStore } from '@/store/project-config';
-import type { ProjectResourceConfig, ResourceConfigMode } from '@/store/project-config';
+import type { DatabaseEngine, ProjectResourceConfig, ResourceConfigMode } from '@/store/project-config';
 
 interface StepProps {
   onNext: () => void;
@@ -55,10 +55,21 @@ const modeLabels: Record<ResourceConfigMode, string> = {
   skipped: '跳过',
 };
 
-const databaseResourceId = 'postgresql';
+const databaseOptions: { engine: DatabaseEngine; label: string; description: string }[] = [
+  { engine: 'mysql', label: 'MySQL', description: '默认本地开发数据库' },
+  { engine: 'postgresql', label: 'PostgreSQL', description: '兼容现有 PG 项目' },
+  { engine: 'sqlite', label: 'SQLite', description: '无需外部数据库服务' },
+];
+
+const databaseResourceIds = ['mysql', 'postgresql'];
+
+const databaseResourceByEngine: Partial<Record<DatabaseEngine, string>> = {
+  mysql: 'mysql',
+  postgresql: 'postgresql',
+};
 
 export function StepResources({ onNext, onPrev }: StepProps) {
-  const { config, setResources } = useProjectConfigStore();
+  const { config, setResources, setDatabase } = useProjectConfigStore();
   const [registryResources, setRegistryResources] = useState<RegistryResourceType[]>([]);
   const [requiredResourceIds, setRequiredResourceIds] = useState<string[]>([]);
   const [storedResources, setStoredResources] = useState<StoredResource[]>([]);
@@ -94,6 +105,7 @@ export function StepResources({ onNext, onPrev }: StepProps) {
   });
 
   const selectedFeatureKey = config.features.join(',');
+  const databaseEngine = config.database?.engine || 'mysql';
   const selectedSubProjectKey = Object.entries(config.subProjects)
     .filter(([, enabled]) => enabled)
     .map(([type]) => type)
@@ -122,8 +134,11 @@ export function StepResources({ onNext, onPrev }: StepProps) {
         if (canceled) return;
 
         const resourceIds = new Set(resolvedResources);
+        const databaseResourceId = databaseResourceByEngine[databaseEngine] || null;
         if (config.subProjects.backend) {
-          resourceIds.add(databaseResourceId);
+          if (databaseResourceId) {
+            resourceIds.add(databaseResourceId);
+          }
         }
 
         setRegistryResources(resourceTypes);
@@ -147,7 +162,7 @@ export function StepResources({ onNext, onPrev }: StepProps) {
     return () => {
       canceled = true;
     };
-  }, [config.subProjects.backend, selectedFeatureKey, selectedSubProjectKey]);
+  }, [config.subProjects.backend, databaseEngine, selectedFeatureKey, selectedSubProjectKey]);
 
   const resourceById = useMemo(() => {
     return Object.fromEntries(registryResources.map((resource) => [resource.id, resource]));
@@ -244,6 +259,21 @@ export function StepResources({ onNext, onPrev }: StepProps) {
     return '';
   };
 
+  const handleDatabaseEngineChange = (engine: DatabaseEngine) => {
+    const selectedDatabaseResourceId = databaseResourceByEngine[engine] || null;
+
+    setDatabase({ engine });
+    setResources(
+      filterDatabaseResourceMap(config.resources, selectedDatabaseResourceId),
+    );
+    setResourceModes((current) => filterDatabaseResourceMap(current, selectedDatabaseResourceId));
+    setManualConfigs((current) => filterDatabaseResourceMap(current, selectedDatabaseResourceId));
+    setCredentialSelections((current) => filterDatabaseResourceMap(current, selectedDatabaseResourceId));
+    setInstanceSelections((current) => filterDatabaseResourceMap(current, selectedDatabaseResourceId));
+    setPoolSelections((current) => filterDatabaseResourceMap(current, selectedDatabaseResourceId));
+    setPoolResourceNames((current) => filterDatabaseResourceMap(current, selectedDatabaseResourceId));
+  };
+
   const handleNext = () => {
     const error = validateSelection();
     if (error) {
@@ -281,6 +311,13 @@ export function StepResources({ onNext, onPrev }: StepProps) {
   if (requiredResources.length === 0) {
     return (
       <div className="space-y-6">
+        {config.subProjects.backend && (
+          <DatabaseEngineSelector
+            value={databaseEngine}
+            onChange={handleDatabaseEngineChange}
+          />
+        )}
+
         <div className="text-center py-8">
           <p className="text-muted-foreground">当前配置不需要额外的资源凭证</p>
         </div>
@@ -304,6 +341,13 @@ export function StepResources({ onNext, onPrev }: StepProps) {
           根据已选功能和子项目确认资源来源。
         </p>
       </div>
+
+      {config.subProjects.backend && (
+        <DatabaseEngineSelector
+          value={databaseEngine}
+          onChange={handleDatabaseEngineChange}
+        />
+      )}
 
       <div className="space-y-4">
         {requiredResources.map((resource) => (
@@ -330,6 +374,43 @@ export function StepResources({ onNext, onPrev }: StepProps) {
       </div>
 
       <WizardActions onPrev={onPrev} onNext={handleNext} />
+    </div>
+  );
+}
+
+function DatabaseEngineSelector({
+  value,
+  onChange,
+}: {
+  value: DatabaseEngine;
+  onChange: (engine: DatabaseEngine) => void;
+}) {
+  return (
+    <div className="border rounded-lg p-4 space-y-3">
+      <div>
+        <h4 className="font-medium">数据库引擎</h4>
+        <p className="text-sm text-muted-foreground mt-1">后端项目会按所选引擎生成 Prisma、环境变量和本地依赖服务。</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {databaseOptions.map((option) => {
+          const selected = option.engine === value;
+
+          return (
+            <button
+              key={option.engine}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(option.engine)}
+              className={`rounded-md border px-3 py-2 text-left transition-colors ${
+                selected ? 'border-primary bg-primary/10' : 'hover:bg-accent'
+              }`}
+            >
+              <span className="block text-sm font-medium">{option.label}</span>
+              <span className="block text-xs text-muted-foreground mt-1">{option.description}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -550,4 +631,19 @@ function collectSelections(
   }
 
   return selections;
+}
+
+function filterDatabaseResourceMap<T>(
+  map: Record<string, T>,
+  selectedDatabaseResourceId: string | null,
+): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(map).filter(([type]) => {
+      if (!databaseResourceIds.includes(type)) {
+        return true;
+      }
+
+      return type === selectedDatabaseResourceId;
+    }),
+  );
 }

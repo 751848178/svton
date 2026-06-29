@@ -40,6 +40,47 @@ Use $isolate-tool-output. Save full logs and return only grouped file paths plus
 
 The main agent should then inspect only the few listed source paths with precise `sed -n` commands.
 
+Direct compact-tool shape:
+
+```bash
+node ~/.codex/skills/isolate-tool-output/scripts/smart-rg.mjs \
+  --project svton --task npm-registry-search \
+  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
+  -- "SVTON_NPM_REGISTRY" packages apps docs
+```
+
+Use the returned `files` list to choose exact `safe-read` windows instead of expanding every match.
+
+## Long File Read
+
+```bash
+node ~/.codex/skills/isolate-tool-output/scripts/safe-read.mjs \
+  --file apps/devpilot-api/src/deployment/deployment.service.ts \
+  --pattern "autoRollback" --before 50 --after 70
+```
+
+If multiple matches appear, inspect the returned line numbers and rerun with `--start` / `--end` for the one needed.
+
+## Diff Summary
+
+```bash
+node ~/.codex/skills/isolate-tool-output/scripts/diff-summary.mjs \
+  --project svton --task touched-diff \
+  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
+  -- apps/devpilot-api/src/deployment docs-internal/todos
+```
+
+Keep the full diff in `full_log`; only read exact hunks later if a decision depends on them.
+
+## Codex Session Token Audit
+
+```bash
+node ~/.codex/skills/isolate-tool-output/scripts/codex-session-token-audit.mjs \
+  --thread-id 019f0eca-26ba-7d00-a6b0-98c56770e0e3
+```
+
+Use this for token-bloat analysis. Do not `rg` the session JSONL directly because one matching line can contain full tool schemas or large command output.
+
 ## Web Research
 
 Prompt to sub agent:

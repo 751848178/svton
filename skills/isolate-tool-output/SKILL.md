@@ -1,6 +1,6 @@
 ---
 name: isolate-tool-output
-description: "Use when noisy commands or research may flood context: type-check/lint/test/build/docker, broad rg/find/grep, large diff/cat/nl, web research, or final verification. Delegate to sub agents, save full logs, return concise summaries."
+description: "Use when noisy commands/research may flood context: type-check/lint/test/build/docker, broad rg/find/grep, large diff/cat/nl, Codex/Claude session JSONL token audits, web research, or final verification. Save logs and return summaries."
 ---
 
 <!-- Generated from skills/isolate-tool-output/skill.config.json. Edit skill.config.json instead of this file. -->
@@ -14,6 +14,7 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - 运行 `type-check`、`lint`、`test`、`build`、`docker build`、`docker logs` 等可能产生大量输出的命令。
 - 执行根目录或大目录 `rg`、`find`、`grep`，搜索 `.next`、`dist`、`build`、lockfile 或日志文件。
 - 读取大型 `git diff`、完整文件 `nl -ba`、长 `cat`、构建产物搜索结果或其他预计超过 2K token 的输出。
+- 执行宽范围 `rg/find/grep`、长文件阅读、`git diff`、Codex/Claude session JSONL 审计等会把整段原文带入上下文的操作。
 - 做 web research、多来源调研、最终验证，或单轮内同类工具调用超过 3 次需要合并批处理。
 
 ## Avoid When
@@ -28,6 +29,7 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - rg find grep broad search root search .next dist build lockfile logs large output noisy command huge log。
 - git diff cat nl -ba full file long output terminal output tool output token bloat context bloat。
 - web research 多来源调研 网页调研 最终验证 验证阶段 子 Agent subagent delegate summary full_log。
+- Codex Claude session JSONL token audit context bloat last_token_usage total_token_usage compact tool smart-rg safe-read diff-summary。
 - 预计输出超过 2K token 实际输出超过 4K token 同类命令超过 3 次 批处理 隔离日志。
 
 ## Default Workflow
@@ -36,10 +38,11 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 2. 用隔离判定矩阵判断每个工具调用：预计超过 2K token、属于默认隔离类别、或同类命令超过 3 次时派发子 Agent。
 3. 给子 Agent 一个自包含任务：命令、cwd、范围、要提取的错误类别、相关文件过滤条件、完整日志必须写入的位置。
 4. 本地命令优先让子 Agent 使用 bundled `scripts/capture-tool-run.mjs` 捕获完整输出，并只把摘要 JSON 和人工提炼结论带回。
-5. 要求子 Agent 按固定摘要契约返回 `task`、`status`、`command`、`exit_code`、`summary`、`relevant_errors`、`full_log`、`recommended_next`。
-6. 主 Agent 只读取摘要和必要的精确日志片段；不要把完整日志、全量搜索结果或大段网页摘录重新拉进主上下文。
-7. 如果摘要显示错误与当前改动相关，主 Agent 决策并修改代码；如果是 baseline 噪声，记录为无关并避免扩散范围。
-8. 最终验证也默认隔离执行；最终回复报告关键命令、状态、相关错误、日志路径和仍未覆盖的风险。
+5. 对宽搜索、长文件、diff、session JSONL 使用 bundled compact tools：`smart-rg.mjs`、`safe-read.mjs`、`diff-summary.mjs`、`codex-session-token-audit.mjs`。
+6. 要求子 Agent 按固定摘要契约返回 `task`、`status`、`command`、`exit_code`、`summary`、`relevant_errors`、`full_log`、`recommended_next`。
+7. 主 Agent 只读取摘要和必要的精确日志片段；不要把完整日志、全量搜索结果或大段网页摘录重新拉进主上下文。
+8. 如果摘要显示错误与当前改动相关，主 Agent 决策并修改代码；如果是 baseline 噪声，记录为无关并避免扩散范围。
+9. 最终验证也默认隔离执行；最终回复报告关键命令、状态、相关错误、日志路径和仍未覆盖的风险。
 
 ## Preferred Moves
 
@@ -48,6 +51,10 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - 日志目录默认使用 `/tmp/codex-tool-runs/{project}`，避免项目内临时目录被后续搜索误扫。
 - 日志文件名使用 `{task}-{YYYYMMDD-HHmmss}.log`，task 名只用字母、数字、点、下划线和连字符。
 - 宽范围 `rg` 必须带排除 glob，默认排除 `node_modules`、`.next`、`dist`、`build`、`target`、`.turbo`、`.codegraph`、`coverage`。
+- 宽搜索默认先返回文件清单、计数和少量样例；需要展开时再精确读取文件窗口，不把全部命中行带回主上下文。
+- 长文件默认用符号、关键词或行号窗口读取；除非用户明确要求，不读取超过 120 行的连续片段。
+- `git diff` 默认先看 `--stat`、`--name-status`、`--numstat`、`--check`；完整 diff 写日志，主上下文只保留摘要。
+- Codex/Claude session JSONL 审计必须用结构化 parser 摘取 token/tool-output 指标；不要用 `rg` 直接返回整条 JSONL 行。
 - 读取日志时用精确 `sed -n`、`rg -n` 或错误行号片段，只取决策需要的上下文。
 - web research 让子 Agent 返回来源链接、结论分歧、日期和可信度；长摘录或原始网页笔记放日志文件。
 
@@ -61,6 +68,8 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - 相关错误必须包含文件路径、行号或可搜索错误码；没有路径时给出最短可复现定位线索。
 - 不得无界读取或搜索 `.next`、`target`、`.codegraph`、`node_modules`、`dist`、`.turbo`、`coverage`。
 - 不得运行未裁剪的全仓 `find .`、`du .`、`wc -c`、长 `cat` 或完整 `nl -ba`；必须先 prune、限路径或限输出。
+- 不得对 Codex/Claude session JSONL 做会返回整行的宽 `rg`；一行可能包含完整 prompt、tool schema 或大输出。
+- 不得把 `max_output_tokens` 设到 20K/30K 来“硬接住”宽搜索；先压缩为摘要或写日志。
 - 子 Agent 的 `recommended_next` 只能建议，不替代主 Agent 的最终决策。
 - 如果环境没有可用子 Agent，使用捕获脚本在主线程保存完整日志，并手写同样格式的短摘要。
 
@@ -77,4 +86,5 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 
 - [Delegation Matrix](references/delegation-matrix.md) - 判定哪些工具调用必须隔离、哪些可以由主 Agent 直接执行。
 - [Summary Contract](references/summary-contract.md) - 子 Agent prompt、日志策略、返回字段和错误提炼规则。
+- [Compact Tools](references/compact-tools.md) - bundled scripts for two-stage search, bounded reads, diff summaries, and Codex session token audits.
 - [Examples](references/examples.md) - 高噪声命令、批量搜索、web research 和最终验证示例。

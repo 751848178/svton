@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ListServerExecutionLeasesQueryDto {
   @IsOptional()
@@ -57,4 +57,42 @@ export class RetryServerExecutionJobDto {
   @IsInt()
   @Min(1)
   maxAttempts?: number;
+}
+
+export class ServerAgentHeartbeatDto {
+  @IsString()
+  teamId!: string;
+
+  @IsString()
+  serverId!: string;
+
+  @IsString()
+  agentId!: string;
+
+  @IsOptional()
+  @IsIn(['online', 'ready', 'healthy', 'connected', 'degraded'])
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  hostname?: string;
+
+  @IsOptional()
+  @IsString()
+  runnerId?: string;
+
+  @IsOptional()
+  @IsString()
+  version?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  capabilities?: string[];
+
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  @Max(3600)
+  ttlSeconds?: number;
 }

@@ -1,5 +1,6 @@
-import { Controller, Post, Body, Res, UseGuards, Request, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, Res, UseGuards, Request, HttpCode, Get, Param, StreamableFile } from '@nestjs/common';
 import { AuthzGuard, Roles } from '@svton/nestjs-authz';
+import { createReadStream } from 'fs';
 import { Response } from 'express';
 import { ControlAccessPolicyService } from '../control-access-policy';
 import { GeneratorService } from './generator.service';
@@ -50,15 +51,6 @@ export class GeneratorController {
       dto,
     );
 
-    const resolvedConfig = {
-      ...dto,
-      resolvedResources: resourceResolution.summary,
-    };
-
-    await this.projectService.update(req.teamId, project.id, {
-      config: resolvedConfig,
-    });
-
     // 生成项目文件
     const files = await this.generatorService.generateProject(
       dto,
@@ -67,17 +59,73 @@ export class GeneratorController {
 
     // 创建 ZIP 文件
     const zipBuffer = await this.generatorService.createZipBuffer(files);
+    const artifact = await this.generatorService.persistProjectZipArtifact(
+      req.teamId,
+      project.id,
+      dto.basicInfo.name,
+      zipBuffer,
+    );
+    const resolvedConfig = {
+      ...dto,
+      resolvedResources: resourceResolution.summary,
+    };
+
+    await this.projectService.attachGeneratedProjectArtifact(
+      req.teamId,
+      project.id,
+      resolvedConfig,
+      artifact,
+    );
 
     // 返回 ZIP 文件
     res.set({
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${dto.basicInfo.name}.zip"`,
+      'Content-Disposition': `attachment; filename="${artifact.fileName}"`,
       'Content-Length': zipBuffer.length,
       'X-Project-Id': project.id,
-      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, X-Project-Id',
+      'X-Project-Download-Url': artifact.downloadUrl,
+      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, X-Project-Id, X-Project-Download-Url',
     });
 
     res.send(zipBuffer);
+  }
+
+  @Get(':id/download')
+  async downloadGeneratedProject(
+    @Param('id') id: string,
+    @Request() req: GenerateProjectRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const project = await this.projectService.findGeneratedArtifactProject(req.teamId, id);
+    await this.accessPolicyService.assertCanRead({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId: id,
+      category: 'project',
+      action: 'project.download',
+      targetType: 'project_artifact',
+      targetId: id,
+      risk: 'low',
+    });
+
+    const artifact = await this.generatorService.resolveProjectZipArtifact(
+      req.teamId,
+      project.id,
+      project.name,
+      project.config,
+    );
+
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${artifact.fileName}"`,
+      'Content-Length': artifact.size,
+      'Cache-Control': 'private, no-store',
+      'X-Project-Id': project.id,
+      'X-Project-Download-Url': artifact.downloadUrl,
+      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, X-Project-Id, X-Project-Download-Url',
+    });
+
+    return new StreamableFile(createReadStream(artifact.filePath));
   }
 
   @Post('preview')

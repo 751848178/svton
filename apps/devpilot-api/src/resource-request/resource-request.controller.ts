@@ -19,7 +19,11 @@ import {
   CreateResourceTypeDto,
   ListResourceAuditLogsQueryDto,
   ListResourceInstancesQueryDto,
+  ListResourceProvisioningRunsQueryDto,
   ListResourceRequestsQueryDto,
+  ProcessQueuedResourceProvisioningRunDto,
+  RecoverStaleResourceProvisioningRunsDto,
+  ResourceProvisioningRunSupervisorQueryDto,
   ReviewResourceRequestDto,
   UpdateResourceTypeDto,
 } from './dto/resource-request.dto';
@@ -112,6 +116,86 @@ export class ResourceRequestsController {
     return allowed.filter((item) => item.allowed).map((item) => item.request);
   }
 
+  @Get('provisioning-runs/supervisor')
+  async provisioningRunSupervisor(
+    @Request() req: AuthRequest,
+    @Query() query: ResourceProvisioningRunSupervisorQueryDto,
+  ) {
+    await this.accessPolicyService.assertCanRead({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      category: 'resource_request',
+      action: 'resource_request.provisioning_run.supervisor',
+      targetType: 'resource_request',
+      targetId: null,
+      risk: 'low',
+    });
+    return this.resourceRequestService.getProvisioningRunSupervisor(req.teamId, query);
+  }
+
+  @Post('provisioning-runs/recover-stale')
+  async recoverStaleProvisioningRuns(
+    @Request() req: AuthRequest,
+    @Body() dto: RecoverStaleResourceProvisioningRunsDto,
+  ) {
+    await this.accessPolicyService.assertCanWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      category: 'resource_request',
+      action: 'resource_request.provisioning_run.recover_stale',
+      targetType: 'resource_request',
+      targetId: null,
+      risk: 'medium',
+    });
+    return this.resourceRequestService.recoverTeamStaleProvisioningRuns(req.teamId, dto);
+  }
+
+  @Post('provisioning-runs/process-next')
+  async processNextQueuedProvisioningRun(
+    @Request() req: AuthRequest,
+    @Body() dto: ProcessQueuedResourceProvisioningRunDto,
+  ) {
+    await this.accessPolicyService.assertCanWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      category: 'resource_request',
+      action: 'resource_request.provisioning_run.process_next',
+      targetType: 'resource_request',
+      targetId: null,
+      risk: 'medium',
+    });
+    return this.resourceRequestService.processNextQueuedProvisioningRun(req.teamId, req.user.id, dto);
+  }
+
+  @Get(':id/provisioning-runs')
+  async provisioningRuns(
+    @Request() req: AuthRequest,
+    @Param('id') id: string,
+    @Query() query: ListResourceProvisioningRunsQueryDto,
+  ) {
+    const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
+    await this.assertCanReadRequest(req, 'resource_request.provisioning_run.read', id, scope.projectId, scope.environmentId);
+    return this.resourceRequestService.listProvisioningRuns(req.teamId, id, query);
+  }
+
+  @Post(':id/provisioning-runs/:runId/replay')
+  async replayProvisioningRun(
+    @Request() req: AuthRequest,
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+  ) {
+    const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
+    await this.assertCanWriteRequest(
+      req,
+      'resource_request.provisioning_run.replay',
+      id,
+      scope.projectId,
+      scope.environmentId,
+      'medium',
+    );
+    return this.resourceRequestService.replayProvisioningRun(req.teamId, req.user.id, id, runId);
+  }
+
   @Get(':id')
   async findOne(@Request() req: AuthRequest, @Param('id') id: string) {
     const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
@@ -139,6 +223,20 @@ export class ResourceRequestsController {
     const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
     await this.assertCanWriteRequest(req, 'resource_request.complete', id, scope.projectId, scope.environmentId, 'high');
     return this.resourceRequestService.completeRequest(req.teamId, req.user.id, id, dto);
+  }
+
+  @Post(':id/retry-provisioning')
+  async retryProvisioning(@Request() req: AuthRequest, @Param('id') id: string) {
+    const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
+    await this.assertCanWriteRequest(
+      req,
+      'resource_request.provisioning_retry',
+      id,
+      scope.projectId,
+      scope.environmentId,
+      'medium',
+    );
+    return this.resourceRequestService.retryProvisioning(req.teamId, req.user.id, id);
   }
 
   @Post(':id/cancel')

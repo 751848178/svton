@@ -177,4 +177,12 @@ export class SmokeDeploymentRunDto {
   @IsInt()
   @Min(1)
   autoRollbackMaxAttempts?: number;
+
+  @IsOptional()
+  @IsString()
+  autoRollbackApprovalId?: string;
+
+  @IsOptional()
+  @IsString()
+  autoRollbackConfirmationText?: string;
 }

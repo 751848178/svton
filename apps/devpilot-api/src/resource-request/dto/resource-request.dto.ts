@@ -235,3 +235,47 @@ export class ListResourceAuditLogsQueryDto {
   @IsOptional()
   action?: string;
 }
+
+export class ListResourceProvisioningRunsQueryDto {
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  @IsString()
+  @IsOptional()
+  mode?: string;
+
+  @IsString()
+  @IsOptional()
+  trigger?: string;
+
+  @IsString()
+  @IsOptional()
+  limit?: string;
+}
+
+export class ResourceProvisioningRunSupervisorQueryDto {
+  @IsString()
+  @IsOptional()
+  staleAfterSeconds?: string;
+
+  @IsString()
+  @IsOptional()
+  sampleLimit?: string;
+}
+
+export class RecoverStaleResourceProvisioningRunsDto {
+  @IsString()
+  @IsOptional()
+  staleAfterSeconds?: string;
+
+  @IsString()
+  @IsOptional()
+  limit?: string;
+}
+
+export class ProcessQueuedResourceProvisioningRunDto {
+  @IsString()
+  @IsOptional()
+  runId?: string;
+}

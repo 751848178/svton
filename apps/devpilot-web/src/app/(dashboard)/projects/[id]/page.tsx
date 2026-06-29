@@ -24,10 +24,19 @@ interface Project {
   name: string;
   description: string | null;
   gitRepo: string | null;
+  downloadUrl: string | null;
   config: unknown;
   createdAt: string;
   updatedAt: string;
   createdBy?: { id: string; name: string | null; email: string };
+  allocations?: Array<{
+    id: string;
+    resourceName: string;
+    status: string;
+    createdAt?: string;
+    releasedAt?: string | null;
+    pool?: { id: string; name: string; type: string } | null;
+  }>;
   environments?: Array<{
     id: string;
     key: string;
@@ -222,6 +231,14 @@ interface ProjectWebhook {
   setupSecret?: string;
 }
 
+interface GeneratedResourceResolution {
+  type: string;
+  mode: string;
+  sourceId?: string | null;
+  name?: string | null;
+  resourceName?: string | null;
+}
+
 interface WebhookDelivery {
   id: string;
   webhookId: string;
@@ -254,6 +271,14 @@ const resourceProviderLabels: Record<string, string> = {
   'aliyun-rds': '阿里云 RDS',
   'aliyun-sls': '阿里云 SLS',
   'tencent-cos': '腾讯云 COS',
+};
+
+const generatedResourceModeLabels: Record<string, string> = {
+  manual: '手动填写',
+  credential: '已有凭证',
+  instance: '资源实例',
+  pool: '资源池分配',
+  skipped: '跳过',
 };
 
 const serverRoleOptions = [
@@ -469,6 +494,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [downloadingArtifact, setDownloadingArtifact] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
   const [servers, setServers] = useState<ProjectServerOption[]>([]);
   const [teamCredentials, setTeamCredentials] = useState<TeamCredentialOption[]>([]);
@@ -1147,6 +1173,29 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const handleDownloadArtifact = async () => {
+    if (!project?.downloadUrl) return;
+
+    setDownloadingArtifact(true);
+    try {
+      const response = await api.download(toApiDownloadEndpoint(project.downloadUrl));
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = readDownloadFileName(response.headers.get('Content-Disposition')) || `${project.name}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(objectUrl);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Failed to download generated artifact:', error);
+      alert(error instanceof Error ? error.message : '下载生成包失败');
+    } finally {
+      setDownloadingArtifact(false);
+    }
+  };
+
   const loadDeploymentRuns = async () => {
     try {
       const data = await api.get<DeploymentRun[]>('/deployments/runs', {
@@ -1455,6 +1504,9 @@ export default function ProjectDetailPage() {
         deploymentConfig.healthCheckUrl,
     );
   const generated = isGeneratedProject(project.config);
+  const generatedResourceResolutions = readGeneratedResourceResolutions(project.config);
+  const resourceAllocations = project.allocations || [];
+  const hasGeneratedResourceSummary = generatedResourceResolutions.length > 0 || resourceAllocations.length > 0;
   const selectedEnvironment =
     projectEnvironments.find((environment) => environment.id === selectedEnvironmentId) ||
     projectEnvironments[0] ||
@@ -1818,6 +1870,21 @@ export default function ProjectDetailPage() {
                     <dd className="font-mono text-xs">{branch}</dd>
                   </div>
                 )}
+                {project.downloadUrl && (
+                  <div className="col-span-2">
+                    <dt className="text-muted-foreground">生成包</dt>
+                    <dd className="mt-1">
+                      <button
+                        type="button"
+                        onClick={handleDownloadArtifact}
+                        disabled={downloadingArtifact}
+                        className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                      >
+                        {downloadingArtifact ? '下载中...' : '下载 ZIP'}
+                      </button>
+                    </dd>
+                  </div>
+                )}
                 {environmentLabels.length > 0 && (
                   <div>
                     <dt className="text-muted-foreground">环境</dt>
@@ -1865,6 +1932,67 @@ export default function ProjectDetailPage() {
               </dl>
             )}
           </div>
+
+          {hasGeneratedResourceSummary && (
+            <div className="border rounded-lg p-6">
+              <div className="mb-4">
+                <h2 className="font-semibold">生成资源</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  生成项目时解析的资源来源和资源池分配记录
+                </p>
+              </div>
+
+              <div className="space-y-5">
+                {generatedResourceResolutions.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-sm font-medium text-muted-foreground">解析结果</h3>
+                    <div className="overflow-hidden rounded-md border">
+                      {generatedResourceResolutions.map((resource, index) => (
+                        <div
+                          key={`${resource.type}-${resource.mode}-${resource.sourceId || resource.resourceName || index}`}
+                          className="grid grid-cols-1 gap-1 border-b px-3 py-2 text-sm last:border-b-0 sm:grid-cols-[1fr_auto]"
+                        >
+                          <div>
+                            <div className="font-medium">{formatGeneratedResourceType(resource.type)}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatGeneratedResourceDetail(resource)}
+                            </div>
+                          </div>
+                          <span className="self-start rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                            {generatedResourceModeLabels[resource.mode] || resource.mode}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {resourceAllocations.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 text-sm font-medium text-muted-foreground">资源池分配</h3>
+                    <div className="overflow-hidden rounded-md border">
+                      {resourceAllocations.map((allocation) => (
+                        <div
+                          key={allocation.id}
+                          className="grid grid-cols-1 gap-1 border-b px-3 py-2 text-sm last:border-b-0 sm:grid-cols-[1fr_auto]"
+                        >
+                          <div>
+                            <div className="font-medium">{allocation.resourceName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {allocation.pool?.name || '资源池'} · {formatGeneratedResourceType(allocation.pool?.type || 'resource')}
+                            </div>
+                          </div>
+                          <span className={`self-start rounded-full px-2 py-0.5 text-xs font-medium ${getResourceStatusClass(allocation.status)}`}>
+                            {getResourceStatusLabel(allocation.status)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="border rounded-lg p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -4577,6 +4705,63 @@ function getOperationApprovalStatusLabel(status: string) {
   if (status === 'rejected') return '已拒绝';
   if (status === 'cancelled') return '已取消';
   return status;
+}
+
+function readGeneratedResourceResolutions(config: unknown): GeneratedResourceResolution[] {
+  const record = toProjectConfigRecord(config);
+  const resolvedResources = record.resolvedResources;
+
+  if (!Array.isArray(resolvedResources)) {
+    return [];
+  }
+
+  return resolvedResources
+    .filter((item): item is Record<string, unknown> => (
+      typeof item === 'object' && item !== null && !Array.isArray(item)
+    ))
+    .map((item) => ({
+      type: readNonEmptyString(item.type) || 'resource',
+      mode: readNonEmptyString(item.mode) || 'manual',
+      sourceId: readNonEmptyString(item.sourceId) || null,
+      name: readNonEmptyString(item.name) || null,
+      resourceName: readNonEmptyString(item.resourceName) || null,
+    }));
+}
+
+function formatGeneratedResourceType(type: string) {
+  return resourceKindLabels[type] || resourceProviderLabels[type] || type;
+}
+
+function formatGeneratedResourceDetail(resource: GeneratedResourceResolution) {
+  if (resource.mode === 'skipped') {
+    return '生成结果只保留模板占位变量';
+  }
+
+  return resource.name || resource.resourceName || resource.sourceId || '已写入生成配置';
+}
+
+function readNonEmptyString(value: unknown) {
+  return typeof value === 'string' && value.trim().length > 0 ? value : '';
+}
+
+function toApiDownloadEndpoint(downloadUrl: string) {
+  const path = downloadUrl.startsWith('http')
+    ? new URL(downloadUrl).pathname
+    : downloadUrl;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return normalizedPath.startsWith('/api/') ? normalizedPath.slice(4) : normalizedPath;
+}
+
+function readDownloadFileName(contentDisposition: string | null) {
+  if (!contentDisposition) return '';
+
+  const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (encodedMatch?.[1]) {
+    return decodeURIComponent(encodedMatch[1]);
+  }
+
+  const plainMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  return plainMatch?.[1] || '';
 }
 
 function buildWebhookEndpoint(urlToken: string) {

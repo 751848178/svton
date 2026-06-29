@@ -57,6 +57,19 @@ node <skill-dir>/scripts/capture-tool-run.mjs --project svton --task rg-generate
 
 The script writes full stdout/stderr to the log file and prints compact JSON with `task`, `status`, `command`, `exit_code`, `full_log`, byte counts, and duration.
 
+## Compact Tool Scripts
+
+Use these scripts when the raw operation is mostly discovery output:
+
+```bash
+node <skill-dir>/scripts/smart-rg.mjs --project svton --task find-policy --cwd /repo -- "ControlAccessPolicyService" apps/devpilot-api/src
+node <skill-dir>/scripts/safe-read.mjs --file apps/devpilot-api/src/deployment/deployment.service.ts --pattern "autoRollback" --before 40 --after 80
+node <skill-dir>/scripts/diff-summary.mjs --project svton --task current-diff --cwd /repo -- apps/devpilot-api/src
+node <skill-dir>/scripts/codex-session-token-audit.mjs --thread-id <codex-thread-id>
+```
+
+These scripts print bounded JSON for the main context. When they need full raw content, they write it to `/tmp/codex-tool-runs/<project>/...` and include `full_log`.
+
 ## Log Reading Discipline
 
 - Read logs only when the summary is insufficient for a decision.

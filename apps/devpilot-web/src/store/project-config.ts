@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 
 // 子项目类型
 export type SubProjectType = 'backend' | 'admin' | 'mobile';
+export type ProjectEnvironmentKey = 'dev' | 'test' | 'staging' | 'prod';
+export type DatabaseEngine = 'mysql' | 'postgresql' | 'sqlite';
 
 export type ResourceConfigMode = 'manual' | 'credential' | 'instance' | 'pool' | 'skipped';
 
@@ -31,6 +33,10 @@ export interface ProjectConfig {
   };
   features: string[];
   resources: Record<string, ProjectResourceConfig>;
+  environments: ProjectEnvironmentKey[];
+  database: {
+    engine: DatabaseEngine;
+  };
   uiLibrary: {
     admin: boolean;
     mobile: boolean;
@@ -55,6 +61,7 @@ interface ProjectConfigState {
   setFeatures: (features: string[]) => void;
   setResource: (resourceType: string, resource: ProjectResourceConfig | null) => void;
   setResources: (resources: Record<string, ProjectResourceConfig>) => void;
+  setDatabase: (database: Partial<ProjectConfig['database']>) => void;
   setUiLibrary: (lib: Partial<ProjectConfig['uiLibrary']>) => void;
   setHooks: (enabled: boolean) => void;
   setGitConfig: (config: ProjectConfig['gitConfig']) => void;
@@ -77,6 +84,10 @@ const initialConfig: ProjectConfig = {
   },
   features: [],
   resources: {},
+  environments: ['dev', 'test', 'staging', 'prod'],
+  database: {
+    engine: 'mysql',
+  },
   uiLibrary: {
     admin: false,
     mobile: false,
@@ -136,6 +147,14 @@ export const useProjectConfigStore = create<ProjectConfigState>()(
       setResources: (resources) =>
         set((state) => ({
           config: { ...state.config, resources },
+        })),
+
+      setDatabase: (database) =>
+        set((state) => ({
+          config: {
+            ...state.config,
+            database: { ...(state.config.database || initialConfig.database), ...database },
+          },
         })),
 
       setUiLibrary: (lib) =>

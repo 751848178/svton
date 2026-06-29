@@ -337,6 +337,116 @@ describe('DeploymentService retryRun', () => {
     }));
   });
 
+  it('passes a preapproved live auto rollback policy from failed smoke checks', async () => {
+    prisma.deploymentRun.findFirst.mockResolvedValue({
+      id: 'run-completed-1',
+      projectId: 'project-1',
+      environmentId: 'env-prod',
+      applicationId: 'app-1',
+      applicationServiceId: 'svc-1',
+      serverId: 'server-1',
+      environment: 'prod',
+      mode: 'deploy',
+      source: 'webhook',
+      trigger: 'git_push',
+      targetType: 'server',
+      dryRun: false,
+      status: 'completed',
+      gitRepo: 'git@example.com:repo/app.git',
+      branch: 'main',
+      commitSha: 'abc123456789',
+      healthCheckUrl: 'https://example.com/health',
+      project: { id: 'project-1', name: 'Example App' },
+    });
+    prisma.deploymentRun.create.mockResolvedValue({ id: 'smoke-run-preapproved' });
+    prisma.deploymentRun.update.mockResolvedValue({
+      id: 'smoke-run-preapproved',
+      status: 'failed',
+      mode: 'smoke_check',
+      error: 'health check failed',
+      params: {
+        autoRollback: {
+          enabled: true,
+          dryRun: false,
+          queue: true,
+          maxAttempts: 3,
+          approvalId: 'approval-live-1',
+          confirmationText: 'Example App',
+        },
+      },
+    });
+    prisma.deploymentRun.findMany.mockResolvedValue([]);
+    serverExecutor.resolveTarget.mockResolvedValue({ transport: 'ssh', serverId: 'server-1' });
+    serverExecutor.execute.mockResolvedValue({
+      status: 'failed',
+      commandPlan: { steps: [] },
+      logs: [{ level: 'error', message: 'health check failed' }],
+      result: { mode: 'executed' },
+      error: 'health check failed',
+    });
+    auditEventService.create.mockResolvedValue({ id: 'audit-1' });
+    const requestSmokeFailureRollback = jest
+      .spyOn(service, 'requestSmokeFailureRollback')
+      .mockResolvedValue({ id: 'rollback-live-auto', status: 'queued' } as never);
+
+    await expect(service.smokeCheckRun('team-1', 'user-1', 'run-completed-1', {
+      dryRun: false,
+      queue: false,
+      autoRollbackOnFailure: true,
+      autoRollbackDryRun: false,
+      autoRollbackQueue: true,
+      autoRollbackMaxAttempts: 3,
+      autoRollbackApprovalId: 'approval-live-1',
+      autoRollbackConfirmationText: 'Example App',
+    })).resolves.toEqual(expect.objectContaining({ id: 'smoke-run-preapproved' }));
+
+    expect(prisma.deploymentRun.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        dryRun: false,
+        params: expect.objectContaining({
+          autoRollback: {
+            enabled: true,
+            dryRun: false,
+            queue: true,
+            maxAttempts: 3,
+            approvalId: 'approval-live-1',
+            confirmationText: 'Example App',
+          },
+        }),
+      }),
+    });
+    expect(requestSmokeFailureRollback).toHaveBeenCalledWith('team-1', 'user-1', 'smoke-run-preapproved', {
+      dryRun: false,
+      queue: true,
+      maxAttempts: 3,
+      approvalId: 'approval-live-1',
+      confirmationText: 'Example App',
+      approvalReason: '部署 Smoke smoke-ru 失败后按预授权执行 live 回滚',
+      overrides: {
+        autoRollback: true,
+        autoRollbackSourceSmokeRunId: 'smoke-run-preapproved',
+        autoRollbackPolicy: {
+          dryRun: false,
+          queue: true,
+          maxAttempts: 3,
+          approvalId: 'approval-live-1',
+          confirmationText: 'Example App',
+        },
+      },
+    });
+    expect(auditEventService.create).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'deployment.smoke_failure_auto_rollback',
+      risk: 'high',
+      status: 'queued',
+      summary: '部署 Smoke 失败后已按预授权提交 live 回滚',
+      metadata: expect.objectContaining({
+        rollbackRunId: 'rollback-live-auto',
+        preauthorized: true,
+        approvalId: 'approval-live-1',
+      }),
+    }));
+  });
+
   it('processes failed smoke checks with enabled auto rollback policy idempotently', async () => {
     prisma.deploymentRun.findMany
       .mockResolvedValueOnce([
@@ -427,6 +537,74 @@ describe('DeploymentService retryRun', () => {
         autoRollbackSourceSmokeRunId: 'smoke-auto-1',
       }),
     }));
+  });
+
+  it('reads preapproved live auto rollback policy from scheduled failed smoke checks', async () => {
+    prisma.deploymentRun.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'smoke-live-auto',
+          teamId: 'team-1',
+          actorId: 'user-1',
+          projectId: 'project-1',
+          environmentId: 'env-prod',
+          applicationId: 'app-1',
+          applicationServiceId: 'svc-1',
+          serverId: 'server-1',
+          params: {
+            autoRollback: {
+              enabled: true,
+              dryRun: false,
+              queue: true,
+              maxAttempts: 2,
+              approvalId: 'approval-live-1',
+              confirmationText: 'Example App',
+            },
+          },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const requestSmokeFailureRollback = jest
+      .spyOn(service, 'requestSmokeFailureRollback')
+      .mockResolvedValue({ id: 'rollback-live-auto', status: 'queued' } as never);
+    auditEventService.create.mockResolvedValue({ id: 'audit-1' });
+
+    await expect(service.processSmokeFailureAutoRollbacks({ teamId: 'team-1', userId: 'system', limit: 5 }))
+      .resolves
+      .toEqual({
+        scanned: 1,
+        attempted: 1,
+        created: 1,
+        skipped: 0,
+        failed: 0,
+        results: [
+          {
+            status: 'created',
+            smokeRunId: 'smoke-live-auto',
+            rollbackRunId: 'rollback-live-auto',
+          },
+        ],
+      });
+
+    expect(requestSmokeFailureRollback).toHaveBeenCalledWith('team-1', 'system', 'smoke-live-auto', {
+      dryRun: false,
+      queue: true,
+      maxAttempts: 2,
+      approvalId: 'approval-live-1',
+      confirmationText: 'Example App',
+      approvalReason: '部署 Smoke smoke-li 失败后按预授权执行 live 回滚',
+      overrides: {
+        autoRollback: true,
+        autoRollbackSourceSmokeRunId: 'smoke-live-auto',
+        autoRollbackPolicy: {
+          dryRun: false,
+          queue: true,
+          maxAttempts: 2,
+          approvalId: 'approval-live-1',
+          confirmationText: 'Example App',
+        },
+      },
+    });
   });
 
   it('creates a queued smoke check after a completed live rollback when enabled', async () => {

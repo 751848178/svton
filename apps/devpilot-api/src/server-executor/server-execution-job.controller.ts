@@ -50,16 +50,22 @@ export class ServerExecutionJobController {
     return this.filterReadableJobs(req, jobs);
   }
 
+  @Get('supervisor')
+  @Roles('team_admin')
+  supervisor(@Request() req: AuthRequest) {
+    return this.serverExecutorService.getSupervisorSnapshot(req.teamId);
+  }
+
   @Post('process-next')
   @Roles('team_admin')
   processNext(@Request() req: AuthRequest) {
-    return this.serverExecutorService.processNextQueuedJob(req.teamId);
+    return this.serverExecutorService.processNextQueuedJob(req.teamId, req.user.id);
   }
 
   @Post('recover-stale')
   @Roles('team_admin')
   recoverStale(@Request() req: AuthRequest) {
-    return this.serverExecutorService.recoverStaleRunningJobs(req.teamId);
+    return this.serverExecutorService.recoverStaleRunningJobs(req.teamId, req.user.id);
   }
 
   @Post(':id/cancel')

@@ -28,6 +28,8 @@ type SmokeFailureAutoRollbackPolicy = {
   dryRun: boolean;
   queue: boolean;
   maxAttempts?: number;
+  approvalId?: string;
+  confirmationText?: string;
 };
 
 type SmokeFailureAutoRollbackCandidate = {
@@ -1493,27 +1495,42 @@ export class DeploymentService {
     }
 
     try {
+      const preauthorizedLiveRollback = !policy.dryRun && !!policy.approvalId;
+      const rollbackDto: RollbackDeploymentRunDto = {
+        dryRun: policy.dryRun,
+        queue: policy.queue,
+        maxAttempts: policy.maxAttempts,
+        approvalReason: policy.dryRun
+          ? `部署 Smoke ${candidate.id.slice(0, 8)} 失败后自动生成回滚计划`
+          : preauthorizedLiveRollback
+            ? `部署 Smoke ${candidate.id.slice(0, 8)} 失败后按预授权执行 live 回滚`
+            : `部署 Smoke ${candidate.id.slice(0, 8)} 失败后自动申请 live 回滚`,
+        overrides: {
+          autoRollback: true,
+          autoRollbackSourceSmokeRunId: candidate.id,
+          autoRollbackPolicy: {
+            dryRun: policy.dryRun,
+            queue: policy.queue,
+            maxAttempts: policy.maxAttempts,
+            ...(preauthorizedLiveRollback ? {
+              approvalId: policy.approvalId,
+              ...(policy.confirmationText ? { confirmationText: policy.confirmationText } : {}),
+            } : {}),
+          },
+        },
+      };
+      if (preauthorizedLiveRollback) {
+        rollbackDto.approvalId = policy.approvalId;
+        if (policy.confirmationText) {
+          rollbackDto.confirmationText = policy.confirmationText;
+        }
+      }
+
       const rollbackRun = await this.requestSmokeFailureRollback(
         candidate.teamId,
         userId,
         candidate.id,
-        {
-          dryRun: policy.dryRun,
-          queue: policy.queue,
-          maxAttempts: policy.maxAttempts,
-          approvalReason: policy.dryRun
-            ? `部署 Smoke ${candidate.id.slice(0, 8)} 失败后自动生成回滚计划`
-            : `部署 Smoke ${candidate.id.slice(0, 8)} 失败后自动申请 live 回滚`,
-          overrides: {
-            autoRollback: true,
-            autoRollbackSourceSmokeRunId: candidate.id,
-            autoRollbackPolicy: {
-              dryRun: policy.dryRun,
-              queue: policy.queue,
-              maxAttempts: policy.maxAttempts,
-            },
-          },
-        },
+        rollbackDto,
       ) as { id?: string; status?: string };
 
       await this.auditEventService.create({
@@ -1533,12 +1550,20 @@ export class DeploymentService {
         status: rollbackRun.status || 'created',
         summary: policy.dryRun
           ? '部署 Smoke 失败后已自动生成回滚计划'
-          : '部署 Smoke 失败后已自动提交 live 回滚申请',
+          : preauthorizedLiveRollback
+            ? '部署 Smoke 失败后已按预授权提交 live 回滚'
+            : '部署 Smoke 失败后已自动提交 live 回滚申请',
         metadata: {
           rollbackRunId: rollbackRun.id,
           dryRun: policy.dryRun,
           queue: policy.queue,
           maxAttempts: policy.maxAttempts,
+          ...(preauthorizedLiveRollback ? {
+            preauthorized: true,
+            approvalId: policy.approvalId,
+          } : {
+            preauthorized: false,
+          }),
         },
       });
 
@@ -1608,23 +1633,35 @@ export class DeploymentService {
       return undefined;
     }
 
-    return {
+    const policy: SmokeFailureAutoRollbackPolicy = {
       enabled: true,
       dryRun: dto.autoRollbackDryRun !== false,
       queue: dto.autoRollbackQueue !== false,
       maxAttempts: this.safePositiveInt(dto.autoRollbackMaxAttempts, 1, 10),
     };
+
+    const approvalId = readString(dto.autoRollbackApprovalId)?.trim();
+    const confirmationText = readString(dto.autoRollbackConfirmationText)?.trim();
+    if (approvalId) policy.approvalId = approvalId;
+    if (confirmationText) policy.confirmationText = confirmationText;
+    return policy;
   }
 
   private readSmokeFailureAutoRollbackPolicy(params?: Prisma.JsonValue | null): SmokeFailureAutoRollbackPolicy {
     const record = isRecord(params) ? params : {};
     const raw = isRecord(record.autoRollback) ? record.autoRollback : {};
-    return {
+    const policy: SmokeFailureAutoRollbackPolicy = {
       enabled: raw.enabled === true,
       dryRun: raw.dryRun !== false,
       queue: raw.queue !== false,
       maxAttempts: this.safePositiveInt(raw.maxAttempts, 1, 10),
     };
+
+    const approvalId = readString(raw.approvalId)?.trim();
+    const confirmationText = readString(raw.confirmationText)?.trim();
+    if (approvalId) policy.approvalId = approvalId;
+    if (confirmationText) policy.confirmationText = confirmationText;
+    return policy;
   }
 
   private async createPostRollbackSmokeCheckIfEligible(

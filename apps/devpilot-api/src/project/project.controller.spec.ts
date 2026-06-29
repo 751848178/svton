@@ -34,6 +34,14 @@ describe('ProjectController authorization', () => {
   it('filters project detail children by their own resource scopes', async () => {
     projectService.findOne.mockResolvedValue({
       id: 'project-1',
+      allocations: [
+        {
+          id: 'allocation-1',
+          resourceName: 'demo-db',
+          status: 'active',
+          pool: { id: 'pool-1', name: 'MySQL Pool', type: 'mysql' },
+        },
+      ],
       environments: [
         { id: 'env-allowed', projectId: 'project-1' },
         { id: 'env-denied', projectId: 'project-1' },
@@ -64,6 +72,14 @@ describe('ProjectController authorization', () => {
 
     await expect(controller.findOne(req, 'project-1')).resolves.toEqual({
       id: 'project-1',
+      allocations: [
+        {
+          id: 'allocation-1',
+          resourceName: 'demo-db',
+          status: 'active',
+          pool: { id: 'pool-1', name: 'MySQL Pool', type: 'mysql' },
+        },
+      ],
       environments: [{ id: 'env-allowed', projectId: 'project-1' }],
       proxyConfigs: [],
       sites: [],
@@ -103,5 +119,33 @@ describe('ProjectController authorization', () => {
       targetType: 'application_service',
       targetId: 'service-denied',
     }));
+  });
+
+  it('does not expose resource allocation credentials on project detail', async () => {
+    projectService.findOne.mockResolvedValue({
+      id: 'project-1',
+      allocations: [
+        {
+          id: 'allocation-1',
+          resourceName: 'demo-db',
+          status: 'active',
+          pool: { id: 'pool-1', name: 'MySQL Pool', type: 'mysql' },
+        },
+      ],
+    });
+    accessPolicyService.assertCanRead.mockResolvedValue({ allowed: true });
+    accessPolicyService.canRead.mockResolvedValue(true);
+
+    const result = await controller.findOne(req, 'project-1');
+
+    expect(result.allocations).toEqual([
+      {
+        id: 'allocation-1',
+        resourceName: 'demo-db',
+        status: 'active',
+        pool: { id: 'pool-1', name: 'MySQL Pool', type: 'mysql' },
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toContain('credentials');
   });
 });

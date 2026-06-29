@@ -10,6 +10,34 @@ export type ServerExecutionCancellationToken = {
   onCancel(callback: () => void): () => void;
 };
 
+export type ServerRemoteExecutionCleanupReason = 'cancel' | 'timeout' | 'stale_recovery';
+
+export type ServerRemoteExecutionSession = {
+  transport: 'ssh';
+  pid: number;
+  observedAt: string;
+  serverId?: string | null;
+  serverHost?: string;
+  operationKey: string;
+  adapterKey: string;
+  cleanupStrategy: 'best_effort_ssh';
+};
+
+export type ServerRemoteExecutionCleanup = {
+  transport: 'ssh';
+  pid?: number;
+  observedAt: string;
+  reason?: ServerRemoteExecutionCleanupReason;
+  attempted: boolean;
+  succeeded?: boolean;
+  error?: string;
+};
+
+export type ServerExecutionRuntimeObserver = {
+  onRemoteProcessStarted?(session: ServerRemoteExecutionSession): void | Promise<void>;
+  onRemoteProcessCleanup?(cleanup: ServerRemoteExecutionCleanup): void | Promise<void>;
+};
+
 export type ServerCommandStep = {
   key: string;
   label: string;
@@ -29,6 +57,14 @@ export type ServerExecutorTarget = {
   username?: string;
   authType?: string;
   transport: ServerExecutorTransport;
+  agentRef?: {
+    source: 'server_services' | 'server_tags';
+    referenceId: string;
+    displayName: string;
+    capabilityKey: string;
+    status?: string;
+    redacted: true;
+  };
   credentialRef?: {
     source: 'server';
     referenceId: string;
@@ -51,6 +87,7 @@ export type ServerExecutionInput = {
   requiredConfirmationText?: string;
   confirmationText?: string;
   cancellationToken?: ServerExecutionCancellationToken;
+  runtimeObserver?: ServerExecutionRuntimeObserver;
 };
 
 export type ServerCommandPolicyDecision = {

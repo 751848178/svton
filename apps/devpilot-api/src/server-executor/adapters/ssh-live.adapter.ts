@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,8 @@ import { ServerService } from '../../server/server.service';
 import {
   ServerExecutionInput,
   ServerExecutionResult,
+  ServerRemoteExecutionCleanup,
+  ServerRemoteExecutionSession,
   ServerExecutorAdapter,
 } from '../server-executor.types';
 
@@ -18,6 +21,13 @@ type SshCommandResult = {
   stderr: string;
   timedOut: boolean;
   cancelled: boolean;
+  remoteProcessPid?: number;
+  remoteKill?: {
+    attempted: boolean;
+    reason?: 'cancel' | 'timeout';
+    succeeded?: boolean;
+    error?: string;
+  };
 };
 
 @Injectable()
@@ -117,6 +127,8 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
         exitCode: result.exitCode,
         timedOut: result.timedOut,
         cancelled: result.cancelled,
+        remoteProcessPid: result.remoteProcessPid,
+        remoteKill: result.remoteKill,
         stdoutPreview: this.truncate(result.stdout),
         stderrPreview: this.truncate(result.stderr),
       }),
@@ -126,6 +138,78 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
           : `SSH live Server executor exit code ${result.exitCode}`
         : undefined,
     };
+  }
+
+  async cleanupRemoteExecutionSession(
+    input: ServerExecutionInput,
+    session: ServerRemoteExecutionSession,
+    reason: ServerRemoteExecutionCleanup['reason'] = 'stale_recovery',
+  ): Promise<ServerRemoteExecutionCleanup> {
+    const base = {
+      transport: 'ssh' as const,
+      pid: session.pid,
+      observedAt: new Date().toISOString(),
+      ...(reason ? { reason } : {}),
+    };
+
+    if (session.transport !== 'ssh' || !Number.isSafeInteger(session.pid) || session.pid <= 1) {
+      return {
+        ...base,
+        attempted: false,
+        error: 'remote execution session metadata is invalid',
+      };
+    }
+
+    if (input.target.transport !== 'ssh' || !input.target.serverId) {
+      return {
+        ...base,
+        attempted: false,
+        error: 'stale remote cleanup requires an SSH target with serverId',
+      };
+    }
+
+    let attempted = false;
+    let directory: string | undefined;
+
+    try {
+      const credentials = await this.serverService.getDecryptedCredentials(
+        input.teamId,
+        input.target.serverId,
+      );
+      if (credentials.authType !== 'key') {
+        return {
+          ...base,
+          attempted: false,
+          error: 'stale remote cleanup currently supports key auth only',
+        };
+      }
+
+      directory = await mkdtemp(join(tmpdir(), 'devpilot-ssh-cleanup-'));
+      const keyPath = join(directory, 'identity');
+      await writeFile(keyPath, credentials.credentials, { mode: 0o600 });
+      attempted = true;
+      await this.killRemoteProcessTree(
+        this.buildConnectionArgs(credentials, keyPath),
+        session.pid,
+      );
+
+      return {
+        ...base,
+        attempted: true,
+        succeeded: true,
+      };
+    } catch (error) {
+      return {
+        ...base,
+        attempted,
+        succeeded: false,
+        error: error instanceof Error ? error.message : 'stale remote cleanup failed',
+      };
+    } finally {
+      if (directory) {
+        await rm(directory, { recursive: true, force: true });
+      }
+    }
   }
 
   private blocked(
@@ -195,6 +279,8 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
         exitCode: result?.exitCode,
         timedOut: result?.timedOut || false,
         cancelled: true,
+        remoteProcessPid: result?.remoteProcessPid,
+        remoteKill: result?.remoteKill,
         stdoutPreview: this.truncate(result?.stdout || ''),
         stderrPreview: this.truncate(result?.stderr || ''),
       }),
@@ -211,22 +297,15 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
 
     try {
       await writeFile(keyPath, credentials.credentials, { mode: 0o600 });
-      const script = this.buildScript(input);
+      const script = this.buildRemoteWrappedScript(input);
       const timeoutMs = this.resolveTimeoutMs(input);
+      const connectionArgs = this.buildConnectionArgs(credentials, keyPath);
       const args = [
-        '-i',
-        keyPath,
-        '-p',
-        String(credentials.port),
-        '-o',
-        'BatchMode=yes',
-        '-o',
-        'StrictHostKeyChecking=accept-new',
-        `${credentials.username}@${credentials.host}`,
+        ...connectionArgs,
         'bash -se',
       ];
 
-      return await this.spawnSsh(input, args, script, timeoutMs);
+      return await this.spawnSsh(input, args, script, timeoutMs, connectionArgs);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -237,6 +316,7 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
     args: string[],
     script: string,
     timeoutMs: number,
+    connectionArgs: string[],
   ): Promise<SshCommandResult> {
     return new Promise((resolve, reject) => {
       const child = spawn('ssh', args, { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -245,23 +325,81 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
       let settled = false;
       let timedOut = false;
       let cancelled = input.cancellationToken?.isCancellationRequested() || false;
-      const timer = setTimeout(() => {
-        timedOut = true;
+      let remoteProcessPid: number | undefined;
+      let remoteProcessReported = false;
+      let stopReason: 'cancel' | 'timeout' | undefined;
+      let remoteKill:
+        | {
+            attempted: boolean;
+            reason?: 'cancel' | 'timeout';
+            succeeded?: boolean;
+            error?: string;
+          }
+        | undefined;
+      let remoteProcessStartPromise: Promise<void> | undefined;
+      let remoteKillPromise: Promise<void> | undefined;
+      const updateRemoteProcessPid = () => {
+        remoteProcessPid = this.readRemoteProcessPid(`${stdout}\n${stderr}`) ?? remoteProcessPid;
+        if (!remoteProcessPid || remoteProcessReported) {
+          return;
+        }
+
+        remoteProcessReported = true;
+        remoteProcessStartPromise = this.notifyRemoteProcessStarted(input, remoteProcessPid);
+      };
+      const triggerRemoteKill = (reason: 'cancel' | 'timeout') => {
+        stopReason = reason;
+        updateRemoteProcessPid();
+        if (!remoteProcessPid || remoteKillPromise) {
+          return;
+        }
+
+        remoteKill = { attempted: true, reason };
+        remoteKillPromise = this.killRemoteProcessTree(connectionArgs, remoteProcessPid)
+          .then(() => {
+            remoteKill = { attempted: true, reason, succeeded: true };
+          })
+          .catch((error) => {
+            remoteKill = {
+              attempted: true,
+              reason,
+              succeeded: false,
+              error: error instanceof Error ? error.message : 'remote cleanup failed',
+            };
+          });
+      };
+      const requestStop = (reason: 'cancel' | 'timeout') => {
+        if (reason === 'timeout') {
+          timedOut = true;
+        } else {
+          cancelled = true;
+        }
+        triggerRemoteKill(reason);
         child.kill('SIGTERM');
+      };
+      const timer = setTimeout(() => {
+        requestStop('timeout');
       }, timeoutMs);
       const unsubscribeCancel = input.cancellationToken?.onCancel(() => {
-        cancelled = true;
-        child.kill('SIGTERM');
+        requestStop('cancel');
       });
       if (cancelled) {
-        child.kill('SIGTERM');
+        requestStop('cancel');
       }
 
       child.stdout.on('data', (chunk) => {
         stdout += chunk.toString();
+        updateRemoteProcessPid();
+        if (stopReason) {
+          triggerRemoteKill(stopReason);
+        }
       });
       child.stderr.on('data', (chunk) => {
         stderr += chunk.toString();
+        updateRemoteProcessPid();
+        if (stopReason) {
+          triggerRemoteKill(stopReason);
+        }
       });
       child.stdin.on('error', () => {
         // The process may already be gone after a cancel/timeout.
@@ -273,17 +411,137 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
         unsubscribeCancel?.();
         reject(error);
       });
-      child.on('close', (exitCode) => {
+      child.on('close', async (exitCode) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         unsubscribeCancel?.();
-        resolve({ exitCode, stdout, stderr, timedOut, cancelled });
+        updateRemoteProcessPid();
+        if (stopReason) {
+          triggerRemoteKill(stopReason);
+        }
+        if (remoteKillPromise) {
+          await remoteKillPromise;
+        } else if (stopReason) {
+          remoteKill = {
+            attempted: false,
+            reason: stopReason,
+            error: 'remote process pid was not observed before local ssh exited',
+          };
+        }
+        if (remoteProcessStartPromise) {
+          await remoteProcessStartPromise;
+        }
+        if (remoteKill) {
+          await this.notifyRemoteProcessCleanup(input, remoteKill, remoteProcessPid);
+        }
+        resolve({
+          exitCode,
+          stdout: this.stripRemoteControlMarkers(stdout),
+          stderr: this.stripRemoteControlMarkers(stderr),
+          timedOut,
+          cancelled,
+          remoteProcessPid,
+          remoteKill,
+        });
       });
 
       child.stdin.write(script);
       child.stdin.end();
     });
+  }
+
+  private buildConnectionArgs(
+    credentials: Awaited<ReturnType<ServerService['getDecryptedCredentials']>>,
+    keyPath: string,
+  ) {
+    return [
+      '-i',
+      keyPath,
+      '-p',
+      String(credentials.port),
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'StrictHostKeyChecking=accept-new',
+      `${credentials.username}@${credentials.host}`,
+    ];
+  }
+
+  private killRemoteProcessTree(connectionArgs: string[], pid: number): Promise<void> {
+    if (!Number.isSafeInteger(pid) || pid <= 1) {
+      return Promise.reject(new Error('remote process pid is invalid'));
+    }
+
+    const command = this.buildRemoteKillCommand(pid);
+    const args = [
+      ...connectionArgs,
+      `sh -lc ${this.shellQuote(command)}`,
+    ];
+
+    return new Promise((resolve, reject) => {
+      const child = spawn('ssh', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = '';
+      const timer = setTimeout(() => {
+        child.kill('SIGTERM');
+      }, this.remoteKillTimeoutMs());
+
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+      });
+      child.on('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.on('close', (exitCode) => {
+        clearTimeout(timer);
+        if (exitCode === 0 || exitCode === null) {
+          resolve();
+          return;
+        }
+        reject(new Error(`remote cleanup exit code ${exitCode}: ${this.truncate(stderr)}`));
+      });
+    });
+  }
+
+  private async notifyRemoteProcessStarted(
+    input: ServerExecutionInput,
+    pid: number,
+  ) {
+    try {
+      await input.runtimeObserver?.onRemoteProcessStarted?.({
+        transport: 'ssh',
+        pid,
+        observedAt: new Date().toISOString(),
+        ...(input.target.serverId !== undefined ? { serverId: input.target.serverId } : {}),
+        ...(input.target.serverHost ? { serverHost: input.target.serverHost } : {}),
+        operationKey: input.operationKey,
+        adapterKey: input.adapterKey,
+        cleanupStrategy: 'best_effort_ssh',
+      });
+    } catch {
+      // Runtime observers are best-effort metadata sinks; execution must not fail because persistence failed.
+    }
+  }
+
+  private async notifyRemoteProcessCleanup(
+    input: ServerExecutionInput,
+    cleanup: NonNullable<SshCommandResult['remoteKill']>,
+    pid?: number,
+  ) {
+    try {
+      await input.runtimeObserver?.onRemoteProcessCleanup?.({
+        transport: 'ssh',
+        ...(pid ? { pid } : {}),
+        observedAt: new Date().toISOString(),
+        ...(cleanup.reason ? { reason: cleanup.reason } : {}),
+        attempted: cleanup.attempted,
+        ...(cleanup.succeeded !== undefined ? { succeeded: cleanup.succeeded } : {}),
+        ...(cleanup.error ? { error: cleanup.error } : {}),
+      });
+    } catch {
+      // Runtime observers are best-effort metadata sinks; execution must not fail because persistence failed.
+    }
   }
 
   private buildScript(input: ServerExecutionInput) {
@@ -299,6 +557,57 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
     }
 
     return `${lines.join('\n')}\n`;
+  }
+
+  private buildRemoteWrappedScript(input: ServerExecutionInput) {
+    const innerScript = this.buildScript(input).trimEnd();
+    const delimiter = `__DEVPILOT_SCRIPT_${randomUUID().replace(/-/g, '')}`;
+
+    return [
+      'set -euo pipefail',
+      '__devpilot_tmp="$(mktemp -t devpilot-ssh.XXXXXX)"',
+      `cat > "$__devpilot_tmp" <<'${delimiter}'`,
+      innerScript,
+      delimiter,
+      'chmod 700 "$__devpilot_tmp"',
+      '__devpilot_child_pid=""',
+      '__devpilot_cleanup() {',
+      '  status="${1:-130}"',
+      '  if [ -n "${__devpilot_child_pid:-}" ] && kill -0 "$__devpilot_child_pid" 2>/dev/null; then',
+      '    kill -TERM -- "-$__devpilot_child_pid" 2>/dev/null || kill -TERM "$__devpilot_child_pid" 2>/dev/null || true',
+      '    sleep 2',
+      '    kill -KILL -- "-$__devpilot_child_pid" 2>/dev/null || kill -KILL "$__devpilot_child_pid" 2>/dev/null || true',
+      '  fi',
+      '  rm -f "$__devpilot_tmp"',
+      '  exit "$status"',
+      '}',
+      'trap \'__devpilot_cleanup 130\' INT TERM HUP',
+      'if command -v setsid >/dev/null 2>&1; then',
+      '  setsid bash "$__devpilot_tmp" &',
+      'else',
+      '  bash "$__devpilot_tmp" &',
+      'fi',
+      '__devpilot_child_pid="$!"',
+      'echo "__DEVPILOT_REMOTE_CHILD_PID__=$__devpilot_child_pid" >&2',
+      'set +e',
+      'wait "$__devpilot_child_pid"',
+      '__devpilot_status="$?"',
+      'set -e',
+      'rm -f "$__devpilot_tmp"',
+      'exit "$__devpilot_status"',
+      '',
+    ].join('\n');
+  }
+
+  private buildRemoteKillCommand(pid: number) {
+    return [
+      `pid=${pid}`,
+      'if kill -0 "$pid" 2>/dev/null; then',
+      'kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true',
+      'sleep 2',
+      'kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true',
+      'fi',
+    ].join('; ');
   }
 
   private resolveTimeoutMs(input: ServerExecutionInput) {
@@ -328,6 +637,7 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
         port: input.target.port,
         username: input.target.username,
         authType: input.target.authType,
+        agentRef: input.target.agentRef,
         credentialRef: input.target.credentialRef,
       },
       safety: {
@@ -336,6 +646,8 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
         commandPolicy: input.metadata?.commandPolicy,
         secretsInOutput: 'masked_before_persisting',
         liveExecutionDefault: 'requires_SERVER_EXECUTOR_LIVE_ENABLED',
+        remoteProcessTreeKill: 'best_effort_ssh_cleanup_on_cancel_or_timeout',
+        remoteSupervisor: 'temporary_shell_wrapper_until_server_agent',
       },
       warnings,
       metadata: input.metadata || {},
@@ -353,6 +665,28 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
 
   private truncate(value: string) {
     return value.length > 8000 ? `${value.slice(0, 8000)}\n...[truncated]` : value;
+  }
+
+  private readRemoteProcessPid(value: string) {
+    const matches = [...value.matchAll(/__DEVPILOT_REMOTE_CHILD_PID__=(\d+)/g)];
+    const latest = matches.at(-1)?.[1];
+    if (!latest) {
+      return undefined;
+    }
+    const pid = Number(latest);
+    return Number.isSafeInteger(pid) && pid > 1 ? pid : undefined;
+  }
+
+  private stripRemoteControlMarkers(value: string) {
+    return value.replace(/^__DEVPILOT_REMOTE_CHILD_PID__=\d+\r?\n?/gm, '');
+  }
+
+  private remoteKillTimeoutMs() {
+    const seconds = Number(this.configService.get('SERVER_EXECUTOR_REMOTE_KILL_TIMEOUT_SECONDS', 10));
+    if (!Number.isFinite(seconds)) {
+      return 10_000;
+    }
+    return Math.max(1_000, Math.min(Math.floor(seconds) * 1000, 30_000));
   }
 
   private toJsonValue(value: unknown): Prisma.InputJsonValue {

@@ -5,10 +5,12 @@ import {
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { AuditEventService } from '../audit-event';
 import { LogCollectionIngestionService } from '../log-center/log-collection-ingestion.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildDockerStatsMetricSnapshotInputs } from '../resource-control/metrics/docker-stats-metrics';
@@ -23,12 +25,14 @@ import {
   mergeSiteTlsRenewMetadata,
   SiteTlsRenewMetadata,
 } from '../site/site-tls-renew';
+import { ServerAgentServerExecutorAdapter } from './adapters/server-agent.adapter';
 import { ScriptPlanServerExecutorAdapter } from './adapters/script-plan.adapter';
 import { SshLiveServerExecutorAdapter } from './adapters/ssh-live.adapter';
 import {
   ListServerExecutionJobsQueryDto,
   ListServerExecutionLeasesQueryDto,
   RetryServerExecutionJobDto,
+  ServerAgentHeartbeatDto,
 } from './dto/server-execution-lease.dto';
 import { ServerCommandPolicyService } from './server-command-policy.service';
 import {
@@ -37,7 +41,10 @@ import {
   ServerExecutionCancellationToken,
   ServerExecutionInput,
   ServerExecutionMode,
+  ServerExecutionRuntimeObserver,
   ServerQueuedExecutionResult,
+  ServerRemoteExecutionCleanup,
+  ServerRemoteExecutionSession,
   ServerExecutionResult,
   ServerExecutorAdapter,
   ServerExecutorTarget,
@@ -54,6 +61,7 @@ type ServerExecutionLeaseRecord = {
 type ServerExecutionJobRecord = {
   id: string;
   attempt: number;
+  maxAttempts: number;
 };
 
 type MutableCancellationToken = ServerExecutionCancellationToken & {
@@ -72,6 +80,76 @@ type ProcessQueuedJobResult = {
 type RecoverStaleJobsResult = {
   recovered: number;
   retryJobIds: string[];
+  remoteCleanups: {
+    attempted: number;
+    succeeded: number;
+    failed: number;
+  };
+};
+
+type WorkerLockServer = {
+  id: string;
+  name: string;
+  host: string;
+  status: string;
+} | null;
+
+type WorkerLockRecord = {
+  id: string;
+  operationKey: string;
+  adapterKey: string;
+  serverId: string | null;
+  lockOwner: string | null;
+  lastHeartbeatAt: Date | null;
+  lockExpiresAt: Date | null;
+  server: WorkerLockServer;
+};
+
+type ServerTargetRecord = {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  authType: string;
+  services: Prisma.JsonValue | null;
+  tags: Prisma.JsonValue | null;
+};
+
+type ServerAgentReadinessRecord = {
+  id: string;
+  name: string;
+  host: string;
+  status: string;
+  services: Prisma.JsonValue | null;
+  tags: Prisma.JsonValue | null;
+};
+
+type ServerAgentBlockedJobRecord = {
+  id: string;
+  operationKey: string;
+  adapterKey: string;
+  serverId: string | null;
+  queuedAt: Date;
+  finishedAt: Date | null;
+  error: string | null;
+  result: Prisma.JsonValue | null;
+  server: WorkerLockServer;
+};
+
+type HeaderBag = Record<string, string | string[] | undefined>;
+
+type ServerAgentRuntimeSummary = {
+  state: 'online' | 'stale' | 'unknown';
+  status?: string;
+  agentId?: string;
+  runnerId?: string;
+  hostname?: string;
+  version?: string;
+  lastSeenAt?: string;
+  expiresAt?: string;
+  heartbeatTtlSeconds?: number;
+  capabilities: string[];
 };
 
 @Injectable()
@@ -90,12 +168,18 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     private readonly commandPolicy: ServerCommandPolicyService,
     private readonly configService: ConfigService,
     private readonly logCollectionIngestionService: LogCollectionIngestionService,
+    private readonly auditEventService?: AuditEventService,
+    private readonly serverAgentAdapter?: ServerAgentServerExecutorAdapter,
   ) {
-    this.adapters = [this.sshLiveAdapter, this.scriptPlanAdapter];
+    this.adapters = [
+      this.sshLiveAdapter,
+      ...(this.serverAgentAdapter ? [this.serverAgentAdapter] : []),
+      this.scriptPlanAdapter,
+    ];
   }
 
   onModuleInit() {
-    if (this.configService.get('SERVER_EXECUTOR_QUEUE_WORKER_ENABLED', 'false') !== 'true') {
+    if (!this.queueWorkerEnabled()) {
       return;
     }
 
@@ -132,6 +216,8 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
         port: true,
         username: true,
         authType: true,
+        services: true,
+        tags: true,
       },
     });
 
@@ -139,8 +225,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('服务器不存在或不属于当前团队');
     }
 
-    return {
-      transport: 'ssh',
+    const baseTarget: Omit<ServerExecutorTarget, 'transport' | 'agentRef'> = {
       serverId: server.id,
       serverName: server.name,
       serverHost: server.host,
@@ -153,6 +238,23 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
         displayName: `${server.username}@${server.host}:${server.port}`,
         redacted: true,
       },
+    };
+
+    const agentRef = this.agentTargetEnabled()
+      ? this.readServerAgentCapability(server)
+      : undefined;
+    const agentRuntime = this.readServerAgentRuntime(server, new Date());
+    if (agentRef && this.isServerAgentTargetRuntimeEligible(agentRuntime)) {
+      return {
+        ...baseTarget,
+        transport: 'server_agent',
+        agentRef,
+      };
+    }
+
+    return {
+      ...baseTarget,
+      transport: 'ssh',
     };
   }
 
@@ -188,6 +290,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     const cancellationToken = this.createCancellationToken(job.id);
     this.runningCancellations.set(job.id, cancellationToken);
     const stopHeartbeat = await this.startJobHeartbeat(job.id);
+    const runtimeObserver = this.createRuntimeObserver(job.id);
 
     try {
       const trackedInput: ServerExecutionInput = {
@@ -195,8 +298,11 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
         metadata: {
           ...(input.metadata || {}),
           serverExecutionJobId: job.id,
+          retryAttempt: job.attempt,
+          maxAttempts: job.maxAttempts,
         },
         cancellationToken,
+        runtimeObserver,
       };
 
       await cancellationToken.checkPersistedCancellation();
@@ -262,6 +368,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       await this.releaseLiveLease(lease, result.status);
       await this.finishExecutionJob(job.id, result.status, result);
       await this.syncLinkedBusinessRunAfterExecution(leasedInput, job.id, result);
+      await this.writeServerAgentDispatchAudit(leasedInput, job.id, result);
       return result;
     } catch (error) {
       await this.releaseLiveLease(lease, 'failed');
@@ -316,6 +423,365 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async getSupervisorSnapshot(teamId: string) {
+    const now = new Date();
+    await this.expireStaleLeases(now, teamId);
+
+    const [
+      readyQueuedJobs,
+      scheduledQueuedJobs,
+      runningJobs,
+      staleRunningJobs,
+      blockedJobs,
+      failedJobs,
+      cancelledJobs,
+      activeLeases,
+      expiredLeases,
+      blockedLeases,
+      nextQueuedJob,
+      workerLocks,
+      agentReadyQueuedJobs,
+      agentScheduledQueuedJobs,
+      agentRunningJobs,
+      agentStaleRunningJobs,
+      agentBlockedJobs,
+      agentFailedJobs,
+      agentCancelledJobs,
+      agentNextQueuedJob,
+      agentBlockedReasonJobs,
+      servers,
+    ] = await Promise.all([
+      this.prisma.serverExecutionJob.count({
+        where: {
+          teamId,
+          status: 'queued',
+          queueMode: 'queued',
+          availableAt: { lte: now },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: {
+          teamId,
+          status: 'queued',
+          queueMode: 'queued',
+          availableAt: { gt: now },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: { teamId, status: 'running' },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: {
+          teamId,
+          status: 'running',
+          lockExpiresAt: { lte: now },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: { teamId, status: 'blocked' },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: { teamId, status: 'failed' },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: { teamId, status: 'cancelled' },
+      }),
+      this.prisma.serverExecutionLease.count({
+        where: { teamId, status: 'running' },
+      }),
+      this.prisma.serverExecutionLease.count({
+        where: { teamId, status: 'expired' },
+      }),
+      this.prisma.serverExecutionLease.count({
+        where: { teamId, status: 'blocked' },
+      }),
+      this.prisma.serverExecutionJob.findFirst({
+        where: {
+          teamId,
+          status: 'queued',
+          queueMode: 'queued',
+          availableAt: { lte: now },
+        },
+        orderBy: [
+          { priority: 'desc' },
+          { queuedAt: 'asc' },
+        ],
+        select: {
+          id: true,
+          operationKey: true,
+          adapterKey: true,
+          serverId: true,
+          priority: true,
+          queuedAt: true,
+          availableAt: true,
+          server: { select: { id: true, name: true, host: true, status: true } },
+        },
+      }),
+      this.prisma.serverExecutionJob.findMany({
+        where: {
+          teamId,
+          status: 'running',
+          lockOwner: { not: null },
+        },
+        orderBy: [
+          { lastHeartbeatAt: 'desc' },
+          { lockedAt: 'desc' },
+        ],
+        take: 50,
+        select: {
+          id: true,
+          operationKey: true,
+          adapterKey: true,
+          serverId: true,
+          lockOwner: true,
+          lastHeartbeatAt: true,
+          lockExpiresAt: true,
+          server: { select: { id: true, name: true, host: true, status: true } },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: {
+          teamId,
+          transport: 'server_agent',
+          status: 'queued',
+          queueMode: 'queued',
+          availableAt: { lte: now },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: {
+          teamId,
+          transport: 'server_agent',
+          status: 'queued',
+          queueMode: 'queued',
+          availableAt: { gt: now },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: { teamId, transport: 'server_agent', status: 'running' },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: {
+          teamId,
+          transport: 'server_agent',
+          status: 'running',
+          lockExpiresAt: { lte: now },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: { teamId, transport: 'server_agent', status: 'blocked' },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: { teamId, transport: 'server_agent', status: 'failed' },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: { teamId, transport: 'server_agent', status: 'cancelled' },
+      }),
+      this.prisma.serverExecutionJob.findFirst({
+        where: {
+          teamId,
+          transport: 'server_agent',
+          status: 'queued',
+          queueMode: 'queued',
+          availableAt: { lte: now },
+        },
+        orderBy: [
+          { priority: 'desc' },
+          { queuedAt: 'asc' },
+        ],
+        select: {
+          id: true,
+          operationKey: true,
+          adapterKey: true,
+          serverId: true,
+          priority: true,
+          queuedAt: true,
+          availableAt: true,
+          server: { select: { id: true, name: true, host: true, status: true } },
+        },
+      }),
+      this.prisma.serverExecutionJob.findMany({
+        where: {
+          teamId,
+          transport: 'server_agent',
+          status: 'blocked',
+        },
+        orderBy: [
+          { finishedAt: 'desc' },
+          { queuedAt: 'desc' },
+        ],
+        take: 20,
+        select: {
+          id: true,
+          operationKey: true,
+          adapterKey: true,
+          serverId: true,
+          queuedAt: true,
+          finishedAt: true,
+          error: true,
+          result: true,
+          server: { select: { id: true, name: true, host: true, status: true } },
+        },
+      }),
+      this.prisma.server.findMany({
+        where: { teamId },
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          host: true,
+          status: true,
+          services: true,
+          tags: true,
+        },
+      }),
+    ]);
+    const agentReadiness = this.summarizeServerAgentReadiness(servers, now);
+
+    return {
+      generatedAt: now.toISOString(),
+      worker: {
+        workerId: this.workerId,
+        queueWorkerEnabled: this.queueWorkerEnabled(),
+        processingQueue: this.processingQueue,
+        runningCancellations: this.runningCancellations.size,
+        queueIntervalSeconds: this.msToSeconds(this.queueWorkerIntervalMs()),
+        queueBatchSize: this.queueWorkerBatchSize(),
+        retryDelaySeconds: this.msToSeconds(this.queueRetryDelayMs()),
+        queueLockTtlSeconds: this.msToSeconds(this.queueLockTtlMs()),
+        queueHeartbeatSeconds: this.msToSeconds(this.queueLockHeartbeatMs()),
+        cancellationPollSeconds: this.msToSeconds(this.cancellationPollMs()),
+        recoveryBatchSize: this.queueRecoveryBatchSize(),
+        staleRemoteCleanupEnabled: this.staleRemoteCleanupEnabled(),
+      },
+      queue: {
+        ready: readyQueuedJobs,
+        scheduled: scheduledQueuedJobs,
+        running: runningJobs,
+        staleRunning: staleRunningJobs,
+        blocked: blockedJobs,
+        failed: failedJobs,
+        cancelled: cancelledJobs,
+        nextQueuedJob: nextQueuedJob
+          ? {
+              id: nextQueuedJob.id,
+              operationKey: nextQueuedJob.operationKey,
+              adapterKey: nextQueuedJob.adapterKey,
+              serverId: nextQueuedJob.serverId,
+              priority: nextQueuedJob.priority,
+              queuedAt: nextQueuedJob.queuedAt.toISOString(),
+              availableAt: nextQueuedJob.availableAt.toISOString(),
+              server: nextQueuedJob.server,
+            }
+          : null,
+      },
+      leases: {
+        running: activeLeases,
+        expired: expiredLeases,
+        blocked: blockedLeases,
+      },
+      workers: this.summarizeWorkerLocks(workerLocks, now),
+      agent: {
+        ...agentReadiness,
+        dispatcher: this.readServerAgentDispatcherConfig(),
+        jobs: {
+          ready: agentReadyQueuedJobs,
+          scheduled: agentScheduledQueuedJobs,
+          running: agentRunningJobs,
+          staleRunning: agentStaleRunningJobs,
+          blocked: agentBlockedJobs,
+          failed: agentFailedJobs,
+          cancelled: agentCancelledJobs,
+          nextQueuedJob: agentNextQueuedJob
+            ? {
+                id: agentNextQueuedJob.id,
+                operationKey: agentNextQueuedJob.operationKey,
+                adapterKey: agentNextQueuedJob.adapterKey,
+                serverId: agentNextQueuedJob.serverId,
+                priority: agentNextQueuedJob.priority,
+                queuedAt: agentNextQueuedJob.queuedAt.toISOString(),
+                availableAt: agentNextQueuedJob.availableAt.toISOString(),
+                server: agentNextQueuedJob.server,
+            }
+            : null,
+          blockedReasons: this.summarizeServerAgentBlockedReasons(agentBlockedReasonJobs),
+        },
+      },
+    };
+  }
+
+  async recordServerAgentHeartbeat(headers: HeaderBag, dto: ServerAgentHeartbeatDto) {
+    this.assertServerAgentHeartbeatAuthorized(headers);
+
+    const now = new Date();
+    const server = await this.prisma.server.findFirst({
+      where: { id: dto.serverId, teamId: dto.teamId },
+      select: {
+        id: true,
+        name: true,
+        host: true,
+        status: true,
+        services: true,
+        tags: true,
+      },
+    });
+
+    if (!server) {
+      throw new NotFoundException('Server agent heartbeat 目标服务器不存在');
+    }
+
+    const ttlSeconds = this.normalizeServerAgentHeartbeatTtlSeconds(dto.ttlSeconds);
+    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
+    const services = this.isRecord(server.services) ? { ...server.services } : {};
+    const capabilities = this.readStringArray(dto.capabilities)
+      .map((capability) => capability.trim())
+      .filter(Boolean)
+      .slice(0, 50);
+    const heartbeat = {
+      enabled: true,
+      source: 'agent_heartbeat',
+      status: this.normalizeServerAgentHeartbeatStatus(dto.status),
+      agentId: dto.agentId.trim(),
+      redacted: true,
+      lastSeenAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      heartbeatTtlSeconds: ttlSeconds,
+      ...(dto.hostname?.trim() ? { hostname: dto.hostname.trim() } : {}),
+      ...(dto.runnerId?.trim() ? { runnerId: dto.runnerId.trim() } : {}),
+      ...(dto.version?.trim() ? { version: dto.version.trim() } : {}),
+      ...(capabilities.length ? { capabilities } : {}),
+    };
+
+    services.devpilotAgent = heartbeat;
+
+    const updated = await this.prisma.server.update({
+      where: { id: server.id },
+      data: { services: this.toJsonValue(services) },
+      select: {
+        id: true,
+        name: true,
+        host: true,
+        status: true,
+        services: true,
+        tags: true,
+      },
+    });
+    const runtime = this.readServerAgentRuntime(updated, now);
+
+    return {
+      accepted: true,
+      server: {
+        id: updated.id,
+        name: updated.name,
+        host: updated.host,
+        status: updated.status,
+      },
+      agent: {
+        runtime,
+      },
+    };
+  }
+
   async cancelJob(teamId: string, userId: string, id: string) {
     const job = await this.prisma.serverExecutionJob.findFirst({
       where: { id, teamId },
@@ -352,10 +818,23 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
         include: this.jobInclude(),
       });
       token?.cancel();
+      await this.writeServerExecutionJobAudit({
+        job,
+        actorId: userId,
+        action: 'server_execution_job.cancel.request',
+        risk: 'medium',
+        status: 'completed',
+        summary: `请求取消 Server executor job ${job.operationKey}`,
+        metadata: {
+          statusBefore: job.status,
+          statusAfter: updated.status,
+          cancelRequestedAt: now.toISOString(),
+        },
+      });
       return updated;
     }
 
-    return this.prisma.serverExecutionJob.update({
+    const updated = await this.prisma.serverExecutionJob.update({
       where: { id: job.id },
       data: {
         status: 'cancelled',
@@ -366,6 +845,20 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       },
       include: this.jobInclude(),
     });
+    await this.writeServerExecutionJobAudit({
+      job,
+      actorId: userId,
+      action: 'server_execution_job.cancel',
+      risk: 'medium',
+      status: 'completed',
+      summary: `取消 Server executor job ${job.operationKey}`,
+      metadata: {
+        statusBefore: job.status,
+        statusAfter: updated.status,
+        cancelRequestedAt: updated.cancelRequestedAt?.toISOString(),
+      },
+    });
+    return updated;
   }
 
   async retryJob(
@@ -398,18 +891,57 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     });
 
     if (dto.queue !== false) {
-      return this.enqueueExecutionJob(input, {
+      const retryJob = await this.enqueueExecutionJob(input, {
         retryOfId: job.id,
         attempt: job.attempt + 1,
         maxAttempts,
       });
+      await this.writeServerExecutionJobAudit({
+        job,
+        actorId: userId,
+        action: 'server_execution_job.retry.queue',
+        risk: 'medium',
+        status: 'completed',
+        summary: `重试 Server executor job ${job.operationKey}`,
+        metadata: {
+          queue: true,
+          statusBefore: job.status,
+          retryJobId: retryJob.id,
+          retryAttempt: job.attempt + 1,
+          maxAttempts,
+          dryRun: input.dryRun,
+        },
+      });
+      return retryJob;
     }
 
-    return this.execute(input);
+    const result = await this.execute(input);
+    await this.writeServerExecutionJobAudit({
+      job,
+      actorId: userId,
+      action: 'server_execution_job.retry.inline',
+      risk: input.dryRun ? 'low' : 'medium',
+      status: result.status,
+      summary: `立即重试 Server executor job ${job.operationKey} ${result.status}`,
+      metadata: {
+        queue: false,
+        statusBefore: job.status,
+        retryAttempt: job.attempt + 1,
+        maxAttempts,
+        dryRun: input.dryRun,
+        resultStatus: result.status,
+        resultMode: result.mode,
+        error: result.error,
+      },
+    });
+    return result;
   }
 
-  async processNextQueuedJob(teamId?: string): Promise<ProcessQueuedJobResult> {
-    await this.recoverStaleRunningJobs(teamId);
+  async processNextQueuedJob(
+    teamId?: string,
+    actorId?: string,
+  ): Promise<ProcessQueuedJobResult> {
+    await this.recoverStaleRunningJobs(teamId, actorId);
 
     const job = await this.claimNextQueuedJob(teamId);
     if (!job) {
@@ -426,8 +958,27 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     const result = await this.runExecutionWithJob(input, {
       id: job.id,
       attempt: job.attempt,
+      maxAttempts: job.maxAttempts,
     });
     const retryJob = await this.enqueueAutoRetryIfNeeded(job, result);
+    if (actorId) {
+      await this.writeServerExecutionJobAudit({
+        job,
+        actorId,
+        action: 'server_execution_job.process_next',
+        risk: job.dryRun ? 'low' : 'medium',
+        status: result.status,
+        summary: `手动处理 Server executor queued job ${job.operationKey} ${result.status}`,
+        metadata: {
+          processedJobId: job.id,
+          resultStatus: result.status,
+          resultMode: result.mode,
+          retryJobId: retryJob?.id,
+          autoRetryQueued: retryJob !== null,
+          error: result.error,
+        },
+      });
+    }
 
     return {
       processed: true,
@@ -437,7 +988,10 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async recoverStaleRunningJobs(teamId?: string): Promise<RecoverStaleJobsResult> {
+  async recoverStaleRunningJobs(
+    teamId?: string,
+    actorId?: string,
+  ): Promise<RecoverStaleJobsResult> {
     const now = new Date();
     const staleJobs = await this.prisma.serverExecutionJob.findMany({
       where: {
@@ -450,6 +1004,11 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     });
 
     const retryJobIds: string[] = [];
+    const remoteCleanups = {
+      attempted: 0,
+      succeeded: 0,
+      failed: 0,
+    };
     let recovered = 0;
 
     for (const job of staleJobs) {
@@ -457,12 +1016,37 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       if (!result.recovered) continue;
 
       recovered += 1;
+      if (result.remoteCleanup?.attempted) {
+        remoteCleanups.attempted += 1;
+        if (result.remoteCleanup.succeeded) {
+          remoteCleanups.succeeded += 1;
+        } else {
+          remoteCleanups.failed += 1;
+        }
+      }
       if (result.retryJobId) {
         retryJobIds.push(result.retryJobId);
       }
+      await this.writeServerExecutionJobAudit({
+        job,
+        actorId,
+        action: 'server_execution_job.recover_stale',
+        risk: 'medium',
+        status: 'completed',
+        summary: `恢复 stale Server executor job ${job.operationKey}`,
+        metadata: {
+          statusBefore: 'running',
+          statusAfter: 'failed',
+          retryJobId: result.retryJobId,
+          autoRetryQueued: Boolean(result.retryJobId),
+          remoteCleanup: result.remoteCleanup,
+          lockOwner: job.lockOwner,
+          lockExpiresAt: job.lockExpiresAt?.toISOString(),
+        },
+      });
     }
 
-    return { recovered, retryJobIds };
+    return { recovered, retryJobIds, remoteCleanups };
   }
 
   private async createExecutionJob(input: ServerExecutionInput): Promise<ServerExecutionJobRecord> {
@@ -504,7 +1088,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
         }),
         startedAt: now,
       },
-      select: { id: true, attempt: true },
+      select: { id: true, attempt: true, maxAttempts: true },
     });
   }
 
@@ -645,6 +1229,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       inputSnapshot: Prisma.JsonValue;
       lockOwner: string | null;
       lockExpiresAt: Date | null;
+      metadata?: Prisma.JsonValue | null;
     },
     now: Date,
   ) {
@@ -673,8 +1258,10 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       return { recovered: false };
     }
 
+    const remoteCleanup = await this.cleanupStaleRemoteExecutionIfEnabled(job);
+
     if (job.attempt >= job.maxAttempts) {
-      return { recovered: true };
+      return { recovered: true, remoteCleanup };
     }
 
     const input = this.rehydrateExecutionInput(job.inputSnapshot, {
@@ -692,7 +1279,320 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       autoRetry: true,
     });
 
-    return { recovered: true, retryJobId: retryJob.id };
+    return { recovered: true, retryJobId: retryJob.id, remoteCleanup };
+  }
+
+  private async cleanupStaleRemoteExecutionIfEnabled(
+    job: {
+      id: string;
+      teamId: string;
+      actorId: string | null;
+      inputSnapshot: Prisma.JsonValue;
+      metadata?: Prisma.JsonValue | null;
+    },
+  ): Promise<ServerRemoteExecutionCleanup | undefined> {
+    if (!this.staleRemoteCleanupEnabled()) {
+      return undefined;
+    }
+
+    const metadata = this.isRecord(job.metadata) ? job.metadata : {};
+    const remoteExecution = this.isRecord(metadata.remoteExecution)
+      ? metadata.remoteExecution
+      : {};
+    const session = this.readRemoteExecutionSession(remoteExecution.session);
+    if (!session) {
+      return undefined;
+    }
+
+    let cleanup: ServerRemoteExecutionCleanup;
+    try {
+      const input = this.rehydrateExecutionInput(job.inputSnapshot, {
+        teamId: job.teamId,
+        userId: job.actorId || undefined,
+      });
+      cleanup = await this.sshLiveAdapter.cleanupRemoteExecutionSession(
+        input,
+        session,
+        'stale_recovery',
+      );
+    } catch (error) {
+      cleanup = {
+        transport: 'ssh',
+        pid: session.pid,
+        observedAt: new Date().toISOString(),
+        reason: 'stale_recovery',
+        attempted: false,
+        succeeded: false,
+        error: error instanceof Error ? error.message : 'stale remote cleanup failed',
+      };
+    }
+
+    await this.recordStaleRemoteCleanupMetadata(job.id, cleanup);
+    return cleanup;
+  }
+
+  private async recordStaleRemoteCleanupMetadata(
+    jobId: string,
+    cleanup: ServerRemoteExecutionCleanup,
+  ) {
+    const job = await this.prisma.serverExecutionJob.findUnique({
+      where: { id: jobId },
+      select: { metadata: true },
+    });
+    const metadata = this.isRecord(job?.metadata) ? job.metadata : {};
+    const remoteExecution = this.isRecord(metadata.remoteExecution)
+      ? metadata.remoteExecution
+      : {};
+
+    await this.prisma.serverExecutionJob.updateMany({
+      where: {
+        id: jobId,
+        status: 'failed',
+      },
+      data: {
+        metadata: this.toJsonValue({
+          ...metadata,
+          remoteExecution: {
+            ...remoteExecution,
+            staleCleanup: cleanup,
+            updatedAt: new Date().toISOString(),
+          },
+        }),
+      },
+    });
+  }
+
+  private readRemoteExecutionSession(value: unknown): ServerRemoteExecutionSession | undefined {
+    if (!this.isRecord(value)) {
+      return undefined;
+    }
+
+    if (value.transport !== 'ssh' || value.cleanupStrategy !== 'best_effort_ssh') {
+      return undefined;
+    }
+
+    const pid = this.readPositiveInteger(value.pid);
+    const observedAt = this.readOptionalString(value.observedAt);
+    const operationKey = this.readOptionalString(value.operationKey);
+    const adapterKey = this.readOptionalString(value.adapterKey);
+    if (!pid || !observedAt || !operationKey || !adapterKey) {
+      return undefined;
+    }
+
+    const serverHost = this.readOptionalString(value.serverHost);
+    const serverId = value.serverId === null ? null : this.readOptionalString(value.serverId);
+
+    return {
+      transport: 'ssh',
+      pid,
+      observedAt,
+      ...(serverId !== undefined ? { serverId } : {}),
+      ...(serverHost ? { serverHost } : {}),
+      operationKey,
+      adapterKey,
+      cleanupStrategy: 'best_effort_ssh',
+    };
+  }
+
+  private async writeServerExecutionJobAudit(options: {
+    job: {
+      id: string;
+      teamId: string;
+      actorId: string | null;
+      serverId: string | null;
+      operationKey: string;
+      adapterKey: string;
+      transport: string;
+      dryRun: boolean;
+      status: string;
+      queueMode: string;
+      attempt: number;
+      maxAttempts: number;
+      retryOfId?: string | null;
+      inputSnapshot: Prisma.JsonValue;
+      metadata?: Prisma.JsonValue | null;
+    };
+    actorId?: string;
+    action: string;
+    risk: string;
+    status: string;
+    summary: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    if (!this.auditEventService) {
+      return;
+    }
+
+    const scope = this.readServerExecutionJobAuditScope(options.job);
+    await this.auditEventService.create({
+      teamId: options.job.teamId,
+      actorId: options.actorId ?? null,
+      projectId: scope.projectId,
+      environmentId: scope.environmentId,
+      serverId: options.job.serverId,
+      category: 'execution',
+      action: options.action,
+      targetType: 'server_execution_job',
+      targetId: options.job.id,
+      risk: options.risk,
+      status: options.status,
+      summary: options.summary,
+      metadata: {
+        serverExecutionJobId: options.job.id,
+        originalActorId: options.job.actorId,
+        operationKey: options.job.operationKey,
+        adapterKey: options.job.adapterKey,
+        transport: options.job.transport,
+        dryRun: options.job.dryRun,
+        queueMode: options.job.queueMode,
+        attempt: options.job.attempt,
+        maxAttempts: options.job.maxAttempts,
+        retryOfId: options.job.retryOfId,
+        ...options.metadata,
+      },
+    });
+  }
+
+  private async writeServerAgentDispatchAudit(
+    input: ServerExecutionInput,
+    jobId: string,
+    result: ServerExecutionResult,
+  ) {
+    if (!this.auditEventService || input.target.transport !== 'server_agent') {
+      return;
+    }
+
+    const resultRecord: Record<string, unknown> = this.isRecord(result.result)
+      ? result.result as Record<string, unknown>
+      : {};
+    const executorAdapterKey = this.readOptionalString(resultRecord.executorAdapterKey);
+    if (executorAdapterKey !== 'server-agent') {
+      return;
+    }
+
+    try {
+      const metadata = this.isRecord(input.metadata) ? input.metadata : {};
+      const scope = this.readServerExecutionJobAuditScope({
+        inputSnapshot: this.buildInputSnapshot(input),
+        metadata: this.toJsonValue({ sourceMetadata: metadata }),
+      });
+      await this.auditEventService.create({
+        teamId: input.teamId,
+        actorId: input.userId ?? null,
+        projectId: scope.projectId,
+        environmentId: scope.environmentId,
+        serverId: input.target.serverId ?? undefined,
+        category: 'execution',
+        action: 'server_execution_job.agent_dispatch',
+        targetType: 'server_execution_job',
+        targetId: jobId,
+        risk: input.dryRun ? 'low' : 'medium',
+        status: result.status,
+        summary: `Server agent dispatch ${input.operationKey} ${result.status}`,
+        metadata: {
+          serverExecutionJobId: jobId,
+          operationKey: input.operationKey,
+          adapterKey: input.adapterKey,
+          transport: input.target.transport,
+          dryRun: input.dryRun,
+          resultStatus: result.status,
+          resultMode: result.mode,
+          executable: result.executable,
+          error: result.error,
+          correlation: this.readServerAgentDispatchCorrelation(resultRecord),
+          agentExecutorEnabled: this.readOptionalBoolean(resultRecord.agentExecutorEnabled),
+          dispatcherConfigured: this.readOptionalBoolean(resultRecord.dispatcherConfigured),
+          dispatcher: this.readOptionalString(resultRecord.dispatcher),
+          nextExecutorBoundary: this.readOptionalString(resultRecord.nextExecutorBoundary),
+          dispatcherResponse: this.readServerAgentDispatcherResponseSummary(
+            resultRecord.dispatcherResponse,
+          ),
+          warnings: result.warnings,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        error instanceof Error
+          ? `Failed to write Server agent dispatch audit for job ${jobId}: ${error.message}`
+          : `Failed to write Server agent dispatch audit for job ${jobId}`,
+      );
+    }
+  }
+
+  private readServerAgentDispatchCorrelation(resultRecord: Record<string, unknown>) {
+    const correlation = this.isRecord(resultRecord.correlation)
+      ? resultRecord.correlation
+      : this.isRecord(resultRecord.dispatchEnvelope)
+        ? this.isRecord(resultRecord.dispatchEnvelope.correlation)
+          ? resultRecord.dispatchEnvelope.correlation
+          : {}
+        : {};
+
+    return {
+      ...(this.readOptionalString(correlation.serverExecutionJobId)
+        ? { serverExecutionJobId: this.readOptionalString(correlation.serverExecutionJobId) }
+        : {}),
+      ...(this.readOptionalString(correlation.serverExecutionLeaseId)
+        ? { serverExecutionLeaseId: this.readOptionalString(correlation.serverExecutionLeaseId) }
+        : {}),
+      ...(this.readPositiveInteger(correlation.retryAttempt)
+        ? { retryAttempt: this.readPositiveInteger(correlation.retryAttempt) }
+        : {}),
+      ...(this.readPositiveInteger(correlation.maxAttempts)
+        ? { maxAttempts: this.readPositiveInteger(correlation.maxAttempts) }
+        : {}),
+      ...(this.readOptionalString(correlation.dispatchId)
+        ? { dispatchId: this.readOptionalString(correlation.dispatchId) }
+        : {}),
+      ...(this.readOptionalString(correlation.idempotencyKey)
+        ? { idempotencyKey: this.readOptionalString(correlation.idempotencyKey) }
+        : {}),
+    };
+  }
+
+  private readServerAgentDispatcherResponseSummary(value: unknown) {
+    const response = this.isRecord(value) ? value : {};
+    const status = this.readOptionalString(response.status);
+    const agentRunId = this.readOptionalString(response.agentRunId)
+      || this.readOptionalString(response.runId)
+      || this.readOptionalString(response.executionId)
+      || this.readOptionalString(response.id);
+    const error = this.readOptionalString(response.error);
+
+    return {
+      ...(status ? { status } : {}),
+      ...(agentRunId ? { agentRunId } : {}),
+      ...(error ? { error } : {}),
+    };
+  }
+
+  private readServerExecutionJobAuditScope(job: {
+    inputSnapshot: unknown;
+    metadata?: unknown;
+  }) {
+    const metadata = this.isRecord(job.metadata) ? job.metadata : {};
+    const inputSnapshot = this.isRecord(job.inputSnapshot) ? job.inputSnapshot : {};
+    const snapshotMetadata = this.isRecord(inputSnapshot.metadata)
+      ? inputSnapshot.metadata
+      : {};
+    const sourceMetadata = this.isRecord(metadata.sourceMetadata)
+      ? metadata.sourceMetadata
+      : this.isRecord(snapshotMetadata.sourceMetadata)
+        ? snapshotMetadata.sourceMetadata
+        : snapshotMetadata;
+
+    return {
+      projectId:
+        this.readOptionalString(metadata.projectId) ||
+        this.readOptionalString(snapshotMetadata.projectId) ||
+        this.readOptionalString(sourceMetadata.projectId) ||
+        null,
+      environmentId:
+        this.readOptionalString(metadata.environmentId) ||
+        this.readOptionalString(snapshotMetadata.environmentId) ||
+        this.readOptionalString(sourceMetadata.environmentId) ||
+        null,
+    };
   }
 
   private async processDueQueuedJobs() {
@@ -733,6 +1633,51 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
         lastHeartbeatAt: null,
         cancelledAt: status === 'cancelled' ? new Date() : undefined,
         finishedAt: new Date(),
+      },
+    });
+  }
+
+  private createRuntimeObserver(jobId: string): ServerExecutionRuntimeObserver {
+    return {
+      onRemoteProcessStarted: (session) => this.recordRemoteExecutionMetadata(jobId, {
+        session,
+      }),
+      onRemoteProcessCleanup: (cleanup) => this.recordRemoteExecutionMetadata(jobId, {
+        cleanup,
+      }),
+    };
+  }
+
+  private async recordRemoteExecutionMetadata(
+    jobId: string,
+    update: {
+      session?: ServerRemoteExecutionSession;
+      cleanup?: ServerRemoteExecutionCleanup;
+    },
+  ) {
+    const job = await this.prisma.serverExecutionJob.findUnique({
+      where: { id: jobId },
+      select: { metadata: true },
+    });
+    const metadata = this.isRecord(job?.metadata) ? job.metadata : {};
+    const remoteExecution = this.isRecord(metadata.remoteExecution)
+      ? metadata.remoteExecution
+      : {};
+
+    await this.prisma.serverExecutionJob.updateMany({
+      where: {
+        id: jobId,
+        status: 'running',
+      },
+      data: {
+        metadata: this.toJsonValue({
+          ...metadata,
+          remoteExecution: {
+            ...remoteExecution,
+            ...update,
+            updatedAt: new Date().toISOString(),
+          },
+        }),
       },
     });
   }
@@ -1803,7 +2748,34 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       port: this.readOptionalNumber(value.port),
       username: this.readOptionalString(value.username),
       authType: this.readOptionalString(value.authType),
+      agentRef: this.readAgentRefSnapshot(value.agentRef),
       credentialRef: this.readCredentialRefSnapshot(value.credentialRef),
+    };
+  }
+
+  private readAgentRefSnapshot(value: unknown): ServerExecutorTarget['agentRef'] {
+    if (!this.isRecord(value)) return undefined;
+
+    const source = this.readOptionalString(value.source);
+    const referenceId = this.readOptionalString(value.referenceId);
+    const displayName = this.readOptionalString(value.displayName);
+    const capabilityKey = this.readOptionalString(value.capabilityKey);
+    if (
+      (source !== 'server_services' && source !== 'server_tags') ||
+      !referenceId ||
+      !displayName ||
+      !capabilityKey
+    ) {
+      return undefined;
+    }
+
+    return {
+      source,
+      referenceId,
+      displayName,
+      capabilityKey,
+      status: this.readOptionalString(value.status),
+      redacted: true,
     };
   }
 
@@ -2128,6 +3100,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       port: input.target.port,
       username: input.target.username,
       authType: input.target.authType,
+      agentRef: input.target.agentRef,
       credentialRef: input.target.credentialRef,
     };
   }
@@ -2308,6 +3281,16 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     return Math.max(500, Math.min(configuredMs, 10_000));
   }
 
+  private staleRemoteCleanupEnabled() {
+    const value = this.configService.get('SERVER_EXECUTOR_STALE_REMOTE_CLEANUP_ENABLED', 'false');
+    return value === true || value === 'true';
+  }
+
+  private agentTargetEnabled() {
+    const value = this.configService.get('SERVER_EXECUTOR_AGENT_TARGET_ENABLED', 'false');
+    return value === true || value === 'true';
+  }
+
   private lockExpiresAt(now = new Date()) {
     return new Date(now.getTime() + this.queueLockTtlMs());
   }
@@ -2320,6 +3303,461 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
   private queueRecoveryBatchSize() {
     const size = Number(this.configService.get('SERVER_EXECUTOR_QUEUE_RECOVERY_BATCH_SIZE', '20'));
     return Number.isInteger(size) && size > 0 ? Math.min(size, 100) : 20;
+  }
+
+  private queueWorkerEnabled() {
+    const value = this.configService.get('SERVER_EXECUTOR_QUEUE_WORKER_ENABLED', 'false');
+    return value === true || value === 'true';
+  }
+
+  private summarizeWorkerLocks(workerLocks: WorkerLockRecord[], now: Date) {
+    const workers = new Map<string, {
+      lockOwner: string;
+      runningJobs: number;
+      staleJobs: number;
+      lastHeartbeatAt: Date | null;
+      lockExpiresAt: Date | null;
+      sampleJob: {
+        id: string;
+        operationKey: string;
+        adapterKey: string;
+        serverId: string | null;
+        server: WorkerLockServer;
+      };
+    }>();
+
+    for (const lock of workerLocks) {
+      if (!lock.lockOwner) continue;
+
+      const existing = workers.get(lock.lockOwner);
+      const stale = Boolean(lock.lockExpiresAt && lock.lockExpiresAt.getTime() <= now.getTime());
+      if (!existing) {
+        workers.set(lock.lockOwner, {
+          lockOwner: lock.lockOwner,
+          runningJobs: 1,
+          staleJobs: stale ? 1 : 0,
+          lastHeartbeatAt: lock.lastHeartbeatAt,
+          lockExpiresAt: lock.lockExpiresAt,
+          sampleJob: {
+            id: lock.id,
+            operationKey: lock.operationKey,
+            adapterKey: lock.adapterKey,
+            serverId: lock.serverId,
+            server: lock.server,
+          },
+        });
+        continue;
+      }
+
+      existing.runningJobs += 1;
+      if (stale) existing.staleJobs += 1;
+      if (
+        lock.lastHeartbeatAt &&
+        (!existing.lastHeartbeatAt || lock.lastHeartbeatAt > existing.lastHeartbeatAt)
+      ) {
+        existing.lastHeartbeatAt = lock.lastHeartbeatAt;
+        existing.lockExpiresAt = lock.lockExpiresAt;
+        existing.sampleJob = {
+          id: lock.id,
+          operationKey: lock.operationKey,
+          adapterKey: lock.adapterKey,
+          serverId: lock.serverId,
+          server: lock.server,
+        };
+      }
+    }
+
+    return [...workers.values()].map((worker) => ({
+      lockOwner: worker.lockOwner,
+      runningJobs: worker.runningJobs,
+      staleJobs: worker.staleJobs,
+      lastHeartbeatAt: worker.lastHeartbeatAt?.toISOString() ?? null,
+      lockExpiresAt: worker.lockExpiresAt?.toISOString() ?? null,
+      sampleJob: worker.sampleJob,
+    }));
+  }
+
+  private summarizeServerAgentBlockedReasons(jobs: ServerAgentBlockedJobRecord[]) {
+    const reasonCounts = new Map<string, {
+      reason: string;
+      count: number;
+      nextExecutorBoundary?: string;
+    }>();
+    const samples = [];
+    let dispatcherBoundaryJobs = 0;
+
+    for (const job of jobs) {
+      const result = this.isRecord(job.result) ? job.result : {};
+      const nextExecutorBoundary = this.readOptionalString(result.nextExecutorBoundary);
+      const reason = job.error
+        || this.readOptionalString(result.mode)
+        || (nextExecutorBoundary ? `blocked at ${nextExecutorBoundary}` : 'unknown');
+      const dispatcherConfigured = typeof result.dispatcherConfigured === 'boolean'
+        ? result.dispatcherConfigured
+        : undefined;
+      const agentExecutorEnabled = typeof result.agentExecutorEnabled === 'boolean'
+        ? result.agentExecutorEnabled
+        : undefined;
+
+      if (nextExecutorBoundary === 'server_agent_dispatcher') {
+        dispatcherBoundaryJobs += 1;
+      }
+
+      const key = `${reason}\u0000${nextExecutorBoundary || ''}`;
+      const existing = reasonCounts.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        reasonCounts.set(key, {
+          reason,
+          count: 1,
+          ...(nextExecutorBoundary ? { nextExecutorBoundary } : {}),
+        });
+      }
+
+      if (samples.length < 5) {
+        samples.push({
+          id: job.id,
+          operationKey: job.operationKey,
+          adapterKey: job.adapterKey,
+          serverId: job.serverId,
+          queuedAt: job.queuedAt.toISOString(),
+          finishedAt: job.finishedAt?.toISOString() ?? null,
+          server: job.server,
+          reason,
+          ...(nextExecutorBoundary ? { nextExecutorBoundary } : {}),
+          ...(dispatcherConfigured !== undefined ? { dispatcherConfigured } : {}),
+          ...(agentExecutorEnabled !== undefined ? { agentExecutorEnabled } : {}),
+        });
+      }
+    }
+
+    return {
+      scanned: jobs.length,
+      dispatcherBoundaryJobs,
+      reasonCounts: [...reasonCounts.values()]
+        .sort((left, right) => right.count - left.count || left.reason.localeCompare(right.reason)),
+      samples,
+    };
+  }
+
+  private summarizeServerAgentReadiness(servers: ServerAgentReadinessRecord[], now: Date) {
+    const samples: {
+      id: string;
+      name: string;
+      host: string;
+      status: string;
+      agentRef: NonNullable<ServerExecutorTarget['agentRef']>;
+      runtime?: ServerAgentRuntimeSummary;
+    }[] = [];
+    const statusCounts = new Map<string, number>();
+    let serviceCapabilityServers = 0;
+    let tagCapabilityServers = 0;
+    let onlineCapableServers = 0;
+    let heartbeatServers = 0;
+    let runtimeOnlineServers = 0;
+    let runtimeStaleServers = 0;
+    let runtimeUnknownServers = 0;
+
+    for (const server of servers) {
+      const agentRef = this.readServerAgentCapability(server);
+      if (!agentRef) continue;
+      const runtime = this.readServerAgentRuntime(server, now);
+
+      if (agentRef.source === 'server_services') serviceCapabilityServers += 1;
+      if (agentRef.source === 'server_tags') tagCapabilityServers += 1;
+      if (server.status === 'online') onlineCapableServers += 1;
+      if (runtime) {
+        heartbeatServers += 1;
+        if (runtime.state === 'online') runtimeOnlineServers += 1;
+        if (runtime.state === 'stale') runtimeStaleServers += 1;
+        if (runtime.state === 'unknown') runtimeUnknownServers += 1;
+      }
+
+      const status = agentRef.status || 'unknown';
+      statusCounts.set(status, (statusCounts.get(status) || 0) + 1);
+
+      if (samples.length < 10) {
+        samples.push({
+          id: server.id,
+          name: server.name,
+          host: server.host,
+          status: server.status,
+          agentRef,
+          ...(runtime ? { runtime } : {}),
+        });
+      }
+    }
+
+    return {
+      targetSelectionEnabled: this.agentTargetEnabled(),
+      totalServers: servers.length,
+      capableServers: serviceCapabilityServers + tagCapabilityServers,
+      serviceCapabilityServers,
+      tagCapabilityServers,
+      onlineCapableServers,
+      runtime: {
+        heartbeatEnabled: this.serverAgentHeartbeatEnabled(),
+        tokenConfigured: this.serverAgentHeartbeatTokenConfigured(),
+        requiredForTargetSelection: this.serverAgentHeartbeatRequiredForTargetSelection(),
+        defaultTtlSeconds: this.serverAgentHeartbeatDefaultTtlSeconds(),
+        heartbeatServers,
+        onlineServers: runtimeOnlineServers,
+        staleServers: runtimeStaleServers,
+        unknownServers: runtimeUnknownServers,
+      },
+      statusCounts: [...statusCounts.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([status, count]) => ({ status, count })),
+      samples,
+    };
+  }
+
+  private readServerAgentDispatcherConfig() {
+    const dispatcherUrl = this.readOptionalString(
+      this.configService.get('SERVER_EXECUTOR_AGENT_DISPATCHER_URL'),
+    );
+    const dispatcherToken = this.readOptionalString(
+      this.configService.get('SERVER_EXECUTOR_AGENT_DISPATCHER_TOKEN'),
+    );
+
+    return {
+      executorEnabled: this.agentExecutorEnabled(),
+      dispatcherConfigured: Boolean(dispatcherUrl),
+      dispatcherUrl: dispatcherUrl ? this.redactDispatcherUrl(dispatcherUrl) : null,
+      timeoutSeconds: this.agentDispatcherTimeoutSeconds(),
+      tokenConfigured: Boolean(dispatcherToken),
+    };
+  }
+
+  private assertServerAgentHeartbeatAuthorized(headers: HeaderBag) {
+    if (!this.serverAgentHeartbeatEnabled()) {
+      throw new UnauthorizedException('Server agent heartbeat 未启用');
+    }
+
+    const expectedToken = this.readOptionalString(
+      this.configService.get('SERVER_EXECUTOR_AGENT_HEARTBEAT_TOKEN'),
+    );
+    const providedToken = this.readServerAgentHeartbeatToken(headers);
+    if (!expectedToken || !providedToken || !this.constantTimeEquals(providedToken, expectedToken)) {
+      throw new UnauthorizedException('Server agent heartbeat token 无效');
+    }
+  }
+
+  private readServerAgentHeartbeatToken(headers: HeaderBag) {
+    const directToken = this.readHeader(headers, 'x-devpilot-agent-token');
+    if (directToken) return directToken;
+
+    const authorization = this.readHeader(headers, 'authorization');
+    const match = authorization?.match(/^Bearer\s+(.+)$/i);
+    return match?.[1]?.trim() || undefined;
+  }
+
+  private readHeader(headers: HeaderBag, key: string) {
+    const value = headers[key] ?? headers[key.toLowerCase()];
+    const normalized = Array.isArray(value) ? value[0] : value;
+    return typeof normalized === 'string' && normalized.trim() ? normalized.trim() : undefined;
+  }
+
+  private constantTimeEquals(left: string, right: string) {
+    const leftBuffer = Buffer.from(left);
+    const rightBuffer = Buffer.from(right);
+    return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+  }
+
+  private serverAgentHeartbeatEnabled() {
+    const value = this.configService.get('SERVER_EXECUTOR_AGENT_HEARTBEAT_ENABLED', 'false');
+    return value === true || value === 'true';
+  }
+
+  private serverAgentHeartbeatTokenConfigured() {
+    return Boolean(this.readOptionalString(
+      this.configService.get('SERVER_EXECUTOR_AGENT_HEARTBEAT_TOKEN'),
+    ));
+  }
+
+  private serverAgentHeartbeatRequiredForTargetSelection() {
+    const value = this.configService.get('SERVER_EXECUTOR_AGENT_HEARTBEAT_REQUIRED', 'false');
+    return value === true || value === 'true';
+  }
+
+  private isServerAgentTargetRuntimeEligible(runtime?: ServerAgentRuntimeSummary) {
+    if (!this.serverAgentHeartbeatRequiredForTargetSelection()) {
+      return true;
+    }
+    return runtime?.state === 'online';
+  }
+
+  private serverAgentHeartbeatDefaultTtlSeconds() {
+    const configuredSeconds = Number(this.configService.get(
+      'SERVER_EXECUTOR_AGENT_HEARTBEAT_TTL_SECONDS',
+      '120',
+    ));
+    const seconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0
+      ? configuredSeconds
+      : 120;
+    return Math.max(30, Math.min(seconds, 3600));
+  }
+
+  private normalizeServerAgentHeartbeatTtlSeconds(value: unknown) {
+    const seconds = typeof value === 'number' && Number.isFinite(value) && value > 0
+      ? value
+      : this.serverAgentHeartbeatDefaultTtlSeconds();
+    return Math.max(30, Math.min(Math.round(seconds), 3600));
+  }
+
+  private normalizeServerAgentHeartbeatStatus(status: unknown) {
+    const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
+    return ['online', 'ready', 'healthy', 'connected', 'degraded'].includes(normalized)
+      ? normalized
+      : 'online';
+  }
+
+  private readServerAgentRuntime(
+    server: Pick<ServerAgentReadinessRecord, 'services'>,
+    now: Date,
+  ): ServerAgentRuntimeSummary | undefined {
+    const services = this.isRecord(server.services) ? server.services : {};
+    const heartbeat = services.devpilotAgent;
+    if (!this.isRecord(heartbeat)) return undefined;
+
+    const source = this.readOptionalString(heartbeat.source);
+    const agentId = this.readOptionalString(heartbeat.agentId);
+    const status = this.readOptionalString(heartbeat.status);
+    const runnerId = this.readOptionalString(heartbeat.runnerId);
+    const hostname = this.readOptionalString(heartbeat.hostname);
+    const version = this.readOptionalString(heartbeat.version);
+    const heartbeatTtlSeconds = this.readPositiveInteger(heartbeat.heartbeatTtlSeconds);
+    const lastSeenAt = this.readOptionalIsoDate(heartbeat.lastSeenAt);
+    const expiresAt = this.readOptionalIsoDate(heartbeat.expiresAt);
+    if (source !== 'agent_heartbeat' && !agentId && !lastSeenAt && !expiresAt) {
+      return undefined;
+    }
+
+    const state = expiresAt
+      ? expiresAt.getTime() >= now.getTime()
+        ? 'online'
+        : 'stale'
+      : 'unknown';
+
+    return {
+      state,
+      capabilities: this.readStringArray(heartbeat.capabilities).slice(0, 50),
+      ...(status ? { status } : {}),
+      ...(agentId ? { agentId } : {}),
+      ...(runnerId ? { runnerId } : {}),
+      ...(hostname ? { hostname } : {}),
+      ...(version ? { version } : {}),
+      ...(lastSeenAt ? { lastSeenAt: lastSeenAt.toISOString() } : {}),
+      ...(expiresAt ? { expiresAt: expiresAt.toISOString() } : {}),
+      ...(heartbeatTtlSeconds ? { heartbeatTtlSeconds } : {}),
+    };
+  }
+
+  private agentExecutorEnabled() {
+    const value = this.configService.get('SERVER_EXECUTOR_AGENT_ENABLED', 'false');
+    return value === true || value === 'true';
+  }
+
+  private agentDispatcherTimeoutSeconds() {
+    const configuredSeconds = Number(this.configService.get(
+      'SERVER_EXECUTOR_AGENT_DISPATCHER_TIMEOUT_SECONDS',
+      '30',
+    ));
+    const seconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0
+      ? configuredSeconds
+      : 30;
+    return Math.max(1, Math.min(seconds, 300));
+  }
+
+  private redactDispatcherUrl(value: string) {
+    try {
+      const url = new URL(value);
+      return `${url.origin}${url.pathname}`;
+    } catch {
+      return 'configured';
+    }
+  }
+
+  private msToSeconds(ms: number) {
+    return Math.round(ms / 1000);
+  }
+
+  private readServerAgentCapability(
+    server: Pick<ServerTargetRecord, 'id' | 'name' | 'services' | 'tags'>,
+  ): ServerExecutorTarget['agentRef'] {
+    const services = this.isRecord(server.services) ? server.services : {};
+    const serviceKeys = [
+      'devpilotAgent',
+      'serverAgent',
+      'devpilot_agent',
+      'server_agent',
+      'agent',
+    ];
+
+    for (const key of serviceKeys) {
+      const capability = this.readAgentServiceCapability(services[key]);
+      if (!capability) continue;
+
+      return {
+        source: 'server_services',
+        referenceId: server.id,
+        displayName: `${server.name} agent`,
+        capabilityKey: key,
+        ...(capability.status ? { status: capability.status } : {}),
+        redacted: true,
+      };
+    }
+
+    const tags = Array.isArray(server.tags)
+      ? server.tags
+          .filter((tag): tag is string => typeof tag === 'string')
+          .map((tag) => tag.toLowerCase())
+      : [];
+    const agentTag = tags.find((tag) => [
+      'devpilot-agent',
+      'server-agent',
+      'devpilot_agent',
+      'server_agent',
+    ].includes(tag));
+    if (!agentTag) return undefined;
+
+    return {
+      source: 'server_tags',
+      referenceId: server.id,
+      displayName: `${server.name} agent`,
+      capabilityKey: agentTag,
+      status: 'tagged',
+      redacted: true,
+    };
+  }
+
+  private readAgentServiceCapability(value: unknown) {
+    if (value === true) {
+      return { status: 'enabled' };
+    }
+
+    if (typeof value === 'string') {
+      const status = value.toLowerCase();
+      return this.isHealthyAgentStatus(status) ? { status } : null;
+    }
+
+    if (!this.isRecord(value)) return null;
+
+    const status = this.readOptionalString(value.status)?.toLowerCase();
+    const enabled = value.enabled === true || value.installed === true || value.available === true;
+    if (status && this.isHealthyAgentStatus(status)) {
+      return { status };
+    }
+    if (enabled) {
+      return { status: status || 'enabled' };
+    }
+
+    return null;
+  }
+
+  private isHealthyAgentStatus(status: string) {
+    return ['online', 'ready', 'healthy', 'connected', 'enabled'].includes(status);
   }
 
   private isUniqueConstraintError(error: unknown) {
@@ -2351,6 +3789,12 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
 
   private readOptionalNumber(value: unknown) {
     return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  }
+
+  private readOptionalIsoDate(value: unknown) {
+    if (typeof value !== 'string' || !value.trim()) return undefined;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date;
   }
 
   private readPositiveInteger(value: unknown) {

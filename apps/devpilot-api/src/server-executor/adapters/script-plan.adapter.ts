@@ -134,6 +134,7 @@ export class ScriptPlanServerExecutorAdapter implements ServerExecutorAdapter {
         port: input.target.port,
         username: input.target.username,
         authType: input.target.authType,
+        agentRef: input.target.agentRef,
         credentialRef: input.target.credentialRef,
       },
       safety: {

@@ -1,5 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as archiver from 'archiver';
+import { createHash } from 'crypto';
+import { mkdir, stat, writeFile } from 'fs/promises';
+import * as path from 'path';
 import { Writable } from 'stream';
 import { RegistryService } from '../registry/registry.service';
 import { ResourceService } from '../resource/resource.service';
@@ -34,6 +37,20 @@ export interface ResourceResolutionResult {
   summary: ResourceResolutionSummary[];
 }
 
+export interface ProjectZipArtifact {
+  kind: 'project_zip';
+  storage: 'local';
+  fileName: string;
+  size: number;
+  sha256: string;
+  generatedAt: string;
+  downloadUrl: string;
+}
+
+export interface ResolvedProjectZipArtifact extends ProjectZipArtifact {
+  filePath: string;
+}
+
 interface ProjectResourceConfig {
   type?: string;
   mode?: 'manual' | 'credential' | 'instance' | 'pool' | 'skipped';
@@ -43,6 +60,46 @@ interface ProjectResourceConfig {
   poolId?: string;
   resourceName?: string;
 }
+
+type DatabaseEngine = 'mysql' | 'postgresql' | 'sqlite';
+
+interface DatabaseSettings {
+  engine: DatabaseEngine;
+  label: string;
+  prismaProvider: string;
+  defaultUrl: string;
+}
+
+const DEFAULT_DATABASE_ENGINE: DatabaseEngine = 'mysql';
+const DEFAULT_ARTIFACT_ROOT = path.join(process.cwd(), 'storage', 'generated-projects');
+
+const DATABASE_ENGINE_ALIASES: Record<string, DatabaseEngine> = {
+  mysql: 'mysql',
+  postgresql: 'postgresql',
+  postgres: 'postgresql',
+  sqlite: 'sqlite',
+};
+
+const DATABASE_SETTINGS: Record<DatabaseEngine, DatabaseSettings> = {
+  mysql: {
+    engine: 'mysql',
+    label: 'MySQL',
+    prismaProvider: 'mysql',
+    defaultUrl: 'mysql://root:password@localhost:3306/mydb',
+  },
+  postgresql: {
+    engine: 'postgresql',
+    label: 'PostgreSQL',
+    prismaProvider: 'postgresql',
+    defaultUrl: 'postgresql://postgres:postgres@localhost:5432/mydb?schema=public',
+  },
+  sqlite: {
+    engine: 'sqlite',
+    label: 'SQLite',
+    prismaProvider: 'sqlite',
+    defaultUrl: 'file:./dev.db',
+  },
+};
 
 @Injectable()
 export class GeneratorService {
@@ -63,10 +120,10 @@ export class GeneratorService {
     const allPackages = this.resolveAllPackages(config);
 
     // 生成根目录文件
-    files.push(...this.generateRootFiles(basicInfo, allPackages));
+    files.push(...this.generateRootFiles(config, allPackages));
 
     // 生成 Git 初始化文件
-    files.push(...this.generateGitFiles(basicInfo));
+    files.push(...this.generateGitFiles(config));
 
     // 生成子项目
     if (subProjects.backend) {
@@ -228,8 +285,9 @@ export class GeneratorService {
     return packages;
   }
 
-  private generateRootFiles(basicInfo: GenerateProjectDto['basicInfo'], packages: Set<string>): GeneratedFile[] {
+  private generateRootFiles(config: GenerateProjectDto, packages: Set<string>): GeneratedFile[] {
     const files: GeneratedFile[] = [];
+    const { basicInfo } = config;
 
     // package.json
     files.push({
@@ -286,8 +344,10 @@ export class GeneratorService {
   }
 
   // 生成 Git 初始化文件 (Task 15.5)
-  private generateGitFiles(basicInfo: GenerateProjectDto['basicInfo']): GeneratedFile[] {
+  private generateGitFiles(config: GenerateProjectDto): GeneratedFile[] {
     const files: GeneratedFile[] = [];
+    const { basicInfo } = config;
+    const database = this.resolveDatabaseSettings(config);
 
     // .gitignore
     files.push({
@@ -407,7 +467,7 @@ ${basicInfo.packageManager} run build
 
 ## 技术栈
 
-- **后端**: NestJS + Prisma + PostgreSQL
+- **后端**: NestJS + Prisma + ${database.label}
 - **前端**: Next.js 15 + React 19 + TailwindCSS
 - **小程序**: Taro 3 + React
 - **工具链**: Turborepo + pnpm
@@ -425,6 +485,7 @@ MIT
   private generateBackendProject(config: GenerateProjectDto, packages: Set<string>): GeneratedFile[] {
     const files: GeneratedFile[] = [];
     const { basicInfo, features } = config;
+    const database = this.resolveDatabaseSettings(config);
 
     // 获取后端相关的包
     const backendPackages: Record<string, string> = {
@@ -581,7 +642,7 @@ export class AppModule {}
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "${database.prismaProvider}"
   url      = env("DATABASE_URL")
 }
 
@@ -896,6 +957,7 @@ export default function Index() {
     const files: GeneratedFile[] = [];
     const envVars = this.registryService.generateEnvVars(config.features);
     const resourceExampleEnvVars = this.resolveResourceExampleEnvVars(config);
+    const database = this.resolveDatabaseSettings(config);
     const hasResourceDatabaseUrl = resourceExampleEnvVars.some((content) => (
       content.split('\n').some((line) => line.startsWith('DATABASE_URL='))
     ));
@@ -911,7 +973,7 @@ export default function Index() {
       baseEnvVars.push(
         '',
         '# Database',
-        'DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mydb?schema=public"',
+        `DATABASE_URL="${database.defaultUrl}"`,
       );
     }
 
@@ -1015,22 +1077,39 @@ export default function Index() {
     const services: Record<string, Record<string, unknown>> = {};
     const requiredResources = this.registryService.resolveResources(config.features);
     const volumes: string[] = [];
+    const database = this.resolveDatabaseSettings(config);
 
-    // PostgreSQL (默认)
     if (config.subProjects.backend) {
-      services.postgres = {
-        image: 'postgres:15-alpine',
-        container_name: `${config.basicInfo.name}-postgres`,
-        environment: {
-          POSTGRES_USER: 'postgres',
-          POSTGRES_PASSWORD: 'postgres',
-          POSTGRES_DB: 'mydb',
-        },
-        ports: ['5432:5432'],
-        volumes: ['postgres_data:/var/lib/postgresql/data'],
-        restart: 'unless-stopped',
-      };
-      volumes.push('postgres_data');
+      if (database.engine === 'mysql') {
+        services.mysql = {
+          image: 'mysql:8.0',
+          container_name: `${config.basicInfo.name}-mysql`,
+          environment: {
+            MYSQL_ROOT_PASSWORD: 'password',
+            MYSQL_DATABASE: 'mydb',
+          },
+          ports: ['3306:3306'],
+          volumes: ['mysql_data:/var/lib/mysql'],
+          restart: 'unless-stopped',
+        };
+        volumes.push('mysql_data');
+      }
+
+      if (database.engine === 'postgresql') {
+        services.postgres = {
+          image: 'postgres:15-alpine',
+          container_name: `${config.basicInfo.name}-postgres`,
+          environment: {
+            POSTGRES_USER: 'postgres',
+            POSTGRES_PASSWORD: 'postgres',
+            POSTGRES_DB: 'mydb',
+          },
+          ports: ['5432:5432'],
+          volumes: ['postgres_data:/var/lib/postgresql/data'],
+          restart: 'unless-stopped',
+        };
+        volumes.push('postgres_data');
+      }
     }
 
     // Redis
@@ -1060,7 +1139,14 @@ export default function Index() {
     services: Record<string, Record<string, unknown>>,
     volumes: string[]
   ): string {
-    const lines: string[] = ['version: "3.8"', '', 'services:'];
+    const lines: string[] = ['version: "3.8"', ''];
+
+    if (Object.keys(services).length === 0) {
+      lines.push('services: {}');
+      return lines.join('\n');
+    }
+
+    lines.push('services:');
 
     for (const [name, config] of Object.entries(services)) {
       lines.push(`  ${name}:`);
@@ -1090,6 +1176,118 @@ export default function Index() {
     }
 
     return lines.join('\n');
+  }
+
+  private resolveDatabaseSettings(config: GenerateProjectDto): DatabaseSettings {
+    const rawEngine = config.database?.engine || DEFAULT_DATABASE_ENGINE;
+    const engine = DATABASE_ENGINE_ALIASES[rawEngine] || DEFAULT_DATABASE_ENGINE;
+    return DATABASE_SETTINGS[engine];
+  }
+
+  async persistProjectZipArtifact(
+    teamId: string,
+    projectId: string,
+    projectName: string,
+    zipBuffer: Buffer,
+  ): Promise<ProjectZipArtifact> {
+    const fileName = this.buildProjectZipFileName(projectName);
+    const filePath = this.resolveProjectZipArtifactPath(teamId, projectId, fileName);
+
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, zipBuffer);
+
+    return {
+      kind: 'project_zip',
+      storage: 'local',
+      fileName,
+      size: zipBuffer.length,
+      sha256: createHash('sha256').update(zipBuffer).digest('hex'),
+      generatedAt: new Date().toISOString(),
+      downloadUrl: `/api/projects/${encodeURIComponent(projectId)}/download`,
+    };
+  }
+
+  async resolveProjectZipArtifact(
+    teamId: string,
+    projectId: string,
+    projectName: string,
+    config?: unknown,
+  ): Promise<ResolvedProjectZipArtifact> {
+    const configuredArtifact = this.readProjectZipArtifact(config);
+    const fileName = configuredArtifact?.fileName || this.buildProjectZipFileName(projectName);
+    const filePath = this.resolveProjectZipArtifactPath(teamId, projectId, fileName);
+
+    try {
+      const artifactStat = await stat(filePath);
+      return {
+        kind: 'project_zip',
+        storage: 'local',
+        fileName,
+        size: configuredArtifact?.size || artifactStat.size,
+        sha256: configuredArtifact?.sha256 || '',
+        generatedAt: configuredArtifact?.generatedAt || artifactStat.mtime.toISOString(),
+        downloadUrl: configuredArtifact?.downloadUrl || `/api/projects/${encodeURIComponent(projectId)}/download`,
+        filePath,
+      };
+    } catch {
+      throw new NotFoundException('生成包不存在或已被清理');
+    }
+  }
+
+  private getArtifactRoot(): string {
+    return process.env.DEVPILOT_GENERATED_PROJECTS_DIR || DEFAULT_ARTIFACT_ROOT;
+  }
+
+  private resolveProjectZipArtifactPath(teamId: string, projectId: string, fileName: string): string {
+    return path.join(
+      this.getArtifactRoot(),
+      this.sanitizePathSegment(teamId),
+      this.sanitizePathSegment(projectId),
+      this.sanitizeFileName(fileName),
+    );
+  }
+
+  private buildProjectZipFileName(projectName: string): string {
+    const baseName = this.sanitizeFileName(projectName.replace(/\.zip$/i, '')) || 'project';
+    return `${baseName}.zip`;
+  }
+
+  private sanitizePathSegment(value: string): string {
+    return this.sanitizeFileName(value) || 'unknown';
+  }
+
+  private sanitizeFileName(value: string): string {
+    return value
+      .trim()
+      .replace(/[^\w.-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 120);
+  }
+
+  private readProjectZipArtifact(config?: unknown): ProjectZipArtifact | null {
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      return null;
+    }
+
+    const artifact = (config as Record<string, unknown>).generatedArtifact;
+    if (!artifact || typeof artifact !== 'object' || Array.isArray(artifact)) {
+      return null;
+    }
+
+    const value = artifact as Partial<ProjectZipArtifact>;
+    if (value.kind !== 'project_zip' || value.storage !== 'local' || typeof value.fileName !== 'string') {
+      return null;
+    }
+
+    return {
+      kind: 'project_zip',
+      storage: 'local',
+      fileName: value.fileName,
+      size: typeof value.size === 'number' ? value.size : 0,
+      sha256: typeof value.sha256 === 'string' ? value.sha256 : '',
+      generatedAt: typeof value.generatedAt === 'string' ? value.generatedAt : '',
+      downloadUrl: typeof value.downloadUrl === 'string' ? value.downloadUrl : '',
+    };
   }
 
   async createZipBuffer(files: GeneratedFile[]): Promise<Buffer> {

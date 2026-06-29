@@ -22,6 +22,7 @@ const ENVIRONMENT_LABELS: Record<string, string> = {
   staging: '预发',
   prod: '生产',
 };
+const DEFAULT_PROJECT_ENVIRONMENT_KEYS = ['dev', 'test', 'staging', 'prod'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -1722,7 +1723,7 @@ export class ProjectEnvironmentService {
       .map((key) => this.normalizeKey(key))
       .filter(Boolean);
 
-    return keys.length > 0 ? [...new Set(keys)] : ['prod'];
+    return keys.length > 0 ? [...new Set(keys)] : DEFAULT_PROJECT_ENVIRONMENT_KEYS;
   }
 
   private normalizeKey(value: string) {

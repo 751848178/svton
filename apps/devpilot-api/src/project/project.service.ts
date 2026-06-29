@@ -11,12 +11,29 @@ type ProjectConfigInput = {
   origin?: ProjectOrigin;
 };
 
+type GeneratedProjectArtifactInput = {
+  kind: 'project_zip';
+  storage: 'local';
+  fileName: string;
+  size: number;
+  sha256: string;
+  generatedAt: string;
+  downloadUrl: string;
+};
+
+const DEFAULT_PROJECT_ENVIRONMENT_KEYS = ['dev', 'test', 'staging', 'prod'];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 }
 
 function readBoolean(value: unknown): boolean | undefined {
@@ -95,7 +112,12 @@ export class ProjectService {
           select: { id: true, name: true, email: true },
         },
         allocations: {
-          include: {
+          select: {
+            id: true,
+            resourceName: true,
+            status: true,
+            createdAt: true,
+            releasedAt: true,
             pool: {
               select: { id: true, name: true, type: true },
             },
@@ -210,6 +232,63 @@ export class ProjectService {
     return project;
   }
 
+  async findGeneratedArtifactProject(teamId: string, id: string) {
+    const project = await this.prisma.project.findFirst({
+      where: { id, teamId },
+      select: {
+        id: true,
+        name: true,
+        config: true,
+        downloadUrl: true,
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException('项目不存在');
+    }
+
+    return project;
+  }
+
+  async attachGeneratedProjectArtifact(
+    teamId: string,
+    id: string,
+    config: object,
+    artifact: GeneratedProjectArtifactInput,
+  ) {
+    const existing = await this.prisma.project.findFirst({
+      where: { id, teamId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('项目不存在');
+    }
+
+    const normalizedConfig = this.normalizeProjectConfig(
+      {
+        name: existing.name,
+        description: existing.description ?? undefined,
+        config: {
+          ...config,
+          generatedArtifact: artifact,
+        },
+      },
+      existing.config,
+    );
+
+    const project = await this.prisma.project.update({
+      where: { id },
+      data: {
+        config: normalizedConfig,
+        downloadUrl: artifact.downloadUrl,
+      },
+    });
+
+    this.logger.log(`Generated artifact attached: ${id} (${artifact.downloadUrl})`);
+
+    return project;
+  }
+
   async update(teamId: string, id: string, dto: UpdateProjectDto) {
     const existing = await this.prisma.project.findFirst({
       where: { id, teamId },
@@ -297,11 +376,13 @@ export class ProjectService {
       readString(basicInfo?.name) ??
       readString(existing.projectName) ??
       readString(existingBasicInfo?.name);
+    const environments = readStringArray(config.environments);
 
     return {
       ...config,
       origin: inferredOrigin,
       mode: readString(config.mode) ?? inferredOrigin,
+      environments: environments.length > 0 ? environments : DEFAULT_PROJECT_ENVIRONMENT_KEYS,
       ...(projectName ? { projectName } : {}),
       ...(description ? { description } : {}),
       initialized:

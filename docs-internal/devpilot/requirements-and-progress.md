@@ -150,15 +150,15 @@ MVP 验收标准：
 
 ### 部分完成
 
-- 项目向导：UI 流程完整，手动填写/跳过资源配置已能进入全局 `ProjectConfig`；已有凭证选择和资源池自动分配还未接入。
-- 项目生成：能下载 ZIP，并已创建基础 `Project` 记录；ZIP 持久化、资源池、密钥中心和 Git 发布还未串成完整闭环。
-- 资源凭证：CRUD 和加密已有；项目生成已能消费向导手动填写的资源配置，但还未消费已保存的资源凭证。
+- 项目向导：UI 流程完整，手动填写、已有凭证、资源实例、资源池分配和跳过资源配置都已能进入全局 `ProjectConfig`。
+- 项目生成：能下载 ZIP、创建 Project 记录、持久化本地生成包并写回 `downloadUrl`；资源解析已支持 manual/credential/instance/pool/skipped 并写入 `config.resolvedResources`，项目详情已展示生成资源摘要和资源池分配摘要。
+- 资源凭证：CRUD 和加密已有；项目生成已能消费向导手动填写、已有资源凭证、资源实例和资源池分配结果；资源申请已具备 `provisioningMode` 分发，资源池模式可在审批通过后自动分配并生成 ResourceInstance，`script` 模式可委托 Server executor 生成/执行受控脚本计划，`webhook` / `api` 模式可在显式开关开启后调用 HTTP adapter 并用成功响应完成申请；HTTP 外部交付已能解析 TeamCredential 红线内引用、生成 idempotency key、写入 redacted credential/auth adapter 证据，并对临时失败按 `maxAttempts` 受控重试；已审批但停在 blocked/planned 的处理器可由有权限用户手动重试并留下审计，显式配置 `autoRetry.enabled` 后还可由默认关闭的 scheduler 对到期 retryable HTTP blocked 申请自动补偿；HTTP 外部交付运行已新增 `ResourceProvisioningRun` 持久账本，记录 trigger、adapter/auth/executor、idempotencyKey、attempt、providerRunId、status 和脱敏结果，并可在资源申请页按申请查看运行历史；当前申请正在指向的 planned/blocked/failed HTTP run 可由有权限用户受控重放，新的 run 记录 `replayOfRunId` 并保留源 run 审计；默认关闭的 stale recovery 可把超时未结束的 running HTTP run 标记 failed、写 recovery 元数据和审计，并在仍是当前申请 run 时回写 blocked 以接上重放入口；资源申请页已新增 team-scoped 交付运行治理摘要和手动恢复入口，可查看 running/stale/blocked/failed 压力、scheduler 配置态并显式恢复本团队超时 run；但密钥中心、Git 发布、provider SDK 和更完整的队列补偿仍未串成完整闭环。
 - 资源池：有资源池 CRUD 和分配/释放接口，分配记录已包含团队上下文；实际开通数据库/Redis 仍是模拟。
 - 服务器管理：端口连通测试可用；服务检测是模拟数据。
 - 代理配置：Nginx 配置预览可用；同步服务器是模拟状态更新。
 - CDN 配置：配置和凭证 CRUD 可用；清缓存是模拟。
 - Git 集成：后端 provider 抽象和 token 存储已存在；项目向导尚未形成完整发布闭环。
-- 动态资源类型：已新增运行时资源类型管理、统一申请单、资源实例和审计日志；前端申请页已能基于 `requestSchema.fields` 动态渲染表单。
+- 动态资源类型：已新增运行时资源类型管理、统一申请单、资源实例和审计日志；前端申请页和交付页已能基于 `requestSchema.fields` / `deliverySchema.fields` 动态渲染表单，资源类型管理页已支持新增/编辑时用可视化字段编辑器维护这两类 Schema；资源申请列表已展示交付模式和处理器状态，审批通过后 `manual` / `credential_only` 保持人工交付，`pool` 可自动分配资源池并完成申请，`script` 会进入 Server executor 边界，`webhook` / `api` 在显式开关开启后可执行 HTTP adapter，默认关闭或失败时会写 planned/blocked 回写和审计证据；外部 adapter 已具备 redacted TeamCredential ref、auth adapter key、idempotency header/payload、bounded retry、显式 opt-in autoRetry scheduler、默认关闭 stale running run recovery、team-scoped supervisor/manual recovery 和 `ResourceProvisioningRun` 运行账本证据，不解密或持久化 secret material；资源申请页可对 approved 且 provisioning 为 blocked/planned 的申请重新触发交付处理器，也可按申请查看外部交付运行记录，并对当前 planned/blocked/failed HTTP run 发起受控重放。
 
 ### 2026-06-19 开发进展
 
@@ -199,21 +199,34 @@ MVP 验收标准：
 ### 2026-06-27 控制平面阶段进展
 
 - 项目已支持生成项目、已有项目、仅构建部署项目和外部资源归属项目，项目环境可承载服务器、站点、部署、资源、CDN 和密钥；项目详情已能在权限过滤后的可见环境内给出跨环境只读同步建议，提示哪些环境还缺服务器角色、服务、部署配置、运行绑定、资源类型、站点运行时、CDN、密钥或成功部署记录，并支持先 dry-run 生成同步计划，再在目标环境确认后创建缺失应用服务骨架或补齐非敏感 deployConfig 字段；跨环境 Site 配置骨架复制 API 和项目详情确认入口已具备第一版，可从源环境向目标环境 dry-run/apply 创建 draft Site，前端要求逐个填写目标域名、展示重复域名提示并回显最近计划/执行步骤，非 dry-run 需要目标环境确认，不复制服务器/代理绑定、Nginx 同步状态或证书资产，已创建的 draft Site 可从复制结果跳转到站点管控聚焦接管，先绑定目标服务器、TLS 类型、证书名和已观测证书资产，再生成 Nginx/OpenResty 与 TLS dry-run 计划；跨环境 CDN 配置骨架复制 API 和项目详情确认入口已具备第一版，可 dry-run/apply 创建目标环境 pending CDNConfig，前端要求逐项填写目标域名/源站并选择兼容目标凭据，展示重复域名提示并回显最近计划/执行步骤，不会自动复用源环境凭据、复制 providerData/syncError 或调用云 provider；跨环境 ManagedResource/SecretKey 配置骨架复制 API 和项目详情确认入口已具备第一版，可 dry-run/apply 创建目标环境资源/密钥骨架，前端要求显式填写目标 externalId 或新密钥值、可选选择目标服务器/凭据并展示重复目标提示，不读取源密钥值、不复制资源 metadata/config/sync 状态、不自动复用源 server/credential，审计 metadata 不记录 secret value；资源骨架复制完成后已可从结果里跳转到资源管控详情并生成 dry-run 连接探测计划；环境工作台也支持选择团队可读服务器并确认 deploy/runtime/database/edge/mixed 角色后绑定到当前环境，或确认解绑，绑定/解绑会写入审计；项目下已存在但未归属环境的 Site、ManagedResource、ResourceInstance、CDNConfig 和 SecretKey 也可以按类型/单项选择后预览，再确认绑定到目标环境，且只更新 `environmentId`，不复制实际资源或读取密钥值。
-- Server executor 已成为统一执行边界，资源动作、部署运行、站点同步/回滚、服务操作、备份和日志采集都能沉淀标准执行计划、队列任务、日志、结果和审计；ProjectWebhook 已支持 Push 自动部署和 PR Preview 两类入口，PR/MR 事件会先创建或复用 `preview-pr-*` / `preview-mr-*` 项目环境骨架，并在 webhook 有创建人时创建或复用对应的 draft Site 占位，例如 `preview-pr-42.preview.devpilot.local`，再生成安全的 dry-run queued DeploymentRun，记录源分支、目标分支、head SHA、PR 编号、标题、URL、预览环境、基准环境和预览 Site 等 `params.preview` 元数据；draft preview Site 已支持在站点聚焦接管面板显式绑定目标服务器和 upstream，清除占位 `syncBlocked` 并立即生成 dry-run Nginx/OpenResty 同步计划；PR/MR 关闭或合并事件会归档既有预览环境骨架和 draft Site 占位 metadata，记录 `teardown.status=not_started`，不会创建 DeploymentRun 或触碰真实 DNS、TLS、Nginx/OpenResty 或服务器资源；失败部署运行已支持保留原失败记录的一键重试，生成新的 dry-run/queued 重试计划，失败 live 部署也可重新发起受审批保护的 Live 重试；已完成部署/回滚运行可独立发起低风险 Smoke 检查，生成 `DeploymentRun mode=smoke_check` 并复用 Server executor、队列、执行任务和审计链路，监控页可按最近 N 次非 dry-run 部署 Smoke 检查失败次数生成标准告警事件；失败 live Smoke 也可生成回滚 dry-run/queued 计划或申请受审批保护的 live 回滚，回滚目标会选择 Smoke 来源部署之前的上一成功 live deploy；项目页已可显式开启 Live Smoke 失败后自动生成回滚计划，后端通过默认关闭的 scheduler 幂等扫描失败 Smoke 并自动创建回滚计划或审批申请；项目页也可显式开启 Live 回滚完成后自动 Smoke，后端会在同步完成或默认关闭 scheduler 扫描到 completed live rollback 后幂等生成 dry-run/queued Smoke 检查，预授权 live 自动执行、真实临时预览基础设施/域名和真实资源销毁仍留在后续安全策略里。
+- 新建项目和接入已有项目的默认环境基线已统一为 dev/test/staging/prod：项目配置规范化会在缺少 `config.environments` 时写入四环境，`ProjectEnvironmentService.ensureDefaultsForProject()` 也会在缺省配置下创建四个环境记录；已有自定义环境列表仍保持兼容，旧项目可继续通过环境同步入口补齐。
+- Server executor 已成为统一执行边界，资源动作、部署运行、站点同步/回滚、服务操作、备份和日志采集都能沉淀标准执行计划、队列任务、日志、结果和审计；SSH live 取消/超时时会通过远端临时 wrapper 记录子进程 PID，best-effort 发起独立 SSH cleanup 终止远端进程组/子进程，并把 session/cleanup 写入 running `ServerExecutionJob.metadata.remoteExecution`；显式开启 `SERVER_EXECUTOR_STALE_REMOTE_CLEANUP_ENABLED=true` 后，stale recovery 会基于已记录 SSH PID 追偿清理 worker 崩溃后遗留的远端 orphan，并写入 `remoteExecution.staleCleanup`；执行治理页已能展示远端 PID、执行期 cleanup 和 stale 追偿 cleanup 摘要；ProjectWebhook 已支持 Push 自动部署和 PR Preview 两类入口，PR/MR 事件会先创建或复用 `preview-pr-*` / `preview-mr-*` 项目环境骨架，并在 webhook 有创建人时创建或复用对应的 draft Site 占位，例如 `preview-pr-42.preview.devpilot.local`，再生成安全的 dry-run queued DeploymentRun，记录源分支、目标分支、head SHA、PR 编号、标题、URL、预览环境、基准环境和预览 Site 等 `params.preview` 元数据；draft preview Site 已支持在站点聚焦接管面板显式绑定目标服务器和 upstream，清除占位 `syncBlocked` 并立即生成 dry-run Nginx/OpenResty 同步计划；PR/MR 关闭或合并事件会归档既有预览环境骨架和 draft Site 占位 metadata，记录 `teardown.status=not_started`，不会创建 DeploymentRun 或触碰真实 DNS、TLS、Nginx/OpenResty 或服务器资源；失败部署运行已支持保留原失败记录的一键重试，生成新的 dry-run/queued 重试计划，失败 live 部署也可重新发起受审批保护的 Live 重试；已完成部署/回滚运行可独立发起低风险 Smoke 检查，生成 `DeploymentRun mode=smoke_check` 并复用 Server executor、队列、执行任务和审计链路，监控页可按最近 N 次非 dry-run 部署 Smoke 检查失败次数生成标准告警事件；失败 live Smoke 也可生成回滚 dry-run/queued 计划或申请受审批保护的 live 回滚，回滚目标会选择 Smoke 来源部署之前的上一成功 live deploy；项目页已可显式开启 Live Smoke 失败后自动生成回滚计划，后端通过默认关闭的 scheduler 幂等扫描失败 Smoke 并自动创建回滚计划、审批申请，或在策略显式携带已批准 approvalId 与确认文本时沿既有审批消费和 Server executor 队列链路提交 live 回滚；项目页也可显式开启 Live 回滚完成后自动 Smoke，后端会在同步完成或默认关闭 scheduler 扫描到 completed live rollback 后幂等生成 dry-run/queued Smoke 检查，真实临时预览基础设施/域名和真实资源销毁仍留在后续安全策略里。
+- 执行治理页的取消、重试、手动处理队列和 stale recovery 治理动作已进入统一 `AuditEvent`，审计目标使用 `server_execution_job`，并在 metadata 中保留原 job、重试 job、scope 和 remote cleanup 证据。
+- 执行治理页已新增 Server executor Supervisor 状态，可查看当前 worker 配置、ready/scheduled/running/stale 队列积压、live lease 和 worker owner 摘要；完整 Server agent supervisor 和多实例 worker 协调仍待补。
+- Server executor 已新增默认关闭的 `server-agent` adapter 边界，`server_agent` target dry-run 会生成 agent dispatch envelope；live 默认 blocked，只有显式开启 `SERVER_EXECUTOR_AGENT_ENABLED=true` 且配置 `SERVER_EXECUTOR_AGENT_DISPATCHER_URL` 时才会向 HTTP dispatcher POST envelope，并接受同步终态响应；dispatcher envelope、result、command plan 和 HTTP headers 已携带 `serverExecutionJobId`、lease id、retry attempt、dispatch id 与 idempotency key 组成的 correlation 契约，便于 dispatcher、审计、重试和后续 agent supervisor 对齐同一条执行任务；server-agent adapter 返回后也会写入 `server_execution_job.agent_dispatch` 审计事件，metadata 保留 correlation、dispatcher 配置态、终态、boundary 和 whitelisted response 摘要，审计失败只记录 warn，不反向改写执行结果；完整 agent runtime 仍待补。
+- Server executor target 解析已支持默认关闭的 agent capability 选择，只有显式开启 `SERVER_EXECUTOR_AGENT_TARGET_ENABLED=true` 且服务器 services/tags 标记 agent 时才返回 `server_agent` target；默认仍保持 SSH；显式开启 `SERVER_EXECUTOR_AGENT_HEARTBEAT_REQUIRED=true` 后，`resolveTarget()` 还会要求该服务器 heartbeat runtime 处于 online，缺失/stale/unknown 会安全回落 SSH。
+- 执行治理页的 job history 已展示 execution target 路径：所有任务可查看 `transport`，`server_agent` 任务可查看 agentRef 的 displayName、capabilityKey、source 和 status，并基于已持久化的 `ServerExecutionJob.result` 展示 agent dispatch 摘要，包括已投递/投递失败/live 阻塞、dispatcher 配置态、脱敏 dispatcher、终态响应 status/run id、dispatch id、job/lease id、retry attempt、idempotency key 和 `server_agent_dispatcher` boundary，便于审计 SSH 到 server agent 的迁移路径。
+- 执行治理 Supervisor 已新增 Server agent dispatcher config 摘要，只读展示 executor/dispatcher/token/timeout 和脱敏 dispatcher URL，不主动探测外部 dispatcher、不暴露 token。
+- 执行治理 Supervisor 已新增 Server agent readiness 摘要，按团队服务器只读聚合 agent target selection 开关、capable/online/source/status 统计和 sample servers，为后续真实 agent supervisor 提供可观测契约。
+- Server agent heartbeat 已有默认关闭的上报入口，只有显式配置 heartbeat token 后才允许写入 `Server.services.devpilotAgent` 的白名单 runtime 字段；执行治理 Supervisor/UI 已展示 heartbeat 开关、token 配置态、heartbeat-required target selection 门禁、online/stale/unknown 摘要和样例 lastSeen/expiresAt，不写入 token 或任意 metadata，完整 agent runtime 仍待补。
+- 执行治理 Supervisor 已新增 Server agent job demand 摘要，按 `transport=server_agent` 只读聚合 ready/scheduled/running/stale/blocked/failed/cancelled 和下一条 ready agent job，便于真实 dispatcher 接入前观察任务压力。
+- 执行治理 Supervisor 已新增 Server agent blocked reason 摘要，扫描最近 blocked `server_agent` job 的 error/result，展示 reason 分布、`server_agent_dispatcher` boundary 数和样例任务，便于定位 dispatcher 未接入、命令策略阻断或配置告警。
 - 资源管控已覆盖 Docker 容器、Docker MySQL/Redis、阿里云 RDS/SLS、腾讯 COS 的清单、连接探测、只读查询计划和部分 live readonly/SDK inventory 边界；日志中心已支持默认关闭的 Server executor 定时 follow，以及 SLS credential-backed live 只读查询入库和按流定时回填。
+- 生成项目向导已支持数据库引擎选择，后端项目默认 MySQL，也可选择 PostgreSQL 或 SQLite；生成器会同步输出对应的 README、Prisma datasource、`.env.example` 和本地 docker-compose 数据库服务，SQLite 不生成外部数据库服务。
+- 生成项目 ZIP 已支持本地 artifact 持久化：`POST /projects/generate` 会写回 `Project.downloadUrl` 和 `config.generatedArtifact`，项目详情可重新下载生成包，下载接口受项目读权限保护。
 - 站点管控已从旧 ProxyConfig 演进为 Site：支持 Nginx/OpenResty 同步计划、live/queued 同步、配置 diff、审批门禁、配置快照回滚、诊断运行、OpenResty/Nginx 运行态状态探测、OpenResty/Nginx 模块盘点、固定模块基线检查、低风险 Smoke 检查、Smoke 检查失败告警、证书手动/定时探测、证书资产快照、证书资产变化告警、受控续期计划、续期结果回写、正式续期成功后的自动探测刷新、默认关闭续期调度、证书过期告警和 TLS 续期失败告警；PR Preview draft Site 会带 `syncBlocked` 占位标记，同步计划会给出 warning，避免在真实 runtime/domain 策略补齐前误同步到服务器，运营者可在站点接管面板补齐服务器和 upstream 后解锁并生成 dry-run 计划。
-- 监控、日志、备份、审批、审计和访问策略已经具备第一版闭环，资源级指标时间序列曲线已补入资源详情，日志中心已支持入库日志 SSE 流式 tail、cursor resume、断线自动重连、有界会话治理、活跃会话控制、单流/用户/团队基础限流和默认关闭的 Server executor 定时 follow，且手动关闭日志流会话已写入审计，监控页也已具备资源指标大盘、服务 SLO 大盘、站点 Smoke 失败告警、部署 Smoke 失败告警、服务 SLO 违约告警、短/长窗口 burn-rate 策略、错误预算阈值策略、错误预算耗尽预测、SLO 模板和事件去重抑制第一版，通用 Webhook、飞书、钉钉、企业微信机器人通知、邮件通知、失败/planned 投递手动重试、默认关闭的失败通知自动重试以及默认关闭的严重告警升级第一版也已补齐；但真实生产级执行、证书库/上传绑定、真实备份恢复、agent 级持续日志 follow、真实 SLO 周期/多周期错误预算策略、e2e 权限覆盖和 agent executor 仍待补。
+- 监控、日志、备份、审批、审计和访问策略已经具备第一版闭环，资源级指标时间序列曲线已补入资源详情，日志中心已支持入库日志 SSE 流式 tail、cursor resume、断线自动重连、有界会话治理、活跃会话控制、单流/用户/团队基础限流和默认关闭的 Server executor 定时 follow，且手动关闭日志流会话已写入审计，监控页也已具备资源指标大盘、服务 SLO 大盘、站点 Smoke 失败告警、部署 Smoke 失败告警、服务 SLO 违约告警、短/长窗口 burn-rate 策略、错误预算阈值策略、错误预算耗尽预测、SLO 模板和事件去重抑制第一版，通用 Webhook、飞书、钉钉、企业微信机器人通知、邮件通知、失败/planned 投递手动重试、默认关闭的失败通知自动重试以及默认关闭的严重告警升级第一版也已补齐；早期项目交付入口中的 Project generate/preview、Preset、Git、旧 Domain 和旧 CDN 配置生成也已接入团队上下文和控制面访问策略；但证书库/上传绑定、真实备份恢复、agent 级持续日志 follow、真实 SLO 周期/多周期错误预算策略、e2e 权限覆盖、完整 agent supervisor 和 agent executor 仍待补。
 
 ### 主要缺口与风险
 
-1. 生成项目后没有项目记录闭环
-   已完成基础记录创建，但下载文件本身仍未持久化，`downloadUrl` 还没有真实实现。
+1. 生成项目记录闭环仍缺生产级 artifact 生命周期
+   已完成 Project 记录创建、本地 ZIP 持久化、`downloadUrl` 写回和受权限下载；后续还要补对象存储、过期/清理策略、历史生成包补档和下载审计。
 
-2. 向导资源配置没有进入提交数据
-   已完成基础入参打通；下一步要接入已有资源凭证选择、资源池自动分配和动态资源类型。
+2. 外部资源交付 adapter 仍待扩展
+   项目生成已能消费 manual/credential/instance/pool/skipped 资源配置，并在项目详情展示解析结果；资源类型 request/delivery schema 可视化编辑和资源申请 provisioningMode 分发已具备，script 已接入 Server executor，webhook/API 已具备默认关闭的 HTTP adapter 执行、TeamCredential redacted ref、idempotency key、bounded retry、失败回写、手动重试入口、显式 opt-in 的自动补偿 scheduler、`ResourceProvisioningRun` 持久化运行账本、资源申请页运行历史弹窗、当前 HTTP run 受控重放、默认关闭 stale running run recovery 和 team-scoped 运行治理摘要/手动恢复入口。下一步要把该边界扩展成真实 provider SDK adapter、队列化补偿和更完整的幂等状态恢复。
 
-3. 数据库选择不一致
-   Devpilot README 和资源配置强调 MySQL，生成器默认产出 PostgreSQL schema、PostgreSQL `DATABASE_URL` 和 docker-compose。需要明确项目生成的默认数据库，并支持选择 MySQL/PostgreSQL/SQLite。
+3. 生成项目数据库选择已统一，真实交付仍待补
+   Devpilot 生成器已默认 MySQL，并支持选择 PostgreSQL/SQLite；后续还要把数据库资源池、只读账号、备份、监控和密钥注入与生成项目配置联动起来。
 
 4. 资源池分配接口存在运行时风险
    已修复 `teamId` 和 `userId` 写入；实际开通数据库/Redis 仍是模拟实现。
@@ -241,11 +254,11 @@ MVP 验收标准：
 - 修复前端类型检查。
 - 让项目向导资源配置进入 `ProjectConfig`。
 - `POST /projects/generate` 支持保存 Project 记录，返回项目 ID 与 ZIP。
-- 项目详情显示生成配置、下载状态、关联资源。
+- 项目详情显示生成配置、下载状态、关联资源；本地 `downloadUrl` 下载已完成，生产级对象存储和生命周期待补。
 
 ### M2：资源与密钥闭环
 
-- 统一数据库选择，支持 MySQL/PostgreSQL/SQLite。
+- 统一数据库选择，支持 MySQL/PostgreSQL/SQLite（生成项目向导与模板已完成；资源交付联动待补）。
 - 项目生成接入资源凭证和密钥中心。
 - 修复资源池分配的 `teamId` 与 `userId`。
 - 资源池分配先明确模拟/真实模式，避免 UI 暗示已真实创建资源。
@@ -284,11 +297,8 @@ MVP 验收标准：
 
 建议先做 P0：
 
-1. 接入已有资源凭证选择，让 `credential` 模式真正可用。
-2. 让资源池分配在项目生成流程中可选触发。
-3. 为 `ResourceType.requestSchema` 和 `deliverySchema` 增加可视化编辑器，减少管理员手写 JSON 的成本。
-4. 为 `provisioningMode` 增加交付处理器：手动交付、资源池、webhook/API/script。
-5. 支持数据库类型选择，解决 MySQL/PostgreSQL 默认不一致。
-6. 将生成 ZIP 持久化为可重新下载的 `downloadUrl`。
+1. 将外部资源交付 adapter 从第一版 script/HTTP + redacted credential/idempotency/manual retry 边界扩展到真实 provider SDK adapter、队列化自动重试、幂等状态持久化和更完整的失败补偿。
+2. 将数据库选择继续联动到资源池/凭证交付、密钥注入、备份和监控；生成项目默认不一致问题已修复。
+3. 将生成 ZIP 的本地 `downloadUrl` 升级为生产级 artifact 生命周期：对象存储、过期清理、历史补档和下载审计。
 
 完成 P0 后，Devpilot 才能从“模块齐全的原型”进入“可用于日常项目初始化的 MVP”。

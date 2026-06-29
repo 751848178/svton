@@ -736,10 +736,414 @@ Purpose: 把仍停留在早期 team role guard 的项目交付入口纳入统一
 
 | ID | Status | Atomic TODO | Context Boundary | Evidence |
 |----|--------|-------------|------------------|----------|
-| F61.1 | in_progress | 梳理剩余无访问策略的写接口并确认本轮范围。 | Controller read-only discovery。 | 已确认 Generator、Preset、Git、Domain、Legacy CDN 是本轮项目交付相关入口；Auth/Team/Admin 不纳入 |
-| F61.2 | pending | 为 Generator 和 Preset 写入口接入控制面访问策略。 | `generator`、`preset` controller/module。 | |
-| F61.3 | pending | 为 Git、Domain、Legacy CDN 写入口接入控制面访问策略。 | `git`、`domain`、`cdn` controller/module。 | |
-| F61.4 | pending | 更新路线文档并运行针对性验证。 | roadmap/TODO + API checks。 | |
+| F61.1 | done | 梳理剩余无访问策略的写接口并确认本轮范围。 | Controller read-only discovery。 | 精确扫描确认补齐后仅 `auth/admin/team` 仍在本轮外；它们属于账号/团队治理边界 |
+| F61.2 | done | 为 Generator 和 Preset 写入口接入控制面访问策略。 | `generator`、`preset` controller/module。 | `project.generate/project.preview`、`preset.create/update/delete/import` 走 `assertCanSelfServiceWrite()`；`/projects/preview` 补 JWT/team guard |
+| F61.3 | done | 为 Git、Domain、Legacy CDN 写入口接入控制面访问策略。 | `git`、`domain`、`cdn` controller/module。 | Git connection/repo/push、Domain artifact、Legacy CDN artifact 入口接入 `ControlAccessPolicyModule` 和 team scope |
+| F61.4 | done | 更新路线文档并运行针对性验证。 | roadmap/TODO + API checks。 | Added `early-delivery-controllers.spec.ts`; F61 Jest passed; API type-check passed; touched `git diff --check` passed; remaining no-policy write controllers are `auth/admin/team` |
+
+### F62. 预授权 live 自动回滚策略
+
+Purpose: 把失败 live Smoke 的自动回滚从“自动生成 dry-run 计划/自动创建待审批申请”推进到“可携带已批准审批单执行 live 回滚”。本轮不引入无人值守审批创建，也不绕过 OperationApproval、确认文本、Server executor 命令策略或 live transport 门禁；只有调用方显式传入已批准 approvalId 和确认文本时，自动回滚才会沿既有 live rollback 队列/执行链路继续推进。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F62.1 | done | 梳理失败 Smoke 自动回滚、OperationApproval 和 Server executor 确认文本链路。 | DeploymentService、OperationApprovalService、ServerExecutorService。 | 确认现有 live 自动回滚会创建待审批申请；预授权需要传递 approved approvalId 与 confirmationText |
+| F62.2 | done | 为 Smoke 自动回滚策略增加预授权字段并透传到 rollback run。 | Deployment DTO/service。 | `autoRollbackApprovalId` / `autoRollbackConfirmationText` 写入策略并透传到 live rollback |
+| F62.3 | done | 补充 live 预授权策略回归测试。 | `deployment.service.spec.ts`。 | 新增 Smoke immediate path 与 scheduler path 预授权 live 自动回滚测试 |
+| F62.4 | done | 更新路线文档并隔离运行验证。 | roadmap/TODO + API tests/type-check。 | F62 Jest passed; API type-check passed; touched `git diff --check` and whitespace/conflict scan passed |
+
+### F63. SSH live 远端进程树取消
+
+Purpose: 在 F58 的持久取消轮询基础上，让 SSH live adapter 不只终止本地 `ssh` 子进程，也能在远端脚本启动后记录远端子进程 PID，并在 cancel/timeout 时通过独立 SSH cleanup best-effort 终止远端进程组/子进程。本轮不引入常驻 Server agent，也不承诺 worker 崩溃后的远端孤儿进程全治理；agent supervisor 和跨实例远端清理由后续能力承接。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F63.1 | done | 梳理 Server executor cancel、queue worker、SSH adapter 调用图谱。 | ServerExecutorService、ServerExecutionJobController、SshLiveServerExecutorAdapter。 | CodeGraph CLI 未初始化索引，已用手工图谱确认当前只杀本地 ssh 子进程 |
+| F63.2 | done | 为 SSH live 脚本增加远端 session wrapper、PID marker 和 best-effort cleanup。 | `ssh-live.adapter.ts`。 | 远端脚本经临时 wrapper 运行，优先 `setsid`，cancel/timeout 后用独立 SSH cleanup 尝试 kill 远端进程组/子进程 |
+| F63.3 | done | 补充 SSH live adapter 取消路径回归测试。 | `server-executor` tests。 | 新增 `ssh-live.adapter.spec.ts`，覆盖 wrapper、PID marker、cleanup ssh 和 remoteKill 结果 |
+| F63.4 | done | 更新路线文档并隔离运行验证。 | roadmap/TODO + API tests/type-check。 | Server executor Jest passed; API type-check passed; touched `git diff --check` and whitespace/conflict scan passed |
+
+### F64. ServerExecutionJob 远端会话元数据持久化
+
+Purpose: F63 已能在 adapter 内观察远端脚本 PID 并 best-effort cleanup，但 worker 崩溃前如果没有完成执行，PID 只停留在内存事件中。F64 将远端 session/cleanup 事件写入 `ServerExecutionJob.metadata.remoteExecution`，让执行治理、stale recovery 和后续 agent supervisor 能追踪远端 orphan 线索。本轮不自动清理 worker 崩溃后的远端进程，也不引入 Server agent。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F64.1 | done | 梳理 ServerExecutionJob metadata、adapter result 和 running job 生命周期。 | ServerExecutorService、SshLiveServerExecutorAdapter、schema。 | CodeGraph CLI 未初始化索引，已用手工图谱确认 PID 未在 running 期间持久化 |
+| F64.2 | done | 增加 Server executor runtime observer 并写入 remoteExecution session/cleanup metadata。 | server-executor types/service + SSH adapter。 | `runtimeObserver` 将 SSH remote session/cleanup 写入 running `ServerExecutionJob.metadata.remoteExecution` |
+| F64.3 | done | 补充 metadata 写入回归测试。 | server-executor tests。 | ServerExecutorService 测试覆盖 session/cleanup metadata merge；SSH adapter 测试覆盖 observer 事件 |
+| F64.4 | done | 更新路线文档并隔离运行验证。 | roadmap/TODO + API tests/type-check。 | roadmap/requirements 已更新；Server executor Jest、API type-check、diff check 和 whitespace/conflict scan passed |
+
+### F65. Stale running job 远端 orphan cleanup
+
+Purpose: F64 已能把 SSH live 远端 PID 持久化到 `ServerExecutionJob.metadata.remoteExecution`，但 stale recovery 只会把过期 running job 标记 failed/retry，不会利用 PID 线索治理 worker 崩溃后遗留的远端进程。F65 在不引入 Server agent 的前提下，增加默认关闭的 best-effort SSH orphan cleanup：只有显式开启 `SERVER_EXECUTOR_STALE_REMOTE_CLEANUP_ENABLED=true`，且 job metadata 存在 SSH session PID 时，stale recovery 才会尝试清理并把结果写回 metadata。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F65.1 | done | 梳理 stale recovery、remoteExecution metadata 和 SSH cleanup 调用图谱。 | ServerExecutorService、SshLiveServerExecutorAdapter、Execution governance API。 | CodeGraph CLI 未初始化索引，已用手工图谱确认 `recover-stale` 入口、job metadata 和 SSH adapter cleanup 复用边界 |
+| F65.2 | done | 抽出 SSH stale cleanup 能力并接入默认关闭的 stale recovery。 | server-executor service/types + SSH adapter。 | SSH adapter 暴露 `cleanupRemoteExecutionSession`；stale recovery 在 `SERVER_EXECUTOR_STALE_REMOTE_CLEANUP_ENABLED=true` 时写入 `remoteExecution.staleCleanup` |
+| F65.3 | done | 补充 stale cleanup 回归测试。 | server-executor tests。 | SSH adapter stale cleanup、service 默认关闭与开启回写测试已补充；Server executor Jest passed |
+| F65.4 | done | 更新路线文档并隔离运行验证。 | roadmap/TODO + API tests/type-check。 | roadmap/requirements 已更新；Server executor Jest、API type-check、diff check 和 whitespace/conflict scan passed |
+
+### F66. 执行治理远端执行元数据可见性
+
+Purpose: F64/F65 已把 SSH live 远端 session、执行期 cleanup 和 stale orphan cleanup 写入 `ServerExecutionJob.metadata.remoteExecution`，但执行治理页还看不到这些线索。F66 将已有 metadata 以可扫描的方式展示在执行任务列表中，让运维人员能看到远端 PID、cleanup 策略、取消/超时清理结果和 stale recovery 追偿清理结果。本轮不新增后端 schema/API，也不发起新的 live 操作。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F66.1 | done | 梳理 ServerExecutionJob metadata 到执行治理页的数据链路。 | ServerExecutionJobController、ServerExecutorService.listJobs、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认 API 已返回 metadata，但前端类型/列表未展示 `remoteExecution` |
+| F66.2 | done | 在执行治理页展示 remoteExecution session/cleanup/staleCleanup 摘要。 | `apps/devpilot-web/src/app/(dashboard)/execution-governance/page.tsx`。 | 执行任务列表可展示远端 PID、transport、cleanup strategy、执行期 cleanup 和 stale recovery 追偿 cleanup 摘要 |
+| F66.3 | done | 更新路线文档并隔离运行验证。 | roadmap/TODO + Web type-check/static checks。 | roadmap/requirements 已更新；Web type-check/build、diff check 和 whitespace/conflict scan passed |
+
+### F67. ServerExecutionJob 治理动作审计
+
+Purpose: 执行治理页已经能操作 queued/blocked/running/failed/cancelled job，也能触发 stale recovery，但这些治理动作本身还没有统一进入 `AuditEvent`。F67 将取消、重试、手动处理队列和 stale recovery 写入审计事件，用 `category=execution`、`targetType=server_execution_job` 和 metadata 记录原 job、重试 job、远端 cleanup 结果等证据。本轮不新增 Prisma 字段，也不改变执行/重试语义。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F67.1 | done | 梳理 ServerExecutionJob 治理动作与 AuditEvent 写入模式。 | ServerExecutionJobController、ServerExecutorService、AuditEventService、schema。 | CodeGraph CLI 未初始化索引；手工图谱确认 AuditEvent 无 serverExecutionJobId 字段，可用 targetType/targetId + metadata 承载 |
+| F67.2 | done | 为 cancel/retry/process-next/recover-stale 写入审计事件。 | `server-executor` service/module/controller。 | `ServerExecutorService` 已写入 `category=execution`、`targetType=server_execution_job` 的治理动作审计事件 |
+| F67.3 | done | 补充执行治理审计回归测试。 | server-executor tests。 | Jest 覆盖 cancel request、queued retry 和 stale recovery remote cleanup 审计事件 |
+| F67.4 | done | 更新路线文档并隔离运行验证。 | roadmap/TODO + API tests/type-check/static checks。 | Server executor Jest passed; API type-check passed; touched diff check 和 whitespace/conflict scan passed；roadmap/requirements 已更新 |
+
+### F68. Server executor supervisor 状态面
+
+Purpose: Server executor 已有队列 worker、lock lease、stale recovery 和 remoteExecution metadata，但执行治理页还缺少 supervisor 级别的整体状态：当前进程 worker 是否启用、队列积压、运行中/锁过期任务、active live lease、最近 worker owner、远端追偿开关等。F68 先用现有 `ServerExecutionJob` / `ServerExecutionLease` 聚合出只读 supervisor snapshot，不新增 Prisma 字段、不改变 worker 执行语义，为后续 server agent supervisor 和多实例队列治理提供可观测契约。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F68.1 | done | 梳理 worker/lease/job/supervisor 现有代码图谱。 | ServerExecutorService、ServerExecutionJobController、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认 worker 状态只在进程内，job/lease 表可聚合 snapshot |
+| F68.2 | done | 增加 supervisor snapshot API。 | `server-executor` service/controller。 | `GET /server-execution-jobs/supervisor` 返回 worker 配置、队列积压、lease 和 worker owner 摘要 |
+| F68.3 | done | 在执行治理页展示 supervisor snapshot。 | `apps/devpilot-web/src/app/(dashboard)/execution-governance/page.tsx`。 | 执行治理页新增 Supervisor 区块，展示 ready/scheduled/running/stale、active lease、worker 配置和 owner 摘要 |
+| F68.4 | done | 补充 supervisor snapshot 回归测试。 | server-executor tests。 | Jest 覆盖 supervisor snapshot 聚合 queue/lease/worker 配置与 worker owner |
+| F68.5 | done | 更新路线文档并隔离运行验证。 | roadmap/TODO + API/Web checks/static checks。 | Server executor Jest、API/Web type-check、Web build、touched diff check 和 whitespace/conflict scan passed；roadmap/requirements 已更新 |
+
+### F69. Server agent executor adapter 边界
+
+Purpose: `ServerExecutorTransport` 已预留 `server_agent`，但当前 adapters 只有 `ssh-live` 和 `script-plan`，导致未来 agent target 缺少稳定执行边界。F69 新增默认关闭的 Server agent adapter：dry-run 生成可审计的 agent dispatch envelope，live 在真实 agent dispatcher 接入前保持 blocked，并把所需 agent、policy、target、step 信息保留在 commandPlan/result 中。本轮不新增 Prisma 字段、不实现真实 agent 网络调用、不改变 SSH live 行为。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F69.1 | done | 梳理 server_agent transport 与 adapter 调用图谱。 | ServerExecutorService、server-executor types、现有 adapters。 | CodeGraph CLI 未初始化索引；手工图谱确认 `server_agent` 仅存在于 transport 类型和 snapshot rehydrate，缺少 adapter provider |
+| F69.2 | done | 增加默认关闭的 Server agent adapter。 | `apps/devpilot-api/src/server-executor/adapters` + module/service。 | `ServerAgentServerExecutorAdapter` 已注册；`server_agent` dry-run 生成 dispatch envelope，live 默认 blocked |
+| F69.3 | done | 补充 agent adapter 边界回归测试。 | server-executor tests。 | Jest 覆盖 adapter dry-run dispatch envelope、live blocked，以及 service 级 server_agent target 路由 |
+| F69.4 | done | 更新路线文档并隔离运行验证。 | roadmap/TODO + API tests/type-check/static checks。 | Server executor Jest、API type-check、touched diff check 和 whitespace/conflict scan passed；roadmap/requirements 已更新 |
+
+### F70. Server agent target 安全选择
+
+Purpose: F69 让 `server_agent` transport 有了 adapter 边界，但 `ServerExecutorService.resolveTarget()` 仍只会返回 SSH target，业务链路无法在安全条件下进入 agent adapter。F70 增加默认关闭的 agent target 选择：只有 `SERVER_EXECUTOR_AGENT_TARGET_ENABLED=true` 且服务器 `services` 或 `tags` 明确标记 Devpilot/server agent capability 时，才返回 `transport=server_agent` 并携带 agentRef 证据；否则继续返回 SSH target。本轮不新增 Prisma 字段、不安装/探测真实 agent、不改变默认执行语义。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F70.1 | done | 梳理 server services/tags 到 Server executor target 的数据链路。 | ServerService、Server model、ServerExecutorService.resolveTarget、target metadata。 | CodeGraph CLI 未初始化索引；手工图谱确认 Server.services/tags 已存在但 resolveTarget 未读取 |
+| F70.2 | done | 增加默认关闭的 agent target capability 解析。 | `server-executor` service/types/adapters。 | `SERVER_EXECUTOR_AGENT_TARGET_ENABLED=true` 且 services/tags 存在 agent capability 时返回 `transport=server_agent` 和 agentRef；默认仍返回 SSH |
+| F70.3 | done | 补充 resolveTarget 回归测试。 | server-executor tests。 | Jest 覆盖默认关闭保持 SSH、显式开启且 capability ready 时选择 server_agent target |
+| F70.4 | done | 更新路线文档并隔离运行验证。 | roadmap/TODO + API tests/type-check/static checks。 | Server executor Jest、API type-check、touched diff check 和 whitespace/conflict scan passed；roadmap/requirements 已更新 |
+
+### F71. Execution governance agent target visibility
+
+Purpose: F69/F70 已能生成和选择 `server_agent` target，并在 execution input snapshot 中保留 `agentRef` 证据，但执行治理页的 job history 仍只展示 operation/adapter/queueMode，运维人员无法直接判断任务走 SSH 还是 server agent。F71 复用现有 `job.transport` 与 `inputSnapshot.target.agentRef`，在执行治理列表展示 transport 和 agent capability 证据。本轮不新增 API/schema，不改变执行语义。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F71.1 | done | 梳理 execution job snapshot 到执行治理页的数据链路。 | ServerExecutionJobController、ServerExecutorService.listJobs、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认 controller 可返回 `inputSnapshot`，前端类型/列表尚未展示 target/agentRef |
+| F71.2 | done | 在执行治理 job history 展示 transport 和 agentRef 证据。 | `apps/devpilot-web/src/app/(dashboard)/execution-governance/page.tsx`。 | 执行任务列表已展示 `transport`，`server_agent` target 可展示 agent displayName、capabilityKey、source 和 status |
+| F71.3 | done | 更新路线文档并隔离运行验证。 | roadmap/requirements/TODO + Web type-check/build/static checks。 | Web type-check、Web build、touched diff check 和 whitespace/conflict scan passed |
+
+### F72. Server agent readiness supervisor 摘要
+
+Purpose: F70/F71 已能选择并展示单个 job 的 `server_agent` target，但执行治理 Supervisor 还看不到团队服务器层面的 agent readiness。F72 在现有 `/server-execution-jobs/supervisor` 中复用 Server.services/tags 的 agent capability 解析，返回只读 agent readiness 摘要，并在执行治理页展示可用 agent target 数量、来源、状态分布和样例服务器。本轮不新增 Prisma 字段、不探测真实 agent、不执行任何远端操作。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F72.1 | done | 梳理 Server.services/tags 到 Supervisor snapshot 的数据链路。 | ServerExecutorService.getSupervisorSnapshot、Server model、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认 supervisor 当前只聚合 job/lease/worker，未读取 Server agent capability |
+| F72.2 | done | 在 supervisor API 增加只读 agent readiness 聚合。 | `apps/devpilot-api/src/server-executor/server-executor.service.ts`。 | `/server-execution-jobs/supervisor` 已返回 agent target selection 开关、capable/online/source/status 统计和 sample servers |
+| F72.3 | done | 在执行治理 Supervisor 区块展示 agent readiness。 | `apps/devpilot-web/src/app/(dashboard)/execution-governance/page.tsx`。 | Supervisor 顶部新增 Agent targets 指标，详情面板展示来源、在线数、状态分布和样例服务器 |
+| F72.4 | done | 补充回归测试、文档并隔离运行验证。 | server-executor tests + roadmap/requirements/TODO。 | Server executor Jest、API/Web type-check、API/Web build、touched diff check 和 whitespace/conflict scan passed |
+
+### F73. Server agent job demand supervisor 摘要
+
+Purpose: F72 已能看到哪些服务器具备 agent capability，但 Supervisor 还看不到当前是否有 `server_agent` execution job 正在排队、运行、阻塞或失败。F73 在现有 supervisor snapshot 的 `agent` 节点下增加只读 job demand 摘要，按 `transport=server_agent` 聚合 queued/running/stale/blocked/failed/cancelled 和下一条 ready agent job，并在执行治理页展示这些信号。本轮不新增 Prisma 字段、不启动真实 dispatcher、不改变 queue worker 语义。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F73.1 | done | 梳理 `transport=server_agent` job 到 Supervisor snapshot 的数据链路。 | ServerExecutionJob、ServerExecutorService.getSupervisorSnapshot、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认 supervisor 已有全局 queue 聚合，但 agent 节点未聚合 server_agent job demand |
+| F73.2 | done | 在 supervisor API 增加 server_agent job demand 聚合。 | `apps/devpilot-api/src/server-executor/server-executor.service.ts`。 | `agent.jobs` 已按 `transport=server_agent` 返回 ready/scheduled/running/stale/blocked/failed/cancelled 和 nextQueuedJob |
+| F73.3 | done | 在执行治理 Supervisor 展示 server_agent job demand。 | `apps/devpilot-web/src/app/(dashboard)/execution-governance/page.tsx`。 | 顶部新增 Agent ready 指标，Agent readiness 面板展示 agent jobs 状态和下一 agent 任务 |
+| F73.4 | done | 补充回归测试、文档并隔离运行验证。 | server-executor tests + roadmap/requirements/TODO。 | Server executor Jest、API/Web type-check、API/Web build、touched diff check 和 whitespace/conflict scan passed |
+
+### F74. Server agent blocked reason supervisor 摘要
+
+Purpose: F73 已能看到 `server_agent` job 的 blocked/failed 压力，但 Supervisor 还无法解释 blocked job 卡在命令策略、dispatcher 未接入、配置告警还是其他边界。F74 在现有 supervisor snapshot 的 `agent.jobs` 下增加近期 blocked reason 摘要，扫描最近一批 blocked `server_agent` job 的 `error/result.nextExecutorBoundary`，展示 reason 分布、dispatcher boundary 数和样例任务。本轮不新增 Prisma 字段、不实现真实 dispatcher、不改变重试/取消语义。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F74.1 | done | 梳理 server_agent blocked job 的 error/result 数据链路。 | ServerAgentServerExecutorAdapter、ServerExecutionJob.result/error、Supervisor snapshot。 | CodeGraph CLI 未初始化索引；手工图谱确认 live blocked result 保留 `nextExecutorBoundary=server_agent_dispatcher` 和 error reason |
+| F74.2 | done | 在 supervisor API 增加近期 blocked reason 聚合。 | `apps/devpilot-api/src/server-executor/server-executor.service.ts`。 | `agent.jobs.blockedReasons` 已扫描最近 blocked `server_agent` job，返回 scanned、dispatcherBoundaryJobs、reasonCounts 和 samples |
+| F74.3 | done | 在执行治理 Supervisor 展示 blocked reason 摘要。 | `apps/devpilot-web/src/app/(dashboard)/execution-governance/page.tsx`。 | Agent jobs 小节已展示 blocked reason 扫描数、dispatcher boundary 数、原因分布和最近阻塞样例 |
+| F74.4 | done | 补充回归测试、文档并隔离运行验证。 | server-executor tests + roadmap/requirements/TODO。 | Server executor Jest、API/Web type-check、API/Web build、touched diff check 和 whitespace/conflict scan passed |
+
+### F75. Server agent HTTP dispatcher 边界
+
+Purpose: F69-F74 已让 `server_agent` target 进入 adapter、job history 和 Supervisor 可观测面，但 live agent dispatch 仍只能 blocked，缺少真实 dispatcher 接入口。F75 给 `ServerAgentServerExecutorAdapter` 增加默认关闭的 HTTP dispatcher 边界：只有 `SERVER_EXECUTOR_AGENT_ENABLED=true` 且配置 `SERVER_EXECUTOR_AGENT_DISPATCHER_URL` 时，才向 dispatcher POST dispatch envelope，并接受同步终态响应；未开启或未配置仍保持 blocked。本轮不新增 Prisma 字段、不实现 agent 服务端、不改变 SSH 路径。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F75.1 | done | 梳理 server-agent adapter、HttpModule 和 dispatcher response 契约。 | ServerAgentServerExecutorAdapter、ServerExecutorModule、adapter tests。 | 当前 adapter 已生成 dispatchEnvelope，但 live 永远 blocked；API 包已具备 `@nestjs/axios`/`axios` |
+| F75.2 | done | 实现默认关闭 HTTP dispatcher 调用和安全 blocked fallback。 | `apps/devpilot-api/src/server-executor/adapters/server-agent.adapter.ts`。 | `SERVER_EXECUTOR_AGENT_ENABLED=true` 且配置 dispatcher URL 时会 POST dispatch envelope；未开启/未配置/告警不可执行时保持 blocked |
+| F75.3 | done | 补充 dispatcher dry-run/live blocked/live success/failure 回归测试。 | server-agent adapter tests。 | Jest 覆盖 dry-run envelope、未配置 dispatcher blocked、HTTP dispatcher completed 和 failed terminal response |
+| F75.4 | done | 更新路线文档并隔离运行验证。 | roadmap/requirements/TODO + API tests/type-check/build/static checks。 | Server agent adapter Jest、server-executor Jest、API type-check/build、touched diff check 和 whitespace/conflict scan passed |
+
+### F76. Server agent dispatcher config supervisor 摘要
+
+Purpose: F75 已经具备默认关闭的 HTTP dispatcher 接入口，但执行治理 Supervisor 还看不到 dispatcher 配置态，运维人员无法区分“agent target 有任务但 executor 未启用”“executor 已启用但 URL 未配置”“URL 已配置但 token 未配置”等状态。F76 在 supervisor snapshot 的 `agent` 节点下增加只读 dispatcher config 摘要，脱敏展示 executorEnabled、dispatcherConfigured、URL、timeout 和 tokenConfigured。本轮不探测外部 dispatcher、不暴露 token、不改变执行语义。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F76.1 | done | 梳理 dispatcher 配置到 Supervisor snapshot 的数据链路。 | ServerExecutorService ConfigService、ServerAgentServerExecutorAdapter config keys、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认 dispatcher config 仅 adapter 内使用，Supervisor 未展示 |
+| F76.2 | done | 在 supervisor API 增加脱敏 dispatcher config 摘要。 | `apps/devpilot-api/src/server-executor/server-executor.service.ts`。 | `agent.dispatcher` 已返回 executorEnabled、dispatcherConfigured、脱敏 URL、timeoutSeconds 和 tokenConfigured |
+| F76.3 | done | 在执行治理 Supervisor 展示 dispatcher config。 | `apps/devpilot-web/src/app/(dashboard)/execution-governance/page.tsx`。 | Agent readiness 面板展示 executor/dispatcher/token/timeout 和脱敏 URL |
+| F76.4 | done | 补充回归测试、文档并隔离运行验证。 | server-executor tests + roadmap/requirements/TODO。 | Server executor Jest、API/Web type-check、API/Web build、touched diff check 和 whitespace/conflict scan passed |
+
+### F77. Server agent dispatcher result job history 可见性
+
+Purpose: F75/F76 已能通过默认关闭的 HTTP dispatcher 执行并在 Supervisor 展示配置态，但执行治理 job history 仍只展示 target 路径，无法直接看到某条 `server_agent` 任务是否已 dispatch、dispatcher 返回的终态/运行标识，或阻塞在 `server_agent_dispatcher` 边界。F77 复用已持久化的 `ServerExecutionJob.result`，在任务列表中只读展示 whitelisted dispatcher 摘要。本轮不新增 API/schema、不暴露 token、不展示完整 dispatch envelope。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F77.1 | done | 梳理 ServerExecutionJob.result 到执行治理页的数据链路。 | ServerExecutionJobController、ServerExecutorService.listJobs、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认 Prisma job 查询保留 `result` scalar，前端类型/列表未展示 |
+| F77.2 | done | 在执行治理 job history 展示 dispatcher result 摘要。 | `apps/devpilot-web/src/app/(dashboard)/execution-governance/page.tsx`。 | 任务列表基于 `job.result` 展示 agent dispatch mode、dispatcher 配置态、脱敏 dispatcher、response status/run id 和 boundary |
+| F77.3 | done | 更新路线文档并隔离运行验证。 | roadmap/requirements/TODO + Web type-check/build/static checks。 | Web type-check、Web build、touched diff check 和 conflict scan passed；Dev server running on `http://localhost:3102` |
+
+### F78. Server agent dispatcher job correlation/idempotency 契约
+
+Purpose: F75-F77 已能把 `server_agent` 任务投递到默认关闭的 HTTP dispatcher，并在 job history 展示结果，但 dispatch envelope/header 还缺少标准化 job correlation 和 idempotency key。F78 复用 `ServerExecutorService.runExecutionWithJob` 已注入的 `serverExecutionJobId`，把 job/lease/retry attempt 相关信息写入 dispatch envelope、result 和 HTTP headers，让 dispatcher、审计、重试和未来 agent supervisor 能稳定关联同一条执行任务。本轮不新增数据库字段、不实现外部 dispatcher 服务端、不改变 SSH 路径。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F78.1 | done | 梳理 ServerExecutionJob.id 到 server-agent adapter 的 metadata 数据链路。 | ServerExecutorService.runExecutionWithJob、ServerAgentServerExecutorAdapter、adapter/service tests。 | CodeGraph CLI 未初始化索引；手工图谱确认 service 在 adapter 前向 metadata 注入 `serverExecutionJobId`，并已补齐 retryAttempt/maxAttempts 传递 |
+| F78.2 | done | 在 server-agent dispatch envelope/result/headers 中加入 correlation 和 idempotency。 | `apps/devpilot-api/src/server-executor/adapters/server-agent.adapter.ts`。 | dispatch envelope/result/plan 已包含 correlation；HTTP headers 已包含 execution job id、lease id、dispatch id 和 idempotency key |
+| F78.3 | done | 补充 adapter/service 回归测试并更新文档。 | server-agent adapter spec、server-executor service spec、roadmap/requirements/TODO。 | adapter/service spec 已补 correlation/idempotency 断言；roadmap/requirements 已更新 |
+| F78.4 | done | 隔离运行 API 验证和静态检查。 | targeted Jest、API type-check/build、touched diff/conflict checks。 | targeted Jest、API type-check、API build、touched diff check 和 conflict scan passed |
+
+### F79. Server agent dispatch correlation job history 可见性
+
+Purpose: F78 已把 dispatcher correlation/idempotency 写入后端 envelope/result/header，但执行治理 job history 只展示投递状态和 dispatcher 响应，运维人员还无法从列表直接看到 dispatch id、job id、lease id 或 retry attempt。F79 复用 F77 的 `job.result` 读取器，在 Agent dispatch 摘要中展示 whitelisted correlation 字段，让重试、审计和未来 agent supervisor 排查可以从 UI 直达同一条执行任务。本轮不新增 API/schema、不展示完整 envelope、不改变 dispatcher 执行语义。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F79.1 | done | 梳理 dispatcher correlation 到执行治理页的数据链路。 | `ServerExecutionJob.result`、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认后端 result 已持久化 correlation，前端 `readAgentDispatch` 尚未读取 |
+| F79.2 | done | 在执行治理 job history 展示 dispatch/job/lease/retry/idempotency 摘要。 | `apps/devpilot-web/src/app/(dashboard)/execution-governance/page.tsx`。 | Agent dispatch 摘要已展示 dispatch id、job id、lease id、attempt 和 idempotency key，并兼容 `result.correlation`/`dispatchEnvelope.correlation` |
+| F79.3 | done | 更新路线文档并隔离运行验证。 | roadmap/requirements/TODO + Web type-check/build/static checks。 | Web type-check、Web build、touched diff check 和 conflict scan passed |
+
+### F80. Server agent dispatch outcome 审计事件
+
+Purpose: F78/F79 已经让 dispatcher correlation/idempotency 进入 payload 和执行治理页，但 Server agent adapter 返回的 completed/failed/blocked/dry-run 结果还没有单独进入统一 `AuditEvent` 流。F80 在 `ServerExecutorService` 中复用现有 `AuditEventService`，在 server-agent adapter 返回后写入 `category=execution`、`targetType=server_execution_job` 的 `server_execution_job.agent_dispatch` 事件，携带 correlation、dispatcher 配置态、终态和 whitelisted response 摘要。本轮不新增 Prisma 字段、不改变业务 run 审计、不让审计失败反向改写执行结果。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F80.1 | done | 梳理 Server agent adapter outcome 到 AuditEvent 的现有入口。 | ServerExecutorService、AuditEventService、server-executor tests。 | CodeGraph CLI 未初始化索引；手工图谱确认现有 execution audit 只覆盖 cancel/retry/process/recover，不覆盖 adapter outcome |
+| F80.2 | done | 在 server-agent adapter 返回后写入 agent dispatch outcome 审计事件。 | `apps/devpilot-api/src/server-executor/server-executor.service.ts`。 | server-agent adapter result 后写入 `server_execution_job.agent_dispatch`，携带 correlation/dispatcher/result 摘要；审计失败只记录 warn，不反向改写执行结果 |
+| F80.3 | done | 补充 server-executor 回归测试并更新文档。 | server-executor service spec、roadmap/requirements/TODO。 | server-executor spec 已补审计断言，requirements/roadmap 已记录 agent dispatch outcome 审计事件 |
+| F80.4 | done | 隔离运行 API 验证和静态检查。 | targeted Jest、API type-check/build、touched diff/conflict checks。 | targeted Jest、API type-check/build 通过；最终 touched-path 静态检查通过 |
+
+### F81. Server agent heartbeat supervisor 基线
+
+Purpose: F72-F80 已经让 agent capability、dispatcher 配置、job demand、blocked reason、dispatch result/correlation/audit 进入执行治理，但 Agent readiness 仍主要来自 Server.services/tags 的静态推断，缺少真实 agent runtime heartbeat 契约。F81 增加默认关闭的 Server agent heartbeat 上报入口：只有显式配置 heartbeat token 后才允许 agent 写入白名单 runtime 字段到 `Server.services.devpilotAgent`；Supervisor 基于 `lastSeenAt/expiresAt` 展示 runtime online/stale/unknown 摘要和样例。本轮不新增 Prisma 字段、不实现完整 agent 进程、不把任意 metadata 或 token 写入 services。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F81.1 | done | 梳理 Server agent readiness 到 Supervisor 的现有数据链路。 | ServerExecutorService supervisor、Server.services/tags、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认 Supervisor 已读取 `Server.services/tags`，尚无 heartbeat 上报入口或 runtime/stale 摘要 |
+| F81.2 | done | 增加默认关闭的 Server agent heartbeat 上报入口和服务端白名单合并。 | server-executor DTO/controller/service/module。 | `POST /server-agent/heartbeat` 仅在 heartbeat enabled/token 配置后接受；白名单写入 `Server.services.devpilotAgent` |
+| F81.3 | done | 在 Supervisor API/UI 展示 agent runtime heartbeat 摘要。 | ServerExecutorService supervisor + execution-governance page。 | Supervisor 返回 heartbeat enabled/token、online/stale/unknown 摘要和样例 runtime；执行治理页已展示 |
+| F81.4 | done | 补充回归测试、路线文档并隔离运行验证。 | server-executor spec、roadmap/requirements/TODO、API/Web checks。 | targeted Jest、API/Web type-check、API/Web build 和 touched-path 静态检查通过 |
+
+### F82. Server agent heartbeat target selection 门禁
+
+Purpose: F81 已经有 agent heartbeat runtime 摘要，但 `resolveTarget()` 仍只要 services/tags 标记 agent 就会选择 `server_agent`，即使 heartbeat stale 或缺失。F82 增加默认关闭的 target selection 门禁：只有显式配置 `SERVER_EXECUTOR_AGENT_HEARTBEAT_REQUIRED=true` 时，`resolveTarget()` 才要求 heartbeat runtime 处于 online，缺失/stale/unknown 都回落 SSH；Supervisor/UI 显示该门禁配置，帮助运维判断为什么某台服务器暂不走 agent。本轮不改变默认行为、不新增 Prisma 字段、不实现完整 agent scheduler。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F82.1 | done | 梳理 agent capability、heartbeat runtime 到 target selection 的数据链路。 | ServerExecutorService.resolveTarget、Supervisor、execution-governance page。 | CodeGraph CLI 未初始化索引；手工图谱确认 heartbeat runtime 目前只用于 Supervisor，不影响 `resolveTarget()` |
+| F82.2 | done | 增加默认关闭的 heartbeat-required target selection 门禁。 | `apps/devpilot-api/src/server-executor/server-executor.service.ts`。 | `SERVER_EXECUTOR_AGENT_HEARTBEAT_REQUIRED=true` 时，缺失/stale/unknown heartbeat 会让 `resolveTarget()` 回落 SSH；默认关闭保持原行为 |
+| F82.3 | done | 在 Supervisor API/UI 展示 heartbeat 门禁配置。 | ServerExecutorService supervisor + execution-governance page。 | Supervisor runtime 返回 `requiredForTargetSelection`，执行治理页展示 hb required |
+| F82.4 | done | 补充回归测试、路线文档并隔离运行验证。 | server-executor spec、roadmap/requirements/TODO、API/Web checks。 | targeted Jest、API/Web type-check、API/Web build 和 touched-path 静态检查通过 |
+
+### F83. 项目默认四环境基线
+
+Purpose: 最终目标要求每个项目都以 dev/test/staging/prod 环境为中心，但当前 `ProjectEnvironmentService.ensureDefaultsForProject()` 在 `config.environments` 缺失时只初始化 `prod`，生成项目 store 也没有显式环境字段，导入项目默认只选 `prod`。F83 将默认路径统一到四环境基线：后端缺省兜底创建 dev/test/staging/prod，项目配置规范化时写入默认环境列表，前端生成/导入默认携带四环境。本轮不移除已有自定义环境能力，不做 Prisma 迁移，不自动修改历史项目数据；旧项目可继续通过环境同步入口补齐。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F83.1 | done | 梳理项目创建、环境初始化和前端项目配置的数据链路。 | ProjectService、ProjectEnvironmentService、project config store、导入项目页。 | CodeGraph CLI 未初始化索引；手工图谱确认缺省 fallback 为 `['prod']`，生成项目 store 未显式保存 environments，导入项目默认只选 prod |
+| F83.2 | done | 将后端项目配置和环境初始化默认值统一为 dev/test/staging/prod。 | `apps/devpilot-api/src/project` 与 `apps/devpilot-api/src/project-environment`。 | `ProjectService.normalizeProjectConfig` 和 `ProjectEnvironmentService.ensureDefaultsForProject` 缺省环境统一为 dev/test/staging/prod |
+| F83.3 | done | 将前端生成项目和导入项目默认环境统一为四环境。 | `apps/devpilot-web/src/store/project-config.ts` 与导入项目页。 | 生成项目 `ProjectConfig.environments` 和导入页 `initialForm.environments` 均默认为 dev/test/staging/prod |
+| F83.4 | done | 补充回归测试、文档并隔离验证。 | project/project-environment tests + roadmap/requirements/TODO + API/Web checks。 | F83 targeted Jest、完整 API Jest、Prisma validate、API/Web type-check、API/Web build、touched diff check 和 conflict scan passed |
+
+### F84. 生成项目数据库引擎选择
+
+Purpose: 资源注册表、资源管控和 Devpilot 运行环境都以 MySQL 为主要默认路径，但生成器仍硬编码 PostgreSQL 的 Prisma provider、`DATABASE_URL` 和 docker-compose 服务，前端资源步骤也默认绑定 `postgresql`。F84 将新项目生成配置补上数据库引擎选择：后端项目默认 MySQL，可显式选择 PostgreSQL 或 SQLite；生成器同步输出对应的 README、Prisma datasource、环境变量和本地 docker-compose 数据库服务。本轮只修复生成项目模板和向导配置，不触发真实数据库创建，不改资源池/凭证交付处理器。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F84.1 | done | 梳理项目生成数据库配置、资源选择和模板输出链路。 | generator DTO/service、project wizard resource step、project config store、resources registry。 | CodeGraph CLI 未初始化索引；手工图谱确认硬编码点在 Prisma provider、`.env.example`、docker-compose 和前端 `databaseResourceId=postgresql` |
+| F84.2 | done | 后端生成器支持 `database.engine`，默认 MySQL，兼容 PostgreSQL/SQLite。 | `apps/devpilot-api/src/generator`。 | DTO 新增 `database.engine`；README、Prisma provider、`.env.example`、docker-compose 已按 MySQL/PostgreSQL/SQLite 输出 |
+| F84.3 | done | 前端生成向导支持数据库引擎选择并按引擎绑定资源配置。 | project config store、resource step、preview step。 | `ProjectConfig.database.engine` 默认 MySQL；资源步骤可切换 MySQL/PostgreSQL/SQLite，并清理不匹配数据库资源；预览页展示引擎 |
+| F84.4 | done | 补充回归测试、路线文档并隔离验证。 | generator tests + roadmap/requirements/TODO + API/Web checks。 | targeted generator Jest、完整 API Jest 复跑、Prisma validate、API/Web type-check、API/Web build、touched diff check、conflict scan 和新增 spec 尾随空白扫描通过 |
+
+### F85. 生成 ZIP 持久化 downloadUrl
+
+Purpose: `Project.downloadUrl` 字段已经存在，生成器也会在 `POST /projects/generate` 创建 Project 并返回 ZIP，但当前 ZIP 只随响应下载一次，没有落盘，也没有可复用的下载入口。F85 补上本地 artifact 持久化和受权限保护的下载 API：生成完成后把 ZIP 写入服务端 artifact 目录，更新 Project.downloadUrl 和 config 中的 artifact 元数据；项目详情页展示“下载生成包”操作。本轮不引入对象存储，不改变生成 ZIP 的即时响应，不做历史项目补档。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F85.1 | done | 梳理生成器、Project 持久化、下载字段和前端生成/详情链路。 | GeneratorController/Service、ProjectService、Prisma Project、projects new/detail pages。 | CodeGraph CLI 未初始化索引；手工图谱确认 `Project.downloadUrl` 已存在，但生成器未写入、无下载端点，Web 仅使用临时 blob 下载 |
+| F85.2 | done | 后端生成流程持久化 ZIP artifact 并写回 Project.downloadUrl。 | `apps/devpilot-api/src/generator`、`apps/devpilot-api/src/project`。 | `GeneratorService.persistProjectZipArtifact` 写入本地 artifact；`ProjectService.attachGeneratedProjectArtifact` 写回 `downloadUrl` 和 `config.generatedArtifact` |
+| F85.3 | done | 新增受项目读权限保护的生成包下载 API。 | `GeneratorController` + artifact resolver。 | `GET /projects/:id/download` 使用 `project.download` 读权限，返回本地 ZIP stream 和下载响应头 |
+| F85.4 | done | 前端项目详情展示可复用生成包下载入口。 | `api` client + project detail page。 | `api.download()` 复用 token/team header；项目详情基本信息中展示“下载 ZIP”按钮 |
+| F85.5 | done | 补充回归测试、路线文档并隔离验证。 | generator/project tests + roadmap/requirements/TODO + API/Web checks。 | targeted generator/project Jest、完整 API Jest、Prisma validate、API/Web type-check、API/Web build、touched diff check、conflict scan 和新增 spec 尾随空白扫描通过 |
+
+### F86. 生成资源解析结果可见性
+
+Purpose: 新项目生成流程已经能处理 `manual`、`credential`、`instance`、`pool` 和 `skipped` 资源模式，并把解析结果写入 `config.resolvedResources`；资源池模式也会创建 `ResourceAllocation`。但项目详情页还看不到生成时到底用了哪些凭证、实例或资源池分配，用户无法确认 `.env` 来源与项目资源归属。本轮补上项目详情的生成资源解析摘要和资源池分配摘要，并收窄 Project API 返回的 allocation 字段，避免把加密凭证材料返回到前端。本轮不改变资源交付语义、不新增真实 provisioning processor、不读取/展示凭证明文。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F86.1 | done | 梳理生成资源解析、Project.config、ResourceAllocation 和项目详情展示链路。 | GeneratorService、ProjectService、project detail page。 | CodeGraph CLI 未初始化索引；手工图谱确认资源解析已写入 `config.resolvedResources`，allocation 已从 Project API 返回但前端未声明/展示 |
+| F86.2 | done | 收窄 Project API allocation 返回字段，避免返回 encrypted credentials。 | `apps/devpilot-api/src/project/project.service.ts`。 | Project detail allocation 改为 select 安全摘要字段：id/resourceName/status/timestamps/pool，不返回 encrypted credentials |
+| F86.3 | done | 在项目详情展示生成资源解析摘要和资源池分配摘要。 | `apps/devpilot-web/src/app/(dashboard)/projects/[id]/page.tsx`。 | 项目详情新增“生成资源”区块，展示 `config.resolvedResources` 和 `project.allocations` 摘要 |
+| F86.4 | done | 补充回归测试、路线文档并隔离验证。 | project controller/service tests + roadmap/requirements/TODO + API/Web checks。 | targeted project Jest、完整 API Jest、Prisma validate、API/Web type-check、API/Web build、touched diff check、conflict scan 和尾随空白扫描通过 |
+
+### F87. 资源类型 Schema 可视化编辑
+
+Purpose: `ResourceType.requestSchema` 和 `deliverySchema` 已经驱动资源申请与交付动态表单，但资源类型管理页仍要求管理员手写 JSON，默认资源类型也没有可视化编辑入口。本轮补上资源类型新增/编辑共用的字段化 Schema 编辑器：管理员可以维护字段 key、label、type、required、sensitive、default、placeholder 和 select options，提交时仍保存为现有 `{ fields: [...] }` 契约。本轮不改变后端 API 数据结构，不新增 provisioning processor，不做复杂 JSON Schema 兼容层。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F87.1 | done | 梳理 ResourceType schema 形状、申请/交付动态渲染链路和管理页入口。 | ResourceRequest DTO/Service、resource-requests page、admin resource-types page。 | CodeGraph CLI 未初始化索引；手工图谱确认 schema 形状为 `{ fields: ResourceField[] }`，申请和交付页按 fields 动态渲染，管理页仅有 JSON textarea 和停用操作 |
+| F87.2 | done | 新增资源类型 schema 字段编辑器并接入新增/编辑弹窗。 | `apps/devpilot-web/src/app/(dashboard)/admin/resource-types/page.tsx`。 | 资源类型管理页新增编辑入口；新增/编辑弹窗共用字段化 Schema 编辑器，支持 key/label/type/required/sensitive/default/placeholder/select options、排序、删除和 JSON 预览，提交仍输出 `{ fields: [...] }` |
+| F87.3 | done | 更新进度文档并隔离运行 Web/API 相关验证。 | requirements/roadmap/TODO + Web type-check/build。 | requirements/roadmap/TODO 已更新；Web type-check、Web build、touched diff check、conflict scan 和尾随空白扫描通过 |
+
+### F88. 资源申请 provisioningMode 处理器第一版
+
+Purpose: `ResourceType.provisioningMode` 已经能配置为 `manual`、`pool`、`webhook`、`api`、`script` 或 `credential_only`，资源池服务也能生成 `ResourceAllocation` 和凭证，但资源申请审批后还没有按模式分发交付处理器。本轮建立第一版处理器边界：`manual` / `credential_only` 继续进入人工交付；`pool` 在审批通过后自动从配置的资源池分配资源、创建 `ResourceInstance`、写入 request result 和审计；`webhook` / `api` / `script` 暂不假装真实执行，只把 planned 状态、adapter boundary 和审计证据写回申请。本轮不新增数据库字段，不实现外部 webhook/API/script 调用，不把资源池凭证明文写入 request result 或前端列表。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F88.1 | done | 梳理资源申请审批、人工交付、资源池分配和前端调用链。 | ResourceRequestService/Controller、ResourcePoolService、resource-requests page、Prisma models。 | CodeGraph CLI 未初始化索引；手工图谱确认 `completeRequest` 只做人工交付，`ResourcePoolService.allocateResource` 已能生成 allocation/credentials，`ResourceRequest`/`ResourceInstance` 无 allocationId 字段，前端审批后只 reload 列表 |
+| F88.2 | done | 在 ResourceRequestService 增加 provisioningMode 分发与 pool 自动交付。 | `apps/devpilot-api/src/resource-request/resource-request.service.ts` + module imports + resource requests page。 | ResourceRequestModule 接入 ResourcePoolModule；审批通过或免审批 approved 后按 provisioningMode 分发，pool 自动 allocation + ResourceInstance + request result，webhook/api/script 写 planned，pool 配置缺失写 blocked，manual/credential_only 保持人工交付；资源申请列表展示交付模式和处理器状态 |
+| F88.3 | done | 补充 ResourceRequestService 回归测试覆盖 pool/manual/planned/blocked 分支。 | `apps/devpilot-api/src/resource-request/resource-request.service.spec.ts`。 | targeted Jest 通过：`/tmp/codex-tool-runs/svton/f88-targeted-jest-20260629-112319.log` |
+| F88.4 | done | 更新进度文档并隔离运行 targeted/full 验证。 | requirements/roadmap/TODO + API/Web checks。 | requirements/roadmap/TODO 已更新；targeted ResourceRequestService Jest、完整 API Jest、Prisma validate、API type-check、API build、Web type-check rerun、Web build、touched diff check、conflict scan 和尾随空白扫描通过 |
+
+### F89. 资源申请外部交付 adapter 执行边界
+
+Purpose: F88 已经把 `webhook` / `api` / `script` 写成 planned boundary，但审批通过后还不会触达执行器或外部接入端。本轮把外部交付 adapter 升级为可审计的执行边界：`script` 委托 Server executor 生成/执行受控脚本计划，并把 job 摘要、阻断或队列状态写回申请；`webhook` / `api` 在显式开启 `RESOURCE_PROVISIONING_HTTP_ENABLED=true` 且配置 endpoint 后发起 HTTP adapter 调用，成功响应中的交付字段会按 deliverySchema/敏感 key 拆分，创建 ResourceInstance 并完成申请；缺 URL、HTTP 失败、fetch 异常或默认关闭时会写 blocked/planned 状态和审计。本轮不新增数据库字段，不在 request result 中保存 HTTP header、脚本命令日志或凭证明文，不默认开启外部 HTTP 调用。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F89.1 | done | 梳理 F88 planned 边界、Server executor 契约和 provisioningConfig 输入形状。 | ResourceRequestService、ServerExecutorService/types、roadmap/requirements。 | CodeGraph CLI 未初始化索引；手工确认 `ServerExecutorService.resolveTarget/execute/queueExecution` 可复用，HTTP adapter 需要显式开关避免审批后默认外呼 |
+| F89.2 | done | 实现 script/http 外部交付 adapter 与脱敏回写。 | `apps/devpilot-api/src/resource-request` + `ServerExecutorModule` import。 | ResourceRequestModule 接入 ServerExecutorModule；script mode 调用 Server executor 并写入 planned/queued/blocked/completed 摘要；webhook/api 支持默认关闭、缺配置 blocked、显式开启后 POST/PUT/PATCH/GET 调用、成功响应拆分 delivery/credentials 并完成申请 |
+| F89.3 | done | 补充 ResourceRequestService 回归测试覆盖 script executor、HTTP 成功交付和 webhook 缺配置阻断。 | `apps/devpilot-api/src/resource-request/resource-request.service.spec.ts`。 | targeted Jest 通过：`/tmp/codex-tool-runs/svton/f89-targeted-jest-20260629.log` |
+| F89.4 | done | 更新进度文档并隔离运行 API 回归验证。 | requirements/roadmap/TODO + API checks。 | requirements/roadmap/TODO 已更新；targeted ResourceRequestService Jest、完整 API Jest、Prisma validate、API type-check、API build、diff check、冲突标记和尾随空白扫描通过 |
+
+### F90. 资源申请外部 adapter 凭据与幂等治理
+
+Purpose: F89 已经能触达 Server executor 和默认关闭的 HTTP adapter，但 HTTP 外部交付还缺 Credential/Auth adapter 证据、稳定幂等键和可重试失败语义。本轮补上安全的第一版治理：`provisioningConfig.credentialId` / `auth.credentialId` 可解析为 TeamCredential 红线内引用，并在 payload/header/result/audit 中只保留 redacted credential ref；HTTP adapter 自动生成稳定 idempotency key 并带到请求；临时 HTTP/网络失败可按 `maxAttempts` 做受控重试并把 attempts/retryable 写回。脚本 adapter 也把 credential ref 和 idempotencyKey 写入 Server executor metadata。本轮不解密 TeamCredential、不把 secret material 写入 header/request result、不实现真实云 provider SDK。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F90.1 | done | 梳理 TeamCredential、ResourceRequest HTTP adapter 和现有重试/幂等约定。 | ResourceRequestService、CDN TeamCredential API、ResourceControl credential resolver、ProjectWebhook/ServerExecutor idempotency。 | CodeGraph CLI 未初始化索引；手工图谱确认 TeamCredential 目前由 CDN service 加密保存，ResourceControl 多数链路只传 redacted reference，Server executor/ProjectWebhook 已有 idempotency 先例 |
+| F90.2 | done | 增加 ResourceRequest 外部 adapter credential ref、idempotency key 和 HTTP retry。 | `apps/devpilot-api/src/resource-request/resource-request.service.ts`。 | HTTP adapter 解析 `credentialId`/`auth.credentialId` 为 redacted TeamCredential ref，生成稳定 idempotency key，带到 header/payload/result/audit；408/425/429/5xx 和网络错误可按 `maxAttempts` 受控重试；script adapter metadata 也带 credentialRef/idempotencyKey |
+| F90.3 | done | 补充 ResourceRequestService 回归测试覆盖 credential ref、幂等 header/payload、临时失败重试和缺凭据阻断。 | `apps/devpilot-api/src/resource-request/resource-request.service.spec.ts`。 | targeted Jest 通过：`/tmp/codex-tool-runs/svton/f90-targeted-jest-20260629.log` |
+| F90.4 | done | 更新进度文档并隔离运行 API 回归验证。 | requirements/roadmap/TODO + API checks。 | requirements/roadmap/TODO 已更新；targeted ResourceRequestService Jest、完整 API Jest、Prisma validate、API type-check、API build、diff check、冲突标记和尾随空白扫描通过 |
+
+### F91. 资源申请 provisioning 失败恢复入口
+
+Purpose: F89/F90 已经能把外部交付写成 planned/blocked/completed，并补上凭据引用、幂等键和 bounded retry，但当审批后的交付因为配置缺失、HTTP 临时失败或默认关闭而停在 `blocked` / `planned` 时，用户仍缺少一个受权限保护的恢复入口。本轮新增“重试交付处理器”：只有已审批且未交付的申请、且上一轮 provisioning 状态为 `blocked` 或 `planned` 才能重试；重试会复用当前 ResourceType provisioningConfig、保持同一 idempotency 约定、写入 `provisioning.retry_requested` 审计，再重新进入现有 pool/script/http processor。前端资源申请列表展示可重试状态的重试按钮。本轮不新增数据库字段，不做后台调度自动重试，不绕过原有审批/访问策略。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F91.1 | done | 梳理资源申请重试入口、权限链路和前端操作面。 | ResourceRequestsController、ResourceRequestService、resource-requests page、access policy。 | CodeGraph CLI 未初始化索引；手工图谱确认 resource request 写操作经 `assertCanWriteRequest`，approved 行已有人工交付按钮，provisioning badge 已展示 planned/blocked 状态 |
+| F91.2 | done | 增加后端 retry-provisioning API、状态门禁和审计。 | `apps/devpilot-api/src/resource-request`。 | 新增 `POST /resource-requests/:id/retry-provisioning`；只允许 approved 且 provisioning 为 blocked/planned 的非人工处理器重试；写入 `provisioning.retry_requested` 后复用现有 pool/script/http processor |
+| F91.3 | done | 在资源申请页为 blocked/planned provisioning 增加重试交付操作。 | `apps/devpilot-web/src/app/(dashboard)/resource-requests/page.tsx`。 | approved 行在 blocked/planned provisioning 状态下显示“重试交付”；点击调用 retry-provisioning API 并刷新；queued badge 也补充为“已入队” |
+| F91.4 | done | 补充回归测试、更新文档并隔离运行验证。 | ResourceRequestService spec + requirements/roadmap/TODO + API/Web checks。 | targeted ResourceRequestService Jest、完整 API Jest、Prisma validate、API type-check、Web type-check、API build、Web build、diff check、冲突标记和尾随空白扫描通过 |
+
+### F92. 资源申请 provisioning 自动补偿 scheduler
+
+Purpose: F91 已经提供受权限保护的人工重试入口，但外部 HTTP adapter 在临时 5xx/429/网络失败后仍需要人工观察和点击。本轮补上默认关闭的自动补偿入口：当 `webhook` / `api` 资源类型显式配置 `provisioningConfig.autoRetry.enabled=true`，且上一次 provisioning 为 retryable blocked 并到达 `nextAttemptAt` 时，后台 scheduler 可重新进入当前 HTTP adapter，沿用原 idempotency key、redacted credential ref 和审计链路。自动补偿只处理 HTTP 外部 adapter，不自动触发 `manual`、`credential_only`、`pool` 或 `script`，不新增数据库字段，不实现 provider SDK，不绕过 F91 的人工重试能力。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F92.1 | done | 梳理现有 scheduler 模式和 ResourceRequest provisioning retry 状态。 | ResourceControl/Deployment scheduler、ResourceRequestService。 | 沿用 `OnModuleInit` + `ConfigService` + `setInterval` + running guard 的默认关闭调度形状；自动补偿收窄到 HTTP adapter 且资源类型显式开启 autoRetry |
+| F92.2 | done | 在 ResourceRequestService 增加 HTTP autoRetry 状态和 due candidate 批处理入口。 | `apps/devpilot-api/src/resource-request/resource-request.service.ts`。 | retryable HTTP blocked 结果写入 `autoRetry` 的 delay、maxScheduledAttempts、scheduledAttempts、nextAttemptAt、exhausted；`processDueProvisioningAutoRetries` 批量扫描 approved request 并系统触发到期补偿 |
+| F92.3 | done | 增加默认关闭的 ResourceRequest provisioning retry scheduler。 | `apps/devpilot-api/src/resource-request/resource-request-provisioning-retry-scheduler.service.ts` + module export。 | 新增 `RESOURCE_REQUEST_PROVISIONING_RETRY_SCHEDULER_ENABLED`、`INTERVAL_SECONDS`、`BATCH_SIZE`；默认不运行，启用后只调用服务层 due auto retry 入口 |
+| F92.4 | done | 补充回归测试、更新文档并隔离运行验证。 | ResourceRequestService spec + requirements/roadmap/TODO + API checks。 | targeted ResourceRequestService Jest、完整 API Jest、Prisma validate、API type-check、API build、diff check、冲突标记和尾随空白扫描通过 |
+
+### F93. 资源申请外部交付运行账本
+
+Purpose: F89-F92 已经把 HTTP 外部交付做成默认关闭、带凭据引用、幂等键、bounded retry、手动重试和自动补偿的处理器，但每次外部调用仍主要散落在 `request.result.provisioning` 和 ResourceAuditLog 里，缺少像 DeploymentRun / ResourceConnectionRun 那样可查询、可关联、可恢复的持久化运行记录。本轮新增 `ResourceProvisioningRun` 运行账本：HTTP `api` / `webhook` 每次审批触发、手动重试或自动补偿都会记录 trigger、adapter/auth/executor、idempotencyKey、attempt/maxAttempts、status、providerRunId、错误和脱敏结果；ResourceAuditLog 可关联到该 run。运行账本不解密或持久化 secret material，不新增真实 provider SDK，不改变 F91/F92 现有触发语义。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F93.1 | done | 梳理 ResourceRequest、Prisma 运行记录先例和受影响测试。 | Prisma schema、DeploymentRun/ServerExecutionJob/ResourceConnectionRun、ResourceRequestService/spec。 | CodeGraph CLI 未初始化索引；手工图谱确认需要独立 `ResourceProvisioningRun` 而不是只扩展 `request.result`，并应关联 ResourceAuditLog |
+| F93.2 | done | 增加 ResourceProvisioningRun schema、migration 和审计关联。 | `apps/devpilot-api/prisma/schema.prisma` + migration。 | 新模型记录 HTTP 外部交付运行状态、幂等键、adapter/auth/executor、attempt、providerRunId、result/error；Prisma validate 通过：`/tmp/codex-tool-runs/svton/f93-prisma-validate-schema-20260629.log` |
+| F93.3 | done | 在 HTTP provisioning adapter 写入运行账本。 | `apps/devpilot-api/src/resource-request/resource-request.service.ts`。 | 每次 HTTP api/webhook 处理创建 run，planned/blocked/completed 均更新 run，并把 `provisioningRunId` 写入 request result 与 ResourceAuditLog；targeted ResourceRequestService Jest 已覆盖成功和 retryable blocked 分支 |
+| F93.4 | done | 补充回归测试、更新文档并隔离运行验证。 | ResourceRequestService spec + requirements/roadmap/TODO + API checks。 | targeted ResourceRequestService Jest、完整 API Jest、Prisma validate、API type-check、API build、diff check、冲突标记和尾随空白扫描通过 |
+
+### F94. 资源申请 provisioning 运行账本可观测面
+
+Purpose: F93 已经把 HTTP 外部交付运行落到 `ResourceProvisioningRun`，但控制面还看不到每次 approval/manual retry/auto retry 的运行历史，运维人员无法从资源申请直接判断 provider run、attempt、错误和自动补偿是否发生。本轮新增资源申请维度的运行记录查询和前端弹窗：有资源申请 read 权限的成员可查看该申请的 `api`/`webhook` 外部交付运行历史，包括 trigger、status、attempt/maxAttempts、adapter/auth/executor、idempotencyKey、providerRunId、错误摘要和时间。本轮不新增全局运行中心，不做 run 重放/取消，不暴露 secret material。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F94.1 | done | 梳理 ResourceProvisioningRun API/UI 接入图谱。 | ResourceRequestsController、DTO、ResourceRequestService、resource-requests page。 | CodeGraph CLI 未初始化索引；手工图谱确认应使用 `GET /resource-requests/:id/provisioning-runs` 并复用 resource request read 策略，前端按需弹窗加载 |
+| F94.2 | done | 增加资源申请维度 provisioning run 查询 API。 | ResourceRequest DTO/Controller/Service/spec。 | 新增 `GET /resource-requests/:id/provisioning-runs`，按 requestId/teamId 查询，支持状态/模式/触发来源过滤和 bounded limit，返回脱敏 run、actor、resourceType；targeted Jest/API type-check 通过 |
+| F94.3 | done | 在资源申请页展示 provisioning 运行记录。 | `apps/devpilot-web/src/app/(dashboard)/resource-requests/page.tsx`。 | 行操作新增“运行记录”，弹窗按需加载并展示状态、触发、attempt、providerRunId、idempotencyKey、错误和时间；Web type-check 通过 |
+| F94.4 | done | 补充测试、更新文档并隔离运行验证。 | ResourceRequestService spec + requirements/roadmap/TODO + API/Web checks。 | targeted ResourceRequestService Jest、完整 API Jest、Prisma validate、API/Web type-check、API/Web build、diff check、冲突标记和尾随空白扫描通过 |
+
+### F95. 资源申请 provisioning run 受控重放
+
+Purpose: F94 已经能从资源申请看到每次 HTTP 外部交付运行，但恢复操作仍只能根据申请的当前 provisioning 状态触发，不能从具体 run 出发保留源运行关联。本轮新增“受控重放”闭环：运维人员只能对当前资源申请正在指向的 `planned` / `blocked` / `failed` HTTP run 发起重放；系统复用现有审批、Credential/Auth adapter、HTTP executor adapter 和幂等键策略，创建新的 `ResourceProvisioningRun` 并记录 `replayOfRunId`、审计源 run、前端从运行记录弹窗直接发起。本轮不重放已完成申请，不重放历史非当前 run，不新增 provider cancel 语义，不暴露 secret material。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F95.1 | done | 梳理 provisioning run 重放边界、路由和受影响测试。 | ResourceProvisioningRun schema、ResourceRequestsController、ResourceRequestService、resource-requests page。 | CodeGraph CLI 未初始化索引；手工图谱确认应复用 request 写权限、只允许当前 run 的 planned/blocked/failed HTTP run 重放，并保留 replay 来源 |
+| F95.2 | done | 增加 replayOfRunId schema、重放 API 和服务层门禁。 | Prisma schema/migration + ResourceRequest DTO/Controller/Service/spec。 | 新增 `replayOfRunId` 自关联、`POST /resource-requests/:id/provisioning-runs/:runId/replay`、服务层当前 run 门禁和 `provisioning.run_replay_requested` 审计；targeted Jest 与 Prisma validate 通过 |
+| F95.3 | done | 在运行记录弹窗提供受控重放操作并刷新列表。 | `apps/devpilot-web/src/app/(dashboard)/resource-requests/page.tsx`。 | 运行记录弹窗仅对当前申请指向的 planned/blocked/failed HTTP run 显示“重放”；调用 replay API 后刷新申请列表和运行记录；Web type-check 通过 |
+| F95.4 | done | 更新文档并隔离运行验证。 | requirements/roadmap/TODO + API/Web checks。 | targeted ResourceRequestService Jest、完整 API Jest、Prisma validate/generate、API type-check、Web type-check rerun、API/Web build、diff check、冲突标记和尾随空白扫描通过；首次 Web type-check 与 Web build 并发时遇到 `.next/types` 缺失，build 完成后单独重跑通过 |
+
+### F96. 资源申请 provisioning running run 僵尸恢复
+
+Purpose: F95 已经能重放当前 planned/blocked/failed HTTP run，但如果进程在创建 `ResourceProvisioningRun` 后、完成回写前崩溃，运行可能长期停在 `running`，控制面既无法判断失败，也无法触发重放。本轮新增默认关闭的 stale recovery：超过阈值仍处于 running 的 HTTP `ResourceProvisioningRun` 会被恢复为 `failed`，写入 `recoveredAt`、`recoveryReason`、`recoveryCount` 和审计；如果该 run 仍是当前申请指向的 provisioningRunId，则把申请回写为 `blocked/stale_running_recovered`，从而接上现有重放入口。本轮不调用 provider cancel，不猜测远端真实完成状态，不清理外部资源，也不自动重放。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F96.1 | done | 梳理 running run stale recovery 边界、调度入口和受影响测试。 | ResourceProvisioningRun schema、ResourceRequestService、retry scheduler、resource-requests page。 | CodeGraph CLI 未初始化索引；手工图谱确认应复用现有默认关闭 scheduler 模式，只恢复 HTTP running run 并保留审计证据 |
+| F96.2 | done | 增加 recovery schema、服务层批处理和 scheduler 开关。 | Prisma schema/migration + ResourceRequestService + ResourceRequestProvisioningRetrySchedulerService/spec。 | 新增 `recoveredAt`、`recoveryReason`、`recoveryCount`；`recoverStaleProvisioningRuns` 可把 stale running HTTP run 标记 failed，并在当前申请仍指向该 run 时回写 blocked；scheduler 新增独立默认关闭 stale recovery 开关；targeted service+scheduler Jest 与 Prisma validate 通过 |
+| F96.3 | done | 在运行记录弹窗展示 stale recovery 摘要。 | `apps/devpilot-web/src/app/(dashboard)/resource-requests/page.tsx`。 | 运行记录弹窗展示 recoveredAt、recoveryReason、recoveryCount；Web type-check 通过 |
+| F96.4 | done | 更新文档并隔离运行验证。 | requirements/roadmap/TODO + API/Web checks。 | targeted ResourceRequestService + scheduler Jest、完整 API Jest、Prisma validate/generate、API/Web type-check、API/Web build、diff check、冲突标记和尾随空白扫描通过 |
+
+### F97. 资源申请 provisioning run 运维状态面与手动恢复入口
+
+Purpose: F96 已有默认关闭的 stale running run recovery，但运维人员还缺少一个资源申请维度的状态面来判断当前 HTTP 外部交付是否堆积、是否存在超时 running run，以及在调度器关闭时手动触发恢复。本轮新增 team-scoped provisioning run supervisor 和手动恢复入口：有权限用户可以查看 running/stale/blocked/failed/completed 统计、最近 stale 样例、scheduler 配置态，并手动执行本团队范围内的 stale recovery。手动恢复复用 F96 语义，只标记控制面 failed/blocked 并写审计，不调用 provider cancel，不清理外部资源，不自动重放。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F97.1 | done | 梳理 provisioning run supervisor/manual recovery 路由、权限和受影响测试。 | ResourceRequestsController、ResourceRequestService、resource-requests page。 | CodeGraph CLI 未初始化索引；手工图谱确认应提供 team-scoped 只读 supervisor 和显式写权限 manual recovery，不改变 provider 执行语义 |
+| F97.2 | done | 增加 supervisor 查询 API、team-scoped manual recovery API 和服务层测试。 | ResourceRequest DTO/Controller/Service/spec。 | 新增 `GET /resource-requests/provisioning-runs/supervisor` 和 `POST /resource-requests/provisioning-runs/recover-stale`；supervisor 返回 scheduler 配置态、状态计数和 stale/problem 样例；manual recovery 仅按当前 team 过滤；targeted Jest/API type-check 通过 |
+| F97.3 | done | 在资源申请页展示 run supervisor，并接入手动恢复操作。 | `apps/devpilot-web/src/app/(dashboard)/resource-requests/page.tsx`。 | 资源申请页新增“交付运行治理”区块，展示 running/stale/planned/blocked/failed/completed、scheduler 配置态和最早 stale 样例；“恢复超时运行”调用 team-scoped manual recovery 并刷新列表/运行记录；Web type-check 通过 |
+| F97.4 | done | 更新文档并隔离运行验证。 | requirements/roadmap/TODO + API/Web checks。 | targeted service+scheduler Jest、完整 API Jest、Prisma validate/generate、API/Web type-check、API/Web build、diff check、冲突标记和尾随空白扫描通过 |
+
+### F98. 资源申请 HTTP provisioning run 队列化执行入口
+
+Purpose: F97 已经能看到和恢复 HTTP provisioning run，但 approval/manual retry/replay 仍是同步 inline HTTP 调用，离后续 scheduler worker、Server agent worker 或 provider adapter 执行模型还有一层距离。本轮在保持默认行为不变的前提下，为 `api`/`webhook` provisioning 增加可选队列契约：资源类型 `provisioningConfig.queue.enabled=true` 或 `queue=true` 时先生成 `queued` run 并回写申请状态，再由 team-scoped manual process-next API 认领并执行同一条 run。F98 不引入后台常驻 worker，不自动调用 provider cancel，也不改变未开启 queue 的 inline 交付行为。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F98.1 | in_progress | 梳理 HTTP provisioning queue 入口、运行状态、权限和受影响测试。 | ResourceRequestService、ResourceRequestsController、Prisma ResourceProvisioningRun、resource-requests page。 | CodeGraph CLI 未初始化索引；手工图谱确认需拆分 run create/execute，并复用 F97 supervisor 作为队列治理面 |
+| F98.2 | pending | 增加 queued run schema、服务层入队和 process-next 执行语义。 | Prisma schema/migration + ResourceRequestService/spec。 | 默认关闭队列；开启后 approval/retry/replay 落 `queued`，manual process-next 将同一 run 从 queued 置 running 后执行 HTTP |
+| F98.3 | pending | 暴露 team-scoped process-next API，并在资源申请页治理面接入队列计数和处理按钮。 | DTO/Controller + `apps/devpilot-web/src/app/(dashboard)/resource-requests/page.tsx`。 | 只允许本 team，写权限 medium risk；前端展示 queued/oldest queued 和“处理下一条队列” |
+| F98.4 | pending | 更新 requirements/roadmap/TODO 并隔离运行验证。 | docs-internal + API/Web checks。 | targeted service Jest、完整 API Jest、Prisma validate/generate、API/Web type-check/build、diff check、冲突标记和尾随空白扫描 |
 
 ## Verification Plan
 
@@ -793,6 +1197,104 @@ Purpose: 把仍停留在早期 team role guard 的项目交付入口纳入统一
 - 2026-06-26 16:22: Added F60 first-batch ordinary write API access policy requirement.
 - 2026-06-26 16:45: Implemented F60 access policy checks for Project, ProjectEnvironment, and Site write APIs; verified API/Web checks.
 - 2026-06-28 23:15: Added F61 early project delivery entry access policy requirement and started remaining controller discovery.
+- 2026-06-28 23:24: Implemented F61 access policy guards for Generator, Preset, Git, Domain, and Legacy CDN entry points; verification in progress.
+- 2026-06-28 23:24: Verified F61 with targeted Jest, API type-check, touched diff check, and remaining-controller policy scan.
+- 2026-06-28 23:34: Added F62 preauthorized live auto rollback policy requirement and scoped it to existing OperationApproval/Server executor gates.
+- 2026-06-28 23:42: Implemented F62 preauthorized live auto rollback policy plumbing and regression coverage; verification in progress.
+- 2026-06-28 23:45: Verified F62 with targeted Jest, API type-check, touched diff check, and whitespace/conflict scan.
+- 2026-06-29 00:00: Added F63 SSH live remote process tree cancellation requirement and scoped it to best-effort cleanup without server agent.
+- 2026-06-29 00:05: Implemented F63 SSH live remote wrapper/PID marker/best-effort cleanup and targeted regression coverage; verification in progress.
+- 2026-06-29 10:28: Implemented F83 project default four-environment baseline for API normalization, environment initialization, generated/imported project frontend defaults, docs, and tests; verified targeted Jest, full API Jest, Prisma validate, API/Web type-check, API/Web build, touched diff check, and conflict scan.
+- 2026-06-29 10:35: Added F84 generated project database engine selection requirement and completed generator/resource wizard data-flow discovery.
+- 2026-06-29 10:45: Implemented F84 API/Web database engine selection for generated projects and added focused generator regression tests; verification in progress.
+- 2026-06-29 10:55: Completed F84 verification with targeted generator Jest, full API Jest rerun, Prisma validate, API/Web type-check, API/Web build, touched diff check, conflict scan, and new spec whitespace scan.
+- 2026-06-29 11:05: Added F85 generated ZIP artifact persistence and downloadUrl requirement after confirming Project.downloadUrl exists but is not written by generation.
+- 2026-06-29 11:18: Implemented F85 local ZIP artifact persistence, Project.downloadUrl writeback, protected download API, project detail download action, and focused tests; final verification in progress.
+- 2026-06-29 11:25: Completed F85 verification with targeted generator/project Jest, full API Jest, Prisma validate, API/Web type-check, API/Web build, touched diff check, conflict scan, and new spec whitespace scan.
+- 2026-06-29 11:35: Added F86 generated resource resolution visibility requirement after confirming resource resolution is implemented but not visible on project detail.
+- 2026-06-29 11:40: Implemented F86 safe allocation projection and project detail generated resource summary; targeted project Jest and Web type-check passed.
+- 2026-06-29 11:45: Completed F86 verification with targeted project Jest, full API Jest, Prisma validate, API/Web type-check, API/Web build, touched diff check, conflict scan, and whitespace scan.
+- 2026-06-29 12:05: Added F87 resource type schema visual editor requirement after confirming `requestSchema.fields` and `deliverySchema.fields` already drive dynamic request and delivery forms.
+- 2026-06-29 12:12: Implemented F87 resource type schema visual editor for create/edit flows; Web type-check passed and final verification is in progress.
+- 2026-06-29 12:18: Completed F87 verification with Web type-check, Web build, touched diff check, conflict scan, and whitespace scan; Web build only reported the existing Browserslist data warning.
+- 2026-06-29 12:30: Added F88 provisioningMode processor requirement after confirming resource requests do not yet dispatch pool/webhook/api/script provisioning modes.
+- 2026-06-29 12:42: Implemented F88 ResourceRequest provisioningMode dispatcher, pool auto allocation delivery, planned/blocked request result states, and focused regression tests; targeted Jest passed.
+- 2026-06-29 12:55: Completed F88 verification with targeted ResourceRequestService Jest, full API Jest, Prisma validate, API type-check, API build, Web type-check rerun, Web build, touched diff check, conflict scan, and whitespace scan; initial parallel Web type-check failed only because Web build concurrently regenerated `.next/types`.
+- 2026-06-29 13:24: Added F89 external provisioning adapter requirement, implemented ResourceRequest script Server executor dispatch plus default-off HTTP adapter execution, and passed targeted ResourceRequestService Jest/API type-check.
+- 2026-06-29 13:42: Completed F89 verification with targeted ResourceRequestService Jest, full API Jest, Prisma validate, API type-check, API build, diff check, conflict scan, and whitespace scan.
+- 2026-06-29 14:08: Added F90 ResourceRequest external adapter credential/idempotency governance requirement, implemented redacted TeamCredential refs, idempotency headers/payload, bounded HTTP retry, and passed targeted ResourceRequestService Jest/API type-check.
+- 2026-06-29 14:22: Completed F90 verification with targeted ResourceRequestService Jest, full API Jest, Prisma validate, API type-check, API build, diff check, conflict scan, and whitespace scan.
+- 2026-06-29 14:45: Added F91 provisioning retry recovery requirement, implemented retry-provisioning API and resource request page retry action, and passed targeted ResourceRequestService Jest plus API/Web type-check.
+- 2026-06-29 14:58: Completed F91 verification with targeted ResourceRequestService Jest, full API Jest, Prisma validate, API/Web type-check, API/Web build, diff check, conflict scan, and whitespace scan.
+- 2026-06-29 15:28: Added F92 ResourceRequest provisioning auto retry scheduler requirement, implemented explicit opt-in HTTP autoRetry metadata and due retry processing, and passed targeted ResourceRequestService Jest.
+- 2026-06-29 15:36: Completed F92 verification with targeted ResourceRequestService Jest, full API Jest, Prisma validate, API type-check, API build, diff check, conflict marker scan, and trailing whitespace scan.
+- 2026-06-29 16:06: Added F93 ResourceProvisioningRun ledger requirement, implemented schema/migration plus HTTP provisioning run create/update/audit linkage, and passed targeted ResourceRequestService Jest.
+- 2026-06-29 16:17: Completed F93 verification with targeted ResourceRequestService Jest, full API Jest, Prisma validate, API type-check, API build, diff check, conflict marker scan, and trailing whitespace scan.
+- 2026-06-29 16:48: Added F94 provisioning run observability requirement, implemented request-scoped provisioning run query API and resource request page run history modal, and passed targeted ResourceRequestService Jest plus API/Web type-check.
+- 2026-06-29 16:57: Completed F94 verification with targeted ResourceRequestService Jest, full API Jest rerun, Prisma validate, API/Web type-check, API/Web build, diff check, conflict marker scan, and trailing whitespace scan.
+- 2026-06-29 17:10: Added F95 controlled provisioning run replay requirement and started schema/API/UI impact mapping.
+- 2026-06-29 17:24: Implemented F95 controlled provisioning run replay schema/API/service tests and resource request run modal action; final verification in progress.
+- 2026-06-29 17:43: Completed F95 verification with targeted ResourceRequestService Jest, full API Jest, Prisma validate/generate, API/Web type-check, API/Web build, diff check, conflict marker scan, and trailing whitespace scan.
+- 2026-06-29 18:05: Added F96 default-off stale running ResourceProvisioningRun recovery requirement and started service/scheduler impact mapping.
+- 2026-06-29 18:24: Implemented F96 stale running ResourceProvisioningRun recovery schema, service batch, independent scheduler switch, UI recovery summary, and targeted service/scheduler Jest coverage; final verification in progress.
+- 2026-06-29 18:35: Completed F96 verification with targeted service+scheduler Jest, full API Jest, Prisma validate/generate, API/Web type-check, API/Web build, diff check, conflict marker scan, and trailing whitespace scan.
+- 2026-06-29 18:50: Added F97 provisioning run supervisor and manual stale recovery requirement; implementation in progress.
+- 2026-06-29 19:08: Implemented F97 provisioning run supervisor API, team-scoped manual stale recovery API, resource request page supervisor panel, and targeted service tests; final verification in progress.
+- 2026-06-29 19:17: Completed F97 verification with targeted service+scheduler Jest, full API Jest, Prisma validate/generate, API/Web type-check, API/Web build, diff check, conflict marker scan, and trailing whitespace scan.
+- 2026-06-29 19:28: Added F98 HTTP provisioning run queue requirement and started manual graph mapping for queued run processing.
+- 2026-06-29 00:08: Verified F63 with server-executor Jest, API type-check, touched diff check, and whitespace/conflict scan.
+- 2026-06-29 00:12: Added F64 remote session metadata persistence requirement for ServerExecutionJob without introducing server agent cleanup.
+- 2026-06-29 00:16: Implemented F64 runtime observer metadata persistence and regression coverage; verification in progress.
+- 2026-06-29 00:24: Verified F64 with server-executor Jest, API type-check, touched diff check, and whitespace/conflict scan; roadmap and requirements docs updated.
+- 2026-06-29 00:25: Added F65 default-off stale remote orphan cleanup requirement for ServerExecutionJob stale recovery.
+- 2026-06-29 00:30: Implemented F65 stale recovery cleanup plumbing and regression coverage; verification in progress.
+- 2026-06-29 00:35: Verified F65 with server-executor Jest, API type-check, touched diff check, and whitespace/conflict scan; roadmap and requirements docs updated.
+- 2026-06-29 00:40: Added F66 execution governance visibility requirement for ServerExecutionJob remoteExecution metadata.
+- 2026-06-29 00:45: Implemented F66 execution governance remoteExecution summary and verified Web type-check/build; docs/static checks in progress.
+- 2026-06-29 00:50: Verified F66 with Web type-check, Web build, touched diff check, and whitespace/conflict scan; roadmap and requirements docs updated.
+- 2026-06-29 00:55: Added F67 ServerExecutionJob governance audit requirement for cancel/retry/process-next/recover-stale actions.
+- 2026-06-29 01:00: Implemented F67 execution governance audit events and regression coverage; verification in progress.
+- 2026-06-29 01:05: Verified F67 with server-executor Jest, API type-check, touched diff check, and whitespace/conflict scan; roadmap and requirements docs updated.
+- 2026-06-29 01:10: Added F68 Server executor supervisor snapshot requirement for execution governance and future agent supervisor readiness.
+- 2026-06-29 01:18: Implemented F68 supervisor snapshot API/UI and regression coverage; verification in progress.
+- 2026-06-29 01:25: Verified F68 with server-executor Jest, API/Web type-check, Web build, touched diff check, and whitespace/conflict scan; roadmap and requirements docs updated.
+- 2026-06-29 01:30: Added F69 default-off Server agent executor adapter boundary requirement.
+- 2026-06-29 01:38: Implemented F69 Server agent adapter boundary and regression coverage; verification in progress.
+- 2026-06-29 01:45: Verified F69 with server-executor Jest, API type-check, touched diff check, and whitespace/conflict scan; roadmap and requirements docs updated.
+- 2026-06-29 01:50: Added F70 default-off Server agent target selection requirement.
+- 2026-06-29 01:58: Implemented F70 default-off Server agent target selection and resolveTarget regression coverage; verification in progress.
+- 2026-06-29 02:05: Verified F70 with server-executor Jest, API type-check, touched diff check, and whitespace/conflict scan; roadmap and requirements docs updated.
+- 2026-06-29 02:12: Added F71 execution governance agent target visibility requirement.
+- 2026-06-29 02:20: Implemented and verified F71 execution governance transport/agentRef visibility with Web type-check, Web build, touched diff check, and conflict scan.
+- 2026-06-29 02:25: Added F72 Server agent readiness supervisor summary requirement.
+- 2026-06-29 02:35: Implemented and verified F72 Server agent readiness supervisor summary with server-executor Jest, API/Web type-check, API/Web build, touched diff check, and conflict scan.
+- 2026-06-29 02:40: Added F73 Server agent job demand supervisor summary requirement.
+- 2026-06-29 02:48: Implemented and verified F73 Server agent job demand supervisor summary with server-executor Jest, API/Web type-check, API/Web build, touched diff check, and conflict scan.
+- 2026-06-29 02:52: Added F74 Server agent blocked reason supervisor summary requirement.
+- 2026-06-29 03:01: Implemented and verified F74 Server agent blocked reason supervisor summary with server-executor Jest, API/Web type-check, API/Web build, touched diff check, and conflict scan.
+- 2026-06-29 03:05: Added F75 default-off Server agent HTTP dispatcher boundary requirement.
+- 2026-06-29 03:13: Implemented and verified F75 default-off Server agent HTTP dispatcher boundary with adapter/service Jest, API type-check/build, touched diff check, and conflict scan.
+- 2026-06-29 03:18: Added F76 Server agent dispatcher config supervisor summary requirement.
+- 2026-06-29 03:25: Implemented and verified F76 Server agent dispatcher config supervisor summary with server-executor Jest, API/Web type-check, API/Web build, touched diff check, and conflict scan.
+- 2026-06-29 03:35: Added F77 Server agent dispatcher result job history visibility requirement and started result data-flow discovery.
+- 2026-06-29 03:42: Implemented F77 agent dispatch result summary in execution governance and updated roadmap/requirements docs; verification in progress.
+- 2026-06-29 03:48: Verified F77 with Web type-check, Web build, touched diff check, conflict scan, and local dev server on port 3102.
+- 2026-06-29 03:55: Added F78 Server agent dispatcher job correlation/idempotency requirement and started adapter/service data-flow discovery.
+- 2026-06-29 04:05: Implemented F78 dispatcher correlation/idempotency envelope/result/header contract and updated adapter/service regression assertions; docs and verification in progress.
+- 2026-06-29 04:15: Verified F78 with targeted server-executor Jest, API type-check, API build, touched diff check, and conflict scan.
+- 2026-06-29 04:20: Added F79 Server agent dispatch correlation job history visibility requirement and started frontend data-flow discovery.
+- 2026-06-29 04:25: Implemented F79 execution-governance Agent dispatch correlation summary; docs and verification in progress.
+- 2026-06-29 04:35: Verified F79 with Web type-check, Web build, touched diff check, and conflict scan.
+- 2026-06-29 04:40: Added F80 Server agent dispatch outcome audit requirement and started execution audit data-flow discovery.
+- 2026-06-29 04:50: Implemented F80 best-effort Server agent dispatch outcome audit write and regression assertion; docs and verification in progress.
+- 2026-06-29 05:00: Documented F80 Server agent dispatch outcome audit in requirements and roadmap; API verification in progress.
+- 2026-06-29 05:05: Completed F80 verification with targeted Jest, API type-check/build, and touched-path static checks.
+- 2026-06-29 05:10: Added F81 Server agent heartbeat supervisor baseline and started service/controller/UI implementation.
+- 2026-06-29 05:15: Implemented F81 token-protected heartbeat upsert and Supervisor runtime visibility; docs and full verification in progress.
+- 2026-06-29 05:25: Completed F81 verification with targeted Jest, API/Web type-check/build, and touched-path static checks.
+- 2026-06-29 05:30: Added F82 default-off heartbeat-required target selection gate and started implementation.
+- 2026-06-29 05:35: Implemented F82 heartbeat-required target selection fallback and Supervisor/UI config visibility; verification in progress.
+- 2026-06-29 05:45: Completed F82 verification with targeted Jest, API/Web type-check/build, and touched-path static checks.
 - 2026-06-25 04:25: Added environment resource binding requirement.
 - 2026-06-25 04:42: Implemented ProjectEnvironmentServer and environmentId binding across managed resources, requests, instances, CDN, keys, and resource-control UI.
 - 2026-06-25 04:50: Verified F14 with Prisma validate/generate, API/Web type-check, API/Web build, and diff check.

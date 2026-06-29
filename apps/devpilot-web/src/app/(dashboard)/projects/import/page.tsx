@@ -38,6 +38,7 @@ const environmentOptions: Array<{ id: EnvironmentKey; label: string }> = [
   { id: 'staging', label: '预发' },
   { id: 'prod', label: '生产' },
 ];
+const defaultEnvironmentKeys: EnvironmentKey[] = environmentOptions.map((option) => option.id);
 
 const inputClassName =
   'w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring';
@@ -57,7 +58,7 @@ const initialForm: ImportProjectForm = {
   buildCommand: '',
   deployCommand: '',
   healthCheckUrl: '',
-  environments: ['prod'],
+  environments: defaultEnvironmentKeys,
 };
 
 function trimmed(value: string): string | undefined {

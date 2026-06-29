@@ -33,8 +33,15 @@ const featurePackages: Record<string, string[]> = {
   authz: ['@svton/nestjs-authz'],
 };
 
+const databaseEngineNames: Record<string, string> = {
+  mysql: 'MySQL',
+  postgresql: 'PostgreSQL',
+  sqlite: 'SQLite',
+};
+
 export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
   const { config } = useProjectConfigStore();
+  const databaseEngine = config.database?.engine || 'mysql';
 
   // 计算所有需要的包
   const allPackages = new Set<string>();
@@ -93,6 +100,12 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
           )}
         </div>
       </PreviewSection>
+
+      {config.subProjects.backend && (
+        <PreviewSection title="数据库">
+          <PreviewItem label="引擎" value={databaseEngineNames[databaseEngine] || databaseEngine} />
+        </PreviewSection>
+      )}
 
       {/* UI 库和 Hooks */}
       <PreviewSection title="前端库">
