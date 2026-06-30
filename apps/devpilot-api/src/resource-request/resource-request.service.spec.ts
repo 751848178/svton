@@ -159,6 +159,457 @@ describe('ResourceRequestService provisioning processors', () => {
     expect(auditActions(prisma)).toEqual(expect.arrayContaining(['request.approved', 'provisioning.planned']));
   });
 
+  it('plans provider SDK provisioning with credential ref and idempotency evidence', async () => {
+    const { prisma, resourcePoolService, serverExecutor, service } = createService();
+    const existing = resourceRequest({
+      spec: { database: 'provider_dev', region: 'cn-hangzhou', password: 'request-secret' },
+      resourceType: { provisioningMode: 'provider' },
+    });
+    const approved = { ...existing, status: 'approved' };
+    const planned = {
+      ...approved,
+      result: { provisioning: { mode: 'provider', status: 'planned', boundary: 'provider_sdk_adapter' } },
+    };
+
+    prisma.resourceRequest.findFirst.mockResolvedValue(existing);
+    prisma.resourceRequest.update
+      .mockResolvedValueOnce(approved)
+      .mockResolvedValueOnce(planned);
+    prisma.resourceType.findUnique.mockResolvedValue(resourceType({
+      provisioningMode: 'provider',
+      provisioningConfig: {
+        provider: 'aliyun-rds',
+        operation: 'CreateDBInstance',
+        region: 'cn-hangzhou',
+        credentialId: 'credential-1',
+        requireCredential: true,
+        dryRun: true,
+      },
+    }));
+    prisma.teamCredential.findFirst.mockResolvedValue({
+      id: 'credential-1',
+      name: 'Aliyun AK',
+      type: 'aliyun-access-key',
+    });
+
+    const result = await service.reviewRequest('team-1', 'admin-1', 'request-1', { status: 'approved' });
+
+    expect(result).toEqual(planned);
+    expect(resourcePoolService.allocateResource).not.toHaveBeenCalled();
+    expect(serverExecutor.execute).not.toHaveBeenCalled();
+    expect(prisma.resourceInstance.create).not.toHaveBeenCalled();
+    expect(prisma.resourceProvisioningRun.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        mode: 'provider',
+        boundary: 'provider_sdk_adapter',
+        executorKey: 'cloud-sdk',
+        adapterKey: 'aliyun-rds-sdk',
+        idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+        status: 'running',
+        params: expect.objectContaining({
+          provider: 'aliyun-rds',
+          operation: 'CreateDBInstance',
+          region: 'cn-hangzhou',
+          dryRun: true,
+        }),
+      }),
+    }));
+    expect(prisma.resourceProvisioningRun.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'provisioning-run-1' },
+      data: expect.objectContaining({
+        credentialId: 'credential-1',
+        authAdapterKey: 'aliyun-access-key-credential-ref',
+      }),
+    }));
+    expect(prisma.resourceProvisioningRun.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'provisioning-run-1' },
+      data: expect.objectContaining({
+        status: 'planned',
+        result: {
+          provisioning: expect.objectContaining({
+            mode: 'provider',
+            status: 'planned',
+            boundary: 'provider_sdk_adapter',
+            provider: 'aliyun-rds',
+            operation: 'CreateDBInstance',
+            idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+            reason: 'provider_sdk_plan_ready',
+            plan: expect.objectContaining({
+              provider: 'aliyun-rds',
+              providerStateQuery: expect.objectContaining({
+                strategy: 'idempotency_key_or_external_id',
+                idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+              }),
+              request: expect.objectContaining({
+                specKeys: expect.arrayContaining(['database', 'region', 'password']),
+              }),
+            }),
+          }),
+        },
+      }),
+    }));
+    const provisioning = prisma.resourceRequest.update.mock.calls[1][0].data.result.provisioning;
+    expect(provisioning.credentialRef).toEqual(expect.objectContaining({
+      referenceId: 'credential-1',
+      redacted: true,
+    }));
+    expect(JSON.stringify(provisioning)).not.toContain('request-secret');
+    expect(auditActions(prisma)).toEqual(expect.arrayContaining(['request.approved', 'provisioning.planned']));
+  });
+
+  it('completes provider SDK provisioning from an existing provider state without persisting secrets', async () => {
+    const { prisma, service } = createService();
+    const existing = resourceRequest({
+      spec: { database: 'provider_dev' },
+      resourceType: { provisioningMode: 'provider' },
+    });
+    const approved = { ...existing, status: 'approved' };
+    const completed = {
+      ...approved,
+      status: 'completed',
+      result: { provisioning: { mode: 'provider', status: 'completed' } },
+      instance: { id: 'instance-1', name: 'provider_dev', status: 'active' },
+    };
+
+    prisma.resourceRequest.findFirst.mockResolvedValue(existing);
+    prisma.resourceRequest.update
+      .mockResolvedValueOnce(approved)
+      .mockResolvedValueOnce(completed);
+    prisma.resourceType.findUnique.mockResolvedValue(resourceType({
+      provisioningMode: 'provider',
+      provisioningConfig: {
+        provider: 'aliyun-rds',
+        operation: 'CreateDBInstance',
+        credentialId: 'credential-1',
+        providerState: {
+          status: 'available',
+          providerRunId: 'aliyun-provider-run-1',
+          resourceName: 'provider_dev',
+          secretToken: 'raw-secret-token',
+          delivery: {
+            host: 'rds.aliyun.example',
+            database: 'provider_dev',
+            username: 'app_user',
+            password: 'super-secret',
+          },
+          config: { engine: 'mysql' },
+        },
+      },
+    }));
+    prisma.teamCredential.findFirst.mockResolvedValue({
+      id: 'credential-1',
+      name: 'Aliyun AK',
+      type: 'aliyun-access-key',
+    });
+    prisma.resourceInstance.create.mockResolvedValue({
+      id: 'instance-1',
+      name: 'provider_dev',
+      status: 'active',
+      credentials: 'encrypted',
+    });
+
+    const result = await service.reviewRequest('team-1', 'admin-1', 'request-1', { status: 'approved' });
+
+    expect(result.status).toBe('completed');
+    expect(prisma.resourceInstance.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        name: 'provider_dev',
+        config: expect.objectContaining({
+          provisioningMode: 'provider',
+          adapter: 'provider',
+          provider: 'aliyun-rds',
+          operation: 'CreateDBInstance',
+          providerRunId: 'aliyun-provider-run-1',
+        }),
+        delivery: expect.objectContaining({
+          host: 'rds.aliyun.example',
+          database: 'provider_dev',
+          username: 'app_user',
+        }),
+        credentials: expect.any(String),
+      }),
+    }));
+    const instanceCreate = prisma.resourceInstance.create.mock.calls[0][0].data;
+    expect(instanceCreate.delivery).not.toHaveProperty('password');
+    expect(prisma.resourceProvisioningRun.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'provisioning-run-1' },
+      data: expect.objectContaining({
+        status: 'completed',
+        providerRunId: 'aliyun-provider-run-1',
+        result: {
+          provisioning: expect.objectContaining({
+            status: 'completed',
+            providerStateStatus: 'available',
+            recoveredFromProviderState: true,
+            providerState: expect.objectContaining({
+              secretToken: 'redacted',
+            }),
+          }),
+        },
+      }),
+    }));
+    const completion = prisma.resourceRequest.update.mock.calls[1][0].data;
+    expect(completion.result.provisioning).toEqual(expect.objectContaining({
+      mode: 'provider',
+      status: 'completed',
+      boundary: 'provider_sdk_adapter',
+      providerRunId: 'aliyun-provider-run-1',
+      providerStateStatus: 'available',
+      recoveredFromProviderState: true,
+    }));
+    expect(JSON.stringify(completion.result)).not.toContain('raw-secret-token');
+    expect(JSON.stringify(completion.result)).not.toContain('super-secret');
+    expect(auditActions(prisma)).toEqual(expect.arrayContaining(['request.approved', 'request.completed']));
+  });
+
+  it('reconciles the current provider run from providerState and completes the request', async () => {
+    const { prisma, service } = createService();
+    const existing = resourceRequest({
+      status: 'approved',
+      spec: { database: 'reconcile_dev' },
+      result: {
+        provisioning: {
+          mode: 'provider',
+          status: 'planned',
+          boundary: 'provider_sdk_adapter',
+          provisioningRunId: 'provider-run-1',
+          idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+          credentialRef: {
+            source: 'team_credential',
+            referenceId: 'credential-1',
+            credentialType: 'aliyun-access-key',
+            authAdapterKey: 'aliyun-access-key-credential-ref',
+            redacted: true,
+          },
+        },
+      },
+      resourceType: { provisioningMode: 'provider' },
+    });
+    const completed = {
+      ...existing,
+      status: 'completed',
+      result: { provisioning: { mode: 'provider', status: 'completed' } },
+      instance: { id: 'instance-1', name: 'reconcile_dev', status: 'active' },
+    };
+
+    prisma.resourceRequest.findFirst.mockResolvedValue(existing);
+    prisma.resourceProvisioningRun.findFirst.mockResolvedValue({
+      id: 'provider-run-1',
+      teamId: 'team-1',
+      requestId: 'request-1',
+      resourceTypeId: 'type-mysql',
+      mode: 'provider',
+      status: 'planned',
+      boundary: 'provider_sdk_adapter',
+      executorKey: 'cloud-sdk',
+      adapterKey: 'aliyun-rds-sdk',
+      authAdapterKey: 'aliyun-access-key-credential-ref',
+      credentialId: 'credential-1',
+      idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+      params: {
+        provider: 'aliyun-rds',
+        operation: 'CreateDBInstance',
+        region: 'cn-hangzhou',
+      },
+    });
+    prisma.resourceType.findUnique.mockResolvedValue(resourceType({
+      provisioningMode: 'provider',
+      provisioningConfig: {
+        provider: 'aliyun-rds',
+        operation: 'CreateDBInstance',
+      },
+    }));
+    prisma.resourceInstance.create.mockResolvedValue({
+      id: 'instance-1',
+      name: 'reconcile_dev',
+      status: 'active',
+      credentials: 'encrypted',
+    });
+    prisma.resourceRequest.update.mockResolvedValueOnce(completed);
+
+    const result = await service.reconcileProviderProvisioningRun(
+      'team-1',
+      'admin-1',
+      'request-1',
+      'provider-run-1',
+      {
+        providerState: {
+          status: 'available',
+          providerRunId: 'provider-state-run-1',
+          resourceName: 'reconcile_dev',
+          secretToken: 'raw-provider-secret',
+          delivery: {
+            host: 'rds.aliyun.example',
+            database: 'reconcile_dev',
+            username: 'app_user',
+            password: 'super-secret',
+          },
+          config: { engine: 'mysql' },
+        },
+      },
+    );
+
+    expect(result.status).toBe('completed');
+    expect(prisma.resourceInstance.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        name: 'reconcile_dev',
+        config: expect.objectContaining({
+          provisioningMode: 'provider',
+          providerRunId: 'provider-state-run-1',
+        }),
+        delivery: expect.objectContaining({
+          host: 'rds.aliyun.example',
+          database: 'reconcile_dev',
+          username: 'app_user',
+        }),
+        credentials: expect.any(String),
+      }),
+    }));
+    const instanceCreate = prisma.resourceInstance.create.mock.calls[0][0].data;
+    expect(instanceCreate.delivery).not.toHaveProperty('password');
+    expect(prisma.resourceProvisioningRun.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'provider-run-1' },
+      data: expect.objectContaining({
+        status: 'completed',
+        providerRunId: 'provider-state-run-1',
+        result: {
+          provisioning: expect.objectContaining({
+            status: 'completed',
+            providerRunId: 'provider-state-run-1',
+            providerStateStatus: 'available',
+            providerState: expect.objectContaining({
+              secretToken: 'redacted',
+            }),
+            reconciledBy: 'admin-1',
+            recoveredFromProviderState: true,
+          }),
+        },
+      }),
+    }));
+    const completion = prisma.resourceRequest.update.mock.calls[0][0].data;
+    expect(completion.result.provisioning).toEqual(expect.objectContaining({
+      status: 'completed',
+      providerRunId: 'provider-state-run-1',
+      providerStateStatus: 'available',
+      reconciledBy: 'admin-1',
+    }));
+    expect(JSON.stringify(completion.result)).not.toContain('raw-provider-secret');
+    expect(JSON.stringify(completion.result)).not.toContain('super-secret');
+    expect(auditActions(prisma)).toEqual(expect.arrayContaining([
+      'provisioning.provider_state_reconciled',
+      'request.completed',
+    ]));
+  });
+
+  it('reconciles pending providerState without creating an instance', async () => {
+    const { prisma, service } = createService();
+    const existing = resourceRequest({
+      status: 'approved',
+      result: {
+        provisioning: {
+          mode: 'provider',
+          status: 'planned',
+          provisioningRunId: 'provider-run-1',
+        },
+      },
+      resourceType: { provisioningMode: 'provider' },
+    });
+    const planned = {
+      ...existing,
+      result: { provisioning: { mode: 'provider', status: 'planned', reason: 'provider_state_pending' } },
+    };
+
+    prisma.resourceRequest.findFirst.mockResolvedValue(existing);
+    prisma.resourceProvisioningRun.findFirst.mockResolvedValue({
+      id: 'provider-run-1',
+      teamId: 'team-1',
+      requestId: 'request-1',
+      resourceTypeId: 'type-mysql',
+      mode: 'provider',
+      status: 'planned',
+      boundary: 'provider_sdk_adapter',
+      executorKey: 'cloud-sdk',
+      adapterKey: 'aliyun-rds-sdk',
+      idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+      params: {
+        provider: 'aliyun-rds',
+        operation: 'CreateDBInstance',
+      },
+    });
+    prisma.resourceType.findUnique.mockResolvedValue(resourceType({
+      provisioningMode: 'provider',
+      provisioningConfig: { provider: 'aliyun-rds' },
+    }));
+    prisma.resourceRequest.update.mockResolvedValueOnce(planned);
+
+    const result = await service.reconcileProviderProvisioningRun(
+      'team-1',
+      'admin-1',
+      'request-1',
+      'provider-run-1',
+      { providerState: { status: 'creating', providerRunId: 'provider-state-run-1' } },
+    );
+
+    expect(result).toEqual(planned);
+    expect(prisma.resourceInstance.create).not.toHaveBeenCalled();
+    expect(prisma.resourceProvisioningRun.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'provider-run-1' },
+      data: expect.objectContaining({
+        status: 'planned',
+        providerRunId: 'provider-state-run-1',
+        result: {
+          provisioning: expect.objectContaining({
+            status: 'planned',
+            providerStateStatus: 'creating',
+            reason: 'provider_state_pending',
+            requiresManualCompletion: true,
+          }),
+        },
+      }),
+    }));
+    expect(auditActions(prisma)).toEqual(expect.arrayContaining([
+      'provisioning.provider_state_reconciled',
+      'provisioning.planned',
+    ]));
+  });
+
+  it('rejects providerState reconciliation when the run is no longer current', async () => {
+    const { prisma, service } = createService();
+    const existing = resourceRequest({
+      status: 'approved',
+      result: {
+        provisioning: {
+          mode: 'provider',
+          status: 'planned',
+          provisioningRunId: 'newer-run-1',
+        },
+      },
+      resourceType: { provisioningMode: 'provider' },
+    });
+
+    prisma.resourceRequest.findFirst.mockResolvedValue(existing);
+    prisma.resourceProvisioningRun.findFirst.mockResolvedValue({
+      id: 'provider-run-1',
+      teamId: 'team-1',
+      requestId: 'request-1',
+      mode: 'provider',
+      status: 'planned',
+    });
+
+    await expect(service.reconcileProviderProvisioningRun(
+      'team-1',
+      'admin-1',
+      'request-1',
+      'provider-run-1',
+      { providerState: { status: 'available' } },
+    ))
+      .rejects
+      .toThrow('只能对账当前资源申请正在指向的 provider 交付运行');
+    expect(prisma.resourceType.findUnique).not.toHaveBeenCalled();
+    expect(prisma.resourceRequest.update).not.toHaveBeenCalled();
+    expect(auditActions(prisma)).toEqual([]);
+  });
+
   it('completes api provisioning with redacted TeamCredential ref and idempotency headers', async () => {
     const { prisma, service } = createService({ httpEnabled: true });
     const previousFetch = (globalThis as { fetch?: unknown }).fetch;
@@ -337,6 +788,188 @@ describe('ResourceRequestService provisioning processors', () => {
       );
       expect(completionAudit?.[0].data.provisioningRunId).toBe('provisioning-run-1');
       expect(auditActions(prisma)).toEqual(expect.arrayContaining(['request.approved', 'request.completed']));
+    } finally {
+      (globalThis as { fetch?: unknown }).fetch = previousFetch;
+    }
+  });
+
+  it('queues approved API provisioning when queue mode is enabled', async () => {
+    const { prisma, service } = createService({ httpEnabled: true });
+    const previousFetch = (globalThis as { fetch?: unknown }).fetch;
+    const fetchMock = jest.fn();
+    (globalThis as { fetch?: unknown }).fetch = fetchMock;
+
+    try {
+      const existing = resourceRequest({
+        spec: { database: 'queued_dev' },
+        resourceType: { provisioningMode: 'api' },
+      });
+      const approved = { ...existing, status: 'approved' };
+      const queued = {
+        ...approved,
+        result: {
+          provisioning: {
+            mode: 'api',
+            status: 'queued',
+            provisioningRunId: 'queued-run-1',
+          },
+        },
+      };
+      const queuedAt = new Date('2026-06-29T10:00:00.000Z');
+      const availableAt = new Date('2026-06-29T10:00:30.000Z');
+
+      prisma.resourceRequest.findFirst.mockResolvedValue(existing);
+      prisma.resourceRequest.update
+        .mockResolvedValueOnce(approved)
+        .mockResolvedValueOnce(queued);
+      prisma.resourceType.findUnique.mockResolvedValue(resourceType({
+        provisioningMode: 'api',
+        provisioningConfig: {
+          url: 'https://provision.example/api',
+          queue: { enabled: true, delaySeconds: 30 },
+        },
+      }));
+      prisma.resourceProvisioningRun.create.mockResolvedValueOnce({
+        id: 'queued-run-1',
+        replayOfRunId: null,
+        queuedAt,
+        availableAt,
+        autoRetry: false,
+        maxAttempts: 1,
+      });
+
+      const result = await service.reviewRequest('team-1', 'admin-1', 'request-1', { status: 'approved' });
+
+      expect(result).toEqual(queued);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(prisma.resourceProvisioningRun.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          teamId: 'team-1',
+          actorId: 'admin-1',
+          requestId: 'request-1',
+          status: 'queued',
+          queueMode: 'queued',
+          queuedAt: expect.any(Date),
+          availableAt: expect.any(Date),
+          params: expect.objectContaining({
+            queueMode: 'queued',
+            queueDelaySeconds: 30,
+          }),
+        }),
+      }));
+      const provisioning = prisma.resourceRequest.update.mock.calls[1][0].data.result.provisioning;
+      expect(provisioning).toEqual(expect.objectContaining({
+        status: 'queued',
+        boundary: 'http_adapter',
+        provisioningRunId: 'queued-run-1',
+        queueMode: 'queued',
+        queueDelaySeconds: 30,
+        reason: 'http_dispatch_queued',
+      }));
+      expect(auditActions(prisma)).toEqual(expect.arrayContaining(['request.approved', 'provisioning.queued']));
+    } finally {
+      (globalThis as { fetch?: unknown }).fetch = previousFetch;
+    }
+  });
+
+  it('processes the next queued API provisioning run through the existing run record', async () => {
+    const { prisma, service } = createService({ httpEnabled: true });
+    const previousFetch = (globalThis as { fetch?: unknown }).fetch;
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: jest.fn().mockReturnValue('application/json') },
+      json: jest.fn().mockResolvedValue({
+        providerRunId: 'queued-provider-run-1',
+        delivery: { host: 'mysql.internal', database: 'queued_dev', username: 'app_user' },
+      }),
+      text: jest.fn(),
+    });
+    (globalThis as { fetch?: unknown }).fetch = fetchMock;
+
+    try {
+      const approved = resourceRequest({
+        status: 'approved',
+        spec: { database: 'queued_dev' },
+        result: {
+          provisioning: {
+            mode: 'api',
+            status: 'queued',
+            provisioningRunId: 'queued-run-1',
+            idempotencyKey: 'resource-request:request-1:type-mysql:mysql:api',
+          },
+        },
+        resourceType: { provisioningMode: 'api' },
+      });
+      const queuedRun = {
+        id: 'queued-run-1',
+        teamId: 'team-1',
+        actorId: 'admin-1',
+        requestId: 'request-1',
+        resourceTypeId: 'type-mysql',
+        mode: 'api',
+        trigger: 'approval',
+        boundary: 'http_adapter',
+        executorKey: 'resource-request',
+        adapterKey: 'api',
+        idempotencyKey: 'resource-request:request-1:type-mysql:mysql:api',
+        status: 'queued',
+        queueMode: 'queued',
+        attempt: 0,
+        maxAttempts: 1,
+        autoRetry: false,
+        queuedAt: new Date('2026-06-29T10:00:00.000Z'),
+        availableAt: new Date('2026-06-29T10:00:00.000Z'),
+        request: approved,
+        resourceType: { id: 'type-mysql', key: 'mysql', name: 'MySQL' },
+        _count: { replayAttempts: 0 },
+      };
+      const completed = {
+        ...approved,
+        status: 'completed',
+        result: { provisioning: { mode: 'api', status: 'completed' } },
+        instance: { id: 'instance-1', name: 'queued_dev', status: 'active' },
+      };
+
+      prisma.resourceProvisioningRun.findFirst
+        .mockResolvedValueOnce(queuedRun)
+        .mockResolvedValueOnce({ ...queuedRun, status: 'running' });
+      prisma.resourceType.findUnique.mockResolvedValue(resourceType({
+        provisioningMode: 'api',
+        provisioningConfig: {
+          url: 'https://provision.example/api',
+          queue: { enabled: true },
+        },
+      }));
+      prisma.resourceInstance.create.mockResolvedValue({ id: 'instance-1', name: 'queued_dev', status: 'active' });
+      prisma.resourceRequest.update.mockResolvedValueOnce(completed);
+
+      const summary = await service.processNextQueuedProvisioningRun(undefined, undefined, {});
+
+      expect(summary).toEqual(expect.objectContaining({
+        scanned: 1,
+        processed: 1,
+        skipped: 0,
+        failed: 0,
+      }));
+      expect(fetchMock).toHaveBeenCalledWith('https://provision.example/api', expect.objectContaining({
+        method: 'POST',
+      }));
+      expect(prisma.resourceProvisioningRun.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ id: 'queued-run-1', status: 'queued', queueMode: 'queued' }),
+        data: expect.objectContaining({ status: 'running', lockOwner: 'resource-request-queue-worker' }),
+      }));
+      expect(prisma.resourceProvisioningRun.create).not.toHaveBeenCalled();
+      expect(prisma.resourceProvisioningRun.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'queued-run-1' },
+        data: expect.objectContaining({
+          status: 'completed',
+          providerRunId: 'queued-provider-run-1',
+          lockedAt: null,
+          lockOwner: null,
+        }),
+      }));
+      expect(auditActions(prisma)).toEqual(expect.arrayContaining(['request.completed']));
     } finally {
       (globalThis as { fetch?: unknown }).fetch = previousFetch;
     }
@@ -906,6 +1539,73 @@ describe('ResourceRequestService provisioning processors', () => {
     }
   });
 
+  it('replays the current provider SDK provisioning run through the same run ledger contract', async () => {
+    const { prisma, service } = createService();
+    const existing = resourceRequest({
+      status: 'approved',
+      result: {
+        provisioning: {
+          mode: 'provider',
+          status: 'planned',
+          boundary: 'provider_sdk_adapter',
+          provisioningRunId: 'source-run-1',
+          idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+        },
+      },
+      resourceType: { provisioningMode: 'provider' },
+    });
+    const planned = {
+      ...existing,
+      result: {
+        provisioning: {
+          mode: 'provider',
+          status: 'planned',
+          provisioningRunId: 'provisioning-run-1',
+          replayOfRunId: 'source-run-1',
+        },
+      },
+    };
+
+    prisma.resourceRequest.findFirst.mockResolvedValue(existing);
+    prisma.resourceProvisioningRun.findFirst.mockResolvedValue({
+      id: 'source-run-1',
+      teamId: 'team-1',
+      requestId: 'request-1',
+      mode: 'provider',
+      status: 'planned',
+    });
+    prisma.resourceType.findUnique.mockResolvedValue(resourceType({
+      provisioningMode: 'provider',
+      provisioningConfig: {
+        provider: 'aliyun-rds',
+        operation: 'CreateDBInstance',
+        dryRun: true,
+      },
+    }));
+    prisma.resourceRequest.update.mockResolvedValueOnce(planned);
+
+    const result = await service.replayProvisioningRun('team-1', 'admin-1', 'request-1', 'source-run-1');
+
+    expect(result).toEqual(planned);
+    expect(prisma.resourceProvisioningRun.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        replayOfRunId: 'source-run-1',
+        requestId: 'request-1',
+        mode: 'provider',
+        boundary: 'provider_sdk_adapter',
+        trigger: 'manual_retry',
+      }),
+    }));
+    const replayAudit = prisma.resourceAuditLog.create.mock.calls.find(
+      (call) => call[0].data.action === 'provisioning.run_replay_requested',
+    );
+    expect(replayAudit?.[0].data.metadata).toEqual(expect.objectContaining({
+      mode: 'provider',
+      replayOfRunId: 'source-run-1',
+      replaySourceStatus: 'planned',
+    }));
+  });
+
   it('rejects replaying a provisioning run that is no longer current for the request', async () => {
     const { prisma, service } = createService();
     const existing = resourceRequest({
@@ -1096,6 +1796,7 @@ describe('ResourceRequestService provisioning processors', () => {
     const finishedAt = new Date('2026-06-29T09:05:00.000Z');
 
     prisma.resourceProvisioningRun.count
+      .mockResolvedValueOnce(7)
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(2)
       .mockResolvedValueOnce(1)
@@ -1103,6 +1804,26 @@ describe('ResourceRequestService provisioning processors', () => {
       .mockResolvedValueOnce(5)
       .mockResolvedValueOnce(6);
     prisma.resourceProvisioningRun.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'queued-run-1',
+          requestId: 'request-1',
+          resourceTypeId: 'type-mysql',
+          mode: 'api',
+          trigger: 'approval',
+          boundary: 'http_adapter',
+          executorKey: 'resource-request',
+          adapterKey: 'api',
+          idempotencyKey: 'resource-request:request-1:type-mysql:mysql:api',
+          status: 'queued',
+          queueMode: 'queued',
+          queuedAt: startedAt,
+          availableAt: startedAt,
+          actor: { id: 'admin-1', name: 'Admin', email: 'admin@example.com' },
+          resourceType: { id: 'type-mysql', key: 'mysql', name: 'MySQL' },
+          _count: { replayAttempts: 0 },
+        },
+      ])
       .mockResolvedValueOnce([
         {
           id: 'stale-run-1',
@@ -1151,9 +1872,12 @@ describe('ResourceRequestService provisioning processors', () => {
       scheduler: {
         autoRetryEnabled: true,
         staleRecoveryEnabled: true,
+        queueingEnabled: false,
+        queueWorkerEnabled: false,
         intervalSeconds: 45,
       },
       counts: {
+        queued: 7,
         running: 3,
         staleRunning: 2,
         planned: 1,
@@ -1162,7 +1886,7 @@ describe('ResourceRequestService provisioning processors', () => {
         completed: 6,
       },
     }));
-    expect(prisma.resourceProvisioningRun.count).toHaveBeenNthCalledWith(2, {
+    expect(prisma.resourceProvisioningRun.count).toHaveBeenNthCalledWith(3, {
       where: {
         teamId: 'team-1',
         status: 'running',
@@ -1173,10 +1897,20 @@ describe('ResourceRequestService provisioning processors', () => {
     expect(prisma.resourceProvisioningRun.findMany).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: expect.objectContaining({
         teamId: 'team-1',
+        status: 'queued',
+      }),
+      take: 2,
+    }));
+    expect(prisma.resourceProvisioningRun.findMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: expect.objectContaining({
+        teamId: 'team-1',
         status: 'running',
       }),
       take: 2,
     }));
+    expect(result.samples.queued).toEqual([
+      expect.objectContaining({ id: 'queued-run-1', status: 'queued' }),
+    ]);
     expect(result.samples.staleRunning).toEqual([
       expect.objectContaining({ id: 'stale-run-1', status: 'running' }),
     ]);

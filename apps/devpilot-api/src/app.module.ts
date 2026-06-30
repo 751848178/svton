@@ -4,6 +4,7 @@ import { LoggerModule } from '@svton/nestjs-logger';
 import { RedisModule } from '@svton/nestjs-redis';
 import { CacheModule } from '@svton/nestjs-cache';
 import { AuthzModule } from '@svton/nestjs-authz';
+import { HttpModule } from '@svton/nestjs-http';
 import { HealthController } from './health.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { PrismaService } from './prisma/prisma.service';
@@ -87,6 +88,18 @@ import { useAuthzConfig } from './authz.config';
       imports: [PrismaModule],
       inject: [PrismaService],
       useFactory: (prisma: PrismaService) => useAuthzConfig(prisma),
+    }),
+
+    // 统一 HTTP 响应：成功响应封装为 { code, message, data, timestamp }
+    // 排除二进制下载（StreamableFile）与 SSE 流式响应，避免被 JSON 信封破坏。
+    HttpModule.forRoot({
+      successCode: 0,
+      successMessage: 'success',
+      excludePaths: [
+        /^\/api\/projects\/generate$/, // 项目生成 ZIP（StreamableFile，application/zip）
+        /^\/api\/projects\/[^/]+\/download$/, // 项目产物下载（StreamableFile）
+        /^\/api\/logs\/streams\/[^/]+\/(events|tail)$/, // 日志 SSE 实时推送（text/event-stream）
+      ],
     }),
 
     // 认证模块

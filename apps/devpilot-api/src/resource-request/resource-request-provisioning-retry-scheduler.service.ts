@@ -6,6 +6,7 @@ type ScheduledResourceRequestProvisioningRetrySummary = {
   skipped: boolean;
   retryEnabled: boolean;
   staleRecoveryEnabled: boolean;
+  queueWorkerEnabled: boolean;
   scanned: number;
   attempted: number;
   completed: number;
@@ -17,6 +18,10 @@ type ScheduledResourceRequestProvisioningRetrySummary = {
   staleRequestUpdated: number;
   staleSkipped: number;
   staleFailed: number;
+  queueScanned: number;
+  queueProcessed: number;
+  queueSkipped: number;
+  queueFailed: number;
 };
 
 @Injectable()
@@ -31,7 +36,7 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
   ) {}
 
   onModuleInit() {
-    if (!this.retrySchedulerEnabled() && !this.staleRecoveryEnabled()) {
+    if (!this.retrySchedulerEnabled() && !this.staleRecoveryEnabled() && !this.queueWorkerEnabled()) {
       return;
     }
 
@@ -51,12 +56,13 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
   async runOnce(): Promise<ScheduledResourceRequestProvisioningRetrySummary> {
     const retryEnabled = this.retrySchedulerEnabled();
     const staleRecoveryEnabled = this.staleRecoveryEnabled();
-    if (!retryEnabled && !staleRecoveryEnabled) {
-      return this.emptySummary(false, retryEnabled, staleRecoveryEnabled);
+    const queueWorkerEnabled = this.queueWorkerEnabled();
+    if (!retryEnabled && !staleRecoveryEnabled && !queueWorkerEnabled) {
+      return this.emptySummary(false, retryEnabled, staleRecoveryEnabled, queueWorkerEnabled);
     }
 
     if (this.running) {
-      return this.emptySummary(true, retryEnabled, staleRecoveryEnabled);
+      return this.emptySummary(true, retryEnabled, staleRecoveryEnabled, queueWorkerEnabled);
     }
 
     this.running = true;
@@ -72,11 +78,15 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
           staleAfterSeconds: this.staleRecoveryAfterSeconds(),
         })
         : { scanned: 0, recovered: 0, requestUpdated: 0, skipped: 0, failed: 0 };
+      const queueSummary = queueWorkerEnabled
+        ? await this.processQueuedRuns()
+        : { scanned: 0, processed: 0, skipped: 0, failed: 0 };
 
       return {
         skipped: false,
         retryEnabled,
         staleRecoveryEnabled,
+        queueWorkerEnabled,
         scanned: retrySummary.scanned,
         attempted: retrySummary.attempted,
         completed: retrySummary.completed,
@@ -88,21 +98,51 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
         staleRequestUpdated: staleSummary.requestUpdated,
         staleSkipped: staleSummary.skipped,
         staleFailed: staleSummary.failed,
+        queueScanned: queueSummary.scanned,
+        queueProcessed: queueSummary.processed,
+        queueSkipped: queueSummary.skipped,
+        queueFailed: queueSummary.failed,
       };
     } finally {
       this.running = false;
     }
   }
 
+  private async processQueuedRuns() {
+    const limit = this.queueWorkerBatchSize();
+    const summary = {
+      scanned: 0,
+      processed: 0,
+      skipped: 0,
+      failed: 0,
+    };
+
+    for (let index = 0; index < limit; index += 1) {
+      const result = await this.resourceRequestService.processNextQueuedProvisioningRun(undefined, undefined, {});
+      summary.scanned += result.scanned;
+      summary.processed += result.processed;
+      summary.skipped += result.skipped;
+      summary.failed += result.failed;
+
+      if (result.scanned === 0 || result.reason === 'queue_empty') {
+        break;
+      }
+    }
+
+    return summary;
+  }
+
   private emptySummary(
     skipped: boolean,
     retryEnabled: boolean,
     staleRecoveryEnabled: boolean,
+    queueWorkerEnabled: boolean,
   ): ScheduledResourceRequestProvisioningRetrySummary {
     return {
       skipped,
       retryEnabled,
       staleRecoveryEnabled,
+      queueWorkerEnabled,
       scanned: 0,
       attempted: 0,
       completed: 0,
@@ -114,6 +154,10 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
       staleRequestUpdated: 0,
       staleSkipped: 0,
       staleFailed: 0,
+      queueScanned: 0,
+      queueProcessed: 0,
+      queueSkipped: 0,
+      queueFailed: 0,
     };
   }
 
@@ -123,6 +167,10 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
 
   private staleRecoveryEnabled() {
     return this.configService.get('RESOURCE_REQUEST_PROVISIONING_RUN_STALE_RECOVERY_ENABLED', 'false') === 'true';
+  }
+
+  private queueWorkerEnabled() {
+    return this.configService.get('RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_ENABLED', 'false') === 'true';
   }
 
   private schedulerIntervalMs() {
@@ -138,6 +186,11 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
 
   private staleRecoveryBatchSize() {
     const size = Number(this.configService.get('RESOURCE_REQUEST_PROVISIONING_RUN_STALE_RECOVERY_BATCH_SIZE', '10'));
+    return Number.isFinite(size) && size > 0 ? Math.min(Math.floor(size), 100) : 10;
+  }
+
+  private queueWorkerBatchSize() {
+    const size = Number(this.configService.get('RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_BATCH_SIZE', '10'));
     return Number.isFinite(size) && size > 0 ? Math.min(Math.floor(size), 100) : 10;
   }
 

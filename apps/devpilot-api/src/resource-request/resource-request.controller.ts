@@ -23,6 +23,7 @@ import {
   ListResourceRequestsQueryDto,
   ProcessQueuedResourceProvisioningRunDto,
   RecoverStaleResourceProvisioningRunsDto,
+  ReconcileProviderResourceProvisioningRunDto,
   ResourceProvisioningRunSupervisorQueryDto,
   ReviewResourceRequestDto,
   UpdateResourceTypeDto,
@@ -194,6 +195,25 @@ export class ResourceRequestsController {
       'medium',
     );
     return this.resourceRequestService.replayProvisioningRun(req.teamId, req.user.id, id, runId);
+  }
+
+  @Post(':id/provisioning-runs/:runId/reconcile-provider-state')
+  async reconcileProviderProvisioningRun(
+    @Request() req: AuthRequest,
+    @Param('id') id: string,
+    @Param('runId') runId: string,
+    @Body() dto: ReconcileProviderResourceProvisioningRunDto,
+  ) {
+    const scope = await this.resourceRequestService.getRequestAccessScope(req.teamId, id);
+    await this.assertCanWriteRequest(
+      req,
+      'resource_request.provisioning_run.reconcile_provider_state',
+      id,
+      scope.projectId,
+      scope.environmentId,
+      'high',
+    );
+    return this.resourceRequestService.reconcileProviderProvisioningRun(req.teamId, req.user.id, id, runId, dto);
   }
 
   @Get(':id')

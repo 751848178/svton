@@ -26,13 +26,15 @@ import {
   ListResourceRequestsQueryDto,
   ProcessQueuedResourceProvisioningRunDto,
   RecoverStaleResourceProvisioningRunsDto,
+  ReconcileProviderResourceProvisioningRunDto,
   ResourceProvisioningRunSupervisorQueryDto,
   ReviewResourceRequestDto,
   UpdateResourceTypeDto,
 } from './dto/resource-request.dto';
 
 type PrismaAny = any;
-type ProvisioningMode = 'manual' | 'pool' | 'webhook' | 'api' | 'script' | 'credential_only';
+type ProvisioningMode = 'manual' | 'pool' | 'webhook' | 'api' | 'script' | 'credential_only' | 'provider';
+type ExternalProvisioningRunMode = Extract<ProvisioningMode, 'webhook' | 'api' | 'provider'>;
 type JsonRecord = Record<string, unknown>;
 type HttpProvisioningResponse = {
   ok: boolean;
@@ -967,8 +969,8 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     const mode = this.normalizeProvisioningMode(run.mode);
-    if (mode !== 'api' && mode !== 'webhook') {
-      throw new BadRequestException('只有 HTTP 外部交付运行可以重放');
+    if (!this.isReplayableExternalProvisioningMode(mode)) {
+      throw new BadRequestException('只有外部交付运行可以重放');
     }
 
     const runStatus = this.readString(run.status);
@@ -987,6 +989,194 @@ export class ResourceRequestService implements OnModuleInit {
       replayOfRunId: run.id,
       replaySourceStatus: runStatus,
     });
+  }
+
+  async reconcileProviderProvisioningRun(
+    teamId: string,
+    userId: string,
+    requestId: string,
+    runId: string,
+    dto: ReconcileProviderResourceProvisioningRunDto,
+  ) {
+    const existing = await this.getRequest(teamId, requestId);
+    const run = await (this.prisma as PrismaAny).resourceProvisioningRun.findFirst({
+      where: { id: runId, teamId, requestId },
+    });
+
+    if (!run) {
+      throw new NotFoundException('资源交付运行不存在');
+    }
+
+    const mode = this.normalizeProvisioningMode(run.mode);
+    if (mode !== 'provider') {
+      throw new BadRequestException('只有 provider SDK 交付运行可以对账 providerState');
+    }
+
+    if (existing.status !== 'approved') {
+      throw new BadRequestException('只有已审批且未交付的 provider 申请可以对账');
+    }
+
+    const currentProvisioning = this.asRecord(this.asRecord(existing.result).provisioning);
+    const currentRunId = this.readString(currentProvisioning.provisioningRunId);
+    if (currentRunId !== run.id) {
+      throw new BadRequestException('只能对账当前资源申请正在指向的 provider 交付运行');
+    }
+
+    const runStatus = this.readString(run.status);
+    if (!['planned', 'blocked', 'failed', 'running'].includes(runStatus)) {
+      throw new BadRequestException('只有已生成计划、已阻断、失败或运行中的 provider 交付运行可以对账');
+    }
+
+    const providerState = this.asRecord(dto.providerState);
+    if (!this.hasRecordValues(providerState)) {
+      throw new BadRequestException('providerState 不能为空');
+    }
+
+    const resourceType = await this.getProvisioningResourceType(existing.resourceTypeId as string);
+    const provisioningConfig = this.asRecord(resourceType.provisioningConfig);
+    const runParams = this.asRecord(run.params);
+    const provider = (
+      this.readString(providerState.provider)
+      || this.readString(runParams.provider)
+      || this.readString(provisioningConfig.provider)
+      || this.readString(provisioningConfig.providerKey)
+    );
+    const operation = (
+      this.readString(providerState.operation)
+      || this.readString(runParams.operation)
+      || this.readString(provisioningConfig.operation)
+      || this.readString(provisioningConfig.action)
+      || `provision.${resourceType.key}`
+    );
+    const region = (
+      this.readString(providerState.region)
+      || this.readString(runParams.region)
+      || this.readString(provisioningConfig.region)
+      || this.readString(this.asRecord(existing.spec).region)
+    );
+    const idempotencyKey = this.readString(run.idempotencyKey)
+      || this.buildProvisioningIdempotencyKey(existing, resourceType, 'provider', provisioningConfig);
+    const executorKey = this.readString(run.executorKey) || this.readString(provisioningConfig.executorKey) || 'cloud-sdk';
+    const adapterKey = this.readString(run.adapterKey) || this.resolveProviderAdapterKey(provider, provisioningConfig);
+    const providerStateStatus = this.readProviderStateStatus(providerState);
+    const providerStateSummary = this.redactSensitiveRecord(providerState);
+    const providerRunId = this.resolveProviderRunId(providerState, {
+      ...provisioningConfig,
+      ...runParams,
+    }, idempotencyKey);
+    const credentialRef = this.resolveRunCredentialRef(run, currentProvisioning);
+    const reconciledAt = new Date().toISOString();
+    const baseProvisioning = {
+      mode: 'provider',
+      boundary: 'provider_sdk_adapter',
+      provisioningRunId: run.id,
+      replayOfRunId: run.replayOfRunId || undefined,
+      provider: provider || undefined,
+      operation,
+      region: region || undefined,
+      executorKey,
+      adapterKey,
+      idempotencyKey,
+      credentialRef: credentialRef || undefined,
+      providerRunId,
+      providerStateStatus: providerStateStatus || undefined,
+      providerState: providerStateSummary,
+      reconciledAt,
+      reconciledBy: userId,
+    };
+
+    await this.writeAudit({
+      teamId,
+      actorId: userId,
+      resourceTypeId: existing.resourceTypeId as string,
+      requestId: existing.id as string,
+      provisioningRunId: run.id as string,
+      action: 'provisioning.provider_state_reconciled',
+      message: '对账 provider SDK 交付运行状态',
+      metadata: {
+        ...baseProvisioning,
+        previousStatus: runStatus,
+      },
+    });
+
+    if (this.providerStateIndicatesCompleted(providerState)) {
+      const deliverySource = this.resolveProviderProvisioningDeliverySource(providerState, provisioningConfig);
+      const split = this.splitDeliveryAndCredentials(deliverySource, resourceType.deliverySchema);
+      const adapterConfig = {
+        ...this.asRecord(this.asRecord(providerState).config),
+        ...this.asRecord(provisioningConfig.instanceConfig),
+      };
+      const createInstance = this.readBoolean(
+        dto.createInstance,
+        this.readBoolean(providerState.createInstance, this.readBoolean(provisioningConfig.createInstanceOnSuccess, true)),
+      );
+      const shouldCreateInstance = createInstance && (
+        this.hasRecordValues(split.delivery)
+        || this.hasRecordValues(split.credentials)
+        || this.hasRecordValues(adapterConfig)
+      );
+      const completedProvisioning = {
+        ...baseProvisioning,
+        status: 'completed',
+        deliveryKeys: Object.keys(split.delivery),
+        credentialKeys: Object.keys(split.credentials),
+        createInstance: shouldCreateInstance,
+        recoveredFromProviderState: true,
+        completedAt: reconciledAt,
+      };
+      const completion = await this.completeProvisionedRequest(teamId, userId, existing, {
+        createInstance: shouldCreateInstance,
+        instanceName: (
+          this.readString(dto.instanceName)
+          || this.readString(providerState.instanceName)
+          || this.readString(providerState.resourceName)
+          || this.resolveRequestedResourceName(existing.spec)
+          || (existing.title as string)
+        ),
+        config: {
+          ...adapterConfig,
+          provisioningMode: 'provider',
+          adapter: 'provider',
+          provider: provider || undefined,
+          operation,
+          region: region || undefined,
+          providerRunId,
+          credentialRef: credentialRef || undefined,
+        },
+        delivery: split.delivery,
+        credentials: split.credentials,
+        provisioning: completedProvisioning,
+        auditMetadata: {
+          createInstance: shouldCreateInstance,
+          provisioningMode: 'provider',
+          boundary: 'provider_sdk_adapter',
+          provider: provider || undefined,
+          operation,
+          region: region || undefined,
+          idempotencyKey,
+          credentialRef: credentialRef || undefined,
+          providerRunId,
+          providerStateStatus: providerStateStatus || undefined,
+          provisioningRunId: run.id as string,
+          recoveredFromProviderState: true,
+          reconciledAt,
+        },
+      });
+
+      await this.finishProvisioningRun(run as ResourceProvisioningRunRecord, completedProvisioning);
+      return completion.request;
+    }
+
+    const failed = this.providerStateIndicatesFailed(providerState);
+    const status = failed ? 'blocked' : 'planned';
+    return this.markProvisioningStatusWithRun(teamId, userId, existing, {
+      ...baseProvisioning,
+      status,
+      reason: failed ? this.readProviderStateReason(providerState) : 'provider_state_pending',
+      retryable: false,
+      requiresManualCompletion: !failed,
+      updatedAt: reconciledAt,
+    }, run as ResourceProvisioningRunRecord);
   }
 
   async getProvisioningRunSupervisor(teamId: string, query: ResourceProvisioningRunSupervisorQueryDto = {}) {
@@ -1086,6 +1276,7 @@ export class ResourceRequestService implements OnModuleInit {
           this.configService.get('RESOURCE_REQUEST_PROVISIONING_RETRY_SCHEDULER_INTERVAL_SECONDS', '60'),
         ) || 60,
         queueingEnabled: this.httpProvisioningQueueEnabled(),
+        queueWorkerEnabled: this.configService.get('RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_ENABLED', 'false') === 'true',
       },
       counts,
       samples: {
@@ -1108,14 +1299,15 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async processNextQueuedProvisioningRun(
-    teamId: string,
-    userId: string,
+    teamId: string | undefined,
+    userId: string | undefined,
     dto: ProcessQueuedResourceProvisioningRunDto = {},
   ): Promise<ProvisioningQueueProcessSummary> {
     const now = new Date();
+    const lockOwner = userId || 'resource-request-queue-worker';
     const run = await (this.prisma as PrismaAny).resourceProvisioningRun.findFirst({
       where: {
-        teamId,
+        ...(teamId ? { teamId } : {}),
         status: 'queued',
         queueMode: 'queued',
         mode: { in: ['api', 'webhook'] },
@@ -1150,7 +1342,7 @@ export class ResourceRequestService implements OnModuleInit {
     const claim = await (this.prisma as PrismaAny).resourceProvisioningRun.updateMany({
       where: {
         id: run.id,
-        teamId,
+        ...(teamId ? { teamId } : {}),
         status: 'queued',
         queueMode: 'queued',
       },
@@ -1158,7 +1350,7 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'running',
         startedAt: now,
         lockedAt: now,
-        lockOwner: userId,
+        lockOwner,
       },
     });
 
@@ -1178,7 +1370,7 @@ export class ResourceRequestService implements OnModuleInit {
       status: 'running',
       startedAt: now,
       lockedAt: now,
-      lockOwner: userId,
+      lockOwner,
     } as ResourceProvisioningRunRecord;
     const request = this.asRecord(run.request);
     const currentProvisioning = this.asRecord(this.asRecord(request.result).provisioning);
@@ -1205,7 +1397,7 @@ export class ResourceRequestService implements OnModuleInit {
       };
       await this.finishProvisioningRun(claimedRun, skippedProvisioning);
       await this.writeAudit({
-        teamId,
+        teamId: run.teamId as string,
         actorId: userId,
         resourceTypeId: run.resourceTypeId as string,
         requestId: run.requestId as string,
@@ -1225,7 +1417,7 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     try {
-      const processed = await this.runApprovedProvisioningProcessor(teamId, userId, request, {
+      const processed = await this.runApprovedProvisioningProcessor(run.teamId as string, userId, request, {
         trigger: this.normalizeProvisioningProcessorTrigger(run.trigger),
         replayOfRunId: this.readString(run.replayOfRunId) || undefined,
         provisioningRunId: run.id as string,
@@ -1258,7 +1450,7 @@ export class ResourceRequestService implements OnModuleInit {
       };
       await this.finishProvisioningRun(claimedRun, failedProvisioning);
       await this.writeAudit({
-        teamId,
+        teamId: run.teamId as string,
         actorId: userId,
         resourceTypeId: run.resourceTypeId as string,
         requestId: run.requestId as string,
@@ -1591,7 +1783,7 @@ export class ResourceRequestService implements OnModuleInit {
 
   private async runApprovedProvisioningProcessor(
     teamId: string,
-    userId: string,
+    userId: string | undefined,
     request: JsonRecord,
     context: ProvisioningProcessorContext,
   ) {
@@ -1603,11 +1795,15 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     if (mode === 'pool') {
-      return this.provisionFromPool(teamId, userId, request, resourceType);
+      return this.provisionFromPool(teamId, userId as string, request, resourceType);
     }
 
     if (mode === 'script') {
-      return this.provisionWithScript(teamId, userId, request, resourceType);
+      return this.provisionWithScript(teamId, userId as string, request, resourceType);
+    }
+
+    if (mode === 'provider') {
+      return this.provisionWithProviderAdapter(teamId, userId, request, resourceType, context);
     }
 
     return this.provisionWithHttpAdapter(teamId, userId, request, resourceType, mode, context);
@@ -2126,20 +2322,245 @@ export class ResourceRequestService implements OnModuleInit {
     return completion.request;
   }
 
+  private async provisionWithProviderAdapter(
+    teamId: string,
+    userId: string | undefined,
+    request: JsonRecord,
+    resourceType: ProvisioningResourceType,
+    context: ProvisioningProcessorContext,
+  ) {
+    const provisioningConfig = this.asRecord(resourceType.provisioningConfig);
+    const provider = this.readString(provisioningConfig.provider) || this.readString(provisioningConfig.providerKey);
+    const operation = (
+      this.readString(provisioningConfig.operation)
+      || this.readString(provisioningConfig.action)
+      || `provision.${resourceType.key}`
+    );
+    const spec = this.asRecord(request.spec);
+    const region = this.readString(provisioningConfig.region) || this.readString(spec.region);
+    const idempotencyKey = this.buildProvisioningIdempotencyKey(request, resourceType, 'provider', provisioningConfig);
+    const maxAttempts = this.readProviderMaxAttempts(provisioningConfig);
+    const adapterKey = this.resolveProviderAdapterKey(provider, provisioningConfig);
+    const executorKey = this.readString(provisioningConfig.executorKey) || 'cloud-sdk';
+    const dryRun = this.readBoolean(provisioningConfig.dryRun, true);
+    const providerState = this.readProviderProvisioningState(provisioningConfig);
+    const providerStateStatus = this.readProviderStateStatus(providerState);
+    const providerStateSummary = this.redactSensitiveRecord(providerState);
+    const plan = this.buildProviderProvisioningPlan({
+      request,
+      resourceType,
+      provider,
+      operation,
+      region,
+      idempotencyKey,
+      executorKey,
+      adapterKey,
+      dryRun,
+      providerState,
+    });
+    const provisioningRun = await this.createProvisioningRun(
+      teamId,
+      userId,
+      request,
+      resourceType,
+      'provider',
+      context,
+      provisioningConfig,
+      {
+        method: operation,
+        idempotencyKey,
+        maxAttempts,
+        queue: { enabled: false, delaySeconds: 0 },
+        boundary: 'provider_sdk_adapter',
+        executorKey,
+        adapterKey,
+        params: {
+          provider: provider || undefined,
+          operation,
+          region: region || undefined,
+          dryRun,
+          providerStateStatus: providerStateStatus || undefined,
+          providerState: this.hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
+        },
+      },
+    );
+
+    if (!provider) {
+      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+        mode: 'provider',
+        status: 'blocked',
+        boundary: 'provider_sdk_adapter',
+        executorKey,
+        adapterKey,
+        operation,
+        idempotencyKey,
+        reason: 'missing_provider',
+        plan,
+        blockedAt: new Date().toISOString(),
+      }, provisioningRun);
+    }
+
+    let credentialRef: ProvisioningCredentialRef | null;
+    try {
+      credentialRef = await this.resolveProvisioningCredentialRef(teamId, provisioningConfig);
+    } catch (error) {
+      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+        mode: 'provider',
+        status: 'blocked',
+        boundary: 'provider_sdk_adapter',
+        provider,
+        operation,
+        region: region || undefined,
+        executorKey,
+        adapterKey,
+        idempotencyKey,
+        reason: this.errorMessage(error),
+        plan,
+        blockedAt: new Date().toISOString(),
+      }, provisioningRun);
+    }
+    await this.attachProvisioningRunCredentialRef(provisioningRun, credentialRef);
+
+    if (this.providerStateIndicatesCompleted(providerState)) {
+      const deliverySource = this.resolveProviderProvisioningDeliverySource(providerState, provisioningConfig);
+      const split = this.splitDeliveryAndCredentials(deliverySource, resourceType.deliverySchema);
+      const adapterConfig = {
+        ...this.asRecord(this.asRecord(providerState).config),
+        ...this.asRecord(provisioningConfig.instanceConfig),
+      };
+      const createInstance = this.readBoolean(
+        providerState.createInstance,
+        this.readBoolean(provisioningConfig.createInstanceOnSuccess, true),
+      );
+      const shouldCreateInstance = createInstance && (
+        this.hasRecordValues(split.delivery)
+        || this.hasRecordValues(split.credentials)
+        || this.hasRecordValues(adapterConfig)
+      );
+      const providerRunId = this.resolveProviderRunId(providerState, provisioningConfig, idempotencyKey);
+      const completedAt = new Date().toISOString();
+      const completedProvisioning = {
+        mode: 'provider',
+        status: 'completed',
+        boundary: 'provider_sdk_adapter',
+        provisioningRunId: provisioningRun.id,
+        replayOfRunId: context.replayOfRunId,
+        provider,
+        operation,
+        region: region || undefined,
+        executorKey,
+        adapterKey,
+        idempotencyKey,
+        credentialRef: credentialRef || undefined,
+        providerRunId,
+        providerStateStatus: providerStateStatus || undefined,
+        providerState: this.hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
+        deliveryKeys: Object.keys(split.delivery),
+        credentialKeys: Object.keys(split.credentials),
+        createInstance: shouldCreateInstance,
+        recoveredFromProviderState: true,
+        completedAt,
+      };
+      const completion = await this.completeProvisionedRequest(teamId, userId, request, {
+        createInstance: shouldCreateInstance,
+        instanceName: (
+          this.readString(providerState.instanceName)
+          || this.readString(providerState.resourceName)
+          || this.resolveRequestedResourceName(request.spec)
+          || (request.title as string)
+        ),
+        config: {
+          ...adapterConfig,
+          provisioningMode: 'provider',
+          adapter: 'provider',
+          provider,
+          operation,
+          region: region || undefined,
+          providerRunId,
+          credentialRef: credentialRef || undefined,
+        },
+        delivery: split.delivery,
+        credentials: split.credentials,
+        provisioning: completedProvisioning,
+        auditMetadata: {
+          createInstance: shouldCreateInstance,
+          provisioningMode: 'provider',
+          boundary: 'provider_sdk_adapter',
+          provider,
+          operation,
+          region: region || undefined,
+          idempotencyKey,
+          credentialRef: credentialRef || undefined,
+          providerRunId,
+          providerStateStatus: providerStateStatus || undefined,
+          provisioningRunId: provisioningRun.id,
+          recoveredFromProviderState: true,
+        },
+      });
+
+      await this.finishProvisioningRun(provisioningRun, completedProvisioning);
+      return completion.request;
+    }
+
+    if (dryRun) {
+      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+        mode: 'provider',
+        status: 'planned',
+        boundary: 'provider_sdk_adapter',
+        provider,
+        operation,
+        region: region || undefined,
+        executorKey,
+        adapterKey,
+        idempotencyKey,
+        credentialRef: credentialRef || undefined,
+        providerStateStatus: providerStateStatus || undefined,
+        providerState: this.hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
+        reason: 'provider_sdk_plan_ready',
+        requiresManualCompletion: true,
+        plan,
+        plannedAt: new Date().toISOString(),
+      }, provisioningRun);
+    }
+
+    return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      mode: 'provider',
+      status: 'blocked',
+      boundary: 'provider_sdk_adapter',
+      provider,
+      operation,
+      region: region || undefined,
+      executorKey,
+      adapterKey,
+      idempotencyKey,
+      credentialRef: credentialRef || undefined,
+      providerStateStatus: providerStateStatus || undefined,
+      providerState: this.hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
+      reason: 'provider_sdk_live_transport_disabled',
+      retryable: false,
+      plan,
+      blockedAt: new Date().toISOString(),
+    }, provisioningRun);
+  }
+
   private async createProvisioningRun(
     teamId: string,
     userId: string | undefined,
     request: JsonRecord,
     resourceType: ProvisioningResourceType,
-    mode: Extract<ProvisioningMode, 'webhook' | 'api'>,
+    mode: ExternalProvisioningRunMode,
     context: ProvisioningProcessorContext,
     config: JsonRecord,
     input: {
-      method: string;
+      method?: string;
       url?: string;
       idempotencyKey: string;
       maxAttempts: number;
       queue: ProvisioningQueueConfig;
+      boundary?: string;
+      executorKey?: string;
+      adapterKey?: string;
+      params?: JsonRecord;
     },
   ): Promise<ResourceProvisioningRunRecord> {
     if (context.provisioningRunId) {
@@ -2164,14 +2585,17 @@ export class ResourceRequestService implements OnModuleInit {
       ? new Date(now.getTime() + input.queue.delaySeconds * 1000)
       : undefined;
     const params: JsonRecord = {
-      method: input.method,
       idempotencyKey: input.idempotencyKey,
       requestId: request.id,
       resourceTypeId: resourceType.id,
       resourceTypeKey: resourceType.key,
       trigger: context.trigger,
       queueMode: input.queue.enabled ? 'queued' : 'inline',
+      ...this.asRecord(input.params),
     };
+    if (input.method) {
+      params.method = input.method;
+    }
     if (context.replayOfRunId) {
       params.replayOfRunId = context.replayOfRunId;
     }
@@ -2201,9 +2625,9 @@ export class ResourceRequestService implements OnModuleInit {
         environmentId: this.readString(request.environmentId) || undefined,
         mode,
         trigger: context.trigger,
-        boundary: 'http_adapter',
-        executorKey: this.readString(config.executorKey) || 'resource-request',
-        adapterKey: this.readString(config.adapterKey) || mode,
+        boundary: input.boundary || 'http_adapter',
+        executorKey: this.readString(config.executorKey) || input.executorKey || 'resource-request',
+        adapterKey: this.readString(config.adapterKey) || input.adapterKey || mode,
         idempotencyKey: input.idempotencyKey,
         status: input.queue.enabled ? 'queued' : 'running',
         queueMode: input.queue.enabled ? 'queued' : 'inline',
@@ -2416,10 +2840,21 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   private normalizeProvisioningMode(mode: unknown): ProvisioningMode {
-    if (mode === 'pool' || mode === 'webhook' || mode === 'api' || mode === 'script' || mode === 'credential_only') {
+    if (
+      mode === 'pool'
+      || mode === 'webhook'
+      || mode === 'api'
+      || mode === 'script'
+      || mode === 'credential_only'
+      || mode === 'provider'
+    ) {
       return mode;
     }
     return 'manual';
+  }
+
+  private isReplayableExternalProvisioningMode(mode: ProvisioningMode) {
+    return mode === 'api' || mode === 'webhook' || mode === 'provider';
   }
 
   private normalizeProvisioningProcessorTrigger(trigger: unknown): ProvisioningProcessorTrigger {
@@ -2522,6 +2957,193 @@ export class ResourceRequestService implements OnModuleInit {
       this.configService.get('RESOURCE_REQUEST_PROVISIONING_HTTP_QUEUE_ENABLED', false),
       false,
     );
+  }
+
+  private readProviderMaxAttempts(config: JsonRecord) {
+    const attempts = this.readPositiveInteger(config.maxAttempts)
+      || this.readPositiveInteger(this.asRecord(config.retry).maxAttempts)
+      || 1;
+    return Math.min(Math.max(attempts, 1), 5);
+  }
+
+  private resolveProviderAdapterKey(provider: string, config: JsonRecord) {
+    const explicit = this.readString(config.adapterKey);
+    if (explicit) {
+      return explicit;
+    }
+    return provider ? `${provider}-sdk` : 'cloud-provider-sdk';
+  }
+
+  private readProviderProvisioningState(config: JsonRecord) {
+    const state = this.asRecord(config.providerState);
+    if (this.hasRecordValues(state)) {
+      return state;
+    }
+
+    const existingState = this.asRecord(config.existingProviderState);
+    if (this.hasRecordValues(existingState)) {
+      return existingState;
+    }
+
+    return this.asRecord(config.idempotencyState);
+  }
+
+  private readProviderStateStatus(state: JsonRecord) {
+    return (
+      this.readString(state.status)
+      || this.readString(state.state)
+      || this.readString(state.phase)
+      || this.readString(state.lifecycleStatus)
+    ).toLowerCase();
+  }
+
+  private providerStateIndicatesCompleted(state: JsonRecord) {
+    const completedStatuses = new Set([
+      'active',
+      'available',
+      'completed',
+      'created',
+      'ready',
+      'running',
+      'success',
+      'succeeded',
+    ]);
+    const status = this.readProviderStateStatus(state);
+    return completedStatuses.has(status) || this.readBoolean(state.exists, false);
+  }
+
+  private providerStateIndicatesFailed(state: JsonRecord) {
+    const failedStatuses = new Set([
+      'cancelled',
+      'deleted',
+      'error',
+      'failed',
+      'not_found',
+      'rejected',
+      'terminated',
+    ]);
+    const status = this.readProviderStateStatus(state);
+    return failedStatuses.has(status) || this.readBoolean(state.failed, false);
+  }
+
+  private readProviderStateReason(state: JsonRecord) {
+    return (
+      this.readString(state.reason)
+      || this.readString(state.error)
+      || this.readString(state.message)
+      || 'provider_state_failed'
+    );
+  }
+
+  private resolveRunCredentialRef(run: JsonRecord, provisioning: JsonRecord) {
+    const provisioningCredentialRef = this.asRecord(provisioning.credentialRef);
+    if (this.hasRecordValues(provisioningCredentialRef)) {
+      return provisioningCredentialRef;
+    }
+
+    const credentialId = this.readString(run.credentialId);
+    const authAdapterKey = this.readString(run.authAdapterKey);
+    if (!credentialId && !authAdapterKey) {
+      return null;
+    }
+
+    return {
+      source: 'team_credential',
+      referenceId: credentialId || undefined,
+      authAdapterKey: authAdapterKey || 'provider-credential-ref',
+      redacted: true,
+    };
+  }
+
+  private resolveProviderRunId(state: JsonRecord, config: JsonRecord, idempotencyKey: string) {
+    return (
+      this.readString(state.providerRunId)
+      || this.readString(state.runId)
+      || this.readString(state.requestId)
+      || this.readString(config.providerRunId)
+      || this.readString(config.externalId)
+      || idempotencyKey
+    );
+  }
+
+  private resolveProviderProvisioningDeliverySource(state: JsonRecord, config: JsonRecord) {
+    const delivery = this.asRecord(state.delivery);
+    const credentials = this.asRecord(state.credentials);
+
+    if (this.hasRecordValues(delivery) || this.hasRecordValues(credentials)) {
+      return {
+        ...delivery,
+        ...credentials,
+      };
+    }
+
+    const resource = this.asRecord(state.resource);
+    if (this.hasRecordValues(resource)) {
+      return resource;
+    }
+
+    const instance = this.asRecord(state.instance);
+    if (this.hasRecordValues(instance)) {
+      return instance;
+    }
+
+    return this.asRecord(config.delivery);
+  }
+
+  private buildProviderProvisioningPlan(input: {
+    request: JsonRecord;
+    resourceType: ProvisioningResourceType;
+    provider: string;
+    operation: string;
+    region: string;
+    idempotencyKey: string;
+    executorKey: string;
+    adapterKey: string;
+    dryRun: boolean;
+    providerState: JsonRecord;
+  }) {
+    const stateProviderRunId = this.readString(input.providerState.providerRunId)
+      || this.readString(input.providerState.runId)
+      || undefined;
+    const externalId = this.readString(input.providerState.externalId)
+      || this.readString(this.asRecord(input.providerState.resource).externalId)
+      || undefined;
+    const spec = this.asRecord(input.request.spec);
+
+    return {
+      boundary: 'provider_sdk_adapter',
+      executorKey: input.executorKey,
+      adapterKey: input.adapterKey,
+      provider: input.provider || undefined,
+      operation: input.operation,
+      region: input.region || undefined,
+      dryRun: input.dryRun,
+      idempotencyKey: input.idempotencyKey,
+      resourceType: {
+        id: input.resourceType.id,
+        key: input.resourceType.key,
+        name: input.resourceType.name,
+      },
+      request: {
+        id: input.request.id,
+        projectId: input.request.projectId,
+        environmentId: input.request.environmentId,
+        environment: input.request.environment,
+        requestedResourceName: this.resolveRequestedResourceName(input.request.spec),
+        specKeys: Object.keys(spec),
+      },
+      providerStateQuery: {
+        strategy: 'idempotency_key_or_external_id',
+        idempotencyKey: input.idempotencyKey,
+        providerRunId: stateProviderRunId,
+        externalId,
+        expectedStatus: 'active_or_available',
+      },
+      safety: {
+        secretsInOutput: 'must_mask_before_persisting',
+        liveTransport: input.dryRun ? 'disabled_dry_run_plan' : 'not_implemented',
+      },
+    };
   }
 
   private async resolveProvisioningCredentialRef(
@@ -2952,6 +3574,28 @@ export class ResourceRequestService implements OnModuleInit {
       || normalizedKey.includes('accesskey')
       || normalizedKey.includes('privatekey')
     );
+  }
+
+  private redactSensitiveRecord(input: JsonRecord): JsonRecord {
+    const output: JsonRecord = {};
+
+    for (const [key, value] of Object.entries(input)) {
+      if (this.isImplicitSensitiveKey(key)) {
+        output[key] = 'redacted';
+      } else if (Array.isArray(value)) {
+        output[key] = value.map((item) => (
+          this.hasRecordValues(this.asRecord(item))
+            ? this.redactSensitiveRecord(this.asRecord(item))
+            : item
+        ));
+      } else if (this.hasRecordValues(this.asRecord(value))) {
+        output[key] = this.redactSensitiveRecord(this.asRecord(value));
+      } else {
+        output[key] = value;
+      }
+    }
+
+    return output;
   }
 
   private resolveRequestedResourceName(specInput: unknown) {

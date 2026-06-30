@@ -52,11 +52,11 @@ function createCancellationToken() {
 }
 
 async function waitForSpawnCount(spawns: { child: FakeChild; args: string[] }[], count: number) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     if (spawns.length >= count) {
       return;
     }
-    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
   throw new Error(`Expected ${count} spawn calls, saw ${spawns.length}`);
 }

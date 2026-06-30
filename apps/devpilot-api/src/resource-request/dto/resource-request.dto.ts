@@ -61,7 +61,7 @@ export class CreateResourceTypeDto {
   @IsOptional()
   approvalMode?: string;
 
-  @IsIn(['manual', 'pool', 'webhook', 'api', 'script', 'credential_only'])
+  @IsIn(['manual', 'pool', 'webhook', 'api', 'script', 'credential_only', 'provider'])
   @IsOptional()
   provisioningMode?: string;
 
@@ -107,7 +107,7 @@ export class UpdateResourceTypeDto {
   @IsOptional()
   approvalMode?: string;
 
-  @IsIn(['manual', 'pool', 'webhook', 'api', 'script', 'credential_only'])
+  @IsIn(['manual', 'pool', 'webhook', 'api', 'script', 'credential_only', 'provider'])
   @IsOptional()
   provisioningMode?: string;
 
@@ -278,4 +278,17 @@ export class ProcessQueuedResourceProvisioningRunDto {
   @IsString()
   @IsOptional()
   runId?: string;
+}
+
+export class ReconcileProviderResourceProvisioningRunDto {
+  @IsObject()
+  providerState: Record<string, unknown>;
+
+  @IsBoolean()
+  @IsOptional()
+  createInstance?: boolean;
+
+  @IsString()
+  @IsOptional()
+  instanceName?: string;
 }
