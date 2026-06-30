@@ -153,8 +153,10 @@ export function getProjectDeploymentConfig(config: unknown) {
   return {
     targetType: readString(deployment?.targetType) ?? '',
     workingDirectory: readString(deployment?.workingDirectory) ?? '',
-    buildCommand: readString(deployment?.buildCommand) ?? readString(stackProfile?.buildCommand) ?? '',
-    deployCommand: readString(deployment?.deployCommand) ?? readString(stackProfile?.deployCommand) ?? '',
+    buildCommand:
+      readString(deployment?.buildCommand) ?? readString(stackProfile?.buildCommand) ?? '',
+    deployCommand:
+      readString(deployment?.deployCommand) ?? readString(stackProfile?.deployCommand) ?? '',
     healthCheckUrl: readString(deployment?.healthCheckUrl) ?? '',
   };
 }

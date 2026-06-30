@@ -7,11 +7,7 @@ export const metadata: Metadata = {
   description: '可视化创建基于 Svton 技术栈的全栈应用项目',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">
       <body className="min-h-screen bg-background antialiased">

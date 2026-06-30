@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useProjectConfigStore } from '@/store/project-config';
-import { api } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { usePersistFn } from '@svton/hooks';
+import { LoadingState, Tag } from '@svton/ui';
+import { useProjectConfigStore } from '@/store/hooks';
+import { apiRequest } from '@/lib/api-client';
 
 interface StepProps {
   onNext: () => void;
   onPrev: () => void;
 }
-
 interface Feature {
   id: string;
   name: string;
@@ -19,7 +19,6 @@ interface Feature {
   requiredResources: string[];
   applicableTo: string[];
 }
-
 interface Category {
   id: string;
   name: string;
@@ -33,114 +32,76 @@ export function StepFeatures({ onNext, onPrev }: StepProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadFeatures();
+    apiRequest<Feature[]>('GET:/registry/features')
+      .then(setFeatures)
+      .catch((e) => console.error(e));
+    apiRequest<Category[]>('GET:/registry/categories')
+      .then((d) => setCategories(d.sort((a, b) => a.order - b.order)))
+      .catch((e) => console.error(e));
+    setLoading(false);
   }, []);
 
-  const loadFeatures = async () => {
-    try {
-      const [featuresData, categoriesData] = await Promise.all([
-        api.get<Feature[]>('/registry/features'),
-        api.get<Category[]>('/registry/categories'),
-      ]);
-      setFeatures(featuresData);
-      setCategories(categoriesData.sort((a, b) => a.order - b.order));
-    } catch (error) {
-      console.error('Failed to load features:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 根据选中的子项目过滤可用功能
   const selectedSubProjects = Object.entries(config.subProjects)
-    .filter(([, selected]) => selected)
+    .filter(([, v]) => v)
     .map(([id]) => id);
+  const isAvailable = (f: Feature) => f.applicableTo.some((t) => selectedSubProjects.includes(t));
+  const getByCategory = (cid: string) =>
+    features.filter((f) => f.category === cid && isAvailable(f));
+  const selectedPackages = Array.from(
+    new Set(features.filter((f) => config.features.includes(f.id)).flatMap((f) => f.packages)),
+  );
+  const handleToggle = usePersistFn((id: string) => toggleFeature(id));
+  const handleNext = usePersistFn(() => onNext());
+  const handlePrev = usePersistFn(() => onPrev());
 
-  const isFeatureAvailable = (feature: Feature) => {
-    return feature.applicableTo.some((t) => selectedSubProjects.includes(t));
-  };
-
-  const getFeaturesByCategory = (categoryId: string) => {
-    return features.filter(f => f.category === categoryId && isFeatureAvailable(f));
-  };
-
-  const getSelectedPackages = () => {
-    const packages = new Set<string>();
-    features.forEach((feature) => {
-      if (config.features.includes(feature.id)) {
-        feature.packages.forEach((pkg) => packages.add(pkg));
-      }
-    });
-    return Array.from(packages);
-  };
-
-  const selectedPackages = getSelectedPackages();
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
+  if (loading) return <LoadingState text="" />;
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium mb-2">选择功能</h3>
-        <p className="text-sm text-muted-foreground mb-4">
+        <h3 className="mb-2 text-lg font-medium">选择功能</h3>
+        <p className="mb-4 text-sm text-muted-foreground">
           选择你需要的功能，系统会自动添加对应的包
         </p>
       </div>
-
       <div className="space-y-6">
-        {categories.map((category) => {
-          const categoryFeatures = getFeaturesByCategory(category.id);
-          if (categoryFeatures.length === 0) return null;
-
+        {categories.map((cat) => {
+          const catFeatures = getByCategory(cat.id);
+          if (catFeatures.length === 0) return null;
           return (
-            <div key={category.id}>
-              <h4 className="text-sm font-medium text-muted-foreground mb-3">
-                {category.name}
-              </h4>
+            <div key={cat.id}>
+              <h4 className="mb-3 text-sm font-medium text-muted-foreground">{cat.name}</h4>
               <div className="grid grid-cols-2 gap-3">
-                {categoryFeatures.map((feature) => (
+                {catFeatures.map((feature) => (
                   <div
                     key={feature.id}
-                    onClick={() => toggleFeature(feature.id)}
-                    className={cn(
-                      'p-3 border rounded-lg cursor-pointer transition-colors',
-                      config.features.includes(feature.id)
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    )}
+                    onClick={() => handleToggle(feature.id)}
+                    className={`cursor-pointer rounded-lg border p-3 transition-colors ${config.features.includes(feature.id) ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <h5 className="font-medium text-sm">{feature.name}</h5>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {feature.description}
-                        </p>
+                        <h5 className="text-sm font-medium">{feature.name}</h5>
+                        <p className="mt-1 text-xs text-muted-foreground">{feature.description}</p>
                       </div>
                       <input
                         type="checkbox"
                         checked={config.features.includes(feature.id)}
                         onChange={() => {}}
-                        className="w-4 h-4 mt-0.5"
+                        className="mt-0.5 h-4 w-4"
                       />
                     </div>
-                    {feature.requiredResources.length > 0 && (
-                      <div className="mt-2 flex gap-1 flex-wrap">
+                    {feature.requiredResources.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
                         {feature.requiredResources.map((r) => (
-                          <span
+                          <Tag
                             key={r}
-                            className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded"
+                            color="orange"
                           >
                             需要 {r}
-                          </span>
+                          </Tag>
                         ))}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -148,34 +109,31 @@ export function StepFeatures({ onNext, onPrev }: StepProps) {
           );
         })}
       </div>
-
-      {/* 已选择的包 */}
-      {selectedPackages.length > 0 && (
+      {selectedPackages.length > 0 ? (
         <div className="border-t pt-4">
-          <h4 className="text-sm font-medium mb-2">将添加的包</h4>
+          <h4 className="mb-2 text-sm font-medium">将添加的包</h4>
           <div className="flex flex-wrap gap-2">
             {selectedPackages.map((pkg) => (
               <code
                 key={pkg}
-                className="text-xs bg-muted px-2 py-1 rounded"
+                className="rounded bg-muted px-2 py-1 text-xs"
               >
                 {pkg}
               </code>
             ))}
           </div>
         </div>
-      )}
-
+      ) : null}
       <div className="flex justify-between pt-4">
         <button
-          onClick={onPrev}
-          className="px-6 py-2 border rounded-md font-medium hover:bg-accent transition-colors"
+          onClick={handlePrev}
+          className="rounded-md border px-6 py-2 font-medium transition-colors hover:bg-accent"
         >
           上一步
         </button>
         <button
-          onClick={onNext}
-          className="px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
+          onClick={handleNext}
+          className="rounded-md bg-primary px-6 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           下一步
         </button>

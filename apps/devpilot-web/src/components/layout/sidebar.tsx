@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { usePersistFn } from '@svton/hooks';
 
 const sidebarItems = [
   {
@@ -49,9 +50,7 @@ const sidebarItems = [
   },
   {
     title: '团队',
-    items: [
-      { href: '/teams', label: '团队管理' },
-    ],
+    items: [{ href: '/teams', label: '团队管理' }],
   },
   {
     title: '管理员',
@@ -69,10 +68,11 @@ export function Sidebar() {
     <aside className="w-64 border-r bg-background">
       <div className="space-y-4 py-4">
         {sidebarItems.map((section) => (
-          <div key={section.title} className="px-3 py-2">
-            <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
-              {section.title}
-            </h2>
+          <div
+            key={section.title}
+            className="px-3 py-2"
+          >
+            <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">{section.title}</h2>
             <div className="space-y-1">
               {section.items.map((item) => (
                 <Link
@@ -82,7 +82,7 @@ export function Sidebar() {
                     'flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors',
                     pathname === item.href
                       ? 'bg-accent text-accent-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                   )}
                 >
                   {item.label}

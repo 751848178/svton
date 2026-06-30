@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start -p 3100",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\""
   },
   "dependencies": {
     "next": "^15.0.0",
@@ -16,10 +18,12 @@
     "@svton/ui": "workspace:*",
     "@svton/hooks": "workspace:*",
     "@svton/service": "workspace:*",
+    "@svton/api-client": "workspace:*",
+    "@svton/nestjs-http": "workspace:*",
     "@svton/logger": "workspace:*",
     "next-auth": "^5.0.0-beta.25",
     "zod": "^3.23.0",
-    "zustand": "^5.0.0",
+    "swr": "^2.2.5",
     "clsx": "^2.1.0",
     "tailwind-merge": "^2.2.0"
   },

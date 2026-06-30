@@ -1,0 +1,52 @@
+/**
+ * 资源类型数据 Hook
+ *
+ * 单一职责：资源类型列表加载、停用。
+ *
+ * 列表走 SWR（useQueryLoose），支持 initialData（首屏 server 数据透传，避免 client 二次请求）；
+ * 写操作后调用 mutate 刷新缓存。
+ */
+
+import { useState } from 'react';
+import { usePersistFn } from '@svton/hooks';
+import { apiRequest } from '@/lib/api-client';
+import { useQueryLoose, mutate } from '@/hooks/api/use-api';
+import type { ResourceType } from '../types';
+
+/** SWR 缓存 key（与 useQueryLoose 的 apiName 一致）。 */
+const RESOURCE_TYPES_KEY = 'GET:/resource-types?includeDisabled=true';
+
+export function useResourceTypes(initialResourceTypes?: ResourceType[] | undefined) {
+  const { data, isLoading, mutate: refresh } = useQueryLoose<ResourceType[]>(RESOURCE_TYPES_KEY, {
+    fallback: initialResourceTypes,
+  });
+  const resourceTypes = data ?? [];
+
+  const [creating, setCreating] = useState(false);
+  const [editingType, setEditingType] = useState<ResourceType | null>(null);
+
+  const openCreate = usePersistFn(() => setCreating(true));
+  const openEdit = usePersistFn((type: ResourceType) => setEditingType(type));
+  const closeModal = usePersistFn(() => {
+    setCreating(false);
+    setEditingType(null);
+  });
+
+  const disableType = usePersistFn(async (id: string) => {
+    if (!confirm('确定要停用这个资源类型吗？')) return;
+    await apiRequest(`DELETE:/resource-types/${id}`);
+    await mutate(RESOURCE_TYPES_KEY);
+  });
+
+  return {
+    resourceTypes,
+    loading: isLoading,
+    creating,
+    editingType,
+    openCreate,
+    openEdit,
+    closeModal,
+    disableType,
+    reload: refresh,
+  };
+}

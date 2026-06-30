@@ -1,15 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-
-interface FileNode {
-  name: string;
-  path: string;
-  type: 'file' | 'folder';
-  children?: FileNode[];
-  content?: string;
-  size?: number;
-}
+import { usePersistFn } from '@svton/hooks';
+import { buildFileTree, getFileIcon, type FileNode } from './file-preview-utils';
 
 interface FilePreviewProps {
   files: { path: string; content: string; size: number }[];
@@ -19,7 +12,6 @@ export function FilePreview({ files }: FilePreviewProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['/']));
 
-  // 构建文件树
   const fileTree = buildFileTree(files);
 
   const toggleFolder = (path: string) => {
@@ -37,10 +29,9 @@ export function FilePreview({ files }: FilePreviewProps) {
   const selectedContent = files.find((f) => f.path === selectedFile)?.content;
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="overflow-hidden rounded-lg border">
       <div className="flex h-[400px]">
-        {/* 文件树 */}
-        <div className="w-64 border-r overflow-auto bg-muted/30">
+        <div className="w-64 overflow-auto border-r bg-muted/30">
           <div className="p-2">
             <FileTreeNode
               node={fileTree}
@@ -52,23 +43,21 @@ export function FilePreview({ files }: FilePreviewProps) {
             />
           </div>
         </div>
-
-        {/* 文件内容 */}
         <div className="flex-1 overflow-auto">
           {selectedFile ? (
             <div className="p-4">
-              <div className="flex items-center justify-between mb-2 pb-2 border-b">
+              <div className="mb-2 flex items-center justify-between border-b pb-2">
                 <span className="text-sm font-medium">{selectedFile}</span>
                 <span className="text-xs text-muted-foreground">
                   {files.find((f) => f.path === selectedFile)?.size} bytes
                 </span>
               </div>
-              <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+              <pre className="whitespace-pre-wrap break-all font-mono text-xs">
                 <code>{selectedContent}</code>
               </pre>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-muted-foreground">
               选择一个文件查看内容
             </div>
           )}
@@ -102,13 +91,13 @@ function FileTreeNode({
       <div>
         <button
           onClick={() => onToggleFolder(node.path)}
-          className="flex items-center w-full px-2 py-1 text-sm hover:bg-accent rounded text-left"
+          className="flex w-full items-center rounded px-2 py-1 text-left text-sm hover:bg-accent"
           style={{ paddingLeft }}
         >
           <span className="mr-1">{isExpanded ? '📂' : '📁'}</span>
           {node.name}
         </button>
-        {isExpanded && node.children && (
+        {isExpanded && node.children ? (
           <div>
             {node.children.map((child) => (
               <FileTreeNode
@@ -122,7 +111,7 @@ function FileTreeNode({
               />
             ))}
           </div>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -130,96 +119,11 @@ function FileTreeNode({
   return (
     <button
       onClick={() => onSelectFile(node.path)}
-      className={`flex items-center w-full px-2 py-1 text-sm rounded text-left ${
-        isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'
-      }`}
+      className={`flex w-full items-center rounded px-2 py-1 text-left text-sm ${isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
       style={{ paddingLeft }}
     >
       <span className="mr-1">{getFileIcon(node.name)}</span>
       {node.name}
     </button>
   );
-}
-
-function buildFileTree(files: { path: string; content: string; size: number }[]): FileNode {
-  const root: FileNode = {
-    name: '/',
-    path: '/',
-    type: 'folder',
-    children: [],
-  };
-
-  for (const file of files) {
-    const parts = file.path.split('/');
-    let current = root;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isLast = i === parts.length - 1;
-      const currentPath = parts.slice(0, i + 1).join('/');
-
-      if (isLast) {
-        current.children = current.children || [];
-        current.children.push({
-          name: part,
-          path: file.path,
-          type: 'file',
-          content: file.content,
-          size: file.size,
-        });
-      } else {
-        current.children = current.children || [];
-        let folder = current.children.find((c) => c.name === part && c.type === 'folder');
-        if (!folder) {
-          folder = {
-            name: part,
-            path: currentPath,
-            type: 'folder',
-            children: [],
-          };
-          current.children.push(folder);
-        }
-        current = folder;
-      }
-    }
-  }
-
-  // 排序：文件夹在前，文件在后
-  sortFileTree(root);
-
-  return root;
-}
-
-function sortFileTree(node: FileNode) {
-  if (node.children) {
-    node.children.sort((a, b) => {
-      if (a.type !== b.type) {
-        return a.type === 'folder' ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-    node.children.forEach(sortFileTree);
-  }
-}
-
-function getFileIcon(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  
-  const icons: Record<string, string> = {
-    ts: '📘',
-    tsx: '📘',
-    js: '📒',
-    jsx: '📒',
-    json: '📋',
-    md: '📝',
-    yml: '⚙️',
-    yaml: '⚙️',
-    env: '🔐',
-    prisma: '💾',
-    css: '🎨',
-    scss: '🎨',
-    html: '🌐',
-  };
-
-  return icons[ext || ''] || '📄';
 }
