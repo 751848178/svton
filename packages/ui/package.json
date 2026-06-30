@@ -29,9 +29,9 @@
     "./tailwind-preset": "./tailwind-preset.js"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts && pnpm build:css",
+    "build": "tsup && pnpm build:css",
     "build:css": "tailwindcss -c ./tailwind.config.js -i ./src/styles/index.css -o ./dist/styles.css",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "prepublishOnly": "pnpm build"
   },

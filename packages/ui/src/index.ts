@@ -24,9 +24,28 @@ export type { PermissionStateProps } from './components/PermissionState';
 export { RequestBoundary } from './components/RequestBoundary';
 export type { RequestBoundaryProps } from './components/RequestBoundary';
 
+// Form & Data Entry Components
+export { Button, buttonVariants } from './components/Button';
+export type { ButtonProps } from './components/Button';
+
+export { Input, INPUT_CLASS } from './components/Input';
+export type { InputProps } from './components/Input';
+
+export { Textarea } from './components/Textarea';
+export type { TextareaProps } from './components/Textarea';
+
+export { Select } from './components/Select';
+export type { SelectProps, SelectOption } from './components/Select';
+
+export { Field } from './components/Field';
+export type { FieldProps } from './components/Field';
+
 // Feedback Components
 export { Modal } from './components/Modal';
 export type { ModalProps } from './components/Modal';
+
+export { Dialog } from './components/Dialog';
+export type { DialogProps } from './components/Dialog';
 
 export { Drawer } from './components/Drawer';
 export type { DrawerProps } from './components/Drawer';
@@ -64,6 +83,23 @@ export type { CollapseProps, CollapseItemProps } from './components/Collapse';
 
 export { Tabs } from './components/Tabs';
 export type { TabsProps, TabItem } from './components/Tabs';
+
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableData,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+} from './components/Table';
+
+export { Dropdown, DropdownItem } from './components/Dropdown';
+export type { DropdownProps, DropdownItemProps } from './components/Dropdown';
 
 export { Divider } from './components/Divider';
 export type { DividerProps } from './components/Divider';
