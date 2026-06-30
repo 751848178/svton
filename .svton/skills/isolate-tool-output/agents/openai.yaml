@@ -1,0 +1,4 @@
+interface:
+  display_name: "Isolate Tool Output"
+  short_description: "Compress noisy tools, searches, diffs, and token audits"
+  default_prompt: "Use $isolate-tool-output to route noisy commands through compact tools, save full logs, and return concise summaries."
