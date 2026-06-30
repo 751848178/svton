@@ -5,6 +5,17 @@
 
 import type { ExecutionAgentRef } from './types';
 
+interface ServerAgentRuntimeHealthSnapshot {
+  state: 'ready' | 'degraded' | 'stale' | 'unknown' | 'missing' | string;
+  reason: string;
+  expiringSoon: boolean;
+  capabilities: string[];
+  status?: string;
+  lastSeenAgeSeconds?: number;
+  expiresInSeconds?: number;
+  heartbeatTtlSeconds?: number;
+}
+
 export interface ServerExecutionSupervisorSnapshot {
   generatedAt: string;
   worker: {
@@ -76,6 +87,24 @@ export interface ServerExecutionSupervisorSnapshot {
       staleServers: number;
       unknownServers: number;
     };
+    runtimeHealth: {
+      totalServers: number;
+      readyServers: number;
+      degradedServers: number;
+      staleServers: number;
+      unknownServers: number;
+      missingHeartbeatServers: number;
+      expiringSoonServers: number;
+      statusCounts: { status: string; count: number }[];
+      samples: {
+        id: string;
+        name: string;
+        host: string;
+        status: string;
+        agentRef: ExecutionAgentRef;
+        health: ServerAgentRuntimeHealthSnapshot;
+      }[];
+    };
     statusCounts: { status: string; count: number }[];
     dispatcher: {
       executorEnabled: boolean;
@@ -120,6 +149,76 @@ export interface ServerExecutionSupervisorSnapshot {
           agentExecutorEnabled?: boolean;
         }[];
       };
+    };
+    fleet: {
+      totalServers: number;
+      liveDispatchReadyServers: number;
+      pressureServers: number;
+      scannedJobs: number;
+      truncated: boolean;
+      items: {
+        id: string;
+        name: string;
+        host: string;
+        status: string;
+        agentRef: ExecutionAgentRef;
+        runtime?: {
+          state: string;
+          status?: string;
+          agentId?: string;
+          runnerId?: string;
+          hostname?: string;
+          version?: string;
+          lastSeenAt?: string;
+          expiresAt?: string;
+          heartbeatTtlSeconds?: number;
+          capabilities: string[];
+        };
+        runtimeHealth: ServerAgentRuntimeHealthSnapshot;
+        readiness: {
+          targetReady: boolean;
+          liveDispatchReady: boolean;
+          blockingReasons: string[];
+        };
+        jobs: {
+          ready: number;
+          scheduled: number;
+          running: number;
+          staleRunning: number;
+          blocked: number;
+          failed: number;
+          cancelled: number;
+          pressure: number;
+          nextQueuedJob?: {
+            id: string;
+            operationKey: string;
+            adapterKey: string;
+            serverId?: string | null;
+            status: string;
+            priority: number;
+            queuedAt: string;
+            availableAt: string;
+            finishedAt?: string | null;
+            server?: { id: string; name: string; host: string; status: string } | null;
+          } | null;
+          blockedSample?: {
+            id: string;
+            operationKey: string;
+            adapterKey: string;
+            serverId?: string | null;
+            status: string;
+            priority: number;
+            queuedAt: string;
+            availableAt: string;
+            finishedAt?: string | null;
+            server?: { id: string; name: string; host: string; status: string } | null;
+            reason: string;
+            nextExecutorBoundary?: string;
+            dispatcherConfigured?: boolean;
+            agentExecutorEnabled?: boolean;
+          } | null;
+        };
+      }[];
     };
     samples: {
       id: string;

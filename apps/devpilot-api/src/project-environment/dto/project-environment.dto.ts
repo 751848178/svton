@@ -149,6 +149,22 @@ export class CopyProjectEnvironmentSitesDto {
   targetDomainOverrides?: Record<string, string>;
 
   @IsOptional()
+  @IsBoolean()
+  openRestyTakeover?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  targetServerIds?: Record<string, string>;
+
+  @IsOptional()
+  @IsObject()
+  targetUpstreamUrls?: Record<string, string>;
+
+  @IsOptional()
+  @IsBoolean()
+  createDryRunSyncPlan?: boolean;
+
+  @IsOptional()
   @IsString()
   confirmationText?: string;
 }

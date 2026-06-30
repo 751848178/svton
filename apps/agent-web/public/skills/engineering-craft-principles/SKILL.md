@@ -3,8 +3,6 @@ name: engineering-craft-principles
 description: "Use for React/TypeScript TSX refactors: split overloaded components/pages, clarify variant or mode boundaries, remove duplicated useState/useEffect derived state, and move async fallback behavior into hooks or models."
 ---
 
-<!-- Generated from skills/engineering-craft-principles/skill.config.json. Edit skill.config.json instead of this file. -->
-
 # Engineering Craft Principles
 
 Apply this when a frontend surface has collapsed presentation, state, and fallback behavior into one place. The skill favors narrower components, explicit variant boundaries, derived state, and hook or model owned async control.

@@ -84,7 +84,8 @@ export class GeneratorController {
       'Content-Length': zipBuffer.length,
       'X-Project-Id': project.id,
       'X-Project-Download-Url': artifact.downloadUrl,
-      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, X-Project-Id, X-Project-Download-Url',
+      'X-Project-Artifact-Expires-At': artifact.expiresAt,
+      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, X-Project-Id, X-Project-Download-Url, X-Project-Artifact-Expires-At',
     });
 
     res.send(zipBuffer);
@@ -114,6 +115,12 @@ export class GeneratorController {
       project.name,
       project.config,
     );
+    await this.projectService.recordGeneratedProjectArtifactDownload(
+      req.teamId,
+      project.id,
+      req.user.id,
+      artifact,
+    );
 
     res.set({
       'Content-Type': 'application/zip',
@@ -122,7 +129,8 @@ export class GeneratorController {
       'Cache-Control': 'private, no-store',
       'X-Project-Id': project.id,
       'X-Project-Download-Url': artifact.downloadUrl,
-      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, X-Project-Id, X-Project-Download-Url',
+      'X-Project-Artifact-Expires-At': artifact.expiresAt,
+      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, X-Project-Id, X-Project-Download-Url, X-Project-Artifact-Expires-At',
     });
 
     return new StreamableFile(createReadStream(artifact.filePath));

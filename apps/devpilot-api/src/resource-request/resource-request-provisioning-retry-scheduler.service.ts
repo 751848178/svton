@@ -7,6 +7,7 @@ type ScheduledResourceRequestProvisioningRetrySummary = {
   retryEnabled: boolean;
   staleRecoveryEnabled: boolean;
   queueWorkerEnabled: boolean;
+  providerStatePollingEnabled: boolean;
   scanned: number;
   attempted: number;
   completed: number;
@@ -22,6 +23,13 @@ type ScheduledResourceRequestProvisioningRetrySummary = {
   queueProcessed: number;
   queueSkipped: number;
   queueFailed: number;
+  providerPollScanned: number;
+  providerPollPolled: number;
+  providerPollCompleted: number;
+  providerPollPlanned: number;
+  providerPollBlocked: number;
+  providerPollSkipped: number;
+  providerPollFailed: number;
 };
 
 @Injectable()
@@ -36,7 +44,12 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
   ) {}
 
   onModuleInit() {
-    if (!this.retrySchedulerEnabled() && !this.staleRecoveryEnabled() && !this.queueWorkerEnabled()) {
+    if (
+      !this.retrySchedulerEnabled()
+      && !this.staleRecoveryEnabled()
+      && !this.queueWorkerEnabled()
+      && !this.providerStatePollingEnabled()
+    ) {
       return;
     }
 
@@ -57,12 +70,13 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
     const retryEnabled = this.retrySchedulerEnabled();
     const staleRecoveryEnabled = this.staleRecoveryEnabled();
     const queueWorkerEnabled = this.queueWorkerEnabled();
-    if (!retryEnabled && !staleRecoveryEnabled && !queueWorkerEnabled) {
-      return this.emptySummary(false, retryEnabled, staleRecoveryEnabled, queueWorkerEnabled);
+    const providerStatePollingEnabled = this.providerStatePollingEnabled();
+    if (!retryEnabled && !staleRecoveryEnabled && !queueWorkerEnabled && !providerStatePollingEnabled) {
+      return this.emptySummary(false, retryEnabled, staleRecoveryEnabled, queueWorkerEnabled, providerStatePollingEnabled);
     }
 
     if (this.running) {
-      return this.emptySummary(true, retryEnabled, staleRecoveryEnabled, queueWorkerEnabled);
+      return this.emptySummary(true, retryEnabled, staleRecoveryEnabled, queueWorkerEnabled, providerStatePollingEnabled);
     }
 
     this.running = true;
@@ -81,12 +95,18 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
       const queueSummary = queueWorkerEnabled
         ? await this.processQueuedRuns()
         : { scanned: 0, processed: 0, skipped: 0, failed: 0 };
+      const providerPollSummary = providerStatePollingEnabled
+        ? await this.resourceRequestService.processDueProviderStatePollingRuns({
+          limit: this.providerStatePollingBatchSize(),
+        })
+        : { scanned: 0, polled: 0, completed: 0, planned: 0, blocked: 0, skipped: 0, failed: 0 };
 
       return {
         skipped: false,
         retryEnabled,
         staleRecoveryEnabled,
         queueWorkerEnabled,
+        providerStatePollingEnabled,
         scanned: retrySummary.scanned,
         attempted: retrySummary.attempted,
         completed: retrySummary.completed,
@@ -102,6 +122,13 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
         queueProcessed: queueSummary.processed,
         queueSkipped: queueSummary.skipped,
         queueFailed: queueSummary.failed,
+        providerPollScanned: providerPollSummary.scanned,
+        providerPollPolled: providerPollSummary.polled,
+        providerPollCompleted: providerPollSummary.completed,
+        providerPollPlanned: providerPollSummary.planned,
+        providerPollBlocked: providerPollSummary.blocked,
+        providerPollSkipped: providerPollSummary.skipped,
+        providerPollFailed: providerPollSummary.failed,
       };
     } finally {
       this.running = false;
@@ -137,12 +164,14 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
     retryEnabled: boolean,
     staleRecoveryEnabled: boolean,
     queueWorkerEnabled: boolean,
+    providerStatePollingEnabled: boolean,
   ): ScheduledResourceRequestProvisioningRetrySummary {
     return {
       skipped,
       retryEnabled,
       staleRecoveryEnabled,
       queueWorkerEnabled,
+      providerStatePollingEnabled,
       scanned: 0,
       attempted: 0,
       completed: 0,
@@ -158,6 +187,13 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
       queueProcessed: 0,
       queueSkipped: 0,
       queueFailed: 0,
+      providerPollScanned: 0,
+      providerPollPolled: 0,
+      providerPollCompleted: 0,
+      providerPollPlanned: 0,
+      providerPollBlocked: 0,
+      providerPollSkipped: 0,
+      providerPollFailed: 0,
     };
   }
 
@@ -171,6 +207,10 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
 
   private queueWorkerEnabled() {
     return this.configService.get('RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_ENABLED', 'false') === 'true';
+  }
+
+  private providerStatePollingEnabled() {
+    return this.configService.get('RESOURCE_REQUEST_PROVISIONING_PROVIDER_STATE_POLLING_ENABLED', 'false') === 'true';
   }
 
   private schedulerIntervalMs() {
@@ -191,6 +231,11 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
 
   private queueWorkerBatchSize() {
     const size = Number(this.configService.get('RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_BATCH_SIZE', '10'));
+    return Number.isFinite(size) && size > 0 ? Math.min(Math.floor(size), 100) : 10;
+  }
+
+  private providerStatePollingBatchSize() {
+    const size = Number(this.configService.get('RESOURCE_REQUEST_PROVISIONING_PROVIDER_STATE_POLLING_BATCH_SIZE', '10'));
     return Number.isFinite(size) && size > 0 ? Math.min(Math.floor(size), 100) : 10;
   }
 

@@ -137,6 +137,22 @@ type ServerAgentBlockedJobRecord = {
   server: WorkerLockServer;
 };
 
+type ServerAgentFleetJobRecord = ServerAgentBlockedJobRecord & {
+  status: string;
+  queueMode: string;
+  priority: number;
+  availableAt: Date;
+  lockExpiresAt: Date | null;
+};
+
+type ServerAgentDispatcherConfig = {
+  executorEnabled: boolean;
+  dispatcherConfigured: boolean;
+  dispatcherUrl: string | null;
+  timeoutSeconds: number;
+  tokenConfigured: boolean;
+};
+
 type HeaderBag = Record<string, string | string[] | undefined>;
 
 type ServerAgentRuntimeSummary = {
@@ -150,6 +166,19 @@ type ServerAgentRuntimeSummary = {
   expiresAt?: string;
   heartbeatTtlSeconds?: number;
   capabilities: string[];
+};
+
+type ServerAgentRuntimeHealthState = 'ready' | 'degraded' | 'stale' | 'unknown' | 'missing';
+
+type ServerAgentRuntimeHealthSummary = {
+  state: ServerAgentRuntimeHealthState;
+  reason: string;
+  expiringSoon: boolean;
+  capabilities: string[];
+  status?: string;
+  lastSeenAgeSeconds?: number;
+  expiresInSeconds?: number;
+  heartbeatTtlSeconds?: number;
 };
 
 @Injectable()
@@ -449,6 +478,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       agentCancelledJobs,
       agentNextQueuedJob,
       agentBlockedReasonJobs,
+      agentFleetJobs,
       servers,
     ] = await Promise.all([
       this.prisma.serverExecutionJob.count({
@@ -623,6 +653,33 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
           server: { select: { id: true, name: true, host: true, status: true } },
         },
       }),
+      this.prisma.serverExecutionJob.findMany({
+        where: {
+          teamId,
+          transport: 'server_agent',
+          status: { in: ['queued', 'running', 'blocked', 'failed', 'cancelled'] },
+        },
+        orderBy: [
+          { queuedAt: 'desc' },
+        ],
+        take: 200,
+        select: {
+          id: true,
+          operationKey: true,
+          adapterKey: true,
+          serverId: true,
+          status: true,
+          queueMode: true,
+          priority: true,
+          queuedAt: true,
+          availableAt: true,
+          lockExpiresAt: true,
+          finishedAt: true,
+          error: true,
+          result: true,
+          server: { select: { id: true, name: true, host: true, status: true } },
+        },
+      }),
       this.prisma.server.findMany({
         where: { teamId },
         orderBy: { name: 'asc' },
@@ -637,6 +694,8 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       }),
     ]);
     const agentReadiness = this.summarizeServerAgentReadiness(servers, now);
+    const agentRuntimeHealth = this.summarizeServerAgentRuntimeHealth(servers, now);
+    const agentDispatcher = this.readServerAgentDispatcherConfig();
 
     return {
       generatedAt: now.toISOString(),
@@ -683,7 +742,9 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       workers: this.summarizeWorkerLocks(workerLocks, now),
       agent: {
         ...agentReadiness,
-        dispatcher: this.readServerAgentDispatcherConfig(),
+        runtimeHealth: agentRuntimeHealth,
+        dispatcher: agentDispatcher,
+        fleet: this.summarizeServerAgentFleet(servers, agentFleetJobs, now, agentDispatcher),
         jobs: {
           ready: agentReadyQueuedJobs,
           scheduled: agentScheduledQueuedJobs,
@@ -3387,31 +3448,21 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     let dispatcherBoundaryJobs = 0;
 
     for (const job of jobs) {
-      const result = this.isRecord(job.result) ? job.result : {};
-      const nextExecutorBoundary = this.readOptionalString(result.nextExecutorBoundary);
-      const reason = job.error
-        || this.readOptionalString(result.mode)
-        || (nextExecutorBoundary ? `blocked at ${nextExecutorBoundary}` : 'unknown');
-      const dispatcherConfigured = typeof result.dispatcherConfigured === 'boolean'
-        ? result.dispatcherConfigured
-        : undefined;
-      const agentExecutorEnabled = typeof result.agentExecutorEnabled === 'boolean'
-        ? result.agentExecutorEnabled
-        : undefined;
+      const blocked = this.readServerAgentBlockedJobSummary(job);
 
-      if (nextExecutorBoundary === 'server_agent_dispatcher') {
+      if (blocked.nextExecutorBoundary === 'server_agent_dispatcher') {
         dispatcherBoundaryJobs += 1;
       }
 
-      const key = `${reason}\u0000${nextExecutorBoundary || ''}`;
+      const key = `${blocked.reason}\u0000${blocked.nextExecutorBoundary || ''}`;
       const existing = reasonCounts.get(key);
       if (existing) {
         existing.count += 1;
       } else {
         reasonCounts.set(key, {
-          reason,
+          reason: blocked.reason,
           count: 1,
-          ...(nextExecutorBoundary ? { nextExecutorBoundary } : {}),
+          ...(blocked.nextExecutorBoundary ? { nextExecutorBoundary: blocked.nextExecutorBoundary } : {}),
         });
       }
 
@@ -3424,10 +3475,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
           queuedAt: job.queuedAt.toISOString(),
           finishedAt: job.finishedAt?.toISOString() ?? null,
           server: job.server,
-          reason,
-          ...(nextExecutorBoundary ? { nextExecutorBoundary } : {}),
-          ...(dispatcherConfigured !== undefined ? { dispatcherConfigured } : {}),
-          ...(agentExecutorEnabled !== undefined ? { agentExecutorEnabled } : {}),
+          ...blocked,
         });
       }
     }
@@ -3437,6 +3485,217 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       dispatcherBoundaryJobs,
       reasonCounts: [...reasonCounts.values()]
         .sort((left, right) => right.count - left.count || left.reason.localeCompare(right.reason)),
+      samples,
+    };
+  }
+
+  private summarizeServerAgentFleet(
+    servers: ServerAgentReadinessRecord[],
+    jobs: ServerAgentFleetJobRecord[],
+    now: Date,
+    dispatcher: ServerAgentDispatcherConfig,
+  ) {
+    type JobStats = {
+      ready: number;
+      scheduled: number;
+      running: number;
+      staleRunning: number;
+      blocked: number;
+      failed: number;
+      cancelled: number;
+      pressure: number;
+      nextQueuedJob?: ServerAgentFleetJobRecord;
+      blockedSample?: ServerAgentFleetJobRecord;
+    };
+
+    const jobStatsByServer = new Map<string, JobStats>();
+    const ensureStats = (serverId: string) => {
+      const existing = jobStatsByServer.get(serverId);
+      if (existing) return existing;
+      const created: JobStats = {
+        ready: 0,
+        scheduled: 0,
+        running: 0,
+        staleRunning: 0,
+        blocked: 0,
+        failed: 0,
+        cancelled: 0,
+        pressure: 0,
+      };
+      jobStatsByServer.set(serverId, created);
+      return created;
+    };
+
+    for (const job of jobs) {
+      if (!job.serverId) continue;
+      const stats = ensureStats(job.serverId);
+      if (job.status === 'queued' && job.queueMode === 'queued') {
+        if (job.availableAt.getTime() <= now.getTime()) {
+          stats.ready += 1;
+        } else {
+          stats.scheduled += 1;
+        }
+        stats.nextQueuedJob = this.pickServerAgentNextQueuedJob(stats.nextQueuedJob, job);
+      } else if (job.status === 'running') {
+        stats.running += 1;
+        if (job.lockExpiresAt && job.lockExpiresAt.getTime() <= now.getTime()) {
+          stats.staleRunning += 1;
+        }
+      } else if (job.status === 'blocked') {
+        stats.blocked += 1;
+        if (!stats.blockedSample) {
+          stats.blockedSample = job;
+        }
+      } else if (job.status === 'failed') {
+        stats.failed += 1;
+      } else if (job.status === 'cancelled') {
+        stats.cancelled += 1;
+      }
+      stats.pressure = stats.ready + stats.running + stats.blocked + stats.failed;
+    }
+
+    const heartbeatRequired = this.serverAgentHeartbeatRequiredForTargetSelection();
+    const items = [];
+    let liveDispatchReadyServers = 0;
+    let pressureServers = 0;
+
+    for (const server of servers) {
+      const agentRef = this.readServerAgentCapability(server);
+      if (!agentRef) continue;
+      const runtime = this.readServerAgentRuntime(server, now);
+      const runtimeHealth = this.readServerAgentRuntimeHealth(runtime, now);
+      const targetReady = server.status === 'online' && this.isServerAgentTargetRuntimeEligible(runtime);
+      const liveDispatchReady = targetReady && dispatcher.executorEnabled && dispatcher.dispatcherConfigured;
+      const blockingReasons = this.readServerAgentFleetBlockingReasons(
+        server,
+        runtime,
+        heartbeatRequired,
+        dispatcher,
+      );
+      const stats = jobStatsByServer.get(server.id) || {
+        ready: 0,
+        scheduled: 0,
+        running: 0,
+        staleRunning: 0,
+        blocked: 0,
+        failed: 0,
+        cancelled: 0,
+        pressure: 0,
+      };
+
+      if (liveDispatchReady) liveDispatchReadyServers += 1;
+      if (stats.pressure > 0) pressureServers += 1;
+
+      items.push({
+        id: server.id,
+        name: server.name,
+        host: server.host,
+        status: server.status,
+        agentRef,
+        ...(runtime ? { runtime } : {}),
+        runtimeHealth,
+        readiness: {
+          targetReady,
+          liveDispatchReady,
+          blockingReasons,
+        },
+        jobs: {
+          ready: stats.ready,
+          scheduled: stats.scheduled,
+          running: stats.running,
+          staleRunning: stats.staleRunning,
+          blocked: stats.blocked,
+          failed: stats.failed,
+          cancelled: stats.cancelled,
+          pressure: stats.pressure,
+          nextQueuedJob: stats.nextQueuedJob
+            ? this.serializeServerAgentFleetJob(stats.nextQueuedJob)
+            : null,
+          blockedSample: stats.blockedSample
+            ? {
+                ...this.serializeServerAgentFleetJob(stats.blockedSample),
+                ...this.readServerAgentBlockedJobSummary(stats.blockedSample),
+              }
+            : null,
+        },
+      });
+    }
+
+    const sortedItems = items.sort((left, right) => (
+      right.jobs.pressure - left.jobs.pressure
+      || Number(right.readiness.liveDispatchReady) - Number(left.readiness.liveDispatchReady)
+      || left.name.localeCompare(right.name)
+    ));
+    const itemLimit = 25;
+
+    return {
+      totalServers: items.length,
+      liveDispatchReadyServers,
+      pressureServers,
+      scannedJobs: jobs.length,
+      truncated: sortedItems.length > itemLimit,
+      items: sortedItems.slice(0, itemLimit),
+    };
+  }
+
+  private summarizeServerAgentRuntimeHealth(servers: ServerAgentReadinessRecord[], now: Date) {
+    const samples: {
+      id: string;
+      name: string;
+      host: string;
+      status: string;
+      agentRef: NonNullable<ServerExecutorTarget['agentRef']>;
+      health: ServerAgentRuntimeHealthSummary;
+    }[] = [];
+    const statusCounts = new Map<string, number>();
+    let totalServers = 0;
+    let readyServers = 0;
+    let degradedServers = 0;
+    let staleServers = 0;
+    let unknownServers = 0;
+    let missingHeartbeatServers = 0;
+    let expiringSoonServers = 0;
+
+    for (const server of servers) {
+      const agentRef = this.readServerAgentCapability(server);
+      if (!agentRef) continue;
+      totalServers += 1;
+
+      const runtime = this.readServerAgentRuntime(server, now);
+      const health = this.readServerAgentRuntimeHealth(runtime, now);
+      if (health.state === 'ready') readyServers += 1;
+      if (health.state === 'degraded') degradedServers += 1;
+      if (health.state === 'stale') staleServers += 1;
+      if (health.state === 'unknown') unknownServers += 1;
+      if (health.state === 'missing') missingHeartbeatServers += 1;
+      if (health.expiringSoon) expiringSoonServers += 1;
+
+      const status = health.status || health.state;
+      statusCounts.set(status, (statusCounts.get(status) || 0) + 1);
+
+      if ((health.state !== 'ready' || health.expiringSoon) && samples.length < 10) {
+        samples.push({
+          id: server.id,
+          name: server.name,
+          host: server.host,
+          status: server.status,
+          agentRef,
+          health,
+        });
+      }
+    }
+
+    return {
+      totalServers,
+      readyServers,
+      degradedServers,
+      staleServers,
+      unknownServers,
+      missingHeartbeatServers,
+      expiringSoonServers,
+      statusCounts: [...statusCounts.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([status, count]) => ({ status, count })),
       samples,
     };
   }
@@ -3513,7 +3772,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private readServerAgentDispatcherConfig() {
+  private readServerAgentDispatcherConfig(): ServerAgentDispatcherConfig {
     const dispatcherUrl = this.readOptionalString(
       this.configService.get('SERVER_EXECUTOR_AGENT_DISPATCHER_URL'),
     );
@@ -3527,6 +3786,82 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       dispatcherUrl: dispatcherUrl ? this.redactDispatcherUrl(dispatcherUrl) : null,
       timeoutSeconds: this.agentDispatcherTimeoutSeconds(),
       tokenConfigured: Boolean(dispatcherToken),
+    };
+  }
+
+  private readServerAgentFleetBlockingReasons(
+    server: ServerAgentReadinessRecord,
+    runtime: ServerAgentRuntimeSummary | undefined,
+    heartbeatRequired: boolean,
+    dispatcher: ServerAgentDispatcherConfig,
+  ) {
+    const reasons = [];
+    if (server.status !== 'online') {
+      reasons.push(`server_${server.status || 'unknown'}`);
+    }
+    if (heartbeatRequired) {
+      if (!runtime) {
+        reasons.push('missing_heartbeat');
+      } else if (runtime.state !== 'online') {
+        reasons.push(`heartbeat_${runtime.state}`);
+      }
+    }
+    if (!dispatcher.executorEnabled) {
+      reasons.push('agent_executor_disabled');
+    }
+    if (!dispatcher.dispatcherConfigured) {
+      reasons.push('dispatcher_not_configured');
+    }
+    return reasons;
+  }
+
+  private readServerAgentBlockedJobSummary(job: ServerAgentBlockedJobRecord) {
+    const result = this.isRecord(job.result) ? job.result : {};
+    const nextExecutorBoundary = this.readOptionalString(result.nextExecutorBoundary);
+    const reason = job.error
+      || this.readOptionalString(result.mode)
+      || (nextExecutorBoundary ? `blocked at ${nextExecutorBoundary}` : 'unknown');
+    const dispatcherConfigured = typeof result.dispatcherConfigured === 'boolean'
+      ? result.dispatcherConfigured
+      : undefined;
+    const agentExecutorEnabled = typeof result.agentExecutorEnabled === 'boolean'
+      ? result.agentExecutorEnabled
+      : undefined;
+
+    return {
+      reason,
+      ...(nextExecutorBoundary ? { nextExecutorBoundary } : {}),
+      ...(dispatcherConfigured !== undefined ? { dispatcherConfigured } : {}),
+      ...(agentExecutorEnabled !== undefined ? { agentExecutorEnabled } : {}),
+    };
+  }
+
+  private pickServerAgentNextQueuedJob(
+    current: ServerAgentFleetJobRecord | undefined,
+    candidate: ServerAgentFleetJobRecord,
+  ) {
+    if (!current) return candidate;
+    if (candidate.priority !== current.priority) {
+      return candidate.priority > current.priority ? candidate : current;
+    }
+    if (candidate.availableAt.getTime() !== current.availableAt.getTime()) {
+      return candidate.availableAt < current.availableAt ? candidate : current;
+    }
+    return candidate.queuedAt < current.queuedAt ? candidate : current;
+  }
+
+  private serializeServerAgentFleetJob(job: ServerAgentFleetJobRecord) {
+    return {
+      id: job.id,
+      operationKey: job.operationKey,
+      adapterKey: job.adapterKey,
+      serverId: job.serverId,
+      status: job.status,
+      priority: job.priority,
+      queuedAt: job.queuedAt.toISOString(),
+      availableAt: job.availableAt.toISOString(),
+      finishedAt: job.finishedAt?.toISOString() ?? null,
+      server: job.server,
     };
   }
 
@@ -3611,6 +3946,66 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     return ['online', 'ready', 'healthy', 'connected', 'degraded'].includes(normalized)
       ? normalized
       : 'online';
+  }
+
+  private readServerAgentRuntimeHealth(
+    runtime: ServerAgentRuntimeSummary | undefined,
+    now: Date,
+  ): ServerAgentRuntimeHealthSummary {
+    if (!runtime) {
+      return {
+        state: 'missing',
+        reason: 'heartbeat_missing',
+        expiringSoon: false,
+        capabilities: [],
+      };
+    }
+
+    const lastSeenAtMs = runtime.lastSeenAt ? Date.parse(runtime.lastSeenAt) : Number.NaN;
+    const expiresAtMs = runtime.expiresAt ? Date.parse(runtime.expiresAt) : Number.NaN;
+    const lastSeenAgeSeconds = Number.isFinite(lastSeenAtMs)
+      ? Math.max(0, Math.round((now.getTime() - lastSeenAtMs) / 1000))
+      : undefined;
+    const expiresInSeconds = Number.isFinite(expiresAtMs)
+      ? Math.round((expiresAtMs - now.getTime()) / 1000)
+      : undefined;
+    const heartbeatTtlSeconds = runtime.heartbeatTtlSeconds
+      || this.serverAgentHeartbeatDefaultTtlSeconds();
+    const expiringSoonThresholdSeconds = Math.max(
+      30,
+      Math.round(heartbeatTtlSeconds * 0.25),
+    );
+    const expiringSoon = runtime.state === 'online'
+      && expiresInSeconds !== undefined
+      && expiresInSeconds >= 0
+      && expiresInSeconds <= expiringSoonThresholdSeconds;
+
+    let state: ServerAgentRuntimeHealthState = 'ready';
+    let reason = 'runtime_online';
+    if (runtime.state === 'stale') {
+      state = 'stale';
+      reason = 'heartbeat_expired';
+    } else if (runtime.state === 'unknown') {
+      state = 'unknown';
+      reason = 'heartbeat_expiry_unknown';
+    } else if (runtime.status === 'degraded') {
+      state = 'degraded';
+      reason = 'agent_status_degraded';
+    } else if (expiringSoon) {
+      state = 'degraded';
+      reason = 'heartbeat_expiring_soon';
+    }
+
+    return {
+      state,
+      reason,
+      expiringSoon,
+      capabilities: runtime.capabilities,
+      ...(runtime.status ? { status: runtime.status } : {}),
+      ...(lastSeenAgeSeconds !== undefined ? { lastSeenAgeSeconds } : {}),
+      ...(expiresInSeconds !== undefined ? { expiresInSeconds } : {}),
+      ...(runtime.heartbeatTtlSeconds ? { heartbeatTtlSeconds: runtime.heartbeatTtlSeconds } : {}),
+    };
   }
 
   private readServerAgentRuntime(

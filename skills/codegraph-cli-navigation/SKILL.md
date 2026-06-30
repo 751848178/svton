@@ -3,8 +3,6 @@ name: codegraph-cli-navigation
 description: "Use when a change spans multiple files: callers/callees, blast radius, affected tests, state flow, or route/component/style chains. Map the graph via CodeGraph CLI (not MCP), or by hand with search + source if it is missing."
 ---
 
-<!-- Generated from skills/codegraph-cli-navigation/skill.config.json. Edit skill.config.json instead of this file. -->
-
 # CodeGraph CLI Navigation
 
 Apply this when a user request is complex enough that the agent should build a code graph before changing code. Prefer CodeGraph CLI as the navigation and impact-analysis layer; if the execution environment lacks CodeGraph, manually inspect all relevant code and build the graph yourself. Final judgment must come from real source files, tests, logs, and browser inspection when relevant.
@@ -14,6 +12,7 @@ Apply this when a user request is complex enough that the agent should build a c
 - 收到用户需求后，需要判断这是明确局部改动，还是跨文件、跨模块、跨交互链路的复杂需求或问题。
 - 排查逻辑类型改动、调用链 bug、状态流转异常、服务/Hook/handler 关系、入口到副作用的跨层行为。
 - 排查样式、UI、组件结构、路由链路、布局状态、代码结构性重构或多组件协作问题。
+- 需要理解一个模块的源码结构（接口/schema/调用关系）——**先建图一次，不要靠反复 `sed -n`/`nl -ba` 逐段重读同一批源码**来拼凑结构认知。
 - 需要梳理相关代码图谱、调用关系、影响面和受影响测试；如果没有 CodeGraph，也必须手工阅读全量相关代码并整理图谱。
 
 ## Avoid When
@@ -49,6 +48,7 @@ Apply this when a user request is complex enough that the agent should build a c
 - 逻辑问题优先从用户提到的错误、接口、函数、状态名、事件名或测试名出发建立调用图谱。
 - UI/样式问题优先用 `files`、`query`、`node --file --symbols-only` 和源码阅读建立 route-to-component-to-style 图谱。
 - 使用 `codegraph affected -p . <changed-files> --quiet` 辅助找测试，但测试选择最终以源码、脚本和项目约定为准。
+- **对会反复触及的模块（如某 service 目录、某 resource 模块群），建图后把结构快照（入口、核心符号、caller/callee、schema 字段、受影响测试）写入一份 `docs-internal/.../*-snapshot.md` 或会话内笔记。** 后续引用快照，而非对同一目录反复 `rg`/`sed` 重搜——审计显示同一模块被重搜数十到数百次是 token 主因之一。
 
 ## Rules
 
@@ -56,6 +56,7 @@ Apply this when a user request is complex enough that the agent should build a c
 - 执行环境没有 CodeGraph CLI 时，不得放弃复杂需求分析；必须手工检查全量相关代码并整理等价的逻辑图谱或 UI/结构图谱。
 - CodeGraph 只作为代码结构地图和影响面侦察工具，不能替代真实源码阅读、测试、日志或浏览器验证。
 - 简单任务不得过度使用 CodeGraph；复杂度门禁必须先于 CLI 查询。
+- **理解模块结构时必须先建图一次（CodeGraph 或手工），不得靠反复 `sed -n`/`nl -ba`/`cat` 逐段重读同一批源码来拼凑认知。** 同一段源码在本会话只读一次；需要回顾结构时引用已建图谱或快照。
 - 不得运行 `codegraph install`、`uninstall`、`upgrade`、`daemon`、`uninit` 等环境变更命令，除非用户明确要求。
 - CLI 查询要收窄范围和输出体量，优先使用 limit、json、filter、depth 等参数，避免把大段无关图谱塞进上下文。
 - 图谱摘要必须区分已确认事实、CodeGraph 推断和仍需源码验证的不确定点。
@@ -68,6 +69,7 @@ Apply this when a user request is complex enough that the agent should build a c
 - 如果使用 CodeGraph，是否只用了 CLI，并避免 MCP 和环境变更命令？
 - 逻辑问题是否形成了入口、符号、caller/callee、影响面和受影响测试图谱？
 - UI/样式/结构问题是否形成了 route、component、state、style 和测试链路图谱？
+- 理解模块结构时是否先建图并复用快照，而不是反复 `sed`/`cat` 重读同一批源码？
 - 最终结论是否回到真实源码、测试、日志或浏览器验证，而不是停在图谱输出？
 
 ## References

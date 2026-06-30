@@ -3,8 +3,6 @@ name: plan-before-code
 description: "Use only before starting a non-trivial code change that needs scope clarification, acceptance criteria, and a persistent TODO plan. Skip simple edits, ordinary questions, and already-scoped tasks."
 ---
 
-<!-- Generated from skills/plan-before-code/skill.config.json. Edit skill.config.json instead of this file. -->
-
 # Plan Before Code
 
 Apply this before implementation begins. The skill turns an initial user request into a clarified scope, a persistent hierarchical development TODO document, a concise user-facing summary, and an execution loop where each TODO status is updated as work completes.

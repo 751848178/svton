@@ -116,6 +116,8 @@ describe('ProjectService', () => {
       sha256: 'a'.repeat(64),
       generatedAt: '2026-06-29T00:00:00.000Z',
       downloadUrl: '/api/projects/project-1/download',
+      retentionDays: 30,
+      expiresAt: '2026-07-29T00:00:00.000Z',
     } as const;
 
     await service.attachGeneratedProjectArtifact(
@@ -133,6 +135,67 @@ describe('ProjectService', () => {
           generatedArtifact: artifact,
           resolvedResources: [],
           environments: ['dev', 'test', 'staging', 'prod'],
+        }),
+      }),
+    }));
+  });
+
+  it('records generated artifact download metadata in project config', async () => {
+    const prisma = {
+      project: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'project-1',
+          name: 'demo',
+          description: 'Demo',
+          config: {
+            origin: 'generated',
+            environments: ['dev', 'test'],
+            generatedArtifact: {
+              kind: 'project_zip',
+              storage: 'local',
+              fileName: 'demo.zip',
+              size: 3,
+              sha256: 'a'.repeat(64),
+              generatedAt: '2026-06-29T00:00:00.000Z',
+              downloadUrl: '/api/projects/project-1/download',
+              retentionDays: 30,
+              expiresAt: '2026-07-29T00:00:00.000Z',
+              downloadCount: 2,
+            },
+          },
+        }),
+        update: jest.fn(({ data }) => Promise.resolve({ id: 'project-1', ...data })),
+      },
+    } as unknown as PrismaService;
+    const projectEnvironmentService = {
+      ensureDefaultsForProject: jest.fn().mockResolvedValue(undefined),
+    } as unknown as ProjectEnvironmentService;
+    const service = new ProjectService(prisma, projectEnvironmentService);
+
+    await service.recordGeneratedProjectArtifactDownload('team-1', 'project-1', 'user-1', {
+      kind: 'project_zip',
+      storage: 'local',
+      fileName: 'demo.zip',
+      size: 3,
+      sha256: 'a'.repeat(64),
+      generatedAt: '2026-06-29T00:00:00.000Z',
+      downloadUrl: '/api/projects/project-1/download',
+      retentionDays: 30,
+      expiresAt: '2026-07-29T00:00:00.000Z',
+    });
+
+    expect(prisma.project.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'project-1' },
+      data: expect.objectContaining({
+        config: expect.objectContaining({
+          generatedArtifact: expect.objectContaining({
+            fileName: 'demo.zip',
+            downloadCount: 3,
+            lastDownloadedAt: expect.any(String),
+            lastDownloadedBy: 'user-1',
+            expiresAt: '2026-07-29T00:00:00.000Z',
+          }),
+          environments: ['dev', 'test'],
         }),
       }),
     }));

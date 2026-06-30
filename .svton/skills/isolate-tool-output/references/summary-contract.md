@@ -57,13 +57,23 @@ node <skill-dir>/scripts/capture-tool-run.mjs --project svton --task rg-generate
 
 The script writes full stdout/stderr to the log file and prints compact JSON with `task`, `status`, `command`, `exit_code`, `full_log`, byte counts, and duration.
 
+Before running an uncertain raw command, preflight it:
+
+```bash
+node <skill-dir>/scripts/token-guard.mjs --project svton --cwd /repo --command 'git diff -- apps docs-internal'
+```
+
+If the result says `route_to_compact_tool`, use the recommended compact tool instead of running the raw command.
+
 ## Compact Tool Scripts
 
 Use these scripts when the raw operation is mostly discovery output:
 
 ```bash
+node <skill-dir>/scripts/token-guard.mjs --project svton --cwd /repo --command 'rg -n "server_agent" apps docs'
 node <skill-dir>/scripts/smart-rg.mjs --project svton --task find-policy --cwd /repo -- "ControlAccessPolicyService" apps/devpilot-api/src
 node <skill-dir>/scripts/safe-read.mjs --file apps/devpilot-api/src/deployment/deployment.service.ts --pattern "autoRollback" --before 40 --after 80
+node <skill-dir>/scripts/progress-snapshot.mjs --project svton --task devpilot-progress --cwd /repo --keyword F82
 node <skill-dir>/scripts/diff-summary.mjs --project svton --task current-diff --cwd /repo -- apps/devpilot-api/src
 node <skill-dir>/scripts/codex-session-token-audit.mjs --thread-id <codex-thread-id>
 ```

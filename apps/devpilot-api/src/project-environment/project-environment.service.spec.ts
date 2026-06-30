@@ -61,6 +61,7 @@ function decryptStoredSecret(value: string) {
 describe('ProjectEnvironmentService sync suggestions', () => {
   let prisma: PrismaMock;
   let auditEventService: { create: jest.Mock };
+  let siteService: { createSyncPlan: jest.Mock };
   let service: ProjectEnvironmentService;
 
   beforeEach(() => {
@@ -194,9 +195,16 @@ describe('ProjectEnvironmentService sync suggestions', () => {
       },
     };
     auditEventService = { create: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
+    siteService = {
+      createSyncPlan: jest.fn().mockResolvedValue({
+        status: 'completed',
+        syncRun: { id: 'site-sync-copy' },
+      }),
+    };
     service = new ProjectEnvironmentService(
       prisma as unknown as PrismaService,
       auditEventService as never,
+      siteService as never,
     );
   });
 
@@ -451,12 +459,114 @@ describe('ProjectEnvironmentService sync suggestions', () => {
     expect(createData).not.toHaveProperty('proxyConfigId');
     expect(createData.tls).not.toHaveProperty('certificate');
     expect(createData.tls).not.toHaveProperty('renewal');
+    expect(siteService.createSyncPlan).not.toHaveBeenCalled();
     expect(auditEventService.create).toHaveBeenCalledWith(expect.objectContaining({
       action: 'project_environment.sites.copy',
       risk: 'medium',
       status: 'completed',
       environmentId: 'env-test',
     }));
+  });
+
+  it('copies selected sites into OpenResty takeover mode and creates a dry-run sync plan', async () => {
+    prisma.site.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'site-prod',
+          name: 'api-site',
+          primaryDomain: 'api.example.com',
+          aliases: ['www.api.example.com'],
+          runtimeType: 'reverse_proxy',
+          runtimeConfig: { upstreamUrl: 'http://127.0.0.1:3000', syncBlocked: true },
+          tls: { enabled: true, type: 'letsencrypt', email: 'ops@example.com' },
+          accessPolicy: { allowCidrs: ['10.0.0.0/8'] },
+          status: 'active',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.site.create.mockResolvedValue({ id: 'site-test-copy' });
+
+    const result = await service.copySites('team-1', 'user-1', {
+      projectId: 'project-1',
+      sourceEnvironmentId: 'env-prod',
+      targetEnvironmentId: 'env-test',
+      dryRun: false,
+      siteIds: ['site-prod'],
+      targetDomainOverrides: { 'site-prod': 'test-api.example.com' },
+      openRestyTakeover: true,
+      targetServerIds: { 'site-prod': 'server-1' },
+      targetUpstreamUrls: { 'site-prod': 'http://10.1.0.20:3000' },
+      confirmationText: '测试',
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.appliedCount).toBe(1);
+    expect(prisma.server.findFirst).toHaveBeenCalledWith({
+      where: { id: 'server-1', teamId: 'team-1' },
+      select: { id: true },
+    });
+    expect(prisma.site.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        serverId: 'server-1',
+        status: 'pending',
+        syncError: null,
+        runtimeConfig: expect.objectContaining({
+          upstreamUrl: 'http://10.1.0.20:3000',
+          syncBlocked: false,
+        }),
+      }),
+      select: { id: true },
+    }));
+    expect(siteService.createSyncPlan).toHaveBeenCalledWith('team-1', 'user-1', 'site-test-copy', {
+      dryRun: true,
+    });
+    expect(result.steps[0].description).toContain('OpenResty dry-run 接管计划');
+    expect(result.steps[0].metadata).toEqual(expect.objectContaining({
+      openRestyTakeover: expect.objectContaining({
+        enabled: true,
+        targetServerId: 'server-1',
+        upstreamUrl: 'http://10.1.0.20:3000',
+        syncRunId: 'site-sync-copy',
+        syncStatus: 'completed',
+      }),
+    }));
+  });
+
+  it('skips OpenResty takeover copy when target server or upstream is missing', async () => {
+    prisma.site.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'site-prod',
+          name: 'api-site',
+          primaryDomain: 'api.example.com',
+          aliases: [],
+          runtimeType: 'reverse_proxy',
+          runtimeConfig: { upstreamUrl: 'http://127.0.0.1:3000' },
+          tls: { enabled: false },
+          accessPolicy: {},
+          status: 'active',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.copySites('team-1', 'user-1', {
+      projectId: 'project-1',
+      sourceEnvironmentId: 'env-prod',
+      targetEnvironmentId: 'env-test',
+      dryRun: true,
+      targetDomainOverrides: { 'site-prod': 'test-api.example.com' },
+      openRestyTakeover: true,
+      targetUpstreamUrls: { 'site-prod': 'http://10.1.0.20:3000' },
+    });
+
+    expect(result.status).toBe('planned');
+    expect(result.skippedCount).toBe(1);
+    expect(result.steps[0]).toEqual(expect.objectContaining({
+      status: 'skipped',
+      metadata: expect.objectContaining({ reason: 'missing_target_server' }),
+    }));
+    expect(prisma.site.create).not.toHaveBeenCalled();
+    expect(siteService.createSyncPlan).not.toHaveBeenCalled();
   });
 
   it('returns a dry-run CDN copy plan and skips configs without explicit target mapping', async () => {

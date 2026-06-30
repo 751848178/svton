@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import { AuditEventService } from '../audit-event';
 import { PrismaService } from '../prisma/prisma.service';
+import { SiteService } from '../site';
 import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
@@ -31,6 +32,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function readStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+}
+
+function isSafeUpstreamUrl(upstream: string) {
+  return /^https?:\/\/[a-zA-Z0-9._:-]+(?:\/[a-zA-Z0-9._~:/?#[\]@!$&'()*+,;=%-]*)?$/.test(upstream)
+    && !/[\s{};`$\\]/.test(upstream);
 }
 
 export type SuggestionSeverity = 'info' | 'warning' | 'critical';
@@ -213,6 +219,8 @@ export class ProjectEnvironmentService {
     private readonly prisma: PrismaService,
     @Optional()
     private readonly auditEventService?: AuditEventService,
+    @Optional()
+    private readonly siteService?: SiteService,
   ) {}
 
   private encryptSecretValue(text: string): string {
@@ -988,14 +996,32 @@ export class ProjectEnvironmentService {
     });
     const existingTargetDomains = new Set(targetSites.map((site) => site.primaryDomain));
     const targetDomainOverrides = dto.targetDomainOverrides || {};
+    const openRestyTakeover = dto.openRestyTakeover === true;
+    const createDryRunSyncPlan = openRestyTakeover && dto.createDryRunSyncPlan !== false;
+    const targetServerIds = dto.targetServerIds || {};
+    const targetUpstreamUrls = dto.targetUpstreamUrls || {};
     const steps: EnvironmentSiteCopyStep[] = [];
+
+    if (createDryRunSyncPlan && !this.siteService) {
+      throw new BadRequestException('Site copy OpenResty 接管需要 Site sync 服务');
+    }
 
     for (const site of sourceSites) {
       const targetDomain = targetDomainOverrides[site.id]?.trim();
+      const targetServerId = targetServerIds[site.id]?.trim();
+      const targetUpstreamUrl = targetUpstreamUrls[site.id]?.trim();
       const baseMetadata = {
         runtimeType: site.runtimeType,
         sourceDomain: site.primaryDomain,
         targetDomain: targetDomain || null,
+        openRestyTakeover: openRestyTakeover
+          ? {
+              enabled: true,
+              targetServerId: targetServerId || null,
+              upstreamUrl: targetUpstreamUrl || null,
+              createDryRunSyncPlan,
+            }
+          : undefined,
       };
 
       if (!targetDomain) {
@@ -1005,6 +1031,36 @@ export class ProjectEnvironmentService {
           title: `站点 ${site.name}`,
           description: '缺少目标域名，apply 时不会自动复制该站点',
           metadata: { ...baseMetadata, reason: 'missing_target_domain' },
+        });
+        continue;
+      }
+      if (openRestyTakeover && !targetServerId) {
+        steps.push({
+          status: 'skipped',
+          sourceSiteId: site.id,
+          title: `站点 ${site.name}`,
+          description: '缺少目标服务器，无法生成 OpenResty 接管计划',
+          metadata: { ...baseMetadata, reason: 'missing_target_server' },
+        });
+        continue;
+      }
+      if (openRestyTakeover && !targetUpstreamUrl) {
+        steps.push({
+          status: 'skipped',
+          sourceSiteId: site.id,
+          title: `站点 ${site.name}`,
+          description: '缺少目标 upstream，无法生成 OpenResty 接管计划',
+          metadata: { ...baseMetadata, reason: 'missing_target_upstream' },
+        });
+        continue;
+      }
+      if (openRestyTakeover && targetUpstreamUrl && !isSafeUpstreamUrl(targetUpstreamUrl)) {
+        steps.push({
+          status: 'skipped',
+          sourceSiteId: site.id,
+          title: `站点 ${site.name}`,
+          description: '目标 upstream 包含不安全字符，无法生成 OpenResty 接管计划',
+          metadata: { ...baseMetadata, reason: 'unsafe_target_upstream' },
         });
         continue;
       }
@@ -1024,37 +1080,72 @@ export class ProjectEnvironmentService {
           status: 'planned',
           sourceSiteId: site.id,
           title: `复制站点 ${site.name}`,
-          description: `将以 draft 站点复制到 ${target.name}，目标域名 ${targetDomain}`,
+          description: openRestyTakeover
+            ? `将以待同步站点复制到 ${target.name}，绑定目标服务器并生成 OpenResty dry-run 接管计划`
+            : `将以 draft 站点复制到 ${target.name}，目标域名 ${targetDomain}`,
           metadata: baseMetadata,
         });
         continue;
       }
 
+      if (openRestyTakeover && targetServerId) {
+        await this.assertServer(teamId, targetServerId);
+      }
+      const runtimeConfig = isRecord(site.runtimeConfig) ? { ...site.runtimeConfig } : {};
+      if (openRestyTakeover && targetUpstreamUrl) {
+        runtimeConfig.upstreamUrl = targetUpstreamUrl;
+        runtimeConfig.syncBlocked = false;
+        delete runtimeConfig.syncBlockedReason;
+      }
+      const siteData: Prisma.SiteUncheckedCreateInput = {
+        teamId,
+        createdById: userId,
+        projectId: dto.projectId,
+        environmentId: target.id,
+        name: `${site.name} (${target.name})`,
+        primaryDomain: targetDomain,
+        aliases: site.aliases ? this.toJsonValue(site.aliases) : undefined,
+        runtimeType: site.runtimeType,
+        runtimeConfig: Object.keys(runtimeConfig).length > 0 ? this.toJsonValue(runtimeConfig) : undefined,
+        tls: this.toJsonValue(this.sanitizeSiteTlsForCopy(site.tls)),
+        accessPolicy: site.accessPolicy ? this.toJsonValue(site.accessPolicy) : undefined,
+        status: openRestyTakeover ? 'pending' : 'draft',
+      };
+      if (openRestyTakeover) {
+        siteData.serverId = targetServerId;
+        siteData.syncError = null;
+      }
       const created = await this.prisma.site.create({
-        data: {
-          teamId,
-          createdById: userId,
-          projectId: dto.projectId,
-          environmentId: target.id,
-          name: `${site.name} (${target.name})`,
-          primaryDomain: targetDomain,
-          aliases: site.aliases ? this.toJsonValue(site.aliases) : undefined,
-          runtimeType: site.runtimeType,
-          runtimeConfig: site.runtimeConfig ? this.toJsonValue(site.runtimeConfig) : undefined,
-          tls: this.toJsonValue(this.sanitizeSiteTlsForCopy(site.tls)),
-          accessPolicy: site.accessPolicy ? this.toJsonValue(site.accessPolicy) : undefined,
-          status: 'draft',
-        },
+        data: siteData,
         select: { id: true },
       });
+      const syncPlan = createDryRunSyncPlan
+        ? await this.siteService!.createSyncPlan(teamId, userId, created.id, { dryRun: true })
+        : null;
       existingTargetDomains.add(targetDomain);
       steps.push({
         status: 'applied',
         sourceSiteId: site.id,
         targetSiteId: created.id,
         title: `复制站点 ${site.name}`,
-        description: `已创建目标环境 draft 站点 ${targetDomain}`,
-        metadata: baseMetadata,
+        description: openRestyTakeover
+          ? createDryRunSyncPlan
+            ? `已创建目标环境待同步站点 ${targetDomain} 并生成 OpenResty dry-run 接管计划`
+            : `已创建目标环境待同步站点 ${targetDomain}`
+          : `已创建目标环境 draft 站点 ${targetDomain}`,
+        metadata: {
+          ...baseMetadata,
+          openRestyTakeover: openRestyTakeover
+            ? {
+                enabled: true,
+                targetServerId,
+                upstreamUrl: targetUpstreamUrl,
+                createDryRunSyncPlan,
+                syncRunId: this.extractNestedString(syncPlan, ['syncRun', 'id']),
+                syncStatus: this.extractString(syncPlan, 'status'),
+              }
+            : undefined,
+        },
       });
     }
 
@@ -1069,7 +1160,11 @@ export class ProjectEnvironmentService {
       skippedCount: steps.filter((step) => step.status === 'skipped').length,
       steps,
       warnings: [
-        '只复制 Site 配置骨架并创建 draft 站点，不执行 Nginx/OpenResty 同步。',
+        openRestyTakeover
+          ? createDryRunSyncPlan
+            ? 'OpenResty 接管只生成 dry-run 同步计划，不执行 live Nginx/OpenResty 写入。'
+            : 'OpenResty 接管只绑定目标服务器和 upstream，不执行 live Nginx/OpenResty 写入。'
+          : '只复制 Site 配置骨架并创建 draft 站点，不执行 Nginx/OpenResty 同步。',
         '不会复制 serverId、proxyConfigId、证书观测资产、续期状态或真实 TLS 证书内容。',
         '非 dry-run 时每个待复制站点必须显式提供目标域名。',
       ],
@@ -1702,6 +1797,19 @@ export class ProjectEnvironmentService {
     }
 
     return credential;
+  }
+
+  private extractString(value: unknown, key: string) {
+    return isRecord(value) && typeof value[key] === 'string' ? value[key] : undefined;
+  }
+
+  private extractNestedString(value: unknown, path: string[]) {
+    let current: unknown = value;
+    for (const key of path) {
+      if (!isRecord(current)) return undefined;
+      current = current[key];
+    }
+    return typeof current === 'string' ? current : undefined;
   }
 
   private async resolveProjectEnvironment(teamId: string, projectId: string, environmentId: string) {

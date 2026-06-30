@@ -1,7 +1,7 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { GoneException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as archiver from 'archiver';
 import { createHash } from 'crypto';
-import { mkdir, stat, writeFile } from 'fs/promises';
+import { mkdir, readdir, rm, stat, writeFile } from 'fs/promises';
 import * as path from 'path';
 import { Writable } from 'stream';
 import { RegistryService } from '../registry/registry.service';
@@ -45,10 +45,30 @@ export interface ProjectZipArtifact {
   sha256: string;
   generatedAt: string;
   downloadUrl: string;
+  retentionDays: number;
+  expiresAt: string;
+  lastDownloadedAt?: string;
+  lastDownloadedBy?: string;
+  downloadCount?: number;
 }
 
 export interface ResolvedProjectZipArtifact extends ProjectZipArtifact {
   filePath: string;
+}
+
+export interface ProjectZipArtifactCleanupResult {
+  dryRun: boolean;
+  scanned: number;
+  expired: number;
+  deleted: number;
+  artifacts: Array<{
+    filePath: string;
+    fileName: string;
+    size: number;
+    generatedAt: string;
+    expiresAt: string;
+    deleted: boolean;
+  }>;
 }
 
 interface ProjectResourceConfig {
@@ -72,6 +92,8 @@ interface DatabaseSettings {
 
 const DEFAULT_DATABASE_ENGINE: DatabaseEngine = 'mysql';
 const DEFAULT_ARTIFACT_ROOT = path.join(process.cwd(), 'storage', 'generated-projects');
+const DEFAULT_ARTIFACT_RETENTION_DAYS = 30;
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 const DATABASE_ENGINE_ALIASES: Record<string, DatabaseEngine> = {
   mysql: 'mysql',
@@ -1192,6 +1214,8 @@ export default function Index() {
   ): Promise<ProjectZipArtifact> {
     const fileName = this.buildProjectZipFileName(projectName);
     const filePath = this.resolveProjectZipArtifactPath(teamId, projectId, fileName);
+    const generatedAt = new Date();
+    const retentionDays = this.getArtifactRetentionDays();
 
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, zipBuffer);
@@ -1202,8 +1226,10 @@ export default function Index() {
       fileName,
       size: zipBuffer.length,
       sha256: createHash('sha256').update(zipBuffer).digest('hex'),
-      generatedAt: new Date().toISOString(),
+      generatedAt: generatedAt.toISOString(),
       downloadUrl: `/api/projects/${encodeURIComponent(projectId)}/download`,
+      retentionDays,
+      expiresAt: this.buildArtifactExpiresAt(generatedAt, retentionDays),
     };
   }
 
@@ -1219,23 +1245,128 @@ export default function Index() {
 
     try {
       const artifactStat = await stat(filePath);
+      const generatedAt = configuredArtifact?.generatedAt || artifactStat.mtime.toISOString();
+      const retentionDays = configuredArtifact?.retentionDays || this.getArtifactRetentionDays();
+      const expiresAt = configuredArtifact?.expiresAt || this.buildArtifactExpiresAt(generatedAt, retentionDays);
+
+      if (this.isArtifactExpired(expiresAt)) {
+        throw new GoneException('生成包已过期，请重新生成');
+      }
+
       return {
         kind: 'project_zip',
         storage: 'local',
         fileName,
         size: configuredArtifact?.size || artifactStat.size,
         sha256: configuredArtifact?.sha256 || '',
-        generatedAt: configuredArtifact?.generatedAt || artifactStat.mtime.toISOString(),
+        generatedAt,
         downloadUrl: configuredArtifact?.downloadUrl || `/api/projects/${encodeURIComponent(projectId)}/download`,
+        retentionDays,
+        expiresAt,
+        lastDownloadedAt: configuredArtifact?.lastDownloadedAt,
+        lastDownloadedBy: configuredArtifact?.lastDownloadedBy,
+        downloadCount: configuredArtifact?.downloadCount,
         filePath,
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof GoneException) {
+        throw error;
+      }
+
       throw new NotFoundException('生成包不存在或已被清理');
+    }
+  }
+
+  async cleanupExpiredProjectZipArtifacts(options: { dryRun?: boolean; now?: Date } = {}): Promise<ProjectZipArtifactCleanupResult> {
+    const dryRun = options.dryRun ?? true;
+    const now = options.now ?? new Date();
+    const artifacts: ProjectZipArtifactCleanupResult['artifacts'] = [];
+    const files = await this.listLocalArtifactFiles(this.getArtifactRoot());
+    const retentionDays = this.getArtifactRetentionDays();
+    let expired = 0;
+    let deleted = 0;
+
+    for (const filePath of files) {
+      const artifactStat = await stat(filePath);
+      const generatedAt = artifactStat.mtime.toISOString();
+      const expiresAt = this.buildArtifactExpiresAt(generatedAt, retentionDays);
+      const isExpired = this.isArtifactExpired(expiresAt, now);
+
+      if (!isExpired) {
+        continue;
+      }
+
+      expired += 1;
+
+      if (!dryRun) {
+        await rm(filePath, { force: true });
+        deleted += 1;
+      }
+
+      artifacts.push({
+        filePath,
+        fileName: path.basename(filePath),
+        size: artifactStat.size,
+        generatedAt,
+        expiresAt,
+        deleted: !dryRun,
+      });
+    }
+
+    return {
+      dryRun,
+      scanned: files.length,
+      expired,
+      deleted,
+      artifacts,
+    };
+  }
+
+  private async listLocalArtifactFiles(root: string): Promise<string[]> {
+    try {
+      const entries = await readdir(root, { withFileTypes: true });
+      const files = await Promise.all(entries.map(async entry => {
+        const entryPath = path.join(root, entry.name);
+
+        if (entry.isDirectory()) {
+          return this.listLocalArtifactFiles(entryPath);
+        }
+
+        if (entry.isFile() && entry.name.endsWith('.zip')) {
+          return [entryPath];
+        }
+
+        return [];
+      }));
+
+      return files.flat();
+    } catch {
+      return [];
     }
   }
 
   private getArtifactRoot(): string {
     return process.env.DEVPILOT_GENERATED_PROJECTS_DIR || DEFAULT_ARTIFACT_ROOT;
+  }
+
+  private getArtifactRetentionDays(): number {
+    const rawRetentionDays = Number.parseInt(process.env.DEVPILOT_GENERATED_PROJECT_ARTIFACT_RETENTION_DAYS || '', 10);
+    if (Number.isFinite(rawRetentionDays) && rawRetentionDays > 0) {
+      return rawRetentionDays;
+    }
+
+    return DEFAULT_ARTIFACT_RETENTION_DAYS;
+  }
+
+  private buildArtifactExpiresAt(generatedAt: string | Date, retentionDays: number): string {
+    const generatedAtTime = generatedAt instanceof Date ? generatedAt.getTime() : Date.parse(generatedAt);
+    const baseTime = Number.isFinite(generatedAtTime) ? generatedAtTime : Date.now();
+    return new Date(baseTime + retentionDays * DAY_IN_MS).toISOString();
+  }
+
+  private isArtifactExpired(expiresAt: string, now: Date = new Date()): boolean {
+    const expiresAtTime = Date.parse(expiresAt);
+    return Number.isFinite(expiresAtTime) && expiresAtTime <= now.getTime();
   }
 
   private resolveProjectZipArtifactPath(teamId: string, projectId: string, fileName: string): string {
@@ -1287,6 +1418,20 @@ export default function Index() {
       sha256: typeof value.sha256 === 'string' ? value.sha256 : '',
       generatedAt: typeof value.generatedAt === 'string' ? value.generatedAt : '',
       downloadUrl: typeof value.downloadUrl === 'string' ? value.downloadUrl : '',
+      retentionDays: typeof value.retentionDays === 'number' && value.retentionDays > 0
+        ? value.retentionDays
+        : this.getArtifactRetentionDays(),
+      expiresAt: typeof value.expiresAt === 'string' && value.expiresAt
+        ? value.expiresAt
+        : this.buildArtifactExpiresAt(
+            typeof value.generatedAt === 'string' ? value.generatedAt : new Date(),
+            typeof value.retentionDays === 'number' && value.retentionDays > 0
+              ? value.retentionDays
+              : this.getArtifactRetentionDays(),
+          ),
+      lastDownloadedAt: typeof value.lastDownloadedAt === 'string' ? value.lastDownloadedAt : undefined,
+      lastDownloadedBy: typeof value.lastDownloadedBy === 'string' ? value.lastDownloadedBy : undefined,
+      downloadCount: typeof value.downloadCount === 'number' && value.downloadCount >= 0 ? value.downloadCount : undefined,
     };
   }
 

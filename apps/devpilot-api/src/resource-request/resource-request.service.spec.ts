@@ -610,6 +610,219 @@ describe('ResourceRequestService provisioning processors', () => {
     expect(auditActions(prisma)).toEqual([]);
   });
 
+  it('polls configured providerState and completes the current provider run', async () => {
+    const { prisma, service } = createService();
+    const now = new Date('2026-06-30T15:20:00.000Z');
+    const currentProvisioning = {
+      mode: 'provider',
+      status: 'planned',
+      boundary: 'provider_sdk_adapter',
+      provisioningRunId: 'provider-run-1',
+      idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+    };
+    const existing = resourceRequest({
+      status: 'approved',
+      spec: { database: 'poll_dev' },
+      result: {
+        provisioning: currentProvisioning,
+      },
+      resourceType: { provisioningMode: 'provider' },
+    });
+    const providerResourceType = resourceType({
+      provisioningMode: 'provider',
+      provisioningConfig: {
+        provider: 'aliyun-rds',
+        operation: 'CreateDBInstance',
+        providerStatePolling: {
+          enabled: true,
+          intervalSeconds: 30,
+          maxAttempts: 3,
+          mockState: {
+            status: 'available',
+            providerRunId: 'poll-provider-run-1',
+            resourceName: 'poll_dev',
+            secretToken: 'raw-provider-token',
+            delivery: {
+              host: 'rds.aliyun.example',
+              database: 'poll_dev',
+              username: 'app_user',
+              password: 'super-secret',
+            },
+            config: { engine: 'mysql' },
+          },
+        },
+      },
+    });
+    const completed = {
+      ...existing,
+      status: 'completed',
+      result: { provisioning: { mode: 'provider', status: 'completed' } },
+      instance: { id: 'instance-1', name: 'poll_dev', status: 'active' },
+    };
+
+    prisma.resourceProvisioningRun.findMany.mockResolvedValue([{
+      id: 'provider-run-1',
+      teamId: 'team-1',
+      requestId: 'request-1',
+      resourceTypeId: 'type-mysql',
+      mode: 'provider',
+      status: 'planned',
+      boundary: 'provider_sdk_adapter',
+      executorKey: 'cloud-sdk',
+      adapterKey: 'aliyun-rds-sdk',
+      idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+      attempt: 0,
+      params: { provider: 'aliyun-rds', operation: 'CreateDBInstance' },
+      result: { provisioning: currentProvisioning },
+      request: existing,
+      resourceType: providerResourceType,
+    }]);
+    prisma.resourceRequest.findFirst.mockResolvedValue(existing);
+    prisma.resourceProvisioningRun.findFirst.mockResolvedValue({
+      id: 'provider-run-1',
+      teamId: 'team-1',
+      requestId: 'request-1',
+      resourceTypeId: 'type-mysql',
+      mode: 'provider',
+      status: 'running',
+      boundary: 'provider_sdk_adapter',
+      executorKey: 'cloud-sdk',
+      adapterKey: 'aliyun-rds-sdk',
+      idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+      attempt: 1,
+      params: { provider: 'aliyun-rds', operation: 'CreateDBInstance' },
+    });
+    prisma.resourceType.findUnique.mockResolvedValue(providerResourceType);
+    prisma.resourceInstance.create.mockResolvedValue({
+      id: 'instance-1',
+      name: 'poll_dev',
+      status: 'active',
+      credentials: 'encrypted',
+    });
+    prisma.resourceRequest.update.mockResolvedValueOnce(completed);
+
+    const summary = await service.processDueProviderStatePollingRuns({ limit: 5, now });
+
+    expect(summary).toEqual({
+      scanned: 1,
+      polled: 1,
+      completed: 1,
+      planned: 0,
+      blocked: 0,
+      skipped: 0,
+      failed: 0,
+    });
+    expect(prisma.resourceProvisioningRun.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'provider-run-1', status: 'planned', mode: 'provider' }),
+      data: expect.objectContaining({
+        status: 'running',
+        attempt: 1,
+        lockedAt: now,
+        lockOwner: 'resource-request-provider-state-poller',
+      }),
+    }));
+    expect(prisma.resourceProvisioningRun.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'provider-run-1' },
+      data: expect.objectContaining({
+        status: 'completed',
+        providerRunId: 'poll-provider-run-1',
+      }),
+    }));
+    expect(JSON.stringify(prisma.resourceProvisioningRun.update.mock.calls)).not.toContain('raw-provider-token');
+    expect(JSON.stringify(prisma.resourceProvisioningRun.update.mock.calls)).not.toContain('super-secret');
+    expect(auditActions(prisma)).toEqual(expect.arrayContaining([
+      'provisioning.provider_state_polled',
+      'provisioning.provider_state_reconciled',
+      'request.completed',
+    ]));
+  });
+
+  it('keeps providerState polling planned when no state is available yet', async () => {
+    const { prisma, service } = createService();
+    const now = new Date('2026-06-30T15:25:00.000Z');
+    const nextPollAt = new Date('2026-06-30T15:26:00.000Z');
+    const currentProvisioning = {
+      mode: 'provider',
+      status: 'planned',
+      boundary: 'provider_sdk_adapter',
+      provisioningRunId: 'provider-run-1',
+    };
+    const existing = resourceRequest({
+      status: 'approved',
+      result: {
+        provisioning: currentProvisioning,
+      },
+      resourceType: { provisioningMode: 'provider' },
+    });
+    const providerResourceType = resourceType({
+      provisioningMode: 'provider',
+      provisioningConfig: {
+        provider: 'aliyun-rds',
+        operation: 'CreateDBInstance',
+        providerStatePolling: {
+          enabled: true,
+          intervalSeconds: 60,
+          maxAttempts: 3,
+        },
+      },
+    });
+
+    prisma.resourceProvisioningRun.findMany.mockResolvedValue([{
+      id: 'provider-run-1',
+      teamId: 'team-1',
+      requestId: 'request-1',
+      resourceTypeId: 'type-mysql',
+      mode: 'provider',
+      status: 'planned',
+      boundary: 'provider_sdk_adapter',
+      executorKey: 'cloud-sdk',
+      adapterKey: 'aliyun-rds-sdk',
+      idempotencyKey: 'resource-request:request-1:type-mysql:mysql:provider',
+      attempt: 0,
+      params: { provider: 'aliyun-rds', operation: 'CreateDBInstance' },
+      result: { provisioning: currentProvisioning },
+      request: existing,
+      resourceType: providerResourceType,
+    }]);
+
+    const summary = await service.processDueProviderStatePollingRuns({ limit: 5, now });
+
+    expect(summary).toEqual({
+      scanned: 1,
+      polled: 1,
+      completed: 0,
+      planned: 1,
+      blocked: 0,
+      skipped: 0,
+      failed: 0,
+    });
+    expect(prisma.resourceRequest.findFirst).not.toHaveBeenCalled();
+    expect(prisma.resourceRequest.update).not.toHaveBeenCalled();
+    expect(prisma.resourceProvisioningRun.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'provider-run-1' },
+      data: expect.objectContaining({
+        status: 'planned',
+        attempt: 1,
+        maxAttempts: 3,
+        availableAt: nextPollAt,
+        lockedAt: null,
+        lockOwner: null,
+        result: {
+          provisioning: expect.objectContaining({
+            providerPolling: expect.objectContaining({
+              enabled: true,
+              attempt: 1,
+              maxAttempts: 3,
+              stateFound: false,
+              nextPollAt: nextPollAt.toISOString(),
+            }),
+          }),
+        },
+      }),
+    }));
+    expect(auditActions(prisma)).toEqual(['provisioning.provider_state_poll_waiting']);
+  });
+
   it('completes api provisioning with redacted TeamCredential ref and idempotency headers', async () => {
     const { prisma, service } = createService({ httpEnabled: true });
     const previousFetch = (globalThis as { fetch?: unknown }).fetch;
@@ -1869,13 +2082,13 @@ describe('ResourceRequestService provisioning processors', () => {
 
     expect(result).toEqual(expect.objectContaining({
       staleAfterSeconds: 120,
-      scheduler: {
+      scheduler: expect.objectContaining({
         autoRetryEnabled: true,
         staleRecoveryEnabled: true,
         queueingEnabled: false,
         queueWorkerEnabled: false,
         intervalSeconds: 45,
-      },
+      }),
       counts: {
         queued: 7,
         running: 3,

@@ -137,9 +137,8 @@ svton skill build engineering-craft-principles
 svton skill build --skills-dir ./skills --out-dir ./dist/skills --clean
 ```
 
-构建器支持两种源格式：
-- `skill.config.json` + 可选 `references/`、`scripts/`、`assets/`、`agents/`
-- 已经符合规范的 `SKILL.md` + 可选资源目录
+构建器使用标准 skill 目录格式：
+- `SKILL.md` + 可选 `references/`、`scripts/`、`assets/`、`agents/`
 
 ### 查看已安装 Skill
 

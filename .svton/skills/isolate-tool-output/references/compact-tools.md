@@ -2,6 +2,18 @@
 
 Use these scripts to keep discovery output out of the main context. All scripts are dependency-free Node.js ESM.
 
+## `token-guard.mjs`
+
+Preflight classifier for commands that might dump too much output. It does not run the command; it returns compact JSON with `risk`, `violations`, and recommended compact-tool replacements.
+
+```bash
+node <skill-dir>/scripts/token-guard.mjs \
+  --project svton --cwd /repo \
+  --command 'rg -n "server_agent" apps docs-internal'
+```
+
+Use it before a raw `rg/find/grep`, long `sed/tail/cat`, raw `git diff`, log reread, or session JSONL inspection when the output size is uncertain. If `status` is `route_to_compact_tool`, rewrite the command before running it.
+
 ## `smart-rg.mjs`
 
 Two-stage search wrapper for broad `rg` work. It writes full ripgrep JSON to a log and prints compact JSON with match counts, matched files, and a few line samples.
@@ -36,6 +48,20 @@ node <skill-dir>/scripts/safe-read.mjs --file src/service.ts --start 120 --end 2
 ```
 
 Default maximum is 120 lines per window. Use `--max-lines` only when a larger bounded read is truly needed.
+
+## `progress-snapshot.mjs`
+
+Compact reader for TODO, roadmap, requirements, and similar progress documents. It returns status/keyword lines with headings and line numbers instead of raw document tails.
+
+```bash
+node <skill-dir>/scripts/progress-snapshot.mjs \
+  --project svton --task devpilot-progress --cwd /repo \
+  --keyword F82
+node <skill-dir>/scripts/progress-snapshot.mjs \
+  --cwd /repo --file docs/todos/platform.md --keyword server_agent --context 1
+```
+
+When no `--file` is passed and the svton Devpilot docs exist, it uses the standard Devpilot TODO, roadmap, and requirements files. Use returned file:line anchors with `safe-read.mjs` for precise follow-up windows.
 
 ## `diff-summary.mjs`
 

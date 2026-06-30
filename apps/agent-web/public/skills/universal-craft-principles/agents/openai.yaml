@@ -1,0 +1,4 @@
+interface:
+  display_name: "Universal Craft Principles"
+  short_description: "Module and service refactor guidance across stacks"
+  default_prompt: "Use $universal-craft-principles or /universal-craft-principles to redesign this code around clearer contracts, narrower module responsibilities, type-driven dispatch, and service-owned fallback behavior."

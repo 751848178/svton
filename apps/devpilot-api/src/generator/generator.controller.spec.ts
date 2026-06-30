@@ -17,6 +17,8 @@ describe('GeneratorController artifact persistence', () => {
       sha256: 'a'.repeat(64),
       generatedAt: '2026-06-29T00:00:00.000Z',
       downloadUrl: '/api/projects/project-1/download',
+      retentionDays: 30,
+      expiresAt: '2026-07-29T00:00:00.000Z',
     };
     const generatorService = {
       resolveProjectResources: jest.fn().mockResolvedValue({
@@ -61,6 +63,7 @@ describe('GeneratorController artifact persistence', () => {
     expect(response.set).toHaveBeenCalledWith(expect.objectContaining({
       'X-Project-Id': 'project-1',
       'X-Project-Download-Url': '/api/projects/project-1/download',
+      'X-Project-Artifact-Expires-At': '2026-07-29T00:00:00.000Z',
       'Content-Disposition': 'attachment; filename="demo.zip"',
     }));
     expect(response.send).toHaveBeenCalledWith(Buffer.from('zip'));
@@ -76,6 +79,8 @@ describe('GeneratorController artifact persistence', () => {
         sha256: 'a'.repeat(64),
         generatedAt: '2026-06-29T00:00:00.000Z',
         downloadUrl: '/api/projects/project-1/download',
+        retentionDays: 30,
+        expiresAt: '2026-07-29T00:00:00.000Z',
         filePath: __filename,
       }),
     };
@@ -86,6 +91,7 @@ describe('GeneratorController artifact persistence', () => {
         config: { generatedArtifact: { fileName: 'demo.zip' } },
         downloadUrl: '/api/projects/project-1/download',
       }),
+      recordGeneratedProjectArtifactDownload: jest.fn().mockResolvedValue({ id: 'project-1' }),
     };
     const accessPolicyService = {
       assertCanRead: jest.fn().mockResolvedValue({ allowed: true }),
@@ -108,11 +114,21 @@ describe('GeneratorController artifact persistence', () => {
       targetType: 'project_artifact',
       targetId: 'project-1',
     }));
+    expect(projectService.recordGeneratedProjectArtifactDownload).toHaveBeenCalledWith(
+      'team-1',
+      'project-1',
+      'user-1',
+      expect.objectContaining({
+        fileName: 'demo.zip',
+        expiresAt: '2026-07-29T00:00:00.000Z',
+      }),
+    );
     expect(response.set).toHaveBeenCalledWith(expect.objectContaining({
       'Content-Type': 'application/zip',
       'Content-Disposition': 'attachment; filename="demo.zip"',
       'Content-Length': 3,
       'X-Project-Download-Url': '/api/projects/project-1/download',
+      'X-Project-Artifact-Expires-At': '2026-07-29T00:00:00.000Z',
     }));
     expect(result).toBeDefined();
   });

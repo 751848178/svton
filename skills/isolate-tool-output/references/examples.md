@@ -2,6 +2,19 @@
 
 Use these examples to keep delegation prompts compact and results predictable.
 
+## Command Preflight
+
+Before running a risky raw command, classify it:
+
+```bash
+node ~/.codex/skills/isolate-tool-output/scripts/token-guard.mjs \
+  --project svton \
+  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
+  --command 'rg -n "Controller\\(|server-execution|supervisor" apps/devpilot-api/src docs-internal'
+```
+
+If it returns `status: route_to_compact_tool`, use the recommended `smart-rg`, `safe-read`, `progress-snapshot`, `diff-summary`, or session audit command.
+
 ## Type Check
 
 Prompt to sub agent:
@@ -51,6 +64,27 @@ node ~/.codex/skills/isolate-tool-output/scripts/smart-rg.mjs \
 
 Use the returned `files` list to choose exact `safe-read` windows instead of expanding every match.
 
+## Progress Document Snapshot
+
+Use this instead of repeated `tail -n 180` or `sed -n '1,260p'` on TODO/roadmap files:
+
+```bash
+node ~/.codex/skills/isolate-tool-output/scripts/progress-snapshot.mjs \
+  --project svton \
+  --task devpilot-progress \
+  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
+  --keyword 'F8[0-9]|server_agent|heartbeat'
+```
+
+Then inspect only the returned anchors:
+
+```bash
+node ~/.codex/skills/isolate-tool-output/scripts/safe-read.mjs \
+  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
+  --file docs-internal/todos/2026-06-25-existing-project-onboarding.md \
+  --start 820 --end 900
+```
+
 ## Long File Read
 
 ```bash
@@ -81,6 +115,32 @@ node ~/.codex/skills/isolate-tool-output/scripts/codex-session-token-audit.mjs \
 
 Use this for token-bloat analysis. Do not `rg` the session JSONL directly because one matching line can contain full tool schemas or large command output.
 
+## Next Goal Command
+
+When a `/goal` thread should continue in a fresh thread, include a compact copyable `/goal` command. Keep generic switching thresholds in `isolate-tool-output`; the command only carries durable goal state and the next task slice.
+
+```text
+/goal
+长期目标：
+<original /goal objective, kept stable across threads>
+
+当前进度：
+- 已完成：<deliverable slice completed>
+- 关键文件：<paths>
+- 验证证据：<commands/logs>
+- 当前状态：<branch/worktree/logs/risks>
+
+本线程任务：
+- <smallest next task boundary>
+- 验收标准：<how to know this slice is done>
+- 暂不展开：<explicit non-goals, optional>
+
+交接说明：
+- 切线程规则由 isolate-tool-output 执行；本目标只携带长期目标、当前进度和下一切片。
+```
+
+Do not claim that `/goal` state, budget, or completion markers will automatically transfer. The next `/goal` command is the transfer mechanism.
+
 ## Web Research
 
 Prompt to sub agent:
@@ -97,9 +157,9 @@ The main agent should use the summary for decisions and open only the source pag
 Delegate final verification when build or test output is expected to be noisy:
 
 ```text
-Run the verification commands for the changed skill package:
-- pnpm skills:build
-- pnpm skills:validate
+Run the verification commands for the changed skill:
+- validate SKILL.md frontmatter and standard resource layout
+- run `node --check` for changed `.mjs` scripts
 
 Save full logs and return passed/failed status, any relevant errors, and recommended next actions.
 ```

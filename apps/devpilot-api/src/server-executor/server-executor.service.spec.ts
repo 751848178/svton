@@ -1025,6 +1025,77 @@ describe('ServerExecutorService resource action metric snapshots', () => {
               },
             ]);
           }
+          if (where.transport === 'server_agent') {
+            return Promise.resolve([
+              {
+                id: 'job-agent-queued-server-2',
+                operationKey: 'deployment.run',
+                adapterKey: 'server-agent',
+                serverId: 'server-2',
+                status: 'queued',
+                queueMode: 'queued',
+                priority: 9,
+                queuedAt: new Date('2026-06-28T23:51:00.000Z'),
+                availableAt: new Date('2026-06-28T23:56:00.000Z'),
+                lockExpiresAt: null,
+                finishedAt: null,
+                error: null,
+                result: null,
+                server: { id: 'server-2', name: 'prod-2', host: '10.0.0.2', status: 'online' },
+              },
+              {
+                id: 'job-agent-running-server-1',
+                operationKey: 'log.collect',
+                adapterKey: 'server-agent',
+                serverId: 'server-1',
+                status: 'running',
+                queueMode: 'queued',
+                priority: 5,
+                queuedAt: new Date('2026-06-28T23:44:00.000Z'),
+                availableAt: new Date('2026-06-28T23:44:00.000Z'),
+                lockExpiresAt: new Date('2026-06-29T00:02:00.000Z'),
+                finishedAt: null,
+                error: null,
+                result: null,
+                server: { id: 'server-1', name: 'prod-1', host: '10.0.0.1', status: 'online' },
+              },
+              {
+                id: 'job-agent-blocked-b',
+                operationKey: 'site.sync',
+                adapterKey: 'server-agent',
+                serverId: 'server-1',
+                status: 'blocked',
+                queueMode: 'inline',
+                priority: 0,
+                queuedAt: new Date('2026-06-28T23:35:00.000Z'),
+                availableAt: new Date('2026-06-28T23:35:00.000Z'),
+                lockExpiresAt: null,
+                finishedAt: new Date('2026-06-28T23:36:00.000Z'),
+                error: 'Server executor 命令策略阻断: blocked pattern',
+                result: {
+                  mode: 'blocked_live_execution',
+                  commandPolicy: { status: 'blocked' },
+                },
+                server: { id: 'server-1', name: 'prod-1', host: '10.0.0.1', status: 'online' },
+              },
+              {
+                id: 'job-agent-failed-server-2',
+                operationKey: 'backup.run',
+                adapterKey: 'server-agent',
+                serverId: 'server-2',
+                status: 'failed',
+                queueMode: 'queued',
+                priority: 1,
+                queuedAt: new Date('2026-06-28T23:20:00.000Z'),
+                availableAt: new Date('2026-06-28T23:20:00.000Z'),
+                lockExpiresAt: null,
+                finishedAt: new Date('2026-06-28T23:30:00.000Z'),
+                error: 'agent run failed',
+                result: null,
+                server: { id: 'server-2', name: 'prod-2', host: '10.0.0.2', status: 'online' },
+              },
+            ]);
+          }
 
           return Promise.resolve([
             {
@@ -1212,6 +1283,30 @@ describe('ServerExecutorService resource action metric snapshots', () => {
           staleServers: 0,
           unknownServers: 0,
         },
+        runtimeHealth: {
+          totalServers: 2,
+          readyServers: 1,
+          degradedServers: 0,
+          staleServers: 0,
+          unknownServers: 0,
+          missingHeartbeatServers: 1,
+          expiringSoonServers: 0,
+          statusCounts: [
+            { status: 'missing', count: 1 },
+            { status: 'online', count: 1 },
+          ],
+          samples: [
+            expect.objectContaining({
+              id: 'server-2',
+              health: expect.objectContaining({
+                state: 'missing',
+                reason: 'heartbeat_missing',
+                expiringSoon: false,
+                capabilities: [],
+              }),
+            }),
+          ],
+        },
         statusCounts: [
           { status: 'online', count: 1 },
           { status: 'tagged', count: 1 },
@@ -1258,6 +1353,68 @@ describe('ServerExecutorService resource action metric snapshots', () => {
             },
           },
         ],
+        fleet: {
+          totalServers: 2,
+          liveDispatchReadyServers: 1,
+          pressureServers: 2,
+          scannedJobs: 4,
+          truncated: false,
+          items: [
+            expect.objectContaining({
+              id: 'server-1',
+              runtimeHealth: expect.objectContaining({
+                state: 'ready',
+                reason: 'runtime_online',
+                expiringSoon: false,
+                lastSeenAgeSeconds: 30,
+                expiresInSeconds: 90,
+                heartbeatTtlSeconds: 120,
+                capabilities: ['deploy', 'logs'],
+              }),
+              readiness: {
+                targetReady: true,
+                liveDispatchReady: true,
+                blockingReasons: [],
+              },
+              jobs: expect.objectContaining({
+                ready: 0,
+                running: 1,
+                blocked: 1,
+                failed: 0,
+                pressure: 2,
+                blockedSample: expect.objectContaining({
+                  id: 'job-agent-blocked-b',
+                  reason: 'Server executor 命令策略阻断: blocked pattern',
+                }),
+              }),
+            }),
+            expect.objectContaining({
+              id: 'server-2',
+              runtimeHealth: expect.objectContaining({
+                state: 'missing',
+                reason: 'heartbeat_missing',
+                expiringSoon: false,
+                capabilities: [],
+              }),
+              readiness: {
+                targetReady: false,
+                liveDispatchReady: false,
+                blockingReasons: ['missing_heartbeat'],
+              },
+              jobs: expect.objectContaining({
+                ready: 1,
+                running: 0,
+                blocked: 0,
+                failed: 1,
+                pressure: 2,
+                nextQueuedJob: expect.objectContaining({
+                  id: 'job-agent-queued-server-2',
+                  priority: 9,
+                }),
+              }),
+            }),
+          ],
+        },
         jobs: {
           ready: 1,
           scheduled: 2,

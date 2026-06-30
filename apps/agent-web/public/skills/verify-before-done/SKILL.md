@@ -3,8 +3,6 @@ name: verify-before-done
 description: "Use only after code edits are complete and before the final response when concrete verification evidence is needed. Check the diff, run relevant tests, and report gaps or risks."
 ---
 
-<!-- Generated from skills/verify-before-done/skill.config.json. Edit skill.config.json instead of this file. -->
-
 # Verify Before Done
 
 Apply this as a completion gate after code edits and before the final response. The skill forces requirement-fit review, automated verification choice, real-data validation for data-dependent changes, and honest reporting of gaps or blockers.

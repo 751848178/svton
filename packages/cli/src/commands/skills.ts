@@ -56,33 +56,6 @@ interface BuildResult {
   targetDir: string;
 }
 
-interface SkillConfig {
-  name: string;
-  title?: string;
-  description: string;
-  summary?: string;
-  interface?: {
-    displayName?: string;
-    shortDescription?: string;
-    iconSmall?: string;
-    iconLarge?: string;
-    brandColor?: string;
-    defaultPrompt?: string;
-  };
-  whenToUse?: string[];
-  avoidWhen?: string[];
-  triggerSignals?: string[];
-  workflow?: string[];
-  preferredMoves?: string[];
-  rules?: string[];
-  reviewChecklist?: string[];
-  references?: Array<{
-    title: string;
-    path: string;
-    description: string;
-  }>;
-}
-
 interface RemoteSkillFile {
   path: string;
   contents?: string;
@@ -403,7 +376,7 @@ async function installFromLocalSource(
 
   const sourceDirs = await discoverSkillDirs(sourceDir);
   if (sourceDirs.length === 0) {
-    throw new Error(`No SKILL.md or skill.config.json found in ${sourceDir}`);
+    throw new Error(`No SKILL.md found in ${sourceDir}`);
   }
 
   const results: BuildResult[] = [];
@@ -502,10 +475,7 @@ async function discoverSkillDirs(rootDir: string): Promise<string[]> {
 }
 
 async function hasSkillSource(dir: string): Promise<boolean> {
-  return (
-    await fs.pathExists(path.join(dir, 'skill.config.json')) ||
-    await fs.pathExists(path.join(dir, 'SKILL.md'))
-  );
+  return fs.pathExists(path.join(dir, 'SKILL.md'));
 }
 
 function resolveSkillSourceDir(skillsDir: string, skillName: string): string {
@@ -524,32 +494,15 @@ async function buildSkillDirectory(
     throw new Error(`Skill source not found: ${sourceDir}`);
   }
 
-  const configPath = path.join(sourceDir, 'skill.config.json');
-  const hasConfig = await fs.pathExists(configPath);
-  const identity = hasConfig
-    ? await readConfigIdentity(configPath)
-    : await readSkillIdentity(sourceDir);
+  const identity = await readSkillIdentity(sourceDir);
 
   validateSkillIdentity(identity, sourceDir);
 
   const targetDir = path.join(outDir, identity.name);
   await prepareTargetDir(targetDir, options.overwrite);
   await fs.ensureDir(targetDir);
-
-  if (hasConfig) {
-    const config = await fs.readJson(configPath) as SkillConfig;
-    await copyResourceDirs(sourceDir, targetDir);
-    await fs.writeFile(path.join(targetDir, 'SKILL.md'), renderSkillMarkdown(config));
-
-    const openAIYaml = renderOpenAIYaml(config);
-    if (openAIYaml) {
-      await fs.ensureDir(path.join(targetDir, 'agents'));
-      await fs.writeFile(path.join(targetDir, 'agents', 'openai.yaml'), openAIYaml);
-    }
-  } else {
-    await fs.copy(path.join(sourceDir, 'SKILL.md'), path.join(targetDir, 'SKILL.md'));
-    await copyResourceDirs(sourceDir, targetDir);
-  }
+  await fs.copy(path.join(sourceDir, 'SKILL.md'), path.join(targetDir, 'SKILL.md'));
+  await copyResourceDirs(sourceDir, targetDir);
 
   return {
     name: identity.name,
@@ -574,14 +527,6 @@ async function copyResourceDirs(sourceDir: string, targetDir: string) {
       await fs.copy(from, path.join(targetDir, dirName));
     }
   }
-}
-
-async function readConfigIdentity(configPath: string): Promise<{ name: string; description: string }> {
-  const config = await fs.readJson(configPath) as SkillConfig;
-  return {
-    name: config.name,
-    description: config.description,
-  };
 }
 
 async function readSkillIdentity(sourceDir: string): Promise<{ name: string; description: string }> {
@@ -628,73 +573,6 @@ function validateSkillIdentity(skill: { name: string; description: string }, sou
   }
 }
 
-function renderSkillMarkdown(config: SkillConfig): string {
-  validateSkillIdentity(config, 'skill.config.json');
-
-  const sections: string[] = [];
-  pushListSection(sections, 'Use When', config.whenToUse);
-  pushListSection(sections, 'Avoid When', config.avoidWhen);
-  pushListSection(sections, 'Trigger Signals', config.triggerSignals);
-  pushOrderedSection(sections, 'Default Workflow', config.workflow);
-  pushListSection(sections, 'Preferred Moves', config.preferredMoves);
-  pushListSection(sections, 'Rules', config.rules);
-  pushListSection(sections, 'Review Checklist', config.reviewChecklist);
-
-  if (config.references?.length) {
-    sections.push('## References');
-    sections.push(
-      config.references
-        .map((reference) => `- [${reference.title}](${reference.path}) - ${reference.description}`)
-        .join('\n'),
-    );
-  }
-
-  const title = config.title || toTitle(config.name);
-  const summary = config.summary ? `${config.summary}\n\n` : '';
-
-  return normalizeLines(`---
-name: ${config.name}
-description: ${yamlQuote(config.description)}
----
-
-# ${title}
-
-${summary}${sections.join('\n\n')}
-`);
-}
-
-function pushListSection(sections: string[], title: string, items?: string[]) {
-  if (!items?.length) return;
-  sections.push(`## ${title}`);
-  sections.push(items.map((item) => `- ${item}`).join('\n'));
-}
-
-function pushOrderedSection(sections: string[], title: string, items?: string[]) {
-  if (!items?.length) return;
-  sections.push(`## ${title}`);
-  sections.push(items.map((item, index) => `${index + 1}. ${item}`).join('\n'));
-}
-
-function renderOpenAIYaml(config: SkillConfig): string | null {
-  if (!config.interface) return null;
-
-  const fields: Array<[keyof NonNullable<SkillConfig['interface']>, string]> = [
-    ['displayName', 'display_name'],
-    ['shortDescription', 'short_description'],
-    ['iconSmall', 'icon_small'],
-    ['iconLarge', 'icon_large'],
-    ['brandColor', 'brand_color'],
-    ['defaultPrompt', 'default_prompt'],
-  ];
-
-  const entries = fields.flatMap(([sourceKey, targetKey]) => {
-    const value = config.interface?.[sourceKey];
-    return value ? [`  ${targetKey}: ${yamlQuote(value)}`] : [];
-  });
-
-  return entries.length > 0 ? `interface:\n${entries.join('\n')}\n` : null;
-}
-
 function extractRemoteFiles(detail: any): RemoteSkillFile[] {
   const files = detail?.files ?? detail?.data?.files ?? detail?.skill?.files;
   if (!Array.isArray(files)) return [];
@@ -719,10 +597,6 @@ function printResults(results: BuildResult[]) {
   for (const result of results) {
     logger.info(`  ${chalk.white(result.name)} -> ${chalk.gray(result.targetDir)}`);
   }
-}
-
-function yamlQuote(value: string): string {
-  return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 function stripYamlQuotes(value: string): string {
@@ -763,11 +637,4 @@ function safeJoin(root: string, filePath: string): string {
   }
 
   return target;
-}
-
-function toTitle(name: string): string {
-  return name
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
 }

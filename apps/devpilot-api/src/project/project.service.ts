@@ -19,6 +19,11 @@ type GeneratedProjectArtifactInput = {
   sha256: string;
   generatedAt: string;
   downloadUrl: string;
+  retentionDays: number;
+  expiresAt: string;
+  lastDownloadedAt?: string;
+  lastDownloadedBy?: string;
+  downloadCount?: number;
 };
 
 const DEFAULT_PROJECT_ENVIRONMENT_KEYS = ['dev', 'test', 'staging', 'prod'];
@@ -270,7 +275,7 @@ export class ProjectService {
         description: existing.description ?? undefined,
         config: {
           ...config,
-          generatedArtifact: artifact,
+          generatedArtifact: this.serializeGeneratedProjectArtifact(artifact),
         },
       },
       existing.config,
@@ -287,6 +292,53 @@ export class ProjectService {
     this.logger.log(`Generated artifact attached: ${id} (${artifact.downloadUrl})`);
 
     return project;
+  }
+
+  async recordGeneratedProjectArtifactDownload(
+    teamId: string,
+    id: string,
+    actorId: string,
+    artifact: GeneratedProjectArtifactInput,
+  ) {
+    const existing = await this.prisma.project.findFirst({
+      where: { id, teamId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('项目不存在');
+    }
+
+    const existingConfig = isRecord(existing.config) ? existing.config : {};
+    const existingArtifact = isRecord(existingConfig.generatedArtifact) ? existingConfig.generatedArtifact : {};
+    const currentDownloadCount = typeof existingArtifact.downloadCount === 'number'
+      ? existingArtifact.downloadCount
+      : artifact.downloadCount ?? 0;
+    const downloadedAt = new Date().toISOString();
+    const nextArtifact = this.serializeGeneratedProjectArtifact({
+      ...artifact,
+      downloadCount: currentDownloadCount + 1,
+      lastDownloadedAt: downloadedAt,
+      lastDownloadedBy: actorId,
+    });
+
+    const normalizedConfig = this.normalizeProjectConfig(
+      {
+        name: existing.name,
+        description: existing.description ?? undefined,
+        config: {
+          ...existingConfig,
+          generatedArtifact: nextArtifact,
+        },
+      },
+      existing.config,
+    );
+
+    return this.prisma.project.update({
+      where: { id },
+      data: {
+        config: normalizedConfig,
+      },
+    });
   }
 
   async update(teamId: string, id: string, dto: UpdateProjectDto) {
@@ -390,5 +442,22 @@ export class ProjectService {
         readBoolean(existing.initialized) ??
         inferredOrigin === 'generated',
     } as Prisma.InputJsonObject;
+  }
+
+  private serializeGeneratedProjectArtifact(artifact: GeneratedProjectArtifactInput): Prisma.InputJsonObject {
+    return {
+      kind: artifact.kind,
+      storage: artifact.storage,
+      fileName: artifact.fileName,
+      size: artifact.size,
+      sha256: artifact.sha256,
+      generatedAt: artifact.generatedAt,
+      downloadUrl: artifact.downloadUrl,
+      retentionDays: artifact.retentionDays,
+      expiresAt: artifact.expiresAt,
+      ...(artifact.lastDownloadedAt ? { lastDownloadedAt: artifact.lastDownloadedAt } : {}),
+      ...(artifact.lastDownloadedBy ? { lastDownloadedBy: artifact.lastDownloadedBy } : {}),
+      ...(typeof artifact.downloadCount === 'number' ? { downloadCount: artifact.downloadCount } : {}),
+    };
   }
 }

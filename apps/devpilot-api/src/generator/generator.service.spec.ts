@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'fs/promises';
+import { mkdtemp, readFile, rm, utimes } from 'fs/promises';
 import * as path from 'path';
 import { tmpdir } from 'os';
 import { GenerateProjectDto } from './dto/generate.dto';
@@ -53,11 +53,13 @@ describe('GeneratorService database engine generation', () => {
 
 describe('GeneratorService project zip artifacts', () => {
   const originalArtifactRoot = process.env.DEVPILOT_GENERATED_PROJECTS_DIR;
+  const originalArtifactRetentionDays = process.env.DEVPILOT_GENERATED_PROJECT_ARTIFACT_RETENTION_DAYS;
   let artifactRoot: string;
 
   beforeEach(async () => {
     artifactRoot = await mkdtemp(path.join(tmpdir(), 'devpilot-generated-projects-'));
     process.env.DEVPILOT_GENERATED_PROJECTS_DIR = artifactRoot;
+    process.env.DEVPILOT_GENERATED_PROJECT_ARTIFACT_RETENTION_DAYS = '7';
   });
 
   afterEach(async () => {
@@ -65,6 +67,11 @@ describe('GeneratorService project zip artifacts', () => {
       delete process.env.DEVPILOT_GENERATED_PROJECTS_DIR;
     } else {
       process.env.DEVPILOT_GENERATED_PROJECTS_DIR = originalArtifactRoot;
+    }
+    if (originalArtifactRetentionDays === undefined) {
+      delete process.env.DEVPILOT_GENERATED_PROJECT_ARTIFACT_RETENTION_DAYS;
+    } else {
+      process.env.DEVPILOT_GENERATED_PROJECT_ARTIFACT_RETENTION_DAYS = originalArtifactRetentionDays;
     }
     await rm(artifactRoot, { recursive: true, force: true });
   });
@@ -85,13 +92,58 @@ describe('GeneratorService project zip artifacts', () => {
       fileName: 'demo-app.zip',
       size: zipBuffer.length,
       downloadUrl: '/api/projects/project-1/download',
+      retentionDays: 7,
     }));
     expect(artifact.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(Date.parse(artifact.expiresAt)).toBe(Date.parse(artifact.generatedAt) + 7 * 24 * 60 * 60 * 1000);
     expect(resolved).toEqual(expect.objectContaining({
       fileName: 'demo-app.zip',
       size: zipBuffer.length,
       downloadUrl: '/api/projects/project-1/download',
+      retentionDays: 7,
+      expiresAt: artifact.expiresAt,
     }));
+  });
+
+  it('rejects expired generated project zip artifacts before streaming', async () => {
+    const service = createService();
+    const artifact = await service.persistProjectZipArtifact('team-1', 'project-1', 'demo app', Buffer.from('zip-content'));
+
+    await expect(service.resolveProjectZipArtifact('team-1', 'project-1', 'demo app', {
+      generatedArtifact: {
+        ...artifact,
+        expiresAt: '2026-01-01T00:00:00.000Z',
+      },
+    })).rejects.toThrow('生成包已过期，请重新生成');
+  });
+
+  it('dry-runs and deletes expired local generated project artifacts', async () => {
+    const service = createService();
+    const artifact = await service.persistProjectZipArtifact('team-1', 'project-1', 'demo app', Buffer.from('zip-content'));
+    const resolved = await service.resolveProjectZipArtifact('team-1', 'project-1', 'demo app', {
+      generatedArtifact: artifact,
+    });
+    const oldTimestamp = new Date('2026-01-01T00:00:00.000Z');
+    const cleanupNow = new Date('2026-01-10T00:00:00.000Z');
+    await utimes(resolved.filePath, oldTimestamp, oldTimestamp);
+
+    const dryRun = await service.cleanupExpiredProjectZipArtifacts({ dryRun: true, now: cleanupNow });
+    expect(dryRun).toEqual(expect.objectContaining({
+      dryRun: true,
+      scanned: 1,
+      expired: 1,
+      deleted: 0,
+    }));
+    await expect(readFile(resolved.filePath)).resolves.toEqual(Buffer.from('zip-content'));
+
+    const executed = await service.cleanupExpiredProjectZipArtifacts({ dryRun: false, now: cleanupNow });
+    expect(executed).toEqual(expect.objectContaining({
+      dryRun: false,
+      scanned: 1,
+      expired: 1,
+      deleted: 1,
+    }));
+    await expect(readFile(resolved.filePath)).rejects.toThrow();
   });
 });
 

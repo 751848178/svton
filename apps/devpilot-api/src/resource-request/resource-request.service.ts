@@ -89,6 +89,25 @@ interface ProvisioningAutoRetrySummary {
   failed: number;
 }
 
+interface ProviderStatePollingConfig {
+  enabled: boolean;
+  intervalSeconds: number;
+  maxAttempts: number;
+  source: string;
+  createInstance?: boolean;
+  instanceName?: string;
+}
+
+export interface ProviderStatePollingSummary {
+  scanned: number;
+  polled: number;
+  completed: number;
+  planned: number;
+  blocked: number;
+  skipped: number;
+  failed: number;
+}
+
 export interface ProvisioningStaleRecoverySummary {
   scanned: number;
   recovered: number;
@@ -993,7 +1012,7 @@ export class ResourceRequestService implements OnModuleInit {
 
   async reconcileProviderProvisioningRun(
     teamId: string,
-    userId: string,
+    userId: string | undefined,
     requestId: string,
     runId: string,
     dto: ReconcileProviderResourceProvisioningRunDto,
@@ -1277,6 +1296,8 @@ export class ResourceRequestService implements OnModuleInit {
         ) || 60,
         queueingEnabled: this.httpProvisioningQueueEnabled(),
         queueWorkerEnabled: this.configService.get('RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_ENABLED', 'false') === 'true',
+        providerStatePollingEnabled:
+          this.configService.get('RESOURCE_REQUEST_PROVISIONING_PROVIDER_STATE_POLLING_ENABLED', 'false') === 'true',
       },
       counts,
       samples: {
@@ -1468,6 +1489,204 @@ export class ResourceRequestService implements OnModuleInit {
         run: this.serializeProvisioningRun({ ...claimedRun, status: 'failed', error: reason, finishedAt: now }),
       };
     }
+  }
+
+  async processDueProviderStatePollingRuns(
+    options: { limit?: number; now?: Date } = {},
+  ): Promise<ProviderStatePollingSummary> {
+    const limit = Math.min(Math.max(options.limit ?? 10, 1), 100);
+    const now = options.now ?? new Date();
+    const lockOwner = 'resource-request-provider-state-poller';
+    const runs = await (this.prisma as PrismaAny).resourceProvisioningRun.findMany({
+      where: {
+        mode: 'provider',
+        status: 'planned',
+        OR: [{ availableAt: null }, { availableAt: { lte: now } }],
+      },
+      orderBy: [
+        { availableAt: 'asc' },
+        { startedAt: 'asc' },
+      ],
+      take: Math.min(limit * 5, 250),
+      include: {
+        request: { include: this.resourceRequestInclude() },
+        resourceType: {
+          select: {
+            id: true,
+            key: true,
+            name: true,
+            provisioningMode: true,
+            provisioningConfig: true,
+            deliverySchema: true,
+          },
+        },
+      },
+    });
+
+    const summary: ProviderStatePollingSummary = {
+      scanned: runs.length,
+      polled: 0,
+      completed: 0,
+      planned: 0,
+      blocked: 0,
+      skipped: 0,
+      failed: 0,
+    };
+
+    for (const run of runs) {
+      if (summary.polled >= limit) {
+        break;
+      }
+
+      const request = this.asRecord(run.request);
+      const currentProvisioning = this.asRecord(this.asRecord(request.result).provisioning);
+      const currentRunId = this.readString(currentProvisioning.provisioningRunId);
+      if (request.status !== 'approved' || currentRunId !== run.id) {
+        summary.skipped += 1;
+        continue;
+      }
+
+      const resourceType = this.asRecord(run.resourceType) as unknown as ProvisioningResourceType;
+      const pollingConfig = this.readProviderStatePollingConfig(this.asRecord(resourceType.provisioningConfig));
+      if (!pollingConfig.enabled) {
+        summary.skipped += 1;
+        continue;
+      }
+
+      const attempt = (this.readNonNegativeInteger(run.attempt) ?? 0) + 1;
+      const nextAvailableAt = new Date(now.getTime() + pollingConfig.intervalSeconds * 1000);
+      const claim = await (this.prisma as PrismaAny).resourceProvisioningRun.updateMany({
+        where: {
+          id: run.id,
+          mode: 'provider',
+          status: 'planned',
+          OR: [{ availableAt: null }, { availableAt: { lte: now } }],
+        },
+        data: {
+          status: 'running',
+          attempt,
+          lockedAt: now,
+          lockOwner,
+        },
+      });
+
+      if (claim.count !== 1) {
+        summary.skipped += 1;
+        continue;
+      }
+
+      summary.polled += 1;
+      const claimedRun = {
+        ...run,
+        status: 'running',
+        attempt,
+        lockedAt: now,
+        lockOwner,
+      } as ResourceProvisioningRunRecord;
+
+      try {
+        if (attempt > pollingConfig.maxAttempts) {
+          await this.blockProviderStatePollingRun(
+            claimedRun,
+            request,
+            currentProvisioning,
+            pollingConfig,
+            attempt,
+            now,
+            'provider_state_polling_max_attempts_exceeded',
+          );
+          summary.blocked += 1;
+          continue;
+        }
+
+        const polledState = this.readProviderStatePollingState(
+          this.asRecord(resourceType.provisioningConfig),
+          attempt,
+        );
+        if (!this.hasRecordValues(polledState.providerState)) {
+          await this.markProviderStatePollingPending(
+            claimedRun,
+            request,
+            currentProvisioning,
+            pollingConfig,
+            attempt,
+            now,
+            nextAvailableAt,
+            'provider_state_poll_no_state',
+            polledState.source,
+          );
+          summary.planned += 1;
+          continue;
+        }
+
+        await this.writeAudit({
+          teamId: run.teamId as string,
+          resourceTypeId: run.resourceTypeId as string,
+          requestId: run.requestId as string,
+          provisioningRunId: run.id as string,
+          action: 'provisioning.provider_state_polled',
+          message: '自动轮询 provider SDK 交付状态',
+          metadata: {
+            providerPolling: this.buildProviderStatePollingMetadata(
+              pollingConfig,
+              attempt,
+              now,
+              nextAvailableAt,
+              {
+                source: polledState.source,
+                stateFound: true,
+                providerStateStatus: this.readProviderStateStatus(polledState.providerState) || undefined,
+              },
+            ),
+            providerState: this.redactSensitiveRecord(polledState.providerState),
+          },
+        });
+
+        const updated = await this.reconcileProviderProvisioningRun(
+          run.teamId as string,
+          undefined,
+          request.id as string,
+          run.id as string,
+          {
+            providerState: polledState.providerState,
+            createInstance: pollingConfig.createInstance,
+            instanceName: pollingConfig.instanceName,
+          },
+        );
+        const resultProvisioning = this.asRecord(this.asRecord(updated.result).provisioning);
+        const status = this.readString(resultProvisioning.status);
+        if (status === 'completed') {
+          summary.completed += 1;
+        } else if (status === 'blocked') {
+          summary.blocked += 1;
+        } else {
+          await this.updateProviderStatePollingMetadata(
+            claimedRun,
+            resultProvisioning,
+            pollingConfig,
+            attempt,
+            now,
+            nextAvailableAt,
+            polledState.source,
+          );
+          summary.planned += 1;
+        }
+      } catch (error) {
+        summary.failed += 1;
+        await this.markProviderStatePollingError(
+          claimedRun,
+          request,
+          currentProvisioning,
+          pollingConfig,
+          attempt,
+          now,
+          nextAvailableAt,
+          this.errorMessage(error),
+        );
+      }
+    }
+
+    return summary;
   }
 
   async reviewRequest(teamId: string, userId: string, id: string, dto: ReviewResourceRequestDto) {
@@ -2986,6 +3205,296 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     return this.asRecord(config.idempotencyState);
+  }
+
+  private readProviderStatePollingConfig(config: JsonRecord): ProviderStatePollingConfig {
+    const polling = this.asRecord(config.providerStatePolling);
+    const query = this.asRecord(config.providerStateQuery);
+    const enabled = this.readBoolean(
+      polling.enabled,
+      this.readBoolean(query.pollingEnabled, this.readBoolean(config.providerStatePolling, false)),
+    );
+    const intervalSeconds = this.clampPositiveInteger(
+      this.readPositiveInteger(polling.intervalSeconds)
+        || this.readPositiveInteger(query.intervalSeconds)
+        || this.readPositiveInteger(config.providerStatePollingIntervalSeconds)
+        || 60,
+      10,
+      86400,
+    );
+    const maxAttempts = this.clampPositiveInteger(
+      this.readPositiveInteger(polling.maxAttempts)
+        || this.readPositiveInteger(query.maxAttempts)
+        || this.readPositiveInteger(config.providerStatePollingMaxAttempts)
+        || 10,
+      1,
+      100,
+    );
+    const createInstanceValue = polling.createInstance ?? query.createInstance;
+    const source = this.hasRecordValues(polling) || typeof config.providerStatePolling === 'boolean'
+      ? 'providerStatePolling'
+      : 'providerStateQuery';
+
+    return {
+      enabled,
+      intervalSeconds,
+      maxAttempts,
+      source,
+      createInstance: typeof createInstanceValue === 'undefined'
+        ? undefined
+        : this.readBoolean(createInstanceValue, true),
+      instanceName: this.readString(polling.instanceName) || this.readString(query.instanceName) || undefined,
+    };
+  }
+
+  private readProviderStatePollingState(config: JsonRecord, attempt: number) {
+    const sources = [
+      { source: 'providerStatePolling', config: this.asRecord(config.providerStatePolling) },
+      { source: 'providerStateQuery', config: this.asRecord(config.providerStateQuery) },
+    ];
+
+    for (const entry of sources) {
+      const providerState = this.readProviderStatePollingStateFromSource(entry.config, attempt);
+      if (this.hasRecordValues(providerState)) {
+        return { providerState, source: entry.source };
+      }
+    }
+
+    return { providerState: {}, source: 'none' };
+  }
+
+  private readProviderStatePollingStateFromSource(source: JsonRecord, attempt: number) {
+    const mockStates = Array.isArray(source.mockStates)
+      ? source.mockStates.map((entry) => this.asRecord(entry)).filter((entry) => this.hasRecordValues(entry))
+      : [];
+    if (mockStates.length > 0) {
+      return mockStates[Math.min(Math.max(attempt, 1) - 1, mockStates.length - 1)];
+    }
+
+    const mockState = this.asRecord(source.mockState);
+    if (this.hasRecordValues(mockState)) {
+      return mockState;
+    }
+
+    const providerState = this.asRecord(source.providerState);
+    if (this.hasRecordValues(providerState)) {
+      return providerState;
+    }
+
+    return this.asRecord(source.state);
+  }
+
+  private buildProviderStatePollingMetadata(
+    config: ProviderStatePollingConfig,
+    attempt: number,
+    now: Date,
+    nextAvailableAt: Date | null,
+    input: {
+      source?: string;
+      stateFound?: boolean;
+      providerStateStatus?: string;
+      reason?: string;
+    } = {},
+  ) {
+    return {
+      enabled: config.enabled,
+      source: input.source || config.source,
+      attempt,
+      maxAttempts: config.maxAttempts,
+      intervalSeconds: config.intervalSeconds,
+      stateFound: input.stateFound,
+      providerStateStatus: input.providerStateStatus,
+      reason: input.reason,
+      lastPolledAt: now.toISOString(),
+      nextPollAt: nextAvailableAt ? nextAvailableAt.toISOString() : undefined,
+    };
+  }
+
+  private async markProviderStatePollingPending(
+    run: ResourceProvisioningRunRecord,
+    request: JsonRecord,
+    currentProvisioning: JsonRecord,
+    config: ProviderStatePollingConfig,
+    attempt: number,
+    now: Date,
+    nextAvailableAt: Date,
+    reason: string,
+    source?: string,
+  ) {
+    const runParams = this.asRecord(run.params);
+    const providerPolling = this.buildProviderStatePollingMetadata(config, attempt, now, nextAvailableAt, {
+      source,
+      stateFound: false,
+      reason,
+    });
+    const provisioning = {
+      ...currentProvisioning,
+      mode: 'provider',
+      status: 'planned',
+      boundary: run.boundary || 'provider_sdk_adapter',
+      provisioningRunId: run.id,
+      replayOfRunId: run.replayOfRunId || undefined,
+      provider: this.readString(currentProvisioning.provider) || this.readString(runParams.provider) || undefined,
+      operation: this.readString(currentProvisioning.operation) || this.readString(runParams.operation) || undefined,
+      region: this.readString(currentProvisioning.region) || this.readString(runParams.region) || undefined,
+      executorKey: run.executorKey || currentProvisioning.executorKey,
+      adapterKey: run.adapterKey || currentProvisioning.adapterKey,
+      idempotencyKey: run.idempotencyKey || currentProvisioning.idempotencyKey,
+      providerRunId: run.providerRunId || currentProvisioning.providerRunId,
+      reason,
+      retryable: false,
+      requiresManualCompletion: true,
+      providerPolling,
+      updatedAt: now.toISOString(),
+    };
+
+    await (this.prisma as PrismaAny).resourceProvisioningRun.update({
+      where: { id: run.id },
+      data: {
+        status: 'planned',
+        attempt,
+        maxAttempts: config.maxAttempts,
+        retryable: false,
+        result: {
+          ...this.asRecord(run.result),
+          provisioning,
+        },
+        error: reason,
+        availableAt: nextAvailableAt,
+        lockedAt: null,
+        lockOwner: null,
+        finishedAt: now,
+      },
+    });
+
+    await this.writeAudit({
+      teamId: run.teamId as string,
+      resourceTypeId: run.resourceTypeId as string,
+      requestId: request.id as string,
+      provisioningRunId: run.id as string,
+      action: 'provisioning.provider_state_poll_waiting',
+      message: 'provider SDK 交付状态轮询仍在等待结果',
+      metadata: provisioning,
+    });
+  }
+
+  private async updateProviderStatePollingMetadata(
+    run: ResourceProvisioningRunRecord,
+    provisioning: JsonRecord,
+    config: ProviderStatePollingConfig,
+    attempt: number,
+    now: Date,
+    nextAvailableAt: Date,
+    source?: string,
+  ) {
+    const providerState = this.asRecord(provisioning.providerState);
+    const providerPolling = this.buildProviderStatePollingMetadata(config, attempt, now, nextAvailableAt, {
+      source,
+      stateFound: this.hasRecordValues(providerState),
+      providerStateStatus: this.readString(provisioning.providerStateStatus) || undefined,
+      reason: this.readString(provisioning.reason) || undefined,
+    });
+    await (this.prisma as PrismaAny).resourceProvisioningRun.update({
+      where: { id: run.id },
+      data: {
+        status: 'planned',
+        attempt,
+        maxAttempts: config.maxAttempts,
+        retryable: false,
+        result: {
+          ...this.asRecord(run.result),
+          provisioning: {
+            ...provisioning,
+            providerPolling,
+          },
+        },
+        error: this.readString(provisioning.reason) || null,
+        availableAt: nextAvailableAt,
+        lockedAt: null,
+        lockOwner: null,
+        finishedAt: now,
+      },
+    });
+  }
+
+  private async blockProviderStatePollingRun(
+    run: ResourceProvisioningRunRecord,
+    request: JsonRecord,
+    currentProvisioning: JsonRecord,
+    config: ProviderStatePollingConfig,
+    attempt: number,
+    now: Date,
+    reason: string,
+  ) {
+    return this.markProvisioningStatusWithRun(run.teamId as string, undefined, request, {
+      ...currentProvisioning,
+      mode: 'provider',
+      status: 'blocked',
+      boundary: run.boundary || 'provider_sdk_adapter',
+      provisioningRunId: run.id,
+      replayOfRunId: run.replayOfRunId || undefined,
+      idempotencyKey: run.idempotencyKey || currentProvisioning.idempotencyKey,
+      providerRunId: run.providerRunId || currentProvisioning.providerRunId,
+      reason,
+      retryable: false,
+      providerPolling: this.buildProviderStatePollingMetadata(config, attempt, now, null, {
+        stateFound: false,
+        reason,
+      }),
+      blockedAt: now.toISOString(),
+    }, run);
+  }
+
+  private async markProviderStatePollingError(
+    run: ResourceProvisioningRunRecord,
+    request: JsonRecord,
+    currentProvisioning: JsonRecord,
+    config: ProviderStatePollingConfig,
+    attempt: number,
+    now: Date,
+    nextAvailableAt: Date,
+    reason: string,
+  ) {
+    if (attempt >= config.maxAttempts) {
+      await this.blockProviderStatePollingRun(
+        run,
+        request,
+        currentProvisioning,
+        config,
+        attempt,
+        now,
+        reason,
+      );
+      return;
+    }
+
+    const providerPolling = this.buildProviderStatePollingMetadata(config, attempt, now, nextAvailableAt, {
+      stateFound: false,
+      reason,
+    });
+    await (this.prisma as PrismaAny).resourceProvisioningRun.update({
+      where: { id: run.id },
+      data: {
+        status: 'planned',
+        attempt,
+        maxAttempts: config.maxAttempts,
+        retryable: true,
+        result: {
+          ...this.asRecord(run.result),
+          provisioning: {
+            ...currentProvisioning,
+            providerPolling,
+          },
+        },
+        error: reason,
+        availableAt: nextAvailableAt,
+        lockedAt: null,
+        lockOwner: null,
+        finishedAt: now,
+      },
+    });
+
+    this.logger.warn(`ResourceRequest providerState polling failed: ${reason}`);
   }
 
   private readProviderStateStatus(state: JsonRecord) {
