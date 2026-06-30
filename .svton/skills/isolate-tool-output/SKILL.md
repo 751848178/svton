@@ -14,6 +14,8 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - 读取大型 `git diff`、完整文件 `nl -ba`、长 `cat`、构建产物搜索结果或其他预计超过 2K token 的输出。
 - 执行宽范围 `rg/find/grep`、长文件阅读、`git diff`、Codex/Claude session JSONL 审计等会把整段原文带入上下文的操作。
 - 做 web research、多来源调研、最终验证，或单轮内同类工具调用超过 3 次需要合并批处理。
+- 需要再读一次「会话内已读过的进度/规划文档」(roadmap、todos、requirements、progress)——这类全文文档禁止重复进上下文。
+- 准备重复跑 `type-check`/`build`——不要每次编辑后跑，按逻辑改动单元批处理。
 
 ## Avoid When
 
@@ -25,7 +27,10 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 
 - type-check lint test build docker build docker logs pnpm build npm test turbo run tsc eslint vitest jest playwright。
 - rg find grep broad search root search .next dist build lockfile logs large output noisy command huge log。
+- 多关键词 OR 搜索、跨多目录根搜索、无 `--max-count` 的 rg——这三类几乎必然撑爆输出，必须改写为窄范围或走 smart-rg。
 - git diff cat nl -ba full file long output terminal output tool output token bloat context bloat。
+- 已读过的进度文档 roadmap todos requirements progress 再次读取 重复读 全文复读 单文档累计 N 次。
+- build type-check 反复运行 每次编辑后验证 重复构建 250 次 git diff --check。
 - web research 多来源调研 网页调研 最终验证 验证阶段 子 Agent subagent delegate summary full_log。
 - Codex Claude session JSONL token audit context bloat last_token_usage total_token_usage compact tool smart-rg safe-read diff-summary。
 - 预计输出超过 2K token 实际输出超过 4K token 同类命令超过 3 次 批处理 隔离日志。
@@ -41,6 +46,21 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 7. 主 Agent 只读取摘要和必要的精确日志片段；不要把完整日志、全量搜索结果或大段网页摘录重新拉进主上下文。
 8. 如果摘要显示错误与当前改动相关，主 Agent 决策并修改代码；如果是 baseline 噪声，记录为无关并避免扩散范围。
 9. 最终验证也默认隔离执行；最终回复报告关键命令、状态、相关错误、日志路径和仍未覆盖的风险。
+
+## Session-Level Caching（避免同一内容反复进上下文）
+
+单次命令隔离只解决「一条命令的输出」。会话内反复重读同一份内容会把它一次又一次塞回上下文，是 token 浪费的高频来源，必须用会话级缓存控制：
+
+- **进度/规划文档（roadmap、todos、requirements、progress、onboarding 等 markdown）会话内最多读一次。** 首次读取后用 `progress-snapshot.mjs` 提炼成状态行 + 行号锚点，后续只引用缓存的摘要；只有完成里程碑后才更新一行，不再重读全文。
+- **源码文件默认禁 `cat`/整文件 `nl -ba`。** 读源码结构优先用 `codegraph-cli-navigation` 建图一次，读具体片段用 `safe-read.mjs` 按符号或行号窗口；同一段源码在同一会话不重复整段读第二次。
+- **同一目录被反复 `rg` 超过 3 次时**，首次结果生成一份结构快照（接口/schema/关键符号清单）写入 `docs-internal/.../*-snapshot.md`，后续引用快照而非重搜。
+- **`MEMORY.md`、`SKILL.md`、`AGENTS.md` 等会话内恒定的文件**只读一次；如发现同会话重复读取，按工作流 bug 处理。
+
+## Batch Verification（避免每次编辑后跑构建）
+
+- `type-check`/`lint`/`build` 不要在每次编辑后跑。按一个逻辑改动单元（一个 feature 或一组相关 patch）合并一次，验证统一用 `verify-before-done` 收尾。
+- 不要在每次提交前都跑 `git diff --check`。无改动或纯验证场景跳过；只有实际准备提交时才跑一次。
+- 多包仓库优先用 turbo/pnpm 的增量目标（如 `--filter @scope/pkg`），而非全仓重新构建。
 
 ## Preferred Moves
 
@@ -66,6 +86,10 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - 相关错误必须包含文件路径、行号或可搜索错误码；没有路径时给出最短可复现定位线索。
 - 不得无界读取或搜索 `.next`、`target`、`.codegraph`、`node_modules`、`dist`、`.turbo`、`coverage`。
 - 不得运行未裁剪的全仓 `find .`、`du .`、`wc -c`、长 `cat` 或完整 `nl -ba`；必须先 prune、限路径或限输出。
+- **`rg` 满足以下任一条件即强制改写为窄范围或走 `smart-rg.mjs`：多关键词 OR（含 `|`）、跨多个顶层目录根、缺 `--max-count`/`-l`/`--count`。** 这三类是撑爆 40KB 输出上限的主要来源。
+- **进度/规划文档（roadmap/todos/requirements/progress）会话内最多读一次**，后续引用 `progress-snapshot.mjs` 摘要；禁止反复 `cat`/`rg` 同一份 markdown 全文。
+- **源码文件默认禁 `cat` 整文件读取**；用 `safe-read.mjs` 按符号或行号窗口，同一段源码本会话不重复读第二次。
+- **`type-check`/`build` 不得每次编辑后跑**；按逻辑改动单元合并，收尾统一用 `verify-before-done`，不做无意义的重复 `git diff --check`。
 - 不得对 Codex/Claude session JSONL 做会返回整行的宽 `rg`；一行可能包含完整 prompt、tool schema 或大输出。
 - 不得把 `max_output_tokens` 设到 20K/30K 来“硬接住”宽搜索；先压缩为摘要或写日志。
 - 子 Agent 的 `recommended_next` 只能建议，不替代主 Agent 的最终决策。
@@ -77,6 +101,9 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - 是否把默认隔离类别、超过阈值或重复同类命令派发给子 Agent？
 - 子 Agent 是否保存了完整日志，并只返回结构化摘要、关键错误和日志路径？
 - 主 Agent 是否只读取了必要的精确日志片段，而不是重新载入完整输出？
+- 进度/源码/记忆类文件是否在会话内只读一次，没有反复 `cat`/`rg` 全文复读？
+- `type-check`/`build` 是否按改动单元批处理，而非每次编辑后重跑？
+- 宽 `rg`（多关键词 OR / 多目录根 / 无 `--max-count`）是否被改写为窄范围或走 smart-rg？
 - 摘要是否区分 touched-path 相关错误、baseline 无关错误和需要追查的不确定项？
 - 最终回复是否包含验证状态、关键命令结果、日志路径和剩余风险？
 

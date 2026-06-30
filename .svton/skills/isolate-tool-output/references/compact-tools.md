@@ -19,6 +19,13 @@ Useful options:
 - `--samples-per-file <n>`: cap sample matches per file.
 - `--max-total-samples <n>`: cap total sample matches.
 
+The summary JSON reports two truncation flags so the agent knows the result was compressed and should not be treated as complete:
+
+- `files_truncated`: more matched files than `--max-files` included.
+- `samples_truncated`: more total matches than samples included.
+
+And a `query_risk` array that flags broad-search shapes known to saturate the output cap (multi-keyword OR, 4+ alternations, multiple search roots). When `query_risk` is non-empty, narrow the next call to one term + one module directory instead of re-running the same broad query.
+
 ## `safe-read.mjs`
 
 Bounded file reader. It reads by line range or around a pattern and refuses oversized windows by default.

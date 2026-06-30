@@ -50,6 +50,24 @@ function quoteArg(arg) {
   return /^[A-Za-z0-9_/:=.,@%+-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
+function assessQueryRisk(pattern, paths) {
+  // Detect broad-search shapes that historically saturate the output cap.
+  // Returning a non-empty risk means the caller should narrow scope next time.
+  const risks = [];
+  const patternStr = String(pattern ?? '');
+  if (patternStr.includes('|')) {
+    risks.push('multi-keyword OR pattern: split into one term per rg call');
+  }
+  if ((patternStr.match(/\|/g) || []).length >= 3) {
+    risks.push('4+ alternations: almost certainly saturates the output cap');
+  }
+  const rootCount = paths.filter((p) => p === '.' || p === '/' || !p.includes('/')).length;
+  if (paths.length >= 3 || rootCount >= 2) {
+    risks.push(`${paths.length || 1} search roots: narrow to one module directory first`);
+  }
+  return risks;
+}
+
 function parseArgs(argv) {
   const options = {
     project: path.basename(process.cwd()),
@@ -197,6 +215,8 @@ async function main() {
     matched_files: 0,
     files_truncated: false,
     files: [],
+    query_risk: [],
+    samples_truncated: false,
     stderr_sample: '',
     duration_ms: 0,
     exit_code: null,
@@ -270,6 +290,8 @@ async function main() {
         .sort((a, b) => b.matches - a.matches || a.path.localeCompare(b.path))
         .slice(0, options.maxFiles);
       summary.files_truncated = summary.matched_files > summary.files.length;
+      summary.samples_truncated = summary.total_matches > summary.total_samples;
+      summary.query_risk = assessQueryRisk(options.pattern, options.paths);
 
       log.write(`${os.EOL}----- STDERR -----${os.EOL}${stderr}`);
       log.write(`${os.EOL}----- SMART RG FOOTER -----${os.EOL}`);
