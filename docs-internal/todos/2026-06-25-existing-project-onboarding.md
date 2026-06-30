@@ -1140,10 +1140,48 @@ Purpose: F97 已经能看到和恢复 HTTP provisioning run，但 approval/manua
 
 | Task | Status | Description | Files | Notes |
 | --- | --- | --- | --- | --- |
-| F98.1 | in_progress | 梳理 HTTP provisioning queue 入口、运行状态、权限和受影响测试。 | ResourceRequestService、ResourceRequestsController、Prisma ResourceProvisioningRun、resource-requests page。 | CodeGraph CLI 未初始化索引；手工图谱确认需拆分 run create/execute，并复用 F97 supervisor 作为队列治理面 |
-| F98.2 | pending | 增加 queued run schema、服务层入队和 process-next 执行语义。 | Prisma schema/migration + ResourceRequestService/spec。 | 默认关闭队列；开启后 approval/retry/replay 落 `queued`，manual process-next 将同一 run 从 queued 置 running 后执行 HTTP |
-| F98.3 | pending | 暴露 team-scoped process-next API，并在资源申请页治理面接入队列计数和处理按钮。 | DTO/Controller + `apps/devpilot-web/src/app/(dashboard)/resource-requests/page.tsx`。 | 只允许本 team，写权限 medium risk；前端展示 queued/oldest queued 和“处理下一条队列” |
-| F98.4 | pending | 更新 requirements/roadmap/TODO 并隔离运行验证。 | docs-internal + API/Web checks。 | targeted service Jest、完整 API Jest、Prisma validate/generate、API/Web type-check/build、diff check、冲突标记和尾随空白扫描 |
+| F98.1 | done | 梳理 HTTP provisioning queue 入口、运行状态、权限和受影响测试。 | ResourceRequestService、ResourceRequestsController、Prisma ResourceProvisioningRun、resource-requests page。 | CodeGraph CLI 未初始化索引；手工图谱确认以 `ResourceProvisioningRun` 为队列账本，复用 F97 supervisor 作为队列治理面 |
+| F98.2 | done | 增加 queued run schema、服务层入队和 process-next 执行语义。 | Prisma schema/migration + ResourceRequestService/spec。 | 新增 `queueMode/queuedAt/availableAt/lockedAt/lockOwner`；默认 inline 不变；开启 queue 后 approval/retry/replay 落 `queued`，manual process-next 认领同一 run 后执行 HTTP；targeted ResourceRequestService Jest 通过 |
+| F98.3 | done | 暴露 team-scoped process-next API，并在资源申请页治理面接入队列计数和处理按钮。 | DTO/Controller + `apps/devpilot-web/src/app/(dashboard)/resource-requests/page.tsx`。 | 新增 `POST /resource-requests/provisioning-runs/process-next`，只处理本 team 可用 queued HTTP run；前端展示 queued/oldest queued 和“处理下一条队列” |
+| F98.4 | done | 更新 requirements/roadmap/TODO 并隔离运行验证。 | docs-internal + API/Web checks。 | targeted ResourceRequestService Jest、完整 API Jest、Prisma validate/generate、API/Web type-check、API/Web build、diff check、严格冲突标记和尾随空白扫描通过；Web build 仅有既有 Browserslist/caniuse-lite 过期提示 |
+
+### F99. 资源申请 HTTP provisioning queue worker
+
+Purpose: F98 已经让 `api`/`webhook` provisioning 可以先落 `queued` run，再由人工 process-next 认领执行；但这仍需要运维人员手点，离持续执行模型还有一步。本轮在现有 `ResourceRequestProvisioningRetrySchedulerService` 中增加默认关闭的 queue worker：显式开启 `RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_ENABLED=true` 后，scheduler 每轮按 bounded batch 认领可用 queued HTTP run，并复用 F98 的同一 run 执行语义、锁字段、审计和结果回写。F99 不新增常驻外部队列系统，不自动取消 provider run，不替代后续 provider SDK adapter/server-agent worker。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F99.1 | done | 梳理 provisioning queue worker 入口、配置开关、运行守卫和受影响测试。 | ResourceRequestProvisioningRetrySchedulerService、ResourceRequestService、resource-requests page、scheduler spec。 | CodeGraph CLI 未初始化索引；手工图谱确认复用现有 scheduler interval/running guard，并让 worker 调用 F98 process-next |
+| F99.2 | done | 增加默认关闭 queue worker 调度和批量摘要。 | ResourceRequestProvisioningRetrySchedulerService/spec + ResourceRequestService。 | 新增 `RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_ENABLED` 和 `RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_BATCH_SIZE`；支持全 team 范围处理 queued HTTP run；targeted scheduler/service Jest 通过 |
+| F99.3 | done | 在运行治理摘要/UI/文档中展示 queue worker 配置态。 | ResourceRequestService + resource-requests page + docs-internal。 | supervisor 返回 `queueWorkerEnabled`，资源申请页展示“队列消费”开关，避免只看到 queueingEnabled 而不知道是否会自动消费 |
+| F99.4 | done | 隔离运行验证并更新 TODO 状态。 | targeted scheduler/service Jest + API/Web checks。 | targeted scheduler/service Jest、ssh-live adapter Jest、完整 API Jest、API/Web type-check、API/Web build、diff check、冲突标记和尾随空白扫描通过；Web build 仅有既有 Browserslist/caniuse-lite 过期提示 |
+
+### F100. 资源申请 provider SDK adapter 契约与幂等状态
+
+Purpose: F99 已经让 HTTP 外部交付具备 queued run、worker、重放和恢复，但 provider SDK 交付仍停在文档缺口。本轮先在 ResourceRequest provisioning 中补上 `provider` 模式的执行契约：审批后创建 `ResourceProvisioningRun`，记录 provider/operation/region、Credential/Auth adapter ref、idempotencyKey、providerState 查询/恢复计划和 redacted evidence；默认不做真实云资源开通，只有显式 `dryRun=true` 时产出 provider SDK plan，显式配置已有 provider state 时可幂等完成并创建 ResourceInstance。后续真实 Aliyun/Tencent SDK adapter 可以替换同一 contract，不绕过审批、队列、重放、审计和运行账本。
+
+Assumption: 本轮不引入真实云 SDK 依赖和外部副作用；`provider` 模式先固定 contract、账本字段和恢复语义，避免 UI 暗示资源已经真实创建。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F100.1 | done | 梳理 ResourceRequest provisioning、ResourceProvisioningRun 和现有 cloud-sdk executor 边界。 | ResourceRequestService、ResourceProvisioningRun schema、CloudSdkExecutor、resource type admin UI。 | CodeGraph CLI 未初始化索引；手工图谱确认 provider SDK executor 目前只服务 resource-control action，ResourceRequest 需要先固定独立 provider provisioning contract |
+| F100.2 | done | 增加 `provider` provisioning mode、provider SDK plan 和 provider state/idempotency 状态写入。 | ResourceRequestService、DTO、resource request specs。 | 默认 planned；`dryRun=true` 产出可审计 plan；已有 provider state 可完成申请并写 ResourceInstance；targeted ResourceRequestService Jest 初跑通过 |
+| F100.3 | done | 让运行记录、重放和资源类型 UI 识别 provider mode。 | resource-requests page、admin/resource-types page、service replay predicates。 | provider run 可查看运行记录；planned/blocked/failed provider run 可复用现有 replay 链路；资源类型管理下拉支持 provider |
+| F100.4 | done | 更新路线/进度文档并隔离运行验证。 | requirements/roadmap/TODO + API/Web checks。 | targeted ResourceRequestService Jest、完整 API Jest、API/Web type-check、API/Web build、diff check、冲突标记和尾随空白扫描通过；Web build 仅有既有 Browserslist/caniuse-lite 过期提示 |
+
+### F101. provider provisioning run 状态对账入口
+
+Purpose: F100 已经让 `provider` provisioning 创建运行账本、生成 SDK plan，并能在 ResourceType 上预置 providerState 完成幂等恢复；但真实运维流程里 providerState 应该来自后续 SDK 查询、人工核验或外部执行回调，而不是只能写死在资源类型配置里。本轮新增 provider run 级别的受控对账入口：对当前申请正在指向的 provider run 提交 providerState，系统脱敏保存状态证据，按 completed/pending/failed 语义更新 run 和申请；completed 时复用现有 deliverySchema 拆分敏感凭据并创建 ResourceInstance。F101 不接真实云 SDK、不轮询云厂商、不自动取消 provider run。
+
+Assumption: providerState 对账是高风险运维动作，只允许当前 run，且仍受 ControlAccessPolicy 写权限保护；真实 SDK transport 后续可以调用同一 service 方法，不绕过审计。
+
+| Task | Status | Description | Files | Notes |
+| --- | --- | --- | --- | --- |
+| F101.1 | done | 梳理 provider run 对账入口、权限边界和前端运行记录动作。 | ResourceRequestsController、ResourceRequestService、resource-requests page、ResourceRequestService spec。 | CodeGraph CLI 未初始化索引；手工图谱确认 replay/list 入口和 F100 provider helper 可复用 |
+| F101.2 | done | 增加 providerState reconcile DTO、Controller 和 Service 方法。 | resource-request.dto.ts、resource-request.controller.ts、resource-request.service.ts。 | 只允许当前 provider run；completed 创建实例，failed/pending 更新 run/request 证据；API type-check 初跑通过 |
+| F101.3 | done | 补充 service 回归测试覆盖 completed、pending/failed 和非当前 run 拒绝。 | resource-request.service.spec.ts。 | targeted ResourceRequestService Jest 初跑通过，覆盖 secret redaction、providerRunId、审计 action、ResourceInstance 创建 |
+| F101.4 | done | 在运行记录弹窗提供 provider run 对账动作。 | apps/devpilot-web resource-requests page。 | provider current run 可粘贴 providerState JSON 发起对账；保留重放入口；Web type-check 初跑通过 |
+| F101.5 | done | 更新文档并隔离运行验证。 | requirements/roadmap/TODO + API/Web checks。 | targeted ResourceRequestService Jest、完整 API Jest、API/Web type-check、API/Web build、diff check、冲突标记和尾随空白扫描通过；Web build 仅有既有 Browserslist/caniuse-lite 过期提示 |
 
 ## Verification Plan
 
@@ -1242,6 +1280,17 @@ Purpose: F97 已经能看到和恢复 HTTP provisioning run，但 approval/manua
 - 2026-06-29 19:08: Implemented F97 provisioning run supervisor API, team-scoped manual stale recovery API, resource request page supervisor panel, and targeted service tests; final verification in progress.
 - 2026-06-29 19:17: Completed F97 verification with targeted service+scheduler Jest, full API Jest, Prisma validate/generate, API/Web type-check, API/Web build, diff check, conflict marker scan, and trailing whitespace scan.
 - 2026-06-29 19:28: Added F98 HTTP provisioning run queue requirement and started manual graph mapping for queued run processing.
+- 2026-06-29 19:39: Implemented F98 queued ResourceProvisioningRun schema, queueable HTTP adapter path, team-scoped process-next API, resource request page queue controls, and targeted ResourceRequestService coverage; final verification in progress.
+- 2026-06-29 19:43: Completed F98 verification with targeted ResourceRequestService Jest, full API Jest, Prisma validate/generate, API/Web type-check, API/Web build, diff check, strict conflict marker scan, and touched-path trailing whitespace scan.
+- 2026-06-29 20:02: Added F99 default-off HTTP provisioning queue worker requirement and started scheduler/service impact mapping.
+- 2026-06-29 20:12: Implemented F99 default-off HTTP provisioning queue worker, global system lock owner path, supervisor queue worker visibility, and targeted scheduler/service Jest coverage; final verification in progress.
+- 2026-06-29 20:18: Completed F99 verification with targeted scheduler/service Jest, ssh-live adapter Jest stabilization, full API Jest, API/Web type-check, API/Web build, diff check, conflict marker scan, and trailing whitespace scan.
+- 2026-06-29 20:42: Added F100 provider SDK adapter contract and provider idempotency state requirement; implementation in progress.
+- 2026-06-29 20:58: Implemented F100 provider mode, provider SDK plan/state contract, provider run replay, DTO/UI mode support, and targeted ResourceRequestService Jest coverage; final verification in progress.
+- 2026-06-29 21:05: Completed F100 verification with targeted ResourceRequestService Jest, full API Jest, API/Web type-check, API/Web build, diff check, conflict marker scan, and trailing whitespace scan.
+- 2026-06-29 21:12: Added F101 provider provisioning run state reconciliation requirement; implementation in progress.
+- 2026-06-29 21:18: Implemented F101 providerState reconcile API/service tests and provider run modal action; final verification in progress.
+- 2026-06-29 21:25: Completed F101 verification with targeted ResourceRequestService Jest, full API Jest, API/Web type-check, API/Web build, diff check, conflict marker scan, and trailing whitespace scan.
 - 2026-06-29 00:08: Verified F63 with server-executor Jest, API type-check, touched diff check, and whitespace/conflict scan.
 - 2026-06-29 00:12: Added F64 remote session metadata persistence requirement for ServerExecutionJob without introducing server agent cleanup.
 - 2026-06-29 00:16: Implemented F64 runtime observer metadata persistence and regression coverage; verification in progress.

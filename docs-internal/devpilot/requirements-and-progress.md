@@ -152,13 +152,13 @@ MVP 验收标准：
 
 - 项目向导：UI 流程完整，手动填写、已有凭证、资源实例、资源池分配和跳过资源配置都已能进入全局 `ProjectConfig`。
 - 项目生成：能下载 ZIP、创建 Project 记录、持久化本地生成包并写回 `downloadUrl`；资源解析已支持 manual/credential/instance/pool/skipped 并写入 `config.resolvedResources`，项目详情已展示生成资源摘要和资源池分配摘要。
-- 资源凭证：CRUD 和加密已有；项目生成已能消费向导手动填写、已有资源凭证、资源实例和资源池分配结果；资源申请已具备 `provisioningMode` 分发，资源池模式可在审批通过后自动分配并生成 ResourceInstance，`script` 模式可委托 Server executor 生成/执行受控脚本计划，`webhook` / `api` 模式可在显式开关开启后调用 HTTP adapter 并用成功响应完成申请；HTTP 外部交付已能解析 TeamCredential 红线内引用、生成 idempotency key、写入 redacted credential/auth adapter 证据，并对临时失败按 `maxAttempts` 受控重试；已审批但停在 blocked/planned 的处理器可由有权限用户手动重试并留下审计，显式配置 `autoRetry.enabled` 后还可由默认关闭的 scheduler 对到期 retryable HTTP blocked 申请自动补偿；HTTP 外部交付运行已新增 `ResourceProvisioningRun` 持久账本，记录 trigger、adapter/auth/executor、idempotencyKey、attempt、providerRunId、status 和脱敏结果，并可在资源申请页按申请查看运行历史；当前申请正在指向的 planned/blocked/failed HTTP run 可由有权限用户受控重放，新的 run 记录 `replayOfRunId` 并保留源 run 审计；默认关闭的 stale recovery 可把超时未结束的 running HTTP run 标记 failed、写 recovery 元数据和审计，并在仍是当前申请 run 时回写 blocked 以接上重放入口；资源申请页已新增 team-scoped 交付运行治理摘要和手动恢复入口，可查看 running/stale/blocked/failed 压力、scheduler 配置态并显式恢复本团队超时 run；但密钥中心、Git 发布、provider SDK 和更完整的队列补偿仍未串成完整闭环。
+- 资源凭证：CRUD 和加密已有；项目生成已能消费向导手动填写、已有资源凭证、资源实例和资源池分配结果；资源申请已具备 `provisioningMode` 分发，资源池模式可在审批通过后自动分配并生成 ResourceInstance，`script` 模式可委托 Server executor 生成/执行受控脚本计划，`webhook` / `api` 模式可在显式开关开启后调用 HTTP adapter 并用成功响应完成申请；HTTP 外部交付已能解析 TeamCredential 红线内引用、生成 idempotency key、写入 redacted credential/auth adapter 证据，并对临时失败按 `maxAttempts` 受控重试；已审批但停在 blocked/planned 的处理器可由有权限用户手动重试并留下审计，显式配置 `autoRetry.enabled` 后还可由默认关闭的 scheduler 对到期 retryable HTTP blocked 申请自动补偿；HTTP 外部交付运行已新增 `ResourceProvisioningRun` 持久账本，记录 trigger、adapter/auth/executor、idempotencyKey、attempt、providerRunId、status 和脱敏结果，并可在资源申请页按申请查看运行历史；当前申请正在指向的 planned/blocked/failed HTTP run 可由有权限用户受控重放，新的 run 记录 `replayOfRunId` 并保留源 run 审计；默认关闭的 stale recovery 可把超时未结束的 running HTTP run 标记 failed、写 recovery 元数据和审计，并在仍是当前申请 run 时回写 blocked 以接上重放入口；资源申请页已新增 team-scoped 交付运行治理摘要、手动恢复入口、手动队列处理入口和默认关闭 queue worker 配置态，可查看 queued/running/stale/blocked/failed 压力、scheduler/queue/worker 配置态，显式恢复本团队超时 run，通过 `POST /resource-requests/provisioning-runs/process-next` 手动认领下一条 queued HTTP run，或开启 `RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_ENABLED=true` 后按 batch 自动消费 queued HTTP run；`provider` 模式已固定 provider SDK adapter contract，可记录 provider/operation/region、Credential/Auth ref、idempotencyKey、providerState 查询/恢复计划，dry-run 生成可审计 plan，已有 providerState 或当前 provider run 的受控对账入口可幂等完成并创建 ResourceInstance；但密钥中心、Git 发布和真实 provider SDK live transport 仍未串成完整闭环。
 - 资源池：有资源池 CRUD 和分配/释放接口，分配记录已包含团队上下文；实际开通数据库/Redis 仍是模拟。
 - 服务器管理：端口连通测试可用；服务检测是模拟数据。
 - 代理配置：Nginx 配置预览可用；同步服务器是模拟状态更新。
 - CDN 配置：配置和凭证 CRUD 可用；清缓存是模拟。
 - Git 集成：后端 provider 抽象和 token 存储已存在；项目向导尚未形成完整发布闭环。
-- 动态资源类型：已新增运行时资源类型管理、统一申请单、资源实例和审计日志；前端申请页和交付页已能基于 `requestSchema.fields` / `deliverySchema.fields` 动态渲染表单，资源类型管理页已支持新增/编辑时用可视化字段编辑器维护这两类 Schema；资源申请列表已展示交付模式和处理器状态，审批通过后 `manual` / `credential_only` 保持人工交付，`pool` 可自动分配资源池并完成申请，`script` 会进入 Server executor 边界，`webhook` / `api` 在显式开关开启后可执行 HTTP adapter，默认关闭或失败时会写 planned/blocked 回写和审计证据；外部 adapter 已具备 redacted TeamCredential ref、auth adapter key、idempotency header/payload、bounded retry、显式 opt-in autoRetry scheduler、默认关闭 stale running run recovery、team-scoped supervisor/manual recovery 和 `ResourceProvisioningRun` 运行账本证据，不解密或持久化 secret material；资源申请页可对 approved 且 provisioning 为 blocked/planned 的申请重新触发交付处理器，也可按申请查看外部交付运行记录，并对当前 planned/blocked/failed HTTP run 发起受控重放。
+- 动态资源类型：已新增运行时资源类型管理、统一申请单、资源实例和审计日志；前端申请页和交付页已能基于 `requestSchema.fields` / `deliverySchema.fields` 动态渲染表单，资源类型管理页已支持新增/编辑时用可视化字段编辑器维护这两类 Schema；资源申请列表已展示交付模式和处理器状态，审批通过后 `manual` / `credential_only` 保持人工交付，`pool` 可自动分配资源池并完成申请，`script` 会进入 Server executor 边界，`webhook` / `api` 在显式开关开启后可执行 HTTP adapter，默认关闭或失败时会写 planned/blocked 回写和审计证据，`provider` 会进入 provider SDK adapter contract，默认生成可审计 plan，显式 providerState 或当前 run 对账可幂等完成申请；外部 adapter 已具备 redacted TeamCredential ref、auth adapter key、idempotency header/payload、providerState recovery/reconcile evidence、bounded retry、显式 opt-in autoRetry scheduler、默认关闭 stale running run recovery、team-scoped supervisor/manual recovery、可选 queued run + process-next、默认关闭 queue worker 和 `ResourceProvisioningRun` 运行账本证据，不解密或持久化 secret material；资源申请页可对 approved 且 provisioning 为 blocked/planned 的申请重新触发交付处理器，也可按申请查看外部交付运行记录、治理 queued/running/stale run，并对当前 planned/blocked/failed HTTP/provider run 发起受控重放或 providerState 对账。
 
 ### 2026-06-19 开发进展
 
@@ -223,7 +223,7 @@ MVP 验收标准：
    已完成 Project 记录创建、本地 ZIP 持久化、`downloadUrl` 写回和受权限下载；后续还要补对象存储、过期/清理策略、历史生成包补档和下载审计。
 
 2. 外部资源交付 adapter 仍待扩展
-   项目生成已能消费 manual/credential/instance/pool/skipped 资源配置，并在项目详情展示解析结果；资源类型 request/delivery schema 可视化编辑和资源申请 provisioningMode 分发已具备，script 已接入 Server executor，webhook/API 已具备默认关闭的 HTTP adapter 执行、TeamCredential redacted ref、idempotency key、bounded retry、失败回写、手动重试入口、显式 opt-in 的自动补偿 scheduler、`ResourceProvisioningRun` 持久化运行账本、资源申请页运行历史弹窗、当前 HTTP run 受控重放、默认关闭 stale running run recovery 和 team-scoped 运行治理摘要/手动恢复入口。下一步要把该边界扩展成真实 provider SDK adapter、队列化补偿和更完整的幂等状态恢复。
+   项目生成已能消费 manual/credential/instance/pool/skipped 资源配置，并在项目详情展示解析结果；资源类型 request/delivery schema 可视化编辑和资源申请 provisioningMode 分发已具备，script 已接入 Server executor，webhook/API 已具备默认关闭的 HTTP adapter 执行、TeamCredential redacted ref、idempotency key、bounded retry、失败回写、手动重试入口、显式 opt-in 的自动补偿 scheduler、`ResourceProvisioningRun` 持久化运行账本、资源申请页运行历史弹窗、当前 HTTP run 受控重放、默认关闭 stale running run recovery、team-scoped 运行治理摘要/手动恢复入口，以及可选 queued HTTP run、手动 process-next 执行入口和默认关闭 queue worker；provider 模式已具备默认 dry-run 的 SDK plan、providerState 幂等恢复完成、run 级受控 providerState 对账、redacted evidence 和重放入口。下一步要把该边界扩展成真实 Aliyun/Tencent provider SDK live transport、自动 provider 状态轮询和更完整的失败补偿。
 
 3. 生成项目数据库选择已统一，真实交付仍待补
    Devpilot 生成器已默认 MySQL，并支持选择 PostgreSQL/SQLite；后续还要把数据库资源池、只读账号、备份、监控和密钥注入与生成项目配置联动起来。
@@ -297,7 +297,7 @@ MVP 验收标准：
 
 建议先做 P0：
 
-1. 将外部资源交付 adapter 从第一版 script/HTTP + redacted credential/idempotency/manual retry 边界扩展到真实 provider SDK adapter、队列化自动重试、幂等状态持久化和更完整的失败补偿。
+1. 将外部资源交付 adapter 从第一版 script/HTTP/provider contract + redacted credential/idempotency/manual retry/reconcile 边界扩展到真实 provider SDK live transport、队列化自动重试、自动 provider 状态轮询和更完整的失败补偿。
 2. 将数据库选择继续联动到资源池/凭证交付、密钥注入、备份和监控；生成项目默认不一致问题已修复。
 3. 将生成 ZIP 的本地 `downloadUrl` 升级为生产级 artifact 生命周期：对象存储、过期清理、历史补档和下载审计。
 
