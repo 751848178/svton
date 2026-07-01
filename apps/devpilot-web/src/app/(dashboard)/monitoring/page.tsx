@@ -1,5 +1,7 @@
 'use client';
 
+import { Suspense as ReactSuspense, type ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { LoadingState } from '@svton/ui';
 import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useMonitoring } from './hooks/use-monitoring';
@@ -9,8 +11,16 @@ import { SilencesPanel } from './components/silences-panel';
 import { ChannelsPanel } from './components/channels-panel';
 import { DashboardPanels } from './components/dashboard-panels';
 
-export default function MonitoringPage() {
-  const m = useMonitoring();
+// React 19 类型下 Suspense 跨包 JSX 校验差异，用类型断言绕过（TS2786）
+const Suspense = ReactSuspense as unknown as (props: {
+  fallback: ReactNode;
+  children: ReactNode;
+}) => JSX.Element;
+
+function MonitoringContent() {
+  const searchParams = useSearchParams();
+  const applicationServiceId = searchParams.get('applicationServiceId') || '';
+  const m = useMonitoring({ applicationServiceId });
 
   if (m.loading) return <LoadingState text="加载中..." />;
 
@@ -27,5 +37,13 @@ export default function MonitoringPage() {
       <SilencesPanel m={m} />
       <ChannelsPanel m={m} />
     </div>
+  );
+}
+
+export default function MonitoringPage() {
+  return (
+    <Suspense fallback={<LoadingState text="加载中..." />}>
+      <MonitoringContent />
+    </Suspense>
   );
 }

@@ -23,7 +23,30 @@ import type {
 import type { ResourceMetricDashboard, ServiceSloDashboard } from '../types-dashboard';
 import { useMonitoringActions } from './use-monitoring-actions';
 
-export function useMonitoring() {
+interface UseMonitoringOptions {
+  applicationServiceId?: string;
+}
+
+interface ServiceSloDashboardQuery {
+  windowMinutes: number;
+  limit: number;
+  applicationServiceId?: string;
+}
+
+function buildServiceSloDashboardQuery(
+  applicationServiceId: string,
+  windowMinutes: number,
+): ServiceSloDashboardQuery {
+  const query: ServiceSloDashboardQuery = {
+    windowMinutes,
+    limit: applicationServiceId ? 5 : 20,
+  };
+  if (applicationServiceId) query.applicationServiceId = applicationServiceId;
+  return query;
+}
+
+export function useMonitoring(options: UseMonitoringOptions = {}) {
+  const applicationServiceId = options.applicationServiceId?.trim() || '';
   const [projects, setProjects] = useState<Project[]>([]);
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
@@ -63,6 +86,7 @@ export function useMonitoring() {
         siteData,
         resData,
         bkData,
+        serviceSloData,
       ] = await Promise.all([
         apiRequest<AlertRule[]>('GET:/monitoring/alert-rules'),
         apiRequest<AlertEvent[]>('GET:/monitoring/alert-events'),
@@ -74,6 +98,10 @@ export function useMonitoring() {
         apiRequest<Site[]>('GET:/sites'),
         apiRequest<ManagedResource[]>('GET:/resource-control/resources'),
         apiRequest<BackupPlan[]>('GET:/backups/plans'),
+        apiRequest<ServiceSloDashboard>(
+          'GET:/monitoring/service-slo/dashboard',
+          buildServiceSloDashboardQuery(applicationServiceId, serviceSloDashboardWindow),
+        ),
       ]);
       setRules(rulesData);
       setEvents(eventsData);
@@ -85,7 +113,9 @@ export function useMonitoring() {
       setSites(siteData);
       setResources(resData);
       setBackupPlans(bkData);
+      setServiceSloDashboard(serviceSloData);
     } catch (err) {
+      setServiceSloDashboard(null);
       setError(err instanceof Error ? err.message : '加载监控数据失败');
     } finally {
       setLoading(false);
@@ -94,7 +124,7 @@ export function useMonitoring() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [applicationServiceId, loadData, serviceSloDashboardWindow]);
 
   const actions = useMonitoringActions({
     rules,
@@ -115,7 +145,18 @@ export function useMonitoring() {
     loadData,
   });
 
+  const selectedApplicationService = useMemo(() => {
+    if (!applicationServiceId) return null;
+    for (const application of applications) {
+      const service = application.services.find((item) => item.id === applicationServiceId);
+      if (service) return { application, service };
+    }
+    return null;
+  }, [applications, applicationServiceId]);
+
   return {
+    applicationServiceId,
+    selectedApplicationService,
     projects,
     applications,
     servers,
