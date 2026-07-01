@@ -203,6 +203,10 @@ export class ListServiceSloDashboardQueryDto {
 
   @IsOptional()
   @IsString()
+  applicationServiceId?: string;
+
+  @IsOptional()
+  @IsString()
   windowMinutes?: string;
 
   @IsOptional()

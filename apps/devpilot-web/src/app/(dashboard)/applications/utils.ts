@@ -25,3 +25,8 @@ export function formatDate(value: string): string {
 export function getOperationStatusLabel(status: string): string {
   return operationStatusLabels[status] || status;
 }
+
+/** 百分比格式化。 */
+export function formatPercent(value?: number | null): string {
+  return value === null || value === undefined ? '-' : `${value.toFixed(2)}%`;
+}

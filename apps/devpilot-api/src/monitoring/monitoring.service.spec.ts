@@ -1264,6 +1264,7 @@ describe('MonitoringService cloud provider sync alerts', () => {
     const result = await service.listServiceSloDashboardRows('team-1', {
       projectId: 'project-1',
       environmentId: 'env-prod',
+      applicationServiceId: 'service-api',
       windowMinutes: '120',
       targetPercent: '99.9',
       limit: '500',
@@ -1276,6 +1277,7 @@ describe('MonitoringService cloud provider sync alerts', () => {
         status: { not: 'archived' },
         projectId: 'project-1',
         environmentId: 'env-prod',
+        id: 'service-api',
       },
       take: 500,
     }));

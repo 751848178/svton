@@ -5,7 +5,7 @@
  */
 
 import { Tag } from '@svton/ui';
-import type { ApplicationItem, ServiceAction } from '../types';
+import type { ApplicationItem, ServiceAction, ServiceSloRow } from '../types';
 import { ServiceRow } from './service-row';
 
 interface ApplicationCardProps {
@@ -15,6 +15,8 @@ interface ApplicationCardProps {
   deployingServiceId: string;
   queueDeploymentRuns: boolean;
   queueServiceOperations: boolean;
+  serviceSloRows: Record<string, ServiceSloRow | null>;
+  serviceSloLoading: boolean;
   onRunOperation: (
     application: ApplicationItem,
     service: ApplicationItem['services'][number],

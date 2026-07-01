@@ -4,6 +4,8 @@
  * 单一职责：仅声明接口。
  */
 
+import type { ServiceSloDashboardRow } from '../monitoring/types-dashboard';
+
 export interface Project {
   id: string;
   name: string;
@@ -134,3 +136,8 @@ export interface AppStats {
   deployments: number;
   operations: number;
 }
+
+export type ServiceSloRow = ServiceSloDashboardRow & {
+  generatedAt: string;
+  windowMinutes: number;
+};

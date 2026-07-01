@@ -184,6 +184,45 @@ type EnvironmentSiteCopyStep = {
   metadata?: Record<string, unknown>;
 };
 
+type SiteCopyQueuedLiveSyncAlertLevel = 'info' | 'warning' | 'critical';
+
+type SiteCopyQueuedLiveSyncFollowUpItem = {
+  sourceSiteId: string;
+  targetSiteId: string | null;
+  syncRunId: string | null;
+  syncStatus: string;
+  approvalId: string | null;
+  approvalStatus: string | null;
+  serverExecutionJobId: string | null;
+  action: 'approval_required' | 'monitor_queue' | 'investigate_failure' | 'monitor_sync' | 'none';
+  alertLevel: SiteCopyQueuedLiveSyncAlertLevel;
+};
+
+type SiteCopyQueuedLiveSyncAlert = {
+  level: SiteCopyQueuedLiveSyncAlertLevel;
+  code: string;
+  message: string;
+  sourceSiteId: string;
+  targetSiteId: string | null;
+  syncRunId: string | null;
+  approvalId: string | null;
+};
+
+type SiteCopyQueuedLiveSyncFollowUp = {
+  requestedCount: number;
+  statusCounts: Record<string, number>;
+  metrics: {
+    pendingApprovalCount: number;
+    queuedJobCount: number;
+    blockedCount: number;
+    completedCount: number;
+    failedCount: number;
+    unknownCount: number;
+  };
+  items: SiteCopyQueuedLiveSyncFollowUpItem[];
+  alerts: SiteCopyQueuedLiveSyncAlert[];
+};
+
 type EnvironmentCdnConfigCopyStep = {
   status: 'planned' | 'applied' | 'skipped';
   sourceCdnConfigId: string;
@@ -998,12 +1037,16 @@ export class ProjectEnvironmentService {
     const targetDomainOverrides = dto.targetDomainOverrides || {};
     const openRestyTakeover = dto.openRestyTakeover === true;
     const createDryRunSyncPlan = openRestyTakeover && dto.createDryRunSyncPlan !== false;
+    const createQueuedLiveSync = openRestyTakeover && !dryRun && dto.createQueuedLiveSync === true;
     const targetServerIds = dto.targetServerIds || {};
     const targetUpstreamUrls = dto.targetUpstreamUrls || {};
+    const queuedLiveSyncApprovalIds = dto.queuedLiveSyncApprovalIds || {};
+    const queuedLiveSyncConfirmationTexts = dto.queuedLiveSyncConfirmationTexts || {};
+    const queuedLiveSyncApprovalReasons = dto.queuedLiveSyncApprovalReasons || {};
     const steps: EnvironmentSiteCopyStep[] = [];
 
-    if (createDryRunSyncPlan && !this.siteService) {
-      throw new BadRequestException('Site copy OpenResty 接管需要 Site sync 服务');
+    if ((createDryRunSyncPlan || createQueuedLiveSync) && !this.siteService) {
+      throw new BadRequestException('Site copy OpenResty 接管执行治理需要 Site sync 服务');
     }
 
     for (const site of sourceSites) {
@@ -1020,6 +1063,7 @@ export class ProjectEnvironmentService {
               targetServerId: targetServerId || null,
               upstreamUrl: targetUpstreamUrl || null,
               createDryRunSyncPlan,
+              createQueuedLiveSync,
             }
           : undefined,
       };
@@ -1122,6 +1166,16 @@ export class ProjectEnvironmentService {
       const syncPlan = createDryRunSyncPlan
         ? await this.siteService!.createSyncPlan(teamId, userId, created.id, { dryRun: true })
         : null;
+      const queuedLiveSync = createQueuedLiveSync
+        ? await this.siteService!.createSyncPlan(teamId, userId, created.id, {
+            dryRun: false,
+            queue: true,
+            maxAttempts: dto.queuedLiveSyncMaxAttempts,
+            confirmationText: queuedLiveSyncConfirmationTexts[site.id]?.trim() || undefined,
+            approvalId: queuedLiveSyncApprovalIds[site.id]?.trim() || undefined,
+            approvalReason: queuedLiveSyncApprovalReasons[site.id]?.trim() || undefined,
+          })
+        : null;
       existingTargetDomains.add(targetDomain);
       steps.push({
         status: 'applied',
@@ -1129,7 +1183,11 @@ export class ProjectEnvironmentService {
         targetSiteId: created.id,
         title: `复制站点 ${site.name}`,
         description: openRestyTakeover
-          ? createDryRunSyncPlan
+          ? createQueuedLiveSync
+            ? createDryRunSyncPlan
+              ? `已创建目标环境待同步站点 ${targetDomain}，生成 OpenResty dry-run 接管计划并请求 queued live sync`
+              : `已创建目标环境待同步站点 ${targetDomain} 并请求 queued live sync`
+            : createDryRunSyncPlan
             ? `已创建目标环境待同步站点 ${targetDomain} 并生成 OpenResty dry-run 接管计划`
             : `已创建目标环境待同步站点 ${targetDomain}`
           : `已创建目标环境 draft 站点 ${targetDomain}`,
@@ -1143,12 +1201,32 @@ export class ProjectEnvironmentService {
                 createDryRunSyncPlan,
                 syncRunId: this.extractNestedString(syncPlan, ['syncRun', 'id']),
                 syncStatus: this.extractString(syncPlan, 'status'),
+                queuedLiveSync: createQueuedLiveSync
+                  ? {
+                      enabled: true,
+                      syncRunId: this.extractNestedString(queuedLiveSync, ['syncRun', 'id']),
+                      syncStatus: this.extractString(queuedLiveSync, 'status'),
+                      serverExecutionJobId:
+                        this.extractNestedString(queuedLiveSync, ['syncRun', 'serverExecutionJobId']) ||
+                        this.extractNestedString(queuedLiveSync, ['syncRun', 'serverExecutionJob', 'id']),
+                      approvalId:
+                        this.extractNestedString(queuedLiveSync, ['approval', 'id']) ||
+                        this.extractNestedString(queuedLiveSync, ['syncRun', 'operationApprovalId']) ||
+                        this.extractNestedString(queuedLiveSync, ['syncRun', 'operationApproval', 'id']),
+                      approvalStatus:
+                        this.extractNestedString(queuedLiveSync, ['approval', 'status']) ||
+                        this.extractNestedString(queuedLiveSync, ['syncRun', 'operationApproval', 'status']),
+                      maxAttempts: dto.queuedLiveSyncMaxAttempts ?? null,
+                      confirmationTextProvided: Boolean(queuedLiveSyncConfirmationTexts[site.id]?.trim()),
+                    }
+                  : undefined,
               }
             : undefined,
         },
       });
     }
 
+    const queuedLiveSyncFollowUp = this.buildSiteCopyQueuedLiveSyncFollowUp(steps);
     const result = {
       projectId: dto.projectId,
       sourceEnvironment: { id: source.id, key: source.key, name: source.name },
@@ -1159,9 +1237,14 @@ export class ProjectEnvironmentService {
       appliedCount: steps.filter((step) => step.status === 'applied').length,
       skippedCount: steps.filter((step) => step.status === 'skipped').length,
       steps,
+      followUp: {
+        queuedLiveSync: queuedLiveSyncFollowUp,
+      },
       warnings: [
         openRestyTakeover
-          ? createDryRunSyncPlan
+          ? createQueuedLiveSync
+            ? 'OpenResty 接管会请求 queued live sync；没有已批准审批时只生成 blocked approval，不在 copy 请求内执行 live 写入。'
+            : createDryRunSyncPlan
             ? 'OpenResty 接管只生成 dry-run 同步计划，不执行 live Nginx/OpenResty 写入。'
             : 'OpenResty 接管只绑定目标服务器和 upstream，不执行 live Nginx/OpenResty 写入。'
           : '只复制 Site 配置骨架并创建 draft 站点，不执行 Nginx/OpenResty 同步。',
@@ -1799,6 +1882,101 @@ export class ProjectEnvironmentService {
     return credential;
   }
 
+  private buildSiteCopyQueuedLiveSyncFollowUp(steps: EnvironmentSiteCopyStep[]): SiteCopyQueuedLiveSyncFollowUp {
+    const items: SiteCopyQueuedLiveSyncFollowUpItem[] = [];
+    const alerts: SiteCopyQueuedLiveSyncAlert[] = [];
+    const statusCounts: Record<string, number> = {};
+
+    for (const step of steps) {
+      const takeover = isRecord(step.metadata) && isRecord(step.metadata.openRestyTakeover)
+        ? step.metadata.openRestyTakeover
+        : null;
+      const queuedLiveSync = takeover && isRecord(takeover.queuedLiveSync) ? takeover.queuedLiveSync : null;
+      if (!queuedLiveSync) {
+        continue;
+      }
+
+      const syncStatus = this.extractString(queuedLiveSync, 'syncStatus') || 'unknown';
+      const approvalStatus = this.extractString(queuedLiveSync, 'approvalStatus') || null;
+      const syncRunId = this.extractString(queuedLiveSync, 'syncRunId') || null;
+      const approvalId = this.extractString(queuedLiveSync, 'approvalId') || null;
+      const serverExecutionJobId = this.extractString(queuedLiveSync, 'serverExecutionJobId') || null;
+      const normalizedSyncStatus = syncStatus.toLowerCase();
+      const normalizedApprovalStatus = approvalStatus?.toLowerCase() || null;
+      let action: SiteCopyQueuedLiveSyncFollowUpItem['action'];
+      let alertLevel: SiteCopyQueuedLiveSyncAlertLevel;
+      let alertCode: string | null = null;
+      let alertMessage: string | null = null;
+
+      statusCounts[syncStatus] = (statusCounts[syncStatus] || 0) + 1;
+
+      if (normalizedApprovalStatus === 'pending' || normalizedSyncStatus === 'blocked') {
+        action = 'approval_required';
+        alertLevel = 'warning';
+        alertCode = 'queued_live_sync_approval_required';
+        alertMessage = 'queued live sync 等待审批通过后才会进入执行队列';
+      } else if (normalizedSyncStatus === 'queued' || serverExecutionJobId) {
+        action = 'monitor_queue';
+        alertLevel = 'info';
+        alertCode = 'queued_live_sync_job_queued';
+        alertMessage = 'queued live sync 已进入执行队列，继续跟踪 Server executor job';
+      } else if (['failed', 'error'].includes(normalizedSyncStatus)) {
+        action = 'investigate_failure';
+        alertLevel = 'critical';
+        alertCode = 'queued_live_sync_failed';
+        alertMessage = 'queued live sync 返回失败状态，需要人工排查';
+      } else if (['completed', 'success', 'applied'].includes(normalizedSyncStatus)) {
+        action = 'none';
+        alertLevel = 'info';
+      } else {
+        action = 'monitor_sync';
+        alertLevel = 'warning';
+        alertCode = 'queued_live_sync_status_unknown';
+        alertMessage = 'queued live sync 未返回明确执行状态，需要检查 Site sync 结果';
+      }
+
+      const item = {
+        sourceSiteId: step.sourceSiteId,
+        targetSiteId: step.targetSiteId || null,
+        syncRunId,
+        syncStatus,
+        approvalId,
+        approvalStatus,
+        serverExecutionJobId,
+        action,
+        alertLevel,
+      };
+      items.push(item);
+
+      if (alertCode && alertMessage) {
+        alerts.push({
+          level: alertLevel,
+          code: alertCode,
+          message: alertMessage,
+          sourceSiteId: item.sourceSiteId,
+          targetSiteId: item.targetSiteId,
+          syncRunId: item.syncRunId,
+          approvalId: item.approvalId,
+        });
+      }
+    }
+
+    return {
+      requestedCount: items.length,
+      statusCounts,
+      metrics: {
+        pendingApprovalCount: items.filter((item) => item.action === 'approval_required').length,
+        queuedJobCount: items.filter((item) => item.action === 'monitor_queue').length,
+        blockedCount: items.filter((item) => item.syncStatus.toLowerCase() === 'blocked').length,
+        completedCount: items.filter((item) => ['completed', 'success', 'applied'].includes(item.syncStatus.toLowerCase())).length,
+        failedCount: items.filter((item) => ['failed', 'error'].includes(item.syncStatus.toLowerCase())).length,
+        unknownCount: items.filter((item) => item.syncStatus.toLowerCase() === 'unknown').length,
+      },
+      items,
+      alerts,
+    };
+  }
+
   private extractString(value: unknown, key: string) {
     return isRecord(value) && typeof value[key] === 'string' ? value[key] : undefined;
   }
@@ -2324,6 +2502,9 @@ export class ProjectEnvironmentService {
       appliedCount: number;
       skippedCount: number;
       steps: EnvironmentSiteCopyStep[];
+      followUp: {
+        queuedLiveSync: SiteCopyQueuedLiveSyncFollowUp;
+      };
       warnings: string[];
     },
   ) {
@@ -2357,6 +2538,7 @@ export class ProjectEnvironmentService {
           targetSiteId: step.targetSiteId || null,
           status: step.status,
         })),
+        followUp: result.followUp,
         warnings: result.warnings,
       },
     });

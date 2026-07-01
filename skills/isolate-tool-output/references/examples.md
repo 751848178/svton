@@ -66,17 +66,17 @@ Use the returned `files` list to choose exact `safe-read` windows instead of exp
 
 ## Progress Document Snapshot
 
-Use this instead of repeated `tail -n 180` or `sed -n '1,260p'` on TODO/roadmap files:
+Use a stable target ID first. The ID is the source of truth; line numbers are temporary anchors returned for the current file version.
 
 ```bash
 node ~/.codex/skills/isolate-tool-output/scripts/progress-snapshot.mjs \
   --project svton \
-  --task devpilot-progress \
+  --task devpilot-f82 \
   --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
-  --keyword 'F8[0-9]|server_agent|heartbeat'
+  --keyword 'F82'
 ```
 
-Then inspect only the returned anchors:
+Then inspect only the returned target block plus a small context window:
 
 ```bash
 node ~/.codex/skills/isolate-tool-output/scripts/safe-read.mjs \
@@ -84,6 +84,8 @@ node ~/.codex/skills/isolate-tool-output/scripts/safe-read.mjs \
   --file docs-internal/todos/2026-06-25-existing-project-onboarding.md \
   --start 820 --end 900
 ```
+
+If the next target is unknown, run one compact index snapshot that returns candidate IDs and `file:line` anchors, choose one target, then switch to the ID-first flow above. Do not repeatedly scan broad progress keywords across TODO, roadmap, and requirements files.
 
 ## Long File Read
 

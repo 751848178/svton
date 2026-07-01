@@ -21,6 +21,7 @@ import type {
 } from '../types';
 import { compactObject } from '../utils';
 import { useApplicationOperations } from './use-application-operations';
+import { useApplicationServiceSlos } from './use-application-service-slos';
 
 const INITIAL_APP_FORM: AppForm = {
   projectId: '',
@@ -134,6 +135,12 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
       operations: services.reduce((sum, s) => sum + (s._count?.operationRuns || 0), 0),
     };
   }, [visibleApplications]);
+  const visibleServiceIds = useMemo(
+    () => visibleApplications.flatMap((a) => a.services.map((s) => s.id)),
+    [visibleApplications],
+  );
+  const { serviceSloRows, serviceSloLoading, serviceSloError } =
+    useApplicationServiceSlos(visibleServiceIds);
 
   const createApplication = usePersistFn(async () => {
     if (!appForm.projectId || !appForm.name.trim()) {
@@ -234,6 +241,9 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
     setServiceForm,
     visibleApplications,
     stats,
+    serviceSloRows,
+    serviceSloLoading,
+    serviceSloError,
     createApplication,
     createService,
     ...operations,

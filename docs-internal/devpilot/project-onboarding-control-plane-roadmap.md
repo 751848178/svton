@@ -5,7 +5,7 @@
 `Project` 不应该只代表“由 Devpilot 初始化生成的新项目”，而应该是一个项目管控容器。它可以有三种来源：
 
 | 来源 | 含义 | 是否必须有技术栈 | 是否必须初始化 |
-|----|----|----|----|
+| --- | --- | --- | --- |
 | `generated` | 通过 Devpilot 向导生成的新项目 | 是，来自生成器配置 | 是 |
 | `imported` | 已有 Git 仓库或已有部署接入纳管 | 否，可后补或自动检测 | 否 |
 | `external` | 只作为服务器、站点、云资源的归属容器 | 否 | 否 |
@@ -15,7 +15,7 @@
 项目来源只说明项目从哪里来，不能完整表达用户想让 Devpilot 管什么。因此新增 `managementScope` 作为管理范围：
 
 | 管理范围 | 含义 | 典型场景 |
-|----|----|----|
+| --- | --- | --- |
 | `full` | 项目完整纳管 | 项目既要关联仓库，也要逐步绑定服务器、站点、数据库、云资源和 Webhook |
 | `deployment` | 仅构建部署 | 项目只希望接入仓库、构建命令、部署命令、部署目标和健康检查 |
 | `resources` | 资源归属 | 项目不关心代码，只作为服务器、站点、云资源、密钥的归属容器 |
@@ -71,7 +71,7 @@
 建议模型：
 
 | 模型 | 关键字段 |
-|----|----|
+| --- | --- |
 | `ProjectWebhook` | projectId、environmentId、provider、secret、enabled、eventTypes、branchPattern、tagPattern、deploymentMode、maxAttempts |
 | `WebhookDelivery` | webhookId、eventType、providerEventId、idempotencyKey、sourceIp、signatureStatus、payloadHash、receivedAt、status、deploymentRunId、error |
 | `AutomationAction` | triggerType、targetType、executorType、action、parameters |
@@ -113,7 +113,7 @@ SSH live 远端 session/cleanup 事件已在 running `ServerExecutionJob.metadat
 建议把能力从 `ProxyConfig` 演进为 `Site`。当前已经落地第一版 `Site` 最小闭环：站点可以关联项目、环境、服务器和旧 `ProxyConfig`，记录主域名、别名、运行时类型、运行时配置、TLS、访问策略、状态和同步错误；PR Preview 现在也会为预览环境创建 draft Site 占位并写入 `syncBlocked`，让后续临时域名、TLS、Nginx/OpenResty 和销毁流程挂到一等 Site 对象上，同时避免占位配置误同步。前端 `/sites` 支持创建、列表、删除、聚焦接管、生成 Nginx dry-run 同步计划，并可在 Server executor live transport 开启后执行站点同步；针对 PR Preview draft Site，聚焦接管面板可以补齐目标服务器、upstream 和 WebSocket 标记，调用受控接管接口清除 sync block 并立即生成 dry-run 计划。每次 dry-run、live sync 和 rollback 都会沉淀为 `SiteSyncRun`，保留 Nginx 配置快照、配置 diff、执行计划、结果、日志、错误、目标配置路径、审批单和 `ServerExecutionJob` 关联；成功 live run 可以作为回滚源重新写回、校验并 reload，非 dry-run 的同步/回滚需要先进入 OperationApproval 审批门禁，审批后可选择加入 Server executor 队列。
 
 | 层级 | 能力 |
-|----|----|
+| --- | --- |
 | Site | 已有：名称、项目、主域名、别名、状态、归属服务器 |
 | Route | 已有：第一版通过 `runtimeConfig.upstreamUrl`/Docker 容器端口生成根路径代理；待补 path、负载均衡、超时、headers、rewrite |
 | TLS | 已有：记录 TLS 类型、生成 Let’s Encrypt 命令计划，通过 Server executor OpenSSL 手动/定时探测回填证书元数据，并把探测到的公有证书元数据沉淀为 `Site.tls.assets` 资产快照；可发起受控 certbot 续期演练/审批续期，也可通过默认关闭调度器批量提交临期证书续期演练或审批续期；续期执行完成后会把 rehearsal/live 结果回写到 `Site.tls.renewal` 并在站点卡片展示摘要，正式续期成功后会自动排队执行后续 TLS probe 刷新实际证书元数据；可用 `AlertRule metric=certificate_expiry` 评估证书过期，`metric=tls_renewal_failure` 告警续期失败或续期后探测失败，也可用 `metric=certificate_asset_change` 告警证书资产变化；待补证书库、上传/绑定、OCSP、HSTS |
@@ -295,11 +295,11 @@ flowchart LR
 - 项目详情已支持跨环境配置差异只读视图：以 prod/production 或最后一个环境作为参考，展示服务集合、部署配置覆盖、运行绑定、站点/TLS、资源类型、密钥类型和成功部署差异。
 - 已新增 `GET /project-environments/sync-suggestions`：在项目环境读权限过滤后的可见环境内选择参考环境，返回服务器角色、服务、部署配置、运行绑定、资源类型、站点运行时、CDN、密钥和成功部署记录的差异与建议动作；项目详情页已展示这些建议并跳转到应用服务、资源管控、站点、密钥或 CDN 配置入口。
 - 已新增 `POST /project-environments/sync-suggestions/apply`：支持 dry-run 生成同步计划，非 dry-run 需要目标环境名称或 key 确认，并且只会创建缺失的应用服务骨架或补齐目标环境缺失的非敏感 deployConfig 字段；环境变量、secretKeyIds、服务器、站点、托管资源、CDN、密钥绑定不会自动复制，结果会写入统一审计。
-- 已新增 `POST /project-environments/sites/copy`：支持从源环境向目标环境 dry-run/apply 复制 Site 配置骨架；项目详情环境工作台已提供前端确认入口，可选择源环境、逐项填写目标域名、提示目标环境重复域名、预览计划并确认创建 draft Site；非 dry-run 需要目标环境名称或 key 确认，并要求每个站点显式提供目标域名；默认只创建 draft Site，不复制服务器绑定、旧代理绑定、Nginx 同步状态、证书观测资产、续期状态或真实 TLS 证书内容，结果会写入统一审计；显式 `openRestyTakeover` 时可为每个复制站点提供目标 server/upstream，apply 后创建 pending Site 并复用 Site sync 生成 Nginx/OpenResty dry-run 接管计划，但不执行 live 写入；已创建的 Site 可从复制结果直接跳转到 `/sites?siteId=...` 聚焦接管，继续绑定 TLS 类型、证书名和已观测证书资产，并可一键生成 TLS 探测 dry-run 计划。
+- 已新增 `POST /project-environments/sites/copy`：支持从源环境向目标环境 dry-run/apply 复制 Site 配置骨架；项目详情环境工作台已提供前端确认入口，可选择源环境、逐项填写目标域名、提示目标环境重复域名、预览计划并确认创建 draft Site；非 dry-run 需要目标环境名称或 key 确认，并要求每个站点显式提供目标域名；默认只创建 draft Site，不复制服务器绑定、旧代理绑定、Nginx 同步状态、证书观测资产、续期状态或真实 TLS 证书内容，结果会写入统一审计；显式 `openRestyTakeover` 时可为每个复制站点提供目标 server/upstream，apply 后创建 pending Site 并复用 Site sync 生成 Nginx/OpenResty dry-run 接管计划，但不执行 live 写入；显式 `createQueuedLiveSync` 时会继续复用 Site sync 创建 queued live sync 请求，未携带已批准 per-site approval 时只生成 blocked approval，不在 copy 请求内直接写入；copy 返回体和审计 metadata 已汇总 `followUp.queuedLiveSync` 的状态计数、pending approval、queued job 和 alerts，供后续前端/告警/worker 可视化读取；已创建的 Site 可从复制结果直接跳转到 `/sites?siteId=...` 聚焦接管，继续绑定 TLS 类型、证书名和已观测证书资产，并可一键生成 TLS 探测 dry-run 计划。
 - 已新增 `POST /project-environments/cdn-configs/copy`：支持从源环境向目标环境 dry-run/apply 复制 CDN 配置骨架；项目详情环境工作台已提供前端确认入口，可选择源环境、逐项填写目标域名/目标源站、选择兼容 CDN 凭据、提示目标环境重复域名、预览计划并确认创建 pending CDNConfig；非 dry-run 需要目标环境名称或 key 确认；不复制 providerData、syncError，不读取凭据值，也不调用云 provider API，结果会写入统一审计。
 - 已新增 `POST /project-environments/resources/copy`：支持从源环境向目标环境 dry-run/apply 复制 ManagedResource 和 SecretKey 配置骨架；项目详情环境工作台已提供前端确认入口，可选择源环境、逐项填写目标 externalId/endpoint/server/credential、目标密钥名/新值/描述、提示目标重复资源或同名密钥、预览计划并确认创建资源/密钥骨架；复制结果中的已创建 ManagedResource 可直接跳转到资源管控详情，也可一键调用 dry-run 连接探测计划；资源管控页支持 `resourceId` 深链并自动打开资源详情抽屉；非 dry-run 需要目标环境名称或 key 确认；ManagedResource 必须显式提供目标 externalId，可选绑定目标 server/credential 且会校验归属，apply 只创建 `unknown` 资源索引，不复制 metadata、config、syncError、lastSyncAt 或 resourceInstanceId；SecretKey 必须显式提供新的目标 value，API 只加密该新值，不读取源密钥值，审计 metadata 不记录 secret value。
 - 已新增 `POST /project-environments/resources/bulk-bind`：支持 dry-run 预览和确认后把项目下未绑定环境的 Site、ManagedResource、ResourceInstance、CDNConfig 和 SecretKey 归属到目标环境；项目详情可按类型和单项选择绑定范围，API 也支持 `resourceTypes/resourceIds` 精确限定；仅更新 environmentId，不复制实际资源、Provider 配置或 SecretKey value，并写入统一审计。
-- 下一步做更细的项目/环境级 RBAC、Site copy 接管后的 live/queued 执行治理，以及资源 copy 后的同步/指标/告警接管入口。
+- 下一步做更细的项目/环境级 RBAC、把 Site copy queued live sync 的 follow-up 摘要接到前端治理入口/worker 运行态可视化，并继续把资源 copy 后的同步、指标、告警接管入口做深。
 
 ### P2. Webhook 与部署运行
 
@@ -332,7 +332,7 @@ flowchart LR
 
 ### P4. 应用与服务工作区
 
-状态：Application/Service 与服务运行态操作最小闭环已完成，服务操作已接入 Server executor 队列桥，可观测性、环境变量和 Secret 注入待补。
+状态：Application/Service 与服务运行态操作最小闭环已完成，服务操作已接入 Server executor 队列桥，Monitoring service SLO dashboard 已支持按单个 `applicationServiceId` 精确过滤，应用服务页已复用该契约展示单服务 SLO 摘要；真实日志流、监控指标详情、环境变量和 Secret 注入待补。
 
 - 已新增 `Application` / `ApplicationService` 模型和 `/applications` API。
 - 已支持服务绑定项目环境、服务器、站点、托管资源和 deployConfig。
@@ -342,7 +342,8 @@ flowchart LR
 - 已支持服务状态、日志、重启、回滚的 Server executor dry-run 操作计划，并持久化 `ApplicationServiceOperationRun`。
 - 已支持 `ApplicationServiceOperationRun` 关联 `ServerExecutionJob`，服务操作可直接入队，worker 完成后回写业务运行结果。
 - 应用服务页面已展示服务操作入口、队列开关、最近运行结果和关联 Job。
-- 下一步接入真实日志流、监控指标、环境变量和 Secret 注入。
+- `GET /monitoring/service-slo/dashboard` 已支持 `applicationServiceId` 精确过滤，应用服务页已直接读取并展示该服务的 SLO、部署、运行态操作和告警聚合摘要。
+- 下一步接入真实日志流、监控指标详情、环境变量和 Secret 注入。
 
 ### P5. 数据库和备份
 
@@ -396,7 +397,7 @@ flowchart LR
 - 已新增 `AlertSilence`，支持按项目、分类、指标、级别和时间窗口静默告警；命中的事件会标记为 `suppressed`，仍可见并进入审计，但不会触发通知派发。
 - 已新增 `AlertNotificationChannel` / `AlertNotificationDelivery`，支持项目级通用 Webhook、飞书、钉钉、企业微信机器人和邮件通知通道、投递记录、权限过滤和默认 dry-run planned delivery；只有 `ALERT_NOTIFICATION_WEBHOOKS_ENABLED=true` 时才会真实 POST，只有 `ALERT_NOTIFICATION_EMAIL_ENABLED=true` 且 SMTP host/from 配齐时才会真实发信；失败或 planned 投递可以在监控页手动重试，重试会创建新的投递记录并写入统一审计；失败投递还支持默认关闭的自动重试调度（`ALERT_NOTIFICATION_RETRY_SCHEDULER_ENABLED=true`），会跳过 planned dry-run、已有更新尝试和超过近期尝试上限的记录；未确认的 firing/error 严重告警支持默认关闭升级调度（`ALERT_ESCALATION_SCHEDULER_ENABLED=true`），会向匹配通道生成 `devpilot.alert_event.escalation` 投递并写入 `alert.escalate` 审计。
 - 已新增事件去重抑制第一版：重复的 `firing` / `error` / `suppressed` 评估会在规则配置窗口内复用最近同状态事件，跳过新事件和通知投递，同时更新规则状态并写入 `alert.evaluate.deduped` 审计；恢复事件不会被去重。
-- 已新增服务 SLO 大盘第一版：按服务聚合窗口内非 dry-run 部署运行、非 dry-run 服务操作运行和服务告警事件，展示 SLO、错误预算剩余、burn rate、部署失败、操作失败和告警影响；读接口会先按项目/环境权限过滤服务行再汇总。
+- 已新增服务 SLO 大盘第一版：按服务聚合窗口内非 dry-run 部署运行、非 dry-run 服务操作运行和服务告警事件，展示 SLO、错误预算剩余、burn rate、部署失败、操作失败和告警影响；读接口会先按项目/环境权限过滤服务行再汇总，也支持 `applicationServiceId` 精确过滤，应用服务页已复用同一聚合契约展示单服务 SLO 摘要。
 - 已新增服务 SLO 违约告警第一版：`AlertRule category=service` / `metric=service_slo_breach` 会复用服务 SLO 聚合信号，按目标 SLO、burn-rate 阈值、错误预算和 critical alert impact 生成标准 `AlertEvent`，并进入静默、通知和审计链路。
 - 已新增短/长窗口 burn-rate 策略第一版：服务 SLO 规则兼容旧的单窗口条件，也可使用 `condition.windows[]` 和 `matchPolicy=all` 同时评估短窗口与长窗口，只有配置窗口同时违约才触发 paired burn-rate 告警。
 - 已新增错误预算阈值策略第一版：`AlertRule category=service` / `metric=service_error_budget` 会从同一套服务 SLO 信号计算剩余错误预算，在低于配置阈值时生成标准 `AlertEvent`，并复用静默、通知和审计链路。
@@ -482,6 +483,6 @@ flowchart LR
 1. 继续补安全治理：扩展真实 DB fixture/e2e 权限覆盖、资源实例级策略、agent supervisor、跨实例远端 orphan 治理和多实例队列治理。
 2. 继续完善 Nginx/OpenResty adapter：模块基线策略化与失败告警、性能调优、真实环境 smoke，并把 ProxyConfig 收敛到 Site。
 3. 补服务可观测性：实时日志流/SLS 查询、容器指标、健康趋势、通知渠道、SLO、环境变量和 Secret 注入。
-4. 在环境工作台基础上继续补 Site copy 创建 draft 后的 OpenResty 深度接管，并把资源 copy 后的同步、指标、告警接管入口做深。
+4. 在环境工作台基础上继续把 Site copy queued live sync 的 follow-up 摘要接到前端治理入口和 worker 运行态可视化，并把资源 copy 后的同步、指标、告警接管入口做深。
 
 这样 Devpilot 会从“能登记资源”变成“项目代码变更后能触发部署并落到服务器资源”，产品主线会明显更完整。

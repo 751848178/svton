@@ -520,6 +520,7 @@ describe('ProjectEnvironmentService sync suggestions', () => {
     expect(siteService.createSyncPlan).toHaveBeenCalledWith('team-1', 'user-1', 'site-test-copy', {
       dryRun: true,
     });
+    expect(siteService.createSyncPlan).toHaveBeenCalledTimes(1);
     expect(result.steps[0].description).toContain('OpenResty dry-run 接管计划');
     expect(result.steps[0].metadata).toEqual(expect.objectContaining({
       openRestyTakeover: expect.objectContaining({
@@ -528,6 +529,238 @@ describe('ProjectEnvironmentService sync suggestions', () => {
         upstreamUrl: 'http://10.1.0.20:3000',
         syncRunId: 'site-sync-copy',
         syncStatus: 'completed',
+      }),
+    }));
+  });
+
+  it('creates a blocked queued live sync approval when takeover copy requests live sync without approval', async () => {
+    prisma.site.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'site-prod',
+          name: 'api-site',
+          primaryDomain: 'api.example.com',
+          aliases: ['www.api.example.com'],
+          runtimeType: 'reverse_proxy',
+          runtimeConfig: { upstreamUrl: 'http://127.0.0.1:3000', syncBlocked: true },
+          tls: { enabled: true, type: 'letsencrypt', email: 'ops@example.com' },
+          accessPolicy: { allowCidrs: ['10.0.0.0/8'] },
+          status: 'active',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.site.create.mockResolvedValue({ id: 'site-test-copy' });
+    siteService.createSyncPlan
+      .mockResolvedValueOnce({ status: 'completed', syncRun: { id: 'site-sync-dry-run' } })
+      .mockResolvedValueOnce({
+        status: 'blocked',
+        syncRun: {
+          id: 'site-sync-live-blocked',
+          operationApprovalId: 'approval-1',
+          operationApproval: { id: 'approval-1', status: 'pending' },
+        },
+        approval: { id: 'approval-1', status: 'pending' },
+      });
+
+    const result = await service.copySites('team-1', 'user-1', {
+      projectId: 'project-1',
+      sourceEnvironmentId: 'env-prod',
+      targetEnvironmentId: 'env-test',
+      dryRun: false,
+      siteIds: ['site-prod'],
+      targetDomainOverrides: { 'site-prod': 'test-api.example.com' },
+      openRestyTakeover: true,
+      targetServerIds: { 'site-prod': 'server-1' },
+      targetUpstreamUrls: { 'site-prod': 'http://10.1.0.20:3000' },
+      createQueuedLiveSync: true,
+      queuedLiveSyncMaxAttempts: 2,
+      confirmationText: '测试',
+    });
+
+    expect(result.status).toBe('completed');
+    expect(siteService.createSyncPlan).toHaveBeenNthCalledWith(1, 'team-1', 'user-1', 'site-test-copy', {
+      dryRun: true,
+    });
+    expect(siteService.createSyncPlan).toHaveBeenNthCalledWith(2, 'team-1', 'user-1', 'site-test-copy', {
+      dryRun: false,
+      queue: true,
+      maxAttempts: 2,
+      confirmationText: undefined,
+      approvalId: undefined,
+      approvalReason: undefined,
+    });
+    expect(result.steps[0].description).toContain('queued live sync');
+    expect(result.steps[0].metadata).toEqual(expect.objectContaining({
+      openRestyTakeover: expect.objectContaining({
+        syncRunId: 'site-sync-dry-run',
+        queuedLiveSync: expect.objectContaining({
+          enabled: true,
+          syncRunId: 'site-sync-live-blocked',
+          syncStatus: 'blocked',
+          approvalId: 'approval-1',
+          approvalStatus: 'pending',
+          maxAttempts: 2,
+          confirmationTextProvided: false,
+        }),
+      }),
+    }));
+    expect(result.followUp.queuedLiveSync).toEqual(expect.objectContaining({
+      requestedCount: 1,
+      statusCounts: { blocked: 1 },
+      metrics: expect.objectContaining({
+        pendingApprovalCount: 1,
+        queuedJobCount: 0,
+        blockedCount: 1,
+      }),
+      items: [
+        expect.objectContaining({
+          sourceSiteId: 'site-prod',
+          targetSiteId: 'site-test-copy',
+          syncRunId: 'site-sync-live-blocked',
+          syncStatus: 'blocked',
+          approvalId: 'approval-1',
+          approvalStatus: 'pending',
+          action: 'approval_required',
+          alertLevel: 'warning',
+        }),
+      ],
+      alerts: [
+        expect.objectContaining({
+          level: 'warning',
+          code: 'queued_live_sync_approval_required',
+          sourceSiteId: 'site-prod',
+          targetSiteId: 'site-test-copy',
+          syncRunId: 'site-sync-live-blocked',
+          approvalId: 'approval-1',
+        }),
+      ],
+    }));
+    expect(auditEventService.create).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({
+        followUp: expect.objectContaining({
+          queuedLiveSync: expect.objectContaining({
+            metrics: expect.objectContaining({
+              pendingApprovalCount: 1,
+              blockedCount: 1,
+            }),
+          }),
+        }),
+      }),
+    }));
+    expect(result.warnings[0]).toContain('blocked approval');
+  });
+
+  it('queues approved live sync for takeover copy with per-site governance fields', async () => {
+    prisma.site.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'site-prod',
+          name: 'api-site',
+          primaryDomain: 'api.example.com',
+          aliases: [],
+          runtimeType: 'reverse_proxy',
+          runtimeConfig: { upstreamUrl: 'http://127.0.0.1:3000' },
+          tls: { enabled: false },
+          accessPolicy: {},
+          status: 'active',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.site.create.mockResolvedValue({ id: 'site-test-copy' });
+    siteService.createSyncPlan
+      .mockResolvedValueOnce({ status: 'completed', syncRun: { id: 'site-sync-dry-run' } })
+      .mockResolvedValueOnce({
+        status: 'queued',
+        syncRun: {
+          id: 'site-sync-live-queued',
+          serverExecutionJobId: 'job-1',
+          operationApprovalId: 'approval-approved',
+          operationApproval: { id: 'approval-approved', status: 'approved' },
+        },
+      });
+
+    const result = await service.copySites('team-1', 'user-1', {
+      projectId: 'project-1',
+      sourceEnvironmentId: 'env-prod',
+      targetEnvironmentId: 'env-test',
+      dryRun: false,
+      siteIds: ['site-prod'],
+      targetDomainOverrides: { 'site-prod': 'test-api.example.com' },
+      openRestyTakeover: true,
+      targetServerIds: { 'site-prod': 'server-1' },
+      targetUpstreamUrls: { 'site-prod': 'http://10.1.0.20:3000' },
+      createQueuedLiveSync: true,
+      queuedLiveSyncMaxAttempts: 3,
+      queuedLiveSyncApprovalIds: { 'site-prod': 'approval-approved' },
+      queuedLiveSyncConfirmationTexts: { 'site-prod': 'api-site (测试)' },
+      queuedLiveSyncApprovalReasons: { 'site-prod': 'copy takeover approved' },
+      confirmationText: '测试',
+    });
+
+    expect(siteService.createSyncPlan).toHaveBeenNthCalledWith(2, 'team-1', 'user-1', 'site-test-copy', {
+      dryRun: false,
+      queue: true,
+      maxAttempts: 3,
+      confirmationText: 'api-site (测试)',
+      approvalId: 'approval-approved',
+      approvalReason: 'copy takeover approved',
+    });
+    expect(result.steps[0].metadata).toEqual(expect.objectContaining({
+      openRestyTakeover: expect.objectContaining({
+        queuedLiveSync: expect.objectContaining({
+          enabled: true,
+          syncRunId: 'site-sync-live-queued',
+          syncStatus: 'queued',
+          serverExecutionJobId: 'job-1',
+          approvalId: 'approval-approved',
+          approvalStatus: 'approved',
+          maxAttempts: 3,
+          confirmationTextProvided: true,
+        }),
+      }),
+    }));
+    expect(result.followUp.queuedLiveSync).toEqual(expect.objectContaining({
+      requestedCount: 1,
+      statusCounts: { queued: 1 },
+      metrics: expect.objectContaining({
+        pendingApprovalCount: 0,
+        queuedJobCount: 1,
+        blockedCount: 0,
+      }),
+      items: [
+        expect.objectContaining({
+          sourceSiteId: 'site-prod',
+          targetSiteId: 'site-test-copy',
+          syncRunId: 'site-sync-live-queued',
+          syncStatus: 'queued',
+          approvalId: 'approval-approved',
+          approvalStatus: 'approved',
+          serverExecutionJobId: 'job-1',
+          action: 'monitor_queue',
+          alertLevel: 'info',
+        }),
+      ],
+      alerts: [
+        expect.objectContaining({
+          level: 'info',
+          code: 'queued_live_sync_job_queued',
+          sourceSiteId: 'site-prod',
+          targetSiteId: 'site-test-copy',
+          syncRunId: 'site-sync-live-queued',
+          approvalId: 'approval-approved',
+        }),
+      ],
+    }));
+    expect(auditEventService.create).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({
+        followUp: expect.objectContaining({
+          queuedLiveSync: expect.objectContaining({
+            metrics: expect.objectContaining({
+              queuedJobCount: 1,
+              pendingApprovalCount: 0,
+            }),
+          }),
+        }),
       }),
     }));
   });

@@ -42,6 +42,9 @@ function ApplicationsContent() {
     setServiceForm,
     visibleApplications,
     stats,
+    serviceSloRows,
+    serviceSloLoading,
+    serviceSloError,
     createApplication,
     createService,
     createDeploymentPlan,
@@ -80,6 +83,8 @@ function ApplicationsContent() {
     deployingServiceId,
     queueDeploymentRuns,
     queueServiceOperations,
+    serviceSloRows,
+    serviceSloLoading,
     onRunOperation: runServiceOperation,
     onRequestLive: requestServiceOperationApproval,
     onCreateDeployment: createDeploymentPlan,
@@ -121,6 +126,12 @@ function ApplicationsContent() {
       {error ? (
         <ErrorBanner
           message={error}
+          onRetry={handleRetry}
+        />
+      ) : null}
+      {serviceSloError ? (
+        <ErrorBanner
+          message={serviceSloError}
           onRetry={handleRetry}
         />
       ) : null}

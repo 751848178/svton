@@ -55,6 +55,9 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 单次命令隔离只解决「一条命令的输出」。会话内反复重读同一份内容会把它一次又一次塞回上下文，是 token 浪费的高频来源，必须用会话级缓存控制：
 
 - **进度/规划文档（roadmap、todos、requirements、progress、onboarding 等 markdown）会话内最多读一次。** 首次读取后用 `progress-snapshot.mjs` 提炼成状态行 + 行号锚点，后续只引用缓存的摘要；只有完成里程碑后才更新一行，不再重读全文。
+- **进度文档必须从稳定目标 ID 进入热路径。** `/goal`、handoff 或 continuation brief 应携带 F-id、module id、ticket id 或同等稳定标识；先用该 ID 定位当前 heading/table row，再用 `safe-read.mjs` 读取目标块及 30-60 行上下文。行号只作为当前文件版本的临时 anchor，不得当作长期事实来源。
+- **没有稳定目标 ID 时，只能先生成短候选索引。** 最多运行一次 compact snapshot，返回 `id/status/module/next/file:line` 候选清单；选定下一项后立刻切回按 ID 定位 + bounded read，不得用 `TODO|pending|blocked|下一步` 之类宽关键词反复扫多份进度文档。
+- **把“找下一步”和“理解某一项”分离。** 热路径索引只保留短状态行、下一步和验证锚点；历史背景、长验收说明和已完成记录应留在详情文档或归档段落，默认不进入主上下文。
 - **源码文件默认禁 `cat`/整文件 `nl -ba`。** 读源码结构优先用 `codegraph-cli-navigation` 建图一次，读具体片段用 `safe-read.mjs` 按符号或行号窗口；同一段源码在同一会话不重复整段读第二次。
 - **同一目录被反复 `rg` 超过 3 次时**，首次结果生成一份结构快照（接口/schema/关键符号清单）写入 `docs-internal/.../*-snapshot.md`，后续引用快照而非重搜。
 - **`MEMORY.md`、`SKILL.md`、`AGENTS.md` 等会话内恒定的文件**只读一次；如发现同会话重复读取，按工作流 bug 处理。
@@ -92,7 +95,7 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - 宽范围 `rg` 必须带排除 glob，默认排除 `node_modules`、`.next`、`dist`、`build`、`target`、`.turbo`、`.codegraph`、`coverage`。
 - 宽搜索默认先返回文件清单、计数和少量样例；需要展开时再精确读取文件窗口，不把全部命中行带回主上下文。
 - 长文件默认用符号、关键词或行号窗口读取；除非用户明确要求，不读取超过 120 行的连续片段。
-- 进度文档默认只返回状态行、F 编号、heading 和行号；后续只对少数行号用 `safe-read.mjs` 精读。
+- 进度文档默认只返回状态行、稳定 ID、heading、next action 和行号；后续按 ID 重新定位当前行号，只对目标块用 `safe-read.mjs` 精读。
 - `git diff` 默认先看 `--stat`、`--name-status`、`--numstat`、`--check`；完整 diff 写日志，主上下文只保留摘要。
 - Codex/Claude session JSONL 审计必须用结构化 parser 摘取 token/tool-output 指标；不要用 `rg` 直接返回整条 JSONL 行。
 - 读取日志时用精确 `sed -n`、`rg -n` 或错误行号片段，只取决策需要的上下文。
@@ -110,6 +113,7 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - 不得运行未裁剪的全仓 `find .`、`du .`、`wc -c`、长 `cat` 或完整 `nl -ba`；必须先 prune、限路径或限输出。
 - **`rg` 满足以下任一条件即强制改写为窄范围或走 `smart-rg.mjs`：多关键词 OR（含 `|`）、跨多个顶层目录根、缺 `--max-count`/`-l`/`--count`。** 这三类是撑爆 40KB 输出上限的主要来源。
 - **进度/规划文档（roadmap/todos/requirements/progress）会话内最多读一次**，后续引用 `progress-snapshot.mjs` 摘要；禁止反复 `cat`/`rg` 同一份 markdown 全文。
+- **进度/规划文档禁止以行号作为唯一目标。** 行号必须由稳定 ID 当场定位得到；若 handoff 只给了旧行号，先用附近 heading 或 ID 重新确认，再读小窗口。
 - **源码文件默认禁 `cat` 整文件读取**；用 `safe-read.mjs` 按符号或行号窗口，同一段源码本会话不重复读第二次。
 - **`type-check`/`build` 不得每次编辑后跑**；按逻辑改动单元合并，收尾统一用 `verify-before-done`，不做无意义的重复 `git diff --check`。
 - **`/goal` 新线程不会自动继承当前 goal 状态**；建议切线程时必须提供下一线程可直接使用的 `/goal` 命令。通用切线程规则由本 skill 负责，下一条 `/goal` 只携带目标、进度、下一切片和交接说明。

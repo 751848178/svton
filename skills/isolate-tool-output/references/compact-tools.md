@@ -53,6 +53,8 @@ Default maximum is 120 lines per window. Use `--max-lines` only when a larger bo
 
 Compact reader for TODO, roadmap, requirements, and similar progress documents. It returns status/keyword lines with headings and line numbers instead of raw document tails.
 
+Use stable target IDs as the hot path. A continuation brief should carry an F-id, module id, ticket id, or similar durable identifier; use `progress-snapshot.mjs --keyword <id>` to locate the current `file:line`, then use `safe-read.mjs` for only that target block plus 30-60 lines. Treat line numbers as version-local anchors, not durable facts.
+
 ```bash
 node <skill-dir>/scripts/progress-snapshot.mjs \
   --project svton --task devpilot-progress --cwd /repo \
@@ -60,6 +62,8 @@ node <skill-dir>/scripts/progress-snapshot.mjs \
 node <skill-dir>/scripts/progress-snapshot.mjs \
   --cwd /repo --file docs/todos/platform.md --keyword server_agent --context 1
 ```
+
+When no target ID is known, run one compact snapshot that returns only candidate `id/status/module/next/file:line` rows, choose the next target, then switch back to ID lookup plus bounded reads. Do not repeatedly scan broad keywords like `TODO|pending|blocked|下一步` across multiple progress docs.
 
 When no `--file` is passed and the svton Devpilot docs exist, it uses the standard Devpilot TODO, roadmap, and requirements files. Use returned file:line anchors with `safe-read.mjs` for precise follow-up windows.
 

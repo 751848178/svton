@@ -733,6 +733,7 @@ export class MonitoringService {
 
     if (query.projectId) serviceWhere.projectId = query.projectId;
     if (query.environmentId) serviceWhere.environmentId = query.environmentId;
+    if (query.applicationServiceId) serviceWhere.id = query.applicationServiceId;
 
     const services = await this.prisma.applicationService.findMany({
       where: serviceWhere,

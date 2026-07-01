@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsIn, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class ListProjectEnvironmentsQueryDto {
   @IsOptional()
@@ -163,6 +163,27 @@ export class CopyProjectEnvironmentSitesDto {
   @IsOptional()
   @IsBoolean()
   createDryRunSyncPlan?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  createQueuedLiveSync?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  queuedLiveSyncApprovalIds?: Record<string, string>;
+
+  @IsOptional()
+  @IsObject()
+  queuedLiveSyncConfirmationTexts?: Record<string, string>;
+
+  @IsOptional()
+  @IsObject()
+  queuedLiveSyncApprovalReasons?: Record<string, string>;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  queuedLiveSyncMaxAttempts?: number;
 
   @IsOptional()
   @IsString()
