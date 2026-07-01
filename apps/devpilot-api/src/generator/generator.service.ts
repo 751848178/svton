@@ -64,6 +64,8 @@ export interface ProjectZipArtifactCleanupResult {
   artifacts: Array<{
     filePath: string;
     fileName: string;
+    teamId?: string;
+    projectId?: string;
     size: number;
     generatedAt: string;
     expiresAt: string;
@@ -605,15 +607,15 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     transform: true,
   }));
-  
+
   app.enableCors();
   app.setGlobalPrefix('api');
-  
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
   console.log(\`🚀 Server running on http://localhost:\${port}\`);
@@ -636,7 +638,7 @@ ${moduleImports.imports.join('\n')}
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    
+
     // 日志模块
     LoggerModule.forRootAsync({
       inject: [ConfigService],
@@ -646,7 +648,7 @@ ${moduleImports.imports.join('\n')}
         level: config.get('LOG_LEVEL', 'debug'),
       }),
     }),
-    
+
     // 功能模块
 ${moduleImports.modules.join('\n')}
   ],
@@ -947,13 +949,13 @@ export default function Index() {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  
+
   .title {
     font-size: 24px;
     font-weight: bold;
     margin-bottom: 16px;
   }
-  
+
   .desc {
     font-size: 14px;
     color: #666;
@@ -1021,7 +1023,7 @@ export default function Index() {
     if (resourceCredentials && resourceCredentials.length > 0) {
       const envWithCredentials = [...baseEnvVars];
       envWithCredentials.push('', '# Resource Credentials (Auto-generated)');
-      
+
       for (const credential of resourceCredentials) {
         const envContent = this.registryService.generateResourceEnvVars(
           credential.type,
@@ -1031,7 +1033,7 @@ export default function Index() {
           envWithCredentials.push(envContent);
         }
       }
-      
+
       files.push({
         path: '.env',
         content: envWithCredentials.join('\n'),
@@ -1277,11 +1279,16 @@ export default function Index() {
     }
   }
 
-  async cleanupExpiredProjectZipArtifacts(options: { dryRun?: boolean; now?: Date } = {}): Promise<ProjectZipArtifactCleanupResult> {
+  async cleanupExpiredProjectZipArtifacts(options: {
+    dryRun?: boolean;
+    now?: Date;
+    teamId?: string;
+    projectId?: string;
+  } = {}): Promise<ProjectZipArtifactCleanupResult> {
     const dryRun = options.dryRun ?? true;
     const now = options.now ?? new Date();
     const artifacts: ProjectZipArtifactCleanupResult['artifacts'] = [];
-    const files = await this.listLocalArtifactFiles(this.getArtifactRoot());
+    const files = await this.listLocalArtifactFiles(this.resolveArtifactCleanupRoot(options));
     const retentionDays = this.getArtifactRetentionDays();
     let expired = 0;
     let deleted = 0;
@@ -1303,9 +1310,12 @@ export default function Index() {
         deleted += 1;
       }
 
+      const scope = this.readArtifactPathScope(filePath);
       artifacts.push({
         filePath,
         fileName: path.basename(filePath),
+        teamId: scope.teamId,
+        projectId: scope.projectId,
         size: artifactStat.size,
         generatedAt,
         expiresAt,
@@ -1343,6 +1353,30 @@ export default function Index() {
     } catch {
       return [];
     }
+  }
+
+  private resolveArtifactCleanupRoot(options: { teamId?: string; projectId?: string }): string {
+    const segments = [this.getArtifactRoot()];
+
+    if (options.teamId) {
+      segments.push(this.sanitizePathSegment(options.teamId));
+    }
+
+    if (options.projectId) {
+      segments.push(this.sanitizePathSegment(options.projectId));
+    }
+
+    return path.join(...segments);
+  }
+
+  private readArtifactPathScope(filePath: string): { teamId?: string; projectId?: string } {
+    const relativePath = path.relative(this.getArtifactRoot(), filePath);
+    if (relativePath.startsWith('..')) {
+      return {};
+    }
+
+    const [teamId, projectId] = relativePath.split(path.sep).filter(Boolean);
+    return { teamId, projectId };
   }
 
   private getArtifactRoot(): string {

@@ -25,6 +25,7 @@ describe('early delivery controller authorization', () => {
       generatorService as never,
       {} as never,
       accessPolicyService as never,
+      {} as never,
     );
 
     await expect(controller.previewProject({

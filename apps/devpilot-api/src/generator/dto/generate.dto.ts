@@ -90,3 +90,13 @@ export class GenerateProjectDto {
   @IsOptional()
   gitConfig?: GitConfigDto;
 }
+
+export class CleanGeneratedProjectArtifactsDto {
+  @IsBoolean()
+  @IsOptional()
+  dryRun?: boolean;
+
+  @IsString()
+  @IsOptional()
+  projectId?: string;
+}

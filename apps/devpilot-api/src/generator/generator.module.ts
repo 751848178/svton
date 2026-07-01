@@ -7,6 +7,8 @@ import { ResourceModule } from '../resource/resource.module';
 import { ResourcePoolModule } from '../resource-pool/resource-pool.module';
 import { ResourceRequestModule } from '../resource-request/resource-request.module';
 import { ControlAccessPolicyModule } from '../control-access-policy';
+import { AuditEventModule } from '../audit-event';
+import { GeneratedProjectArtifactCleanupSchedulerService } from './generated-project-artifact-cleanup-scheduler.service';
 
 @Module({
   imports: [
@@ -16,9 +18,10 @@ import { ControlAccessPolicyModule } from '../control-access-policy';
     ResourcePoolModule,
     ResourceRequestModule,
     ControlAccessPolicyModule,
+    AuditEventModule,
   ],
   controllers: [GeneratorController],
-  providers: [GeneratorService],
+  providers: [GeneratorService, GeneratedProjectArtifactCleanupSchedulerService],
   exports: [GeneratorService],
 })
 export class GeneratorModule {}

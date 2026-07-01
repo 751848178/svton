@@ -145,6 +145,43 @@ describe('GeneratorService project zip artifacts', () => {
     }));
     await expect(readFile(resolved.filePath)).rejects.toThrow();
   });
+
+  it('limits cleanup to the requested team scope', async () => {
+    const service = createService();
+    const teamArtifact = await service.persistProjectZipArtifact('team-1', 'project-1', 'demo app', Buffer.from('team-zip'));
+    const otherArtifact = await service.persistProjectZipArtifact('team-2', 'project-2', 'other app', Buffer.from('other-zip'));
+    const teamResolved = await service.resolveProjectZipArtifact('team-1', 'project-1', 'demo app', {
+      generatedArtifact: teamArtifact,
+    });
+    const otherResolved = await service.resolveProjectZipArtifact('team-2', 'project-2', 'other app', {
+      generatedArtifact: otherArtifact,
+    });
+    const oldTimestamp = new Date('2026-01-01T00:00:00.000Z');
+    const cleanupNow = new Date('2026-01-10T00:00:00.000Z');
+    await utimes(teamResolved.filePath, oldTimestamp, oldTimestamp);
+    await utimes(otherResolved.filePath, oldTimestamp, oldTimestamp);
+
+    const result = await service.cleanupExpiredProjectZipArtifacts({
+      dryRun: false,
+      now: cleanupNow,
+      teamId: 'team-1',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      dryRun: false,
+      scanned: 1,
+      expired: 1,
+      deleted: 1,
+    }));
+    expect(result.artifacts[0]).toEqual(expect.objectContaining({
+      teamId: 'team-1',
+      projectId: 'project-1',
+      fileName: 'demo-app.zip',
+      deleted: true,
+    }));
+    await expect(readFile(teamResolved.filePath)).rejects.toThrow();
+    await expect(readFile(otherResolved.filePath)).resolves.toEqual(Buffer.from('other-zip'));
+  });
 });
 
 function createService(): GeneratorService {

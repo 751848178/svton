@@ -3,8 +3,9 @@ import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { createReadStream } from 'fs';
 import { Response } from 'express';
 import { ControlAccessPolicyService } from '../control-access-policy';
-import { GeneratorService } from './generator.service';
-import { GenerateProjectDto } from './dto/generate.dto';
+import { AuditEventService } from '../audit-event';
+import { GeneratorService, type ProjectZipArtifactCleanupResult, type ResolvedProjectZipArtifact } from './generator.service';
+import { CleanGeneratedProjectArtifactsDto, GenerateProjectDto } from './dto/generate.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProjectService } from '../project/project.service';
 
@@ -21,6 +22,7 @@ export class GeneratorController {
     private readonly generatorService: GeneratorService,
     private readonly projectService: ProjectService,
     private readonly accessPolicyService: ControlAccessPolicyService,
+    private readonly auditEventService: AuditEventService,
   ) {}
 
   @Post('generate')
@@ -91,6 +93,65 @@ export class GeneratorController {
     res.send(zipBuffer);
   }
 
+  @Post('artifacts/cleanup')
+  @HttpCode(200)
+  async cleanupGeneratedProjectArtifacts(
+    @Body() dto: CleanGeneratedProjectArtifactsDto,
+    @Request() req: GenerateProjectRequest,
+  ) {
+    const dryRun = dto.dryRun ?? true;
+    await this.accessPolicyService.assertCanWrite({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId: dto.projectId,
+      category: 'project',
+      action: 'project.artifact.cleanup',
+      targetType: 'project_artifact',
+      targetId: dto.projectId ?? 'generated-projects-local',
+      risk: dryRun ? 'low' : 'high',
+    });
+
+    const result = await this.generatorService.cleanupExpiredProjectZipArtifacts({
+      dryRun,
+      teamId: req.teamId,
+      projectId: dto.projectId,
+    });
+
+    await this.auditEventService.create({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId: dto.projectId,
+      category: 'project',
+      action: 'project.artifact.cleanup',
+      targetType: 'project_artifact',
+      targetId: dto.projectId ?? 'generated-projects-local',
+      risk: dryRun ? 'low' : 'high',
+      status: 'completed',
+      summary: dryRun
+        ? `Dry-run found ${result.expired} expired generated project artifacts`
+        : `Deleted ${result.deleted} expired generated project artifacts`,
+      metadata: {
+        dryRun,
+        scanned: result.scanned,
+        expired: result.expired,
+        deleted: result.deleted,
+        projectId: dto.projectId ?? null,
+        artifacts: result.artifacts.slice(0, 20).map(artifact => ({
+          teamId: artifact.teamId,
+          projectId: artifact.projectId,
+          fileName: artifact.fileName,
+          size: artifact.size,
+          generatedAt: artifact.generatedAt,
+          expiresAt: artifact.expiresAt,
+          deleted: artifact.deleted,
+        })),
+        artifactsTruncated: result.artifacts.length > 20,
+      },
+    });
+
+    return this.toArtifactCleanupResponse(result);
+  }
+
   @Get(':id/download')
   async downloadGeneratedProject(
     @Param('id') id: string,
@@ -115,12 +176,25 @@ export class GeneratorController {
       project.name,
       project.config,
     );
-    await this.projectService.recordGeneratedProjectArtifactDownload(
+    const updatedProject = await this.projectService.recordGeneratedProjectArtifactDownload(
       req.teamId,
       project.id,
       req.user.id,
       artifact,
     );
+    await this.auditEventService.create({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId: project.id,
+      category: 'project',
+      action: 'project.artifact.download',
+      targetType: 'project_artifact',
+      targetId: project.id,
+      risk: 'low',
+      status: 'completed',
+      summary: `Downloaded generated project artifact ${artifact.fileName}`,
+      metadata: this.toArtifactDownloadAuditMetadata(artifact, updatedProject.config),
+    });
 
     res.set({
       'Content-Type': 'application/zip',
@@ -161,5 +235,48 @@ export class GeneratorController {
       })),
       totalFiles: files.length,
     };
+  }
+
+  private toArtifactCleanupResponse(result: ProjectZipArtifactCleanupResult) {
+    return {
+      dryRun: result.dryRun,
+      scanned: result.scanned,
+      expired: result.expired,
+      deleted: result.deleted,
+      artifacts: result.artifacts.map(artifact => ({
+        teamId: artifact.teamId,
+        projectId: artifact.projectId,
+        fileName: artifact.fileName,
+        size: artifact.size,
+        generatedAt: artifact.generatedAt,
+        expiresAt: artifact.expiresAt,
+        deleted: artifact.deleted,
+      })),
+    };
+  }
+
+  private toArtifactDownloadAuditMetadata(
+    artifact: ResolvedProjectZipArtifact,
+    recordedProjectConfig: unknown,
+  ) {
+    const recordedArtifact = this.asRecord(this.asRecord(recordedProjectConfig)?.generatedArtifact);
+    const recordedDownloadCount = recordedArtifact?.downloadCount;
+
+    return {
+      fileName: artifact.fileName,
+      size: artifact.size,
+      sha256: artifact.sha256,
+      generatedAt: artifact.generatedAt,
+      expiresAt: artifact.expiresAt,
+      downloadCount: typeof recordedDownloadCount === 'number'
+        ? recordedDownloadCount
+        : artifact.downloadCount ?? 0,
+    };
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | undefined {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : undefined;
   }
 }
