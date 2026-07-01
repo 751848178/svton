@@ -96,3 +96,23 @@ export class ServerAgentHeartbeatDto {
   @Max(3600)
   ttlSeconds?: number;
 }
+
+export class ServerAgentTaskPullContractDto {
+  @IsString()
+  teamId!: string;
+
+  @IsString()
+  serverId!: string;
+
+  @IsString()
+  agentId!: string;
+
+  @IsOptional()
+  @IsString()
+  runnerId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  capabilities?: string[];
+}

@@ -33,6 +33,7 @@ import {
   ListServerExecutionLeasesQueryDto,
   RetryServerExecutionJobDto,
   ServerAgentHeartbeatDto,
+  ServerAgentTaskPullContractDto,
 } from './dto/server-execution-lease.dto';
 import { ServerCommandPolicyService } from './server-command-policy.service';
 import {
@@ -102,6 +103,36 @@ type WorkerLockRecord = {
   lockOwner: string | null;
   lastHeartbeatAt: Date | null;
   lockExpiresAt: Date | null;
+  server: WorkerLockServer;
+};
+
+type WorkerLockSummary = {
+  lockOwner: string;
+  runningJobs: number;
+  staleJobs: number;
+  lastHeartbeatAt: string | null;
+  lockExpiresAt: string | null;
+  sampleJob: {
+    id: string;
+    operationKey: string;
+    adapterKey: string;
+    serverId: string | null;
+    server: WorkerLockServer;
+  };
+};
+
+type ExecutionAuditEventRecord = {
+  id: string;
+  action: string;
+  targetId: string | null;
+  risk: string;
+  status: string;
+  summary: string | null;
+  metadata: Prisma.JsonValue | null;
+  occurredAt: Date;
+  actor: { id: string; name: string | null; email: string | null } | null;
+  project: { id: string; name: string } | null;
+  environment: { id: string; key: string; name: string; status: string } | null;
   server: WorkerLockServer;
 };
 
@@ -180,6 +211,15 @@ type ServerAgentRuntimeHealthSummary = {
   expiresInSeconds?: number;
   heartbeatTtlSeconds?: number;
 };
+
+type ServerAgentLifecyclePreflightState = 'ready' | 'degraded' | 'blocked' | 'disabled';
+type ServerAgentLifecyclePreflightSeverity = 'critical' | 'warning';
+type ServerAgentTaskPullReadinessState = 'ready' | 'degraded' | 'blocked' | 'idle';
+type ServerAgentTaskPullReadinessSeverity = 'critical' | 'warning';
+type QueueCoordinationPreflightState = 'ready' | 'degraded' | 'blocked' | 'idle';
+type QueueCoordinationPreflightSeverity = 'critical' | 'warning';
+type RemoteOrphanGovernancePreflightState = 'ready' | 'degraded' | 'blocked' | 'idle';
+type RemoteOrphanGovernancePreflightSeverity = 'critical' | 'warning';
 
 @Injectable()
 export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
@@ -469,6 +509,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       blockedLeases,
       nextQueuedJob,
       workerLocks,
+      staleRemoteGovernanceJobs,
       agentReadyQueuedJobs,
       agentScheduledQueuedJobs,
       agentRunningJobs,
@@ -480,6 +521,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       agentBlockedReasonJobs,
       agentFleetJobs,
       servers,
+      executionAuditEvents,
     ] = await Promise.all([
       this.prisma.serverExecutionJob.count({
         where: {
@@ -566,6 +608,29 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
           lockOwner: true,
           lastHeartbeatAt: true,
           lockExpiresAt: true,
+          server: { select: { id: true, name: true, host: true, status: true } },
+        },
+      }),
+      this.prisma.serverExecutionJob.findMany({
+        where: {
+          teamId,
+          status: 'running',
+          lockExpiresAt: { lte: now },
+        },
+        orderBy: [
+          { lockExpiresAt: 'asc' },
+          { lockedAt: 'asc' },
+        ],
+        take: 50,
+        select: {
+          id: true,
+          operationKey: true,
+          adapterKey: true,
+          serverId: true,
+          lockOwner: true,
+          lastHeartbeatAt: true,
+          lockExpiresAt: true,
+          metadata: true,
           server: { select: { id: true, name: true, host: true, status: true } },
         },
       }),
@@ -692,27 +757,163 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
           tags: true,
         },
       }),
+      this.prisma.auditEvent.findMany({
+        where: {
+          teamId,
+          category: 'execution',
+          targetType: 'server_execution_job',
+        },
+        orderBy: { occurredAt: 'desc' },
+        take: 12,
+        select: {
+          id: true,
+          action: true,
+          targetId: true,
+          risk: true,
+          status: true,
+          summary: true,
+          metadata: true,
+          occurredAt: true,
+          actor: { select: { id: true, name: true, email: true } },
+          project: { select: { id: true, name: true } },
+          environment: { select: { id: true, key: true, name: true, status: true } },
+          server: { select: { id: true, name: true, host: true, status: true } },
+        },
+      }),
     ]);
     const agentReadiness = this.summarizeServerAgentReadiness(servers, now);
     const agentRuntimeHealth = this.summarizeServerAgentRuntimeHealth(servers, now);
     const agentDispatcher = this.readServerAgentDispatcherConfig();
+    const worker = {
+      workerId: this.workerId,
+      queueWorkerEnabled: this.queueWorkerEnabled(),
+      processingQueue: this.processingQueue,
+      runningCancellations: this.runningCancellations.size,
+      queueIntervalSeconds: this.msToSeconds(this.queueWorkerIntervalMs()),
+      queueBatchSize: this.queueWorkerBatchSize(),
+      retryDelaySeconds: this.msToSeconds(this.queueRetryDelayMs()),
+      queueLockTtlSeconds: this.msToSeconds(this.queueLockTtlMs()),
+      queueHeartbeatSeconds: this.msToSeconds(this.queueLockHeartbeatMs()),
+      cancellationPollSeconds: this.msToSeconds(this.cancellationPollMs()),
+      recoveryBatchSize: this.queueRecoveryBatchSize(),
+      staleRemoteCleanupEnabled: this.staleRemoteCleanupEnabled(),
+    };
+    const workers = this.summarizeWorkerLocks(workerLocks, now);
+    const workerInventory = this.summarizeWorkerInventory(worker, workers, {
+      readyQueuedJobs,
+      scheduledQueuedJobs,
+      runningJobs,
+      staleRunningJobs,
+      blockedJobs,
+      now,
+    });
+    const queueCoordinationPreflight = this.summarizeQueueCoordinationPreflight({
+      queueWorkerEnabled: worker.queueWorkerEnabled,
+      processingQueue: worker.processingQueue,
+      queueIntervalSeconds: worker.queueIntervalSeconds,
+      queueBatchSize: worker.queueBatchSize,
+      recoveryBatchSize: worker.recoveryBatchSize,
+      staleRemoteCleanupEnabled: worker.staleRemoteCleanupEnabled,
+      readyQueuedJobs,
+      scheduledQueuedJobs,
+      runningJobs,
+      staleRunningJobs,
+      blockedJobs,
+      totalOwners: workerInventory.owners.total,
+      activeOwners: workerInventory.owners.active,
+      staleOwners: workerInventory.owners.stale,
+      expiredOwners: workerInventory.owners.expired,
+      unownedRunningJobs: workerInventory.queue.unownedRunning,
+    });
+    const remoteOrphanGovernancePreflight = this.summarizeRemoteOrphanGovernancePreflight({
+      now,
+      staleRemoteCleanupEnabled: worker.staleRemoteCleanupEnabled,
+      recoveryBatchSize: worker.recoveryBatchSize,
+      staleRunningJobs,
+      activeOwners: workerInventory.owners.active,
+      staleOwners: workerInventory.owners.stale,
+      expiredOwners: workerInventory.owners.expired,
+      staleJobs: staleRemoteGovernanceJobs,
+    });
+    const executionAuditVisibility = this.summarizeExecutionAuditVisibility(executionAuditEvents);
+    const agentFleet = this.summarizeServerAgentFleet(servers, agentFleetJobs, now, agentDispatcher);
+    const agentBlockedReasons = this.summarizeServerAgentBlockedReasons(agentBlockedReasonJobs);
+    const agentLifecyclePreflight = this.summarizeServerAgentLifecyclePreflight({
+      targetSelectionEnabled: agentReadiness.targetSelectionEnabled,
+      capableServers: agentReadiness.capableServers,
+      onlineCapableServers: agentReadiness.onlineCapableServers,
+      heartbeatEnabled: agentReadiness.runtime.heartbeatEnabled,
+      heartbeatTokenConfigured: agentReadiness.runtime.tokenConfigured,
+      heartbeatRequiredForTargetSelection: agentReadiness.runtime.requiredForTargetSelection,
+      heartbeatServers: agentReadiness.runtime.heartbeatServers,
+      runtimeReadyServers: agentRuntimeHealth.readyServers,
+      runtimeDegradedServers: agentRuntimeHealth.degradedServers,
+      runtimeStaleServers: agentRuntimeHealth.staleServers,
+      runtimeUnknownServers: agentRuntimeHealth.unknownServers,
+      missingHeartbeatServers: agentRuntimeHealth.missingHeartbeatServers,
+      executorEnabled: agentDispatcher.executorEnabled,
+      dispatcherConfigured: agentDispatcher.dispatcherConfigured,
+      dispatcherTokenConfigured: agentDispatcher.tokenConfigured,
+      liveDispatchReadyServers: agentFleet.liveDispatchReadyServers,
+      pressureServers: agentFleet.pressureServers,
+      scannedJobs: agentFleet.scannedJobs,
+      queueWorkerEnabled: worker.queueWorkerEnabled,
+      agentReadyJobs: agentReadyQueuedJobs,
+      agentScheduledJobs: agentScheduledQueuedJobs,
+      agentRunningJobs,
+      agentStaleRunningJobs,
+      agentBlockedJobs,
+    });
+    const agentNextQueuedJobSummary = agentNextQueuedJob
+      ? {
+          id: agentNextQueuedJob.id,
+          operationKey: agentNextQueuedJob.operationKey,
+          adapterKey: agentNextQueuedJob.adapterKey,
+          serverId: agentNextQueuedJob.serverId,
+          priority: agentNextQueuedJob.priority,
+          queuedAt: agentNextQueuedJob.queuedAt.toISOString(),
+          availableAt: agentNextQueuedJob.availableAt.toISOString(),
+          server: agentNextQueuedJob.server,
+        }
+      : null;
+    const agentTaskPullReadiness = this.summarizeServerAgentTaskPullReadiness({
+      targetSelectionEnabled: agentReadiness.targetSelectionEnabled,
+      capableServers: agentReadiness.capableServers,
+      onlineCapableServers: agentReadiness.onlineCapableServers,
+      heartbeatEnabled: agentReadiness.runtime.heartbeatEnabled,
+      heartbeatTokenConfigured: agentReadiness.runtime.tokenConfigured,
+      heartbeatRequiredForTargetSelection: agentReadiness.runtime.requiredForTargetSelection,
+      heartbeatServers: agentReadiness.runtime.heartbeatServers,
+      taskPullContractEnabled: this.serverAgentTaskPullContractEnabled(),
+      taskPullEnabled: this.serverAgentTaskPullEnabled(),
+      runtimeReadyServers: agentRuntimeHealth.readyServers,
+      runtimeIssueServers: agentRuntimeHealth.degradedServers
+        + agentRuntimeHealth.staleServers
+        + agentRuntimeHealth.unknownServers,
+      missingHeartbeatServers: agentRuntimeHealth.missingHeartbeatServers,
+      queueWorkerEnabled: worker.queueWorkerEnabled,
+      agentReadyJobs: agentReadyQueuedJobs,
+      agentScheduledJobs: agentScheduledQueuedJobs,
+      agentRunningJobs,
+      agentStaleRunningJobs,
+      agentBlockedJobs,
+      agentFailedJobs,
+      agentCancelledJobs,
+      nextQueuedJob: agentNextQueuedJobSummary,
+      blockedReasonSummary: agentBlockedReasons,
+      auditTotalRecent: executionAuditVisibility.totalRecent,
+      auditFailedRecent: executionAuditVisibility.failedRecent,
+      auditBlockedRecent: executionAuditVisibility.blockedRecent,
+      auditHighRiskRecent: executionAuditVisibility.highRiskRecent,
+    });
 
     return {
       generatedAt: now.toISOString(),
-      worker: {
-        workerId: this.workerId,
-        queueWorkerEnabled: this.queueWorkerEnabled(),
-        processingQueue: this.processingQueue,
-        runningCancellations: this.runningCancellations.size,
-        queueIntervalSeconds: this.msToSeconds(this.queueWorkerIntervalMs()),
-        queueBatchSize: this.queueWorkerBatchSize(),
-        retryDelaySeconds: this.msToSeconds(this.queueRetryDelayMs()),
-        queueLockTtlSeconds: this.msToSeconds(this.queueLockTtlMs()),
-        queueHeartbeatSeconds: this.msToSeconds(this.queueLockHeartbeatMs()),
-        cancellationPollSeconds: this.msToSeconds(this.cancellationPollMs()),
-        recoveryBatchSize: this.queueRecoveryBatchSize(),
-        staleRemoteCleanupEnabled: this.staleRemoteCleanupEnabled(),
-      },
+      worker,
+      workerInventory,
+      queueCoordinationPreflight,
+      remoteOrphanGovernancePreflight,
+      executionAuditVisibility,
       queue: {
         ready: readyQueuedJobs,
         scheduled: scheduledQueuedJobs,
@@ -739,12 +940,14 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
         expired: expiredLeases,
         blocked: blockedLeases,
       },
-      workers: this.summarizeWorkerLocks(workerLocks, now),
+      workers,
       agent: {
         ...agentReadiness,
         runtimeHealth: agentRuntimeHealth,
         dispatcher: agentDispatcher,
-        fleet: this.summarizeServerAgentFleet(servers, agentFleetJobs, now, agentDispatcher),
+        lifecyclePreflight: agentLifecyclePreflight,
+        taskPullReadiness: agentTaskPullReadiness,
+        fleet: agentFleet,
         jobs: {
           ready: agentReadyQueuedJobs,
           scheduled: agentScheduledQueuedJobs,
@@ -753,19 +956,8 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
           blocked: agentBlockedJobs,
           failed: agentFailedJobs,
           cancelled: agentCancelledJobs,
-          nextQueuedJob: agentNextQueuedJob
-            ? {
-                id: agentNextQueuedJob.id,
-                operationKey: agentNextQueuedJob.operationKey,
-                adapterKey: agentNextQueuedJob.adapterKey,
-                serverId: agentNextQueuedJob.serverId,
-                priority: agentNextQueuedJob.priority,
-                queuedAt: agentNextQueuedJob.queuedAt.toISOString(),
-                availableAt: agentNextQueuedJob.availableAt.toISOString(),
-                server: agentNextQueuedJob.server,
-            }
-            : null,
-          blockedReasons: this.summarizeServerAgentBlockedReasons(agentBlockedReasonJobs),
+          nextQueuedJob: agentNextQueuedJobSummary,
+          blockedReasons: agentBlockedReasons,
         },
       },
     };
@@ -839,6 +1031,258 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       },
       agent: {
         runtime,
+      },
+    };
+  }
+
+  async readServerAgentTaskPullContract(headers: HeaderBag, dto: ServerAgentTaskPullContractDto) {
+    this.assertServerAgentTaskPullContractAuthorized(headers);
+
+    const now = new Date();
+    const server = await this.prisma.server.findFirst({
+      where: { id: dto.serverId, teamId: dto.teamId },
+      select: {
+        id: true,
+        name: true,
+        host: true,
+        status: true,
+        services: true,
+        tags: true,
+      },
+    });
+
+    if (!server) {
+      throw new NotFoundException('Server agent task-pull contract 目标服务器不存在');
+    }
+
+    const serverAgentJobWhere = {
+      teamId: dto.teamId,
+      serverId: dto.serverId,
+      transport: 'server_agent',
+    };
+    const [
+      readyJobs,
+      scheduledJobs,
+      runningJobs,
+      staleRunningJobs,
+      blockedJobs,
+      failedJobs,
+      cancelledJobs,
+      nextQueuedJob,
+    ] = await Promise.all([
+      this.prisma.serverExecutionJob.count({
+        where: {
+          ...serverAgentJobWhere,
+          status: 'queued',
+          queueMode: 'queued',
+          availableAt: { lte: now },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({
+        where: {
+          ...serverAgentJobWhere,
+          status: 'queued',
+          queueMode: 'queued',
+          availableAt: { gt: now },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({ where: { ...serverAgentJobWhere, status: 'running' } }),
+      this.prisma.serverExecutionJob.count({
+        where: {
+          ...serverAgentJobWhere,
+          status: 'running',
+          lockExpiresAt: { lte: now },
+        },
+      }),
+      this.prisma.serverExecutionJob.count({ where: { ...serverAgentJobWhere, status: 'blocked' } }),
+      this.prisma.serverExecutionJob.count({ where: { ...serverAgentJobWhere, status: 'failed' } }),
+      this.prisma.serverExecutionJob.count({ where: { ...serverAgentJobWhere, status: 'cancelled' } }),
+      this.prisma.serverExecutionJob.findFirst({
+        where: {
+          ...serverAgentJobWhere,
+          status: 'queued',
+          queueMode: 'queued',
+          availableAt: { lte: now },
+        },
+        orderBy: [
+          { priority: 'desc' },
+          { queuedAt: 'asc' },
+        ],
+        select: {
+          id: true,
+          operationKey: true,
+          adapterKey: true,
+          serverId: true,
+          priority: true,
+          queuedAt: true,
+          availableAt: true,
+          server: { select: { id: true, name: true, host: true, status: true } },
+        },
+      }),
+    ]);
+
+    const agentRef = this.readServerAgentCapability(server);
+    const runtime = this.readServerAgentRuntime(server, now);
+    const requestedCapabilities = this.readStringArray(dto.capabilities)
+      .map((capability) => capability.trim())
+      .filter(Boolean)
+      .slice(0, 50);
+    const heartbeatRequired = this.serverAgentHeartbeatRequiredForTargetSelection();
+    const taskPullEnabled = this.serverAgentTaskPullEnabled();
+    const runtimeReady = !heartbeatRequired || runtime?.state === 'online';
+    const queuedJobs = readyJobs + scheduledJobs;
+    const activeDemandJobs = queuedJobs + runningJobs;
+    const pressureJobs = activeDemandJobs + staleRunningJobs + blockedJobs + failedJobs;
+    const blockers: { reason: string; severity: ServerAgentTaskPullReadinessSeverity; count: number }[] = [];
+    const nextSteps: { action: string; reason: string }[] = [];
+
+    const addBlocker = (
+      reason: string,
+      severity: ServerAgentTaskPullReadinessSeverity,
+      count = 1,
+    ) => {
+      if (count > 0) blockers.push({ reason, severity, count });
+    };
+    const addNextStep = (action: string, reason: string) => {
+      nextSteps.push({ action, reason });
+    };
+
+    if (!agentRef) {
+      addBlocker('no_agent_capability', 'critical');
+      addNextStep('register_agent_capability', 'no_agent_capability');
+    }
+    if (!runtimeReady) {
+      addBlocker(runtime ? `heartbeat_${runtime.state}` : 'missing_heartbeat', 'critical');
+      addNextStep('start_agent_heartbeat_runtime', runtime ? `heartbeat_${runtime.state}` : 'missing_heartbeat');
+    }
+    if (activeDemandJobs > 0) {
+      const reason = taskPullEnabled ? 'task_pull_claim_not_implemented' : 'task_pull_disabled';
+      addBlocker(reason, 'critical', activeDemandJobs);
+      addNextStep(taskPullEnabled ? 'implement_agent_task_claim' : 'enable_agent_task_pull_after_claim_design', reason);
+    }
+    if (staleRunningJobs > 0) {
+      addBlocker('stale_agent_running_jobs', 'warning', staleRunningJobs);
+      addNextStep('recover_stale_agent_jobs', 'stale_agent_running_jobs');
+    }
+    if (blockedJobs > 0) {
+      addBlocker('blocked_agent_jobs', 'warning', blockedJobs);
+      addNextStep('inspect_blocked_agent_jobs', 'blocked_agent_jobs');
+    }
+    if (failedJobs > 0) {
+      addBlocker('failed_agent_jobs', 'warning', failedJobs);
+      addNextStep('inspect_failed_agent_jobs', 'failed_agent_jobs');
+    }
+
+    const criticalBlocker = blockers.find((blocker) => blocker.severity === 'critical');
+    const warningBlocker = blockers.find((blocker) => blocker.severity === 'warning');
+    const state = criticalBlocker
+      ? 'blocked'
+      : warningBlocker
+        ? 'degraded'
+        : pressureJobs > 0 ? 'blocked' : 'idle';
+    const reason = criticalBlocker?.reason
+      || warningBlocker?.reason
+      || (pressureJobs > 0 ? 'task_pull_contract_readiness_visible' : 'no_agent_task_pull_demand');
+
+    if (nextSteps.length === 0) {
+      nextSteps.push({
+        action: 'wait_for_agent_task_pull_demand',
+        reason,
+      });
+    }
+
+    return {
+      accepted: true,
+      generatedAt: now.toISOString(),
+      server: {
+        id: server.id,
+        name: server.name,
+        host: server.host,
+        status: server.status,
+      },
+      agent: {
+        agentId: dto.agentId.trim(),
+        ...(dto.runnerId?.trim() ? { runnerId: dto.runnerId.trim() } : {}),
+        ...(requestedCapabilities.length ? { requestedCapabilities } : {}),
+        ...(agentRef ? { agentRef } : {}),
+        runtime: runtime || null,
+      },
+      contract: {
+        version: 'server-agent-task-pull.v0',
+        mode: 'readiness_only',
+        endpoint: '/server-agent/task-pull/contract',
+        contractEndpointEnabled: true,
+        pullEndpointImplemented: false,
+        taskPullEnabled,
+        claimSupported: false,
+        ackSupported: false,
+        lifecycleExecutionSupported: false,
+        longConnectionSupported: false,
+        poll: {
+          minIntervalSeconds: 30,
+          recommendedIntervalSeconds: this.serverAgentTaskPullPollIntervalSeconds(),
+        },
+        boundaries: [
+          'readiness_only',
+          'no_job_claim',
+          'no_ack',
+          'no_lifecycle_execution',
+          'no_long_connection',
+        ],
+      },
+      readiness: {
+        state,
+        reason,
+        gates: {
+          runtime: {
+            ready: Boolean(agentRef) && runtimeReady,
+            capabilityReady: Boolean(agentRef),
+            heartbeatRequiredForTargetSelection: heartbeatRequired,
+            heartbeatState: runtime?.state || 'missing',
+            reason: !agentRef
+              ? 'no_agent_capability'
+              : runtimeReady ? 'agent_runtime_ready' : runtime ? `heartbeat_${runtime.state}` : 'missing_heartbeat',
+          },
+          queue: {
+            ready: true,
+            readyJobs,
+            scheduledJobs,
+            runningJobs,
+            staleRunningJobs,
+            blockedJobs,
+            failedJobs,
+            cancelledJobs,
+            pressureJobs,
+            reason: activeDemandJobs > 0 ? 'agent_queue_demand_visible' : 'agent_queue_idle',
+          },
+          contract: {
+            ready: false,
+            contractEndpointImplemented: true,
+            contractEndpointEnabled: true,
+            pullEndpointImplemented: false,
+            taskPullEnabled,
+            claimSupported: false,
+            ackSupported: false,
+            lifecycleExecutionSupported: false,
+            reason: taskPullEnabled ? 'task_pull_claim_not_implemented' : 'task_pull_disabled',
+          },
+        },
+        samples: {
+          nextQueuedJob: nextQueuedJob
+            ? {
+                id: nextQueuedJob.id,
+                operationKey: nextQueuedJob.operationKey,
+                adapterKey: nextQueuedJob.adapterKey,
+                serverId: nextQueuedJob.serverId,
+                priority: nextQueuedJob.priority,
+                queuedAt: nextQueuedJob.queuedAt.toISOString(),
+                availableAt: nextQueuedJob.availableAt.toISOString(),
+                server: nextQueuedJob.server,
+              }
+            : null,
+        },
+        blockers,
+        nextSteps: nextSteps.slice(0, 8),
       },
     };
   }
@@ -3371,7 +3815,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     return value === true || value === 'true';
   }
 
-  private summarizeWorkerLocks(workerLocks: WorkerLockRecord[], now: Date) {
+  private summarizeWorkerLocks(workerLocks: WorkerLockRecord[], now: Date): WorkerLockSummary[] {
     const workers = new Map<string, {
       lockOwner: string;
       runningJobs: number;
@@ -3436,6 +3880,636 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       lockExpiresAt: worker.lockExpiresAt?.toISOString() ?? null,
       sampleJob: worker.sampleJob,
     }));
+  }
+
+  private summarizeExecutionAuditVisibility(events: ExecutionAuditEventRecord[]) {
+    const statusCounts = new Map<string, number>();
+    const riskCounts = new Map<string, number>();
+    const actionCounts = new Map<string, number>();
+
+    for (const event of events) {
+      statusCounts.set(event.status, (statusCounts.get(event.status) || 0) + 1);
+      riskCounts.set(event.risk, (riskCounts.get(event.risk) || 0) + 1);
+      actionCounts.set(event.action, (actionCounts.get(event.action) || 0) + 1);
+    }
+
+    return {
+      totalRecent: events.length,
+      failedRecent: statusCounts.get('failed') || 0,
+      blockedRecent: statusCounts.get('blocked') || 0,
+      highRiskRecent: riskCounts.get('high') || 0,
+      statuses: this.formatCountMap(statusCounts, 'status'),
+      risks: this.formatCountMap(riskCounts, 'risk'),
+      actions: this.formatCountMap(actionCounts, 'action'),
+      samples: events.slice(0, 8).map((event) => {
+        const metadata = this.summarizeExecutionAuditMetadata(event.metadata);
+        const serverExecutionJobId = metadata.serverExecutionJobId || event.targetId || null;
+
+        return {
+          id: event.id,
+          action: event.action,
+          targetId: event.targetId,
+          serverExecutionJobId,
+          risk: event.risk,
+          status: event.status,
+          summary: event.summary,
+          occurredAt: event.occurredAt.toISOString(),
+          actor: event.actor,
+          project: event.project,
+          environment: event.environment,
+          server: event.server,
+          metadata: {
+            ...metadata,
+            serverExecutionJobId,
+          },
+        };
+      }),
+    };
+  }
+
+  private summarizeExecutionAuditMetadata(metadata: Prisma.JsonValue | null) {
+    const record = this.isRecord(metadata) ? metadata : {};
+
+    return {
+      ...(this.readOptionalString(record.serverExecutionJobId)
+        ? { serverExecutionJobId: this.readOptionalString(record.serverExecutionJobId) }
+        : {}),
+      ...(this.readOptionalString(record.operationKey)
+        ? { operationKey: this.readOptionalString(record.operationKey) }
+        : {}),
+      ...(this.readOptionalString(record.adapterKey)
+        ? { adapterKey: this.readOptionalString(record.adapterKey) }
+        : {}),
+      ...(this.readOptionalString(record.transport)
+        ? { transport: this.readOptionalString(record.transport) }
+        : {}),
+      ...(this.readOptionalString(record.queueMode)
+        ? { queueMode: this.readOptionalString(record.queueMode) }
+        : {}),
+      ...(this.readOptionalBoolean(record.dryRun) !== undefined
+        ? { dryRun: this.readOptionalBoolean(record.dryRun) }
+        : {}),
+      ...(this.readPositiveInteger(record.attempt)
+        ? { attempt: this.readPositiveInteger(record.attempt) }
+        : {}),
+      ...(this.readPositiveInteger(record.maxAttempts)
+        ? { maxAttempts: this.readPositiveInteger(record.maxAttempts) }
+        : {}),
+      ...(this.readOptionalString(record.resultStatus)
+        ? { resultStatus: this.readOptionalString(record.resultStatus) }
+        : {}),
+      ...(this.readOptionalString(record.resultMode)
+        ? { resultMode: this.readOptionalString(record.resultMode) }
+        : {}),
+    };
+  }
+
+  private formatCountMap<TKey extends string>(counts: Map<string, number>, key: TKey) {
+    return [...counts.entries()]
+      .map(([value, count]) => ({ [key]: value, count } as Record<TKey, string> & { count: number }))
+      .sort((left, right) => {
+        if (right.count !== left.count) return right.count - left.count;
+        return left[key].localeCompare(right[key]);
+      });
+  }
+
+  private summarizeWorkerInventory(
+    current: {
+      workerId: string;
+      queueWorkerEnabled: boolean;
+      processingQueue: boolean;
+      runningCancellations: number;
+      queueIntervalSeconds: number;
+      queueBatchSize: number;
+      queueLockTtlSeconds: number;
+      queueHeartbeatSeconds: number;
+      recoveryBatchSize: number;
+      staleRemoteCleanupEnabled: boolean;
+    },
+    workers: WorkerLockSummary[],
+    counts: {
+      readyQueuedJobs: number;
+      scheduledQueuedJobs: number;
+      runningJobs: number;
+      staleRunningJobs: number;
+      blockedJobs: number;
+      now: Date;
+    },
+  ) {
+    const ownerStats = workers.map((worker) => {
+      const activeJobs = Math.max(0, worker.runningJobs - worker.staleJobs);
+      const staleOwner = worker.staleJobs > 0;
+      const expiredOwner = worker.runningJobs > 0 && worker.staleJobs >= worker.runningJobs;
+      return {
+        worker,
+        activeJobs,
+        staleOwner,
+        expiredOwner,
+      };
+    });
+    const ownedRunningJobs = ownerStats.reduce((total, item) => total + item.worker.runningJobs, 0);
+    const ownedStaleJobs = ownerStats.reduce((total, item) => total + item.worker.staleJobs, 0);
+    const activeOwners = ownerStats.filter((item) => item.activeJobs > 0).length;
+    const staleOwners = ownerStats.filter((item) => item.staleOwner).length;
+    const expiredOwners = ownerStats.filter((item) => item.expiredOwner).length;
+    const unownedRunningJobs = Math.max(0, counts.runningJobs - ownedRunningJobs);
+    const state = this.readWorkerInventoryState({
+      queueWorkerEnabled: current.queueWorkerEnabled,
+      readyQueuedJobs: counts.readyQueuedJobs,
+      scheduledQueuedJobs: counts.scheduledQueuedJobs,
+      staleRunningJobs: counts.staleRunningJobs,
+      activeOwners,
+      staleOwners,
+      expiredOwners,
+    });
+
+    return {
+      current: {
+        workerId: current.workerId,
+        queueWorkerEnabled: current.queueWorkerEnabled,
+        processingQueue: current.processingQueue,
+        runningCancellations: current.runningCancellations,
+        queueIntervalSeconds: current.queueIntervalSeconds,
+        queueBatchSize: current.queueBatchSize,
+        queueLockTtlSeconds: current.queueLockTtlSeconds,
+        queueHeartbeatSeconds: current.queueHeartbeatSeconds,
+        recoveryBatchSize: current.recoveryBatchSize,
+        staleRemoteCleanupEnabled: current.staleRemoteCleanupEnabled,
+      },
+      status: state,
+      queue: {
+        ready: counts.readyQueuedJobs,
+        scheduled: counts.scheduledQueuedJobs,
+        running: counts.runningJobs,
+        staleRunning: counts.staleRunningJobs,
+        blocked: counts.blockedJobs,
+        unownedRunning: unownedRunningJobs,
+      },
+      owners: {
+        total: workers.length,
+        active: activeOwners,
+        stale: staleOwners,
+        expired: expiredOwners,
+        ownedRunningJobs,
+        ownedStaleJobs,
+        samples: ownerStats.slice(0, 10).map(({ worker, activeJobs, expiredOwner, staleOwner }) => {
+          const lastHeartbeatAt = worker.lastHeartbeatAt ? new Date(worker.lastHeartbeatAt) : null;
+          const lockExpiresAt = worker.lockExpiresAt ? new Date(worker.lockExpiresAt) : null;
+          return {
+            lockOwner: worker.lockOwner,
+            status: expiredOwner ? 'expired' : staleOwner ? 'degraded' : 'running',
+            runningJobs: worker.runningJobs,
+            activeJobs,
+            staleJobs: worker.staleJobs,
+            lastHeartbeatAt: worker.lastHeartbeatAt,
+            lockExpiresAt: worker.lockExpiresAt,
+            lastHeartbeatAgeSeconds: lastHeartbeatAt
+              ? Math.max(0, this.msToSeconds(counts.now.getTime() - lastHeartbeatAt.getTime()))
+              : null,
+            lockExpiresInSeconds: lockExpiresAt
+              ? this.msToSeconds(lockExpiresAt.getTime() - counts.now.getTime())
+              : null,
+            sampleJob: worker.sampleJob,
+          };
+        }),
+      },
+    };
+  }
+
+  private summarizeQueueCoordinationPreflight(input: {
+    queueWorkerEnabled: boolean;
+    processingQueue: boolean;
+    queueIntervalSeconds: number;
+    queueBatchSize: number;
+    recoveryBatchSize: number;
+    staleRemoteCleanupEnabled: boolean;
+    readyQueuedJobs: number;
+    scheduledQueuedJobs: number;
+    runningJobs: number;
+    staleRunningJobs: number;
+    blockedJobs: number;
+    totalOwners: number;
+    activeOwners: number;
+    staleOwners: number;
+    expiredOwners: number;
+    unownedRunningJobs: number;
+  }) {
+    const backlogJobs = input.readyQueuedJobs + input.scheduledQueuedJobs;
+    const pressureJobs = backlogJobs + input.runningJobs + input.blockedJobs;
+    const blockers: { reason: string; severity: QueueCoordinationPreflightSeverity; count: number }[] = [];
+    const nextSteps: { action: string; reason: string }[] = [];
+    const nextStepKeys = new Set<string>();
+
+    const addBlocker = (
+      reason: string,
+      severity: QueueCoordinationPreflightSeverity,
+      count = 1,
+    ) => {
+      if (count > 0) blockers.push({ reason, severity, count });
+    };
+    const addNextStep = (action: string, reason: string) => {
+      const key = `${action}:${reason}`;
+      if (nextStepKeys.has(key)) return;
+      nextStepKeys.add(key);
+      nextSteps.push({ action, reason });
+    };
+
+    if (!input.queueWorkerEnabled && backlogJobs > 0) {
+      addBlocker('queue_worker_disabled_with_backlog', 'critical', backlogJobs);
+      addNextStep('enable_queue_worker', 'queue_worker_disabled_with_backlog');
+    }
+    if (input.queueWorkerEnabled && backlogJobs > 0 && input.activeOwners === 0) {
+      addBlocker('no_active_worker_owner', 'warning', backlogJobs);
+      addNextStep('inspect_worker_startup', 'no_active_worker_owner');
+    }
+    if (input.expiredOwners > 0) {
+      addBlocker('expired_worker_owner', 'warning', input.expiredOwners);
+      addNextStep('recover_expired_worker_owner', 'expired_worker_owner');
+    }
+    if (input.staleOwners > 0) {
+      addBlocker('stale_worker_owner', 'warning', input.staleOwners);
+      addNextStep('inspect_worker_owners', 'stale_worker_owner');
+    }
+    if (input.unownedRunningJobs > 0) {
+      addBlocker('unowned_running_jobs', 'warning', input.unownedRunningJobs);
+      addNextStep('inspect_unowned_running_jobs', 'unowned_running_jobs');
+    }
+    if (input.staleRunningJobs > 0) {
+      addBlocker('stale_running_jobs', 'warning', input.staleRunningJobs);
+      addNextStep('recover_stale_jobs', 'stale_running_jobs');
+    }
+    if (input.staleRunningJobs > 0 && !input.staleRemoteCleanupEnabled) {
+      addBlocker('stale_remote_cleanup_disabled_with_stale_jobs', 'warning', input.staleRunningJobs);
+      addNextStep('enable_stale_remote_cleanup', 'stale_remote_cleanup_disabled_with_stale_jobs');
+    }
+    if (input.blockedJobs > 0) {
+      addBlocker('blocked_jobs', 'warning', input.blockedJobs);
+      addNextStep('inspect_blocked_jobs', 'blocked_jobs');
+    }
+
+    const configured = input.queueWorkerEnabled || pressureJobs > 0 || input.totalOwners > 0;
+    const criticalBlocker = blockers.find((blocker) => blocker.severity === 'critical');
+    const warningBlocker = blockers.find((blocker) => blocker.severity === 'warning');
+    let state: QueueCoordinationPreflightState = 'ready';
+    if (!configured) {
+      state = 'idle';
+    } else if (criticalBlocker) {
+      state = 'blocked';
+    } else if (warningBlocker) {
+      state = 'degraded';
+    }
+    const reason = state === 'idle'
+      ? 'queue_coordination_idle'
+      : criticalBlocker?.reason || warningBlocker?.reason || 'queue_coordination_ready';
+
+    if (nextSteps.length === 0) {
+      nextSteps.push({
+        action: state === 'idle'
+          ? 'monitor_queue_pressure'
+          : 'ready_for_multi_instance_queue_coordination',
+        reason,
+      });
+    }
+
+    return {
+      state,
+      reason,
+      gates: {
+        worker: {
+          ready: input.queueWorkerEnabled,
+          enabled: input.queueWorkerEnabled,
+          processingQueue: input.processingQueue,
+          batchSize: input.queueBatchSize,
+          intervalSeconds: input.queueIntervalSeconds,
+          reason: input.queueWorkerEnabled
+            ? input.processingQueue ? 'processing_queue' : 'queue_worker_enabled'
+            : 'queue_worker_disabled',
+        },
+        queue: {
+          ready: input.queueWorkerEnabled || backlogJobs === 0 || input.activeOwners > 0,
+          readyJobs: input.readyQueuedJobs,
+          scheduledJobs: input.scheduledQueuedJobs,
+          runningJobs: input.runningJobs,
+          blockedJobs: input.blockedJobs,
+          backlogJobs,
+          reason: backlogJobs > 0
+            ? 'queue_backlog_active'
+            : input.runningJobs > 0
+              ? 'running_jobs_active'
+              : input.blockedJobs > 0 ? 'blocked_jobs_present' : 'queue_idle',
+        },
+        owners: {
+          ready: input.expiredOwners === 0
+            && input.staleOwners === 0
+            && input.unownedRunningJobs === 0
+            && (input.runningJobs === 0 || input.activeOwners > 0),
+          totalOwners: input.totalOwners,
+          activeOwners: input.activeOwners,
+          staleOwners: input.staleOwners,
+          expiredOwners: input.expiredOwners,
+          unownedRunningJobs: input.unownedRunningJobs,
+          reason: input.expiredOwners > 0
+            ? 'expired_worker_owner'
+            : input.staleOwners > 0
+              ? 'stale_worker_owner'
+              : input.unownedRunningJobs > 0
+                ? 'unowned_running_jobs'
+                : input.activeOwners > 0 ? 'active_worker_owner' : 'no_running_job_owner',
+        },
+        recovery: {
+          ready: input.staleRunningJobs === 0,
+          staleRunningJobs: input.staleRunningJobs,
+          recoveryBatchSize: input.recoveryBatchSize,
+          staleRemoteCleanupEnabled: input.staleRemoteCleanupEnabled,
+          reason: input.staleRunningJobs > 0
+            ? input.staleRemoteCleanupEnabled ? 'stale_running_jobs' : 'stale_remote_cleanup_disabled'
+            : 'stale_recovery_ready',
+        },
+      },
+      pressure: {
+        backlogJobs,
+        readyJobs: input.readyQueuedJobs,
+        scheduledJobs: input.scheduledQueuedJobs,
+        runningJobs: input.runningJobs,
+        staleRunningJobs: input.staleRunningJobs,
+        blockedJobs: input.blockedJobs,
+        totalOwners: input.totalOwners,
+        activeOwners: input.activeOwners,
+        staleOwners: input.staleOwners,
+        unownedRunningJobs: input.unownedRunningJobs,
+      },
+      blockers,
+      nextSteps,
+    };
+  }
+
+  private summarizeRemoteOrphanGovernancePreflight(input: {
+    now: Date;
+    staleRemoteCleanupEnabled: boolean;
+    recoveryBatchSize: number;
+    staleRunningJobs: number;
+    activeOwners: number;
+    staleOwners: number;
+    expiredOwners: number;
+    staleJobs: {
+      id: string;
+      operationKey: string;
+      adapterKey: string;
+      serverId: string | null;
+      lockOwner: string | null;
+      lastHeartbeatAt: Date | null;
+      lockExpiresAt: Date | null;
+      metadata?: Prisma.JsonValue | null;
+      server?: { id: string; name: string; host: string; status: string } | null;
+    }[];
+  }) {
+    const blockers: { reason: string; severity: RemoteOrphanGovernancePreflightSeverity; count: number }[] = [];
+    const nextSteps: { action: string; reason: string }[] = [];
+    const nextStepKeys = new Set<string>();
+    const jobSummaries = input.staleJobs.map((job) => {
+      const metadata = this.isRecord(job.metadata) ? job.metadata : {};
+      const remoteExecution = this.isRecord(metadata.remoteExecution) ? metadata.remoteExecution : {};
+      const sessionValue = remoteExecution.session;
+      const session = this.readRemoteExecutionSession(sessionValue);
+      const cleanup = this.readRemoteExecutionCleanupSummary(remoteExecution.staleCleanup)
+        || this.readRemoteExecutionCleanupSummary(remoteExecution.cleanup);
+
+      return {
+        job,
+        session,
+        cleanup,
+        hasSessionMetadata: sessionValue !== undefined && sessionValue !== null,
+      };
+    });
+
+    const scannedJobs = jobSummaries.length;
+    const unscannedStaleJobs = Math.max(0, input.staleRunningJobs - scannedJobs);
+    const recoverableRemoteSessions = jobSummaries.filter((summary) => summary.session).length;
+    const missingRemoteSessions = jobSummaries.filter(
+      (summary) => !summary.session && !summary.hasSessionMetadata,
+    ).length;
+    const invalidRemoteSessions = jobSummaries.filter(
+      (summary) => !summary.session && summary.hasSessionMetadata,
+    ).length;
+    const cleanupRecorded = jobSummaries.filter((summary) => summary.cleanup).length;
+    const cleanupAttempted = jobSummaries.filter((summary) => summary.cleanup?.attempted).length;
+    const cleanupSucceeded = jobSummaries.filter((summary) => summary.cleanup?.succeeded).length;
+    const cleanupFailed = jobSummaries.filter((summary) => summary.cleanup?.failed).length;
+    const unownedStaleJobs = jobSummaries.filter((summary) => !summary.job.lockOwner).length;
+
+    const addBlocker = (
+      reason: string,
+      severity: RemoteOrphanGovernancePreflightSeverity,
+      count = 1,
+    ) => {
+      if (count > 0) blockers.push({ reason, severity, count });
+    };
+    const addNextStep = (action: string, reason: string) => {
+      const key = `${action}:${reason}`;
+      if (nextStepKeys.has(key)) return;
+      nextStepKeys.add(key);
+      nextSteps.push({ action, reason });
+    };
+
+    if (!input.staleRemoteCleanupEnabled && recoverableRemoteSessions > 0) {
+      addBlocker('remote_cleanup_disabled_with_recoverable_sessions', 'critical', recoverableRemoteSessions);
+      addNextStep('enable_stale_remote_cleanup', 'remote_cleanup_disabled_with_recoverable_sessions');
+    }
+    if (missingRemoteSessions > 0) {
+      addBlocker('missing_remote_execution_session', 'warning', missingRemoteSessions);
+      addNextStep('inspect_remote_execution_metadata', 'missing_remote_execution_session');
+    }
+    if (invalidRemoteSessions > 0) {
+      addBlocker('invalid_remote_execution_session', 'warning', invalidRemoteSessions);
+      addNextStep('inspect_remote_execution_metadata', 'invalid_remote_execution_session');
+    }
+    if (input.expiredOwners > 0) {
+      addBlocker('expired_worker_owner', 'warning', input.expiredOwners);
+      addNextStep('recover_expired_worker_owner', 'expired_worker_owner');
+    }
+    if (input.staleOwners > 0) {
+      addBlocker('stale_worker_owner', 'warning', input.staleOwners);
+      addNextStep('inspect_worker_owners', 'stale_worker_owner');
+    }
+    if (unownedStaleJobs > 0) {
+      addBlocker('unowned_stale_running_jobs', 'warning', unownedStaleJobs);
+      addNextStep('inspect_unowned_running_jobs', 'unowned_stale_running_jobs');
+    }
+    if (cleanupFailed > 0) {
+      addBlocker('remote_cleanup_failed', 'warning', cleanupFailed);
+      addNextStep('inspect_failed_remote_cleanup', 'remote_cleanup_failed');
+    }
+    if (unscannedStaleJobs > 0) {
+      addBlocker('stale_jobs_scan_truncated', 'warning', unscannedStaleJobs);
+      addNextStep('expand_stale_job_scan', 'stale_jobs_scan_truncated');
+    }
+    if (input.staleRunningJobs > input.recoveryBatchSize) {
+      addBlocker('recovery_batch_below_stale_jobs', 'warning', input.staleRunningJobs - input.recoveryBatchSize);
+      addNextStep('tune_stale_recovery_batch', 'recovery_batch_below_stale_jobs');
+    }
+
+    const criticalBlocker = blockers.find((blocker) => blocker.severity === 'critical');
+    const warningBlocker = blockers.find((blocker) => blocker.severity === 'warning');
+    let state: RemoteOrphanGovernancePreflightState = 'ready';
+    if (input.staleRunningJobs === 0) {
+      state = 'idle';
+    } else if (criticalBlocker) {
+      state = 'blocked';
+    } else if (warningBlocker) {
+      state = 'degraded';
+    }
+    const reason = state === 'idle'
+      ? 'no_stale_remote_orphans'
+      : criticalBlocker?.reason || warningBlocker?.reason || 'remote_orphan_governance_ready';
+
+    if (nextSteps.length === 0) {
+      nextSteps.push({
+        action: state === 'idle'
+          ? 'monitor_stale_remote_orphans'
+          : 'ready_for_remote_orphan_governance',
+        reason,
+      });
+    }
+
+    return {
+      state,
+      reason,
+      gates: {
+        remoteSession: {
+          ready: missingRemoteSessions === 0 && invalidRemoteSessions === 0,
+          scannedJobs,
+          recoverableRemoteSessions,
+          missingRemoteSessions,
+          invalidRemoteSessions,
+          reason: input.staleRunningJobs === 0
+            ? 'no_stale_running_jobs'
+            : missingRemoteSessions > 0
+              ? 'missing_remote_execution_session'
+              : invalidRemoteSessions > 0
+                ? 'invalid_remote_execution_session'
+                : recoverableRemoteSessions > 0 ? 'remote_sessions_tracked' : 'no_recoverable_remote_sessions',
+        },
+        cleanup: {
+          ready: input.staleRemoteCleanupEnabled || recoverableRemoteSessions === 0,
+          enabled: input.staleRemoteCleanupEnabled,
+          cleanupRecorded,
+          cleanupAttempted,
+          cleanupSucceeded,
+          cleanupFailed,
+          reason: recoverableRemoteSessions === 0
+            ? 'no_remote_sessions_to_cleanup'
+            : input.staleRemoteCleanupEnabled
+              ? 'stale_remote_cleanup_enabled'
+              : 'remote_cleanup_disabled_with_recoverable_sessions',
+        },
+        owners: {
+          ready: input.expiredOwners === 0 && input.staleOwners === 0 && unownedStaleJobs === 0,
+          activeOwners: input.activeOwners,
+          staleOwners: input.staleOwners,
+          expiredOwners: input.expiredOwners,
+          unownedStaleJobs,
+          reason: input.expiredOwners > 0
+            ? 'expired_worker_owner'
+            : input.staleOwners > 0
+              ? 'stale_worker_owner'
+              : unownedStaleJobs > 0 ? 'unowned_stale_running_jobs' : 'remote_owner_state_ready',
+        },
+        recovery: {
+          ready: unscannedStaleJobs === 0 && input.staleRunningJobs <= input.recoveryBatchSize,
+          staleRunningJobs: input.staleRunningJobs,
+          scannedJobs,
+          unscannedStaleJobs,
+          recoveryBatchSize: input.recoveryBatchSize,
+          reason: input.staleRunningJobs === 0
+            ? 'no_stale_running_jobs'
+            : unscannedStaleJobs > 0
+              ? 'stale_jobs_scan_truncated'
+              : input.staleRunningJobs > input.recoveryBatchSize
+                ? 'recovery_batch_below_stale_jobs'
+                : 'stale_recovery_batch_ready',
+        },
+      },
+      risk: {
+        staleRunningJobs: input.staleRunningJobs,
+        scannedJobs,
+        unscannedStaleJobs,
+        recoverableRemoteSessions,
+        missingRemoteSessions,
+        invalidRemoteSessions,
+        cleanupRecorded,
+        cleanupAttempted,
+        cleanupSucceeded,
+        cleanupFailed,
+        activeOwners: input.activeOwners,
+        staleOwners: input.staleOwners,
+        expiredOwners: input.expiredOwners,
+        unownedStaleJobs,
+      },
+      samples: jobSummaries.slice(0, 5).map((summary) => ({
+        id: summary.job.id,
+        operationKey: summary.job.operationKey,
+        adapterKey: summary.job.adapterKey,
+        serverId: summary.job.serverId,
+        lockOwner: summary.job.lockOwner,
+        lockExpiresAt: summary.job.lockExpiresAt?.toISOString() || null,
+        lastHeartbeatAt: summary.job.lastHeartbeatAt?.toISOString() || null,
+        server: summary.job.server || null,
+        remoteSession: summary.session
+          ? {
+              transport: summary.session.transport,
+              pid: summary.session.pid,
+              observedAt: summary.session.observedAt,
+              serverId: summary.session.serverId ?? null,
+              serverHost: summary.session.serverHost ?? null,
+              cleanupStrategy: summary.session.cleanupStrategy,
+            }
+          : null,
+        cleanup: summary.cleanup,
+      })),
+      blockers,
+      nextSteps,
+    };
+  }
+
+  private readRemoteExecutionCleanupSummary(value: unknown) {
+    if (!this.isRecord(value)) return null;
+
+    const error = this.readOptionalString(value.error);
+    return {
+      attempted: value.attempted === true,
+      succeeded: value.succeeded === true,
+      failed: value.succeeded === false || Boolean(error),
+      reason: this.readOptionalString(value.reason) || 'unknown_remote_cleanup',
+      observedAt: this.readOptionalString(value.observedAt) || null,
+      error: error ? 'cleanup_error_recorded' : null,
+    };
+  }
+
+  private readWorkerInventoryState(input: {
+    queueWorkerEnabled: boolean;
+    readyQueuedJobs: number;
+    scheduledQueuedJobs: number;
+    staleRunningJobs: number;
+    activeOwners: number;
+    staleOwners: number;
+    expiredOwners: number;
+  }) {
+    if (!input.queueWorkerEnabled && input.readyQueuedJobs + input.scheduledQueuedJobs > 0) {
+      return { state: 'blocked', reason: 'queue_worker_disabled' };
+    }
+    if (input.expiredOwners > 0) {
+      return { state: 'degraded', reason: 'expired_worker_owner' };
+    }
+    if (input.staleOwners > 0 || input.staleRunningJobs > 0) {
+      return { state: 'degraded', reason: 'stale_worker_owner' };
+    }
+    if (input.activeOwners > 0) {
+      return { state: 'running', reason: 'active_worker_owner' };
+    }
+    if (input.queueWorkerEnabled) {
+      return { state: 'running', reason: 'queue_worker_enabled' };
+    }
+    return { state: 'idle', reason: 'no_active_worker_owner' };
   }
 
   private summarizeServerAgentBlockedReasons(jobs: ServerAgentBlockedJobRecord[]) {
@@ -3700,6 +4774,462 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  private summarizeServerAgentTaskPullReadiness(input: {
+    targetSelectionEnabled: boolean;
+    capableServers: number;
+    onlineCapableServers: number;
+    heartbeatEnabled: boolean;
+    heartbeatTokenConfigured: boolean;
+    heartbeatRequiredForTargetSelection: boolean;
+    heartbeatServers: number;
+    taskPullContractEnabled: boolean;
+    taskPullEnabled: boolean;
+    runtimeReadyServers: number;
+    runtimeIssueServers: number;
+    missingHeartbeatServers: number;
+    queueWorkerEnabled: boolean;
+    agentReadyJobs: number;
+    agentScheduledJobs: number;
+    agentRunningJobs: number;
+    agentStaleRunningJobs: number;
+    agentBlockedJobs: number;
+    agentFailedJobs: number;
+    agentCancelledJobs: number;
+    nextQueuedJob: {
+      id: string;
+      operationKey: string;
+      adapterKey: string;
+      serverId: string | null;
+      priority: number;
+      queuedAt: string;
+      availableAt: string;
+      server: WorkerLockServer;
+    } | null;
+    blockedReasonSummary: {
+      scanned: number;
+      dispatcherBoundaryJobs: number;
+      reasonCounts: { reason: string; count: number; nextExecutorBoundary?: string }[];
+      samples: {
+        id: string;
+        operationKey: string;
+        adapterKey: string;
+        serverId: string | null;
+        queuedAt: string;
+        finishedAt: string | null;
+        server: WorkerLockServer;
+        reason: string;
+        nextExecutorBoundary?: string;
+        dispatcherConfigured?: boolean;
+        agentExecutorEnabled?: boolean;
+      }[];
+    };
+    auditTotalRecent: number;
+    auditFailedRecent: number;
+    auditBlockedRecent: number;
+    auditHighRiskRecent: number;
+  }) {
+    const agentQueuedJobs = input.agentReadyJobs + input.agentScheduledJobs;
+    const agentPressureJobs = agentQueuedJobs
+      + input.agentRunningJobs
+      + input.agentBlockedJobs
+      + input.agentFailedJobs;
+    const runtimeGateReady = input.targetSelectionEnabled
+      && input.capableServers > 0
+      && input.heartbeatEnabled
+      && input.heartbeatTokenConfigured
+      && input.runtimeReadyServers > 0
+      && input.missingHeartbeatServers === 0
+      && input.runtimeIssueServers === 0;
+    const hasTaskPullDemand = agentQueuedJobs + input.agentRunningJobs > 0;
+    const blockers: { reason: string; severity: ServerAgentTaskPullReadinessSeverity; count: number }[] = [];
+    const nextSteps: { action: string; reason: string }[] = [];
+
+    const addBlocker = (
+      reason: string,
+      severity: ServerAgentTaskPullReadinessSeverity,
+      count = 1,
+    ) => {
+      if (count > 0) blockers.push({ reason, severity, count });
+    };
+    const addNextStep = (action: string, reason: string) => {
+      nextSteps.push({ action, reason });
+    };
+
+    if (!input.targetSelectionEnabled) {
+      addBlocker('agent_target_selection_disabled', 'critical');
+      addNextStep('enable_agent_target_selection', 'agent_target_selection_disabled');
+    }
+    if (input.capableServers === 0) {
+      addBlocker('no_agent_capable_servers', 'critical');
+      addNextStep('register_agent_capable_servers', 'no_agent_capable_servers');
+    }
+    if (!input.heartbeatEnabled) {
+      addBlocker('heartbeat_disabled', 'critical');
+      addNextStep('enable_agent_heartbeat', 'heartbeat_disabled');
+    } else if (!input.heartbeatTokenConfigured) {
+      addBlocker('heartbeat_token_missing', 'critical');
+      addNextStep('configure_agent_heartbeat_token', 'heartbeat_token_missing');
+    } else {
+      if (input.capableServers > 0 && input.runtimeReadyServers === 0) {
+        addBlocker('no_runtime_heartbeat_online', 'critical');
+        addNextStep('start_agent_heartbeat_runtime', 'no_runtime_heartbeat_online');
+      }
+      if (input.missingHeartbeatServers > 0) {
+        addBlocker('missing_runtime_heartbeat', 'warning', input.missingHeartbeatServers);
+        addNextStep('roll_out_missing_agent_heartbeats', 'missing_runtime_heartbeat');
+      }
+      if (input.runtimeIssueServers > 0) {
+        addBlocker('runtime_health_issue', 'warning', input.runtimeIssueServers);
+        addNextStep('inspect_agent_runtime_health', 'runtime_health_issue');
+      }
+    }
+    if (!input.queueWorkerEnabled && agentQueuedJobs > 0) {
+      addBlocker('queue_worker_disabled_with_agent_jobs', 'critical', agentQueuedJobs);
+      addNextStep('enable_queue_worker', 'queue_worker_disabled_with_agent_jobs');
+    }
+    if (input.agentReadyJobs > 0 && !input.nextQueuedJob) {
+      addBlocker('missing_next_agent_job_sample', 'critical', input.agentReadyJobs);
+      addNextStep('inspect_agent_job_queue_ordering', 'missing_next_agent_job_sample');
+    }
+    if (!input.taskPullContractEnabled && hasTaskPullDemand) {
+      addBlocker('task_pull_contract_disabled', 'critical', agentQueuedJobs + input.agentRunningJobs);
+      addNextStep('enable_agent_task_pull_contract', 'task_pull_contract_disabled');
+    } else if (hasTaskPullDemand) {
+      const reason = input.taskPullEnabled ? 'task_pull_claim_not_implemented' : 'task_pull_disabled';
+      addBlocker(reason, 'critical', agentQueuedJobs + input.agentRunningJobs);
+      addNextStep(
+        input.taskPullEnabled ? 'implement_agent_task_claim' : 'enable_agent_task_pull_after_claim_design',
+        reason,
+      );
+    }
+    if (input.agentStaleRunningJobs > 0) {
+      addBlocker('stale_agent_running_jobs', 'warning', input.agentStaleRunningJobs);
+      addNextStep('recover_stale_agent_jobs', 'stale_agent_running_jobs');
+    }
+    if (input.agentBlockedJobs > 0) {
+      addBlocker('blocked_agent_jobs', 'warning', input.agentBlockedJobs);
+      addNextStep('inspect_blocked_agent_jobs', 'blocked_agent_jobs');
+    }
+    if (input.agentFailedJobs > 0) {
+      addBlocker('failed_agent_jobs', 'warning', input.agentFailedJobs);
+      addNextStep('inspect_failed_agent_jobs', 'failed_agent_jobs');
+    }
+    const riskyAuditEvents = input.auditFailedRecent + input.auditBlockedRecent + input.auditHighRiskRecent;
+    if (riskyAuditEvents > 0) {
+      addBlocker('execution_audit_risk_present', 'warning', riskyAuditEvents);
+      addNextStep('inspect_execution_audit_events', 'execution_audit_risk_present');
+    }
+
+    const readinessConfigured = input.targetSelectionEnabled
+      || input.heartbeatEnabled
+      || input.capableServers > 0
+      || agentPressureJobs > 0;
+    const criticalBlocker = blockers.find((blocker) => blocker.severity === 'critical');
+    const warningBlocker = blockers.find((blocker) => blocker.severity === 'warning');
+    let state: ServerAgentTaskPullReadinessState = 'ready';
+    if (!readinessConfigured || agentPressureJobs === 0) {
+      state = 'idle';
+    } else if (criticalBlocker) {
+      state = 'blocked';
+    } else if (warningBlocker) {
+      state = 'degraded';
+    }
+    const reason = !readinessConfigured
+      ? 'task_pull_readiness_disabled'
+      : agentPressureJobs === 0
+        ? 'no_agent_task_pull_demand'
+        : criticalBlocker?.reason || warningBlocker?.reason || 'task_pull_readiness_ready';
+
+    if (nextSteps.length === 0) {
+      nextSteps.push({
+        action: state === 'idle' ? 'wait_for_agent_task_pull_demand' : 'ready_for_agent_task_pull_design',
+        reason,
+      });
+    }
+
+    return {
+      state,
+      reason,
+      gates: {
+        runtime: {
+          ready: runtimeGateReady,
+          targetSelectionEnabled: input.targetSelectionEnabled,
+          capableServers: input.capableServers,
+          onlineCapableServers: input.onlineCapableServers,
+          heartbeatEnabled: input.heartbeatEnabled,
+          heartbeatTokenConfigured: input.heartbeatTokenConfigured,
+          heartbeatRequiredForTargetSelection: input.heartbeatRequiredForTargetSelection,
+          heartbeatServers: input.heartbeatServers,
+          readyServers: input.runtimeReadyServers,
+          issueServers: input.runtimeIssueServers,
+          missingHeartbeatServers: input.missingHeartbeatServers,
+          reason: !input.targetSelectionEnabled
+            ? 'agent_target_selection_disabled'
+            : input.capableServers === 0
+              ? 'no_agent_capable_servers'
+              : !input.heartbeatEnabled
+                ? 'heartbeat_disabled'
+                : !input.heartbeatTokenConfigured
+                  ? 'heartbeat_token_missing'
+                  : input.runtimeReadyServers === 0
+                    ? 'no_runtime_heartbeat_online'
+                    : input.missingHeartbeatServers > 0
+                      ? 'missing_runtime_heartbeat'
+                      : input.runtimeIssueServers > 0 ? 'runtime_health_issue' : 'task_pull_runtime_ready',
+        },
+        queue: {
+          ready: input.queueWorkerEnabled || agentQueuedJobs === 0,
+          queueWorkerEnabled: input.queueWorkerEnabled,
+          readyJobs: input.agentReadyJobs,
+          scheduledJobs: input.agentScheduledJobs,
+          runningJobs: input.agentRunningJobs,
+          staleRunningJobs: input.agentStaleRunningJobs,
+          blockedJobs: input.agentBlockedJobs,
+          failedJobs: input.agentFailedJobs,
+          cancelledJobs: input.agentCancelledJobs,
+          reason: input.queueWorkerEnabled
+            ? agentQueuedJobs > 0 ? 'agent_queue_backlog_ready' : 'agent_queue_idle'
+            : agentQueuedJobs > 0 ? 'queue_worker_disabled_with_agent_jobs' : 'queue_worker_idle',
+        },
+        pullContract: {
+          ready: false,
+          endpointImplemented: true,
+          contractEndpointEnabled: input.taskPullContractEnabled,
+          pullEndpointImplemented: false,
+          taskPullEnabled: input.taskPullEnabled,
+          claimSupported: false,
+          ackSupported: false,
+          lifecycleExecutionSupported: false,
+          reason: !input.taskPullContractEnabled
+            ? 'task_pull_contract_disabled'
+            : input.taskPullEnabled ? 'task_pull_claim_not_implemented' : 'task_pull_disabled',
+        },
+        audit: {
+          ready: input.auditTotalRecent > 0 || agentPressureJobs === 0,
+          totalRecent: input.auditTotalRecent,
+          failedRecent: input.auditFailedRecent,
+          blockedRecent: input.auditBlockedRecent,
+          highRiskRecent: input.auditHighRiskRecent,
+          reason: input.auditTotalRecent > 0
+            ? riskyAuditEvents > 0 ? 'execution_audit_risk_present' : 'execution_audit_visible'
+            : agentPressureJobs > 0 ? 'execution_audit_not_seen' : 'execution_audit_idle',
+        },
+      },
+      pressure: {
+        readyJobs: input.agentReadyJobs,
+        scheduledJobs: input.agentScheduledJobs,
+        runningJobs: input.agentRunningJobs,
+        staleRunningJobs: input.agentStaleRunningJobs,
+        blockedJobs: input.agentBlockedJobs,
+        failedJobs: input.agentFailedJobs,
+        cancelledJobs: input.agentCancelledJobs,
+        pressureJobs: agentPressureJobs,
+      },
+      samples: {
+        nextQueuedJob: input.nextQueuedJob,
+        blockedReasons: input.blockedReasonSummary.reasonCounts.slice(0, 3),
+        blockedReasonSamples: input.blockedReasonSummary.samples.slice(0, 3),
+      },
+      blockers,
+      nextSteps: nextSteps.slice(0, 8),
+    };
+  }
+
+  private summarizeServerAgentLifecyclePreflight(input: {
+    targetSelectionEnabled: boolean;
+    capableServers: number;
+    onlineCapableServers: number;
+    heartbeatEnabled: boolean;
+    heartbeatTokenConfigured: boolean;
+    heartbeatRequiredForTargetSelection: boolean;
+    heartbeatServers: number;
+    runtimeReadyServers: number;
+    runtimeDegradedServers: number;
+    runtimeStaleServers: number;
+    runtimeUnknownServers: number;
+    missingHeartbeatServers: number;
+    executorEnabled: boolean;
+    dispatcherConfigured: boolean;
+    dispatcherTokenConfigured: boolean;
+    liveDispatchReadyServers: number;
+    pressureServers: number;
+    scannedJobs: number;
+    queueWorkerEnabled: boolean;
+    agentReadyJobs: number;
+    agentScheduledJobs: number;
+    agentRunningJobs: number;
+    agentStaleRunningJobs: number;
+    agentBlockedJobs: number;
+  }) {
+    const runtimeIssueServers = input.runtimeDegradedServers
+      + input.runtimeStaleServers
+      + input.runtimeUnknownServers;
+    const agentQueuedJobs = input.agentReadyJobs + input.agentScheduledJobs;
+    const agentPressureJobs = agentQueuedJobs + input.agentRunningJobs + input.agentBlockedJobs;
+    const blockers: { reason: string; severity: ServerAgentLifecyclePreflightSeverity; count: number }[] = [];
+    const nextSteps: { action: string; reason: string }[] = [];
+
+    const addBlocker = (
+      reason: string,
+      severity: ServerAgentLifecyclePreflightSeverity,
+      count = 1,
+    ) => {
+      if (count > 0) blockers.push({ reason, severity, count });
+    };
+    const addNextStep = (action: string, reason: string) => {
+      nextSteps.push({ action, reason });
+    };
+
+    if (!input.targetSelectionEnabled) {
+      addBlocker('agent_target_selection_disabled', 'critical');
+      addNextStep('enable_agent_target_selection', 'agent_target_selection_disabled');
+    }
+    if (input.capableServers === 0) {
+      addBlocker('no_agent_capable_servers', 'critical');
+      addNextStep('register_agent_capable_servers', 'no_agent_capable_servers');
+    }
+    if (!input.heartbeatEnabled) {
+      addBlocker('heartbeat_disabled', 'critical');
+      addNextStep('enable_agent_heartbeat', 'heartbeat_disabled');
+    } else if (!input.heartbeatTokenConfigured) {
+      addBlocker('heartbeat_token_missing', 'critical');
+      addNextStep('configure_agent_heartbeat_token', 'heartbeat_token_missing');
+    } else {
+      if (input.capableServers > 0 && input.runtimeReadyServers === 0) {
+        addBlocker('no_runtime_heartbeat_online', 'critical');
+        addNextStep('start_agent_heartbeat_runtime', 'no_runtime_heartbeat_online');
+      }
+      if (input.missingHeartbeatServers > 0) {
+        addBlocker('missing_runtime_heartbeat', 'warning', input.missingHeartbeatServers);
+        addNextStep('roll_out_missing_agent_heartbeats', 'missing_runtime_heartbeat');
+      }
+      if (runtimeIssueServers > 0) {
+        addBlocker('runtime_health_issue', 'warning', runtimeIssueServers);
+        addNextStep('inspect_agent_runtime_health', 'runtime_health_issue');
+      }
+    }
+    if (!input.executorEnabled) {
+      addBlocker('agent_executor_disabled', 'critical');
+      addNextStep('enable_agent_executor', 'agent_executor_disabled');
+    }
+    if (!input.dispatcherConfigured) {
+      addBlocker('dispatcher_not_configured', 'critical');
+      addNextStep('configure_agent_dispatcher', 'dispatcher_not_configured');
+    } else if (input.capableServers > 0 && input.liveDispatchReadyServers === 0) {
+      addBlocker('no_live_dispatch_ready_servers', 'warning');
+      addNextStep('align_live_dispatch_ready_servers', 'no_live_dispatch_ready_servers');
+    }
+    if (!input.queueWorkerEnabled && agentQueuedJobs > 0) {
+      addBlocker('queue_worker_disabled_with_agent_jobs', 'critical', agentQueuedJobs);
+      addNextStep('enable_queue_worker', 'queue_worker_disabled_with_agent_jobs');
+    }
+    if (input.agentStaleRunningJobs > 0) {
+      addBlocker('stale_agent_running_jobs', 'warning', input.agentStaleRunningJobs);
+      addNextStep('recover_stale_agent_jobs', 'stale_agent_running_jobs');
+    }
+    if (input.agentBlockedJobs > 0) {
+      addBlocker('blocked_agent_jobs', 'warning', input.agentBlockedJobs);
+      addNextStep('inspect_blocked_agent_jobs', 'blocked_agent_jobs');
+    }
+
+    const lifecycleConfigured = input.targetSelectionEnabled
+      || input.executorEnabled
+      || input.dispatcherConfigured
+      || input.heartbeatEnabled
+      || input.capableServers > 0
+      || agentPressureJobs > 0;
+    const criticalBlocker = blockers.find((blocker) => blocker.severity === 'critical');
+    const warningBlocker = blockers.find((blocker) => blocker.severity === 'warning');
+    let state: ServerAgentLifecyclePreflightState = 'ready';
+    if (!lifecycleConfigured) {
+      state = 'disabled';
+    } else if (criticalBlocker) {
+      state = 'blocked';
+    } else if (warningBlocker) {
+      state = 'degraded';
+    }
+    const reason = state === 'disabled'
+      ? 'agent_runtime_disabled'
+      : criticalBlocker?.reason || warningBlocker?.reason || 'preflight_ready';
+
+    if (nextSteps.length === 0) {
+      nextSteps.push({ action: 'ready_for_agent_runtime_lifecycle', reason: 'preflight_ready' });
+    }
+
+    return {
+      state,
+      reason,
+      gates: {
+        targetSelection: {
+          ready: input.targetSelectionEnabled && input.capableServers > 0,
+          enabled: input.targetSelectionEnabled,
+          capableServers: input.capableServers,
+          onlineCapableServers: input.onlineCapableServers,
+          reason: input.targetSelectionEnabled
+            ? input.capableServers > 0 ? 'agent_targets_available' : 'no_agent_capable_servers'
+            : 'agent_target_selection_disabled',
+        },
+        heartbeat: {
+          ready: input.heartbeatEnabled
+            && input.heartbeatTokenConfigured
+            && input.runtimeReadyServers > 0
+            && input.missingHeartbeatServers === 0
+            && runtimeIssueServers === 0,
+          enabled: input.heartbeatEnabled,
+          tokenConfigured: input.heartbeatTokenConfigured,
+          requiredForTargetSelection: input.heartbeatRequiredForTargetSelection,
+          heartbeatServers: input.heartbeatServers,
+          readyServers: input.runtimeReadyServers,
+          issueServers: runtimeIssueServers,
+          missingHeartbeatServers: input.missingHeartbeatServers,
+          reason: !input.heartbeatEnabled
+            ? 'heartbeat_disabled'
+            : !input.heartbeatTokenConfigured
+              ? 'heartbeat_token_missing'
+              : input.runtimeReadyServers === 0
+                ? 'no_runtime_heartbeat_online'
+                : input.missingHeartbeatServers > 0
+                  ? 'missing_runtime_heartbeat'
+                  : runtimeIssueServers > 0 ? 'runtime_health_issue' : 'heartbeat_runtime_ready',
+        },
+        dispatcher: {
+          ready: input.executorEnabled
+            && input.dispatcherConfigured
+            && input.liveDispatchReadyServers > 0,
+          executorEnabled: input.executorEnabled,
+          dispatcherConfigured: input.dispatcherConfigured,
+          tokenConfigured: input.dispatcherTokenConfigured,
+          liveDispatchReadyServers: input.liveDispatchReadyServers,
+          reason: !input.executorEnabled
+            ? 'agent_executor_disabled'
+            : !input.dispatcherConfigured
+              ? 'dispatcher_not_configured'
+              : input.liveDispatchReadyServers > 0 ? 'dispatcher_ready' : 'no_live_dispatch_ready_servers',
+        },
+        queueWorker: {
+          ready: input.queueWorkerEnabled || agentPressureJobs === 0,
+          enabled: input.queueWorkerEnabled,
+          queuedJobs: agentQueuedJobs,
+          runningJobs: input.agentRunningJobs,
+          staleRunningJobs: input.agentStaleRunningJobs,
+          blockedJobs: input.agentBlockedJobs,
+          reason: input.queueWorkerEnabled
+            ? 'queue_worker_enabled'
+            : agentPressureJobs > 0 ? 'queue_worker_disabled_with_agent_jobs' : 'queue_worker_idle',
+        },
+      },
+      pressure: {
+        servers: input.pressureServers,
+        scannedJobs: input.scannedJobs,
+        queuedJobs: agentQueuedJobs,
+        runningJobs: input.agentRunningJobs,
+        blockedJobs: input.agentBlockedJobs,
+      },
+      blockers,
+      nextSteps: nextSteps.slice(0, 8),
+    };
+  }
+
   private summarizeServerAgentReadiness(servers: ServerAgentReadinessRecord[], now: Date) {
     const samples: {
       id: string;
@@ -3879,6 +5409,27 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private assertServerAgentTaskPullContractAuthorized(headers: HeaderBag) {
+    if (!this.serverAgentTaskPullContractEnabled()) {
+      throw new UnauthorizedException('Server agent task-pull contract 未启用');
+    }
+
+    const expectedToken = this.readOptionalString(
+      this.configService.get('SERVER_EXECUTOR_AGENT_TASK_PULL_TOKEN'),
+    ) || this.readOptionalString(
+      this.configService.get('SERVER_EXECUTOR_AGENT_HEARTBEAT_TOKEN'),
+    );
+    const providedToken = this.readServerAgentTaskPullToken(headers);
+    if (!expectedToken || !providedToken || !this.constantTimeEquals(providedToken, expectedToken)) {
+      throw new UnauthorizedException('Server agent task-pull contract token 无效');
+    }
+  }
+
+  private readServerAgentTaskPullToken(headers: HeaderBag) {
+    return this.readHeader(headers, 'x-devpilot-agent-task-pull-token')
+      || this.readServerAgentHeartbeatToken(headers);
+  }
+
   private readServerAgentHeartbeatToken(headers: HeaderBag) {
     const directToken = this.readHeader(headers, 'x-devpilot-agent-token');
     if (directToken) return directToken;
@@ -3914,6 +5465,27 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
   private serverAgentHeartbeatRequiredForTargetSelection() {
     const value = this.configService.get('SERVER_EXECUTOR_AGENT_HEARTBEAT_REQUIRED', 'false');
     return value === true || value === 'true';
+  }
+
+  private serverAgentTaskPullContractEnabled() {
+    const value = this.configService.get('SERVER_EXECUTOR_AGENT_TASK_PULL_CONTRACT_ENABLED', 'false');
+    return value === true || value === 'true';
+  }
+
+  private serverAgentTaskPullEnabled() {
+    const value = this.configService.get('SERVER_EXECUTOR_AGENT_TASK_PULL_ENABLED', 'false');
+    return value === true || value === 'true';
+  }
+
+  private serverAgentTaskPullPollIntervalSeconds() {
+    const configuredSeconds = Number(this.configService.get(
+      'SERVER_EXECUTOR_AGENT_TASK_PULL_POLL_INTERVAL_SECONDS',
+      '60',
+    ));
+    const seconds = Number.isFinite(configuredSeconds) && configuredSeconds > 0
+      ? configuredSeconds
+      : 60;
+    return Math.max(30, Math.min(seconds, 300));
   }
 
   private isServerAgentTargetRuntimeEligible(runtime?: ServerAgentRuntimeSummary) {

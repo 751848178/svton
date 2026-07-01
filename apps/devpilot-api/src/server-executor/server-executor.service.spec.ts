@@ -991,6 +991,34 @@ describe('ServerExecutorService resource action metric snapshots', () => {
           });
         }),
         findMany: jest.fn(({ where }: { where: Record<string, unknown> }) => {
+          if (where.status === 'running' && where.lockExpiresAt) {
+            return Promise.resolve([
+              {
+                id: 'job-b',
+                operationKey: 'site.sync',
+                adapterKey: 'nginx-site-plan',
+                serverId: 'server-1',
+                lockOwner: 'worker-a',
+                lastHeartbeatAt: new Date('2026-06-28T23:58:00.000Z'),
+                lockExpiresAt: new Date('2026-06-28T23:59:00.000Z'),
+                metadata: {
+                  remoteExecution: {
+                    session: {
+                      transport: 'ssh',
+                      pid: 4321,
+                      observedAt: '2026-06-28T23:58:30.000Z',
+                      operationKey: 'site.sync',
+                      adapterKey: 'nginx-site-plan',
+                      serverId: 'server-1',
+                      serverHost: '10.0.0.1',
+                      cleanupStrategy: 'best_effort_ssh',
+                    },
+                  },
+                },
+                server: { id: 'server-1', name: 'prod-1', host: '10.0.0.1', status: 'online' },
+              },
+            ]);
+          }
           if (where.transport === 'server_agent' && where.status === 'blocked') {
             return Promise.resolve([
               {
@@ -1172,6 +1200,58 @@ describe('ServerExecutorService resource action metric snapshots', () => {
           },
         ]),
       },
+      auditEvent: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'audit-execution-1',
+            action: 'server_execution_job.agent_dispatch',
+            targetId: 'job-agent-failed-server-2',
+            risk: 'high',
+            status: 'failed',
+            summary: 'Server agent dispatch backup.run failed',
+            metadata: {
+              serverExecutionJobId: 'job-agent-failed-server-2',
+              operationKey: 'backup.run',
+              adapterKey: 'server-agent',
+              transport: 'server_agent',
+              dryRun: false,
+              queueMode: 'queued',
+              attempt: 2,
+              maxAttempts: 3,
+              resultStatus: 'failed',
+              resultMode: 'live',
+              error: 'hidden in supervisor summary',
+            },
+            occurredAt: new Date('2026-06-28T23:58:30.000Z'),
+            actor: { id: 'user-1', name: 'Alice', email: 'alice@example.test' },
+            project: { id: 'project-1', name: 'Prod Project' },
+            environment: { id: 'env-1', key: 'prod', name: 'Production', status: 'active' },
+            server: { id: 'server-2', name: 'prod-2', host: '10.0.0.2', status: 'online' },
+          },
+          {
+            id: 'audit-execution-2',
+            action: 'server_execution_job.recover_stale',
+            targetId: 'job-b',
+            risk: 'medium',
+            status: 'blocked',
+            summary: 'Server execution job recovery blocked',
+            metadata: {
+              operationKey: 'site.sync',
+              adapterKey: 'nginx-site-plan',
+              transport: 'ssh',
+              dryRun: false,
+              queueMode: 'queued',
+              attempt: 1,
+              maxAttempts: 3,
+            },
+            occurredAt: new Date('2026-06-28T23:57:00.000Z'),
+            actor: null,
+            project: { id: 'project-1', name: 'Prod Project' },
+            environment: { id: 'env-1', key: 'prod', name: 'Production', status: 'active' },
+            server: { id: 'server-1', name: 'prod-1', host: '10.0.0.1', status: 'online' },
+          },
+        ]),
+      },
     } as unknown as PrismaService;
     const configService = {
       get: jest.fn((key: string, fallback?: string | number) => {
@@ -1222,6 +1302,246 @@ describe('ServerExecutorService resource action metric snapshots', () => {
         recoveryBatchSize: 12,
         staleRemoteCleanupEnabled: true,
       }),
+      workerInventory: {
+        current: expect.objectContaining({
+          queueWorkerEnabled: true,
+          processingQueue: false,
+          runningCancellations: 0,
+          queueBatchSize: 3,
+          queueHeartbeatSeconds: 20,
+          recoveryBatchSize: 12,
+          staleRemoteCleanupEnabled: true,
+        }),
+        status: {
+          state: 'degraded',
+          reason: 'stale_worker_owner',
+        },
+        queue: {
+          ready: 4,
+          scheduled: 2,
+          running: 3,
+          staleRunning: 1,
+          blocked: 5,
+          unownedRunning: 0,
+        },
+        owners: {
+          total: 2,
+          active: 2,
+          stale: 1,
+          expired: 0,
+          ownedRunningJobs: 3,
+          ownedStaleJobs: 1,
+          samples: [
+            expect.objectContaining({
+              lockOwner: 'worker-a',
+              status: 'degraded',
+              runningJobs: 2,
+              activeJobs: 1,
+              staleJobs: 1,
+              lastHeartbeatAgeSeconds: 1,
+              lockExpiresInSeconds: 120,
+              sampleJob: expect.objectContaining({ id: 'job-a' }),
+            }),
+            expect.objectContaining({
+              lockOwner: 'worker-b',
+              status: 'running',
+              runningJobs: 1,
+              activeJobs: 1,
+              staleJobs: 0,
+              lastHeartbeatAgeSeconds: 30,
+              lockExpiresInSeconds: 180,
+              sampleJob: expect.objectContaining({ id: 'job-c' }),
+            }),
+          ],
+        },
+      },
+      queueCoordinationPreflight: {
+        state: 'degraded',
+        reason: 'stale_worker_owner',
+        gates: {
+          worker: {
+            ready: true,
+            enabled: true,
+            processingQueue: false,
+            batchSize: 3,
+            intervalSeconds: 7,
+            reason: 'queue_worker_enabled',
+          },
+          queue: {
+            ready: true,
+            readyJobs: 4,
+            scheduledJobs: 2,
+            runningJobs: 3,
+            blockedJobs: 5,
+            backlogJobs: 6,
+            reason: 'queue_backlog_active',
+          },
+          owners: {
+            ready: false,
+            totalOwners: 2,
+            activeOwners: 2,
+            staleOwners: 1,
+            expiredOwners: 0,
+            unownedRunningJobs: 0,
+            reason: 'stale_worker_owner',
+          },
+          recovery: {
+            ready: false,
+            staleRunningJobs: 1,
+            recoveryBatchSize: 12,
+            staleRemoteCleanupEnabled: true,
+            reason: 'stale_running_jobs',
+          },
+        },
+        pressure: {
+          backlogJobs: 6,
+          readyJobs: 4,
+          scheduledJobs: 2,
+          runningJobs: 3,
+          staleRunningJobs: 1,
+          blockedJobs: 5,
+          totalOwners: 2,
+          activeOwners: 2,
+          staleOwners: 1,
+          unownedRunningJobs: 0,
+        },
+        blockers: [
+          { reason: 'stale_worker_owner', severity: 'warning', count: 1 },
+          { reason: 'stale_running_jobs', severity: 'warning', count: 1 },
+          { reason: 'blocked_jobs', severity: 'warning', count: 5 },
+        ],
+        nextSteps: [
+          { action: 'inspect_worker_owners', reason: 'stale_worker_owner' },
+          { action: 'recover_stale_jobs', reason: 'stale_running_jobs' },
+          { action: 'inspect_blocked_jobs', reason: 'blocked_jobs' },
+        ],
+      },
+      remoteOrphanGovernancePreflight: {
+        state: 'degraded',
+        reason: 'stale_worker_owner',
+        gates: {
+          remoteSession: {
+            ready: true,
+            scannedJobs: 1,
+            recoverableRemoteSessions: 1,
+            missingRemoteSessions: 0,
+            invalidRemoteSessions: 0,
+            reason: 'remote_sessions_tracked',
+          },
+          cleanup: {
+            ready: true,
+            enabled: true,
+            cleanupRecorded: 0,
+            cleanupAttempted: 0,
+            cleanupSucceeded: 0,
+            cleanupFailed: 0,
+            reason: 'stale_remote_cleanup_enabled',
+          },
+          owners: {
+            ready: false,
+            activeOwners: 2,
+            staleOwners: 1,
+            expiredOwners: 0,
+            unownedStaleJobs: 0,
+            reason: 'stale_worker_owner',
+          },
+          recovery: {
+            ready: true,
+            staleRunningJobs: 1,
+            scannedJobs: 1,
+            unscannedStaleJobs: 0,
+            recoveryBatchSize: 12,
+            reason: 'stale_recovery_batch_ready',
+          },
+        },
+        risk: {
+          staleRunningJobs: 1,
+          scannedJobs: 1,
+          unscannedStaleJobs: 0,
+          recoverableRemoteSessions: 1,
+          missingRemoteSessions: 0,
+          invalidRemoteSessions: 0,
+          cleanupRecorded: 0,
+          cleanupAttempted: 0,
+          cleanupSucceeded: 0,
+          cleanupFailed: 0,
+          activeOwners: 2,
+          staleOwners: 1,
+          expiredOwners: 0,
+          unownedStaleJobs: 0,
+        },
+        samples: [
+          expect.objectContaining({
+            id: 'job-b',
+            operationKey: 'site.sync',
+            lockOwner: 'worker-a',
+            lockExpiresAt: '2026-06-28T23:59:00.000Z',
+            remoteSession: expect.objectContaining({
+              transport: 'ssh',
+              pid: 4321,
+              cleanupStrategy: 'best_effort_ssh',
+            }),
+            cleanup: null,
+          }),
+        ],
+        blockers: [
+          { reason: 'stale_worker_owner', severity: 'warning', count: 1 },
+        ],
+        nextSteps: [
+          { action: 'inspect_worker_owners', reason: 'stale_worker_owner' },
+        ],
+      },
+      executionAuditVisibility: {
+        totalRecent: 2,
+        failedRecent: 1,
+        blockedRecent: 1,
+        highRiskRecent: 1,
+        statuses: [
+          { status: 'blocked', count: 1 },
+          { status: 'failed', count: 1 },
+        ],
+        risks: [
+          { risk: 'high', count: 1 },
+          { risk: 'medium', count: 1 },
+        ],
+        actions: [
+          { action: 'server_execution_job.agent_dispatch', count: 1 },
+          { action: 'server_execution_job.recover_stale', count: 1 },
+        ],
+        samples: [
+          expect.objectContaining({
+            id: 'audit-execution-1',
+            action: 'server_execution_job.agent_dispatch',
+            serverExecutionJobId: 'job-agent-failed-server-2',
+            status: 'failed',
+            risk: 'high',
+            occurredAt: '2026-06-28T23:58:30.000Z',
+            metadata: {
+              serverExecutionJobId: 'job-agent-failed-server-2',
+              operationKey: 'backup.run',
+              adapterKey: 'server-agent',
+              transport: 'server_agent',
+              dryRun: false,
+              queueMode: 'queued',
+              attempt: 2,
+              maxAttempts: 3,
+              resultStatus: 'failed',
+              resultMode: 'live',
+            },
+          }),
+          expect.objectContaining({
+            id: 'audit-execution-2',
+            serverExecutionJobId: 'job-b',
+            status: 'blocked',
+            risk: 'medium',
+            metadata: expect.objectContaining({
+              serverExecutionJobId: 'job-b',
+              operationKey: 'site.sync',
+              adapterKey: 'nginx-site-plan',
+            }),
+          }),
+        ],
+      },
       queue: {
         ready: 4,
         scheduled: 2,
@@ -1267,6 +1587,163 @@ describe('ServerExecutorService resource action metric snapshots', () => {
           dispatcherUrl: 'https://agent.example.test/internal/dispatch',
           timeoutSeconds: 12,
           tokenConfigured: true,
+        },
+        lifecyclePreflight: {
+          state: 'degraded',
+          reason: 'missing_runtime_heartbeat',
+          gates: {
+            targetSelection: {
+              ready: true,
+              enabled: true,
+              capableServers: 2,
+              onlineCapableServers: 2,
+              reason: 'agent_targets_available',
+            },
+            heartbeat: {
+              ready: false,
+              enabled: true,
+              tokenConfigured: true,
+              requiredForTargetSelection: true,
+              heartbeatServers: 1,
+              readyServers: 1,
+              issueServers: 0,
+              missingHeartbeatServers: 1,
+              reason: 'missing_runtime_heartbeat',
+            },
+            dispatcher: {
+              ready: true,
+              executorEnabled: true,
+              dispatcherConfigured: true,
+              tokenConfigured: true,
+              liveDispatchReadyServers: 1,
+              reason: 'dispatcher_ready',
+            },
+            queueWorker: {
+              ready: true,
+              enabled: true,
+              queuedJobs: 3,
+              runningJobs: 2,
+              staleRunningJobs: 1,
+              blockedJobs: 3,
+              reason: 'queue_worker_enabled',
+            },
+          },
+          pressure: {
+            servers: 2,
+            scannedJobs: 4,
+            queuedJobs: 3,
+            runningJobs: 2,
+            blockedJobs: 3,
+          },
+          blockers: [
+            { reason: 'missing_runtime_heartbeat', severity: 'warning', count: 1 },
+            { reason: 'stale_agent_running_jobs', severity: 'warning', count: 1 },
+            { reason: 'blocked_agent_jobs', severity: 'warning', count: 3 },
+          ],
+          nextSteps: [
+            {
+              action: 'roll_out_missing_agent_heartbeats',
+              reason: 'missing_runtime_heartbeat',
+            },
+            {
+              action: 'recover_stale_agent_jobs',
+              reason: 'stale_agent_running_jobs',
+            },
+            {
+              action: 'inspect_blocked_agent_jobs',
+              reason: 'blocked_agent_jobs',
+            },
+          ],
+        },
+        taskPullReadiness: {
+          state: 'blocked',
+          reason: 'task_pull_contract_disabled',
+          gates: {
+            runtime: {
+              ready: false,
+              targetSelectionEnabled: true,
+              capableServers: 2,
+              onlineCapableServers: 2,
+              heartbeatEnabled: true,
+              heartbeatTokenConfigured: true,
+              heartbeatRequiredForTargetSelection: true,
+              heartbeatServers: 1,
+              readyServers: 1,
+              issueServers: 0,
+              missingHeartbeatServers: 1,
+              reason: 'missing_runtime_heartbeat',
+            },
+            queue: {
+              ready: true,
+              queueWorkerEnabled: true,
+              readyJobs: 1,
+              scheduledJobs: 2,
+              runningJobs: 2,
+              staleRunningJobs: 1,
+              blockedJobs: 3,
+              failedJobs: 4,
+              cancelledJobs: 0,
+              reason: 'agent_queue_backlog_ready',
+            },
+            pullContract: {
+              ready: false,
+              endpointImplemented: true,
+              contractEndpointEnabled: false,
+              pullEndpointImplemented: false,
+              taskPullEnabled: false,
+              claimSupported: false,
+              ackSupported: false,
+              lifecycleExecutionSupported: false,
+              reason: 'task_pull_contract_disabled',
+            },
+            audit: {
+              ready: true,
+              totalRecent: 2,
+              failedRecent: 1,
+              blockedRecent: 1,
+              highRiskRecent: 1,
+              reason: 'execution_audit_risk_present',
+            },
+          },
+          pressure: {
+            readyJobs: 1,
+            scheduledJobs: 2,
+            runningJobs: 2,
+            staleRunningJobs: 1,
+            blockedJobs: 3,
+            failedJobs: 4,
+            cancelledJobs: 0,
+            pressureJobs: 12,
+          },
+          samples: {
+            nextQueuedJob: expect.objectContaining({
+              id: 'job-agent-next',
+              operationKey: 'deployment.run',
+              priority: 9,
+            }),
+            blockedReasons: expect.arrayContaining([
+              expect.objectContaining({
+                reason: 'Server agent dispatcher 尚未接入，live agent dispatch 暂不执行',
+                count: 1,
+                nextExecutorBoundary: 'server_agent_dispatcher',
+              }),
+            ]),
+            blockedReasonSamples: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'job-agent-blocked-a',
+                nextExecutorBoundary: 'server_agent_dispatcher',
+              }),
+            ]),
+          },
+          blockers: expect.arrayContaining([
+            { reason: 'task_pull_contract_disabled', severity: 'critical', count: 5 },
+            { reason: 'missing_runtime_heartbeat', severity: 'warning', count: 1 },
+            { reason: 'execution_audit_risk_present', severity: 'warning', count: 3 },
+          ]),
+          nextSteps: expect.arrayContaining([
+            { action: 'enable_agent_task_pull_contract', reason: 'task_pull_contract_disabled' },
+            { action: 'inspect_execution_audit_events', reason: 'execution_audit_risk_present' },
+          ]),
         },
         totalServers: 3,
         capableServers: 2,
@@ -1487,6 +1964,15 @@ describe('ServerExecutorService resource action metric snapshots', () => {
         releasedAt: new Date('2026-06-29T00:00:00.000Z'),
       },
     });
+    expect(prisma.auditEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        teamId: 'team-1',
+        category: 'execution',
+        targetType: 'server_execution_job',
+      },
+      orderBy: { occurredAt: 'desc' },
+      take: 12,
+    }));
     expect(prisma.server.findMany).toHaveBeenCalledWith({
       where: { teamId: 'team-1' },
       orderBy: { name: 'asc' },
@@ -1621,6 +2107,208 @@ describe('ServerExecutorService resource action metric snapshots', () => {
         tags: true,
       },
     });
+  });
+
+  it('keeps server agent task-pull contract disabled by default', async () => {
+    const prisma = {
+      server: {
+        findFirst: jest.fn(),
+      },
+      serverExecutionJob: {
+        count: jest.fn(),
+        findFirst: jest.fn(),
+        updateMany: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const configService = {
+      get: jest.fn((_key: string, fallback?: string | number) => fallback),
+    } as unknown as ConfigService;
+    const service = new ServerExecutorService(
+      prisma,
+      {} as SshLiveServerExecutorAdapter,
+      {} as ScriptPlanServerExecutorAdapter,
+      {} as ServerCommandPolicyService,
+      configService,
+      {} as LogCollectionIngestionService,
+    );
+
+    await expect(service.readServerAgentTaskPullContract(
+      { 'x-devpilot-agent-token': 'heartbeat-token' },
+      {
+        teamId: 'team-1',
+        serverId: 'server-1',
+        agentId: 'agent-prod-1',
+      },
+    )).rejects.toThrow('Server agent task-pull contract 未启用');
+    expect(prisma.server.findFirst).not.toHaveBeenCalled();
+    expect(prisma.serverExecutionJob.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('returns a read-only server agent task-pull contract without claiming jobs', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-29T00:30:00.000Z'));
+
+    const nextQueuedJob = {
+      id: 'job-agent-next',
+      operationKey: 'deployment.run',
+      adapterKey: 'server-agent',
+      serverId: 'server-1',
+      priority: 9,
+      queuedAt: new Date('2026-06-29T00:25:00.000Z'),
+      availableAt: new Date('2026-06-29T00:29:00.000Z'),
+      server: {
+        id: 'server-1',
+        name: 'prod-1',
+        host: '10.0.0.1',
+        status: 'online',
+      },
+    };
+    const prisma = {
+      server: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'server-1',
+          name: 'prod-1',
+          host: '10.0.0.1',
+          status: 'online',
+          services: {
+            serverAgent: { status: 'ready' },
+            devpilotAgent: {
+              source: 'agent_heartbeat',
+              status: 'online',
+              agentId: 'agent-prod-1',
+              runnerId: 'runner-prod-1',
+              capabilities: ['deploy', 'logs'],
+              lastSeenAt: '2026-06-29T00:29:30.000Z',
+              expiresAt: '2026-06-29T00:32:00.000Z',
+              heartbeatTtlSeconds: 120,
+            },
+          },
+          tags: [],
+        }),
+      },
+      serverExecutionJob: {
+        count: jest.fn()
+          .mockResolvedValueOnce(1)
+          .mockResolvedValueOnce(2)
+          .mockResolvedValueOnce(1)
+          .mockResolvedValueOnce(1)
+          .mockResolvedValueOnce(1)
+          .mockResolvedValueOnce(1)
+          .mockResolvedValueOnce(0),
+        findFirst: jest.fn().mockResolvedValue(nextQueuedJob),
+        updateMany: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const configValues: Record<string, string> = {
+      SERVER_EXECUTOR_AGENT_TASK_PULL_CONTRACT_ENABLED: 'true',
+      SERVER_EXECUTOR_AGENT_TASK_PULL_TOKEN: 'contract-token',
+      SERVER_EXECUTOR_AGENT_TASK_PULL_POLL_INTERVAL_SECONDS: '45',
+      SERVER_EXECUTOR_AGENT_HEARTBEAT_REQUIRED: 'true',
+    };
+    const configService = {
+      get: jest.fn((key: string, fallback?: string | number) => configValues[key] ?? fallback),
+    } as unknown as ConfigService;
+    const service = new ServerExecutorService(
+      prisma,
+      {} as SshLiveServerExecutorAdapter,
+      {} as ScriptPlanServerExecutorAdapter,
+      {} as ServerCommandPolicyService,
+      configService,
+      {} as LogCollectionIngestionService,
+    );
+
+    await expect(service.readServerAgentTaskPullContract(
+      { 'x-devpilot-agent-task-pull-token': 'contract-token' },
+      {
+        teamId: 'team-1',
+        serverId: 'server-1',
+        agentId: 'agent-prod-1',
+        runnerId: 'runner-prod-1',
+        capabilities: ['deploy', ''],
+      },
+    )).resolves.toEqual(expect.objectContaining({
+      accepted: true,
+      generatedAt: '2026-06-29T00:30:00.000Z',
+      contract: expect.objectContaining({
+        version: 'server-agent-task-pull.v0',
+        mode: 'readiness_only',
+        contractEndpointEnabled: true,
+        pullEndpointImplemented: false,
+        taskPullEnabled: false,
+        claimSupported: false,
+        ackSupported: false,
+        lifecycleExecutionSupported: false,
+        longConnectionSupported: false,
+        poll: {
+          minIntervalSeconds: 30,
+          recommendedIntervalSeconds: 45,
+        },
+        boundaries: expect.arrayContaining(['no_job_claim', 'no_ack', 'no_lifecycle_execution']),
+      }),
+      agent: expect.objectContaining({
+        agentId: 'agent-prod-1',
+        runnerId: 'runner-prod-1',
+        requestedCapabilities: ['deploy'],
+        runtime: expect.objectContaining({
+          state: 'online',
+          agentId: 'agent-prod-1',
+          capabilities: ['deploy', 'logs'],
+        }),
+      }),
+      readiness: expect.objectContaining({
+        state: 'blocked',
+        reason: 'task_pull_disabled',
+        gates: expect.objectContaining({
+          runtime: expect.objectContaining({
+            ready: true,
+            capabilityReady: true,
+            heartbeatRequiredForTargetSelection: true,
+            heartbeatState: 'online',
+          }),
+          queue: expect.objectContaining({
+            readyJobs: 1,
+            scheduledJobs: 2,
+            runningJobs: 1,
+            staleRunningJobs: 1,
+            blockedJobs: 1,
+            failedJobs: 1,
+            cancelledJobs: 0,
+            pressureJobs: 7,
+          }),
+          contract: expect.objectContaining({
+            contractEndpointImplemented: true,
+            contractEndpointEnabled: true,
+            pullEndpointImplemented: false,
+            taskPullEnabled: false,
+            claimSupported: false,
+            ackSupported: false,
+            reason: 'task_pull_disabled',
+          }),
+        }),
+        samples: {
+          nextQueuedJob: expect.objectContaining({
+            id: 'job-agent-next',
+            operationKey: 'deployment.run',
+            priority: 9,
+          }),
+        },
+        blockers: expect.arrayContaining([
+          { reason: 'task_pull_disabled', severity: 'critical', count: 4 },
+          { reason: 'stale_agent_running_jobs', severity: 'warning', count: 1 },
+          { reason: 'blocked_agent_jobs', severity: 'warning', count: 1 },
+          { reason: 'failed_agent_jobs', severity: 'warning', count: 1 },
+        ]),
+      }),
+    }));
+    expect(prisma.serverExecutionJob.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        teamId: 'team-1',
+        serverId: 'server-1',
+        transport: 'server_agent',
+        status: 'queued',
+        queueMode: 'queued',
+      }),
+    }));
+    expect(prisma.serverExecutionJob.updateMany).not.toHaveBeenCalled();
   });
 
   it('can require an online agent heartbeat before selecting server_agent targets', async () => {
