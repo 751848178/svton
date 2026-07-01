@@ -209,7 +209,7 @@ flowchart LR
 - 项目可以是生成项目、已有项目、仅构建部署项目或外部资源归属项目。
 - 项目环境可以承载服务器、站点、部署运行、托管资源、资源申请实例、CDN 和密钥。
 - 生成项目向导已支持数据库引擎选择，默认 MySQL，可选 PostgreSQL/SQLite；生成器会按引擎输出 README、Prisma datasource、`.env.example` 和本地 docker-compose 数据库服务，SQLite 不生成外部数据库服务。
-- 生成项目 ZIP 已支持本地 artifact 持久化、可复用 `downloadUrl` 和第一版本地生命周期：生成响应仍即时返回 ZIP，同时写回 `Project.downloadUrl` 和带 `retentionDays` / `expiresAt` 的 `config.generatedArtifact`；项目详情可通过受项目读权限保护的下载接口重新获取生成包，下载会拒绝过期 artifact、写回访问 metadata，并已有可复用的本地过期文件 dry-run/execute 清理方法；生产级对象存储、历史补档、公开清理调度/API 和完整下载审计事件待补。
+- 生成项目 ZIP 已支持本地 artifact 持久化、可复用 `downloadUrl` 和第一版本地生命周期：生成响应仍即时返回 ZIP，同时写回 `Project.downloadUrl` 和带 `retentionDays` / `expiresAt` 的 `config.generatedArtifact`；项目详情可通过受项目读权限保护的下载接口重新获取生成包，下载会拒绝过期 artifact、写回访问 metadata，并写入 `project.artifact.download` 审计事件，metadata 只包含 `fileName`、`size`、`sha256`、`generatedAt`、`expiresAt`、`downloadCount` 等安全字段；过期本地 ZIP 可通过受控制面访问策略保护的 `POST /projects/artifacts/cleanup` 做 team-scoped dry-run/execute 清理，默认关闭的 `PROJECT_ARTIFACT_CLEANUP_SCHEDULER_ENABLED` 调度器也可按 team 聚合写入清理审计；生产级对象存储和历史补档待补。
 - 生成项目资源解析结果已在项目详情可见：manual/credential/instance/pool/skipped 解析会写入 `config.resolvedResources`，项目详情展示资源模式、来源和资源池分配摘要；Project API 对 allocation 只返回安全摘要字段，不返回 encrypted credentials。
 - 项目详情已新增环境工作台：按 dev/test/staging/prod 聚合服务器、应用服务、站点、部署、ManagedResource、ResourceInstance、CDN 和密钥摘要，展示跨环境基础对象差异、配置差异、后端只读同步建议和未绑定环境的资源提醒，并支持从缺口标签或建议动作跳转到带当前项目/环境上下文的操作入口；非参考环境可生成同步计划或确认应用服务配置，先覆盖缺失应用服务骨架和非敏感部署配置字段；未绑定环境的项目资源可按类型/单项勾选后预览，再确认归属到当前选中环境；站点可选择源环境、逐项填写目标域名后预览跨环境复制计划，并确认创建目标环境 draft Site；CDN 可选择源环境、逐项填写目标域名/源站/凭据后预览复制计划，并确认创建目标环境 pending CDNConfig；资源/密钥可选择源环境、逐项填写目标 externalId、目标 server/credential、目标密钥名和值后预览复制计划，并确认创建目标环境 ManagedResource/SecretKey 安全骨架；已创建的资源骨架可从复制结果直接跳转到资源管控详情或生成连接探测计划。
 - Server executor 已统一资源动作、部署运行、站点同步和服务运行态操作，默认输出稳定 dry-run 脚本计划。
@@ -230,6 +230,8 @@ flowchart LR
 - Supervisor 已新增只读 agent readiness 和 heartbeat runtime 摘要：复用 Server.services/tags capability 解析，展示 target selection 开关、capable/online/source/status 统计和 sample servers；默认关闭的 `POST /server-agent/heartbeat` 只有配置 heartbeat token 后才会写入 `Server.services.devpilotAgent` 白名单字段，Supervisor/UI 会展示 heartbeat enabled/token、heartbeat-required target selection 门禁、online/stale/unknown 和样例 lastSeen/expiresAt，为后续真实 agent supervisor 留出可观测契约。
 - Supervisor 已新增只读 agent job demand 摘要：按 `transport=server_agent` 聚合 ready/scheduled/running/stale/blocked/failed/cancelled，并展示下一条 ready agent job，让 agent dispatcher 接入前也能观察任务压力。
 - Supervisor 已新增只读 agent blocked reason 摘要：扫描最近 blocked `server_agent` job 的 error/result，聚合 reason 分布、`server_agent_dispatcher` boundary 数和样例任务，用于定位 dispatcher 未接入、命令策略阻断或配置告警。
+- Supervisor 已新增只读 server-agent task-pull readiness：复用 heartbeat runtime、agent readiness、agent job demand、blocked reason、queue worker 和 execution audit visibility，展示 runtime/queue/pullContract/audit gates、pressure、blocker、next step 和脱敏样例；该视图不新增真实任务拉取、claim/ack、长连接或任务状态改写。
+- `server-agent` 已新增默认关闭的只读 task-pull contract skeleton：`POST /server-agent/task-pull/contract` 在 `SERVER_EXECUTOR_AGENT_TASK_PULL_CONTRACT_ENABLED=true` 且 token 校验通过后，按 team/server 返回 contract version、poll 建议、runtime gate、server-agent queue sample、blocker 和 next step；它只暴露 readiness/contract，不认领 `ServerExecutionJob`，不实现真实 pull/claim/ack/lifecycle 或长连接。
 - Server executor 已将 SSH live 远端 session/cleanup 事件写入 running `ServerExecutionJob.metadata.remoteExecution`，让 stale recovery 和后续 agent supervisor 能在 job metadata 中看到远端 PID、cleanup 策略和清理结果；显式开启 `SERVER_EXECUTOR_STALE_REMOTE_CLEANUP_ENABLED=true` 后，stale recovery 会复用 SSH key auth 对已记录 PID 发起 best-effort orphan cleanup，并把追偿清理结果写入 `remoteExecution.staleCleanup`；执行治理页会在任务列表中展示远端 PID、执行期 cleanup 和 stale 追偿 cleanup 摘要。
 - DeploymentRun 已接入 Server executor 队列桥：创建部署运行时可选择 queue，业务记录会保存 `serverExecutionJobId` 和 queued result，worker 执行完成后回写 DeploymentRun 状态、计划、日志和结果。
 - DeploymentRun 已支持回滚最小闭环：成功部署 run 可作为 sourceRun 发起 rollback run，生成 checkout/build/redeploy/health_check 计划并可加入队列；非 dry-run 部署/回滚会先生成 blocked run 和 OperationApproval，审批通过后再执行并消费审批单；失败 live deploy 可一键申请回滚到最近成功 live deploy。
@@ -252,7 +254,7 @@ flowchart LR
 
 尚未完成：
 
-- 真实执行治理还不够完整，SSH live 虽已默认关闭接入，命令策略、策略模板、live lease 并发门禁、execution job、队列 worker 基座、执行治理 supervisor 状态面、DeploymentRun/SiteSyncRun/ResourceActionRun/ApplicationServiceOperationRun/BackupRun/LogCollectionRun 队列桥、DeploymentRun 手动回滚、失败回滚申请、失败 Smoke 自动回滚计划/审批申请、预授权 live 自动回滚提交、live rollback 后自动 Smoke、基础锁租约、持久取消轮询、SSH live 远端进程树 best-effort cleanup、remoteExecution metadata、默认关闭的 stale orphan cleanup、审批链路访问策略、主要读写接口访问策略和自动 retry 入队也已有内置基线，且已有第一组服务/入口级授权回归测试；但完整 server agent supervisor、多实例 worker 协调和更多集成/e2e 级授权覆盖还要补。
+- 真实执行治理还不够完整，SSH live 虽已默认关闭接入，命令策略、策略模板、live lease 并发门禁、execution job、队列 worker 基座、执行治理 supervisor 状态面、DeploymentRun/SiteSyncRun/ResourceActionRun/ApplicationServiceOperationRun/BackupRun/LogCollectionRun 队列桥、DeploymentRun 手动回滚、失败回滚申请、失败 Smoke 自动回滚计划/审批申请、预授权 live 自动回滚提交、live rollback 后自动 Smoke、基础锁租约、持久取消轮询、SSH live 远端进程树 best-effort cleanup、remoteExecution metadata、默认关闭的 stale orphan cleanup、审批链路访问策略、主要读写接口访问策略、自动 retry 入队、只读 task-pull readiness 和默认关闭的 task-pull contract skeleton 也已有内置基线，且已有第一组服务/入口级授权回归测试；但真实 server-agent task-pull endpoint/claim/ack、完整 server agent supervisor、多实例 worker 协调和更多集成/e2e 级授权覆盖还要补。
 - 站点已进入 Nginx/OpenResty live sync、诊断运行、低风险 Smoke 检查、Smoke 失败告警、配置 diff、审批门禁、配置快照回滚、证书手动/定时探测回填、证书资产快照、受控证书续期计划、续期结果回写、正式续期成功后的自动探测刷新、默认关闭续期调度和证书过期告警边界，但真实执行仍依赖 `SERVER_EXECUTOR_LIVE_ENABLED=true`、SSH key auth、命令策略和 executor lease；模块管理、证书库/上传绑定、真实环境 smoke 自动化、日志归档自动化和完整队列治理还没闭环。
 - 数据库/Redis/RDS/SLS/COS 已有连接/授权探测和只读查询/浏览计划，DB/Redis 已补 live readonly 查询，阿里云 RDS/SLS 与腾讯 COS 已补 live inventory；备份目前到 dry-run 计划、运行记录和服务器备份队列桥，真实备份/恢复仍待补。
 - 可观测性目前具备状态型告警、站点证书手动/定时探测、证书过期告警、证书资产变化告警、TLS 续期失败告警、站点 Smoke 失败告警、维护窗口静默、事件去重抑制、通用 Webhook/飞书/钉钉/企业微信机器人通知、邮件通知、失败/planned 通知投递手动重试、默认关闭的失败通知自动重试、默认关闭的严重告警升级通知、手动日志归档、日志采集 dry-run 计划、默认关闭的 Server executor 定时 follow、SLS GetLogs dry-run/live 查询、默认关闭的 SLS 按流回填调度、采集完成后自动入库第一版、可配置日志脱敏策略、近实时日志 tail、入库日志 SSE 流式 tail、cursor resume 自动重连、有界会话治理、活跃会话列表、主动断开和单流/用户/团队基础限流，以及 Docker 容器指标快照动作、最近指标快照持久化、默认关闭的调度采集、短窗口趋势摘要、资源详情指标曲线、监控页资源指标大盘、服务 SLO 大盘、资源指标阈值告警、服务 SLO 违约告警、短/长窗口 burn-rate 策略、错误预算阈值策略、错误预算耗尽预测和 SLO 模板第一版；仍缺 agent 级持续日志 follow 和真实 SLO 周期/多周期错误预算策略。
@@ -268,7 +270,7 @@ flowchart LR
 - 项目可不绑定技术栈。
 - 项目可不绑定初始化器。
 - 项目详情开始呈现来源、环境、仓库、技术栈、资源入口。
-- 生成项目已支持 Project 记录、即时 ZIP 响应、本地 artifact 持久化、`downloadUrl` 写回和项目详情重新下载。
+- 生成项目已支持 Project 记录、即时 ZIP 响应、本地 artifact 持久化、`downloadUrl` 写回、项目详情重新下载和下载审计。
 - 生成项目已支持资源解析结果可追踪：项目详情展示生成时使用的手动配置、已有凭证、资源实例、资源池分配或跳过状态；资源池 allocation 只暴露安全摘要。
 - 仅构建部署项目支持创建 dry-run `DeploymentRun` 执行计划。
 - 仅构建部署项目支持创建 Git push `ProjectWebhook` 和 PR Preview `ProjectWebhook`，投递后可生成 dry-run `DeploymentRun`、加入 Server executor dry-run 队列、创建 live 部署审批申请，或创建/复用 PR/MR 预览环境骨架和 draft Site 占位并生成带 PR/MR 与 preview Site 元数据的 `git_pr_preview` queued dry-run 运行；draft preview Site 可从站点页接管并生成 dry-run Nginx/OpenResty 计划；关闭/合并事件可归档预览环境骨架和 draft Site metadata，并具备重复投递幂等基线。
@@ -332,7 +334,7 @@ flowchart LR
 
 ### P4. 应用与服务工作区
 
-状态：Application/Service 与服务运行态操作最小闭环已完成，服务操作已接入 Server executor 队列桥，Monitoring service SLO dashboard 已支持按单个 `applicationServiceId` 精确过滤，应用服务页已复用该契约展示单服务 SLO 摘要；真实日志流、监控指标详情、环境变量和 Secret 注入待补。
+状态：Application/Service 与服务运行态操作最小闭环已完成，服务操作已接入 Server executor 队列桥，Monitoring service SLO dashboard 已支持按单个 `applicationServiceId` 精确过滤，应用服务页已复用该契约展示单服务 SLO 摘要，监控页也可通过 `/monitoring?applicationServiceId=...` 聚焦单服务 SLO 详情；真实日志流、监控指标详情、环境变量和 Secret 注入待补。
 
 - 已新增 `Application` / `ApplicationService` 模型和 `/applications` API。
 - 已支持服务绑定项目环境、服务器、站点、托管资源和 deployConfig。
@@ -342,7 +344,7 @@ flowchart LR
 - 已支持服务状态、日志、重启、回滚的 Server executor dry-run 操作计划，并持久化 `ApplicationServiceOperationRun`。
 - 已支持 `ApplicationServiceOperationRun` 关联 `ServerExecutionJob`，服务操作可直接入队，worker 完成后回写业务运行结果。
 - 应用服务页面已展示服务操作入口、队列开关、最近运行结果和关联 Job。
-- `GET /monitoring/service-slo/dashboard` 已支持 `applicationServiceId` 精确过滤，应用服务页已直接读取并展示该服务的 SLO、部署、运行态操作和告警聚合摘要。
+- `GET /monitoring/service-slo/dashboard` 已支持 `applicationServiceId` 精确过滤，应用服务页已直接读取并展示该服务的 SLO、部署、运行态操作和告警聚合摘要，服务行深链也可让监控页只读展示目标服务的 SLO 详情并清除筛选回到全局视图。
 - 下一步接入真实日志流、监控指标详情、环境变量和 Secret 注入。
 
 ### P5. 数据库和备份
@@ -397,7 +399,7 @@ flowchart LR
 - 已新增 `AlertSilence`，支持按项目、分类、指标、级别和时间窗口静默告警；命中的事件会标记为 `suppressed`，仍可见并进入审计，但不会触发通知派发。
 - 已新增 `AlertNotificationChannel` / `AlertNotificationDelivery`，支持项目级通用 Webhook、飞书、钉钉、企业微信机器人和邮件通知通道、投递记录、权限过滤和默认 dry-run planned delivery；只有 `ALERT_NOTIFICATION_WEBHOOKS_ENABLED=true` 时才会真实 POST，只有 `ALERT_NOTIFICATION_EMAIL_ENABLED=true` 且 SMTP host/from 配齐时才会真实发信；失败或 planned 投递可以在监控页手动重试，重试会创建新的投递记录并写入统一审计；失败投递还支持默认关闭的自动重试调度（`ALERT_NOTIFICATION_RETRY_SCHEDULER_ENABLED=true`），会跳过 planned dry-run、已有更新尝试和超过近期尝试上限的记录；未确认的 firing/error 严重告警支持默认关闭升级调度（`ALERT_ESCALATION_SCHEDULER_ENABLED=true`），会向匹配通道生成 `devpilot.alert_event.escalation` 投递并写入 `alert.escalate` 审计。
 - 已新增事件去重抑制第一版：重复的 `firing` / `error` / `suppressed` 评估会在规则配置窗口内复用最近同状态事件，跳过新事件和通知投递，同时更新规则状态并写入 `alert.evaluate.deduped` 审计；恢复事件不会被去重。
-- 已新增服务 SLO 大盘第一版：按服务聚合窗口内非 dry-run 部署运行、非 dry-run 服务操作运行和服务告警事件，展示 SLO、错误预算剩余、burn rate、部署失败、操作失败和告警影响；读接口会先按项目/环境权限过滤服务行再汇总，也支持 `applicationServiceId` 精确过滤，应用服务页已复用同一聚合契约展示单服务 SLO 摘要。
+- 已新增服务 SLO 大盘第一版：按服务聚合窗口内非 dry-run 部署运行、非 dry-run 服务操作运行和服务告警事件，展示 SLO、错误预算剩余、burn rate、部署失败、操作失败和告警影响；读接口会先按项目/环境权限过滤服务行再汇总，也支持 `applicationServiceId` 精确过滤，应用服务页和监控页单服务上下文已复用同一聚合契约展示 SLO 摘要/详情。
 - 已新增服务 SLO 违约告警第一版：`AlertRule category=service` / `metric=service_slo_breach` 会复用服务 SLO 聚合信号，按目标 SLO、burn-rate 阈值、错误预算和 critical alert impact 生成标准 `AlertEvent`，并进入静默、通知和审计链路。
 - 已新增短/长窗口 burn-rate 策略第一版：服务 SLO 规则兼容旧的单窗口条件，也可使用 `condition.windows[]` 和 `matchPolicy=all` 同时评估短窗口与长窗口，只有配置窗口同时违约才触发 paired burn-rate 告警。
 - 已新增错误预算阈值策略第一版：`AlertRule category=service` / `metric=service_error_budget` 会从同一套服务 SLO 信号计算剩余错误预算，在低于配置阈值时生成标准 `AlertEvent`，并复用静默、通知和审计链路。
@@ -438,7 +440,7 @@ flowchart LR
 
 ### P8. 安全和运维治理
 
-- 状态：统一审计事件、高风险操作审批、部署 live 审批门禁、失败 live deploy 回滚申请、失败 Smoke 自动回滚计划/审批申请、预授权 live 自动回滚提交、Server executor 命令策略、团队/项目/环境级策略模板、live lease 并发门禁、执行治理可视化、execution job 重试入口、queued worker 基座、Server executor supervisor 状态面、默认关闭的 Server agent HTTP dispatcher 边界、Server agent dispatcher correlation/idempotency 契约、Server agent dispatch outcome 审计事件、Server agent heartbeat runtime 摘要、Server agent heartbeat-required target selection 门禁、Server agent dispatcher config 摘要、Server agent readiness 摘要、Server agent job demand 摘要、Server agent blocked reason 摘要、Server agent fleet supervisor 摘要、Server agent runtime health supervisor 摘要、执行治理页 agent dispatch result/correlation 可见性、DeploymentRun/SiteSyncRun/ResourceActionRun/ApplicationServiceOperationRun/BackupRun/LogCollectionRun 队列桥、基础锁租约恢复、同进程 cancel signal、跨进程持久取消轮询、SSH live 远端进程树 best-effort cleanup、remoteExecution metadata、默认关闭的 stale orphan cleanup、执行治理页 remoteExecution 可见性、执行治理页 agent target 可见性、审批链路控制面访问策略，项目/环境/站点写接口策略门禁，资源/应用/备份/日志/监控主要写接口策略门禁，服务器/CDN/密钥/资源申请/资源实例/资源池分配/旧资源凭证写接口策略门禁，Generator/Preset/Git/Domain/Legacy CDN 早期项目交付入口策略门禁、主要读路径可见性过滤，以及第一组授权回归测试最小闭环已完成；真实 agent runtime 生命周期、更多集成/e2e 授权覆盖和真实日志写入待补。
+- 状态：统一审计事件、高风险操作审批、部署 live 审批门禁、失败 live deploy 回滚申请、失败 Smoke 自动回滚计划/审批申请、预授权 live 自动回滚提交、Server executor 命令策略、团队/项目/环境级策略模板、live lease 并发门禁、执行治理可视化、execution job 重试入口、queued worker 基座、Server executor supervisor 状态面、Server executor worker inventory/status、Server executor queue coordination preflight、默认关闭的 Server agent HTTP dispatcher 边界、Server agent dispatcher correlation/idempotency 契约、Server agent dispatch outcome 审计事件、Server agent heartbeat runtime 摘要、Server agent heartbeat-required target selection 门禁、Server agent dispatcher config 摘要、Server agent readiness 摘要、Server agent job demand 摘要、Server agent blocked reason 摘要、Server agent fleet supervisor 摘要、Server agent runtime health supervisor 摘要、Server agent runtime lifecycle preflight、执行治理页 agent dispatch result/correlation 可见性、DeploymentRun/SiteSyncRun/ResourceActionRun/ApplicationServiceOperationRun/BackupRun/LogCollectionRun 队列桥、基础锁租约恢复、同进程 cancel signal、跨进程持久取消轮询、SSH live 远端进程树 best-effort cleanup、remoteExecution metadata、默认关闭的 stale orphan cleanup、执行治理页 remoteExecution 可见性、执行治理页 agent target 可见性、审批链路控制面访问策略，项目/环境/站点写接口策略门禁，资源/应用/备份/日志/监控主要写接口策略门禁，服务器/CDN/密钥/资源申请/资源实例/资源池分配/旧资源凭证写接口策略门禁，Generator/Preset/Git/Domain/Legacy CDN 早期项目交付入口策略门禁、主要读路径可见性过滤，以及第一组授权回归测试最小闭环已完成；真实 agent runtime 长连接/任务拉取/生命周期执行、更多集成/e2e 授权覆盖和真实日志写入待补。
 - 执行治理动作审计已补齐：取消请求/取消、queued retry、inline retry、管理员手动处理下一个 queued job 和 stale recovery 都会写入统一 `AuditEvent`，审计目标使用 `server_execution_job`，并在 metadata 中保留 retry、source scope 和 remote cleanup 证据。
 - 已新增 `AuditEvent` 模型和 `/audit-events` 查询 API。
 - 已在部署运行、资源动作、服务运行态操作和备份运行完成后写入审计事件。
@@ -460,6 +462,10 @@ flowchart LR
 - 已新增 `ServerExecutionJob` 和 `/server-execution-jobs` API，支持查看执行任务、输入快照、状态、错误、重试链路和 remoteExecution 摘要，并支持管理员取消 queued/blocked/running 任务、把 failed/blocked/cancelled 任务加入 retry queue、手动处理下一个 queued job；这些治理动作以及 stale recovery 会写入统一 `AuditEvent`。
 - 已新增 Server executor queue worker 基座，支持 opt-in 定时领取 queued job、同进程 cancellation token、基于 `ServerExecutionJob.cancelRequestedAt` 的跨进程持久取消轮询、SSH live 子进程 SIGTERM、SSH live 远端进程树 best-effort cleanup、remoteExecution metadata 持久化、默认关闭的 stale orphan cleanup 和 failed/blocked queued job 按 maxAttempts 自动 retry 入队。
 - 已新增 `GET /server-execution-jobs/supervisor` 和执行治理页 Supervisor 区块，聚合当前进程 worker 配置、队列积压、stale running job、live lease 和 worker owner 摘要。
+- 执行治理 Supervisor 已新增 Server executor worker inventory/status：在现有 snapshot 中只读展示当前 worker instance 配置、queue 状态、active/stale/expired owner 数、owned/unowned running jobs 和 owner 样本，便于多实例部署下判断队列消费者与过期 owner 风险；该视图不改变队列领取、stale recovery 或 dispatch 行为。
+- 执行治理 Supervisor 已新增 Server executor queue coordination preflight：基于现有 worker 配置、queue pressure、worker owner、stale running 和 stale remote cleanup config 只读推导 coordination state/reason、worker/queue/owners/recovery gates、pressure、blockers 和 nextSteps；该视图不改变队列领取、锁租约、heartbeat、stale recovery、remote orphan cleanup 或 dispatch 行为。
+- 执行治理 Supervisor 已新增 Server executor remote orphan governance preflight：基于 stale running job 的 `metadata.remoteExecution` session/cleanup、worker owner 状态和 stale remote cleanup config 只读推导治理 state/reason、remote session/cleanup/owner/recovery gates、risk、blockers、samples 和 nextSteps；该视图不触发真实 stale recovery、不执行 remote orphan cleanup，也不改变 worker lock、heartbeat、dispatcher 或 target selection 行为。
+- 执行治理 Supervisor 已新增 execution audit visibility：复用现有 `AuditEvent` 只读聚合最近 `category=execution`、`targetType=server_execution_job` 事件，展示 status/risk/action 统计和最近 job 样例，便于在 worker/queue/agent/remote orphan preflight 旁边排查 cancel、retry、process-next、recover-stale 和 agent dispatch 审计链路；该视图不新增审计写入、不触发执行动作，也不暴露完整 audit metadata。
 - 已新增默认关闭的 `ServerAgentServerExecutorAdapter`：`server_agent` transport 可进入 Server executor adapter 体系，dry-run 生成 dispatch envelope，live 默认 blocked；显式开启 `SERVER_EXECUTOR_AGENT_ENABLED=true` 并配置 `SERVER_EXECUTOR_AGENT_DISPATCHER_URL` 后，可向 HTTP dispatcher POST envelope 并接受 completed/failed/blocked/cancelled 终态响应；envelope、result、command plan 和 HTTP headers 已带有 job correlation 与 idempotency key。
 - Server agent dispatch outcome 已写入统一 `AuditEvent`：adapter 返回后会生成 `server_execution_job.agent_dispatch` 事件，metadata 只保留 correlation、dispatcher 配置态、终态、boundary 和 whitelisted response 摘要，审计写入失败不改变原执行结果。
 - 已新增默认关闭的 Server agent target 选择：`ServerExecutorService.resolveTarget()` 可在显式开启且服务器存在 agent capability 证据时返回 `server_agent` target，否则保持 SSH；显式开启 `SERVER_EXECUTOR_AGENT_HEARTBEAT_REQUIRED=true` 后还要求 heartbeat runtime online，缺失/stale/unknown 时回落 SSH。
@@ -470,17 +476,18 @@ flowchart LR
 - 执行治理 Supervisor 已展示 Server agent blocked reason：只读扫描最近 blocked `server_agent` job，展示 reason 分布、dispatcher boundary 数和样例任务。
 - 执行治理 Supervisor 已展示 Server agent fleet：按 agent-capable server 聚合 heartbeat runtime、target/live dispatch readiness、blocking reasons、job pressure、next queued job 和 blocked sample，只读诊断，不改变实际路由或队列执行。
 - 执行治理 Supervisor 已展示 Server agent runtime health：按 agent-capable server 聚合 ready/degraded/stale/unknown/missing/expiringSoon、lastSeenAge、expiresIn 和异常样例，并在 fleet server 上展示 health/reason/seen/expires；该视图只读诊断，不改变实际路由、dispatcher 或队列执行。
+- 执行治理 Supervisor 已展示 Server agent runtime lifecycle preflight：基于现有 target selection、heartbeat、dispatcher、agent jobs、fleet/runtime health 和 queue worker 状态只读推导 lifecycle state/reason、target/heartbeat/dispatcher/queue gates、pressure、blockers 和 nextSteps，作为真实 agent 长连接/任务拉取接入前的预检契约；该视图不启动 agent、不注入 Secret、不改变 dispatcher、target selection 或队列执行。
 - 已新增 `ServerExecutorService.queueExecution()`、DeploymentRun 队列桥、SiteSyncRun 队列桥、ResourceActionRun 队列桥、ApplicationServiceOperationRun 队列桥、BackupRun 队列桥和 LogCollectionRun 队列桥，部署运行、站点同步/回滚、服务器资源动作、服务运行态操作、服务器备份 dry-run 与服务器日志采集 dry-run 可直接创建 queued job、保存 `serverExecutionJobId`，并在 worker 完成后回写业务运行结果；LogCollectionRun completed 后会触发采集结果入库。
 - 已新增 Server executor lock lease/heartbeat/stale recovery，支持 lockExpiresAt 续租、恢复过期 running job、记录 recoveryReason/recoveryCount，在显式开启 `SERVER_EXECUTOR_STALE_REMOTE_CLEANUP_ENABLED=true` 时基于 `remoteExecution.session` 尝试清理远端 orphan，并在恢复后按 maxAttempts 自动 queue retry。
 - 下一步把控制面只读数据可见性过滤继续扩展到资源管控、日志、监控、执行历史、审计、站点、CDN、服务器和旧资源凭证等读路径。
-- 下一步补真实 agent runtime 生命周期、更完整的跨实例远端 orphan 治理和多实例队列治理。
+- 下一步补真实 agent runtime 长连接/任务拉取/生命周期执行、更完整的跨实例远端 orphan 治理和实际多实例队列协调。
 - 资源危险操作二次确认。
 
 ## 8. 推荐下一步
 
 下一步建议优先做真实执行治理、P3 的真实站点同步，以及可观测性：
 
-1. 继续补安全治理：扩展真实 DB fixture/e2e 权限覆盖、资源实例级策略、agent supervisor、跨实例远端 orphan 治理和多实例队列治理。
+1. 继续补安全治理：扩展真实 DB fixture/e2e 权限覆盖、资源实例级策略、agent supervisor、跨实例远端 orphan 治理和实际多实例队列治理。
 2. 继续完善 Nginx/OpenResty adapter：模块基线策略化与失败告警、性能调优、真实环境 smoke，并把 ProxyConfig 收敛到 Site。
 3. 补服务可观测性：实时日志流/SLS 查询、容器指标、健康趋势、通知渠道、SLO、环境变量和 Secret 注入。
 4. 在环境工作台基础上继续把 Site copy queued live sync 的 follow-up 摘要接到前端治理入口和 worker 运行态可视化，并把资源 copy 后的同步、指标、告警接管入口做深。
