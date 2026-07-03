@@ -1,27 +1,12 @@
 /** 站点运行时配置字段 - 按 runtimeType 渲染 static/docker/runtime + TLS 配置。 */
 
 import type { ProxyConfig } from '../types';
-
-interface SiteFormValues {
-  runtimeType?: string;
-  staticRoot?: string;
-  dockerImage?: string;
-  dockerComposeFile?: string;
-  runtimeCommand?: string;
-  runtimePort?: string;
-  allowedCidrs?: string;
-  websocket?: boolean;
-  tlsEnabled?: boolean;
-  tlsType?: string;
-  tlsEmail?: string;
-  proxyConfigId?: string;
-  [key: string]: unknown;
-}
+import type { AddSiteFormData } from './add-site-form.types';
 
 interface RuntimeConfigFieldsProps {
-  formData: SiteFormValues;
+  formData: AddSiteFormData;
   proxyConfigs?: ProxyConfig[];
-  onChange: (patch: Record<string, unknown>) => void;
+  onChange: (patch: Partial<AddSiteFormData>) => void;
 }
 
 export function RuntimeConfigFields({
@@ -35,7 +20,7 @@ export function RuntimeConfigFields({
         <div>
           <label className="mb-1 block text-sm font-medium">静态目录</label>
           <input
-            value={formData.rootPath as string}
+            value={formData.rootPath}
             onChange={(event) => onChange({ rootPath: event.target.value })}
             className="w-full rounded-md border px-3 py-2 font-mono text-sm"
             placeholder="/var/www/app.example.com"
@@ -46,7 +31,7 @@ export function RuntimeConfigFields({
           <div>
             <label className="mb-1 block text-sm font-medium">上游地址</label>
             <input
-              value={formData.upstreamUrl as string}
+              value={formData.upstreamUrl}
               onChange={(event) => onChange({ upstreamUrl: event.target.value })}
               className="w-full rounded-md border px-3 py-2 font-mono text-sm"
               placeholder="http://127.0.0.1:3000"
@@ -56,7 +41,7 @@ export function RuntimeConfigFields({
             <div>
               <label className="mb-1 block text-sm font-medium">容器名</label>
               <input
-                value={formData.containerName as string}
+                value={formData.containerName}
                 onChange={(event) => onChange({ containerName: event.target.value })}
                 className="w-full rounded-md border px-3 py-2"
                 placeholder="app"
@@ -65,7 +50,7 @@ export function RuntimeConfigFields({
             <div>
               <label className="mb-1 block text-sm font-medium">容器端口</label>
               <input
-                value={formData.containerPort as string}
+                value={formData.containerPort}
                 onChange={(event) => onChange({ containerPort: event.target.value })}
                 className="w-full rounded-md border px-3 py-2"
                 placeholder="3000"
@@ -79,7 +64,7 @@ export function RuntimeConfigFields({
         <div>
           <label className="mb-1 block text-sm font-medium">关联代理配置</label>
           <select
-            value={formData.proxyConfigId as string}
+            value={formData.proxyConfigId}
             onChange={(event) => onChange({ proxyConfigId: event.target.value })}
             className="w-full rounded-md border px-3 py-2"
           >
@@ -97,7 +82,7 @@ export function RuntimeConfigFields({
         <div>
           <label className="mb-1 block text-sm font-medium">允许 CIDR</label>
           <input
-            value={formData.allowedCidrs as string}
+            value={formData.allowedCidrs}
             onChange={(event) => onChange({ allowedCidrs: event.target.value })}
             className="w-full rounded-md border px-3 py-2 font-mono text-sm"
             placeholder="10.0.0.0/8, 192.168.0.0/16"
@@ -109,7 +94,7 @@ export function RuntimeConfigFields({
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={formData.websocket as boolean}
+            checked={formData.websocket}
             onChange={(event) => onChange({ websocket: event.target.checked })}
             className="rounded"
           />
@@ -118,7 +103,7 @@ export function RuntimeConfigFields({
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={formData.tlsEnabled as boolean}
+            checked={formData.tlsEnabled}
             onChange={(event) => onChange({ tlsEnabled: event.target.checked })}
             className="rounded"
           />
@@ -127,7 +112,7 @@ export function RuntimeConfigFields({
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={formData.basicAuth as boolean}
+            checked={formData.basicAuth}
             onChange={(event) => onChange({ basicAuth: event.target.checked })}
             className="rounded"
           />
@@ -140,7 +125,7 @@ export function RuntimeConfigFields({
           <div>
             <label className="mb-1 block text-sm font-medium">证书类型</label>
             <select
-              value={formData.tlsType as string}
+              value={formData.tlsType}
               onChange={(event) => onChange({ tlsType: event.target.value })}
               className="w-full rounded-md border px-3 py-2"
             >
@@ -151,7 +136,7 @@ export function RuntimeConfigFields({
           <div>
             <label className="mb-1 block text-sm font-medium">证书邮箱</label>
             <input
-              value={formData.tlsEmail as string}
+              value={formData.tlsEmail}
               onChange={(event) => onChange({ tlsEmail: event.target.value })}
               className="w-full rounded-md border px-3 py-2"
               placeholder="ops@example.com"

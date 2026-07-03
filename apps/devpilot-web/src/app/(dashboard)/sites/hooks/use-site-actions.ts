@@ -8,7 +8,8 @@
 import { useState } from 'react';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
-import type { Site, SiteSyncPlan, SiteSyncRun } from '../types';
+import type { Site, SiteSyncPlan } from '../types';
+import { useSiteLiveActions } from './use-site-live-actions.hooks';
 
 interface UseSiteActionsArgs {
   queueSiteRuns: boolean;
@@ -20,15 +21,13 @@ interface UseSiteActionsArgs {
 export function useSiteActions(args: UseSiteActionsArgs) {
   const { queueSiteRuns, setPlans, refreshSyncRuns, loadData } = args;
   const [planningId, setPlanningId] = useState<string | null>(null);
-  const [syncingId, setSyncingId] = useState<string | null>(null);
   const [diagnosingId, setDiagnosingId] = useState<string | null>(null);
   const [checkingModuleBaselineId, setCheckingModuleBaselineId] = useState<string | null>(null);
   const [probingModulesId, setProbingModulesId] = useState<string | null>(null);
   const [probingRuntimeId, setProbingRuntimeId] = useState<string | null>(null);
   const [smokingId, setSmokingId] = useState<string | null>(null);
   const [probingTlsId, setProbingTlsId] = useState<string | null>(null);
-  const [renewingTlsId, setRenewingTlsId] = useState<string | null>(null);
-  const [rollingBackId, setRollingBackId] = useState<string | null>(null);
+  const liveActions = useSiteLiveActions({ queueSiteRuns, setPlans, loadData });
 
   const runPlanAction = usePersistFn(
     async (
@@ -63,26 +62,6 @@ export function useSiteActions(args: UseSiteActionsArgs) {
       '生成站点同步计划失败',
     ),
   );
-  const handleSyncLive = usePersistFn(async (site: Site) => {
-    if (!confirm(`将申请同步 Nginx/OpenResty 站点配置：${site.name}，确认继续吗？`)) return;
-    setSyncingId(site.id);
-    try {
-      const plan = await apiRequest<SiteSyncPlan>(`POST:/sites/${site.id}/sync-plan`, {
-        dryRun: false,
-        queue: queueSiteRuns,
-        confirmationText: site.name,
-      });
-      setPlans((cur) => ({ ...cur, [site.id]: plan }));
-      if (plan.status === 'blocked' && plan.approval)
-        alert('已生成站点同步审批单，可在操作审批页面批准后执行');
-      await loadData();
-    } catch (error) {
-      console.error('Failed to sync site:', error);
-      alert(error instanceof Error ? error.message : '申请站点同步失败');
-    } finally {
-      setSyncingId(null);
-    }
-  });
   const handleDiagnostics = usePersistFn((site: Site) =>
     runPlanAction(
       site,
@@ -148,63 +127,19 @@ export function useSiteActions(args: UseSiteActionsArgs) {
     ),
   );
 
-  const handleTlsRenew = usePersistFn(async (site: Site, dryRun: boolean) => {
-    if (!dryRun && !confirm(`将申请续期 TLS 证书：${site.name}，确认继续吗？`)) return;
-    setRenewingTlsId(site.id);
-    try {
-      const plan = await apiRequest<SiteSyncPlan>(`POST:/sites/${site.id}/tls-renew`, {
-        dryRun,
-        queue: queueSiteRuns,
-        confirmationText: dryRun ? undefined : site.name,
-      });
-      setPlans((cur) => ({ ...cur, [site.id]: plan }));
-      if (plan.status === 'blocked' && plan.approval)
-        alert('已生成证书续期审批单，可在操作审批页面批准后执行');
-      await loadData();
-    } catch (error) {
-      console.error('Failed to renew site TLS certificate:', error);
-      alert(error instanceof Error ? error.message : '申请站点 TLS 证书续期失败');
-    } finally {
-      setRenewingTlsId(null);
-    }
-  });
-
-  const handleRollback = usePersistFn(async (site: Site, run: SiteSyncRun) => {
-    if (!confirm(`将申请把 ${site.name} 回滚到指定时间的 Nginx 配置，确认继续吗？`)) return;
-    setRollingBackId(run.id);
-    try {
-      const plan = await apiRequest<SiteSyncPlan>(
-        `POST:/sites/${site.id}/sync-runs/${run.id}/rollback`,
-        {
-        dryRun: false,
-        queue: queueSiteRuns,
-        confirmationText: site.name,
-      });
-      setPlans((cur) => ({ ...cur, [site.id]: plan }));
-      if (plan.status === 'blocked' && plan.approval)
-        alert('已生成站点回滚审批单，可在操作审批页面批准后执行');
-      await loadData();
-    } catch (error) {
-      console.error('Failed to rollback site:', error);
-      alert(error instanceof Error ? error.message : '申请回滚站点配置失败');
-    } finally {
-      setRollingBackId(null);
-    }
-  });
-
   return {
     planningId,
-    syncingId,
+    syncingId: liveActions.syncingId,
     diagnosingId,
     checkingModuleBaselineId,
     probingModulesId,
     probingRuntimeId,
     smokingId,
     probingTlsId,
-    renewingTlsId,
-    rollingBackId,
+    renewingTlsId: liveActions.renewingTlsId,
+    rollingBackId: liveActions.rollingBackId,
     handleCreatePlan,
-    handleSyncLive,
+    handleSyncLive: liveActions.handleSyncLive,
     handleDiagnostics,
     handleOpenRestyStatus,
     handleOpenRestyModules,
@@ -212,7 +147,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
     handleSmokeCheck,
     handleTlsProbe,
     handleTlsProbePlan,
-    handleTlsRenew,
-    handleRollback,
+    handleTlsRenew: liveActions.handleTlsRenew,
+    handleRollback: liveActions.handleRollback,
   };
 }

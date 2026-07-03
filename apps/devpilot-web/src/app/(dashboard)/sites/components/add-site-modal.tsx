@@ -1,11 +1,13 @@
 /** 添加站点弹窗 - 反向代理/静态/docker/runtime 配置表单。 */
 'use client';
 import { useState } from 'react';
-import { Modal, ErrorBanner } from '@/components/ui';
 import { apiRequest } from '@/lib/api-client';
-import type { Server, Project, ProjectEnvironment, ProxyConfig, SiteRuntimeType } from '../types';
+import type { Server, Project, ProjectEnvironment, ProxyConfig } from '../types';
 import { buildRuntimeConfig, splitCsv } from '../utils';
+import { AddSiteBasicFields } from './add-site-basic-fields.component';
+import type { AddSiteFormData } from './add-site-form.types';
 import { RuntimeConfigFields } from './runtime-config-fields';
+
 export function AddSiteModal({
   servers,
   projects,
@@ -25,11 +27,11 @@ export function AddSiteModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AddSiteFormData>({
     name: '',
     primaryDomain: '',
     aliases: '',
-    runtimeType: 'reverse_proxy' as SiteRuntimeType,
+    runtimeType: 'reverse_proxy',
     upstreamUrl: '',
     rootPath: '',
     containerName: '',
@@ -47,6 +49,9 @@ export function AddSiteModal({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const updateFormData = (patch: Partial<AddSiteFormData>) =>
+    setFormData((current) => ({ ...current, ...patch }));
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
@@ -96,123 +101,17 @@ export function AddSiteModal({
           onSubmit={handleSubmit}
           className="space-y-4"
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium">站点名称</label>
-              <input
-                value={formData.name}
-                onChange={(event) => setFormData({ ...formData, name: event.target.value })}
-                required
-                className="w-full rounded-md border px-3 py-2"
-                placeholder="生产站点"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">主域名</label>
-              <input
-                value={formData.primaryDomain}
-                onChange={(event) =>
-                  setFormData({ ...formData, primaryDomain: event.target.value })
-                }
-                required
-                className="w-full rounded-md border px-3 py-2"
-                placeholder="app.example.com"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">域名别名</label>
-            <input
-              value={formData.aliases}
-              onChange={(event) => setFormData({ ...formData, aliases: event.target.value })}
-              className="w-full rounded-md border px-3 py-2"
-              placeholder="www.example.com, api.example.com"
-            />
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium">运行时类型</label>
-              <select
-                value={formData.runtimeType}
-                onChange={(event) =>
-                  setFormData({ ...formData, runtimeType: event.target.value as SiteRuntimeType })
-                }
-                className="w-full rounded-md border px-3 py-2"
-              >
-                <option value="reverse_proxy">反向代理</option>
-                <option value="static">静态站点</option>
-                <option value="docker">Docker 服务</option>
-                <option value="runtime">运行时服务</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">目标服务器</label>
-              <select
-                value={formData.serverId}
-                onChange={(event) => setFormData({ ...formData, serverId: event.target.value })}
-                className="w-full rounded-md border px-3 py-2"
-              >
-                <option value="">不关联服务器</option>
-                {servers.map((server) => (
-                  <option
-                    key={server.id}
-                    value={server.id}
-                  >
-                    {server.name} ({server.host})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium">关联项目</label>
-              <select
-                value={formData.projectId}
-                onChange={(event) =>
-                  setFormData({ ...formData, projectId: event.target.value, environmentId: '' })
-                }
-                className="w-full rounded-md border px-3 py-2"
-              >
-                <option value="">不关联项目</option>
-                {projects.map((project) => (
-                  <option
-                    key={project.id}
-                    value={project.id}
-                  >
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">项目环境</label>
-            <select
-              value={formData.environmentId}
-              onChange={(event) => setFormData({ ...formData, environmentId: event.target.value })}
-              className="w-full rounded-md border px-3 py-2"
-              disabled={!formData.projectId}
-            >
-              <option value="">不绑定环境</option>
-              {projectEnvironments
-                .filter(
-                  (environment) =>
-                    environment.projectId === formData.projectId &&
-                    environment.status !== 'archived',
-                )
-                .map((environment) => (
-                  <option
-                    key={environment.id}
-                    value={environment.id}
-                  >
-                    {environment.name} ({environment.key})
-                  </option>
-                ))}
-            </select>
-          </div>
+          <AddSiteBasicFields
+            formData={formData}
+            servers={servers}
+            projects={projects}
+            projectEnvironments={projectEnvironments}
+            onChange={updateFormData}
+          />
           <RuntimeConfigFields
             formData={formData}
             proxyConfigs={proxyConfigs}
-            onChange={(patch) => setFormData({ ...formData, ...patch })}
+            onChange={updateFormData}
           />
           <div className="flex justify-end gap-2 pt-4">
             <button

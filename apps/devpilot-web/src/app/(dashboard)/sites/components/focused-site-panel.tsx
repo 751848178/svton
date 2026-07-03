@@ -9,11 +9,8 @@ import {
   getStatusLabel,
   getStatusClass,
   formatTlsCertificateSummary,
-  getRunModeLabel,
-  formatRunLogPreview,
-  readLogMessages,
-  formatDateTime,
 } from '../utils-format';
+import { FocusedSitePlanRunSummary } from './focused-site-plan-run-summary.component';
 import { TakeoverBindingForm } from './takeover-binding-form';
 type SitesHook = ReturnType<typeof useSites>;
 export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
@@ -169,72 +166,10 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
           onActivatePreview={() => handleActivatePreviewSite(focusedSite)}
         />
       ) : null}
-      {(focusedPlan || focusedRecentRuns.length > 0) && (
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          {focusedPlan && (
-            <div className="rounded-md border bg-background p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="font-medium">
-                  {focusedPlan.executorKey} · {focusedPlan.adapterKey} · {focusedPlan.mode}
-                </span>
-                <span
-                  className={`rounded-full px-2 py-0.5 font-medium ${getStatusClass(focusedPlan.status || (focusedPlan.executable ? 'active' : 'pending'))}`}
-                >
-                  {getStatusLabel(
-                    focusedPlan.status || (focusedPlan.executable ? 'active' : 'pending'),
-                  )}
-                </span>
-              </div>
-              {focusedPlan.warnings.length > 0 && (
-                <div className="mt-2 space-y-1 text-xs text-yellow-800">
-                  {focusedPlan.warnings.slice(0, 3).map((warning) => (
-                    <div key={warning}>{warning}</div>
-                  ))}
-                </div>
-              )}
-              <div className="mt-2 space-y-2">
-                {focusedPlan.commandPlan.slice(0, 3).map((step) => (
-                  <div
-                    key={step.key}
-                    className="rounded bg-muted/50 p-2"
-                  >
-                    <div className="text-xs font-medium">{step.label}</div>
-                    <code className="mt-1 block break-all text-xs text-muted-foreground">
-                      {step.command || '当前配置下无需命令'}
-                    </code>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {focusedRecentRuns.length > 0 && (
-            <div className="rounded-md border bg-background p-3">
-              <div className="mb-2 text-xs font-medium">最近执行记录</div>
-              <div className="space-y-2">
-                {focusedRecentRuns.slice(0, 3).map((run) => (
-                  <div
-                    key={run.id}
-                    className="flex flex-wrap items-center gap-2 text-xs"
-                  >
-                    <span className="font-medium">{getRunModeLabel(run.mode)}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 font-medium ${getStatusClass(run.status)}`}
-                    >
-                      {getStatusLabel(run.status)}
-                    </span>
-                    {run.dryRun && (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
-                        dry-run
-                      </span>
-                    )}
-                    <span className="text-muted-foreground">{formatDateTime(run.startedAt)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      <FocusedSitePlanRunSummary
+        plan={focusedPlan}
+        recentRuns={focusedRecentRuns}
+      />
     </section>
   );
 }

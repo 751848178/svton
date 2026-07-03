@@ -16,11 +16,10 @@ import type {
   ProxyConfig,
   SiteSyncPlan,
   SiteSyncRun,
-  SiteTakeoverForm,
 } from '../types';
-import { createSiteTakeoverForm, buildSiteTakeoverTls } from '../utils-takeover';
 import { readRecord } from '../utils';
 import { useSiteActions } from './use-site-actions';
+import { useSiteTakeover } from './use-site-takeover.hooks';
 
 export function useSites(
   projectId: string,
@@ -38,10 +37,6 @@ export function useSites(
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(openCreateOnMount);
   const [queueSiteRuns, setQueueSiteRuns] = useState(false);
-  const [focusedSiteId, setFocusedSiteId] = useState(siteId);
-  const [takeoverForms, setTakeoverForms] = useState<Record<string, SiteTakeoverForm>>({});
-  const [savingTakeoverId, setSavingTakeoverId] = useState<string | null>(null);
-  const [activatingPreviewId, setActivatingPreviewId] = useState<string | null>(null);
 
   const refreshSyncRuns = usePersistFn(async (id: string) => {
     const runs = await apiRequest<SiteSyncRun[]>(`GET:/sites/${id}/sync-runs`);
@@ -74,7 +69,7 @@ export function useSites(
         const entries = await Promise.all(
           siteData.map(
             async (s) =>
-            [s.id, await apiRequest<SiteSyncRun[]>(`GET:/sites/${s.id}/sync-runs`)] as const,
+              [s.id, await apiRequest<SiteSyncRun[]>(`GET:/sites/${s.id}/sync-runs`)] as const,
           ),
         );
         setSyncRuns(Object.fromEntries(entries));
@@ -88,28 +83,7 @@ export function useSites(
 
   useEffect(() => {
     loadData();
-    setFocusedSiteId(siteId);
   }, [loadData, siteId]);
-
-  const focusedSite = focusedSiteId ? sites.find((s) => s.id === focusedSiteId) || null : null;
-  useEffect(() => {
-    if (!focusedSite) return;
-    setTakeoverForms((cur) =>
-      cur[focusedSite.id] ? cur : { ...cur, [focusedSite.id]: createSiteTakeoverForm(focusedSite) },
-    );
-  }, [focusedSite?.id]);
-
-  const updateFocusedTakeoverForm = usePersistFn((patch: Partial<SiteTakeoverForm>) => {
-    if (!focusedSite) return;
-    setTakeoverForms((cur) => ({
-      ...cur,
-      [focusedSite.id]: {
-        ...createSiteTakeoverForm(focusedSite),
-        ...cur[focusedSite.id],
-        ...patch,
-      },
-    }));
-  });
 
   const handleDelete = usePersistFn(async (id: string) => {
     if (!confirm('确定要删除这个站点吗？')) return;
@@ -132,62 +106,13 @@ export function useSites(
     }
   });
 
-  const handleSaveTakeoverBinding = usePersistFn(async (site: Site) => {
-    const form = takeoverForms[site.id] || createSiteTakeoverForm(site);
-    setSavingTakeoverId(site.id);
-    try {
-      const updated = await apiRequest<Site>(`PUT:/sites/${site.id}`, {
-        serverId: form.serverId,
-        tls: buildSiteTakeoverTls(site, form),
-        status: site.status,
-      });
-      setSites((cur) => cur.map((i) => (i.id === updated.id ? updated : i)));
-      setTakeoverForms((cur) => ({ ...cur, [updated.id]: createSiteTakeoverForm(updated) }));
-      alert('已保存站点接管绑定');
-    } catch (error) {
-      console.error('Failed to save site takeover binding:', error);
-      alert(error instanceof Error ? error.message : '保存站点接管绑定失败');
-    } finally {
-      setSavingTakeoverId(null);
-    }
-  });
-
-  const handleActivatePreviewSite = usePersistFn(async (site: Site) => {
-    const form = takeoverForms[site.id] || createSiteTakeoverForm(site);
-    if (!form.serverId) {
-      alert('请先选择目标服务器');
-      return;
-    }
-    if (!form.upstreamUrl.trim()) {
-      alert('请填写预览上游地址');
-      return;
-    }
-    setActivatingPreviewId(site.id);
-    try {
-      const result = await apiRequest<{ site: Site; syncPlan?: SiteSyncPlan }>(
-        `POST:/sites/${site.id}/preview-takeover`,
-        {
-          serverId: form.serverId,
-          upstreamUrl: form.upstreamUrl.trim(),
-          websocket: form.websocket,
-          tls: buildSiteTakeoverTls(site, form),
-          createDryRunPlan: true,
-          queue: queueSiteRuns,
-        },
-      );
-      setSites((cur) => cur.map((i) => (i.id === result.site.id ? result.site : i)));
-      setTakeoverForms((cur) => ({
-        ...cur,
-        [result.site.id]: createSiteTakeoverForm(result.site),
-      }));
-      if (result.syncPlan) setPlans((cur) => ({ ...cur, [site.id]: result.syncPlan! }));
-      await refreshSyncRuns(site.id);
-    } catch (error) {
-      console.error('Failed to activate preview site takeover:', error);
-      alert(error instanceof Error ? error.message : '接管预览站点失败');
-    } finally {
-      setActivatingPreviewId(null);
-    }
+  const takeover = useSiteTakeover({
+    sites,
+    siteId,
+    queueSiteRuns,
+    setSites,
+    setPlans,
+    refreshSyncRuns,
   });
 
   const actions = useSiteActions({ queueSiteRuns, setPlans, refreshSyncRuns, loadData });
@@ -205,16 +130,8 @@ export function useSites(
     setShowModal,
     queueSiteRuns,
     setQueueSiteRuns,
-    focusedSiteId,
-    setFocusedSiteId,
-    takeoverForms,
-    savingTakeoverId,
-    activatingPreviewId,
-    focusedSite,
-    updateFocusedTakeoverForm,
     handleDelete,
-    handleSaveTakeoverBinding,
-    handleActivatePreviewSite,
+    ...takeover,
     ...actions,
     reload: loadData,
   };

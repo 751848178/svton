@@ -1,0 +1,78 @@
+/** Focused Site plan preview and recent run summary. */
+
+import type { SiteSyncPlan, SiteSyncRun } from '../types';
+import { formatDateTime, getRunModeLabel, getStatusClass, getStatusLabel } from '../utils-format';
+
+interface FocusedSitePlanRunSummaryProps {
+  plan: SiteSyncPlan | null;
+  recentRuns: SiteSyncRun[];
+}
+
+export function FocusedSitePlanRunSummary({ plan, recentRuns }: FocusedSitePlanRunSummaryProps) {
+  if (!plan && recentRuns.length === 0) return null;
+
+  return (
+    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      {plan && (
+        <div className="rounded-md border bg-background p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="font-medium">
+              {plan.executorKey} · {plan.adapterKey} · {plan.mode}
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 font-medium ${getStatusClass(plan.status || (plan.executable ? 'active' : 'pending'))}`}
+            >
+              {getStatusLabel(plan.status || (plan.executable ? 'active' : 'pending'))}
+            </span>
+          </div>
+          {plan.warnings.length > 0 && (
+            <div className="mt-2 space-y-1 text-xs text-yellow-800">
+              {plan.warnings.slice(0, 3).map((warning) => (
+                <div key={warning}>{warning}</div>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 space-y-2">
+            {plan.commandPlan.slice(0, 3).map((step) => (
+              <div
+                key={step.key}
+                className="rounded bg-muted/50 p-2"
+              >
+                <div className="text-xs font-medium">{step.label}</div>
+                <code className="mt-1 block break-all text-xs text-muted-foreground">
+                  {step.command || '当前配置下无需命令'}
+                </code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {recentRuns.length > 0 && (
+        <div className="rounded-md border bg-background p-3">
+          <div className="mb-2 text-xs font-medium">最近执行记录</div>
+          <div className="space-y-2">
+            {recentRuns.slice(0, 3).map((run) => (
+              <div
+                key={run.id}
+                className="flex flex-wrap items-center gap-2 text-xs"
+              >
+                <span className="font-medium">{getRunModeLabel(run.mode)}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 font-medium ${getStatusClass(run.status)}`}
+                >
+                  {getStatusLabel(run.status)}
+                </span>
+                {run.dryRun && (
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
+                    dry-run
+                  </span>
+                )}
+                <span className="text-muted-foreground">{formatDateTime(run.startedAt)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
