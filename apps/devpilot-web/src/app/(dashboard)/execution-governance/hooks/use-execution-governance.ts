@@ -1,40 +1,27 @@
-/**
- * 执行治理数据 Hook
- *
- * 单一职责：加载 Job/Lease/Supervisor，计算统计，提供取消/重试/队列/恢复操作。
- */
-
 import { useEffect, useMemo, useState } from 'react';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
-import type { ServerExecutionJob, ServerExecutionLease } from '../types';
+import {
+  buildExecutionJobParams,
+  buildExecutionJobScopeKey,
+  buildExecutionLeaseParams,
+} from '../execution-governance-scope.utils';
+import type { ExecutionGovernanceScope, ServerExecutionJob, ServerExecutionLease } from '../types';
 import type { ServerExecutionSupervisorSnapshot } from '../supervisor';
 import { isStaleRunning } from '../utils';
 
-export interface JobStats {
-  total: number;
-  queued: number;
-  running: number;
-  stale: number;
-  blocked: number;
-  failed: number;
-  cancelled: number;
-}
+type JobStatKey = 'total' | 'queued' | 'running' | 'stale' | 'blocked' | 'failed' | 'cancelled';
+type LeaseStatKey = 'total' | 'running' | 'blocked' | 'expired' | 'failed';
 
-export interface LeaseStats {
-  total: number;
-  running: number;
-  blocked: number;
-  expired: number;
-  failed: number;
-}
+export type JobStats = Record<JobStatKey, number>;
+export type LeaseStats = Record<LeaseStatKey, number>;
 
-export function useExecutionGovernance() {
+export function useExecutionGovernance(scope: ExecutionGovernanceScope = {}) {
   const [jobs, setJobs] = useState<ServerExecutionJob[]>([]);
   const [leases, setLeases] = useState<ServerExecutionLease[]>([]);
   const [supervisor, setSupervisor] = useState<ServerExecutionSupervisorSnapshot | null>(null);
-  const [jobStatus, setJobStatus] = useState('all');
-  const [leaseStatus, setLeaseStatus] = useState('running');
+  const [jobStatus, setJobStatus] = useState(scope.jobStatus || 'all');
+  const [leaseStatus, setLeaseStatus] = useState(scope.leaseStatus || 'running');
   const [jobLoading, setJobLoading] = useState(true);
   const [leaseLoading, setLeaseLoading] = useState(true);
   const [supervisorLoading, setSupervisorLoading] = useState(true);
@@ -48,7 +35,7 @@ export function useExecutionGovernance() {
   const loadJobs = usePersistFn(async () => {
     setJobLoading(true);
     try {
-      const params = jobStatus === 'all' ? undefined : { status: jobStatus };
+      const params = buildExecutionJobParams(jobStatus, scope);
       setJobs(await apiRequest<ServerExecutionJob[]>('GET:/server-execution-jobs', params));
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载执行任务失败');
@@ -60,7 +47,7 @@ export function useExecutionGovernance() {
   const loadLeases = usePersistFn(async () => {
     setLeaseLoading(true);
     try {
-      const params = leaseStatus === 'all' ? undefined : { status: leaseStatus };
+      const params = buildExecutionLeaseParams(leaseStatus, scope);
       setLeases(await apiRequest<ServerExecutionLease[]>('GET:/server-execution-leases', params));
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载执行占用失败');
@@ -74,7 +61,9 @@ export function useExecutionGovernance() {
     setSupervisorError('');
     try {
       setSupervisor(
-        await apiRequest<ServerExecutionSupervisorSnapshot>('GET:/server-execution-jobs/supervisor'),
+        await apiRequest<ServerExecutionSupervisorSnapshot>(
+          'GET:/server-execution-jobs/supervisor',
+        ),
       );
     } catch (err) {
       setSupervisor(null);
@@ -88,10 +77,16 @@ export function useExecutionGovernance() {
     setError('');
     await Promise.all([loadJobs(), loadLeases(), loadSupervisor()]);
   });
+  const scopeKey = buildExecutionJobScopeKey(scope);
+
+  useEffect(() => {
+    setJobStatus(scope.jobStatus || 'all');
+    setLeaseStatus(scope.leaseStatus || 'running');
+  }, [scope.jobStatus, scope.leaseStatus]);
 
   useEffect(() => {
     loadData();
-  }, [jobStatus, leaseStatus, loadData]);
+  }, [jobStatus, leaseStatus, scopeKey, loadData]);
 
   const jobStats = useMemo<JobStats>(
     () => ({
@@ -187,30 +182,13 @@ export function useExecutionGovernance() {
     }
   });
 
-  return {
-    jobs,
-    leases,
-    supervisor,
-    jobStatus,
-    setJobStatus,
-    leaseStatus,
-    setLeaseStatus,
-    jobLoading,
-    leaseLoading,
-    supervisorLoading,
-    supervisorError,
-    actingJobId,
-    processingQueue,
-    recoveringStale,
-    actingLease,
-    error,
-    jobStats,
-    leaseStats,
-    expireStale,
-    cancelJob,
-    retryJob,
-    processNextQueuedJob,
-    recoverStaleJobs,
-    reload: loadData,
-  };
+  return Object.assign(
+    { jobs, leases, supervisor },
+    { jobStatus, setJobStatus, leaseStatus, setLeaseStatus },
+    { jobLoading, leaseLoading, supervisorLoading, supervisorError },
+    { actingJobId, processingQueue, recoveringStale, actingLease, error },
+    { jobStats, leaseStats },
+    { expireStale, cancelJob, retryJob, processNextQueuedJob, recoverStaleJobs },
+    { reload: loadData },
+  );
 }

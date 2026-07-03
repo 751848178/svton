@@ -1,5 +1,16 @@
 /** 执行治理域类型 - Job/Lease/远程执行/Agent 摘要接口。Supervisor 快照见 ./supervisor.ts */
 
+export interface ExecutionGovernanceScope {
+  jobStatus?: string;
+  leaseStatus?: string;
+  projectId?: string;
+  environmentId?: string;
+  serverId?: string;
+  operationKey?: string;
+  adapterKey?: string;
+  queueMode?: string;
+}
+
 export interface ServerExecutionLease {
   id: string;
   operationKey: string;
