@@ -128,7 +128,9 @@ export default function ResourceRequestsPage() {
           loading={runsLoading}
           error={runsError}
           replayingRunId={replayingRunId}
+          reconcilingRunId={reconcilingRunId}
           onReplay={replayProvisioningRun}
+          onReconcile={reconcileProviderProvisioningRun}
           onClose={closeRuns}
         />
       ) : null}

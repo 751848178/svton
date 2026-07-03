@@ -77,6 +77,14 @@ export function canReplayProvisioningRun(request: ResourceRequest, run: Resource
   );
 }
 
+export function canReconcileProviderProvisioningRun(
+  request: ResourceRequest,
+  run: ResourceProvisioningRun,
+) {
+  const currentRunId = request.result?.provisioning?.provisioningRunId;
+  return request.status === 'approved' && currentRunId === run.id && run.mode === 'provider';
+}
+
 export function getRunStatusBadge(status?: string) {
   const classes: Record<string, string> = {
     queued: 'bg-purple-100 text-purple-700',
