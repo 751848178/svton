@@ -10,6 +10,16 @@ import type {
   AlertEvent,
 } from './types';
 
+export interface LogFollowMetadataPolicy {
+  enabled?: boolean;
+  live?: boolean;
+  confirmLiveRead?: boolean;
+  queue?: boolean;
+  tail?: number;
+  intervalMinutes?: number;
+  maxAttempts?: number;
+}
+
 export interface LogStreamMetadata {
   redaction?: {
     extraKeys?: string[];
@@ -25,15 +35,8 @@ export interface LogStreamMetadata {
     limit?: number;
     intervalMinutes?: number;
   };
-  serverFollow?: {
-    enabled?: boolean;
-    live?: boolean;
-    confirmLiveRead?: boolean;
-    queue?: boolean;
-    tail?: number;
-    intervalMinutes?: number;
-    maxAttempts?: number;
-  };
+  serverFollow?: LogFollowMetadataPolicy;
+  agentFollow?: LogFollowMetadataPolicy;
   [key: string]: unknown;
 }
 

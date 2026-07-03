@@ -15,11 +15,10 @@ import type { Resource, ResourceType, ResourceInput } from '../types';
 
 const RESOURCES_KEY = 'GET:/resources';
 const RESOURCE_TYPES_KEY = 'GET:/registry/resource-types';
+const EMPTY_RESOURCES: Resource[] = [];
+const EMPTY_RESOURCE_TYPES: ResourceType[] = [];
 
-export function useResources(
-  initialResources?: Resource[],
-  initialResourceTypes?: ResourceType[],
-) {
+export function useResources(initialResources?: Resource[], initialResourceTypes?: ResourceType[]) {
   const { data: resourcesData, isLoading: resourcesLoading } = useQueryLoose<Resource[]>(
     RESOURCES_KEY,
     { fallback: initialResources },
@@ -28,8 +27,8 @@ export function useResources(
     fallback: initialResourceTypes,
   });
 
-  const resources = resourcesData ?? [];
-  const resourceTypes = resourceTypesData ?? [];
+  const resources = resourcesData ?? EMPTY_RESOURCES;
+  const resourceTypes = resourceTypesData ?? EMPTY_RESOURCE_TYPES;
   const isLoading = resourcesLoading;
 
   const resourceTypeMap = useMemo(

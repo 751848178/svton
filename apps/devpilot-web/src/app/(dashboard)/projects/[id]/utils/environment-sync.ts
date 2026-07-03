@@ -27,6 +27,30 @@ export function buildScopedHref(
   return `${path}?${params.toString()}`;
 }
 
+const SITE_COPY_SCOPE_PARAMS = {
+  category: 'project_environment',
+  action: 'project_environment.sites.copy',
+  targetType: 'project_environment',
+};
+
+export function buildSiteCopyAuditHref(projectId: string, environmentId?: string | null): string {
+  return buildScopedHref('/audit-events', projectId, environmentId, SITE_COPY_SCOPE_PARAMS);
+}
+
+export function buildSiteCopyApprovalHref(
+  projectId: string,
+  environmentId?: string | null,
+): string {
+  return buildScopedHref('/operation-approvals', projectId, environmentId, SITE_COPY_SCOPE_PARAMS);
+}
+
+export function buildSiteCopyExecutionHref(
+  projectId: string,
+  environmentId?: string | null,
+): string {
+  return buildScopedHref('/execution-governance', projectId, environmentId);
+}
+
 export function getEnvironmentSuggestionHref(
   action: EnvironmentSyncSuggestionAction,
   projectId: string,

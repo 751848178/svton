@@ -95,7 +95,7 @@ export function useProjectDetail(projectId: string) {
     loadServers();
     loadTeamCredentials();
     loadEnvironmentSyncSuggestions();
-  }, [projectId]);
+  }, [loadEnvironmentSyncSuggestions, loadProject, loadServers, loadTeamCredentials, projectId]);
 
   return {
     project,

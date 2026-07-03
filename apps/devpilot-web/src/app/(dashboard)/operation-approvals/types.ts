@@ -4,6 +4,17 @@
  * 单一职责：仅声明接口。
  */
 
+export interface ApprovalScope {
+  status?: string;
+  projectId?: string;
+  environmentId?: string;
+  category?: string;
+  action?: string;
+  targetType?: string;
+  risk?: string;
+  requesterId?: string;
+}
+
 export interface ApprovalActor {
   id: string;
   name?: string | null;

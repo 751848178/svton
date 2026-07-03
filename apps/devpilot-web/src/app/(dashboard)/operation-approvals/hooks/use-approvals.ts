@@ -18,9 +18,14 @@ import type { OperationApproval, ApprovalDecision, ApprovalStats } from '../type
 /** 默认状态（与 server 首屏取数一致），用于匹配 initialApprovals fallback。 */
 const DEFAULT_STATUS = 'pending';
 
+/** 稳定空数组 fallback,避免 stats memo 依赖在缺省 data 时每次 render 变化。 */
+const EMPTY_APPROVALS: OperationApproval[] = [];
+
 /** SWR key：编码 status,以便切换筛选时重新取数。 */
 function approvalsKey(status: string): string {
-  return status === 'all' ? 'GET:/operation-approvals' : `GET:/operation-approvals?status=${status}`;
+  return status === 'all'
+    ? 'GET:/operation-approvals'
+    : `GET:/operation-approvals?status=${status}`;
 }
 
 export function useApprovals(initialApprovals?: OperationApproval[]) {
@@ -31,11 +36,12 @@ export function useApprovals(initialApprovals?: OperationApproval[]) {
   // 仅默认视图使用 server 下发的 initialApprovals 作为 fallback。
   const fallback = status === DEFAULT_STATUS ? initialApprovals : undefined;
 
-  const { data, isLoading, mutate: refresh } = useQueryLoose<OperationApproval[]>(
-    approvalsKey(status),
-    { fallback },
-  );
-  const approvals = data ?? [];
+  const {
+    data,
+    isLoading,
+    mutate: refresh,
+  } = useQueryLoose<OperationApproval[]>(approvalsKey(status), { fallback });
+  const approvals = data ?? EMPTY_APPROVALS;
 
   const stats = useMemo<ApprovalStats>(
     () => ({

@@ -6,6 +6,7 @@
 
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
+import Image from 'next/image';
 import type { Member as TeamMember, MemberRole } from '@/store/hooks';
 
 interface MemberRowProps {
@@ -32,9 +33,12 @@ export function MemberRow({ member, canManage, onUpdateRole, onRemove }: MemberR
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
           {member.user.avatar ? (
-            <img
+            <Image
               src={member.user.avatar}
               alt={member.user.name || ''}
+              width={40}
+              height={40}
+              unoptimized
               className="h-10 w-10 rounded-full"
             />
           ) : (

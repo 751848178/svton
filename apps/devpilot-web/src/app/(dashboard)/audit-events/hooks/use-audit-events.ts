@@ -16,13 +16,16 @@ import type { AuditEvent, AuditFilters, AuditStats } from '../types';
 
 /** SWR 缓存 key（与 useQueryLoose 的 apiName / server 端 serverRequest 一致）。 */
 const AUDIT_EVENTS_KEY = 'GET:/audit-events';
+const EMPTY_AUDIT_EVENTS: AuditEvent[] = [];
 
 export function useAuditEvents(initialEvents?: AuditEvent[] | undefined) {
-  const { data, isLoading, error, mutate: refresh } = useQueryLoose<AuditEvent[]>(
-    AUDIT_EVENTS_KEY,
-    { fallback: initialEvents },
-  );
-  const allEvents = data ?? [];
+  const {
+    data,
+    isLoading,
+    error,
+    mutate: refresh,
+  } = useQueryLoose<AuditEvent[]>(AUDIT_EVENTS_KEY, { fallback: initialEvents });
+  const allEvents = data ?? EMPTY_AUDIT_EVENTS;
 
   const [filters, setFilters] = useState<AuditFilters>({
     category: 'all',

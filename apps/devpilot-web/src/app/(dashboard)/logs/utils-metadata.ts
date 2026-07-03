@@ -3,6 +3,42 @@
 import type { LogStreamMetadata } from './types-stream';
 import { clampNumber } from './utils-sse';
 
+type FollowMetadata = NonNullable<LogStreamMetadata['serverFollow']>;
+
+type FollowMetadataInput = {
+  enabled: boolean;
+  live: boolean;
+  confirmLiveRead: boolean;
+  queue: boolean;
+  tail: number;
+  intervalMinutes: number;
+  maxAttempts: number;
+};
+
+function readFollowMetadata(raw: FollowMetadata | undefined) {
+  return {
+    enabled: raw?.enabled === true,
+    live: raw?.live === true,
+    confirmLiveRead: raw?.confirmLiveRead === true,
+    queue: raw?.queue !== false,
+    tail: clampNumber(raw?.tail, 200, 1, 5000),
+    intervalMinutes: clampNumber(raw?.intervalMinutes, 5, 1, 10080),
+    maxAttempts: clampNumber(raw?.maxAttempts, 3, 1, 10),
+  };
+}
+
+function normalizeFollowMetadata(follow: FollowMetadataInput) {
+  return {
+    enabled: follow.enabled,
+    live: follow.live,
+    confirmLiveRead: follow.confirmLiveRead,
+    queue: follow.queue,
+    tail: clampNumber(follow.tail, 200, 1, 5000),
+    intervalMinutes: clampNumber(follow.intervalMinutes, 5, 1, 10080),
+    maxAttempts: clampNumber(follow.maxAttempts, 3, 1, 10),
+  };
+}
+
 export function readSlsBackfillMetadata(metadata?: LogStreamMetadata | null) {
   const raw = metadata?.slsBackfill || {};
   return {
@@ -17,16 +53,11 @@ export function readSlsBackfillMetadata(metadata?: LogStreamMetadata | null) {
 }
 
 export function readServerFollowMetadata(metadata?: LogStreamMetadata | null) {
-  const raw = metadata?.serverFollow || {};
-  return {
-    enabled: raw.enabled === true,
-    live: raw.live === true,
-    confirmLiveRead: raw.confirmLiveRead === true,
-    queue: raw.queue !== false,
-    tail: clampNumber(raw.tail, 200, 1, 5000),
-    intervalMinutes: clampNumber(raw.intervalMinutes, 5, 1, 10080),
-    maxAttempts: clampNumber(raw.maxAttempts, 3, 1, 10),
-  };
+  return readFollowMetadata(metadata?.serverFollow);
+}
+
+export function readAgentFollowMetadata(metadata?: LogStreamMetadata | null) {
+  return readFollowMetadata(metadata?.agentFollow);
 }
 
 export function isServerFollowSourceType(sourceType?: string | null) {
@@ -92,26 +123,20 @@ export function mergeSlsBackfillMetadata(
 
 export function mergeServerFollowMetadata(
   metadata: LogStreamMetadata | null | undefined,
-  serverFollow: {
-    enabled: boolean;
-    live: boolean;
-    confirmLiveRead: boolean;
-    queue: boolean;
-    tail: number;
-    intervalMinutes: number;
-    maxAttempts: number;
-  },
+  serverFollow: FollowMetadataInput,
 ): LogStreamMetadata {
   return {
     ...(metadata || {}),
-    serverFollow: {
-      enabled: serverFollow.enabled,
-      live: serverFollow.live,
-      confirmLiveRead: serverFollow.confirmLiveRead,
-      queue: serverFollow.queue,
-      tail: clampNumber(serverFollow.tail, 200, 1, 5000),
-      intervalMinutes: clampNumber(serverFollow.intervalMinutes, 5, 1, 10080),
-      maxAttempts: clampNumber(serverFollow.maxAttempts, 3, 1, 10),
-    },
+    serverFollow: normalizeFollowMetadata(serverFollow),
+  };
+}
+
+export function mergeAgentFollowMetadata(
+  metadata: LogStreamMetadata | null | undefined,
+  agentFollow: FollowMetadataInput,
+): LogStreamMetadata {
+  return {
+    ...(metadata || {}),
+    agentFollow: normalizeFollowMetadata(agentFollow),
   };
 }

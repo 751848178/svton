@@ -12,9 +12,8 @@ import { useLogsState } from './use-logs-state';
 import { useLogsTailState } from './use-logs-tail-state';
 import { useLogsTail } from './use-logs-tail';
 import { useLogsPolicies } from './use-logs-policies';
-import { sourceTypeForTarget, formatTargetType } from '../utils';
+import { useLogsActions } from './use-logs-actions.hooks';
 import type { LogStream } from '../types-stream';
-import type { TargetType, ManagedResource } from '../types';
 
 export function useLogs() {
   const s = useLogsState();
@@ -120,119 +119,7 @@ export function useLogs() {
     loadData();
   }, [loadData]);
 
-  const createStream = usePersistFn(async () => {
-    if (s.targetType !== 'manual' && !s.targetId) {
-      alert('请选择日志目标');
-      return;
-    }
-    s.setSaving(true);
-    s.setError('');
-    try {
-      const body: Record<string, unknown> = {
-        name: s.streamName.trim() || `${formatTargetType(s.targetType as TargetType)}日志流`,
-        sourceType: sourceTypeForTarget(
-          s.targetType as TargetType,
-          s.resources.find((r) => r.id === s.targetId) as ManagedResource | undefined,
-        ),
-      };
-      const map: Record<string, string> = {
-        service: 'applicationServiceId',
-        server: 'serverId',
-        site: 'siteId',
-        resource: 'managedResourceId',
-        backup: 'backupPlanId',
-        deployment: 'deploymentRunId',
-        alert: 'alertEventId',
-      };
-      const key = map[s.targetType];
-      if (key && s.targetId) body[key] = s.targetId;
-      if (s.targetType === 'manual' && s.targetId) body.projectId = s.targetId;
-      if (s.sourceKey.trim()) body.sourceKey = s.sourceKey.trim();
-      const stream = await apiRequest<LogStream>('POST:/logs/streams', body);
-      s.setStreamName('');
-      s.setSourceKey('');
-      s.setSelectedStreamId(stream.id);
-      await loadData();
-    } catch (err) {
-      s.setError(err instanceof Error ? err.message : '创建日志流失败');
-    } finally {
-      s.setSaving(false);
-    }
-  });
-
-  const appendEntry = usePersistFn(async () => {
-    if (!s.selectedStreamId) {
-      alert('请选择日志流');
-      return;
-    }
-    if (!s.entryMessage.trim()) {
-      alert('请输入日志内容');
-      return;
-    }
-    s.setAppending(true);
-    s.setError('');
-    try {
-      await apiRequest(`POST:/logs/streams/${s.selectedStreamId}/entries`, {
-        level: s.entryLevel,
-        message: s.entryMessage,
-        source: 'manual',
-      });
-      s.setEntryMessage('');
-      await loadData();
-    } catch (err) {
-      s.setError(err instanceof Error ? err.message : '追加日志失败');
-    } finally {
-      s.setAppending(false);
-    }
-  });
-
-  const collectSelectedStream = usePersistFn(async () => {
-    if (!s.selectedStreamId) {
-      alert('请选择日志流');
-      return;
-    }
-    s.setCollecting(true);
-    s.setError('');
-    try {
-      const body: Record<string, unknown> = {
-        dryRun: isSelectedSlsStream ? !t.slsLiveCollect : true,
-        queue: t.queueLogCollections,
-        tail: 200,
-      };
-      if (isSelectedSlsStream)
-        body.params = {
-          query: t.slsQuery.trim() || '*',
-          windowMinutes: t.slsWindowMinutes,
-          limit: t.slsLimit,
-          logstore: selectedStream?.sourceKey || undefined,
-          confirmLiveRead: t.slsLiveCollect && t.slsConfirmLiveRead,
-        };
-      await apiRequest(`POST:/logs/streams/${s.selectedStreamId}/collect`, body);
-      await loadData();
-    } catch (err) {
-      s.setError(err instanceof Error ? err.message : '生成采集计划失败');
-    } finally {
-      s.setCollecting(false);
-    }
-  });
-
-  const cleanupSelectedRetention = usePersistFn(async (dryRun: boolean) => {
-    if (!s.selectedStreamId) {
-      alert('请选择日志流');
-      return;
-    }
-    t.setCleaningRetention(dryRun ? 'dry-run' : 'live');
-    s.setError('');
-    try {
-      await apiRequest(`POST:/logs/streams/${s.selectedStreamId}/retention/cleanup`, { dryRun });
-      await loadData();
-    } catch (err) {
-      s.setError(err instanceof Error ? err.message : '日志保留清理失败');
-    } finally {
-      t.setCleaningRetention('');
-    }
-  });
-
+  const actions = useLogsActions({ s, t, selectedStream, isSelectedSlsStream, loadData });
   const tail = useLogsTail({ s, t, selectedStream, isSelectedSlsStream, loadData });
   const policies = useLogsPolicies({ s, t, selectedStream, loadData });
 
@@ -244,10 +131,7 @@ export function useLogs() {
     selectedStream,
     isSelectedSlsStream,
     loadData,
-    createStream,
-    appendEntry,
-    collectSelectedStream,
-    cleanupSelectedRetention,
+    ...actions,
     ...tail,
     ...policies,
   };
