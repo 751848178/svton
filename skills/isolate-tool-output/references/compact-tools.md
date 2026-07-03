@@ -14,6 +14,8 @@ node <skill-dir>/scripts/token-guard.mjs \
 
 Use it before a raw `rg/find/grep`, long `sed/tail/cat`, raw `git diff`, log reread, or session JSONL inspection when the output size is uncertain. If `status` is `route_to_compact_tool`, rewrite the command before running it.
 
+The classifier is also importable: `analyze`, `shellTokens`, `extractRgShape`, `parseSedRange`, `parseTailLines` are all `export`-ed, and the CLI runs only when the module is invoked directly (importing has no side effects). The repo-level PreToolUse hook `scripts/hooks/pre-tool-use.mjs` imports `analyze()` to enforce blocks; reuse the same import path rather than re-implementing detection.
+
 ## `smart-rg.mjs`
 
 Two-stage search wrapper for broad `rg` work. It writes full ripgrep JSON to a log and prints compact JSON with match counts, matched files, and a few line samples.

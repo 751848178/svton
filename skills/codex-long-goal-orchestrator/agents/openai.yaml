@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Long Goal Orchestrator"
+  short_description: "Coordinate long goals through managed worker threads"
+  default_prompt: "Use $codex-long-goal-orchestrator to split this long Codex goal into managed worker threads with a compact progress board."

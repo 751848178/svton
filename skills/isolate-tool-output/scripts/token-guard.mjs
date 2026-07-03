@@ -55,7 +55,7 @@ function quoteArg(arg) {
   return /^[A-Za-z0-9_/:=.,@%+-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
-function shellTokens(command) {
+export function shellTokens(command) {
   const tokens = [];
   let current = '';
   let quote = null;
@@ -104,7 +104,7 @@ function scriptPath(name) {
   return path.join(here, name);
 }
 
-function extractRgShape(tokens) {
+export function extractRgShape(tokens) {
   const first = tokens[0];
   if (!['rg', 'grep', 'find'].includes(first)) {
     return null;
@@ -168,7 +168,7 @@ function extractRgShape(tokens) {
   };
 }
 
-function parseSedRange(command) {
+export function parseSedRange(command) {
   const range = command.match(/sed\s+-n\s+['"]?(\d+),(\d+)p['"]?/);
   if (!range) {
     return null;
@@ -178,7 +178,7 @@ function parseSedRange(command) {
   return { start, end, lines: Number.isFinite(start) && Number.isFinite(end) ? end - start + 1 : null };
 }
 
-function parseTailLines(command) {
+export function parseTailLines(command) {
   const match = command.match(/tail\s+-n\s+(\d+)/);
   if (!match) {
     return null;
@@ -186,7 +186,7 @@ function parseTailLines(command) {
   return Number.parseInt(match[1], 10);
 }
 
-function analyze(options) {
+export function analyze(options) {
   const normalized = options.command.trim().replace(/\s+/g, ' ');
   const tokens = shellTokens(normalized);
   const violations = [];
@@ -293,10 +293,13 @@ function analyze(options) {
   };
 }
 
-try {
-  const options = parseArgs(process.argv.slice(2));
-  console.log(JSON.stringify(analyze(options), null, 2));
-} catch (error) {
-  console.error(error instanceof Error ? error.stack : String(error));
-  process.exit(1);
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  try {
+    const options = parseArgs(process.argv.slice(2));
+    console.log(JSON.stringify(analyze(options), null, 2));
+  } catch (error) {
+    console.error(error instanceof Error ? error.stack : String(error));
+    process.exit(1);
+  }
 }
