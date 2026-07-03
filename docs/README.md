@@ -14,6 +14,11 @@
 | [环境准备](./start/prerequisites.md) | 开发环境安装和配置 |
 | [项目初始化](./start/initialization.md) | 从零开始创建新项目 |
 
+### 🧭 Devpilot 平台
+| 文档 | 说明 |
+|------|------|
+| [Devpilot 使用指南](./devpilot/usage-guide.md) | 面向新用户的功能使用与状态总览 |
+
 ### 🏗️ 架构设计
 | 文档 | 说明 |
 |------|------|
