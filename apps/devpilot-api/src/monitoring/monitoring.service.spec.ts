@@ -1,6 +1,29 @@
 import { ConfigService } from '@nestjs/config';
 import { AuditEventService } from '../audit-event';
 import { PrismaService } from '../prisma/prisma.service';
+import { MonitoringAlertEscalationAuditService } from './monitoring-alert-escalation-audit.service';
+import { MonitoringAlertEscalationService } from './monitoring-alert-escalation.service';
+import { MonitoringAlertSilenceMatcherService } from './monitoring-alert-silence-matcher.service';
+import { MonitoringAlertSilenceWindowService } from './monitoring-alert-silence-window.service';
+import { MonitoringAlertSilenceService } from './monitoring-alert-silence.service';
+import { MonitoringNotificationChannelSettingsService } from './monitoring-notification-channel-settings.service';
+import { MonitoringNotificationChannelService } from './monitoring-notification-channel.service';
+import { MonitoringNotificationDeliveryConfigService } from './monitoring-notification-delivery-config.service';
+import { MonitoringNotificationDeliveryDispatchService } from './monitoring-notification-delivery-dispatch.service';
+import { MonitoringNotificationDeliveryEmailSenderService } from './monitoring-notification-delivery-email-sender.service';
+import { MonitoringNotificationDeliveryEmailService } from './monitoring-notification-delivery-email.service';
+import { MonitoringNotificationDeliveryPayloadService } from './monitoring-notification-delivery-payload.service';
+import { MonitoringNotificationDeliveryReadService } from './monitoring-notification-delivery-read.service';
+import { MonitoringNotificationDeliveryWebhookService } from './monitoring-notification-delivery-webhook.service';
+import { MonitoringNotificationDeliveryWriterService } from './monitoring-notification-delivery-writer.service';
+import { MonitoringNotificationRetryAuditService } from './monitoring-notification-retry-audit.service';
+import { MonitoringNotificationRetryService } from './monitoring-notification-retry.service';
+import { MonitoringProjectEnvironmentScopeService } from './monitoring-project-environment-scope.service';
+import { MonitoringResourceMetricDashboardBuilderService } from './monitoring-resource-metric-dashboard-builder.service';
+import { MonitoringResourceMetricDashboardService } from './monitoring-resource-metric-dashboard.service';
+import { MonitoringServiceSloDashboardBuilderService } from './monitoring-service-slo-dashboard-builder.service';
+import { MonitoringServiceSloDashboardService } from './monitoring-service-slo-dashboard.service';
+import { MonitoringServiceSloDashboardStatusService } from './monitoring-service-slo-dashboard-status.service';
 import { MonitoringService } from './monitoring.service';
 
 type PrismaMock = {
@@ -58,6 +81,20 @@ describe('MonitoringService cloud provider sync alerts', () => {
   let prisma: PrismaMock;
   let auditEventService: { create: jest.Mock };
   let configService: { get: jest.Mock };
+  let alertEscalationAuditService: MonitoringAlertEscalationAuditService;
+  let alertEscalationService: MonitoringAlertEscalationService;
+  let alertSilenceService: MonitoringAlertSilenceService;
+  let notificationChannelSettingsService: MonitoringNotificationChannelSettingsService;
+  let notificationChannelService: MonitoringNotificationChannelService;
+  let notificationDeliveryReadService: MonitoringNotificationDeliveryReadService;
+  let notificationDeliveryConfigService: MonitoringNotificationDeliveryConfigService;
+  let notificationDeliveryDispatchService: MonitoringNotificationDeliveryDispatchService;
+  let notificationDeliveryPayloadService: MonitoringNotificationDeliveryPayloadService;
+  let notificationRetryAuditService: MonitoringNotificationRetryAuditService;
+  let notificationRetryService: MonitoringNotificationRetryService;
+  let resourceMetricDashboardService: MonitoringResourceMetricDashboardService;
+  let projectEnvironmentScopeService: MonitoringProjectEnvironmentScopeService;
+  let serviceSloDashboardService: MonitoringServiceSloDashboardService;
   let service: MonitoringService;
 
   beforeEach(() => {
@@ -178,10 +215,89 @@ describe('MonitoringService cloud provider sync alerts', () => {
     configService = {
       get: jest.fn((key: string, fallback: unknown) => fallback),
     };
+    projectEnvironmentScopeService = new MonitoringProjectEnvironmentScopeService(
+      prisma as unknown as PrismaService,
+    );
+    alertSilenceService = new MonitoringAlertSilenceService(
+      prisma as unknown as PrismaService,
+      projectEnvironmentScopeService,
+      new MonitoringAlertSilenceWindowService(),
+      new MonitoringAlertSilenceMatcherService(
+        prisma as unknown as PrismaService,
+      ),
+    );
+    notificationDeliveryReadService = new MonitoringNotificationDeliveryReadService(
+      prisma as unknown as PrismaService,
+    );
+    notificationDeliveryConfigService = new MonitoringNotificationDeliveryConfigService(
+      configService as unknown as ConfigService,
+    );
+    notificationChannelSettingsService = new MonitoringNotificationChannelSettingsService(
+      notificationDeliveryConfigService,
+    );
+    notificationChannelService = new MonitoringNotificationChannelService(
+      prisma as unknown as PrismaService,
+      notificationChannelSettingsService,
+      projectEnvironmentScopeService,
+    );
+    notificationDeliveryPayloadService = new MonitoringNotificationDeliveryPayloadService();
+    const notificationDeliveryWriterService = new MonitoringNotificationDeliveryWriterService(
+      prisma as unknown as PrismaService,
+    );
+    const notificationDeliveryWebhookService = new MonitoringNotificationDeliveryWebhookService(
+      notificationDeliveryConfigService,
+      notificationDeliveryPayloadService,
+      notificationDeliveryWriterService,
+    );
+    const notificationDeliveryEmailService = new MonitoringNotificationDeliveryEmailService(
+      notificationDeliveryConfigService,
+      new MonitoringNotificationDeliveryEmailSenderService(),
+      notificationDeliveryPayloadService,
+      notificationDeliveryWriterService,
+    );
+    notificationDeliveryDispatchService = new MonitoringNotificationDeliveryDispatchService(
+      prisma as unknown as PrismaService,
+      notificationDeliveryEmailService,
+      notificationDeliveryWebhookService,
+    );
+    notificationRetryAuditService = new MonitoringNotificationRetryAuditService(
+      auditEventService as unknown as AuditEventService,
+    );
+    notificationRetryService = new MonitoringNotificationRetryService(
+      prisma as unknown as PrismaService,
+      notificationRetryAuditService,
+      notificationDeliveryDispatchService,
+    );
+    alertEscalationAuditService = new MonitoringAlertEscalationAuditService(
+      auditEventService as unknown as AuditEventService,
+    );
+    alertEscalationService = new MonitoringAlertEscalationService(
+      prisma as unknown as PrismaService,
+      alertEscalationAuditService,
+      notificationDeliveryDispatchService,
+    );
+    resourceMetricDashboardService = new MonitoringResourceMetricDashboardService(
+      prisma as unknown as PrismaService,
+      new MonitoringResourceMetricDashboardBuilderService(),
+    );
+    serviceSloDashboardService = new MonitoringServiceSloDashboardService(
+      prisma as unknown as PrismaService,
+      new MonitoringServiceSloDashboardBuilderService(
+        new MonitoringServiceSloDashboardStatusService(),
+      ),
+    );
     service = new MonitoringService(
       prisma as unknown as PrismaService,
       auditEventService as unknown as AuditEventService,
       configService as unknown as ConfigService,
+      resourceMetricDashboardService,
+      serviceSloDashboardService,
+      alertSilenceService,
+      notificationDeliveryReadService,
+      notificationChannelService,
+      notificationDeliveryDispatchService,
+      notificationRetryService,
+      alertEscalationService,
     );
   });
 
