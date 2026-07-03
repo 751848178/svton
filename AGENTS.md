@@ -10,6 +10,19 @@ These rules apply to AI agents working in this repository.
 - Do not run broad `find .`, `du .`, `wc -c`, `cat`, or `nl -ba` unless the command prunes heavy paths and bounds output.
 - Bound large output with `head`, `sed -n`, `--max-count`, `--files-with-matches`, or a saved log plus a short summary.
 
+## Token-Guard Hook
+
+A PreToolUse hook (`scripts/hooks/pre-tool-use.mjs`, shared by Codex via `.codex/hooks.json` and Claude Code via `.claude/settings.json`) inspects Bash commands before they run and blocks high-token-bloat patterns:
+
+- **Blocked (hard deny):** broad multi-keyword `rg` without `--max-count`/`-l`/`--count` across multiple paths; any `rg` over `.jsonl` session files; `sed`/`tail` windows over 250 lines; re-reading isolated logs back into context.
+- **Warned (allowed, with a hint):** raw `git diff` (use `diff-summary.mjs`), `cat` of whole files, `sed`/`tail` windows of 120–250 lines, progress/roadmap markdown reads.
+
+When blocked, the stderr message names the violation and the compact-tool replacement (`smart-rg.mjs`, `safe-read.mjs`, `diff-summary.mjs`, `codex-session-token-audit.mjs`). Use the suggested command instead.
+
+Escape hatch: append `# noqa token-guard` to the command or set `SVTON_TOKEN_GUARD=off` for a one-off genuine exception. The hook fails open (any internal error → allow), so it cannot wedge tool calls.
+
+On first run in Codex, approve the repo hook via `/hooks`; the project is already trusted.
+
 ## Skills
 
 - Treat `skills/` as source code for skill packages, not as the active Codex or Claude install directory.
