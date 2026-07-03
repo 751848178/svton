@@ -138,6 +138,21 @@ export interface ResourceActionDefinition {
   requiresConfirmation: boolean;
 }
 
+export type ResourceActionRunInput = string | ResourceActionDefinition;
+
+export interface ResourceActionRunOptions {
+  dryRun?: boolean;
+  queue?: boolean;
+  maxAttempts?: number;
+  confirmationText?: string;
+  approvalId?: string;
+}
+
+export interface ExecuteResourceActionRequest extends ResourceActionRunOptions {
+  action: string;
+  dryRun: boolean;
+}
+
 export interface ResourceActionRun {
   id: string;
   action: string;

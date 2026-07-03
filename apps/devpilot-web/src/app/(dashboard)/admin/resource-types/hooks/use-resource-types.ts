@@ -17,7 +17,11 @@ import type { ResourceType } from '../types';
 const RESOURCE_TYPES_KEY = 'GET:/resource-types?includeDisabled=true';
 
 export function useResourceTypes(initialResourceTypes?: ResourceType[] | undefined) {
-  const { data, isLoading, mutate: refresh } = useQueryLoose<ResourceType[]>(RESOURCE_TYPES_KEY, {
+  const {
+    data,
+    isLoading,
+    mutate: refresh,
+  } = useQueryLoose<ResourceType[]>(RESOURCE_TYPES_KEY, {
     fallback: initialResourceTypes,
   });
   const resourceTypes = data ?? [];

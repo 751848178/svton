@@ -12,6 +12,9 @@ import type {
   ManagedResource,
   ProjectEnvironment,
   TeamCredential,
+  ExecuteResourceActionRequest,
+  ResourceActionRunInput,
+  ResourceActionRunOptions,
   ResourceActionRun,
 } from '../types';
 import type { ResourceConnectionRun, ResourceQueryRun } from '../types-query';
@@ -61,21 +64,37 @@ export function useResourceControl() {
     loadData();
   }, [loadData]);
 
-  const runAction = usePersistFn(async (resource: ManagedResource, actionKey: string) => {
-    setActingResourceId(`${resource.id}:${actionKey}`);
-    setError('');
-    try {
-      await apiRequest(`POST:/resource-control/resources/${resource.id}/actions`, {
+  const runAction = usePersistFn(
+    async (
+      resource: ManagedResource,
+      action: ResourceActionRunInput,
+      options: ResourceActionRunOptions = {},
+    ) => {
+      const actionKey = typeof action === 'string' ? action : action.key;
+      const request: ExecuteResourceActionRequest = {
         action: actionKey,
-        dryRun: true,
-      });
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '执行资源动作失败');
-    } finally {
-      setActingResourceId('');
-    }
-  });
+        dryRun: options.dryRun ?? true,
+      };
+      if (options.queue !== undefined) request.queue = options.queue;
+      if (options.maxAttempts !== undefined) request.maxAttempts = options.maxAttempts;
+      if (options.confirmationText !== undefined)
+        request.confirmationText = options.confirmationText;
+      if (options.approvalId !== undefined) request.approvalId = options.approvalId;
+
+      setActingResourceId(`${resource.id}:${actionKey}`);
+      setError('');
+      try {
+        await apiRequest(`POST:/resource-control/resources/${resource.id}/actions`, {
+          ...request,
+        });
+        await loadData();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '执行资源动作失败');
+      } finally {
+        setActingResourceId('');
+      }
+    },
+  );
 
   const syncResource = usePersistFn(async (resource: ManagedResource) => {
     setActingResourceId(`${resource.id}:sync`);

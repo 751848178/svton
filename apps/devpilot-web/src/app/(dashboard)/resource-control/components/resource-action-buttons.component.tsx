@@ -2,10 +2,7 @@
 
 import { useState } from 'react';
 import type { useResourceControl } from '../hooks/use-resource-control';
-import {
-  buildResourceActionKey,
-  formatActionRisk,
-} from '../resource-action-ui.utils';
+import { buildResourceActionKey, formatActionRisk } from '../resource-action-ui.utils';
 import type { ManagedResource, ResourceActionDefinition } from '../types';
 
 type RCHook = ReturnType<typeof useResourceControl>;
@@ -57,18 +54,22 @@ export function ResourceActionButtons({
                 <>
                   <input
                     value={value}
-                    onChange={(event) => setConfirmationText((current) => ({
-                      ...current,
-                      [actionStateKey]: event.target.value,
-                    }))}
+                    onChange={(event) =>
+                      setConfirmationText((current) => ({
+                        ...current,
+                        [actionStateKey]: event.target.value,
+                      }))
+                    }
                     placeholder={resource.name}
                     className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-xs"
                   />
                   <button
-                    onClick={() => rc.runAction(resource, action, {
-                      confirmationText: value,
-                      dryRun: false,
-                    })}
+                    onClick={() =>
+                      rc.runAction(resource, action, {
+                        confirmationText: value,
+                        dryRun: false,
+                      })
+                    }
                     disabled={!canExecute || isActing}
                     className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
                   >

@@ -9,6 +9,7 @@ import { useApplications } from './hooks/use-applications';
 import { CreateAppForm } from './components/create-app-form';
 import { CreateServiceForm } from './components/create-service-form';
 import { ApplicationCard } from './components/application-card';
+import { ApplicationsPageActions } from './components/applications-page-actions.component';
 
 // React 19 类型下 Suspense 跨包 JSX 校验差异，用类型断言绕过（TS2786）
 const Suspense = ReactSuspense as unknown as (props: {
@@ -96,30 +97,13 @@ function ApplicationsContent() {
         title="应用服务"
         description="以服务为单位组织环境、服务器、站点、资源和部署配置"
         actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={queueDeploymentRuns}
-                onChange={(e) => setQueueDeploymentRuns(e.target.checked)}
-              />
-              部署计划加入队列
-            </label>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={queueServiceOperations}
-                onChange={(e) => setQueueServiceOperations(e.target.checked)}
-              />
-              服务操作加入队列
-            </label>
-            <button
-              onClick={handleRetry}
-              className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-            >
-              刷新
-            </button>
-          </div>
+          <ApplicationsPageActions
+            queueDeploymentRuns={queueDeploymentRuns}
+            queueServiceOperations={queueServiceOperations}
+            onQueueDeploymentRunsChange={setQueueDeploymentRuns}
+            onQueueServiceOperationsChange={setQueueServiceOperations}
+            onRefresh={handleRetry}
+          />
         }
       />
 

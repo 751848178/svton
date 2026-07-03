@@ -15,7 +15,8 @@ import type {
   ServiceSloRow,
 } from '../types';
 import { kindLabels, operationLabels, SERVICE_ACTIONS } from '../constants';
-import { getOperationStatusLabel, formatDate, formatPercent } from '../utils';
+import { ServiceSloSummary } from './service-slo-summary.component';
+import { getOperationStatusLabel, formatDate } from '../utils';
 
 interface ServiceRowProps {
   application: ApplicationItem;
@@ -168,110 +169,6 @@ export function ServiceRow(props: ServiceRowProps) {
           </div>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function ServiceSloSummary({
-  service,
-  row,
-  loading,
-}: {
-  service: ApplicationServiceItem;
-  row?: ServiceSloRow | null;
-  loading: boolean;
-}) {
-  if (loading) {
-    return (
-      <div className="mt-3 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-        加载服务 SLO 摘要...
-      </div>
-    );
-  }
-
-  if (!row) {
-    return (
-      <div className="mt-3 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-        暂无可见 SLO 摘要
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-3 rounded-md bg-muted/50 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">SLO 摘要</span>
-          <StatusTag
-            status={row.status}
-            label={row.status === 'no_data' ? '无数据' : row.status}
-          />
-          <span className="text-xs text-muted-foreground">
-            {row.windowMinutes}m · {row.statusReason}
-          </span>
-        </div>
-        <Link
-          href={`/monitoring?applicationServiceId=${encodeURIComponent(service.id)}`}
-          className="text-xs text-primary hover:underline"
-        >
-          查看监控
-        </Link>
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-        <SloMetric
-          label="SLO"
-          value={formatPercent(row.sloPercent)}
-          muted={row.sloPercent === null || row.sloPercent === undefined}
-        />
-        <SloMetric
-          label="目标"
-          value={formatPercent(row.targetPercent)}
-        />
-        <SloMetric
-          label="错误预算"
-          value={formatPercent(row.errorBudgetRemainingPercent)}
-          muted={
-            row.errorBudgetRemainingPercent === null ||
-            row.errorBudgetRemainingPercent === undefined
-          }
-        />
-        <SloMetric
-          label="burn rate"
-          value={row.burnRate === null || row.burnRate === undefined ? '-' : String(row.burnRate)}
-          muted={row.burnRate === null || row.burnRate === undefined}
-        />
-        <SloMetric
-          label="部署失败"
-          value={`${row.deploymentFailureCount}/${row.deploymentCount}`}
-        />
-        <SloMetric
-          label="操作/告警"
-          value={`${row.operationFailureCount}/${row.operationCount} · ${row.alertImpactCount}`}
-        />
-      </div>
-    </div>
-  );
-}
-
-function SloMetric({
-  label,
-  value,
-  muted = false,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div
-        className={
-          muted ? 'truncate text-xs text-muted-foreground' : 'truncate text-xs font-medium'
-        }
-      >
-        {value}
-      </div>
     </div>
   );
 }

@@ -13,7 +13,11 @@ import type { ResourceType } from '../types';
  *
  * 接收首屏 server 数据 initialResourceTypes（SWR fallback），交互（新增/编辑/停用）在此完成。
  */
-export function ResourceTypesContent({ initialResourceTypes }: { initialResourceTypes?: ResourceType[] }) {
+export function ResourceTypesContent({
+  initialResourceTypes,
+}: {
+  initialResourceTypes?: ResourceType[];
+}) {
   const {
     resourceTypes,
     loading,

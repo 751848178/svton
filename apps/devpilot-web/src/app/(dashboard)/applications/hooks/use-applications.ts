@@ -1,8 +1,8 @@
 /**
  * 应用服务数据 Hook
  *
- * 单一职责：加载应用/项目/环境/服务器/站点/资源，计算统计，提供创建。
- * 操作（部署/服务操作/审批）委托 use-application-operations。
+ * 单一职责：加载应用/项目/环境/服务器/站点/资源，计算统计。
+ * 创建与操作分别委托 use-application-creation / use-application-operations。
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -19,8 +19,8 @@ import type {
   ServiceForm,
   AppStats,
 } from '../types';
-import { compactObject } from '../utils';
 import { useApplicationOperations } from './use-application-operations';
+import { useApplicationCreation } from './use-application-creation.hooks';
 import { useApplicationServiceSlos } from './use-application-service-slos';
 
 const INITIAL_APP_FORM: AppForm = {
@@ -142,72 +142,14 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
   const { serviceSloRows, serviceSloLoading, serviceSloError } =
     useApplicationServiceSlos(visibleServiceIds);
 
-  const createApplication = usePersistFn(async () => {
-    if (!appForm.projectId || !appForm.name.trim()) {
-      alert('请选择项目并填写应用名称');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      const application = await apiRequest<ApplicationItem>('POST:/applications', {
-        projectId: appForm.projectId,
-        name: appForm.name.trim(),
-        repositoryUrl: appForm.repositoryUrl || undefined,
-        defaultBranch: appForm.defaultBranch || undefined,
-        repoPath: appForm.repoPath || undefined,
-      });
-      setAppForm({ name: '', repoPath: '' });
-      setServiceForm({ applicationId: application.id });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '创建应用失败');
-    } finally {
-      setSaving(false);
-    }
-  });
-
-  const createService = usePersistFn(async () => {
-    if (!serviceForm.applicationId || !serviceForm.environmentId || !serviceForm.name.trim()) {
-      alert('请选择应用、环境并填写服务名称');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      const deployConfig = compactObject({
-        targetType: serviceForm.kind === 'external' ? 'external-ci' : 'server',
-        workingDirectory: serviceForm.workingDirectory,
-        buildCommand: serviceForm.buildCommand,
-        deployCommand: serviceForm.deployCommand,
-        healthCheckUrl: serviceForm.healthCheckUrl,
-      });
-      await apiRequest(`POST:/applications/${serviceForm.applicationId}/services`, {
-        environmentId: serviceForm.environmentId,
-        name: serviceForm.name.trim(),
-        kind: serviceForm.kind,
-        runtime: serviceForm.runtime || undefined,
-        serverId: serviceForm.serverId || undefined,
-        siteId: serviceForm.siteId || undefined,
-        managedResourceId: serviceForm.managedResourceId || undefined,
-        deployConfig: Object.keys(deployConfig).length > 0 ? deployConfig : undefined,
-      });
-      setServiceForm({
-        name: '',
-        runtime: '',
-        siteId: '',
-        managedResourceId: '',
-        workingDirectory: '',
-        buildCommand: '',
-        deployCommand: '',
-        healthCheckUrl: '',
-      });
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '创建应用服务失败');
-    } finally {
-      setSaving(false);
-    }
+  const { createApplication, createService } = useApplicationCreation({
+    appForm,
+    serviceForm,
+    setAppForm,
+    setServiceForm,
+    setSaving,
+    setError,
+    reload: load,
   });
 
   const operations = useApplicationOperations({
