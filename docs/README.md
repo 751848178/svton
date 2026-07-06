@@ -18,6 +18,7 @@
 | 文档 | 说明 |
 |------|------|
 | [Devpilot 使用指南](./devpilot/usage-guide.md) | 面向新用户的功能使用与状态总览 |
+| [库与基础设施使用规范](./devpilot/library-usage-standards.md) | 优先用三方库/现有基础设施，含 22 项已建模块索引与 Code Review 检查项 |
 
 ### 🏗️ 架构设计
 | 文档 | 说明 |
