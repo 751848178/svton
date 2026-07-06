@@ -33,6 +33,7 @@ const LS = {
   disabledTools: 'disabledTools',
   disabledSkills: 'disabledSkills',
   searchEndpoint: 'searchEndpoint',
+  searchApiKey: 'searchApiKey',
   previewMode: 'previewMode',
   mcpServers: 'mcpServers',
   memory: 'memory',
@@ -241,6 +242,16 @@ export class DefaultSettingsAdapter implements ISettingsAdapter {
   saveSearchEndpoint(url: string): void {
     if (url.trim()) this.storage.setString(LS.searchEndpoint, url.trim());
     else this.storage.remove(LS.searchEndpoint);
+    this.onUpdate?.();
+  }
+
+  getSearchApiKey(): string {
+    return this.storage.getString(LS.searchApiKey);
+  }
+
+  saveSearchApiKey(key: string): void {
+    if (key.trim()) this.storage.setString(LS.searchApiKey, key.trim());
+    else this.storage.remove(LS.searchApiKey);
     this.onUpdate?.();
   }
 

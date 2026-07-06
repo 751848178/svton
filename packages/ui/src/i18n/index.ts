@@ -30,6 +30,8 @@ const zh: Record<string, string> = {
   // ChatPanel
   'chat.emptyMessage': '开始对话...',
   'chat.thinking': '思考中...',
+  'chat.usingSkill': '正在使用',
+  'chat.expandProcess': '点击展开过程详情',
   'chat.scrollToBottom': '回到底部',
   'chat.matchedSkills': '已匹配技能',
   'chat.contextCompacted': '上下文已压缩',
@@ -115,6 +117,8 @@ const en: Record<string, string> = {
   // ChatPanel
   'chat.emptyMessage': 'Start a conversation...',
   'chat.thinking': 'Thinking...',
+  'chat.usingSkill': 'Using',
+  'chat.expandProcess': 'Click to expand process details',
   'chat.scrollToBottom': 'Scroll to bottom',
   'chat.matchedSkills': 'Matched skills',
   'chat.contextCompacted': 'Context compacted',

@@ -176,8 +176,11 @@ describe('ChatMessage — Assistant Messages', () => {
         ]}
       />,
     );
-    expect(screen.getByText('Let me analyze this...')).toBeInTheDocument();
+    // Process blocks (thinking) are collapsed by default; only the conclusion
+    // text and the "已处理" expand toggle are visible.
+    expect(screen.queryByText('Let me analyze this...')).not.toBeInTheDocument();
     expect(screen.getByText('Here is my answer')).toBeInTheDocument();
+    expect(screen.getByText('已处理')).toBeInTheDocument();
   });
 
   it('renders tool calls via blocks', () => {
@@ -189,8 +192,9 @@ describe('ChatMessage — Assistant Messages', () => {
         ]}
       />,
     );
-    // ToolCallCard should render the tool name
-    expect(screen.getByText('read_file')).toBeInTheDocument();
+    // Tool call is collapsed by default — the "已处理" toggle shows instead.
+    expect(screen.queryByText('read_file')).not.toBeInTheDocument();
+    expect(screen.getByText('已处理')).toBeInTheDocument();
   });
 
   it('renders error blocks', () => {
@@ -202,7 +206,9 @@ describe('ChatMessage — Assistant Messages', () => {
         ]}
       />,
     );
-    expect(screen.getByText('Tool execution failed')).toBeInTheDocument();
+    // Error blocks are process blocks — collapsed by default.
+    expect(screen.queryByText('Tool execution failed')).not.toBeInTheDocument();
+    expect(screen.getByText('已处理')).toBeInTheDocument();
   });
 
   it('renders legacy thinking + toolCalls when no blocks', () => {
@@ -213,7 +219,10 @@ describe('ChatMessage — Assistant Messages', () => {
         toolCalls={[mockToolCall]}
       />,
     );
-    expect(screen.getByText('I thought about it')).toBeInTheDocument();
+    // Thinking is collapsed by default (process content).
+    expect(screen.queryByText('I thought about it')).not.toBeInTheDocument();
+    // Tool call header (name) is always visible — only its detail/output is
+    // collapsed. This is intentional: you see what ran, not the verbose result.
     expect(screen.getByText('read_file')).toBeInTheDocument();
   });
 

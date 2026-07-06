@@ -13,6 +13,7 @@ import { ResourceControlListReadService } from './resource-control-list-read.ser
 import { ResourceControlBindingService } from './resource-control-binding.service';
 import { ResourceControlConnectionSharedService } from './resource-control-connection-shared.service';
 import { ResourceControlConnectionProbeService } from './resource-control-connection-probe.service';
+import { ResourceControlResourceQueryService } from './resource-control-query.service';
 import { ResourceControlCloudProviderHealthService } from './resource-control-cloud-provider-health.service';
 import {
   buildMetricSeries,
@@ -28,6 +29,7 @@ describe('ResourceControlService cloud provider health summary', () => {
     {} as ResourceControlBindingService,
     {} as ResourceControlConnectionSharedService,
     {} as ResourceControlConnectionProbeService,
+    {} as ResourceControlResourceQueryService,
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,
@@ -426,6 +428,13 @@ function buildService(prisma: PrismaService) {
       new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
       new ResourceControlConnectionSharedService(new ResourceControlRepository(prisma), {} as DefaultCredentialResolver),
       {} as ServerExecutorService,
+      {} as AuditEventService,
+    ),
+    new ResourceControlResourceQueryService(
+      new ResourceControlRepository(prisma),
+      new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
+      new ResourceControlConnectionSharedService(new ResourceControlRepository(prisma), {} as DefaultCredentialResolver),
+      {} as DirectDbQueryExecutor,
       {} as AuditEventService,
     ),
     {} as DefaultCredentialResolver,

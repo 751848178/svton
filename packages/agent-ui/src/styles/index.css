@@ -1,1 +1,10 @@
 @tailwind components;
+
+/* Shimmer animation for the streaming activity indicator.
+   The text uses a moving linear-gradient (clipped to the glyph shape)
+   to produce a "light sweeping across the text" effect while the agent
+   is working. Usage: bg-clip-text text-transparent + animate-[shimmer_...]. */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

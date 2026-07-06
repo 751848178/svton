@@ -98,6 +98,8 @@ export interface CreateAgentConfigOptions {
   platform: BrowserPlatform;
   features?: FeatureFlags;
   searchEndpoint?: string;
+  /** Tavily API key — when set, web_search uses the hosted Tavily backend */
+  searchApiKey?: string;
   systemPrompt?: string;
   workingDir?: string;
   skills?: import('@svton/agent-core').SkillDefinition[];
@@ -117,6 +119,7 @@ export async function createAgentConfig(opts: CreateAgentConfigOptions): Promise
     platform,
     features = {},
     searchEndpoint,
+    searchApiKey,
     systemPrompt,
     workingDir = '/',
     skills = [],
@@ -152,8 +155,18 @@ export async function createAgentConfig(opts: CreateAgentConfigOptions): Promise
   if (features.webFetch !== false) {
     toolRegistry.register(webFetchDef, new WebFetchExecutor());
   }
-  if (features.webSearch !== false && searchEndpoint) {
-    toolRegistry.register(webSearchDef, new WebSearchExecutor(searchEndpoint));
+  if (features.webSearch !== false) {
+    // Prefer Tavily (hosted, just needs an API key); fall back to a custom
+    // SearXNG-style endpoint. createWebSearchExecutor returns null when
+    // neither is configured, in which case web_search is not registered.
+    const searchExec = searchApiKey
+      ? new WebSearchExecutor({ provider: 'tavily', apiKey: searchApiKey })
+      : searchEndpoint
+        ? new WebSearchExecutor(searchEndpoint)
+        : null;
+    if (searchExec) {
+      toolRegistry.register(webSearchDef, searchExec);
+    }
   }
 
   // Memory

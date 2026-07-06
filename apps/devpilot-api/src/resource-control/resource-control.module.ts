@@ -21,6 +21,7 @@ import { ResourceControlListReadService } from './resource-control-list-read.ser
 import { ResourceControlBindingService } from './resource-control-binding.service';
 import { ResourceControlConnectionSharedService } from './resource-control-connection-shared.service';
 import { ResourceControlConnectionProbeService } from './resource-control-connection-probe.service';
+import { ResourceControlResourceQueryService } from './resource-control-query.service';
 
 @Module({
   imports: [ServerExecutorModule, AuditEventModule, OperationApprovalModule, ControlAccessPolicyModule],
@@ -32,6 +33,7 @@ import { ResourceControlConnectionProbeService } from './resource-control-connec
     ResourceControlBindingService,
     ResourceControlConnectionSharedService,
     ResourceControlConnectionProbeService,
+    ResourceControlResourceQueryService,
     ResourceControlCapabilitiesService,
     ResourceControlCloudProviderHealthService,
     DefaultCredentialResolver,

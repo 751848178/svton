@@ -178,6 +178,9 @@ export interface ISettingsAdapter {
   // ── Optional: web search ─────────────────────────────────
   getSearchEndpoint?(): string;
   saveSearchEndpoint?(url: string): void;
+  /** Tavily API key for the hosted web_search backend (tvly-...). */
+  getSearchApiKey?(): string;
+  saveSearchApiKey?(key: string): void;
   getPreviewMode?(): 'sidebar' | 'window';
   savePreviewMode?(mode: 'sidebar' | 'window'): void;
 
@@ -221,6 +224,7 @@ function useAdapterState(adapter: ISettingsAdapter, refreshKey: number) {
   const [disabledTools, setDisabledTools] = useState(() => adapter.getDisabledTools());
   const [disabledSkills, setDisabledSkills] = useState(() => adapter.getDisabledSkills());
   const [searchEndpoint, setSearchEndpoint] = useState(() => adapter.getSearchEndpoint?.() ?? '');
+  const [searchApiKey, setSearchApiKey] = useState(() => adapter.getSearchApiKey?.() ?? '');
 
   // Re-read all state from adapter when refreshKey changes
   useEffect(() => {
@@ -232,6 +236,7 @@ function useAdapterState(adapter: ISettingsAdapter, refreshKey: number) {
     setDisabledTools(adapter.getDisabledTools());
     setDisabledSkills(adapter.getDisabledSkills());
     setSearchEndpoint(adapter.getSearchEndpoint?.() ?? '');
+    setSearchApiKey(adapter.getSearchApiKey?.() ?? '');
   }, [adapter, refreshKey]);
 
   const reload = useCallback(async () => {
@@ -243,9 +248,9 @@ function useAdapterState(adapter: ISettingsAdapter, refreshKey: number) {
 
   return {
     providers, defaultModel, agentData, customInstructions, permissionMode,
-    disabledTools, disabledSkills, searchEndpoint,
+    disabledTools, disabledSkills, searchEndpoint, searchApiKey,
     setProviders, setDefaultModel, setAgentData, setCustomInstructions,
-    setPermissionMode, setDisabledTools, setDisabledSkills, setSearchEndpoint,
+    setPermissionMode, setDisabledTools, setDisabledSkills, setSearchEndpoint, setSearchApiKey,
     reload,
   };
 }
@@ -515,9 +520,14 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
                 onClear={async () => { await adapter.clearMemory(); await s.reload(); showToast('记忆已清除'); }}
                 onDeleteEntry={async (key) => { if (adapter.deleteMemoryEntry) { await adapter.deleteMemoryEntry(key); await s.reload(); showToast('已删除'); } }} />
             )}
-            {activeSection === 'search' && adapter.getSearchEndpoint && (
-              <SearchSection endpoint={s.searchEndpoint} onChange={s.setSearchEndpoint}
-                onSave={() => { adapter.saveSearchEndpoint!(s.searchEndpoint); showToast('已保存'); }} />
+            {activeSection === 'search' && (adapter.getSearchEndpoint || adapter.getSearchApiKey) && (
+              <SearchSection
+                endpoint={s.searchEndpoint} onChange={s.setSearchEndpoint}
+                onSave={() => { adapter.saveSearchEndpoint!(s.searchEndpoint); showToast('已保存'); }}
+                apiKey={adapter.getSearchApiKey ? s.searchApiKey : undefined}
+                onApiKeyChange={adapter.getSearchApiKey ? s.setSearchApiKey : undefined}
+                onSaveApiKey={adapter.saveSearchApiKey ? () => { adapter.saveSearchApiKey!(s.searchApiKey); showToast('已保存'); } : undefined}
+              />
             )}
             {activeSection === 'automation' && agent && (
               <AutomationSection hasSubagent={agent.hasSubagent} hasPlanning={agent.hasPlanning} tools={agent.tools} adapter={adapter} />
@@ -1510,15 +1520,32 @@ function MemorySection({ hasMemory, memoryText, entries, memoryInput, setMemoryI
   );
 }
 
-function SearchSection({ endpoint, onChange, onSave }: { endpoint: string; onChange: (v: string) => void; onSave: () => void }) {
+function SearchSection({
+  endpoint, onChange, onSave,
+  apiKey, onApiKeyChange, onSaveApiKey,
+}: {
+  endpoint: string; onChange: (v: string) => void; onSave: () => void;
+  apiKey?: string; onApiKeyChange?: (v: string) => void; onSaveApiKey?: () => void;
+}) {
   return (
     <div>
       <h2 className="text-lg text-white font-medium mb-1">网页搜索</h2>
-      <p className="text-xs text-gray-500 mb-6">配置搜索 API 端点后，Agent 可通过 web_search 工具搜索互联网。</p>
+      <p className="text-xs text-gray-500 mb-6">配置后，Agent 可通过 web_search 工具搜索互联网。推荐使用 Tavily（开箱即用）。</p>
+
+      {/* Tavily (recommended) — only shown when adapter supports API key */}
+      {onApiKeyChange && onSaveApiKey && (
+        <Card>
+          <FieldLabel>Tavily API Key <span className="text-cyan-500 text-[10px] ml-1">推荐</span></FieldLabel>
+          <input type="password" value={apiKey ?? ''} onChange={(e) => onApiKeyChange(e.target.value)} placeholder="tvly-..." className={cn(INPUT_CLS)} />
+          <p className="mt-2 text-[10px] text-gray-600">在 <a href="https://tavily.com" target="_blank" rel="noreferrer" className="text-cyan-500 hover:underline">tavily.com</a> 免费注册获取 key。填入后 web_search 自动启用，无需自建服务。</p>
+          <button onClick={onSaveApiKey} className="mt-3 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors">保存 Key</button>
+        </Card>
+      )}
+
       <Card>
-        <FieldLabel>搜索 API 端点</FieldLabel>
+        <FieldLabel>自定义搜索端点（高级）</FieldLabel>
         <input type="url" value={endpoint} onChange={(e) => onChange(e.target.value)} placeholder="https://your-searxng-instance.com/search?format=json" className={INPUT_CLS} />
-        <p className="mt-2 text-[10px] text-gray-600">端点需接受 <code className="font-mono bg-[#171717] px-1 py-0.5 rounded border border-[#2a2a2a]">?q=查询词</code> 并返回 JSON。推荐 SearXNG 自建实例。</p>
+        <p className="mt-2 text-[10px] text-gray-600">端点需接受 <code className="font-mono bg-[#171717] px-1 py-0.5 rounded border border-[#2a2a2a]">?q=查询词</code> 并返回 JSON。适用于自建 SearXNG 实例。</p>
         <button onClick={onSave} className="mt-3 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors">保存端点</button>
       </Card>
     </div>

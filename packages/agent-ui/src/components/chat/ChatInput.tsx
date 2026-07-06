@@ -465,7 +465,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'mx-4 mb-4 rounded-2xl border bg-[#1c1c1c] transition-shadow relative shrink-0',
+        'mb-4 rounded-2xl border bg-[#1c1c1c] transition-shadow relative shrink-0',
         dragOver ? 'border-blue-400 shadow-lg ring-2 ring-blue-200' :
         focused ? 'border-[#333] shadow-lg' : 'border-[#2a2a2a] shadow-md',
         disabled && 'opacity-60',

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { cn, t } from '@svton/ui';
 import { ChatMessage, type ChatMessageProps } from './ChatMessage';
+import { ActivityIndicator } from './ActivityIndicator';
 import { ChatInput, type ChatInputProps, type SlashCommand } from './ChatInput';
 import { TurnSeparator } from './TurnSeparator';
 import { ToolApprovalModal } from './ToolApprovalModal';
@@ -181,7 +182,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             )}
           </div>
         ) : (
-          <div className="py-2">
+          <div className="max-w-4xl mx-auto py-2">
             {messages.map((msg, i) => (
               <React.Fragment key={msg.id}>
                 {/* Turn separator — only between user→assistant, show usage after assistant completes */}
@@ -207,6 +208,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   isLast={i === messages.length - 1}
                   systemType={msg.systemType}
                   duration={msg.duration}
+                  activeSkills={msg.activeSkills}
                   onApproveTool={onApproveTool}
                   onRejectTool={onRejectTool}
                   onRetry={onRetry}
@@ -221,11 +223,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         )}
 
-        {/* Streaming indicator — Codex style: "• 思考中..." */}
+        {/* Streaming indicator — shown between turns when the next assistant
+            message hasn't been created yet. Uses the same shimmer style as the
+            per-message ActivityIndicator for visual consistency. */}
         {isStreaming && messages.length > 0 && !messages[messages.length - 1]?.isStreaming && (
-          <div className="px-6 py-3 flex items-center gap-2 text-gray-400 text-sm">
-            <span className="animate-pulse">●</span>
-            <span>{t('chat.thinking')}</span>
+          <div className="px-6 py-3">
+            <ActivityIndicator />
           </div>
         )}
 
@@ -241,34 +244,32 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         )}
       </div>
 
-      {/* Skill match indicator */}
-      {matchedSkills && matchedSkills.length > 0 && (
-        <div className="mx-4 mb-1 flex items-center gap-2 text-[11px] text-gray-400">
-          <span className="text-purple-500">🎯</span>
-          <span>{t('chat.matchedSkills')}: {matchedSkills.join(', ')}</span>
-        </div>
-      )}
+      {/* Note: skill match indicator moved into the per-message ActivityIndicator
+          (shows "正在使用 <skill>..." while streaming). matchedSkills prop is
+          accepted for backward compat but no longer rendered here. */}
 
       {/* Active plan progress */}
       {activePlan && activePlan.steps.length > 0 && (
         <PlanPanel plan={activePlan} />
       )}
 
-      {/* Input */}
-      <ChatInput
-        onSend={onSend}
-        onAbort={onAbort}
-        isStreaming={isStreaming}
-        disabled={disabled}
-        placeholder={placeholder}
-        leadingSlot={inputLeadingSlot}
-        trailingSlot={inputTrailingSlot}
-        slashCommands={slashCommands}
-        mentionItems={mentionItems}
-        onMentionSelect={onMentionSelect}
-        onFileReference={onFileReference}
-        inputHistory={inputHistory}
-      />
+      {/* Input — aligned to the same max-width column as messages */}
+      <div className="max-w-4xl w-full mx-auto px-6">
+        <ChatInput
+          onSend={onSend}
+          onAbort={onAbort}
+          isStreaming={isStreaming}
+          disabled={disabled}
+          placeholder={placeholder}
+          leadingSlot={inputLeadingSlot}
+          trailingSlot={inputTrailingSlot}
+          slashCommands={slashCommands}
+          mentionItems={mentionItems}
+          onMentionSelect={onMentionSelect}
+          onFileReference={onFileReference}
+          inputHistory={inputHistory}
+        />
+      </div>
 
       {/* Tool approval modal — auto-opens when a tool needs permission */}
       {pendingApproval && onApproveTool && onRejectTool && (

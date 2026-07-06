@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { cn, t } from '@svton/ui';
 import { StreamingText } from './StreamingText';
+import { ActivityIndicator } from './ActivityIndicator';
 import { ToolCallCard, type ToolCallInfo } from './ToolCallCard';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ExportManager } from './ExportManager';
@@ -77,6 +78,8 @@ export interface ChatMessageProps {
   systemType?: 'default' | 'context_compacted';
   /** Duration in ms for completed assistant turns */
   duration?: number;
+  /** Skills active for this assistant turn — surfaced in the activity indicator */
+  activeSkills?: string[];
   onApproveTool?: (callId: string) => void;
   onRejectTool?: (callId: string) => void;
   onRetry?: (messageId?: string) => void;
@@ -108,6 +111,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   isLast,
   systemType,
   duration,
+  activeSkills,
   onApproveTool,
   onRejectTool,
   onRetry,
@@ -121,7 +125,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [hovered, setHovered] = useState(false);
-  const [processExpanded, setProcessExpanded] = useState(() => isStreaming === true);
+  // Process blocks (thinking / tool calls / intermediate text) default to
+  // collapsed — even while streaming. This mirrors Codex / Claude Code: while
+  // the agent works, a single shimmering status line is shown instead of
+  // flooding the chat with intermediate steps. Users can still click to expand.
+  const [processExpanded, setProcessExpanded] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -132,7 +140,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     }
   }, [isEditing]);
 
-  // Auto-collapse process blocks when streaming finishes
+  // Auto-collapse process blocks when streaming finishes (defensive — the
+  // default is already collapsed, but a user who expanded mid-stream expects
+  // the next turn to start collapsed again).
   const prevStreamingRef = useRef(isStreaming);
   useEffect(() => {
     if (prevStreamingRef.current && !isStreaming) {
@@ -344,8 +354,19 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     >
       {hasBlocks ? (
         <>
-          {/* Collapsed process summary */}
-          {!processExpanded && hasProcess && (
+          {/* Collapsed + streaming → shimmering activity indicator (click to expand process details) */}
+          {!processExpanded && isStreaming && hasProcess && (
+            <button
+              type="button"
+              onClick={() => setProcessExpanded(true)}
+              title={t('chat.expandProcess')}
+              className="w-full text-left rounded-lg transition-colors"
+            >
+              <ActivityIndicator activeSkills={activeSkills} />
+            </button>
+          )}
+          {/* Collapsed + done → "已处理 Xs ▸" expand button */}
+          {!processExpanded && !isStreaming && hasProcess && (
             <button
               onClick={() => setProcessExpanded(true)}
               className="w-full flex items-center gap-2 py-1.5 mb-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors text-left"
@@ -357,7 +378,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               )}
             </button>
           )}
-          {processExpanded && !isStreaming && hasProcess && (
+          {/* Expanded → "已处理 Xs ▾" collapse button (works during streaming too) */}
+          {processExpanded && hasProcess && (
             <button
               onClick={() => setProcessExpanded(false)}
               className="w-full flex items-center gap-2 py-1.5 mb-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors text-left"
@@ -374,8 +396,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           {blocks!.map((block, i) => {
             const isProcess = isProcessBlock(block, i);
 
-            // Process blocks: respect expand/collapse state
-            if (isProcess && !(processExpanded || isStreaming)) return null;
+            // Process blocks: respect expand/collapse state.
+            // Collapsed by default even while streaming — the ActivityIndicator
+            // (rendered below the summary) signals that work is in progress.
+            if (isProcess && !processExpanded) return null;
 
             if (block.type === 'thinking') {
               return <ThinkingBlock key={`think-${i}`} text={block.text!} isStreaming={isStreaming} />;
@@ -551,7 +575,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
 // ─── ThinkingBlock ────────────────────────────────────────
 function ThinkingBlock({ text, isStreaming }: { text: string; isStreaming?: boolean }) {
-  const [open, setOpen] = useState(true);
+  // Default collapsed — reasoning is noise by default; users who want it click to expand.
+  const [open, setOpen] = useState(false);
   const prevStreamingRef = useRef(isStreaming);
 
   // Auto-collapse when streaming finishes

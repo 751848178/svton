@@ -83,11 +83,15 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
   toolCall,
   onApprove,
   onReject,
-  defaultCollapsed,
+  // defaultCollapsed is accepted for backward compat but ignored — cards now
+  // always start collapsed (see useState above).
   className,
 }) => {
   const isDone = toolCall.status === 'completed' || toolCall.status === 'error';
-  const [expanded, setExpanded] = useState(() => defaultCollapsed ? false : !isDone);
+  // Default collapsed — even while running. The agent's overall streaming
+  // state is signalled by the ActivityIndicator on the message, not by
+  // expanding every tool card. Users click to inspect details on demand.
+  const [expanded, setExpanded] = useState(false);
 
   const icon = STATUS_ICON[toolCall.status];
   const isShell = SHELL_TOOLS.has(toolCall.name);

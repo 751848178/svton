@@ -82,6 +82,7 @@ export function AgentApp(props: AgentAppProps) {
     [adapter, mcpServers, refreshKey],
   );
   const runtimeSearchEndpoint = searchEndpoint ?? adapter.getSearchEndpoint();
+  const runtimeSearchApiKey = adapter.getSearchApiKey?.();
 
   // Build model list from all providers
   const models: ModelOption[] = useMemo(() => {
@@ -106,6 +107,7 @@ export function AgentApp(props: AgentAppProps) {
           platform,
           features,
           searchEndpoint: runtimeSearchEndpoint,
+          searchApiKey: runtimeSearchApiKey,
           systemPrompt,
           workingDir,
           skills,
