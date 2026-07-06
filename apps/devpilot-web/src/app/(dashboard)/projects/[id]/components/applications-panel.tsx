@@ -1,17 +1,19 @@
 /** 项目应用面板。 */
 'use client';
+import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
 export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
+  const t = useTranslations('projects');
   const p = detail.project;
   if (!p || !p.applications || p.applications.length === 0)
-    return <EmptyState text="暂无关联应用" />;
+    return <EmptyState text={t('noLinkedApps')} />;
   return (
     <div className="rounded-lg border p-4">
-      <h2 className="mb-3 font-semibold">关联应用</h2>
+      <h2 className="mb-3 font-semibold">{t('linkedApps')}</h2>
       <div className="space-y-3">
         {p.applications.map((app) => (
           <div
@@ -21,7 +23,7 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
             <div className="flex items-center justify-between">
               <h3 className="font-medium">{app.name}</h3>
               <span className="text-xs text-muted-foreground">
-                {app._count?.services || 0} 服务
+                {t('serviceCount', { count: app._count?.services || 0 })}
               </span>
             </div>
             {app.services && app.services.length > 0 && (

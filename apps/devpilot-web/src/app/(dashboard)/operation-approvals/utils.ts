@@ -48,14 +48,5 @@ export function readMetadataNumber(
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
-/** 日期时间格式化（月/日 时:分:秒，24h）。 */
-export function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString('zh-CN', {
-    hour12: false,
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-}
+/** 日期时间格式化（带秒，统一走共享 util）。 */
+export { formatDateTime } from '@/lib/format-date';

@@ -1,6 +1,7 @@
 /** 监控仪表盘面板。 */
 'use client';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useMonitoring } from '../hooks/use-monitoring';
@@ -9,15 +10,16 @@ import { formatMetricNumber, formatMetricWindow, formatPercent } from '../utils-
 type MonitoringHook = ReturnType<typeof useMonitoring>;
 
 export function DashboardPanels({ m }: { m: MonitoringHook }) {
+  const t = useTranslations('monitoring');
   const serviceRows = m.serviceSloDashboard?.rows ?? [];
   const serviceLabel = readFocusedServiceLabel(m, serviceRows[0]);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="rounded-lg border p-4">
-        <h2 className="mb-3 font-semibold">资源指标</h2>
+        <h2 className="mb-3 font-semibold">{t('resourceMetrics')}</h2>
         {!m.resourceMetricDashboard ? (
-          <EmptyState text="暂无资源指标数据" />
+          <EmptyState text={t('noResourceMetrics')} />
         ) : (
           <div className="space-y-2">
             {m.resourceMetricDashboard.rows.slice(0, 10).map((row) => (
@@ -39,13 +41,13 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
       <div className="rounded-lg border p-4">
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold">服务 SLO</h2>
+            <h2 className="font-semibold">{t('serviceSlo')}</h2>
             <div className="mt-1 text-xs text-muted-foreground">
               {m.applicationServiceId
                 ? `${serviceLabel} · ${formatMetricWindow(
                     m.serviceSloDashboard?.windowMinutes ?? m.serviceSloDashboardWindow,
                   )}`
-                : `全部可见服务 · ${formatMetricWindow(
+                : `${t('allVisibleServices')} · ${formatMetricWindow(
                     m.serviceSloDashboard?.windowMinutes ?? m.serviceSloDashboardWindow,
                   )}`}
             </div>
@@ -55,15 +57,15 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
               href="/monitoring"
               className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent"
             >
-              查看全部服务
+              {t('viewAllServices')}
             </Link>
           ) : null}
         </div>
         {!m.serviceSloDashboard ? (
-          <EmptyState text="暂无 SLO 数据" />
+          <EmptyState text={t('noSloData')} />
         ) : serviceRows.length === 0 ? (
           <EmptyState
-            text={m.applicationServiceId ? '暂无目标服务 SLO 数据' : '暂无 SLO 数据'}
+            text={m.applicationServiceId ? t('noTargetServiceSloData') : t('noSloData')}
           />
         ) : (
           <div className="space-y-3">
@@ -85,7 +87,7 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
                   </div>
                   <StatusTag
                     status={row.status}
-                    label={row.status === 'no_data' ? '无数据' : row.status}
+                    label={row.status === 'no_data' ? t('noData') : row.status}
                   />
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -94,11 +96,11 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
                     value={formatPercent(row.sloPercent)}
                   />
                   <ServiceSloMetric
-                    label="目标"
+                    label={t('target')}
                     value={formatPercent(row.targetPercent)}
                   />
                   <ServiceSloMetric
-                    label="错误预算"
+                    label={t('errorBudget')}
                     value={formatPercent(row.errorBudgetRemainingPercent)}
                   />
                   <ServiceSloMetric
@@ -106,19 +108,19 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
                     value={formatMetricNumber(row.burnRate)}
                   />
                   <ServiceSloMetric
-                    label="部署失败"
+                    label={t('deployFailure')}
                     value={`${row.deploymentFailureCount}/${row.deploymentCount}`}
                   />
                   <ServiceSloMetric
-                    label="操作失败"
+                    label={t('operationFailure')}
                     value={`${row.operationFailureCount}/${row.operationCount}`}
                   />
                   <ServiceSloMetric
-                    label="告警影响"
+                    label={t('alertImpact')}
                     value={String(row.alertImpactCount)}
                   />
                   <ServiceSloMetric
-                    label="状态原因"
+                    label={t('statusReason')}
                     value={row.statusReason}
                   />
                 </div>

@@ -1,5 +1,6 @@
 /** 日志流管理面板 - 目标类型选择、流创建。 */
 'use client';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import type { useLogs } from '../hooks/use-logs';
 import { sourceLabels } from '../constants';
@@ -7,14 +8,16 @@ import { sourceKeyPlaceholder, formatTargetType } from '../utils';
 type LogsHook = ReturnType<typeof useLogs>;
 
 export function StreamManageSection({ logs }: { logs: LogsHook }) {
+  const t = useTranslations('logs');
+  const tc = useTranslations('common');
   const s = logs.s;
   const handleCreate = usePersistFn(() => logs.createStream());
   return (
     <div className="rounded-lg border p-4 space-y-4">
-      <h2 className="font-medium">创建日志流</h2>
+      <h2 className="font-medium">{t('createStream')}</h2>
       <div className="grid gap-4 xl:grid-cols-[160px_minmax(0,1fr)_minmax(160px,0.55fr)_minmax(160px,0.55fr)_auto]">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">目标类型</span>
+          <span className="mb-1 block font-medium">{t('targetType')}</span>
           <select
             value={s.targetType}
             onChange={(e) => s.setTargetType(e.target.value as never)}
@@ -31,13 +34,13 @@ export function StreamManageSection({ logs }: { logs: LogsHook }) {
           </select>
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">目标</span>
+          <span className="mb-1 block font-medium">{t('target')}</span>
           <select
             value={s.targetId}
             onChange={(e) => s.setTargetId(e.target.value)}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
-            <option value="">选择目标</option>
+            <option value="">{t('selectTarget')}</option>
             {logs.targetOptions.map((opt: { id: string; label: string }) => (
               <option
                 key={opt.id}
@@ -49,11 +52,11 @@ export function StreamManageSection({ logs }: { logs: LogsHook }) {
           </select>
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">流名称</span>
+          <span className="mb-1 block font-medium">{t('streamName')}</span>
           <input
             value={s.streamName}
             onChange={(e) => s.setStreamName(e.target.value)}
-            placeholder={`${formatTargetType(s.targetType)}日志流`}
+            placeholder={t('streamNamePlaceholder', { type: formatTargetType(s.targetType) })}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </label>
@@ -72,7 +75,7 @@ export function StreamManageSection({ logs }: { logs: LogsHook }) {
             disabled={s.saving}
             className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {s.saving ? '创建中...' : '创建'}
+            {s.saving ? t('creating') : tc('create')}
           </button>
         </div>
       </div>

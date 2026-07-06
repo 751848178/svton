@@ -1,28 +1,30 @@
 /** 日志中心统计面板。 */
 'use client';
+import { useTranslations } from 'next-intl';
 import { MetricCard } from '@/components/ui';
 import type { useLogs } from '../hooks/use-logs';
 type LogsHook = ReturnType<typeof useLogs>;
 
 export function LogsStatsSection({ logs }: { logs: LogsHook }) {
+  const t = useTranslations('logs');
   const stats = logs.s.logStats;
   if (!stats) return null;
   return (
     <div className="grid gap-4 md:grid-cols-4">
       <MetricCard
-        label="日志流"
+        label={t('logStreams')}
         value={stats.total}
       />
       <MetricCard
-        label="警告"
+        label={t('levelWarning')}
         value={stats.warningCount}
       />
       <MetricCard
-        label="信息"
+        label={t('levelInfo')}
         value={stats.byLevel.filter((l) => l.level === 'info').reduce((s, l) => s + l.count, 0)}
       />
       <MetricCard
-        label="错误日志"
+        label={t('errorLogs')}
         value={stats.errorCount}
       />
     </div>

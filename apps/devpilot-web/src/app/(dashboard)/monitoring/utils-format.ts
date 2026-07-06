@@ -159,12 +159,6 @@ export function formatMetricWindow(minutes: number) {
   return `${minutes} 分钟`;
 }
 
-export function formatDate(value?: string | null) {
-  if (!value) return '-';
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
+/** 日期时间格式化（不带秒，统一走共享 util）。 */
+import { formatDateTimeMinute as formatDate } from '@/lib/format-date';
+export { formatDate };

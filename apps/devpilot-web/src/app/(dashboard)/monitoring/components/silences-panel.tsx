@@ -1,16 +1,18 @@
 /** 监控静默面板。 */
 'use client';
+import { useTranslations } from 'next-intl';
 import { EmptyState, Tag } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useMonitoring } from '../hooks/use-monitoring';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
 
 export function SilencesPanel({ m }: { m: MonitoringHook }) {
-  if (m.silences.length === 0) return <EmptyState text="暂无静默规则" />;
+  const t = useTranslations('monitoring');
+  if (m.silences.length === 0) return <EmptyState text={t('noSilences')} />;
   return (
     <div className="overflow-hidden rounded-lg border">
       <div className="border-b px-4 py-3">
-        <h2 className="font-semibold">静默规则</h2>
+        <h2 className="font-semibold">{t('silencesTitle')}</h2>
       </div>
       <div className="divide-y">
         {m.silences.map((silence) => (
@@ -46,7 +48,7 @@ export function SilencesPanel({ m }: { m: MonitoringHook }) {
                   }
                   className="rounded border px-2 py-1 text-xs hover:bg-accent"
                 >
-                  {silence.status === 'active' ? '停用' : '启用'}
+                  {silence.status === 'active' ? t('disable') : t('enable')}
                 </button>
               </div>
             </div>

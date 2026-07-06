@@ -1,6 +1,7 @@
 /** Resource copy 后续接管入口。 */
 'use client';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { EmptyState, Tag } from '@svton/ui';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 import type { ProjectManagedResource } from '../types';
@@ -14,27 +15,28 @@ import {
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
 export function ResourceCopyFollowUpPanel({ detail }: { detail: DetailHook }) {
+  const t = useTranslations('projects');
   const project = detail.project;
   const environments = project?.environments || [];
   const resources = project?.managedResources || [];
 
   if (!project || environments.length === 0) {
-    return <EmptyState text="暂无 Resource copy 接管入口" />;
+    return <EmptyState text={t('noResourceCopyEntry')} />;
   }
 
   return (
     <div className="rounded-lg border p-4">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-semibold">Resource copy follow-up</h2>
+          <h2 className="font-semibold">{t('resourceCopyFollowUp')}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            ManagedResource/SecretKey copy 后的资源管控与指标告警入口
+            {t('resourceCopyFollowUpDesc')}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <PanelLink href={buildResourceCopyAuditHref(project.id)}>项目资源 copy 审计</PanelLink>
-          <PanelLink href={buildResourceControlHref(project.id)}>项目资源管控</PanelLink>
-          <PanelLink href={buildResourceMetricAlertHref(project.id)}>项目资源告警</PanelLink>
+          <PanelLink href={buildResourceCopyAuditHref(project.id)}>{t('projectResourceCopyAudit')}</PanelLink>
+          <PanelLink href={buildResourceControlHref(project.id)}>{t('projectResourceControl')}</PanelLink>
+          <PanelLink href={buildResourceMetricAlertHref(project.id)}>{t('projectResourceAlert')}</PanelLink>
         </div>
       </div>
       <div className="grid gap-2 md:grid-cols-2">
@@ -72,6 +74,7 @@ function EnvironmentResourceFollowUpRow({
   secretKeyCount: number;
   resources: ProjectManagedResource[];
 }) {
+  const t = useTranslations('projects');
   return (
     <div className="rounded-md border px-3 py-2 text-sm">
       <div className="flex items-center justify-between gap-3">
@@ -81,15 +84,17 @@ function EnvironmentResourceFollowUpRow({
         </div>
         <div className="flex shrink-0 gap-1">
           <Tag color={managedResourceCount > 0 ? 'cyan' : 'default'}>
-            {managedResourceCount} 资源
+            {t('resourceCount', { count: managedResourceCount })}
           </Tag>
-          <Tag color={secretKeyCount > 0 ? 'purple' : 'default'}>{secretKeyCount} 密钥</Tag>
+          <Tag color={secretKeyCount > 0 ? 'purple' : 'default'}>
+            {t('secretCount', { count: secretKeyCount })}
+          </Tag>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        <PanelLink href={buildResourceCopyAuditHref(projectId, environmentId)}>资源 copy 审计</PanelLink>
-        <PanelLink href={buildResourceControlHref(projectId, environmentId)}>资源管控</PanelLink>
-        <PanelLink href={buildResourceMetricAlertHref(projectId, environmentId)}>指标告警</PanelLink>
+        <PanelLink href={buildResourceCopyAuditHref(projectId, environmentId)}>{t('resourceCopyAudit')}</PanelLink>
+        <PanelLink href={buildResourceControlHref(projectId, environmentId)}>{t('resourceControl')}</PanelLink>
+        <PanelLink href={buildResourceMetricAlertHref(projectId, environmentId)}>{t('metricAlert')}</PanelLink>
       </div>
       {resources.length > 0 ? (
         <div className="mt-3 space-y-2">
@@ -116,6 +121,7 @@ function ResourceFollowUpLine({
   environmentId: string;
   resource: ProjectManagedResource;
 }) {
+  const t = useTranslations('projects');
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-xs">
       <div className="min-w-0">
@@ -126,17 +132,17 @@ function ResourceFollowUpLine({
       </div>
       <div className="flex shrink-0 gap-2">
         <PanelLink href={buildResourceControlHref(projectId, environmentId, resource.id)}>
-          管控
+          {t('control')}
         </PanelLink>
         <PanelLink href={buildResourceMetricAlertHref(projectId, environmentId, resource.id)}>
-          告警
+          {t('alert')}
         </PanelLink>
       </div>
     </div>
   );
 }
 
-function PanelLink({ href, children }: { href: string; children: string }) {
+function PanelLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <Link href={href} className="rounded border px-2 py-1 text-xs hover:bg-accent">
       {children}

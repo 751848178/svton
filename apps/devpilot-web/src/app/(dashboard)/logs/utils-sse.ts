@@ -1,4 +1,4 @@
-/** 日志域工具 - SSE 边界解析、重连延迟、数值钳制。 */
+/** 日志域工具 - 重连延迟、数值钳制、时间线合并与展示格式化。 */
 
 import type { LogEntry, LogStream, LogStreamSession, LogCollectionRun } from './types-stream';
 import { streamReconnectDelaysMs } from './constants';
@@ -9,69 +9,9 @@ export function clampNumber(value: unknown, fallback: number, min: number, max: 
   return Math.min(Math.max(Math.floor(parsed), min), max);
 }
 
-export async function readSseStream(
-  response: Response,
-  onEvent: (event: string, data: Record<string, unknown>) => void,
-) {
-  if (!response.body) {
-    throw new Error('浏览器不支持日志流读取');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    let boundary = findSseBoundary(buffer);
-    while (boundary >= 0) {
-      const frame = buffer.slice(0, boundary);
-      const separatorLength = buffer.startsWith('\r\n\r\n', boundary) ? 4 : 2;
-      buffer = buffer.slice(boundary + separatorLength);
-      parseSseFrame(frame, onEvent);
-      boundary = findSseBoundary(buffer);
-    }
-  }
-}
-
-export function findSseBoundary(buffer: string) {
-  const lfBoundary = buffer.indexOf('\n\n');
-  const crlfBoundary = buffer.indexOf('\r\n\r\n');
-  if (lfBoundary < 0) return crlfBoundary;
-  if (crlfBoundary < 0) return lfBoundary;
-  return Math.min(lfBoundary, crlfBoundary);
-}
-
 export function getStreamReconnectDelayMs(attempt: number) {
   const index = Math.max(0, Math.min(attempt - 1, streamReconnectDelaysMs.length - 1));
   return streamReconnectDelaysMs[index];
-}
-
-export function parseSseFrame(
-  frame: string,
-  onEvent: (event: string, data: Record<string, unknown>) => void,
-) {
-  let event = 'message';
-  const dataLines: string[] = [];
-  frame.split(/\r?\n/).forEach((line) => {
-    if (line.startsWith('event:')) {
-      event = line.slice('event:'.length).trim() || 'message';
-    }
-    if (line.startsWith('data:')) {
-      dataLines.push(line.slice('data:'.length).trimStart());
-    }
-  });
-  if (dataLines.length === 0) return;
-
-  try {
-    const data = JSON.parse(dataLines.join('\n')) as Record<string, unknown>;
-    onEvent(event, data);
-  } catch {
-    onEvent(event, { message: dataLines.join('\n') });
-  }
 }
 
 export function mergeLogTimeline(current: LogEntry[], incoming: LogEntry[]) {
@@ -169,16 +109,8 @@ export function formatIngestionStatus(status: string) {
   return labels[status] || status;
 }
 
-export function formatDate(value?: string | null) {
-  if (!value) return '-';
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(new Date(value));
-}
+/** 日期时间格式化（带秒，统一走共享 util）。 */
+export { formatDateTime as formatDate } from '@/lib/format-date';
 
 export function shortId(value: string) {
   return value.slice(0, 8);

@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
@@ -15,6 +16,8 @@ import type { OperationApproval } from '../types';
  * 状态筛选、审批决策、已批准执行等交互在此完成。
  */
 export function ApprovalsContent({ initialApprovals }: { initialApprovals?: OperationApproval[] }) {
+  const t = useTranslations('operationApprovals');
+  const tc = useTranslations('common');
   const { approvals, status, setStatus, loading, actingId, error, stats, review, execute, reload } =
     useApprovals(initialApprovals);
   const handleRetry = usePersistFn(() => reload());
@@ -22,14 +25,14 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
   return (
     <div className="space-y-6">
       <PageHeader
-        title="操作审批"
-        description="审批资源动作、服务操作、部署和站点同步/回滚的 live 执行申请"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <button
             onClick={handleRetry}
             className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
           >
-            刷新
+            {tc('refresh')}
           </button>
         }
       />
@@ -37,16 +40,16 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
       {error ? <ErrorBanner message={error} onRetry={handleRetry} /> : null}
 
       <div className="grid gap-4 md:grid-cols-5">
-        <MetricCard label="当前列表" value={stats.total} />
-        <MetricCard label="待审批" value={stats.pending} />
-        <MetricCard label="已批准" value={stats.approved} />
-        <MetricCard label="已拒绝" value={stats.rejected} />
-        <MetricCard label="高风险" value={stats.highRisk} />
+        <MetricCard label={t('metricCurrentList')} value={stats.total} />
+        <MetricCard label={t('metricPending')} value={stats.pending} />
+        <MetricCard label={t('metricApproved')} value={stats.approved} />
+        <MetricCard label={t('metricRejected')} value={stats.rejected} />
+        <MetricCard label={t('metricHighRisk')} value={stats.highRisk} />
       </div>
 
       <div className="rounded-lg border p-4">
         <label className="block max-w-xs text-sm">
-          <span className="mb-1 block font-medium">状态</span>
+          <span className="mb-1 block font-medium">{tc('status')}</span>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
@@ -62,11 +65,11 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
       </div>
 
       {loading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : approvals.length === 0 ? (
         <EmptyState
-          text="暂无操作审批"
-          description="申请 live 执行资源动作、服务操作、部署或站点操作后会在这里出现"
+          text={t('noApprovals')}
+          description={t('noApprovalsHint')}
         />
       ) : (
         <div className="grid gap-4">

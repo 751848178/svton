@@ -1,12 +1,14 @@
 /** Agent follow policy card. */
 'use client';
 
+import { useTranslations } from 'next-intl';
 import type { useLogs } from '../hooks/use-logs';
 import { useAgentFollowPolicy } from '../hooks/agent-follow-policy.hooks';
 
 type LogsHook = ReturnType<typeof useLogs>;
 
 export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
+  const t = useTranslations('logs');
   const policy = useAgentFollowPolicy({
     selectedStream: logs.selectedStream,
     setError: logs.s.setError,
@@ -22,7 +24,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
           checked={policy.enabled}
           onChange={(e) => policy.setEnabled(e.target.checked)}
         />
-        启用
+        {t('enable')}
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="flex items-center gap-2 text-sm">
@@ -39,7 +41,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
             checked={policy.queue}
             onChange={(e) => policy.setQueue(e.target.checked)}
           />
-          入队
+          {t('enqueue')}
         </label>
       </div>
       <label className="flex items-center gap-2 text-sm">
@@ -49,7 +51,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
           onChange={(e) => policy.setConfirmLiveRead(e.target.checked)}
           disabled={!policy.live}
         />
-        确认 Live 读取
+        {t('confirmLiveRead')}
       </label>
       <div className="grid grid-cols-3 gap-2">
         <label className="block text-sm">
@@ -62,7 +64,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">间隔</span>
+          <span className="mb-1 block font-medium">{t('interval')}</span>
           <input
             type="number"
             value={policy.intervalMinutes}
@@ -71,7 +73,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">重试</span>
+          <span className="mb-1 block font-medium">{t('retry')}</span>
           <input
             type="number"
             value={policy.maxAttempts}
@@ -85,7 +87,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
         disabled={policy.saving}
         className="w-full rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
       >
-        {policy.saving ? '保存中...' : '保存 Agent Follow'}
+        {policy.saving ? t('saving') : t('saveAgentFollow')}
       </button>
     </div>
   );

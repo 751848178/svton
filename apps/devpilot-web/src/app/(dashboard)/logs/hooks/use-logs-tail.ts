@@ -9,6 +9,7 @@ import { apiRequest } from '@/lib/api-client';
 import type { LogsState } from './use-logs-state';
 import type { LogsTailState } from './use-logs-tail-state';
 import { useLogsTailMetadataEffects } from './use-logs-tail-metadata-effects';
+import { useLogsTailPollingEffects } from './use-logs-tail-polling-effects';
 import { useLogsTailStreamEffects } from './use-logs-tail-stream-effects';
 import type { LogStream, LogEntry, LogTailResponse, LogStreamSession } from '../types-stream';
 
@@ -95,13 +96,19 @@ export function useLogsTail(args: UseLogsTailArgs) {
     tailCursorRef,
   });
   useLogsTailStreamEffects({
-    loadTailEntries,
     mergeTimeline,
     refreshStreamSessions,
     selectedStreamId,
     t,
     tailCursorRef,
     tailStreamSessionIdRef,
+  });
+  useLogsTailPollingEffects({
+    loadTailEntries,
+    mergeTimeline,
+    selectedStreamId,
+    t,
+    tailCursorRef,
   });
 
   return { refreshTailEntries, closeStreamSession, refreshStreamSessions };

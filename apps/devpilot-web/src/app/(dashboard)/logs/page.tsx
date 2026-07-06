@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
 import { useLogs } from './hooks/use-logs';
@@ -11,16 +12,18 @@ import { PolicyPanels } from './components/policy-panels';
 import { LogsRunsSection } from './components/logs-runs-section';
 
 export default function LogsPage() {
+  const tl = useTranslations('logs');
+  const tc = useTranslations('common');
   const logs = useLogs();
   const { s, t, selectedStream, targetOptions, services } = logs;
 
-  if (s.loading) return <LoadingState text="加载中..." />;
+  if (s.loading) return <LoadingState text={tc('loading')} />;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="日志中心"
-        description="查看日志流、条目、采集运行和实时 Tail"
+        title={tl('pageTitle')}
+        description={tl('pageDescription')}
       />
 
       {s.error ? <ErrorBanner message={s.error} /> : null}

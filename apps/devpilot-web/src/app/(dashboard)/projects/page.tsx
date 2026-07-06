@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { EmptyState, Tag } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
 import { serverRequest } from '@/lib/api-client/server';
@@ -25,6 +26,7 @@ interface Project {
 }
 
 export default async function ProjectsPage() {
+  const t = await getTranslations('projects');
   let projects: Project[] = [];
   try {
     projects = await serverRequest<Project[]>('GET:/projects');
@@ -35,21 +37,21 @@ export default async function ProjectsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="我的项目"
-        description="查看和管理已创建或已接入的项目"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
               href="/projects/import"
               className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
             >
-              接入已有项目
+              {t('importExisting')}
             </Link>
             <Link
               href="/projects/new"
               className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              创建新项目
+              {t('createNew')}
             </Link>
           </div>
         }
@@ -57,21 +59,21 @@ export default async function ProjectsPage() {
 
       {projects.length === 0 ? (
         <EmptyState
-          text="还没有项目"
-          description="可以创建一个全新项目，也可以先接入已有项目进入管控。"
+          text={t('noProjects')}
+          description={t('noProjectsDescription')}
           action={
             <div className="flex gap-3">
               <Link
                 href="/projects/import"
                 className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
               >
-                接入已有项目
+                {t('importExisting')}
               </Link>
               <Link
                 href="/projects/new"
                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
-                创建新项目
+                {t('createNew')}
               </Link>
             </div>
           }
@@ -82,6 +84,7 @@ export default async function ProjectsPage() {
             <ProjectCard
               key={project.id}
               project={project}
+              hasGitRepoLabel={t('hasGitRepo')}
             />
           ))}
         </div>
@@ -90,7 +93,7 @@ export default async function ProjectsPage() {
   );
 }
 
-function ProjectCard({ project }: { project: Project }) {
+function ProjectCard({ project, hasGitRepoLabel }: { project: Project; hasGitRepoLabel: string }) {
   const description = getProjectDescription(project.config, project.description);
   const tags = [
     ...getProjectSubProjectLabels(project.config),
@@ -127,7 +130,7 @@ function ProjectCard({ project }: { project: Project }) {
       ) : null}
       <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
         <span>{new Date(project.createdAt).toLocaleDateString('zh-CN')}</span>
-        {repository ? <span className="text-primary">有 Git 仓库</span> : null}
+        {repository ? <span className="text-primary">{hasGitRepoLabel}</span> : null}
       </div>
     </Link>
   );

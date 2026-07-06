@@ -2,6 +2,7 @@
 
 import { Suspense as ReactSuspense, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
 import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useMonitoring } from './hooks/use-monitoring';
@@ -18,17 +19,19 @@ const Suspense = ReactSuspense as unknown as (props: {
 }) => JSX.Element;
 
 function MonitoringContent() {
+  const t = useTranslations('monitoring');
+  const tc = useTranslations('common');
   const searchParams = useSearchParams();
   const applicationServiceId = searchParams.get('applicationServiceId') || '';
   const m = useMonitoring({ applicationServiceId });
 
-  if (m.loading) return <LoadingState text="加载中..." />;
+  if (m.loading) return <LoadingState text={tc('loading')} />;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="监控告警"
-        description="管理告警规则、事件、静默、通知通道与仪表盘"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
       />
       {m.error ? <ErrorBanner message={m.error} /> : null}
       <DashboardPanels m={m} />
@@ -41,8 +44,9 @@ function MonitoringContent() {
 }
 
 export default function MonitoringPage() {
+  const tc = useTranslations('common');
   return (
-    <Suspense fallback={<LoadingState text="加载中..." />}>
+    <Suspense fallback={<LoadingState text={tc('loading')} />}>
       <MonitoringContent />
     </Suspense>
   );

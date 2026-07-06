@@ -1,21 +1,24 @@
 /** 日志条目面板 - 流列表 + 条目展示 + 追加输入。 */
 'use client';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { EmptyState, Tag } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useLogs } from '../hooks/use-logs';
 import { levelClasses } from '../constants';
+import { formatDateTimeMinute } from '@/lib/format-date';
 type LogsHook = ReturnType<typeof useLogs>;
 
 export function LogEntriesSection({ logs }: { logs: LogsHook }) {
+  const t = useTranslations('logs');
   const s = logs.s;
   const handleAppend = usePersistFn(() => logs.appendEntry());
   return (
     <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
       <div className="space-y-4">
-        <h2 className="font-medium">日志流</h2>
+        <h2 className="font-medium">{t('logStreams')}</h2>
         {s.streams.length === 0 ? (
-          <EmptyState text="暂无日志流" />
+          <EmptyState text={t('noStreams')} />
         ) : (
           <div className="space-y-2">
             {s.streams.map((stream) => (
@@ -36,7 +39,7 @@ export function LogEntriesSection({ logs }: { logs: LogsHook }) {
       </div>
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-medium">{logs.selectedStream?.name || '日志条目'}</h2>
+          <h2 className="font-medium">{logs.selectedStream?.name || t('logEntries')}</h2>
           {logs.selectedStream ? <Tag color="default">{logs.selectedStream.sourceType}</Tag> : null}
         </div>
         {logs.selectedStream && (
@@ -54,7 +57,7 @@ export function LogEntriesSection({ logs }: { logs: LogsHook }) {
               <input
                 value={s.entryMessage}
                 onChange={(e) => s.setEntryMessage(e.target.value)}
-                placeholder="输入日志内容"
+                placeholder={t('entryMessagePlaceholder')}
                 className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
               />
               <button
@@ -62,21 +65,21 @@ export function LogEntriesSection({ logs }: { logs: LogsHook }) {
                 disabled={s.appending}
                 className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                {s.appending ? '追加中...' : '追加'}
+                {s.appending ? t('appending') : t('append')}
               </button>
             </div>
           </div>
         )}
         <div className="max-h-96 overflow-auto rounded-md border">
           {s.entries.length === 0 ? (
-            <EmptyState text="暂无日志条目" />
+            <EmptyState text={t('noEntries')} />
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left">
                 <tr>
-                  <th className="px-3 py-2 font-medium">级别</th>
-                  <th className="px-3 py-2 font-medium">内容</th>
-                  <th className="px-3 py-2 font-medium">时间</th>
+                  <th className="px-3 py-2 font-medium">{t('colLevel')}</th>
+                  <th className="px-3 py-2 font-medium">{t('colContent')}</th>
+                  <th className="px-3 py-2 font-medium">{t('colTime')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -91,13 +94,7 @@ export function LogEntriesSection({ logs }: { logs: LogsHook }) {
                     </td>
                     <td className="px-3 py-2 font-mono text-xs">{entry.message}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {new Date(entry.timestamp).toLocaleString('zh-CN', {
-                        hour12: false,
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatDateTimeMinute(entry.timestamp)}
                     </td>
                   </tr>
                 ))}

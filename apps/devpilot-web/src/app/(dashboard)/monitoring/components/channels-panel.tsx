@@ -1,16 +1,18 @@
 /** 监控通知通道面板。 */
 'use client';
+import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useMonitoring } from '../hooks/use-monitoring';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
 
 export function ChannelsPanel({ m }: { m: MonitoringHook }) {
-  if (m.notificationChannels.length === 0) return <EmptyState text="暂无通知通道" />;
+  const t = useTranslations('monitoring');
+  if (m.notificationChannels.length === 0) return <EmptyState text={t('noNotificationChannels')} />;
   return (
     <div className="overflow-hidden rounded-lg border">
       <div className="border-b px-4 py-3">
-        <h2 className="font-semibold">通知通道</h2>
+        <h2 className="font-semibold">{t('notificationChannels')}</h2>
       </div>
       <div className="divide-y">
         {m.notificationChannels.map((channel) => (
@@ -34,7 +36,7 @@ export function ChannelsPanel({ m }: { m: MonitoringHook }) {
                   }
                   className="rounded border px-2 py-1 text-xs hover:bg-accent"
                 >
-                  {channel.status === 'active' ? '停用' : '启用'}
+                  {channel.status === 'active' ? t('disable') : t('enable')}
                 </button>
               </div>
             </div>
