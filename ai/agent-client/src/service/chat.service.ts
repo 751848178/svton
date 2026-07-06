@@ -1210,6 +1210,21 @@ export class ChatService {
         }
         break;
       }
+
+      case 'skill_activated': {
+        const applySkill = (m: DisplayMessage): DisplayMessage =>
+          m.id === assistantMsgId
+            ? { ...m, activeSkills: event.skills }
+            : m;
+
+        if (isActive) {
+          this.messages = this.messages.map(applySkill);
+        } else if (bgId) {
+          const cached = this.sessionMessages.get(bgId);
+          if (cached) this.sessionMessages.set(bgId, cached.map(applySkill));
+        }
+        break;
+      }
     }
 
     this.lastEventType = event.type;

@@ -74,6 +74,8 @@ export interface DisplayMessage {
   systemType?: 'default' | 'context_compacted';
   /** Duration in ms for completed assistant turns */
   duration?: number;
+  /** Skills active for this assistant turn — surfaced in the activity indicator */
+  activeSkills?: string[];
   timestamp: number;
 }
 

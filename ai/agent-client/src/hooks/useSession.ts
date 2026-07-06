@@ -16,7 +16,7 @@ import type { SessionInfo } from '../service/session.service';
  * cached per-session. Switching back loads the latest state from cache.
  */
 export function useSession() {
-  const { chatService, sessionService, projectService, chatInternal, sessionInternal } = useAgentContext();
+  const { chatService, sessionService, projectService, chatInternal, sessionInternal, platform } = useAgentContext();
 
   const [sessions, setSessions] = useState(() => {
     const s = sessionInternal.getState('sessions');
@@ -212,6 +212,56 @@ export function useSession() {
 
   // Register global flush for external callers (e.g. Tauri onCloseRequested)
   useEffect(() => { setFlushFn(flush); return () => setFlushFn(async () => {}); }, [flush]);
+
+  // ── Desktop (Tauri) only: flush messages before window closes ──
+  // On native window close, visibilitychange is unreliable and the webview
+  // may be destroyed before the auto-save completes, losing the last batch
+  // of messages. We intercept the close request, persist everything, then
+  // destroy the window ourselves. Only registered for the main window
+  // (popout/preview windows are identified by query params and skipped).
+  useEffect(() => {
+    if (platform.type !== 'tauri') return;
+    // Skip popout session windows and standalone preview windows
+    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    if (params.get('popout') === '1' || params.get('preview') === '1') return;
+
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Dynamic import with `as string` so TypeScript does not try to
+        // resolve the module (it is only installed in the desktop app, not
+        // in agent-client's own node_modules).
+        const mod: any = await import('@tauri-apps/api/window' as string);
+        const getCurrentWindow = mod.getCurrentWindow;
+        if (typeof getCurrentWindow !== 'function') return;
+        const appWindow = getCurrentWindow();
+        unlisten = await appWindow.onCloseRequested(async (event: any) => {
+          event.preventDefault();
+          try {
+            await flush();
+          } catch {
+            // Flush errors must not block window close
+          }
+          // Allow close to proceed now that state is persisted
+          try {
+            await appWindow.destroy();
+          } catch {
+            // If destroy fails, the window is already closing
+          }
+        });
+        if (cancelled && unlisten) unlisten();
+      } catch {
+        // @tauri-apps/api not available (non-desktop context) — ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (unlisten) {
+        try { unlisten(); } catch { /* already cleaned up */ }
+      }
+    };
+  }, [platform, flush]);
 
   // ── First message: immediate title + projectId + sidebar visibility ──
   useEffect(() => {
@@ -418,6 +468,7 @@ export function displayToStoredMessages(msgs: DisplayMessage[]): unknown[] {
       thinking: m.thinking || undefined,
       images: m.images || undefined,
       duration: m.duration || undefined,
+      activeSkills: m.activeSkills?.length ? m.activeSkills : undefined,
       toolCalls: m.toolCalls?.length ? m.toolCalls.map((tc) => ({
         id: tc.id, name: tc.name, arguments: tc.arguments, status: tc.status,
         result: tc.result ? { callId: tc.result.callId, output: tc.result.output, isError: tc.result.isError } : undefined,
@@ -480,6 +531,7 @@ export function storedToDisplayMessages(msgs: unknown[]): DisplayMessage[] {
       toolCalls: restoredTc,
       blocks,
       duration: m.duration as number | undefined,
+      activeSkills: Array.isArray(m.activeSkills) ? (m.activeSkills as string[]) : undefined,
       timestamp: Date.now(),
     });
   }
