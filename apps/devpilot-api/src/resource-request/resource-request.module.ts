@@ -15,6 +15,12 @@ import { ResourceRequestService } from './resource-request.service';
 import { ResourceRequestAccessService } from './resource-request-access.service';
 import { ResourceRequestStatusWriterService } from './resource-request-status-writer.service';
 import { ResourceProvisioningRunWriterService } from './resource-provisioning-run-writer.service';
+import { ResourceRequestProvisioningService } from './resource-request-provisioning.service';
+import { ResourceRequestCredentialRefService } from './resource-request-credential-ref.service';
+import { ResourceRequestPoolProvisioningService } from './resource-request-pool-provisioning.service';
+import { ResourceRequestScriptProvisioningService } from './resource-request-script-provisioning.service';
+import { ResourceRequestHttpProvisioningService } from './resource-request-http-provisioning.service';
+import { ResourceRequestProviderProvisioningService } from './resource-request-provider-provisioning.service';
 import { ResourceTypeService } from './resource-type.service';
 import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
 import { ResourceProvisioningRunReadService } from './resource-provisioning-run-read.service';
@@ -34,6 +40,12 @@ import { ResourceProvisioningRunReadService } from './resource-provisioning-run-
     ResourceRequestAccessService,
     ResourceRequestStatusWriterService,
     ResourceProvisioningRunWriterService,
+    ResourceRequestProvisioningService,
+    ResourceRequestCredentialRefService,
+    ResourceRequestPoolProvisioningService,
+    ResourceRequestScriptProvisioningService,
+    ResourceRequestHttpProvisioningService,
+    ResourceRequestProviderProvisioningService,
     ResourceRequestProvisioningRetrySchedulerService,
     ResourceProvisioningRunSupervisorService,
     ResourceProvisioningRunReadService,

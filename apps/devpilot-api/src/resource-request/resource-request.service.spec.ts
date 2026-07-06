@@ -7,6 +7,12 @@ import { ResourceRequestService } from './resource-request.service';
 import { ResourceRequestAccessService } from './resource-request-access.service';
 import { ResourceRequestStatusWriterService } from './resource-request-status-writer.service';
 import { ResourceProvisioningRunWriterService } from './resource-provisioning-run-writer.service';
+import { ResourceRequestProvisioningService } from './resource-request-provisioning.service';
+import { ResourceRequestPoolProvisioningService } from './resource-request-pool-provisioning.service';
+import { ResourceRequestScriptProvisioningService } from './resource-request-script-provisioning.service';
+import { ResourceRequestHttpProvisioningService } from './resource-request-http-provisioning.service';
+import { ResourceRequestProviderProvisioningService } from './resource-request-provider-provisioning.service';
+import { ResourceRequestCredentialRefService } from './resource-request-credential-ref.service';
 import { ResourceTypeService } from './resource-type.service';
 import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
 import { ResourceProvisioningRunReadService } from './resource-provisioning-run-read.service';
@@ -2327,12 +2333,32 @@ function createService(options: { httpEnabled?: boolean; configValues?: Record<s
     sharedRepo,
     config as unknown as ConfigService,
   );
+  const runWriter = new ResourceProvisioningRunWriterService(sharedRepo, statusWriter);
+  const credentialRef = new ResourceRequestCredentialRefService(sharedRepo);
+  const provisioning = new ResourceRequestProvisioningService(
+    sharedRepo,
+    statusWriter,
+    credentialRef,
+    new ResourceRequestPoolProvisioningService(
+      statusWriter,
+      resourcePoolService as unknown as ResourcePoolService,
+    ),
+    new ResourceRequestScriptProvisioningService(
+      statusWriter,
+      credentialRef,
+      serverExecutor as unknown as ServerExecutorService,
+    ),
+    new ResourceRequestHttpProvisioningService(statusWriter, runWriter, credentialRef, config as unknown as ConfigService),
+    new ResourceRequestProviderProvisioningService(statusWriter, runWriter, credentialRef),
+    config as unknown as ConfigService,
+  );
   const service = new ResourceRequestService(
     sharedRepo,
     new ResourceTypeService(sharedRepo),
     new ResourceRequestAccessService(sharedRepo),
     statusWriter,
-    new ResourceProvisioningRunWriterService(sharedRepo, statusWriter),
+    runWriter,
+    provisioning,
     config as unknown as ConfigService,
     resourcePoolService as unknown as ResourcePoolService,
     serverExecutor as unknown as ServerExecutorService,
