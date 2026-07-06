@@ -4,6 +4,9 @@
  * 单一职责：渲染配置基本信息、上游、生成的 Nginx 配置、操作面板。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { StatusTag } from '@/components/ui';
 import type { ProxyConfig } from '../types';
 
@@ -22,37 +25,39 @@ export function ProxyConfigView({
   onPreview,
   onOpenServer,
 }: ProxyConfigViewProps) {
+  const t = useTranslations('proxyConfigs');
+  const tc = useTranslations('common');
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
         <div className="rounded-lg border p-6">
-          <h2 className="mb-4 font-semibold">基本信息</h2>
+          <h2 className="mb-4 font-semibold">{t('basicInfo')}</h2>
           <dl className="grid grid-cols-2 gap-4 text-sm">
-            <Field label="域名">
+            <Field label={t('domain')}>
               <dd className="font-mono">{config.domain}</dd>
             </Field>
             <Field label="SSL">
-              <dd>{config.ssl.enabled ? `已启用 (${config.ssl.type})` : '未启用'}</dd>
+              <dd>{config.ssl.enabled ? t('sslEnabledWith', { type: config.ssl.type ?? '' }) : t('notEnabled')}</dd>
             </Field>
             <Field label="WebSocket">
-              <dd>{config.websocket ? '已启用' : '未启用'}</dd>
+              <dd>{config.websocket ? t('enabled') : t('notEnabled')}</dd>
             </Field>
-            <Field label="关联服务器">
-              <dd>{config.server ? config.server.name : '未关联'}</dd>
+            <Field label={t('associatedServer')}>
+              <dd>{config.server ? config.server.name : t('notAssociated')}</dd>
             </Field>
             {config.project ? (
-              <Field label="关联项目">
+              <Field label={t('associatedProject')}>
                 <dd>{config.project.name}</dd>
               </Field>
             ) : null}
-            <Field label="创建时间">
+            <Field label={tc('createdAt')}>
               <dd>{new Date(config.createdAt).toLocaleString()}</dd>
             </Field>
           </dl>
         </div>
 
         <div className="rounded-lg border p-6">
-          <h2 className="mb-4 font-semibold">上游服务器</h2>
+          <h2 className="mb-4 font-semibold">{t('upstreamServers')}</h2>
           <div className="space-y-2">
             {config.upstreams.map((upstream, i) => (
               <div
@@ -63,7 +68,7 @@ export function ProxyConfigView({
                   {upstream.host}:{upstream.port || 80}
                 </span>
                 {upstream.weight ? (
-                  <span className="text-xs text-muted-foreground">权重: {upstream.weight}</span>
+                  <span className="text-xs text-muted-foreground">{t('weight', { weight: upstream.weight })}</span>
                 ) : null}
               </div>
             ))}
@@ -72,7 +77,7 @@ export function ProxyConfigView({
 
         {config.generatedConfig ? (
           <div className="rounded-lg border p-6">
-            <h2 className="mb-4 font-semibold">Nginx 配置</h2>
+            <h2 className="mb-4 font-semibold">{t('nginxConfig')}</h2>
             <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
               {config.generatedConfig}
             </pre>
@@ -82,27 +87,27 @@ export function ProxyConfigView({
 
       <div className="space-y-4">
         <div className="rounded-lg border p-6">
-          <h2 className="mb-4 font-semibold">操作</h2>
+          <h2 className="mb-4 font-semibold">{tc('actions')}</h2>
           <div className="space-y-2">
             <button
               onClick={onSync}
               disabled={syncing || !config.server}
               className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {syncing ? '同步中...' : '同步到服务器'}
+              {syncing ? t('syncing') : t('syncToServer')}
             </button>
             <button
               onClick={onPreview}
               className="w-full rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
             >
-              预览 Nginx 配置
+              {t('previewNginx')}
             </button>
             {config.server ? (
               <button
                 onClick={onOpenServer}
                 className="w-full rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
               >
-                查看服务器
+                {t('viewServer')}
               </button>
             ) : null}
           </div>
@@ -123,9 +128,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const tc = useTranslations('common');
   return (
     <div className="rounded-lg border border-destructive/50 p-6">
-      <h2 className="mb-4 font-semibold text-destructive">状态</h2>
+      <h2 className="mb-4 font-semibold text-destructive">{tc('status')}</h2>
       <StatusTag status={status} />
     </div>
   );

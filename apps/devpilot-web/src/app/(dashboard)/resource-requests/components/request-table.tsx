@@ -1,9 +1,21 @@
 /**
- * 资源申请列表表格
+ * 资源申请列表表格（@tanstack/react-table）
  *
  * 单一职责：渲染申请列表 + 状态徽章 + 审批/取消/重试/交付/运行记录操作。
+ * 头部采用 headless table 提供按创建时间/状态排序。
  */
+'use client';
 
+import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import {
+  type ColumnDef,
+  type SortingState,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
@@ -26,26 +38,154 @@ interface RequestTableProps {
 }
 
 export function RequestTable(props: RequestTableProps) {
-  const { requests } = props;
+  const { requests, retryingId, onReview, onCancel, onRetryProvisioning, onComplete, onViewRuns } =
+    props;
+  const t = useTranslations('resourceRequests');
+  const tc = useTranslations('common');
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  const columns = useMemo<ColumnDef<ResourceRequest>[]>(
+    () => [
+      {
+        id: 'request',
+        header: t('request'),
+        accessorFn: (row) => row.createdAt,
+        cell: ({ row }) => {
+          const request = row.original;
+          return (
+            <>
+              <div className="font-medium">{request.title}</div>
+              <div className="text-xs text-muted-foreground">
+                {request.requester?.name || request.requester?.email || '-'} ·{' '}
+                {new Date(request.createdAt).toLocaleString()}
+              </div>
+            </>
+          );
+        },
+      },
+      {
+        id: 'resourceType',
+        header: t('resourceType'),
+        accessorFn: (row) => row.resourceType?.name || '',
+        cell: ({ row }) => {
+          const request = row.original;
+          return (
+            <>
+              <div>{request.resourceType?.name || '-'}</div>
+              <code className="text-xs text-muted-foreground">{request.resourceType?.key}</code>
+              {request.resourceType?.provisioningMode ? (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {t('deliveryMode', { mode: request.resourceType.provisioningMode })}
+                </div>
+              ) : null}
+            </>
+          );
+        },
+      },
+      {
+        id: 'scope',
+        header: t('projectEnvironment'),
+        cell: ({ row }) => {
+          const request = row.original;
+          return (
+            <>
+              <div>{request.project?.name || t('noProject')}</div>
+              <div className="text-xs text-muted-foreground">
+                {request.environment || t('noEnvironment')}
+              </div>
+            </>
+          );
+        },
+      },
+      {
+        id: 'status',
+        header: tc('status'),
+        accessorFn: (row) => row.status,
+        cell: ({ row }) => {
+          const request = row.original;
+          return (
+            <div className="space-y-1">
+              {getStatusBadge(request.status)}
+              {getProvisioningBadge(request.result?.provisioning)}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'actions',
+        header: tc('actions'),
+        cell: ({ row }) => (
+          <RequestActions
+            request={row.original}
+            retryingId={retryingId}
+            onReview={onReview}
+            onCancel={onCancel}
+            onRetryProvisioning={onRetryProvisioning}
+            onComplete={onComplete}
+            onViewRuns={onViewRuns}
+          />
+        ),
+      },
+    ],
+    [retryingId, onReview, onCancel, onRetryProvisioning, onComplete, onViewRuns, t, tc],
+  );
+
+  const table = useReactTable({
+    data: requests,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
   return (
     <div className="overflow-hidden rounded-lg border">
       <table className="w-full">
         <thead className="bg-muted/50">
-          <tr>
-            <th className="px-4 py-3 text-left text-sm font-medium">申请</th>
-            <th className="px-4 py-3 text-left text-sm font-medium">资源类型</th>
-            <th className="px-4 py-3 text-left text-sm font-medium">项目/环境</th>
-            <th className="px-4 py-3 text-left text-sm font-medium">状态</th>
-            <th className="px-4 py-3 text-right text-sm font-medium">操作</th>
-          </tr>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map((header) => {
+                const canSort = header.column.getCanSort();
+                const isLast = header.column.id === 'actions';
+                return (
+                  <th
+                    key={header.id}
+                    className={`px-4 py-3 text-sm font-medium ${isLast ? 'text-right' : 'text-left'}`}
+                  >
+                    {header.isPlaceholder ? null : (
+                      <button
+                        type="button"
+                        onClick={header.column.getToggleSortingHandler()}
+                        className={`flex items-center gap-1 ${isLast ? 'ml-auto justify-end' : ''}`}
+                        disabled={!canSort}
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {canSort ? (
+                          <span className="text-xs text-muted-foreground">
+                            {{ asc: '▲', desc: '▼' }[header.column.getIsSorted() as string] || '↕'}
+                          </span>
+                        ) : null}
+                      </button>
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          ))}
         </thead>
         <tbody className="divide-y">
-          {requests.map((request) => (
-            <RequestRow
-              key={request.id}
-              request={request}
-              {...props}
-            />
+          {table.getRowModel().rows.map((row) => (
+            <tr key={row.id} className="hover:bg-muted/30">
+              {row.getVisibleCells().map((cell) => (
+                <td
+                  key={cell.id}
+                  className={`px-4 py-3 ${cell.column.id === 'actions' ? 'text-right' : ''}`}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
           ))}
         </tbody>
       </table>
@@ -53,7 +193,7 @@ export function RequestTable(props: RequestTableProps) {
   );
 }
 
-function RequestRow({
+function RequestActions({
   request,
   retryingId,
   onReview,
@@ -70,6 +210,8 @@ function RequestRow({
   onComplete: (request: ResourceRequest) => void;
   onViewRuns: (request: ResourceRequest) => void;
 }) {
+  const t = useTranslations('resourceRequests');
+  const tc = useTranslations('common');
   const handleApprove = usePersistFn(() => onReview(request.id, 'approved'));
   const handleReject = usePersistFn(() => onReview(request.id, 'rejected'));
   const handleCancel = usePersistFn(() => onCancel(request.id));
@@ -78,87 +220,57 @@ function RequestRow({
   const handleViewRuns = usePersistFn(() => onViewRuns(request));
 
   return (
-    <tr className="hover:bg-muted/30">
-      <td className="px-4 py-3">
-        <div className="font-medium">{request.title}</div>
-        <div className="text-xs text-muted-foreground">
-          {request.requester?.name || request.requester?.email || '-'} ·{' '}
-          {new Date(request.createdAt).toLocaleString()}
-        </div>
-      </td>
-      <td className="px-4 py-3 text-sm">
-        <div>{request.resourceType?.name || '-'}</div>
-        <code className="text-xs text-muted-foreground">{request.resourceType?.key}</code>
-        {request.resourceType?.provisioningMode ? (
-          <div className="mt-1 text-xs text-muted-foreground">
-            交付：{request.resourceType.provisioningMode}
-          </div>
-        ) : null}
-      </td>
-      <td className="px-4 py-3 text-sm">
-        <div>{request.project?.name || '未关联项目'}</div>
-        <div className="text-xs text-muted-foreground">{request.environment || '未指定环境'}</div>
-      </td>
-      <td className="px-4 py-3">
-        <div className="space-y-1">
-          {getStatusBadge(request.status)}
-          {getProvisioningBadge(request.result?.provisioning)}
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex justify-end gap-2">
-          {canViewProvisioningRuns(request) ? (
+    <div className="flex justify-end gap-2">
+      {canViewProvisioningRuns(request) ? (
+        <button
+          onClick={handleViewRuns}
+          className="rounded border px-2 py-1 text-xs hover:bg-accent"
+        >
+          {t('runRecords')}
+        </button>
+      ) : null}
+      {request.status === 'pending' ? (
+        <>
+          <button
+            onClick={handleApprove}
+            className="rounded border px-2 py-1 text-xs hover:bg-accent"
+          >
+            {t('approve')}
+          </button>
+          <button
+            onClick={handleReject}
+            className="rounded border px-2 py-1 text-xs hover:bg-accent"
+          >
+            {t('reject')}
+          </button>
+          <button
+            onClick={handleCancel}
+            className="rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+          >
+            {tc('cancel')}
+          </button>
+        </>
+      ) : null}
+      {request.status === 'approved' ? (
+        <>
+          {canRetryProvisioning(request.result?.provisioning) ? (
             <button
-              onClick={handleViewRuns}
-              className="rounded border px-2 py-1 text-xs hover:bg-accent"
+              onClick={handleRetry}
+              disabled={retryingId === request.id}
+              className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
             >
-              运行记录
+              {retryingId === request.id ? t('retrying') : t('retryDelivery')}
             </button>
           ) : null}
-          {request.status === 'pending' ? (
-            <>
-              <button
-                onClick={handleApprove}
-                className="rounded border px-2 py-1 text-xs hover:bg-accent"
-              >
-                通过
-              </button>
-              <button
-                onClick={handleReject}
-                className="rounded border px-2 py-1 text-xs hover:bg-accent"
-              >
-                驳回
-              </button>
-              <button
-                onClick={handleCancel}
-                className="rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
-              >
-                取消
-              </button>
-            </>
-          ) : null}
-          {request.status === 'approved' ? (
-            <>
-              {canRetryProvisioning(request.result?.provisioning) ? (
-                <button
-                  onClick={handleRetry}
-                  disabled={retryingId === request.id}
-                  className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {retryingId === request.id ? '重试中' : '重试交付'}
-                </button>
-              ) : null}
-              <button
-                onClick={handleComplete}
-                className="rounded border px-2 py-1 text-xs hover:bg-accent"
-              >
-                交付
-              </button>
-            </>
-          ) : null}
-          {request.instance ? <Tag color="default">实例：{request.instance.name}</Tag> : null}
-        </div>
-      </td>
-    </tr>
+          <button
+            onClick={handleComplete}
+            className="rounded border px-2 py-1 text-xs hover:bg-accent"
+          >
+            {t('deliver')}
+          </button>
+        </>
+      ) : null}
+      {request.instance ? <Tag color="default">{t('instanceName', { name: request.instance.name })}</Tag> : null}
+    </div>
   );
 }

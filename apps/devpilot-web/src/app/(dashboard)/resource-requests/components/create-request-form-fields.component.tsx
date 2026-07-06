@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import type { CreateRequestFormData } from '../hooks/use-create-request-form.hooks';
 import type { Project, ResourceField, ResourceFieldValue, ResourceType } from '../types';
 import { getFieldDefaultValue } from '../utils';
@@ -28,17 +29,19 @@ export function CreateRequestFormFields({
   onFieldValueChange,
   onFormDataChange,
 }: CreateRequestFormFieldsProps) {
+  const t = useTranslations('resourceRequests');
+  const tc = useTranslations('common');
   return (
     <>
       <div>
-        <label className="block text-sm font-medium mb-1">资源类型</label>
+        <label className="block text-sm font-medium mb-1">{t('resourceType')}</label>
         <select
           value={formData.resourceTypeId}
           onChange={(event) => onFormDataChange({ resourceTypeId: event.target.value })}
           required
           className="w-full px-3 py-2 border rounded-md bg-background"
         >
-          {resourceTypes.length === 0 && <option value="">暂无可用资源类型</option>}
+          {resourceTypes.length === 0 && <option value="">{t('noResourceTypes')}</option>}
           {resourceTypes.map((type) => (
             <option
               key={type.id}
@@ -51,30 +54,30 @@ export function CreateRequestFormFields({
       </div>
       {resourceTypes.length === 0 && (
         <div className="p-3 rounded-md bg-muted text-sm text-muted-foreground">
-          请先在资源类型中新增或启用资源类型。
+          {t('enableResourceTypeHint')}
         </div>
       )}
       <div>
-        <label className="block text-sm font-medium mb-1">申请标题</label>
+        <label className="block text-sm font-medium mb-1">{t('requestTitle')}</label>
         <input
           value={formData.title}
           onChange={(event) => onFormDataChange({ title: event.target.value })}
           required
           className="w-full px-3 py-2 border rounded-md"
-          placeholder="申请 dev 环境 Redis"
+          placeholder={t('requestTitlePlaceholder')}
         />
       </div>
       <div
         className={`grid gap-3 ${hasEnvironmentField ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}
       >
         <div>
-          <label className="block text-sm font-medium mb-1">关联项目</label>
+          <label className="block text-sm font-medium mb-1">{t('project')}</label>
           <select
             value={formData.projectId}
             onChange={(event) => onFormDataChange({ projectId: event.target.value })}
             className="w-full px-3 py-2 border rounded-md bg-background"
           >
-            <option value="">不关联</option>
+            <option value="">{t('noProject')}</option>
             {projects.map((project) => (
               <option
                 key={project.id}
@@ -87,18 +90,18 @@ export function CreateRequestFormFields({
         </div>
         {!hasEnvironmentField && (
           <div>
-            <label className="block text-sm font-medium mb-1">环境</label>
+            <label className="block text-sm font-medium mb-1">{t('environment')}</label>
             <input
               value={formData.environment}
               onChange={(event) => onFormDataChange({ environment: event.target.value })}
               className="w-full px-3 py-2 border rounded-md"
-              placeholder="dev / test / prod"
+              placeholder={t('environmentPlaceholder')}
             />
           </div>
         )}
       </div>
       <div>
-        <label className="block text-sm font-medium mb-1">用途</label>
+        <label className="block text-sm font-medium mb-1">{t('purpose')}</label>
         <textarea
           value={formData.purpose}
           onChange={(event) => onFormDataChange({ purpose: event.target.value })}
@@ -108,7 +111,7 @@ export function CreateRequestFormFields({
       </div>
       {fields.length > 0 ? (
         <div className="space-y-3">
-          <div className="text-sm font-medium">申请规格</div>
+          <div className="text-sm font-medium">{t('requestSpec')}</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {fields.map((field) => (
               <DynamicResourceField
@@ -122,7 +125,7 @@ export function CreateRequestFormFields({
         </div>
       ) : (
         <div>
-          <label className="block text-sm font-medium mb-1">规格 JSON</label>
+          <label className="block text-sm font-medium mb-1">{t('specJson')}</label>
           <textarea
             value={formData.spec}
             onChange={(event) => onFormDataChange({ spec: event.target.value })}
@@ -137,14 +140,14 @@ export function CreateRequestFormFields({
           onClick={onCancel}
           className="px-4 py-2 border rounded-md"
         >
-          取消
+          {tc('cancel')}
         </button>
         <button
           type="submit"
           disabled={saving || !formData.resourceTypeId}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-md disabled:opacity-50"
         >
-          {saving ? '提交中...' : '提交申请'}
+          {saving ? t('submitting') : t('submitRequest')}
         </button>
       </div>
     </>

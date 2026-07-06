@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { useResourceControl } from '../hooks/use-resource-control';
 import { buildResourceActionKey, formatActionRisk } from '../resource-action-ui.utils';
 import type { ManagedResource, ResourceActionDefinition } from '../types';
@@ -16,6 +17,7 @@ export function ResourceActionButtons({
   rc: RCHook;
   resource: ManagedResource;
 }) {
+  const t = useTranslations('resourceControl');
   const [confirmationText, setConfirmationText] = useState<Record<string, string>>({});
 
   return (
@@ -25,7 +27,7 @@ export function ResourceActionButtons({
         disabled={rc.actingResourceId === `${resource.id}:sync`}
         className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
       >
-        {rc.actingResourceId === `${resource.id}:sync` ? '同步中...' : '同步'}
+        {rc.actingResourceId === `${resource.id}:sync` ? t('syncing') : t('sync')}
       </button>
       {actions.map((action) => {
         const actionStateKey = buildResourceActionKey(resource.id, action.key);
@@ -48,7 +50,7 @@ export function ResourceActionButtons({
                 disabled={isActing}
                 className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
               >
-                {isActing ? '执行中...' : '演练'}
+                {isActing ? t('executing') : t('dryRun')}
               </button>
               {requiresConfirmation ? (
                 <>
@@ -73,7 +75,7 @@ export function ResourceActionButtons({
                     disabled={!canExecute || isActing}
                     className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
                   >
-                    确认执行
+                    {t('confirmExecute')}
                   </button>
                 </>
               ) : !action.dryRunOnly ? (
@@ -82,7 +84,7 @@ export function ResourceActionButtons({
                   disabled={isActing}
                   className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
                 >
-                  执行
+                  {t('execute')}
                 </button>
               ) : null}
             </div>

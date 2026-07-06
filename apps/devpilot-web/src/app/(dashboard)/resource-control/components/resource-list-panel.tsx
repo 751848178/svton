@@ -1,6 +1,7 @@
 /** 资源列表面板 - 受管资源卡片网格 + 筛选 + 同步/操作。 */
 'use client';
 import { usePersistFn } from '@svton/hooks';
+import { useTranslations } from 'next-intl';
 import { EmptyState, LoadingState, Tag } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useResourceControl } from '../hooks/use-resource-control';
@@ -8,7 +9,9 @@ import { kindLabels, providerLabels, statusClasses } from '../constants';
 type RCHook = ReturnType<typeof useResourceControl>;
 
 export function ResourceListPanel({ rc }: { rc: RCHook }) {
-  if (rc.loading) return <LoadingState text="加载中..." />;
+  const t = useTranslations('resourceControl');
+  const tc = useTranslations('common');
+  if (rc.loading) return <LoadingState text={tc('loading')} />;
   const filtered = rc.resources.filter(
     (r) =>
       (!rc.filterProvider || r.provider === rc.filterProvider) &&
@@ -18,8 +21,8 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
   if (filtered.length === 0)
     return (
       <EmptyState
-        text="暂无受管资源"
-        description="同步 Docker 或云资源后会在这里出现"
+        text={t('noManagedResources')}
+        description={t('noManagedResourcesDescription')}
       />
     );
   return (
@@ -30,7 +33,7 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
           onChange={(e) => rc.setFilterProvider(e.target.value)}
           className="rounded-md border bg-background px-3 py-2 text-sm"
         >
-          <option value="">全部 Provider</option>
+          <option value="">{t('allProviders')}</option>
           {Object.keys(providerLabels).map((p) => (
             <option
               key={p}
@@ -45,7 +48,7 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
           onChange={(e) => rc.setFilterKind(e.target.value)}
           className="rounded-md border bg-background px-3 py-2 text-sm"
         >
-          <option value="">全部类型</option>
+          <option value="">{t('allKinds')}</option>
           {Object.keys(kindLabels).map((k) => (
             <option
               key={k}
@@ -60,10 +63,10 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
           onChange={(e) => rc.setFilterStatus(e.target.value)}
           className="rounded-md border bg-background px-3 py-2 text-sm"
         >
-          <option value="">全部状态</option>
-          <option value="running">运行中</option>
-          <option value="stopped">已停止</option>
-          <option value="error">异常</option>
+          <option value="">{t('allStatuses')}</option>
+          <option value="running">{t('statusRunning')}</option>
+          <option value="stopped">{t('statusStopped')}</option>
+          <option value="error">{t('statusError')}</option>
         </select>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -93,14 +96,14 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
                 disabled={rc.actingResourceId === `${resource.id}:sync`}
                 className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
               >
-                {rc.actingResourceId === `${resource.id}:sync` ? '同步中...' : '同步'}
+                {rc.actingResourceId === `${resource.id}:sync` ? t('syncing') : t('sync')}
               </button>
               <button
                 onClick={() => rc.runAction(resource, 'restart')}
                 disabled={rc.actingResourceId === `${resource.id}:restart`}
                 className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
               >
-                重启
+                {t('restart')}
               </button>
             </div>
           </div>

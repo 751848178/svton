@@ -2,19 +2,16 @@
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { StatusTag, Modal } from '@/components/ui';
 import { useProxyConfig } from './hooks/use-proxy-config';
 import { ProxyConfigView } from './components/proxy-config-view';
 
-const STATUS_LABELS: Record<string, string> = {
-  active: '已生效',
-  error: '错误',
-  pending: '待同步',
-};
-
 export default function ProxyConfigDetailPage() {
+  const t = useTranslations('proxyConfigs');
+  const tc = useTranslations('common');
   const params = useParams();
   const router = useRouter();
   const configId = params.id as string;
@@ -22,9 +19,15 @@ export default function ProxyConfigDetailPage() {
   const [previewConfig, setPreviewConfig] = useState('');
   const [previewOpen, { setTrue: openPreview, setFalse: closePreview }] = useBoolean(false);
 
+  const statusLabels: Record<string, string> = {
+    active: t('statusActive'),
+    error: t('statusError'),
+    pending: t('statusPending'),
+  };
+
   const handleSync = usePersistFn(() => sync());
   const handleDelete = usePersistFn(async () => {
-    if (!confirm('确定要删除这个代理配置吗？')) return;
+    if (!confirm(t('deleteConfirm'))) return;
     await remove();
     router.push('/proxy-configs');
   });
@@ -39,18 +42,18 @@ export default function ProxyConfigDetailPage() {
     if (config?.server) router.push(`/servers/${config.server.id}`);
   });
 
-  if (loading) return <LoadingState text="加载中..." />;
+  if (loading) return <LoadingState text={tc('loading')} />;
 
   if (!config) {
     return (
       <EmptyState
-        text="配置不存在"
+        text={t('configNotFound')}
         action={
           <button
             onClick={() => router.push('/proxy-configs')}
             className="text-primary hover:underline"
           >
-            返回列表
+            {t('backToList')}
           </button>
         }
       />
@@ -69,7 +72,7 @@ export default function ProxyConfigDetailPage() {
         <h1 className="text-2xl font-bold">{config.name}</h1>
         <StatusTag
           status={config.status}
-          label={STATUS_LABELS[config.status] || config.status}
+          label={statusLabels[config.status] || config.status}
         />
       </div>
 
@@ -82,19 +85,19 @@ export default function ProxyConfigDetailPage() {
       />
 
       <div className="rounded-lg border border-destructive/50 p-6">
-        <h2 className="mb-4 font-semibold text-destructive">危险操作</h2>
+        <h2 className="mb-4 font-semibold text-destructive">{t('dangerZone')}</h2>
         <button
           onClick={handleDelete}
           className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
         >
-          删除配置
+          {t('deleteConfig')}
         </button>
       </div>
 
       <Modal
         open={previewOpen}
         onClose={closePreview}
-        title="Nginx 配置预览"
+        title={t('nginxConfigPreview')}
         width={768}
       >
         <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">

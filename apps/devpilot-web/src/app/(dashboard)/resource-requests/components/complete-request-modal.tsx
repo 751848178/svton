@@ -1,5 +1,6 @@
 /** 完成交付弹窗 - 动态表单（按交付 Schema）。 */
 'use client';
+import { useTranslations } from 'next-intl';
 import { useCompleteRequestForm } from '../hooks/use-complete-request-form.hooks';
 import type { ResourceRequest } from '../types';
 import { CompleteRequestFormFields } from './complete-request-form-fields.component';
@@ -13,6 +14,7 @@ export function CompleteRequestModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const t = useTranslations('resourceRequests');
   const form = useCompleteRequestForm({ request, onSuccess });
 
   return (
@@ -22,9 +24,9 @@ export function CompleteRequestModal({
         onClick={onClose}
       />
       <div className="relative bg-background rounded-lg shadow-lg w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-semibold">交付资源</h2>
+        <h2 className="text-lg font-semibold">{t('deliverResource')}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          {request.title} · {request.resourceType?.name || '资源'}
+          {request.title} · {request.resourceType?.name || t('resource')}
         </p>
 
         {form.error && (

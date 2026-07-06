@@ -2,10 +2,13 @@
  * 添加代理配置弹窗
  *
  * 单一职责：收集代理配置字段并提交。
+ * react-hook-form 样板：取代手写 useSetState + 受控 onChange。
  */
 
-import { useState } from 'react';
-import { useSetState, usePersistFn } from '@svton/hooks';
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import { Modal, ErrorBanner } from '@/components/ui';
 import type { Server, ProxyConfigInput } from '../types';
 
@@ -22,30 +25,37 @@ export function AddProxyConfigModal({
   onClose,
   onCreate,
 }: AddProxyConfigModalProps) {
-  const [form, setForm] = useSetState<ProxyConfigInput>({
-    name: '',
-    domain: '',
-    upstreamHost: '',
-    upstreamPort: 80,
-    sslEnabled: false,
-    sslType: 'letsencrypt',
-    websocket: false,
-    serverId: '',
+  const t = useTranslations('proxyConfigs');
+  const tc = useTranslations('common');
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setError,
+    formState,
+  } = useForm<ProxyConfigInput>({
+    defaultValues: {
+      name: '',
+      domain: '',
+      upstreamHost: '',
+      upstreamPort: 80,
+      sslEnabled: false,
+      sslType: 'letsencrypt',
+      websocket: false,
+      serverId: '',
+    },
   });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleSubmit = usePersistFn(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSaving(true);
+  const sslEnabled = watch('sslEnabled');
+
+  const submit = handleSubmit(async (data) => {
     try {
-      await onCreate(form);
+      await onCreate(data);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '添加失败');
-    } finally {
-      setSaving(false);
+      setError('root', {
+        message: err instanceof Error ? err.message : t('addFailed'),
+      });
     }
   });
 
@@ -53,33 +63,31 @@ export function AddProxyConfigModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="添加代理配置"
+      title={t('addConfig')}
     >
       <form
-        onSubmit={handleSubmit}
+        onSubmit={submit}
         className="space-y-4"
       >
-        {error ? (
+        {(formState.errors.root as { message?: string } | undefined)?.message ? (
           <ErrorBanner
-            message={error}
+            message={(formState.errors.root as { message?: string } | undefined)?.message || ''}
             variant="inline"
           />
         ) : null}
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">配置名称</span>
+          <span className="mb-1 block font-medium">{t('configName')}</span>
           <input
-            value={form.name}
-            onChange={(e) => setForm({ name: e.target.value })}
+            {...register('name', { required: true })}
             required
             className="w-full rounded-md border px-3 py-2"
-            placeholder="我的网站"
+            placeholder={t('configNamePlaceholder')}
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">域名</span>
+          <span className="mb-1 block font-medium">{t('domain')}</span>
           <input
-            value={form.domain}
-            onChange={(e) => setForm({ domain: e.target.value })}
+            {...register('domain', { required: true })}
             required
             className="w-full rounded-md border px-3 py-2"
             placeholder="example.com"
@@ -87,33 +95,30 @@ export function AddProxyConfigModal({
         </label>
         <div className="grid grid-cols-3 gap-2">
           <label className="col-span-2 block text-sm">
-            <span className="mb-1 block font-medium">上游地址</span>
+            <span className="mb-1 block font-medium">{t('upstreamHost')}</span>
             <input
-              value={form.upstreamHost}
-              onChange={(e) => setForm({ upstreamHost: e.target.value })}
+              {...register('upstreamHost', { required: true })}
               required
               className="w-full rounded-md border px-3 py-2"
               placeholder="127.0.0.1"
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">端口</span>
+            <span className="mb-1 block font-medium">{t('port')}</span>
             <input
               type="number"
-              value={form.upstreamPort}
-              onChange={(e) => setForm({ upstreamPort: Number(e.target.value) })}
+              {...register('upstreamPort', { valueAsNumber: true })}
               className="w-full rounded-md border px-3 py-2"
             />
           </label>
         </div>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">目标服务器</span>
+          <span className="mb-1 block font-medium">{t('targetServer')}</span>
           <select
-            value={form.serverId}
-            onChange={(e) => setForm({ serverId: e.target.value })}
+            {...register('serverId')}
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="">不关联服务器</option>
+            <option value="">{t('noServer')}</option>
             {servers.map((s) => (
               <option
                 key={s.id}
@@ -128,30 +133,27 @@ export function AddProxyConfigModal({
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={form.sslEnabled}
-              onChange={(e) => setForm({ sslEnabled: e.target.checked })}
+              {...register('sslEnabled')}
               className="rounded"
             />
-            <span className="text-sm">启用 SSL</span>
+            <span className="text-sm">{t('enableSsl')}</span>
           </label>
-          {form.sslEnabled ? (
+          {sslEnabled ? (
             <select
-              value={form.sslType}
-              onChange={(e) => setForm({ sslType: e.target.value as ProxyConfigInput['sslType'] })}
+              {...register('sslType')}
               className="w-full rounded-md border px-3 py-2 text-sm"
             >
-              <option value="letsencrypt">Let&apos;s Encrypt（自动）</option>
-              <option value="custom">自定义证书</option>
+              <option value="letsencrypt">{t('sslLetsencrypt')}</option>
+              <option value="custom">{t('sslCustom')}</option>
             </select>
           ) : null}
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={form.websocket}
-              onChange={(e) => setForm({ websocket: e.target.checked })}
+              {...register('websocket')}
               className="rounded"
             />
-            <span className="text-sm">启用 WebSocket</span>
+            <span className="text-sm">{t('enableWebsocket')}</span>
           </label>
         </div>
         <div className="flex justify-end gap-2 pt-4">
@@ -160,14 +162,14 @@ export function AddProxyConfigModal({
             onClick={onClose}
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             type="submit"
-            disabled={saving}
+            disabled={formState.isSubmitting}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {saving ? '添加中...' : '添加'}
+            {formState.isSubmitting ? t('adding') : tc('add')}
           </button>
         </div>
       </form>

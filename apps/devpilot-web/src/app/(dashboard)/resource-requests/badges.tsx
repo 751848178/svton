@@ -122,9 +122,8 @@ export function getRunTriggerLabel(trigger?: string) {
   return trigger ? labels[trigger] || trigger : '-';
 }
 
-export function formatDateTime(value?: string) {
-  return value ? new Date(value).toLocaleString() : '-';
-}
+/** 日期时间格式化（带秒，统一走共享 util；原为 locale 默认格式）。 */
+export { formatDateTime } from '@/lib/format-date';
 
 export function summarizeRecord(value?: Record<string, unknown>) {
   if (!value || Object.keys(value).length === 0) {

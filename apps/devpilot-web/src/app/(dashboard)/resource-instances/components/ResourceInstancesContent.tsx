@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState, Tag } from '@svton/ui';
 import { PageHeader, StatusTag } from '@/components/ui';
 import { useResourceInstances } from '../hooks/use-resource-instances';
@@ -15,26 +16,28 @@ export function ResourceInstancesContent({
 }: {
   initialInstances?: ResourceInstance[];
 }) {
+  const t = useTranslations('resourceInstances');
+  const tc = useTranslations('common');
   const { instances, loading, release } = useResourceInstances(initialInstances);
 
   const releaseInstance = async (id: string) => {
-    if (!confirm('确定要释放这个资源实例吗？')) return;
+    if (!confirm(t('releaseConfirm'))) return;
     await release(id);
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="资源实例"
-        description="查看资源申请交付后的实际资源占用"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
       />
 
       {loading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : instances.length === 0 ? (
         <EmptyState
-          text="还没有资源实例"
-          description="完成资源申请交付后会在这里出现"
+          text={t('noInstances')}
+          description={t('noInstancesHint')}
         />
       ) : (
         <div className="grid gap-4">
@@ -51,14 +54,14 @@ export function ResourceInstancesContent({
                       status={instance.status}
                       label={STATUS_LABELS[instance.status]}
                     />
-                    {instance.hasCredentials ? <Tag color="default">含凭证</Tag> : null}
+                    {instance.hasCredentials ? <Tag color="default">{t('hasCredentials')}</Tag> : null}
                   </div>
                   <div className="mt-1 text-sm text-muted-foreground">
-                    {instance.resourceType?.name || '-'} · {instance.project?.name || '未关联项目'}
+                    {instance.resourceType?.name || '-'} · {instance.project?.name || t('notAssociatedProject')}
                   </div>
                   {instance.request ? (
                     <div className="mt-1 text-xs text-muted-foreground">
-                      来源申请：{instance.request.title}
+                      {t('sourceRequest', { title: instance.request.title })}
                     </div>
                   ) : null}
                 </div>
@@ -67,7 +70,7 @@ export function ResourceInstancesContent({
                     onClick={() => releaseInstance(instance.id)}
                     className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
                   >
-                    释放
+                    {t('release')}
                   </button>
                 ) : null}
               </div>

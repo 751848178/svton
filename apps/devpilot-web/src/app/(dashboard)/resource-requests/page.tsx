@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, MetricCard } from '@/components/ui';
 import { useResourceRequests } from './hooks/use-resource-requests';
@@ -14,6 +15,8 @@ import { ProvisioningRunsModal } from './components/provisioning-runs-modal';
 const STATUS_KEYS = ['pending', 'approved', 'completed', 'rejected', 'canceled'] as const;
 
 export default function ResourceRequestsPage() {
+  const t = useTranslations('resourceRequests');
+  const tc = useTranslations('common');
   const {
     requests,
     resourceTypes,
@@ -48,14 +51,14 @@ export default function ResourceRequestsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="资源申请"
-        description="申请数据库、Redis、端口、账号等项目资源"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <button
             onClick={() => setShowModal(true)}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            新建申请
+            {t('createRequest')}
           </button>
         }
       />
@@ -80,11 +83,11 @@ export default function ResourceRequestsPage() {
       />
 
       {loading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : requests.length === 0 ? (
         <EmptyState
-          text="还没有资源申请"
-          description="发起第一条申请来占用或交付开发资源"
+          text={t('noRequests')}
+          description={t('noRequestsDescription')}
         />
       ) : (
         <RequestTable

@@ -2,6 +2,7 @@
 
 import { Suspense as ReactSuspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useBoolean } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
@@ -23,14 +24,17 @@ const Suspense = ReactSuspense as unknown as (props: {
  * useSearchParams 必须包裹在 Suspense 边界内，故拆出 ProxyConfigsInner 由 Suspense 包住。
  */
 export function ProxyConfigsContent({ initialConfigs }: { initialConfigs?: ProxyConfig[] }) {
+  const tc = useTranslations('common');
   return (
-    <Suspense fallback={<LoadingState text="加载中..." />}>
+    <Suspense fallback={<LoadingState text={tc('loading')} />}>
       <ProxyConfigsInner initialConfigs={initialConfigs} />
     </Suspense>
   );
 }
 
 function ProxyConfigsInner({ initialConfigs }: { initialConfigs?: ProxyConfig[] }) {
+  const t = useTranslations('proxyConfigs');
+  const tc = useTranslations('common');
   const searchParams = useSearchParams();
   const openCreateOnMount = searchParams.get('new') === 'true';
   const { configs, servers, loading, syncingId, create, sync, remove } =
@@ -40,24 +44,24 @@ function ProxyConfigsInner({ initialConfigs }: { initialConfigs?: ProxyConfig[] 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="代理配置"
-        description="管理 Nginx 反向代理配置"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <button
             onClick={() => setModalOpen(true)}
             className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            + 添加配置
+            {t('addConfig')}
           </button>
         }
       />
 
       {loading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : configs.length === 0 ? (
         <EmptyState
-          text="还没有代理配置"
-          description="添加代理配置来管理域名转发"
+          text={t('noConfigs')}
+          description={t('noConfigsHint')}
         />
       ) : (
         <ProxyConfigTable

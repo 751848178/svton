@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense as ReactSuspense } from 'react';
+import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
 import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useResourceControl } from './hooks/use-resource-control';
@@ -15,15 +16,17 @@ const Suspense = ReactSuspense as unknown as (props: {
 }) => JSX.Element;
 
 function ResourceControlContent() {
+  const t = useTranslations('resourceControl');
+  const tc = useTranslations('common');
   const rc = useResourceControl();
 
-  if (rc.loading) return <LoadingState text="加载中..." />;
+  if (rc.loading) return <LoadingState text={tc('loading')} />;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="资源管控"
-        description="管理 Docker/云资源的同步、操作、连接与查询"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
       />
       {rc.error ? <ErrorBanner message={rc.error} /> : null}
       <ResourceListPanel rc={rc} />
@@ -34,8 +37,9 @@ function ResourceControlContent() {
 }
 
 export default function ResourceControlPage() {
+  const tc = useTranslations('common');
   return (
-    <Suspense fallback={<LoadingState text="加载中..." />}>
+    <Suspense fallback={<LoadingState text={tc('loading')} />}>
       <ResourceControlContent />
     </Suspense>
   );

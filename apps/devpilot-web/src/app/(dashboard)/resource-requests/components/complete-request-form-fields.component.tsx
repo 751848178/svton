@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import type { CompleteRequestFormData } from '../hooks/use-complete-request-form.hooks';
 import type { ResourceField, ResourceFieldValue } from '../types';
 import { getFieldDefaultValue } from '../utils';
@@ -22,11 +23,13 @@ export function CompleteRequestFormFields({
   onFieldValueChange,
   onFormDataChange,
 }: CompleteRequestFormFieldsProps) {
+  const t = useTranslations('resourceRequests');
+  const tc = useTranslations('common');
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium mb-1">实例名称</label>
+          <label className="block text-sm font-medium mb-1">{t('instanceNameLabel')}</label>
           <input
             value={formData.instanceName}
             onChange={(event) => onFormDataChange({ instanceName: event.target.value })}
@@ -34,7 +37,7 @@ export function CompleteRequestFormFields({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">过期时间</label>
+          <label className="block text-sm font-medium mb-1">{t('expiresAtLabel')}</label>
           <input
             type="datetime-local"
             value={formData.expiresAt}
@@ -51,12 +54,12 @@ export function CompleteRequestFormFields({
           onChange={(event) => onFormDataChange({ createInstance: event.target.checked })}
           className="h-4 w-4"
         />
-        创建资源实例并关联申请
+        {t('createInstanceAndLink')}
       </label>
 
       {deliveryFields.length > 0 ? (
         <div className="space-y-3">
-          <div className="text-sm font-medium">交付信息</div>
+          <div className="text-sm font-medium">{t('deliveryInfo')}</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {deliveryFields.map((field) => (
               <DynamicResourceField
@@ -71,7 +74,7 @@ export function CompleteRequestFormFields({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium mb-1">交付信息 JSON</label>
+            <label className="block text-sm font-medium mb-1">{t('deliveryInfoJson')}</label>
             <textarea
               value={formData.delivery}
               onChange={(event) => onFormDataChange({ delivery: event.target.value })}
@@ -80,7 +83,7 @@ export function CompleteRequestFormFields({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">敏感凭证 JSON</label>
+            <label className="block text-sm font-medium mb-1">{t('credentialsJson')}</label>
             <textarea
               value={formData.credentials}
               onChange={(event) => onFormDataChange({ credentials: event.target.value })}
@@ -92,7 +95,7 @@ export function CompleteRequestFormFields({
       )}
 
       <div>
-        <label className="block text-sm font-medium mb-1">实例配置 JSON</label>
+        <label className="block text-sm font-medium mb-1">{t('instanceConfigJson')}</label>
         <textarea
           value={formData.config}
           onChange={(event) => onFormDataChange({ config: event.target.value })}
@@ -107,14 +110,14 @@ export function CompleteRequestFormFields({
           onClick={onCancel}
           className="px-4 py-2 border rounded-md"
         >
-          取消
+          {tc('cancel')}
         </button>
         <button
           type="submit"
           disabled={saving}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-md disabled:opacity-50"
         >
-          {saving ? '交付中...' : '确认交付'}
+          {saving ? t('delivering') : t('confirmDelivery')}
         </button>
       </div>
     </>

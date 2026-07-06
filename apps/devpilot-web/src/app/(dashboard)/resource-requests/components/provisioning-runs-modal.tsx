@@ -1,6 +1,7 @@
 /** 供给运行记录弹窗 - 展示运行历史、重放、provider 对账。 */
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
 import { Modal, ErrorBanner } from '@/components/ui';
 import type { ResourceRequest, ResourceProvisioningRun } from '../types';
@@ -27,6 +28,8 @@ export function ProvisioningRunsModal({
   onReconcile: (run: ResourceProvisioningRun) => void;
   onClose: () => void;
 }) {
+  const t = useTranslations('resourceRequests');
+  const tc = useTranslations('common');
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
@@ -36,16 +39,16 @@ export function ProvisioningRunsModal({
       <div className="relative bg-background rounded-lg shadow-lg w-full max-w-5xl p-6 max-h-[88vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold">交付运行记录</h2>
+            <h2 className="text-lg font-semibold">{t('deliveryRunRecords')}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              {request.title} · {request.resourceType?.name || '资源'}
+              {request.title} · {request.resourceType?.name || t('resource')}
             </p>
           </div>
           <button
             onClick={onClose}
             className="px-2 py-1 text-sm rounded border hover:bg-accent"
           >
-            关闭
+            {tc('close')}
           </button>
         </div>
 
@@ -56,24 +59,24 @@ export function ProvisioningRunsModal({
         )}
 
         {loading ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">加载运行记录...</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">{t('loadingRunRecords')}</div>
         ) : runs.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
-            暂无外部交付运行记录
+            {t('noExternalRunRecords')}
           </div>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[1040px] text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">状态</th>
-                  <th className="px-3 py-2 text-left font-medium">触发/模式</th>
+                  <th className="px-3 py-2 text-left font-medium">{tc('status')}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t('triggerMode')}</th>
                   <th className="px-3 py-2 text-left font-medium">Adapter</th>
-                  <th className="px-3 py-2 text-left font-medium">尝试</th>
+                  <th className="px-3 py-2 text-left font-medium">{t('attempts')}</th>
                   <th className="px-3 py-2 text-left font-medium">Provider</th>
-                  <th className="px-3 py-2 text-left font-medium">时间</th>
-                  <th className="px-3 py-2 text-left font-medium">摘要</th>
-                  <th className="px-3 py-2 text-right font-medium">操作</th>
+                  <th className="px-3 py-2 text-left font-medium">{t('time')}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t('summary')}</th>
+                  <th className="px-3 py-2 text-right font-medium">{tc('actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">

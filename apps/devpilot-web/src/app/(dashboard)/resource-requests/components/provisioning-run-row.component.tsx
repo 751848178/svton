@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import type { ResourceProvisioningRun, ResourceRequest } from '../types';
 import {
   canReconcileProviderProvisioningRun,
@@ -26,6 +27,7 @@ export function ProvisioningRunRow({
   onReplay,
   onReconcile,
 }: ProvisioningRunRowProps) {
+  const t = useTranslations('resourceRequests');
   const canReplay = canReplayProvisioningRun(request, run);
   const canReconcile = canReconcileProviderProvisioningRun(request, run);
 
@@ -33,10 +35,10 @@ export function ProvisioningRunRow({
     <tr className="align-top">
       <td className="px-3 py-3">
         {getRunStatusBadge(run.status)}
-        {run.autoRetry && <div className="mt-1 text-xs text-muted-foreground">自动补偿</div>}
-        {run.recoveredAt && <div className="mt-1 text-xs text-red-700">已恢复</div>}
+        {run.autoRetry && <div className="mt-1 text-xs text-muted-foreground">{t('autoRetry')}</div>}
+        {run.recoveredAt && <div className="mt-1 text-xs text-red-700">{t('recovered')}</div>}
         {run.queueMode === 'queued' && (
-          <div className="mt-1 text-xs text-muted-foreground">队列运行</div>
+          <div className="mt-1 text-xs text-muted-foreground">{t('queueRun')}</div>
         )}
       </td>
       <td className="px-3 py-3">
@@ -45,7 +47,7 @@ export function ProvisioningRunRow({
           {run.mode || '-'} · {run.boundary || '-'}
         </div>
         {run.replayOfRunId && (
-          <div className="text-xs text-muted-foreground">源 {shortId(run.replayOfRunId)}</div>
+          <div className="text-xs text-muted-foreground">{t('source', { id: shortId(run.replayOfRunId) })}</div>
         )}
       </td>
       <td className="px-3 py-3">
@@ -59,12 +61,12 @@ export function ProvisioningRunRow({
         <div>
           {run.attempt ?? 0} / {run.maxAttempts ?? 1}
         </div>
-        <div className="text-xs text-muted-foreground">{run.retryable ? '可重试' : '不可重试'}</div>
+        <div className="text-xs text-muted-foreground">{run.retryable ? t('retryable') : t('notRetryable')}</div>
         {Boolean(run.replayAttemptsCount) && (
-          <div className="text-xs text-muted-foreground">已重放 {run.replayAttemptsCount} 次</div>
+          <div className="text-xs text-muted-foreground">{t('replayedTimes', { count: run.replayAttemptsCount || 0 })}</div>
         )}
         {Boolean(run.recoveryCount) && (
-          <div className="text-xs text-muted-foreground">恢复 {run.recoveryCount} 次</div>
+          <div className="text-xs text-muted-foreground">{t('recoveredTimes', { count: run.recoveryCount || 0 })}</div>
         )}
       </td>
       <td className="px-3 py-3">
@@ -85,16 +87,16 @@ export function ProvisioningRunRow({
         <div>{formatDateTime(run.startedAt)}</div>
         <div className="text-xs text-muted-foreground">{formatDateTime(run.finishedAt)}</div>
         {run.queuedAt && (
-          <div className="text-xs text-muted-foreground">入队 {formatDateTime(run.queuedAt)}</div>
+          <div className="text-xs text-muted-foreground">{t('enqueuedAt', { time: formatDateTime(run.queuedAt) })}</div>
         )}
         {run.availableAt && (
           <div className="text-xs text-muted-foreground">
-            可用 {formatDateTime(run.availableAt)}
+            {t('availableAt', { time: formatDateTime(run.availableAt) })}
           </div>
         )}
         {run.recoveredAt && (
           <div className="text-xs text-muted-foreground">
-            恢复 {formatDateTime(run.recoveredAt)}
+            {t('recoveredAt', { time: formatDateTime(run.recoveredAt) })}
           </div>
         )}
       </td>
@@ -109,7 +111,7 @@ export function ProvisioningRunRow({
               disabled={replayingRunId === run.id}
               className="px-2 py-1 text-xs rounded border hover:bg-accent disabled:opacity-50"
             >
-              {replayingRunId === run.id ? '重放中' : '重放'}
+              {replayingRunId === run.id ? t('replaying') : t('replay')}
             </button>
           )}
           {canReconcile && (
@@ -118,7 +120,7 @@ export function ProvisioningRunRow({
               disabled={reconcilingRunId === run.id}
               className="px-2 py-1 text-xs rounded border hover:bg-accent disabled:opacity-50"
             >
-              {reconcilingRunId === run.id ? '对账中' : '对账'}
+              {reconcilingRunId === run.id ? t('reconciling') : t('reconcile')}
             </button>
           )}
           {!canReplay && !canReconcile ? (
