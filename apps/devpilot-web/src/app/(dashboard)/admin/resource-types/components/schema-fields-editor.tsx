@@ -4,7 +4,10 @@
  * 单一职责：可视化编辑资源 Schema 字段（增删/上下移/字段属性）。
  */
 
+'use client';
+
 import { usePersistFn } from '@svton/hooks';
+import { useTranslations } from 'next-intl';
 import type { EditableResourceField } from '../types';
 import { createEmptyEditableField, normalizeEditableField } from '../utils';
 import { SchemaFieldEditorRow } from './schema-field-editor-row.component';
@@ -16,6 +19,7 @@ interface SchemaFieldsEditorProps {
 }
 
 export function SchemaFieldsEditor({ title, fields, onChange }: SchemaFieldsEditorProps) {
+  const t = useTranslations('admin');
   const updateField = usePersistFn((index: number, patch: Partial<EditableResourceField>) => {
     onChange(
       fields.map((field, fieldIndex) =>
@@ -46,12 +50,12 @@ export function SchemaFieldsEditor({ title, fields, onChange }: SchemaFieldsEdit
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold">{title}</h3>
-          <div className="text-xs text-muted-foreground">{fields.length} 个字段</div>
+          <div className="text-xs text-muted-foreground">{t('fieldCount', { count: fields.length })}</div>
         </div>
         <button
           type="button"
           onClick={addField}
-          title={`新增${title}字段`}
+          title={t('addFieldTitle', { title })}
           className="h-8 w-8 rounded-md border text-lg leading-none hover:bg-muted"
         >
           +
@@ -60,7 +64,7 @@ export function SchemaFieldsEditor({ title, fields, onChange }: SchemaFieldsEdit
 
       {fields.length === 0 ? (
         <div className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
-          暂无字段
+          {t('noFields')}
         </div>
       ) : (
         <div className="space-y-3">

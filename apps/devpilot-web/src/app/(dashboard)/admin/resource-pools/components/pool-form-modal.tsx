@@ -4,7 +4,10 @@
  * 单一职责：新增/编辑资源池表单。
  */
 
+'use client';
+
 import { usePersistFn } from '@svton/hooks';
+import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/ui';
 import type { PoolForm, ResourcePool } from '../types';
 import { POOL_TYPES } from '../constants';
@@ -26,37 +29,39 @@ export function PoolFormModal({
   onClose,
   onSubmit,
 }: PoolFormModalProps) {
+  const t = useTranslations('admin');
+  const tc = useTranslations('common');
   const handleClose = usePersistFn(() => onClose());
   return (
     <Modal
       open={open}
       onClose={handleClose}
-      title={editingPool ? '编辑资源池' : '添加资源池'}
+      title={editingPool ? t('editPool') : t('addPool')}
     >
       <form
         onSubmit={onSubmit}
         className="space-y-4"
       >
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">类型</span>
+          <span className="mb-1 block font-medium text-gray-700">{tc('type')}</span>
           <select
             value={form.type}
             onChange={(e) => onChange({ type: e.target.value })}
             className="w-full rounded-lg border px-3 py-2"
             disabled={Boolean(editingPool)}
           >
-            {POOL_TYPES.map((t) => (
+            {POOL_TYPES.map((option) => (
               <option
-                key={t.value}
-                value={t.value}
+                key={option.value}
+                value={option.value}
               >
-                {t.label}
+                {option.label}
               </option>
             ))}
           </select>
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">名称</span>
+          <span className="mb-1 block font-medium text-gray-700">{tc('name')}</span>
           <input
             type="text"
             value={form.name}
@@ -66,18 +71,18 @@ export function PoolFormModal({
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">连接地址</span>
+          <span className="mb-1 block font-medium text-gray-700">{t('endpoint')}</span>
           <input
             type="text"
             value={form.endpoint}
             onChange={(e) => onChange({ endpoint: e.target.value })}
             className="w-full rounded-lg border px-3 py-2"
-            placeholder="如: mysql://host:3306"
+            placeholder={t('endpointPlaceholder')}
             required
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">容量</span>
+          <span className="mb-1 block font-medium text-gray-700">{t('capacity')}</span>
           <input
             type="number"
             min={1}
@@ -93,13 +98,13 @@ export function PoolFormModal({
             onClick={handleClose}
             className="rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-100"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             type="submit"
             className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
-            保存
+            {tc('save')}
           </button>
         </div>
       </form>

@@ -4,6 +4,9 @@
  * 单一职责：收集 CDN 配置（提供商/域名/源站/开关）并触发生成。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import type { CDNConfig } from '../types';
 import { PROVIDERS } from '../constants';
 
@@ -14,12 +17,13 @@ interface CdnConfigFormProps {
 }
 
 export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormProps) {
+  const t = useTranslations('cdn');
   return (
     <div className="space-y-4 rounded-lg border bg-white p-6">
-      <h2 className="font-semibold text-gray-900">CDN 配置</h2>
+      <h2 className="font-semibold text-gray-900">{t('configTitle')}</h2>
 
       <div>
-        <label className="mb-2 block text-sm font-medium text-gray-700">CDN 提供商</label>
+        <label className="mb-2 block text-sm font-medium text-gray-700">{t('providerLabel')}</label>
         <div className="grid grid-cols-2 gap-2">
           {PROVIDERS.map((p) => (
             <button
@@ -37,7 +41,7 @@ export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormPro
       </div>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-medium text-gray-700">CDN 域名</span>
+        <span className="mb-1 block font-medium text-gray-700">{t('cdnDomain')}</span>
         <input
           type="text"
           value={config.domain}
@@ -48,7 +52,7 @@ export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormPro
       </label>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-medium text-gray-700">源站域名</span>
+        <span className="mb-1 block font-medium text-gray-700">{t('originDomainLabel')}</span>
         <input
           type="text"
           value={config.originDomain}
@@ -59,7 +63,7 @@ export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormPro
       </label>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-medium text-gray-700">源站路径</span>
+        <span className="mb-1 block font-medium text-gray-700">{t('originPath')}</span>
         <input
           type="text"
           value={config.originPath}
@@ -77,7 +81,7 @@ export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormPro
             onChange={(e) => onChange({ enableHttps: e.target.checked })}
             className="rounded"
           />
-          <span className="text-sm text-gray-700">启用 HTTPS</span>
+          <span className="text-sm text-gray-700">{t('enableHttps')}</span>
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -86,7 +90,7 @@ export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormPro
             onChange={(e) => onChange({ enableCompression: e.target.checked })}
             className="rounded"
           />
-          <span className="text-sm text-gray-700">启用压缩</span>
+          <span className="text-sm text-gray-700">{t('enableCompression')}</span>
         </label>
       </div>
 
@@ -95,7 +99,7 @@ export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormPro
         disabled={!config.domain || !config.originDomain}
         className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        生成配置
+        {t('generateConfig')}
       </button>
     </div>
   );

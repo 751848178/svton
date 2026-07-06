@@ -4,7 +4,10 @@
  * 单一职责：渲染单个资源池 + 容量进度 + 编辑/删除操作。
  */
 
+'use client';
+
 import { usePersistFn } from '@svton/hooks';
+import { useTranslations } from 'next-intl';
 import { ProgressState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { ResourcePool } from '../types';
@@ -16,6 +19,8 @@ interface PoolCardProps {
 }
 
 export function PoolCard({ pool, onEdit, onDelete }: PoolCardProps) {
+  const t = useTranslations('admin');
+  const tc = useTranslations('common');
   const handleEdit = usePersistFn(() => onEdit(pool));
   const handleDelete = usePersistFn(() => onDelete(pool.id));
   const percent = pool.capacity > 0 ? (pool.allocated / pool.capacity) * 100 : 0;
@@ -37,24 +42,24 @@ export function PoolCard({ pool, onEdit, onDelete }: PoolCardProps) {
 
       <div className="mt-4 grid grid-cols-3 gap-4">
         <div>
-          <p className="text-sm text-gray-500">类型</p>
+          <p className="text-sm text-gray-500">{tc('type')}</p>
           <p className="font-medium">{pool.type.toUpperCase()}</p>
         </div>
         <div>
-          <p className="text-sm text-gray-500">容量</p>
+          <p className="text-sm text-gray-500">{t('capacity')}</p>
           <p className="font-medium">
             {pool.allocated} / {pool.capacity}
           </p>
         </div>
         <div>
-          <p className="text-sm text-gray-500">可用</p>
+          <p className="text-sm text-gray-500">{t('available')}</p>
           <p className="font-medium">{pool.available}</p>
         </div>
       </div>
 
       <ProgressState
         percent={percent}
-        text="已分配"
+        text={t('allocated')}
       />
 
       <div className="mt-4 flex gap-2">
@@ -62,13 +67,13 @@ export function PoolCard({ pool, onEdit, onDelete }: PoolCardProps) {
           onClick={handleEdit}
           className="rounded px-3 py-1 text-sm text-blue-600 hover:bg-blue-50"
         >
-          编辑
+          {tc('edit')}
         </button>
         <button
           onClick={handleDelete}
           className="rounded px-3 py-1 text-sm text-red-600 hover:bg-red-50"
         >
-          删除
+          {tc('delete')}
         </button>
       </div>
     </div>

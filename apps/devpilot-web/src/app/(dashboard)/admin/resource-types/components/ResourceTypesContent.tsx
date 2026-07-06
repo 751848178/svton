@@ -1,6 +1,7 @@
 'use client';
 
 import { usePersistFn } from '@svton/hooks';
+import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, StatusTag } from '@/components/ui';
 import { useResourceTypes } from '../hooks/use-resource-types';
@@ -18,6 +19,8 @@ export function ResourceTypesContent({
 }: {
   initialResourceTypes?: ResourceType[];
 }) {
+  const t = useTranslations('admin');
+  const tc = useTranslations('common');
   const {
     resourceTypes,
     loading,
@@ -36,39 +39,39 @@ export function ResourceTypesContent({
     reload();
   });
 
-  if (loading) return <LoadingState text="加载中..." />;
+  if (loading) return <LoadingState text={tc('loading')} />;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="资源类型"
-        description="定义可申请资源的表单、审批和交付方式"
+        title={t('typesPageTitle')}
+        description={t('typesPageDescription')}
         actions={
           <button
             onClick={openCreate}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            新增类型
+            {t('addType')}
           </button>
         }
       />
 
       {resourceTypes.length === 0 ? (
         <EmptyState
-          text="还没有资源类型"
-          description="添加 MySQL、Redis、端口号或自定义账号资源"
+          text={t('noTypes')}
+          description={t('noTypesHint')}
         />
       ) : (
         <div className="overflow-hidden rounded-lg border">
           <table className="w-full">
             <thead className="bg-muted/50">
               <tr>
-                <Th>类型</Th>
-                <Th>分类</Th>
-                <Th>审批/交付</Th>
+                <Th>{tc('type')}</Th>
+                <Th>{t('colCategory')}</Th>
+                <Th>{t('colApprovalDelivery')}</Th>
                 <Th>Schema</Th>
-                <Th>状态</Th>
-                <Th align="right">操作</Th>
+                <Th>{tc('status')}</Th>
+                <Th align="right">{tc('actions')}</Th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -114,6 +117,8 @@ function ResourceTypeRow({
   onEdit: (type: ResourceType) => void;
   onDisable: (id: string) => void;
 }) {
+  const t = useTranslations('admin');
+  const tc = useTranslations('common');
   return (
     <tr className="hover:bg-muted/30">
       <td className="px-4 py-3">
@@ -129,15 +134,15 @@ function ResourceTypeRow({
         <div className="text-xs text-muted-foreground">{type.provisioningMode}</div>
       </td>
       <td className="px-4 py-3 text-sm">
-        <div>申请 {getSchemaFieldCount(type.requestSchema)}</div>
+        <div>{t('requestFields', { count: getSchemaFieldCount(type.requestSchema) })}</div>
         <div className="text-xs text-muted-foreground">
-          交付 {getSchemaFieldCount(type.deliverySchema)}
+          {t('deliveryFields', { count: getSchemaFieldCount(type.deliverySchema) })}
         </div>
       </td>
       <td className="px-4 py-3">
         <StatusTag
           status={type.enabled ? 'active' : 'inactive'}
-          label={type.enabled ? '启用' : '停用'}
+          label={type.enabled ? tc('enabled') : t('disabled')}
         />
       </td>
       <td className="px-4 py-3">
@@ -146,14 +151,14 @@ function ResourceTypeRow({
             onClick={() => onEdit(type)}
             className="rounded px-2 py-1 text-xs text-primary hover:bg-primary/10"
           >
-            编辑
+            {tc('edit')}
           </button>
           {type.enabled ? (
             <button
               onClick={() => onDisable(type.id)}
               className="rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
             >
-              停用
+              {t('disable')}
             </button>
           ) : null}
         </div>

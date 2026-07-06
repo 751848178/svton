@@ -4,6 +4,9 @@
  * 单一职责：渲染资源类型基础字段、Schema 编辑器、预览和提交操作。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import type { EditableResourceField, ResourceTypeFormData } from '../types';
 import { buildPreviewSchema } from '../utils';
 import { SchemaFieldsEditor, SchemaPreview } from './schema-fields-editor';
@@ -31,6 +34,8 @@ export function ResourceTypeFormFields({
   onFormDataChange,
   onRequestFieldsChange,
 }: ResourceTypeFormFieldsProps) {
+  const t = useTranslations('admin');
+  const tc = useTranslations('common');
   return (
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -46,20 +51,20 @@ export function ResourceTypeFormFields({
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">名称</span>
+          <span className="mb-1 block font-medium">{tc('name')}</span>
           <input
             value={formData.name}
             onChange={(event) => onFormDataChange({ name: event.target.value })}
             required
             className="w-full rounded-md border px-3 py-2"
-            placeholder="MySQL 数据库"
+            placeholder={t('resourceNamePlaceholder')}
           />
         </label>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">分类</span>
+          <span className="mb-1 block font-medium">{t('categoryLabel')}</span>
           <input
             value={formData.category}
             onChange={(event) => onFormDataChange({ category: event.target.value })}
@@ -67,7 +72,7 @@ export function ResourceTypeFormFields({
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">审批方式</span>
+          <span className="mb-1 block font-medium">{t('approvalModeLabel')}</span>
           <select
             value={formData.approvalMode}
             onChange={(event) => onFormDataChange({ approvalMode: event.target.value })}
@@ -79,7 +84,7 @@ export function ResourceTypeFormFields({
           </select>
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">交付方式</span>
+          <span className="mb-1 block font-medium">{t('deliveryModeLabel')}</span>
           <select
             value={formData.provisioningMode}
             onChange={(event) => onFormDataChange({ provisioningMode: event.target.value })}
@@ -97,7 +102,7 @@ export function ResourceTypeFormFields({
       </div>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-medium">描述</span>
+        <span className="mb-1 block font-medium">{tc('description')}</span>
         <textarea
           value={formData.description}
           onChange={(event) => onFormDataChange({ description: event.target.value })}
@@ -108,19 +113,19 @@ export function ResourceTypeFormFields({
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <SchemaFieldsEditor
-          title="申请表单"
+          title={t('requestForm')}
           fields={requestFields}
           onChange={onRequestFieldsChange}
         />
         <SchemaFieldsEditor
-          title="交付 Schema"
+          title={t('deliverySchema')}
           fields={deliveryFields}
           onChange={onDeliveryFieldsChange}
         />
       </div>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-medium">环境变量模板</span>
+        <span className="mb-1 block font-medium">{t('envTemplate')}</span>
         <textarea
           value={formData.envTemplate}
           onChange={(event) => onFormDataChange({ envTemplate: event.target.value })}
@@ -132,11 +137,11 @@ export function ResourceTypeFormFields({
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <SchemaPreview
-          title="申请 JSON"
+          title={t('requestJson')}
           schema={buildPreviewSchema(requestFields)}
         />
         <SchemaPreview
-          title="交付 JSON"
+          title={t('deliveryJson')}
           schema={buildPreviewSchema(deliveryFields)}
         />
       </div>
@@ -147,14 +152,14 @@ export function ResourceTypeFormFields({
           onClick={onCancel}
           className="rounded-md border px-4 py-2"
         >
-          取消
+          {tc('cancel')}
         </button>
         <button
           type="submit"
           disabled={saving}
           className="rounded-md bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50"
         >
-          {saving ? '保存中...' : '保存'}
+          {saving ? t('saving') : tc('save')}
         </button>
       </div>
     </>

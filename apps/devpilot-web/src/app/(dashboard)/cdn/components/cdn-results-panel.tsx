@@ -4,6 +4,9 @@
  * 单一职责：用 @svton/ui Tabs 展示 5 类生成结果，支持代码下载。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { Tabs } from '@svton/ui';
 import type { CDNResults, CDNProvider } from '../types';
 import { downloadTextFile } from '../../domain/utils';
@@ -14,12 +17,13 @@ interface CdnResultsPanelProps {
 }
 
 export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
+  const t = useTranslations('cdn');
   const hasResults = Boolean(results.urlConfig || results.frontendConfig);
 
   const items = [
     {
       key: 'url',
-      label: 'URL 配置',
+      label: t('tabUrlConfig'),
       children: results.urlConfig ? (
         <div className="space-y-2">
           {Object.entries(results.urlConfig).map(([key, value]) => (
@@ -36,7 +40,7 @@ export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
     },
     {
       key: 'frontend',
-      label: '前端配置',
+      label: t('tabFrontendConfig'),
       children: results.frontendConfig ? (
         <CodeBlock
           content={results.frontendConfig}
@@ -47,7 +51,7 @@ export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
     },
     {
       key: 'refresh',
-      label: '刷新脚本',
+      label: t('tabRefreshScript'),
       children: results.refreshScript ? (
         <CodeBlock
           content={results.refreshScript}
@@ -69,7 +73,7 @@ export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
     },
     {
       key: 'env',
-      label: '环境变量',
+      label: t('tabEnvVars'),
       children: results.envConfig ? (
         <CodeBlock
           content={results.envConfig}
@@ -83,7 +87,7 @@ export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
   if (!hasResults) {
     return (
       <div className="rounded-lg border bg-white p-6">
-        <div className="py-12 text-center text-gray-500">填写配置后点击“生成配置”按钮</div>
+        <div className="py-12 text-center text-gray-500">{t('emptyHint')}</div>
       </div>
     );
   }
@@ -103,6 +107,7 @@ function CodeBlock({
   filename: string;
   provider: CDNProvider;
 }) {
+  const t = useTranslations('cdn');
   return (
     <div>
       <div className="mb-2 flex justify-end">
@@ -110,7 +115,7 @@ function CodeBlock({
           onClick={() => downloadTextFile(content, filename)}
           className="rounded px-3 py-1 text-sm text-blue-600 hover:bg-blue-50"
         >
-          下载
+          {t('download')}
         </button>
       </div>
       <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">

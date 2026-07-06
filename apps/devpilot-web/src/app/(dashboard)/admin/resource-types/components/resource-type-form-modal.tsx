@@ -4,6 +4,9 @@
  * 单一职责：新增/编辑资源类型（含 Schema 字段编辑器、预览）。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { Modal, ErrorBanner } from '@/components/ui';
 import type { ResourceType } from '../types';
 import { useResourceTypeForm } from '../hooks/use-resource-type-form.hooks';
@@ -22,6 +25,7 @@ export function ResourceTypeFormModal({
   onClose,
   onSuccess,
 }: ResourceTypeFormModalProps) {
+  const t = useTranslations('admin');
   const form = useResourceTypeForm({
     resourceType,
     onSuccess,
@@ -31,7 +35,7 @@ export function ResourceTypeFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={form.isEditing ? '编辑资源类型' : '新增资源类型'}
+      title={form.isEditing ? t('editType') : t('newType')}
       width={1024}
     >
       <form

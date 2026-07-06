@@ -1,12 +1,14 @@
 'use client';
 
 import { usePersistFn } from '@svton/hooks';
+import { useTranslations } from 'next-intl';
 import { PageHeader } from '@/components/ui';
 import { useDomainConfig } from './hooks/use-domain-config';
 import { downloadTextFile } from './utils';
 import type { SSLMode } from './types';
 
 export default function DomainConfigPage() {
+  const t = useTranslations('domain');
   const {
     config,
     setConfig,
@@ -30,8 +32,8 @@ export default function DomainConfigPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="域名配置"
-        description="生成 Nginx 反向代理配置和 SSL 证书脚本"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -49,14 +51,14 @@ export default function DomainConfigPage() {
         <div className="space-y-4">
           {generatedConfig ? (
             <CodeBlock
-              title="Nginx 配置"
+              title={t('nginxConfig')}
               content={generatedConfig}
               onDownload={downloadConfig}
             />
           ) : null}
           {certbotScript ? (
             <CodeBlock
-              title="Certbot 脚本"
+              title={t('certbotScript')}
               content={certbotScript}
               onDownload={downloadCertbot}
             />
@@ -79,6 +81,7 @@ interface ConfigFormProps {
 }
 
 function ConfigForm(props: ConfigFormProps) {
+  const t = useTranslations('domain');
   const {
     config,
     onChange,
@@ -91,10 +94,10 @@ function ConfigForm(props: ConfigFormProps) {
   } = props;
   return (
     <div className="space-y-4 rounded-lg border bg-white p-6">
-      <h2 className="font-semibold text-gray-900">配置选项</h2>
+      <h2 className="font-semibold text-gray-900">{t('configOptions')}</h2>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700">域名</label>
+        <label className="mb-1 block text-sm font-medium text-gray-700">{t('domain')}</label>
         <div className="flex gap-2">
           <input
             type="text"
@@ -108,7 +111,7 @@ function ConfigForm(props: ConfigFormProps) {
             <span
               className={`rounded-lg px-3 py-2 text-sm ${validation.isValid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
             >
-              {validation.isValid ? '✓ 有效' : '✗ 无效'}
+              {validation.isValid ? t('domainValid') : t('domainInvalid')}
             </span>
           ) : null}
         </div>
@@ -116,7 +119,7 @@ function ConfigForm(props: ConfigFormProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">上游服务地址</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">{t('upstreamHost')}</label>
           <input
             type="text"
             value={config.upstream}
@@ -126,7 +129,7 @@ function ConfigForm(props: ConfigFormProps) {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">端口</label>
+          <label className="mb-1 block text-sm font-medium text-gray-700">{t('port')}</label>
           <input
             type="number"
             value={config.upstreamPort}
@@ -137,20 +140,20 @@ function ConfigForm(props: ConfigFormProps) {
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700">SSL 模式</label>
+        <label className="mb-1 block text-sm font-medium text-gray-700">{t('sslMode')}</label>
         <select
           value={config.sslMode}
           onChange={(e) => onChange({ sslMode: e.target.value as SSLMode })}
           className="w-full rounded-lg border px-3 py-2"
         >
-          <option value="none">无 SSL</option>
-          <option value="letsencrypt">Let&apos;s Encrypt (免费)</option>
-          <option value="custom">自定义证书</option>
+          <option value="none">{t('sslNone')}</option>
+          <option value="letsencrypt">{t('sslLetsencrypt')}</option>
+          <option value="custom">{t('sslCustom')}</option>
         </select>
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700">请求体大小限制 (MB)</label>
+        <label className="mb-1 block text-sm font-medium text-gray-700">{t('bodySizeLimit')}</label>
         <input
           type="number"
           value={config.clientMaxBodySize}
@@ -167,7 +170,7 @@ function ConfigForm(props: ConfigFormProps) {
             onChange={(e) => onChange({ enableGzip: e.target.checked })}
             className="rounded"
           />
-          <span className="text-sm text-gray-700">启用 Gzip 压缩</span>
+          <span className="text-sm text-gray-700">{t('enableGzip')}</span>
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -176,7 +179,7 @@ function ConfigForm(props: ConfigFormProps) {
             onChange={(e) => onChange({ enableWebSocket: e.target.checked })}
             className="rounded"
           />
-          <span className="text-sm text-gray-700">启用 WebSocket 支持</span>
+          <span className="text-sm text-gray-700">{t('enableWebsocket')}</span>
         </label>
       </div>
 
@@ -185,12 +188,12 @@ function ConfigForm(props: ConfigFormProps) {
         disabled={!config.domain}
         className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        生成 Nginx 配置
+        {t('generateNginx')}
       </button>
 
       {config.sslMode === 'letsencrypt' ? (
         <div className="space-y-2 border-t pt-4">
-          <label className="block text-sm font-medium text-gray-700">Let&apos;s Encrypt 邮箱</label>
+          <label className="block text-sm font-medium text-gray-700">{t('letsencryptEmail')}</label>
           <input
             type="email"
             value={email}
@@ -203,7 +206,7 @@ function ConfigForm(props: ConfigFormProps) {
             disabled={!config.domain || !email}
             className="w-full rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
           >
-            生成证书申请脚本
+            {t('generateCertbot')}
           </button>
         </div>
       ) : null}
@@ -220,6 +223,7 @@ function CodeBlock({
   content: string;
   onDownload: () => void;
 }) {
+  const t = useTranslations('domain');
   return (
     <div className="rounded-lg border bg-white p-6">
       <div className="mb-4 flex items-center justify-between">
@@ -228,7 +232,7 @@ function CodeBlock({
           onClick={onDownload}
           className="rounded px-3 py-1 text-sm text-blue-600 hover:bg-blue-50"
         >
-          下载
+          {t('download')}
         </button>
       </div>
       <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">

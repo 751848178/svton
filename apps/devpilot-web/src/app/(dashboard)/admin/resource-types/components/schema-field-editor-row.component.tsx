@@ -4,6 +4,9 @@
  * 单一职责：渲染并更新一个可编辑资源字段。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import {
   resourceFieldTypes,
   fieldTypeLabels,
@@ -28,6 +31,8 @@ export function SchemaFieldEditorRow({
   onMove,
   onRemove,
 }: SchemaFieldEditorRowProps) {
+  const t = useTranslations('admin');
+  const tc = useTranslations('common');
   return (
     <div className="space-y-3 rounded-md border p-3">
       <div className="flex items-center justify-between gap-3">
@@ -37,7 +42,7 @@ export function SchemaFieldEditorRow({
             type="button"
             onClick={() => onMove(index, -1)}
             disabled={index === 0}
-            title="上移"
+            title={t('moveUp')}
             className="h-7 w-7 rounded-md border text-sm disabled:opacity-40 hover:bg-muted"
           >
             ↑
@@ -46,7 +51,7 @@ export function SchemaFieldEditorRow({
             type="button"
             onClick={() => onMove(index, 1)}
             disabled={index === total - 1}
-            title="下移"
+            title={t('moveDown')}
             className="h-7 w-7 rounded-md border text-sm disabled:opacity-40 hover:bg-muted"
           >
             ↓
@@ -54,7 +59,7 @@ export function SchemaFieldEditorRow({
           <button
             type="button"
             onClick={() => onRemove(index)}
-            title="删除"
+            title={tc('delete')}
             className="h-7 w-7 rounded-md border text-sm text-destructive hover:bg-destructive/10"
           >
             ×
@@ -73,16 +78,16 @@ export function SchemaFieldEditorRow({
           />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium">名称</span>
+          <span className="mb-1 block font-medium">{tc('name')}</span>
           <input
             value={field.label}
             onChange={(e) => onUpdate(index, { label: e.target.value })}
             className="w-full rounded-md border px-3 py-2"
-            placeholder="数据库名"
+            placeholder={t('fieldLabelPlaceholder')}
           />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium">类型</span>
+          <span className="mb-1 block font-medium">{tc('type')}</span>
           <select
             value={field.type}
             onChange={(e) => onUpdate(index, { type: e.target.value as ResourceFieldType })}
@@ -102,7 +107,7 @@ export function SchemaFieldEditorRow({
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="text-sm">
-          <span className="mb-1 block font-medium">默认值</span>
+          <span className="mb-1 block font-medium">{t('defaultValue')}</span>
           {field.type === 'checkbox' ? (
             <span className="flex h-10 items-center gap-2 rounded-md border bg-background px-3 py-2">
               <input
@@ -111,7 +116,7 @@ export function SchemaFieldEditorRow({
                 onChange={(e) => onUpdate(index, { defaultValue: e.target.checked ? 'true' : '' })}
                 className="h-4 w-4"
               />
-              <span className="text-sm text-muted-foreground">默认勾选</span>
+              <span className="text-sm text-muted-foreground">{t('defaultChecked')}</span>
             </span>
           ) : (
             <input
@@ -122,7 +127,7 @@ export function SchemaFieldEditorRow({
           )}
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium">占位符</span>
+          <span className="mb-1 block font-medium">{t('placeholder')}</span>
           <input
             value={field.placeholder}
             onChange={(e) => onUpdate(index, { placeholder: e.target.value })}
@@ -133,13 +138,13 @@ export function SchemaFieldEditorRow({
 
       {field.type === 'select' ? (
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">选项</span>
+          <span className="mb-1 block font-medium">{t('options')}</span>
           <textarea
             value={field.optionsText}
             onChange={(e) => onUpdate(index, { optionsText: e.target.value })}
             rows={3}
             className="w-full resize-none rounded-md border px-3 py-2 font-mono text-sm"
-            placeholder={'small=小型\nlarge=大型'}
+            placeholder={t('optionsPlaceholder')}
           />
         </label>
       ) : null}
@@ -152,7 +157,7 @@ export function SchemaFieldEditorRow({
             onChange={(e) => onUpdate(index, { required: e.target.checked })}
             className="h-4 w-4"
           />
-          必填
+          {tc('required')}
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -161,7 +166,7 @@ export function SchemaFieldEditorRow({
             onChange={(e) => onUpdate(index, { sensitive: e.target.checked })}
             className="h-4 w-4"
           />
-          敏感
+          {t('sensitive')}
         </label>
       </div>
     </div>
