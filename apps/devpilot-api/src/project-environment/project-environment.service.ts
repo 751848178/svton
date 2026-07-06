@@ -6,6 +6,29 @@ import { SiteService } from '../site';
 import { CryptoService } from '../common/crypto/crypto.service';
 import { ProjectEnvironmentRepository } from './project-environment.repository';
 import {
+  applicationServiceSyncKey as applicationServiceSyncKeyUtil,
+  environmentKeysFromConfig as environmentKeysFromConfigUtil,
+  extractString as extractStringUtil,
+  extractNestedString,
+  groupByEnvironment as groupByEnvironmentUtil,
+  isRecord,
+  labelForKey as labelForKeyUtil,
+  missingItems as missingItemsUtil,
+  normalizeKey as normalizeKeyUtil,
+  normalizeResourceBindingTypes as normalizeResourceBindingTypesUtil,
+  previewList as previewListUtil,
+  readConfigString as readConfigStringUtil,
+  recordFromJson,
+  readStringArray,
+  safeDeployConfig as safeDeployConfigUtil,
+  sanitizeSiteTlsForCopy as sanitizeSiteTlsForCopyUtil,
+  skippedServiceBindings as skippedServiceBindingsUtil,
+  siteTlsEnabled as siteTlsEnabledUtil,
+  sortOrderForKey as sortOrderForKeyUtil,
+  toJsonValue as toJsonValueUtil,
+  uniqueSorted as uniqueSortedUtil,
+} from './project-environment-helpers.utils';
+import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
   BulkBindProjectEnvironmentResourcesDto,
@@ -25,15 +48,6 @@ const ENVIRONMENT_LABELS: Record<string, string> = {
   prod: '生产',
 };
 const DEFAULT_PROJECT_ENVIRONMENT_KEYS = ['dev', 'test', 'staging', 'prod'];
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
-}
 
 function isSafeUpstreamUrl(upstream: string) {
   return /^https?:\/\/[a-zA-Z0-9._:-]+(?:\/[a-zA-Z0-9._~:/?#[\]@!$&'()*+,;=%-]*)?$/.test(upstream)
@@ -288,17 +302,17 @@ export class ProjectEnvironmentService {
 
   async create(teamId: string, dto: CreateProjectEnvironmentDto) {
     await this.assertProject(teamId, dto.projectId);
-    const key = this.normalizeKey(dto.key);
+    const key = normalizeKeyUtil(dto.key);
 
     return this.repo.createProjectEnvironment({
       data: {
         teamId,
         projectId: dto.projectId,
         key,
-        name: dto.name || this.labelForKey(key),
+        name: dto.name || labelForKeyUtil(key),
         description: dto.description,
-        sortOrder: dto.sortOrder ?? this.sortOrderForKey(key),
-        config: dto.config ? this.toJsonValue(dto.config) : undefined,
+        sortOrder: dto.sortOrder ?? sortOrderForKeyUtil(key),
+        config: dto.config ? toJsonValueUtil(dto.config) : undefined,
       },
       include: {
         project: { select: { id: true, name: true } },
@@ -308,7 +322,7 @@ export class ProjectEnvironmentService {
 
   async update(teamId: string, id: string, dto: UpdateProjectEnvironmentDto) {
     const existing = await this.get(teamId, id);
-    const key = dto.key === undefined ? undefined : this.normalizeKey(dto.key);
+    const key = dto.key === undefined ? undefined : normalizeKeyUtil(dto.key);
 
     return this.repo.updateProjectEnvironment({
       where: { id: existing.id },
@@ -318,7 +332,7 @@ export class ProjectEnvironmentService {
         description: dto.description,
         status: dto.status,
         sortOrder: dto.sortOrder,
-        config: dto.config !== undefined ? this.toJsonValue(dto.config) : undefined,
+        config: dto.config !== undefined ? toJsonValueUtil(dto.config) : undefined,
       },
       include: {
         project: { select: { id: true, name: true } },
@@ -468,13 +482,13 @@ export class ProjectEnvironmentService {
       }),
     ])) as any;
 
-    const servicesByEnvironment = this.groupByEnvironment(services as any[]) as any;
-    const deploymentRunsByEnvironment = this.groupByEnvironment(deploymentRuns as any[]) as any;
-    const sitesByEnvironment = this.groupByEnvironment(sites as any[]) as any;
-    const managedResourcesByEnvironment = this.groupByEnvironment(managedResources as any[]) as any;
-    const resourceInstancesByEnvironment = this.groupByEnvironment(resourceInstances as any[]) as any;
-    const cdnConfigsByEnvironment = this.groupByEnvironment(cdnConfigs as any[]) as any;
-    const secretKeysByEnvironment = this.groupByEnvironment(secretKeys as any[]) as any;
+    const servicesByEnvironment = groupByEnvironmentUtil(services as any[]) as any;
+    const deploymentRunsByEnvironment = groupByEnvironmentUtil(deploymentRuns as any[]) as any;
+    const sitesByEnvironment = groupByEnvironmentUtil(sites as any[]) as any;
+    const managedResourcesByEnvironment = groupByEnvironmentUtil(managedResources as any[]) as any;
+    const resourceInstancesByEnvironment = groupByEnvironmentUtil(resourceInstances as any[]) as any;
+    const cdnConfigsByEnvironment = groupByEnvironmentUtil(cdnConfigs as any[]) as any;
+    const secretKeysByEnvironment = groupByEnvironmentUtil(secretKeys as any[]) as any;
 
     const baseProfiles: EnvironmentSyncProfile[] = environments.map((environment: any) => {
       const environmentServices = servicesByEnvironment.get(environment.id) || [];
@@ -494,24 +508,24 @@ export class ProjectEnvironmentService {
           sortOrder: environment.sortOrder,
         },
         isReference: false,
-        serverRoleKeys: this.uniqueSorted(
+        serverRoleKeys: uniqueSortedUtil(
           environment.serverBindings.map((binding: any) => binding.role || 'mixed'),
         ),
-        serverKeys: this.uniqueSorted(
+        serverKeys: uniqueSortedUtil(
           environment.serverBindings.map((binding: any) => binding.server.host || binding.server.name),
         ),
-        serviceKeys: this.uniqueSorted(
+        serviceKeys: uniqueSortedUtil(
           environmentServices.map((service: any) => `${service.application.name}/${service.name}`),
         ),
-        resourceKindKeys: this.uniqueSorted([
+        resourceKindKeys: uniqueSortedUtil([
           ...environmentManagedResources.map((resource: any) => `${resource.provider}/${resource.kind}`),
           ...environmentResourceInstances.map((instance: any) =>
             instance.resourceType?.key || instance.resourceType?.name || 'resource_instance',
           ),
         ]),
-        siteRuntimeKeys: this.uniqueSorted(environmentSites.map((site: any) => site.runtimeType)),
-        secretTypeKeys: this.uniqueSorted(environmentSecretKeys.map((secret: any) => secret.type)),
-        cdnProviderKeys: this.uniqueSorted(environmentCdnConfigs.map((config: any) => config.provider)),
+        siteRuntimeKeys: uniqueSortedUtil(environmentSites.map((site: any) => site.runtimeType)),
+        secretTypeKeys: uniqueSortedUtil(environmentSecretKeys.map((secret: any) => secret.type)),
+        cdnProviderKeys: uniqueSortedUtil(environmentCdnConfigs.map((config: any) => config.provider)),
         counts: {
           serverBindings: environment.serverBindings.length,
           services: environmentServices.length,
@@ -527,7 +541,7 @@ export class ProjectEnvironmentService {
         serviceBindingGapCount: environmentServices.filter((service: any) =>
           !service.serverId && !service.siteId && !service.managedResourceId,
         ).length,
-        tlsSiteCount: environmentSites.filter((site: any) => this.siteTlsEnabled(site.tls)).length,
+        tlsSiteCount: environmentSites.filter((site: any) => siteTlsEnabledUtil(site.tls)).length,
         successfulDeployments: environmentDeploymentRuns.filter((run: any) => run.status === 'completed').length,
       };
     });
@@ -634,16 +648,16 @@ export class ProjectEnvironmentService {
     const sourceServices: any[] = services.filter((service: any) => service.environmentId === source.id);
     const targetServices: any[] = services.filter((service: any) => service.environmentId === target.id);
     const targetServiceByKey = new Map<string, any>(targetServices.map((service: any) => [
-      this.applicationServiceSyncKey(service.applicationId, service.name),
+      applicationServiceSyncKeyUtil(service.applicationId, service.name),
       service,
     ]));
     const steps: EnvironmentSyncApplyStep[] = [];
 
     for (const sourceService of sourceServices) {
       const targetService = targetServiceByKey.get(
-        this.applicationServiceSyncKey(sourceService.applicationId, sourceService.name),
+        applicationServiceSyncKeyUtil(sourceService.applicationId, sourceService.name),
       );
-      const sourceDeployConfig = this.safeDeployConfig(sourceService.deployConfig);
+      const sourceDeployConfig = safeDeployConfigUtil(sourceService.deployConfig);
 
       if (!targetService) {
         if (!actionKinds.has('create_missing_service')) {
@@ -663,7 +677,7 @@ export class ProjectEnvironmentService {
               applicationId: sourceService.applicationId,
               serviceName: sourceService.name,
               copiedDeployConfigFields,
-              skippedBindings: this.skippedServiceBindings(sourceService),
+              skippedBindings: skippedServiceBindingsUtil(sourceService),
             },
           });
           continue;
@@ -679,15 +693,15 @@ export class ProjectEnvironmentService {
             kind: sourceService.kind,
             runtime: sourceService.runtime,
             image: sourceService.image,
-            ports: sourceService.ports !== null ? this.toJsonValue(sourceService.ports) : undefined,
-            deployConfig: copiedDeployConfigFields.length > 0 ? this.toJsonValue(sourceDeployConfig) : undefined,
-            metadata: this.toJsonValue({
+            ports: sourceService.ports !== null ? toJsonValueUtil(sourceService.ports) : undefined,
+            deployConfig: copiedDeployConfigFields.length > 0 ? toJsonValueUtil(sourceDeployConfig) : undefined,
+            metadata: toJsonValueUtil({
               environmentSync: {
                 sourceEnvironmentId: source.id,
                 targetEnvironmentId: target.id,
                 sourceApplicationServiceId: sourceService.id,
                 copiedDeployConfigFields,
-                skippedBindings: this.skippedServiceBindings(sourceService),
+                skippedBindings: skippedServiceBindingsUtil(sourceService),
                 copiedBy: userId,
                 copiedAt: new Date().toISOString(),
               },
@@ -707,7 +721,7 @@ export class ProjectEnvironmentService {
             applicationId: sourceService.applicationId,
             serviceName: sourceService.name,
             copiedDeployConfigFields,
-            skippedBindings: this.skippedServiceBindings(sourceService),
+            skippedBindings: skippedServiceBindingsUtil(sourceService),
           },
         });
         continue;
@@ -717,9 +731,9 @@ export class ProjectEnvironmentService {
         continue;
       }
 
-      const targetDeployConfig = this.recordFromJson(targetService.deployConfig);
+      const targetDeployConfig = recordFromJson(targetService.deployConfig);
       const missingFields = DEPLOY_CONFIG_FIELDS.filter((field) =>
-        sourceDeployConfig[field] && !this.readConfigString(targetDeployConfig, field),
+        sourceDeployConfig[field] && !readConfigStringUtil(targetDeployConfig, field),
       );
       if (missingFields.length === 0) {
         continue;
@@ -730,7 +744,7 @@ export class ProjectEnvironmentService {
           kind: 'complete_deploy_config',
           status: 'planned',
           title: `补齐部署配置 ${targetService.application.name}/${targetService.name}`,
-          description: `将补齐 ${this.previewList(missingFields.map((field) => DEPLOY_CONFIG_FIELD_LABELS[field]))}，不会覆盖目标环境已有字段。`,
+          description: `将补齐 ${previewListUtil(missingFields.map((field) => DEPLOY_CONFIG_FIELD_LABELS[field]))}，不会覆盖目标环境已有字段。`,
           targetType: 'application_service',
           sourceId: sourceService.id,
           targetId: targetService.id,
@@ -749,14 +763,14 @@ export class ProjectEnvironmentService {
       };
       await this.repo.updateApplicationService({
         where: { id: targetService.id },
-        data: { deployConfig: this.toJsonValue(nextDeployConfig) },
+        data: { deployConfig: toJsonValueUtil(nextDeployConfig) },
         select: { id: true },
       });
       steps.push({
         kind: 'complete_deploy_config',
         status: 'applied',
         title: `已补齐部署配置 ${targetService.application.name}/${targetService.name}`,
-        description: `已补齐 ${this.previewList(missingFields.map((field) => DEPLOY_CONFIG_FIELD_LABELS[field]))}，未覆盖目标环境已有字段。`,
+        description: `已补齐 ${previewListUtil(missingFields.map((field) => DEPLOY_CONFIG_FIELD_LABELS[field]))}，未覆盖目标环境已有字段。`,
         targetType: 'application_service',
         sourceId: sourceService.id,
         targetId: targetService.id,
@@ -822,7 +836,7 @@ export class ProjectEnvironmentService {
       throw new BadRequestException(`确认文本必须等于目标环境名称或 key：${environment.name} / ${environment.key}`);
     }
 
-    const requestedTypes = this.normalizeResourceBindingTypes(dto.resourceTypes);
+    const requestedTypes = normalizeResourceBindingTypesUtil(dto.resourceTypes);
     const resourceIds = dto.resourceIds || {};
     const [
       managedResources,
@@ -1141,11 +1155,11 @@ export class ProjectEnvironmentService {
         environmentId: target.id,
         name: `${site.name} (${target.name})`,
         primaryDomain: targetDomain,
-        aliases: site.aliases ? this.toJsonValue(site.aliases) : undefined,
+        aliases: site.aliases ? toJsonValueUtil(site.aliases) : undefined,
         runtimeType: site.runtimeType,
-        runtimeConfig: Object.keys(runtimeConfig).length > 0 ? this.toJsonValue(runtimeConfig) : undefined,
-        tls: this.toJsonValue(this.sanitizeSiteTlsForCopy(site.tls)),
-        accessPolicy: site.accessPolicy ? this.toJsonValue(site.accessPolicy) : undefined,
+        runtimeConfig: Object.keys(runtimeConfig).length > 0 ? toJsonValueUtil(runtimeConfig) : undefined,
+        tls: toJsonValueUtil(sanitizeSiteTlsForCopyUtil(site.tls)),
+        accessPolicy: site.accessPolicy ? toJsonValueUtil(site.accessPolicy) : undefined,
         status: openRestyTakeover ? 'pending' : 'draft',
       };
       if (openRestyTakeover) {
@@ -1192,23 +1206,23 @@ export class ProjectEnvironmentService {
                 targetServerId,
                 upstreamUrl: targetUpstreamUrl,
                 createDryRunSyncPlan,
-                syncRunId: this.extractNestedString(syncPlan, ['syncRun', 'id']),
-                syncStatus: this.extractString(syncPlan, 'status'),
+                syncRunId: extractNestedString(syncPlan, ['syncRun', 'id']),
+                syncStatus: extractStringUtil(syncPlan, 'status'),
                 queuedLiveSync: createQueuedLiveSync
                   ? {
                       enabled: true,
-                      syncRunId: this.extractNestedString(queuedLiveSync, ['syncRun', 'id']),
-                      syncStatus: this.extractString(queuedLiveSync, 'status'),
+                      syncRunId: extractNestedString(queuedLiveSync, ['syncRun', 'id']),
+                      syncStatus: extractStringUtil(queuedLiveSync, 'status'),
                       serverExecutionJobId:
-                        this.extractNestedString(queuedLiveSync, ['syncRun', 'serverExecutionJobId']) ||
-                        this.extractNestedString(queuedLiveSync, ['syncRun', 'serverExecutionJob', 'id']),
+                        extractNestedString(queuedLiveSync, ['syncRun', 'serverExecutionJobId']) ||
+                        extractNestedString(queuedLiveSync, ['syncRun', 'serverExecutionJob', 'id']),
                       approvalId:
-                        this.extractNestedString(queuedLiveSync, ['approval', 'id']) ||
-                        this.extractNestedString(queuedLiveSync, ['syncRun', 'operationApprovalId']) ||
-                        this.extractNestedString(queuedLiveSync, ['syncRun', 'operationApproval', 'id']),
+                        extractNestedString(queuedLiveSync, ['approval', 'id']) ||
+                        extractNestedString(queuedLiveSync, ['syncRun', 'operationApprovalId']) ||
+                        extractNestedString(queuedLiveSync, ['syncRun', 'operationApproval', 'id']),
                       approvalStatus:
-                        this.extractNestedString(queuedLiveSync, ['approval', 'status']) ||
-                        this.extractNestedString(queuedLiveSync, ['syncRun', 'operationApproval', 'status']),
+                        extractNestedString(queuedLiveSync, ['approval', 'status']) ||
+                        extractNestedString(queuedLiveSync, ['syncRun', 'operationApproval', 'status']),
                       maxAttempts: dto.queuedLiveSyncMaxAttempts ?? null,
                       confirmationTextProvided: Boolean(queuedLiveSyncConfirmationTexts[site.id]?.trim()),
                     }
@@ -1380,7 +1394,7 @@ export class ProjectEnvironmentService {
           domain: targetDomain,
           origin: targetOrigin,
           provider: config.provider,
-          cacheRules: config.cacheRules ? this.toJsonValue(config.cacheRules) : undefined,
+          cacheRules: config.cacheRules ? toJsonValueUtil(config.cacheRules) : undefined,
           status: 'pending',
         },
         select: { id: true },
@@ -1734,13 +1748,13 @@ export class ProjectEnvironmentService {
         environmentId: environment.id,
         serverId: dto.serverId,
         role: dto.role,
-        metadata: dto.metadata ? this.toJsonValue(dto.metadata) : undefined,
+        metadata: dto.metadata ? toJsonValueUtil(dto.metadata) : undefined,
       },
       update: {
         projectId: environment.projectId,
         role: dto.role,
         status: 'active',
-        metadata: dto.metadata ? this.toJsonValue(dto.metadata) : undefined,
+        metadata: dto.metadata ? toJsonValueUtil(dto.metadata) : undefined,
       },
       include: {
         server: { select: { id: true, name: true, host: true, status: true, services: true } },
@@ -1794,7 +1808,7 @@ export class ProjectEnvironmentService {
   }
 
   async ensureDefaultsForProject(teamId: string, projectId: string, config: unknown) {
-    const keys = this.environmentKeysFromConfig(config);
+    const keys = environmentKeysFromConfigUtil(config);
 
     for (const [index, key] of keys.entries()) {
       await this.repo.upsertProjectEnvironment({
@@ -1808,15 +1822,15 @@ export class ProjectEnvironmentService {
           teamId,
           projectId,
           key,
-          name: this.labelForKey(key),
+          name: labelForKeyUtil(key),
           sortOrder: index * 10,
-          config: this.toJsonValue({
+          config: toJsonValueUtil({
             source: 'project_config',
             initializedBy: 'ProjectEnvironmentService.ensureDefaultsForProject',
           }),
         },
         update: {
-          name: this.labelForKey(key),
+          name: labelForKeyUtil(key),
           sortOrder: index * 10,
           status: 'active',
         },
@@ -1889,11 +1903,11 @@ export class ProjectEnvironmentService {
         continue;
       }
 
-      const syncStatus = this.extractString(queuedLiveSync, 'syncStatus') || 'unknown';
-      const approvalStatus = this.extractString(queuedLiveSync, 'approvalStatus') || null;
-      const syncRunId = this.extractString(queuedLiveSync, 'syncRunId') || null;
-      const approvalId = this.extractString(queuedLiveSync, 'approvalId') || null;
-      const serverExecutionJobId = this.extractString(queuedLiveSync, 'serverExecutionJobId') || null;
+      const syncStatus = extractStringUtil(queuedLiveSync, 'syncStatus') || 'unknown';
+      const approvalStatus = extractStringUtil(queuedLiveSync, 'approvalStatus') || null;
+      const syncRunId = extractStringUtil(queuedLiveSync, 'syncRunId') || null;
+      const approvalId = extractStringUtil(queuedLiveSync, 'approvalId') || null;
+      const serverExecutionJobId = extractStringUtil(queuedLiveSync, 'serverExecutionJobId') || null;
       const normalizedSyncStatus = syncStatus.toLowerCase();
       const normalizedApprovalStatus = approvalStatus?.toLowerCase() || null;
       let action: SiteCopyQueuedLiveSyncFollowUpItem['action'];
@@ -1970,18 +1984,6 @@ export class ProjectEnvironmentService {
     };
   }
 
-  private extractString(value: unknown, key: string) {
-    return isRecord(value) && typeof value[key] === 'string' ? value[key] : undefined;
-  }
-
-  private extractNestedString(value: unknown, path: string[]) {
-    let current: unknown = value;
-    for (const key of path) {
-      if (!isRecord(current)) return undefined;
-      current = current[key];
-    }
-    return typeof current === 'string' ? current : undefined;
-  }
 
   private async resolveProjectEnvironment(teamId: string, projectId: string, environmentId: string) {
     const environment = await this.repo.findProjectEnvironment({
@@ -1996,52 +1998,16 @@ export class ProjectEnvironmentService {
     return environment;
   }
 
-  private environmentKeysFromConfig(config: unknown) {
-    const record = isRecord(config) ? config : {};
-    const keys = readStringArray(record.environments)
-      .map((key) => this.normalizeKey(key))
-      .filter(Boolean);
 
-    return keys.length > 0 ? [...new Set(keys)] : DEFAULT_PROJECT_ENVIRONMENT_KEYS;
-  }
-
-  private normalizeKey(value: string) {
-    const key = value.trim().toLowerCase();
-    if (!key) {
-      throw new BadRequestException('环境 key 不能为空');
-    }
-
-    return key.replace(/[^a-z0-9_-]/g, '-').slice(0, 64);
-  }
-
-  private labelForKey(key: string) {
-    return ENVIRONMENT_LABELS[key] || key;
-  }
-
-  private sortOrderForKey(key: string) {
-    const knownOrder = ['dev', 'test', 'staging', 'prod'].indexOf(key);
-    return knownOrder >= 0 ? knownOrder * 10 : 100;
-  }
-
-  private groupByEnvironment<T extends { environmentId: string | null }>(items: T[]) {
-    const grouped = new Map<string, T[]>();
-    for (const item of items) {
-      if (!item.environmentId) continue;
-      const current = grouped.get(item.environmentId) || [];
-      current.push(item);
-      grouped.set(item.environmentId, current);
-    }
-    return grouped;
-  }
 
   private buildDeployConfigCoverage(services: Array<{ deployConfig: unknown }>): DeployConfigCoverage {
     return {
       total: services.length,
-      workingDirectory: services.filter((service: any) => this.readConfigString(service.deployConfig, 'workingDirectory')).length,
-      buildCommand: services.filter((service: any) => this.readConfigString(service.deployConfig, 'buildCommand')).length,
-      deployCommand: services.filter((service: any) => this.readConfigString(service.deployConfig, 'deployCommand')).length,
-      healthCheckUrl: services.filter((service: any) => this.readConfigString(service.deployConfig, 'healthCheckUrl')).length,
-      rollbackCommand: services.filter((service: any) => this.readConfigString(service.deployConfig, 'rollbackCommand')).length,
+      workingDirectory: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'workingDirectory')).length,
+      buildCommand: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'buildCommand')).length,
+      deployCommand: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'deployCommand')).length,
+      healthCheckUrl: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'healthCheckUrl')).length,
+      rollbackCommand: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'rollbackCommand')).length,
     };
   }
 
@@ -2073,20 +2039,20 @@ export class ProjectEnvironmentService {
 
     return {
       missing: {
-        serverRoles: this.missingItems(profile.serverRoleKeys, reference.serverRoleKeys),
-        services: this.missingItems(profile.serviceKeys, reference.serviceKeys),
-        resourceKinds: this.missingItems(profile.resourceKindKeys, reference.resourceKindKeys),
-        siteRuntimeTypes: this.missingItems(profile.siteRuntimeKeys, reference.siteRuntimeKeys),
-        secretTypes: this.missingItems(profile.secretTypeKeys, reference.secretTypeKeys),
-        cdnProviders: this.missingItems(profile.cdnProviderKeys, reference.cdnProviderKeys),
+        serverRoles: missingItemsUtil(profile.serverRoleKeys, reference.serverRoleKeys),
+        services: missingItemsUtil(profile.serviceKeys, reference.serviceKeys),
+        resourceKinds: missingItemsUtil(profile.resourceKindKeys, reference.resourceKindKeys),
+        siteRuntimeTypes: missingItemsUtil(profile.siteRuntimeKeys, reference.siteRuntimeKeys),
+        secretTypes: missingItemsUtil(profile.secretTypeKeys, reference.secretTypeKeys),
+        cdnProviders: missingItemsUtil(profile.cdnProviderKeys, reference.cdnProviderKeys),
       },
       extra: {
-        serverRoles: this.missingItems(reference.serverRoleKeys, profile.serverRoleKeys),
-        services: this.missingItems(reference.serviceKeys, profile.serviceKeys),
-        resourceKinds: this.missingItems(reference.resourceKindKeys, profile.resourceKindKeys),
-        siteRuntimeTypes: this.missingItems(reference.siteRuntimeKeys, profile.siteRuntimeKeys),
-        secretTypes: this.missingItems(reference.secretTypeKeys, profile.secretTypeKeys),
-        cdnProviders: this.missingItems(reference.cdnProviderKeys, profile.cdnProviderKeys),
+        serverRoles: missingItemsUtil(reference.serverRoleKeys, profile.serverRoleKeys),
+        services: missingItemsUtil(reference.serviceKeys, profile.serviceKeys),
+        resourceKinds: missingItemsUtil(reference.resourceKindKeys, profile.resourceKindKeys),
+        siteRuntimeTypes: missingItemsUtil(reference.siteRuntimeKeys, profile.siteRuntimeKeys),
+        secretTypes: missingItemsUtil(reference.secretTypeKeys, profile.secretTypeKeys),
+        cdnProviders: missingItemsUtil(reference.cdnProviderKeys, profile.cdnProviderKeys),
       },
       deployConfigGaps: DEPLOY_CONFIG_FIELDS
         .map((field) => ({
@@ -2115,7 +2081,7 @@ export class ProjectEnvironmentService {
       actions.push({
         kind: 'bind_server_role',
         severity: 'warning',
-        title: `补齐服务器角色：${this.previewList(differences.missing.serverRoles)}`,
+        title: `补齐服务器角色：${previewListUtil(differences.missing.serverRoles)}`,
         description: '为目标环境绑定对应用途的服务器，后续部署、站点同步和资源采集才能按环境收敛。',
         target: 'resource-control',
         metadata: { ...metadataBase, roles: differences.missing.serverRoles },
@@ -2126,7 +2092,7 @@ export class ProjectEnvironmentService {
       actions.push({
         kind: 'create_missing_service',
         severity: 'warning',
-        title: `补齐应用服务：${this.previewList(differences.missing.services)}`,
+        title: `补齐应用服务：${previewListUtil(differences.missing.services)}`,
         description: '为目标环境创建同名服务或声明该环境无需部署，避免仅生产环境有服务定义。',
         target: 'applications',
         metadata: { ...metadataBase, services: differences.missing.services },
@@ -2137,7 +2103,7 @@ export class ProjectEnvironmentService {
       actions.push({
         kind: 'complete_deploy_config',
         severity: 'warning',
-        title: `补齐部署配置：${this.previewList(differences.deployConfigGaps.map((gap) => DEPLOY_CONFIG_FIELD_LABELS[gap.field] || gap.field))}`,
+        title: `补齐部署配置：${previewListUtil(differences.deployConfigGaps.map((gap) => DEPLOY_CONFIG_FIELD_LABELS[gap.field] || gap.field))}`,
         description: '补齐工作目录、构建、部署、健康检查或回滚命令后，该环境才能接入构建部署。',
         target: 'applications',
         metadata: { ...metadataBase, gaps: differences.deployConfigGaps },
@@ -2159,7 +2125,7 @@ export class ProjectEnvironmentService {
       actions.push({
         kind: 'bind_resource_kind',
         severity: 'warning',
-        title: `补齐资源类型：${this.previewList(differences.missing.resourceKinds)}`,
+        title: `补齐资源类型：${previewListUtil(differences.missing.resourceKinds)}`,
         description: '把目标环境实际使用的 Docker、数据库、日志或对象存储资源绑定到项目环境。',
         target: 'resource-control',
         metadata: { ...metadataBase, resourceKinds: differences.missing.resourceKinds },
@@ -2170,7 +2136,7 @@ export class ProjectEnvironmentService {
       actions.push({
         kind: 'create_site_runtime',
         severity: 'info',
-        title: `补齐站点运行时：${this.previewList(differences.missing.siteRuntimeTypes)}`,
+        title: `补齐站点运行时：${previewListUtil(differences.missing.siteRuntimeTypes)}`,
         description: '为目标环境创建相同类型的站点入口，并按环境配置域名、TLS 和源站。',
         target: 'sites',
         metadata: { ...metadataBase, runtimeTypes: differences.missing.siteRuntimeTypes },
@@ -2181,7 +2147,7 @@ export class ProjectEnvironmentService {
       actions.push({
         kind: 'create_cdn_config',
         severity: 'info',
-        title: `补齐 CDN：${this.previewList(differences.missing.cdnProviders)}`,
+        title: `补齐 CDN：${previewListUtil(differences.missing.cdnProviders)}`,
         description: '为目标环境创建或绑定同类 CDN 配置，避免域名加速只覆盖部分环境。',
         target: 'cdn-configs',
         metadata: { ...metadataBase, providers: differences.missing.cdnProviders },
@@ -2192,7 +2158,7 @@ export class ProjectEnvironmentService {
       actions.push({
         kind: 'create_secret_type',
         severity: 'warning',
-        title: `补齐密钥类型：${this.previewList(differences.missing.secretTypes)}`,
+        title: `补齐密钥类型：${previewListUtil(differences.missing.secretTypes)}`,
         description: '为目标环境创建对应类型密钥，后续才能安全注入服务配置。',
         target: 'keys',
         metadata: { ...metadataBase, secretTypes: differences.missing.secretTypes },
@@ -2251,10 +2217,10 @@ export class ProjectEnvironmentService {
 
   private addMissingExtraLabels(labels: string[], label: string, missing: string[], extra: string[]) {
     if (missing.length > 0) {
-      labels.push(`${label}少 ${this.previewList(missing, 2)}`);
+      labels.push(`${label}少 ${previewListUtil(missing, 2)}`);
     }
     if (extra.length > 0) {
-      labels.push(`${label}多 ${this.previewList(extra, 2)}`);
+      labels.push(`${label}多 ${previewListUtil(extra, 2)}`);
     }
   }
 
@@ -2283,52 +2249,6 @@ export class ProjectEnvironmentService {
     };
   }
 
-  private missingItems(current: string[], reference: string[]) {
-    return reference.filter((item) => !current.includes(item));
-  }
-
-  private applicationServiceSyncKey(applicationId: string, serviceName: string) {
-    return `${applicationId}:${serviceName.trim().toLowerCase()}`;
-  }
-
-  private safeDeployConfig(config: unknown): Partial<Record<DeployConfigField, string>> {
-    const record = this.recordFromJson(config);
-    const safe: Partial<Record<DeployConfigField, string>> = {};
-
-    for (const field of DEPLOY_CONFIG_FIELDS) {
-      const value = this.readConfigString(record, field);
-      if (value) {
-        safe[field] = value;
-      }
-    }
-
-    return safe;
-  }
-
-  private recordFromJson(value: unknown): Record<string, unknown> {
-    return isRecord(value) ? value : {};
-  }
-
-  private skippedServiceBindings(service: {
-    serverId?: string | null;
-    siteId?: string | null;
-    managedResourceId?: string | null;
-  }) {
-    return {
-      server: Boolean(service.serverId),
-      site: Boolean(service.siteId),
-      managedResource: Boolean(service.managedResourceId),
-      env: true,
-      secretKeyIds: true,
-    };
-  }
-
-  private normalizeResourceBindingTypes(types?: string[]) {
-    const allowed = new Set(DEFAULT_RESOURCE_BINDING_TYPES);
-    const requested = (types || [])
-      .filter((type): type is EnvironmentResourceBindingType => allowed.has(type as EnvironmentResourceBindingType));
-    return new Set(requested.length > 0 ? requested : DEFAULT_RESOURCE_BINDING_TYPES);
-  }
 
   private resourceBindingStep(
     type: EnvironmentResourceBindingType,
@@ -2396,44 +2316,6 @@ export class ProjectEnvironmentService {
     await Promise.all(updates);
   }
 
-  private uniqueSorted(items: string[]) {
-    return Array.from(new Set(items.filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh-CN'));
-  }
-
-  private previewList(items: string[], max = 3) {
-    if (items.length === 0) {
-      return '无';
-    }
-    const preview = items.slice(0, max).join('、');
-    return items.length > max ? `${preview} 等 ${items.length} 项` : preview;
-  }
-
-  private readConfigString(config: unknown, key: string) {
-    const record = isRecord(config) ? config : {};
-    const value = record[key];
-    return typeof value === 'string' && value.trim() ? value.trim() : '';
-  }
-
-  private siteTlsEnabled(tls: unknown) {
-    if (!isRecord(tls)) {
-      return false;
-    }
-    return tls.enabled === true || (typeof tls.type === 'string' && tls.type !== 'none');
-  }
-
-  private sanitizeSiteTlsForCopy(tls: unknown) {
-    if (!isRecord(tls)) {
-      return {};
-    }
-
-    const sanitized: Record<string, unknown> = {};
-    ['enabled', 'type', 'email', 'redirectHttp', 'hsts', 'http2'].forEach((key) => {
-      if (tls[key] !== undefined) {
-        sanitized[key] = tls[key];
-      }
-    });
-    return sanitized;
-  }
 
   private async writeSyncApplyAudit(
     teamId: string,
@@ -2731,7 +2613,4 @@ export class ProjectEnvironmentService {
     });
   }
 
-  private toJsonValue(value: unknown): Prisma.InputJsonValue {
-    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-  }
 }
