@@ -76,3 +76,10 @@
 4. 在环境工作台基础上继续把 Site copy queued live sync 的 follow-up 摘要接到前端治理入口和 worker 运行态可视化,并把资源 copy 后的同步、指标、告警接管入口做深。
 
 这样 Devpilot 会从"能登记资源"变成"项目代码变更后能触发部署并落到服务器资源",产品主线会明显更完整。
+
+### PT. 工程债:手搓功能应替换为三方库
+
+- 目标:把当前"从零手写"的能力(加密、调度器、任务队列、SSH、Docker/API 客户端、YAML/模板、SSE、前端表单/表格/日期/i18n 等)逐步替换为成熟三方库,先消除安全风险与代码重复,再补功能性。
+- 状态:🟡 第一批完成(P0 安全项全部、P1 去重项、P2 小项、P3 dayjs),零回归;大件(SSH/docker/octokit/CDN/mustache/SSE/bullmq/react-hook-form/tanstack-table/next-intl)评估为独立 epic 待推进。
+- 进度:`../progress/PT-tech-debt-libraries.md`(唯一锚点,含完整状态表、本批次新增的共享基础设施清单、以及延后大件的评估结论)。
+- 下一步:按"独立 epic"清单逐项立项推进;优先 SSH(695 行 CLI spawn,安全与可维护性收益最大)与 bullmq 队列(5,700 行手搓)。

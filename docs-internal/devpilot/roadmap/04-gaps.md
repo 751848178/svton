@@ -36,3 +36,4 @@ flowchart LR
 - **数据库/备份真实执行待补**:已有连接/授权探测、只读查询/浏览计划、DB/Redis live readonly 查询、阿里云 RDS/SLS 与腾讯 COS live inventory;备份到 dry-run 计划、运行记录和服务器备份队列桥,真实备份/恢复仍待补。详见 `progress/P5-database-backup.md`。
 - **可观测性待补**:已具备状态型告警、证书告警、维护窗口静默、事件去重、多通道通知、日志归档/SSE tail、容器指标、SLO 大盘与策略;仍缺 agent 级持续日志 follow 和真实 SLO 周期/多周期错误预算策略。详见 `progress/P6-monitoring.md` 与 `progress/P7-log-center.md`。
 - **权限覆盖待补**:控制面策略已覆盖主要读写接口;第一组 Jest 回归已覆盖 owner bypass、deny 优先、默认角色门槛等;下一步扩展到真实 DB fixture 或 e2e 级权限用例。详见 `progress/P8-ops-governance.md`。
+- **工程债:大量本应由三方库承载的能力被手搓**(跨阶段):包括 12+ 处复制粘贴的 AES 加解密(含硬编码 salt、`Math.random()` 生成密钥的安全漏洞)、11 个 `setInterval` 调度器模板复制、5,700 行手搓 DB 任务队列、695 行 SSH CLI spawn、`docker ps/stats` 正则解析、CDN 刷新拼 bash 脚本、YAML/nginx.conf 字符串拼接、手搓 SSE 帧、前端裸 `useState` 表单/重复日期格式化/无排序表格/全站硬编码中文。详见 `progress/PT-tech-debt-libraries.md`。
