@@ -1,7 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import * as Mustache from 'mustache';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProxyConfigDto, UpdateProxyConfigDto } from './dto/proxy-config.dto';
+import { NGINX_CONFIG_TEMPLATE } from './nginx.template';
 
 @Injectable()
 export class ProxyConfigService {
@@ -192,95 +194,37 @@ export class ProxyConfigService {
     return { success: true };
   }
 
-  // 生成 Nginx 配置
+  // 生成 Nginx 配置（mustache 模板渲染 + 空行规范化，取代 += 命令式拼接）
   generateNginxConfig(config: any): string {
     const upstreams = config.upstreams as Array<{ host: string; port?: number; weight?: number }>;
     const ssl = config.ssl as { enabled: boolean; type?: string };
     const upstreamName = config.domain.replace(/\./g, '_');
-
-    let nginxConfig = '';
-
-    // Upstream 配置
-    if (upstreams.length > 1) {
-      nginxConfig += `upstream ${upstreamName} {\n`;
-      for (const upstream of upstreams) {
-        nginxConfig += `    server ${upstream.host}:${upstream.port || 80}`;
-        if (upstream.weight && upstream.weight !== 1) {
-          nginxConfig += ` weight=${upstream.weight}`;
-        }
-        nginxConfig += ';\n';
-      }
-      nginxConfig += '}\n\n';
-    }
-
-    // Server 配置
-    nginxConfig += `server {\n`;
-
-    if (ssl.enabled) {
-      nginxConfig += `    listen 443 ssl http2;\n`;
-      nginxConfig += `    listen [::]:443 ssl http2;\n`;
-    } else {
-      nginxConfig += `    listen 80;\n`;
-      nginxConfig += `    listen [::]:80;\n`;
-    }
-
-    nginxConfig += `    server_name ${config.domain};\n\n`;
-
-    // SSL 配置
-    if (ssl.enabled) {
-      if (ssl.type === 'letsencrypt') {
-        nginxConfig += `    ssl_certificate /etc/letsencrypt/live/${config.domain}/fullchain.pem;\n`;
-        nginxConfig += `    ssl_certificate_key /etc/letsencrypt/live/${config.domain}/privkey.pem;\n`;
-      } else {
-        nginxConfig += `    ssl_certificate /etc/nginx/ssl/${config.domain}.crt;\n`;
-        nginxConfig += `    ssl_certificate_key /etc/nginx/ssl/${config.domain}.key;\n`;
-      }
-      nginxConfig += `    ssl_protocols TLSv1.2 TLSv1.3;\n`;
-      nginxConfig += `    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;\n\n`;
-    }
-
-    // Location 配置
-    nginxConfig += `    location / {\n`;
-
-    const proxyPass = upstreams.length > 1
+    const hasMultipleUpstreams = upstreams.length > 1;
+    const proxyPass = hasMultipleUpstreams
       ? `http://${upstreamName}`
       : `http://${upstreams[0].host}:${upstreams[0].port || 80}`;
+    const customConfigLines = config.customConfig
+      ? String(config.customConfig).split('\n')
+      : [];
 
-    nginxConfig += `        proxy_pass ${proxyPass};\n`;
-    nginxConfig += `        proxy_http_version 1.1;\n`;
-    nginxConfig += `        proxy_set_header Host $host;\n`;
-    nginxConfig += `        proxy_set_header X-Real-IP $remote_addr;\n`;
-    nginxConfig += `        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n`;
-    nginxConfig += `        proxy_set_header X-Forwarded-Proto $scheme;\n`;
-
-    // WebSocket 支持
-    if (config.websocket) {
-      nginxConfig += `        proxy_set_header Upgrade $http_upgrade;\n`;
-      nginxConfig += `        proxy_set_header Connection "upgrade";\n`;
-    }
-
-    nginxConfig += `    }\n`;
-
-    // 自定义配置
-    if (config.customConfig) {
-      nginxConfig += `\n    # Custom configuration\n`;
-      nginxConfig += config.customConfig.split('\n').map((line: string) => `    ${line}`).join('\n');
-      nginxConfig += '\n';
-    }
-
-    nginxConfig += `}\n`;
-
-    // HTTP 重定向到 HTTPS
-    if (ssl.enabled) {
-      nginxConfig += `\nserver {\n`;
-      nginxConfig += `    listen 80;\n`;
-      nginxConfig += `    listen [::]:80;\n`;
-      nginxConfig += `    server_name ${config.domain};\n`;
-      nginxConfig += `    return 301 https://$server_name$request_uri;\n`;
-      nginxConfig += `}\n`;
-    }
-
-    return nginxConfig;
+    const rendered = Mustache.render(NGINX_CONFIG_TEMPLATE, {
+      upstreamBlock: hasMultipleUpstreams,
+      upstreamName,
+      upstreamLines: upstreams.map((u) => ({
+        host: u.host,
+        port: u.port || 80,
+        weight: u.weight && u.weight !== 1 ? u.weight : undefined,
+      })),
+      sslEnabled: ssl.enabled,
+      letsencrypt: ssl.enabled && ssl.type === 'letsencrypt',
+      domain: config.domain,
+      proxyPass,
+      websocket: !!config.websocket,
+      hasCustomConfig: customConfigLines.length > 0,
+      customConfigLines,
+    });
+    // 规范化 mustache standalone section 残留的多余空行（3+ 换行 → 2 个）
+    return rendered.replace(/\n{3,}/g, '\n\n');
   }
 
   // 预览 Nginx 配置

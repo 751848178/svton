@@ -1,50 +1,25 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../common/crypto/crypto.service';
 import { CreateResourceDto, UpdateResourceDto } from './dto/resource.dto';
 
 @Injectable()
 export class ResourceService {
   private readonly logger = new Logger(ResourceService.name);
-  private readonly algorithm = 'aes-256-gcm';
-  private readonly encryptionKey: Buffer;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
-  ) {
-    const key = this.configService.get('ENCRYPTION_KEY', 'default-32-char-encryption-key!');
-    this.encryptionKey = crypto.scryptSync(key, 'salt', 32);
-  }
+    private readonly cryptoService: CryptoService,
+  ) {}
 
   // 加密配置
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(this.algorithm, this.encryptionKey, iv);
-    
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    
-    const authTag = cipher.getAuthTag();
-    
-    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+    return this.cryptoService.encryptGcm(text);
   }
 
   // 解密配置
   private decrypt(encryptedText: string): string {
-    const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
-    
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    
-    const decipher = crypto.createDecipheriv(this.algorithm, this.encryptionKey, iv);
-    decipher.setAuthTag(authTag);
-    
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    return decrypted;
+    return this.cryptoService.decryptGcm(encryptedText);
   }
 
   // 创建资源（需要 teamId）

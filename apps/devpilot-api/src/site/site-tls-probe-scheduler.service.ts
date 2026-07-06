@@ -1,6 +1,8 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
+import { BaseIntervalScheduler } from '../common/scheduler/base-interval-scheduler';
 import { PrismaService } from '../prisma/prisma.service';
 import { SiteService } from './site.service';
 
@@ -24,45 +26,41 @@ type SiteCandidate = {
 };
 
 @Injectable()
-export class SiteTlsProbeSchedulerService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(SiteTlsProbeSchedulerService.name);
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class SiteTlsProbeSchedulerService extends BaseIntervalScheduler {
+  protected readonly logger = new Logger(SiteTlsProbeSchedulerService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly siteService: SiteService,
     private readonly configService: ConfigService,
-  ) {}
-
-  onModuleInit() {
-    if (!this.schedulerEnabled()) {
-      return;
-    }
-
-    const intervalMs = this.schedulerIntervalMs();
-    this.timer = setInterval(() => {
-      void this.runOnce();
-    }, intervalMs);
-    this.logger.log(`Site TLS probe scheduler enabled; interval=${intervalMs}ms`);
+    @Optional() schedulerRegistry?: SchedulerRegistry,
+  ) {
+    super(schedulerRegistry);
   }
 
-  onModuleDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
+  schedulerName(): string {
+    return 'site-tls-probe';
+  }
+
+  isEnabled(): boolean {
+    return this.configService.get('SITE_TLS_PROBE_SCHEDULER_ENABLED', 'false') === 'true';
+  }
+
+  intervalMs(): number {
+    const seconds = Number(this.configService.get('SITE_TLS_PROBE_SCHEDULER_INTERVAL_SECONDS', '3600'));
+    const safeSeconds = Number.isFinite(seconds) && seconds >= 60 ? seconds : 3600;
+    return safeSeconds * 1000;
   }
 
   async runOnce(now = new Date()): Promise<ScheduledSiteTlsProbeSummary> {
-    if (!this.schedulerEnabled()) {
+    if (!this.isEnabled()) {
       return this.emptySummary(false, false);
     }
 
-    if (this.running) {
+    if (!this.tryAcquireRunLock()) {
       return this.emptySummary(true, true);
     }
 
-    this.running = true;
     try {
       const batchSize = this.batchSize();
       const candidates = await this.prisma.site.findMany({
@@ -130,7 +128,7 @@ export class SiteTlsProbeSchedulerService implements OnModuleInit, OnModuleDestr
 
       return summary;
     } finally {
-      this.running = false;
+      this.releaseRunLock();
     }
   }
 
@@ -212,16 +210,6 @@ export class SiteTlsProbeSchedulerService implements OnModuleInit, OnModuleDestr
       skippedRecent: 0,
       failed: 0,
     };
-  }
-
-  private schedulerEnabled() {
-    return this.configService.get('SITE_TLS_PROBE_SCHEDULER_ENABLED', 'false') === 'true';
-  }
-
-  private schedulerIntervalMs() {
-    const seconds = Number(this.configService.get('SITE_TLS_PROBE_SCHEDULER_INTERVAL_SECONDS', '3600'));
-    const safeSeconds = Number.isFinite(seconds) && seconds >= 60 ? seconds : 3600;
-    return safeSeconds * 1000;
   }
 
   private batchSize() {

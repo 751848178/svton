@@ -1,42 +1,25 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../common/crypto/crypto.service';
 import { CreateServerDto, UpdateServerDto, AuthType } from './dto/server.dto';
-import * as crypto from 'crypto';
 
 @Injectable()
 export class ServerService {
   private readonly logger = new Logger(ServerService.name);
-  private readonly encryptionKey = process.env.ENCRYPTION_KEY || 'default-key-32-chars-long!!!!!';
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cryptoService: CryptoService,
+  ) {}
 
   // AES-256-GCM 加密
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(12);
-    const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag().toString('hex');
-
-    return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+    return this.cryptoService.encryptGcm(text);
   }
 
   // AES-256-GCM 解密
   private decrypt(text: string): string {
-    const [ivHex, authTagHex, encrypted] = text.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
-
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(authTag);
-
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    return decrypted;
+    return this.cryptoService.decryptGcm(text);
   }
 
   async create(teamId: string, userId: string, dto: CreateServerDto) {

@@ -1,7 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { BaseIntervalScheduler } from '../common/scheduler/base-interval-scheduler';
 import { SiteService } from './site.service';
 
 type JsonRecord = Record<string, unknown>;
@@ -27,33 +29,28 @@ type SiteRenewCandidate = {
 };
 
 @Injectable()
-export class SiteTlsRenewSchedulerService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(SiteTlsRenewSchedulerService.name);
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class SiteTlsRenewSchedulerService extends BaseIntervalScheduler {
+  protected readonly logger = new Logger(SiteTlsRenewSchedulerService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly siteService: SiteService,
     private readonly configService: ConfigService,
-  ) {}
-
-  onModuleInit() {
-    if (!this.schedulerEnabled()) {
-      return;
-    }
-
-    const intervalMs = this.schedulerIntervalMs();
-    this.timer = setInterval(() => {
-      void this.runOnce();
-    }, intervalMs);
-    this.logger.log(`Site TLS renewal scheduler enabled; interval=${intervalMs}ms; dryRun=${this.schedulerDryRun()}`);
+    @Optional() schedulerRegistry?: SchedulerRegistry,
+  ) {
+    super(schedulerRegistry);
   }
 
-  onModuleDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
+  schedulerName(): string {
+    return 'site-tls-renew';
+  }
+
+  isEnabled(): boolean {
+    return this.schedulerEnabled();
+  }
+
+  intervalMs(): number {
+    return this.schedulerIntervalMs();
   }
 
   async runOnce(now = new Date()): Promise<ScheduledSiteTlsRenewSummary> {
@@ -61,11 +58,10 @@ export class SiteTlsRenewSchedulerService implements OnModuleInit, OnModuleDestr
       return this.emptySummary(false, false);
     }
 
-    if (this.running) {
+    if (!this.tryAcquireRunLock()) {
       return this.emptySummary(true, true);
     }
 
-    this.running = true;
     try {
       const batchSize = this.batchSize();
       const dryRun = this.schedulerDryRun();
@@ -146,7 +142,7 @@ export class SiteTlsRenewSchedulerService implements OnModuleInit, OnModuleDestr
 
       return summary;
     } finally {
-      this.running = false;
+      this.releaseRunLock();
     }
   }
 

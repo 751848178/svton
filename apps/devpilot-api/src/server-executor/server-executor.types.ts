@@ -1,30 +1,43 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from "@prisma/client";
 
-export type ServerExecutorTransport = 'ssh' | 'server_agent' | 'none';
-export type ServerExecutorStatus = 'queued' | 'completed' | 'failed' | 'blocked' | 'cancelled';
-export type ServerExecutionMode = 'queued' | 'dry_run' | 'blocked_live_execution' | 'executed' | 'cancelled';
-export type ServerCommandPolicyDecisionStatus = 'allowed' | 'blocked';
+export type ServerExecutorTransport = "ssh" | "server_agent" | "none";
+export type ServerExecutorStatus =
+  | "queued"
+  | "completed"
+  | "failed"
+  | "blocked"
+  | "cancelled";
+export type ServerExecutionMode =
+  | "queued"
+  | "dry_run"
+  | "blocked_live_execution"
+  | "executed"
+  | "cancelled";
+export type ServerCommandPolicyDecisionStatus = "allowed" | "blocked";
 
 export type ServerExecutionCancellationToken = {
   isCancellationRequested(): boolean;
   onCancel(callback: () => void): () => void;
 };
 
-export type ServerRemoteExecutionCleanupReason = 'cancel' | 'timeout' | 'stale_recovery';
+export type ServerRemoteExecutionCleanupReason =
+  | "cancel"
+  | "timeout"
+  | "stale_recovery";
 
 export type ServerRemoteExecutionSession = {
-  transport: 'ssh';
+  transport: "ssh";
   pid: number;
   observedAt: string;
   serverId?: string | null;
   serverHost?: string;
   operationKey: string;
   adapterKey: string;
-  cleanupStrategy: 'best_effort_ssh';
+  cleanupStrategy: "best_effort_ssh";
 };
 
 export type ServerRemoteExecutionCleanup = {
-  transport: 'ssh';
+  transport: "ssh";
   pid?: number;
   observedAt: string;
   reason?: ServerRemoteExecutionCleanupReason;
@@ -34,8 +47,12 @@ export type ServerRemoteExecutionCleanup = {
 };
 
 export type ServerExecutionRuntimeObserver = {
-  onRemoteProcessStarted?(session: ServerRemoteExecutionSession): void | Promise<void>;
-  onRemoteProcessCleanup?(cleanup: ServerRemoteExecutionCleanup): void | Promise<void>;
+  onRemoteProcessStarted?(
+    session: ServerRemoteExecutionSession,
+  ): void | Promise<void>;
+  onRemoteProcessCleanup?(
+    cleanup: ServerRemoteExecutionCleanup,
+  ): void | Promise<void>;
 };
 
 export type ServerCommandStep = {
@@ -44,7 +61,7 @@ export type ServerCommandStep = {
   command: string;
   cwd?: string;
   required: boolean;
-  risk?: 'low' | 'medium' | 'high';
+  risk?: "low" | "medium" | "high";
   timeoutSeconds?: number;
   preview?: string;
 };
@@ -58,7 +75,7 @@ export type ServerExecutorTarget = {
   authType?: string;
   transport: ServerExecutorTransport;
   agentRef?: {
-    source: 'server_services' | 'server_tags';
+    source: "server_services" | "server_tags";
     referenceId: string;
     displayName: string;
     capabilityKey: string;
@@ -66,7 +83,7 @@ export type ServerExecutorTarget = {
     redacted: true;
   };
   credentialRef?: {
-    source: 'server';
+    source: "server";
     referenceId: string;
     displayName: string;
     redacted: true;
@@ -90,6 +107,11 @@ export type ServerExecutionInput = {
   runtimeObserver?: ServerExecutionRuntimeObserver;
 };
 
+export type ServerQueuedExecutionOptions = {
+  maxAttempts?: number;
+  availableAt?: Date;
+};
+
 export type ServerCommandPolicyDecision = {
   stepKey: string;
   label: string;
@@ -100,9 +122,9 @@ export type ServerCommandPolicyDecision = {
 };
 
 export type ServerCommandPolicyResult = {
-  status: 'passed' | 'blocked';
+  status: "passed" | "blocked";
   policyKey: string;
-  mode: 'built_in_baseline' | 'built_in_with_templates';
+  mode: "built_in_baseline" | "built_in_with_templates";
   templateKeys?: string[];
   decisions: ServerCommandPolicyDecision[];
   warnings: string[];
@@ -112,7 +134,7 @@ export type ServerCommandPolicyResult = {
 export type ServerExecutionResult = {
   status: ServerExecutorStatus;
   mode: ServerExecutionMode;
-  executorKey: 'server-executor';
+  executorKey: "server-executor";
   adapterKey: string;
   executable: boolean;
   warnings: string[];
@@ -127,7 +149,7 @@ export type ServerQueuedExecutionResult = ServerExecutionResult & {
   serverExecutionJobId: string;
   queuedAt: string;
   availableAt: string;
-  queueMode: 'queued';
+  queueMode: "queued";
 };
 
 export interface ServerExecutorAdapter {
