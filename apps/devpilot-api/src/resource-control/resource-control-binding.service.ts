@@ -145,7 +145,7 @@ export class ResourceControlBindingService {
     return credential;
   }
 
-  private async bindServerToEnvironment(
+  async bindServerToEnvironment(
     teamId: string, environment: EnvironmentRef, serverId: string, metadata: Record<string, unknown>,
   ) {
     await this.repo.upsertProjectEnvironmentServer({

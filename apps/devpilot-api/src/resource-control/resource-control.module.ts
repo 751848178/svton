@@ -24,6 +24,7 @@ import { ResourceControlConnectionProbeService } from './resource-control-connec
 import { ResourceControlResourceQueryService } from './resource-control-query.service';
 import { ResourceControlActionService } from './resource-control-action.service';
 import { ResourceControlMetricsService } from './resource-control-metrics.service';
+import { ResourceControlSyncService } from './resource-control-sync.service';
 
 @Module({
   imports: [ServerExecutorModule, AuditEventModule, OperationApprovalModule, ControlAccessPolicyModule],
@@ -38,6 +39,7 @@ import { ResourceControlMetricsService } from './resource-control-metrics.servic
     ResourceControlResourceQueryService,
     ResourceControlActionService,
     ResourceControlMetricsService,
+    ResourceControlSyncService,
     ResourceControlCapabilitiesService,
     ResourceControlCloudProviderHealthService,
     DefaultCredentialResolver,

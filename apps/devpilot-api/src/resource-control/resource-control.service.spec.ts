@@ -16,6 +16,7 @@ import { ResourceControlConnectionProbeService } from './resource-control-connec
 import { ResourceControlResourceQueryService } from './resource-control-query.service';
 import { ResourceControlActionService } from './resource-control-action.service';
 import { ResourceControlMetricsService } from './resource-control-metrics.service';
+import { ResourceControlSyncService } from './resource-control-sync.service';
 import { ResourceControlCloudProviderHealthService } from './resource-control-cloud-provider-health.service';
 import {
   buildMetricSeries,
@@ -26,22 +27,12 @@ describe('ResourceControlService cloud provider health summary', () => {
   const cloudProviderHealthService = new ResourceControlCloudProviderHealthService({} as PrismaService);
   const service = new ResourceControlService(
     {} as PrismaService,
-    {} as ResourceControlRepository,
     new ResourceControlListReadService({} as ResourceControlRepository, cloudProviderHealthService),
     {} as ResourceControlBindingService,
-    {} as ResourceControlConnectionSharedService,
     {} as ResourceControlConnectionProbeService,
     {} as ResourceControlResourceQueryService,
     {} as ResourceControlActionService,
-    {} as ResourceControlMetricsService,
-    {} as DefaultCredentialResolver,
-    {} as ResourceExecutorRouter,
-    {} as DirectDbQueryExecutor,
-    {} as AuditEventService,
-    {} as OperationApprovalService,
-    {} as ServerExecutorService,
-    {} as CloudProviderInventoryService,
-    {} as never,
+    {} as ResourceControlSyncService,
   );
 
   it('summarizes quota, rate-limit, timeout, and provider failure signals from sync metadata', () => {
@@ -402,47 +393,17 @@ function toJsonValue(value: unknown): Prisma.JsonValue {
 }
 
 function buildService(prisma: PrismaService) {
+  const sharedRepo = new ResourceControlRepository(prisma);
+  const binding = new ResourceControlBindingService(sharedRepo, {} as AuditEventService);
+  const connectionShared = new ResourceControlConnectionSharedService(sharedRepo, {} as DefaultCredentialResolver);
   return new ResourceControlService(
     prisma,
-    new ResourceControlRepository(prisma),
-    new ResourceControlListReadService(
-      new ResourceControlRepository(prisma),
-      new ResourceControlCloudProviderHealthService(prisma),
-    ),
-    new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
-    new ResourceControlConnectionSharedService(new ResourceControlRepository(prisma), {} as DefaultCredentialResolver),
-    new ResourceControlConnectionProbeService(
-      new ResourceControlRepository(prisma),
-      new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
-      new ResourceControlConnectionSharedService(new ResourceControlRepository(prisma), {} as DefaultCredentialResolver),
-      {} as ServerExecutorService,
-      {} as AuditEventService,
-    ),
-    new ResourceControlResourceQueryService(
-      new ResourceControlRepository(prisma),
-      new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
-      new ResourceControlConnectionSharedService(new ResourceControlRepository(prisma), {} as DefaultCredentialResolver),
-      {} as DirectDbQueryExecutor,
-      {} as AuditEventService,
-    ),
-    new ResourceControlActionService(
-      new ResourceControlRepository(prisma),
-      new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
-      {} as DefaultCredentialResolver,
-      {} as ResourceExecutorRouter,
-      {} as OperationApprovalService,
-      {} as AuditEventService,
-      new ResourceControlMetricsService(new ResourceControlRepository(prisma)),
-    ),
-    new ResourceControlMetricsService(new ResourceControlRepository(prisma)),
-    {} as DefaultCredentialResolver,
-    {} as ResourceExecutorRouter,
-    {} as DirectDbQueryExecutor,
-    {} as AuditEventService,
-    {} as OperationApprovalService,
-    {} as ServerExecutorService,
-    {} as CloudProviderInventoryService,
-    {} as never,
+    new ResourceControlListReadService(sharedRepo, new ResourceControlCloudProviderHealthService(prisma)),
+    binding,
+    new ResourceControlConnectionProbeService(sharedRepo, binding, connectionShared, {} as ServerExecutorService, {} as AuditEventService),
+    new ResourceControlResourceQueryService(sharedRepo, binding, connectionShared, {} as DirectDbQueryExecutor, {} as AuditEventService),
+    new ResourceControlActionService(sharedRepo, binding, {} as DefaultCredentialResolver, {} as ResourceExecutorRouter, {} as OperationApprovalService, {} as AuditEventService, new ResourceControlMetricsService(sharedRepo)),
+    new ResourceControlSyncService(sharedRepo, binding, {} as ServerExecutorService, {} as never, {} as CloudProviderInventoryService),
   );
 }
 
