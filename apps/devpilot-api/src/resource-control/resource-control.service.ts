@@ -59,6 +59,25 @@ import {
 import { ResourceControlCloudProviderHealthService } from './resource-control-cloud-provider-health.service';
 import { CloudProviderHealthRun } from './resource-control-cloud-provider-health.types';
 import { asPositiveInt, asRecord, asString } from './resource-control-value.utils';
+import {
+  allowedQueryTypes,
+  isDirectQueryCredentialType,
+  normalizeResourceQuery as normalizeResourceQueryUtil,
+  requiresDirectQueryCredential,
+  requiresResourceApproval as requiresResourceApprovalUtil,
+  resolveQueryExecutionShape as resolveQueryExecutionShapeUtil,
+  resolveQueryType as resolveQueryTypeUtil,
+  toJsonValue as toJsonValueUtil,
+} from './resource-control-query-type.utils';
+import {
+  parseMetricSeriesLimit as parseMetricSeriesLimitUtil,
+  parseMetricSeriesMetric as parseMetricSeriesMetricUtil,
+  parseMetricTrendWindowMinutes as parseMetricTrendWindowMinutesUtil,
+  metricSeriesValue as metricSeriesValueUtil,
+  summarizeMetricNumber as summarizeMetricNumberUtil,
+  RESOURCE_METRIC_SERIES_FIELDS,
+  type ResourceMetricSeriesMetric,
+} from './resource-control-metrics.utils';
 
 type ManagedResourceSeed = {
   sourceType: string;
@@ -169,18 +188,6 @@ type MetricTrendNumberSummary = {
   delta: number | null;
 };
 
-const RESOURCE_METRIC_SERIES_FIELDS = [
-  'cpuPercent',
-  'memoryPercent',
-  'memoryUsageBytes',
-  'networkInputBytes',
-  'networkOutputBytes',
-  'blockInputBytes',
-  'blockOutputBytes',
-  'pids',
-] as const;
-
-type ResourceMetricSeriesMetric = (typeof RESOURCE_METRIC_SERIES_FIELDS)[number];
 
 @Injectable()
 export class ResourceControlService {
@@ -262,7 +269,7 @@ export class ResourceControlService {
   }
 
   async listMetricTrends(teamId: string, query: ListResourceMetricTrendsQueryDto) {
-    const windowMinutes = this.parseMetricTrendWindowMinutes(query.windowMinutes);
+    const windowMinutes = parseMetricTrendWindowMinutesUtil(query.windowMinutes);
     const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
 
     const snapshots = await this.repo.findMetricSnapshots({
@@ -276,9 +283,9 @@ export class ResourceControlService {
   }
 
   async listMetricSeries(teamId: string, query: ListResourceMetricSeriesQueryDto) {
-    const windowMinutes = this.parseMetricTrendWindowMinutes(query.windowMinutes || '360');
-    const limit = this.parseMetricSeriesLimit(query.limit);
-    const metric = this.parseMetricSeriesMetric(query.metric);
+    const windowMinutes = parseMetricTrendWindowMinutesUtil(query.windowMinutes || '360');
+    const limit = parseMetricSeriesLimitUtil(query.limit);
+    const metric = parseMetricSeriesMetricUtil(query.metric);
     const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
 
     const snapshots = await this.repo.findMetricSnapshots({
@@ -318,14 +325,14 @@ export class ResourceControlService {
           firstSampledAt: oldest.sampledAt,
           lastSampledAt: latest.sampledAt,
           resource: latest.resource,
-          cpuPercent: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.cpuPercent)),
-          memoryPercent: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.memoryPercent)),
-          memoryUsageBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.memoryUsageBytes)),
-          networkInputBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.networkInputBytes)),
-          networkOutputBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.networkOutputBytes)),
-          blockInputBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.blockInputBytes)),
-          blockOutputBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.blockOutputBytes)),
-          pids: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.pids)),
+          cpuPercent: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.cpuPercent)),
+          memoryPercent: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.memoryPercent)),
+          memoryUsageBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.memoryUsageBytes)),
+          networkInputBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.networkInputBytes)),
+          networkOutputBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.networkOutputBytes)),
+          blockInputBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.blockInputBytes)),
+          blockOutputBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.blockOutputBytes)),
+          pids: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.pids)),
         };
       })
       .sort((left, right) => right.lastSampledAt.getTime() - left.lastSampledAt.getTime());
@@ -348,11 +355,11 @@ export class ResourceControlService {
         const ordered = [...group].sort((left, right) => left.sampledAt.getTime() - right.sampledAt.getTime());
         const latest = ordered[ordered.length - 1];
         const oldest = ordered[0];
-        const valuesLatestFirst = [...ordered].reverse().map((snapshot) => this.metricSeriesValue(snapshot, metric));
+        const valuesLatestFirst = [...ordered].reverse().map((snapshot) => metricSeriesValueUtil(snapshot, metric));
         const points = ordered.map((snapshot) => ({
           snapshotId: snapshot.id,
           sampledAt: snapshot.sampledAt,
-          value: this.metricSeriesValue(snapshot, metric),
+          value: metricSeriesValueUtil(snapshot, metric),
           status: snapshot.status,
         }));
 
@@ -372,7 +379,7 @@ export class ResourceControlService {
           firstSampledAt: oldest.sampledAt,
           lastSampledAt: latest.sampledAt,
           resource: latest.resource,
-          summary: this.summarizeMetricNumber(valuesLatestFirst),
+          summary: summarizeMetricNumberUtil(valuesLatestFirst),
           points,
         };
       })
@@ -532,7 +539,7 @@ export class ResourceControlService {
         serverId: nextServerId,
         credentialId: nextCredentialId,
         config: hasQueryCredential
-          ? this.toJsonValue(this.mergeQueryCredentialBinding(resource.config, nextQueryCredentialId))
+          ? toJsonValueUtil(this.mergeQueryCredentialBinding(resource.config, nextQueryCredentialId))
           : undefined,
       },
       include: this.managedResourceInclude(),
@@ -571,7 +578,7 @@ export class ResourceControlService {
         adapterKey: executionShape.adapterKey,
         dryRun,
         status: 'running',
-        params: this.toJsonValue(params),
+        params: toJsonValueUtil(params),
       },
     });
 
@@ -618,10 +625,10 @@ export class ResourceControlService {
     const credential = await this.resolveResourceQueryCredential(teamId, resource, action);
     const dryRun = dto.dryRun ?? true;
     const params = dto.params || {};
-    const queryType = this.resolveQueryType(resource, dto.queryType);
-    const query = this.normalizeResourceQuery(resource, queryType, dto.query, params);
+    const queryType = resolveQueryTypeUtil(resource, dto.queryType);
+    const query = normalizeResourceQueryUtil(resource, queryType, dto.query, params, asString);
     const authAdapterKey = this.resolveAuthAdapterKey(resource, credential);
-    const executionShape = this.resolveQueryExecutionShape(resource);
+    const executionShape = resolveQueryExecutionShapeUtil(resource);
     const runCredentialId = this.resolveQueryRunCredentialId(resource, credential);
 
     const run = await this.repo.createQueryRun({
@@ -643,7 +650,7 @@ export class ResourceControlService {
         adapterKey: executionShape.adapterKey,
         dryRun,
         status: 'running',
-        params: this.toJsonValue(params),
+        params: toJsonValueUtil(params),
       },
     });
 
@@ -711,7 +718,7 @@ export class ResourceControlService {
       throw new BadRequestException('当前资源动作只支持 dry-run 计划');
     }
 
-    const requiresApproval = this.requiresResourceApproval(action, dryRun);
+    const requiresApproval = requiresResourceApprovalUtil(action, dryRun);
     if (requiresApproval && !userId) {
       throw new BadRequestException('系统调度不支持需要审批的资源动作');
     }
@@ -752,7 +759,7 @@ export class ResourceControlService {
         risk: action.risk,
         status: queue ? 'queued' : 'running',
         operationApprovalId: approvedApproval?.id,
-        params: this.toJsonValue(params),
+        params: toJsonValueUtil(params),
       },
     });
 
@@ -775,7 +782,7 @@ export class ResourceControlService {
             operationApprovalId: approval.id,
             error: '非 dry-run 的中高风险资源动作需要审批',
             finishedAt: new Date(),
-            result: this.toJsonValue({
+            result: toJsonValueUtil({
               mode: 'blocked_operation_approval',
               approvalId: approval.id,
               approvalStatus: approval.status,
@@ -794,7 +801,7 @@ export class ResourceControlService {
             status: 'blocked',
             error: '需要输入资源名称确认后才能执行非 dry-run 动作',
             finishedAt: new Date(),
-            result: this.toJsonValue({
+            result: toJsonValueUtil({
               mode: 'blocked_confirmation',
               requiredConfirmationText: resource.name,
             }),
@@ -874,7 +881,7 @@ export class ResourceControlService {
         provider: 'docker',
         scope: dto.scope || 'docker',
         status: 'running',
-        metadata: this.toJsonValue({
+        metadata: toJsonValueUtil({
           syncMode: 'server_executor_inventory',
           adapterBoundary: 'server_executor',
           includeContainers: dto.includeContainers !== false,
@@ -901,7 +908,7 @@ export class ResourceControlService {
       await this.repo.updateServer({
         where: { id: server.id },
         data: {
-          services: this.toJsonValue({
+          services: toJsonValueUtil({
             ...services,
             docker: seeds.some((seed) => seed.kind === 'docker_container'),
             mysql: seeds.some((seed) => seed.kind === 'mysql'),
@@ -916,7 +923,7 @@ export class ResourceControlService {
           status: 'completed',
           discovered: resources.length,
           finishedAt: new Date(),
-          metadata: this.toJsonValue({
+          metadata: toJsonValueUtil({
             syncMode: inventory.syncMode,
             adapterBoundary: 'server_executor',
             includeContainers: dto.includeContainers !== false,
@@ -972,7 +979,7 @@ export class ResourceControlService {
         provider,
         scope: dto.scope || dto.region || 'all',
         status: 'running',
-        metadata: this.toJsonValue({
+        metadata: toJsonValueUtil({
           syncMode: 'cloud_provider_inventory_adapter',
           adapterBoundary: 'cloud_provider_inventory',
           region: dto.region || 'default',
@@ -1001,7 +1008,7 @@ export class ResourceControlService {
           status: 'completed',
           discovered: resources.length,
           finishedAt: new Date(),
-          metadata: this.toJsonValue({
+          metadata: toJsonValueUtil({
             syncMode: inventories.every((inventory) => inventory.syncMode === 'cloud_inventory_stub_fallback')
               ? 'cloud_inventory_stub_fallback'
               : 'cloud_provider_inventory_adapter',
@@ -1117,55 +1124,6 @@ export class ResourceControlService {
     return created.count;
   }
 
-  private parseMetricTrendWindowMinutes(value?: string) {
-    const minutes = Number(value || '60');
-    if (!Number.isFinite(minutes)) {
-      return 60;
-    }
-    return Math.min(Math.max(Math.trunc(minutes), 5), 10080);
-  }
-
-  private parseMetricSeriesLimit(value?: string) {
-    const limit = Number(value || '120');
-    if (!Number.isFinite(limit)) {
-      return 120;
-    }
-    return Math.min(Math.max(Math.trunc(limit), 10), 1000);
-  }
-
-  private parseMetricSeriesMetric(value?: string): ResourceMetricSeriesMetric {
-    if (RESOURCE_METRIC_SERIES_FIELDS.includes(value as ResourceMetricSeriesMetric)) {
-      return value as ResourceMetricSeriesMetric;
-    }
-    return 'cpuPercent';
-  }
-
-  private metricSeriesValue(snapshot: ResourceMetricSnapshotForTrend, metric: ResourceMetricSeriesMetric) {
-    const value = snapshot[metric];
-    return typeof value === 'number' && Number.isFinite(value) ? value : null;
-  }
-
-  private summarizeMetricNumber(values: Array<number | null>): MetricTrendNumberSummary {
-    const numbers = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-    if (numbers.length === 0) {
-      return {
-        latest: null,
-        average: null,
-        max: null,
-        delta: null,
-      };
-    }
-
-    const latest = numbers[0];
-    const oldest = numbers[numbers.length - 1];
-    return {
-      latest,
-      average: numbers.reduce((sum, value) => sum + value, 0) / numbers.length,
-      max: Math.max(...numbers),
-      delta: latest - oldest,
-    };
-  }
-
   private managedResourceInclude() {
     return managedResourceInclude;
   }
@@ -1186,9 +1144,6 @@ export class ResourceControlService {
     return queryRunInclude;
   }
 
-  private requiresResourceApproval(action: { mode: string; risk: string }, dryRun: boolean) {
-    return !dryRun && (action.risk !== 'low' || action.mode !== 'read');
-  }
 
   private buildResourceApprovalContext(
     teamId: string,
@@ -1320,7 +1275,7 @@ export class ResourceControlService {
     resource: ManagedResourceForConnection,
     action: ResourceActionDefinition,
   ): Promise<ResolvedCredentialRef> {
-    if (this.requiresDirectQueryCredential(resource)) {
+    if (requiresDirectQueryCredential(resource)) {
       const queryCredentialId = this.resolveQueryCredentialId(resource);
       const directCredential = queryCredentialId
         ? await this.resolveDirectQueryCredential(teamId, resource, queryCredentialId, action)
@@ -1353,7 +1308,7 @@ export class ResourceControlService {
       throw new NotFoundException('只读查询凭据不存在或不属于当前团队');
     }
 
-    if (!this.isDirectQueryCredentialType(resource, credential.type)) {
+    if (!isDirectQueryCredentialType(resource, credential.type)) {
       if (optional) return null;
       throw new BadRequestException('只读查询凭据类型与资源类型不匹配');
     }
@@ -1387,7 +1342,7 @@ export class ResourceControlService {
   ) {
     return (
       credential.transport === 'direct_db' &&
-      this.requiresDirectQueryCredential(resource) &&
+      requiresDirectQueryCredential(resource) &&
       (queryType === 'sql' || queryType === 'redis_scan')
     );
   }
@@ -1423,7 +1378,7 @@ export class ResourceControlService {
       executorKey: 'direct-db-adapter',
       adapterKey,
       authAdapterKey: options.authAdapterKey,
-      connectionPlan: this.toJsonValue({
+      connectionPlan: toJsonValueUtil({
         executorKey: 'direct-db-adapter',
         adapterKey,
         operationKey: 'resource.connection.probe',
@@ -1442,7 +1397,7 @@ export class ResourceControlService {
           params: options.params,
         },
       }),
-      result: this.toJsonValue({
+      result: toJsonValueUtil({
         mode: 'blocked_adapter_missing',
         executed: false,
         nextExecutorBoundary: 'direct_db_driver_adapter',
@@ -1523,7 +1478,7 @@ export class ResourceControlService {
       executorKey: 'cloud-sdk',
       adapterKey,
       authAdapterKey: options.authAdapterKey,
-      connectionPlan: this.toJsonValue({
+      connectionPlan: toJsonValueUtil({
         executorKey: 'cloud-sdk',
         adapterKey,
         operationKey: 'resource.connection.probe',
@@ -1547,7 +1502,7 @@ export class ResourceControlService {
         },
         sdkCalls: this.sdkCallsForConnectionProbe(resource, options.params),
       }),
-      result: this.toJsonValue({
+      result: toJsonValueUtil({
         mode: options.dryRun ? 'cloud_connection_plan' : 'blocked_live_transport',
         executed: false,
         executorKey: 'cloud-sdk',
@@ -1708,90 +1663,6 @@ export class ResourceControlService {
     };
   }
 
-  private resolveQueryType(resource: { provider: string; kind: string }, requested?: string) {
-    const allowed = this.allowedQueryTypes(resource);
-    if (requested && allowed.includes(requested)) {
-      return requested;
-    }
-    return allowed[0] || 'metadata';
-  }
-
-  private allowedQueryTypes(resource: { provider: string; kind: string }) {
-    if (resource.kind === 'mysql' || resource.kind === 'database') {
-      return ['sql'];
-    }
-    if (resource.kind === 'redis') {
-      return ['redis_scan'];
-    }
-    if (resource.provider === 'aliyun-sls' || resource.kind === 'log_service') {
-      return ['sls_query'];
-    }
-    if (resource.provider === 'tencent-cos' || resource.kind === 'object_storage') {
-      return ['cos_list'];
-    }
-    return ['metadata'];
-  }
-
-  private requiresDirectQueryCredential(resource: { kind: string }) {
-    return resource.kind === 'mysql' || resource.kind === 'database' || resource.kind === 'redis';
-  }
-
-  private isDirectQueryCredentialType(resource: { kind: string }, credentialType: string) {
-    if (resource.kind === 'mysql' || resource.kind === 'database') {
-      return credentialType === 'db_mysql_readonly';
-    }
-    if (resource.kind === 'redis') {
-      return credentialType === 'db_redis_readonly';
-    }
-    return false;
-  }
-
-  private normalizeResourceQuery(
-    resource: ManagedResourceForConnection,
-    queryType: string,
-    query?: string,
-    params?: Record<string, unknown>,
-  ) {
-    const trimmed = query?.trim();
-    if (queryType === 'sql') {
-      return trimmed || 'SELECT 1';
-    }
-    if (queryType === 'redis_scan') {
-      return trimmed || 'SCAN 0 COUNT 20';
-    }
-    if (queryType === 'sls_query') {
-      return trimmed || '*';
-    }
-    if (queryType === 'cos_list') {
-      return asString(params?.prefix) || trimmed || '';
-    }
-    return trimmed || `${resource.provider}/${resource.kind} metadata`;
-  }
-
-  private resolveQueryExecutionShape(resource: { provider: string; kind: string }) {
-    if (resource.kind === 'mysql' || resource.kind === 'database') {
-      return {
-        executorKey: 'direct-db-adapter',
-        adapterKey: 'mysql-query-plan',
-      };
-    }
-    if (resource.kind === 'redis') {
-      return {
-        executorKey: 'direct-db-adapter',
-        adapterKey: 'redis-query-plan',
-      };
-    }
-    if (resource.provider === 'aliyun-sls') {
-      return { executorKey: 'cloud-sdk', adapterKey: 'aliyun-sls-query-plan' };
-    }
-    if (resource.provider === 'tencent-cos') {
-      return { executorKey: 'cloud-sdk', adapterKey: 'tencent-cos-query-plan' };
-    }
-    return {
-      executorKey: 'resource-query-adapter',
-      adapterKey: 'metadata-query-plan',
-    };
-  }
 
   private async executeResourceQueryPlan(
     teamId: string,
@@ -1806,7 +1677,7 @@ export class ResourceControlService {
       authAdapterKey: string;
     },
   ): Promise<ResourceQueryExecutionResult> {
-    const shape = this.resolveQueryExecutionShape(resource);
+    const shape = resolveQueryExecutionShapeUtil(resource);
     const validation = this.validateReadOnlyQuery(options.queryType, options.query);
     const missingCredential = resource.sourceType === 'cloud' && credential.source !== 'team_credential';
     const directDbLiveQuery = this.canExecuteDirectDbLiveQuery(resource, credential, options.queryType);
@@ -1837,7 +1708,7 @@ export class ResourceControlService {
     const executable = warnings.length === 0;
     const status = executable ? 'completed' : 'blocked';
     const error = warnings.join('；') || undefined;
-    const queryPlan = this.toJsonValue({
+    const queryPlan = toJsonValueUtil({
       executorKey: shape.executorKey,
       adapterKey: shape.adapterKey,
       operationKey: 'resource.query.readonly',
@@ -1904,7 +1775,7 @@ export class ResourceControlService {
       adapterKey: shape.adapterKey,
       authAdapterKey: options.authAdapterKey,
       queryPlan,
-      result: this.toJsonValue({
+      result: toJsonValueUtil({
         mode: options.dryRun ? 'resource_query_plan' : 'blocked_live_transport',
         executed: false,
         executorKey: shape.executorKey,
@@ -2718,8 +2589,8 @@ export class ResourceControlService {
           projectId: seed.projectId,
           environmentId: seed.environmentId,
           credentialId: seed.credentialId,
-          metadata: seed.metadata ? this.toJsonValue(seed.metadata) : undefined,
-          config: seed.config ? this.toJsonValue(seed.config) : undefined,
+          metadata: seed.metadata ? toJsonValueUtil(seed.metadata) : undefined,
+          config: seed.config ? toJsonValueUtil(seed.config) : undefined,
           lastSyncAt: syncedAt,
         },
         update: {
@@ -2731,8 +2602,8 @@ export class ResourceControlService {
           projectId: seed.projectId,
           environmentId: seed.environmentId,
           credentialId: seed.credentialId,
-          metadata: seed.metadata ? this.toJsonValue(seed.metadata) : undefined,
-          config: seed.config ? this.toJsonValue(seed.config) : undefined,
+          metadata: seed.metadata ? toJsonValueUtil(seed.metadata) : undefined,
+          config: seed.config ? toJsonValueUtil(seed.config) : undefined,
           syncError: null,
           lastSyncAt: syncedAt,
         },
@@ -3112,20 +2983,17 @@ export class ResourceControlService {
         environmentId: environment.id,
         serverId,
         role: 'runtime',
-        metadata: this.toJsonValue(metadata),
+        metadata: toJsonValueUtil(metadata),
       },
       update: {
         projectId: environment.projectId,
         status: 'active',
         role: 'runtime',
-        metadata: this.toJsonValue(metadata),
+        metadata: toJsonValueUtil(metadata),
       },
     });
   }
 
-  private toJsonValue(value: unknown): Prisma.InputJsonValue {
-    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-  }
 
   private hasOwn<T extends object>(value: T, key: keyof T) {
     return Object.prototype.hasOwnProperty.call(value, key);
