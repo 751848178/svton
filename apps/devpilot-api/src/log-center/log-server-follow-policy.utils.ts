@@ -1,6 +1,10 @@
-export const LOG_SERVER_FOLLOW_SOURCE_TYPES = ['docker', 'nginx', 'server_executor'];
+export const LOG_SERVER_FOLLOW_SOURCE_TYPES = [
+  "docker",
+  "nginx",
+  "server_executor",
+];
 
-export type LogFollowMode = 'server' | 'agent';
+export type LogFollowMode = "server" | "agent";
 
 export type LogFollowConfig = {
   mode: LogFollowMode;
@@ -13,13 +17,40 @@ export type LogFollowConfig = {
   maxAttempts: number;
 };
 
+export function buildLogFollowParams(
+  sourceType: string,
+  followConfig: LogFollowConfig,
+  confirmLiveRead: boolean,
+) {
+  if (followConfig.mode === "agent") {
+    return {
+      scheduledAgentFollow: true,
+      requiredTransport: "server_agent",
+      followMode: "agent",
+      sourceType,
+      confirmLiveRead,
+    };
+  }
+
+  return {
+    scheduledServerFollow: true,
+    followMode: "server",
+    sourceType,
+    confirmLiveRead,
+  };
+}
+
 export function readLogFollowConfig(
   metadata: unknown,
   defaultIntervalMinutes: number,
 ): LogFollowConfig {
   const record = asRecord(metadata);
   const agentConfig = hasRecord(record.agentFollow)
-    ? buildFollowConfig(asRecord(record.agentFollow), 'agent', defaultIntervalMinutes)
+    ? buildFollowConfig(
+        asRecord(record.agentFollow),
+        "agent",
+        defaultIntervalMinutes,
+      )
     : null;
 
   if (agentConfig?.enabled) {
@@ -29,7 +60,11 @@ export function readLogFollowConfig(
   const serverRaw = hasRecord(record.serverFollow)
     ? record.serverFollow
     : record.serverCollection;
-  return buildFollowConfig(asRecord(serverRaw), 'server', defaultIntervalMinutes);
+  return buildFollowConfig(
+    asRecord(serverRaw),
+    "server",
+    defaultIntervalMinutes,
+  );
 }
 
 function buildFollowConfig(
@@ -44,28 +79,33 @@ function buildFollowConfig(
     confirmLiveRead: raw.confirmLiveRead === true,
     queue: raw.queue !== false,
     tail: asPositiveInt(raw.tail, 200, 5000),
-    intervalMinutes: asPositiveInt(raw.intervalMinutes, defaultIntervalMinutes, 10080),
+    intervalMinutes: asPositiveInt(
+      raw.intervalMinutes,
+      defaultIntervalMinutes,
+      10080,
+    ),
     maxAttempts: asPositiveInt(raw.maxAttempts, 3, 10),
   };
 }
 
 function asPositiveInt(value: unknown, fallback: number, max: number) {
-  const parsed = typeof value === 'number'
-    ? value
-    : typeof value === 'string'
-      ? Number.parseInt(value, 10)
-      : fallback;
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseInt(value, 10)
+        : fallback;
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(Math.floor(parsed), max);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }
   return value as Record<string, unknown>;
 }
 
 function hasRecord(value: unknown) {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

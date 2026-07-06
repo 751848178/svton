@@ -132,6 +132,7 @@ describe('LogServerFollowSchedulerService', () => {
         maxAttempts: 3,
         params: {
           scheduledServerFollow: true,
+          followMode: 'server',
           sourceType: 'docker',
           confirmLiveRead: false,
         },

@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { createTestCryptoService } from '../common/crypto/crypto.test-helpers';
 import { AliyunSlsLogQueryAdapter } from './aliyun-sls-log-query.adapter';
 import { resolveLogRedactionPolicy } from './log-redaction';
 
@@ -30,6 +31,7 @@ describe('AliyunSlsLogQueryAdapter', () => {
     adapter = new AliyunSlsLogQueryAdapter(
       prisma as unknown as PrismaService,
       config as unknown as ConfigService,
+      createTestCryptoService(),
     );
   });
 

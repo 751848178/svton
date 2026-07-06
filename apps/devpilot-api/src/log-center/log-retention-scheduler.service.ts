@@ -1,6 +1,8 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { BaseIntervalScheduler } from '../common/scheduler/base-interval-scheduler';
 import { LogCenterService } from './log-center.service';
 
 type ScheduledLogRetentionSummary = {
@@ -14,45 +16,39 @@ type ScheduledLogRetentionSummary = {
 };
 
 @Injectable()
-export class LogRetentionSchedulerService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(LogRetentionSchedulerService.name);
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class LogRetentionSchedulerService extends BaseIntervalScheduler {
+  protected readonly logger = new Logger(LogRetentionSchedulerService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly logCenterService: LogCenterService,
     private readonly configService: ConfigService,
-  ) {}
-
-  onModuleInit() {
-    if (!this.schedulerEnabled()) {
-      return;
-    }
-
-    const intervalMs = this.schedulerIntervalMs();
-    this.timer = setInterval(() => {
-      void this.runOnce();
-    }, intervalMs);
-    this.logger.log(`Log retention scheduler enabled; interval=${intervalMs}ms; dryRun=${this.schedulerDryRun()}`);
+    @Optional() schedulerRegistry?: SchedulerRegistry,
+  ) {
+    super(schedulerRegistry);
   }
 
-  onModuleDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
+  schedulerName(): string {
+    return 'log-retention';
+  }
+
+  isEnabled(): boolean {
+    return this.configService.get('LOG_RETENTION_SCHEDULER_ENABLED', 'false') === 'true';
+  }
+
+  intervalMs(): number {
+    const seconds = Number(this.configService.get('LOG_RETENTION_SCHEDULER_INTERVAL_SECONDS', '3600'));
+    const safeSeconds = Number.isFinite(seconds) && seconds >= 60 ? seconds : 3600;
+    return safeSeconds * 1000;
   }
 
   async runOnce(): Promise<ScheduledLogRetentionSummary> {
-    if (!this.schedulerEnabled()) {
+    if (!this.isEnabled()) {
       return this.emptySummary(false, false);
     }
-
-    if (this.running) {
+    if (!this.tryAcquireRunLock()) {
       return this.emptySummary(true, true);
     }
-
-    this.running = true;
     try {
       const dryRun = this.schedulerDryRun();
       const streams = await this.prisma.logStream.findMany({
@@ -97,11 +93,12 @@ export class LogRetentionSchedulerService implements OnModuleInit, OnModuleDestr
 
       return summary;
     } finally {
-      this.running = false;
+      this.releaseRunLock();
     }
   }
 
-  private emptySummary(skipped: boolean, enabled: boolean): ScheduledLogRetentionSummary {
+  /** 兼容历史：当基类 runOnceSafe 因并发被跳过时，外部观察到的"跳过"语义。 */
+  emptySummary(skipped: boolean, enabled: boolean): ScheduledLogRetentionSummary {
     return {
       skipped,
       enabled,
@@ -113,18 +110,8 @@ export class LogRetentionSchedulerService implements OnModuleInit, OnModuleDestr
     };
   }
 
-  private schedulerEnabled() {
-    return this.configService.get('LOG_RETENTION_SCHEDULER_ENABLED', 'false') === 'true';
-  }
-
   private schedulerDryRun() {
     return this.configService.get('LOG_RETENTION_SCHEDULER_DRY_RUN', 'true') !== 'false';
-  }
-
-  private schedulerIntervalMs() {
-    const seconds = Number(this.configService.get('LOG_RETENTION_SCHEDULER_INTERVAL_SECONDS', '3600'));
-    const safeSeconds = Number.isFinite(seconds) && seconds >= 60 ? seconds : 3600;
-    return safeSeconds * 1000;
   }
 
   private batchSize() {
