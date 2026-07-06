@@ -4,6 +4,7 @@ import { AuditEventService } from '../audit-event';
 import { PrismaService } from '../prisma/prisma.service';
 import { SiteService } from '../site';
 import { CryptoService } from '../common/crypto/crypto.service';
+import { ProjectEnvironmentRepository } from './project-environment.repository';
 import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
@@ -254,6 +255,7 @@ const DEFAULT_RESOURCE_BINDING_TYPES: EnvironmentResourceBindingType[] = [
 export class ProjectEnvironmentService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly repo: ProjectEnvironmentRepository,
     @Optional()
     private readonly auditEventService: AuditEventService,
     @Optional()
@@ -275,7 +277,7 @@ export class ProjectEnvironmentService {
       where.status = query.status;
     }
 
-    return this.prisma.projectEnvironment.findMany({
+    return this.repo.findProjectEnvironments({
       where,
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       include: {
@@ -288,7 +290,7 @@ export class ProjectEnvironmentService {
     await this.assertProject(teamId, dto.projectId);
     const key = this.normalizeKey(dto.key);
 
-    return this.prisma.projectEnvironment.create({
+    return this.repo.createProjectEnvironment({
       data: {
         teamId,
         projectId: dto.projectId,
@@ -308,7 +310,7 @@ export class ProjectEnvironmentService {
     const existing = await this.get(teamId, id);
     const key = dto.key === undefined ? undefined : this.normalizeKey(dto.key);
 
-    return this.prisma.projectEnvironment.update({
+    return this.repo.updateProjectEnvironment({
       where: { id: existing.id },
       data: {
         key,
@@ -327,7 +329,7 @@ export class ProjectEnvironmentService {
   async archive(teamId: string, id: string) {
     await this.get(teamId, id);
 
-    return this.prisma.projectEnvironment.update({
+    return this.repo.updateProjectEnvironment({
       where: { id },
       data: { status: 'archived' },
     });
@@ -351,7 +353,7 @@ export class ProjectEnvironmentService {
     const project = await this.assertProject(teamId, query.projectId);
     const readableIdSet = readableEnvironmentIds ? new Set(readableEnvironmentIds) : null;
 
-    const environments = await this.prisma.projectEnvironment.findMany({
+    const environments = (await this.repo.findProjectEnvironments({
       where: {
         teamId,
         projectId: project.id,
@@ -367,9 +369,9 @@ export class ProjectEnvironmentService {
           },
         },
       },
-    });
+    }) as any);
 
-    const environmentIds = environments.map((environment) => environment.id);
+    const environmentIds = environments.map((environment: any) => environment.id);
     if (environmentIds.length === 0) {
       return {
         projectId: project.id,
@@ -391,8 +393,8 @@ export class ProjectEnvironmentService {
       resourceInstances,
       cdnConfigs,
       secretKeys,
-    ] = await Promise.all([
-      this.prisma.applicationService.findMany({
+    ] = (await Promise.all([
+      this.repo.findApplicationServices({
         where: {
           teamId,
           projectId: project.id,
@@ -412,7 +414,7 @@ export class ProjectEnvironmentService {
           application: { select: { id: true, name: true } },
         },
       }),
-      this.prisma.deploymentRun.findMany({
+      this.repo.findDeploymentRuns({
         where: {
           teamId,
           projectId: project.id,
@@ -420,7 +422,7 @@ export class ProjectEnvironmentService {
         },
         select: { id: true, environmentId: true, status: true },
       }),
-      this.prisma.site.findMany({
+      this.repo.findSites({
         where: {
           teamId,
           projectId: project.id,
@@ -428,7 +430,7 @@ export class ProjectEnvironmentService {
         },
         select: { id: true, environmentId: true, runtimeType: true, tls: true, serverId: true },
       }),
-      this.prisma.managedResource.findMany({
+      this.repo.findManagedResources({
         where: {
           teamId,
           projectId: project.id,
@@ -436,7 +438,7 @@ export class ProjectEnvironmentService {
         },
         select: { id: true, environmentId: true, provider: true, kind: true },
       }),
-      this.prisma.resourceInstance.findMany({
+      this.repo.findResourceInstances({
         where: {
           teamId,
           projectId: project.id,
@@ -448,7 +450,7 @@ export class ProjectEnvironmentService {
           resourceType: { select: { id: true, key: true, name: true, category: true } },
         },
       }),
-      this.prisma.cDNConfig.findMany({
+      this.repo.findCDNConfigs({
         where: {
           teamId,
           projectId: project.id,
@@ -456,7 +458,7 @@ export class ProjectEnvironmentService {
         },
         select: { id: true, environmentId: true, provider: true, status: true },
       }),
-      this.prisma.secretKey.findMany({
+      this.repo.findSecretKeys({
         where: {
           teamId,
           projectId: project.id,
@@ -464,17 +466,17 @@ export class ProjectEnvironmentService {
         },
         select: { id: true, environmentId: true, type: true },
       }),
-    ]);
+    ])) as any;
 
-    const servicesByEnvironment = this.groupByEnvironment(services);
-    const deploymentRunsByEnvironment = this.groupByEnvironment(deploymentRuns);
-    const sitesByEnvironment = this.groupByEnvironment(sites);
-    const managedResourcesByEnvironment = this.groupByEnvironment(managedResources);
-    const resourceInstancesByEnvironment = this.groupByEnvironment(resourceInstances);
-    const cdnConfigsByEnvironment = this.groupByEnvironment(cdnConfigs);
-    const secretKeysByEnvironment = this.groupByEnvironment(secretKeys);
+    const servicesByEnvironment = this.groupByEnvironment(services as any[]) as any;
+    const deploymentRunsByEnvironment = this.groupByEnvironment(deploymentRuns as any[]) as any;
+    const sitesByEnvironment = this.groupByEnvironment(sites as any[]) as any;
+    const managedResourcesByEnvironment = this.groupByEnvironment(managedResources as any[]) as any;
+    const resourceInstancesByEnvironment = this.groupByEnvironment(resourceInstances as any[]) as any;
+    const cdnConfigsByEnvironment = this.groupByEnvironment(cdnConfigs as any[]) as any;
+    const secretKeysByEnvironment = this.groupByEnvironment(secretKeys as any[]) as any;
 
-    const baseProfiles: EnvironmentSyncProfile[] = environments.map((environment) => {
+    const baseProfiles: EnvironmentSyncProfile[] = environments.map((environment: any) => {
       const environmentServices = servicesByEnvironment.get(environment.id) || [];
       const environmentDeploymentRuns = deploymentRunsByEnvironment.get(environment.id) || [];
       const environmentSites = sitesByEnvironment.get(environment.id) || [];
@@ -493,23 +495,23 @@ export class ProjectEnvironmentService {
         },
         isReference: false,
         serverRoleKeys: this.uniqueSorted(
-          environment.serverBindings.map((binding) => binding.role || 'mixed'),
+          environment.serverBindings.map((binding: any) => binding.role || 'mixed'),
         ),
         serverKeys: this.uniqueSorted(
-          environment.serverBindings.map((binding) => binding.server.host || binding.server.name),
+          environment.serverBindings.map((binding: any) => binding.server.host || binding.server.name),
         ),
         serviceKeys: this.uniqueSorted(
-          environmentServices.map((service) => `${service.application.name}/${service.name}`),
+          environmentServices.map((service: any) => `${service.application.name}/${service.name}`),
         ),
         resourceKindKeys: this.uniqueSorted([
-          ...environmentManagedResources.map((resource) => `${resource.provider}/${resource.kind}`),
-          ...environmentResourceInstances.map((instance) =>
+          ...environmentManagedResources.map((resource: any) => `${resource.provider}/${resource.kind}`),
+          ...environmentResourceInstances.map((instance: any) =>
             instance.resourceType?.key || instance.resourceType?.name || 'resource_instance',
           ),
         ]),
-        siteRuntimeKeys: this.uniqueSorted(environmentSites.map((site) => site.runtimeType)),
-        secretTypeKeys: this.uniqueSorted(environmentSecretKeys.map((secret) => secret.type)),
-        cdnProviderKeys: this.uniqueSorted(environmentCdnConfigs.map((config) => config.provider)),
+        siteRuntimeKeys: this.uniqueSorted(environmentSites.map((site: any) => site.runtimeType)),
+        secretTypeKeys: this.uniqueSorted(environmentSecretKeys.map((secret: any) => secret.type)),
+        cdnProviderKeys: this.uniqueSorted(environmentCdnConfigs.map((config: any) => config.provider)),
         counts: {
           serverBindings: environment.serverBindings.length,
           services: environmentServices.length,
@@ -522,7 +524,7 @@ export class ProjectEnvironmentService {
           deploymentRuns: environmentDeploymentRuns.length,
         },
         deployConfigCoverage: this.buildDeployConfigCoverage(environmentServices),
-        serviceBindingGapCount: environmentServices.filter((service) =>
+        serviceBindingGapCount: environmentServices.filter((service: any) =>
           !service.serverId && !service.siteId && !service.managedResourceId,
         ).length,
         tlsSiteCount: environmentSites.filter((site) => this.siteTlsEnabled(site.tls)).length,
@@ -605,7 +607,7 @@ export class ProjectEnvironmentService {
     }, [source.id, target.id]);
     const targetSuggestion = suggestions.profiles.find((profile) => profile.environment.id === target.id);
 
-    const services = await this.prisma.applicationService.findMany({
+    const services = await this.repo.findApplicationServices({
       where: {
         teamId,
         projectId: dto.projectId,
@@ -629,9 +631,9 @@ export class ProjectEnvironmentService {
         application: { select: { id: true, name: true } },
       },
     });
-    const sourceServices = services.filter((service) => service.environmentId === source.id);
-    const targetServices = services.filter((service) => service.environmentId === target.id);
-    const targetServiceByKey = new Map(targetServices.map((service) => [
+    const sourceServices = services.filter((service: any) => service.environmentId === source.id);
+    const targetServices = services.filter((service: any) => service.environmentId === target.id);
+    const targetServiceByKey = new Map(targetServices.map((service: any) => [
       this.applicationServiceSyncKey(service.applicationId, service.name),
       service,
     ]));
@@ -667,7 +669,7 @@ export class ProjectEnvironmentService {
           continue;
         }
 
-        const created = await this.prisma.applicationService.create({
+        const created = await this.repo.createApplicationService({
           data: {
             teamId,
             projectId: dto.projectId,
@@ -745,7 +747,7 @@ export class ProjectEnvironmentService {
         ...targetDeployConfig,
         ...Object.fromEntries(missingFields.map((field) => [field, sourceDeployConfig[field]])),
       };
-      await this.prisma.applicationService.update({
+      await this.repo.updateApplicationService({
         where: { id: targetService.id },
         data: { deployConfig: this.toJsonValue(nextDeployConfig) },
         select: { id: true },
@@ -830,7 +832,7 @@ export class ProjectEnvironmentService {
       secretKeys,
     ] = await Promise.all([
       requestedTypes.has('managed_resource')
-        ? this.prisma.managedResource.findMany({
+        ? this.repo.findManagedResources({
             where: {
               teamId,
               projectId: dto.projectId,
@@ -842,7 +844,7 @@ export class ProjectEnvironmentService {
           })
         : Promise.resolve([]),
       requestedTypes.has('resource_instance')
-        ? this.prisma.resourceInstance.findMany({
+        ? this.repo.findResourceInstances({
             where: {
               teamId,
               projectId: dto.projectId,
@@ -859,7 +861,7 @@ export class ProjectEnvironmentService {
           })
         : Promise.resolve([]),
       requestedTypes.has('site')
-        ? this.prisma.site.findMany({
+        ? this.repo.findSites({
             where: {
               teamId,
               projectId: dto.projectId,
@@ -871,7 +873,7 @@ export class ProjectEnvironmentService {
           })
         : Promise.resolve([]),
       requestedTypes.has('cdn_config')
-        ? this.prisma.cDNConfig.findMany({
+        ? this.repo.findCDNConfigs({
             where: {
               teamId,
               projectId: dto.projectId,
@@ -883,7 +885,7 @@ export class ProjectEnvironmentService {
           })
         : Promise.resolve([]),
       requestedTypes.has('secret_key')
-        ? this.prisma.secretKey.findMany({
+        ? this.repo.findSecretKeys({
             where: {
               teamId,
               projectId: dto.projectId,
@@ -897,7 +899,7 @@ export class ProjectEnvironmentService {
     ]);
 
     const steps: EnvironmentResourceBindingStep[] = [
-      ...managedResources.map((resource) => this.resourceBindingStep(
+      ...managedResources.map((resource: any) => this.resourceBindingStep(
         'managed_resource',
         dryRun ? 'planned' : 'applied',
         resource.id,
@@ -905,7 +907,7 @@ export class ProjectEnvironmentService {
         `绑定托管资源到 ${environment.name}`,
         { provider: resource.provider, kind: resource.kind, status: resource.status, endpoint: resource.endpoint },
       )),
-      ...resourceInstances.map((resource) => this.resourceBindingStep(
+      ...resourceInstances.map((resource: any) => this.resourceBindingStep(
         'resource_instance',
         dryRun ? 'planned' : 'applied',
         resource.id,
@@ -913,7 +915,7 @@ export class ProjectEnvironmentService {
         `绑定资源实例到 ${environment.name}`,
         { status: resource.status, resourceType: resource.resourceType?.key || resource.resourceType?.name },
       )),
-      ...sites.map((site) => this.resourceBindingStep(
+      ...sites.map((site: any) => this.resourceBindingStep(
         'site',
         dryRun ? 'planned' : 'applied',
         site.id,
@@ -921,7 +923,7 @@ export class ProjectEnvironmentService {
         `绑定站点 ${site.primaryDomain} 到 ${environment.name}`,
         { runtimeType: site.runtimeType, status: site.status, primaryDomain: site.primaryDomain },
       )),
-      ...cdnConfigs.map((config) => this.resourceBindingStep(
+      ...cdnConfigs.map((config: any) => this.resourceBindingStep(
         'cdn_config',
         dryRun ? 'planned' : 'applied',
         config.id,
@@ -929,7 +931,7 @@ export class ProjectEnvironmentService {
         `绑定 CDN ${config.domain} 到 ${environment.name}`,
         { provider: config.provider, status: config.status, domain: config.domain },
       )),
-      ...secretKeys.map((secret) => this.resourceBindingStep(
+      ...secretKeys.map((secret: any) => this.resourceBindingStep(
         'secret_key',
         dryRun ? 'planned' : 'applied',
         secret.id,
@@ -941,11 +943,11 @@ export class ProjectEnvironmentService {
 
     if (!dryRun) {
       await this.applyResourceEnvironmentBinding(teamId, dto.projectId, environment.id, {
-        managedResourceIds: managedResources.map((resource) => resource.id),
-        resourceInstanceIds: resourceInstances.map((resource) => resource.id),
-        siteIds: sites.map((site) => site.id),
-        cdnConfigIds: cdnConfigs.map((config) => config.id),
-        secretKeyIds: secretKeys.map((secret) => secret.id),
+        managedResourceIds: managedResources.map((resource: any) => resource.id),
+        resourceInstanceIds: resourceInstances.map((resource: any) => resource.id),
+        siteIds: sites.map((site: any) => site.id),
+        cdnConfigIds: cdnConfigs.map((config: any) => config.id),
+        secretKeyIds: secretKeys.map((secret: any) => secret.id),
       });
     }
 
@@ -1000,7 +1002,7 @@ export class ProjectEnvironmentService {
       throw new BadRequestException(`确认文本必须等于目标环境名称或 key：${target.name} / ${target.key}`);
     }
 
-    const sourceSites = await this.prisma.site.findMany({
+    const sourceSites = await this.repo.findSites({
       where: {
         teamId,
         projectId: dto.projectId,
@@ -1020,11 +1022,11 @@ export class ProjectEnvironmentService {
       },
       orderBy: [{ name: 'asc' }, { primaryDomain: 'asc' }],
     });
-    const targetSites = await this.prisma.site.findMany({
+    const targetSites = await this.repo.findSites({
       where: { teamId, projectId: dto.projectId, environmentId: target.id },
       select: { id: true, primaryDomain: true },
     });
-    const existingTargetDomains = new Set(targetSites.map((site) => site.primaryDomain));
+    const existingTargetDomains = new Set(targetSites.map((site: any) => site.primaryDomain));
     const targetDomainOverrides = dto.targetDomainOverrides || {};
     const openRestyTakeover = dto.openRestyTakeover === true;
     const createDryRunSyncPlan = openRestyTakeover && dto.createDryRunSyncPlan !== false;
@@ -1150,7 +1152,7 @@ export class ProjectEnvironmentService {
         siteData.serverId = targetServerId;
         siteData.syncError = null;
       }
-      const created = await this.prisma.site.create({
+      const created = await this.repo.createSite({
         data: siteData,
         select: { id: true },
       });
@@ -1273,7 +1275,7 @@ export class ProjectEnvironmentService {
       throw new BadRequestException(`确认文本必须等于目标环境名称或 key：${target.name} / ${target.key}`);
     }
 
-    const sourceConfigs = await this.prisma.cDNConfig.findMany({
+    const sourceConfigs = await this.repo.findCDNConfigs({
       where: {
         teamId,
         projectId: dto.projectId,
@@ -1292,11 +1294,11 @@ export class ProjectEnvironmentService {
       },
       orderBy: [{ name: 'asc' }, { domain: 'asc' }],
     });
-    const targetConfigs = await this.prisma.cDNConfig.findMany({
+    const targetConfigs = await this.repo.findCDNConfigs({
       where: { teamId, projectId: dto.projectId, environmentId: target.id },
       select: { id: true, domain: true },
     });
-    const existingTargetDomains = new Set(targetConfigs.map((config) => config.domain));
+    const existingTargetDomains = new Set(targetConfigs.map((config: any) => config.domain));
     const targetDomainOverrides = dto.targetDomainOverrides || {};
     const targetOriginOverrides = dto.targetOriginOverrides || {};
     const targetCredentialIds = dto.targetCredentialIds || {};
@@ -1367,7 +1369,7 @@ export class ProjectEnvironmentService {
         continue;
       }
 
-      const created = await this.prisma.cDNConfig.create({
+      const created = await this.repo.createCDNConfig({
         data: {
           teamId,
           createdById: userId,
@@ -1440,7 +1442,7 @@ export class ProjectEnvironmentService {
       throw new BadRequestException(`确认文本必须等于目标环境名称或 key：${target.name} / ${target.key}`);
     }
 
-    const sourceResources = await this.prisma.managedResource.findMany({
+    const sourceResources = await this.repo.findManagedResources({
       where: {
         teamId,
         projectId: dto.projectId,
@@ -1461,7 +1463,7 @@ export class ProjectEnvironmentService {
       },
       orderBy: [{ name: 'asc' }, { externalId: 'asc' }],
     });
-    const sourceSecrets = await this.prisma.secretKey.findMany({
+    const sourceSecrets = await this.repo.findSecretKeys({
       where: {
         teamId,
         projectId: dto.projectId,
@@ -1488,19 +1490,19 @@ export class ProjectEnvironmentService {
       .map((value) => value?.trim())
       .filter(Boolean);
     const existingResources = requestedTargetExternalIds.length
-      ? await this.prisma.managedResource.findMany({
+      ? await this.repo.findManagedResources({
         where: { teamId, externalId: { in: requestedTargetExternalIds } },
         select: { sourceType: true, provider: true, externalId: true },
       })
       : [];
     const existingResourceKeys = new Set(
-      existingResources.map((resource) => `${resource.sourceType}:${resource.provider}:${resource.externalId}`),
+      existingResources.map((resource: any) => `${resource.sourceType}:${resource.provider}:${resource.externalId}`),
     );
-    const existingTargetSecrets = await this.prisma.secretKey.findMany({
+    const existingTargetSecrets = await this.repo.findSecretKeys({
       where: { teamId, projectId: dto.projectId, environmentId: target.id },
       select: { name: true },
     });
-    const existingTargetSecretNames = new Set(existingTargetSecrets.map((secret) => secret.name));
+    const existingTargetSecretNames = new Set(existingTargetSecrets.map((secret: any) => secret.name));
     const steps: EnvironmentResourceCopyStep[] = [];
 
     for (const resource of sourceResources) {
@@ -1564,7 +1566,7 @@ export class ProjectEnvironmentService {
         await this.assertTeamCredential(teamId, targetCredentialId);
       }
 
-      const created = await this.prisma.managedResource.create({
+      const created = await this.repo.createManagedResource({
         data: {
           teamId,
           createdById: userId,
@@ -1647,7 +1649,7 @@ export class ProjectEnvironmentService {
         continue;
       }
 
-      const created = await this.prisma.secretKey.create({
+      const created = await this.repo.createSecretKey({
         data: {
           teamId,
           createdById: userId,
@@ -1696,7 +1698,7 @@ export class ProjectEnvironmentService {
   async listServers(teamId: string, environmentId: string) {
     const environment = await this.get(teamId, environmentId);
 
-    return this.prisma.projectEnvironmentServer.findMany({
+    return (this.repo.findProjectEnvironmentServers({
       where: { teamId, environmentId: environment.id, status: 'active' },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
       include: {
@@ -1704,7 +1706,7 @@ export class ProjectEnvironmentService {
         project: { select: { id: true, name: true } },
         environment: { select: { id: true, key: true, name: true, status: true } },
       },
-    });
+    }) as any);
   }
 
   async getAccessScope(teamId: string, environmentId: string) {
@@ -1719,7 +1721,7 @@ export class ProjectEnvironmentService {
     const environment = await this.get(teamId, environmentId);
     await this.assertServer(teamId, dto.serverId);
 
-    const binding = await this.prisma.projectEnvironmentServer.upsert({
+    const binding = await this.repo.upsertProjectEnvironmentServer({
       where: {
         environmentId_serverId: {
           environmentId: environment.id,
@@ -1763,7 +1765,7 @@ export class ProjectEnvironmentService {
 
   async unbindServer(teamId: string, userId: string, environmentId: string, serverId: string) {
     const environment = await this.get(teamId, environmentId);
-    const binding = await this.prisma.projectEnvironmentServer.findFirst({
+    const binding = await this.repo.findProjectEnvironmentServer({
       where: { teamId, environmentId: environment.id, serverId },
       select: {
         id: true,
@@ -1776,7 +1778,7 @@ export class ProjectEnvironmentService {
       throw new NotFoundException('环境服务器绑定不存在');
     }
 
-    await this.prisma.projectEnvironmentServer.delete({ where: { id: binding.id } });
+    await this.repo.deleteProjectEnvironmentServer({ where: { id: binding.id } });
     await this.writeServerBindingAudit(teamId, userId, {
       projectId: environment.projectId,
       environmentId: environment.id,
@@ -1795,7 +1797,7 @@ export class ProjectEnvironmentService {
     const keys = this.environmentKeysFromConfig(config);
 
     for (const [index, key] of keys.entries()) {
-      await this.prisma.projectEnvironment.upsert({
+      await this.repo.upsertProjectEnvironment({
         where: {
           projectId_key: {
             projectId,
@@ -1823,7 +1825,7 @@ export class ProjectEnvironmentService {
   }
 
   private async get(teamId: string, id: string) {
-    const environment = await this.prisma.projectEnvironment.findFirst({
+    const environment = await this.repo.findProjectEnvironment({
       where: { id, teamId },
     });
 
@@ -1835,7 +1837,7 @@ export class ProjectEnvironmentService {
   }
 
   private async assertProject(teamId: string, projectId: string) {
-    const project = await this.prisma.project.findFirst({
+    const project = await this.repo.findProject({
       where: { id: projectId, teamId },
       select: { id: true, config: true },
     });
@@ -1848,7 +1850,7 @@ export class ProjectEnvironmentService {
   }
 
   private async assertServer(teamId: string, serverId: string) {
-    const server = await this.prisma.server.findFirst({
+    const server = await this.repo.findServer({
       where: { id: serverId, teamId },
       select: { id: true },
     });
@@ -1861,7 +1863,7 @@ export class ProjectEnvironmentService {
   }
 
   private async assertTeamCredential(teamId: string, credentialId: string) {
-    const credential = await this.prisma.teamCredential.findFirst({
+    const credential = await this.repo.findTeamCredential({
       where: { id: credentialId, teamId },
       select: { id: true },
     });
@@ -1982,7 +1984,7 @@ export class ProjectEnvironmentService {
   }
 
   private async resolveProjectEnvironment(teamId: string, projectId: string, environmentId: string) {
-    const environment = await this.prisma.projectEnvironment.findFirst({
+    const environment = await this.repo.findProjectEnvironment({
       where: { id: environmentId, teamId, projectId, status: 'active' },
       select: { id: true, projectId: true, key: true, name: true, status: true },
     });
@@ -2035,11 +2037,11 @@ export class ProjectEnvironmentService {
   private buildDeployConfigCoverage(services: Array<{ deployConfig: unknown }>): DeployConfigCoverage {
     return {
       total: services.length,
-      workingDirectory: services.filter((service) => this.readConfigString(service.deployConfig, 'workingDirectory')).length,
-      buildCommand: services.filter((service) => this.readConfigString(service.deployConfig, 'buildCommand')).length,
-      deployCommand: services.filter((service) => this.readConfigString(service.deployConfig, 'deployCommand')).length,
-      healthCheckUrl: services.filter((service) => this.readConfigString(service.deployConfig, 'healthCheckUrl')).length,
-      rollbackCommand: services.filter((service) => this.readConfigString(service.deployConfig, 'rollbackCommand')).length,
+      workingDirectory: services.filter((service: any) => this.readConfigString(service.deployConfig, 'workingDirectory')).length,
+      buildCommand: services.filter((service: any) => this.readConfigString(service.deployConfig, 'buildCommand')).length,
+      deployCommand: services.filter((service: any) => this.readConfigString(service.deployConfig, 'deployCommand')).length,
+      healthCheckUrl: services.filter((service: any) => this.readConfigString(service.deployConfig, 'healthCheckUrl')).length,
+      rollbackCommand: services.filter((service: any) => this.readConfigString(service.deployConfig, 'rollbackCommand')).length,
     };
   }
 
@@ -2361,31 +2363,31 @@ export class ProjectEnvironmentService {
     const updates: Array<Promise<unknown>> = [];
 
     if (ids.managedResourceIds.length > 0) {
-      updates.push(this.prisma.managedResource.updateMany({
+      updates.push(this.repo.updateManagedResources({
         where: { teamId, projectId, environmentId: null, id: { in: ids.managedResourceIds } },
         data: { environmentId },
       }));
     }
     if (ids.resourceInstanceIds.length > 0) {
-      updates.push(this.prisma.resourceInstance.updateMany({
+      updates.push(this.repo.updateResourceInstances({
         where: { teamId, projectId, environmentId: null, id: { in: ids.resourceInstanceIds } },
         data: { environmentId },
       }));
     }
     if (ids.siteIds.length > 0) {
-      updates.push(this.prisma.site.updateMany({
+      updates.push(this.repo.updateSites({
         where: { teamId, projectId, environmentId: null, id: { in: ids.siteIds } },
         data: { environmentId },
       }));
     }
     if (ids.cdnConfigIds.length > 0) {
-      updates.push(this.prisma.cDNConfig.updateMany({
+      updates.push(this.repo.updateCDNConfigs({
         where: { teamId, projectId, environmentId: null, id: { in: ids.cdnConfigIds } },
         data: { environmentId },
       }));
     }
     if (ids.secretKeyIds.length > 0) {
-      updates.push(this.prisma.secretKey.updateMany({
+      updates.push(this.repo.updateSecretKeys({
         where: { teamId, projectId, environmentId: null, id: { in: ids.secretKeyIds } },
         data: { environmentId },
       }));

@@ -5,11 +5,12 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { SiteModule } from '../site';
 import { ProjectEnvironmentController } from './project-environment.controller';
 import { ProjectEnvironmentService } from './project-environment.service';
+import { ProjectEnvironmentRepository } from './project-environment.repository';
 
 @Module({
   imports: [PrismaModule, AuditEventModule, ControlAccessPolicyModule, SiteModule],
   controllers: [ProjectEnvironmentController],
-  providers: [ProjectEnvironmentService],
+  providers: [ProjectEnvironmentService, ProjectEnvironmentRepository],
   exports: [ProjectEnvironmentService],
 })
 export class ProjectEnvironmentModule {}
