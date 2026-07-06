@@ -29,6 +29,14 @@ import {
   uniqueSorted as uniqueSortedUtil,
 } from './project-environment-helpers.utils';
 import {
+  buildDeployConfigCoverage as buildDeployConfigCoverageUtil,
+  buildDifferenceLabels as buildDifferenceLabelsUtil,
+  buildSyncDifferences as buildSyncDifferencesUtil,
+  buildSyncSuggestionActions as buildSyncSuggestionActionsUtil,
+  emptySyncDifferences as emptySyncDifferencesUtil,
+  findReferenceProfile as findReferenceProfileUtil,
+} from './project-environment-sync-diff.utils';
+import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
   BulkBindProjectEnvironmentResourcesDto,
@@ -537,7 +545,7 @@ export class ProjectEnvironmentService {
           secretKeys: environmentSecretKeys.length,
           deploymentRuns: environmentDeploymentRuns.length,
         },
-        deployConfigCoverage: this.buildDeployConfigCoverage(environmentServices),
+        deployConfigCoverage: buildDeployConfigCoverageUtil(environmentServices),
         serviceBindingGapCount: environmentServices.filter((service: any) =>
           !service.serverId && !service.siteId && !service.managedResourceId,
         ).length,
@@ -546,7 +554,7 @@ export class ProjectEnvironmentService {
       };
     });
 
-    const reference = this.findReferenceProfile(baseProfiles, query.referenceEnvironmentId);
+    const reference = findReferenceProfileUtil(baseProfiles, query.referenceEnvironmentId);
     if (query.referenceEnvironmentId && !reference) {
       throw new BadRequestException('参考环境不存在或不可见');
     }
@@ -554,17 +562,17 @@ export class ProjectEnvironmentService {
     const profiles = baseProfiles.map((profile) => {
       const isReference = Boolean(reference && profile.environment.id === reference.environment.id);
       const differences = reference
-        ? this.buildSyncDifferences(profile, reference)
-        : this.emptySyncDifferences();
+        ? buildSyncDifferencesUtil(profile, reference)
+        : emptySyncDifferencesUtil();
       const actions = reference && !isReference
-        ? this.buildSyncSuggestionActions(profile, reference, differences)
+        ? buildSyncSuggestionActionsUtil(profile, reference, differences)
         : [];
 
       return {
         ...profile,
         isReference,
         differences,
-        differenceLabels: isReference ? [] : this.buildDifferenceLabels(differences),
+        differenceLabels: isReference ? [] : buildDifferenceLabelsUtil(differences),
         actions,
       };
     });
@@ -1999,255 +2007,6 @@ export class ProjectEnvironmentService {
   }
 
 
-
-  private buildDeployConfigCoverage(services: Array<{ deployConfig: unknown }>): DeployConfigCoverage {
-    return {
-      total: services.length,
-      workingDirectory: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'workingDirectory')).length,
-      buildCommand: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'buildCommand')).length,
-      deployCommand: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'deployCommand')).length,
-      healthCheckUrl: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'healthCheckUrl')).length,
-      rollbackCommand: services.filter((service: any) => readConfigStringUtil(service.deployConfig, 'rollbackCommand')).length,
-    };
-  }
-
-  private findReferenceProfile(
-    profiles: EnvironmentSyncProfile[],
-    referenceEnvironmentId?: string,
-  ) {
-    if (referenceEnvironmentId) {
-      return profiles.find((profile) => profile.environment.id === referenceEnvironmentId) || null;
-    }
-
-    return (
-      profiles.find((profile) => ['prod', 'production'].includes(profile.environment.key.toLowerCase())) ||
-      profiles.find((profile) =>
-        ['prod', 'production', '生产'].some((text) => profile.environment.name.toLowerCase().includes(text)),
-      ) ||
-      profiles[profiles.length - 1] ||
-      null
-    );
-  }
-
-  private buildSyncDifferences(
-    profile: EnvironmentSyncProfile,
-    reference: EnvironmentSyncProfile,
-  ): EnvironmentSyncDifferences {
-    if (profile.environment.id === reference.environment.id) {
-      return this.emptySyncDifferences();
-    }
-
-    return {
-      missing: {
-        serverRoles: missingItemsUtil(profile.serverRoleKeys, reference.serverRoleKeys),
-        services: missingItemsUtil(profile.serviceKeys, reference.serviceKeys),
-        resourceKinds: missingItemsUtil(profile.resourceKindKeys, reference.resourceKindKeys),
-        siteRuntimeTypes: missingItemsUtil(profile.siteRuntimeKeys, reference.siteRuntimeKeys),
-        secretTypes: missingItemsUtil(profile.secretTypeKeys, reference.secretTypeKeys),
-        cdnProviders: missingItemsUtil(profile.cdnProviderKeys, reference.cdnProviderKeys),
-      },
-      extra: {
-        serverRoles: missingItemsUtil(reference.serverRoleKeys, profile.serverRoleKeys),
-        services: missingItemsUtil(reference.serviceKeys, profile.serviceKeys),
-        resourceKinds: missingItemsUtil(reference.resourceKindKeys, profile.resourceKindKeys),
-        siteRuntimeTypes: missingItemsUtil(reference.siteRuntimeKeys, profile.siteRuntimeKeys),
-        secretTypes: missingItemsUtil(reference.secretTypeKeys, profile.secretTypeKeys),
-        cdnProviders: missingItemsUtil(reference.cdnProviderKeys, profile.cdnProviderKeys),
-      },
-      deployConfigGaps: DEPLOY_CONFIG_FIELDS
-        .map((field) => ({
-          field,
-          missingCount: Math.max(0, reference.deployConfigCoverage[field] - profile.deployConfigCoverage[field]),
-        }))
-        .filter((gap) => gap.missingCount > 0),
-      serviceBindingGapDelta: Math.max(0, profile.serviceBindingGapCount - reference.serviceBindingGapCount),
-      tlsSiteGap: Math.max(0, reference.tlsSiteCount - profile.tlsSiteCount),
-      successfulDeploymentGap: profile.successfulDeployments === 0 && reference.successfulDeployments > 0,
-    };
-  }
-
-  private buildSyncSuggestionActions(
-    profile: EnvironmentSyncProfile,
-    reference: EnvironmentSyncProfile,
-    differences: EnvironmentSyncDifferences,
-  ): EnvironmentSyncSuggestionAction[] {
-    const actions: EnvironmentSyncSuggestionAction[] = [];
-    const metadataBase = {
-      sourceEnvironmentId: reference.environment.id,
-      targetEnvironmentId: profile.environment.id,
-    };
-
-    if (differences.missing.serverRoles.length > 0) {
-      actions.push({
-        kind: 'bind_server_role',
-        severity: 'warning',
-        title: `补齐服务器角色：${previewListUtil(differences.missing.serverRoles)}`,
-        description: '为目标环境绑定对应用途的服务器，后续部署、站点同步和资源采集才能按环境收敛。',
-        target: 'resource-control',
-        metadata: { ...metadataBase, roles: differences.missing.serverRoles },
-      });
-    }
-
-    if (differences.missing.services.length > 0) {
-      actions.push({
-        kind: 'create_missing_service',
-        severity: 'warning',
-        title: `补齐应用服务：${previewListUtil(differences.missing.services)}`,
-        description: '为目标环境创建同名服务或声明该环境无需部署，避免仅生产环境有服务定义。',
-        target: 'applications',
-        metadata: { ...metadataBase, services: differences.missing.services },
-      });
-    }
-
-    if (differences.deployConfigGaps.length > 0) {
-      actions.push({
-        kind: 'complete_deploy_config',
-        severity: 'warning',
-        title: `补齐部署配置：${previewListUtil(differences.deployConfigGaps.map((gap) => DEPLOY_CONFIG_FIELD_LABELS[gap.field] || gap.field))}`,
-        description: '补齐工作目录、构建、部署、健康检查或回滚命令后，该环境才能接入构建部署。',
-        target: 'applications',
-        metadata: { ...metadataBase, gaps: differences.deployConfigGaps },
-      });
-    }
-
-    if (differences.serviceBindingGapDelta > 0) {
-      actions.push({
-        kind: 'bind_service_runtime',
-        severity: 'warning',
-        title: `补齐运行绑定：${differences.serviceBindingGapDelta} 个服务缺口`,
-        description: '为服务绑定服务器、站点或托管资源，避免部署计划生成后找不到运行目标。',
-        target: 'applications',
-        metadata: { ...metadataBase, gapCount: differences.serviceBindingGapDelta },
-      });
-    }
-
-    if (differences.missing.resourceKinds.length > 0) {
-      actions.push({
-        kind: 'bind_resource_kind',
-        severity: 'warning',
-        title: `补齐资源类型：${previewListUtil(differences.missing.resourceKinds)}`,
-        description: '把目标环境实际使用的 Docker、数据库、日志或对象存储资源绑定到项目环境。',
-        target: 'resource-control',
-        metadata: { ...metadataBase, resourceKinds: differences.missing.resourceKinds },
-      });
-    }
-
-    if (differences.missing.siteRuntimeTypes.length > 0) {
-      actions.push({
-        kind: 'create_site_runtime',
-        severity: 'info',
-        title: `补齐站点运行时：${previewListUtil(differences.missing.siteRuntimeTypes)}`,
-        description: '为目标环境创建相同类型的站点入口，并按环境配置域名、TLS 和源站。',
-        target: 'sites',
-        metadata: { ...metadataBase, runtimeTypes: differences.missing.siteRuntimeTypes },
-      });
-    }
-
-    if (differences.missing.cdnProviders.length > 0) {
-      actions.push({
-        kind: 'create_cdn_config',
-        severity: 'info',
-        title: `补齐 CDN：${previewListUtil(differences.missing.cdnProviders)}`,
-        description: '为目标环境创建或绑定同类 CDN 配置，避免域名加速只覆盖部分环境。',
-        target: 'cdn-configs',
-        metadata: { ...metadataBase, providers: differences.missing.cdnProviders },
-      });
-    }
-
-    if (differences.missing.secretTypes.length > 0) {
-      actions.push({
-        kind: 'create_secret_type',
-        severity: 'warning',
-        title: `补齐密钥类型：${previewListUtil(differences.missing.secretTypes)}`,
-        description: '为目标环境创建对应类型密钥，后续才能安全注入服务配置。',
-        target: 'keys',
-        metadata: { ...metadataBase, secretTypes: differences.missing.secretTypes },
-      });
-    }
-
-    if (differences.tlsSiteGap > 0) {
-      actions.push({
-        kind: 'enable_site_tls',
-        severity: 'info',
-        title: `补齐 TLS 站点：${differences.tlsSiteGap} 个`,
-        description: '检查目标环境站点的 TLS 配置，避免生产以外环境缺少证书探测和续期治理。',
-        target: 'sites',
-        metadata: { ...metadataBase, gapCount: differences.tlsSiteGap },
-      });
-    }
-
-    if (differences.successfulDeploymentGap) {
-      actions.push({
-        kind: 'run_deployment',
-        severity: 'info',
-        title: '补一次成功部署记录',
-        description: '目标环境还没有成功部署记录，可先生成 dry-run 或队列化部署计划验证链路。',
-        target: 'applications',
-        metadata: metadataBase,
-      });
-    }
-
-    return actions.slice(0, 10);
-  }
-
-  private buildDifferenceLabels(differences: EnvironmentSyncDifferences) {
-    const labels: string[] = [];
-    this.addMissingExtraLabels(labels, '服务器角色', differences.missing.serverRoles, differences.extra.serverRoles);
-    this.addMissingExtraLabels(labels, '服务', differences.missing.services, differences.extra.services);
-    this.addMissingExtraLabels(labels, '资源类型', differences.missing.resourceKinds, differences.extra.resourceKinds);
-    this.addMissingExtraLabels(labels, '站点运行时', differences.missing.siteRuntimeTypes, differences.extra.siteRuntimeTypes);
-    this.addMissingExtraLabels(labels, 'CDN', differences.missing.cdnProviders, differences.extra.cdnProviders);
-    this.addMissingExtraLabels(labels, '密钥类型', differences.missing.secretTypes, differences.extra.secretTypes);
-
-    for (const gap of differences.deployConfigGaps) {
-      labels.push(`${DEPLOY_CONFIG_FIELD_LABELS[gap.field] || gap.field}少 ${gap.missingCount}`);
-    }
-    if (differences.serviceBindingGapDelta > 0) {
-      labels.push(`运行绑定缺口多 ${differences.serviceBindingGapDelta}`);
-    }
-    if (differences.tlsSiteGap > 0) {
-      labels.push(`TLS 站点少 ${differences.tlsSiteGap}`);
-    }
-    if (differences.successfulDeploymentGap) {
-      labels.push('缺成功部署');
-    }
-
-    return labels.slice(0, 12);
-  }
-
-  private addMissingExtraLabels(labels: string[], label: string, missing: string[], extra: string[]) {
-    if (missing.length > 0) {
-      labels.push(`${label}少 ${previewListUtil(missing, 2)}`);
-    }
-    if (extra.length > 0) {
-      labels.push(`${label}多 ${previewListUtil(extra, 2)}`);
-    }
-  }
-
-  private emptySyncDifferences(): EnvironmentSyncDifferences {
-    return {
-      missing: {
-        serverRoles: [],
-        services: [],
-        resourceKinds: [],
-        siteRuntimeTypes: [],
-        secretTypes: [],
-        cdnProviders: [],
-      },
-      extra: {
-        serverRoles: [],
-        services: [],
-        resourceKinds: [],
-        siteRuntimeTypes: [],
-        secretTypes: [],
-        cdnProviders: [],
-      },
-      deployConfigGaps: [],
-      serviceBindingGapDelta: 0,
-      tlsSiteGap: 0,
-      successfulDeploymentGap: false,
-    };
-  }
 
 
   private resourceBindingStep(
