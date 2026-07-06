@@ -14,6 +14,8 @@ import { ResourceControlBindingService } from './resource-control-binding.servic
 import { ResourceControlConnectionSharedService } from './resource-control-connection-shared.service';
 import { ResourceControlConnectionProbeService } from './resource-control-connection-probe.service';
 import { ResourceControlResourceQueryService } from './resource-control-query.service';
+import { ResourceControlActionService } from './resource-control-action.service';
+import { ResourceControlMetricsService } from './resource-control-metrics.service';
 import { ResourceControlCloudProviderHealthService } from './resource-control-cloud-provider-health.service';
 import {
   buildMetricSeries,
@@ -30,6 +32,8 @@ describe('ResourceControlService cloud provider health summary', () => {
     {} as ResourceControlConnectionSharedService,
     {} as ResourceControlConnectionProbeService,
     {} as ResourceControlResourceQueryService,
+    {} as ResourceControlActionService,
+    {} as ResourceControlMetricsService,
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,
@@ -114,15 +118,7 @@ describe('ResourceControlService Docker metric snapshot persistence', () => {
         createMany: jest.fn().mockImplementation(({ data }: { data: unknown[] }) => ({ count: data.length })),
       },
     } as unknown as PrismaService;
-    const service = buildService(prisma);
-    const persist = service as unknown as {
-      persistDockerMetricSnapshotsFromActionRun(
-        teamId: string,
-        resourceActionRunId: string,
-        result: unknown,
-        logs?: unknown,
-      ): Promise<number>;
-    };
+    const persist = new ResourceControlMetricsService(new ResourceControlRepository(prisma));
 
     const count = await persist.persistDockerMetricSnapshotsFromActionRun(
       'team-1',
@@ -171,15 +167,7 @@ describe('ResourceControlService Docker metric snapshot persistence', () => {
         createMany: jest.fn(),
       },
     } as unknown as PrismaService;
-    const service = buildService(prisma);
-    const persist = service as unknown as {
-      persistDockerMetricSnapshotsFromActionRun(
-        teamId: string,
-        resourceActionRunId: string,
-        result: unknown,
-        logs?: unknown,
-      ): Promise<number>;
-    };
+    const persist = new ResourceControlMetricsService(new ResourceControlRepository(prisma));
 
     await expect(persist.persistDockerMetricSnapshotsFromActionRun('team-1', 'run-1', {})).resolves.toBe(0);
     expect(prisma.resourceMetricSnapshot.count).not.toHaveBeenCalled();
@@ -437,6 +425,16 @@ function buildService(prisma: PrismaService) {
       {} as DirectDbQueryExecutor,
       {} as AuditEventService,
     ),
+    new ResourceControlActionService(
+      new ResourceControlRepository(prisma),
+      new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
+      {} as DefaultCredentialResolver,
+      {} as ResourceExecutorRouter,
+      {} as OperationApprovalService,
+      {} as AuditEventService,
+      new ResourceControlMetricsService(new ResourceControlRepository(prisma)),
+    ),
+    new ResourceControlMetricsService(new ResourceControlRepository(prisma)),
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,

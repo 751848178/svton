@@ -54,6 +54,8 @@ import { ResourceControlBindingService } from './resource-control-binding.servic
 import { ResourceControlConnectionSharedService } from './resource-control-connection-shared.service';
 import { ResourceControlConnectionProbeService } from './resource-control-connection-probe.service';
 import { ResourceControlResourceQueryService } from './resource-control-query.service';
+import { ResourceControlActionService } from './resource-control-action.service';
+import { ResourceControlMetricsService } from './resource-control-metrics.service';
 import {
   actionRunInclude,
   connectionRunInclude,
@@ -218,6 +220,8 @@ export class ResourceControlService {
     private readonly connectionShared: ResourceControlConnectionSharedService,
     private readonly connectionProbe: ResourceControlConnectionProbeService,
     private readonly resourceQuery: ResourceControlResourceQueryService,
+    private readonly action: ResourceControlActionService,
+    private readonly metricsService: ResourceControlMetricsService,
     private readonly credentialResolver: DefaultCredentialResolver,
     private readonly executorRouter: ResourceExecutorRouter,
     private readonly directDbQueryExecutor: DirectDbQueryExecutor,
@@ -274,166 +278,9 @@ export class ResourceControlService {
   runResourceQuery = (teamId: string, userId: string, resourceId: string, dto: RunResourceQueryDto) =>
     this.resourceQuery.runResourceQuery(teamId, userId, resourceId, dto);
 
-  async executeResourceAction(
-    teamId: string,
-    userId: string | null,
-    resourceId: string,
-    dto: ExecuteResourceActionDto,
-  ) {
-    const resource = await this.getManagedResource(teamId, resourceId);
-    const action = getActionDefinition(dto.action);
-
-    if (!action) {
-      throw new BadRequestException('不支持的资源动作');
-    }
-
-    if (!isActionSupported(action, resource)) {
-      throw new BadRequestException(
-        `动作 ${action.key} 不支持 ${resource.sourceType}/${resource.provider}/${resource.kind}`,
-      );
-    }
-
-    const dryRun = dto.dryRun !== false;
-    const params = dto.params || {};
-    if (!dryRun && action.dryRunOnly) {
-      throw new BadRequestException('当前资源动作只支持 dry-run 计划');
-    }
-
-    const requiresApproval = requiresResourceApprovalUtil(action, dryRun);
-    if (requiresApproval && !userId) {
-      throw new BadRequestException('系统调度不支持需要审批的资源动作');
-    }
-    const approvalContext = requiresApproval
-      ? this.buildResourceApprovalContext(teamId, userId!, resource, action, dto.approvalReason)
-      : null;
-    const approvedApproval = requiresApproval
-      ? await this.operationApprovalService.resolveApproved({
-          ...approvalContext!,
-          approvalId: dto.approvalId,
-        })
-      : null;
-    const credential = await this.credentialResolver.resolve(teamId, resource, action);
-    const executorInput = {
-      teamId,
-      userId,
-      resource,
-      action,
-      credential,
-      params,
-      dryRun,
-      queue: false,
-      maxAttempts: dto.maxAttempts,
-      confirmationText: dto.confirmationText,
-    };
-    const executor = this.executorRouter.resolve(executorInput);
-    const queue = dto.queue === true && executor.key === 'server-executor';
-    const actionRun = await this.repo.createActionRun({
-      data: {
-        teamId,
-        actorId: userId,
-        resourceId: resource.id,
-        credentialId: resource.credentialId,
-        action: action.key,
-        executorKey: executor.key,
-        adapterKey: executor.adapterKey,
-        dryRun,
-        risk: action.risk,
-        status: queue ? 'queued' : 'running',
-        operationApprovalId: approvedApproval?.id,
-        params: toJsonValueUtil(params),
-      },
-    });
-
-    try {
-      if (requiresApproval && !approvedApproval) {
-        const approval = await this.operationApprovalService.createPending({
-          ...approvalContext!,
-          metadata: {
-            ...approvalContext!.metadata,
-            resourceActionRunId: actionRun.id,
-            params,
-            queue,
-            maxAttempts: dto.maxAttempts,
-          },
-        });
-        const blocked = await this.repo.updateActionRun({
-          where: { id: actionRun.id },
-          data: {
-            status: 'blocked',
-            operationApprovalId: approval.id,
-            error: '非 dry-run 的中高风险资源动作需要审批',
-            finishedAt: new Date(),
-            result: toJsonValueUtil({
-              mode: 'blocked_operation_approval',
-              approvalId: approval.id,
-              approvalStatus: approval.status,
-            }),
-          },
-          include: this.actionRunInclude(),
-        });
-        await this.writeResourceActionAudit(teamId, userId, resource, action, blocked);
-        return blocked;
-      }
-
-      if (action.requiresConfirmation && !dryRun && dto.confirmationText !== resource.name) {
-        const blocked = await this.repo.updateActionRun({
-          where: { id: actionRun.id },
-          data: {
-            status: 'blocked',
-            error: '需要输入资源名称确认后才能执行非 dry-run 动作',
-            finishedAt: new Date(),
-            result: toJsonValueUtil({
-              mode: 'blocked_confirmation',
-              requiredConfirmationText: resource.name,
-            }),
-          },
-          include: this.actionRunInclude(),
-        });
-        await this.writeResourceActionAudit(teamId, userId, resource, action, blocked);
-        return blocked;
-      }
-
-      const result = await executor.execute({
-        ...executorInput,
-        queue,
-        resourceActionRunId: actionRun.id,
-        operationApprovalId: approvedApproval?.id,
-      });
-      const completedData: Prisma.ResourceActionRunUncheckedUpdateInput = {
-        status: result.status,
-        commandPlan: result.commandPlan,
-        result: result.result,
-        error: result.error,
-        ...(result.serverExecutionJobId ? { serverExecutionJobId: result.serverExecutionJobId } : {}),
-        ...(result.status === 'queued' ? {} : { finishedAt: new Date() }),
-      };
-      const completed = await this.repo.updateActionRun({
-        where: { id: actionRun.id },
-        data: completedData,
-        include: this.actionRunInclude(),
-      });
-      if (completed.status === 'completed') {
-        await this.persistDockerMetricSnapshotsFromActionRun(teamId, completed.id, result.result, result.logs);
-      }
-      await this.writeResourceActionAudit(teamId, userId, resource, action, completed);
-      if (approvedApproval && completed.status !== 'blocked') {
-        await this.operationApprovalService.consume(teamId, approvedApproval.id);
-      }
-      return completed;
-    } catch (error) {
-      const failed = await this.repo.updateActionRun({
-        where: { id: actionRun.id },
-        data: {
-          status: 'failed',
-          error: error instanceof Error ? error.message : '资源动作执行失败',
-          finishedAt: new Date(),
-        },
-        include: this.actionRunInclude(),
-      });
-      await this.writeResourceActionAudit(teamId, userId, resource, action, failed);
-      return failed;
-    }
-  }
+  executeResourceAction = (
+    teamId: string, userId: string | null, resourceId: string, dto: ExecuteResourceActionDto,
+  ) => this.action.executeResourceAction(teamId, userId, resourceId, dto);
 
   async syncServerDocker(teamId: string, userId: string | null, serverId: string, dto: SyncServerDockerDto) {
     const server = await this.repo.findServer({
@@ -634,199 +481,6 @@ export class ResourceControlService {
     }
   }
 
-  private async persistDockerMetricSnapshotsFromActionRun(
-    teamId: string,
-    resourceActionRunId: string,
-    result: unknown,
-    logs?: unknown,
-  ) {
-    const actionRun = await this.repo.findActionRun({
-      where: { id: resourceActionRunId, teamId },
-      select: {
-        id: true,
-        teamId: true,
-        resourceId: true,
-        action: true,
-        dryRun: true,
-        status: true,
-        resource: {
-          select: {
-            id: true,
-            sourceType: true,
-            provider: true,
-            kind: true,
-            serverId: true,
-            projectId: true,
-            environmentId: true,
-          },
-        },
-      },
-    });
-
-    if (
-      !actionRun ||
-      actionRun.action !== 'docker.container.stats' ||
-      actionRun.dryRun ||
-      actionRun.status !== 'completed'
-    ) {
-      return 0;
-    }
-
-    const existingCount = await this.repo.countMetricSnapshots({
-      where: { teamId, resourceActionRunId },
-    });
-    if (existingCount > 0) {
-      return 0;
-    }
-
-    const snapshots = buildDockerStatsMetricSnapshotInputs(
-      {
-        teamId: actionRun.teamId,
-        resourceId: actionRun.resourceId,
-        resourceActionRunId: actionRun.id,
-        serverId: actionRun.resource.serverId,
-        projectId: actionRun.resource.projectId,
-        environmentId: actionRun.resource.environmentId,
-        sourceType: actionRun.resource.sourceType,
-        provider: actionRun.resource.provider,
-        kind: actionRun.resource.kind,
-      },
-      result,
-      logs,
-    );
-
-    if (snapshots.length === 0) {
-      return 0;
-    }
-
-    const created = await this.repo.createManyMetricSnapshots({
-      data: snapshots,
-    });
-    return created.count;
-  }
-
-  private managedResourceInclude() {
-    return managedResourceInclude;
-  }
-
-  private actionRunInclude() {
-    return actionRunInclude;
-  }
-
-  private metricSnapshotInclude() {
-    return metricSnapshotInclude;
-  }
-
-  private connectionRunInclude() {
-    return connectionRunInclude;
-  }
-
-  private queryRunInclude() {
-    return queryRunInclude;
-  }
-
-
-  private buildResourceApprovalContext(
-    teamId: string,
-    userId: string,
-    resource: {
-      id: string;
-      name: string;
-      projectId: string | null;
-      environmentId: string | null;
-      serverId: string | null;
-      sourceType: string;
-      provider: string;
-      kind: string;
-      endpoint: string | null;
-    },
-    action: { key: string; risk: string; mode: string },
-    reason?: string,
-  ) {
-    return {
-      teamId,
-      requesterId: userId,
-      projectId: resource.projectId,
-      environmentId: resource.environmentId,
-      serverId: resource.serverId,
-      managedResourceId: resource.id,
-      category: 'resource_action',
-      action: `resource.${action.key}`,
-      targetType: 'managed_resource',
-      targetId: resource.id,
-      risk: action.risk,
-      summary: `申请执行资源动作 ${action.key}`,
-      reason: reason || '申请执行非 dry-run 资源动作',
-      metadata: {
-        resourceName: resource.name,
-        sourceType: resource.sourceType,
-        provider: resource.provider,
-        kind: resource.kind,
-        endpoint: resource.endpoint,
-        mode: action.mode,
-      },
-    };
-  }
-
-
-  private async writeResourceActionAudit(
-    teamId: string,
-    userId: string | null,
-    resource: {
-      id: string;
-      name: string;
-      projectId: string | null;
-      environmentId: string | null;
-      serverId: string | null;
-      sourceType: string;
-      provider: string;
-      kind: string;
-      endpoint: string | null;
-    },
-    action: { key: string; risk: string },
-    actionRun: {
-      id: string;
-      status: string;
-      dryRun: boolean;
-      executorKey: string;
-      adapterKey: string;
-      operationApprovalId?: string | null;
-      error: string | null;
-    },
-  ) {
-    await this.auditEventService.create({
-      teamId,
-      actorId: userId,
-      projectId: resource.projectId,
-      environmentId: resource.environmentId,
-      serverId: resource.serverId,
-      managedResourceId: resource.id,
-      resourceActionRunId: actionRun.id,
-      operationApprovalId: actionRun.operationApprovalId,
-      category: 'resource_action',
-      action: `resource.${action.key}`,
-      targetType: 'managed_resource',
-      targetId: resource.id,
-      risk: action.risk,
-      status: actionRun.status,
-      summary: `资源动作 ${action.key} ${actionRun.status}`,
-      metadata: {
-        dryRun: actionRun.dryRun,
-        sourceType: resource.sourceType,
-        provider: resource.provider,
-        kind: resource.kind,
-        endpoint: resource.endpoint,
-        resourceName: resource.name,
-        executorKey: actionRun.executorKey,
-        adapterKey: actionRun.adapterKey,
-        operationApprovalId: actionRun.operationApprovalId,
-        error: actionRun.error,
-      },
-    });
-  }
-
-
-
   private async writeResourceBindingAudit(
     teamId: string,
     userId: string,
@@ -906,7 +560,7 @@ export class ResourceControlService {
   private async getManagedResource(teamId: string, resourceId: string) {
     const resource = await this.repo.findManagedResource({
       where: { id: resourceId, teamId },
-      include: this.managedResourceInclude(),
+      include: managedResourceInclude,
     });
 
     if (!resource) {
@@ -1064,7 +718,7 @@ export class ResourceControlService {
           syncError: null,
           lastSyncAt: syncedAt,
         },
-        include: this.managedResourceInclude(),
+        include: managedResourceInclude,
       });
       resources.push(resource);
     }
