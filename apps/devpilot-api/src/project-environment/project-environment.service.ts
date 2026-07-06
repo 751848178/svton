@@ -37,6 +37,14 @@ import {
   findReferenceProfile as findReferenceProfileUtil,
 } from './project-environment-sync-diff.utils';
 import {
+  buildCdnConfigCopyAuditInput,
+  buildResourceBulkBindingAuditInput,
+  buildResourceCopyAuditInput,
+  buildServerBindingAuditInput,
+  buildSiteCopyAuditInput,
+  buildSyncApplyAuditInput,
+} from './project-environment-audit.utils';
+import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
   BulkBindProjectEnvironmentResourcesDto,
@@ -821,7 +829,7 @@ export class ProjectEnvironmentService {
       ],
     };
 
-    await this.writeSyncApplyAudit(teamId, userId, result);
+    await this.auditEventService?.create(buildSyncApplyAuditInput(teamId, userId, result) as any);
     return result;
   }
 
@@ -995,7 +1003,7 @@ export class ProjectEnvironmentService {
       ],
     };
 
-    await this.writeResourceBulkBindingAudit(teamId, userId, result);
+    await this.auditEventService?.create(buildResourceBulkBindingAuditInput(teamId, userId, result) as any);
     return result;
   }
 
@@ -1268,7 +1276,7 @@ export class ProjectEnvironmentService {
       ],
     };
 
-    await this.writeSiteCopyAudit(teamId, userId, result);
+    await this.auditEventService?.create(buildSiteCopyAuditInput(teamId, userId, result) as any);
     return result;
   }
 
@@ -1435,7 +1443,7 @@ export class ProjectEnvironmentService {
       ],
     };
 
-    await this.writeCdnConfigCopyAudit(teamId, userId, result);
+    await this.auditEventService?.create(buildCdnConfigCopyAuditInput(teamId, userId, result) as any);
     return result;
   }
 
@@ -1713,7 +1721,7 @@ export class ProjectEnvironmentService {
       ],
     };
 
-    await this.writeResourceCopyAudit(teamId, userId, result);
+    await this.auditEventService?.create(buildResourceCopyAuditInput(teamId, userId, result) as any);
     return result;
   }
 
@@ -1755,12 +1763,12 @@ export class ProjectEnvironmentService {
         projectId: environment.projectId,
         environmentId: environment.id,
         serverId: dto.serverId,
-        role: dto.role,
+        role: dto.role || null,
         metadata: dto.metadata ? toJsonValueUtil(dto.metadata) : undefined,
       },
       update: {
         projectId: environment.projectId,
-        role: dto.role,
+        role: dto.role || null,
         status: 'active',
         metadata: dto.metadata ? toJsonValueUtil(dto.metadata) : undefined,
       },
@@ -1771,16 +1779,16 @@ export class ProjectEnvironmentService {
       },
     });
 
-    await this.writeServerBindingAudit(teamId, userId, {
+    await this.auditEventService?.create(buildServerBindingAuditInput(teamId, userId, {
       projectId: environment.projectId,
       environmentId: environment.id,
       environmentName: environment.name,
       serverId: dto.serverId,
       serverName: binding.server.name,
-      role: dto.role,
+      role: dto.role || null,
       action: 'bind',
       status: 'completed',
-    });
+    }) as any);
 
     return binding;
   }
@@ -1801,7 +1809,7 @@ export class ProjectEnvironmentService {
     }
 
     await this.repo.deleteProjectEnvironmentServer({ where: { id: binding.id } });
-    await this.writeServerBindingAudit(teamId, userId, {
+    await this.auditEventService?.create(buildServerBindingAuditInput(teamId, userId, {
       projectId: environment.projectId,
       environmentId: environment.id,
       environmentName: environment.name,
@@ -1810,7 +1818,7 @@ export class ProjectEnvironmentService {
       role: binding.role,
       action: 'unbind',
       status: 'completed',
-    });
+    }) as any);
 
     return { success: true };
   }
@@ -2075,301 +2083,5 @@ export class ProjectEnvironmentService {
     await Promise.all(updates);
   }
 
-
-  private async writeSyncApplyAudit(
-    teamId: string,
-    userId: string,
-    result: {
-      projectId: string;
-      sourceEnvironment: { id: string; key: string; name: string };
-      targetEnvironment: { id: string; key: string; name: string };
-      dryRun: boolean;
-      status: string;
-      plannedCount: number;
-      appliedCount: number;
-      skippedCount: number;
-      steps: EnvironmentSyncApplyStep[];
-      warnings: string[];
-    },
-  ) {
-    if (!this.auditEventService) {
-      return;
-    }
-
-    await this.auditEventService.create({
-      teamId,
-      actorId: userId,
-      projectId: result.projectId,
-      environmentId: result.targetEnvironment.id,
-      category: 'project_environment',
-      action: 'project_environment.sync_suggestions.apply',
-      targetType: 'project_environment',
-      targetId: result.targetEnvironment.id,
-      risk: result.dryRun ? 'low' : 'medium',
-      status: result.status,
-      summary: result.dryRun
-        ? `生成环境同步计划：${result.sourceEnvironment.name} -> ${result.targetEnvironment.name}`
-        : `应用环境同步计划：${result.sourceEnvironment.name} -> ${result.targetEnvironment.name}`,
-      metadata: {
-        sourceEnvironment: result.sourceEnvironment,
-        targetEnvironment: result.targetEnvironment,
-        dryRun: result.dryRun,
-        plannedCount: result.plannedCount,
-        appliedCount: result.appliedCount,
-        skippedCount: result.skippedCount,
-        stepKinds: result.steps.map((step) => ({ kind: step.kind, status: step.status })),
-        warnings: result.warnings,
-      },
-    });
-  }
-
-  private async writeSiteCopyAudit(
-    teamId: string,
-    userId: string,
-    result: {
-      projectId: string;
-      sourceEnvironment: { id: string; key: string; name: string };
-      targetEnvironment: { id: string; key: string; name: string };
-      dryRun: boolean;
-      status: string;
-      plannedCount: number;
-      appliedCount: number;
-      skippedCount: number;
-      steps: EnvironmentSiteCopyStep[];
-      followUp: {
-        queuedLiveSync: SiteCopyQueuedLiveSyncFollowUp;
-      };
-      warnings: string[];
-    },
-  ) {
-    if (!this.auditEventService) {
-      return;
-    }
-
-    await this.auditEventService.create({
-      teamId,
-      actorId: userId,
-      projectId: result.projectId,
-      environmentId: result.targetEnvironment.id,
-      category: 'project_environment',
-      action: 'project_environment.sites.copy',
-      targetType: 'project_environment',
-      targetId: result.targetEnvironment.id,
-      risk: result.dryRun ? 'low' : 'medium',
-      status: result.status,
-      summary: result.dryRun
-        ? `生成跨环境站点复制计划：${result.sourceEnvironment.name} -> ${result.targetEnvironment.name}`
-        : `应用跨环境站点复制：${result.sourceEnvironment.name} -> ${result.targetEnvironment.name}`,
-      metadata: {
-        sourceEnvironment: result.sourceEnvironment,
-        targetEnvironment: result.targetEnvironment,
-        dryRun: result.dryRun,
-        plannedCount: result.plannedCount,
-        appliedCount: result.appliedCount,
-        skippedCount: result.skippedCount,
-        stepStatus: result.steps.map((step) => ({
-          sourceSiteId: step.sourceSiteId,
-          targetSiteId: step.targetSiteId || null,
-          status: step.status,
-        })),
-        followUp: result.followUp,
-        warnings: result.warnings,
-      },
-    });
-  }
-
-  private async writeCdnConfigCopyAudit(
-    teamId: string,
-    userId: string,
-    result: {
-      projectId: string;
-      sourceEnvironment: { id: string; key: string; name: string };
-      targetEnvironment: { id: string; key: string; name: string };
-      dryRun: boolean;
-      status: string;
-      plannedCount: number;
-      appliedCount: number;
-      skippedCount: number;
-      steps: EnvironmentCdnConfigCopyStep[];
-      warnings: string[];
-    },
-  ) {
-    if (!this.auditEventService) {
-      return;
-    }
-
-    await this.auditEventService.create({
-      teamId,
-      actorId: userId,
-      projectId: result.projectId,
-      environmentId: result.targetEnvironment.id,
-      category: 'project_environment',
-      action: 'project_environment.cdn_configs.copy',
-      targetType: 'project_environment',
-      targetId: result.targetEnvironment.id,
-      risk: result.dryRun ? 'low' : 'medium',
-      status: result.status,
-      summary: result.dryRun
-        ? `生成跨环境 CDN 配置复制计划：${result.sourceEnvironment.name} -> ${result.targetEnvironment.name}`
-        : `应用跨环境 CDN 配置复制：${result.sourceEnvironment.name} -> ${result.targetEnvironment.name}`,
-      metadata: {
-        sourceEnvironment: result.sourceEnvironment,
-        targetEnvironment: result.targetEnvironment,
-        dryRun: result.dryRun,
-        plannedCount: result.plannedCount,
-        appliedCount: result.appliedCount,
-        skippedCount: result.skippedCount,
-        stepStatus: result.steps.map((step) => ({
-          sourceCdnConfigId: step.sourceCdnConfigId,
-          targetCdnConfigId: step.targetCdnConfigId || null,
-          status: step.status,
-        })),
-        warnings: result.warnings,
-      },
-    });
-  }
-
-  private async writeResourceCopyAudit(
-    teamId: string,
-    userId: string,
-    result: {
-      projectId: string;
-      sourceEnvironment: { id: string; key: string; name: string };
-      targetEnvironment: { id: string; key: string; name: string };
-      dryRun: boolean;
-      status: string;
-      plannedCount: number;
-      appliedCount: number;
-      skippedCount: number;
-      steps: EnvironmentResourceCopyStep[];
-      warnings: string[];
-    },
-  ) {
-    if (!this.auditEventService) {
-      return;
-    }
-
-    await this.auditEventService.create({
-      teamId,
-      actorId: userId,
-      projectId: result.projectId,
-      environmentId: result.targetEnvironment.id,
-      category: 'project_environment',
-      action: 'project_environment.resources.copy',
-      targetType: 'project_environment',
-      targetId: result.targetEnvironment.id,
-      risk: result.dryRun ? 'low' : 'medium',
-      status: result.status,
-      summary: result.dryRun
-        ? `生成跨环境资源/密钥复制计划：${result.sourceEnvironment.name} -> ${result.targetEnvironment.name}`
-        : `应用跨环境资源/密钥复制：${result.sourceEnvironment.name} -> ${result.targetEnvironment.name}`,
-      metadata: {
-        sourceEnvironment: result.sourceEnvironment,
-        targetEnvironment: result.targetEnvironment,
-        dryRun: result.dryRun,
-        plannedCount: result.plannedCount,
-        appliedCount: result.appliedCount,
-        skippedCount: result.skippedCount,
-        stepStatus: result.steps.map((step) => ({
-          type: step.type,
-          sourceId: step.sourceId,
-          targetId: step.targetId || null,
-          status: step.status,
-        })),
-        warnings: result.warnings,
-      },
-    });
-  }
-
-  private async writeResourceBulkBindingAudit(
-    teamId: string,
-    userId: string,
-    result: {
-      projectId: string;
-      environment: { id: string; key: string; name: string };
-      dryRun: boolean;
-      status: string;
-      plannedCount: number;
-      appliedCount: number;
-      skippedCount: number;
-      steps: EnvironmentResourceBindingStep[];
-      summary: Record<string, number>;
-      warnings: string[];
-    },
-  ) {
-    if (!this.auditEventService) {
-      return;
-    }
-
-    await this.auditEventService.create({
-      teamId,
-      actorId: userId,
-      projectId: result.projectId,
-      environmentId: result.environment.id,
-      category: 'project_environment',
-      action: 'project_environment.resources.bulk_bind',
-      targetType: 'project_environment',
-      targetId: result.environment.id,
-      risk: result.dryRun ? 'low' : 'medium',
-      status: result.status,
-      summary: result.dryRun
-        ? `生成环境资源批量绑定计划：${result.environment.name}`
-        : `应用环境资源批量绑定：${result.environment.name}`,
-      metadata: {
-        dryRun: result.dryRun,
-        plannedCount: result.plannedCount,
-        appliedCount: result.appliedCount,
-        skippedCount: result.skippedCount,
-        summary: result.summary,
-        stepTypes: result.steps.map((step) => ({ type: step.type, status: step.status })),
-        warnings: result.warnings,
-      },
-    });
-  }
-
-  private async writeServerBindingAudit(
-    teamId: string,
-    userId: string,
-    input: {
-      projectId: string;
-      environmentId: string;
-      environmentName: string;
-      serverId: string;
-      serverName: string;
-      role?: string | null;
-      action: 'bind' | 'unbind';
-      status: string;
-    },
-  ) {
-    if (!this.auditEventService) {
-      return;
-    }
-
-    const bindingAction = input.action === 'bind'
-      ? 'project_environment.server.bind'
-      : 'project_environment.server.unbind';
-
-    await this.auditEventService.create({
-      teamId,
-      actorId: userId,
-      projectId: input.projectId,
-      environmentId: input.environmentId,
-      serverId: input.serverId,
-      category: 'project_environment',
-      action: bindingAction,
-      targetType: 'project_environment_server',
-      targetId: input.serverId,
-      risk: 'medium',
-      status: input.status,
-      summary: input.action === 'bind'
-        ? `绑定服务器 ${input.serverName} 到环境 ${input.environmentName}`
-        : `解绑环境 ${input.environmentName} 的服务器 ${input.serverName}`,
-      metadata: {
-        environmentName: input.environmentName,
-        serverName: input.serverName,
-        role: input.role || null,
-      },
-    });
-  }
 
 }
