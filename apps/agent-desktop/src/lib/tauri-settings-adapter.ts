@@ -31,6 +31,8 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
   private _customInstructions: string = '';
   private _permissionMode: string = 'default';
   private _mcpServers: McpServerConfig[] = [];
+  private _searchApiKey: string = '';
+  private _searchEndpoint: string = '';
   private marketplace = new SkillMarketplace();
 
   private onReinit?: (workingDir?: string) => void;
@@ -46,6 +48,12 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
     }).catch(() => {});
     platform.storage.get<string[]>('agent:disabled_skills').then((v) => {
       if (Array.isArray(v)) this._disabledSkills = v;
+    }).catch(() => {});
+    platform.storage.get<string>('searchApiKey').then((v) => {
+      if (typeof v === 'string') this._searchApiKey = v;
+    }).catch(() => {});
+    platform.storage.get<string>('searchEndpoint').then((v) => {
+      if (typeof v === 'string') this._searchEndpoint = v;
     }).catch(() => {});
     platform.storage.get<string>('desktop:customInstructions').then((v) => {
       if (typeof v === 'string') this._customInstructions = v;
@@ -178,8 +186,45 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
   }
   getDisabledSkills(): string[] { return this._disabledSkills; }
   saveDisabledSkills(names: string[]): void {
+    const prev = new Set(this._disabledSkills);
+    const next = new Set(names);
+    const mgr = this._agentConfig?.capabilities?.skillManager;
+    if (mgr) {
+      // Newly disabled skills → unregister from the running SkillManager so
+      // they stop matching immediately (matches deleteSkill's behaviour).
+      for (const n of names) {
+        if (!prev.has(n)) mgr.unregister(n);
+      }
+    }
     this._disabledSkills = names;
     this.platform.storage.set('agent:disabled_skills', names).catch(() => {});
+    // Re-enabled skills need to be re-registered from BUILTIN_SKILLS /
+    // discovered sources, which only the host can do — trigger reinit.
+    // onUpdate also covers the case where mgr is unavailable.
+    this.onUpdate?.();
+  }
+
+  // ── Web search configuration ─────────────────────────────
+  // Two independent keys, mirroring how other settings are stored as
+  // individual storage keys. agent-setup.ts reads them back at startup:
+  //   - searchApiKey  → Tavily hosted backend (recommended)
+  //   - searchEndpoint → custom SearXNG-style endpoint (advanced)
+  getSearchApiKey(): string {
+    // Storage is async; return the cached value set by the constructor load.
+    return this._searchApiKey;
+  }
+  saveSearchApiKey(key: string): void {
+    this._searchApiKey = key;
+    this.platform.storage.set('searchApiKey', key).catch(() => {});
+    this.onUpdate?.();
+  }
+  getSearchEndpoint(): string {
+    return this._searchEndpoint;
+  }
+  saveSearchEndpoint(url: string): void {
+    this._searchEndpoint = url;
+    this.platform.storage.set('searchEndpoint', url).catch(() => {});
+    this.onUpdate?.();
   }
 
   // ── Memory ───────────────────────────────────────────────

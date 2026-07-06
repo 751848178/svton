@@ -453,7 +453,7 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
             <AutomationPanelExtra automationManager={extra?.automationManager} onManage={() => setView('settings')} onTrigger={(prompt) => { send(prompt); setView('chat'); }} />
           )}
           {view === 'skills' && (
-            <SkillsPanel skills={agentSkills} platform={platform} onManage={() => setView('settings')} />
+            <SkillsPanel skills={agentSkills} platform={platform} onManage={() => setView('settings')} onReinit={onReinit} />
           )}
           {view === 'plugins' && (
             <PluginsPanel config={config} platform={platform} tools={tools} />
@@ -507,7 +507,7 @@ function AutomationPanel({ tools, onManage }: { tools: ToolDefinition[]; onManag
 
 // ── Skills panel ──────────────────────────────────────────
 
-function SkillsPanel({ skills, platform, onManage }: { skills: SkillDefinition[]; platform: TauriPlatform; onManage?: () => void }) {
+function SkillsPanel({ skills, platform, onManage, onReinit }: { skills: SkillDefinition[]; platform: TauriPlatform; onManage?: () => void; onReinit?: (workingDir?: string) => void }) {
   const [search, setSearch] = useState('');
   const [disabledSkills, setDisabledSkills] = useState<Set<string>>(new Set());
 
@@ -522,7 +522,11 @@ function SkillsPanel({ skills, platform, onManage }: { skills: SkillDefinition[]
     if (next.has(name)) next.delete(name); else next.add(name);
     setDisabledSkills(next);
     await platform.storage.set('agent:disabled_skills', Array.from(next));
-  }, [disabledSkills, platform.storage]);
+    // Persist the change, then rebuild the runtime so the running
+    // SkillManager picks up the new disabled set immediately. Without this,
+    // a disabled skill keeps matching in findRelevant until next launch.
+    onReinit?.();
+  }, [disabledSkills, platform.storage, onReinit]);
 
   // Categorize: plugin skills (scope includes 'plugin') vs workspace/personal
   const filtered = useMemo(() => {

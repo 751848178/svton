@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 
 import type { TauriPlatform } from '@svton/agent-platform';
-import type { AgentConfig, AgentCapabilities, McpServerToolConfig } from '@svton/agent-core';
+import type { AgentConfig, AgentCapabilities, McpServerToolConfig, WebSearchConfig } from '@svton/agent-core';
 import {
   ToolRegistry,
   OpenAIProvider,
@@ -23,9 +23,9 @@ import {
   BashExecutor,
   // Web tools
   webFetchDef,
-  WebFetchExecutor,
   webSearchDef,
   WebSearchExecutor,
+  createWebSearchExecutor,
   // Memory tools
   memorySaveDef,
   MemorySaveExecutor,
@@ -117,6 +117,7 @@ import {
 } from '@svton/agent-core';
 import type { McpServerConfig } from '@svton/agent-ui';
 import { loadConfig, type LoadConfigResult } from './config-store';
+import { CurlWebFetchExecutor } from './curl-web-fetch';
 
 export type InitResult =
   | { kind: 'ready'; config: AgentConfig; extra?: AgentExtra }
@@ -223,8 +224,26 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   toolRegistry.register(bashDef, new BashExecutor());
 
   // Web tools
-  toolRegistry.register(webFetchDef, new WebFetchExecutor());
-  toolRegistry.register(webSearchDef, new WebSearchExecutor());
+  // web_fetch: use curl on desktop to bypass webview CORS restrictions.
+  // The default WebFetchExecutor uses fetch(), which in the Tauri webview is
+  // blocked by CORS for most external sites ("Fetch error: Load failed").
+  // curl runs natively and is not subject to CORS.
+  toolRegistry.register(webFetchDef, new CurlWebFetchExecutor());
+  // web_search: only register when a search backend is configured.
+  // Reads Tavily API key first (recommended), then falls back to a custom
+  // SearXNG-style endpoint. Without this guard the LLM sees the tool, calls
+  // it, and always hits "Web search is not configured" when no backend is set.
+  const searchApiKey = await platform.storage.get<string>('searchApiKey');
+  const searchEndpoint = await platform.storage.get<string>('searchEndpoint');
+  const searchConfig: WebSearchConfig | null = searchApiKey
+    ? { provider: 'tavily', apiKey: searchApiKey }
+    : searchEndpoint
+      ? { provider: 'custom', endpoint: searchEndpoint }
+      : null;
+  const searchExecutor = createWebSearchExecutor(searchConfig, null);
+  if (searchExecutor) {
+    toolRegistry.register(webSearchDef, searchExecutor);
+  }
 
   // Memory tools
   const memoryManager = new MemoryManager();
@@ -506,9 +525,6 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
 
 /** Built-in skill paths served from public/skills/ */
 const BUILTIN_SKILL_PATHS = [
-  '/skills/svton/SKILL.md',
-  '/skills/svton-api-client/SKILL.md',
-  '/skills/svton-service/SKILL.md',
   '/skills/engineering-craft-principles/SKILL.md',
   '/skills/universal-craft-principles/SKILL.md',
   '/skills/verify-before-done/SKILL.md',

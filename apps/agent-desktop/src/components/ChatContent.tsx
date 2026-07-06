@@ -116,6 +116,7 @@ export function ChatContent({
           isStreaming: msg.isStreaming,
           systemType: msg.systemType,
           duration: msg.duration,
+          activeSkills: msg.activeSkills,
           usage: isLastAssistant && lastUsage ? lastUsage : undefined,
         };
       }),
