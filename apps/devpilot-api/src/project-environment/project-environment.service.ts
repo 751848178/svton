@@ -527,8 +527,8 @@ export class ProjectEnvironmentService {
         serviceBindingGapCount: environmentServices.filter((service: any) =>
           !service.serverId && !service.siteId && !service.managedResourceId,
         ).length,
-        tlsSiteCount: environmentSites.filter((site) => this.siteTlsEnabled(site.tls)).length,
-        successfulDeployments: environmentDeploymentRuns.filter((run) => run.status === 'completed').length,
+        tlsSiteCount: environmentSites.filter((site: any) => this.siteTlsEnabled(site.tls)).length,
+        successfulDeployments: environmentDeploymentRuns.filter((run: any) => run.status === 'completed').length,
       };
     });
 
@@ -631,9 +631,9 @@ export class ProjectEnvironmentService {
         application: { select: { id: true, name: true } },
       },
     });
-    const sourceServices = services.filter((service: any) => service.environmentId === source.id);
-    const targetServices = services.filter((service: any) => service.environmentId === target.id);
-    const targetServiceByKey = new Map(targetServices.map((service: any) => [
+    const sourceServices: any[] = services.filter((service: any) => service.environmentId === source.id);
+    const targetServices: any[] = services.filter((service: any) => service.environmentId === target.id);
+    const targetServiceByKey = new Map<string, any>(targetServices.map((service: any) => [
       this.applicationServiceSyncKey(service.applicationId, service.name),
       service,
     ]));
