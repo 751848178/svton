@@ -9,6 +9,10 @@ import { ResourceExecutorRouter } from './executors/executor-router';
 import { CloudProviderInventoryService } from './inventory/cloud-provider-inventory.service';
 import { ResourceControlRepository } from './resource-control.repository';
 import { ResourceControlService } from './resource-control.service';
+import {
+  buildMetricSeries,
+  summarizeMetricTrends,
+} from './resource-control-metric-summary.utils';
 
 describe('ResourceControlService cloud provider health summary', () => {
   const service = new ResourceControlService(
@@ -175,7 +179,7 @@ describe('ResourceControlService metric trend summaries', () => {
   it('summarizes latest, average, max, and delta by resource and metric source', () => {
     const service = buildService({} as PrismaService);
 
-    expect(service.summarizeMetricTrends([
+    expect(summarizeMetricTrends([
       metricSnapshot('snapshot-1', 'resource-1', '2026-06-26T12:00:00.000Z', {
         cpuPercent: 20,
         memoryPercent: 50,
@@ -285,7 +289,7 @@ describe('ResourceControlService metric trend summaries', () => {
   it('builds chartable metric series with chronological points and latest summary', () => {
     const service = buildService({} as PrismaService);
 
-    expect(service.buildMetricSeries([
+    expect(buildMetricSeries([
       metricSnapshot('snapshot-1', 'resource-1', '2026-06-26T12:00:00.000Z', {
         cpuPercent: 30,
       }),

@@ -85,6 +85,10 @@ import {
   stripSqlComments as stripSqlCommentsUtil,
   validateReadOnlyQuery as validateReadOnlyQueryUtil,
 } from './resource-control-query-validation.utils';
+import {
+  buildMetricSeries as buildMetricSeriesUtil,
+  summarizeMetricTrends as summarizeMetricTrendsUtil,
+} from './resource-control-metric-summary.utils';
 
 type ManagedResourceSeed = {
   sourceType: string;
@@ -286,7 +290,7 @@ export class ResourceControlService {
       include: this.metricSnapshotInclude(),
     });
 
-    return this.summarizeMetricTrends(snapshots, windowMinutes);
+    return summarizeMetricTrendsUtil(snapshots, windowMinutes);
   }
 
   async listMetricSeries(teamId: string, query: ListResourceMetricSeriesQueryDto) {
@@ -302,96 +306,9 @@ export class ResourceControlService {
       include: this.metricSnapshotInclude(),
     });
 
-    return this.buildMetricSeries(snapshots, metric, windowMinutes, limit);
+    return buildMetricSeriesUtil(snapshots, metric, windowMinutes, limit);
   }
 
-  summarizeMetricTrends(snapshots: ResourceMetricSnapshotForTrend[], windowMinutes = 60) {
-    const groups = new Map<string, ResourceMetricSnapshotForTrend[]>();
-    for (const snapshot of snapshots) {
-      const key = `${snapshot.resourceId}:${snapshot.metricSource}`;
-      groups.set(key, [...(groups.get(key) || []), snapshot]);
-    }
-
-    return Array.from(groups.values())
-      .map((group) => {
-        const ordered = [...group].sort((left, right) => right.sampledAt.getTime() - left.sampledAt.getTime());
-        const latest = ordered[0];
-        const oldest = ordered[ordered.length - 1];
-
-        return {
-          id: latest.resourceId,
-          resourceId: latest.resourceId,
-          projectId: latest.projectId,
-          environmentId: latest.environmentId,
-          sourceType: latest.sourceType,
-          provider: latest.provider,
-          kind: latest.kind,
-          metricSource: latest.metricSource,
-          windowMinutes,
-          sampleCount: ordered.length,
-          firstSampledAt: oldest.sampledAt,
-          lastSampledAt: latest.sampledAt,
-          resource: latest.resource,
-          cpuPercent: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.cpuPercent)),
-          memoryPercent: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.memoryPercent)),
-          memoryUsageBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.memoryUsageBytes)),
-          networkInputBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.networkInputBytes)),
-          networkOutputBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.networkOutputBytes)),
-          blockInputBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.blockInputBytes)),
-          blockOutputBytes: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.blockOutputBytes)),
-          pids: summarizeMetricNumberUtil(ordered.map((snapshot) => snapshot.pids)),
-        };
-      })
-      .sort((left, right) => right.lastSampledAt.getTime() - left.lastSampledAt.getTime());
-  }
-
-  buildMetricSeries(
-    snapshots: ResourceMetricSnapshotForTrend[],
-    metric: ResourceMetricSeriesMetric = 'cpuPercent',
-    windowMinutes = 360,
-    limit = 120,
-  ) {
-    const groups = new Map<string, ResourceMetricSnapshotForTrend[]>();
-    for (const snapshot of snapshots) {
-      const key = `${snapshot.resourceId}:${snapshot.metricSource}`;
-      groups.set(key, [...(groups.get(key) || []), snapshot]);
-    }
-
-    return Array.from(groups.values())
-      .map((group) => {
-        const ordered = [...group].sort((left, right) => left.sampledAt.getTime() - right.sampledAt.getTime());
-        const latest = ordered[ordered.length - 1];
-        const oldest = ordered[0];
-        const valuesLatestFirst = [...ordered].reverse().map((snapshot) => metricSeriesValueUtil(snapshot, metric));
-        const points = ordered.map((snapshot) => ({
-          snapshotId: snapshot.id,
-          sampledAt: snapshot.sampledAt,
-          value: metricSeriesValueUtil(snapshot, metric),
-          status: snapshot.status,
-        }));
-
-        return {
-          id: `${latest.resourceId}:${latest.metricSource}:${metric}`,
-          resourceId: latest.resourceId,
-          projectId: latest.projectId,
-          environmentId: latest.environmentId,
-          sourceType: latest.sourceType,
-          provider: latest.provider,
-          kind: latest.kind,
-          metricSource: latest.metricSource,
-          metric,
-          windowMinutes,
-          limit,
-          sampleCount: ordered.length,
-          firstSampledAt: oldest.sampledAt,
-          lastSampledAt: latest.sampledAt,
-          resource: latest.resource,
-          summary: summarizeMetricNumberUtil(valuesLatestFirst),
-          points,
-        };
-      })
-      .sort((left, right) => right.lastSampledAt.getTime() - left.lastSampledAt.getTime());
-  }
 
   async listConnectionRuns(teamId: string, query: ListResourceConnectionRunsQueryDto) {
     return this.repo.findConnectionRuns({
