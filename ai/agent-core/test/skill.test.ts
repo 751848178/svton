@@ -289,6 +289,35 @@ describe('SkillManager', () => {
     expect(results.map((s) => s.name)).not.toContain('lonely');
   });
 
+  // Regression: code-review skill must not fire on ordinary Chinese requests
+  // that happen to contain the bare word "审查" (e.g. "帮我审查一下这个配置").
+  // CJK tokens match by substring, so trigger signals must use full phrases
+  // ("审查代码" / "代码审查"), not the bare 2-char word. Otherwise the skill's
+  // allowedTools whitelist blocks bash/file_write and every other general tool.
+  it('findRelevant does not fire code-review on bare "审查" substring', () => {
+    manager.register(
+      makeSkill({
+        name: 'code-review',
+        description: 'Code review',
+        triggerSignals: ['/review', 'code review', 'review code', '审查代码', '代码审查'],
+        trigger: { type: 'implicit', patterns: ['/review', 'review code', 'code review', '审查代码', '代码审查'] },
+        allowedTools: ['git_diff', 'file_read'],
+      }),
+    );
+
+    // Ordinary Chinese requests containing 审查 but NOT 审查代码/代码审查
+    const miss1 = manager.findRelevant('帮我审查一下这个配置文件');
+    const miss2 = manager.findRelevant('这个方案需要再审查审查');
+    expect(miss1.map((s) => s.name)).not.toContain('code-review');
+    expect(miss2.map((s) => s.name)).not.toContain('code-review');
+
+    // Genuine review requests must still match
+    const hit1 = manager.findRelevant('请帮我做代码审查');
+    const hit2 = manager.findRelevant('帮我审查代码');
+    expect(hit1.map((s) => s.name)).toContain('code-review');
+    expect(hit2.map((s) => s.name)).toContain('code-review');
+  });
+
   it('isSkillAvailable returns true when no requiredTools', () => {
     const skill = makeSkill({ name: 'x' });
     expect(manager.isSkillAvailable(skill, [])).toBe(true);

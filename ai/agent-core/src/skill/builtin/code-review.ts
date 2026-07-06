@@ -15,7 +15,10 @@ export const codeReviewSkill: SkillDefinition = {
   source: { type: 'builtin' },
 
   // ── Structured trigger signals ──
-  triggerSignals: ['/review', 'code review', '审查', 'review code'],
+  // Note: keep these specific. CJK tokens match by substring, so a bare word
+  // like '审查' would fire on any Chinese request containing it (e.g. "帮我审查
+  // 一下这个配置"). Use the full phrases '审查代码' / '代码审查' instead.
+  triggerSignals: ['/review', 'code review', 'review code', '审查代码', '代码审查'],
   whenToUse: [
     'reviewing code changes',
     'analyzing diffs',
@@ -38,7 +41,19 @@ export const codeReviewSkill: SkillDefinition = {
 
   // ── Tool dependencies ──
   requiredTools: ['git_diff'],
-  allowedTools: ['git_diff', 'git_log_range', 'file_read', 'grep', 'glob'],
+  // allowedTools is a HARD whitelist — tool-executor rejects any tool not
+  // listed here while the skill is active. Code review is a read-only analysis
+  // task, but it routinely needs to fetch external references (best practices,
+  // CVEs, API docs) and run lightweight verification (git show, tests, lint),
+  // so those read/query tools are allowed. Destructive write tools
+  // (file_edit/file_write) stay excluded to keep review focused on reporting.
+  allowedTools: [
+    'git_diff', 'git_log_range',  // gather the diff / commit range
+    'file_read', 'grep', 'glob',  // inspect source files
+    'web_search', 'web_fetch',    // look up best practices / CVEs / docs
+    'bash',                       // read-only verification: git show, tests, lint
+    'memory_recall',              // recall prior review notes
+  ],
 
   // ── Instructions (loaded on demand) ──
   instructions: `# Code Review Skill

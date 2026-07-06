@@ -96,6 +96,23 @@ describe('F11 — Code Review', () => {
       expect(codeReviewSkill.allowedTools!).toContain('glob');
     });
 
+    // Regression: web_search / web_fetch / bash must be in the whitelist.
+    // Before this fix the hard whitelist only had git_diff/git_log_range/
+    // file_read/grep/glob, so reviewing with external lookups or running
+    // verification commands was blocked with "not in the allowed list".
+    it('allows web_search, web_fetch, and bash for verification and lookups', () => {
+      expect(codeReviewSkill.allowedTools).toBeDefined();
+      expect(codeReviewSkill.allowedTools!).toContain('web_search');
+      expect(codeReviewSkill.allowedTools!).toContain('web_fetch');
+      expect(codeReviewSkill.allowedTools!).toContain('bash');
+    });
+
+    it('excludes destructive write tools from allowedTools', () => {
+      expect(codeReviewSkill.allowedTools).toBeDefined();
+      expect(codeReviewSkill.allowedTools!).not.toContain('file_edit');
+      expect(codeReviewSkill.allowedTools!).not.toContain('file_write');
+    });
+
     it('has whenToUse with relevant entries', () => {
       expect(codeReviewSkill.whenToUse).toBeDefined();
       expect(codeReviewSkill.whenToUse!.length).toBeGreaterThan(0);

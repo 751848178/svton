@@ -281,8 +281,12 @@ export class AgentRuntime implements IRuntime {
       content: userMessage,
     });
 
-    // Inject relevant skill instructions (text-based matching)
-    await this.injectSkillContext(messageText);
+    // Inject relevant skill instructions (text-based matching) and notify the
+    // frontend which skills are active so the activity indicator can show them.
+    const activeSkillNames = await this.injectSkillContext(messageText);
+    if (activeSkillNames.length > 0) {
+      yield { type: 'skill_activated', skills: activeSkillNames };
+    }
 
     const maxIterations = options?.maxIterations ?? this.maxIterations;
 
@@ -579,14 +583,14 @@ export class AgentRuntime implements IRuntime {
    * Also computes skill-scoped tool constraints and stores them for tool execution.
    * On desktop, resolves dynamic context commands (!`command`) in skill instructions.
    */
-  private async injectSkillContext(userMessage: string): Promise<void> {
-    if (!this.skillManager) return;
+  private async injectSkillContext(userMessage: string): Promise<string[]> {
+    if (!this.skillManager) return [];
     this.activeSkills = [];
 
     const relevantSkills = this.skillManager.findRelevant(userMessage);
     if (relevantSkills.length === 0) {
       logger.debug('Skill', 'No matching skills found');
-      return;
+      return [];
     }
 
     const availableTools = this.toolRegistry.listDefinitions().map((t) => t.name);
@@ -600,7 +604,7 @@ export class AgentRuntime implements IRuntime {
       skipped: relevantSkills.filter((s) => !usableSkills.includes(s)).map((s) => s.name),
     });
 
-    if (usableSkills.length === 0) return;
+    if (usableSkills.length === 0) return [];
     this.activeSkills = usableSkills;
 
     const allToolNames = this.toolRegistry.listDefinitions().map((t) => t.name);
@@ -629,6 +633,8 @@ export class AgentRuntime implements IRuntime {
       role: 'user',
       content: `[Skill Context Activated]\nThe following skills are relevant to your request:\n\n${skillInstructions}`,
     });
+
+    return usableSkills.map((s) => s.name);
   }
 
   /**

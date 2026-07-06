@@ -30,6 +30,7 @@ export type AgentEvent =
   | { type: 'subagent_start'; agentId: string; task: string }
   | { type: 'subagent_end'; agentId: string; summary: string }
   | { type: 'warning'; text: string; source?: string }
+  | { type: 'skill_activated'; skills: string[] }
   | { type: 'error'; error: Error }
   | { type: 'done'; stopReason: string; usage: TokenUsage };
 

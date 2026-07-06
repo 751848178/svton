@@ -601,7 +601,15 @@ describe('OpenAIProvider', () => {
     it('formats tool_result ContentBlock as tool message', async () => {
       fetchSpy.mockResolvedValue(createSSEResponse('data: {"choices":[{"finish_reason":"stop"}]}\ndata: [DONE]\n'));
 
+      // Include the matching tool_call so the sanitizer doesn't treat the
+      // tool result as orphaned.
       const messages: ChatMessage[] = [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'call_1', name: 'bash', input: { command: 'ls' } },
+          ],
+        },
         {
           role: 'tool',
           content: [
@@ -614,10 +622,55 @@ describe('OpenAIProvider', () => {
 
       const [, init] = fetchSpy.mock.calls[0];
       const body = JSON.parse(init.body as string);
-      const toolMsg = body.messages[0];
-      expect(toolMsg.role).toBe('tool');
+      const toolMsg = body.messages.find((m: any) => m.role === 'tool');
+      expect(toolMsg).toBeDefined();
       expect(toolMsg.tool_call_id).toBe('call_1');
       expect(toolMsg.content).toBe('file.txt\nfile2.txt');
+    });
+
+    it('strips orphaned tool results that have no matching tool_call', async () => {
+      // Reproduces OpenAI 400: "Messages with role 'tool' must be a response to
+      // a preceding message with 'tool_calls'". This can happen after retry,
+      // compaction, or when a skill filters out a tool call but its result is
+      // still appended to context.
+      fetchSpy.mockResolvedValue(createSSEResponse('data: {"choices":[{"finish_reason":"stop"}]}\ndata: [DONE]\n'));
+
+      const messages: ChatMessage[] = [
+        { role: 'user', content: 'hello' },
+        {
+          // tool result referencing a tool_call_id that does not exist anywhere
+          role: 'tool',
+          content: [
+            { type: 'tool_result', toolUseId: 'orphan_1', output: 'leftover' },
+          ],
+        },
+        { role: 'assistant', content: 'hi there' },
+        {
+          // well-formed pair: tool_call + matching result
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'call_2', name: 'bash', input: { command: 'ls' } },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [
+            { type: 'tool_result', toolUseId: 'call_2', output: 'a.txt' },
+          ],
+        },
+      ];
+
+      await collectEvents(provider.chat(messages, { model: 'gpt-4o' }));
+
+      const [, init] = fetchSpy.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      const toolIds = body.messages
+        .filter((m: any) => m.role === 'tool')
+        .map((m: any) => m.tool_call_id);
+
+      // Orphaned 'orphan_1' must be removed; matching 'call_2' must remain.
+      expect(toolIds).not.toContain('orphan_1');
+      expect(toolIds).toContain('call_2');
     });
 
     it('passes AbortSignal to fetch', async () => {

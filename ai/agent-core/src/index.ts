@@ -53,6 +53,7 @@ export {
   BashExecutor,
   webSearchDef,
   WebSearchExecutor,
+  createWebSearchExecutor,
   webFetchDef,
   WebFetchExecutor,
   memorySaveDef,
@@ -127,6 +128,8 @@ export type {
   IRuntime,
   McpServerToolConfig,
 } from './agent/types';
+
+export type { WebSearchConfig, WebSearchProvider } from './tool/builtins/web';
 
 export { AgentRuntime } from './agent/runtime';
 export { ContextManager } from './agent/context';

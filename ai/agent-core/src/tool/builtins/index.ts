@@ -22,9 +22,11 @@ export {
 export {
   webSearchDef,
   WebSearchExecutor,
+  createWebSearchExecutor,
   webFetchDef,
   WebFetchExecutor,
 } from './web';
+export type { WebSearchConfig, WebSearchProvider } from './web';
 
 export {
   memorySaveDef,

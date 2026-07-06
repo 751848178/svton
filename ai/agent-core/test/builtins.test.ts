@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BashExecutor } from '../src/tool/builtins/shell';
 import { FileReadExecutor, FileWriteExecutor, FileEditExecutor } from '../src/tool/builtins/file';
 import { GrepExecutor, GlobExecutor } from '../src/tool/builtins/search';
-import { WebSearchExecutor, WebFetchExecutor } from '../src/tool/builtins/web';
+import { WebSearchExecutor, WebFetchExecutor, createWebSearchExecutor } from '../src/tool/builtins/web';
+import type { WebSearchConfig } from '../src/tool/builtins/web';
 import { MemorySaveExecutor, MemoryRecallExecutor } from '../src/tool/builtins/memory';
 import { PlanCreateExecutor, PlanGetStatusExecutor, PlanUpdateStepExecutor } from '../src/tool/builtins/planning';
 
@@ -1085,11 +1086,90 @@ describe('WebSearchExecutor', () => {
 
     expect(result.output).toBe('plain text result');
   });
-});
 
-// ============================================================
-// WebFetchExecutor
-// ============================================================
+  // ── Tavily provider mode ──
+  it('calls Tavily API with Bearer auth and POST body', async () => {
+    const mockData = {
+      results: [{ title: 'Tavily Hit', url: 'https://t.example', content: 'snippet text' }],
+      answer: 'summary',
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockData),
+    });
+    globalThis.fetch = fetchMock as any;
+
+    const executor = new WebSearchExecutor({ provider: 'tavily', apiKey: 'tvly-test' });
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'hello' }),
+      ctx,
+    );
+
+    // POST to Tavily endpoint with Bearer auth + JSON body
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://api.tavily.com/search');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe('Bearer tvly-test');
+    expect(init.headers['Content-Type']).toBe('application/json');
+    const body = JSON.parse(init.body);
+    expect(body.query).toBe('hello');
+    expect(body.max_results).toBe(10);
+
+    // Result maps Tavily `content` field → snippet
+    expect(result.isError).toBeUndefined();
+    expect(result.metadata.searchResults[0]).toMatchObject({
+      title: 'Tavily Hit',
+      url: 'https://t.example',
+      snippet: 'snippet text',
+    });
+  });
+
+  it('returns error when Tavily apiKey missing', async () => {
+    const executor = new WebSearchExecutor({ provider: 'tavily' });
+    const ctx = makeContext();
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'x' }),
+      ctx,
+    );
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('Tavily API key');
+  });
+
+  // ── createWebSearchExecutor factory ──
+  it('createWebSearchExecutor returns null when nothing configured', () => {
+    expect(createWebSearchExecutor(null, null)).toBeNull();
+    expect(createWebSearchExecutor(undefined, undefined)).toBeNull();
+    expect(createWebSearchExecutor({}, null)).toBeNull();
+  });
+
+  it('createWebSearchExecutor prefers config over legacy endpoint', () => {
+    const cfg: WebSearchConfig = { provider: 'tavily', apiKey: 'tvly-x' };
+    const exec = createWebSearchExecutor(cfg, 'https://legacy/search');
+    expect(exec).toBeInstanceOf(WebSearchExecutor);
+  });
+
+  it('createWebSearchExecutor falls back to legacy endpoint string', () => {
+    const exec = createWebSearchExecutor(null, 'https://searxng/search');
+    expect(exec).toBeInstanceOf(WebSearchExecutor);
+  });
+
+  // ── legacy string endpoint (backward compat) ──
+  it('accepts a legacy endpoint string in constructor', async () => {
+    const mockData = { results: [{ title: 'SearXNG', url: 'https://s.example' }] };
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockData),
+    });
+
+    const executor = new WebSearchExecutor('https://searxng/search');
+    await executor.execute(makeToolCall('web_search', { query: 'q' }), makeContext());
+
+    expect(globalThis.fetch).toHaveBeenCalledWith('https://searxng/search?q=q');
+  });
+});
 
 describe('WebFetchExecutor', () => {
   let originalFetch: typeof globalThis.fetch;

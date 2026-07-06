@@ -390,8 +390,17 @@ export class AnthropicProvider implements IProvider {
   }
 
   /**
-   * Ensure every tool_use block has a matching tool_result.
-   * Strip orphaned tool_use blocks to prevent API errors.
+   * Ensure tool_use / tool_result blocks are paired consistently.
+   *
+   * Two kinds of orphans can arise after retry, compaction, or skill-filtered
+   * tool calls, and both make the Anthropic API reject the request:
+   *
+   *  - Orphaned tool_use: assistant emitted a tool_use but no matching
+   *    tool_result exists. Strip the tool_use block.
+   *  - Orphaned tool_result: a tool_result block whose tool_use_id has no
+   *    matching tool_use anywhere in the history. Strip the block; if that
+   *    empties the message, drop the message so user/assistant roles still
+   *    alternate.
    */
   private sanitizeToolUseChain(messages: AnthropicMessage[]): void {
     const toolUseIds = new Set<string>();
@@ -405,6 +414,27 @@ export class AnthropicProvider implements IProvider {
       }
     }
 
+    // --- 1. Strip orphaned tool_result blocks (no matching tool_use) ---
+    const orphanedResults = new Set<string>();
+    for (const id of toolResultIds) {
+      if (!toolUseIds.has(id)) orphanedResults.add(id);
+    }
+    if (orphanedResults.size > 0) {
+      for (const msg of messages) {
+        if (!Array.isArray(msg.content)) continue;
+        const filtered = msg.content.filter((block) =>
+          block.type !== 'tool_result' ||
+          !orphanedResults.has((block as { tool_use_id: string }).tool_use_id),
+        );
+        if (filtered.length !== msg.content.length) {
+          msg.content = filtered;
+        }
+      }
+      // Refresh the result set
+      for (const id of orphanedResults) toolResultIds.delete(id);
+    }
+
+    // --- 2. Strip orphaned tool_use blocks (no matching tool_result) ---
     if (toolResultIds.size >= toolUseIds.size) return;
 
     const orphaned = new Set<string>();

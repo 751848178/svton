@@ -371,8 +371,17 @@ export class OpenAIProvider implements IProvider {
   }
 
   /**
-   * Ensure every assistant message with tool_calls has matching tool results.
-   * Orphaned tool_calls (no following tool messages) are stripped from the message.
+   * Ensure the tool_call / tool_result chain is consistent.
+   *
+   * Two kinds of orphans can arise after retry, compaction, or skill-filtered
+   * tool calls, and both make OpenAI reject the request with 400:
+   *
+   *  - Orphaned tool_calls: assistant emitted a tool_call but no matching
+   *    tool result follows. Stripped from the assistant message.
+   *  - Orphaned tool results: a 'tool' role message whose tool_call_id has no
+   *    matching tool_call anywhere in the history ("Messages with role 'tool'
+   *    must be a response to a preceding message with 'tool_calls'").
+   *    Removed entirely from the message list.
    */
   private sanitizeToolUseChain(messages: OpenAIChatMessage[]): void {
     const toolCallIds = new Set<string>();
@@ -390,6 +399,23 @@ export class OpenAIProvider implements IProvider {
       }
     }
 
+    // --- 1. Strip orphaned tool_results (tool message with no matching tool_call) ---
+    const orphanedResults = new Set<string>();
+    for (const id of toolResultIds) {
+      if (!toolCallIds.has(id)) orphanedResults.add(id);
+    }
+    if (orphanedResults.size > 0) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (msg.role === 'tool' && msg.tool_call_id && orphanedResults.has(msg.tool_call_id)) {
+          messages.splice(i, 1);
+        }
+      }
+      // Refresh the result set after removals
+      for (const id of orphanedResults) toolResultIds.delete(id);
+    }
+
+    // --- 2. Strip orphaned tool_calls (no matching tool_result) ---
     // If every tool_call has a matching tool_result, nothing to do
     if (toolResultIds.size >= toolCallIds.size) return;
 

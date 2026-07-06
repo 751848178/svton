@@ -626,6 +626,34 @@ describe('AnthropicProvider', () => {
       // tool_use should be kept since it has a matching tool_result
       expect(assistantMsg.content.some((b: { type: string }) => b.type === 'tool_use')).toBe(true);
     });
+
+    it('removes tool_result blocks that have no matching tool_use', async () => {
+      // Reproduces Anthropic error when a tool_result block has no matching
+      // tool_use (can happen after retry, compaction, or skill-filtered calls).
+      mockFetch.mockResolvedValue(createSSEResponse(minimalDone));
+
+      const messages: ChatMessage[] = [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'leftover' },
+            { type: 'tool_result', toolUseId: 'orphan_result_1', output: 'leftover data' },
+          ],
+        },
+      ];
+
+      await collectEvents(
+        provider.chat(messages, { model: 'claude-sonnet-4-20250514' }),
+      );
+
+      const [, init] = mockFetch.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      const userMsg = body.messages.find((m: any) => m.role === 'user');
+      const blockTypes = userMsg.content.map((b: any) => b.type);
+      // Orphaned tool_result must be gone; text remains
+      expect(blockTypes).not.toContain('tool_result');
+      expect(blockTypes).toContain('text');
+    });
   });
 
   // ----------------------------------------------------------
@@ -883,7 +911,14 @@ describe('AnthropicProvider', () => {
     it('formats tool_result ContentBlock for Anthropic API', async () => {
       mockFetch.mockResolvedValue(createSSEResponse(minimalDone));
 
+      // Include the matching tool_use so sanitizeToolUseChain keeps the result.
       const messages: ChatMessage[] = [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'tu_1', name: 'read_file', input: { path: 'a.txt' } },
+          ],
+        },
         {
           role: 'user',
           content: [
@@ -898,7 +933,10 @@ describe('AnthropicProvider', () => {
 
       const [, init] = mockFetch.mock.calls[0];
       const body = JSON.parse(init.body as string);
-      const block = body.messages[0].content[0];
+      // tool_result lives on the user-role message
+      const userMsg = body.messages.find((m: any) => m.role === 'user' && Array.isArray(m.content));
+      const block = userMsg.content.find((b: any) => b.type === 'tool_result');
+      expect(block).toBeDefined();
       expect(block.type).toBe('tool_result');
       expect(block.tool_use_id).toBe('tu_1');
       expect(block.content).toBe('file contents');
