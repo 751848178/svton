@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Card, Tag } from '@svton/ui';
 import { ErrorBanner } from '@/components/ui';
@@ -10,28 +11,16 @@ interface StepProps {
   onPrev: () => void;
 }
 
-const SUB_PROJECT_OPTIONS = [
-  {
-    id: 'backend' as const,
-    title: '后端服务',
-    description: 'NestJS API 服务，包含 Prisma ORM、JWT 认证、Swagger 文档',
-    icon: '🚀',
-  },
-  {
-    id: 'admin' as const,
-    title: '管理后台',
-    description: 'Next.js 管理后台，包含 TailwindCSS、shadcn/ui 组件',
-    icon: '🖥️',
-  },
-  {
-    id: 'mobile' as const,
-    title: '移动端小程序',
-    description: 'Taro 跨端应用，支持微信小程序、H5 等多端',
-    icon: '📱',
-  },
-];
+const SUB_PROJECT_IDS = ['backend', 'admin', 'mobile'] as const;
+type SubProjectId = (typeof SUB_PROJECT_IDS)[number];
+const SUB_PROJECT_ICONS: Record<SubProjectId, string> = {
+  backend: '🚀',
+  admin: '🖥️',
+  mobile: '📱',
+};
 
 export function StepSubProjects({ onNext, onPrev }: StepProps) {
+  const t = useTranslations('projectWizard');
   const { config, setSubProjects, setUiLibrary, setHooks } = useProjectConfigStore();
   const hasAnySelected = Object.values(config.subProjects).some(Boolean);
   const hasAdminOrMobile = config.subProjects.admin || config.subProjects.mobile;
@@ -45,26 +34,26 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-4 text-lg font-medium">选择子项目</h3>
-        <p className="mb-4 text-sm text-muted-foreground">选择你需要的子项目类型，至少选择一个</p>
+        <h3 className="mb-4 text-lg font-medium">{t('selectSubProjects')}</h3>
+        <p className="mb-4 text-sm text-muted-foreground">{t('selectSubProjectsHint')}</p>
         <div className="grid gap-4">
-          {SUB_PROJECT_OPTIONS.map((option) => (
+          {SUB_PROJECT_IDS.map((id) => (
             <div
-              key={option.id}
-              onClick={() => handleToggle(option.id)}
-              className={`flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-colors ${config.subProjects[option.id] ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
+              key={id}
+              onClick={() => handleToggle(id)}
+              className={`flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-colors ${config.subProjects[id] ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
             >
-              <div className="text-2xl">{option.icon}</div>
+              <div className="text-2xl">{SUB_PROJECT_ICONS[id]}</div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-medium">{option.title}</h4>
-                  {config.subProjects[option.id] ? <Tag color="blue">已选择</Tag> : null}
+                  <h4 className="font-medium">{t(`sub_${id}_title`)}</h4>
+                  {config.subProjects[id] ? <Tag color="blue">{t('selected')}</Tag> : null}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">{option.description}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{t(`sub_${id}_desc`)}</p>
               </div>
               <input
                 type="checkbox"
-                checked={config.subProjects[option.id]}
+                checked={config.subProjects[id]}
                 onChange={() => {}}
                 className="mt-1 h-5 w-5"
               />
@@ -74,7 +63,7 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
       </div>
       {hasAdminOrMobile ? (
         <div className="border-t pt-6">
-          <h3 className="mb-4 text-lg font-medium">前端工具库</h3>
+          <h3 className="mb-4 text-lg font-medium">{t('frontendLibs')}</h3>
           {config.subProjects.admin ? (
             <label className="mb-3 flex cursor-pointer items-center gap-3">
               <input
@@ -84,7 +73,9 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
                 className="h-4 w-4"
               />
               <span className="text-sm">
-                使用 <code className="rounded bg-muted px-1">@svton/ui</code> 组件库（管理后台）
+                {t.rich('useUiLibAdmin', {
+                  code: (chunks) => <code className="rounded bg-muted px-1">{chunks}</code>,
+                })}
               </span>
             </label>
           ) : null}
@@ -97,7 +88,9 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
                 className="h-4 w-4"
               />
               <span className="text-sm">
-                使用 <code className="rounded bg-muted px-1">@svton/taro-ui</code> 组件库（小程序）
+                {t.rich('useUiLibMobile', {
+                  code: (chunks) => <code className="rounded bg-muted px-1">{chunks}</code>,
+                })}
               </span>
             </label>
           ) : null}
@@ -109,14 +102,16 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
               className="h-4 w-4"
             />
             <span className="text-sm">
-              使用 <code className="rounded bg-muted px-1">@svton/hooks</code> React Hooks 工具库
+              {t.rich('useHooksLib', {
+                code: (chunks) => <code className="rounded bg-muted px-1">{chunks}</code>,
+              })}
             </span>
           </label>
         </div>
       ) : null}
       {!hasAnySelected ? (
         <ErrorBanner
-          message="请至少选择一个子项目"
+          message={t('errSelectAtLeastOne')}
           variant="inline"
         />
       ) : null}
@@ -125,14 +120,14 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
           onClick={handlePrev}
           className="rounded-md border px-6 py-2 font-medium transition-colors hover:bg-accent"
         >
-          上一步
+          {t('prev')}
         </button>
         <button
           onClick={handleNext}
           disabled={!hasAnySelected}
           className="rounded-md bg-primary px-6 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          下一步
+          {t('next')}
         </button>
       </div>
     </div>

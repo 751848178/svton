@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { buildFileTree, getFileIcon, type FileNode } from './file-preview-utils';
 
@@ -9,6 +10,7 @@ interface FilePreviewProps {
 }
 
 export function FilePreview({ files }: FilePreviewProps) {
+  const t = useTranslations('projectWizard');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['/']));
 
@@ -58,7 +60,7 @@ export function FilePreview({ files }: FilePreviewProps) {
             </div>
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground">
-              选择一个文件查看内容
+              {t('selectFileToPreview')}
             </div>
           )}
         </div>

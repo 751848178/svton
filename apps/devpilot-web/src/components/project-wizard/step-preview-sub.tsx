@@ -1,21 +1,28 @@
 /** 项目向导预览步骤子组件。 */
+import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
 import type { ProjectConfig, ProjectResourceConfig } from '@/store/hooks';
-export function formatResourceValue(resource: ProjectResourceConfig): string {
+
+type WizardTranslator = ReturnType<typeof useTranslations<'projectWizard'>>;
+
+export function formatResourceValue(
+  resource: ProjectResourceConfig,
+  t: WizardTranslator,
+): string {
   if (resource.mode === 'skipped') {
-    return '跳过';
+    return t('modeSkipped');
   }
   if (resource.mode === 'credential') {
-    return resource.credentialId ? '已选择凭证' : '未选择凭证';
+    return resource.credentialId ? t('credentialSelected') : t('credentialNotSelected');
   }
   if (resource.mode === 'instance') {
-    return resource.instanceId ? '已选择资源实例' : '未选择资源实例';
+    return resource.instanceId ? t('instanceSelected') : t('instanceNotSelected');
   }
   if (resource.mode === 'pool') {
-    return resource.poolId ? '将从资源池分配' : '未选择资源池';
+    return resource.poolId ? t('poolWillAllocate') : t('poolNotSelected');
   }
   const configuredCount = Object.values(resource.config || {}).filter(Boolean).length;
-  return configuredCount > 0 ? `已填写 ${configuredCount} 项` : '未填写';
+  return configuredCount > 0 ? t('filledCount', { count: configuredCount }) : t('notFilled');
 }
 export function PreviewSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (

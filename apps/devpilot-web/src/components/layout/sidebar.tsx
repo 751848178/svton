@@ -2,66 +2,78 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import { usePersistFn } from '@svton/hooks';
 
-const sidebarItems = [
+interface SidebarItem {
+  href: string;
+  labelKey: string;
+}
+
+interface SidebarSection {
+  titleKey: string;
+  items: SidebarItem[];
+}
+
+const sidebarItems: SidebarSection[] = [
   {
-    title: '项目',
+    titleKey: 'sectionProjects',
     items: [
-      { href: '/projects/new', label: '创建项目' },
-      { href: '/projects', label: '我的项目' },
-      { href: '/applications', label: '应用服务' },
+      { href: '/projects/new', labelKey: 'createProject' },
+      { href: '/projects', labelKey: 'myProjects' },
+      { href: '/applications', labelKey: 'applications' },
     ],
   },
   {
-    title: '基础设施',
+    titleKey: 'sectionInfrastructure',
     items: [
-      { href: '/servers', label: '服务器管理' },
-      { href: '/resource-control', label: '资源管控' },
-      { href: '/backups', label: '备份计划' },
-      { href: '/monitoring', label: '监控告警' },
-      { href: '/logs', label: '日志中心' },
-      { href: '/execution-governance', label: '执行治理' },
-      { href: '/execution-policies', label: '执行策略' },
-      { href: '/sites', label: '站点管控' },
-      { href: '/proxy-configs', label: '代理配置' },
-      { href: '/cdn-configs', label: 'CDN 配置' },
+      { href: '/servers', labelKey: 'servers' },
+      { href: '/resource-control', labelKey: 'resourceControl' },
+      { href: '/backups', labelKey: 'backups' },
+      { href: '/monitoring', labelKey: 'monitoring' },
+      { href: '/logs', labelKey: 'logs' },
+      { href: '/execution-governance', labelKey: 'executionGovernance' },
+      { href: '/execution-policies', labelKey: 'executionPolicies' },
+      { href: '/sites', labelKey: 'sites' },
+      { href: '/proxy-configs', labelKey: 'proxyConfigs' },
+      { href: '/cdn-configs', labelKey: 'cdnConfigs' },
     ],
   },
   {
-    title: '资源',
+    titleKey: 'sectionResources',
     items: [
-      { href: '/resources', label: '资源凭证' },
-      { href: '/resource-requests', label: '资源申请' },
-      { href: '/resource-instances', label: '资源实例' },
-      { href: '/keys', label: '密钥中心' },
+      { href: '/resources', labelKey: 'resourceCredentials' },
+      { href: '/resource-requests', labelKey: 'resourceRequests' },
+      { href: '/resource-instances', labelKey: 'resourceInstances' },
+      { href: '/keys', labelKey: 'keys' },
     ],
   },
   {
-    title: '配置',
+    titleKey: 'sectionConfig',
     items: [
-      { href: '/presets', label: '配置预设' },
-      { href: '/git', label: 'Git 连接' },
-      { href: '/audit-events', label: '审计事件' },
-      { href: '/operation-approvals', label: '操作审批' },
-      { href: '/access-policies', label: '访问策略' },
+      { href: '/presets', labelKey: 'presets' },
+      { href: '/git', labelKey: 'git' },
+      { href: '/audit-events', labelKey: 'auditEvents' },
+      { href: '/operation-approvals', labelKey: 'operationApprovals' },
+      { href: '/access-policies', labelKey: 'accessPolicies' },
     ],
   },
   {
-    title: '团队',
-    items: [{ href: '/teams', label: '团队管理' }],
+    titleKey: 'sectionTeam',
+    items: [{ href: '/teams', labelKey: 'teamManagement' }],
   },
   {
-    title: '管理员',
+    titleKey: 'sectionAdmin',
     items: [
-      { href: '/admin/resource-pools', label: '资源池管理' },
-      { href: '/admin/resource-types', label: '资源类型' },
+      { href: '/admin/resource-pools', labelKey: 'resourcePools' },
+      { href: '/admin/resource-types', labelKey: 'resourceTypes' },
     ],
   },
 ];
 
 export function Sidebar() {
+  const t = useTranslations('nav');
   const pathname = usePathname();
 
   return (
@@ -69,10 +81,10 @@ export function Sidebar() {
       <div className="space-y-4 py-4">
         {sidebarItems.map((section) => (
           <div
-            key={section.title}
+            key={section.titleKey}
             className="px-3 py-2"
           >
-            <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">{section.title}</h2>
+            <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">{t(section.titleKey)}</h2>
             <div className="space-y-1">
               {section.items.map((item) => (
                 <Link
@@ -85,7 +97,7 @@ export function Sidebar() {
                       : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                   )}
                 >
-                  {item.label}
+                  {t(item.labelKey)}
                 </Link>
               ))}
             </div>

@@ -1,4 +1,7 @@
 /** 项目向导资源步骤子组件。 */
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
 
 import type { DatabaseEngine, ResourceConfigMode } from '@/store/hooks';
@@ -9,19 +12,25 @@ import type {
   ResourcePool,
 } from './step-resources-types';
 
-export const modeLabels: Record<string, string> = {
-  manual: '手动填写',
-  credential: '已有凭证',
-  instance: '资源实例',
-  pool: '资源池分配',
-  skipped: '跳过',
+type WizardTranslator = ReturnType<typeof useTranslations<'projectWizard'>>;
+
+export const modeLabelKeys: Record<string, string> = {
+  manual: 'modeManual',
+  credential: 'modeCredential',
+  instance: 'modeInstance',
+  pool: 'modePool',
+  skipped: 'modeSkipped',
 };
 
-export const databaseOptions: { engine: DatabaseEngine; label: string; description: string }[] = [
-  { engine: 'mysql', label: 'MySQL', description: '默认本地开发数据库' },
-  { engine: 'postgresql', label: 'PostgreSQL', description: '兼容现有 PG 项目' },
-  { engine: 'sqlite', label: 'SQLite', description: '无需外部数据库服务' },
-];
+export const databaseEngines: DatabaseEngine[] = ['mysql', 'postgresql', 'sqlite'];
+
+export function getDatabaseOptions(t: WizardTranslator) {
+  return [
+    { engine: 'mysql' as const, label: 'MySQL', description: t('dbMysqlDesc') },
+    { engine: 'postgresql' as const, label: 'PostgreSQL', description: t('dbPostgresqlDesc') },
+    { engine: 'sqlite' as const, label: 'SQLite', description: t('dbSqliteDesc') },
+  ];
+}
 
 function DatabaseEngineSelector({
   value,
@@ -30,11 +39,13 @@ function DatabaseEngineSelector({
   value: DatabaseEngine;
   onChange: (engine: DatabaseEngine) => void;
 }) {
+  const t = useTranslations('projectWizard');
+  const options = getDatabaseOptions(t);
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-medium">数据库引擎</label>
+      <label className="block text-sm font-medium">{t('databaseEngine')}</label>
       <div className="grid grid-cols-3 gap-3">
-        {databaseOptions.map((option) => (
+        {options.map((option) => (
           <button
             key={option.engine}
             type="button"
@@ -65,6 +76,7 @@ function ResourceConfigCard({
   pools: ResourcePool[];
   onModeChange: (mode: ResourceConfigMode) => void;
 }) {
+  const t = useTranslations('projectWizard');
   return (
     <div className="rounded-lg border p-4">
       <div className="flex items-center justify-between">
@@ -79,11 +91,11 @@ function ResourceConfigCard({
           onChange={(e) => onModeChange(e.target.value as ResourceConfigMode)}
           className="rounded-md border bg-background px-3 py-1.5 text-sm"
         >
-          <option value="skipped">跳过</option>
-          <option value="manual">手动填写</option>
-          <option value="credential">已有凭证</option>
-          <option value="instance">资源实例</option>
-          <option value="pool">资源池分配</option>
+          <option value="skipped">{t('modeSkipped')}</option>
+          <option value="manual">{t('modeManual')}</option>
+          <option value="credential">{t('modeCredential')}</option>
+          <option value="instance">{t('modeInstance')}</option>
+          <option value="pool">{t('modePool')}</option>
         </select>
       </div>
       {mode === 'manual' && (
@@ -102,9 +114,9 @@ function ResourceConfigCard({
       )}
       {mode === 'credential' && (
         <div className="mt-3">
-          <label className="text-xs text-muted-foreground">选择已有凭证</label>
+          <label className="text-xs text-muted-foreground">{t('selectCredential')}</label>
           <select className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-            <option value="">请选择</option>
+            <option value="">{t('pleaseSelect')}</option>
             {storedResources.map((s) => (
               <option
                 key={s.id}
@@ -118,9 +130,9 @@ function ResourceConfigCard({
       )}
       {mode === 'instance' && (
         <div className="mt-3">
-          <label className="text-xs text-muted-foreground">选择资源实例</label>
+          <label className="text-xs text-muted-foreground">{t('selectInstance')}</label>
           <select className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-            <option value="">请选择</option>
+            <option value="">{t('pleaseSelect')}</option>
             {instances.map((i) => (
               <option
                 key={i.id}
@@ -134,15 +146,15 @@ function ResourceConfigCard({
       )}
       {mode === 'pool' && (
         <div className="mt-3">
-          <label className="text-xs text-muted-foreground">选择资源池</label>
+          <label className="text-xs text-muted-foreground">{t('selectPool')}</label>
           <select className="w-full rounded-md border bg-background px-3 py-2 text-sm">
-            <option value="">请选择</option>
+            <option value="">{t('pleaseSelect')}</option>
             {pools.map((p) => (
               <option
                 key={p.id}
                 value={p.id}
               >
-                {p.name} ({p.available} 可用)
+                {t('poolOption', { name: p.name, available: p.available })}
               </option>
             ))}
           </select>
@@ -193,6 +205,7 @@ function WizardActions({
   onNext: () => void;
   nextDisabled?: boolean;
 }) {
+  const t = useTranslations('projectWizard');
   return (
     <div className="flex justify-between pt-4">
       <button
@@ -200,7 +213,7 @@ function WizardActions({
         onClick={onPrev}
         className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
       >
-        上一步
+        {t('prev')}
       </button>
       <button
         type="button"
@@ -208,7 +221,7 @@ function WizardActions({
         disabled={nextDisabled}
         className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
       >
-        下一步
+        {t('next')}
       </button>
     </div>
   );

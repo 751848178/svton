@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState } from '@svton/ui';
 import { apiRequest } from '@/lib/api-client';
@@ -15,8 +16,6 @@ import type {
 } from './step-resources-types';
 import { collectSelections, filterDatabaseResourceMap } from './step-resources-types';
 import {
-  modeLabels,
-  databaseOptions,
   DatabaseEngineSelector,
   ResourceConfigCard,
   SelectField,
@@ -30,6 +29,8 @@ const databaseResourceByEngine: Partial<Record<DatabaseEngine, string>> = {
 };
 
 export function StepResources({ onNext, onPrev }: StepProps) {
+  const t = useTranslations('projectWizard');
+  const tc = useTranslations('common');
   const { config, setResources, setDatabase } = useProjectConfigStore();
   const [registryResources, setRegistryResources] = useState<RegistryResourceType[]>([]);
   const [requiredResourceIds, setRequiredResourceIds] = useState<string[]>([]);
@@ -102,7 +103,7 @@ export function StepResources({ onNext, onPrev }: StepProps) {
   });
   const handleNext = usePersistFn(() => onNext());
 
-  if (loading) return <LoadingState text="加载中..." />;
+  if (loading) return <LoadingState text={tc('loading')} />;
 
   return (
     <div className="space-y-6">
@@ -113,7 +114,7 @@ export function StepResources({ onNext, onPrev }: StepProps) {
         />
       )}
       {requiredResources.length === 0 ? (
-        <div className="py-8 text-center text-muted-foreground">当前配置不需要额外的资源凭证</div>
+        <div className="py-8 text-center text-muted-foreground">{t('noResourcesRequired')}</div>
       ) : (
         requiredResources.map((resource) => (
           <ResourceConfigCard

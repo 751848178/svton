@@ -21,7 +21,7 @@ export interface StreamOptions {
   headers?: Record<string, string>;
 }
 
-function buildUrl(endpoint: string, params?: Record<string, string>): string {
+export function buildStreamUrl(endpoint: string, params?: Record<string, string>): string {
   let url = `${API_BASE_URL}/api${endpoint}`;
   if (params) {
     url += `?${new URLSearchParams(params).toString()}`;
@@ -29,7 +29,7 @@ function buildUrl(endpoint: string, params?: Record<string, string>): string {
   return url;
 }
 
-function buildHeaders(extra?: Record<string, string>): Record<string, string> {
+export function buildHeaders(extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = { ...extra };
   const { token } = readPersistedAuth();
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -41,7 +41,7 @@ function buildHeaders(extra?: Record<string, string>): Record<string, string> {
 /** SSE 实时流（text/event-stream）。返回原始 Response 供调用方读取 reader。 */
 export async function stream(endpoint: string, options: StreamOptions = {}): Promise<Response> {
   const { method = 'GET', body, params, signal, headers } = options;
-  const response = await fetch(buildUrl(endpoint, params), {
+  const response = await fetch(buildStreamUrl(endpoint, params), {
     method,
     headers: buildHeaders({ Accept: 'text/event-stream', ...headers }),
     body: body ? JSON.stringify(body) : undefined,
@@ -58,7 +58,7 @@ export async function stream(endpoint: string, options: StreamOptions = {}): Pro
 /** 二进制下载（application/octet-stream / StreamableFile）。 */
 export async function download(endpoint: string, options: StreamOptions = {}): Promise<Response> {
   const { method = 'GET', params, headers } = options;
-  const response = await fetch(buildUrl(endpoint, params), {
+  const response = await fetch(buildStreamUrl(endpoint, params), {
     method,
     headers: buildHeaders({ Accept: 'application/octet-stream', ...headers }),
     credentials: 'include',

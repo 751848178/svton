@@ -2,12 +2,15 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Avatar } from '@svton/ui';
 import { useAuthStore } from '@/store/hooks';
 import { TeamSwitcher } from './team-switcher';
 
 export function Header() {
+  const t = useTranslations('nav');
+  const tc = useTranslations('common');
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuthStore();
 
@@ -33,19 +36,19 @@ export function Header() {
             href="/projects/new"
             className="transition-colors hover:text-foreground/80 text-foreground/60"
           >
-            创建项目
+            {t('createProject')}
           </Link>
           <Link
             href="/resources"
             className="transition-colors hover:text-foreground/80 text-foreground/60"
           >
-            资源管理
+            {t('resourceManagement')}
           </Link>
           <Link
             href="/presets"
             className="transition-colors hover:text-foreground/80 text-foreground/60"
           >
-            配置预设
+            {t('presets')}
           </Link>
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-2">
@@ -56,7 +59,7 @@ export function Header() {
                 onClick={handleLogout}
                 className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
               >
-                退出
+                {tc('logout')}
               </button>
             </div>
           ) : (
@@ -64,7 +67,7 @@ export function Header() {
               href="/login"
               className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
             >
-              登录
+              {tc('login')}
             </Link>
           )}
         </div>

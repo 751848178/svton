@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, Tag } from '@svton/ui';
 import { useProjectConfigStore } from '@/store/hooks';
@@ -26,6 +27,7 @@ interface Category {
 }
 
 export function StepFeatures({ onNext, onPrev }: StepProps) {
+  const t = useTranslations('projectWizard');
   const { config, toggleFeature } = useProjectConfigStore();
   const [features, setFeatures] = useState<Feature[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -44,7 +46,7 @@ export function StepFeatures({ onNext, onPrev }: StepProps) {
   const selectedSubProjects = Object.entries(config.subProjects)
     .filter(([, v]) => v)
     .map(([id]) => id);
-  const isAvailable = (f: Feature) => f.applicableTo.some((t) => selectedSubProjects.includes(t));
+  const isAvailable = (f: Feature) => f.applicableTo.some((item) => selectedSubProjects.includes(item));
   const getByCategory = (cid: string) =>
     features.filter((f) => f.category === cid && isAvailable(f));
   const selectedPackages = Array.from(
@@ -59,10 +61,8 @@ export function StepFeatures({ onNext, onPrev }: StepProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-2 text-lg font-medium">选择功能</h3>
-        <p className="mb-4 text-sm text-muted-foreground">
-          选择你需要的功能，系统会自动添加对应的包
-        </p>
+        <h3 className="mb-2 text-lg font-medium">{t('selectFeatures')}</h3>
+        <p className="mb-4 text-sm text-muted-foreground">{t('selectFeaturesHint')}</p>
       </div>
       <div className="space-y-6">
         {categories.map((cat) => {
@@ -97,7 +97,7 @@ export function StepFeatures({ onNext, onPrev }: StepProps) {
                             key={r}
                             color="orange"
                           >
-                            需要 {r}
+                            {t('requires', { resource: r })}
                           </Tag>
                         ))}
                       </div>
@@ -111,7 +111,7 @@ export function StepFeatures({ onNext, onPrev }: StepProps) {
       </div>
       {selectedPackages.length > 0 ? (
         <div className="border-t pt-4">
-          <h4 className="mb-2 text-sm font-medium">将添加的包</h4>
+          <h4 className="mb-2 text-sm font-medium">{t('packagesToAdd')}</h4>
           <div className="flex flex-wrap gap-2">
             {selectedPackages.map((pkg) => (
               <code
@@ -129,13 +129,13 @@ export function StepFeatures({ onNext, onPrev }: StepProps) {
           onClick={handlePrev}
           className="rounded-md border px-6 py-2 font-medium transition-colors hover:bg-accent"
         >
-          上一步
+          {t('prev')}
         </button>
         <button
           onClick={handleNext}
           className="rounded-md bg-primary px-6 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          下一步
+          {t('next')}
         </button>
       </div>
     </div>

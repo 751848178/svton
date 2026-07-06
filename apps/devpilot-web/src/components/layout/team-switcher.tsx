@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
 import { Modal } from '@/components/ui';
 import { useTeamStore, Team } from '@/store/hooks';
 
 export function TeamSwitcher() {
+  const t = useTranslations('nav');
+  const tc = useTranslations('common');
   const router = useRouter();
   const { teams, currentTeam, isLoading, fetchTeams, setCurrentTeam, createTeam } = useTeamStore();
   const [isOpen, { setTrue: openDropdown, setFalse: closeDropdown }] = useBoolean(false);
@@ -48,7 +51,7 @@ export function TeamSwitcher() {
           onClick={openModal}
           className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          + 创建团队
+          {t('createTeam')}
         </button>
         <CreateTeamModal
           open={modalOpen}
@@ -68,7 +71,7 @@ export function TeamSwitcher() {
         onClick={() => (isOpen ? closeDropdown() : openDropdown())}
         className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
       >
-        <span className="max-w-[120px] truncate">{currentTeam?.name || '选择团队'}</span>
+        <span className="max-w-[120px] truncate">{currentTeam?.name || t('selectTeam')}</span>
         <span className="text-xs">{isOpen ? '▲' : '▼'}</span>
       </button>
       {isOpen ? (
@@ -80,7 +83,7 @@ export function TeamSwitcher() {
           <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-md border bg-popover shadow-lg">
             <div className="p-1">
               <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                我的团队
+                {t('myTeams')}
               </div>
               {teams.map((team) => (
                 <button
@@ -89,7 +92,7 @@ export function TeamSwitcher() {
                   className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent ${currentTeam?.id === team.id ? 'bg-accent' : ''}`}
                 >
                   <span className="flex-1 truncate text-left">{team.name}</span>
-                  {currentTeam?.id === team.id ? <Tag color="green">当前</Tag> : null}
+                  {currentTeam?.id === team.id ? <Tag color="green">{t('current')}</Tag> : null}
                 </button>
               ))}
               <div className="my-1 border-t" />
@@ -100,7 +103,7 @@ export function TeamSwitcher() {
                 }}
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
               >
-                + 创建新团队
+                {t('createNewTeam')}
               </button>
               <button
                 onClick={() => {
@@ -109,7 +112,7 @@ export function TeamSwitcher() {
                 }}
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
               >
-                ⚙ 管理团队
+                {t('manageTeam')}
               </button>
             </div>
           </div>
@@ -142,23 +145,25 @@ function CreateTeamModal({
   setTeamName: (name: string) => void;
   creating: boolean;
 }) {
+  const t = useTranslations('nav');
+  const tc = useTranslations('common');
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="创建新团队"
+      title={t('createNewTeam')}
     >
       <form
         onSubmit={onSubmit}
         className="space-y-4"
       >
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">团队名称</span>
+          <span className="mb-1 block font-medium">{t('teamName')}</span>
           <input
             type="text"
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
-            placeholder="输入团队名称"
+            placeholder={t('teamNamePlaceholder')}
             className="w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             autoFocus
           />
@@ -169,14 +174,14 @@ function CreateTeamModal({
             onClick={onClose}
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             type="submit"
             disabled={creating || !teamName.trim()}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {creating ? '创建中...' : '创建'}
+            {creating ? t('creating') : tc('create')}
           </button>
         </div>
       </form>

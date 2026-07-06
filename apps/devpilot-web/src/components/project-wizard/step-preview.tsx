@@ -1,4 +1,5 @@
 'use client';
+import { useTranslations } from 'next-intl';
 import { useProjectConfigStore } from '@/store/hooks';
 import type { ProjectConfig, ProjectResourceConfig } from '@/store/hooks';
 interface StepProps {
@@ -6,16 +7,16 @@ interface StepProps {
   onSubmit: () => void;
   isSubmitting?: boolean;
 }
-// 功能名称映射
-const featureNames: Record<string, string> = {
-  cache: '缓存',
-  'rate-limit': '限流',
-  queue: '消息队列',
-  'object-storage-qiniu': '对象存储 (七牛)',
-  sms: '短信服务',
-  oauth: 'OAuth 登录',
-  payment: '支付',
-  authz: '权限控制',
+// 功能名称 key 映射
+const featureNameKeys: Record<string, string> = {
+  cache: 'featureCache',
+  'rate-limit': 'featureRateLimit',
+  queue: 'featureQueue',
+  'object-storage-qiniu': 'featureObjectStorage',
+  sms: 'featureSms',
+  oauth: 'featureOauth',
+  payment: 'featurePayment',
+  authz: 'featureAuthz',
 };
 // 功能到包的映射
 const featurePackages: Record<string, string[]> = {
@@ -44,6 +45,7 @@ import {
   ProjectStructurePreview,
 } from './step-preview-sub';
 export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
+  const t = useTranslations('projectWizard');
   const { config } = useProjectConfigStore();
   const databaseEngine = config.database?.engine || 'mysql';
   // 计算所有需要的包
@@ -76,32 +78,30 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium mb-2">配置预览</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          请确认以下配置信息，确认无误后点击生成项目
-        </p>
+        <h3 className="text-lg font-medium mb-2">{t('configPreview')}</h3>
+        <p className="text-sm text-muted-foreground mb-4">{t('configPreviewHint')}</p>
       </div>
       {/* 基础信息 */}
-      <PreviewSection title="基础信息">
+      <PreviewSection title={t('basicInfo')}>
         <PreviewItem
-          label="项目名称"
+          label={t('projectName')}
           value={config.basicInfo.name}
         />
         <PreviewItem
-          label="组织名称"
+          label={t('orgName')}
           value={config.basicInfo.orgName || '-'}
         />
         <PreviewItem
-          label="项目描述"
+          label={t('projectDescription')}
           value={config.basicInfo.description || '-'}
         />
         <PreviewItem
-          label="包管理器"
+          label={t('packageManager')}
           value={config.basicInfo.packageManager}
         />
       </PreviewSection>
       {/* 子项目 */}
-      <PreviewSection title="子项目">
+      <PreviewSection title={t('subProjects')}>
         <div className="flex flex-wrap gap-2">
           {config.subProjects.backend && <Badge>Backend (NestJS)</Badge>}
           {config.subProjects.admin && <Badge>Admin (Next.js)</Badge>}
@@ -109,31 +109,31 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
           {!config.subProjects.backend &&
             !config.subProjects.admin &&
             !config.subProjects.mobile && (
-              <span className="text-muted-foreground text-sm">未选择子项目</span>
+              <span className="text-muted-foreground text-sm">{t('noSubProjectsSelected')}</span>
             )}
         </div>
       </PreviewSection>
       {config.subProjects.backend && (
-        <PreviewSection title="数据库">
+        <PreviewSection title={t('database')}>
           <PreviewItem
-            label="引擎"
+            label={t('engine')}
             value={databaseEngineNames[databaseEngine] || databaseEngine}
           />
         </PreviewSection>
       )}
       {/* UI 库和 Hooks */}
-      <PreviewSection title="前端库">
+      <PreviewSection title={t('frontendLibs')}>
         <div className="flex flex-wrap gap-2">
           {config.uiLibrary.admin && <Badge variant="secondary">@svton/ui (Admin)</Badge>}
           {config.uiLibrary.mobile && <Badge variant="secondary">@svton/taro-ui (Mobile)</Badge>}
           {config.hooks && <Badge variant="secondary">@svton/hooks</Badge>}
           {!config.uiLibrary.admin && !config.uiLibrary.mobile && !config.hooks && (
-            <span className="text-muted-foreground text-sm">未选择前端库</span>
+            <span className="text-muted-foreground text-sm">{t('noFrontendLibsSelected')}</span>
           )}
         </div>
       </PreviewSection>
       {/* 功能 */}
-      <PreviewSection title="业务功能">
+      <PreviewSection title={t('businessFeatures')}>
         {config.features.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {config.features.map((featureId) => (
@@ -141,16 +141,16 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
                 key={featureId}
                 variant="outline"
               >
-                {featureNames[featureId] || featureId}
+                {(featureNameKeys[featureId] && t(featureNameKeys[featureId])) || featureId}
               </Badge>
             ))}
           </div>
         ) : (
-          <span className="text-muted-foreground text-sm">未选择业务功能</span>
+          <span className="text-muted-foreground text-sm">{t('noFeaturesSelected')}</span>
         )}
       </PreviewSection>
       {/* 依赖包 */}
-      <PreviewSection title="将安装的依赖包">
+      <PreviewSection title={t('packagesToInstall')}>
         {allPackages.size > 0 ? (
           <div className="flex flex-wrap gap-2">
             {Array.from(allPackages)
@@ -165,29 +165,27 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
               ))}
           </div>
         ) : (
-          <span className="text-muted-foreground text-sm">无额外依赖</span>
+          <span className="text-muted-foreground text-sm">{t('noExtraDeps')}</span>
         )}
       </PreviewSection>
       {/* 资源配置 */}
-      <PreviewSection title="资源配置">
+      <PreviewSection title={t('resourceConfig')}>
         {Object.keys(config.resources).length > 0 ? (
           <div className="space-y-1">
             {Object.entries(config.resources).map(([type, value]) => (
               <PreviewItem
                 key={type}
                 label={type}
-                value={formatResourceValue(value)}
+                value={formatResourceValue(value, t)}
               />
             ))}
           </div>
         ) : (
-          <span className="text-muted-foreground text-sm">
-            无资源配置（将生成 .env.example 模板）
-          </span>
+          <span className="text-muted-foreground text-sm">{t('noResourceConfig')}</span>
         )}
       </PreviewSection>
       {/* 生成的文件结构预览 */}
-      <PreviewSection title="项目结构预览">
+      <PreviewSection title={t('projectStructure')}>
         <ProjectStructurePreview config={config} />
       </PreviewSection>
       <div className="flex justify-between pt-4">
@@ -196,14 +194,14 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
           disabled={isSubmitting}
           className="px-6 py-2 border rounded-md font-medium hover:bg-accent transition-colors disabled:opacity-50"
         >
-          上一步
+          {t('prev')}
         </button>
         <button
           onClick={onSubmit}
           disabled={isSubmitting}
           className="px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
-          {isSubmitting ? '生成中...' : '生成项目'}
+          {isSubmitting ? t('generating') : t('generateProject')}
         </button>
       </div>
     </div>
