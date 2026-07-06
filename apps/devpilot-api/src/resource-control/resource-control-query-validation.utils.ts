@@ -129,3 +129,19 @@ export function validateReadOnlyQuery(queryType: string, query: string) {
 
   return { ok: false, reason: `不支持的查询类型: ${queryType}` };
 }
+
+export function isLiveQueryConfirmed(params: Record<string, unknown>) {
+  return params.confirmLiveRead === true || params.confirmLiveRead === 'true';
+}
+
+export function canExecuteDirectDbLiveQuery(
+  resource: { kind: string },
+  credential: { transport: string },
+  queryType: string,
+) {
+  return (
+    credential.transport === 'direct_db' &&
+    (resource.kind === 'mysql' || resource.kind === 'database' || resource.kind === 'redis') &&
+    (queryType === 'sql' || queryType === 'redis_scan')
+  );
+}
