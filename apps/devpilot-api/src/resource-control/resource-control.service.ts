@@ -28,16 +28,37 @@ import {
   SyncServerDockerDto,
   UpdateManagedResourceBindingDto,
 } from './dto/resource-control.dto';
+import {
+  buildManagedResourceWhere,
+  buildResourceActionRunWhere,
+  buildResourceConnectionRunWhere,
+  buildResourceMetricSnapshotWhere,
+  buildResourceQueryRunWhere,
+} from './resource-control-query.utils';
 import { DirectDbQueryExecutor } from './executors/direct-db-query.executor';
 import { ResourceExecutorRouter } from './executors/executor-router';
 import { buildDockerStatsMetricSnapshotInputs } from './metrics/docker-stats-metrics';
 import {
   buildDockerInventorySeedsFromDockerPs,
+  buildDockerInventorySeedsFromRecords,
   DOCKER_INVENTORY_ADAPTER_KEY,
   DOCKER_PS_JSON_COMMAND,
 } from './inventory/docker-inventory';
+import { DockerInventoryExecutorFactory } from './inventory/executors/docker-inventory-executor.factory';
 import { CloudInventoryProvider } from './inventory/cloud-inventory';
 import { CloudProviderInventoryService } from './inventory/cloud-provider-inventory.service';
+import { ResourceControlCapabilitiesService } from './resource-control-capabilities.service';
+import { ResourceControlRepository } from './resource-control.repository';
+import {
+  actionRunInclude,
+  connectionRunInclude,
+  managedResourceInclude,
+  metricSnapshotInclude,
+  queryRunInclude,
+} from './resource-control-includes.constants';
+import { ResourceControlCloudProviderHealthService } from './resource-control-cloud-provider-health.service';
+import { CloudProviderHealthRun } from './resource-control-cloud-provider-health.types';
+import { asPositiveInt, asRecord, asString } from './resource-control-value.utils';
 
 type ManagedResourceSeed = {
   sourceType: string;
@@ -107,59 +128,6 @@ type ResourceQueryExecutionResult = {
   error?: string;
 };
 
-type CloudProviderHealthRun = {
-  id: string;
-  provider: string;
-  status: string;
-  discovered: number;
-  error: string | null;
-  metadata: Prisma.JsonValue | null;
-  startedAt: Date;
-  finishedAt: Date | null;
-};
-
-type CloudProviderDiagnosticRecord = {
-  provider: string;
-  syncMode?: string;
-  parsedCount?: number;
-  skippedCount?: number;
-  errors: string[];
-  fallbackReason?: string;
-  live?: boolean;
-  sdk?: string;
-  regions: string[];
-  requestPolicy?: Record<string, unknown>;
-};
-
-type CloudProviderHealthIssue = {
-  runId: string;
-  type: 'sync_failed' | 'provider_failure';
-  status: string;
-  message: string;
-  startedAt: string;
-};
-
-type CloudProviderHealthAccumulator = {
-  provider: string;
-  totalRuns: number;
-  liveRuns: number;
-  fallbackRuns: number;
-  failedRuns: number;
-  providerFailureCount: number;
-  configFallbackCount: number;
-  quotaSignals: number;
-  rateLimitSignals: number;
-  timeoutSignals: number;
-  discovered: number;
-  lastRunAt?: string;
-  lastStatus?: string;
-  lastError?: string;
-  sdk?: string;
-  regions: Set<string>;
-  lastRequestPolicy?: Record<string, unknown>;
-  recentIssues: CloudProviderHealthIssue[];
-};
-
 type MetricTrendResourceRef = {
   id: string;
   projectId: string | null;
@@ -212,12 +180,13 @@ const RESOURCE_METRIC_SERIES_FIELDS = [
   'pids',
 ] as const;
 
-type ResourceMetricSeriesMetric = typeof RESOURCE_METRIC_SERIES_FIELDS[number];
+type ResourceMetricSeriesMetric = (typeof RESOURCE_METRIC_SERIES_FIELDS)[number];
 
 @Injectable()
 export class ResourceControlService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly repo: ResourceControlRepository,
     private readonly credentialResolver: DefaultCredentialResolver,
     private readonly executorRouter: ResourceExecutorRouter,
     private readonly directDbQueryExecutor: DirectDbQueryExecutor,
@@ -225,180 +194,15 @@ export class ResourceControlService {
     private readonly operationApprovalService: OperationApprovalService,
     private readonly serverExecutorService: ServerExecutorService,
     private readonly cloudProviderInventoryService: CloudProviderInventoryService,
+    private readonly dockerInventoryExecutorFactory: DockerInventoryExecutorFactory,
+    private readonly capabilitiesService: ResourceControlCapabilitiesService = new ResourceControlCapabilitiesService(),
+    private readonly cloudProviderHealthService: ResourceControlCloudProviderHealthService = new ResourceControlCloudProviderHealthService(
+      prisma,
+    ),
   ) {}
 
   getCapabilities() {
-    return {
-      syncMode: 'inventory_only',
-      sourceTypes: [
-        {
-          key: 'server',
-          name: '服务器资源',
-          description: '按服务器维度盘点 Docker 容器和 Docker 部署的中间件',
-          adapters: [
-            {
-              provider: 'docker',
-              status: 'server_executor_inventory',
-              nextStep: '当前通过 Server executor 受控 docker ps 读取清单；后续可替换为 Server agent 或 Docker Remote API adapter',
-              resourceKinds: ['docker_container', 'mysql', 'redis'],
-            },
-          ],
-        },
-        {
-          key: 'cloud',
-          name: '云资源',
-          description: '按云账号和区域盘点 RDS、日志服务和对象存储',
-          adapters: [
-            {
-              provider: 'aliyun-rds',
-              status: 'provider_inventory_adapter',
-              credentialType: 'cloud_aliyun',
-              resourceKinds: ['database'],
-            },
-            {
-              provider: 'aliyun-sls',
-              status: 'provider_inventory_adapter',
-              credentialType: 'cloud_aliyun',
-              resourceKinds: ['log_service'],
-            },
-            {
-              provider: 'tencent-cos',
-              status: 'provider_inventory_adapter',
-              credentialType: 'cloud_tencent',
-              resourceKinds: ['object_storage'],
-            },
-          ],
-        },
-      ],
-      executionMode: 'server_executor_first',
-      executorAdapters: [
-        {
-          key: 'server-executor',
-          currentTransport: 'script_plan',
-          currentAdapter: 'server-resource-script-plan',
-          futureTransport: 'ssh_live_or_server_agent_executor',
-        },
-        {
-          key: 'server-executor:ssh-live',
-          currentTransport: 'ssh_live_default_off',
-          currentAdapter: 'ssh-live',
-          futureTransport: 'server_agent_executor',
-        },
-        {
-          key: 'cloud-sdk',
-          currentTransport: 'sdk_call_plan',
-          futureTransport: 'provider_sdk',
-        },
-      ],
-      credentialAuthAdapters: [
-        {
-          key: 'server-ssh',
-          source: 'Server.credentials',
-          currentStatus: 'redacted_reference',
-          futureTransport: 'server_agent_credential_exchange',
-        },
-        {
-          key: 'cloud-team-credential',
-          source: 'TeamCredential',
-          currentStatus: 'redacted_reference',
-          futureTransport: 'provider_sdk_credential_adapter',
-        },
-        {
-          key: 'direct-db-credential',
-          source: 'ManagedResource.config or TeamCredential',
-          currentStatus: 'team_credential_readonly_material_resolved_inside_driver',
-          futureTransport: 'database_driver_adapter',
-        },
-      ],
-      credentialProfiles: [
-        {
-          type: 'cloud_aliyun',
-          name: '阿里云 AccessKey',
-          providers: ['aliyun-rds', 'aliyun-sls'],
-          authAdapterKey: 'aliyun-team-credential',
-          requiredFields: ['accessKeyId', 'accessKeySecret'],
-          optionalFields: ['securityToken', 'defaultRegion', 'accountId'],
-          secretFields: ['accessKeySecret', 'securityToken'],
-          futureTransport: 'aliyun_provider_sdk',
-        },
-        {
-          type: 'cloud_tencent',
-          name: '腾讯云 SecretId',
-          providers: ['tencent-cos'],
-          authAdapterKey: 'tencent-team-credential',
-          requiredFields: ['secretId', 'secretKey'],
-          optionalFields: ['defaultRegion', 'appId'],
-          secretFields: ['secretKey'],
-          futureTransport: 'tencent_cloud_sdk',
-        },
-        {
-          type: 'db_mysql_readonly',
-          name: 'MySQL/RDS 只读账号',
-          providers: ['docker', 'aliyun-rds'],
-          resourceKinds: ['mysql', 'database'],
-          authAdapterKey: 'mysql-readonly-team-credential',
-          requiredFields: ['host', 'port', 'username', 'password'],
-          optionalFields: ['database', 'sslMode'],
-          secretFields: ['password'],
-          futureTransport: 'mysql_driver_adapter',
-        },
-        {
-          type: 'db_redis_readonly',
-          name: 'Redis 只读账号',
-          providers: ['docker'],
-          resourceKinds: ['redis'],
-          authAdapterKey: 'redis-readonly-team-credential',
-          requiredFields: ['host', 'port', 'password'],
-          optionalFields: ['username', 'database'],
-          secretFields: ['password'],
-          futureTransport: 'redis_driver_adapter',
-        },
-      ],
-      queryAdapters: [
-        {
-          key: 'mysql-query-plan',
-          sourceTypes: ['server', 'cloud'],
-          currentStatus: 'live_readonly_driver_available_with_explicit_confirmation',
-          futureTransport: 'mysql_driver_adapter',
-        },
-        {
-          key: 'redis-query-plan',
-          sourceTypes: ['server'],
-          currentStatus: 'live_readonly_driver_available_with_explicit_confirmation',
-          futureTransport: 'redis_driver_adapter',
-        },
-        {
-          key: 'aliyun-sls-query-plan',
-          sourceTypes: ['cloud'],
-          currentStatus: 'dry_run_plan_with_result_preview_contract',
-          futureTransport: 'aliyun_sls_sdk',
-        },
-        {
-          key: 'tencent-cos-query-plan',
-          sourceTypes: ['cloud'],
-          currentStatus: 'dry_run_plan_with_result_preview_contract',
-          futureTransport: 'tencent_cos_sdk',
-        },
-      ],
-      plannedActions: RESOURCE_ACTIONS.map((action) => action.key),
-      reusableSvtonResources: [
-        '@svton/nestjs-object-storage',
-        '@svton/nestjs-object-storage-tencent-cos',
-        '@svton/nestjs-logger aliyunSls/tencentCls transports',
-        '@svton/nestjs-redis',
-        'Devpilot ServerService',
-        'Devpilot TeamCredential',
-        'Devpilot ResourcePool and ResourceInstance',
-      ],
-      safetyNotes: [
-        '第一阶段只做清单同步和状态展示，不执行高风险变更动作',
-        '当前版本不引入 Agent，Server executor 默认只输出受控脚本计划',
-        'Server executor 已接入内置命令策略，live 执行前必须通过命令白名单和危险命令检测',
-        'SSH live adapter 默认关闭，需要 SERVER_EXECUTOR_LIVE_ENABLED=true、key auth 和确认文本',
-        '真实服务器控制需要命令白名单、超时、脱敏、审计和按动作授权',
-        '真实云资源同步需要 provider SDK、分页、区域选择、限流和错误归一化',
-      ],
-    };
+    return this.capabilitiesService.getCapabilities();
   }
 
   async listActions(teamId: string, query: ListResourceActionsQueryDto) {
@@ -411,41 +215,15 @@ export class ResourceControlService {
   }
 
   async listResources(teamId: string, query: ListManagedResourcesQueryDto) {
-    const where: Prisma.ManagedResourceWhereInput = { teamId };
-
-    if (query.sourceType) {
-      where.sourceType = query.sourceType;
-    }
-    if (query.serverId) {
-      where.serverId = query.serverId;
-    }
-    if (query.environmentId) {
-      where.environmentId = query.environmentId;
-    }
-    if (query.provider) {
-      where.provider = query.provider;
-    }
-    if (query.kind) {
-      where.kind = query.kind;
-    }
-    if (query.status) {
-      where.status = query.status;
-    }
-
-    return this.prisma.managedResource.findMany({
-      where,
-      orderBy: [
-        { sourceType: 'asc' },
-        { provider: 'asc' },
-        { kind: 'asc' },
-        { name: 'asc' },
-      ],
+    return this.repo.findManagedResources({
+      where: buildManagedResourceWhere(teamId, query),
+      orderBy: [{ sourceType: 'asc' }, { provider: 'asc' }, { kind: 'asc' }, { name: 'asc' }],
       include: this.managedResourceInclude(),
     });
   }
 
   async listSyncRuns(teamId: string) {
-    return this.prisma.resourceSyncRun.findMany({
+    return this.repo.findSyncRuns({
       where: { teamId },
       orderBy: { startedAt: 'desc' },
       take: 20,
@@ -458,136 +236,16 @@ export class ResourceControlService {
   }
 
   async listCloudProviderHealthRuns(teamId: string) {
-    return this.prisma.resourceSyncRun.findMany({
-      where: { teamId, sourceType: 'cloud' },
-      orderBy: { startedAt: 'desc' },
-      take: 100,
-      select: {
-        id: true,
-        provider: true,
-        status: true,
-        discovered: true,
-        error: true,
-        metadata: true,
-        startedAt: true,
-        finishedAt: true,
-      },
-    });
+    return this.cloudProviderHealthService.listRuns(teamId);
   }
 
   summarizeCloudProviderHealth(runs: CloudProviderHealthRun[]) {
-    const providers = new Map<string, CloudProviderHealthAccumulator>();
-
-    runs.forEach((run) => {
-      const metadata = this.asRecord(run.metadata);
-      const diagnostics = this.readCloudProviderDiagnostics(metadata.providers);
-      const scopedDiagnostics = diagnostics.length > 0
-        ? diagnostics
-        : [{ provider: run.provider, errors: [], regions: [] }];
-
-      scopedDiagnostics.forEach((diagnostic) => {
-        const summary = this.ensureCloudProviderHealthSummary(providers, diagnostic.provider);
-        summary.totalRuns += 1;
-        summary.discovered += run.discovered;
-        summary.lastRunAt = this.latestDateString(summary.lastRunAt, run.startedAt);
-        if (!summary.lastStatus || !summary.lastRunAt || new Date(run.startedAt).getTime() >= new Date(summary.lastRunAt).getTime()) {
-          summary.lastStatus = run.status;
-          summary.lastError = run.error || diagnostic.fallbackReason || diagnostic.errors[0];
-          summary.lastRequestPolicy = diagnostic.requestPolicy;
-          summary.sdk = diagnostic.sdk || summary.sdk;
-        }
-
-        if (run.status === 'failed') {
-          summary.failedRuns += 1;
-          summary.recentIssues.push({
-            runId: run.id,
-            type: 'sync_failed',
-            status: run.status,
-            message: run.error || 'cloud sync failed',
-            startedAt: run.startedAt.toISOString(),
-          });
-        }
-
-        if (diagnostic.live) {
-          summary.liveRuns += 1;
-        } else if (diagnostic.syncMode === 'cloud_inventory_stub_fallback' || diagnostic.fallbackReason) {
-          summary.fallbackRuns += 1;
-        }
-
-        diagnostic.regions.forEach((region) => summary.regions.add(region));
-        const issueText = [run.error, diagnostic.fallbackReason, ...diagnostic.errors]
-          .filter((item): item is string => Boolean(item));
-
-        if (this.isProviderFailure(diagnostic, run.status)) {
-          summary.providerFailureCount += 1;
-          summary.recentIssues.push({
-            runId: run.id,
-            type: 'provider_failure',
-            status: run.status,
-            message: diagnostic.fallbackReason || diagnostic.errors[0] || run.error || 'provider failure',
-            startedAt: run.startedAt.toISOString(),
-          });
-        } else if (this.isConfigFallback(diagnostic)) {
-          summary.configFallbackCount += 1;
-        }
-
-        issueText.forEach((message) => {
-          if (/quota/i.test(message)) summary.quotaSignals += 1;
-          if (/(rate|throttl)/i.test(message)) summary.rateLimitSignals += 1;
-          if (/(timeout|timed out|etimedout)/i.test(message)) summary.timeoutSignals += 1;
-        });
-      });
-    });
-
-    return Array.from(providers.values())
-      .map((summary) => {
-        const status = summary.providerFailureCount > 0 || summary.failedRuns > 0
-          ? 'error'
-          : summary.configFallbackCount > 0 || summary.quotaSignals > 0 || summary.rateLimitSignals > 0 || summary.timeoutSignals > 0
-            ? 'degraded'
-            : summary.totalRuns > 0
-              ? 'healthy'
-              : 'unknown';
-        return {
-          provider: summary.provider,
-          status,
-          totalRuns: summary.totalRuns,
-          liveRuns: summary.liveRuns,
-          fallbackRuns: summary.fallbackRuns,
-          failedRuns: summary.failedRuns,
-          providerFailureCount: summary.providerFailureCount,
-          configFallbackCount: summary.configFallbackCount,
-          quotaSignals: summary.quotaSignals,
-          rateLimitSignals: summary.rateLimitSignals,
-          timeoutSignals: summary.timeoutSignals,
-          discovered: summary.discovered,
-          lastRunAt: summary.lastRunAt,
-          lastStatus: summary.lastStatus,
-          lastError: summary.lastError,
-          sdk: summary.sdk,
-          regions: Array.from(summary.regions).sort(),
-          lastRequestPolicy: summary.lastRequestPolicy,
-          recentIssues: summary.recentIssues.slice(0, 5),
-        };
-      })
-      .sort((left, right) => left.provider.localeCompare(right.provider));
+    return this.cloudProviderHealthService.summarize(runs);
   }
 
   async listActionRuns(teamId: string, query: ListResourceActionRunsQueryDto) {
-    const where: Prisma.ResourceActionRunWhereInput = { teamId };
-
-    if (query.resourceId) {
-      where.resourceId = query.resourceId;
-    }
-    if (query.action) {
-      where.action = query.action;
-    }
-    if (query.status) {
-      where.status = query.status;
-    }
-
-    return this.prisma.resourceActionRun.findMany({
-      where,
+    return this.repo.findActionRuns({
+      where: buildResourceActionRunWhere(teamId, query),
       orderBy: { startedAt: 'desc' },
       take: 30,
       include: this.actionRunInclude(),
@@ -595,16 +253,8 @@ export class ResourceControlService {
   }
 
   async listMetricSnapshots(teamId: string, query: ListResourceMetricSnapshotsQueryDto) {
-    const where: Prisma.ResourceMetricSnapshotWhereInput = { teamId };
-
-    if (query.resourceId) where.resourceId = query.resourceId;
-    if (query.status) where.status = query.status;
-    if (query.provider) where.provider = query.provider;
-    if (query.kind) where.kind = query.kind;
-    if (query.metricSource) where.metricSource = query.metricSource;
-
-    return this.prisma.resourceMetricSnapshot.findMany({
-      where,
+    return this.repo.findMetricSnapshots({
+      where: buildResourceMetricSnapshotWhere(teamId, query),
       orderBy: { sampledAt: 'desc' },
       take: 100,
       include: this.metricSnapshotInclude(),
@@ -614,19 +264,9 @@ export class ResourceControlService {
   async listMetricTrends(teamId: string, query: ListResourceMetricTrendsQueryDto) {
     const windowMinutes = this.parseMetricTrendWindowMinutes(query.windowMinutes);
     const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
-    const where: Prisma.ResourceMetricSnapshotWhereInput = {
-      teamId,
-      sampledAt: { gte: cutoff },
-    };
 
-    if (query.resourceId) where.resourceId = query.resourceId;
-    if (query.status) where.status = query.status;
-    if (query.provider) where.provider = query.provider;
-    if (query.kind) where.kind = query.kind;
-    if (query.metricSource) where.metricSource = query.metricSource;
-
-    const snapshots = await this.prisma.resourceMetricSnapshot.findMany({
-      where,
+    const snapshots = await this.repo.findMetricSnapshots({
+      where: buildResourceMetricSnapshotWhere(teamId, query, cutoff),
       orderBy: { sampledAt: 'desc' },
       take: 500,
       include: this.metricSnapshotInclude(),
@@ -640,19 +280,9 @@ export class ResourceControlService {
     const limit = this.parseMetricSeriesLimit(query.limit);
     const metric = this.parseMetricSeriesMetric(query.metric);
     const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
-    const where: Prisma.ResourceMetricSnapshotWhereInput = {
-      teamId,
-      sampledAt: { gte: cutoff },
-    };
 
-    if (query.resourceId) where.resourceId = query.resourceId;
-    if (query.status) where.status = query.status;
-    if (query.provider) where.provider = query.provider;
-    if (query.kind) where.kind = query.kind;
-    if (query.metricSource) where.metricSource = query.metricSource;
-
-    const snapshots = await this.prisma.resourceMetricSnapshot.findMany({
-      where,
+    const snapshots = await this.repo.findMetricSnapshots({
+      where: buildResourceMetricSnapshotWhere(teamId, query, cutoff),
       orderBy: { sampledAt: 'desc' },
       take: limit,
       include: this.metricSnapshotInclude(),
@@ -661,10 +291,7 @@ export class ResourceControlService {
     return this.buildMetricSeries(snapshots, metric, windowMinutes, limit);
   }
 
-  summarizeMetricTrends(
-    snapshots: ResourceMetricSnapshotForTrend[],
-    windowMinutes = 60,
-  ) {
+  summarizeMetricTrends(snapshots: ResourceMetricSnapshotForTrend[], windowMinutes = 60) {
     const groups = new Map<string, ResourceMetricSnapshotForTrend[]>();
     for (const snapshot of snapshots) {
       const key = `${snapshot.resourceId}:${snapshot.metricSource}`;
@@ -673,9 +300,7 @@ export class ResourceControlService {
 
     return Array.from(groups.values())
       .map((group) => {
-        const ordered = [...group].sort(
-          (left, right) => right.sampledAt.getTime() - left.sampledAt.getTime(),
-        );
+        const ordered = [...group].sort((left, right) => right.sampledAt.getTime() - left.sampledAt.getTime());
         const latest = ordered[0];
         const oldest = ordered[ordered.length - 1];
 
@@ -693,30 +318,14 @@ export class ResourceControlService {
           firstSampledAt: oldest.sampledAt,
           lastSampledAt: latest.sampledAt,
           resource: latest.resource,
-          cpuPercent: this.summarizeMetricNumber(
-            ordered.map((snapshot) => snapshot.cpuPercent),
-          ),
-          memoryPercent: this.summarizeMetricNumber(
-            ordered.map((snapshot) => snapshot.memoryPercent),
-          ),
-          memoryUsageBytes: this.summarizeMetricNumber(
-            ordered.map((snapshot) => snapshot.memoryUsageBytes),
-          ),
-          networkInputBytes: this.summarizeMetricNumber(
-            ordered.map((snapshot) => snapshot.networkInputBytes),
-          ),
-          networkOutputBytes: this.summarizeMetricNumber(
-            ordered.map((snapshot) => snapshot.networkOutputBytes),
-          ),
-          blockInputBytes: this.summarizeMetricNumber(
-            ordered.map((snapshot) => snapshot.blockInputBytes),
-          ),
-          blockOutputBytes: this.summarizeMetricNumber(
-            ordered.map((snapshot) => snapshot.blockOutputBytes),
-          ),
-          pids: this.summarizeMetricNumber(
-            ordered.map((snapshot) => snapshot.pids),
-          ),
+          cpuPercent: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.cpuPercent)),
+          memoryPercent: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.memoryPercent)),
+          memoryUsageBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.memoryUsageBytes)),
+          networkInputBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.networkInputBytes)),
+          networkOutputBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.networkOutputBytes)),
+          blockInputBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.blockInputBytes)),
+          blockOutputBytes: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.blockOutputBytes)),
+          pids: this.summarizeMetricNumber(ordered.map((snapshot) => snapshot.pids)),
         };
       })
       .sort((left, right) => right.lastSampledAt.getTime() - left.lastSampledAt.getTime());
@@ -736,14 +345,10 @@ export class ResourceControlService {
 
     return Array.from(groups.values())
       .map((group) => {
-        const ordered = [...group].sort(
-          (left, right) => left.sampledAt.getTime() - right.sampledAt.getTime(),
-        );
+        const ordered = [...group].sort((left, right) => left.sampledAt.getTime() - right.sampledAt.getTime());
         const latest = ordered[ordered.length - 1];
         const oldest = ordered[0];
-        const valuesLatestFirst = [...ordered]
-          .reverse()
-          .map((snapshot) => this.metricSeriesValue(snapshot, metric));
+        const valuesLatestFirst = [...ordered].reverse().map((snapshot) => this.metricSeriesValue(snapshot, metric));
         const points = ordered.map((snapshot) => ({
           snapshotId: snapshot.id,
           sampledAt: snapshot.sampledAt,
@@ -775,15 +380,8 @@ export class ResourceControlService {
   }
 
   async listConnectionRuns(teamId: string, query: ListResourceConnectionRunsQueryDto) {
-    const where: Prisma.ResourceConnectionRunWhereInput = { teamId };
-
-    if (query.resourceId) where.resourceId = query.resourceId;
-    if (query.status) where.status = query.status;
-    if (query.provider) where.provider = query.provider;
-    if (query.kind) where.kind = query.kind;
-
-    return this.prisma.resourceConnectionRun.findMany({
-      where,
+    return this.repo.findConnectionRuns({
+      where: buildResourceConnectionRunWhere(teamId, query),
       orderBy: { startedAt: 'desc' },
       take: 50,
       include: this.connectionRunInclude(),
@@ -791,16 +389,8 @@ export class ResourceControlService {
   }
 
   async listQueryRuns(teamId: string, query: ListResourceQueryRunsQueryDto) {
-    const where: Prisma.ResourceQueryRunWhereInput = { teamId };
-
-    if (query.resourceId) where.resourceId = query.resourceId;
-    if (query.status) where.status = query.status;
-    if (query.provider) where.provider = query.provider;
-    if (query.kind) where.kind = query.kind;
-    if (query.queryType) where.queryType = query.queryType;
-
-    return this.prisma.resourceQueryRun.findMany({
-      where,
+    return this.repo.findQueryRuns({
+      where: buildResourceQueryRunWhere(teamId, query),
       orderBy: { startedAt: 'desc' },
       take: 50,
       include: this.queryRunInclude(),
@@ -838,7 +428,7 @@ export class ResourceControlService {
       }
 
       return {
-        projectId: hasProject ? dto.projectId ?? null : null,
+        projectId: hasProject ? (dto.projectId ?? null) : null,
         environmentId: null,
       };
     }
@@ -890,7 +480,7 @@ export class ResourceControlService {
         nextProjectId = environment.projectId;
       } else {
         nextEnvironmentId = null;
-        nextProjectId = hasProject ? dto.projectId ?? null : null;
+        nextProjectId = hasProject ? (dto.projectId ?? null) : null;
       }
     } else if (hasProject) {
       if (resource.environmentId && dto.projectId !== resource.projectId) {
@@ -903,7 +493,7 @@ export class ResourceControlService {
       await this.ensureProject(teamId, nextProjectId);
     }
 
-    const nextServerId = hasServer ? dto.serverId ?? null : resource.serverId;
+    const nextServerId = hasServer ? (dto.serverId ?? null) : resource.serverId;
     if (resource.sourceType === 'server' && !nextServerId) {
       throw new BadRequestException('服务器来源资源必须绑定服务器');
     }
@@ -911,14 +501,14 @@ export class ResourceControlService {
       await this.ensureServer(teamId, nextServerId);
     }
 
-    const nextCredentialId = hasCredential ? dto.credentialId ?? null : resource.credentialId;
+    const nextCredentialId = hasCredential ? (dto.credentialId ?? null) : resource.credentialId;
     if (nextCredentialId) {
       await this.ensureTeamCredential(teamId, nextCredentialId);
     }
 
     const nextQueryCredentialId = hasQueryCredential
-      ? dto.queryCredentialId ?? null
-      : this.resolveQueryCredentialId(resource) ?? null;
+      ? (dto.queryCredentialId ?? null)
+      : (this.resolveQueryCredentialId(resource) ?? null);
     if (nextQueryCredentialId) {
       await this.ensureTeamCredential(teamId, nextQueryCredentialId);
     }
@@ -934,7 +524,7 @@ export class ResourceControlService {
       });
     }
 
-    const updated = await this.prisma.managedResource.update({
+    const updated = await this.repo.updateManagedResource({
       where: { id: resource.id },
       data: {
         projectId: nextProjectId,
@@ -953,12 +543,7 @@ export class ResourceControlService {
     return updated;
   }
 
-  async probeResourceConnection(
-    teamId: string,
-    userId: string,
-    resourceId: string,
-    dto: ProbeResourceConnectionDto,
-  ) {
+  async probeResourceConnection(teamId: string, userId: string, resourceId: string, dto: ProbeResourceConnectionDto) {
     const resource = await this.getManagedResource(teamId, resourceId);
     const action = this.buildConnectionProbeAction(resource);
     const credential = await this.resolveResourceQueryCredential(teamId, resource, action);
@@ -968,7 +553,7 @@ export class ResourceControlService {
     const executionShape = this.resolveConnectionExecutionShape(resource, credential);
     const runCredentialId = this.resolveQueryRunCredentialId(resource, credential);
 
-    const run = await this.prisma.resourceConnectionRun.create({
+    const run = await this.repo.createConnectionRun({
       data: {
         teamId,
         actorId: userId,
@@ -991,15 +576,12 @@ export class ResourceControlService {
     });
 
     try {
-      const execution = await this.executeConnectionProbe(
-        teamId,
-        userId,
-        resource,
-        credential,
-        run.id,
-        { dryRun, params, authAdapterKey },
-      );
-      const completed = await this.prisma.resourceConnectionRun.update({
+      const execution = await this.executeConnectionProbe(teamId, userId, resource, credential, run.id, {
+        dryRun,
+        params,
+        authAdapterKey,
+      });
+      const completed = await this.repo.updateConnectionRun({
         where: { id: run.id },
         data: {
           status: execution.status,
@@ -1016,7 +598,7 @@ export class ResourceControlService {
       await this.writeResourceConnectionAudit(teamId, userId, resource, completed);
       return completed;
     } catch (error) {
-      const failed = await this.prisma.resourceConnectionRun.update({
+      const failed = await this.repo.updateConnectionRun({
         where: { id: run.id },
         data: {
           status: 'failed',
@@ -1030,12 +612,7 @@ export class ResourceControlService {
     }
   }
 
-  async runResourceQuery(
-    teamId: string,
-    userId: string,
-    resourceId: string,
-    dto: RunResourceQueryDto,
-  ) {
+  async runResourceQuery(teamId: string, userId: string, resourceId: string, dto: RunResourceQueryDto) {
     const resource = await this.getManagedResource(teamId, resourceId);
     const action = this.buildConnectionProbeAction(resource);
     const credential = await this.resolveResourceQueryCredential(teamId, resource, action);
@@ -1047,7 +624,7 @@ export class ResourceControlService {
     const executionShape = this.resolveQueryExecutionShape(resource);
     const runCredentialId = this.resolveQueryRunCredentialId(resource, credential);
 
-    const run = await this.prisma.resourceQueryRun.create({
+    const run = await this.repo.createQueryRun({
       data: {
         teamId,
         actorId: userId,
@@ -1078,7 +655,7 @@ export class ResourceControlService {
         queryType,
         authAdapterKey,
       });
-      const completed = await this.prisma.resourceQueryRun.update({
+      const completed = await this.repo.updateQueryRun({
         where: { id: run.id },
         data: {
           status: execution.status,
@@ -1095,7 +672,7 @@ export class ResourceControlService {
       await this.writeResourceQueryAudit(teamId, userId, resource, completed);
       return completed;
     } catch (error) {
-      const failed = await this.prisma.resourceQueryRun.update({
+      const failed = await this.repo.updateQueryRun({
         where: { id: run.id },
         data: {
           status: 'failed',
@@ -1139,13 +716,7 @@ export class ResourceControlService {
       throw new BadRequestException('系统调度不支持需要审批的资源动作');
     }
     const approvalContext = requiresApproval
-      ? this.buildResourceApprovalContext(
-          teamId,
-          userId!,
-          resource,
-          action,
-          dto.approvalReason,
-        )
+      ? this.buildResourceApprovalContext(teamId, userId!, resource, action, dto.approvalReason)
       : null;
     const approvedApproval = requiresApproval
       ? await this.operationApprovalService.resolveApproved({
@@ -1168,7 +739,7 @@ export class ResourceControlService {
     };
     const executor = this.executorRouter.resolve(executorInput);
     const queue = dto.queue === true && executor.key === 'server-executor';
-    const actionRun = await this.prisma.resourceActionRun.create({
+    const actionRun = await this.repo.createActionRun({
       data: {
         teamId,
         actorId: userId,
@@ -1197,7 +768,7 @@ export class ResourceControlService {
             maxAttempts: dto.maxAttempts,
           },
         });
-        const blocked = await this.prisma.resourceActionRun.update({
+        const blocked = await this.repo.updateActionRun({
           where: { id: actionRun.id },
           data: {
             status: 'blocked',
@@ -1217,7 +788,7 @@ export class ResourceControlService {
       }
 
       if (action.requiresConfirmation && !dryRun && dto.confirmationText !== resource.name) {
-        const blocked = await this.prisma.resourceActionRun.update({
+        const blocked = await this.repo.updateActionRun({
           where: { id: actionRun.id },
           data: {
             status: 'blocked',
@@ -1248,18 +819,13 @@ export class ResourceControlService {
         ...(result.serverExecutionJobId ? { serverExecutionJobId: result.serverExecutionJobId } : {}),
         ...(result.status === 'queued' ? {} : { finishedAt: new Date() }),
       };
-      const completed = await this.prisma.resourceActionRun.update({
+      const completed = await this.repo.updateActionRun({
         where: { id: actionRun.id },
         data: completedData,
         include: this.actionRunInclude(),
       });
       if (completed.status === 'completed') {
-        await this.persistDockerMetricSnapshotsFromActionRun(
-          teamId,
-          completed.id,
-          result.result,
-          result.logs,
-        );
+        await this.persistDockerMetricSnapshotsFromActionRun(teamId, completed.id, result.result, result.logs);
       }
       await this.writeResourceActionAudit(teamId, userId, resource, action, completed);
       if (approvedApproval && completed.status !== 'blocked') {
@@ -1267,7 +833,7 @@ export class ResourceControlService {
       }
       return completed;
     } catch (error) {
-      const failed = await this.prisma.resourceActionRun.update({
+      const failed = await this.repo.updateActionRun({
         where: { id: actionRun.id },
         data: {
           status: 'failed',
@@ -1281,13 +847,8 @@ export class ResourceControlService {
     }
   }
 
-  async syncServerDocker(
-    teamId: string,
-    userId: string | null,
-    serverId: string,
-    dto: SyncServerDockerDto,
-  ) {
-    const server = await this.prisma.server.findFirst({
+  async syncServerDocker(teamId: string, userId: string | null, serverId: string, dto: SyncServerDockerDto) {
+    const server = await this.repo.findServer({
       where: { id: serverId, teamId },
       select: {
         id: true,
@@ -1304,7 +865,7 @@ export class ResourceControlService {
 
     const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId);
 
-    const syncRun = await this.prisma.resourceSyncRun.create({
+    const syncRun = await this.repo.createSyncRun({
       data: {
         teamId,
         actorId: userId,
@@ -1335,9 +896,9 @@ export class ResourceControlService {
       const inventory = await this.collectServerDockerInventory(teamId, userId, server, dto, environmentRef);
       const seeds = inventory.seeds;
       const resources = await this.upsertManagedResources(teamId, userId, seeds);
-      const services = this.asRecord(server.services);
+      const services = asRecord(server.services);
 
-      await this.prisma.server.update({
+      await this.repo.updateServer({
         where: { id: server.id },
         data: {
           services: this.toJsonValue({
@@ -1349,7 +910,7 @@ export class ResourceControlService {
         },
       });
 
-      const completedRun = await this.prisma.resourceSyncRun.update({
+      const completedRun = await this.repo.updateSyncRun({
         where: { id: syncRun.id },
         data: {
           status: 'completed',
@@ -1376,7 +937,7 @@ export class ResourceControlService {
 
       return { syncRun: completedRun, resources };
     } catch (error) {
-      await this.prisma.resourceSyncRun.update({
+      await this.repo.updateSyncRun({
         where: { id: syncRun.id },
         data: {
           status: 'failed',
@@ -1402,7 +963,7 @@ export class ResourceControlService {
     }
 
     const provider = dto.provider || 'all';
-    const syncRun = await this.prisma.resourceSyncRun.create({
+    const syncRun = await this.repo.createSyncRun({
       data: {
         teamId,
         actorId: userId,
@@ -1425,17 +986,16 @@ export class ResourceControlService {
     });
 
     try {
-      const providers =
-        provider === 'all'
-          ? ['aliyun-rds', 'aliyun-sls', 'tencent-cos']
-          : [provider];
-      const inventories = await Promise.all(providers.map((item) =>
-        this.collectCloudInventory(teamId, item as CloudInventoryProvider, dto, credential, environmentRef),
-      ));
+      const providers = provider === 'all' ? ['aliyun-rds', 'aliyun-sls', 'tencent-cos'] : [provider];
+      const inventories = await Promise.all(
+        providers.map((item) =>
+          this.collectCloudInventory(teamId, item as CloudInventoryProvider, dto, credential, environmentRef),
+        ),
+      );
       const seeds = inventories.flatMap((inventory) => inventory.seeds);
       const resources = await this.upsertManagedResources(teamId, userId, seeds);
 
-      const completedRun = await this.prisma.resourceSyncRun.update({
+      const completedRun = await this.repo.updateSyncRun({
         where: { id: syncRun.id },
         data: {
           status: 'completed',
@@ -1474,7 +1034,7 @@ export class ResourceControlService {
 
       return { syncRun: completedRun, resources };
     } catch (error) {
-      await this.prisma.resourceSyncRun.update({
+      await this.repo.updateSyncRun({
         where: { id: syncRun.id },
         data: {
           status: 'failed',
@@ -1492,7 +1052,7 @@ export class ResourceControlService {
     result: unknown,
     logs?: unknown,
   ) {
-    const actionRun = await this.prisma.resourceActionRun.findFirst({
+    const actionRun = await this.repo.findActionRun({
       where: { id: resourceActionRunId, teamId },
       select: {
         id: true,
@@ -1524,7 +1084,7 @@ export class ResourceControlService {
       return 0;
     }
 
-    const existingCount = await this.prisma.resourceMetricSnapshot.count({
+    const existingCount = await this.repo.countMetricSnapshots({
       where: { teamId, resourceActionRunId },
     });
     if (existingCount > 0) {
@@ -1551,7 +1111,7 @@ export class ResourceControlService {
       return 0;
     }
 
-    const created = await this.prisma.resourceMetricSnapshot.createMany({
+    const created = await this.repo.createManyMetricSnapshots({
       data: snapshots,
     });
     return created.count;
@@ -1580,18 +1140,13 @@ export class ResourceControlService {
     return 'cpuPercent';
   }
 
-  private metricSeriesValue(
-    snapshot: ResourceMetricSnapshotForTrend,
-    metric: ResourceMetricSeriesMetric,
-  ) {
+  private metricSeriesValue(snapshot: ResourceMetricSnapshotForTrend, metric: ResourceMetricSeriesMetric) {
     const value = snapshot[metric];
     return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
 
   private summarizeMetricNumber(values: Array<number | null>): MetricTrendNumberSummary {
-    const numbers = values.filter((value): value is number => (
-      typeof value === 'number' && Number.isFinite(value)
-    ));
+    const numbers = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
     if (numbers.length === 0) {
       return {
         latest: null,
@@ -1612,144 +1167,26 @@ export class ResourceControlService {
   }
 
   private managedResourceInclude() {
-    return {
-      server: { select: { id: true, name: true, host: true, status: true } },
-      project: { select: { id: true, name: true } },
-      environment: { select: { id: true, key: true, name: true, status: true } },
-      resourceInstance: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          resourceType: { select: { id: true, key: true, name: true } },
-        },
-      },
-      credential: { select: { id: true, name: true, type: true } },
-      createdBy: { select: { id: true, name: true, email: true } },
-    };
+    return managedResourceInclude;
   }
 
   private actionRunInclude() {
-    return {
-      resource: {
-        select: {
-          id: true,
-          projectId: true,
-          environmentId: true,
-          name: true,
-          provider: true,
-          kind: true,
-          sourceType: true,
-          endpoint: true,
-          server: { select: { id: true, name: true, host: true } },
-          environment: { select: { id: true, key: true, name: true, status: true } },
-          credential: { select: { id: true, name: true, type: true } },
-        },
-      },
-      actor: { select: { id: true, name: true, email: true } },
-      credential: { select: { id: true, name: true, type: true } },
-      operationApproval: { select: { id: true, status: true, risk: true, reviewedAt: true, consumedAt: true } },
-      serverExecutionJob: {
-        select: {
-          id: true,
-          status: true,
-          queueMode: true,
-          attempt: true,
-          maxAttempts: true,
-          queuedAt: true,
-          startedAt: true,
-          finishedAt: true,
-        },
-      },
-    };
+    return actionRunInclude;
   }
 
   private metricSnapshotInclude() {
-    return {
-      resource: {
-        select: {
-          id: true,
-          projectId: true,
-          environmentId: true,
-          name: true,
-          provider: true,
-          kind: true,
-          sourceType: true,
-          endpoint: true,
-          server: { select: { id: true, name: true, host: true } },
-          environment: { select: { id: true, key: true, name: true, status: true } },
-        },
-      },
-      resourceActionRun: {
-        select: {
-          id: true,
-          action: true,
-          status: true,
-          dryRun: true,
-          startedAt: true,
-          finishedAt: true,
-        },
-      },
-      server: { select: { id: true, name: true, host: true } },
-      project: { select: { id: true, name: true } },
-      environment: { select: { id: true, key: true, name: true, status: true } },
-    };
+    return metricSnapshotInclude;
   }
 
   private connectionRunInclude() {
-    return {
-      resource: {
-        select: {
-          id: true,
-          projectId: true,
-          environmentId: true,
-          name: true,
-          provider: true,
-          kind: true,
-          sourceType: true,
-          endpoint: true,
-          server: { select: { id: true, name: true, host: true } },
-          environment: { select: { id: true, key: true, name: true, status: true } },
-          credential: { select: { id: true, name: true, type: true } },
-        },
-      },
-      actor: { select: { id: true, name: true, email: true } },
-      credential: { select: { id: true, name: true, type: true } },
-      project: { select: { id: true, name: true } },
-      environment: { select: { id: true, key: true, name: true, status: true } },
-      server: { select: { id: true, name: true, host: true, status: true } },
-    };
+    return connectionRunInclude;
   }
 
   private queryRunInclude() {
-    return {
-      resource: {
-        select: {
-          id: true,
-          projectId: true,
-          environmentId: true,
-          name: true,
-          provider: true,
-          kind: true,
-          sourceType: true,
-          endpoint: true,
-          server: { select: { id: true, name: true, host: true } },
-          environment: { select: { id: true, key: true, name: true, status: true } },
-          credential: { select: { id: true, name: true, type: true } },
-        },
-      },
-      actor: { select: { id: true, name: true, email: true } },
-      credential: { select: { id: true, name: true, type: true } },
-      project: { select: { id: true, name: true } },
-      environment: { select: { id: true, key: true, name: true, status: true } },
-      server: { select: { id: true, name: true, host: true, status: true } },
-    };
+    return queryRunInclude;
   }
 
-  private requiresResourceApproval(
-    action: { mode: string; risk: string },
-    dryRun: boolean,
-  ) {
+  private requiresResourceApproval(action: { mode: string; risk: string }, dryRun: boolean) {
     return !dryRun && (action.risk !== 'low' || action.mode !== 'read');
   }
 
@@ -1824,11 +1261,12 @@ export class ResourceControlService {
       providers: [resource.provider],
       kinds: [resource.kind],
       sourceTypes: [resource.sourceType],
-      executorKey: resource.sourceType === 'server'
-        ? 'server-executor'
-        : resource.sourceType === 'cloud'
-          ? 'cloud-sdk'
-          : 'direct-db-adapter',
+      executorKey:
+        resource.sourceType === 'server'
+          ? 'server-executor'
+          : resource.sourceType === 'cloud'
+            ? 'cloud-sdk'
+            : 'direct-db-adapter',
       adapterKey: 'resource-connection-plan',
       mode: 'read',
       risk: 'low',
@@ -1859,10 +1297,7 @@ export class ResourceControlService {
     };
   }
 
-  private resolveAuthAdapterKey(
-    resource: { sourceType: string; provider: string },
-    credential: ResolvedCredentialRef,
-  ) {
+  private resolveAuthAdapterKey(resource: { sourceType: string; provider: string }, credential: ResolvedCredentialRef) {
     if (credential.transport === 'direct_db') {
       return credential.credentialType === 'db_redis_readonly'
         ? 'redis-readonly-team-credential'
@@ -1941,11 +1376,8 @@ export class ResourceControlService {
     };
   }
 
-  private resolveQueryRunCredentialId(
-    resource: { credentialId: string | null },
-    credential: ResolvedCredentialRef,
-  ) {
-    return credential.source === 'team_credential' ? credential.referenceId ?? null : resource.credentialId;
+  private resolveQueryRunCredentialId(resource: { credentialId: string | null }, credential: ResolvedCredentialRef) {
+    return credential.source === 'team_credential' ? (credential.referenceId ?? null) : resource.credentialId;
   }
 
   private canExecuteDirectDbLiveQuery(
@@ -1953,9 +1385,11 @@ export class ResourceControlService {
     credential: ResolvedCredentialRef,
     queryType: string,
   ) {
-    return credential.transport === 'direct_db'
-      && this.requiresDirectQueryCredential(resource)
-      && (queryType === 'sql' || queryType === 'redis_scan');
+    return (
+      credential.transport === 'direct_db' &&
+      this.requiresDirectQueryCredential(resource) &&
+      (queryType === 'sql' || queryType === 'redis_scan')
+    );
   }
 
   private isLiveQueryConfirmed(params: Record<string, unknown>) {
@@ -2193,13 +1627,10 @@ export class ResourceControlService {
     return { steps, warnings };
   }
 
-  private sdkCallsForConnectionProbe(
-    resource: ManagedResourceForConnection,
-    params: Record<string, unknown>,
-  ) {
-    const config = this.asRecord(resource.config);
-    const metadata = this.asRecord(resource.metadata);
-    const region = this.asString(metadata.region) || this.asString(params.region) || 'default';
+  private sdkCallsForConnectionProbe(resource: ManagedResourceForConnection, params: Record<string, unknown>) {
+    const config = asRecord(resource.config);
+    const metadata = asRecord(resource.metadata);
+    const region = asString(metadata.region) || asString(params.region) || 'default';
 
     if (resource.provider === 'aliyun-rds') {
       return [
@@ -2222,7 +1653,7 @@ export class ResourceControlService {
           operation: 'ListLogStores',
           params: {
             region,
-            project: this.asString(config.project) || resource.name,
+            project: asString(config.project) || resource.name,
           },
         },
       ];
@@ -2235,7 +1666,7 @@ export class ResourceControlService {
           operation: 'HeadBucket',
           params: {
             region,
-            bucket: this.asString(config.bucket) || resource.name,
+            bucket: asString(config.bucket) || resource.name,
           },
         },
       ];
@@ -2277,10 +1708,7 @@ export class ResourceControlService {
     };
   }
 
-  private resolveQueryType(
-    resource: { provider: string; kind: string },
-    requested?: string,
-  ) {
+  private resolveQueryType(resource: { provider: string; kind: string }, requested?: string) {
     const allowed = this.allowedQueryTypes(resource);
     if (requested && allowed.includes(requested)) {
       return requested;
@@ -2335,17 +1763,23 @@ export class ResourceControlService {
       return trimmed || '*';
     }
     if (queryType === 'cos_list') {
-      return this.asString(params?.prefix) || trimmed || '';
+      return asString(params?.prefix) || trimmed || '';
     }
     return trimmed || `${resource.provider}/${resource.kind} metadata`;
   }
 
   private resolveQueryExecutionShape(resource: { provider: string; kind: string }) {
     if (resource.kind === 'mysql' || resource.kind === 'database') {
-      return { executorKey: 'direct-db-adapter', adapterKey: 'mysql-query-plan' };
+      return {
+        executorKey: 'direct-db-adapter',
+        adapterKey: 'mysql-query-plan',
+      };
     }
     if (resource.kind === 'redis') {
-      return { executorKey: 'direct-db-adapter', adapterKey: 'redis-query-plan' };
+      return {
+        executorKey: 'direct-db-adapter',
+        adapterKey: 'redis-query-plan',
+      };
     }
     if (resource.provider === 'aliyun-sls') {
       return { executorKey: 'cloud-sdk', adapterKey: 'aliyun-sls-query-plan' };
@@ -2353,7 +1787,10 @@ export class ResourceControlService {
     if (resource.provider === 'tencent-cos') {
       return { executorKey: 'cloud-sdk', adapterKey: 'tencent-cos-query-plan' };
     }
-    return { executorKey: 'resource-query-adapter', adapterKey: 'metadata-query-plan' };
+    return {
+      executorKey: 'resource-query-adapter',
+      adapterKey: 'metadata-query-plan',
+    };
   }
 
   private async executeResourceQueryPlan(
@@ -2532,8 +1969,18 @@ export class ResourceControlService {
         columns: [
           { key: 'key', label: 'Object Key', type: 'string', masked: false },
           { key: 'size', label: 'Size', type: 'number', masked: false },
-          { key: 'lastModified', label: 'Last Modified', type: 'datetime', masked: false },
-          { key: 'storageClass', label: 'Storage Class', type: 'string', masked: false },
+          {
+            key: 'lastModified',
+            label: 'Last Modified',
+            type: 'datetime',
+            masked: false,
+          },
+          {
+            key: 'storageClass',
+            label: 'Storage Class',
+            type: 'string',
+            masked: false,
+          },
         ],
         rowLimitDefault: 100,
         rowLimitMax: 1000,
@@ -2558,20 +2005,23 @@ export class ResourceControlService {
     params: Record<string, unknown>,
     contract: {
       shape: string;
-      columns: Array<{ key: string; label: string; type: string; masked: boolean }>;
+      columns: Array<{
+        key: string;
+        label: string;
+        type: string;
+        masked: boolean;
+      }>;
       rowLimitDefault: number;
       rowLimitMax: number;
     },
   ) {
-    const limit = this.asPositiveInt(params.limit, contract.rowLimitDefault, contract.rowLimitMax);
-    const cursor = this.asString(params.cursor);
+    const limit = asPositiveInt(params.limit, contract.rowLimitDefault, contract.rowLimitMax);
+    const cursor = asString(params.cursor);
     const rows = this.sampleRowsForQueryPreview(resource, queryType, query);
     const redaction = {
       enabled: true,
       policy: 'mask_secret_like_columns_before_persisting',
-      maskedColumnKeys: contract.columns
-        .filter((column) => column.masked)
-        .map((column) => column.key),
+      maskedColumnKeys: contract.columns.filter((column) => column.masked).map((column) => column.key),
       secretKeyPatterns: ['password', 'secret', 'token', 'credential', 'authorization', 'accessKey', 'secretKey'],
     };
 
@@ -2607,7 +2057,10 @@ export class ResourceControlService {
       }
       if (/^\s*(show|describe|desc|explain)\b/i.test(query)) {
         return [
-          { column: 'operation', value: query.trim().split(/\s+/).slice(0, 2).join(' ') },
+          {
+            column: 'operation',
+            value: query.trim().split(/\s+/).slice(0, 2).join(' '),
+          },
           { column: 'target', value: resource.name },
         ];
       }
@@ -2662,7 +2115,8 @@ export class ResourceControlService {
   ) {
     const needsCloudCredential = resource.sourceType === 'cloud';
     const needsServerCredential = resource.sourceType === 'server';
-    const needsDirectDbCredential = resource.kind === 'mysql' || resource.kind === 'database' || resource.kind === 'redis';
+    const needsDirectDbCredential =
+      resource.kind === 'mysql' || resource.kind === 'database' || resource.kind === 'redis';
     const hasDirectDbCredential = credential.transport === 'direct_db';
 
     return [
@@ -2677,23 +2131,26 @@ export class ResourceControlService {
           needsDirectDbCredential && hasDirectDbCredential
             ? 'ready'
             : needsCloudCredential
-            ? credential.source === 'team_credential' ? 'ready' : 'missing'
-            : needsServerCredential
-              ? credential.source === 'server' ? 'ready' : 'missing'
-              : 'missing',
-        detail: needsDirectDbCredential && hasDirectDbCredential
-          ? 'Direct DB read-only credential is bound for query adapter.'
-          : needsCloudCredential
-          ? 'Cloud provider query requires TeamCredential binding.'
-          : needsServerCredential
-            ? 'Server resource query requires Server credential binding.'
-            : 'Manual resource query requires a credential binding.',
+              ? credential.source === 'team_credential'
+                ? 'ready'
+                : 'missing'
+              : needsServerCredential
+                ? credential.source === 'server'
+                  ? 'ready'
+                  : 'missing'
+                : 'missing',
+        detail:
+          needsDirectDbCredential && hasDirectDbCredential
+            ? 'Direct DB read-only credential is bound for query adapter.'
+            : needsCloudCredential
+              ? 'Cloud provider query requires TeamCredential binding.'
+              : needsServerCredential
+                ? 'Server resource query requires Server credential binding.'
+                : 'Manual resource query requires a credential binding.',
       },
       {
         key: 'read_only_driver_credential',
-        status: needsDirectDbCredential
-          ? hasDirectDbCredential ? 'ready' : 'missing'
-          : 'not_required',
+        status: needsDirectDbCredential ? (hasDirectDbCredential ? 'ready' : 'missing') : 'not_required',
         detail: needsDirectDbCredential
           ? hasDirectDbCredential
             ? 'Dedicated read-only account credential is bound; live driver adapter is still disabled.'
@@ -2710,15 +2167,10 @@ export class ResourceControlService {
     ];
   }
 
-  private maskQueryPreviewRow(
-    row: Record<string, unknown>,
-    secretPatterns: string[],
-  ) {
+  private maskQueryPreviewRow(row: Record<string, unknown>, secretPatterns: string[]) {
     return Object.fromEntries(
       Object.entries(row).map(([key, value]) => {
-        const shouldMask = secretPatterns.some((pattern) =>
-          key.toLowerCase().includes(pattern.toLowerCase()),
-        );
+        const shouldMask = secretPatterns.some((pattern) => key.toLowerCase().includes(pattern.toLowerCase()));
         return [key, shouldMask ? '******' : value];
       }),
     );
@@ -2736,7 +2188,10 @@ export class ResourceControlService {
         return { ok: false, reason: 'SQL 查询计划只允许单条只读语句' };
       }
       if (this.hasForbiddenSqlReadonlyPattern(normalized)) {
-        return { ok: false, reason: 'SQL 只读查询不允许写入、锁、文件、过程或高风险函数' };
+        return {
+          ok: false,
+          reason: 'SQL 只读查询不允许写入、锁、文件、过程或高风险函数',
+        };
       }
       if (/^select\b/.test(normalized)) {
         return { ok: true, reason: 'read-only sql' };
@@ -2747,14 +2202,20 @@ export class ResourceControlService {
       if (/^explain\s+(format\s*=\s*(json|tree|traditional)\s+)?select\b/.test(normalized)) {
         return { ok: true, reason: 'read-only sql' };
       }
-      return { ok: false, reason: 'SQL 查询计划只允许 SELECT/SHOW/DESCRIBE/EXPLAIN' };
+      return {
+        ok: false,
+        reason: 'SQL 查询计划只允许 SELECT/SHOW/DESCRIBE/EXPLAIN',
+      };
     }
 
     if (queryType === 'redis_scan') {
       if (/^(scan|info|ping|ttl|type|exists)\b/.test(normalized)) {
         return { ok: true, reason: 'read-only redis command' };
       }
-      return { ok: false, reason: 'Redis 查询计划只允许 SCAN/INFO/PING/TTL/TYPE/EXISTS' };
+      return {
+        ok: false,
+        reason: 'Redis 查询计划只允许 SCAN/INFO/PING/TTL/TYPE/EXISTS',
+      };
     }
 
     if (queryType === 'sls_query' || queryType === 'cos_list' || queryType === 'metadata') {
@@ -2772,11 +2233,15 @@ export class ResourceControlService {
   }
 
   private hasForbiddenSqlReadonlyPattern(normalizedSql: string) {
-    return /\b(insert|update|delete|drop|alter|create|truncate|replace|merge|grant|revoke|call|do|set|use|lock|unlock|analyze|optimize|repair|kill|load)\b/.test(normalizedSql)
-      || /\binto\s+(outfile|dumpfile)\b/.test(normalizedSql)
-      || /\bfor\s+update\b/.test(normalizedSql)
-      || /\block\s+in\s+share\s+mode\b/.test(normalizedSql)
-      || /\b(get_lock|release_lock|sleep|benchmark)\s*\(/.test(normalizedSql);
+    return (
+      /\b(insert|update|delete|drop|alter|create|truncate|replace|merge|grant|revoke|call|do|set|use|lock|unlock|analyze|optimize|repair|kill|load)\b/.test(
+        normalizedSql,
+      ) ||
+      /\binto\s+(outfile|dumpfile)\b/.test(normalizedSql) ||
+      /\bfor\s+update\b/.test(normalizedSql) ||
+      /\block\s+in\s+share\s+mode\b/.test(normalizedSql) ||
+      /\b(get_lock|release_lock|sleep|benchmark)\s*\(/.test(normalizedSql)
+    );
   }
 
   private plannedCallsForQuery(
@@ -2785,9 +2250,9 @@ export class ResourceControlService {
     query: string,
     params: Record<string, unknown>,
   ) {
-    const config = this.asRecord(resource.config);
-    const metadata = this.asRecord(resource.metadata);
-    const region = this.asString(metadata.region) || this.asString(params.region) || 'default';
+    const config = asRecord(resource.config);
+    const metadata = asRecord(resource.metadata);
+    const region = asString(metadata.region) || asString(params.region) || 'default';
 
     if (queryType === 'sql') {
       return [
@@ -2796,7 +2261,7 @@ export class ResourceControlService {
           operation: 'readonlyQuery',
           params: {
             endpoint: resource.endpoint,
-            database: this.asString(params.database) || this.asString(config.database),
+            database: asString(params.database) || asString(config.database),
             sql: query,
           },
         },
@@ -2823,10 +2288,10 @@ export class ResourceControlService {
           operation: 'GetLogs',
           params: {
             region,
-            project: this.asString(config.project) || resource.name,
-            logstore: this.asString(config.logstore),
+            project: asString(config.project) || resource.name,
+            logstore: asString(config.logstore),
             query,
-            limit: this.asPositiveInt(params.limit, 100, 1000),
+            limit: asPositiveInt(params.limit, 100, 1000),
           },
         },
       ];
@@ -2839,9 +2304,9 @@ export class ResourceControlService {
           operation: 'GetBucket',
           params: {
             region,
-            bucket: this.asString(config.bucket) || resource.name,
+            bucket: asString(config.bucket) || resource.name,
             prefix: query,
-            maxKeys: this.asPositiveInt(params.limit, 100, 1000),
+            maxKeys: asPositiveInt(params.limit, 100, 1000),
           },
         },
       ];
@@ -3058,8 +2523,18 @@ export class ResourceControlService {
       endpoint: string | null;
       config: Prisma.JsonValue | null;
       project?: { id: string; name: string } | null;
-      environment?: { id: string; key: string; name: string; status: string } | null;
-      server?: { id: string; name: string; host: string; status: string } | null;
+      environment?: {
+        id: string;
+        key: string;
+        name: string;
+        status: string;
+      } | null;
+      server?: {
+        id: string;
+        name: string;
+        host: string;
+        status: string;
+      } | null;
       credential?: { id: string; name: string; type: string } | null;
     },
     before: Record<string, unknown>,
@@ -3101,7 +2576,7 @@ export class ResourceControlService {
   }
 
   private async getManagedResource(teamId: string, resourceId: string) {
-    const resource = await this.prisma.managedResource.findFirst({
+    const resource = await this.repo.findManagedResource({
       where: { id: resourceId, teamId },
       include: this.managedResourceInclude(),
     });
@@ -3120,7 +2595,12 @@ export class ResourceControlService {
     credentialId: string | null;
     config: Prisma.JsonValue | null;
     project?: { id: string; name: string } | null;
-    environment?: { id: string; key: string; name: string; status: string } | null;
+    environment?: {
+      id: string;
+      key: string;
+      name: string;
+      status: string;
+    } | null;
     server?: { id: string; name: string; host: string; status: string } | null;
     credential?: { id: string; name: string; type: string } | null;
   }) {
@@ -3141,18 +2621,17 @@ export class ResourceControlService {
   }
 
   private resolveQueryCredentialId(resource: { config: Prisma.JsonValue | null }) {
-    const config = this.asRecord(resource.config);
-    const credentialBindings = this.asRecord(config.credentialBindings as Prisma.JsonValue | null);
-    return this.asString(credentialBindings.queryCredentialId);
+    const config = asRecord(resource.config);
+    const credentialBindings = asRecord(config.credentialBindings as Prisma.JsonValue | null);
+    return asString(credentialBindings.queryCredentialId);
   }
 
-  private mergeQueryCredentialBinding(
-    configValue: Prisma.JsonValue | null,
-    queryCredentialId: string | null,
-  ) {
-    const config = this.asRecord(configValue);
-    const credentialBindings = this.asRecord(config.credentialBindings as Prisma.JsonValue | null);
-    const nextCredentialBindings: Record<string, unknown> = { ...credentialBindings };
+  private mergeQueryCredentialBinding(configValue: Prisma.JsonValue | null, queryCredentialId: string | null) {
+    const config = asRecord(configValue);
+    const credentialBindings = asRecord(config.credentialBindings as Prisma.JsonValue | null);
+    const nextCredentialBindings: Record<string, unknown> = {
+      ...credentialBindings,
+    };
 
     if (queryCredentialId) {
       nextCredentialBindings.queryCredentialId = queryCredentialId;
@@ -3173,7 +2652,7 @@ export class ResourceControlService {
   }
 
   private async ensureProject(teamId: string, projectId: string) {
-    const project = await this.prisma.project.findFirst({
+    const project = await this.repo.findProject({
       where: { id: projectId, teamId },
       select: { id: true },
     });
@@ -3186,7 +2665,7 @@ export class ResourceControlService {
   }
 
   private async ensureServer(teamId: string, serverId: string) {
-    const server = await this.prisma.server.findFirst({
+    const server = await this.repo.findServer({
       where: { id: serverId, teamId },
       select: { id: true },
     });
@@ -3211,16 +2690,12 @@ export class ResourceControlService {
     return credential;
   }
 
-  private async upsertManagedResources(
-    teamId: string,
-    userId: string | null,
-    seeds: ManagedResourceSeed[],
-  ) {
+  private async upsertManagedResources(teamId: string, userId: string | null, seeds: ManagedResourceSeed[]) {
     const resources = [];
     const syncedAt = new Date();
 
     for (const seed of seeds) {
-      const resource = await this.prisma.managedResource.upsert({
+      const resource = await this.repo.upsertManagedResource({
         where: {
           teamId_sourceType_provider_externalId: {
             teamId,
@@ -3278,6 +2753,25 @@ export class ResourceControlService {
   ) {
     const includeContainers = dto.includeContainers !== false;
     const includeMiddleware = dto.includeMiddleware !== false;
+
+    // Docker API 路径：当服务器 services 元数据含 dockerApiHost/dockerApiSocket 时，
+    // 用 dockerode 直连 daemon（结构化数据，免 docker ps 文本解析）。
+    if (
+      this.dockerInventoryExecutorFactory.usesDockerApi({
+        services: server.services,
+      })
+    ) {
+      return this.collectServerDockerInventoryViaApi(
+        teamId,
+        server,
+        dto,
+        environment,
+        includeContainers,
+        includeMiddleware,
+      );
+    }
+
+    // CLI 路径：通过 server-executor SSH 远程跑 docker ps（默认，服务器只装 CLI）。
     const target = await this.serverExecutorService.resolveTarget(teamId, server.id);
     const execution = await this.serverExecutorService.execute({
       teamId,
@@ -3352,6 +2846,73 @@ export class ResourceControlService {
     };
   }
 
+  /**
+   * Docker API 路径：通过 dockerode 直连服务器 Docker daemon 获取容器列表。
+   * 当 server.services 含 dockerApiHost/dockerApiSocket 时由 collectServerDockerInventory 路由到此。
+   */
+  private async collectServerDockerInventoryViaApi(
+    teamId: string,
+    server: ServerInventorySource,
+    dto: SyncServerDockerDto,
+    environment: EnvironmentRef | null | undefined,
+    includeContainers: boolean,
+    includeMiddleware: boolean,
+  ) {
+    const executor = this.dockerInventoryExecutorFactory.resolve({
+      services: server.services,
+    });
+    try {
+      const records = await executor.listContainers({
+        teamId,
+        serverId: server.id,
+      });
+      const parsed = buildDockerInventorySeedsFromRecords(records, {
+        server,
+        environment,
+        includeContainers,
+        includeMiddleware,
+        syncMode: 'docker_api_live',
+      });
+      return {
+        syncMode: 'docker_api_live',
+        seeds: parsed.seeds,
+        execution: {
+          status: 'completed',
+          mode: 'docker_api',
+          adapterKey: 'docker-api-inventory',
+          executable: true,
+          warnings: [],
+          error: undefined,
+        },
+        parser: {
+          parsedCount: parsed.parsedCount,
+          skippedCount: parsed.skippedCount,
+          errors: parsed.errors,
+        },
+      };
+    } catch (error) {
+      const fallbackReason = error instanceof Error ? error.message : 'Docker API inventory failed';
+      const seeds = this.buildServerDockerInventory(server, dto, environment).map((seed) => ({
+        ...seed,
+        metadata: { ...(seed.metadata || {}), fallbackReason },
+      }));
+      return {
+        syncMode: 'inventory_stub_fallback',
+        seeds,
+        execution: {
+          status: 'failed',
+          mode: 'docker_api',
+          adapterKey: 'docker-api-inventory',
+          executable: true,
+          warnings: [],
+          error: fallbackReason,
+        },
+        parser: { parsedCount: 0, skippedCount: 0, errors: [fallbackReason] },
+        fallbackReason,
+      };
+    }
+  }
+
   private summarizeServerExecution(execution: ServerExecutionResult) {
     return {
       status: execution.status,
@@ -3364,17 +2925,17 @@ export class ResourceControlService {
   }
 
   private readServerExecutionStdout(execution: ServerExecutionResult) {
-    const result = this.asRecord(execution.result);
+    const result = asRecord(execution.result);
     if (typeof result.stdoutPreview === 'string') {
       return result.stdoutPreview;
     }
     const logs = Array.isArray(execution.logs) ? execution.logs : [];
     const stdoutLog = logs.find((item) => {
-      const record = this.asRecord(item);
+      const record = asRecord(item);
       return record.stream === 'stdout' && typeof record.message === 'string';
     });
     if (stdoutLog) {
-      const record = this.asRecord(stdoutLog);
+      const record = asRecord(stdoutLog);
       return typeof record.message === 'string' ? record.message : undefined;
     }
     return undefined;
@@ -3515,15 +3076,12 @@ export class ResourceControlService {
     });
   }
 
-  private async resolveProjectEnvironment(
-    teamId: string,
-    environmentId?: string,
-  ): Promise<EnvironmentRef | null> {
+  private async resolveProjectEnvironment(teamId: string, environmentId?: string): Promise<EnvironmentRef | null> {
     if (!environmentId) {
       return null;
     }
 
-    const environment = await this.prisma.projectEnvironment.findFirst({
+    const environment = await this.repo.findProjectEnvironment({
       where: { id: environmentId, teamId, status: 'active' },
       select: { id: true, projectId: true, key: true, name: true },
     });
@@ -3541,7 +3099,7 @@ export class ResourceControlService {
     serverId: string,
     metadata: Record<string, unknown>,
   ) {
-    await this.prisma.projectEnvironmentServer.upsert({
+    await this.repo.upsertProjectEnvironmentServer({
       where: {
         environmentId_serverId: {
           environmentId: environment.id,
@@ -3580,107 +3138,17 @@ export class ResourceControlService {
     return {};
   }
 
-  private ensureCloudProviderHealthSummary(
-    providers: Map<string, CloudProviderHealthAccumulator>,
-    provider: string,
-  ) {
-    const existing = providers.get(provider);
-    if (existing) return existing;
-    const created = this.emptyCloudProviderHealthSummary(provider);
-    providers.set(provider, created);
-    return created;
-  }
-
-  private emptyCloudProviderHealthSummary(provider: string): CloudProviderHealthAccumulator {
-    return {
-      provider,
-      totalRuns: 0,
-      liveRuns: 0,
-      fallbackRuns: 0,
-      failedRuns: 0,
-      providerFailureCount: 0,
-      configFallbackCount: 0,
-      quotaSignals: 0,
-      rateLimitSignals: 0,
-      timeoutSignals: 0,
-      discovered: 0,
-      regions: new Set<string>(),
-      recentIssues: [],
-    };
-  }
-
-  private readCloudProviderDiagnostics(value: unknown): CloudProviderDiagnosticRecord[] {
-    if (!Array.isArray(value)) return [];
-    return value
-      .map((item): CloudProviderDiagnosticRecord | null => {
-        const record = this.asRecord(item);
-        const provider = this.asString(record.provider);
-        if (!provider) return null;
-        return {
-          provider,
-          syncMode: this.asString(record.syncMode),
-          parsedCount: this.asNumber(record.parsedCount),
-          skippedCount: this.asNumber(record.skippedCount),
-          errors: this.asStringArray(record.errors),
-          fallbackReason: this.asString(record.fallbackReason),
-          live: typeof record.live === 'boolean' ? record.live : undefined,
-          sdk: this.asString(record.sdk),
-          regions: this.asStringArray(record.regions),
-          requestPolicy: this.asOptionalRecord(record.requestPolicy),
-        };
-      })
-      .filter((item): item is CloudProviderDiagnosticRecord => Boolean(item));
-  }
-
-  private latestDateString(current: string | undefined, next: Date) {
-    if (!current || next.getTime() > new Date(current).getTime()) {
-      return next.toISOString();
-    }
-    return current;
-  }
-
-  private isProviderFailure(diagnostic: CloudProviderDiagnosticRecord, runStatus: string) {
-    if (runStatus === 'failed') return true;
-    if (diagnostic.errors.length > 0) return true;
-    if (!diagnostic.fallbackReason) return false;
-    return /(live inventory failed|timeout|timed out|rate|throttl|quota|denied|unauthorized|forbidden|provider.*failed|request.*failed|network|econn|etimedout)/i
-      .test(diagnostic.fallbackReason);
-  }
-
-  private isConfigFallback(diagnostic: CloudProviderDiagnosticRecord) {
-    return diagnostic.syncMode === 'cloud_inventory_stub_fallback' ||
-      diagnostic.live === false ||
-      Boolean(diagnostic.fallbackReason);
-  }
-
-  private asOptionalRecord(value: unknown) {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return value as Record<string, unknown>;
-    }
-    return undefined;
-  }
-
-  private asStringArray(value: unknown) {
-    return Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-      : [];
-  }
-
-  private asNumber(value: unknown) {
-    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-  }
-
   private resolveContainerName(resource: {
     name: string;
     externalId: string;
     config: Prisma.JsonValue | null;
     metadata: Prisma.JsonValue | null;
   }) {
-    const config = this.asRecord(resource.config);
-    const metadata = this.asRecord(resource.metadata);
+    const config = asRecord(resource.config);
+    const metadata = asRecord(resource.metadata);
     const rawName =
-      this.asString(config.containerName) ||
-      this.asString(metadata.containerName) ||
+      asString(config.containerName) ||
+      asString(metadata.containerName) ||
       resource.name.split('/').pop()?.trim() ||
       resource.externalId.split(':').pop() ||
       resource.name;
@@ -3688,11 +3156,8 @@ export class ResourceControlService {
     return this.sanitizeDockerName(rawName);
   }
 
-  private resolveResourcePort(
-    resource: { config: Prisma.JsonValue | null },
-    fallback: number,
-  ) {
-    const config = this.asRecord(resource.config);
+  private resolveResourcePort(resource: { config: Prisma.JsonValue | null }, fallback: number) {
+    const config = asRecord(resource.config);
     const port = config.port;
     if (typeof port === 'number' && Number.isFinite(port)) {
       return Math.max(1, Math.min(Math.floor(port), 65535));
@@ -3714,19 +3179,7 @@ export class ResourceControlService {
     return trimmed.replace(/[^a-zA-Z0-9_.-]/g, '-').slice(0, 128) || '';
   }
 
-  private asString(value: unknown) {
-    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-  }
-
-  private asPositiveInt(value: unknown, fallback: number, max: number) {
-    const rawValue = typeof value === 'string' ? Number(value) : value;
-    if (typeof rawValue !== 'number' || !Number.isFinite(rawValue)) {
-      return fallback;
-    }
-    return Math.max(1, Math.min(Math.floor(rawValue), max));
-  }
-
   private terminalConnectionStatus(status: string): ResourceConnectionExecutionResult['status'] {
-    return status === 'queued' ? 'blocked' : status as ResourceConnectionExecutionResult['status'];
+    return status === 'queued' ? 'blocked' : (status as ResourceConnectionExecutionResult['status']);
   }
 }

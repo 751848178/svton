@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { createTestCryptoService } from '../../common/crypto/crypto.test-helpers';
 import { CloudProviderInventoryService } from './cloud-provider-inventory.service';
 
 const environment = {
@@ -43,6 +43,7 @@ describe('CloudProviderInventoryService', () => {
     service = new CloudProviderInventoryService(
       prisma as unknown as PrismaService,
       config as unknown as ConfigService,
+      createTestCryptoService('test-cloud-inventory-key'),
     );
   });
 
@@ -626,11 +627,8 @@ describe('CloudProviderInventoryService', () => {
   });
 });
 
+const credentialCrypto = createTestCryptoService('test-cloud-inventory-key');
+
 function encryptCredential(payload: Record<string, unknown>) {
-  const iv = Buffer.alloc(12, 7);
-  const key = crypto.scryptSync('test-cloud-inventory-key', 'salt', 32);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  let encrypted = cipher.update(JSON.stringify(payload), 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted}`;
+  return credentialCrypto.encryptGcm(JSON.stringify(payload));
 }

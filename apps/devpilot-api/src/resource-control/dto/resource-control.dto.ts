@@ -1,6 +1,10 @@
 import { IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import {
+  ManagedResourceScopeQueryDto,
+  ResourceScopeQueryDto,
+} from './resource-control-query-scope.dto';
 
-export class ListManagedResourcesQueryDto {
+export class ListManagedResourcesQueryDto extends ManagedResourceScopeQueryDto {
   @IsOptional()
   @IsString()
   sourceType?: string;
@@ -8,10 +12,6 @@ export class ListManagedResourcesQueryDto {
   @IsOptional()
   @IsString()
   serverId?: string;
-
-  @IsOptional()
-  @IsString()
-  environmentId?: string;
 
   @IsOptional()
   @IsString()
@@ -98,11 +98,7 @@ export class ListResourceActionsQueryDto {
   resourceId?: string;
 }
 
-export class ListResourceActionRunsQueryDto {
-  @IsOptional()
-  @IsString()
-  resourceId?: string;
-
+export class ListResourceActionRunsQueryDto extends ResourceScopeQueryDto {
   @IsOptional()
   @IsString()
   action?: string;
@@ -112,11 +108,7 @@ export class ListResourceActionRunsQueryDto {
   status?: string;
 }
 
-export class ListResourceMetricSnapshotsQueryDto {
-  @IsOptional()
-  @IsString()
-  resourceId?: string;
-
+export class ListResourceMetricSnapshotsQueryDto extends ResourceScopeQueryDto {
   @IsOptional()
   @IsString()
   status?: string;
@@ -134,11 +126,7 @@ export class ListResourceMetricSnapshotsQueryDto {
   metricSource?: string;
 }
 
-export class ListResourceMetricTrendsQueryDto {
-  @IsOptional()
-  @IsString()
-  resourceId?: string;
-
+export class ListResourceMetricTrendsQueryDto extends ResourceScopeQueryDto {
   @IsOptional()
   @IsString()
   status?: string;
@@ -160,11 +148,7 @@ export class ListResourceMetricTrendsQueryDto {
   windowMinutes?: string;
 }
 
-export class ListResourceMetricSeriesQueryDto {
-  @IsOptional()
-  @IsString()
-  resourceId?: string;
-
+export class ListResourceMetricSeriesQueryDto extends ResourceScopeQueryDto {
   @IsOptional()
   @IsString()
   status?: string;
@@ -203,11 +187,7 @@ export class ListResourceMetricSeriesQueryDto {
   limit?: string;
 }
 
-export class ListResourceConnectionRunsQueryDto {
-  @IsOptional()
-  @IsString()
-  resourceId?: string;
-
+export class ListResourceConnectionRunsQueryDto extends ResourceScopeQueryDto {
   @IsOptional()
   @IsString()
   status?: string;
@@ -221,11 +201,7 @@ export class ListResourceConnectionRunsQueryDto {
   kind?: string;
 }
 
-export class ListResourceQueryRunsQueryDto {
-  @IsOptional()
-  @IsString()
-  resourceId?: string;
-
+export class ListResourceQueryRunsQueryDto extends ResourceScopeQueryDto {
   @IsOptional()
   @IsString()
   status?: string;

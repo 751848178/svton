@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CryptoService } from '../../common/crypto/crypto.service';
+import {
+  ProviderRequestPolicy,
+  executeProviderCall,
+  providerErrorMessage,
+} from '../../common/retry/provider-retry';
 import {
   buildCloudInventorySeedsFromProviderPayload,
   buildFallbackCloudInventorySeeds,
@@ -69,13 +74,6 @@ type AliyunSlsSdk = {
   ListLogStoresRequest: new (options: Record<string, unknown>) => unknown;
 };
 
-type ProviderRequestPolicy = {
-  timeoutMs: number;
-  retryAttempts: number;
-  retryBaseDelayMs: number;
-  attempts: number;
-  retries: number;
-};
 
 export type CloudProviderInventoryResult = {
   provider: CloudInventoryProvider;
@@ -96,6 +94,7 @@ export class CloudProviderInventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   async collect(input: CloudInventoryCollectInput): Promise<CloudProviderInventoryResult> {
@@ -148,7 +147,7 @@ export class CloudProviderInventoryService {
         SecretId: secretId,
         SecretKey: secretKey,
       });
-      const payload = await this.executeProviderCall(
+      const payload = await executeProviderCall(
         requestPolicy,
         'Tencent COS ListBuckets',
         () => this.listTencentBuckets(cos),
@@ -175,7 +174,7 @@ export class CloudProviderInventoryService {
     } catch (error) {
       return this.fallback(
         input,
-        `Tencent COS live inventory failed: ${this.providerErrorMessage(error)}`,
+        `Tencent COS live inventory failed: ${providerErrorMessage(error)}`,
         {
           requestPolicy: requestPolicy ? this.summarizeRequestPolicy(requestPolicy) : undefined,
         },
@@ -222,7 +221,7 @@ export class CloudProviderInventoryService {
         const instances: Array<Record<string, unknown>> = [];
 
         for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
-          const response = await this.executeProviderCall(
+          const response = await executeProviderCall(
             requestPolicy,
             `Aliyun RDS DescribeDBInstances ${region} page ${pageNumber}`,
             () => client.request<Record<string, unknown>>('DescribeDBInstances', {
@@ -264,7 +263,7 @@ export class CloudProviderInventoryService {
     } catch (error) {
       return this.fallback(
         input,
-        `Aliyun RDS live inventory failed: ${this.providerErrorMessage(error)}`,
+        `Aliyun RDS live inventory failed: ${providerErrorMessage(error)}`,
         {
           regions,
           requestPolicy: requestPolicy ? this.summarizeRequestPolicy(requestPolicy) : undefined,
@@ -314,7 +313,7 @@ export class CloudProviderInventoryService {
         const projects: Array<Record<string, unknown>> = [];
 
         for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
-          const response = await this.executeProviderCall(
+          const response = await executeProviderCall(
             requestPolicy,
             `Aliyun SLS ListProject ${region} page ${pageNumber + 1}`,
             () => client.listProject(new slsSdk.ListProjectRequest({
@@ -384,7 +383,7 @@ export class CloudProviderInventoryService {
     } catch (error) {
       return this.fallback(
         input,
-        `Aliyun SLS live inventory failed: ${this.providerErrorMessage(error)}`,
+        `Aliyun SLS live inventory failed: ${providerErrorMessage(error)}`,
         {
           regions,
           requestPolicy: requestPolicy ? this.summarizeRequestPolicy(requestPolicy) : undefined,
@@ -444,19 +443,7 @@ export class CloudProviderInventoryService {
   }
 
   private decrypt(text: string) {
-    const [ivHex, authTagHex, encrypted] = text.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const key = crypto.scryptSync(this.encryptionKey(), 'salt', 32);
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  }
-
-  private encryptionKey() {
-    return this.configService.get('ENCRYPTION_KEY', process.env.ENCRYPTION_KEY || 'default-key-32-chars-long!!!!!');
+    return this.cryptoService.decryptGcm(text);
   }
 
   private liveInventoryEnabled() {
@@ -503,80 +490,12 @@ export class CloudProviderInventoryService {
     return new Promise<CosListBucketsResult>((resolve, reject) => {
       cos.getService((error, data) => {
         if (error) {
-          reject(new Error(this.providerErrorMessage(error)));
+          reject(new Error(providerErrorMessage(error)));
           return;
         }
         resolve(data || { Buckets: [] });
       });
     });
-  }
-
-  private providerErrorMessage(error: unknown) {
-    if (error instanceof Error) return error.message;
-    if (this.isRecord(error)) {
-      return this.asString(error.message) || this.asString(error.Message) || JSON.stringify(error);
-    }
-    return String(error);
-  }
-
-  private async executeProviderCall<T>(
-    policy: ProviderRequestPolicy,
-    label: string,
-    fn: () => Promise<T>,
-  ): Promise<T> {
-    let lastError: unknown;
-
-    for (let attempt = 0; attempt <= policy.retryAttempts; attempt += 1) {
-      policy.attempts += 1;
-      try {
-        return await this.withTimeout(fn(), policy.timeoutMs, label);
-      } catch (error) {
-        lastError = error;
-        const canRetry = attempt < policy.retryAttempts && this.isRetryableProviderError(error);
-        if (!canRetry) {
-          break;
-        }
-        policy.retries += 1;
-        await this.sleep(policy.retryBaseDelayMs * (attempt + 1));
-      }
-    }
-
-    throw lastError;
-  }
-
-  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        reject(new Error(`${label} timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-
-      promise
-        .then(resolve, reject)
-        .finally(() => clearTimeout(timer));
-    });
-  }
-
-  private sleep(ms: number) {
-    if (ms <= 0) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  private isRetryableProviderError(error: unknown) {
-    const message = this.providerErrorMessage(error).toLowerCase();
-    return [
-      'timeout',
-      'timed out',
-      'throttl',
-      'rate',
-      'too many',
-      'temporarily unavailable',
-      'serviceunavailable',
-      'internalerror',
-      'econnreset',
-      'etimedout',
-    ].some((pattern) => message.includes(pattern));
   }
 
   private resolveAliyunCredential(
@@ -661,7 +580,7 @@ export class CloudProviderInventoryService {
     const logstores: string[] = [];
 
     for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
-      const response = await this.executeProviderCall(
+      const response = await executeProviderCall(
         requestPolicy,
         `Aliyun SLS ListLogStores ${projectName} page ${pageNumber + 1}`,
         () => client.listLogStores(projectName, new slsSdk.ListLogStoresRequest({

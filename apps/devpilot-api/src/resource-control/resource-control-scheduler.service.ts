@@ -1,6 +1,8 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { BaseIntervalScheduler } from '../common/scheduler/base-interval-scheduler';
 import { ResourceControlService } from './resource-control.service';
 
 type ScheduledSyncSummary = {
@@ -22,41 +24,37 @@ type ScheduledSyncSummary = {
 };
 
 @Injectable()
-export class ResourceControlSchedulerService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(ResourceControlSchedulerService.name);
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class ResourceControlSchedulerService extends BaseIntervalScheduler {
+  protected readonly logger = new Logger(ResourceControlSchedulerService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly resourceControlService: ResourceControlService,
     private readonly configService: ConfigService,
-  ) {}
-
-  onModuleInit() {
-    if (!this.schedulerEnabled()) {
-      return;
-    }
-
-    const intervalMs = this.schedulerIntervalMs();
-    this.timer = setInterval(() => {
-      void this.runOnce();
-    }, intervalMs);
-    this.logger.log(`Resource control scheduler enabled; interval=${intervalMs}ms`);
+    @Optional() schedulerRegistry?: SchedulerRegistry,
+  ) {
+    super(schedulerRegistry);
   }
 
-  onModuleDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
+  schedulerName(): string {
+    return 'resource-control';
+  }
+
+  isEnabled(): boolean {
+    return this.configService.get('RESOURCE_CONTROL_SCHEDULER_ENABLED', 'false') === 'true';
+  }
+
+  intervalMs(): number {
+    const seconds = Number(this.configService.get('RESOURCE_CONTROL_SCHEDULER_INTERVAL_SECONDS', '300'));
+    const safeSeconds = Number.isFinite(seconds) && seconds >= 30 ? seconds : 300;
+    return safeSeconds * 1000;
   }
 
   async runOnce(now = new Date()): Promise<ScheduledSyncSummary> {
-    if (this.running) {
+    if (!this.tryAcquireRunLock()) {
       return this.emptySummary(true);
     }
 
-    this.running = true;
     try {
       const stale = await this.markStaleResources(now);
       const dockerSync = await this.runScheduledDockerSync();
@@ -68,7 +66,7 @@ export class ResourceControlSchedulerService implements OnModuleInit, OnModuleDe
         dockerMetrics,
       };
     } finally {
-      this.running = false;
+      this.releaseRunLock();
     }
   }
 
@@ -278,22 +276,12 @@ export class ResourceControlSchedulerService implements OnModuleInit, OnModuleDe
     };
   }
 
-  private schedulerEnabled() {
-    return this.configService.get('RESOURCE_CONTROL_SCHEDULER_ENABLED', 'false') === 'true';
-  }
-
   private scheduledDockerSyncEnabled() {
     return this.configService.get('RESOURCE_CONTROL_SCHEDULE_DOCKER_SYNC_ENABLED', 'true') === 'true';
   }
 
   private scheduledDockerMetricsEnabled() {
     return this.configService.get('RESOURCE_CONTROL_SCHEDULE_DOCKER_METRICS_ENABLED', 'false') === 'true';
-  }
-
-  private schedulerIntervalMs() {
-    const seconds = Number(this.configService.get('RESOURCE_CONTROL_SCHEDULER_INTERVAL_SECONDS', '300'));
-    const safeSeconds = Number.isFinite(seconds) && seconds >= 30 ? seconds : 300;
-    return safeSeconds * 1000;
   }
 
   private staleAfterMs() {

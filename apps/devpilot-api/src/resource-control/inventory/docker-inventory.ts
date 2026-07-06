@@ -65,9 +65,8 @@ export function buildDockerInventorySeedsFromDockerPs(
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const seeds: DockerInventoryResourceSeed[] = [];
+  const records: DockerPsRecord[] = [];
   const errors: string[] = [];
-  let parsedCount = 0;
   let skippedCount = 0;
 
   for (const line of lines) {
@@ -77,12 +76,37 @@ export function buildDockerInventorySeedsFromDockerPs(
       errors.push(`invalid docker ps JSON line ${skippedCount}`);
       continue;
     }
+    records.push(record);
+  }
 
+  const result = buildDockerInventorySeedsFromRecords(records, options);
+  return {
+    ...result,
+    // 合并解析阶段（malformed 行）与 records 阶段的 skipped/errors
+    skippedCount: skippedCount + result.skippedCount,
+    errors: [...errors, ...result.errors],
+  };
+}
+
+/**
+ * 从已解析的容器记录（docker ps JSON 行 或 dockerode listContainers 归一化后）构建 inventory seeds。
+ * 供 CLI（解析 stdout 后）和 Docker API（dockerode 直返 records）两条路径共用。
+ */
+export function buildDockerInventorySeedsFromRecords(
+  records: DockerPsRecord[],
+  options: DockerInventoryOptions,
+): DockerInventoryParseResult {
+  const seeds: DockerInventoryResourceSeed[] = [];
+  const errors: string[] = [];
+  let parsedCount = 0;
+  let skippedCount = 0;
+
+  for (const record of records) {
     parsedCount += 1;
     const container = normalizeContainerRecord(record);
     if (!container.name && !container.id) {
       skippedCount += 1;
-      errors.push(`docker ps record ${parsedCount} has no container name or id`);
+      errors.push(`docker record ${parsedCount} has no container name or id`);
       continue;
     }
 

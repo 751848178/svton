@@ -7,11 +7,13 @@ import { DefaultCredentialResolver } from './credentials/credential-resolver';
 import { DirectDbQueryExecutor } from './executors/direct-db-query.executor';
 import { ResourceExecutorRouter } from './executors/executor-router';
 import { CloudProviderInventoryService } from './inventory/cloud-provider-inventory.service';
+import { ResourceControlRepository } from './resource-control.repository';
 import { ResourceControlService } from './resource-control.service';
 
 describe('ResourceControlService cloud provider health summary', () => {
   const service = new ResourceControlService(
     {} as PrismaService,
+    {} as ResourceControlRepository,
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,
@@ -19,6 +21,7 @@ describe('ResourceControlService cloud provider health summary', () => {
     {} as OperationApprovalService,
     {} as ServerExecutorService,
     {} as CloudProviderInventoryService,
+    {} as never,
   );
 
   it('summarizes quota, rate-limit, timeout, and provider failure signals from sync metadata', () => {
@@ -397,6 +400,7 @@ function toJsonValue(value: unknown): Prisma.JsonValue {
 function buildService(prisma: PrismaService) {
   return new ResourceControlService(
     prisma,
+    new ResourceControlRepository(prisma),
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,
@@ -404,6 +408,7 @@ function buildService(prisma: PrismaService) {
     {} as OperationApprovalService,
     {} as ServerExecutorService,
     {} as CloudProviderInventoryService,
+    {} as never,
   );
 }
 

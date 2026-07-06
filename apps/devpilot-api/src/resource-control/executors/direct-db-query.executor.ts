@@ -2,8 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import Redis from 'ioredis';
 import { createConnection, FieldPacket } from 'mysql2/promise';
-import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CryptoService } from '../../common/crypto/crypto.service';
 import { ResolvedCredentialRef } from '../credentials/credential-resolver';
 
 type DirectDbResource = {
@@ -55,9 +55,10 @@ type DirectDbCredentialConfig = {
 
 @Injectable()
 export class DirectDbQueryExecutor {
-  private readonly encryptionKey = process.env.ENCRYPTION_KEY || 'default-key-32-chars-long!!!!!';
-
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cryptoService: CryptoService,
+  ) {}
 
   async execute(input: DirectDbQueryInput): Promise<DirectDbQueryOutput> {
     if (input.credential.transport !== 'direct_db' || !input.credential.referenceId) {
@@ -306,18 +307,7 @@ export class DirectDbQueryExecutor {
   }
 
   private decrypt(text: string): string {
-    const [ivHex, authTagHex, encrypted] = text.split(':');
-    if (!ivHex || !authTagHex || !encrypted) {
-      throw new Error('invalid encrypted credential format');
-    }
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+    return this.cryptoService.decryptGcm(text);
   }
 
   private applyMysqlLimit(query: string, limit: number) {
