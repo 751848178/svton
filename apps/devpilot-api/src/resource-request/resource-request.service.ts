@@ -11,6 +11,8 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ResourcePoolService } from '../resource-pool/resource-pool.service';
 import { ServerExecutorService } from '../server-executor/server-executor.service';
+import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
+import { ResourceProvisioningRunReadService } from './resource-provisioning-run-read.service';
 import {
   ServerCommandStep,
   ServerExecutionInput,
@@ -32,129 +34,105 @@ import {
   UpdateResourceTypeDto,
 } from './dto/resource-request.dto';
 
+import {
+  AuditInput,
+  CompleteProvisionedRequestInput,
+  ExternalProvisioningRunMode,
+  HttpProvisioningFetch,
+  HttpProvisioningResponse,
+  JsonRecord,
+  ProvisioningAutoRetryConfig,
+  ProvisioningAutoRetrySummary,
+  ProvisioningCredentialRef,
+  ProvisioningMode,
+  ProvisioningProcessorContext,
+  ProvisioningProcessorTrigger,
+  ProvisioningQueueConfig,
+  ProvisioningQueueProcessSummary,
+  ProvisioningResourceType,
+  ProvisioningRunStatusCounts,
+  ProvisioningStaleRecoverySummary,
+  ProviderStatePollingConfig,
+  ProviderStatePollingSummary,
+  ResourceProvisioningRunRecord,
+} from './resource-request.types';
+
 type PrismaAny = any;
-type ProvisioningMode = 'manual' | 'pool' | 'webhook' | 'api' | 'script' | 'credential_only' | 'provider';
-type ExternalProvisioningRunMode = Extract<ProvisioningMode, 'webhook' | 'api' | 'provider'>;
-type JsonRecord = Record<string, unknown>;
-type HttpProvisioningResponse = {
-  ok: boolean;
-  status: number;
-  statusText?: string;
-  headers?: { get(name: string): string | null };
-  json(): Promise<unknown>;
-  text(): Promise<string>;
-};
-type HttpProvisioningFetch = (
-  url: string,
-  init?: {
-    method?: string;
-    headers?: Record<string, string>;
-    body?: string;
-    signal?: AbortSignal;
-  },
-) => Promise<HttpProvisioningResponse>;
-type ProvisioningCredentialRef = {
-  source: 'team_credential';
-  credentialType: string;
-  referenceId: string;
-  displayName: string;
-  authAdapterKey: string;
-  redacted: true;
-};
-type ProvisioningProcessorTrigger = 'approval' | 'manual_retry' | 'auto_retry';
-type ProvisioningProcessorContext = {
-  trigger: ProvisioningProcessorTrigger;
-  replayOfRunId?: string;
-  replaySourceStatus?: string;
-  provisioningRunId?: string;
-  forceInline?: boolean;
-};
-type ProvisioningAutoRetryConfig = {
-  enabled: boolean;
-  delaySeconds: number;
-  maxScheduledAttempts: number;
-};
-type ProvisioningQueueConfig = {
-  enabled: boolean;
-  delaySeconds: number;
-};
-type ResourceProvisioningRunRecord = JsonRecord & { id: string };
 
-interface ProvisioningAutoRetrySummary {
-  scanned: number;
-  attempted: number;
-  completed: number;
-  blocked: number;
-  skipped: number;
-  failed: number;
-}
-
-interface ProviderStatePollingConfig {
-  enabled: boolean;
-  intervalSeconds: number;
-  maxAttempts: number;
-  source: string;
-  createInstance?: boolean;
-  instanceName?: string;
-}
-
-export interface ProviderStatePollingSummary {
-  scanned: number;
-  polled: number;
-  completed: number;
-  planned: number;
-  blocked: number;
-  skipped: number;
-  failed: number;
-}
-
-export interface ProvisioningStaleRecoverySummary {
-  scanned: number;
-  recovered: number;
-  requestUpdated: number;
-  skipped: number;
-  failed: number;
-}
-
-export interface ProvisioningRunStatusCounts {
-  queued: number;
-  running: number;
-  staleRunning: number;
-  planned: number;
-  blocked: number;
-  failed: number;
-  completed: number;
-}
-
-export interface ProvisioningQueueProcessSummary {
-  scanned: number;
-  processed: number;
-  skipped: number;
-  failed: number;
-  reason?: string;
-  run?: JsonRecord;
-  request?: JsonRecord;
-}
-
-interface ProvisioningResourceType {
-  id: string;
-  key: string;
-  name: string;
-  provisioningMode: string;
-  provisioningConfig?: unknown;
-  deliverySchema?: unknown;
-}
-
-interface CompleteProvisionedRequestInput {
-  createInstance: boolean;
-  instanceName: string;
-  config: JsonRecord;
-  delivery: JsonRecord;
-  credentials: JsonRecord;
-  expiresAt?: Date;
-  provisioning: JsonRecord;
-  auditMetadata?: JsonRecord;
-}
+import {
+  asRecord,
+  clampNonNegativeInteger,
+  clampPositiveInteger,
+  dateToIso,
+  errorMessage,
+  hasRecordValues,
+  readBoolean,
+  readListLimit,
+  readNonNegativeInteger,
+  readPositiveInteger,
+  readString,
+  readStringArray,
+  readStringMap,
+  truncateText,
+} from './resource-provisioning-value.utils';
+import {
+  isImplicitSensitiveKey,
+  readSensitiveFieldKeys,
+  redactSensitiveRecord,
+  redactUrl,
+  resolveRequestedResourceName,
+  splitDeliveryAndCredentials,
+} from './resource-provisioning-sensitive.utils';
+import {
+  buildScriptProvisioningSteps,
+  isReplayableExternalProvisioningMode,
+  mapScriptProvisioningStatus,
+  normalizeProvisioningMode,
+  normalizeProvisioningProcessorTrigger,
+  normalizeScriptStep,
+  normalizeScriptStepRisk,
+  provisioningAuditAction,
+  provisioningAuditMessage,
+  summarizeServerExecution,
+} from './resource-provisioning-script.utils';
+import {
+  buildProviderStatePollingMetadata,
+  readProviderMaxAttempts,
+  readProviderProvisioningState,
+  readProviderStatePollingConfig,
+  readProviderStatePollingState,
+  resolveProviderAdapterKey,
+} from './resource-provisioning-provider-config.utils';
+import {
+  buildProviderProvisioningPlan,
+  providerStateIndicatesCompleted,
+  providerStateIndicatesFailed,
+  readProviderStateReason,
+  readProviderStateStatus,
+  resolveProviderProvisioningDeliverySource,
+  resolveProviderRunId,
+  resolveRunCredentialRef,
+} from './resource-provisioning-provider-state.utils';
+import {
+  buildProvisioningIdempotencyKey,
+  exposeCredentialRef,
+  readCredentialTypeAllowList,
+  resolveAuthAdapterKey,
+} from './resource-provisioning-http-config.utils';
+import {
+  buildHttpAutoRetryMetadata,
+  isProvisioningAutoRetryDue,
+  isRetryableHttpStatus,
+  readHttpMaxAttempts,
+  readHttpRetryStatusCodes,
+  readProvisioningQueueConfig,
+} from './resource-provisioning-http-retry.utils';
+import {
+  buildExternalProvisioningPayload,
+  buildHttpProvisioningHeaders,
+  readHttpProvisioningBody,
+  resolveHttpProvisioningDeliverySource,
+} from './resource-provisioning-http-request.utils';
 
 const environmentField = {
   key: 'environment',
@@ -509,18 +487,6 @@ const DEFAULT_RESOURCE_TYPES: CreateResourceTypeDto[] = [
   },
 ];
 
-interface AuditInput {
-  teamId: string;
-  actorId?: string;
-  resourceTypeId?: string;
-  requestId?: string;
-  instanceId?: string;
-  provisioningRunId?: string;
-  action: string;
-  message?: string;
-  metadata?: Record<string, unknown>;
-}
-
 @Injectable()
 export class ResourceRequestService implements OnModuleInit {
   private readonly logger = new Logger(ResourceRequestService.name);
@@ -532,6 +498,8 @@ export class ResourceRequestService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly resourcePoolService: ResourcePoolService,
     private readonly serverExecutor: ServerExecutorService,
+    private readonly provisioningRunSupervisorService: ResourceProvisioningRunSupervisorService,
+    private readonly provisioningRunReadService: ResourceProvisioningRunReadService,
   ) {
     const key = this.configService.get('ENCRYPTION_KEY', 'default-32-char-encryption-key!');
     this.encryptionKey = crypto.scryptSync(key, 'salt', 32);
@@ -662,7 +630,7 @@ export class ResourceRequestService implements OnModuleInit {
       actor: run.actor,
       replayOfRunId: run.replayOfRunId,
       replayOf: run.replayOf,
-      replayAttemptsCount: this.asRecord(run._count).replayAttempts ?? 0,
+      replayAttemptsCount: asRecord(run._count).replayAttempts ?? 0,
       mode: run.mode,
       trigger: run.trigger,
       boundary: run.boundary,
@@ -677,8 +645,8 @@ export class ResourceRequestService implements OnModuleInit {
       maxAttempts: run.maxAttempts,
       retryable: run.retryable,
       autoRetry: run.autoRetry,
-      params: this.asRecord(run.params),
-      result: this.asRecord(run.result),
+      params: asRecord(run.params),
+      result: asRecord(run.result),
       error: run.error,
       startedAt: run.startedAt,
       queuedAt: run.queuedAt,
@@ -945,36 +913,12 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async listProvisioningRuns(teamId: string, requestId: string, query: ListResourceProvisioningRunsQueryDto) {
-    const request = await (this.prisma as PrismaAny).resourceRequest.findFirst({
-      where: { id: requestId, teamId },
-      select: { id: true },
-    });
-
-    if (!request) {
-      throw new NotFoundException('资源申请不存在');
-    }
-
-    const where: Record<string, unknown> = {
+    return this.provisioningRunReadService.listRuns(
       teamId,
       requestId,
-    };
-    if (query.status) where.status = query.status;
-    if (query.mode) where.mode = query.mode;
-    if (query.trigger) where.trigger = query.trigger;
-
-    const runs = await (this.prisma as PrismaAny).resourceProvisioningRun.findMany({
-      where,
-      orderBy: { startedAt: 'desc' },
-      take: this.readListLimit(query.limit, 20, 100),
-      include: {
-        actor: { select: { id: true, name: true, email: true } },
-        resourceType: { select: { id: true, key: true, name: true } },
-        replayOf: { select: { id: true, status: true, trigger: true, providerRunId: true, startedAt: true } },
-        _count: { select: { replayAttempts: true } },
-      },
-    });
-
-    return runs.map((run: JsonRecord) => this.serializeProvisioningRun(run));
+      query,
+      (run) => this.serializeProvisioningRun(run as JsonRecord),
+    );
   }
 
   async replayProvisioningRun(teamId: string, userId: string, requestId: string, runId: string) {
@@ -987,18 +931,18 @@ export class ResourceRequestService implements OnModuleInit {
       throw new NotFoundException('资源交付运行不存在');
     }
 
-    const mode = this.normalizeProvisioningMode(run.mode);
-    if (!this.isReplayableExternalProvisioningMode(mode)) {
+    const mode = normalizeProvisioningMode(run.mode);
+    if (!isReplayableExternalProvisioningMode(mode)) {
       throw new BadRequestException('只有外部交付运行可以重放');
     }
 
-    const runStatus = this.readString(run.status);
+    const runStatus = readString(run.status);
     if (!['planned', 'blocked', 'failed'].includes(runStatus)) {
       throw new BadRequestException('只有已生成计划、已阻断或失败的交付运行可以重放');
     }
 
-    const currentProvisioning = this.asRecord(this.asRecord(existing.result).provisioning);
-    const currentRunId = this.readString(currentProvisioning.provisioningRunId);
+    const currentProvisioning = asRecord(asRecord(existing.result).provisioning);
+    const currentRunId = readString(currentProvisioning.provisioningRunId);
     if (currentRunId !== run.id) {
       throw new BadRequestException('只能重放当前资源申请正在指向的交付运行');
     }
@@ -1026,7 +970,7 @@ export class ResourceRequestService implements OnModuleInit {
       throw new NotFoundException('资源交付运行不存在');
     }
 
-    const mode = this.normalizeProvisioningMode(run.mode);
+    const mode = normalizeProvisioningMode(run.mode);
     if (mode !== 'provider') {
       throw new BadRequestException('只有 provider SDK 交付运行可以对账 providerState');
     }
@@ -1035,55 +979,55 @@ export class ResourceRequestService implements OnModuleInit {
       throw new BadRequestException('只有已审批且未交付的 provider 申请可以对账');
     }
 
-    const currentProvisioning = this.asRecord(this.asRecord(existing.result).provisioning);
-    const currentRunId = this.readString(currentProvisioning.provisioningRunId);
+    const currentProvisioning = asRecord(asRecord(existing.result).provisioning);
+    const currentRunId = readString(currentProvisioning.provisioningRunId);
     if (currentRunId !== run.id) {
       throw new BadRequestException('只能对账当前资源申请正在指向的 provider 交付运行');
     }
 
-    const runStatus = this.readString(run.status);
+    const runStatus = readString(run.status);
     if (!['planned', 'blocked', 'failed', 'running'].includes(runStatus)) {
       throw new BadRequestException('只有已生成计划、已阻断、失败或运行中的 provider 交付运行可以对账');
     }
 
-    const providerState = this.asRecord(dto.providerState);
-    if (!this.hasRecordValues(providerState)) {
+    const providerState = asRecord(dto.providerState);
+    if (!hasRecordValues(providerState)) {
       throw new BadRequestException('providerState 不能为空');
     }
 
     const resourceType = await this.getProvisioningResourceType(existing.resourceTypeId as string);
-    const provisioningConfig = this.asRecord(resourceType.provisioningConfig);
-    const runParams = this.asRecord(run.params);
+    const provisioningConfig = asRecord(resourceType.provisioningConfig);
+    const runParams = asRecord(run.params);
     const provider = (
-      this.readString(providerState.provider)
-      || this.readString(runParams.provider)
-      || this.readString(provisioningConfig.provider)
-      || this.readString(provisioningConfig.providerKey)
+      readString(providerState.provider)
+      || readString(runParams.provider)
+      || readString(provisioningConfig.provider)
+      || readString(provisioningConfig.providerKey)
     );
     const operation = (
-      this.readString(providerState.operation)
-      || this.readString(runParams.operation)
-      || this.readString(provisioningConfig.operation)
-      || this.readString(provisioningConfig.action)
+      readString(providerState.operation)
+      || readString(runParams.operation)
+      || readString(provisioningConfig.operation)
+      || readString(provisioningConfig.action)
       || `provision.${resourceType.key}`
     );
     const region = (
-      this.readString(providerState.region)
-      || this.readString(runParams.region)
-      || this.readString(provisioningConfig.region)
-      || this.readString(this.asRecord(existing.spec).region)
+      readString(providerState.region)
+      || readString(runParams.region)
+      || readString(provisioningConfig.region)
+      || readString(asRecord(existing.spec).region)
     );
-    const idempotencyKey = this.readString(run.idempotencyKey)
-      || this.buildProvisioningIdempotencyKey(existing, resourceType, 'provider', provisioningConfig);
-    const executorKey = this.readString(run.executorKey) || this.readString(provisioningConfig.executorKey) || 'cloud-sdk';
-    const adapterKey = this.readString(run.adapterKey) || this.resolveProviderAdapterKey(provider, provisioningConfig);
-    const providerStateStatus = this.readProviderStateStatus(providerState);
-    const providerStateSummary = this.redactSensitiveRecord(providerState);
-    const providerRunId = this.resolveProviderRunId(providerState, {
+    const idempotencyKey = readString(run.idempotencyKey)
+      || buildProvisioningIdempotencyKey(existing, resourceType, 'provider', provisioningConfig);
+    const executorKey = readString(run.executorKey) || readString(provisioningConfig.executorKey) || 'cloud-sdk';
+    const adapterKey = readString(run.adapterKey) || resolveProviderAdapterKey(provider, provisioningConfig);
+    const providerStateStatus = readProviderStateStatus(providerState);
+    const providerStateSummary = redactSensitiveRecord(providerState);
+    const providerRunId = resolveProviderRunId(providerState, {
       ...provisioningConfig,
       ...runParams,
     }, idempotencyKey);
-    const credentialRef = this.resolveRunCredentialRef(run, currentProvisioning);
+    const credentialRef = resolveRunCredentialRef(run, currentProvisioning);
     const reconciledAt = new Date().toISOString();
     const baseProvisioning = {
       mode: 'provider',
@@ -1118,21 +1062,21 @@ export class ResourceRequestService implements OnModuleInit {
       },
     });
 
-    if (this.providerStateIndicatesCompleted(providerState)) {
-      const deliverySource = this.resolveProviderProvisioningDeliverySource(providerState, provisioningConfig);
-      const split = this.splitDeliveryAndCredentials(deliverySource, resourceType.deliverySchema);
+    if (providerStateIndicatesCompleted(providerState)) {
+      const deliverySource = resolveProviderProvisioningDeliverySource(providerState, provisioningConfig);
+      const split = splitDeliveryAndCredentials(deliverySource, resourceType.deliverySchema);
       const adapterConfig = {
-        ...this.asRecord(this.asRecord(providerState).config),
-        ...this.asRecord(provisioningConfig.instanceConfig),
+        ...asRecord(asRecord(providerState).config),
+        ...asRecord(provisioningConfig.instanceConfig),
       };
-      const createInstance = this.readBoolean(
+      const createInstance = readBoolean(
         dto.createInstance,
-        this.readBoolean(providerState.createInstance, this.readBoolean(provisioningConfig.createInstanceOnSuccess, true)),
+        readBoolean(providerState.createInstance, readBoolean(provisioningConfig.createInstanceOnSuccess, true)),
       );
       const shouldCreateInstance = createInstance && (
-        this.hasRecordValues(split.delivery)
-        || this.hasRecordValues(split.credentials)
-        || this.hasRecordValues(adapterConfig)
+        hasRecordValues(split.delivery)
+        || hasRecordValues(split.credentials)
+        || hasRecordValues(adapterConfig)
       );
       const completedProvisioning = {
         ...baseProvisioning,
@@ -1146,10 +1090,10 @@ export class ResourceRequestService implements OnModuleInit {
       const completion = await this.completeProvisionedRequest(teamId, userId, existing, {
         createInstance: shouldCreateInstance,
         instanceName: (
-          this.readString(dto.instanceName)
-          || this.readString(providerState.instanceName)
-          || this.readString(providerState.resourceName)
-          || this.resolveRequestedResourceName(existing.spec)
+          readString(dto.instanceName)
+          || readString(providerState.instanceName)
+          || readString(providerState.resourceName)
+          || resolveRequestedResourceName(existing.spec)
           || (existing.title as string)
         ),
         config: {
@@ -1186,12 +1130,12 @@ export class ResourceRequestService implements OnModuleInit {
       return completion.request;
     }
 
-    const failed = this.providerStateIndicatesFailed(providerState);
+    const failed = providerStateIndicatesFailed(providerState);
     const status = failed ? 'blocked' : 'planned';
     return this.markProvisioningStatusWithRun(teamId, userId, existing, {
       ...baseProvisioning,
       status,
-      reason: failed ? this.readProviderStateReason(providerState) : 'provider_state_pending',
+      reason: failed ? readProviderStateReason(providerState) : 'provider_state_pending',
       retryable: false,
       requiresManualCompletion: !failed,
       updatedAt: reconciledAt,
@@ -1199,113 +1143,11 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async getProvisioningRunSupervisor(teamId: string, query: ResourceProvisioningRunSupervisorQueryDto = {}) {
-    const now = new Date();
-    const staleAfterSeconds = this.readStaleProvisioningRunAfterSeconds(query.staleAfterSeconds);
-    const staleBefore = new Date(now.getTime() - staleAfterSeconds * 1000);
-    const sampleLimit = this.readListLimit(query.sampleLimit, 5, 20);
-    const countWhere = (status: string) => ({
+    return this.provisioningRunSupervisorService.getSupervisorSnapshot(
       teamId,
-      status,
-      mode: { in: ['api', 'webhook'] },
-    });
-    const [
-      queued,
-      running,
-      staleRunning,
-      planned,
-      blocked,
-      failed,
-      completed,
-      queuedSamples,
-      staleSamples,
-      recentProblemRuns,
-    ] = await Promise.all([
-      (this.prisma as PrismaAny).resourceProvisioningRun.count({ where: countWhere('queued') }),
-      (this.prisma as PrismaAny).resourceProvisioningRun.count({ where: countWhere('running') }),
-      (this.prisma as PrismaAny).resourceProvisioningRun.count({
-        where: {
-          ...countWhere('running'),
-          startedAt: { lt: staleBefore },
-        },
-      }),
-      (this.prisma as PrismaAny).resourceProvisioningRun.count({ where: countWhere('planned') }),
-      (this.prisma as PrismaAny).resourceProvisioningRun.count({ where: countWhere('blocked') }),
-      (this.prisma as PrismaAny).resourceProvisioningRun.count({ where: countWhere('failed') }),
-      (this.prisma as PrismaAny).resourceProvisioningRun.count({ where: countWhere('completed') }),
-      (this.prisma as PrismaAny).resourceProvisioningRun.findMany({
-        where: countWhere('queued'),
-        orderBy: [
-          { availableAt: 'asc' },
-          { startedAt: 'asc' },
-        ],
-        take: sampleLimit,
-        include: {
-          actor: { select: { id: true, name: true, email: true } },
-          resourceType: { select: { id: true, key: true, name: true } },
-          _count: { select: { replayAttempts: true } },
-        },
-      }),
-      (this.prisma as PrismaAny).resourceProvisioningRun.findMany({
-        where: {
-          ...countWhere('running'),
-          startedAt: { lt: staleBefore },
-        },
-        orderBy: { startedAt: 'asc' },
-        take: sampleLimit,
-        include: {
-          actor: { select: { id: true, name: true, email: true } },
-          resourceType: { select: { id: true, key: true, name: true } },
-          _count: { select: { replayAttempts: true } },
-        },
-      }),
-      (this.prisma as PrismaAny).resourceProvisioningRun.findMany({
-        where: {
-          teamId,
-          mode: { in: ['api', 'webhook'] },
-          status: { in: ['blocked', 'failed'] },
-        },
-        orderBy: { startedAt: 'desc' },
-        take: sampleLimit,
-        include: {
-          actor: { select: { id: true, name: true, email: true } },
-          resourceType: { select: { id: true, key: true, name: true } },
-          replayOf: { select: { id: true, status: true, trigger: true, providerRunId: true, startedAt: true } },
-          _count: { select: { replayAttempts: true } },
-        },
-      }),
-    ]);
-    const counts: ProvisioningRunStatusCounts = {
-      queued,
-      running,
-      staleRunning,
-      planned,
-      blocked,
-      failed,
-      completed,
-    };
-
-    return {
-      generatedAt: now.toISOString(),
-      staleAfterSeconds,
-      staleBefore: staleBefore.toISOString(),
-      scheduler: {
-        autoRetryEnabled: this.configService.get('RESOURCE_REQUEST_PROVISIONING_RETRY_SCHEDULER_ENABLED', 'false') === 'true',
-        staleRecoveryEnabled: this.configService.get('RESOURCE_REQUEST_PROVISIONING_RUN_STALE_RECOVERY_ENABLED', 'false') === 'true',
-        intervalSeconds: this.readPositiveInteger(
-          this.configService.get('RESOURCE_REQUEST_PROVISIONING_RETRY_SCHEDULER_INTERVAL_SECONDS', '60'),
-        ) || 60,
-        queueingEnabled: this.httpProvisioningQueueEnabled(),
-        queueWorkerEnabled: this.configService.get('RESOURCE_REQUEST_PROVISIONING_QUEUE_WORKER_ENABLED', 'false') === 'true',
-        providerStatePollingEnabled:
-          this.configService.get('RESOURCE_REQUEST_PROVISIONING_PROVIDER_STATE_POLLING_ENABLED', 'false') === 'true',
-      },
-      counts,
-      samples: {
-        queued: queuedSamples.map((run: JsonRecord) => this.serializeProvisioningRun(run)),
-        staleRunning: staleSamples.map((run: JsonRecord) => this.serializeProvisioningRun(run)),
-        recentProblems: recentProblemRuns.map((run: JsonRecord) => this.serializeProvisioningRun(run)),
-      },
-    };
+      query,
+      (run) => this.serializeProvisioningRun(run as JsonRecord),
+    );
   }
 
   async recoverTeamStaleProvisioningRuns(
@@ -1314,7 +1156,7 @@ export class ResourceRequestService implements OnModuleInit {
   ) {
     return this.recoverStaleProvisioningRuns({
       teamId,
-      limit: this.readListLimit(dto.limit, 10, 100),
+      limit: readListLimit(dto.limit, 10, 100),
       staleAfterSeconds: this.readStaleProvisioningRunAfterSeconds(dto.staleAfterSeconds),
     });
   }
@@ -1393,9 +1235,9 @@ export class ResourceRequestService implements OnModuleInit {
       lockedAt: now,
       lockOwner,
     } as ResourceProvisioningRunRecord;
-    const request = this.asRecord(run.request);
-    const currentProvisioning = this.asRecord(this.asRecord(request.result).provisioning);
-    const currentRunId = this.readString(currentProvisioning.provisioningRunId);
+    const request = asRecord(run.request);
+    const currentProvisioning = asRecord(asRecord(request.result).provisioning);
+    const currentRunId = readString(currentProvisioning.provisioningRunId);
 
     if (request.status !== 'approved' || currentRunId !== run.id) {
       const reason = request.status !== 'approved'
@@ -1410,8 +1252,8 @@ export class ResourceRequestService implements OnModuleInit {
         replayOfRunId: run.replayOfRunId || undefined,
         idempotencyKey: run.idempotencyKey,
         queueMode: run.queueMode || 'queued',
-        queuedAt: this.dateToIso(run.queuedAt),
-        availableAt: this.dateToIso(run.availableAt),
+        queuedAt: dateToIso(run.queuedAt),
+        availableAt: dateToIso(run.availableAt),
         reason,
         retryable: false,
         failedAt: now.toISOString(),
@@ -1439,8 +1281,8 @@ export class ResourceRequestService implements OnModuleInit {
 
     try {
       const processed = await this.runApprovedProvisioningProcessor(run.teamId as string, userId, request, {
-        trigger: this.normalizeProvisioningProcessorTrigger(run.trigger),
-        replayOfRunId: this.readString(run.replayOfRunId) || undefined,
+        trigger: normalizeProvisioningProcessorTrigger(run.trigger),
+        replayOfRunId: readString(run.replayOfRunId) || undefined,
         provisioningRunId: run.id as string,
         forceInline: true,
       });
@@ -1453,7 +1295,7 @@ export class ResourceRequestService implements OnModuleInit {
         request: processed,
       };
     } catch (error) {
-      const reason = this.errorMessage(error);
+      const reason = errorMessage(error);
       const failedProvisioning = {
         ...currentProvisioning,
         mode: run.mode,
@@ -1463,8 +1305,8 @@ export class ResourceRequestService implements OnModuleInit {
         replayOfRunId: run.replayOfRunId || undefined,
         idempotencyKey: run.idempotencyKey,
         queueMode: run.queueMode || 'queued',
-        queuedAt: this.dateToIso(run.queuedAt),
-        availableAt: this.dateToIso(run.availableAt),
+        queuedAt: dateToIso(run.queuedAt),
+        availableAt: dateToIso(run.availableAt),
         reason,
         retryable: true,
         failedAt: now.toISOString(),
@@ -1538,22 +1380,22 @@ export class ResourceRequestService implements OnModuleInit {
         break;
       }
 
-      const request = this.asRecord(run.request);
-      const currentProvisioning = this.asRecord(this.asRecord(request.result).provisioning);
-      const currentRunId = this.readString(currentProvisioning.provisioningRunId);
+      const request = asRecord(run.request);
+      const currentProvisioning = asRecord(asRecord(request.result).provisioning);
+      const currentRunId = readString(currentProvisioning.provisioningRunId);
       if (request.status !== 'approved' || currentRunId !== run.id) {
         summary.skipped += 1;
         continue;
       }
 
-      const resourceType = this.asRecord(run.resourceType) as unknown as ProvisioningResourceType;
-      const pollingConfig = this.readProviderStatePollingConfig(this.asRecord(resourceType.provisioningConfig));
+      const resourceType = asRecord(run.resourceType) as unknown as ProvisioningResourceType;
+      const pollingConfig = readProviderStatePollingConfig(asRecord(resourceType.provisioningConfig));
       if (!pollingConfig.enabled) {
         summary.skipped += 1;
         continue;
       }
 
-      const attempt = (this.readNonNegativeInteger(run.attempt) ?? 0) + 1;
+      const attempt = (readNonNegativeInteger(run.attempt) ?? 0) + 1;
       const nextAvailableAt = new Date(now.getTime() + pollingConfig.intervalSeconds * 1000);
       const claim = await (this.prisma as PrismaAny).resourceProvisioningRun.updateMany({
         where: {
@@ -1599,11 +1441,11 @@ export class ResourceRequestService implements OnModuleInit {
           continue;
         }
 
-        const polledState = this.readProviderStatePollingState(
-          this.asRecord(resourceType.provisioningConfig),
+        const polledState = readProviderStatePollingState(
+          asRecord(resourceType.provisioningConfig),
           attempt,
         );
-        if (!this.hasRecordValues(polledState.providerState)) {
+        if (!hasRecordValues(polledState.providerState)) {
           await this.markProviderStatePollingPending(
             claimedRun,
             request,
@@ -1627,7 +1469,7 @@ export class ResourceRequestService implements OnModuleInit {
           action: 'provisioning.provider_state_polled',
           message: '自动轮询 provider SDK 交付状态',
           metadata: {
-            providerPolling: this.buildProviderStatePollingMetadata(
+            providerPolling: buildProviderStatePollingMetadata(
               pollingConfig,
               attempt,
               now,
@@ -1635,10 +1477,10 @@ export class ResourceRequestService implements OnModuleInit {
               {
                 source: polledState.source,
                 stateFound: true,
-                providerStateStatus: this.readProviderStateStatus(polledState.providerState) || undefined,
+                providerStateStatus: readProviderStateStatus(polledState.providerState) || undefined,
               },
             ),
-            providerState: this.redactSensitiveRecord(polledState.providerState),
+            providerState: redactSensitiveRecord(polledState.providerState),
           },
         });
 
@@ -1653,8 +1495,8 @@ export class ResourceRequestService implements OnModuleInit {
             instanceName: pollingConfig.instanceName,
           },
         );
-        const resultProvisioning = this.asRecord(this.asRecord(updated.result).provisioning);
-        const status = this.readString(resultProvisioning.status);
+        const resultProvisioning = asRecord(asRecord(updated.result).provisioning);
+        const status = readString(resultProvisioning.status);
         if (status === 'completed') {
           summary.completed += 1;
         } else if (status === 'blocked') {
@@ -1681,7 +1523,7 @@ export class ResourceRequestService implements OnModuleInit {
           attempt,
           now,
           nextAvailableAt,
-          this.errorMessage(error),
+          errorMessage(error),
         );
       }
     }
@@ -1730,13 +1572,13 @@ export class ResourceRequestService implements OnModuleInit {
       throw new BadRequestException('当前申请状态不能交付');
     }
 
-    const mode = this.normalizeProvisioningMode(existing.resourceType?.provisioningMode);
+    const mode = normalizeProvisioningMode(existing.resourceType?.provisioningMode);
     return this.completeProvisionedRequest(teamId, userId, existing, {
       createInstance: dto.createInstance !== false,
       instanceName: dto.instanceName || existing.title,
-      config: this.asRecord(dto.config),
-      delivery: this.asRecord(dto.delivery),
-      credentials: this.asRecord(dto.credentials),
+      config: asRecord(dto.config),
+      delivery: asRecord(dto.delivery),
+      credentials: asRecord(dto.credentials),
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
       provisioning: {
         mode,
@@ -1767,15 +1609,15 @@ export class ResourceRequestService implements OnModuleInit {
       throw new BadRequestException('只有已审批且未交付的申请可以重试交付处理器');
     }
 
-    const previousProvisioning = this.asRecord(this.asRecord(existing.result).provisioning);
-    const previousStatus = this.readString(previousProvisioning.status);
+    const previousProvisioning = asRecord(asRecord(existing.result).provisioning);
+    const previousStatus = readString(previousProvisioning.status);
     const retryableStatuses = context.trigger === 'auto_retry' ? ['blocked'] : ['blocked', 'planned', 'failed'];
     if (!retryableStatuses.includes(previousStatus)) {
       throw new BadRequestException('只有已阻断、已生成计划或失败的交付处理器可以重试');
     }
 
     const resourceType = await this.getProvisioningResourceType(existing.resourceTypeId as string);
-    const mode = this.normalizeProvisioningMode(resourceType.provisioningMode);
+    const mode = normalizeProvisioningMode(resourceType.provisioningMode);
     if (mode === 'manual' || mode === 'credential_only') {
       throw new BadRequestException('人工交付或纯凭据资源不需要重试交付处理器');
     }
@@ -1855,7 +1697,7 @@ export class ResourceRequestService implements OnModuleInit {
         break;
       }
 
-      if (!this.isProvisioningAutoRetryDue(request, now)) {
+      if (!isProvisioningAutoRetryDue(request, now)) {
         summary.skipped += 1;
         continue;
       }
@@ -1868,8 +1710,8 @@ export class ResourceRequestService implements OnModuleInit {
           request,
           { trigger: 'auto_retry' },
         );
-        const resultProvisioning = this.asRecord(this.asRecord(result.result).provisioning);
-        const status = this.readString(resultProvisioning.status);
+        const resultProvisioning = asRecord(asRecord(result.result).provisioning);
+        const status = readString(resultProvisioning.status);
         if (status === 'completed') {
           summary.completed += 1;
         } else if (status === 'blocked') {
@@ -1877,7 +1719,7 @@ export class ResourceRequestService implements OnModuleInit {
         }
       } catch (error) {
         summary.failed += 1;
-        this.logger.warn(`ResourceRequest provisioning auto retry failed: ${this.errorMessage(error)}`);
+        this.logger.warn(`ResourceRequest provisioning auto retry failed: ${errorMessage(error)}`);
       }
     }
 
@@ -1917,9 +1759,9 @@ export class ResourceRequestService implements OnModuleInit {
 
     for (const run of runs) {
       try {
-        const request = this.asRecord(run.request);
-        const currentProvisioning = this.asRecord(this.asRecord(request.result).provisioning);
-        const currentRunId = this.readString(currentProvisioning.provisioningRunId);
+        const request = asRecord(run.request);
+        const currentProvisioning = asRecord(asRecord(request.result).provisioning);
+        const currentRunId = readString(currentProvisioning.provisioningRunId);
         const shouldUpdateRequest = request.status === 'approved' && currentRunId === run.id;
         const recoveryReason = 'stale_running_recovered';
         const recovery = {
@@ -1930,9 +1772,9 @@ export class ResourceRequestService implements OnModuleInit {
           previousStatus: run.status,
           currentRequestRun: shouldUpdateRequest,
         };
-        const recoveryCount = (this.readNonNegativeInteger(run.recoveryCount) || 0) + 1;
+        const recoveryCount = (readNonNegativeInteger(run.recoveryCount) || 0) + 1;
         const recoveredRunProvisioning = {
-          ...this.asRecord(this.asRecord(run.result).provisioning),
+          ...asRecord(asRecord(run.result).provisioning),
           mode: run.mode,
           status: 'failed',
           boundary: run.boundary || 'http_adapter',
@@ -1951,7 +1793,7 @@ export class ResourceRequestService implements OnModuleInit {
             retryable: true,
             error: recoveryReason,
             result: {
-              ...this.asRecord(run.result),
+              ...asRecord(run.result),
               provisioning: recoveredRunProvisioning,
               recovery,
             },
@@ -1993,7 +1835,7 @@ export class ResourceRequestService implements OnModuleInit {
         }
       } catch (error) {
         summary.failed += 1;
-        this.logger.warn(`ResourceRequest provisioning run stale recovery failed: ${this.errorMessage(error)}`);
+        this.logger.warn(`ResourceRequest provisioning run stale recovery failed: ${errorMessage(error)}`);
       }
     }
 
@@ -2007,7 +1849,7 @@ export class ResourceRequestService implements OnModuleInit {
     context: ProvisioningProcessorContext,
   ) {
     const resourceType = await this.getProvisioningResourceType(request.resourceTypeId as string);
-    const mode = this.normalizeProvisioningMode(resourceType.provisioningMode);
+    const mode = normalizeProvisioningMode(resourceType.provisioningMode);
 
     if (mode === 'manual' || mode === 'credential_only') {
       return request;
@@ -2054,8 +1896,8 @@ export class ResourceRequestService implements OnModuleInit {
     request: JsonRecord,
     resourceType: ProvisioningResourceType,
   ) {
-    const provisioningConfig = this.asRecord(resourceType.provisioningConfig);
-    const poolId = this.readString(provisioningConfig.poolId);
+    const provisioningConfig = asRecord(resourceType.provisioningConfig);
+    const poolId = readString(provisioningConfig.poolId);
 
     if (!poolId) {
       return this.markProvisioningStatus(teamId, userId, request, {
@@ -2067,7 +1909,7 @@ export class ResourceRequestService implements OnModuleInit {
       });
     }
 
-    const projectId = this.readString(request.projectId);
+    const projectId = readString(request.projectId);
     if (!projectId) {
       return this.markProvisioningStatus(teamId, userId, request, {
         mode: 'pool',
@@ -2085,7 +1927,7 @@ export class ResourceRequestService implements OnModuleInit {
         {
           poolId,
           projectId,
-          resourceName: this.resolveRequestedResourceName(request.spec),
+          resourceName: resolveRequestedResourceName(request.spec),
         },
         userId,
         teamId,
@@ -2096,12 +1938,12 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'blocked',
         boundary: 'resource_pool',
         poolId,
-        reason: this.errorMessage(error),
+        reason: errorMessage(error),
         blockedAt: new Date().toISOString(),
       });
     }
 
-    const split = this.splitDeliveryAndCredentials(allocation.credentials, resourceType.deliverySchema);
+    const split = splitDeliveryAndCredentials(allocation.credentials, resourceType.deliverySchema);
     const completedAt = new Date().toISOString();
     const completion = await this.completeProvisionedRequest(teamId, userId, request, {
       createInstance: true,
@@ -2149,8 +1991,8 @@ export class ResourceRequestService implements OnModuleInit {
     request: JsonRecord,
     resourceType: ProvisioningResourceType,
   ) {
-    const provisioningConfig = this.asRecord(resourceType.provisioningConfig);
-    const steps = this.buildScriptProvisioningSteps(provisioningConfig);
+    const provisioningConfig = asRecord(resourceType.provisioningConfig);
+    const steps = buildScriptProvisioningSteps(provisioningConfig);
 
     if (steps.length === 0) {
       return this.markProvisioningStatus(teamId, userId, request, {
@@ -2162,12 +2004,12 @@ export class ResourceRequestService implements OnModuleInit {
       });
     }
 
-    const serverId = this.readString(provisioningConfig.serverId);
+    const serverId = readString(provisioningConfig.serverId);
     const target = await this.serverExecutor.resolveTarget(teamId, serverId || null);
-    const dryRun = this.readBoolean(provisioningConfig.dryRun, true);
-    const queue = this.readBoolean(provisioningConfig.queue, false);
-    const adapterKey = this.readString(provisioningConfig.adapterKey) || 'resource-provisioning-script';
-    const idempotencyKey = this.buildProvisioningIdempotencyKey(request, resourceType, 'script', provisioningConfig);
+    const dryRun = readBoolean(provisioningConfig.dryRun, true);
+    const queue = readBoolean(provisioningConfig.queue, false);
+    const adapterKey = readString(provisioningConfig.adapterKey) || 'resource-provisioning-script';
+    const idempotencyKey = buildProvisioningIdempotencyKey(request, resourceType, 'script', provisioningConfig);
     let credentialRef: ProvisioningCredentialRef | null;
 
     try {
@@ -2177,7 +2019,7 @@ export class ResourceRequestService implements OnModuleInit {
         mode: 'script',
         status: 'blocked',
         boundary: 'server_executor',
-        reason: this.errorMessage(error),
+        reason: errorMessage(error),
         idempotencyKey,
         blockedAt: new Date().toISOString(),
       });
@@ -2186,12 +2028,12 @@ export class ResourceRequestService implements OnModuleInit {
     const executionInput: ServerExecutionInput = {
       teamId,
       userId,
-      operationKey: this.readString(provisioningConfig.operationKey) || `resource.provision.${resourceType.key}`,
+      operationKey: readString(provisioningConfig.operationKey) || `resource.provision.${resourceType.key}`,
       adapterKey,
       dryRun,
       target,
       steps,
-      warnings: this.readStringArray(provisioningConfig.warnings),
+      warnings: readStringArray(provisioningConfig.warnings),
       metadata: {
         requestId: request.id,
         resourceTypeId: resourceType.id,
@@ -2205,15 +2047,15 @@ export class ResourceRequestService implements OnModuleInit {
         businessRunSync: queue ? 'resource_request_provisioning' : undefined,
       },
       blockOnWarnings: !dryRun,
-      requiredConfirmationText: this.readString(provisioningConfig.requiredConfirmationText) || undefined,
-      confirmationText: this.readString(provisioningConfig.confirmationText) || undefined,
+      requiredConfirmationText: readString(provisioningConfig.requiredConfirmationText) || undefined,
+      confirmationText: readString(provisioningConfig.confirmationText) || undefined,
     };
 
     let execution: ServerExecutionResult;
     try {
       execution = queue
         ? await this.serverExecutor.queueExecution(executionInput, {
-            maxAttempts: this.readPositiveInteger(provisioningConfig.maxAttempts),
+            maxAttempts: readPositiveInteger(provisioningConfig.maxAttempts),
           })
         : await this.serverExecutor.execute(executionInput);
     } catch (error) {
@@ -2221,7 +2063,7 @@ export class ResourceRequestService implements OnModuleInit {
         mode: 'script',
         status: 'blocked',
         boundary: 'server_executor',
-        reason: this.errorMessage(error),
+        reason: errorMessage(error),
         serverId: serverId || undefined,
         dryRun,
         idempotencyKey,
@@ -2230,7 +2072,7 @@ export class ResourceRequestService implements OnModuleInit {
       });
     }
 
-    const provisioningStatus = this.mapScriptProvisioningStatus(execution, dryRun);
+    const provisioningStatus = mapScriptProvisioningStatus(execution, dryRun);
     return this.markProvisioningStatus(teamId, userId, request, {
       mode: 'script',
       status: provisioningStatus,
@@ -2241,7 +2083,7 @@ export class ResourceRequestService implements OnModuleInit {
       idempotencyKey,
       credentialRef: credentialRef || undefined,
       requiresManualCompletion: provisioningStatus !== 'completed',
-      ...this.summarizeServerExecution(execution),
+      ...summarizeServerExecution(execution),
       updatedAt: new Date().toISOString(),
     });
   }
@@ -2254,12 +2096,15 @@ export class ResourceRequestService implements OnModuleInit {
     mode: Extract<ProvisioningMode, 'webhook' | 'api'>,
     context: ProvisioningProcessorContext,
   ) {
-    const provisioningConfig = this.asRecord(resourceType.provisioningConfig);
-    const url = this.readString(provisioningConfig.url) || this.readString(provisioningConfig.endpoint);
-    const method = (this.readString(provisioningConfig.method) || 'POST').toUpperCase();
-    const idempotencyKey = this.buildProvisioningIdempotencyKey(request, resourceType, mode, provisioningConfig);
-    const maxAttempts = this.readHttpMaxAttempts(provisioningConfig);
-    const queueConfig = this.readProvisioningQueueConfig(provisioningConfig);
+    const provisioningConfig = asRecord(resourceType.provisioningConfig);
+    const url = readString(provisioningConfig.url) || readString(provisioningConfig.endpoint);
+    const method = (readString(provisioningConfig.method) || 'POST').toUpperCase();
+    const idempotencyKey = buildProvisioningIdempotencyKey(request, resourceType, mode, provisioningConfig);
+    const maxAttempts = readHttpMaxAttempts(provisioningConfig);
+    const queueConfig = readProvisioningQueueConfig(
+      provisioningConfig,
+      this.httpProvisioningQueueEnabled(),
+    );
     const provisioningRun = await this.createProvisioningRun(
       teamId,
       userId,
@@ -2270,7 +2115,7 @@ export class ResourceRequestService implements OnModuleInit {
       provisioningConfig,
       {
         method,
-        url: url ? this.redactUrl(url) : undefined,
+        url: url ? redactUrl(url) : undefined,
         idempotencyKey,
         maxAttempts,
         queue: queueConfig,
@@ -2281,7 +2126,7 @@ export class ResourceRequestService implements OnModuleInit {
       return this.markProvisioningQueuedWithRun(teamId, userId, request, {
         mode,
         method,
-        url: url ? this.redactUrl(url) : undefined,
+        url: url ? redactUrl(url) : undefined,
         idempotencyKey,
         queue: queueConfig,
       }, provisioningRun);
@@ -2304,7 +2149,7 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'blocked',
         boundary: 'http_adapter',
         method,
-        url: this.redactUrl(url),
+        url: redactUrl(url),
         idempotencyKey,
         reason: 'unsupported_method',
         blockedAt: new Date().toISOString(),
@@ -2320,9 +2165,9 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'blocked',
         boundary: 'http_adapter',
         method,
-        url: this.redactUrl(url),
+        url: redactUrl(url),
         idempotencyKey,
-        reason: this.errorMessage(error),
+        reason: errorMessage(error),
         blockedAt: new Date().toISOString(),
       }, provisioningRun);
     }
@@ -2334,7 +2179,7 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'planned',
         boundary: 'http_adapter',
         method,
-        url: this.redactUrl(url),
+        url: redactUrl(url),
         idempotencyKey,
         credentialRef: credentialRef || undefined,
         reason: 'http_dispatch_disabled',
@@ -2350,7 +2195,7 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'blocked',
         boundary: 'http_adapter',
         method,
-        url: this.redactUrl(url),
+        url: redactUrl(url),
         idempotencyKey,
         credentialRef: credentialRef || undefined,
         reason: 'fetch_unavailable',
@@ -2361,10 +2206,10 @@ export class ResourceRequestService implements OnModuleInit {
     let response: HttpProvisioningResponse | null = null;
     let responseBody: unknown = {};
     let attempt = 0;
-    const timeoutMs = this.readPositiveInteger(provisioningConfig.timeoutMs) || 15000;
-    const retryStatusCodes = this.readHttpRetryStatusCodes(provisioningConfig);
-    const retryOnNetworkError = this.readBoolean(provisioningConfig.retryOnNetworkError, true);
-    const requestPayload = this.buildExternalProvisioningPayload(
+    const timeoutMs = readPositiveInteger(provisioningConfig.timeoutMs) || 15000;
+    const retryStatusCodes = readHttpRetryStatusCodes(provisioningConfig);
+    const retryOnNetworkError = readBoolean(provisioningConfig.retryOnNetworkError, true);
+    const requestPayload = buildExternalProvisioningPayload(
       request,
       resourceType,
       mode,
@@ -2379,15 +2224,15 @@ export class ResourceRequestService implements OnModuleInit {
       try {
         response = await fetchFn(url, {
           method,
-          headers: this.buildHttpProvisioningHeaders(provisioningConfig, idempotencyKey, credentialRef),
+          headers: buildHttpProvisioningHeaders(provisioningConfig, idempotencyKey, credentialRef),
           body: method === 'GET'
             ? undefined
             : JSON.stringify(requestPayload),
           signal: controller.signal,
         });
-        responseBody = await this.readHttpProvisioningBody(response);
+        responseBody = await readHttpProvisioningBody(response);
 
-        if (response.ok || !this.isRetryableHttpStatus(response.status, retryStatusCodes) || attempt >= maxAttempts) {
+        if (response.ok || !isRetryableHttpStatus(response.status, retryStatusCodes) || attempt >= maxAttempts) {
           break;
         }
       } catch (error) {
@@ -2398,16 +2243,16 @@ export class ResourceRequestService implements OnModuleInit {
             status: 'blocked',
             boundary: 'http_adapter',
             method,
-            url: this.redactUrl(url),
+            url: redactUrl(url),
             idempotencyKey,
             credentialRef: credentialRef || undefined,
-            reason: this.errorMessage(error),
+            reason: errorMessage(error),
             retryable: retryOnNetworkError,
             attempt,
             maxAttempts,
             attemptsExhausted: attempt >= maxAttempts,
             blockedAt: blockedAt.toISOString(),
-            ...this.buildHttpAutoRetryMetadata(
+            ...buildHttpAutoRetryMetadata(
               provisioningConfig,
               request,
               retryOnNetworkError,
@@ -2427,7 +2272,7 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'blocked',
         boundary: 'http_adapter',
         method,
-        url: this.redactUrl(url),
+        url: redactUrl(url),
         idempotencyKey,
         credentialRef: credentialRef || undefined,
         reason: 'http_response_unavailable',
@@ -2439,24 +2284,24 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     if (!response.ok) {
-      const retryable = this.isRetryableHttpStatus(response.status, retryStatusCodes);
+      const retryable = isRetryableHttpStatus(response.status, retryStatusCodes);
       const blockedAt = new Date();
       return this.markProvisioningStatusWithRun(teamId, userId, request, {
         mode,
         status: 'blocked',
         boundary: 'http_adapter',
         method,
-        url: this.redactUrl(url),
+        url: redactUrl(url),
         idempotencyKey,
         credentialRef: credentialRef || undefined,
         httpStatus: response.status,
-        reason: this.readString((this.asRecord(responseBody)).message) || response.statusText || `http_${response.status}`,
+        reason: readString((asRecord(responseBody)).message) || response.statusText || `http_${response.status}`,
         retryable,
         attempt,
         maxAttempts,
         attemptsExhausted: attempt >= maxAttempts,
         blockedAt: blockedAt.toISOString(),
-        ...this.buildHttpAutoRetryMetadata(
+        ...buildHttpAutoRetryMetadata(
           provisioningConfig,
           request,
           retryable,
@@ -2466,19 +2311,19 @@ export class ResourceRequestService implements OnModuleInit {
       }, provisioningRun);
     }
 
-    const responseRecord = this.asRecord(responseBody);
-    const deliverySource = this.resolveHttpProvisioningDeliverySource(responseRecord);
-    const split = this.splitDeliveryAndCredentials(deliverySource, resourceType.deliverySchema);
-    const adapterConfig = this.asRecord(responseRecord.config);
-    const createInstance = this.readBoolean(responseRecord.createInstance, this.readBoolean(provisioningConfig.createInstanceOnSuccess, true));
+    const responseRecord = asRecord(responseBody);
+    const deliverySource = resolveHttpProvisioningDeliverySource(responseRecord);
+    const split = splitDeliveryAndCredentials(deliverySource, resourceType.deliverySchema);
+    const adapterConfig = asRecord(responseRecord.config);
+    const createInstance = readBoolean(responseRecord.createInstance, readBoolean(provisioningConfig.createInstanceOnSuccess, true));
     const shouldCreateInstance = createInstance && (
-      this.hasRecordValues(split.delivery)
-      || this.hasRecordValues(split.credentials)
-      || this.hasRecordValues(adapterConfig)
+      hasRecordValues(split.delivery)
+      || hasRecordValues(split.credentials)
+      || hasRecordValues(adapterConfig)
     );
-    const providerRunId = this.readString(responseRecord.providerRunId)
-      || this.readString(responseRecord.runId)
-      || this.readString(responseRecord.id);
+    const providerRunId = readString(responseRecord.providerRunId)
+      || readString(responseRecord.runId)
+      || readString(responseRecord.id);
     const completedAt = new Date().toISOString();
     const completedProvisioning = {
       mode,
@@ -2487,7 +2332,7 @@ export class ResourceRequestService implements OnModuleInit {
       provisioningRunId: provisioningRun.id,
       replayOfRunId: context.replayOfRunId,
       method,
-      url: this.redactUrl(url),
+      url: redactUrl(url),
       httpStatus: response.status,
       idempotencyKey,
       credentialRef: credentialRef || undefined,
@@ -2503,16 +2348,16 @@ export class ResourceRequestService implements OnModuleInit {
     const completion = await this.completeProvisionedRequest(teamId, userId, request, {
       createInstance: shouldCreateInstance,
       instanceName: (
-        this.readString(responseRecord.instanceName)
-        || this.readString(responseRecord.resourceName)
-        || this.resolveRequestedResourceName(request.spec)
+        readString(responseRecord.instanceName)
+        || readString(responseRecord.resourceName)
+        || resolveRequestedResourceName(request.spec)
         || (request.title as string)
       ),
       config: {
         ...adapterConfig,
         provisioningMode: mode,
         adapter: mode,
-        endpoint: this.redactUrl(url),
+        endpoint: redactUrl(url),
         providerRunId: providerRunId || undefined,
         credentialRef: credentialRef || undefined,
       },
@@ -2524,7 +2369,7 @@ export class ResourceRequestService implements OnModuleInit {
         provisioningMode: mode,
         boundary: 'http_adapter',
         method,
-        url: this.redactUrl(url),
+        url: redactUrl(url),
         httpStatus: response.status,
         idempotencyKey,
         credentialRef: credentialRef || undefined,
@@ -2548,24 +2393,24 @@ export class ResourceRequestService implements OnModuleInit {
     resourceType: ProvisioningResourceType,
     context: ProvisioningProcessorContext,
   ) {
-    const provisioningConfig = this.asRecord(resourceType.provisioningConfig);
-    const provider = this.readString(provisioningConfig.provider) || this.readString(provisioningConfig.providerKey);
+    const provisioningConfig = asRecord(resourceType.provisioningConfig);
+    const provider = readString(provisioningConfig.provider) || readString(provisioningConfig.providerKey);
     const operation = (
-      this.readString(provisioningConfig.operation)
-      || this.readString(provisioningConfig.action)
+      readString(provisioningConfig.operation)
+      || readString(provisioningConfig.action)
       || `provision.${resourceType.key}`
     );
-    const spec = this.asRecord(request.spec);
-    const region = this.readString(provisioningConfig.region) || this.readString(spec.region);
-    const idempotencyKey = this.buildProvisioningIdempotencyKey(request, resourceType, 'provider', provisioningConfig);
-    const maxAttempts = this.readProviderMaxAttempts(provisioningConfig);
-    const adapterKey = this.resolveProviderAdapterKey(provider, provisioningConfig);
-    const executorKey = this.readString(provisioningConfig.executorKey) || 'cloud-sdk';
-    const dryRun = this.readBoolean(provisioningConfig.dryRun, true);
-    const providerState = this.readProviderProvisioningState(provisioningConfig);
-    const providerStateStatus = this.readProviderStateStatus(providerState);
-    const providerStateSummary = this.redactSensitiveRecord(providerState);
-    const plan = this.buildProviderProvisioningPlan({
+    const spec = asRecord(request.spec);
+    const region = readString(provisioningConfig.region) || readString(spec.region);
+    const idempotencyKey = buildProvisioningIdempotencyKey(request, resourceType, 'provider', provisioningConfig);
+    const maxAttempts = readProviderMaxAttempts(provisioningConfig);
+    const adapterKey = resolveProviderAdapterKey(provider, provisioningConfig);
+    const executorKey = readString(provisioningConfig.executorKey) || 'cloud-sdk';
+    const dryRun = readBoolean(provisioningConfig.dryRun, true);
+    const providerState = readProviderProvisioningState(provisioningConfig);
+    const providerStateStatus = readProviderStateStatus(providerState);
+    const providerStateSummary = redactSensitiveRecord(providerState);
+    const plan = buildProviderProvisioningPlan({
       request,
       resourceType,
       provider,
@@ -2599,7 +2444,7 @@ export class ResourceRequestService implements OnModuleInit {
           region: region || undefined,
           dryRun,
           providerStateStatus: providerStateStatus || undefined,
-          providerState: this.hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
+          providerState: hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
         },
       },
     );
@@ -2633,30 +2478,30 @@ export class ResourceRequestService implements OnModuleInit {
         executorKey,
         adapterKey,
         idempotencyKey,
-        reason: this.errorMessage(error),
+        reason: errorMessage(error),
         plan,
         blockedAt: new Date().toISOString(),
       }, provisioningRun);
     }
     await this.attachProvisioningRunCredentialRef(provisioningRun, credentialRef);
 
-    if (this.providerStateIndicatesCompleted(providerState)) {
-      const deliverySource = this.resolveProviderProvisioningDeliverySource(providerState, provisioningConfig);
-      const split = this.splitDeliveryAndCredentials(deliverySource, resourceType.deliverySchema);
+    if (providerStateIndicatesCompleted(providerState)) {
+      const deliverySource = resolveProviderProvisioningDeliverySource(providerState, provisioningConfig);
+      const split = splitDeliveryAndCredentials(deliverySource, resourceType.deliverySchema);
       const adapterConfig = {
-        ...this.asRecord(this.asRecord(providerState).config),
-        ...this.asRecord(provisioningConfig.instanceConfig),
+        ...asRecord(asRecord(providerState).config),
+        ...asRecord(provisioningConfig.instanceConfig),
       };
-      const createInstance = this.readBoolean(
+      const createInstance = readBoolean(
         providerState.createInstance,
-        this.readBoolean(provisioningConfig.createInstanceOnSuccess, true),
+        readBoolean(provisioningConfig.createInstanceOnSuccess, true),
       );
       const shouldCreateInstance = createInstance && (
-        this.hasRecordValues(split.delivery)
-        || this.hasRecordValues(split.credentials)
-        || this.hasRecordValues(adapterConfig)
+        hasRecordValues(split.delivery)
+        || hasRecordValues(split.credentials)
+        || hasRecordValues(adapterConfig)
       );
-      const providerRunId = this.resolveProviderRunId(providerState, provisioningConfig, idempotencyKey);
+      const providerRunId = resolveProviderRunId(providerState, provisioningConfig, idempotencyKey);
       const completedAt = new Date().toISOString();
       const completedProvisioning = {
         mode: 'provider',
@@ -2673,7 +2518,7 @@ export class ResourceRequestService implements OnModuleInit {
         credentialRef: credentialRef || undefined,
         providerRunId,
         providerStateStatus: providerStateStatus || undefined,
-        providerState: this.hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
+        providerState: hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
         deliveryKeys: Object.keys(split.delivery),
         credentialKeys: Object.keys(split.credentials),
         createInstance: shouldCreateInstance,
@@ -2683,9 +2528,9 @@ export class ResourceRequestService implements OnModuleInit {
       const completion = await this.completeProvisionedRequest(teamId, userId, request, {
         createInstance: shouldCreateInstance,
         instanceName: (
-          this.readString(providerState.instanceName)
-          || this.readString(providerState.resourceName)
-          || this.resolveRequestedResourceName(request.spec)
+          readString(providerState.instanceName)
+          || readString(providerState.resourceName)
+          || resolveRequestedResourceName(request.spec)
           || (request.title as string)
         ),
         config: {
@@ -2734,7 +2579,7 @@ export class ResourceRequestService implements OnModuleInit {
         idempotencyKey,
         credentialRef: credentialRef || undefined,
         providerStateStatus: providerStateStatus || undefined,
-        providerState: this.hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
+        providerState: hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
         reason: 'provider_sdk_plan_ready',
         requiresManualCompletion: true,
         plan,
@@ -2754,7 +2599,7 @@ export class ResourceRequestService implements OnModuleInit {
       idempotencyKey,
       credentialRef: credentialRef || undefined,
       providerStateStatus: providerStateStatus || undefined,
-      providerState: this.hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
+      providerState: hasRecordValues(providerStateSummary) ? providerStateSummary : undefined,
       reason: 'provider_sdk_live_transport_disabled',
       retryable: false,
       plan,
@@ -2810,7 +2655,7 @@ export class ResourceRequestService implements OnModuleInit {
       resourceTypeKey: resourceType.key,
       trigger: context.trigger,
       queueMode: input.queue.enabled ? 'queued' : 'inline',
-      ...this.asRecord(input.params),
+      ...asRecord(input.params),
     };
     if (input.method) {
       params.method = input.method;
@@ -2840,13 +2685,13 @@ export class ResourceRequestService implements OnModuleInit {
         replayOfRunId: context.replayOfRunId,
         requestId: request.id,
         resourceTypeId: resourceType.id,
-        projectId: this.readString(request.projectId) || undefined,
-        environmentId: this.readString(request.environmentId) || undefined,
+        projectId: readString(request.projectId) || undefined,
+        environmentId: readString(request.environmentId) || undefined,
         mode,
         trigger: context.trigger,
         boundary: input.boundary || 'http_adapter',
-        executorKey: this.readString(config.executorKey) || input.executorKey || 'resource-request',
-        adapterKey: this.readString(config.adapterKey) || input.adapterKey || mode,
+        executorKey: readString(config.executorKey) || input.executorKey || 'resource-request',
+        adapterKey: readString(config.adapterKey) || input.adapterKey || mode,
         idempotencyKey: input.idempotencyKey,
         status: input.queue.enabled ? 'queued' : 'running',
         queueMode: input.queue.enabled ? 'queued' : 'inline',
@@ -2903,8 +2748,8 @@ export class ResourceRequestService implements OnModuleInit {
       replayOfRunId: run.replayOfRunId || undefined,
       queueMode: 'queued',
       queueDelaySeconds: input.queue.delaySeconds,
-      queuedAt: this.dateToIso(run.queuedAt) || new Date().toISOString(),
-      availableAt: this.dateToIso(run.availableAt),
+      queuedAt: dateToIso(run.queuedAt) || new Date().toISOString(),
+      availableAt: dateToIso(run.availableAt),
       reason: 'http_dispatch_queued',
     });
   }
@@ -2930,20 +2775,20 @@ export class ResourceRequestService implements OnModuleInit {
     run: ResourceProvisioningRunRecord,
     provisioning: JsonRecord,
   ) {
-    const status = this.readString(provisioning.status) || 'blocked';
-    const providerRunId = this.readString(provisioning.providerRunId);
-    const reason = this.readString(provisioning.reason) || this.readString(provisioning.error);
-    const attempt = this.readNonNegativeInteger(provisioning.attempt) ?? this.readNonNegativeInteger(run.attempt) ?? 0;
-    const maxAttempts = this.readPositiveInteger(provisioning.maxAttempts)
-      || this.readPositiveInteger(run.maxAttempts)
+    const status = readString(provisioning.status) || 'blocked';
+    const providerRunId = readString(provisioning.providerRunId);
+    const reason = readString(provisioning.reason) || readString(provisioning.error);
+    const attempt = readNonNegativeInteger(provisioning.attempt) ?? readNonNegativeInteger(run.attempt) ?? 0;
+    const maxAttempts = readPositiveInteger(provisioning.maxAttempts)
+      || readPositiveInteger(run.maxAttempts)
       || 1;
-    const autoRetry = this.asRecord(provisioning.autoRetry);
+    const autoRetry = asRecord(provisioning.autoRetry);
     const data: JsonRecord = {
       status,
       attempt,
       maxAttempts,
-      retryable: this.readBoolean(provisioning.retryable, false),
-      autoRetry: this.readBoolean(autoRetry.enabled, this.readBoolean(run.autoRetry, false)),
+      retryable: readBoolean(provisioning.retryable, false),
+      autoRetry: readBoolean(autoRetry.enabled, readBoolean(run.autoRetry, false)),
       result: {
         provisioning,
       },
@@ -2972,7 +2817,7 @@ export class ResourceRequestService implements OnModuleInit {
     provisioning: JsonRecord,
   ) {
     const nextResult = {
-      ...this.asRecord(request.result),
+      ...asRecord(request.result),
       provisioning,
     };
     const updated = await (this.prisma as PrismaAny).resourceRequest.update({
@@ -2986,9 +2831,9 @@ export class ResourceRequestService implements OnModuleInit {
       actorId: userId,
       resourceTypeId: request.resourceTypeId as string,
       requestId: request.id as string,
-      provisioningRunId: this.readString(provisioning.provisioningRunId) || undefined,
-      action: this.provisioningAuditAction(provisioning.status),
-      message: this.provisioningAuditMessage(provisioning.status),
+      provisioningRunId: readString(provisioning.provisioningRunId) || undefined,
+      action: provisioningAuditAction(provisioning.status),
+      message: provisioningAuditMessage(provisioning.status),
       metadata: provisioning,
     });
 
@@ -3015,7 +2860,7 @@ export class ResourceRequestService implements OnModuleInit {
           status: 'active',
           config: input.config,
           delivery: input.delivery,
-          credentials: this.hasRecordValues(input.credentials)
+          credentials: hasRecordValues(input.credentials)
             ? this.encrypt(JSON.stringify(input.credentials))
             : undefined,
           expiresAt: input.expiresAt,
@@ -3031,7 +2876,7 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'completed',
         completedAt,
         result: {
-          ...this.asRecord(existing.result),
+          ...asRecord(existing.result),
           provisioning: input.provisioning,
           delivery: input.delivery,
           instanceId: instance?.id,
@@ -3046,7 +2891,7 @@ export class ResourceRequestService implements OnModuleInit {
       resourceTypeId: existing.resourceTypeId as string,
       requestId: existing.id as string,
       instanceId: instance?.id as string | undefined,
-      provisioningRunId: this.readString(input.provisioning.provisioningRunId) || undefined,
+      provisioningRunId: readString(input.provisioning.provisioningRunId) || undefined,
       action: 'request.completed',
       message: '资源申请已交付',
       metadata: input.auditMetadata ?? { createInstance: input.createInstance },
@@ -3058,256 +2903,15 @@ export class ResourceRequestService implements OnModuleInit {
     };
   }
 
-  private normalizeProvisioningMode(mode: unknown): ProvisioningMode {
-    if (
-      mode === 'pool'
-      || mode === 'webhook'
-      || mode === 'api'
-      || mode === 'script'
-      || mode === 'credential_only'
-      || mode === 'provider'
-    ) {
-      return mode;
-    }
-    return 'manual';
-  }
-
-  private isReplayableExternalProvisioningMode(mode: ProvisioningMode) {
-    return mode === 'api' || mode === 'webhook' || mode === 'provider';
-  }
-
-  private normalizeProvisioningProcessorTrigger(trigger: unknown): ProvisioningProcessorTrigger {
-    if (trigger === 'approval' || trigger === 'manual_retry' || trigger === 'auto_retry') {
-      return trigger;
-    }
-    return 'manual_retry';
-  }
-
-  private buildScriptProvisioningSteps(config: JsonRecord): ServerCommandStep[] {
-    const stepsInput = Array.isArray(config.steps) ? config.steps : [];
-    const steps = stepsInput
-      .map((step, index) => this.normalizeScriptStep(step, index))
-      .filter((step): step is ServerCommandStep => Boolean(step));
-    const command = this.readString(config.command);
-
-    if (steps.length > 0) {
-      return steps;
-    }
-
-    if (!command) {
-      return [];
-    }
-
-    return [
-      {
-        key: 'provision',
-        label: this.readString(config.label) || '资源交付脚本',
-        command,
-        cwd: this.readString(config.cwd) || undefined,
-        required: true,
-        risk: this.normalizeScriptStepRisk(config.risk),
-        timeoutSeconds: this.readPositiveInteger(config.timeoutSeconds),
-        preview: this.readString(config.preview) || undefined,
-      },
-    ];
-  }
-
-  private normalizeScriptStep(input: unknown, index: number): ServerCommandStep | null {
-    const step = this.asRecord(input);
-    const command = this.readString(step.command);
-
-    if (!command) {
-      return null;
-    }
-
-    return {
-      key: this.readString(step.key) || `step-${index + 1}`,
-      label: this.readString(step.label) || `资源交付步骤 ${index + 1}`,
-      command,
-      cwd: this.readString(step.cwd) || undefined,
-      required: step.required !== false,
-      risk: this.normalizeScriptStepRisk(step.risk),
-      timeoutSeconds: this.readPositiveInteger(step.timeoutSeconds),
-      preview: this.readString(step.preview) || undefined,
-    };
-  }
-
-  private normalizeScriptStepRisk(value: unknown): ServerCommandStep['risk'] {
-    return value === 'medium' || value === 'high' ? value : 'low';
-  }
-
-  private mapScriptProvisioningStatus(execution: ServerExecutionResult, dryRun: boolean) {
-    if (execution.status === 'blocked' || execution.status === 'failed' || execution.status === 'cancelled') {
-      return 'blocked';
-    }
-
-    if (execution.status === 'queued') {
-      return 'queued';
-    }
-
-    return dryRun || execution.mode === 'dry_run' ? 'planned' : 'completed';
-  }
-
-  private summarizeServerExecution(execution: ServerExecutionResult): JsonRecord {
-    const serverExecutionJobId =
-      'serverExecutionJobId' in execution && typeof execution.serverExecutionJobId === 'string'
-        ? execution.serverExecutionJobId
-        : undefined;
-
-    return {
-      executorKey: execution.executorKey,
-      adapterKey: execution.adapterKey,
-      executorStatus: execution.status,
-      executionMode: execution.mode,
-      serverExecutionJobId,
-      executable: execution.executable,
-      warnings: execution.warnings,
-      error: execution.error,
-      commandStepCount: execution.commandSteps.length,
-    };
-  }
-
   private httpProvisioningEnabled() {
-    return this.readBoolean(this.configService.get('RESOURCE_PROVISIONING_HTTP_ENABLED', false), false);
+    return readBoolean(this.configService.get('RESOURCE_PROVISIONING_HTTP_ENABLED', false), false);
   }
 
   private httpProvisioningQueueEnabled() {
-    return this.readBoolean(
+    return readBoolean(
       this.configService.get('RESOURCE_REQUEST_PROVISIONING_HTTP_QUEUE_ENABLED', false),
       false,
     );
-  }
-
-  private readProviderMaxAttempts(config: JsonRecord) {
-    const attempts = this.readPositiveInteger(config.maxAttempts)
-      || this.readPositiveInteger(this.asRecord(config.retry).maxAttempts)
-      || 1;
-    return Math.min(Math.max(attempts, 1), 5);
-  }
-
-  private resolveProviderAdapterKey(provider: string, config: JsonRecord) {
-    const explicit = this.readString(config.adapterKey);
-    if (explicit) {
-      return explicit;
-    }
-    return provider ? `${provider}-sdk` : 'cloud-provider-sdk';
-  }
-
-  private readProviderProvisioningState(config: JsonRecord) {
-    const state = this.asRecord(config.providerState);
-    if (this.hasRecordValues(state)) {
-      return state;
-    }
-
-    const existingState = this.asRecord(config.existingProviderState);
-    if (this.hasRecordValues(existingState)) {
-      return existingState;
-    }
-
-    return this.asRecord(config.idempotencyState);
-  }
-
-  private readProviderStatePollingConfig(config: JsonRecord): ProviderStatePollingConfig {
-    const polling = this.asRecord(config.providerStatePolling);
-    const query = this.asRecord(config.providerStateQuery);
-    const enabled = this.readBoolean(
-      polling.enabled,
-      this.readBoolean(query.pollingEnabled, this.readBoolean(config.providerStatePolling, false)),
-    );
-    const intervalSeconds = this.clampPositiveInteger(
-      this.readPositiveInteger(polling.intervalSeconds)
-        || this.readPositiveInteger(query.intervalSeconds)
-        || this.readPositiveInteger(config.providerStatePollingIntervalSeconds)
-        || 60,
-      10,
-      86400,
-    );
-    const maxAttempts = this.clampPositiveInteger(
-      this.readPositiveInteger(polling.maxAttempts)
-        || this.readPositiveInteger(query.maxAttempts)
-        || this.readPositiveInteger(config.providerStatePollingMaxAttempts)
-        || 10,
-      1,
-      100,
-    );
-    const createInstanceValue = polling.createInstance ?? query.createInstance;
-    const source = this.hasRecordValues(polling) || typeof config.providerStatePolling === 'boolean'
-      ? 'providerStatePolling'
-      : 'providerStateQuery';
-
-    return {
-      enabled,
-      intervalSeconds,
-      maxAttempts,
-      source,
-      createInstance: typeof createInstanceValue === 'undefined'
-        ? undefined
-        : this.readBoolean(createInstanceValue, true),
-      instanceName: this.readString(polling.instanceName) || this.readString(query.instanceName) || undefined,
-    };
-  }
-
-  private readProviderStatePollingState(config: JsonRecord, attempt: number) {
-    const sources = [
-      { source: 'providerStatePolling', config: this.asRecord(config.providerStatePolling) },
-      { source: 'providerStateQuery', config: this.asRecord(config.providerStateQuery) },
-    ];
-
-    for (const entry of sources) {
-      const providerState = this.readProviderStatePollingStateFromSource(entry.config, attempt);
-      if (this.hasRecordValues(providerState)) {
-        return { providerState, source: entry.source };
-      }
-    }
-
-    return { providerState: {}, source: 'none' };
-  }
-
-  private readProviderStatePollingStateFromSource(source: JsonRecord, attempt: number) {
-    const mockStates = Array.isArray(source.mockStates)
-      ? source.mockStates.map((entry) => this.asRecord(entry)).filter((entry) => this.hasRecordValues(entry))
-      : [];
-    if (mockStates.length > 0) {
-      return mockStates[Math.min(Math.max(attempt, 1) - 1, mockStates.length - 1)];
-    }
-
-    const mockState = this.asRecord(source.mockState);
-    if (this.hasRecordValues(mockState)) {
-      return mockState;
-    }
-
-    const providerState = this.asRecord(source.providerState);
-    if (this.hasRecordValues(providerState)) {
-      return providerState;
-    }
-
-    return this.asRecord(source.state);
-  }
-
-  private buildProviderStatePollingMetadata(
-    config: ProviderStatePollingConfig,
-    attempt: number,
-    now: Date,
-    nextAvailableAt: Date | null,
-    input: {
-      source?: string;
-      stateFound?: boolean;
-      providerStateStatus?: string;
-      reason?: string;
-    } = {},
-  ) {
-    return {
-      enabled: config.enabled,
-      source: input.source || config.source,
-      attempt,
-      maxAttempts: config.maxAttempts,
-      intervalSeconds: config.intervalSeconds,
-      stateFound: input.stateFound,
-      providerStateStatus: input.providerStateStatus,
-      reason: input.reason,
-      lastPolledAt: now.toISOString(),
-      nextPollAt: nextAvailableAt ? nextAvailableAt.toISOString() : undefined,
-    };
   }
 
   private async markProviderStatePollingPending(
@@ -3321,8 +2925,8 @@ export class ResourceRequestService implements OnModuleInit {
     reason: string,
     source?: string,
   ) {
-    const runParams = this.asRecord(run.params);
-    const providerPolling = this.buildProviderStatePollingMetadata(config, attempt, now, nextAvailableAt, {
+    const runParams = asRecord(run.params);
+    const providerPolling = buildProviderStatePollingMetadata(config, attempt, now, nextAvailableAt, {
       source,
       stateFound: false,
       reason,
@@ -3334,9 +2938,9 @@ export class ResourceRequestService implements OnModuleInit {
       boundary: run.boundary || 'provider_sdk_adapter',
       provisioningRunId: run.id,
       replayOfRunId: run.replayOfRunId || undefined,
-      provider: this.readString(currentProvisioning.provider) || this.readString(runParams.provider) || undefined,
-      operation: this.readString(currentProvisioning.operation) || this.readString(runParams.operation) || undefined,
-      region: this.readString(currentProvisioning.region) || this.readString(runParams.region) || undefined,
+      provider: readString(currentProvisioning.provider) || readString(runParams.provider) || undefined,
+      operation: readString(currentProvisioning.operation) || readString(runParams.operation) || undefined,
+      region: readString(currentProvisioning.region) || readString(runParams.region) || undefined,
       executorKey: run.executorKey || currentProvisioning.executorKey,
       adapterKey: run.adapterKey || currentProvisioning.adapterKey,
       idempotencyKey: run.idempotencyKey || currentProvisioning.idempotencyKey,
@@ -3356,7 +2960,7 @@ export class ResourceRequestService implements OnModuleInit {
         maxAttempts: config.maxAttempts,
         retryable: false,
         result: {
-          ...this.asRecord(run.result),
+          ...asRecord(run.result),
           provisioning,
         },
         error: reason,
@@ -3387,12 +2991,12 @@ export class ResourceRequestService implements OnModuleInit {
     nextAvailableAt: Date,
     source?: string,
   ) {
-    const providerState = this.asRecord(provisioning.providerState);
-    const providerPolling = this.buildProviderStatePollingMetadata(config, attempt, now, nextAvailableAt, {
+    const providerState = asRecord(provisioning.providerState);
+    const providerPolling = buildProviderStatePollingMetadata(config, attempt, now, nextAvailableAt, {
       source,
-      stateFound: this.hasRecordValues(providerState),
-      providerStateStatus: this.readString(provisioning.providerStateStatus) || undefined,
-      reason: this.readString(provisioning.reason) || undefined,
+      stateFound: hasRecordValues(providerState),
+      providerStateStatus: readString(provisioning.providerStateStatus) || undefined,
+      reason: readString(provisioning.reason) || undefined,
     });
     await (this.prisma as PrismaAny).resourceProvisioningRun.update({
       where: { id: run.id },
@@ -3402,13 +3006,13 @@ export class ResourceRequestService implements OnModuleInit {
         maxAttempts: config.maxAttempts,
         retryable: false,
         result: {
-          ...this.asRecord(run.result),
+          ...asRecord(run.result),
           provisioning: {
             ...provisioning,
             providerPolling,
           },
         },
-        error: this.readString(provisioning.reason) || null,
+        error: readString(provisioning.reason) || null,
         availableAt: nextAvailableAt,
         lockedAt: null,
         lockOwner: null,
@@ -3437,7 +3041,7 @@ export class ResourceRequestService implements OnModuleInit {
       providerRunId: run.providerRunId || currentProvisioning.providerRunId,
       reason,
       retryable: false,
-      providerPolling: this.buildProviderStatePollingMetadata(config, attempt, now, null, {
+      providerPolling: buildProviderStatePollingMetadata(config, attempt, now, null, {
         stateFound: false,
         reason,
       }),
@@ -3468,7 +3072,7 @@ export class ResourceRequestService implements OnModuleInit {
       return;
     }
 
-    const providerPolling = this.buildProviderStatePollingMetadata(config, attempt, now, nextAvailableAt, {
+    const providerPolling = buildProviderStatePollingMetadata(config, attempt, now, nextAvailableAt, {
       stateFound: false,
       reason,
     });
@@ -3480,7 +3084,7 @@ export class ResourceRequestService implements OnModuleInit {
         maxAttempts: config.maxAttempts,
         retryable: true,
         result: {
-          ...this.asRecord(run.result),
+          ...asRecord(run.result),
           provisioning: {
             ...currentProvisioning,
             providerPolling,
@@ -3497,176 +3101,18 @@ export class ResourceRequestService implements OnModuleInit {
     this.logger.warn(`ResourceRequest providerState polling failed: ${reason}`);
   }
 
-  private readProviderStateStatus(state: JsonRecord) {
-    return (
-      this.readString(state.status)
-      || this.readString(state.state)
-      || this.readString(state.phase)
-      || this.readString(state.lifecycleStatus)
-    ).toLowerCase();
-  }
-
-  private providerStateIndicatesCompleted(state: JsonRecord) {
-    const completedStatuses = new Set([
-      'active',
-      'available',
-      'completed',
-      'created',
-      'ready',
-      'running',
-      'success',
-      'succeeded',
-    ]);
-    const status = this.readProviderStateStatus(state);
-    return completedStatuses.has(status) || this.readBoolean(state.exists, false);
-  }
-
-  private providerStateIndicatesFailed(state: JsonRecord) {
-    const failedStatuses = new Set([
-      'cancelled',
-      'deleted',
-      'error',
-      'failed',
-      'not_found',
-      'rejected',
-      'terminated',
-    ]);
-    const status = this.readProviderStateStatus(state);
-    return failedStatuses.has(status) || this.readBoolean(state.failed, false);
-  }
-
-  private readProviderStateReason(state: JsonRecord) {
-    return (
-      this.readString(state.reason)
-      || this.readString(state.error)
-      || this.readString(state.message)
-      || 'provider_state_failed'
-    );
-  }
-
-  private resolveRunCredentialRef(run: JsonRecord, provisioning: JsonRecord) {
-    const provisioningCredentialRef = this.asRecord(provisioning.credentialRef);
-    if (this.hasRecordValues(provisioningCredentialRef)) {
-      return provisioningCredentialRef;
-    }
-
-    const credentialId = this.readString(run.credentialId);
-    const authAdapterKey = this.readString(run.authAdapterKey);
-    if (!credentialId && !authAdapterKey) {
-      return null;
-    }
-
-    return {
-      source: 'team_credential',
-      referenceId: credentialId || undefined,
-      authAdapterKey: authAdapterKey || 'provider-credential-ref',
-      redacted: true,
-    };
-  }
-
-  private resolveProviderRunId(state: JsonRecord, config: JsonRecord, idempotencyKey: string) {
-    return (
-      this.readString(state.providerRunId)
-      || this.readString(state.runId)
-      || this.readString(state.requestId)
-      || this.readString(config.providerRunId)
-      || this.readString(config.externalId)
-      || idempotencyKey
-    );
-  }
-
-  private resolveProviderProvisioningDeliverySource(state: JsonRecord, config: JsonRecord) {
-    const delivery = this.asRecord(state.delivery);
-    const credentials = this.asRecord(state.credentials);
-
-    if (this.hasRecordValues(delivery) || this.hasRecordValues(credentials)) {
-      return {
-        ...delivery,
-        ...credentials,
-      };
-    }
-
-    const resource = this.asRecord(state.resource);
-    if (this.hasRecordValues(resource)) {
-      return resource;
-    }
-
-    const instance = this.asRecord(state.instance);
-    if (this.hasRecordValues(instance)) {
-      return instance;
-    }
-
-    return this.asRecord(config.delivery);
-  }
-
-  private buildProviderProvisioningPlan(input: {
-    request: JsonRecord;
-    resourceType: ProvisioningResourceType;
-    provider: string;
-    operation: string;
-    region: string;
-    idempotencyKey: string;
-    executorKey: string;
-    adapterKey: string;
-    dryRun: boolean;
-    providerState: JsonRecord;
-  }) {
-    const stateProviderRunId = this.readString(input.providerState.providerRunId)
-      || this.readString(input.providerState.runId)
-      || undefined;
-    const externalId = this.readString(input.providerState.externalId)
-      || this.readString(this.asRecord(input.providerState.resource).externalId)
-      || undefined;
-    const spec = this.asRecord(input.request.spec);
-
-    return {
-      boundary: 'provider_sdk_adapter',
-      executorKey: input.executorKey,
-      adapterKey: input.adapterKey,
-      provider: input.provider || undefined,
-      operation: input.operation,
-      region: input.region || undefined,
-      dryRun: input.dryRun,
-      idempotencyKey: input.idempotencyKey,
-      resourceType: {
-        id: input.resourceType.id,
-        key: input.resourceType.key,
-        name: input.resourceType.name,
-      },
-      request: {
-        id: input.request.id,
-        projectId: input.request.projectId,
-        environmentId: input.request.environmentId,
-        environment: input.request.environment,
-        requestedResourceName: this.resolveRequestedResourceName(input.request.spec),
-        specKeys: Object.keys(spec),
-      },
-      providerStateQuery: {
-        strategy: 'idempotency_key_or_external_id',
-        idempotencyKey: input.idempotencyKey,
-        providerRunId: stateProviderRunId,
-        externalId,
-        expectedStatus: 'active_or_available',
-      },
-      safety: {
-        secretsInOutput: 'must_mask_before_persisting',
-        liveTransport: input.dryRun ? 'disabled_dry_run_plan' : 'not_implemented',
-      },
-    };
-  }
-
   private async resolveProvisioningCredentialRef(
     teamId: string,
     config: JsonRecord,
   ): Promise<ProvisioningCredentialRef | null> {
-    const auth = this.asRecord(config.auth);
-    const credential = this.asRecord(config.credential);
+    const auth = asRecord(config.auth);
+    const credential = asRecord(config.credential);
     const credentialId = (
-      this.readString(config.credentialId)
-      || this.readString(auth.credentialId)
-      || this.readString(credential.id)
+      readString(config.credentialId)
+      || readString(auth.credentialId)
+      || readString(credential.id)
     );
-    const credentialRequired = this.readBoolean(config.requireCredential, this.readBoolean(auth.required, false));
+    const credentialRequired = readBoolean(config.requireCredential, readBoolean(auth.required, false));
 
     if (!credentialId) {
       if (credentialRequired) {
@@ -3684,7 +3130,7 @@ export class ResourceRequestService implements OnModuleInit {
       throw new NotFoundException('TeamCredential 不存在或不属于当前团队');
     }
 
-    const allowedTypes = this.readCredentialTypeAllowList(config, auth);
+    const allowedTypes = readCredentialTypeAllowList(config, auth);
     if (allowedTypes.length > 0 && !allowedTypes.includes(record.type)) {
       throw new BadRequestException('TeamCredential 类型与外部资源交付 adapter 不匹配');
     }
@@ -3694,551 +3140,16 @@ export class ResourceRequestService implements OnModuleInit {
       referenceId: record.id,
       displayName: record.name,
       credentialType: record.type,
-      authAdapterKey: this.resolveAuthAdapterKey(record.type, auth),
+      authAdapterKey: resolveAuthAdapterKey(record.type, auth),
       redacted: true,
     };
   }
 
-  private readCredentialTypeAllowList(config: JsonRecord, auth: JsonRecord) {
-    const allowedTypes = [
-      ...this.readStringArray(config.allowedCredentialTypes),
-      ...this.readStringArray(auth.allowedCredentialTypes),
-      this.readString(config.credentialType),
-      this.readString(auth.credentialType),
-    ].filter(Boolean);
-    return Array.from(new Set(allowedTypes));
-  }
-
-  private resolveAuthAdapterKey(credentialType: string, auth: JsonRecord) {
-    return (
-      this.readString(auth.adapterKey)
-      || this.readString(auth.authAdapterKey)
-      || `${credentialType}-credential-ref`
-    );
-  }
-
-  private exposeCredentialRef(config: JsonRecord) {
-    const auth = this.asRecord(config.auth);
-    return this.readBoolean(config.exposeCredentialRef, this.readBoolean(auth.exposeCredentialRef, true));
-  }
-
-  private buildProvisioningIdempotencyKey(
-    request: JsonRecord,
-    resourceType: ProvisioningResourceType,
-    mode: ProvisioningMode,
-    config: JsonRecord,
-  ) {
-    const explicit = this.readString(config.idempotencyKey);
-    if (explicit) {
-      return explicit;
-    }
-
-    const prefix = this.readString(config.idempotencyPrefix) || 'resource-request';
-    return [
-      prefix,
-      request.id,
-      resourceType.id,
-      resourceType.key,
-      mode,
-    ].filter(Boolean).join(':');
-  }
-
-  private readHttpMaxAttempts(config: JsonRecord) {
-    const attempts = this.readPositiveInteger(config.maxAttempts)
-      || this.readPositiveInteger(this.asRecord(config.retry).maxAttempts)
-      || 1;
-    return Math.min(Math.max(attempts, 1), 5);
-  }
-
-  private readHttpRetryStatusCodes(config: JsonRecord) {
-    const retry = this.asRecord(config.retry);
-    const input = Array.isArray(config.retryStatusCodes)
-      ? config.retryStatusCodes
-      : Array.isArray(retry.statusCodes)
-        ? retry.statusCodes
-        : [408, 425, 429, 500, 502, 503, 504];
-
-    return input.reduce<Set<number>>((acc, value) => {
-      const code = typeof value === 'number' ? value : Number.parseInt(this.readString(value), 10);
-      if (Number.isInteger(code) && code >= 100 && code <= 599) {
-        acc.add(code);
-      }
-      return acc;
-    }, new Set<number>());
-  }
-
-  private isRetryableHttpStatus(status: number, retryStatusCodes: Set<number>) {
-    return retryStatusCodes.has(status);
-  }
-
-  private isProvisioningAutoRetryDue(request: JsonRecord, now: Date) {
-    const provisioning = this.asRecord(this.asRecord(request.result).provisioning);
-    if (this.readString(provisioning.status) !== 'blocked') {
-      return false;
-    }
-
-    const resourceType = this.asRecord(request.resourceType);
-    const mode = this.normalizeProvisioningMode(
-      this.readString(provisioning.mode) || this.readString(resourceType.provisioningMode),
-    );
-    if (mode !== 'api' && mode !== 'webhook') {
-      return false;
-    }
-
-    const autoRetry = this.asRecord(provisioning.autoRetry);
-    if (!this.readBoolean(autoRetry.enabled, false)) {
-      return false;
-    }
-    if (!this.readBoolean(provisioning.retryable, this.readBoolean(autoRetry.retryable, false))) {
-      return false;
-    }
-    if (this.readBoolean(autoRetry.exhausted, false)) {
-      return false;
-    }
-
-    const maxScheduledAttempts = this.readPositiveInteger(autoRetry.maxScheduledAttempts) || 0;
-    const scheduledAttempts = this.readNonNegativeInteger(autoRetry.scheduledAttempts) || 0;
-    if (maxScheduledAttempts > 0 && scheduledAttempts >= maxScheduledAttempts) {
-      return false;
-    }
-
-    const nextAttemptAt = this.readString(autoRetry.nextAttemptAt);
-    if (!nextAttemptAt) {
-      return false;
-    }
-
-    const dueAt = Date.parse(nextAttemptAt);
-    return Number.isFinite(dueAt) && dueAt <= now.getTime();
-  }
-
-  private buildHttpAutoRetryMetadata(
-    provisioningConfig: JsonRecord,
-    request: JsonRecord,
-    retryable: boolean,
-    context: ProvisioningProcessorContext,
-    now: Date,
-  ): JsonRecord {
-    const config = this.readProvisioningAutoRetryConfig(provisioningConfig);
-    if (!config.enabled) {
-      return {};
-    }
-
-    const previousProvisioning = this.asRecord(this.asRecord(request.result).provisioning);
-    const previousAutoRetry = this.asRecord(previousProvisioning.autoRetry);
-    const previousScheduledAttempts = this.readNonNegativeInteger(previousAutoRetry.scheduledAttempts) || 0;
-    const scheduledAttempts = previousScheduledAttempts + (context.trigger === 'auto_retry' ? 1 : 0);
-    const exhausted = !retryable || scheduledAttempts >= config.maxScheduledAttempts;
-    const nextAttemptAt = retryable && !exhausted
-      ? new Date(now.getTime() + config.delaySeconds * 1000).toISOString()
-      : undefined;
-    const lastTriggeredAt = context.trigger === 'auto_retry'
-      ? now.toISOString()
-      : this.readString(previousAutoRetry.lastTriggeredAt) || undefined;
-    const autoRetryState: JsonRecord = {
-      enabled: true,
-      retryable,
-      scheduledAttempts,
-      maxScheduledAttempts: config.maxScheduledAttempts,
-      delaySeconds: config.delaySeconds,
-      exhausted,
-    };
-    if (nextAttemptAt) {
-      autoRetryState.nextAttemptAt = nextAttemptAt;
-    }
-    if (lastTriggeredAt) {
-      autoRetryState.lastTriggeredAt = lastTriggeredAt;
-    }
-
-    return {
-      autoRetry: autoRetryState,
-    };
-  }
-
-  private readProvisioningAutoRetryConfig(config: JsonRecord): ProvisioningAutoRetryConfig {
-    const retry = this.asRecord(config.retry);
-    const autoRetry = this.asRecord(config.autoRetry);
-    const retryAutoRetry = this.asRecord(retry.autoRetry);
-    const enabled = this.readBoolean(autoRetry.enabled, this.readBoolean(retryAutoRetry.enabled, false));
-    const delaySeconds = this.clampPositiveInteger(
-      this.readPositiveInteger(autoRetry.delaySeconds)
-        || this.readPositiveInteger(retryAutoRetry.delaySeconds)
-        || this.readPositiveInteger(config.autoRetryDelaySeconds)
-        || 60,
-      10,
-      86400,
-    );
-    const maxScheduledAttempts = this.clampPositiveInteger(
-      this.readPositiveInteger(autoRetry.maxScheduledAttempts)
-        || this.readPositiveInteger(retryAutoRetry.maxScheduledAttempts)
-        || this.readPositiveInteger(config.maxScheduledAutoRetries)
-        || 3,
-      1,
-      20,
-    );
-
-    return {
-      enabled,
-      delaySeconds,
-      maxScheduledAttempts,
-    };
-  }
-
-  private readProvisioningQueueConfig(config: JsonRecord): ProvisioningQueueConfig {
-    const queue = this.asRecord(config.queue);
-    const enabled = this.readBoolean(
-      queue.enabled,
-      this.readBoolean(config.queue, this.httpProvisioningQueueEnabled()),
-    );
-    const delaySeconds = this.clampNonNegativeInteger(
-      this.readNonNegativeInteger(queue.delaySeconds)
-        ?? this.readNonNegativeInteger(config.queueDelaySeconds)
-        ?? this.readNonNegativeInteger(config.queueAvailableDelaySeconds)
-        ?? 0,
-      0,
-      86400,
-    );
-
-    return {
-      enabled,
-      delaySeconds,
-    };
-  }
-
-  private buildHttpProvisioningHeaders(
-    config: JsonRecord,
-    idempotencyKey: string,
-    credentialRef: ProvisioningCredentialRef | null,
-  ) {
-    const headers = {
-      ...this.readStringMap(config.headers),
-    };
-    const hasContentType = Object.keys(headers).some((key) => key.toLowerCase() === 'content-type');
-
-    if (!hasContentType) {
-      headers['content-type'] = 'application/json';
-    }
-
-    headers['idempotency-key'] = idempotencyKey;
-    headers['x-devpilot-idempotency-key'] = idempotencyKey;
-
-    if (credentialRef && this.exposeCredentialRef(config)) {
-      headers['x-devpilot-credential-id'] = credentialRef.referenceId;
-      headers['x-devpilot-credential-type'] = credentialRef.credentialType;
-      headers['x-devpilot-auth-adapter'] = credentialRef.authAdapterKey;
-    }
-
-    return headers;
-  }
-
-  private buildExternalProvisioningPayload(
-    request: JsonRecord,
-    resourceType: ProvisioningResourceType,
-    mode: Extract<ProvisioningMode, 'webhook' | 'api'>,
-    credentialRef: ProvisioningCredentialRef | null,
-    idempotencyKey: string,
-  ) {
-    const project = this.asRecord(request.project);
-    const projectEnvironment = this.asRecord(request.projectEnvironment);
-
-    return {
-      mode,
-      resourceType: {
-        id: resourceType.id,
-        key: resourceType.key,
-        name: resourceType.name,
-      },
-      request: {
-        id: request.id,
-        title: request.title,
-        purpose: request.purpose,
-        projectId: request.projectId,
-        environmentId: request.environmentId,
-        environment: request.environment,
-        spec: this.asRecord(request.spec),
-      },
-      adapter: {
-        boundary: 'http_adapter',
-        idempotencyKey,
-        credentialRef: credentialRef || undefined,
-      },
-      project: this.hasRecordValues(project)
-        ? { id: project.id, name: project.name }
-        : undefined,
-      projectEnvironment: this.hasRecordValues(projectEnvironment)
-        ? {
-            id: projectEnvironment.id,
-            key: projectEnvironment.key,
-            name: projectEnvironment.name,
-            status: projectEnvironment.status,
-          }
-        : undefined,
-    };
-  }
-
-  private async readHttpProvisioningBody(response: HttpProvisioningResponse) {
-    const contentType = response.headers?.get('content-type') || '';
-
-    if (contentType.includes('application/json')) {
-      return response.json();
-    }
-
-    const text = await response.text();
-    if (!text) {
-      return {};
-    }
-
-    try {
-      return JSON.parse(text);
-    } catch (_error) {
-      return { message: this.truncateText(text) };
-    }
-  }
-
-  private resolveHttpProvisioningDeliverySource(response: JsonRecord) {
-    const delivery = this.asRecord(response.delivery);
-    const credentials = this.asRecord(response.credentials);
-
-    if (this.hasRecordValues(delivery) || this.hasRecordValues(credentials)) {
-      return {
-        ...delivery,
-        ...credentials,
-      };
-    }
-
-    const resource = this.asRecord(response.resource);
-    if (this.hasRecordValues(resource)) {
-      return resource;
-    }
-
-    const instance = this.asRecord(response.instance);
-    if (this.hasRecordValues(instance)) {
-      return instance;
-    }
-
-    return {};
-  }
-
-  private provisioningAuditAction(status: unknown) {
-    if (status === 'blocked') {
-      return 'provisioning.blocked';
-    }
-    if (status === 'completed') {
-      return 'provisioning.completed';
-    }
-    if (status === 'queued') {
-      return 'provisioning.queued';
-    }
-    return 'provisioning.planned';
-  }
-
-  private provisioningAuditMessage(status: unknown) {
-    if (status === 'blocked') {
-      return '资源交付处理器被阻断';
-    }
-    if (status === 'completed') {
-      return '资源交付处理器已完成';
-    }
-    if (status === 'queued') {
-      return '资源交付处理器已入队';
-    }
-    return '资源交付处理器已生成计划';
-  }
-
-  private splitDeliveryAndCredentials(deliveryInput: unknown, schemaInput: unknown) {
-    const source = this.asRecord(deliveryInput);
-    const sensitiveKeys = this.readSensitiveFieldKeys(schemaInput);
-    const delivery: JsonRecord = {};
-    const credentials: JsonRecord = {};
-
-    for (const [key, value] of Object.entries(source)) {
-      if (sensitiveKeys.has(key) || this.isImplicitSensitiveKey(key)) {
-        credentials[key] = value;
-      } else {
-        delivery[key] = value;
-      }
-    }
-
-    return { delivery, credentials };
-  }
-
-  private readSensitiveFieldKeys(schemaInput: unknown) {
-    const schema = this.asRecord(schemaInput);
-    const fields = Array.isArray(schema.fields) ? schema.fields : [];
-    return fields.reduce<Set<string>>((acc, field) => {
-      const fieldRecord = this.asRecord(field);
-      const key = this.readString(fieldRecord.key);
-      if (key && fieldRecord.sensitive === true) {
-        acc.add(key);
-      }
-      return acc;
-    }, new Set<string>());
-  }
-
-  private isImplicitSensitiveKey(key: string) {
-    const normalizedKey = key.toLowerCase();
-    return (
-      normalizedKey.includes('password')
-      || normalizedKey.includes('secret')
-      || normalizedKey.includes('token')
-      || normalizedKey.includes('accesskey')
-      || normalizedKey.includes('privatekey')
-    );
-  }
-
-  private redactSensitiveRecord(input: JsonRecord): JsonRecord {
-    const output: JsonRecord = {};
-
-    for (const [key, value] of Object.entries(input)) {
-      if (this.isImplicitSensitiveKey(key)) {
-        output[key] = 'redacted';
-      } else if (Array.isArray(value)) {
-        output[key] = value.map((item) => (
-          this.hasRecordValues(this.asRecord(item))
-            ? this.redactSensitiveRecord(this.asRecord(item))
-            : item
-        ));
-      } else if (this.hasRecordValues(this.asRecord(value))) {
-        output[key] = this.redactSensitiveRecord(this.asRecord(value));
-      } else {
-        output[key] = value;
-      }
-    }
-
-    return output;
-  }
-
-  private resolveRequestedResourceName(specInput: unknown) {
-    const spec = this.asRecord(specInput);
-    return (
-      this.readString(spec.resourceName)
-      || this.readString(spec.database)
-      || this.readString(spec.dbName)
-      || this.readString(spec.name)
-      || undefined
-    );
-  }
-
-  private asRecord(value: unknown): JsonRecord {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {};
-    }
-    return value as JsonRecord;
-  }
-
-  private readString(value: unknown) {
-    return typeof value === 'string' && value.trim() ? value.trim() : '';
-  }
-
-  private dateToIso(value: unknown) {
-    if (value instanceof Date) {
-      return value.toISOString();
-    }
-    if (typeof value === 'string' && value.trim()) {
-      return value;
-    }
-    return undefined;
-  }
-
-  private readBoolean(value: unknown, fallback: boolean) {
-    if (typeof value === 'boolean') {
-      return value;
-    }
-    if (typeof value === 'string') {
-      const normalized = value.trim().toLowerCase();
-      if (['true', '1', 'yes', 'on'].includes(normalized)) {
-        return true;
-      }
-      if (['false', '0', 'no', 'off'].includes(normalized)) {
-        return false;
-      }
-    }
-    return fallback;
-  }
-
-  private readPositiveInteger(value: unknown) {
-    const numberValue = typeof value === 'number' ? value : Number.parseInt(this.readString(value), 10);
-    return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : undefined;
-  }
-
-  private readListLimit(value: unknown, fallback: number, max: number) {
-    const limit = this.readPositiveInteger(value) || fallback;
-    return Math.min(limit, max);
-  }
-
   private readStaleProvisioningRunAfterSeconds(value?: unknown) {
-    const configured = this.readPositiveInteger(
+    const configured = readPositiveInteger(
       this.configService.get('RESOURCE_REQUEST_PROVISIONING_RUN_STALE_AFTER_SECONDS', '1800'),
     ) || 1800;
-    return Math.max(this.readPositiveInteger(value) || configured, 60);
-  }
-
-  private readNonNegativeInteger(value: unknown) {
-    const numberValue = typeof value === 'number' ? value : Number.parseInt(this.readString(value), 10);
-    return Number.isInteger(numberValue) && numberValue >= 0 ? numberValue : undefined;
-  }
-
-  private clampPositiveInteger(value: number, min: number, max: number) {
-    return Math.min(Math.max(Math.floor(value), min), max);
-  }
-
-  private clampNonNegativeInteger(value: number, min: number, max: number) {
-    return Math.min(Math.max(Math.floor(value), min), max);
-  }
-
-  private readStringArray(value: unknown) {
-    if (!Array.isArray(value)) {
-      return [];
-    }
-    return value
-      .map((item) => this.readString(item))
-      .filter(Boolean);
-  }
-
-  private readStringMap(value: unknown) {
-    const source = this.asRecord(value);
-    return Object.entries(source).reduce<Record<string, string>>((acc, [key, entry]) => {
-      const header = this.readString(entry);
-      if (header) {
-        acc[key] = header;
-      }
-      return acc;
-    }, {});
-  }
-
-  private hasRecordValues(value: JsonRecord) {
-    return Object.keys(value).length > 0;
-  }
-
-  private redactUrl(url: string) {
-    try {
-      const parsed = new URL(url);
-      if (parsed.username) {
-        parsed.username = 'redacted';
-      }
-      if (parsed.password) {
-        parsed.password = 'redacted';
-      }
-      for (const key of Array.from(parsed.searchParams.keys())) {
-        if (this.isImplicitSensitiveKey(key)) {
-          parsed.searchParams.set(key, 'redacted');
-        }
-      }
-      return parsed.toString();
-    } catch (_error) {
-      const queryIndex = url.indexOf('?');
-      return queryIndex >= 0 ? `${url.slice(0, queryIndex)}?...` : url;
-    }
-  }
-
-  private truncateText(text: string, maxLength = 500) {
-    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
-  }
-
-  private errorMessage(error: unknown) {
-    if (error instanceof Error && error.message) {
-      return error.message;
-    }
-    return 'provisioning_failed';
+    return Math.max(readPositiveInteger(value) || configured, 60);
   }
 
   async cancelRequest(teamId: string, userId: string, id: string) {

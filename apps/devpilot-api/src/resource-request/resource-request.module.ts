@@ -11,6 +11,8 @@ import {
 } from './resource-request.controller';
 import { ResourceRequestProvisioningRetrySchedulerService } from './resource-request-provisioning-retry-scheduler.service';
 import { ResourceRequestService } from './resource-request.service';
+import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
+import { ResourceProvisioningRunReadService } from './resource-provisioning-run-read.service';
 
 @Module({
   imports: [PrismaModule, ControlAccessPolicyModule, ResourcePoolModule, ServerExecutorModule],
@@ -20,7 +22,12 @@ import { ResourceRequestService } from './resource-request.service';
     ResourceInstancesController,
     ResourceAuditLogsController,
   ],
-  providers: [ResourceRequestService, ResourceRequestProvisioningRetrySchedulerService],
+  providers: [
+    ResourceRequestService,
+    ResourceRequestProvisioningRetrySchedulerService,
+    ResourceProvisioningRunSupervisorService,
+    ResourceProvisioningRunReadService,
+  ],
   exports: [ResourceRequestService, ResourceRequestProvisioningRetrySchedulerService],
 })
 export class ResourceRequestModule {}

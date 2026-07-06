@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ResourcePoolService } from '../resource-pool/resource-pool.service';
 import { ServerExecutorService } from '../server-executor/server-executor.service';
 import { ResourceRequestService } from './resource-request.service';
+import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
+import { ResourceProvisioningRunReadService } from './resource-provisioning-run-read.service';
 
 describe('ResourceRequestService provisioning processors', () => {
   it('auto-completes approved pool requests through resource pool allocation', async () => {
@@ -2320,6 +2322,11 @@ function createService(options: { httpEnabled?: boolean; configValues?: Record<s
     config as unknown as ConfigService,
     resourcePoolService as unknown as ResourcePoolService,
     serverExecutor as unknown as ServerExecutorService,
+    new ResourceProvisioningRunSupervisorService(
+      prisma as unknown as PrismaService,
+      config as unknown as ConfigService,
+    ),
+    new ResourceProvisioningRunReadService(prisma as unknown as PrismaService),
   );
 
   return { prisma, resourcePoolService, serverExecutor, service };

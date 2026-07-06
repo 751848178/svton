@@ -1,5 +1,7 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { BaseIntervalScheduler } from '../common/scheduler/base-interval-scheduler';
 import { ResourceRequestService } from './resource-request.service';
 
 type ScheduledResourceRequestProvisioningRetrySummary = {
@@ -33,37 +35,32 @@ type ScheduledResourceRequestProvisioningRetrySummary = {
 };
 
 @Injectable()
-export class ResourceRequestProvisioningRetrySchedulerService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(ResourceRequestProvisioningRetrySchedulerService.name);
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class ResourceRequestProvisioningRetrySchedulerService extends BaseIntervalScheduler {
+  protected readonly logger = new Logger(ResourceRequestProvisioningRetrySchedulerService.name);
 
   constructor(
     private readonly resourceRequestService: ResourceRequestService,
     private readonly configService: ConfigService,
-  ) {}
-
-  onModuleInit() {
-    if (
-      !this.retrySchedulerEnabled()
-      && !this.staleRecoveryEnabled()
-      && !this.queueWorkerEnabled()
-      && !this.providerStatePollingEnabled()
-    ) {
-      return;
-    }
-
-    const intervalMs = this.schedulerIntervalMs();
-    this.timer = setInterval(() => {
-      void this.runOnce();
-    }, intervalMs);
-    this.logger.log(`ResourceRequest provisioning retry scheduler enabled; interval=${intervalMs}ms`);
+    @Optional() schedulerRegistry?: SchedulerRegistry,
+  ) {
+    super(schedulerRegistry);
   }
 
-  onModuleDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
+  schedulerName(): string {
+    return 'resource-request-provisioning-retry';
+  }
+
+  isEnabled(): boolean {
+    return (
+      this.retrySchedulerEnabled()
+      || this.staleRecoveryEnabled()
+      || this.queueWorkerEnabled()
+      || this.providerStatePollingEnabled()
+    );
+  }
+
+  intervalMs(): number {
+    return this.schedulerIntervalMs();
   }
 
   async runOnce(): Promise<ScheduledResourceRequestProvisioningRetrySummary> {
@@ -75,11 +72,10 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
       return this.emptySummary(false, retryEnabled, staleRecoveryEnabled, queueWorkerEnabled, providerStatePollingEnabled);
     }
 
-    if (this.running) {
+    if (!this.tryAcquireRunLock()) {
       return this.emptySummary(true, retryEnabled, staleRecoveryEnabled, queueWorkerEnabled, providerStatePollingEnabled);
     }
 
-    this.running = true;
     try {
       const retrySummary = retryEnabled
         ? await this.resourceRequestService.processDueProvisioningAutoRetries({
@@ -131,7 +127,7 @@ export class ResourceRequestProvisioningRetrySchedulerService implements OnModul
         providerPollFailed: providerPollSummary.failed,
       };
     } finally {
-      this.running = false;
+      this.releaseRunLock();
     }
   }
 
