@@ -20,6 +20,8 @@ import {
 } from "./dto/monitoring.dto";
 import { MonitoringAccessService } from "./monitoring-access.service";
 import type { MonitoringAuthRequest } from "./monitoring-access.types";
+import { MonitoringAlertEventService } from "./monitoring-alert-event.service";
+import { MonitoringAlertRuleService } from "./monitoring-alert-rule.service";
 import { MonitoringService } from "./monitoring.service";
 
 @Controller("monitoring")
@@ -29,6 +31,8 @@ export class MonitoringController {
   constructor(
     private readonly monitoringService: MonitoringService,
     private readonly monitoringAccess: MonitoringAccessService,
+    private readonly alertRuleService: MonitoringAlertRuleService,
+    private readonly alertEventService: MonitoringAlertEventService,
   ) {}
 
   @Get("alert-rules")
@@ -36,7 +40,7 @@ export class MonitoringController {
     @Request() req: MonitoringAuthRequest,
     @Query() query: ListAlertRulesQueryDto,
   ) {
-    const rules = await this.monitoringService.listRules(req.teamId, query);
+    const rules = await this.alertRuleService.listRules(req.teamId, query);
     const readableRules =
       await this.monitoringAccess.filterReadableMonitoringRecords(
         req,
@@ -62,7 +66,7 @@ export class MonitoringController {
     @Request() req: MonitoringAuthRequest,
     @Body() dto: CreateAlertRuleDto,
   ) {
-    const scope = await this.monitoringService.resolveRuleCreateAccessScope(
+    const scope = await this.alertRuleService.resolveCreateAccessScope(
       req.teamId,
       dto,
     );
@@ -74,7 +78,7 @@ export class MonitoringController {
       scope.environmentId,
       "medium",
     );
-    return this.monitoringService.createRule(req.teamId, req.user.id, dto);
+    return this.alertRuleService.createRule(req.teamId, req.user.id, dto);
   }
 
   @Put("alert-rules/:ruleId")
@@ -83,7 +87,7 @@ export class MonitoringController {
     @Param("ruleId") ruleId: string,
     @Body() dto: UpdateAlertRuleDto,
   ) {
-    const scope = await this.monitoringService.getRuleAccessScope(
+    const scope = await this.alertRuleService.getAccessScope(
       req.teamId,
       ruleId,
     );
@@ -95,7 +99,7 @@ export class MonitoringController {
       scope.environmentId,
       "medium",
     );
-    return this.monitoringService.updateRule(req.teamId, ruleId, dto);
+    return this.alertRuleService.updateRule(req.teamId, ruleId, dto);
   }
 
   @Post("alert-rules/:ruleId/evaluate")
@@ -104,7 +108,7 @@ export class MonitoringController {
     @Param("ruleId") ruleId: string,
     @Body() dto: EvaluateAlertRuleDto,
   ) {
-    const scope = await this.monitoringService.getRuleAccessScope(
+    const scope = await this.alertRuleService.getAccessScope(
       req.teamId,
       ruleId,
     );
@@ -129,7 +133,7 @@ export class MonitoringController {
     @Request() req: MonitoringAuthRequest,
     @Query() query: ListAlertEventsQueryDto,
   ) {
-    const events = await this.monitoringService.listEvents(req.teamId, query);
+    const events = await this.alertEventService.listEvents(req.teamId, query);
     return this.monitoringAccess.filterReadableMonitoringRecords(
       req,
       events,
@@ -143,7 +147,7 @@ export class MonitoringController {
     @Request() req: MonitoringAuthRequest,
     @Param("eventId") eventId: string,
   ) {
-    const scope = await this.monitoringService.getEventAccessScope(
+    const scope = await this.alertEventService.getAccessScope(
       req.teamId,
       eventId,
     );
@@ -155,7 +159,7 @@ export class MonitoringController {
       scope.environmentId,
       "low",
     );
-    return this.monitoringService.acknowledgeEvent(
+    return this.alertEventService.acknowledgeEvent(
       req.teamId,
       req.user.id,
       eventId,

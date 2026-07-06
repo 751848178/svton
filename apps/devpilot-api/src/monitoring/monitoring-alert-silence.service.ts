@@ -115,8 +115,10 @@ export class MonitoringAlertSilenceService {
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.category !== undefined) data.category = dto.category;
-    if (dto.metric !== undefined) data.metric = this.readString(dto.metric) || null;
-    if (dto.reason !== undefined) data.reason = this.readString(dto.reason) || null;
+    if (dto.metric !== undefined)
+      data.metric = this.readString(dto.metric) || null;
+    if (dto.reason !== undefined)
+      data.reason = this.readString(dto.reason) || null;
     if (dto.severityFilter !== undefined) {
       data.severityFilter = toJsonValue(
         normalizeAlertSeverityFilter(dto.severityFilter),

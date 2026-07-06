@@ -18,15 +18,15 @@ import {
 } from "./dto/monitoring.dto";
 import { MonitoringAccessService } from "./monitoring-access.service";
 import type { MonitoringAuthRequest } from "./monitoring-access.types";
-import { MonitoringService } from "./monitoring.service";
+import { MonitoringAlertSilenceService } from "./monitoring-alert-silence.service";
 
 @Controller("monitoring")
 @UseGuards(JwtAuthGuard, AuthzGuard)
 @Roles("team_member")
 export class MonitoringSilenceController {
   constructor(
-    private readonly monitoringService: MonitoringService,
     private readonly monitoringAccess: MonitoringAccessService,
+    private readonly alertSilenceService: MonitoringAlertSilenceService,
   ) {}
 
   @Get("silences")
@@ -34,7 +34,7 @@ export class MonitoringSilenceController {
     @Request() req: MonitoringAuthRequest,
     @Query() query: ListAlertSilencesQueryDto,
   ) {
-    const silences = await this.monitoringService.listSilences(
+    const silences = await this.alertSilenceService.listSilences(
       req.teamId,
       query,
     );
@@ -51,10 +51,7 @@ export class MonitoringSilenceController {
     @Request() req: MonitoringAuthRequest,
     @Body() dto: CreateAlertSilenceDto,
   ) {
-    const scope = await this.monitoringService.resolveSilenceScope(
-      req.teamId,
-      dto,
-    );
+    const scope = await this.alertSilenceService.resolveScope(req.teamId, dto);
     await this.monitoringAccess.assertCanWriteMonitoring(
       req,
       "monitoring.silence.create",
@@ -63,7 +60,7 @@ export class MonitoringSilenceController {
       scope.environmentId,
       "medium",
     );
-    return this.monitoringService.createSilence(req.teamId, req.user.id, dto);
+    return this.alertSilenceService.createSilence(req.teamId, req.user.id, dto);
   }
 
   @Put("silences/:silenceId")
@@ -72,12 +69,12 @@ export class MonitoringSilenceController {
     @Param("silenceId") silenceId: string,
     @Body() dto: UpdateAlertSilenceDto,
   ) {
-    const currentScope = await this.monitoringService.getSilenceAccessScope(
+    const currentScope = await this.alertSilenceService.getAccessScope(
       req.teamId,
       silenceId,
     );
     if (dto.projectId !== undefined || dto.environmentId !== undefined) {
-      const targetScope = await this.monitoringService.resolveSilenceScope(
+      const targetScope = await this.alertSilenceService.resolveScope(
         req.teamId,
         dto,
       );
@@ -98,6 +95,6 @@ export class MonitoringSilenceController {
       currentScope.environmentId,
       "medium",
     );
-    return this.monitoringService.updateSilence(req.teamId, silenceId, dto);
+    return this.alertSilenceService.updateSilence(req.teamId, silenceId, dto);
   }
 }

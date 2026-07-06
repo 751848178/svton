@@ -15,7 +15,7 @@ export class MonitoringAlertSilenceWindowService {
     const endsAt =
       endsAtValue !== undefined
         ? this.parseDateInput(endsAtValue, "静默结束时间无效")
-        : currentEndsAt ?? null;
+        : (currentEndsAt ?? null);
 
     if (endsAt && endsAt <= startsAt) {
       throw new BadRequestException("静默结束时间必须晚于开始时间");

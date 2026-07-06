@@ -1,45 +1,39 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-} from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
+import { SchedulerRegistry } from "@nestjs/schedule";
+import { BaseIntervalScheduler } from "../common/scheduler/base-interval-scheduler";
 import { PrismaService } from "../prisma/prisma.service";
+import { MonitoringAlertEscalationService } from "./monitoring-alert-escalation.service";
+import { MonitoringNotificationRetryService } from "./monitoring-notification-retry.service";
 import { MonitoringSchedulerConfigService } from "./monitoring-scheduler-config.service";
 import { createScheduledAlertEvaluationSummary } from "./monitoring-scheduler-summary.utils";
 import type { ScheduledAlertEvaluationSummary } from "./monitoring-scheduler.types";
 import { MonitoringService } from "./monitoring.service";
 
 @Injectable()
-export class MonitoringSchedulerService
-  implements OnModuleInit, OnModuleDestroy
-{
-  private readonly logger = new Logger(MonitoringSchedulerService.name);
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class MonitoringSchedulerService extends BaseIntervalScheduler {
+  protected readonly logger = new Logger(MonitoringSchedulerService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly monitoringService: MonitoringService,
+    private readonly notificationRetryService: MonitoringNotificationRetryService,
+    private readonly alertEscalationService: MonitoringAlertEscalationService,
     private readonly schedulerConfig: MonitoringSchedulerConfigService,
-  ) {}
-
-  onModuleInit() {
-    if (!this.schedulerConfig.schedulerWorkerEnabled()) {
-      return;
-    }
-
-    const intervalMs = this.schedulerConfig.schedulerIntervalMs();
-    this.timer = setInterval(() => {
-      void this.runOnce();
-    }, intervalMs);
-    this.logger.log(`Monitoring scheduler enabled; interval=${intervalMs}ms`);
+    @Optional() schedulerRegistry?: SchedulerRegistry,
+  ) {
+    super(schedulerRegistry);
   }
 
-  onModuleDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
+  schedulerName(): string {
+    return "monitoring";
+  }
+
+  isEnabled(): boolean {
+    return this.schedulerConfig.schedulerWorkerEnabled();
+  }
+
+  intervalMs(): number {
+    return this.schedulerConfig.schedulerIntervalMs();
   }
 
   async runOnce(now = new Date()): Promise<ScheduledAlertEvaluationSummary> {
@@ -61,7 +55,7 @@ export class MonitoringSchedulerService
       );
     }
 
-    if (this.running) {
+    if (!this.tryAcquireRunLock()) {
       return createScheduledAlertEvaluationSummary(
         true,
         true,
@@ -70,7 +64,6 @@ export class MonitoringSchedulerService
       );
     }
 
-    this.running = true;
     try {
       const summary = createScheduledAlertEvaluationSummary(
         false,
@@ -123,23 +116,25 @@ export class MonitoringSchedulerService
       if (notificationRetriesEnabled) {
         summary.notificationRetries = {
           enabled: true,
-          ...(await this.monitoringService.retryFailedNotificationDeliveries({
-            now,
-            batchSize: this.schedulerConfig.notificationRetryBatchSize(),
-            minAgeSeconds:
-              this.schedulerConfig.notificationRetryMinAgeSeconds(),
-            maxAttempts: this.schedulerConfig.notificationRetryMaxAttempts(),
-            attemptWindowMinutes:
-              this.schedulerConfig.notificationRetryAttemptWindowMinutes(),
-            userId: null,
-          })),
+          ...(await this.notificationRetryService.retryFailedNotificationDeliveries(
+            {
+              now,
+              batchSize: this.schedulerConfig.notificationRetryBatchSize(),
+              minAgeSeconds:
+                this.schedulerConfig.notificationRetryMinAgeSeconds(),
+              maxAttempts: this.schedulerConfig.notificationRetryMaxAttempts(),
+              attemptWindowMinutes:
+                this.schedulerConfig.notificationRetryAttemptWindowMinutes(),
+              userId: null,
+            },
+          )),
         };
       }
 
       if (alertEscalationsEnabled) {
         summary.alertEscalations = {
           enabled: true,
-          ...(await this.monitoringService.escalateStaleAlertEvents({
+          ...(await this.alertEscalationService.escalateStaleAlertEvents({
             now,
             batchSize: this.schedulerConfig.alertEscalationBatchSize(),
             minAgeSeconds: this.schedulerConfig.alertEscalationMinAgeSeconds(),
@@ -152,7 +147,7 @@ export class MonitoringSchedulerService
 
       return summary;
     } finally {
-      this.running = false;
+      this.releaseRunLock();
     }
   }
 

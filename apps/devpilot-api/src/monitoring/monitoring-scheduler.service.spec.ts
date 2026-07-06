@@ -1,5 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
+import { MonitoringAlertEscalationService } from "./monitoring-alert-escalation.service";
+import { MonitoringNotificationRetryService } from "./monitoring-notification-retry.service";
 import { MonitoringSchedulerConfigService } from "./monitoring-scheduler-config.service";
 import { MonitoringSchedulerService } from "./monitoring-scheduler.service";
 import { MonitoringService } from "./monitoring.service";
@@ -14,7 +16,11 @@ describe("MonitoringSchedulerService", () => {
   let prisma: PrismaMock;
   let monitoringService: {
     evaluateRule: jest.Mock;
+  };
+  let notificationRetryService: {
     retryFailedNotificationDeliveries: jest.Mock;
+  };
+  let alertEscalationService: {
     escalateStaleAlertEvents: jest.Mock;
   };
   let config: { get: jest.Mock };
@@ -29,9 +35,13 @@ describe("MonitoringSchedulerService", () => {
     };
     monitoringService = {
       evaluateRule: jest.fn().mockResolvedValue({}),
+    };
+    notificationRetryService = {
       retryFailedNotificationDeliveries: jest
         .fn()
         .mockResolvedValue(retrySummary()),
+    };
+    alertEscalationService = {
       escalateStaleAlertEvents: jest
         .fn()
         .mockResolvedValue(escalationSummary()),
@@ -62,6 +72,8 @@ describe("MonitoringSchedulerService", () => {
     service = new MonitoringSchedulerService(
       prisma as unknown as PrismaService,
       monitoringService as unknown as MonitoringService,
+      notificationRetryService as unknown as MonitoringNotificationRetryService,
+      alertEscalationService as unknown as MonitoringAlertEscalationService,
       schedulerConfig,
     );
   });
@@ -86,9 +98,11 @@ describe("MonitoringSchedulerService", () => {
     });
     expect(prisma.alertRule.findMany).not.toHaveBeenCalled();
     expect(
-      monitoringService.retryFailedNotificationDeliveries,
+      notificationRetryService.retryFailedNotificationDeliveries,
     ).not.toHaveBeenCalled();
-    expect(monitoringService.escalateStaleAlertEvents).not.toHaveBeenCalled();
+    expect(
+      alertEscalationService.escalateStaleAlertEvents,
+    ).not.toHaveBeenCalled();
   });
 
   it("evaluates due scheduled rules as system actor", async () => {
@@ -140,9 +154,11 @@ describe("MonitoringSchedulerService", () => {
       {},
     );
     expect(
-      monitoringService.retryFailedNotificationDeliveries,
+      notificationRetryService.retryFailedNotificationDeliveries,
     ).not.toHaveBeenCalled();
-    expect(monitoringService.escalateStaleAlertEvents).not.toHaveBeenCalled();
+    expect(
+      alertEscalationService.escalateStaleAlertEvents,
+    ).not.toHaveBeenCalled();
   });
 
   it("continues after one scheduled rule evaluation fails", async () => {
@@ -185,7 +201,7 @@ describe("MonitoringSchedulerService", () => {
       };
       return values[key] ?? fallback;
     });
-    monitoringService.retryFailedNotificationDeliveries.mockResolvedValue(
+    notificationRetryService.retryFailedNotificationDeliveries.mockResolvedValue(
       retrySummary(true, {
         scanned: 2,
         attempted: 1,
@@ -212,7 +228,7 @@ describe("MonitoringSchedulerService", () => {
     });
     expect(prisma.alertRule.findMany).not.toHaveBeenCalled();
     expect(
-      monitoringService.retryFailedNotificationDeliveries,
+      notificationRetryService.retryFailedNotificationDeliveries,
     ).toHaveBeenCalledWith({
       now,
       batchSize: 5,
@@ -221,7 +237,9 @@ describe("MonitoringSchedulerService", () => {
       attemptWindowMinutes: 30,
       userId: null,
     });
-    expect(monitoringService.escalateStaleAlertEvents).not.toHaveBeenCalled();
+    expect(
+      alertEscalationService.escalateStaleAlertEvents,
+    ).not.toHaveBeenCalled();
   });
 
   it("can run alert escalations when rule scheduling is disabled", async () => {
@@ -240,7 +258,7 @@ describe("MonitoringSchedulerService", () => {
       };
       return values[key] ?? fallback;
     });
-    monitoringService.escalateStaleAlertEvents.mockResolvedValue(
+    alertEscalationService.escalateStaleAlertEvents.mockResolvedValue(
       escalationSummary(true, {
         scanned: 3,
         attempted: 2,
@@ -267,9 +285,11 @@ describe("MonitoringSchedulerService", () => {
     });
     expect(prisma.alertRule.findMany).not.toHaveBeenCalled();
     expect(
-      monitoringService.retryFailedNotificationDeliveries,
+      notificationRetryService.retryFailedNotificationDeliveries,
     ).not.toHaveBeenCalled();
-    expect(monitoringService.escalateStaleAlertEvents).toHaveBeenCalledWith({
+    expect(
+      alertEscalationService.escalateStaleAlertEvents,
+    ).toHaveBeenCalledWith({
       now,
       batchSize: 7,
       minAgeSeconds: 900,

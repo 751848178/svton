@@ -18,20 +18,24 @@ import {
 } from "./dto/monitoring.dto";
 import { MonitoringAccessService } from "./monitoring-access.service";
 import type { MonitoringAuthRequest } from "./monitoring-access.types";
-import { MonitoringService } from "./monitoring.service";
+import { MonitoringNotificationChannelService } from "./monitoring-notification-channel.service";
+import { MonitoringNotificationDeliveryReadService } from "./monitoring-notification-delivery-read.service";
+import { MonitoringNotificationRetryService } from "./monitoring-notification-retry.service";
 
 @Controller("monitoring")
 @UseGuards(JwtAuthGuard, AuthzGuard)
 @Roles("team_member")
 export class MonitoringNotificationController {
   constructor(
-    private readonly monitoringService: MonitoringService,
     private readonly monitoringAccess: MonitoringAccessService,
+    private readonly notificationChannelService: MonitoringNotificationChannelService,
+    private readonly notificationDeliveryReadService: MonitoringNotificationDeliveryReadService,
+    private readonly notificationRetryService: MonitoringNotificationRetryService,
   ) {}
 
   @Get("notification-channels")
   async listNotificationChannels(@Request() req: MonitoringAuthRequest) {
-    const channels = await this.monitoringService.listNotificationChannels(
+    const channels = await this.notificationChannelService.listChannels(
       req.teamId,
     );
     return this.monitoringAccess.filterReadableMonitoringRecords(
@@ -47,7 +51,7 @@ export class MonitoringNotificationController {
     @Request() req: MonitoringAuthRequest,
     @Body() dto: CreateAlertNotificationChannelDto,
   ) {
-    const scope = await this.monitoringService.resolveNotificationChannelScope(
+    const scope = await this.notificationChannelService.resolveScope(
       req.teamId,
       dto,
     );
@@ -59,7 +63,7 @@ export class MonitoringNotificationController {
       scope.environmentId,
       "medium",
     );
-    return this.monitoringService.createNotificationChannel(
+    return this.notificationChannelService.createChannel(
       req.teamId,
       req.user.id,
       dto,
@@ -72,17 +76,15 @@ export class MonitoringNotificationController {
     @Param("channelId") channelId: string,
     @Body() dto: UpdateAlertNotificationChannelDto,
   ) {
-    const currentScope =
-      await this.monitoringService.getNotificationChannelAccessScope(
-        req.teamId,
-        channelId,
-      );
+    const currentScope = await this.notificationChannelService.getAccessScope(
+      req.teamId,
+      channelId,
+    );
     if (dto.projectId !== undefined || dto.environmentId !== undefined) {
-      const targetScope =
-        await this.monitoringService.resolveNotificationChannelScope(
-          req.teamId,
-          dto,
-        );
+      const targetScope = await this.notificationChannelService.resolveScope(
+        req.teamId,
+        dto,
+      );
       await this.monitoringAccess.assertCanWriteMonitoring(
         req,
         "monitoring.notification_channel.update",
@@ -100,7 +102,7 @@ export class MonitoringNotificationController {
       currentScope.environmentId,
       "medium",
     );
-    return this.monitoringService.updateNotificationChannel(
+    return this.notificationChannelService.updateChannel(
       req.teamId,
       channelId,
       dto,
@@ -112,10 +114,11 @@ export class MonitoringNotificationController {
     @Request() req: MonitoringAuthRequest,
     @Query() query: ListAlertNotificationDeliveriesQueryDto,
   ) {
-    const deliveries = await this.monitoringService.listNotificationDeliveries(
-      req.teamId,
-      query,
-    );
+    const deliveries =
+      await this.notificationDeliveryReadService.listDeliveries(
+        req.teamId,
+        query,
+      );
     return this.monitoringAccess.filterReadableMonitoringRecords(
       req,
       deliveries,
@@ -129,11 +132,10 @@ export class MonitoringNotificationController {
     @Request() req: MonitoringAuthRequest,
     @Param("deliveryId") deliveryId: string,
   ) {
-    const scope =
-      await this.monitoringService.getNotificationDeliveryAccessScope(
-        req.teamId,
-        deliveryId,
-      );
+    const scope = await this.notificationDeliveryReadService.getAccessScope(
+      req.teamId,
+      deliveryId,
+    );
     await this.monitoringAccess.assertCanWriteMonitoring(
       req,
       "monitoring.notification_delivery.retry",
@@ -142,7 +144,7 @@ export class MonitoringNotificationController {
       scope.environmentId,
       "low",
     );
-    return this.monitoringService.retryNotificationDelivery(
+    return this.notificationRetryService.retryNotificationDelivery(
       req.teamId,
       req.user.id,
       deliveryId,

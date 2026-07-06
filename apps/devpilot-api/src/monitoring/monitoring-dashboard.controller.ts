@@ -7,15 +7,19 @@ import {
 } from "./dto/monitoring.dto";
 import { MonitoringAccessService } from "./monitoring-access.service";
 import type { MonitoringAuthRequest } from "./monitoring-access.types";
-import { MonitoringService } from "./monitoring.service";
+import { MonitoringResourceMetricDashboardService } from "./monitoring-resource-metric-dashboard.service";
+import { MonitoringServiceSloDashboardService } from "./monitoring-service-slo-dashboard.service";
+import { MonitoringServiceSloRuleTemplateService } from "./monitoring-service-slo-rule-template.service";
 
 @Controller("monitoring")
 @UseGuards(JwtAuthGuard, AuthzGuard)
 @Roles("team_member")
 export class MonitoringDashboardController {
   constructor(
-    private readonly monitoringService: MonitoringService,
     private readonly monitoringAccess: MonitoringAccessService,
+    private readonly resourceMetricDashboardService: MonitoringResourceMetricDashboardService,
+    private readonly serviceSloDashboardService: MonitoringServiceSloDashboardService,
+    private readonly serviceSloRuleTemplateService: MonitoringServiceSloRuleTemplateService,
   ) {}
 
   @Get("resource-metrics/dashboard")
@@ -23,11 +27,10 @@ export class MonitoringDashboardController {
     @Request() req: MonitoringAuthRequest,
     @Query() query: ListResourceMetricDashboardQueryDto,
   ) {
-    const dashboard =
-      await this.monitoringService.listResourceMetricDashboardRows(
-        req.teamId,
-        query,
-      );
+    const dashboard = await this.resourceMetricDashboardService.listRows(
+      req.teamId,
+      query,
+    );
     const readableRows =
       await this.monitoringAccess.filterReadableMonitoringRecords(
         req,
@@ -35,7 +38,7 @@ export class MonitoringDashboardController {
         "monitoring.resource_metric_dashboard.read",
         "resource_metric_dashboard",
       );
-    return this.monitoringService.summarizeResourceMetricDashboard(
+    return this.resourceMetricDashboardService.summarize(
       readableRows,
       dashboard.windowMinutes,
       dashboard.staleAfterMinutes,
@@ -45,7 +48,7 @@ export class MonitoringDashboardController {
 
   @Get("service-slo/templates")
   listServiceSloRuleTemplates() {
-    return this.monitoringService.listServiceSloRuleTemplates();
+    return this.serviceSloRuleTemplateService.listTemplates();
   }
 
   @Get("service-slo/dashboard")
@@ -53,7 +56,7 @@ export class MonitoringDashboardController {
     @Request() req: MonitoringAuthRequest,
     @Query() query: ListServiceSloDashboardQueryDto,
   ) {
-    const dashboard = await this.monitoringService.listServiceSloDashboardRows(
+    const dashboard = await this.serviceSloDashboardService.listRows(
       req.teamId,
       query,
     );
@@ -64,7 +67,7 @@ export class MonitoringDashboardController {
         "monitoring.service_slo_dashboard.read",
         "service_slo_dashboard",
       );
-    return this.monitoringService.summarizeServiceSloDashboard(
+    return this.serviceSloDashboardService.summarize(
       readableRows,
       dashboard.windowMinutes,
       dashboard.targetPercent,

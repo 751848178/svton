@@ -35,8 +35,7 @@ export class MonitoringAlertSilenceMatcherService {
         .filter((silence) => this.matchesRule(silence, rule))
         .sort(
           (left, right) =>
-            this.specificity(right) -
-              this.specificity(left) ||
+            this.specificity(right) - this.specificity(left) ||
             this.endTime(left) - this.endTime(right),
         )[0] || null
     );
