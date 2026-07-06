@@ -9,15 +9,19 @@ import { ResourceExecutorRouter } from './executors/executor-router';
 import { CloudProviderInventoryService } from './inventory/cloud-provider-inventory.service';
 import { ResourceControlRepository } from './resource-control.repository';
 import { ResourceControlService } from './resource-control.service';
+import { ResourceControlListReadService } from './resource-control-list-read.service';
+import { ResourceControlCloudProviderHealthService } from './resource-control-cloud-provider-health.service';
 import {
   buildMetricSeries,
   summarizeMetricTrends,
 } from './resource-control-metric-summary.utils';
 
 describe('ResourceControlService cloud provider health summary', () => {
+  const cloudProviderHealthService = new ResourceControlCloudProviderHealthService({} as PrismaService);
   const service = new ResourceControlService(
     {} as PrismaService,
     {} as ResourceControlRepository,
+    new ResourceControlListReadService({} as ResourceControlRepository, cloudProviderHealthService),
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,
@@ -405,6 +409,10 @@ function buildService(prisma: PrismaService) {
   return new ResourceControlService(
     prisma,
     new ResourceControlRepository(prisma),
+    new ResourceControlListReadService(
+      new ResourceControlRepository(prisma),
+      new ResourceControlCloudProviderHealthService(prisma),
+    ),
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,

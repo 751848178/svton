@@ -49,6 +49,7 @@ import { CloudInventoryProvider } from './inventory/cloud-inventory';
 import { CloudProviderInventoryService } from './inventory/cloud-provider-inventory.service';
 import { ResourceControlCapabilitiesService } from './resource-control-capabilities.service';
 import { ResourceControlRepository } from './resource-control.repository';
+import { ResourceControlListReadService } from './resource-control-list-read.service';
 import {
   actionRunInclude,
   connectionRunInclude,
@@ -205,6 +206,7 @@ export class ResourceControlService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly repo: ResourceControlRepository,
+    private readonly listRead: ResourceControlListReadService,
     private readonly credentialResolver: DefaultCredentialResolver,
     private readonly executorRouter: ResourceExecutorRouter,
     private readonly directDbQueryExecutor: DirectDbQueryExecutor,
@@ -223,160 +225,33 @@ export class ResourceControlService {
     return this.capabilitiesService.getCapabilities();
   }
 
-  async listActions(teamId: string, query: ListResourceActionsQueryDto) {
-    if (!query.resourceId) {
-      return RESOURCE_ACTIONS;
-    }
-
-    const resource = await this.getManagedResource(teamId, query.resourceId);
-    return getActionsForResource(resource);
-  }
-
-  async listResources(teamId: string, query: ListManagedResourcesQueryDto) {
-    return this.repo.findManagedResources({
-      where: buildManagedResourceWhere(teamId, query),
-      orderBy: [{ sourceType: 'asc' }, { provider: 'asc' }, { kind: 'asc' }, { name: 'asc' }],
-      include: this.managedResourceInclude(),
-    });
-  }
-
-  async listSyncRuns(teamId: string) {
-    return this.repo.findSyncRuns({
-      where: { teamId },
-      orderBy: { startedAt: 'desc' },
-      take: 20,
-      include: {
-        server: { select: { id: true, name: true, host: true } },
-        credential: { select: { id: true, name: true, type: true } },
-        actor: { select: { id: true, name: true, email: true } },
-      },
-    });
-  }
-
-  async listCloudProviderHealthRuns(teamId: string) {
-    return this.cloudProviderHealthService.listRuns(teamId);
-  }
-
-  summarizeCloudProviderHealth(runs: CloudProviderHealthRun[]) {
-    return this.cloudProviderHealthService.summarize(runs);
-  }
-
-  async listActionRuns(teamId: string, query: ListResourceActionRunsQueryDto) {
-    return this.repo.findActionRuns({
-      where: buildResourceActionRunWhere(teamId, query),
-      orderBy: { startedAt: 'desc' },
-      take: 30,
-      include: this.actionRunInclude(),
-    });
-  }
-
-  async listMetricSnapshots(teamId: string, query: ListResourceMetricSnapshotsQueryDto) {
-    return this.repo.findMetricSnapshots({
-      where: buildResourceMetricSnapshotWhere(teamId, query),
-      orderBy: { sampledAt: 'desc' },
-      take: 100,
-      include: this.metricSnapshotInclude(),
-    });
-  }
-
-  async listMetricTrends(teamId: string, query: ListResourceMetricTrendsQueryDto) {
-    const windowMinutes = parseMetricTrendWindowMinutesUtil(query.windowMinutes);
-    const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
-
-    const snapshots = await this.repo.findMetricSnapshots({
-      where: buildResourceMetricSnapshotWhere(teamId, query, cutoff),
-      orderBy: { sampledAt: 'desc' },
-      take: 500,
-      include: this.metricSnapshotInclude(),
-    });
-
-    return summarizeMetricTrendsUtil(snapshots, windowMinutes);
-  }
-
-  async listMetricSeries(teamId: string, query: ListResourceMetricSeriesQueryDto) {
-    const windowMinutes = parseMetricTrendWindowMinutesUtil(query.windowMinutes || '360');
-    const limit = parseMetricSeriesLimitUtil(query.limit);
-    const metric = parseMetricSeriesMetricUtil(query.metric);
-    const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000);
-
-    const snapshots = await this.repo.findMetricSnapshots({
-      where: buildResourceMetricSnapshotWhere(teamId, query, cutoff),
-      orderBy: { sampledAt: 'desc' },
-      take: limit,
-      include: this.metricSnapshotInclude(),
-    });
-
-    return buildMetricSeriesUtil(snapshots, metric, windowMinutes, limit);
-  }
-
-
-  async listConnectionRuns(teamId: string, query: ListResourceConnectionRunsQueryDto) {
-    return this.repo.findConnectionRuns({
-      where: buildResourceConnectionRunWhere(teamId, query),
-      orderBy: { startedAt: 'desc' },
-      take: 50,
-      include: this.connectionRunInclude(),
-    });
-  }
-
-  async listQueryRuns(teamId: string, query: ListResourceQueryRunsQueryDto) {
-    return this.repo.findQueryRuns({
-      where: buildResourceQueryRunWhere(teamId, query),
-      orderBy: { startedAt: 'desc' },
-      take: 50,
-      include: this.queryRunInclude(),
-    });
-  }
-
-  async getResourceAccessScope(teamId: string, resourceId: string) {
-    const resource = await this.getManagedResource(teamId, resourceId);
-    return {
-      projectId: resource.projectId,
-      environmentId: resource.environmentId,
-    };
-  }
-
-  async resolveResourceBindingTargetAccessScope(
-    teamId: string,
-    resourceId: string,
-    dto: UpdateManagedResourceBindingDto,
-  ) {
-    const currentScope = await this.getResourceAccessScope(teamId, resourceId);
-    const hasProject = this.hasOwn(dto, 'projectId');
-    const hasEnvironment = this.hasOwn(dto, 'environmentId');
-
-    if (!hasProject && !hasEnvironment) {
-      return currentScope;
-    }
-
-    if (hasEnvironment) {
-      if (dto.environmentId) {
-        const environment = await this.resolveProjectEnvironment(teamId, dto.environmentId);
-        return {
-          projectId: environment?.projectId ?? null,
-          environmentId: environment?.id ?? null,
-        };
-      }
-
-      return {
-        projectId: hasProject ? (dto.projectId ?? null) : null,
-        environmentId: null,
-      };
-    }
-
-    return {
-      projectId: dto.projectId ?? null,
-      environmentId: currentScope.environmentId,
-    };
-  }
-
-  async resolveEnvironmentAccessScope(teamId: string, environmentId?: string | null) {
-    const environment = await this.resolveProjectEnvironment(teamId, environmentId || undefined);
-    return {
-      projectId: environment?.projectId ?? null,
-      environmentId: environment?.id ?? null,
-    };
-  }
+  listActions = (teamId: string, query: ListResourceActionsQueryDto) =>
+    this.listRead.listActions(teamId, query);
+  listResources = (teamId: string, query: ListManagedResourcesQueryDto) =>
+    this.listRead.listResources(teamId, query);
+  listSyncRuns = (teamId: string) => this.listRead.listSyncRuns(teamId);
+  listCloudProviderHealthRuns = (teamId: string) => this.listRead.listCloudProviderHealthRuns(teamId);
+  summarizeCloudProviderHealth = (runs: CloudProviderHealthRun[]) =>
+    this.listRead.summarizeCloudProviderHealth(runs);
+  listActionRuns = (teamId: string, query: ListResourceActionRunsQueryDto) =>
+    this.listRead.listActionRuns(teamId, query);
+  listMetricSnapshots = (teamId: string, query: ListResourceMetricSnapshotsQueryDto) =>
+    this.listRead.listMetricSnapshots(teamId, query);
+  listMetricTrends = (teamId: string, query: ListResourceMetricTrendsQueryDto) =>
+    this.listRead.listMetricTrends(teamId, query);
+  listMetricSeries = (teamId: string, query: ListResourceMetricSeriesQueryDto) =>
+    this.listRead.listMetricSeries(teamId, query);
+  listConnectionRuns = (teamId: string, query: ListResourceConnectionRunsQueryDto) =>
+    this.listRead.listConnectionRuns(teamId, query);
+  listQueryRuns = (teamId: string, query: ListResourceQueryRunsQueryDto) =>
+    this.listRead.listQueryRuns(teamId, query);
+  getResourceAccessScope = (teamId: string, resourceId: string) =>
+    this.listRead.getResourceAccessScope(teamId, resourceId);
+  resolveResourceBindingTargetAccessScope = (
+    teamId: string, resourceId: string, dto: UpdateManagedResourceBindingDto,
+  ) => this.listRead.resolveResourceBindingTargetAccessScope(teamId, resourceId, dto);
+  resolveEnvironmentAccessScope = (teamId: string, environmentId?: string | null) =>
+    this.listRead.resolveEnvironmentAccessScope(teamId, environmentId);
 
   async updateResourceBinding(
     teamId: string,

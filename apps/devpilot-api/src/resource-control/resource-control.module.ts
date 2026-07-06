@@ -17,6 +17,7 @@ import { ResourceControlCloudProviderHealthService } from './resource-control-cl
 import { ResourceControlController } from './resource-control.controller';
 import { ResourceControlService } from './resource-control.service';
 import { ResourceControlRepository } from './resource-control.repository';
+import { ResourceControlListReadService } from './resource-control-list-read.service';
 
 @Module({
   imports: [ServerExecutorModule, AuditEventModule, OperationApprovalModule, ControlAccessPolicyModule],
@@ -24,6 +25,7 @@ import { ResourceControlRepository } from './resource-control.repository';
   providers: [
     ResourceControlService,
     ResourceControlRepository,
+    ResourceControlListReadService,
     ResourceControlCapabilitiesService,
     ResourceControlCloudProviderHealthService,
     DefaultCredentialResolver,
