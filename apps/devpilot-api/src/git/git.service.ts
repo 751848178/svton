@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../common/crypto/crypto.service';
 import { GithubProvider } from './providers/github.provider';
 import { GitlabProvider } from './providers/gitlab.provider';
 import { GiteeProvider } from './providers/gitee.provider';
@@ -13,11 +13,11 @@ type ProviderType = 'github' | 'gitlab' | 'gitee';
 export class GitService {
   private readonly logger = new Logger(GitService.name);
   private readonly providers: Map<string, GitProvider>;
-  private readonly encryptionKey: Buffer;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly cryptoService: CryptoService,
     private readonly githubProvider: GithubProvider,
     private readonly gitlabProvider: GitlabProvider,
     private readonly giteeProvider: GiteeProvider,
@@ -27,29 +27,14 @@ export class GitService {
       ['gitlab', gitlabProvider],
       ['gitee', giteeProvider],
     ]);
-
-    const key = this.configService.get('ENCRYPTION_KEY', 'default-32-char-encryption-key!');
-    this.encryptionKey = crypto.scryptSync(key, 'salt', 32);
   }
 
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag();
-    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+    return this.cryptoService.encryptGcm(text);
   }
 
   private decrypt(encryptedText: string): string {
-    const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', this.encryptionKey, iv);
-    decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+    return this.cryptoService.decryptGcm(encryptedText);
   }
 
   private getProvider(provider: ProviderType): GitProvider {

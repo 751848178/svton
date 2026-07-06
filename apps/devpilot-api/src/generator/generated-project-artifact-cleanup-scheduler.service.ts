@@ -1,6 +1,8 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { AuditEventService } from '../audit-event';
+import { BaseIntervalScheduler } from '../common/scheduler/base-interval-scheduler';
 import { GeneratorService, ProjectZipArtifactCleanupResult } from './generator.service';
 
 type ScheduledProjectArtifactCleanupSummary = {
@@ -15,45 +17,41 @@ type ScheduledProjectArtifactCleanupSummary = {
 };
 
 @Injectable()
-export class GeneratedProjectArtifactCleanupSchedulerService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(GeneratedProjectArtifactCleanupSchedulerService.name);
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class GeneratedProjectArtifactCleanupSchedulerService extends BaseIntervalScheduler {
+  protected readonly logger = new Logger(GeneratedProjectArtifactCleanupSchedulerService.name);
 
   constructor(
     private readonly generatorService: GeneratorService,
     private readonly auditEventService: AuditEventService,
     private readonly configService: ConfigService,
-  ) {}
-
-  onModuleInit() {
-    if (!this.schedulerEnabled()) {
-      return;
-    }
-
-    const intervalMs = this.schedulerIntervalMs();
-    this.timer = setInterval(() => {
-      void this.runOnce();
-    }, intervalMs);
-    this.logger.log(`Generated project artifact cleanup scheduler enabled; interval=${intervalMs}ms; dryRun=${this.schedulerDryRun()}`);
+    @Optional() schedulerRegistry?: SchedulerRegistry,
+  ) {
+    super(schedulerRegistry);
   }
 
-  onModuleDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
+  schedulerName(): string {
+    return 'generated-project-artifact-cleanup';
+  }
+
+  isEnabled(): boolean {
+    return this.configService.get('PROJECT_ARTIFACT_CLEANUP_SCHEDULER_ENABLED', 'false') === 'true';
+  }
+
+  intervalMs(): number {
+    const seconds = Number(this.configService.get('PROJECT_ARTIFACT_CLEANUP_SCHEDULER_INTERVAL_SECONDS', '86400'));
+    const safeSeconds = Number.isFinite(seconds) && seconds >= 60 ? seconds : 86400;
+    return safeSeconds * 1000;
   }
 
   async runOnce(): Promise<ScheduledProjectArtifactCleanupSummary> {
-    if (!this.schedulerEnabled()) {
+    if (!this.isEnabled()) {
       return this.emptySummary(false, false);
     }
 
-    if (this.running) {
+    if (!this.tryAcquireRunLock()) {
       return this.emptySummary(true, true);
     }
 
-    this.running = true;
     try {
       const dryRun = this.schedulerDryRun();
       const result = await this.generatorService.cleanupExpiredProjectZipArtifacts({ dryRun });
@@ -70,7 +68,7 @@ export class GeneratedProjectArtifactCleanupSchedulerService implements OnModule
         auditFailures: auditSummary.auditFailures,
       };
     } finally {
-      this.running = false;
+      this.releaseRunLock();
     }
   }
 
@@ -147,17 +145,7 @@ export class GeneratedProjectArtifactCleanupSchedulerService implements OnModule
     };
   }
 
-  private schedulerEnabled() {
-    return this.configService.get('PROJECT_ARTIFACT_CLEANUP_SCHEDULER_ENABLED', 'false') === 'true';
-  }
-
   private schedulerDryRun() {
     return this.configService.get('PROJECT_ARTIFACT_CLEANUP_SCHEDULER_DRY_RUN', 'true') !== 'false';
-  }
-
-  private schedulerIntervalMs() {
-    const seconds = Number(this.configService.get('PROJECT_ARTIFACT_CLEANUP_SCHEDULER_INTERVAL_SECONDS', '86400'));
-    const safeSeconds = Number.isFinite(seconds) && seconds >= 60 ? seconds : 86400;
-    return safeSeconds * 1000;
   }
 }

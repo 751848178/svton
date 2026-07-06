@@ -2,6 +2,7 @@ import { GoneException, Injectable, Logger, NotFoundException } from '@nestjs/co
 import * as archiver from 'archiver';
 import { createHash } from 'crypto';
 import { mkdir, readdir, rm, stat, writeFile } from 'fs/promises';
+import * as jsYaml from 'js-yaml';
 import * as path from 'path';
 import { Writable } from 'stream';
 import { RegistryService } from '../registry/registry.service';
@@ -1163,43 +1164,11 @@ export default function Index() {
     services: Record<string, Record<string, unknown>>,
     volumes: string[]
   ): string {
-    const lines: string[] = ['version: "3.8"', ''];
-
-    if (Object.keys(services).length === 0) {
-      lines.push('services: {}');
-      return lines.join('\n');
-    }
-
-    lines.push('services:');
-
-    for (const [name, config] of Object.entries(services)) {
-      lines.push(`  ${name}:`);
-      for (const [key, value] of Object.entries(config)) {
-        if (Array.isArray(value)) {
-          lines.push(`    ${key}:`);
-          for (const item of value) {
-            lines.push(`      - "${item}"`);
-          }
-        } else if (typeof value === 'object' && value !== null) {
-          lines.push(`    ${key}:`);
-          for (const [k, v] of Object.entries(value as Record<string, string>)) {
-            lines.push(`      ${k}: "${v}"`);
-          }
-        } else {
-          lines.push(`    ${key}: ${value}`);
-        }
-      }
-      lines.push('');
-    }
-
+    const compose: Record<string, unknown> = { version: '3.8', services };
     if (volumes.length > 0) {
-      lines.push('volumes:');
-      for (const vol of volumes) {
-        lines.push(`  ${vol}:`);
-      }
+      compose.volumes = Object.fromEntries(volumes.map((name) => [name, null]));
     }
-
-    return lines.join('\n');
+    return jsYaml.dump(compose, { lineWidth: -1, noRefs: true });
   }
 
   private resolveDatabaseSettings(config: GenerateProjectDto): DatabaseSettings {

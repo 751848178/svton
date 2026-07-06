@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AuditEventService } from '../audit-event';
 import { CreateOperationApprovalInput, OperationApprovalService } from '../operation-approval';
 import { PrismaService } from '../prisma/prisma.service';
+import { DeploymentRunStatus, assertDeploymentRunTransition } from './deployment-run-status';
 import { ServerCommandStep, ServerExecutorService } from '../server-executor';
 import {
   CreateDeploymentRunDto,
@@ -336,10 +337,11 @@ export class DeploymentService {
           deploymentRunId: run.id,
         },
       });
+      assertDeploymentRunTransition(run.status, DeploymentRunStatus.BLOCKED);
       const blockedRun = await this.prisma.deploymentRun.update({
         where: { id: run.id },
         data: {
-          status: 'blocked',
+          status: DeploymentRunStatus.BLOCKED,
           operationApprovalId: approval.id,
           commandPlan: this.toJsonValue(steps),
           logs: this.toJsonValue([
@@ -374,7 +376,7 @@ export class DeploymentService {
         targetType: 'deployment_run',
         targetId: blockedRun.id,
         risk: 'medium',
-        status: 'blocked',
+        status: DeploymentRunStatus.BLOCKED,
         summary: '部署 live 执行等待审批',
         metadata: {
           dryRun,
@@ -424,6 +426,7 @@ export class DeploymentService {
       const queuedExecution = await this.serverExecutor.queueExecution(executionInput, {
         maxAttempts: dto.maxAttempts,
       });
+      assertDeploymentRunTransition(run.status, queuedExecution.status);
       const queuedRun = await this.prisma.deploymentRun.update({
         where: { id: run.id },
         data: {
@@ -467,7 +470,7 @@ export class DeploymentService {
         },
       });
 
-      if (approvedApproval && queuedRun.status !== 'blocked') {
+      if (approvedApproval && queuedRun.status !== DeploymentRunStatus.BLOCKED) {
         await this.operationApprovalService.consume(teamId, approvedApproval.id);
       }
 
@@ -475,6 +478,7 @@ export class DeploymentService {
     }
 
     const execution = await this.serverExecutor.execute(executionInput);
+    assertDeploymentRunTransition(run.status, execution.status);
 
     const completedRun = await this.prisma.deploymentRun.update({
       where: { id: run.id },
@@ -519,7 +523,7 @@ export class DeploymentService {
       },
     });
 
-    if (approvedApproval && completedRun.status !== 'blocked') {
+    if (approvedApproval && completedRun.status !== DeploymentRunStatus.BLOCKED) {
       await this.operationApprovalService.consume(teamId, approvedApproval.id);
     }
 
@@ -558,7 +562,7 @@ export class DeploymentService {
     if (sourceRun.mode === 'rollback') {
       throw new BadRequestException('不能基于回滚运行再次发起回滚');
     }
-    if (sourceRun.status !== 'completed') {
+    if (sourceRun.status !== DeploymentRunStatus.COMPLETED) {
       throw new BadRequestException('只能基于已完成的部署运行发起回滚');
     }
 
@@ -666,10 +670,11 @@ export class DeploymentService {
           deploymentRunId: run.id,
         },
       });
+      assertDeploymentRunTransition(run.status, DeploymentRunStatus.BLOCKED);
       const blockedRun = await this.prisma.deploymentRun.update({
         where: { id: run.id },
         data: {
-          status: 'blocked',
+          status: DeploymentRunStatus.BLOCKED,
           operationApprovalId: approval.id,
           commandPlan: this.toJsonValue(steps),
           logs: this.toJsonValue([
@@ -705,7 +710,7 @@ export class DeploymentService {
         targetType: 'deployment_run',
         targetId: blockedRun.id,
         risk: 'high',
-        status: 'blocked',
+        status: DeploymentRunStatus.BLOCKED,
         summary: '部署 live 回滚等待审批',
         metadata: {
           dryRun,
@@ -756,6 +761,7 @@ export class DeploymentService {
       const queuedExecution = await this.serverExecutor.queueExecution(executionInput, {
         maxAttempts: dto.maxAttempts,
       });
+      assertDeploymentRunTransition(run.status, queuedExecution.status);
       const queuedRun = await this.prisma.deploymentRun.update({
         where: { id: run.id },
         data: {
@@ -796,7 +802,7 @@ export class DeploymentService {
         },
       });
 
-      if (approvedApproval && queuedRun.status !== 'blocked') {
+      if (approvedApproval && queuedRun.status !== DeploymentRunStatus.BLOCKED) {
         await this.operationApprovalService.consume(teamId, approvedApproval.id);
       }
 
@@ -844,11 +850,11 @@ export class DeploymentService {
       },
     });
 
-    if (approvedApproval && completedRun.status !== 'blocked') {
+    if (approvedApproval && completedRun.status !== DeploymentRunStatus.BLOCKED) {
       await this.operationApprovalService.consume(teamId, approvedApproval.id);
     }
 
-    if (!completedRun.dryRun && completedRun.status === 'completed') {
+    if (!completedRun.dryRun && completedRun.status === DeploymentRunStatus.COMPLETED) {
       await this.createPostRollbackSmokeCheckIfEligible({
         id: completedRun.id,
         teamId,
@@ -897,7 +903,7 @@ export class DeploymentService {
     if (failedRun.dryRun) {
       throw new BadRequestException('只有 live 部署失败后才能申请失败回滚');
     }
-    if (failedRun.status !== 'failed') {
+    if (failedRun.status !== DeploymentRunStatus.FAILED) {
       throw new BadRequestException('只有失败的部署运行才能申请失败回滚');
     }
 
@@ -906,7 +912,7 @@ export class DeploymentService {
         teamId,
         projectId: failedRun.projectId,
         mode: 'deploy',
-        status: 'completed',
+        status: DeploymentRunStatus.COMPLETED,
         dryRun: false,
         id: { not: failedRun.id },
         startedAt: { lt: failedRun.startedAt },
@@ -979,7 +985,7 @@ export class DeploymentService {
     if (smokeRun.mode !== 'smoke_check') {
       throw new BadRequestException('只能基于部署 Smoke 检查运行申请失败回滚');
     }
-    if (smokeRun.status !== 'failed') {
+    if (smokeRun.status !== DeploymentRunStatus.FAILED) {
       throw new BadRequestException('只有失败的部署 Smoke 检查才能申请失败回滚');
     }
 
@@ -990,7 +996,7 @@ export class DeploymentService {
     if (sourceRun.mode !== 'deploy') {
       throw new BadRequestException('当前只支持部署 Smoke 失败后回滚到上一成功部署');
     }
-    if (sourceRun.status !== 'completed') {
+    if (sourceRun.status !== DeploymentRunStatus.COMPLETED) {
       throw new BadRequestException('部署 Smoke 来源运行尚未完成，不能申请失败回滚');
     }
     if (dto.dryRun === false && (smokeRun.dryRun || sourceRun.dryRun)) {
@@ -1002,7 +1008,7 @@ export class DeploymentService {
         teamId,
         projectId: sourceRun.projectId,
         mode: 'deploy',
-        status: 'completed',
+        status: DeploymentRunStatus.COMPLETED,
         dryRun: false,
         id: { not: sourceRun.id },
         startedAt: { lt: sourceRun.startedAt },
@@ -1043,7 +1049,7 @@ export class DeploymentService {
       where: {
         ...(input.teamId ? { teamId: input.teamId } : {}),
         mode: 'smoke_check',
-        status: 'failed',
+        status: DeploymentRunStatus.FAILED,
         dryRun: false,
       },
       orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
@@ -1091,7 +1097,7 @@ export class DeploymentService {
       summary.results.push(result);
       if (result.status === 'created') {
         summary.created += 1;
-      } else if (result.status === 'failed') {
+      } else if (result.status === DeploymentRunStatus.FAILED) {
         summary.failed += 1;
       } else {
         summary.skipped += 1;
@@ -1110,7 +1116,7 @@ export class DeploymentService {
       where: {
         ...(input.teamId ? { teamId: input.teamId } : {}),
         mode: 'rollback',
-        status: 'completed',
+        status: DeploymentRunStatus.COMPLETED,
         dryRun: false,
       },
       orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
@@ -1159,7 +1165,7 @@ export class DeploymentService {
       summary.results.push(result);
       if (result.status === 'created') {
         summary.created += 1;
-      } else if (result.status === 'failed') {
+      } else if (result.status === DeploymentRunStatus.FAILED) {
         summary.failed += 1;
       } else {
         summary.skipped += 1;
@@ -1208,7 +1214,7 @@ export class DeploymentService {
     if ((sourceRun.mode || 'deploy') !== 'deploy') {
       throw new BadRequestException('当前只支持重试部署运行，回滚运行请重新发起回滚');
     }
-    if (sourceRun.status !== 'failed') {
+    if (sourceRun.status !== DeploymentRunStatus.FAILED) {
       throw new BadRequestException('只能重试失败的部署运行');
     }
     if (sourceRun.dryRun && dto.dryRun === false) {
@@ -1297,7 +1303,7 @@ export class DeploymentService {
     if (sourceRun.mode === 'smoke_check') {
       throw new BadRequestException('不能基于 Smoke 检查运行再次发起 Smoke 检查');
     }
-    if (sourceRun.status !== 'completed') {
+    if (sourceRun.status !== DeploymentRunStatus.COMPLETED) {
       throw new BadRequestException('只能基于已完成的部署运行发起 Smoke 检查');
     }
 
@@ -1373,6 +1379,7 @@ export class DeploymentService {
       const queuedExecution = await this.serverExecutor.queueExecution(executionInput, {
         maxAttempts: dto.maxAttempts,
       });
+      assertDeploymentRunTransition(run.status, queuedExecution.status);
       const queuedRun = await this.prisma.deploymentRun.update({
         where: { id: run.id },
         data: {
@@ -1451,7 +1458,7 @@ export class DeploymentService {
       },
     });
 
-    if (completedRun.status === 'failed') {
+    if (completedRun.status === DeploymentRunStatus.FAILED) {
       await this.createSmokeFailureAutoRollbackIfEligible({
         id: completedRun.id,
         teamId,
@@ -1588,7 +1595,7 @@ export class DeploymentService {
         targetType: 'deployment_run',
         targetId: candidate.id,
         risk: policy.dryRun ? 'medium' : 'high',
-        status: 'failed',
+        status: DeploymentRunStatus.FAILED,
         summary: '部署 Smoke 失败自动回滚处理失败',
         metadata: {
           dryRun: policy.dryRun,
@@ -1599,7 +1606,7 @@ export class DeploymentService {
       });
 
       return {
-        status: 'failed',
+        status: DeploymentRunStatus.FAILED,
         smokeRunId: candidate.id,
         reason: message,
       };
@@ -1744,7 +1751,7 @@ export class DeploymentService {
         targetType: 'deployment_run',
         targetId: candidate.id,
         risk: 'low',
-        status: 'failed',
+        status: DeploymentRunStatus.FAILED,
         summary: '部署回滚完成后自动 Smoke 检查处理失败',
         metadata: {
           dryRun: policy.dryRun,
@@ -1756,7 +1763,7 @@ export class DeploymentService {
       });
 
       return {
-        status: 'failed',
+        status: DeploymentRunStatus.FAILED,
         rollbackRunId: candidate.id,
         reason: message,
       };

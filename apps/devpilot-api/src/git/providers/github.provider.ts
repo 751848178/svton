@@ -1,77 +1,79 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import type { Octokit } from '@octokit/rest';
 import { GitProvider, GitUser, GitRepo, CreateRepoOptions } from '../interfaces/git-provider.interface';
 
+/**
+ * GitHub provider，基于 `@octokit/rest`。
+ *
+ * octokit 22.x 是 ESM-only，与本项目 CommonJS/jest 静态 import 冲突。
+ * 用**动态 import()** 解决：运行时加载 octokit（jest 不在静态分析阶段触发 ESM 转换），
+ * 加载后缓存到 `octokitModule`，后续调用无重复加载开销。
+ *
+ * 取代原裸 axios 手搓的 Git Database flow（getRef → createBlob → createTree →
+ * createCommit → updateRef）。octokit 提供类型安全、分页、限流与错误归一化。
+ */
 @Injectable()
 export class GithubProvider implements GitProvider {
   readonly name = 'github';
   private readonly logger = new Logger(GithubProvider.name);
-  private readonly baseUrl = 'https://api.github.com';
+  private octokitModulePromise: Promise<typeof import('@octokit/rest')> | undefined;
 
-  constructor(private readonly httpService: HttpService) {}
+  /** 动态加载 octokit 模块（仅首次调用时加载，后续复用缓存）。 */
+  private async getOctokitModule(): Promise<typeof import('@octokit/rest')> {
+    if (!this.octokitModulePromise) {
+      // 动态 import 避开 CJS/ESM 静态解析冲突（jest 不会在静态分析阶段转换它）
+      this.octokitModulePromise = import('@octokit/rest');
+    }
+    return this.octokitModulePromise;
+  }
 
-  private getHeaders(accessToken: string) {
-    return {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/vnd.github.v3+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    };
+  private async createClient(accessToken: string): Promise<Octokit> {
+    const { Octokit } = await this.getOctokitModule();
+    return new Octokit({
+      auth: accessToken,
+      baseUrl: 'https://api.github.com',
+      request: { retries: 0 },
+    });
   }
 
   async getUser(accessToken: string): Promise<GitUser> {
-    const { data } = await firstValueFrom(
-      this.httpService.get(`${this.baseUrl}/user`, {
-        headers: this.getHeaders(accessToken),
-      }),
-    );
-
+    const octokit = await this.createClient(accessToken);
+    const { data } = await octokit.rest.users.getAuthenticated();
     return {
       id: String(data.id),
       username: data.login,
       name: data.name || data.login,
       avatar: data.avatar_url,
-      email: data.email,
+      email: data.email ?? undefined,
     };
   }
 
   async listRepos(accessToken: string): Promise<GitRepo[]> {
-    const { data } = await firstValueFrom(
-      this.httpService.get(`${this.baseUrl}/user/repos`, {
-        headers: this.getHeaders(accessToken),
-        params: {
-          sort: 'updated',
-          per_page: 100,
-        },
-      }),
-    );
-
-    return data.map((repo: Record<string, unknown>) => ({
+    const octokit = await this.createClient(accessToken);
+    const { data } = await octokit.rest.repos.listForAuthenticatedUser({
+      sort: 'updated',
+      per_page: 100,
+    });
+    return data.map((repo) => ({
       id: String(repo.id),
-      name: repo.name as string,
-      fullName: repo.full_name as string,
-      description: (repo.description as string) || '',
-      private: repo.private as boolean,
-      htmlUrl: repo.html_url as string,
-      cloneUrl: repo.clone_url as string,
-      defaultBranch: repo.default_branch as string,
+      name: repo.name,
+      fullName: repo.full_name,
+      description: repo.description || '',
+      private: repo.private,
+      htmlUrl: repo.html_url,
+      cloneUrl: repo.clone_url,
+      defaultBranch: repo.default_branch,
     }));
   }
 
   async createRepo(accessToken: string, options: CreateRepoOptions): Promise<GitRepo> {
-    const { data } = await firstValueFrom(
-      this.httpService.post(
-        `${this.baseUrl}/user/repos`,
-        {
-          name: options.name,
-          description: options.description,
-          private: options.private ?? false,
-          auto_init: options.autoInit ?? true,
-        },
-        { headers: this.getHeaders(accessToken) },
-      ),
-    );
-
+    const octokit = await this.createClient(accessToken);
+    const { data } = await octokit.rest.repos.createForAuthenticatedUser({
+      name: options.name,
+      description: options.description,
+      private: options.private ?? false,
+      auto_init: options.autoInit ?? true,
+    });
     return {
       id: String(data.id),
       name: data.name,
@@ -91,81 +93,65 @@ export class GithubProvider implements GitProvider {
     message: string,
     branch = 'main',
   ): Promise<void> {
-    const headers = this.getHeaders(accessToken);
+    const octokit = await this.createClient(accessToken);
+    const [owner, name] = repo.split('/');
+    if (!owner || !name) {
+      throw new Error(`invalid github repo identifier: ${repo}; expected owner/name`);
+    }
 
-    // 获取当前分支的最新 commit
     let latestSha: string | null = null;
     try {
-      const { data: refData } = await firstValueFrom(
-        this.httpService.get(`${this.baseUrl}/repos/${repo}/git/ref/heads/${branch}`, {
-          headers,
-        }),
-      );
+      const { data: refData } = await octokit.rest.git.getRef({
+        owner,
+        repo: name,
+        ref: `heads/${branch}`,
+      });
       latestSha = refData.object.sha;
     } catch {
-      // 分支不存在，将创建新分支
       this.logger.log(`Branch ${branch} does not exist, will create`);
     }
 
-    // 创建 blobs
     const blobs = await Promise.all(
       files.map(async (file) => {
-        const { data } = await firstValueFrom(
-          this.httpService.post(
-            `${this.baseUrl}/repos/${repo}/git/blobs`,
-            {
-              content: Buffer.from(file.content).toString('base64'),
-              encoding: 'base64',
-            },
-            { headers },
-          ),
-        );
-        return { path: file.path, sha: data.sha, mode: '100644', type: 'blob' };
+        const { data } = await octokit.rest.git.createBlob({
+          owner,
+          repo: name,
+          content: Buffer.from(file.content).toString('base64'),
+          encoding: 'base64',
+        });
+        return { path: file.path, sha: data.sha, mode: '100644' as const, type: 'blob' as const };
       }),
     );
 
-    // 创建 tree
-    const { data: treeData } = await firstValueFrom(
-      this.httpService.post(
-        `${this.baseUrl}/repos/${repo}/git/trees`,
-        {
-          base_tree: latestSha,
-          tree: blobs,
-        },
-        { headers },
-      ),
-    );
+    const { data: treeData } = await octokit.rest.git.createTree({
+      owner,
+      repo: name,
+      base_tree: latestSha ?? undefined,
+      tree: blobs,
+    });
 
-    // 创建 commit
-    const { data: commitData } = await firstValueFrom(
-      this.httpService.post(
-        `${this.baseUrl}/repos/${repo}/git/commits`,
-        {
-          message,
-          tree: treeData.sha,
-          parents: latestSha ? [latestSha] : [],
-        },
-        { headers },
-      ),
-    );
+    const { data: commitData } = await octokit.rest.git.createCommit({
+      owner,
+      repo: name,
+      message,
+      tree: treeData.sha,
+      parents: latestSha ? [latestSha] : [],
+    });
 
-    // 更新或创建分支引用
     if (latestSha) {
-      await firstValueFrom(
-        this.httpService.patch(
-          `${this.baseUrl}/repos/${repo}/git/refs/heads/${branch}`,
-          { sha: commitData.sha },
-          { headers },
-        ),
-      );
+      await octokit.rest.git.updateRef({
+        owner,
+        repo: name,
+        ref: `heads/${branch}`,
+        sha: commitData.sha,
+      });
     } else {
-      await firstValueFrom(
-        this.httpService.post(
-          `${this.baseUrl}/repos/${repo}/git/refs`,
-          { ref: `refs/heads/${branch}`, sha: commitData.sha },
-          { headers },
-        ),
-      );
+      await octokit.rest.git.createRef({
+        owner,
+        repo: name,
+        ref: `refs/heads/${branch}`,
+        sha: commitData.sha,
+      });
     }
 
     this.logger.log(`Pushed ${files.length} files to ${repo}/${branch}`);

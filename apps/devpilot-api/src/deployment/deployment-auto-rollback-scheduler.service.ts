@@ -1,5 +1,7 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { BaseIntervalScheduler } from '../common/scheduler/base-interval-scheduler';
 import { DeploymentService } from './deployment.service';
 
 type ScheduledDeploymentAutoRollbackSummary = {
@@ -13,44 +15,40 @@ type ScheduledDeploymentAutoRollbackSummary = {
 };
 
 @Injectable()
-export class DeploymentAutoRollbackSchedulerService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(DeploymentAutoRollbackSchedulerService.name);
-  private timer?: ReturnType<typeof setInterval>;
-  private running = false;
+export class DeploymentAutoRollbackSchedulerService extends BaseIntervalScheduler {
+  protected readonly logger = new Logger(DeploymentAutoRollbackSchedulerService.name);
 
   constructor(
     private readonly deploymentService: DeploymentService,
     private readonly configService: ConfigService,
-  ) {}
-
-  onModuleInit() {
-    if (!this.schedulerEnabled()) {
-      return;
-    }
-
-    const intervalMs = this.schedulerIntervalMs();
-    this.timer = setInterval(() => {
-      void this.runOnce();
-    }, intervalMs);
-    this.logger.log(`Deployment auto rollback scheduler enabled; interval=${intervalMs}ms`);
+    @Optional() schedulerRegistry?: SchedulerRegistry,
+  ) {
+    super(schedulerRegistry);
   }
 
-  onModuleDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
+  schedulerName(): string {
+    return 'deployment-auto-rollback';
+  }
+
+  isEnabled(): boolean {
+    return this.configService.get('DEPLOYMENT_AUTO_ROLLBACK_SCHEDULER_ENABLED', 'false') === 'true';
+  }
+
+  intervalMs(): number {
+    const seconds = Number(this.configService.get('DEPLOYMENT_AUTO_ROLLBACK_SCHEDULER_INTERVAL_SECONDS', '60'));
+    const safeSeconds = Number.isFinite(seconds) && seconds >= 10 ? seconds : 60;
+    return safeSeconds * 1000;
   }
 
   async runOnce(): Promise<ScheduledDeploymentAutoRollbackSummary> {
-    if (!this.schedulerEnabled()) {
+    if (!this.isEnabled()) {
       return this.emptySummary(false, false);
     }
 
-    if (this.running) {
+    if (!this.tryAcquireRunLock()) {
       return this.emptySummary(true, true);
     }
 
-    this.running = true;
     try {
       const summary = await this.deploymentService.processSmokeFailureAutoRollbacks({
         limit: this.batchSize(),
@@ -66,7 +64,7 @@ export class DeploymentAutoRollbackSchedulerService implements OnModuleInit, OnM
         failed: summary.failed,
       };
     } finally {
-      this.running = false;
+      this.releaseRunLock();
     }
   }
 
@@ -80,16 +78,6 @@ export class DeploymentAutoRollbackSchedulerService implements OnModuleInit, OnM
       skippedRuns: 0,
       failed: 0,
     };
-  }
-
-  private schedulerEnabled() {
-    return this.configService.get('DEPLOYMENT_AUTO_ROLLBACK_SCHEDULER_ENABLED', 'false') === 'true';
-  }
-
-  private schedulerIntervalMs() {
-    const seconds = Number(this.configService.get('DEPLOYMENT_AUTO_ROLLBACK_SCHEDULER_INTERVAL_SECONDS', '60'));
-    const safeSeconds = Number.isFinite(seconds) && seconds >= 10 ? seconds : 60;
-    return safeSeconds * 1000;
   }
 
   private batchSize() {
