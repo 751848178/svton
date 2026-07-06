@@ -1,33 +1,68 @@
 import { ConfigService } from '@nestjs/config';
-import { spawn } from 'node:child_process';
-import { EventEmitter } from 'node:events';
 import { ServerService } from '../../server/server.service';
 import { ServerExecutionInput } from '../server-executor.types';
 import { SshLiveServerExecutorAdapter } from './ssh-live.adapter';
+import {
+  SshTransport,
+  SshTransportExecOptions,
+} from '../../common/ssh/ssh-transport';
+import { SshTransportFactory } from '../../common/ssh/ssh-transport.factory';
 
-jest.mock('node:child_process', () => ({
-  spawn: jest.fn(),
-}));
+/**
+ * Fake transport：模拟 ssh2 transport 的 execScript/execCommand，
+ * 取代旧 spec 里对 `spawn('ssh')` 的 mock。
+ *
+ * `execScript` 返回一个测试可控的 deferred：测试可在任意时机
+ *  - 通过 `options.onData` 注入远端输出（模拟 PID marker）
+ *  - 通过 `resolveExec` 完成 promise（模拟 channel 关闭）
+ */
+interface FakeTransportHandle {
+  script: string;
+  options: SshTransportExecOptions;
+  resolveExec: (result: { exitCode: number | null; timedOut?: boolean; cancelled?: boolean }) => void;
+}
 
-type FakeChild = EventEmitter & {
-  stdin: EventEmitter & {
-    write: jest.Mock;
-    end: jest.Mock;
+interface FakeTransportControls {
+  /** execScript 被调用时，把 handle 推入此回调；测试据此驱动事件。 */
+  onExecScript?: (handle: FakeTransportHandle) => void;
+  /** execCommand 被调用时返回结果。 */
+  onExecCommand?: (command: string) => { exitCode: number | null; stderr: string };
+}
+
+function createFakeTransportFactory(controls: FakeTransportControls) {
+  const factory = {
+    create: jest.fn((): SshTransport => {
+      const transport: SshTransport = {
+        execScript: jest.fn(
+          (script: string, options: SshTransportExecOptions) =>
+            new Promise((resolve) => {
+              const handle: FakeTransportHandle = {
+                script,
+                options,
+                resolveExec: (result) =>
+                  resolve({
+                    exitCode: result.exitCode,
+                    stdout: '',
+                    stderr: '',
+                    timedOut: result.timedOut ?? false,
+                    cancelled: result.cancelled ?? false,
+                  }),
+              };
+              controls.onExecScript?.(handle);
+            }),
+        ),
+        execCommand: jest.fn(async (command: string) => {
+          if (controls.onExecCommand) {
+            return controls.onExecCommand(command);
+          }
+          return { exitCode: 0, stderr: '' };
+        }),
+        dispose: jest.fn(),
+      };
+      return transport;
+    }),
   };
-  stdout: EventEmitter;
-  stderr: EventEmitter;
-  kill: jest.Mock;
-};
-
-function createFakeChild(): FakeChild {
-  const child = new EventEmitter() as FakeChild;
-  child.stdin = new EventEmitter() as FakeChild['stdin'];
-  child.stdin.write = jest.fn();
-  child.stdin.end = jest.fn();
-  child.stdout = new EventEmitter();
-  child.stderr = new EventEmitter();
-  child.kill = jest.fn();
-  return child;
+  return factory as unknown as SshTransportFactory;
 }
 
 function createCancellationToken() {
@@ -51,31 +86,8 @@ function createCancellationToken() {
   };
 }
 
-async function waitForSpawnCount(spawns: { child: FakeChild; args: string[] }[], count: number) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (spawns.length >= count) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-  throw new Error(`Expected ${count} spawn calls, saw ${spawns.length}`);
-}
-
-describe('SshLiveServerExecutorAdapter remote cancellation', () => {
-  const spawnMock = spawn as jest.MockedFunction<typeof spawn>;
-
-  beforeEach(() => {
-    spawnMock.mockReset();
-  });
-
-  it('runs live scripts through a remote session wrapper and best-effort kills the remote process tree on cancel', async () => {
-    const spawns: { child: FakeChild; args: string[] }[] = [];
-    spawnMock.mockImplementation(((_command: string, args: string[]) => {
-      const child = createFakeChild();
-      spawns.push({ child, args });
-      return child;
-    }) as never);
-
+describe('SshLiveServerExecutorAdapter remote cancellation (ssh2 transport)', () => {
+  function buildDeps(controls: FakeTransportControls) {
     const configService = {
       get: jest.fn((key: string, fallback?: string | number) => {
         if (key === 'SERVER_EXECUTOR_LIVE_ENABLED') return 'true';
@@ -91,6 +103,25 @@ describe('SshLiveServerExecutorAdapter remote cancellation', () => {
         port: 22,
       }),
     } as unknown as ServerService;
+    const sshTransportFactory = createFakeTransportFactory(controls);
+    const adapter = new SshLiveServerExecutorAdapter(configService, serverService, sshTransportFactory);
+    return { adapter, sshTransportFactory, configService, serverService };
+  }
+
+  it('runs live scripts through a remote session wrapper and best-effort kills the remote process tree on cancel', async () => {
+    let capturedHandle: FakeTransportHandle | undefined;
+    let killCommand = '';
+
+    const { adapter, sshTransportFactory } = buildDeps({
+      onExecScript: (handle) => {
+        capturedHandle = handle;
+      },
+      onExecCommand: (command) => {
+        killCommand = command;
+        return { exitCode: 0, stderr: '' };
+      },
+    });
+
     const cancellation = createCancellationToken();
     const observerEvents: string[] = [];
     let releaseStartedObserver: () => void = () => undefined;
@@ -106,25 +137,15 @@ describe('SshLiveServerExecutorAdapter remote cancellation', () => {
         observerEvents.push('cleanup');
       }),
     };
-    const adapter = new SshLiveServerExecutorAdapter(configService, serverService);
     const input: ServerExecutionInput = {
       teamId: 'team-1',
       userId: 'user-1',
       operationKey: 'deployment.run',
       adapterKey: 'deployment-script-plan',
       dryRun: false,
-      target: {
-        transport: 'ssh',
-        serverId: 'server-1',
-      },
+      target: { transport: 'ssh', serverId: 'server-1' },
       steps: [
-        {
-          key: 'deploy',
-          label: 'Deploy',
-          command: 'sleep 60',
-          required: true,
-          timeoutSeconds: 30,
-        },
+        { key: 'deploy', label: 'Deploy', command: 'sleep 60', required: true, timeoutSeconds: 30 },
       ],
       requiredConfirmationText: 'Example App',
       confirmationText: 'Example App',
@@ -133,16 +154,16 @@ describe('SshLiveServerExecutorAdapter remote cancellation', () => {
     };
 
     const execution = adapter.execute(input);
-    await waitForSpawnCount(spawns, 1);
+    // 等待 transport.execScript 被调用
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
-    const main = spawns[0];
-    const remoteWrapper = main.child.stdin.write.mock.calls[0][0] as string;
-    expect(main.args.at(-1)).toBe('bash -se');
-    expect(remoteWrapper).toContain('setsid bash "$__devpilot_tmp" &');
-    expect(remoteWrapper).toContain('echo "__DEVPILOT_REMOTE_CHILD_PID__=$__devpilot_child_pid" >&2');
-    expect(remoteWrapper).toContain('kill -TERM -- "-$__devpilot_child_pid"');
+    // 1. 脚本含远端进程治理 marker
+    expect(capturedHandle?.script).toContain('setsid bash "$__devpilot_tmp" &');
+    expect(capturedHandle?.script).toContain('echo "__DEVPILOT_REMOTE_CHILD_PID__=$__devpilot_child_pid" >&2');
+    expect(capturedHandle?.script).toContain('kill -TERM -- "-$__devpilot_child_pid"');
 
-    main.child.stderr.emit('data', Buffer.from('__DEVPILOT_REMOTE_CHILD_PID__=4321\n'));
+    // 2. 远端报告 PID -> 触发 onRemoteProcessStarted
+    capturedHandle!.options.onData?.({ stderr: '__DEVPILOT_REMOTE_CHILD_PID__=4321\n' });
     expect(runtimeObserver.onRemoteProcessStarted).toHaveBeenCalledWith(expect.objectContaining({
       transport: 'ssh',
       pid: 4321,
@@ -151,28 +172,23 @@ describe('SshLiveServerExecutorAdapter remote cancellation', () => {
       adapterKey: 'deployment-script-plan',
       cleanupStrategy: 'best_effort_ssh',
     }));
+
+    // 3. 取消 -> 触发远程 kill
     cancellation.cancel();
-    await waitForSpawnCount(spawns, 2);
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
-    const cleanup = spawns[1];
-    expect(main.child.kill).toHaveBeenCalledWith('SIGTERM');
-    expect(cleanup.args.at(-1)).toContain('pid=4321');
-    expect(cleanup.args.at(-1)).toContain('kill -TERM -- "-$pid"');
-    expect(cleanup.args.at(-1)).toContain('kill -KILL -- "-$pid"');
+    expect(killCommand).toContain('pid=4321');
+    expect(killCommand).toContain('kill -TERM -- "-$pid"');
+    expect(killCommand).toContain('kill -KILL -- "-$pid"');
 
-    cleanup.child.emit('close', 0);
-    main.child.emit('close', null);
-    await new Promise((resolve) => setImmediate(resolve));
-    expect(runtimeObserver.onRemoteProcessCleanup).not.toHaveBeenCalled();
+    // 4. 完成 execScript（模拟 channel 因取消关闭）
+    capturedHandle!.resolveExec({ exitCode: null, cancelled: true });
+
     releaseStartedObserver();
     const result = await execution;
     const resultPayload = result.result as {
       remoteProcessPid?: number;
-      remoteKill?: {
-        attempted?: boolean;
-        reason?: string;
-        succeeded?: boolean;
-      };
+      remoteKill?: { attempted?: boolean; reason?: string; succeeded?: boolean };
       stderrPreview?: string;
     };
 
@@ -192,39 +208,26 @@ describe('SshLiveServerExecutorAdapter remote cancellation', () => {
     }));
     expect(observerEvents).toEqual(['started', 'cleanup']);
     expect(resultPayload.stderrPreview).not.toContain('__DEVPILOT_REMOTE_CHILD_PID__');
+
+    // 5. transport 被创建
+    expect(sshTransportFactory.create).toHaveBeenCalledTimes(1);
   });
 
   it('best-effort cleans a persisted remote session for stale recovery', async () => {
-    const spawns: { child: FakeChild; args: string[] }[] = [];
-    spawnMock.mockImplementation(((_command: string, args: string[]) => {
-      const child = createFakeChild();
-      spawns.push({ child, args });
-      return child;
-    }) as never);
-
-    const configService = {
-      get: jest.fn((_key: string, fallback?: string | number) => fallback),
-    } as unknown as ConfigService;
-    const serverService = {
-      getDecryptedCredentials: jest.fn().mockResolvedValue({
-        authType: 'key',
-        credentials: 'PRIVATE KEY',
-        username: 'deploy',
-        host: '10.0.0.10',
-        port: 22,
-      }),
-    } as unknown as ServerService;
-    const adapter = new SshLiveServerExecutorAdapter(configService, serverService);
+    let killCommand = '';
+    const { adapter } = buildDeps({
+      onExecCommand: (command) => {
+        killCommand = command;
+        return { exitCode: 0, stderr: '' };
+      },
+    });
     const input: ServerExecutionInput = {
       teamId: 'team-1',
       userId: 'user-1',
       operationKey: 'deployment.run',
       adapterKey: 'deployment-script-plan',
       dryRun: false,
-      target: {
-        transport: 'ssh',
-        serverId: 'server-1',
-      },
+      target: { transport: 'ssh', serverId: 'server-1' },
       steps: [],
     };
 
@@ -241,14 +244,7 @@ describe('SshLiveServerExecutorAdapter remote cancellation', () => {
       },
       'stale_recovery',
     );
-    await waitForSpawnCount(spawns, 1);
 
-    const cleanupSsh = spawns[0];
-    expect(cleanupSsh.args.at(-1)).toContain('pid=4321');
-    expect(cleanupSsh.args.at(-1)).toContain('kill -TERM -- "-$pid"');
-    expect(cleanupSsh.args.at(-1)).toContain('kill -KILL -- "-$pid"');
-
-    cleanupSsh.child.emit('close', 0);
     await expect(cleanup).resolves.toEqual(expect.objectContaining({
       transport: 'ssh',
       pid: 4321,
@@ -256,5 +252,8 @@ describe('SshLiveServerExecutorAdapter remote cancellation', () => {
       attempted: true,
       succeeded: true,
     }));
+    expect(killCommand).toContain('pid=4321');
+    expect(killCommand).toContain('kill -TERM -- "-$pid"');
+    expect(killCommand).toContain('kill -KILL -- "-$pid"');
   });
 });
