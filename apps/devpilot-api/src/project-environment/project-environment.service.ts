@@ -45,6 +45,10 @@ import {
   buildSyncApplyAuditInput,
 } from './project-environment-audit.utils';
 import {
+  buildSiteCopyQueuedLiveSyncFollowUp as buildSiteCopyQueuedLiveSyncFollowUpUtil,
+  resourceBindingStep as resourceBindingStepUtil,
+} from './project-environment-copy.utils';
+import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
   BulkBindProjectEnvironmentResourcesDto,
@@ -929,7 +933,7 @@ export class ProjectEnvironmentService {
     ]);
 
     const steps: EnvironmentResourceBindingStep[] = [
-      ...managedResources.map((resource: any) => this.resourceBindingStep(
+      ...managedResources.map((resource: any) => resourceBindingStepUtil(
         'managed_resource',
         dryRun ? 'planned' : 'applied',
         resource.id,
@@ -937,7 +941,7 @@ export class ProjectEnvironmentService {
         `绑定托管资源到 ${environment.name}`,
         { provider: resource.provider, kind: resource.kind, status: resource.status, endpoint: resource.endpoint },
       )),
-      ...resourceInstances.map((resource: any) => this.resourceBindingStep(
+      ...resourceInstances.map((resource: any) => resourceBindingStepUtil(
         'resource_instance',
         dryRun ? 'planned' : 'applied',
         resource.id,
@@ -945,7 +949,7 @@ export class ProjectEnvironmentService {
         `绑定资源实例到 ${environment.name}`,
         { status: resource.status, resourceType: resource.resourceType?.key || resource.resourceType?.name },
       )),
-      ...sites.map((site: any) => this.resourceBindingStep(
+      ...sites.map((site: any) => resourceBindingStepUtil(
         'site',
         dryRun ? 'planned' : 'applied',
         site.id,
@@ -953,7 +957,7 @@ export class ProjectEnvironmentService {
         `绑定站点 ${site.primaryDomain} 到 ${environment.name}`,
         { runtimeType: site.runtimeType, status: site.status, primaryDomain: site.primaryDomain },
       )),
-      ...cdnConfigs.map((config: any) => this.resourceBindingStep(
+      ...cdnConfigs.map((config: any) => resourceBindingStepUtil(
         'cdn_config',
         dryRun ? 'planned' : 'applied',
         config.id,
@@ -961,7 +965,7 @@ export class ProjectEnvironmentService {
         `绑定 CDN ${config.domain} 到 ${environment.name}`,
         { provider: config.provider, status: config.status, domain: config.domain },
       )),
-      ...secretKeys.map((secret: any) => this.resourceBindingStep(
+      ...secretKeys.map((secret: any) => resourceBindingStepUtil(
         'secret_key',
         dryRun ? 'planned' : 'applied',
         secret.id,
@@ -1249,7 +1253,7 @@ export class ProjectEnvironmentService {
       });
     }
 
-    const queuedLiveSyncFollowUp = this.buildSiteCopyQueuedLiveSyncFollowUp(steps);
+    const queuedLiveSyncFollowUp = buildSiteCopyQueuedLiveSyncFollowUpUtil(steps);
     const result = {
       projectId: dto.projectId,
       sourceEnvironment: { id: source.id, key: source.key, name: source.name },
@@ -1905,100 +1909,6 @@ export class ProjectEnvironmentService {
     return credential;
   }
 
-  private buildSiteCopyQueuedLiveSyncFollowUp(steps: EnvironmentSiteCopyStep[]): SiteCopyQueuedLiveSyncFollowUp {
-    const items: SiteCopyQueuedLiveSyncFollowUpItem[] = [];
-    const alerts: SiteCopyQueuedLiveSyncAlert[] = [];
-    const statusCounts: Record<string, number> = {};
-
-    for (const step of steps) {
-      const takeover = isRecord(step.metadata) && isRecord(step.metadata.openRestyTakeover)
-        ? step.metadata.openRestyTakeover
-        : null;
-      const queuedLiveSync = takeover && isRecord(takeover.queuedLiveSync) ? takeover.queuedLiveSync : null;
-      if (!queuedLiveSync) {
-        continue;
-      }
-
-      const syncStatus = extractStringUtil(queuedLiveSync, 'syncStatus') || 'unknown';
-      const approvalStatus = extractStringUtil(queuedLiveSync, 'approvalStatus') || null;
-      const syncRunId = extractStringUtil(queuedLiveSync, 'syncRunId') || null;
-      const approvalId = extractStringUtil(queuedLiveSync, 'approvalId') || null;
-      const serverExecutionJobId = extractStringUtil(queuedLiveSync, 'serverExecutionJobId') || null;
-      const normalizedSyncStatus = syncStatus.toLowerCase();
-      const normalizedApprovalStatus = approvalStatus?.toLowerCase() || null;
-      let action: SiteCopyQueuedLiveSyncFollowUpItem['action'];
-      let alertLevel: SiteCopyQueuedLiveSyncAlertLevel;
-      let alertCode: string | null = null;
-      let alertMessage: string | null = null;
-
-      statusCounts[syncStatus] = (statusCounts[syncStatus] || 0) + 1;
-
-      if (normalizedApprovalStatus === 'pending' || normalizedSyncStatus === 'blocked') {
-        action = 'approval_required';
-        alertLevel = 'warning';
-        alertCode = 'queued_live_sync_approval_required';
-        alertMessage = 'queued live sync 等待审批通过后才会进入执行队列';
-      } else if (normalizedSyncStatus === 'queued' || serverExecutionJobId) {
-        action = 'monitor_queue';
-        alertLevel = 'info';
-        alertCode = 'queued_live_sync_job_queued';
-        alertMessage = 'queued live sync 已进入执行队列，继续跟踪 Server executor job';
-      } else if (['failed', 'error'].includes(normalizedSyncStatus)) {
-        action = 'investigate_failure';
-        alertLevel = 'critical';
-        alertCode = 'queued_live_sync_failed';
-        alertMessage = 'queued live sync 返回失败状态，需要人工排查';
-      } else if (['completed', 'success', 'applied'].includes(normalizedSyncStatus)) {
-        action = 'none';
-        alertLevel = 'info';
-      } else {
-        action = 'monitor_sync';
-        alertLevel = 'warning';
-        alertCode = 'queued_live_sync_status_unknown';
-        alertMessage = 'queued live sync 未返回明确执行状态，需要检查 Site sync 结果';
-      }
-
-      const item = {
-        sourceSiteId: step.sourceSiteId,
-        targetSiteId: step.targetSiteId || null,
-        syncRunId,
-        syncStatus,
-        approvalId,
-        approvalStatus,
-        serverExecutionJobId,
-        action,
-        alertLevel,
-      };
-      items.push(item);
-
-      if (alertCode && alertMessage) {
-        alerts.push({
-          level: alertLevel,
-          code: alertCode,
-          message: alertMessage,
-          sourceSiteId: item.sourceSiteId,
-          targetSiteId: item.targetSiteId,
-          syncRunId: item.syncRunId,
-          approvalId: item.approvalId,
-        });
-      }
-    }
-
-    return {
-      requestedCount: items.length,
-      statusCounts,
-      metrics: {
-        pendingApprovalCount: items.filter((item) => item.action === 'approval_required').length,
-        queuedJobCount: items.filter((item) => item.action === 'monitor_queue').length,
-        blockedCount: items.filter((item) => item.syncStatus.toLowerCase() === 'blocked').length,
-        completedCount: items.filter((item) => ['completed', 'success', 'applied'].includes(item.syncStatus.toLowerCase())).length,
-        failedCount: items.filter((item) => ['failed', 'error'].includes(item.syncStatus.toLowerCase())).length,
-        unknownCount: items.filter((item) => item.syncStatus.toLowerCase() === 'unknown').length,
-      },
-      items,
-      alerts,
-    };
-  }
 
 
   private async resolveProjectEnvironment(teamId: string, projectId: string, environmentId: string) {
@@ -2017,23 +1927,6 @@ export class ProjectEnvironmentService {
 
 
 
-  private resourceBindingStep(
-    type: EnvironmentResourceBindingType,
-    status: EnvironmentResourceBindingStep['status'],
-    resourceId: string,
-    title: string,
-    description: string,
-    metadata?: Record<string, unknown>,
-  ): EnvironmentResourceBindingStep {
-    return {
-      type,
-      status,
-      resourceId,
-      title,
-      description,
-      metadata,
-    };
-  }
 
   private async applyResourceEnvironmentBinding(
     teamId: string,
