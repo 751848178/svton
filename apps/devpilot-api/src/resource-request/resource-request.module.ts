@@ -12,6 +12,7 @@ import {
 import { ResourceRequestProvisioningRetrySchedulerService } from './resource-request-provisioning-retry-scheduler.service';
 import { ResourceRequestRepository } from './resource-request.repository';
 import { ResourceRequestService } from './resource-request.service';
+import { ResourceRequestAccessService } from './resource-request-access.service';
 import { ResourceTypeService } from './resource-type.service';
 import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
 import { ResourceProvisioningRunReadService } from './resource-provisioning-run-read.service';
@@ -28,6 +29,7 @@ import { ResourceProvisioningRunReadService } from './resource-provisioning-run-
     ResourceRequestService,
     ResourceRequestRepository,
     ResourceTypeService,
+    ResourceRequestAccessService,
     ResourceRequestProvisioningRetrySchedulerService,
     ResourceProvisioningRunSupervisorService,
     ResourceProvisioningRunReadService,

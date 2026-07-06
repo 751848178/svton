@@ -9,6 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { ResourceRequestRepository } from './resource-request.repository';
+import { ResourceRequestAccessService } from './resource-request-access.service';
 import { ResourceTypeService } from './resource-type.service';
 import {
   resourceInstanceInclude,
@@ -147,6 +148,7 @@ export class ResourceRequestService implements OnModuleInit {
   constructor(
     private readonly repo: ResourceRequestRepository,
     private readonly resourceTypeService: ResourceTypeService,
+    private readonly accessService: ResourceRequestAccessService,
     private readonly configService: ConfigService,
     private readonly resourcePoolService: ResourcePoolService,
     private readonly serverExecutor: ServerExecutorService,
@@ -276,103 +278,23 @@ export class ResourceRequestService implements OnModuleInit {
     return this.resourceTypeService.disableResourceType(id);
   }
 
-  private async ensureProject(teamId: string, projectId?: string) {
-    if (!projectId) return null;
-
-    const project = await this.repo.findProject({
-      where: { id: projectId, teamId },
-      select: { id: true, name: true },
-    });
-
-    if (!project) {
-      throw new NotFoundException('项目不存在');
-    }
-
-    return project;
-  }
-
-  private async resolveProjectEnvironment(
-    teamId: string,
-    environmentId?: string,
-    projectId?: string,
-  ) {
-    if (!environmentId) return null;
-
-    const environment = await this.repo.findProjectEnvironment({
-      where: { id: environmentId, teamId, status: 'active' },
-      select: { id: true, projectId: true, key: true, name: true },
-    });
-
-    if (!environment) {
-      throw new NotFoundException('项目环境不存在或已归档');
-    }
-
-    if (projectId && environment.projectId !== projectId) {
-      throw new BadRequestException('项目环境不属于所选项目');
-    }
-
-    return environment;
-  }
-
-  private async ensureResourceType(resourceTypeId: string) {
-    const resourceType = await this.repo.findResourceTypeFirst({
-      where: { id: resourceTypeId, enabled: true },
-    });
-
-    if (!resourceType) {
-      throw new NotFoundException('资源类型不存在或已停用');
-    }
-
-    return resourceType;
-  }
-
   async resolveRequestInputAccessScope(teamId: string, dto: CreateResourceRequestDto) {
-    const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
-    const projectId = environmentRef?.projectId ?? dto.projectId ?? null;
-    await this.ensureProject(teamId, projectId || undefined);
-    return {
-      projectId,
-      environmentId: environmentRef?.id ?? null,
-    };
+    return this.accessService.resolveRequestInputAccessScope(teamId, dto);
   }
 
   async getRequestAccessScope(teamId: string, id: string) {
-    const request = await this.repo.findRequestFirst({
-      where: { id, teamId },
-      select: { id: true, projectId: true, environmentId: true },
-    });
-
-    if (!request) {
-      throw new NotFoundException('资源申请不存在');
-    }
-
-    return {
-      projectId: request.projectId,
-      environmentId: request.environmentId,
-    };
+    return this.accessService.getRequestAccessScope(teamId, id);
   }
 
   async getInstanceAccessScope(teamId: string, id: string) {
-    const instance = await this.repo.findInstanceFirst({
-      where: { id, teamId },
-      select: { id: true, projectId: true, environmentId: true },
-    });
-
-    if (!instance) {
-      throw new NotFoundException('资源实例不存在');
-    }
-
-    return {
-      projectId: instance.projectId,
-      environmentId: instance.environmentId,
-    };
+    return this.accessService.getInstanceAccessScope(teamId, id);
   }
 
   async createRequest(teamId: string, userId: string, dto: CreateResourceRequestDto) {
-    const resourceType = await this.ensureResourceType(dto.resourceTypeId);
-    const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
+    const resourceType = await this.accessService.ensureResourceType(dto.resourceTypeId);
+    const environmentRef = await this.accessService.resolveProjectEnvironment(teamId, dto.environmentId, dto.projectId);
     const projectId = environmentRef?.projectId ?? dto.projectId;
-    await this.ensureProject(teamId, projectId);
+    await this.accessService.ensureProject(teamId, projectId);
 
     const request = await this.repo.createRequest({
       data: {
