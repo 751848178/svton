@@ -4,6 +4,9 @@
  * 单一职责：渲染单个应用 + 服务列表（委托 ServiceRow）。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
 import type { ApplicationItem, ServiceAction, ServiceSloRow } from '../types';
 import { ServiceRow } from './service-row';
@@ -35,6 +38,7 @@ interface ApplicationCardProps {
 
 export function ApplicationCard(props: ApplicationCardProps) {
   const { application, queryEnvironmentId } = props;
+  const t = useTranslations('applications');
   return (
     <div className="rounded-md border p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -44,22 +48,24 @@ export function ApplicationCard(props: ApplicationCardProps) {
             <Tag color="default">{application.project?.name || application.projectId}</Tag>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {application.repositoryUrl || '未绑定仓库'}
+            {application.repositoryUrl || t('noRepo')}
             {application.defaultBranch ? ` · ${application.defaultBranch}` : ''}
           </div>
         </div>
         <div className="text-right text-xs text-muted-foreground">
-          <div>{application._count?.services || 0} 个服务</div>
+          <div>{t('serviceCount', { count: application._count?.services || 0 })}</div>
           <div>
-            {(application._count?.deploymentRuns || 0) + (application._count?.operationRuns || 0)}{' '}
-            次运行
+            {t('runCount', {
+              count:
+                (application._count?.deploymentRuns || 0) + (application._count?.operationRuns || 0),
+            })}
           </div>
         </div>
       </div>
 
       {application.services.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
-          {queryEnvironmentId ? '暂无当前环境服务' : '暂无服务'}
+          {queryEnvironmentId ? t('noContextServices') : t('noServices')}
         </p>
       ) : (
         <div className="mt-4 divide-y">

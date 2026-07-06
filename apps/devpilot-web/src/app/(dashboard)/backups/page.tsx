@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
@@ -9,6 +10,8 @@ import { PlanCard } from './components/plan-card';
 import { RunList } from './components/run-list';
 
 export default function BackupsPage() {
+  const t = useTranslations('backups');
+  const tc = useTranslations('common');
   const {
     plans,
     runs,
@@ -32,8 +35,8 @@ export default function BackupsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="备份计划"
-        description="管理数据库和中间件资源的备份计划、dry-run 执行计划和运行记录"
+        title={t('pageTitle')}
+        description={t('pageDescriptionDetail')}
         actions={
           <>
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -42,13 +45,13 @@ export default function BackupsPage() {
                 checked={queueBackupRuns}
                 onChange={(e) => setQueueBackupRuns(e.target.checked)}
               />
-              服务器备份加入队列
+              {t('queueBackupRuns')}
             </label>
             <button
               onClick={handleRetry}
               className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
             >
-              刷新
+              {tc('refresh')}
             </button>
           </>
         }
@@ -63,19 +66,19 @@ export default function BackupsPage() {
 
       <div className="grid gap-4 md:grid-cols-4">
         <MetricCard
-          label="计划总数"
+          label={t('statTotalPlans')}
           value={stats.total}
         />
         <MetricCard
-          label="启用中"
+          label={t('statActive')}
           value={stats.active}
         />
         <MetricCard
-          label="已阻塞"
+          label={t('statBlocked')}
           value={stats.blockedRuns}
         />
         <MetricCard
-          label="失败运行"
+          label={t('statFailedRuns')}
           value={stats.failedRuns}
         />
       </div>
@@ -87,11 +90,11 @@ export default function BackupsPage() {
       />
 
       {loading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : plans.length === 0 ? (
         <EmptyState
-          text="暂无备份计划"
-          description="同步 Docker 或 RDS 资源后可以在这里创建备份计划"
+          text={t('noPlans')}
+          description={t('noPlansHint')}
         />
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">

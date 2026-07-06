@@ -4,6 +4,9 @@
  * 单一职责：渲染单个备份计划 + 运行/启停操作。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { StatusTag } from '@/components/ui';
 import type { BackupPlan } from '../types';
@@ -21,6 +24,7 @@ interface PlanCardProps {
 
 export function PlanCard(props: PlanCardProps) {
   const { plan, runningPlanId, updatingPlanId, queueBackupRuns, onRun, onToggleStatus } = props;
+  const t = useTranslations('backups');
   const queueThisRun = queueBackupRuns && canQueueBackupRun(plan);
   const isRunningThis = runningPlanId === plan.id;
 
@@ -40,21 +44,19 @@ export function PlanCard(props: PlanCardProps) {
             {plan.lastStatus ? (
               <StatusTag
                 status={plan.lastStatus}
-                label={`最近：${statusLabels[plan.lastStatus] || plan.lastStatus}`}
+                label={t('recentPrefix', { value: statusLabels[plan.lastStatus] || plan.lastStatus })}
               />
             ) : null}
           </div>
           <div className="mt-2 text-sm text-muted-foreground">
-            {backupTypeLabels[plan.backupType] || plan.backupType} · 保留 {plan.retentionDays} 天 ·{' '}
+            {backupTypeLabels[plan.backupType] || plan.backupType} · {t('retentionDaysSuffix', { days: plan.retentionDays })} ·{' '}
             {plan.destinationType}
           </div>
           <div className="mt-1 text-sm text-muted-foreground">
-            资源：{formatResource(plan.resource)} · 服务器：{plan.server?.name || '未绑定'}
+            {t('resourcePrefix', { value: formatResource(plan.resource) })} · {t('serverPrefix', { value: plan.server?.name || t('unbound') })}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            项目：{plan.project?.name || '未关联'} · 环境：
-            {plan.environment?.name || plan.environment?.key || '未关联'} · 最近运行：
-            {plan.lastRunAt ? formatDate(plan.lastRunAt) : '-'}
+            {t('projectPrefix', { value: plan.project?.name || t('unassociated') })} · {t('envPrefix', { value: plan.environment?.name || plan.environment?.key || t('unassociated') })} · {t('lastRunPrefix', { value: plan.lastRunAt ? formatDate(plan.lastRunAt) : '-' })}
           </div>
           {plan.runs && plan.runs.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -78,18 +80,18 @@ export function PlanCard(props: PlanCardProps) {
           >
             {isRunningThis
               ? queueThisRun
-                ? '入队中...'
-                : '生成中...'
+                ? t('queuing')
+                : t('generating')
               : queueThisRun
-                ? '加入队列'
-                : '生成计划'}
+                ? t('joinQueue')
+                : t('generatePlan')}
           </button>
           <button
             onClick={handleToggle}
             disabled={Boolean(updatingPlanId) || plan.status === 'archived'}
             className="rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
           >
-            {updatingPlanId === plan.id ? '更新中...' : plan.status === 'active' ? '暂停' : '启用'}
+            {updatingPlanId === plan.id ? t('updating') : plan.status === 'active' ? t('pause') : t('enable')}
           </button>
         </div>
       </div>

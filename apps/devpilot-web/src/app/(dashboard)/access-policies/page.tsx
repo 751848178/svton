@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
@@ -8,6 +9,8 @@ import { PolicyFormView } from './components/policy-form';
 import { PolicyCard } from './components/policy-card';
 
 export default function AccessPoliciesPage() {
+  const t = useTranslations('accessPolicies');
+  const tc = useTranslations('common');
   const {
     policies,
     projects,
@@ -31,19 +34,19 @@ export default function AccessPoliciesPage() {
   } = useAccessPolicies();
   const handleRetry = usePersistFn(() => reload());
 
-  if (loading) return <LoadingState text="加载中..." />;
+  if (loading) return <LoadingState text={tc('loading')} />;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="访问策略"
-        description="管理控制面在项目、环境、操作分类和风险等级上的 allow/deny 策略"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <button
             onClick={handleRetry}
             className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
           >
-            刷新
+            {tc('refresh')}
           </button>
         }
       />
@@ -57,23 +60,23 @@ export default function AccessPoliciesPage() {
 
       <div className="grid gap-4 md:grid-cols-5">
         <MetricCard
-          label="策略数"
+          label={t('metricPolicies')}
           value={stats.total}
         />
         <MetricCard
-          label="已启用"
+          label={tc('enabled')}
           value={stats.enabled}
         />
         <MetricCard
-          label="拒绝策略"
+          label={t('metricDenies')}
           value={stats.denies}
         />
         <MetricCard
-          label="限定作用域"
+          label={t('metricScoped')}
           value={stats.scoped}
         />
         <MetricCard
-          label="用户级"
+          label={t('metricUserScoped')}
           value={stats.userScoped}
         />
       </div>
@@ -92,10 +95,10 @@ export default function AccessPoliciesPage() {
 
       <div className="rounded-lg border bg-card">
         <div className="border-b px-5 py-4">
-          <h2 className="text-lg font-semibold">策略列表</h2>
+          <h2 className="text-lg font-semibold">{t('policyListTitle')}</h2>
         </div>
         {policies.length === 0 ? (
-          <EmptyState text="暂无访问策略" />
+          <EmptyState text={t('noPolicies')} />
         ) : (
           <div className="divide-y">
             {policies.map((policy) => (

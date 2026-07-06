@@ -4,6 +4,9 @@
  * 单一职责：渲染单个策略 + 启停/编辑/删除操作。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
 import type { AccessPolicy } from '../types';
@@ -18,6 +21,8 @@ interface PolicyCardProps {
 }
 
 export function PolicyCard({ policy, actingId, onEdit, onToggle, onDelete }: PolicyCardProps) {
+  const t = useTranslations('accessPolicies');
+  const tc = useTranslations('common');
   const handleEdit = usePersistFn(() => onEdit(policy));
   const handleToggle = usePersistFn(() => onToggle(policy));
   const handleDelete = usePersistFn(() => onDelete(policy));
@@ -29,10 +34,10 @@ export function PolicyCard({ policy, actingId, onEdit, onToggle, onDelete }: Pol
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{policy.name}</h3>
             <Tag color={policy.enabled ? 'green' : 'default'}>
-              {policy.enabled ? '启用' : '停用'}
+              {policy.enabled ? t('enabled') : t('disabled')}
             </Tag>
             <Tag color={policy.effect === 'deny' ? 'red' : 'blue'}>
-              {policy.effect === 'deny' ? '拒绝' : '允许'}
+              {policy.effect === 'deny' ? t('deny') : t('allow')}
             </Tag>
           </div>
           {policy.description ? (
@@ -41,10 +46,10 @@ export function PolicyCard({ policy, actingId, onEdit, onToggle, onDelete }: Pol
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span>{formatPrincipal(policy)}</span>
             <span>{formatScope(policy)}</span>
-            <span>分类 {formatList(policy.categories)}</span>
+            <span>{t('category', { value: formatList(policy.categories) })}</span>
             <span>Action {formatList(policy.actions)}</span>
             <span>Risk {formatList(policy.riskLevels)}</span>
-            <span>优先级 {policy.priority}</span>
+            <span>{t('priorityValue', { value: policy.priority })}</span>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -52,21 +57,21 @@ export function PolicyCard({ policy, actingId, onEdit, onToggle, onDelete }: Pol
             onClick={handleEdit}
             className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
           >
-            编辑
+            {tc('edit')}
           </button>
           <button
             onClick={handleToggle}
             disabled={actingId === `${policy.id}:toggle`}
             className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
           >
-            {policy.enabled ? '停用' : '启用'}
+            {policy.enabled ? t('disable') : t('enable')}
           </button>
           <button
             onClick={handleDelete}
             disabled={actingId === `${policy.id}:delete`}
             className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
           >
-            删除
+            {tc('delete')}
           </button>
         </div>
       </div>

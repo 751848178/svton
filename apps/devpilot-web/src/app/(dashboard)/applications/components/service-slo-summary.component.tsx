@@ -4,7 +4,10 @@
  * 单一职责：渲染单个应用服务的 SLO loading/empty/metric 摘要和监控深链。
  */
 
+'use client';
+
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { StatusTag } from '@/components/ui';
 import type { ApplicationServiceItem, ServiceSloRow } from '../types';
 import { formatPercent } from '../utils';
@@ -16,10 +19,11 @@ interface ServiceSloSummaryProps {
 }
 
 export function ServiceSloSummary({ service, row, loading }: ServiceSloSummaryProps) {
+  const t = useTranslations('applications');
   if (loading) {
     return (
       <div className="mt-3 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-        加载服务 SLO 摘要...
+        {t('sloLoading')}
       </div>
     );
   }
@@ -27,7 +31,7 @@ export function ServiceSloSummary({ service, row, loading }: ServiceSloSummaryPr
   if (!row) {
     return (
       <div className="mt-3 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-        暂无可见 SLO 摘要
+        {t('sloEmpty')}
       </div>
     );
   }
@@ -36,10 +40,10 @@ export function ServiceSloSummary({ service, row, loading }: ServiceSloSummaryPr
     <div className="mt-3 rounded-md bg-muted/50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">SLO 摘要</span>
+          <span className="text-xs font-medium text-muted-foreground">{t('sloSummary')}</span>
           <StatusTag
             status={row.status}
-            label={row.status === 'no_data' ? '无数据' : row.status}
+            label={row.status === 'no_data' ? t('sloNoData') : row.status}
           />
           <span className="text-xs text-muted-foreground">
             {row.windowMinutes}m · {row.statusReason}
@@ -49,7 +53,7 @@ export function ServiceSloSummary({ service, row, loading }: ServiceSloSummaryPr
           href={`/monitoring?applicationServiceId=${encodeURIComponent(service.id)}`}
           className="text-xs text-primary hover:underline"
         >
-          查看监控
+          {t('viewMonitoring')}
         </Link>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
@@ -59,11 +63,11 @@ export function ServiceSloSummary({ service, row, loading }: ServiceSloSummaryPr
           muted={row.sloPercent === null || row.sloPercent === undefined}
         />
         <SloMetric
-          label="目标"
+          label={t('sloTarget')}
           value={formatPercent(row.targetPercent)}
         />
         <SloMetric
-          label="错误预算"
+          label={t('sloErrorBudget')}
           value={formatPercent(row.errorBudgetRemainingPercent)}
           muted={
             row.errorBudgetRemainingPercent === null ||
@@ -76,11 +80,11 @@ export function ServiceSloSummary({ service, row, loading }: ServiceSloSummaryPr
           muted={row.burnRate === null || row.burnRate === undefined}
         />
         <SloMetric
-          label="部署失败"
+          label={t('sloDeployFail')}
           value={`${row.deploymentFailureCount}/${row.deploymentCount}`}
         />
         <SloMetric
-          label="操作/告警"
+          label={t('sloOpsAlert')}
           value={`${row.operationFailureCount}/${row.operationCount} · ${row.alertImpactCount}`}
         />
       </div>

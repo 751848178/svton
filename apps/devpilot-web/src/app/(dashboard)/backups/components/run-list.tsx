@@ -4,7 +4,10 @@
  * 单一职责：渲染最近的备份运行记录（最多 12 条）。
  */
 
+'use client';
+
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { StatusTag } from '@/components/ui';
 import type { BackupRun } from '../types';
 import { statusLabels } from '../constants';
@@ -15,14 +18,15 @@ interface RunListProps {
 }
 
 export function RunList({ runs }: RunListProps) {
+  const t = useTranslations('backups');
   return (
     <div className="rounded-lg border">
       <div className="border-b px-4 py-3">
-        <h2 className="font-medium">最近运行</h2>
+        <h2 className="font-medium">{t('recentRuns')}</h2>
       </div>
       <div className="divide-y">
         {runs.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-muted-foreground">暂无备份运行</div>
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">{t('noRuns')}</div>
         ) : (
           runs.slice(0, 12).map((run) => (
             <RunRow

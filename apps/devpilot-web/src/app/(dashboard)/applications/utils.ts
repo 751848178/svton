@@ -11,15 +11,8 @@ export function compactObject(input: Record<string, string>): Record<string, str
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value.trim().length > 0));
 }
 
-/** 日期格式化（月/日 时:分）。 */
-export function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
+/** 日期时间格式化（不带秒，统一走共享 util）。 */
+export { formatDateTimeMinute as formatDate } from '@/lib/format-date';
 
 /** 操作运行状态标签。 */
 export function getOperationStatusLabel(status: string): string {

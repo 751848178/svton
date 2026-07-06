@@ -4,6 +4,8 @@
  * 单一职责：纯函数（无状态、无副作用）。
  */
 
+import dayjs from 'dayjs';
+
 import { providerLabels, kindLabels } from './constants';
 import type { ManagedResource, BackupPlan } from './types';
 
@@ -32,13 +34,9 @@ export function formatResource(resource?: ManagedResource | null): string {
   return `${resource.name} · ${provider}/${kind}`;
 }
 
-/** 日期格式化（月/日 时:分）。 */
+/** 日期格式化（月/日 时:分，自定义格式，保留 MM-DD HH:mm）。 */
 export function formatDate(value?: string | null): string {
   if (!value) return '-';
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
+  const d = dayjs(value);
+  return d.isValid() ? d.format('MM-DD HH:mm') : value;
 }

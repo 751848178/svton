@@ -1,9 +1,21 @@
 /**
- * 审计事件表格
+ * 审计事件表格（@tanstack/react-table）
  *
- * 单一职责：渲染事件列表表格。
+ * 取代原裸 `<table>` + `.map()`：用 headless table 提供列定义与排序（按时间/动作）。
+ * 仍复用现有 StatusTag 与格式化 util，保持视觉一致。
  */
+'use client';
 
+import { useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import {
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+} from '@tanstack/react-table';
 import { StatusTag } from '@/components/ui';
 import type { AuditEvent } from '../types';
 import { categoryLabels, statusLabels, riskLabels } from '../constants';
@@ -14,75 +26,152 @@ interface EventTableProps {
 }
 
 export function EventTable({ events }: EventTableProps) {
+  const t = useTranslations('auditEvents');
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  const columns = useMemo<ColumnDef<AuditEvent>[]>(
+    () => [
+      {
+        id: 'occurredAt',
+        header: t('time'),
+        accessorFn: (row) => row.occurredAt,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap text-muted-foreground">
+            {formatDateTime(row.original.occurredAt)}
+          </span>
+        ),
+      },
+      {
+        id: 'action',
+        header: t('action'),
+        cell: ({ row }) => {
+          const event = row.original;
+          return (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">
+                  {categoryLabels[event.category] || event.category}
+                </span>
+                <StatusTag
+                  status={event.risk}
+                  variant="risk"
+                  label={riskLabels[event.risk] || event.risk}
+                />
+              </div>
+              <div className="mt-1 font-mono text-xs text-muted-foreground">{event.action}</div>
+              {event.summary ? (
+                <div className="mt-1 text-xs text-muted-foreground">{event.summary}</div>
+              ) : null}
+            </>
+          );
+        },
+      },
+      {
+        id: 'target',
+        header: t('target'),
+        cell: ({ row }) => {
+          const event = row.original;
+          return (
+            <>
+              <div className="font-medium">{formatTarget(event)}</div>
+              <div className="mt-1 font-mono text-xs text-muted-foreground">
+                {event.targetType}
+                {event.targetId ? ` · ${event.targetId}` : ''}
+              </div>
+            </>
+          );
+        },
+      },
+      {
+        id: 'scope',
+        header: t('scope'),
+        cell: ({ row }) => {
+          const event = row.original;
+          return (
+            <div className="text-muted-foreground">
+              <div>{event.project?.name || t('noProject')}</div>
+              <div className="mt-1 text-xs">
+                {event.environment?.name || event.environment?.key || t('noEnvironment')}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'actor',
+        header: t('actor'),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.actor?.name || row.original.actor?.email || '-'}
+          </span>
+        ),
+      },
+      {
+        id: 'status',
+        header: t('statusLabel'),
+        cell: ({ row }) => {
+          const event = row.original;
+          return (
+            <>
+              <StatusTag status={event.status} label={statusLabels[event.status] || event.status} />
+              <div className="mt-2 text-xs text-muted-foreground">{formatRunRef(event)}</div>
+            </>
+          );
+        },
+      },
+    ],
+    [t],
+  );
+
+  const table = useReactTable({
+    data: events,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
   return (
     <div className="overflow-hidden rounded-lg border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left">
-          <tr>
-            <th className="px-4 py-3 font-medium">时间</th>
-            <th className="px-4 py-3 font-medium">动作</th>
-            <th className="px-4 py-3 font-medium">目标</th>
-            <th className="px-4 py-3 font-medium">范围</th>
-            <th className="px-4 py-3 font-medium">执行人</th>
-            <th className="px-4 py-3 font-medium">状态</th>
-          </tr>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <th key={header.id} className="px-4 py-3 font-medium">
+                  {header.isPlaceholder ? null : (
+                    <button
+                      type="button"
+                      onClick={header.column.getToggleSortingHandler()}
+                      className="flex items-center gap-1"
+                      disabled={!header.column.getCanSort()}
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.column.getCanSort() ? (
+                        <span className="text-xs text-muted-foreground">
+                          {{ asc: '▲', desc: '▼' }[header.column.getIsSorted() as string] || '↕'}
+                        </span>
+                      ) : null}
+                    </button>
+                  )}
+                </th>
+              ))}
+            </tr>
+          ))}
         </thead>
         <tbody className="divide-y">
-          {events.map((event) => (
-            <EventRow
-              key={event.id}
-              event={event}
-            />
+          {table.getRowModel().rows.map((row) => (
+            <tr key={row.id} className="align-top hover:bg-muted/30">
+              {row.getVisibleCells().map((cell) => (
+                <td key={cell.id} className="px-4 py-3">
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
           ))}
         </tbody>
       </table>
     </div>
-  );
-}
-
-function EventRow({ event }: { event: AuditEvent }) {
-  return (
-    <tr className="align-top hover:bg-muted/30">
-      <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-        {formatDateTime(event.occurredAt)}
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{categoryLabels[event.category] || event.category}</span>
-          <StatusTag
-            status={event.risk}
-            variant="risk"
-            label={riskLabels[event.risk] || event.risk}
-          />
-        </div>
-        <div className="mt-1 font-mono text-xs text-muted-foreground">{event.action}</div>
-        {event.summary ? (
-          <div className="mt-1 text-xs text-muted-foreground">{event.summary}</div>
-        ) : null}
-      </td>
-      <td className="px-4 py-3">
-        <div className="font-medium">{formatTarget(event)}</div>
-        <div className="mt-1 font-mono text-xs text-muted-foreground">
-          {event.targetType}
-          {event.targetId ? ` · ${event.targetId}` : ''}
-        </div>
-      </td>
-      <td className="px-4 py-3 text-muted-foreground">
-        <div>{event.project?.name || '未关联项目'}</div>
-        <div className="mt-1 text-xs">
-          {event.environment?.name || event.environment?.key || '未关联环境'}
-        </div>
-      </td>
-      <td className="px-4 py-3 text-muted-foreground">
-        {event.actor?.name || event.actor?.email || '-'}
-      </td>
-      <td className="px-4 py-3">
-        <StatusTag
-          status={event.status}
-          label={statusLabels[event.status] || event.status}
-        />
-        <div className="mt-2 text-xs text-muted-foreground">{formatRunRef(event)}</div>
-      </td>
-    </tr>
   );
 }

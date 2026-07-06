@@ -4,6 +4,9 @@
  * 单一职责：收集策略字段并提交保存。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import type { FormEvent } from 'react';
 import type { PolicyForm, ProjectRef, ProjectEnvironmentRef } from '../types';
@@ -33,6 +36,7 @@ export function PolicyFormView(props: PolicyFormProps) {
     onReset,
     onSelectProject,
   } = props;
+  const t = useTranslations('accessPolicies');
 
   const handleSubmit = usePersistFn((event: FormEvent<HTMLFormElement>) => onSubmit(event));
 
@@ -43,10 +47,10 @@ export function PolicyFormView(props: PolicyFormProps) {
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{editingId ? '编辑访问策略' : '新建访问策略'}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Deny 优先于 allow；未命中策略时沿用团队角色默认行为
-          </p>
+          <h2 className="text-lg font-semibold">
+            {editingId ? t('editPolicy') : t('newPolicy')}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t('formHint')}</p>
         </div>
         {editingId ? (
           <button
@@ -54,7 +58,7 @@ export function PolicyFormView(props: PolicyFormProps) {
             onClick={onReset}
             className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
           >
-            取消编辑
+            {t('cancelEdit')}
           </button>
         ) : null}
       </div>
@@ -73,7 +77,7 @@ export function PolicyFormView(props: PolicyFormProps) {
           disabled={saving}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          {saving ? '保存中...' : editingId ? '保存修改' : '创建策略'}
+          {saving ? t('saving') : editingId ? t('saveChanges') : t('createPolicy')}
         </button>
       </div>
     </form>

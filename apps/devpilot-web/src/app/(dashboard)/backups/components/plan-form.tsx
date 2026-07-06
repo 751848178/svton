@@ -2,10 +2,13 @@
  * 备份计划创建表单
  *
  * 单一职责：收集表单输入并提交创建。
+ * react-hook-form 样板：取代手写多个 useState + 受控 onChange。
  */
 
-import { useState } from 'react';
-import { usePersistFn } from '@svton/hooks';
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import type { ManagedResource, BackupPlanInput } from '../types';
 import { providerLabels, kindLabels } from '../constants';
 
@@ -15,43 +18,56 @@ interface PlanFormProps {
   onCreate: (input: BackupPlanInput) => void;
 }
 
-export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
-  const [resourceId, setResourceId] = useState('');
-  const [name, setName] = useState('');
-  const [backupType, setBackupType] = useState('auto');
-  const [destinationType, setDestinationType] = useState('local');
-  const [retentionDays, setRetentionDays] = useState(7);
+interface PlanFormValues {
+  resourceId: string;
+  name: string;
+  backupType: string;
+  destinationType: string;
+  retentionDays: number;
+}
 
+const DEFAULT_VALUES: PlanFormValues = {
+  resourceId: '',
+  name: '',
+  backupType: 'auto',
+  destinationType: 'local',
+  retentionDays: 7,
+};
+
+export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
+  const t = useTranslations('backups');
+  const tc = useTranslations('common');
+  const { register, handleSubmit, watch, reset } = useForm<PlanFormValues>({
+    defaultValues: DEFAULT_VALUES,
+  });
+
+  const resourceId = watch('resourceId');
   const selected = resources.find((r) => r.id === resourceId);
 
-  const handleSubmit = usePersistFn(() => {
-    if (!resourceId || !selected) {
-      alert('请选择可备份资源');
+  const onSubmit = handleSubmit((data) => {
+    if (!data.resourceId || !selected) {
+      alert(t('selectResourceAlert'));
       return;
     }
     onCreate({
-      resourceId,
-      name: name.trim() || `${selected.name} 备份计划`,
-      backupType: backupType === 'auto' ? undefined : backupType,
-      retentionDays,
-      destinationType,
+      resourceId: data.resourceId,
+      name: data.name.trim() || t('defaultPlanName', { name: selected.name }),
+      backupType: data.backupType === 'auto' ? undefined : data.backupType,
+      retentionDays: data.retentionDays,
+      destinationType: data.destinationType,
     });
-    setName('');
-    setBackupType('auto');
-    setDestinationType('local');
-    setRetentionDays(7);
+    reset(DEFAULT_VALUES);
   });
 
   return (
     <div className="rounded-lg border p-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(180px,0.6fr)_minmax(160px,0.5fr)_minmax(140px,0.4fr)_auto]">
-        <Field label="资源">
+        <Field label={t('resource')}>
           <select
-            value={resourceId}
-            onChange={(e) => setResourceId(e.target.value)}
+            {...register('resourceId')}
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="">请选择资源</option>
+            <option value="">{t('selectResource')}</option>
             {resources.map((r) => (
               <option
                 key={r.id}
@@ -63,42 +79,39 @@ export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
             ))}
           </select>
         </Field>
-        <Field label="名称">
+        <Field label={tc('name')}>
           <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={selected ? `${selected.name} 备份计划` : '备份计划名称'}
+            {...register('name')}
+            placeholder={selected ? t('defaultPlanName', { name: selected.name }) : t('planName')}
             className="w-full rounded-md border px-3 py-2"
           />
         </Field>
-        <Field label="类型">
+        <Field label={tc('type')}>
           <select
-            value={backupType}
-            onChange={(e) => setBackupType(e.target.value)}
+            {...register('backupType')}
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="auto">自动</option>
-            <option value="logical">逻辑备份</option>
-            <option value="snapshot">快照</option>
-            <option value="file">文件备份</option>
+            <option value="auto">{t('backupTypeAuto')}</option>
+            <option value="logical">{t('backupTypeLogical')}</option>
+            <option value="snapshot">{t('backupTypeSnapshot')}</option>
+            <option value="file">{t('backupTypeFile')}</option>
           </select>
         </Field>
-        <Field label="保留天数">
+        <Field label={t('retentionDays')}>
           <input
             type="number"
             min={1}
-            value={retentionDays}
-            onChange={(e) => setRetentionDays(Number(e.target.value))}
+            {...register('retentionDays', { valueAsNumber: true })}
             className="w-full rounded-md border px-3 py-2"
           />
         </Field>
         <div className="flex items-end">
           <button
-            onClick={handleSubmit}
+            onClick={onSubmit}
             disabled={creating || !resourceId}
             className="w-full rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
           >
-            {creating ? '创建中...' : '创建计划'}
+            {creating ? t('creating') : t('createPlan')}
           </button>
         </div>
       </div>

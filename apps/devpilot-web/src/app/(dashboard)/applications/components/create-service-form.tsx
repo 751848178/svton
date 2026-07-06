@@ -4,6 +4,9 @@
  * 单一职责：收集服务字段（环境/类型/绑定/部署配置）并提交。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import type {
   ServiceForm,
@@ -39,11 +42,12 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
     saving,
     onCreate,
   } = props;
+  const t = useTranslations('applications');
   const handleCreate = usePersistFn(() => onCreate());
 
   return (
     <section className="rounded-lg border p-4">
-      <h2 className="font-semibold">添加服务</h2>
+      <h2 className="font-semibold">{t('addService')}</h2>
       <div className="mt-4 space-y-3">
         <select
           value={form.applicationId}
@@ -57,7 +61,7 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
           }
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         >
-          <option value="">选择应用</option>
+          <option value="">{t('selectApp')}</option>
           {applications.map((a) => (
             <option
               key={a.id}
@@ -73,7 +77,7 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
           onChange={(e) => onChange({ environmentId: e.target.value })}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         >
-          <option value="">选择环境</option>
+          <option value="">{t('selectEnv')}</option>
           {environments.map((e) => (
             <option
               key={e.id}
@@ -87,7 +91,7 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
           <input
             value={form.name}
             onChange={(e) => onChange({ name: e.target.value })}
-            placeholder="服务名称"
+            placeholder={t('serviceNamePlaceholder')}
             className="rounded-md border bg-background px-3 py-2 text-sm"
           />
           <select
@@ -108,7 +112,7 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
         <input
           value={form.runtime}
           onChange={(e) => onChange({ runtime: e.target.value })}
-          placeholder="运行时，例如 node/mysql/redis"
+          placeholder={t('runtimePlaceholder')}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         />
         <select
@@ -116,7 +120,7 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
           onChange={(e) => onChange({ serverId: e.target.value })}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         >
-          <option value="">不绑定服务器</option>
+          <option value="">{t('noBindServer')}</option>
           {servers.map((s) => (
             <option
               key={s.id}
@@ -131,7 +135,7 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
           onChange={(e) => onChange({ siteId: e.target.value })}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         >
-          <option value="">不绑定站点</option>
+          <option value="">{t('noBindSite')}</option>
           {sites.map((s) => (
             <option
               key={s.id}
@@ -146,7 +150,7 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
           onChange={(e) => onChange({ managedResourceId: e.target.value })}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         >
-          <option value="">不绑定资源</option>
+          <option value="">{t('noBindResource')}</option>
           {resources.map((r) => (
             <option
               key={r.id}
@@ -159,25 +163,25 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
         <input
           value={form.workingDirectory}
           onChange={(e) => onChange({ workingDirectory: e.target.value })}
-          placeholder="工作目录，例如 /srv/app"
+          placeholder={t('workingDirPlaceholder')}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         />
         <input
           value={form.buildCommand}
           onChange={(e) => onChange({ buildCommand: e.target.value })}
-          placeholder="构建命令"
+          placeholder={t('buildCommandPlaceholder')}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         />
         <input
           value={form.deployCommand}
           onChange={(e) => onChange({ deployCommand: e.target.value })}
-          placeholder="部署命令"
+          placeholder={t('deployCommandPlaceholder')}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         />
         <input
           value={form.healthCheckUrl}
           onChange={(e) => onChange({ healthCheckUrl: e.target.value })}
-          placeholder="健康检查 URL"
+          placeholder={t('healthCheckUrlPlaceholder')}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         />
         <button
@@ -185,7 +189,7 @@ export function CreateServiceForm(props: CreateServiceFormProps) {
           disabled={saving}
           className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          添加服务
+          {t('addService')}
         </button>
       </div>
     </section>

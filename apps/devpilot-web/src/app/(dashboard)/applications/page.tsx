@@ -2,6 +2,7 @@
 
 import { Suspense as ReactSuspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
@@ -18,6 +19,8 @@ const Suspense = ReactSuspense as unknown as (props: {
 }) => JSX.Element;
 
 function ApplicationsContent() {
+  const t = useTranslations('applications');
+  const tc = useTranslations('common');
   const searchParams = useSearchParams();
   const queryProjectId = searchParams.get('projectId') || '';
   const queryEnvironmentId = searchParams.get('environmentId') || '';
@@ -76,7 +79,7 @@ function ApplicationsContent() {
         r.environment.id === serviceForm.environmentId),
   );
 
-  if (loading) return <LoadingState text="加载中..." />;
+  if (loading) return <LoadingState text={tc('loading')} />;
 
   const cardProps = {
     queryEnvironmentId,
@@ -94,8 +97,8 @@ function ApplicationsContent() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="应用服务"
-        description="以服务为单位组织环境、服务器、站点、资源和部署配置"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <ApplicationsPageActions
             queueDeploymentRuns={queueDeploymentRuns}
@@ -122,19 +125,19 @@ function ApplicationsContent() {
 
       <div className="grid gap-3 md:grid-cols-4">
         <MetricCard
-          label="应用"
+          label={t('metricApps')}
           value={stats.applications}
         />
         <MetricCard
-          label="服务"
+          label={t('metricServices')}
           value={stats.services}
         />
         <MetricCard
-          label="涉及环境"
+          label={t('metricEnvironments')}
           value={stats.environments}
         />
         <MetricCard
-          label="部署/操作"
+          label={t('metricDeploymentsOps')}
           value={stats.deployments + stats.operations}
         />
       </div>
@@ -162,11 +165,11 @@ function ApplicationsContent() {
         </div>
 
         <section className="rounded-lg border p-4">
-          <h2 className="font-semibold">服务工作区</h2>
+          <h2 className="font-semibold">{t('serviceWorkspace')}</h2>
           {visibleApplications.length === 0 ? (
             <EmptyState
-              text="暂无当前上下文应用"
-              description="先创建一个应用并添加环境服务"
+              text={t('noContextApps')}
+              description={t('noContextAppsHint')}
             />
           ) : (
             <div className="mt-4 space-y-4">
@@ -186,8 +189,9 @@ function ApplicationsContent() {
 }
 
 export default function ApplicationsPage() {
+  const tc = useTranslations('common');
   return (
-    <Suspense fallback={<LoadingState text="加载中..." />}>
+    <Suspense fallback={<LoadingState text={tc('loading')} />}>
       <ApplicationsContent />
     </Suspense>
   );

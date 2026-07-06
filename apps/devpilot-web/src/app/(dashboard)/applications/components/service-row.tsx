@@ -4,7 +4,10 @@
  * 单一职责：渲染单个服务 + 状态/类型/环境徽章 + 操作（状态/日志/重启/回滚/部署）+ 最近操作。
  */
 
+'use client';
+
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
@@ -52,6 +55,7 @@ export function ServiceRow(props: ServiceRowProps) {
     serviceSloLoading,
   } = props;
   const { onRunOperation, onRequestLive, onCreateDeployment } = props;
+  const t = useTranslations('applications');
 
   const handleRun = usePersistFn((action: ServiceAction) =>
     onRunOperation(application, service, action),
@@ -69,10 +73,10 @@ export function ServiceRow(props: ServiceRowProps) {
             <span className="font-medium">{service.name}</span>
             <StatusTag status={service.status} />
             <Tag color="default">{kindLabels[service.kind] || service.kind}</Tag>
-            <Tag color="default">{service.environment?.name || '未绑定环境'}</Tag>
+            <Tag color="default">{service.environment?.name || t('noEnv')}</Tag>
           </div>
           <div className="mt-1 text-sm text-muted-foreground">
-            {service.server ? `${service.server.name} (${service.server.host})` : '未绑定服务器'}
+            {service.server ? `${service.server.name} (${service.server.host})` : t('noServer')}
             {service.site ? ` · ${service.site.primaryDomain}` : ''}
             {service.managedResource ? ` · ${service.managedResource.name}` : ''}
           </div>
@@ -86,10 +90,11 @@ export function ServiceRow(props: ServiceRowProps) {
             const isRunning = runningOperation === `${service.id}:${action}`;
             const isRequestingLive = runningOperation === `${service.id}:${action}:live`;
             const canRequestLive = action === 'restart' || action === 'rollback';
+            const actionLabel = operationLabels[action] || action;
             const planLabel = queueServiceOperations
-              ? `${operationLabels[action]}入队`
-              : operationLabels[action];
-            const liveLabel = queueServiceOperations ? '申请入队' : '申请 Live';
+              ? t('operationEnqueue', { label: actionLabel })
+              : actionLabel;
+            const liveLabel = queueServiceOperations ? t('requestEnqueue') : t('requestLive');
             return (
               <div
                 key={action}
@@ -100,7 +105,7 @@ export function ServiceRow(props: ServiceRowProps) {
                   disabled={isRunning}
                   className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
                 >
-                  {isRunning ? '生成中...' : planLabel}
+                  {isRunning ? t('generating') : planLabel}
                 </button>
                 {canRequestLive ? (
                   <button
@@ -108,7 +113,7 @@ export function ServiceRow(props: ServiceRowProps) {
                     disabled={isRequestingLive}
                     className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
                   >
-                    {isRequestingLive ? '申请中...' : liveLabel}
+                    {isRequestingLive ? t('requesting') : liveLabel}
                   </button>
                 ) : null}
               </div>
@@ -121,11 +126,11 @@ export function ServiceRow(props: ServiceRowProps) {
           >
             {deployingServiceId === service.id
               ? queueDeploymentRuns
-                ? '入队中...'
-                : '生成中...'
+                ? t('enqueuing')
+                : t('generating')
               : queueDeploymentRuns
-                ? '加入部署队列'
-                : '生成部署计划'}
+                ? t('joinDeployQueue')
+                : t('generateDeployPlan')}
           </button>
         </div>
       </div>
@@ -138,7 +143,7 @@ export function ServiceRow(props: ServiceRowProps) {
 
       {service.operationRuns && service.operationRuns.length > 0 ? (
         <div className="mt-3 rounded-md bg-muted/50 p-3">
-          <div className="text-xs font-medium text-muted-foreground">最近操作</div>
+          <div className="text-xs font-medium text-muted-foreground">{t('recentOps')}</div>
           <div className="mt-2 space-y-2">
             {service.operationRuns.slice(0, 3).map((run) => (
               <div

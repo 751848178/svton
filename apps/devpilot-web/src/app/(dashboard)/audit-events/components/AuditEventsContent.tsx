@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
@@ -15,6 +16,8 @@ import type { AuditEvent } from '../types';
  * 接收首屏 server 数据 initialEvents（SWR fallback），筛选/刷新等交互在此完成。
  */
 export function AuditEventsContent({ initialEvents }: { initialEvents?: AuditEvent[] }) {
+  const t = useTranslations('auditEvents');
+  const tc = useTranslations('common');
   const { events, loading, error, filters, stats, setFilter, reload } =
     useAuditEvents(initialEvents);
   const handleRetry = usePersistFn(() => reload());
@@ -22,14 +25,14 @@ export function AuditEventsContent({ initialEvents }: { initialEvents?: AuditEve
   return (
     <div className="space-y-6">
       <PageHeader
-        title="审计事件"
-        description="查看部署、资源动作和服务运行态操作的统一控制面记录"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <button
             onClick={handleRetry}
             className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
           >
-            刷新
+            {tc('refresh')}
           </button>
         }
       />
@@ -43,58 +46,58 @@ export function AuditEventsContent({ initialEvents }: { initialEvents?: AuditEve
 
       <div className="grid gap-4 md:grid-cols-4 xl:grid-cols-9">
         <MetricCard
-          label="事件总数"
+          label={t('metricTotal')}
           value={stats.total}
         />
         <MetricCard
-          label="部署"
+          label={t('metricDeployments')}
           value={stats.deployments}
         />
         <MetricCard
-          label="资源动作"
+          label={t('metricResourceActions')}
           value={stats.resourceActions}
         />
         <MetricCard
-          label="服务操作"
+          label={t('metricServiceOperations')}
           value={stats.serviceOperations}
         />
         <MetricCard
-          label="备份"
+          label={t('metricBackups')}
           value={stats.backups}
         />
         <MetricCard
-          label="告警"
+          label={t('metricAlerts')}
           value={stats.alerts}
         />
         <MetricCard
-          label="日志"
+          label={t('metricLogs')}
           value={stats.logs}
         />
         <MetricCard
-          label="高风险"
+          label={t('metricHighRisk')}
           value={stats.highRisk}
         />
         <MetricCard
-          label="异常/阻塞"
+          label={t('metricFailed')}
           value={stats.failed}
         />
       </div>
 
       <div className="flex flex-wrap gap-3 rounded-lg border p-4">
         <FilterSelect
-          label="分类"
+          label={t('filterCategory')}
           value={filters.category}
           onChange={(v) => setFilter('category', v)}
           options={CATEGORY_OPTIONS}
         />
         <FilterSelect
-          label="状态"
+          label={tc('status')}
           value={filters.status}
           onChange={(v) => setFilter('status', v)}
           options={STATUS_OPTIONS}
         />
         <FilterSelect
-          label="风险"
+          label={t('filterRisk')}
           value={filters.risk}
           onChange={(v) => setFilter('risk', v)}
           options={RISK_OPTIONS}
@@ -102,11 +105,11 @@ export function AuditEventsContent({ initialEvents }: { initialEvents?: AuditEve
       </div>
 
       {loading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : events.length === 0 ? (
         <EmptyState
-          text="暂无审计事件"
-          description="触发部署、资源动作或服务操作后会在这里出现"
+          text={t('noEvents')}
+          description={t('noEventsHint')}
         />
       ) : (
         <EventTable events={events} />
