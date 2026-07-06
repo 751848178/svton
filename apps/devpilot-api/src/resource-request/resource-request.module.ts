@@ -16,6 +16,8 @@ import { ResourceRequestAccessService } from './resource-request-access.service'
 import { ResourceRequestStatusWriterService } from './resource-request-status-writer.service';
 import { ResourceProvisioningRunWriterService } from './resource-provisioning-run-writer.service';
 import { ResourceRequestProvisioningService } from './resource-request-provisioning.service';
+import { ResourceRequestLifecycleService } from './resource-request-lifecycle.service';
+import { ResourceRequestInstanceService } from './resource-request-instance.service';
 import { ResourceRequestRecoveryService } from './resource-request-recovery.service';
 import { ResourceRequestStaleRecoveryService } from './resource-request-stale-recovery.service';
 import { ResourceRequestQueueWorker } from './resource-request-queue-worker.service';
@@ -42,6 +44,8 @@ import { ResourceProvisioningRunReadService } from './resource-provisioning-run-
     ResourceRequestService,
     ResourceRequestRepository,
     ResourceTypeService,
+    ResourceRequestLifecycleService,
+    ResourceRequestInstanceService,
     ResourceRequestAccessService,
     ResourceRequestStatusWriterService,
     ResourceProvisioningRunWriterService,

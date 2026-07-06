@@ -8,6 +8,8 @@ import { ResourceRequestAccessService } from './resource-request-access.service'
 import { ResourceRequestStatusWriterService } from './resource-request-status-writer.service';
 import { ResourceProvisioningRunWriterService } from './resource-provisioning-run-writer.service';
 import { ResourceRequestProvisioningService } from './resource-request-provisioning.service';
+import { ResourceRequestLifecycleService } from './resource-request-lifecycle.service';
+import { ResourceRequestInstanceService } from './resource-request-instance.service';
 import { ResourceRequestRecoveryService } from './resource-request-recovery.service';
 import { ResourceRequestStaleRecoveryService } from './resource-request-stale-recovery.service';
 import { ResourceProviderStateService } from './resource-provider-state.service';
@@ -2374,19 +2376,21 @@ function createService(options: { httpEnabled?: boolean; configValues?: Record<s
     provisioning,
     new ResourceProviderStateWriterService(sharedRepo, statusWriter, runWriter),
   );
-  const service = new ResourceRequestService(
+  const lifecycle = new ResourceRequestLifecycleService(
     sharedRepo,
+    statusWriter,
+    new ResourceRequestAccessService(sharedRepo),
+    provisioning,
+  );
+  const instanceService = new ResourceRequestInstanceService(sharedRepo, statusWriter);
+  const service = new ResourceRequestService(
     new ResourceTypeService(sharedRepo),
     new ResourceRequestAccessService(sharedRepo),
-    statusWriter,
-    runWriter,
     provisioning,
     recovery,
     providerState,
-    config as unknown as ConfigService,
-    resourcePoolService as unknown as ResourcePoolService,
-    serverExecutor as unknown as ServerExecutorService,
-    runSupervisor,
+    lifecycle,
+    instanceService,
     new ResourceProvisioningRunReadService(prisma as unknown as PrismaService),
   );
 
