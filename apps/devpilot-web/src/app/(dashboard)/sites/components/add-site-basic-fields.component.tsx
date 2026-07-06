@@ -1,5 +1,7 @@
 /** Basic AddSiteModal fields before runtime/TLS configuration. */
+'use client';
 
+import { useTranslations } from 'next-intl';
 import type { Project, ProjectEnvironment, Server, SiteRuntimeType } from '../types';
 import type { AddSiteFormData } from './add-site-form.types';
 
@@ -18,21 +20,22 @@ export function AddSiteBasicFields({
   projectEnvironments,
   onChange,
 }: AddSiteBasicFieldsProps) {
+  const t = useTranslations('sites');
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium">站点名称</label>
+          <label className="mb-1 block text-sm font-medium">{t('siteName')}</label>
           <input
             value={formData.name}
             onChange={(event) => onChange({ name: event.target.value })}
             required
             className="w-full rounded-md border px-3 py-2"
-            placeholder="生产站点"
+            placeholder={t('siteNamePlaceholder')}
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">主域名</label>
+          <label className="mb-1 block text-sm font-medium">{t('primaryDomain')}</label>
           <input
             value={formData.primaryDomain}
             onChange={(event) => onChange({ primaryDomain: event.target.value })}
@@ -43,7 +46,7 @@ export function AddSiteBasicFields({
         </div>
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium">域名别名</label>
+        <label className="mb-1 block text-sm font-medium">{t('domainAliases')}</label>
         <input
           value={formData.aliases}
           onChange={(event) => onChange({ aliases: event.target.value })}
@@ -53,26 +56,26 @@ export function AddSiteBasicFields({
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <div>
-          <label className="mb-1 block text-sm font-medium">运行时类型</label>
+          <label className="mb-1 block text-sm font-medium">{t('runtimeType')}</label>
           <select
             value={formData.runtimeType}
             onChange={(event) => onChange({ runtimeType: event.target.value as SiteRuntimeType })}
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="reverse_proxy">反向代理</option>
-            <option value="static">静态站点</option>
-            <option value="docker">Docker 服务</option>
-            <option value="runtime">运行时服务</option>
+            <option value="reverse_proxy">{t('rtReverseProxy')}</option>
+            <option value="static">{t('rtStatic')}</option>
+            <option value="docker">{t('rtDocker')}</option>
+            <option value="runtime">{t('rtRuntime')}</option>
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">目标服务器</label>
+          <label className="mb-1 block text-sm font-medium">{t('targetServer')}</label>
           <select
             value={formData.serverId}
             onChange={(event) => onChange({ serverId: event.target.value })}
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="">不关联服务器</option>
+            <option value="">{t('noServer')}</option>
             {servers.map((server) => (
               <option
                 key={server.id}
@@ -84,13 +87,13 @@ export function AddSiteBasicFields({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">关联项目</label>
+          <label className="mb-1 block text-sm font-medium">{t('linkedProject')}</label>
           <select
             value={formData.projectId}
             onChange={(event) => onChange({ projectId: event.target.value, environmentId: '' })}
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="">不关联项目</option>
+            <option value="">{t('noProject')}</option>
             {projects.map((project) => (
               <option
                 key={project.id}
@@ -103,14 +106,14 @@ export function AddSiteBasicFields({
         </div>
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium">项目环境</label>
+        <label className="mb-1 block text-sm font-medium">{t('projectEnvironment')}</label>
         <select
           value={formData.environmentId}
           onChange={(event) => onChange({ environmentId: event.target.value })}
           className="w-full rounded-md border px-3 py-2"
           disabled={!formData.projectId}
         >
-          <option value="">不绑定环境</option>
+          <option value="">{t('noEnvironment')}</option>
           {projectEnvironments
             .filter(
               (environment) =>

@@ -2,10 +2,13 @@
  * 创建团队弹窗
  *
  * 单一职责：收集团队名称与描述并提交创建。
+ * react-hook-form 样板：取代手写 useState + 受控 onChange。
  */
 
-import { useState } from 'react';
-import { usePersistFn } from '@svton/hooks';
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/ui';
 
 interface CreateTeamModalProps {
@@ -14,54 +17,54 @@ interface CreateTeamModalProps {
   onCreate: (name: string, description?: string) => Promise<void>;
 }
 
-export function CreateTeamModal({ open, onClose, onCreate }: CreateTeamModalProps) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [creating, setCreating] = useState(false);
+interface CreateTeamFormData {
+  name: string;
+  description: string;
+}
 
-  const handleSubmit = usePersistFn(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setCreating(true);
-    try {
-      await onCreate(name.trim(), description.trim() || undefined);
-      setName('');
-      setDescription('');
-      onClose();
-    } finally {
-      setCreating(false);
-    }
+export function CreateTeamModal({ open, onClose, onCreate }: CreateTeamModalProps) {
+  const t = useTranslations('teams');
+  const tc = useTranslations('common');
+  const { register, handleSubmit, watch, reset, formState } = useForm<CreateTeamFormData>({
+    defaultValues: { name: '', description: '' },
   });
+  const name = watch('name');
+  const creating = formState.isSubmitting;
+
+  const onSubmit = async (data: CreateTeamFormData) => {
+    if (!data.name.trim()) return;
+    await onCreate(data.name.trim(), data.description.trim() || undefined);
+    reset({ name: '', description: '' });
+    onClose();
+  };
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="创建新团队"
+      title={t('createNewTeam')}
     >
       <form
-        onSubmit={handleSubmit}
+        onSubmit={handleSubmit(onSubmit)}
         className="space-y-4"
       >
         <label className="block text-sm">
           <span className="mb-1 block font-medium">
-            团队名称 <span className="text-destructive">*</span>
+            {t('teamName')} <span className="text-destructive">*</span>
           </span>
           <input
             type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="输入团队名称"
+            {...register('name')}
+            placeholder={t('teamNamePlaceholder')}
             className="w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             autoFocus
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">团队描述</span>
+          <span className="mb-1 block font-medium">{tc('description')}</span>
           <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="输入团队描述（可选）"
+            {...register('description')}
+            placeholder={t('teamDescriptionPlaceholder')}
             rows={3}
             className="w-full resize-none rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
           />
@@ -72,14 +75,14 @@ export function CreateTeamModal({ open, onClose, onCreate }: CreateTeamModalProp
             onClick={onClose}
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             type="submit"
             disabled={creating || !name.trim()}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {creating ? '创建中...' : '创建'}
+            {creating ? t('creating') : tc('create')}
           </button>
         </div>
       </form>

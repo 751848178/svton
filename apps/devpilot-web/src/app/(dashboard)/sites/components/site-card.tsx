@@ -1,5 +1,6 @@
 /** 站点卡片 - 单个站点的状态/操作/计划/运行记录。 */
 'use client';
+import { useTranslations } from 'next-intl';
 import type { Site } from '../types';
 import type { useSites } from '../hooks/use-sites';
 import { readRecord, readStringArray, readBoolean, readString } from '../utils';
@@ -21,6 +22,7 @@ import {
 } from '../utils-format';
 type SitesHook = ReturnType<typeof useSites>;
 export function SiteCard({ site, sites }: { site: Site; sites: SitesHook }) {
+  const t = useTranslations('sites');
   const plan = sites.plans[site.id];
   const recentRuns = sites.syncRuns[site.id] || [];
   const runtimeConfig = readRecord(site.runtimeConfig);
@@ -56,23 +58,25 @@ export function SiteCard({ site, sites }: { site: Site; sites: SitesHook }) {
           </div>
           <div className="font-mono text-sm">{site.primaryDomain}</div>
           {aliases.length > 0 && (
-            <div className="text-xs text-muted-foreground">别名：{aliases.join(', ')}</div>
+            <div className="text-xs text-muted-foreground">{t('aliasesLabel', { aliases: aliases.join(', ') })}</div>
           )}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span>项目：{site.project?.name || '未关联'}</span>
-            <span>环境：{site.environment?.name || '未绑定'}</span>
+            <span>{t('projectLabel', { name: site.project?.name || t('notLinked') })}</span>
+            <span>{t('environmentLabel', { name: site.environment?.name || t('notBound') })}</span>
             <span>
-              服务器：{site.server ? `${site.server.name} (${site.server.host})` : '未关联'}
+              {t('serverLabel', {
+                name: site.server ? `${site.server.name} (${site.server.host})` : t('notLinked'),
+              })}
             </span>
-            <span>上游：{describeRuntime(site.runtimeType, runtimeConfig)}</span>
+            <span>{t('upstreamLabel', { name: describeRuntime(site.runtimeType, runtimeConfig) })}</span>
           </div>
-          {tlsSummary && <div className="text-xs text-muted-foreground">证书：{tlsSummary}</div>}
+          {tlsSummary && <div className="text-xs text-muted-foreground">{t('certLabel', { name: tlsSummary })}</div>}
           {tlsRenewalSummary && (
-            <div className="text-xs text-muted-foreground">续期：{tlsRenewalSummary}</div>
+            <div className="text-xs text-muted-foreground">{t('renewalLabel', { name: tlsRenewalSummary })}</div>
           )}
           {site.proxyConfig && (
             <div className="text-xs text-muted-foreground">
-              关联代理配置：{site.proxyConfig.name} · {site.proxyConfig.domain}
+              {t('proxyConfigLabel', { name: site.proxyConfig.name, domain: site.proxyConfig.domain })}
             </div>
           )}
         </div>

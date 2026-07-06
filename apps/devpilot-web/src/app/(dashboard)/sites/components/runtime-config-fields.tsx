@@ -1,5 +1,7 @@
 /** 站点运行时配置字段 - 按 runtimeType 渲染 static/docker/runtime + TLS 配置。 */
+'use client';
 
+import { useTranslations } from 'next-intl';
 import type { ProxyConfig } from '../types';
 import type { AddSiteFormData } from './add-site-form.types';
 
@@ -14,11 +16,12 @@ export function RuntimeConfigFields({
   proxyConfigs,
   onChange,
 }: RuntimeConfigFieldsProps) {
+  const t = useTranslations('sites');
   return (
     <>
       {formData.runtimeType === 'static' ? (
         <div>
-          <label className="mb-1 block text-sm font-medium">静态目录</label>
+          <label className="mb-1 block text-sm font-medium">{t('staticDir')}</label>
           <input
             value={formData.rootPath}
             onChange={(event) => onChange({ rootPath: event.target.value })}
@@ -29,7 +32,7 @@ export function RuntimeConfigFields({
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium">上游地址</label>
+            <label className="mb-1 block text-sm font-medium">{t('upstreamAddress')}</label>
             <input
               value={formData.upstreamUrl}
               onChange={(event) => onChange({ upstreamUrl: event.target.value })}
@@ -39,7 +42,7 @@ export function RuntimeConfigFields({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-1 block text-sm font-medium">容器名</label>
+              <label className="mb-1 block text-sm font-medium">{t('containerName')}</label>
               <input
                 value={formData.containerName}
                 onChange={(event) => onChange({ containerName: event.target.value })}
@@ -48,7 +51,7 @@ export function RuntimeConfigFields({
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium">容器端口</label>
+              <label className="mb-1 block text-sm font-medium">{t('containerPort')}</label>
               <input
                 value={formData.containerPort}
                 onChange={(event) => onChange({ containerPort: event.target.value })}
@@ -62,13 +65,13 @@ export function RuntimeConfigFields({
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium">关联代理配置</label>
+          <label className="mb-1 block text-sm font-medium">{t('linkedProxyConfig')}</label>
           <select
             value={formData.proxyConfigId}
             onChange={(event) => onChange({ proxyConfigId: event.target.value })}
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="">不关联代理配置</option>
+            <option value="">{t('noProxyConfig')}</option>
             {(proxyConfigs || []).map((config) => (
               <option
                 key={config.id}
@@ -80,7 +83,7 @@ export function RuntimeConfigFields({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">允许 CIDR</label>
+          <label className="mb-1 block text-sm font-medium">{t('allowedCidr')}</label>
           <input
             value={formData.allowedCidrs}
             onChange={(event) => onChange({ allowedCidrs: event.target.value })}
@@ -107,7 +110,7 @@ export function RuntimeConfigFields({
             onChange={(event) => onChange({ tlsEnabled: event.target.checked })}
             className="rounded"
           />
-          启用 TLS
+          {t('enableTls')}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -123,18 +126,18 @@ export function RuntimeConfigFields({
       {formData.tlsEnabled && (
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium">证书类型</label>
+            <label className="mb-1 block text-sm font-medium">{t('certType')}</label>
             <select
               value={formData.tlsType}
               onChange={(event) => onChange({ tlsType: event.target.value })}
               className="w-full rounded-md border px-3 py-2"
             >
               <option value="letsencrypt">Let&apos;s Encrypt</option>
-              <option value="custom">自定义证书</option>
+              <option value="custom">{t('customCert')}</option>
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">证书邮箱</label>
+            <label className="mb-1 block text-sm font-medium">{t('certEmail')}</label>
             <input
               value={formData.tlsEmail}
               onChange={(event) => onChange({ tlsEmail: event.target.value })}

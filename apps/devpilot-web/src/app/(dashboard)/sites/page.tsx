@@ -2,6 +2,7 @@
 
 import { Suspense as ReactSuspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
 import { useSites } from './hooks/use-sites';
@@ -16,6 +17,8 @@ const Suspense = ReactSuspense as unknown as (props: {
 }) => JSX.Element;
 
 function SitesContent() {
+  const t = useTranslations('sites');
+  const tc = useTranslations('common');
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') || '';
   const environmentId = searchParams.get('environmentId') || '';
@@ -26,8 +29,8 @@ function SitesContent() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="站点管控"
-        description="以站点维度管理域名、运行时、TLS、访问策略和同步计划"
+        title={t('pageManageTitle')}
+        description={t('pageManageDescription')}
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -36,13 +39,13 @@ function SitesContent() {
                 checked={sites.queueSiteRuns}
                 onChange={(e) => sites.setQueueSiteRuns(e.target.checked)}
               />
-              站点操作加入队列
+              {t('queueSiteOps')}
             </label>
             <button
               onClick={() => sites.setShowModal(true)}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              + 添加站点
+              {t('addSitePrefixed')}
             </button>
           </div>
         }
@@ -50,24 +53,24 @@ function SitesContent() {
 
       {projectId || environmentId ? (
         <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-          当前按项目/环境筛选站点。清除浏览器地址中的 projectId 和 environmentId 可查看全部站点。
+          {t('filterHint')}
         </div>
       ) : null}
 
       {!sites.loading && siteId && !sites.focusedSite && sites.sites.length > 0 ? (
         <div className="rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
-          链接中的站点不在当前筛选结果内，请确认项目/环境筛选条件是否匹配。
+          {t('siteNotInFilter')}
         </div>
       ) : null}
 
       {!sites.loading && sites.focusedSite ? <FocusedSitePanel sites={sites} /> : null}
 
       {sites.loading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : sites.sites.length === 0 ? (
         <EmptyState
-          text="暂无站点"
-          description="添加站点来管理域名、运行时与同步计划"
+          text={t('noSites')}
+          description={t('noSitesDescription')}
         />
       ) : (
         <SiteListSection sites={sites} />
@@ -93,8 +96,9 @@ function SitesContent() {
 }
 
 export default function SitesPage() {
+  const tc = useTranslations('common');
   return (
-    <Suspense fallback={<LoadingState text="加载中..." />}>
+    <Suspense fallback={<LoadingState text={tc('loading')} />}>
       <SitesContent />
     </Suspense>
   );

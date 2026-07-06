@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
@@ -20,6 +21,8 @@ export function ResourcesContent({
   initialResources?: Resource[];
   initialResourceTypes?: ResourceType[];
 }) {
+  const t = useTranslations('resources');
+  const tc = useTranslations('common');
   const { resources, resourceTypes, resourceTypeMap, isLoading, create, remove } = useResources(
     initialResources,
     initialResourceTypes,
@@ -27,7 +30,7 @@ export function ResourcesContent({
   const [modalOpen, { setTrue: openModal, setFalse: closeModal }] = useBoolean(false);
 
   const handleDelete = usePersistFn(async (id: string) => {
-    if (!confirm('确定要删除这个资源吗？')) return;
+    if (!confirm(t('deleteConfirm'))) return;
     await remove(id);
   });
 
@@ -35,27 +38,27 @@ export function ResourcesContent({
     <div className="mx-auto max-w-4xl">
       <div className="mb-8">
         <PageHeader
-          title="资源管理"
-          description="管理你的数据库、缓存、存储等资源凭证"
+          title={t('pageTitle')}
+          description={t('pageDescription')}
           actions={
             <button
               onClick={openModal}
               className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              添加资源
+              {t('addResource')}
             </button>
           }
         />
       </div>
 
       {isLoading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : resources.length === 0 ? (
         <EmptyState
-          text="还没有添加任何资源"
+          text={t('noResources')}
           action={
             <button onClick={openModal} className="text-primary hover:underline">
-              添加第一个资源
+              {t('addFirst')}
             </button>
           }
         />
@@ -76,7 +79,7 @@ export function ResourcesContent({
                 onClick={() => handleDelete(resource.id)}
                 className="rounded px-3 py-1 text-sm text-destructive transition-colors hover:bg-destructive/10"
               >
-                删除
+                {tc('delete')}
               </button>
             </div>
           ))}

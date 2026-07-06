@@ -4,6 +4,9 @@
  * 单一职责：渲染基本信息（可编辑）、已安装服务、关联代理配置、操作面板。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
 import type { Server } from '../types';
 
@@ -30,18 +33,20 @@ export function ServerDetailView({
   onSave,
   onDetect,
 }: ServerDetailViewProps) {
+  const t = useTranslations('servers');
+  const tc = useTranslations('common');
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
         <div className="rounded-lg border p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold">基本信息</h2>
+            <h2 className="font-semibold">{t('basicInfo')}</h2>
             {!editing ? (
               <button
                 onClick={onStartEdit}
                 className="text-sm text-primary hover:underline"
               >
-                编辑
+                {tc('edit')}
               </button>
             ) : (
               <div className="flex gap-2">
@@ -49,13 +54,13 @@ export function ServerDetailView({
                   onClick={onCancelEdit}
                   className="text-sm text-muted-foreground hover:underline"
                 >
-                  取消
+                  {tc('cancel')}
                 </button>
                 <button
                   onClick={onSave}
                   className="text-sm text-primary hover:underline"
                 >
-                  保存
+                  {tc('save')}
                 </button>
               </div>
             )}
@@ -64,7 +69,7 @@ export function ServerDetailView({
           {editing ? (
             <div className="space-y-4">
               <label className="block text-sm">
-                <span className="mb-1 block font-medium">名称</span>
+                <span className="mb-1 block font-medium">{tc('name')}</span>
                 <input
                   value={editForm.name}
                   onChange={(e) => onEditFormChange({ name: e.target.value })}
@@ -72,7 +77,7 @@ export function ServerDetailView({
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block font-medium">标签（逗号分隔）</span>
+                <span className="mb-1 block font-medium">{t('tagsCommaSeparated')}</span>
                 <input
                   value={editForm.tags}
                   onChange={(e) => onEditFormChange({ tags: e.target.value })}
@@ -82,20 +87,20 @@ export function ServerDetailView({
             </div>
           ) : (
             <dl className="grid grid-cols-2 gap-4 text-sm">
-              <Field label="主机">
+              <Field label={t('host')}>
                 <dd className="font-mono">{server.host}</dd>
               </Field>
-              <Field label="端口">
+              <Field label={t('port')}>
                 <dd>{server.port}</dd>
               </Field>
-              <Field label="用户名">
+              <Field label={t('username')}>
                 <dd>{server.username}</dd>
               </Field>
-              <Field label="认证方式">
-                <dd>{server.authType === 'password' ? '密码' : 'SSH 密钥'}</dd>
+              <Field label={t('authType')}>
+                <dd>{server.authType === 'password' ? t('passwordAuth') : t('keyAuth')}</dd>
               </Field>
               <div className="col-span-2">
-                <dt className="text-muted-foreground">标签</dt>
+                <dt className="text-muted-foreground">{t('tags')}</dt>
                 <dd className="mt-1 flex gap-1">
                   {server.tags && server.tags.length > 0 ? (
                     server.tags.map((tag, i) => (
@@ -107,7 +112,7 @@ export function ServerDetailView({
                       </Tag>
                     ))
                   ) : (
-                    <span className="text-muted-foreground">无</span>
+                    <span className="text-muted-foreground">{t('none')}</span>
                   )}
                 </dd>
               </div>
@@ -123,7 +128,7 @@ export function ServerDetailView({
 
         {server.proxyConfigs && server.proxyConfigs.length > 0 ? (
           <div className="rounded-lg border p-6">
-            <h2 className="mb-4 font-semibold">关联的代理配置</h2>
+            <h2 className="mb-4 font-semibold">{t('associatedProxyConfigs')}</h2>
             <div className="space-y-2">
               {server.proxyConfigs.map((config) => (
                 <div
@@ -154,17 +159,18 @@ function ServicesGrid({
   detecting: boolean;
   onDetect: () => void;
 }) {
+  const t = useTranslations('servers');
   const entries = Object.entries(server.services || {});
   return (
     <div className="rounded-lg border p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-semibold">已安装服务</h2>
+        <h2 className="font-semibold">{t('installedServices')}</h2>
         <button
           onClick={onDetect}
           disabled={detecting}
           className="text-sm text-primary hover:underline disabled:opacity-50"
         >
-          {detecting ? '检测中...' : '重新检测'}
+          {detecting ? t('detecting') : t('redetect')}
         </button>
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -179,7 +185,7 @@ function ServicesGrid({
         ))}
         {entries.length === 0 ? (
           <p className="col-span-3 text-sm text-muted-foreground">
-            点击“重新检测”来检测服务器上安装的服务
+            {t('detectHint')}
           </p>
         ) : null}
       </div>

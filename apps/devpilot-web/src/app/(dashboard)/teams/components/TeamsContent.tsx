@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, Modal } from '@/components/ui';
@@ -17,6 +18,8 @@ import type { Team } from '@/store/hooks';
  */
 export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
   const router = useRouter();
+  const t = useTranslations('teams');
+  const tc = useTranslations('common');
   const { teams, loading, create, remove } = useTeams(initialTeams);
   const [error, setError] = useState('');
   const [createOpen, { setTrue: openCreate, setFalse: closeCreate }] = useBoolean(false);
@@ -29,7 +32,7 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
     try {
       await create(name, description);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '创建团队失败');
+      setError(err instanceof Error ? err.message : t('createFailed'));
       throw err;
     }
   });
@@ -41,7 +44,7 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
       await remove(deleteTarget);
       setDeleteTarget(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '删除团队失败');
+      setError(err instanceof Error ? err.message : t('deleteFailed'));
     }
   });
 
@@ -49,14 +52,14 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
     <div className="mx-auto max-w-4xl">
       <div className="mb-6">
         <PageHeader
-          title="团队管理"
-          description="管理您的团队和成员"
+          title={t('pageTitle')}
+          description={t('pageDescription')}
           actions={
             <button
               onClick={openCreate}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              + 创建团队
+              + {t('createTeam')}
             </button>
           }
         />
@@ -67,22 +70,22 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
           message={error}
           variant="inline"
           onRetry={clearError}
-          retryLabel="关闭"
+          retryLabel={tc('close')}
         />
       ) : null}
 
       {loading && teams.length === 0 ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : teams.length === 0 ? (
         <EmptyState
-          text="还没有团队"
-          description="创建一个团队来开始协作"
+          text={t('noTeams')}
+          description={t('createTeamHint')}
           action={
             <button
               onClick={openCreate}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              创建第一个团队
+              {t('createFirstTeam')}
             </button>
           }
         />
@@ -108,24 +111,24 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
       <Modal
         open={Boolean(deleteTarget)}
         onClose={() => setDeleteTarget(null)}
-        title="确认删除"
+        title={t('confirmDelete')}
         width={400}
       >
         <p className="text-muted-foreground">
-          确定要删除这个团队吗？此操作不可撤销，团队下的所有资源将被删除。
+          {t('deleteTeamModalText')}
         </p>
         <div className="mt-6 flex justify-end gap-2">
           <button
             onClick={() => setDeleteTarget(null)}
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             onClick={handleDelete}
             className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
           >
-            删除
+            {tc('delete')}
           </button>
         </div>
       </Modal>

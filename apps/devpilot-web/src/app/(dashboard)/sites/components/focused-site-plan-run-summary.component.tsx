@@ -1,5 +1,7 @@
 /** Focused Site plan preview and recent run summary. */
+'use client';
 
+import { useTranslations } from 'next-intl';
 import type { SiteSyncPlan, SiteSyncRun } from '../types';
 import { formatDateTime, getRunModeLabel, getStatusClass, getStatusLabel } from '../utils-format';
 
@@ -9,6 +11,7 @@ interface FocusedSitePlanRunSummaryProps {
 }
 
 export function FocusedSitePlanRunSummary({ plan, recentRuns }: FocusedSitePlanRunSummaryProps) {
+  const t = useTranslations('sites');
   if (!plan && recentRuns.length === 0) return null;
 
   return (
@@ -40,7 +43,7 @@ export function FocusedSitePlanRunSummary({ plan, recentRuns }: FocusedSitePlanR
               >
                 <div className="text-xs font-medium">{step.label}</div>
                 <code className="mt-1 block break-all text-xs text-muted-foreground">
-                  {step.command || '当前配置下无需命令'}
+                  {step.command || t('noCommandNeeded')}
                 </code>
               </div>
             ))}
@@ -49,7 +52,7 @@ export function FocusedSitePlanRunSummary({ plan, recentRuns }: FocusedSitePlanR
       )}
       {recentRuns.length > 0 && (
         <div className="rounded-md border bg-background p-3">
-          <div className="mb-2 text-xs font-medium">最近执行记录</div>
+          <div className="mb-2 text-xs font-medium">{t('recentRuns')}</div>
           <div className="space-y-2">
             {recentRuns.slice(0, 3).map((run) => (
               <div

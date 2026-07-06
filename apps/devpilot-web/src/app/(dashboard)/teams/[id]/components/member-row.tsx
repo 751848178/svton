@@ -4,6 +4,9 @@
  * 单一职责：渲染单个成员 + 角色（可编辑）+ 移除操作。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
 import Image from 'next/image';
@@ -16,16 +19,18 @@ interface MemberRowProps {
   onRemove: (memberId: string) => void;
 }
 
-const ROLE_TAG: Record<string, { color: 'purple' | 'blue' | 'default'; label: string }> = {
-  owner: { color: 'purple', label: '所有者' },
-  admin: { color: 'blue', label: '管理员' },
-  member: { color: 'default', label: '成员' },
+const ROLE_COLOR: Record<string, 'purple' | 'blue' | 'default'> = {
+  owner: 'purple',
+  admin: 'blue',
+  member: 'default',
 };
 
 export function MemberRow({ member, canManage, onUpdateRole, onRemove }: MemberRowProps) {
+  const t = useTranslations('teams');
   const handleRoleChange = usePersistFn((role: MemberRole) => onUpdateRole(member.id, role));
   const handleRemove = usePersistFn(() => onRemove(member.id));
-  const roleInfo = ROLE_TAG[member.role] || ROLE_TAG.member;
+  const roleColor = ROLE_COLOR[member.role] || 'default';
+  const roleLabel = t(member.role);
   const initial = (member.user.name || member.user.email)[0].toUpperCase();
 
   return (
@@ -57,11 +62,11 @@ export function MemberRow({ member, canManage, onUpdateRole, onRemove }: MemberR
             onChange={(e) => handleRoleChange(e.target.value as MemberRole)}
             className="rounded-md border px-2 py-1 text-sm"
           >
-            <option value="admin">管理员</option>
-            <option value="member">成员</option>
+            <option value="admin">{t('admin')}</option>
+            <option value="member">{t('member')}</option>
           </select>
         ) : (
-          <Tag color={roleInfo.color}>{roleInfo.label}</Tag>
+          <Tag color={roleColor}>{roleLabel}</Tag>
         )}
         {canManage && member.role !== 'owner' ? (
           <button

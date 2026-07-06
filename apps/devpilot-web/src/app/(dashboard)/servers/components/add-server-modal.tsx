@@ -2,10 +2,13 @@
  * 添加服务器弹窗
  *
  * 单一职责：收集服务器字段（含密码/密钥切换）并提交。
+ * react-hook-form 样板：取代手写 useSetState + useState + 受控 onChange。
  */
 
-import { useState } from 'react';
-import { useSetState, usePersistFn } from '@svton/hooks';
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import { Modal, ErrorBanner } from '@/components/ui';
 import type { ServerInput } from '../types';
 
@@ -26,48 +29,48 @@ interface ServerForm {
 }
 
 export function AddServerModal({ open, onClose, onCreate }: AddServerModalProps) {
-  const [form, setForm] = useSetState<ServerForm>({
-    name: '',
-    host: '',
-    port: 22,
-    username: 'root',
-    authType: 'password',
-    credentials: '',
-    tags: '',
+  const t = useTranslations('servers');
+  const tc = useTranslations('common');
+  const { register, handleSubmit, watch, setError, formState } = useForm<ServerForm>({
+    defaultValues: {
+      name: '',
+      host: '',
+      port: 22,
+      username: 'root',
+      authType: 'password',
+      credentials: '',
+      tags: '',
+    },
   });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const saving = formState.isSubmitting;
+  const error = (formState.errors.root as { message?: string } | undefined)?.message || '';
+  const authType = watch('authType');
 
-  const handleSubmit = usePersistFn(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSaving(true);
+  const onSubmit = async (data: ServerForm) => {
     try {
       await onCreate({
-        name: form.name,
-        host: form.host,
-        port: Number(form.port),
-        username: form.username,
-        authType: form.authType,
-        credentials: form.credentials,
-        tags: form.tags ? form.tags.split(',').map((t) => t.trim()) : [],
+        name: data.name,
+        host: data.host,
+        port: Number(data.port),
+        username: data.username,
+        authType: data.authType,
+        credentials: data.credentials,
+        tags: data.tags ? data.tags.split(',').map((t) => t.trim()) : [],
       });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '添加失败');
-    } finally {
-      setSaving(false);
+      setError('root', { message: err instanceof Error ? err.message : t('addFailed') });
     }
-  });
+  };
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="添加服务器"
+      title={t('addServer')}
     >
       <form
-        onSubmit={handleSubmit}
+        onSubmit={handleSubmit(onSubmit)}
         className="space-y-4"
       >
         {error ? (
@@ -77,72 +80,65 @@ export function AddServerModal({ open, onClose, onCreate }: AddServerModalProps)
           />
         ) : null}
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">服务器名称</span>
+          <span className="mb-1 block font-medium">{t('serverName')}</span>
           <input
-            value={form.name}
-            onChange={(e) => setForm({ name: e.target.value })}
+            {...register('name')}
             required
             className="w-full rounded-md border px-3 py-2"
-            placeholder="生产服务器"
+            placeholder={t('serverNamePlaceholder')}
           />
         </label>
         <div className="grid grid-cols-3 gap-2">
           <label className="col-span-2 block text-sm">
-            <span className="mb-1 block font-medium">主机地址</span>
+            <span className="mb-1 block font-medium">{t('host')}</span>
             <input
-              value={form.host}
-              onChange={(e) => setForm({ host: e.target.value })}
+              {...register('host')}
               required
               className="w-full rounded-md border px-3 py-2"
               placeholder="192.168.1.1"
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">端口</span>
+            <span className="mb-1 block font-medium">{t('port')}</span>
             <input
               type="number"
-              value={form.port}
-              onChange={(e) => setForm({ port: Number(e.target.value) })}
+              {...register('port', { valueAsNumber: true })}
               className="w-full rounded-md border px-3 py-2"
             />
           </label>
         </div>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">用户名</span>
+          <span className="mb-1 block font-medium">{t('username')}</span>
           <input
-            value={form.username}
-            onChange={(e) => setForm({ username: e.target.value })}
+            {...register('username')}
             required
             className="w-full rounded-md border px-3 py-2"
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">认证方式</span>
+          <span className="mb-1 block font-medium">{t('authType')}</span>
           <select
-            value={form.authType}
-            onChange={(e) => setForm({ authType: e.target.value as 'password' | 'key' })}
+            {...register('authType')}
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="password">密码</option>
-            <option value="key">SSH 私钥</option>
+            <option value="password">{t('passwordAuth')}</option>
+            <option value="key">{t('sshPrivateKey')}</option>
           </select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">
-            {form.authType === 'password' ? '密码' : 'SSH 私钥'}
+            {authType === 'password' ? t('password') : t('sshPrivateKey')}
           </span>
-          {form.authType === 'password' ? (
+          {authType === 'password' ? (
             <input
               type="password"
-              value={form.credentials}
-              onChange={(e) => setForm({ credentials: e.target.value })}
+              {...register('credentials')}
               required
               className="w-full rounded-md border px-3 py-2"
             />
           ) : (
             <textarea
-              value={form.credentials}
-              onChange={(e) => setForm({ credentials: e.target.value })}
+              {...register('credentials')}
               required
               rows={4}
               className="w-full rounded-md border px-3 py-2 font-mono text-xs"
@@ -151,10 +147,9 @@ export function AddServerModal({ open, onClose, onCreate }: AddServerModalProps)
           )}
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">标签（逗号分隔）</span>
+          <span className="mb-1 block font-medium">{t('tagsCommaSeparated')}</span>
           <input
-            value={form.tags}
-            onChange={(e) => setForm({ tags: e.target.value })}
+            {...register('tags')}
             className="w-full rounded-md border px-3 py-2"
             placeholder="production, web"
           />
@@ -165,14 +160,14 @@ export function AddServerModal({ open, onClose, onCreate }: AddServerModalProps)
             onClick={onClose}
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             type="submit"
             disabled={saving}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {saving ? '添加中...' : '添加'}
+            {saving ? t('adding') : tc('add')}
           </button>
         </div>
       </form>

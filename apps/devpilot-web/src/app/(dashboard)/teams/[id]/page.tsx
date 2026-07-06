@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState, Tabs } from '@svton/ui';
 import { ErrorBanner } from '@/components/ui';
@@ -12,6 +13,8 @@ import { AddMemberModal } from './components/add-member-modal';
 export default function TeamDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const t = useTranslations('teams');
+  const tc = useTranslations('common');
   const teamId = params.id as string;
   const {
     currentTeamDetail,
@@ -45,7 +48,7 @@ export default function TeamDetailPage() {
     await addMember(teamId, email, role);
   });
   const handleRemoveMember = usePersistFn(async (memberId: string) => {
-    if (!confirm('确定要移除这个成员吗？')) return;
+    if (!confirm(t('removeMemberConfirm'))) return;
     await removeMember(teamId, memberId);
   });
   const handleUpdateRole = usePersistFn(async (memberId: string, role: MemberRole) => {
@@ -71,18 +74,18 @@ export default function TeamDetailPage() {
   const canManageMembers = myRole === 'owner' || myRole === 'admin';
   const canEditSettings = myRole === 'owner';
 
-  if (isLoading && !currentTeamDetail) return <LoadingState text="加载中..." />;
+  if (isLoading && !currentTeamDetail) return <LoadingState text={tc('loading')} />;
 
   if (!currentTeamDetail) {
     return (
       <EmptyState
-        text="团队不存在或无权访问"
+        text={t('teamNotFound')}
         action={
           <button
             onClick={() => router.push('/teams')}
             className="text-primary hover:underline"
           >
-            返回团队列表
+            {t('backToTeams')}
           </button>
         }
       />
@@ -92,17 +95,17 @@ export default function TeamDetailPage() {
   const tabs = [
     {
       key: 'members',
-      label: '成员管理',
+      label: t('memberManagement'),
       children: (
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-medium">团队成员 ({currentTeamDetail.members.length})</h2>
+            <h2 className="text-lg font-medium">{t('teamMembersCount', { count: currentTeamDetail.members.length })}</h2>
             {canManageMembers ? (
               <button
                 onClick={() => setModalOpen(true)}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
-                + 添加成员
+                + {t('addMember')}
               </button>
             ) : null}
           </div>
@@ -122,7 +125,7 @@ export default function TeamDetailPage() {
     },
     {
       key: 'settings',
-      label: '团队设置',
+      label: t('teamSettings'),
       children: (
         <div>
           <form
@@ -130,7 +133,7 @@ export default function TeamDetailPage() {
             className="space-y-4"
           >
             <label className="block text-sm">
-              <span className="mb-1 block font-medium">团队名称</span>
+              <span className="mb-1 block font-medium">{t('teamName')}</span>
               <input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
@@ -139,7 +142,7 @@ export default function TeamDetailPage() {
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block font-medium">团队描述</span>
+              <span className="mb-1 block font-medium">{tc('description')}</span>
               <textarea
                 value={editDesc}
                 onChange={(e) => setEditDesc(e.target.value)}
@@ -154,23 +157,23 @@ export default function TeamDetailPage() {
                 disabled={saving || !editName.trim()}
                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                {saving ? '保存中...' : '保存更改'}
+                {saving ? t('saving') : t('saveChanges')}
               </button>
             ) : null}
           </form>
           {canEditSettings ? (
             <div className="mt-8 border-t pt-8">
-              <h3 className="mb-2 text-lg font-medium text-destructive">危险区域</h3>
+              <h3 className="mb-2 text-lg font-medium text-destructive">{t('dangerZone')}</h3>
               <p className="mb-4 text-sm text-muted-foreground">
-                删除团队将永久删除所有相关数据，此操作不可撤销。
+                {t('deleteTeamWarning')}
               </p>
               <button
                 onClick={() => {
-                  if (confirm('确定要删除这个团队吗？此操作不可撤销。')) router.push('/teams');
+                  if (confirm(t('deleteTeamConfirm'))) router.push('/teams');
                 }}
                 className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
               >
-                删除团队
+                {t('deleteTeam')}
               </button>
             </div>
           ) : null}
@@ -196,7 +199,7 @@ export default function TeamDetailPage() {
           message={error}
           variant="inline"
           onRetry={clearError}
-          retryLabel="关闭"
+          retryLabel={tc('close')}
         />
       ) : null}
 

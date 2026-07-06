@@ -1,5 +1,7 @@
 /** Site card action buttons. */
+'use client';
 
+import { useTranslations } from 'next-intl';
 import type { useSites } from '../hooks/use-sites';
 import type { Site } from '../types';
 
@@ -15,6 +17,8 @@ const actionButtonClass =
   'rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50';
 
 export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsProps) {
+  const t = useTranslations('sites');
+  const tc = useTranslations('common');
   return (
     <div className="flex items-center gap-2">
       <button
@@ -24,11 +28,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
       >
         {sites.planningId === site.id
           ? sites.queueSiteRuns
-            ? '入队中...'
-            : '生成中...'
+            ? t('enqueuing')
+            : t('generating')
           : sites.queueSiteRuns
-            ? '计划入队'
-            : '同步计划'}
+            ? t('planEnqueue')
+            : t('syncPlan')}
       </button>
       <button
         onClick={() => sites.handleSyncLive(site)}
@@ -37,11 +41,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
       >
         {sites.syncingId === site.id
           ? sites.queueSiteRuns
-            ? '申请入队中...'
-            : '申请中...'
+            ? t('requestEnqueuing')
+            : t('requesting')
           : sites.queueSiteRuns
-            ? '申请同步入队'
-            : '申请同步'}
+            ? t('requestSyncEnqueue')
+            : t('requestSync')}
       </button>
       <button
         onClick={() => sites.handleDiagnostics(site)}
@@ -50,11 +54,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
       >
         {sites.diagnosingId === site.id
           ? sites.queueSiteRuns
-            ? '诊断入队中...'
-            : '诊断中...'
+            ? t('diagEnqueuing')
+            : t('diagnosing')
           : sites.queueSiteRuns
-            ? '诊断入队'
-            : '诊断'}
+            ? t('diagEnqueue')
+            : t('diagnose')}
       </button>
       <button
         onClick={() => sites.handleOpenRestyStatus(site)}
@@ -63,11 +67,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
       >
         {sites.probingRuntimeId === site.id
           ? sites.queueSiteRuns
-            ? '状态入队中...'
-            : '探测中...'
+            ? t('statusEnqueuing')
+            : t('probing')
           : sites.queueSiteRuns
-            ? '状态入队'
-            : 'OpenResty 状态'}
+            ? t('statusEnqueue')
+            : t('openrestyStatus')}
       </button>
       <button
         onClick={() => sites.handleOpenRestyModules(site)}
@@ -76,11 +80,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
       >
         {sites.probingModulesId === site.id
           ? sites.queueSiteRuns
-            ? '模块入队中...'
-            : '盘点中...'
+            ? t('modulesEnqueuing')
+            : t('inventorying')
           : sites.queueSiteRuns
-            ? '模块入队'
-            : 'OpenResty 模块'}
+            ? t('modulesEnqueue')
+            : t('openrestyModules')}
       </button>
       <button
         onClick={() => sites.handleOpenRestyModuleBaseline(site)}
@@ -89,11 +93,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
       >
         {sites.checkingModuleBaselineId === site.id
           ? sites.queueSiteRuns
-            ? '基线入队中...'
-            : '检查中...'
+            ? t('baselineEnqueuing')
+            : t('checking')
           : sites.queueSiteRuns
-            ? '基线入队'
-            : '模块基线'}
+            ? t('baselineEnqueue')
+            : t('moduleBaseline')}
       </button>
       <button
         onClick={() => sites.handleSmokeCheck(site)}
@@ -102,11 +106,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
       >
         {sites.smokingId === site.id
           ? sites.queueSiteRuns
-            ? '检查入队中...'
-            : '检查中...'
+            ? t('checkEnqueuing')
+            : t('checking')
           : sites.queueSiteRuns
-            ? 'Smoke 入队'
-            : 'Smoke 检查'}
+            ? t('smokeEnqueue')
+            : t('smokeCheck')}
       </button>
       <button
         onClick={() => sites.handleTlsProbe(site)}
@@ -115,11 +119,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
       >
         {sites.probingTlsId === site.id
           ? sites.queueSiteRuns
-            ? '探测入队中...'
-            : '探测中...'
+            ? t('probeEnqueuing')
+            : t('probing')
           : sites.queueSiteRuns
-            ? '证书探测入队'
-            : '证书探测'}
+            ? t('certProbeEnqueue')
+            : t('certProbe')}
       </button>
       {canRenewTls && (
         <>
@@ -130,11 +134,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
           >
             {sites.renewingTlsId === site.id
               ? sites.queueSiteRuns
-                ? '演练入队中...'
-                : '演练中...'
+                ? t('drillEnqueuing')
+                : t('drilling')
               : sites.queueSiteRuns
-                ? '续期演练入队'
-                : '续期演练'}
+                ? t('renewDrillEnqueue')
+                : t('renewDrill')}
           </button>
           <button
             onClick={() => sites.handleTlsRenew(site, false)}
@@ -143,11 +147,11 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
           >
             {sites.renewingTlsId === site.id
               ? sites.queueSiteRuns
-                ? '申请入队中...'
-                : '申请中...'
+                ? t('requestEnqueuing')
+                : t('requesting')
               : sites.queueSiteRuns
-                ? '申请续期入队'
-                : '申请续期'}
+                ? t('requestRenewEnqueue')
+                : t('requestRenew')}
           </button>
         </>
       )}
@@ -155,7 +159,7 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
         onClick={() => sites.handleDelete(site.id)}
         className="rounded-md px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10"
       >
-        删除
+        {tc('delete')}
       </button>
     </div>
   );

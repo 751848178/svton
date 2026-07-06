@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
@@ -10,6 +11,8 @@ import { ServerDetailView } from './components/server-detail-view';
 export default function ServerDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const t = useTranslations('servers');
+  const tc = useTranslations('common');
   const serverId = params.id as string;
   const {
     server,
@@ -27,23 +30,23 @@ export default function ServerDetailPage() {
   } = useServerDetail(serverId);
 
   const handleDelete = usePersistFn(async () => {
-    if (!confirm('确定要删除这个服务器吗？关联的代理配置也会被删除。')) return;
+    if (!confirm(t('deleteServerConfirm'))) return;
     await remove();
     router.push('/servers');
   });
 
-  if (loading) return <LoadingState text="加载中..." />;
+  if (loading) return <LoadingState text={tc('loading')} />;
 
   if (!server) {
     return (
       <EmptyState
-        text="服务器不存在"
+        text={t('serverNotFound')}
         action={
           <button
             onClick={() => router.push('/servers')}
             className="text-primary hover:underline"
           >
-            返回列表
+            {t('backToList')}
           </button>
         }
       />
@@ -78,30 +81,30 @@ export default function ServerDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-start-3">
           <div className="rounded-lg border p-6">
-            <h2 className="mb-4 font-semibold">操作</h2>
+            <h2 className="mb-4 font-semibold">{tc('actions')}</h2>
             <div className="space-y-2">
               <button
                 onClick={testConnection}
                 disabled={testing}
                 className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                {testing ? '测试中...' : '测试连接'}
+                {testing ? t('testing') : t('testConnection')}
               </button>
               <button
                 onClick={() => router.push(`/proxy-configs/new?serverId=${server.id}`)}
                 className="w-full rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
               >
-                添加代理配置
+                {t('addProxyConfig')}
               </button>
             </div>
           </div>
           <div className="rounded-lg border border-destructive/50 p-6">
-            <h2 className="mb-4 font-semibold text-destructive">危险操作</h2>
+            <h2 className="mb-4 font-semibold text-destructive">{t('dangerZone')}</h2>
             <button
               onClick={handleDelete}
               className="w-full rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
             >
-              删除服务器
+              {t('deleteServer')}
             </button>
           </div>
         </div>

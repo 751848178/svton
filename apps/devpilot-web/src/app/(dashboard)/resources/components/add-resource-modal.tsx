@@ -2,11 +2,19 @@
  * 添加资源弹窗
  *
  * 单一职责：根据所选资源类型动态渲染字段表单并提交。
- * 使用 @svton/ui Modal + useSetState 管理动态 config。
+ * 使用 @svton/ui Modal。
+ *
+ * react-hook-form 样板：静态字段（type/name）走 useForm；
+ * 动态资源属性字段（key 来自所选 resourceType，运行时变化）用一个受控 map 维护，
+ * 因为 react-hook-form 的 register 难以处理运行时才知道 key 的字段集合。
  */
 
-import { useEffect, useMemo, useState } from 'react';
-import { usePersistFn, useSetState } from '@svton/hooks';
+'use client';
+
+import { useEffect, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
+import { useSetState } from '@svton/hooks';
 import { Modal } from '@/components/ui';
 import type { ResourceType, ResourceInput } from '../types';
 
@@ -17,87 +25,102 @@ interface AddResourceModalProps {
   onCreate: (input: ResourceInput) => Promise<void>;
 }
 
+interface AddResourceFormData {
+  type: string;
+  name: string;
+}
+
 export function AddResourceModal({
   open,
   resourceTypes,
   onClose,
   onCreate,
 }: AddResourceModalProps) {
-  const [type, setType] = useState(resourceTypes[0]?.id || '');
-  const [name, setName] = useState('');
-  const [config, setConfig] = useSetState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const t = useTranslations('resources');
+  const tc = useTranslations('common');
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState,
+  } = useForm<AddResourceFormData>({
+    defaultValues: {
+      type: resourceTypes[0]?.id || '',
+      name: '',
+    },
+  });
 
+  // 动态字段：key 随所选 resourceType 变化，无法静态 register；用单一受控 map 管理。
+  const [config, setConfig] = useSetState<Record<string, string>>({});
+
+  const type = watch('type');
   const selectedType = useMemo(
-    () => resourceTypes.find((t) => t.id === type),
+    () => resourceTypes.find((option) => option.id === type),
     [resourceTypes, type],
   );
 
   useEffect(() => {
-    if (!type && resourceTypes[0]) setType(resourceTypes[0].id);
-  }, [resourceTypes, type]);
+    if (!type && resourceTypes[0]) setValue('type', resourceTypes[0].id);
+  }, [resourceTypes, type, setValue]);
 
-  const handleSubmit = usePersistFn(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+  const submit = handleSubmit(async (data) => {
     try {
-      await onCreate({ type, name, config });
+      await onCreate({ type: data.type, name: data.name, config });
       onClose();
-      setName('');
+      reset({ type: data.type, name: '' });
       setConfig({});
     } catch (error) {
       console.error('Failed to create resource:', error);
-      alert('创建资源失败');
-    } finally {
-      setIsSubmitting(false);
+      alert(t('createFailed'));
     }
   });
 
-  const handleTypeChange = usePersistFn((value: string) => {
-    setType(value);
+  const handleTypeChange = (value: string) => {
+    setValue('type', value);
     setConfig({});
-  });
+  };
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="添加资源"
+      title={t('addResource')}
     >
       {resourceTypes.length === 0 ? (
-        <div className="text-sm text-muted-foreground">暂无可用资源类型</div>
+        <div className="text-sm text-muted-foreground">{t('noResourceTypes')}</div>
       ) : (
         <form
-          onSubmit={handleSubmit}
+          onSubmit={submit}
           className="space-y-4"
         >
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">资源类型</span>
+            <span className="mb-1 block font-medium">{t('resourceType')}</span>
             <select
-              value={type}
+              {...register('type')}
               onChange={(e) => handleTypeChange(e.target.value)}
               className="w-full rounded-md border bg-background px-3 py-2"
             >
-              {resourceTypes.map((t) => (
+              {resourceTypes.map((option) => (
                 <option
-                  key={t.id}
-                  value={t.id}
+                  key={option.id}
+                  value={option.id}
                 >
-                  {t.name}
+                  {option.name}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">资源名称</span>
+            <span className="mb-1 block font-medium">{t('resourceName')}</span>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              {...register('name', { required: true })}
               required
               className="w-full rounded-md border bg-background px-3 py-2"
-              placeholder="如：生产环境数据库"
+              placeholder={t('resourceNamePlaceholder')}
             />
           </label>
 
@@ -127,14 +150,14 @@ export function AddResourceModal({
               onClick={onClose}
               className="rounded-md border px-4 py-2 transition-colors hover:bg-accent"
             >
-              取消
+              {tc('cancel')}
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !type}
+              disabled={formState.isSubmitting || !type}
               className="rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
-              {isSubmitting ? '添加中...' : '添加'}
+              {formState.isSubmitting ? t('adding') : tc('add')}
             </button>
           </div>
         </form>

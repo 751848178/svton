@@ -1,6 +1,7 @@
 /** 站点计划与运行记录面板 - 展示最近同步运行 + 当前计划详情。 */
 'use client';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import type { Site, SiteSyncPlan, SiteSyncRun } from '../types';
 import type { useSites } from '../hooks/use-sites';
 import {
@@ -22,13 +23,14 @@ interface SitePlanRunPanelProps {
 }
 
 export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunPanelProps) {
+  const t = useTranslations('sites');
   return (
     <>
       {recentRuns.length > 0 && (
         <div className="mt-4 border-t pt-4">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="text-sm font-medium">最近同步记录</div>
-            <div className="text-xs text-muted-foreground">{recentRuns.length} 条</div>
+            <div className="text-sm font-medium">{t('recentSyncRuns')}</div>
+            <div className="text-xs text-muted-foreground">{t('runCount', { count: recentRuns.length })}</div>
           </div>
           <div className="space-y-2">
             {recentRuns.slice(0, 4).map((run) => {
@@ -54,7 +56,7 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
                       )}
                       {run.operationApproval && (
                         <span className="rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-700">
-                          审批{getStatusLabel(run.operationApproval.status)}
+                          {t('approvalPrefix')}{getStatusLabel(run.operationApproval.status)}
                         </span>
                       )}
                       {run.serverExecutionJob && (
@@ -69,7 +71,7 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
                       <span className="text-muted-foreground">{formatDateTime(run.startedAt)}</span>
                     </div>
                     <div className="truncate font-mono text-muted-foreground">
-                      {run.targetConfigPath || '未记录目标配置路径'}
+                      {run.targetConfigPath || t('noConfigPathRecorded')}
                     </div>
                     {run.configDiff?.summary && (
                       <div className="text-muted-foreground">{run.configDiff.summary}</div>
@@ -89,11 +91,11 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
                     >
                       {sites.rollingBackId === run.id
                         ? sites.queueSiteRuns
-                          ? '申请入队中...'
-                          : '申请中...'
+                          ? t('requestEnqueuing')
+                          : t('requesting')
                         : sites.queueSiteRuns
-                          ? '申请回滚入队'
-                          : '申请回滚'}
+                          ? t('requestRollbackEnqueue')
+                          : t('requestRollback')}
                     </button>
                   )}
                 </div>
@@ -130,14 +132,14 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
 
           {plan.approval && (
             <div className="mt-3 rounded-md border border-purple-200 bg-purple-50 p-3 text-xs text-purple-800">
-              已生成操作审批：{plan.approval.id} · {getStatusLabel(plan.approval.status)}
+              {t('approvalGenerated', { id: plan.approval.id, status: getStatusLabel(plan.approval.status) })}
             </div>
           )}
 
           {plan.configDiff && (
             <div className="mt-3 rounded-md border bg-muted/30 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="font-medium">配置差异</span>
+                <span className="font-medium">{t('configDiff')}</span>
                 <span className="text-muted-foreground">
                   +{plan.configDiff.added} / -{plan.configDiff.removed} / =
                   {plan.configDiff.unchanged}
@@ -167,10 +169,10 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
                 >
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="font-medium">{step.label}</span>
-                    <span className="text-muted-foreground">{step.required ? '必需' : '可选'}</span>
+                    <span className="text-muted-foreground">{step.required ? t('required') : t('optional')}</span>
                   </div>
                   <code className="mt-1 block whitespace-pre-wrap break-all text-xs text-muted-foreground">
-                    {step.command || '当前配置下无需命令'}
+                    {step.command || t('noCommandNeeded')}
                   </code>
                 </div>
               ))}
@@ -181,7 +183,7 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
               </pre>
             ) : (
               <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-                本次操作不生成 Nginx 配置
+                {t('noNginxConfig')}
               </div>
             )}
           </div>
