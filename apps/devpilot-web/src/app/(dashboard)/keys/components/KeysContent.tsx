@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn, useSetState } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
@@ -14,8 +15,10 @@ import type { SecretKey, KeyInput } from '../types';
  * 密钥中心客户端视图。
  *
  * 接收首屏 server 数据 initialKeys（SWR fallback），交互（生成/存储/删除/查看明文）在此完成。
+ * 所有可见文案通过 next-intl 的 useTranslations('keys') 读取，便于多语言。
  */
 export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
+  const t = useTranslations('keys');
   const { keys, loading, generate, store, revealValue, remove } = useKeys(initialKeys);
   const [revealed, setRevealed] = useSetState<Record<string, string>>({});
   const [storeInitial, setStoreInitial] = useState<Partial<KeyInput>>({});
@@ -36,7 +39,7 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
   });
 
   const handleDelete = usePersistFn(async (id: string) => {
-    if (!confirm('确定要删除这个密钥吗？此操作不可恢复。')) return;
+    if (!confirm(t('deleteConfirm'))) return;
     await remove(id);
   });
 
@@ -52,21 +55,21 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="密钥中心"
-        description="安全存储和管理各类密钥"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <div className="flex gap-2">
             <button
               onClick={openGen}
               className="rounded-lg border border-blue-600 px-4 py-2 text-blue-600 hover:bg-blue-50"
             >
-              生成密钥
+              {t('generate')}
             </button>
             <button
               onClick={openStore}
               className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
             >
-              存储密钥
+              {t('store')}
             </button>
           </div>
         }
@@ -74,7 +77,7 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
 
       <div className="grid gap-4">
         {keys.length === 0 ? (
-          <EmptyState text="暂无存储的密钥" description='点击"生成密钥"或"存储密钥"开始' />
+          <EmptyState text={t('noKeys')} />
         ) : (
           keys.map((key) => (
             <KeyCard

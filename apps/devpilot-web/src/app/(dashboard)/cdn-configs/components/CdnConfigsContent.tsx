@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useBoolean } from '@svton/hooks';
 import { LoadingState, EmptyState, Tabs } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
@@ -23,6 +24,8 @@ export function CdnConfigsContent({
   initialConfigs?: CDNConfig[];
   initialCredentials?: TeamCredential[];
 }) {
+  const t = useTranslations('cdnConfigs');
+  const tc = useTranslations('common');
   const {
     configs,
     credentials,
@@ -40,13 +43,13 @@ export function CdnConfigsContent({
   const tabs = [
     {
       key: 'configs',
-      label: `CDN 配置 (${configs.length})`,
+      label: t('configsTab', { count: configs.length }),
       children: loading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : configs.length === 0 ? (
         <EmptyState
-          text="还没有 CDN 配置"
-          description="添加 CDN 配置来加速您的网站"
+          text={t('noConfigs')}
+          description={t('noConfigsHint')}
         />
       ) : (
         <div className="grid gap-4">
@@ -64,13 +67,13 @@ export function CdnConfigsContent({
     },
     {
       key: 'credentials',
-      label: `凭证管理 (${credentials.length})`,
+      label: t('credentialsTab', { count: credentials.length }),
       children: loading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : credentials.length === 0 ? (
         <EmptyState
-          text="还没有凭证"
-          description="添加 CDN 提供商凭证以创建配置"
+          text={t('noCredentials')}
+          description={t('noCredentialsHint')}
         />
       ) : (
         <CredentialTable
@@ -84,21 +87,21 @@ export function CdnConfigsContent({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="CDN 配置管理"
-        description="管理 CDN 加速配置和凭证"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <div className="flex gap-2">
             <button
               onClick={openCred}
               className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
             >
-              添加凭证
+              {t('addCredential')}
             </button>
             <button
               onClick={openConfig}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
-              + 添加配置
+              {t('addConfigPrefix')}
             </button>
           </div>
         }

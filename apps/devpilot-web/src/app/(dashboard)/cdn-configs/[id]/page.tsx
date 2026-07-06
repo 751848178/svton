@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { Modal } from '@/components/ui';
@@ -9,6 +10,8 @@ import { useCdnConfig } from './hooks/use-cdn-config';
 import { CdnConfigView } from './components/cdn-config-view';
 
 export default function CDNConfigDetailPage() {
+  const t = useTranslations('cdnConfigs');
+  const tc = useTranslations('common');
   const params = useParams();
   const router = useRouter();
   const configId = params.id as string;
@@ -34,23 +37,23 @@ export default function CDNConfigDetailPage() {
     setPurgePaths('');
   });
   const handleDelete = usePersistFn(async () => {
-    if (!confirm('确定要删除这个 CDN 配置吗？')) return;
+    if (!confirm(t('deleteConfirm'))) return;
     await remove();
     router.push('/cdn-configs');
   });
 
-  if (loading) return <LoadingState text="加载中..." />;
+  if (loading) return <LoadingState text={tc('loading')} />;
 
   if (!config) {
     return (
       <EmptyState
-        text="配置不存在"
+        text={t('configNotFound')}
         action={
           <button
             onClick={() => router.push('/cdn-configs')}
             className="text-primary hover:underline"
           >
-            返回列表
+            {t('backToList')}
           </button>
         }
       />
@@ -82,30 +85,30 @@ export default function CDNConfigDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-start-3">
           <div className="rounded-lg border p-6">
-            <h2 className="mb-4 font-semibold">操作</h2>
+            <h2 className="mb-4 font-semibold">{tc('actions')}</h2>
             <div className="space-y-2">
               <button
                 onClick={handlePurgeAll}
                 disabled={purging}
                 className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                {purging ? '清除中...' : '清除全部缓存'}
+                {purging ? t('purging') : t('purgeAllCache')}
               </button>
               <button
                 onClick={openPurge}
                 className="w-full rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
               >
-                清除指定路径
+                {t('purgePathsAction')}
               </button>
             </div>
           </div>
           <div className="rounded-lg border border-destructive/50 p-6">
-            <h2 className="mb-4 font-semibold text-destructive">危险操作</h2>
+            <h2 className="mb-4 font-semibold text-destructive">{t('dangerZone')}</h2>
             <button
               onClick={handleDelete}
               className="w-full rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
             >
-              删除配置
+              {t('deleteConfig')}
             </button>
           </div>
         </div>
@@ -114,11 +117,11 @@ export default function CDNConfigDetailPage() {
       <Modal
         open={purgeModal}
         onClose={closePurge}
-        title="清除指定路径缓存"
+        title={t('purgePaths')}
       >
         <div className="space-y-4">
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">路径（每行一个）</span>
+            <span className="mb-1 block font-medium">{t('pathsHint')}</span>
             <textarea
               value={purgePaths}
               onChange={(e) => setPurgePaths(e.target.value)}
@@ -132,14 +135,14 @@ export default function CDNConfigDetailPage() {
               onClick={closePurge}
               className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
             >
-              取消
+              {tc('cancel')}
             </button>
             <button
               onClick={handlePurgePaths}
               disabled={purging || !purgePaths.trim()}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {purging ? '清除中...' : '清除'}
+              {purging ? t('purging') : t('purge')}
             </button>
           </div>
         </div>

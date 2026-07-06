@@ -2,10 +2,12 @@
  * 添加 CDN 配置弹窗
  *
  * 单一职责：收集 CDN 配置字段并提交。
+ * react-hook-form 样板：取代手写 useSetState + 受控 onChange。
  */
 
-import { useMemo, useState } from 'react';
-import { useSetState, usePersistFn } from '@svton/hooks';
+import { useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/ui';
 import { ErrorBanner } from '@/components/ui';
 import type { TeamCredential, CDNConfigInput } from '../types';
@@ -23,32 +25,44 @@ export function AddCDNConfigModal({
   onClose,
   onCreate,
 }: AddCDNConfigModalProps) {
-  const [form, setForm] = useSetState<CDNConfigInput>({
-    name: '',
-    domain: '',
-    origin: '',
-    provider: 'qiniu',
-    credentialId: '',
+  const t = useTranslations('cdnConfigs');
+  const tc = useTranslations('common');
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    setError,
+    formState,
+  } = useForm<CDNConfigInput>({
+    defaultValues: {
+      name: '',
+      domain: '',
+      origin: '',
+      provider: 'qiniu',
+      credentialId: '',
+    },
   });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
+  const provider = watch('provider');
   const filteredCredentials = useMemo(
-    () => credentials.filter((c) => c.type === `cdn_${form.provider}`),
-    [credentials, form.provider],
+    () => credentials.filter((c) => c.type === `cdn_${provider}`),
+    [credentials, provider],
   );
 
-  const handleSubmit = usePersistFn(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSaving(true);
+  const handleProviderChange = (value: CDNConfigInput['provider']) => {
+    setValue('provider', value);
+    setValue('credentialId', '');
+  };
+
+  const submit = handleSubmit(async (data) => {
     try {
-      await onCreate(form);
+      await onCreate(data);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '添加失败');
-    } finally {
-      setSaving(false);
+      setError('root', {
+        message: err instanceof Error ? err.message : t('addFailed'),
+      });
     }
   });
 
@@ -56,49 +70,47 @@ export function AddCDNConfigModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="添加 CDN 配置"
+      title={t('addConfig')}
     >
       <form
-        onSubmit={handleSubmit}
+        onSubmit={submit}
         className="space-y-4"
       >
-        {error ? (
+        {(formState.errors.root as { message?: string } | undefined)?.message ? (
           <ErrorBanner
-            message={error}
+            message={(formState.errors.root as { message?: string } | undefined)?.message || ''}
             variant="inline"
           />
         ) : null}
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">配置名称</span>
+          <span className="mb-1 block font-medium">{t('configName')}</span>
           <input
-            value={form.name}
-            onChange={(e) => setForm({ name: e.target.value })}
+            {...register('name', { required: true })}
             required
             className="w-full rounded-md border px-3 py-2"
-            placeholder="我的 CDN"
+            placeholder={t('configNamePlaceholder')}
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">CDN 提供商</span>
+          <span className="mb-1 block font-medium">{t('providerLabel')}</span>
           <select
-            value={form.provider}
-            onChange={(e) => setForm({ provider: e.target.value, credentialId: '' })}
+            {...register('provider')}
+            onChange={(e) => handleProviderChange(e.target.value as CDNConfigInput['provider'])}
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="qiniu">七牛云</option>
-            <option value="aliyun">阿里云</option>
-            <option value="cloudflare">Cloudflare</option>
+            <option value="qiniu">{t('providerQiniu')}</option>
+            <option value="aliyun">{t('providerAliyun')}</option>
+            <option value="cloudflare">{t('providerCloudflare')}</option>
           </select>
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">凭证</span>
+          <span className="mb-1 block font-medium">{t('credential')}</span>
           <select
-            value={form.credentialId}
-            onChange={(e) => setForm({ credentialId: e.target.value })}
+            {...register('credentialId', { required: true })}
             required
             className="w-full rounded-md border px-3 py-2"
           >
-            <option value="">选择凭证</option>
+            <option value="">{t('selectCredential')}</option>
             {filteredCredentials.map((c) => (
               <option
                 key={c.id}
@@ -109,24 +121,22 @@ export function AddCDNConfigModal({
             ))}
           </select>
           {filteredCredentials.length === 0 ? (
-            <p className="mt-1 text-xs text-muted-foreground">没有可用的凭证，请先添加凭证</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('noCredentialsHint')}</p>
           ) : null}
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">CDN 域名</span>
+          <span className="mb-1 block font-medium">{t('domain')}</span>
           <input
-            value={form.domain}
-            onChange={(e) => setForm({ domain: e.target.value })}
+            {...register('domain', { required: true })}
             required
             className="w-full rounded-md border px-3 py-2"
             placeholder="cdn.example.com"
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">源站地址</span>
+          <span className="mb-1 block font-medium">{t('originAddress')}</span>
           <input
-            value={form.origin}
-            onChange={(e) => setForm({ origin: e.target.value })}
+            {...register('origin', { required: true })}
             required
             className="w-full rounded-md border px-3 py-2"
             placeholder="origin.example.com"
@@ -138,14 +148,14 @@ export function AddCDNConfigModal({
             onClick={onClose}
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             type="submit"
-            disabled={saving || !form.credentialId}
+            disabled={formState.isSubmitting}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {saving ? '添加中...' : '添加'}
+            {formState.isSubmitting ? t('adding') : tc('add')}
           </button>
         </div>
       </form>

@@ -4,7 +4,10 @@
  * 单一职责：渲染单个 CDN 配置 + 清除/详情/删除操作。
  */
 
+'use client';
+
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
 import type { CDNConfig } from '../types';
@@ -18,6 +21,8 @@ interface CdnConfigCardProps {
 }
 
 export function CdnConfigCard({ config, purging, onPurge, onDelete }: CdnConfigCardProps) {
+  const t = useTranslations('cdnConfigs');
+  const tc = useTranslations('common');
   const router = useRouter();
   const handlePurge = usePersistFn(() => onPurge(config.id));
   const handleDetail = usePersistFn(() => router.push(`/cdn-configs/${config.id}`));
@@ -39,7 +44,7 @@ export function CdnConfigCard({ config, purging, onPurge, onDelete }: CdnConfigC
           </div>
           {config.project ? (
             <div className="mt-1 text-xs text-muted-foreground">
-              关联项目: {config.project.name}
+              {t('associatedProjectValue', { name: config.project.name })}
             </div>
           ) : null}
           {config.cacheRules && config.cacheRules.length > 0 ? (
@@ -66,19 +71,19 @@ export function CdnConfigCard({ config, purging, onPurge, onDelete }: CdnConfigC
             disabled={purging}
             className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
           >
-            {purging ? '清除中...' : '清除缓存'}
+            {purging ? t('purging') : t('purgeCache')}
           </button>
           <button
             onClick={handleDetail}
             className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
           >
-            详情
+            {t('detail')}
           </button>
           <button
             onClick={handleDelete}
             className="rounded-md px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10"
           >
-            删除
+            {tc('delete')}
           </button>
         </div>
       </div>

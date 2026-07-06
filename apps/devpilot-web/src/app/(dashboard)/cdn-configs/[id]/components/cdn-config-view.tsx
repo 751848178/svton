@@ -4,6 +4,9 @@
  * 单一职责：渲染配置基本信息（可编辑）、缓存规则、操作面板。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
 import type { CDNConfig } from '../types';
 
@@ -32,6 +35,8 @@ export function CdnConfigView({
   onCancelEdit,
   onSave,
 }: CdnConfigViewProps) {
+  const t = useTranslations('cdnConfigs');
+  const tc = useTranslations('common');
   const provider = PROVIDERS[config.provider] || { label: config.provider, icon: '🌐' };
 
   return (
@@ -39,13 +44,13 @@ export function CdnConfigView({
       <div className="space-y-6 lg:col-span-2">
         <div className="rounded-lg border p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold">基本信息</h2>
+            <h2 className="font-semibold">{t('basicInfo')}</h2>
             {!editing ? (
               <button
                 onClick={onStartEdit}
                 className="text-sm text-primary hover:underline"
               >
-                编辑
+                {tc('edit')}
               </button>
             ) : (
               <div className="flex gap-2">
@@ -53,13 +58,13 @@ export function CdnConfigView({
                   onClick={onCancelEdit}
                   className="text-sm text-muted-foreground hover:underline"
                 >
-                  取消
+                  {tc('cancel')}
                 </button>
                 <button
                   onClick={onSave}
                   className="text-sm text-primary hover:underline"
                 >
-                  保存
+                  {tc('save')}
                 </button>
               </div>
             )}
@@ -68,7 +73,7 @@ export function CdnConfigView({
           {editing ? (
             <div className="space-y-4">
               <label className="block text-sm">
-                <span className="mb-1 block font-medium">名称</span>
+                <span className="mb-1 block font-medium">{tc('name')}</span>
                 <input
                   value={editForm.name}
                   onChange={(e) => onEditFormChange({ name: e.target.value })}
@@ -76,7 +81,7 @@ export function CdnConfigView({
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block font-medium">源站地址</span>
+                <span className="mb-1 block font-medium">{t('originAddress')}</span>
                 <input
                   value={editForm.origin}
                   onChange={(e) => onEditFormChange({ origin: e.target.value })}
@@ -86,24 +91,24 @@ export function CdnConfigView({
             </div>
           ) : (
             <dl className="grid grid-cols-2 gap-4 text-sm">
-              <Field label="CDN 域名">
+              <Field label={t('domain')}>
                 <dd className="font-mono">{config.domain}</dd>
               </Field>
-              <Field label="源站地址">
+              <Field label={t('originDomain')}>
                 <dd className="font-mono">{config.origin}</dd>
               </Field>
-              <Field label="提供商">
+              <Field label={t('provider')}>
                 <dd>{provider.label}</dd>
               </Field>
-              <Field label="凭证">
-                <dd>{config.credential?.name || '未知'}</dd>
+              <Field label={t('credential')}>
+                <dd>{config.credential?.name || t('unknown')}</dd>
               </Field>
               {config.project ? (
-                <Field label="关联项目">
+                <Field label={t('associatedProject')}>
                   <dd>{config.project.name}</dd>
                 </Field>
               ) : null}
-              <Field label="创建时间">
+              <Field label={tc('createdAt')}>
                 <dd>{new Date(config.createdAt).toLocaleString()}</dd>
               </Field>
             </dl>
@@ -111,7 +116,7 @@ export function CdnConfigView({
         </div>
 
         <div className="rounded-lg border p-6">
-          <h2 className="mb-4 font-semibold">缓存规则</h2>
+          <h2 className="mb-4 font-semibold">{t('cacheRules')}</h2>
           {config.cacheRules && config.cacheRules.length > 0 ? (
             <div className="space-y-2">
               {config.cacheRules.map((rule, i) => (
@@ -125,7 +130,7 @@ export function CdnConfigView({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">使用默认缓存规则</p>
+            <p className="text-sm text-muted-foreground">{t('defaultCacheRules')}</p>
           )}
         </div>
       </div>

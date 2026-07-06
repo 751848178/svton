@@ -2,9 +2,11 @@
  * 存储密钥弹窗
  *
  * 单一职责：收集密钥信息并提交存储。
+ * react-hook-form 样板：取代手写 useSetState + 受控 onChange。
  */
 
-import { usePersistFn, useSetState } from '@svton/hooks';
+import { useForm } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/ui';
 import { KEY_TYPES } from '../constants';
 import type { KeyInput } from '../types';
@@ -17,65 +19,65 @@ interface StoreKeyModalProps {
 }
 
 export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModalProps) {
-  const [form, setForm] = useSetState<KeyInput>({
-    name: '',
-    type: initial?.type || 'jwt_secret',
-    value: initial?.value || '',
-    description: '',
+  const t = useTranslations('keys');
+  const tc = useTranslations('common');
+  const { register, handleSubmit, reset, formState } = useForm<KeyInput>({
+    defaultValues: {
+      name: '',
+      type: initial?.type || 'jwt_secret',
+      value: initial?.value || '',
+      description: '',
+    },
   });
 
-  const handleSubmit = usePersistFn(async (e: React.FormEvent) => {
-    e.preventDefault();
-    await onStore(form);
+  const onSubmit = async (data: KeyInput) => {
+    await onStore(data);
     onClose();
-    setForm({ name: '', type: 'jwt_secret', value: '', description: '' });
-  });
+    reset({ name: '', type: 'jwt_secret', value: '', description: '' });
+  };
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="存储密钥"
+      title={t('storeTitle')}
     >
       <form
-        onSubmit={handleSubmit}
+        onSubmit={handleSubmit(onSubmit)}
         className="space-y-4"
       >
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">名称</span>
+          <span className="mb-1 block font-medium text-gray-700">{t('storeNameLabel')}</span>
           <input
             type="text"
-            value={form.name}
-            onChange={(e) => setForm({ name: e.target.value })}
+            {...register('name')}
             className="w-full rounded-lg border px-3 py-2"
-            placeholder="如: PROD_JWT_SECRET"
+            placeholder={t('storeNamePlaceholder')}
             required
           />
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">类型</span>
+          <span className="mb-1 block font-medium text-gray-700">{t('storeTypeLabel')}</span>
           <select
-            value={form.type}
-            onChange={(e) => setForm({ type: e.target.value })}
+            {...register('type')}
             className="w-full rounded-lg border px-3 py-2"
           >
-            {KEY_TYPES.map((t) => (
+            {KEY_TYPES.map((kt) => (
               <option
-                key={t.value}
-                value={t.value}
+                key={kt.value}
+                value={kt.value}
               >
-                {t.icon} {t.label}
+                {kt.icon} {kt.label}
               </option>
             ))}
           </select>
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">密钥值</span>
+          <span className="mb-1 block font-medium text-gray-700">{t('storeValueLabel')}</span>
           <textarea
-            value={form.value}
-            onChange={(e) => setForm({ value: e.target.value })}
+            {...register('value')}
             className="w-full rounded-lg border px-3 py-2 font-mono text-sm"
             rows={3}
             required
@@ -83,13 +85,12 @@ export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModal
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">描述（可选）</span>
+          <span className="mb-1 block font-medium text-gray-700">{t('storeDescriptionLabel')}</span>
           <input
             type="text"
-            value={form.description}
-            onChange={(e) => setForm({ description: e.target.value })}
+            {...register('description')}
             className="w-full rounded-lg border px-3 py-2"
-            placeholder="用途说明"
+            placeholder={t('storeDescriptionPlaceholder')}
           />
         </label>
 
@@ -99,13 +100,14 @@ export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModal
             onClick={onClose}
             className="rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-100"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             type="submit"
+            disabled={formState.isSubmitting}
             className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
-            保存
+            {tc('save')}
           </button>
         </div>
       </form>
