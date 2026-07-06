@@ -51,6 +51,8 @@ import { ResourceControlCapabilitiesService } from './resource-control-capabilit
 import { ResourceControlRepository } from './resource-control.repository';
 import { ResourceControlListReadService } from './resource-control-list-read.service';
 import { ResourceControlBindingService } from './resource-control-binding.service';
+import { ResourceControlConnectionSharedService } from './resource-control-connection-shared.service';
+import { ResourceControlConnectionProbeService } from './resource-control-connection-probe.service';
 import {
   actionRunInclude,
   connectionRunInclude,
@@ -209,6 +211,8 @@ export class ResourceControlService {
     private readonly repo: ResourceControlRepository,
     private readonly listRead: ResourceControlListReadService,
     private readonly binding: ResourceControlBindingService,
+    private readonly connectionShared: ResourceControlConnectionSharedService,
+    private readonly connectionProbe: ResourceControlConnectionProbeService,
     private readonly credentialResolver: DefaultCredentialResolver,
     private readonly executorRouter: ResourceExecutorRouter,
     private readonly directDbQueryExecutor: DirectDbQueryExecutor,
@@ -259,86 +263,20 @@ export class ResourceControlService {
     teamId: string, userId: string, resourceId: string, dto: UpdateManagedResourceBindingDto,
   ) => this.binding.updateResourceBinding(teamId, userId, resourceId, dto);
 
-  async probeResourceConnection(teamId: string, userId: string, resourceId: string, dto: ProbeResourceConnectionDto) {
-    const resource = await this.getManagedResource(teamId, resourceId);
-    const action = this.buildConnectionProbeAction(resource);
-    const credential = await this.resolveResourceQueryCredential(teamId, resource, action);
-    const dryRun = dto.dryRun ?? true;
-    const params = dto.params || {};
-    const authAdapterKey = this.resolveAuthAdapterKey(resource, credential);
-    const executionShape = this.resolveConnectionExecutionShape(resource, credential);
-    const runCredentialId = this.resolveQueryRunCredentialId(resource, credential);
-
-    const run = await this.repo.createConnectionRun({
-      data: {
-        teamId,
-        actorId: userId,
-        resourceId: resource.id,
-        credentialId: runCredentialId,
-        projectId: resource.projectId,
-        environmentId: resource.environmentId,
-        serverId: resource.serverId,
-        sourceType: resource.sourceType,
-        provider: resource.provider,
-        kind: resource.kind,
-        targetEndpoint: resource.endpoint,
-        authAdapterKey,
-        executorKey: executionShape.executorKey,
-        adapterKey: executionShape.adapterKey,
-        dryRun,
-        status: 'running',
-        params: toJsonValueUtil(params),
-      },
-    });
-
-    try {
-      const execution = await this.executeConnectionProbe(teamId, userId, resource, credential, run.id, {
-        dryRun,
-        params,
-        authAdapterKey,
-      });
-      const completed = await this.repo.updateConnectionRun({
-        where: { id: run.id },
-        data: {
-          status: execution.status,
-          executorKey: execution.executorKey,
-          adapterKey: execution.adapterKey,
-          authAdapterKey: execution.authAdapterKey,
-          connectionPlan: execution.connectionPlan,
-          result: execution.result,
-          error: execution.error,
-          finishedAt: new Date(),
-        },
-        include: this.connectionRunInclude(),
-      });
-      await this.writeResourceConnectionAudit(teamId, userId, resource, completed);
-      return completed;
-    } catch (error) {
-      const failed = await this.repo.updateConnectionRun({
-        where: { id: run.id },
-        data: {
-          status: 'failed',
-          error: error instanceof Error ? error.message : '资源连接探测失败',
-          finishedAt: new Date(),
-        },
-        include: this.connectionRunInclude(),
-      });
-      await this.writeResourceConnectionAudit(teamId, userId, resource, failed);
-      return failed;
-    }
-  }
+  probeResourceConnection = (teamId: string, userId: string, resourceId: string, dto: ProbeResourceConnectionDto) =>
+    this.connectionProbe.probeResourceConnection(teamId, userId, resourceId, dto);
 
   async runResourceQuery(teamId: string, userId: string, resourceId: string, dto: RunResourceQueryDto) {
     const resource = await this.getManagedResource(teamId, resourceId);
-    const action = this.buildConnectionProbeAction(resource);
-    const credential = await this.resolveResourceQueryCredential(teamId, resource, action);
+    const action = this.connectionShared.buildConnectionProbeAction(resource);
+    const credential = await this.connectionShared.resolveResourceQueryCredential(teamId, resource, action);
     const dryRun = dto.dryRun ?? true;
     const params = dto.params || {};
     const queryType = resolveQueryTypeUtil(resource, dto.queryType);
     const query = normalizeResourceQueryUtil(resource, queryType, dto.query, params, asString);
-    const authAdapterKey = this.resolveAuthAdapterKey(resource, credential);
+    const authAdapterKey = this.connectionShared.resolveAuthAdapterKey(resource, credential);
     const executionShape = resolveQueryExecutionShapeUtil(resource);
-    const runCredentialId = this.resolveQueryRunCredentialId(resource, credential);
+    const runCredentialId = this.connectionShared.resolveQueryRunCredentialId(resource, credential);
 
     const run = await this.repo.createQueryRun({
       data: {

@@ -19,6 +19,8 @@ import { ResourceControlService } from './resource-control.service';
 import { ResourceControlRepository } from './resource-control.repository';
 import { ResourceControlListReadService } from './resource-control-list-read.service';
 import { ResourceControlBindingService } from './resource-control-binding.service';
+import { ResourceControlConnectionSharedService } from './resource-control-connection-shared.service';
+import { ResourceControlConnectionProbeService } from './resource-control-connection-probe.service';
 
 @Module({
   imports: [ServerExecutorModule, AuditEventModule, OperationApprovalModule, ControlAccessPolicyModule],
@@ -28,6 +30,8 @@ import { ResourceControlBindingService } from './resource-control-binding.servic
     ResourceControlRepository,
     ResourceControlListReadService,
     ResourceControlBindingService,
+    ResourceControlConnectionSharedService,
+    ResourceControlConnectionProbeService,
     ResourceControlCapabilitiesService,
     ResourceControlCloudProviderHealthService,
     DefaultCredentialResolver,

@@ -11,6 +11,8 @@ import { ResourceControlRepository } from './resource-control.repository';
 import { ResourceControlService } from './resource-control.service';
 import { ResourceControlListReadService } from './resource-control-list-read.service';
 import { ResourceControlBindingService } from './resource-control-binding.service';
+import { ResourceControlConnectionSharedService } from './resource-control-connection-shared.service';
+import { ResourceControlConnectionProbeService } from './resource-control-connection-probe.service';
 import { ResourceControlCloudProviderHealthService } from './resource-control-cloud-provider-health.service';
 import {
   buildMetricSeries,
@@ -24,6 +26,8 @@ describe('ResourceControlService cloud provider health summary', () => {
     {} as ResourceControlRepository,
     new ResourceControlListReadService({} as ResourceControlRepository, cloudProviderHealthService),
     {} as ResourceControlBindingService,
+    {} as ResourceControlConnectionSharedService,
+    {} as ResourceControlConnectionProbeService,
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,
@@ -416,6 +420,14 @@ function buildService(prisma: PrismaService) {
       new ResourceControlCloudProviderHealthService(prisma),
     ),
     new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
+    new ResourceControlConnectionSharedService(new ResourceControlRepository(prisma), {} as DefaultCredentialResolver),
+    new ResourceControlConnectionProbeService(
+      new ResourceControlRepository(prisma),
+      new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
+      new ResourceControlConnectionSharedService(new ResourceControlRepository(prisma), {} as DefaultCredentialResolver),
+      {} as ServerExecutorService,
+      {} as AuditEventService,
+    ),
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,
