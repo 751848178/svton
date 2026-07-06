@@ -13,6 +13,8 @@ import { ResourceRequestProvisioningRetrySchedulerService } from './resource-req
 import { ResourceRequestRepository } from './resource-request.repository';
 import { ResourceRequestService } from './resource-request.service';
 import { ResourceRequestAccessService } from './resource-request-access.service';
+import { ResourceRequestStatusWriterService } from './resource-request-status-writer.service';
+import { ResourceProvisioningRunWriterService } from './resource-provisioning-run-writer.service';
 import { ResourceTypeService } from './resource-type.service';
 import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
 import { ResourceProvisioningRunReadService } from './resource-provisioning-run-read.service';
@@ -30,6 +32,8 @@ import { ResourceProvisioningRunReadService } from './resource-provisioning-run-
     ResourceRequestRepository,
     ResourceTypeService,
     ResourceRequestAccessService,
+    ResourceRequestStatusWriterService,
+    ResourceProvisioningRunWriterService,
     ResourceRequestProvisioningRetrySchedulerService,
     ResourceProvisioningRunSupervisorService,
     ResourceProvisioningRunReadService,

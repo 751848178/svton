@@ -7,14 +7,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as crypto from 'crypto';
 import { ResourceRequestRepository } from './resource-request.repository';
 import { ResourceRequestAccessService } from './resource-request-access.service';
+import { ResourceRequestStatusWriterService } from './resource-request-status-writer.service';
+import { ResourceProvisioningRunWriterService } from './resource-provisioning-run-writer.service';
 import { ResourceTypeService } from './resource-type.service';
-import {
-  resourceInstanceInclude,
-  resourceRequestInclude,
-} from './resource-request-includes.constants';
 import { ResourcePoolService } from '../resource-pool/resource-pool.service';
 import { ServerExecutorService } from '../server-executor/server-executor.service';
 import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
@@ -42,7 +39,6 @@ import {
 
 import {
   AuditInput,
-  CompleteProvisionedRequestInput,
   ExternalProvisioningRunMode,
   HttpProvisioningFetch,
   HttpProvisioningResponse,
@@ -142,64 +138,24 @@ import {
 @Injectable()
 export class ResourceRequestService implements OnModuleInit {
   private readonly logger = new Logger(ResourceRequestService.name);
-  private readonly algorithm = 'aes-256-gcm';
-  private readonly encryptionKey: Buffer;
 
   constructor(
     private readonly repo: ResourceRequestRepository,
     private readonly resourceTypeService: ResourceTypeService,
     private readonly accessService: ResourceRequestAccessService,
+    private readonly statusWriter: ResourceRequestStatusWriterService,
+    private readonly runWriter: ResourceProvisioningRunWriterService,
     private readonly configService: ConfigService,
     private readonly resourcePoolService: ResourcePoolService,
     private readonly serverExecutor: ServerExecutorService,
     private readonly provisioningRunSupervisorService: ResourceProvisioningRunSupervisorService,
     private readonly provisioningRunReadService: ResourceProvisioningRunReadService,
-  ) {
-    const key = this.configService.get('ENCRYPTION_KEY', 'default-32-char-encryption-key!');
-    this.encryptionKey = crypto.scryptSync(key, 'salt', 32);
-  }
+  ) {}
 
   async onModuleInit() {
     await this.resourceTypeService.ensureDefaults();
   }
 
-  private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(this.algorithm, this.encryptionKey, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag();
-    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
-  }
-
-  private decrypt(encryptedText: string): string {
-    const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const decipher = crypto.createDecipheriv(this.algorithm, this.encryptionKey, iv);
-    decipher.setAuthTag(authTag);
-
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    return decrypted;
-  }
-
-  private resourceRequestInclude() {
-    return resourceRequestInclude;
-  }
-
-  private resourceInstanceInclude() {
-    return resourceInstanceInclude;
-  }
-
-  private maskInstance(instance: Record<string, unknown>) {
-    const { credentials, ...safe } = instance;
-    return {
-      ...safe,
-      hasCredentials: Boolean(credentials),
-    };
-  }
 
   private serializeProvisioningRun(run: JsonRecord) {
     return {
@@ -240,22 +196,6 @@ export class ResourceRequestService implements OnModuleInit {
       createdAt: run.createdAt,
       updatedAt: run.updatedAt,
     };
-  }
-
-  private async writeAudit(input: AuditInput) {
-    return this.repo.createResourceAuditLog({
-      data: {
-        teamId: input.teamId,
-        actorId: input.actorId,
-        resourceTypeId: input.resourceTypeId,
-        requestId: input.requestId,
-        instanceId: input.instanceId,
-        provisioningRunId: input.provisioningRunId,
-        action: input.action,
-        message: input.message,
-        metadata: input.metadata ?? {},
-      },
-    });
   }
 
   async createResourceType(userId: string, dto: CreateResourceTypeDto) {
@@ -310,10 +250,10 @@ export class ResourceRequestService implements OnModuleInit {
         status: resourceType.approvalMode === 'none' ? 'approved' : 'pending',
         reviewedAt: resourceType.approvalMode === 'none' ? new Date() : null,
       },
-      include: this.resourceRequestInclude(),
+      include: this.statusWriter.requestInclude(),
     });
 
-    await this.writeAudit({
+    await this.statusWriter.writeAudit({
       teamId,
       actorId: userId,
       resourceTypeId: dto.resourceTypeId,
@@ -340,7 +280,7 @@ export class ResourceRequestService implements OnModuleInit {
 
     return this.repo.findRequests({
       where,
-      include: this.resourceRequestInclude(),
+      include: this.statusWriter.requestInclude(),
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -349,7 +289,7 @@ export class ResourceRequestService implements OnModuleInit {
     const request = await this.repo.findRequestFirst({
       where: { id, teamId },
       include: {
-        ...this.resourceRequestInclude(),
+        ...this.statusWriter.requestInclude(),
         auditLogs: {
           orderBy: { createdAt: 'desc' },
           include: { actor: { select: { id: true, name: true, email: true } } },
@@ -500,7 +440,7 @@ export class ResourceRequestService implements OnModuleInit {
       reconciledBy: userId,
     };
 
-    await this.writeAudit({
+    await this.statusWriter.writeAudit({
       teamId,
       actorId: userId,
       resourceTypeId: existing.resourceTypeId as string,
@@ -539,7 +479,7 @@ export class ResourceRequestService implements OnModuleInit {
         recoveredFromProviderState: true,
         completedAt: reconciledAt,
       };
-      const completion = await this.completeProvisionedRequest(teamId, userId, existing, {
+      const completion = await this.statusWriter.completeProvisionedRequest(teamId, userId, existing, {
         createInstance: shouldCreateInstance,
         instanceName: (
           readString(dto.instanceName)
@@ -578,13 +518,13 @@ export class ResourceRequestService implements OnModuleInit {
         },
       });
 
-      await this.finishProvisioningRun(run as ResourceProvisioningRunRecord, completedProvisioning);
+      await this.runWriter.finishProvisioningRun(run as ResourceProvisioningRunRecord, completedProvisioning);
       return completion.request;
     }
 
     const failed = providerStateIndicatesFailed(providerState);
     const status = failed ? 'blocked' : 'planned';
-    return this.markProvisioningStatusWithRun(teamId, userId, existing, {
+    return this.runWriter.markProvisioningStatusWithRun(teamId, userId, existing, {
       ...baseProvisioning,
       status,
       reason: failed ? readProviderStateReason(providerState) : 'provider_state_pending',
@@ -636,7 +576,7 @@ export class ResourceRequestService implements OnModuleInit {
       ],
       include: {
         request: {
-          include: this.resourceRequestInclude(),
+          include: this.statusWriter.requestInclude(),
         },
         actor: { select: { id: true, name: true, email: true } },
         resourceType: { select: { id: true, key: true, name: true } },
@@ -710,8 +650,8 @@ export class ResourceRequestService implements OnModuleInit {
         retryable: false,
         failedAt: now.toISOString(),
       };
-      await this.finishProvisioningRun(claimedRun, skippedProvisioning);
-      await this.writeAudit({
+      await this.runWriter.finishProvisioningRun(claimedRun, skippedProvisioning);
+      await this.statusWriter.writeAudit({
         teamId: run.teamId as string,
         actorId: userId,
         resourceTypeId: run.resourceTypeId as string,
@@ -763,8 +703,8 @@ export class ResourceRequestService implements OnModuleInit {
         retryable: true,
         failedAt: now.toISOString(),
       };
-      await this.finishProvisioningRun(claimedRun, failedProvisioning);
-      await this.writeAudit({
+      await this.runWriter.finishProvisioningRun(claimedRun, failedProvisioning);
+      await this.statusWriter.writeAudit({
         teamId: run.teamId as string,
         actorId: userId,
         resourceTypeId: run.resourceTypeId as string,
@@ -803,7 +743,7 @@ export class ResourceRequestService implements OnModuleInit {
       ],
       take: Math.min(limit * 5, 250),
       include: {
-        request: { include: this.resourceRequestInclude() },
+        request: { include: this.statusWriter.requestInclude() },
         resourceType: {
           select: {
             id: true,
@@ -913,7 +853,7 @@ export class ResourceRequestService implements OnModuleInit {
           continue;
         }
 
-        await this.writeAudit({
+        await this.statusWriter.writeAudit({
           teamId: run.teamId as string,
           resourceTypeId: run.resourceTypeId as string,
           requestId: run.requestId as string,
@@ -998,10 +938,10 @@ export class ResourceRequestService implements OnModuleInit {
         reviewedAt: new Date(),
         approvalComment: dto.comment,
       },
-      include: this.resourceRequestInclude(),
+      include: this.statusWriter.requestInclude(),
     });
 
-    await this.writeAudit({
+    await this.statusWriter.writeAudit({
       teamId,
       actorId: userId,
       resourceTypeId: existing.resourceTypeId as string,
@@ -1025,7 +965,7 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     const mode = normalizeProvisioningMode(existing.resourceType?.provisioningMode);
-    return this.completeProvisionedRequest(teamId, userId, existing, {
+    return this.statusWriter.completeProvisionedRequest(teamId, userId, existing, {
       createInstance: dto.createInstance !== false,
       instanceName: dto.instanceName || existing.title,
       config: asRecord(dto.config),
@@ -1108,7 +1048,7 @@ export class ResourceRequestService implements OnModuleInit {
         throw new BadRequestException('自动补偿只支持 HTTP 外部交付处理器');
       }
 
-      await this.writeAudit(auditInput);
+      await this.statusWriter.writeAudit(auditInput);
       return this.provisionWithHttpAdapter(
         teamId,
         userId,
@@ -1119,7 +1059,7 @@ export class ResourceRequestService implements OnModuleInit {
       );
     }
 
-    await this.writeAudit(auditInput);
+    await this.statusWriter.writeAudit(auditInput);
     return this.runApprovedProvisioningProcessor(teamId, userId as string, existing, context);
   }
 
@@ -1130,7 +1070,7 @@ export class ResourceRequestService implements OnModuleInit {
     const now = options.now ?? new Date();
     const requests = await this.repo.findRequests({
       where: { status: 'approved' },
-      include: this.resourceRequestInclude(),
+      include: this.statusWriter.requestInclude(),
       orderBy: { updatedAt: 'asc' },
       take: Math.min(limit * 5, 250),
     });
@@ -1196,7 +1136,7 @@ export class ResourceRequestService implements OnModuleInit {
       take: limit,
       include: {
         request: {
-          include: this.resourceRequestInclude(),
+          include: this.statusWriter.requestInclude(),
         },
       },
     });
@@ -1256,7 +1196,7 @@ export class ResourceRequestService implements OnModuleInit {
           },
         });
 
-        await this.writeAudit({
+        await this.statusWriter.writeAudit({
           teamId: run.teamId as string,
           resourceTypeId: run.resourceTypeId as string,
           requestId: run.requestId as string,
@@ -1269,7 +1209,7 @@ export class ResourceRequestService implements OnModuleInit {
         summary.recovered += 1;
 
         if (shouldUpdateRequest) {
-          await this.markProvisioningStatus(run.teamId as string, undefined, request, {
+          await this.statusWriter.markProvisioningStatus(run.teamId as string, undefined, request, {
             ...currentProvisioning,
             mode: run.mode,
             status: 'blocked',
@@ -1352,7 +1292,7 @@ export class ResourceRequestService implements OnModuleInit {
     const poolId = readString(provisioningConfig.poolId);
 
     if (!poolId) {
-      return this.markProvisioningStatus(teamId, userId, request, {
+      return this.statusWriter.markProvisioningStatus(teamId, userId, request, {
         mode: 'pool',
         status: 'blocked',
         boundary: 'resource_pool',
@@ -1363,7 +1303,7 @@ export class ResourceRequestService implements OnModuleInit {
 
     const projectId = readString(request.projectId);
     if (!projectId) {
-      return this.markProvisioningStatus(teamId, userId, request, {
+      return this.statusWriter.markProvisioningStatus(teamId, userId, request, {
         mode: 'pool',
         status: 'blocked',
         boundary: 'resource_pool',
@@ -1385,7 +1325,7 @@ export class ResourceRequestService implements OnModuleInit {
         teamId,
       );
     } catch (error) {
-      return this.markProvisioningStatus(teamId, userId, request, {
+      return this.statusWriter.markProvisioningStatus(teamId, userId, request, {
         mode: 'pool',
         status: 'blocked',
         boundary: 'resource_pool',
@@ -1397,7 +1337,7 @@ export class ResourceRequestService implements OnModuleInit {
 
     const split = splitDeliveryAndCredentials(allocation.credentials, resourceType.deliverySchema);
     const completedAt = new Date().toISOString();
-    const completion = await this.completeProvisionedRequest(teamId, userId, request, {
+    const completion = await this.statusWriter.completeProvisionedRequest(teamId, userId, request, {
       createInstance: true,
       instanceName: allocation.resourceName || (request.title as string),
       config: {
@@ -1447,7 +1387,7 @@ export class ResourceRequestService implements OnModuleInit {
     const steps = buildScriptProvisioningSteps(provisioningConfig);
 
     if (steps.length === 0) {
-      return this.markProvisioningStatus(teamId, userId, request, {
+      return this.statusWriter.markProvisioningStatus(teamId, userId, request, {
         mode: 'script',
         status: 'blocked',
         boundary: 'server_executor',
@@ -1467,7 +1407,7 @@ export class ResourceRequestService implements OnModuleInit {
     try {
       credentialRef = await this.resolveProvisioningCredentialRef(teamId, provisioningConfig);
     } catch (error) {
-      return this.markProvisioningStatus(teamId, userId, request, {
+      return this.statusWriter.markProvisioningStatus(teamId, userId, request, {
         mode: 'script',
         status: 'blocked',
         boundary: 'server_executor',
@@ -1511,7 +1451,7 @@ export class ResourceRequestService implements OnModuleInit {
           })
         : await this.serverExecutor.execute(executionInput);
     } catch (error) {
-      return this.markProvisioningStatus(teamId, userId, request, {
+      return this.statusWriter.markProvisioningStatus(teamId, userId, request, {
         mode: 'script',
         status: 'blocked',
         boundary: 'server_executor',
@@ -1525,7 +1465,7 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     const provisioningStatus = mapScriptProvisioningStatus(execution, dryRun);
-    return this.markProvisioningStatus(teamId, userId, request, {
+    return this.statusWriter.markProvisioningStatus(teamId, userId, request, {
       mode: 'script',
       status: provisioningStatus,
       boundary: 'server_executor',
@@ -1557,7 +1497,7 @@ export class ResourceRequestService implements OnModuleInit {
       provisioningConfig,
       this.httpProvisioningQueueEnabled(),
     );
-    const provisioningRun = await this.createProvisioningRun(
+    const provisioningRun = await this.runWriter.createProvisioningRun(
       teamId,
       userId,
       request,
@@ -1575,7 +1515,7 @@ export class ResourceRequestService implements OnModuleInit {
     );
 
     if (queueConfig.enabled && !context.forceInline) {
-      return this.markProvisioningQueuedWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningQueuedWithRun(teamId, userId, request, {
         mode,
         method,
         url: url ? redactUrl(url) : undefined,
@@ -1585,7 +1525,7 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     if (!url) {
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode,
         status: 'blocked',
         boundary: 'http_adapter',
@@ -1596,7 +1536,7 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     if (!['POST', 'PUT', 'PATCH', 'GET'].includes(method)) {
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode,
         status: 'blocked',
         boundary: 'http_adapter',
@@ -1612,7 +1552,7 @@ export class ResourceRequestService implements OnModuleInit {
     try {
       credentialRef = await this.resolveProvisioningCredentialRef(teamId, provisioningConfig);
     } catch (error) {
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode,
         status: 'blocked',
         boundary: 'http_adapter',
@@ -1623,10 +1563,10 @@ export class ResourceRequestService implements OnModuleInit {
         blockedAt: new Date().toISOString(),
       }, provisioningRun);
     }
-    await this.attachProvisioningRunCredentialRef(provisioningRun, credentialRef);
+    await this.runWriter.attachProvisioningRunCredentialRef(provisioningRun, credentialRef);
 
     if (!this.httpProvisioningEnabled()) {
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode,
         status: 'planned',
         boundary: 'http_adapter',
@@ -1642,7 +1582,7 @@ export class ResourceRequestService implements OnModuleInit {
 
     const fetchFn = (globalThis as typeof globalThis & { fetch?: HttpProvisioningFetch }).fetch;
     if (!fetchFn) {
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode,
         status: 'blocked',
         boundary: 'http_adapter',
@@ -1690,7 +1630,7 @@ export class ResourceRequestService implements OnModuleInit {
       } catch (error) {
         if (!retryOnNetworkError || attempt >= maxAttempts) {
           const blockedAt = new Date();
-          return this.markProvisioningStatusWithRun(teamId, userId, request, {
+          return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
             mode,
             status: 'blocked',
             boundary: 'http_adapter',
@@ -1719,7 +1659,7 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     if (!response) {
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode,
         status: 'blocked',
         boundary: 'http_adapter',
@@ -1738,7 +1678,7 @@ export class ResourceRequestService implements OnModuleInit {
     if (!response.ok) {
       const retryable = isRetryableHttpStatus(response.status, retryStatusCodes);
       const blockedAt = new Date();
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode,
         status: 'blocked',
         boundary: 'http_adapter',
@@ -1797,7 +1737,7 @@ export class ResourceRequestService implements OnModuleInit {
       createInstance: shouldCreateInstance,
       completedAt,
     };
-    const completion = await this.completeProvisionedRequest(teamId, userId, request, {
+    const completion = await this.statusWriter.completeProvisionedRequest(teamId, userId, request, {
       createInstance: shouldCreateInstance,
       instanceName: (
         readString(responseRecord.instanceName)
@@ -1833,7 +1773,7 @@ export class ResourceRequestService implements OnModuleInit {
       },
     });
 
-    await this.finishProvisioningRun(provisioningRun, completedProvisioning);
+    await this.runWriter.finishProvisioningRun(provisioningRun, completedProvisioning);
 
     return completion.request;
   }
@@ -1874,7 +1814,7 @@ export class ResourceRequestService implements OnModuleInit {
       dryRun,
       providerState,
     });
-    const provisioningRun = await this.createProvisioningRun(
+    const provisioningRun = await this.runWriter.createProvisioningRun(
       teamId,
       userId,
       request,
@@ -1902,7 +1842,7 @@ export class ResourceRequestService implements OnModuleInit {
     );
 
     if (!provider) {
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode: 'provider',
         status: 'blocked',
         boundary: 'provider_sdk_adapter',
@@ -1920,7 +1860,7 @@ export class ResourceRequestService implements OnModuleInit {
     try {
       credentialRef = await this.resolveProvisioningCredentialRef(teamId, provisioningConfig);
     } catch (error) {
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode: 'provider',
         status: 'blocked',
         boundary: 'provider_sdk_adapter',
@@ -1935,7 +1875,7 @@ export class ResourceRequestService implements OnModuleInit {
         blockedAt: new Date().toISOString(),
       }, provisioningRun);
     }
-    await this.attachProvisioningRunCredentialRef(provisioningRun, credentialRef);
+    await this.runWriter.attachProvisioningRunCredentialRef(provisioningRun, credentialRef);
 
     if (providerStateIndicatesCompleted(providerState)) {
       const deliverySource = resolveProviderProvisioningDeliverySource(providerState, provisioningConfig);
@@ -1977,7 +1917,7 @@ export class ResourceRequestService implements OnModuleInit {
         recoveredFromProviderState: true,
         completedAt,
       };
-      const completion = await this.completeProvisionedRequest(teamId, userId, request, {
+      const completion = await this.statusWriter.completeProvisionedRequest(teamId, userId, request, {
         createInstance: shouldCreateInstance,
         instanceName: (
           readString(providerState.instanceName)
@@ -2014,12 +1954,12 @@ export class ResourceRequestService implements OnModuleInit {
         },
       });
 
-      await this.finishProvisioningRun(provisioningRun, completedProvisioning);
+      await this.runWriter.finishProvisioningRun(provisioningRun, completedProvisioning);
       return completion.request;
     }
 
     if (dryRun) {
-      return this.markProvisioningStatusWithRun(teamId, userId, request, {
+      return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
         mode: 'provider',
         status: 'planned',
         boundary: 'provider_sdk_adapter',
@@ -2039,7 +1979,7 @@ export class ResourceRequestService implements OnModuleInit {
       }, provisioningRun);
     }
 
-    return this.markProvisioningStatusWithRun(teamId, userId, request, {
+    return this.runWriter.markProvisioningStatusWithRun(teamId, userId, request, {
       mode: 'provider',
       status: 'blocked',
       boundary: 'provider_sdk_adapter',
@@ -2057,302 +1997,6 @@ export class ResourceRequestService implements OnModuleInit {
       plan,
       blockedAt: new Date().toISOString(),
     }, provisioningRun);
-  }
-
-  private async createProvisioningRun(
-    teamId: string,
-    userId: string | undefined,
-    request: JsonRecord,
-    resourceType: ProvisioningResourceType,
-    mode: ExternalProvisioningRunMode,
-    context: ProvisioningProcessorContext,
-    config: JsonRecord,
-    input: {
-      method?: string;
-      url?: string;
-      idempotencyKey: string;
-      maxAttempts: number;
-      queue: ProvisioningQueueConfig;
-      boundary?: string;
-      executorKey?: string;
-      adapterKey?: string;
-      params?: JsonRecord;
-    },
-  ): Promise<ResourceProvisioningRunRecord> {
-    if (context.provisioningRunId) {
-      const existingRun = await this.repo.findRunFirst({
-        where: {
-          id: context.provisioningRunId,
-          teamId,
-          requestId: request.id,
-        },
-      });
-
-      if (!existingRun) {
-        throw new NotFoundException('资源交付运行不存在');
-      }
-
-      return existingRun as ResourceProvisioningRunRecord;
-    }
-
-    const now = new Date();
-    const queuedAt = input.queue.enabled ? now : undefined;
-    const availableAt = input.queue.enabled
-      ? new Date(now.getTime() + input.queue.delaySeconds * 1000)
-      : undefined;
-    const params: JsonRecord = {
-      idempotencyKey: input.idempotencyKey,
-      requestId: request.id,
-      resourceTypeId: resourceType.id,
-      resourceTypeKey: resourceType.key,
-      trigger: context.trigger,
-      queueMode: input.queue.enabled ? 'queued' : 'inline',
-      ...asRecord(input.params),
-    };
-    if (input.method) {
-      params.method = input.method;
-    }
-    if (context.replayOfRunId) {
-      params.replayOfRunId = context.replayOfRunId;
-    }
-    if (input.url) {
-      params.url = input.url;
-    }
-    if (input.queue.enabled) {
-      params.queuedAt = queuedAt?.toISOString();
-      params.availableAt = availableAt?.toISOString();
-      params.queueDelaySeconds = input.queue.delaySeconds;
-    }
-    if (request.projectId) {
-      params.projectId = request.projectId;
-    }
-    if (request.environmentId) {
-      params.environmentId = request.environmentId;
-    }
-
-    const run = await this.repo.createRun({
-      data: {
-        teamId,
-        actorId: userId,
-        replayOfRunId: context.replayOfRunId,
-        requestId: request.id,
-        resourceTypeId: resourceType.id,
-        projectId: readString(request.projectId) || undefined,
-        environmentId: readString(request.environmentId) || undefined,
-        mode,
-        trigger: context.trigger,
-        boundary: input.boundary || 'http_adapter',
-        executorKey: readString(config.executorKey) || input.executorKey || 'resource-request',
-        adapterKey: readString(config.adapterKey) || input.adapterKey || mode,
-        idempotencyKey: input.idempotencyKey,
-        status: input.queue.enabled ? 'queued' : 'running',
-        queueMode: input.queue.enabled ? 'queued' : 'inline',
-        attempt: 0,
-        maxAttempts: input.maxAttempts,
-        autoRetry: context.trigger === 'auto_retry',
-        params,
-        queuedAt,
-        availableAt,
-      },
-    });
-
-    return run as ResourceProvisioningRunRecord;
-  }
-
-  private async attachProvisioningRunCredentialRef(
-    run: ResourceProvisioningRunRecord,
-    credentialRef: ProvisioningCredentialRef | null,
-  ) {
-    if (!credentialRef) {
-      return;
-    }
-
-    await this.repo.updateRun({
-      where: { id: run.id },
-      data: {
-        credentialId: credentialRef.referenceId,
-        authAdapterKey: credentialRef.authAdapterKey,
-      },
-    });
-  }
-
-  private async markProvisioningQueuedWithRun(
-    teamId: string,
-    userId: string | undefined,
-    request: JsonRecord,
-    input: {
-      mode: Extract<ProvisioningMode, 'webhook' | 'api'>;
-      method: string;
-      url?: string;
-      idempotencyKey: string;
-      queue: ProvisioningQueueConfig;
-    },
-    run: ResourceProvisioningRunRecord,
-  ) {
-    return this.markProvisioningStatus(teamId, userId, request, {
-      mode: input.mode,
-      status: 'queued',
-      boundary: 'http_adapter',
-      method: input.method,
-      url: input.url,
-      idempotencyKey: input.idempotencyKey,
-      provisioningRunId: run.id,
-      replayOfRunId: run.replayOfRunId || undefined,
-      queueMode: 'queued',
-      queueDelaySeconds: input.queue.delaySeconds,
-      queuedAt: dateToIso(run.queuedAt) || new Date().toISOString(),
-      availableAt: dateToIso(run.availableAt),
-      reason: 'http_dispatch_queued',
-    });
-  }
-
-  private async markProvisioningStatusWithRun(
-    teamId: string,
-    userId: string | undefined,
-    request: JsonRecord,
-    provisioning: JsonRecord,
-    run: ResourceProvisioningRunRecord,
-  ) {
-    const provisioningWithRun = {
-      ...provisioning,
-      provisioningRunId: run.id,
-      replayOfRunId: run.replayOfRunId || undefined,
-    };
-    const updated = await this.markProvisioningStatus(teamId, userId, request, provisioningWithRun);
-    await this.finishProvisioningRun(run, provisioningWithRun);
-    return updated;
-  }
-
-  private async finishProvisioningRun(
-    run: ResourceProvisioningRunRecord,
-    provisioning: JsonRecord,
-  ) {
-    const status = readString(provisioning.status) || 'blocked';
-    const providerRunId = readString(provisioning.providerRunId);
-    const reason = readString(provisioning.reason) || readString(provisioning.error);
-    const attempt = readNonNegativeInteger(provisioning.attempt) ?? readNonNegativeInteger(run.attempt) ?? 0;
-    const maxAttempts = readPositiveInteger(provisioning.maxAttempts)
-      || readPositiveInteger(run.maxAttempts)
-      || 1;
-    const autoRetry = asRecord(provisioning.autoRetry);
-    const data: JsonRecord = {
-      status,
-      attempt,
-      maxAttempts,
-      retryable: readBoolean(provisioning.retryable, false),
-      autoRetry: readBoolean(autoRetry.enabled, readBoolean(run.autoRetry, false)),
-      result: {
-        provisioning,
-      },
-      lockedAt: null,
-      lockOwner: null,
-      finishedAt: new Date(),
-    };
-
-    if (providerRunId) {
-      data.providerRunId = providerRunId;
-    }
-    if (reason && status !== 'completed') {
-      data.error = reason;
-    }
-
-    await this.repo.updateRun({
-      where: { id: run.id },
-      data,
-    });
-  }
-
-  private async markProvisioningStatus(
-    teamId: string,
-    userId: string | undefined,
-    request: JsonRecord,
-    provisioning: JsonRecord,
-  ) {
-    const nextResult = {
-      ...asRecord(request.result),
-      provisioning,
-    };
-    const updated = await this.repo.updateRequest({
-      where: { id: request.id },
-      data: { result: nextResult },
-      include: this.resourceRequestInclude(),
-    });
-
-    await this.writeAudit({
-      teamId,
-      actorId: userId,
-      resourceTypeId: request.resourceTypeId as string,
-      requestId: request.id as string,
-      provisioningRunId: readString(provisioning.provisioningRunId) || undefined,
-      action: provisioningAuditAction(provisioning.status),
-      message: provisioningAuditMessage(provisioning.status),
-      metadata: provisioning,
-    });
-
-    return updated;
-  }
-
-  private async completeProvisionedRequest(
-    teamId: string,
-    userId: string | undefined,
-    existing: JsonRecord,
-    input: CompleteProvisionedRequestInput,
-  ) {
-    let instance: JsonRecord | null = null;
-
-    if (input.createInstance) {
-      instance = await this.repo.createInstance({
-        data: {
-          teamId,
-          projectId: existing.projectId,
-          environmentId: existing.environmentId,
-          requestId: existing.id,
-          resourceTypeId: existing.resourceTypeId,
-          name: input.instanceName,
-          status: 'active',
-          config: input.config,
-          delivery: input.delivery,
-          credentials: hasRecordValues(input.credentials)
-            ? this.encrypt(JSON.stringify(input.credentials))
-            : undefined,
-          expiresAt: input.expiresAt,
-        },
-        include: this.resourceInstanceInclude(),
-      });
-    }
-
-    const completedAt = new Date();
-    const request = await this.repo.updateRequest({
-      where: { id: existing.id },
-      data: {
-        status: 'completed',
-        completedAt,
-        result: {
-          ...asRecord(existing.result),
-          provisioning: input.provisioning,
-          delivery: input.delivery,
-          instanceId: instance?.id,
-        },
-      },
-      include: this.resourceRequestInclude(),
-    });
-
-    await this.writeAudit({
-      teamId,
-      actorId: userId,
-      resourceTypeId: existing.resourceTypeId as string,
-      requestId: existing.id as string,
-      instanceId: instance?.id as string | undefined,
-      provisioningRunId: readString(input.provisioning.provisioningRunId) || undefined,
-      action: 'request.completed',
-      message: '资源申请已交付',
-      metadata: input.auditMetadata ?? { createInstance: input.createInstance },
-    });
-
-    return {
-      request,
-      instance: instance ? this.maskInstance(instance) : null,
-    };
   }
 
   private httpProvisioningEnabled() {
@@ -2423,7 +2067,7 @@ export class ResourceRequestService implements OnModuleInit {
       },
     });
 
-    await this.writeAudit({
+    await this.statusWriter.writeAudit({
       teamId: run.teamId as string,
       resourceTypeId: run.resourceTypeId as string,
       requestId: request.id as string,
@@ -2482,7 +2126,7 @@ export class ResourceRequestService implements OnModuleInit {
     now: Date,
     reason: string,
   ) {
-    return this.markProvisioningStatusWithRun(run.teamId as string, undefined, request, {
+    return this.runWriter.markProvisioningStatusWithRun(run.teamId as string, undefined, request, {
       ...currentProvisioning,
       mode: 'provider',
       status: 'blocked',
@@ -2617,10 +2261,10 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'canceled',
         canceledAt: new Date(),
       },
-      include: this.resourceRequestInclude(),
+      include: this.statusWriter.requestInclude(),
     });
 
-    await this.writeAudit({
+    await this.statusWriter.writeAudit({
       teamId,
       actorId: userId,
       resourceTypeId: existing.resourceTypeId,
@@ -2641,18 +2285,18 @@ export class ResourceRequestService implements OnModuleInit {
 
     const instances = await this.repo.findInstances({
       where,
-      include: this.resourceInstanceInclude(),
+      include: this.statusWriter.instanceInclude(),
       orderBy: { createdAt: 'desc' },
     });
 
-    return instances.map((instance: Record<string, unknown>) => this.maskInstance(instance));
+    return instances.map((instance: Record<string, unknown>) => this.statusWriter.maskInstance(instance));
   }
 
   async getInstance(teamId: string, id: string) {
     const instance = await this.repo.findInstanceFirst({
       where: { id, teamId },
       include: {
-        ...this.resourceInstanceInclude(),
+        ...this.statusWriter.instanceInclude(),
         auditLogs: {
           orderBy: { createdAt: 'desc' },
           include: { actor: { select: { id: true, name: true, email: true } } },
@@ -2664,7 +2308,7 @@ export class ResourceRequestService implements OnModuleInit {
       throw new NotFoundException('资源实例不存在');
     }
 
-    return this.maskInstance(instance);
+    return this.statusWriter.maskInstance(instance);
   }
 
   async getInstanceCredentialForGeneration(teamId: string, id: string) {
@@ -2689,7 +2333,7 @@ export class ResourceRequestService implements OnModuleInit {
       ? instance.delivery
       : {};
     const credentials = instance.credentials
-      ? JSON.parse(this.decrypt(instance.credentials))
+      ? JSON.parse(this.statusWriter.decrypt(instance.credentials))
       : {};
 
     return {
@@ -2722,10 +2366,10 @@ export class ResourceRequestService implements OnModuleInit {
         status: 'released',
         releasedAt: new Date(),
       },
-      include: this.resourceInstanceInclude(),
+      include: this.statusWriter.instanceInclude(),
     });
 
-    await this.writeAudit({
+    await this.statusWriter.writeAudit({
       teamId,
       actorId: userId,
       resourceTypeId: existing.resourceTypeId,
@@ -2735,7 +2379,7 @@ export class ResourceRequestService implements OnModuleInit {
       message: '资源实例已释放',
     });
 
-    return this.maskInstance(instance);
+    return this.statusWriter.maskInstance(instance);
   }
 
   async listAuditLogs(teamId: string, query: ListResourceAuditLogsQueryDto) {

@@ -5,6 +5,8 @@ import { ServerExecutorService } from '../server-executor/server-executor.servic
 import { ResourceRequestRepository } from './resource-request.repository';
 import { ResourceRequestService } from './resource-request.service';
 import { ResourceRequestAccessService } from './resource-request-access.service';
+import { ResourceRequestStatusWriterService } from './resource-request-status-writer.service';
+import { ResourceProvisioningRunWriterService } from './resource-provisioning-run-writer.service';
 import { ResourceTypeService } from './resource-type.service';
 import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
 import { ResourceProvisioningRunReadService } from './resource-provisioning-run-read.service';
@@ -2321,10 +2323,16 @@ function createService(options: { httpEnabled?: boolean; configValues?: Record<s
   };
 
   const sharedRepo = new ResourceRequestRepository(prisma as unknown as PrismaService);
+  const statusWriter = new ResourceRequestStatusWriterService(
+    sharedRepo,
+    config as unknown as ConfigService,
+  );
   const service = new ResourceRequestService(
     sharedRepo,
     new ResourceTypeService(sharedRepo),
     new ResourceRequestAccessService(sharedRepo),
+    statusWriter,
+    new ResourceProvisioningRunWriterService(sharedRepo, statusWriter),
     config as unknown as ConfigService,
     resourcePoolService as unknown as ResourcePoolService,
     serverExecutor as unknown as ServerExecutorService,
