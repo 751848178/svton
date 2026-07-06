@@ -38,14 +38,21 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { LogCenterModule } from './log-center/log-center.module';
 import { ServerExecutorModule } from './server-executor/server-executor.module';
 import { ControlAccessPolicyModule } from './control-access-policy';
+import { ScheduleModule } from '@nestjs/schedule';
+import { CryptoModule } from './common/crypto/crypto.module';
+import { LockModule } from './common/lock/lock.module';
+import { SshModule } from './common/ssh/ssh.module';
+import { ServerExecutorQueueModule } from './server-executor/queue/queue.module';
+import { validateEnv } from './common/config/env.schema';
 import { useAuthzConfig } from './authz.config';
 
 @Module({
   imports: [
-    // 配置模块
+    // 配置模块（启动期用 zod schema 校验所有关键 env，取代散落的手写 Number()/isFinite 钳制）
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
+      validate: validateEnv,
     }),
 
     // 日志模块
@@ -82,6 +89,21 @@ import { useAuthzConfig } from './authz.config';
 
     // Prisma 数据库模块
     PrismaModule,
+
+    // 统一加解密模块（全局，取代各 service 内复制的 AES 实现）
+    CryptoModule,
+
+    // SSH 传输基础设施（取代 ssh-live adapter 的 spawn('ssh') CLI）
+    SshModule,
+
+    // 分布式锁（Redis 可用时用 redlock，否则降级 Noop）
+    LockModule,
+
+    // Server executor job 队列端口（DB 实现，可替换为 bullmq）
+    ServerExecutorQueueModule,
+
+    // 定时任务调度（取代各 scheduler 手写的 setInterval）
+    ScheduleModule.forRoot(),
 
     // RBAC 授权模块
     AuthzModule.forRootAsync({

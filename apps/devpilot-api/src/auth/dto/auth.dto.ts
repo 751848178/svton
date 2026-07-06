@@ -1,11 +1,22 @@
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsString, IsStrongPassword, IsOptional } from 'class-validator';
 
 export class RegisterDto {
   @IsEmail({}, { message: '请输入有效的邮箱地址' })
   email: string;
 
   @IsString()
-  @MinLength(6, { message: '密码至少 6 个字符' })
+  @IsStrongPassword(
+    {
+      minLength: 8,
+      minLowercase: 1,
+      minUppercase: 1,
+      minNumbers: 1,
+      minSymbols: 0,
+    },
+    {
+      message: '密码至少 8 个字符，需包含大小写字母和数字',
+    },
+  )
   password: string;
 
   @IsString()

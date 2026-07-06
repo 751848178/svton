@@ -1,40 +1,30 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../common/crypto/crypto.service';
+import { CdnRefreshProviderFactory } from './providers/cdn-refresh-provider.factory';
 import { CreateCDNConfigDto, UpdateCDNConfigDto, CreateCredentialDto } from './dto/cdn-config.dto';
-import * as crypto from 'crypto';
 
 @Injectable()
 export class CDNConfigService {
   private readonly logger = new Logger(CDNConfigService.name);
-  private readonly encryptionKey = process.env.ENCRYPTION_KEY || 'default-key-32-chars-long!!!!!';
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cryptoService: CryptoService,
+    private readonly cdnProviderFactory: CdnRefreshProviderFactory,
+  ) {}
 
   private toJsonValue(value: unknown): Prisma.InputJsonValue {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
 
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(12);
-    const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag().toString('hex');
-    return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+    return this.cryptoService.encryptGcm(text);
   }
 
   private decrypt(text: string): string {
-    const [ivHex, authTagHex, encrypted] = text.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+    return this.cryptoService.decryptGcm(text);
   }
 
   // CDN 配置 CRUD
@@ -194,17 +184,47 @@ export class CDNConfigService {
     return { success: true };
   }
 
-  // 清除缓存（模拟）
+  /**
+   * 清除 CDN 缓存。
+   *
+   * 取代原模拟实现（`// 实际实现需要调用 CDN 提供商 API`）：解密团队凭据后，
+   * 通过对应厂商 SDK 实际提交刷新请求。
+   */
   async purgeCache(teamId: string, id: string, paths?: string[]) {
     const config = await this.findOne(teamId, id);
+    const urls = paths && paths.length > 0 ? paths : [`https://${config.domain}/`];
+    const isDirectory = urls.some((url) => url.endsWith('/'));
 
-    // 实际实现需要调用 CDN 提供商 API
-    this.logger.log(`Cache purged for ${config.domain}: ${paths?.join(', ') || 'all'}`);
+    if (!config.credentialId) {
+      throw new BadRequestException('该 CDN 配置未关联团队凭据，无法刷新');
+    }
+
+    const credential = await this.prisma.teamCredential.findFirst({
+      where: { id: config.credentialId, teamId },
+      select: { config: true },
+    });
+    if (!credential) {
+      throw new NotFoundException('关联的团队凭据不存在');
+    }
+
+    let rawConfig: Record<string, unknown>;
+    try {
+      rawConfig = JSON.parse(this.decrypt(credential.config));
+    } catch {
+      throw new BadRequestException('团队凭据配置解析失败');
+    }
+
+    const provider = this.cdnProviderFactory.resolve(config.provider);
+    const result = await provider.purge({ raw: rawConfig }, urls, isDirectory);
+    this.logger.log(
+      `CDN cache purged for ${config.domain} via ${config.provider}: urls=${urls.length}${result.requestId ? `, requestId=${result.requestId}` : ''}`,
+    );
 
     return {
       success: true,
-      message: `缓存清除请求已提交（模拟）`,
-      paths: paths || ['/*'],
+      message: `缓存清除请求已提交（${config.provider}）`,
+      requestId: result.requestId,
+      paths: urls,
     };
   }
 
