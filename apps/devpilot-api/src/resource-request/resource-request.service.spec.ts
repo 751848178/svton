@@ -8,6 +8,10 @@ import { ResourceRequestAccessService } from './resource-request-access.service'
 import { ResourceRequestStatusWriterService } from './resource-request-status-writer.service';
 import { ResourceProvisioningRunWriterService } from './resource-provisioning-run-writer.service';
 import { ResourceRequestProvisioningService } from './resource-request-provisioning.service';
+import { ResourceRequestRecoveryService } from './resource-request-recovery.service';
+import { ResourceRequestStaleRecoveryService } from './resource-request-stale-recovery.service';
+import { ResourceProviderStateService } from './resource-provider-state.service';
+import { ResourceProviderStateWriterService } from './resource-provider-state-writer.service';
 import { ResourceRequestPoolProvisioningService } from './resource-request-pool-provisioning.service';
 import { ResourceRequestScriptProvisioningService } from './resource-request-script-provisioning.service';
 import { ResourceRequestHttpProvisioningService } from './resource-request-http-provisioning.service';
@@ -2352,6 +2356,24 @@ function createService(options: { httpEnabled?: boolean; configValues?: Record<s
     new ResourceRequestProviderProvisioningService(statusWriter, runWriter, credentialRef),
     config as unknown as ConfigService,
   );
+  const runSupervisor = new ResourceProvisioningRunSupervisorService(
+    prisma as unknown as PrismaService,
+    config as unknown as ConfigService,
+  );
+  const recovery = new ResourceRequestRecoveryService(
+    sharedRepo,
+    statusWriter,
+    runWriter,
+    provisioning,
+    runSupervisor,
+    new ResourceRequestStaleRecoveryService(sharedRepo, statusWriter, config as unknown as ConfigService),
+  );
+  const providerState = new ResourceProviderStateService(
+    sharedRepo,
+    statusWriter,
+    provisioning,
+    new ResourceProviderStateWriterService(sharedRepo, statusWriter, runWriter),
+  );
   const service = new ResourceRequestService(
     sharedRepo,
     new ResourceTypeService(sharedRepo),
@@ -2359,13 +2381,12 @@ function createService(options: { httpEnabled?: boolean; configValues?: Record<s
     statusWriter,
     runWriter,
     provisioning,
+    recovery,
+    providerState,
     config as unknown as ConfigService,
     resourcePoolService as unknown as ResourcePoolService,
     serverExecutor as unknown as ServerExecutorService,
-    new ResourceProvisioningRunSupervisorService(
-      prisma as unknown as PrismaService,
-      config as unknown as ConfigService,
-    ),
+    runSupervisor,
     new ResourceProvisioningRunReadService(prisma as unknown as PrismaService),
   );
 

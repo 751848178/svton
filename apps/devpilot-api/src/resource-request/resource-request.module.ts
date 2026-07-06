@@ -16,6 +16,11 @@ import { ResourceRequestAccessService } from './resource-request-access.service'
 import { ResourceRequestStatusWriterService } from './resource-request-status-writer.service';
 import { ResourceProvisioningRunWriterService } from './resource-provisioning-run-writer.service';
 import { ResourceRequestProvisioningService } from './resource-request-provisioning.service';
+import { ResourceRequestRecoveryService } from './resource-request-recovery.service';
+import { ResourceRequestStaleRecoveryService } from './resource-request-stale-recovery.service';
+import { ResourceRequestQueueWorker } from './resource-request-queue-worker.service';
+import { ResourceProviderStateService } from './resource-provider-state.service';
+import { ResourceProviderStateWriterService } from './resource-provider-state-writer.service';
 import { ResourceRequestCredentialRefService } from './resource-request-credential-ref.service';
 import { ResourceRequestPoolProvisioningService } from './resource-request-pool-provisioning.service';
 import { ResourceRequestScriptProvisioningService } from './resource-request-script-provisioning.service';
@@ -41,6 +46,11 @@ import { ResourceProvisioningRunReadService } from './resource-provisioning-run-
     ResourceRequestStatusWriterService,
     ResourceProvisioningRunWriterService,
     ResourceRequestProvisioningService,
+    ResourceRequestRecoveryService,
+    ResourceRequestStaleRecoveryService,
+    ResourceRequestQueueWorker,
+    ResourceProviderStateService,
+    ResourceProviderStateWriterService,
     ResourceRequestCredentialRefService,
     ResourceRequestPoolProvisioningService,
     ResourceRequestScriptProvisioningService,
