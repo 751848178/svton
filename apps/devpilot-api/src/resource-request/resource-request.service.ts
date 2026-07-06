@@ -8,7 +8,12 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
-import { PrismaService } from '../prisma/prisma.service';
+import { ResourceRequestRepository } from './resource-request.repository';
+import { ResourceTypeService } from './resource-type.service';
+import {
+  resourceInstanceInclude,
+  resourceRequestInclude,
+} from './resource-request-includes.constants';
 import { ResourcePoolService } from '../resource-pool/resource-pool.service';
 import { ServerExecutorService } from '../server-executor/server-executor.service';
 import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
@@ -56,8 +61,6 @@ import {
   ProviderStatePollingSummary,
   ResourceProvisioningRunRecord,
 } from './resource-request.types';
-
-type PrismaAny = any;
 
 import {
   asRecord,
@@ -134,358 +137,6 @@ import {
   resolveHttpProvisioningDeliverySource,
 } from './resource-provisioning-http-request.utils';
 
-const environmentField = {
-  key: 'environment',
-  label: '使用环境',
-  type: 'select',
-  required: true,
-  default: 'dev',
-  options: [
-    { label: '开发环境', value: 'dev' },
-    { label: '测试环境', value: 'test' },
-    { label: '预发环境', value: 'staging' },
-    { label: '生产环境', value: 'prod' },
-  ],
-};
-
-const DEFAULT_RESOURCE_TYPES: CreateResourceTypeDto[] = [
-  {
-    key: 'mysql',
-    name: 'MySQL 数据库',
-    description: '申请项目使用的 MySQL 数据库实例、库名或账号',
-    category: 'database',
-    icon: 'database',
-    approvalMode: 'manual',
-    provisioningMode: 'manual',
-    requestSchema: {
-      fields: [
-        environmentField,
-        { key: 'database', label: '数据库名', type: 'text', required: true, placeholder: 'svton_dev' },
-        { key: 'version', label: '版本', type: 'text', default: '8.0' },
-        { key: 'charset', label: '字符集', type: 'text', default: 'utf8mb4' },
-        { key: 'capacity', label: '规格/容量', type: 'text', default: '1C2G' },
-        { key: 'notes', label: '补充说明', type: 'textarea' },
-      ],
-    },
-    deliverySchema: {
-      fields: [
-        { key: 'host', label: '主机', type: 'text', required: true, sensitive: false },
-        { key: 'port', label: '端口', type: 'number', required: true, sensitive: false },
-        { key: 'username', label: '用户名', type: 'text', required: true, sensitive: false },
-        { key: 'password', label: '密码', type: 'password', required: true, sensitive: true },
-        { key: 'database', label: '数据库名', type: 'text', required: true, sensitive: false },
-      ],
-    },
-    envTemplate: 'DATABASE_URL="mysql://${username}:${password}@${host}:${port}/${database}"',
-  },
-  {
-    key: 'postgresql',
-    name: 'PostgreSQL 数据库',
-    description: '申请项目使用的 PostgreSQL 数据库实例、库名或账号',
-    category: 'database',
-    icon: 'database',
-    approvalMode: 'manual',
-    provisioningMode: 'manual',
-    requestSchema: {
-      fields: [
-        environmentField,
-        { key: 'database', label: '数据库名', type: 'text', required: true, placeholder: 'svton_dev' },
-        { key: 'version', label: '版本', type: 'text', default: '15' },
-        { key: 'schema', label: 'Schema', type: 'text', default: 'public' },
-        { key: 'capacity', label: '规格/容量', type: 'text', default: '1C2G' },
-        { key: 'notes', label: '补充说明', type: 'textarea' },
-      ],
-    },
-    deliverySchema: {
-      fields: [
-        { key: 'host', label: '主机', type: 'text', required: true, sensitive: false },
-        { key: 'port', label: '端口', type: 'number', required: true, sensitive: false },
-        { key: 'username', label: '用户名', type: 'text', required: true, sensitive: false },
-        { key: 'password', label: '密码', type: 'password', required: true, sensitive: true },
-        { key: 'database', label: '数据库名', type: 'text', required: true, sensitive: false },
-        { key: 'schema', label: 'Schema', type: 'text', default: 'public', sensitive: false },
-      ],
-    },
-    envTemplate: 'DATABASE_URL="postgresql://${username}:${password}@${host}:${port}/${database}?schema=${schema}"',
-  },
-  {
-    key: 'redis',
-    name: 'Redis 缓存',
-    description: '申请 Redis 实例、DB 或缓存账号',
-    category: 'cache',
-    icon: 'cache',
-    approvalMode: 'manual',
-    provisioningMode: 'manual',
-    requestSchema: {
-      fields: [
-        environmentField,
-        { key: 'db', label: 'DB 编号', type: 'number', default: 0 },
-        { key: 'memory', label: '内存规格', type: 'text', default: '512MB' },
-        { key: 'persistence', label: '需要持久化', type: 'checkbox', default: true },
-        { key: 'notes', label: '补充说明', type: 'textarea' },
-      ],
-    },
-    deliverySchema: {
-      fields: [
-        { key: 'host', label: '主机', type: 'text', required: true, sensitive: false },
-        { key: 'port', label: '端口', type: 'number', required: true, sensitive: false },
-        { key: 'password', label: '密码', type: 'password', sensitive: true },
-        { key: 'db', label: 'DB 编号', type: 'number', sensitive: false },
-      ],
-    },
-    envTemplate: 'REDIS_HOST="${host}"\nREDIS_PORT="${port}"\nREDIS_PASSWORD="${password}"\nREDIS_DB="${db}"',
-  },
-  {
-    key: 'server',
-    name: '服务器',
-    description: '申请云服务器、测试机或部署节点',
-    category: 'compute',
-    icon: 'server',
-    approvalMode: 'manual',
-    provisioningMode: 'manual',
-    requestSchema: {
-      fields: [
-        environmentField,
-        {
-          key: 'os',
-          label: '操作系统',
-          type: 'select',
-          default: 'linux',
-          options: [
-            { label: 'Linux', value: 'linux' },
-            { label: 'Windows', value: 'windows' },
-          ],
-        },
-        { key: 'cpu', label: 'CPU 核数', type: 'number', default: 2 },
-        { key: 'memory', label: '内存', type: 'text', default: '4GB' },
-        { key: 'disk', label: '磁盘', type: 'text', default: '80GB' },
-        { key: 'publicNetwork', label: '需要公网访问', type: 'checkbox', default: false },
-      ],
-    },
-    deliverySchema: {
-      fields: [
-        { key: 'host', label: '主机地址', type: 'text', required: true, sensitive: false },
-        { key: 'port', label: 'SSH 端口', type: 'number', default: 22, sensitive: false },
-        { key: 'username', label: '用户名', type: 'text', required: true, sensitive: false },
-        { key: 'password', label: '密码', type: 'password', sensitive: true },
-        { key: 'privateKey', label: '私钥', type: 'textarea', sensitive: true },
-      ],
-    },
-    envTemplate: 'SERVER_HOST="${host}"\nSERVER_USER="${username}"\nSERVER_PORT="${port}"',
-  },
-  {
-    key: 'port',
-    name: '端口号',
-    description: '申请内部服务端口、网关端口或公网暴露端口',
-    category: 'network',
-    icon: 'network',
-    approvalMode: 'manual',
-    provisioningMode: 'manual',
-    requestSchema: {
-      fields: [
-        environmentField,
-        {
-          key: 'protocol',
-          label: '协议',
-          type: 'select',
-          default: 'tcp',
-          options: [
-            { label: 'TCP', value: 'tcp' },
-            { label: 'UDP', value: 'udp' },
-            { label: 'HTTP', value: 'http' },
-            { label: 'HTTPS', value: 'https' },
-          ],
-        },
-        { key: 'port', label: '期望端口', type: 'number', placeholder: '可留空由管理员分配' },
-        {
-          key: 'exposure',
-          label: '暴露范围',
-          type: 'select',
-          default: 'internal',
-          options: [
-            { label: '内网', value: 'internal' },
-            { label: '公网', value: 'public' },
-          ],
-        },
-        { key: 'purpose', label: '用途说明', type: 'textarea', required: true },
-      ],
-    },
-    deliverySchema: {
-      fields: [
-        { key: 'port', label: '分配端口', type: 'number', required: true, sensitive: false },
-        { key: 'protocol', label: '协议', type: 'text', sensitive: false },
-        { key: 'host', label: '绑定主机/网关', type: 'text', sensitive: false },
-        { key: 'notes', label: '交付说明', type: 'textarea', sensitive: false },
-      ],
-    },
-  },
-  {
-    key: 'domain',
-    name: '域名/DNS',
-    description: '申请业务域名、子域名、DNS 解析或证书绑定',
-    category: 'network',
-    icon: 'globe',
-    approvalMode: 'manual',
-    provisioningMode: 'manual',
-    requestSchema: {
-      fields: [
-        environmentField,
-        { key: 'domain', label: '期望域名', type: 'text', required: true, placeholder: 'api.example.com' },
-        {
-          key: 'recordType',
-          label: '解析类型',
-          type: 'select',
-          default: 'A',
-          options: [
-            { label: 'A', value: 'A' },
-            { label: 'CNAME', value: 'CNAME' },
-            { label: 'AAAA', value: 'AAAA' },
-            { label: 'TXT', value: 'TXT' },
-          ],
-        },
-        { key: 'target', label: '目标地址', type: 'text', placeholder: 'IP、CNAME 或 TXT 值' },
-        {
-          key: 'ssl',
-          label: '需要 HTTPS/证书',
-          type: 'checkbox',
-          default: true,
-        },
-        {
-          key: 'scope',
-          label: '暴露范围',
-          type: 'select',
-          default: 'public',
-          options: [
-            { label: '公网', value: 'public' },
-            { label: '内网', value: 'internal' },
-          ],
-        },
-        { key: 'purpose', label: '用途说明', type: 'textarea', required: true },
-      ],
-    },
-    deliverySchema: {
-      fields: [
-        { key: 'domain', label: '交付域名', type: 'text', required: true, sensitive: false },
-        { key: 'recordType', label: '解析类型', type: 'text', sensitive: false },
-        { key: 'target', label: '解析目标', type: 'text', sensitive: false },
-        { key: 'sslStatus', label: '证书状态', type: 'text', sensitive: false },
-        { key: 'certificateId', label: '证书/配置 ID', type: 'text', sensitive: false },
-        { key: 'notes', label: '交付说明', type: 'textarea', sensitive: false },
-      ],
-    },
-    envTemplate: 'APP_DOMAIN="${domain}"\nAPP_URL="https://${domain}"',
-  },
-  {
-    key: 'git-account',
-    name: 'Git 账号/仓库权限',
-    description: '申请 GitHub、GitLab、Gitee 等代码平台账号或仓库权限',
-    category: 'account',
-    icon: 'git',
-    approvalMode: 'manual',
-    provisioningMode: 'credential_only',
-    requestSchema: {
-      fields: [
-        {
-          key: 'provider',
-          label: '代码平台',
-          type: 'select',
-          default: 'gitlab',
-          options: [
-            { label: 'GitLab', value: 'gitlab' },
-            { label: 'GitHub', value: 'github' },
-            { label: 'Gitee', value: 'gitee' },
-            { label: '其他', value: 'custom' },
-          ],
-        },
-        {
-          key: 'permission',
-          label: '权限级别',
-          type: 'select',
-          default: 'read',
-          options: [
-            { label: '只读', value: 'read' },
-            { label: '读写', value: 'write' },
-            { label: '管理员', value: 'admin' },
-          ],
-        },
-        { key: 'repoScope', label: '仓库/组织范围', type: 'text', required: true },
-        { key: 'purpose', label: '申请用途', type: 'textarea', required: true },
-      ],
-    },
-    deliverySchema: {
-      fields: [
-        { key: 'account', label: '账号', type: 'text', required: true, sensitive: false },
-        { key: 'accessToken', label: '访问令牌', type: 'password', sensitive: true },
-        { key: 'permission', label: '已授予权限', type: 'text', sensitive: false },
-        { key: 'notes', label: '交付说明', type: 'textarea', sensitive: false },
-      ],
-    },
-  },
-  {
-    key: 'cloud-account',
-    name: '云厂商账号/权限',
-    description: '申请阿里云、腾讯云、AWS 等云平台账号或权限',
-    category: 'account',
-    icon: 'cloud',
-    approvalMode: 'manual',
-    provisioningMode: 'credential_only',
-    requestSchema: {
-      fields: [
-        {
-          key: 'provider',
-          label: '云厂商',
-          type: 'select',
-          default: 'aliyun',
-          options: [
-            { label: '阿里云', value: 'aliyun' },
-            { label: '腾讯云', value: 'tencent' },
-            { label: 'AWS', value: 'aws' },
-            { label: '七牛云', value: 'qiniu' },
-            { label: 'Cloudflare', value: 'cloudflare' },
-            { label: '其他', value: 'custom' },
-          ],
-        },
-        { key: 'accountName', label: '账号/角色名称', type: 'text', required: true },
-        { key: 'permission', label: '权限范围', type: 'text', required: true },
-        { key: 'purpose', label: '申请用途', type: 'textarea', required: true },
-      ],
-    },
-    deliverySchema: {
-      fields: [
-        { key: 'account', label: '账号/角色', type: 'text', required: true, sensitive: false },
-        { key: 'accessKeyId', label: 'Access Key ID', type: 'text', sensitive: false },
-        { key: 'accessKeySecret', label: 'Access Key Secret', type: 'password', sensitive: true },
-        { key: 'consoleUrl', label: '控制台地址', type: 'text', sensitive: false },
-        { key: 'notes', label: '交付说明', type: 'textarea', sensitive: false },
-      ],
-    },
-  },
-  {
-    key: 'custom-credential',
-    name: '其他账号/凭证',
-    description: '登记无法归类的第三方账号、密钥或接入凭证',
-    category: 'custom',
-    icon: 'key',
-    approvalMode: 'manual',
-    provisioningMode: 'credential_only',
-    requestSchema: {
-      fields: [
-        { key: 'credentialName', label: '凭证名称', type: 'text', required: true },
-        { key: 'credentialType', label: '凭证类型', type: 'text', required: true },
-        { key: 'description', label: '使用说明', type: 'textarea', required: true },
-        { key: 'expiresAt', label: '期望有效期', type: 'text', placeholder: '例如：长期 / 2026-12-31' },
-      ],
-    },
-    deliverySchema: {
-      fields: [
-        { key: 'account', label: '账号/标识', type: 'text', sensitive: false },
-        { key: 'secret', label: '密钥/密码', type: 'password', sensitive: true },
-        { key: 'url', label: '登录或接入地址', type: 'text', sensitive: false },
-        { key: 'notes', label: '交付说明', type: 'textarea', sensitive: false },
-      ],
-    },
-  },
-];
 
 @Injectable()
 export class ResourceRequestService implements OnModuleInit {
@@ -494,7 +145,8 @@ export class ResourceRequestService implements OnModuleInit {
   private readonly encryptionKey: Buffer;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly repo: ResourceRequestRepository,
+    private readonly resourceTypeService: ResourceTypeService,
     private readonly configService: ConfigService,
     private readonly resourcePoolService: ResourcePoolService,
     private readonly serverExecutor: ServerExecutorService,
@@ -506,41 +158,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    await this.ensureDefaultResourceTypes();
-  }
-
-  private async ensureDefaultResourceTypes() {
-    for (const type of DEFAULT_RESOURCE_TYPES) {
-      await (this.prisma as PrismaAny).resourceType.upsert({
-        where: { key: type.key },
-        create: {
-          key: type.key,
-          name: type.name,
-          description: type.description,
-          category: type.category,
-          icon: type.icon,
-          enabled: type.enabled ?? true,
-          requestSchema: type.requestSchema,
-          deliverySchema: type.deliverySchema,
-          envTemplate: type.envTemplate,
-          approvalMode: type.approvalMode ?? 'manual',
-          provisioningMode: type.provisioningMode ?? 'manual',
-          provisioningConfig: type.provisioningConfig,
-        },
-        update: {
-          name: type.name,
-          description: type.description,
-          category: type.category,
-          icon: type.icon,
-          requestSchema: type.requestSchema,
-          deliverySchema: type.deliverySchema,
-          envTemplate: type.envTemplate,
-          approvalMode: type.approvalMode ?? 'manual',
-          provisioningMode: type.provisioningMode ?? 'manual',
-          provisioningConfig: type.provisioningConfig,
-        },
-      });
-    }
+    await this.resourceTypeService.ensureDefaults();
   }
 
   private encrypt(text: string): string {
@@ -566,51 +184,11 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   private resourceRequestInclude() {
-    return {
-      resourceType: {
-        select: {
-          id: true,
-          key: true,
-          name: true,
-          category: true,
-          provisioningMode: true,
-          deliverySchema: true,
-          envTemplate: true,
-        },
-      },
-      project: {
-        select: { id: true, name: true },
-      },
-      projectEnvironment: {
-        select: { id: true, key: true, name: true, status: true },
-      },
-      requester: {
-        select: { id: true, name: true, email: true },
-      },
-      reviewer: {
-        select: { id: true, name: true, email: true },
-      },
-      instance: {
-        select: { id: true, name: true, status: true, expiresAt: true, releasedAt: true },
-      },
-    };
+    return resourceRequestInclude;
   }
 
   private resourceInstanceInclude() {
-    return {
-      resourceType: {
-        select: { id: true, key: true, name: true, category: true },
-      },
-      project: {
-        select: { id: true, name: true },
-      },
-      projectEnvironment: {
-        select: { id: true, key: true, name: true, status: true },
-      },
-      request: {
-        select: { id: true, title: true, status: true },
-      },
-    };
+    return resourceInstanceInclude;
   }
 
   private maskInstance(instance: Record<string, unknown>) {
@@ -663,7 +241,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   private async writeAudit(input: AuditInput) {
-    return (this.prisma as PrismaAny).resourceAuditLog.create({
+    return this.repo.createResourceAuditLog({
       data: {
         teamId: input.teamId,
         actorId: input.actorId,
@@ -679,77 +257,29 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async createResourceType(userId: string, dto: CreateResourceTypeDto) {
-    const existing = await (this.prisma as PrismaAny).resourceType.findUnique({
-      where: { key: dto.key },
-    });
-
-    if (existing) {
-      throw new ConflictException('资源类型 key 已存在');
-    }
-
-    const resourceType = await (this.prisma as PrismaAny).resourceType.create({
-      data: {
-        key: dto.key,
-        name: dto.name,
-        description: dto.description,
-        category: dto.category,
-        icon: dto.icon,
-        enabled: dto.enabled ?? true,
-        requestSchema: dto.requestSchema,
-        deliverySchema: dto.deliverySchema,
-        envTemplate: dto.envTemplate,
-        approvalMode: dto.approvalMode ?? 'manual',
-        provisioningMode: dto.provisioningMode ?? 'manual',
-        provisioningConfig: dto.provisioningConfig,
-        createdById: userId,
-      },
-    });
-
-    this.logger.log(`Resource type created: ${resourceType.key}`);
-    return resourceType;
+    return this.resourceTypeService.createResourceType(userId, dto);
   }
 
   async listResourceTypes(includeDisabled = false) {
-    return (this.prisma as PrismaAny).resourceType.findMany({
-      where: includeDisabled ? undefined : { enabled: true },
-      orderBy: [{ category: 'asc' }, { name: 'asc' }],
-    });
+    return this.resourceTypeService.listResourceTypes(includeDisabled);
   }
 
   async getResourceType(id: string) {
-    const resourceType = await (this.prisma as PrismaAny).resourceType.findUnique({
-      where: { id },
-    });
-
-    if (!resourceType) {
-      throw new NotFoundException('资源类型不存在');
-    }
-
-    return resourceType;
+    return this.resourceTypeService.getResourceType(id);
   }
 
   async updateResourceType(id: string, dto: UpdateResourceTypeDto) {
-    await this.getResourceType(id);
-
-    return (this.prisma as PrismaAny).resourceType.update({
-      where: { id },
-      data: dto,
-    });
+    return this.resourceTypeService.updateResourceType(id, dto);
   }
 
   async disableResourceType(id: string) {
-    await this.getResourceType(id);
-
-    return (this.prisma as PrismaAny).resourceType.update({
-      where: { id },
-      data: { enabled: false },
-    });
+    return this.resourceTypeService.disableResourceType(id);
   }
 
   private async ensureProject(teamId: string, projectId?: string) {
     if (!projectId) return null;
 
-    const project = await (this.prisma as PrismaAny).project.findFirst({
+    const project = await this.repo.findProject({
       where: { id: projectId, teamId },
       select: { id: true, name: true },
     });
@@ -768,7 +298,7 @@ export class ResourceRequestService implements OnModuleInit {
   ) {
     if (!environmentId) return null;
 
-    const environment = await (this.prisma as PrismaAny).projectEnvironment.findFirst({
+    const environment = await this.repo.findProjectEnvironment({
       where: { id: environmentId, teamId, status: 'active' },
       select: { id: true, projectId: true, key: true, name: true },
     });
@@ -785,7 +315,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   private async ensureResourceType(resourceTypeId: string) {
-    const resourceType = await (this.prisma as PrismaAny).resourceType.findFirst({
+    const resourceType = await this.repo.findResourceTypeFirst({
       where: { id: resourceTypeId, enabled: true },
     });
 
@@ -807,7 +337,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async getRequestAccessScope(teamId: string, id: string) {
-    const request = await (this.prisma as PrismaAny).resourceRequest.findFirst({
+    const request = await this.repo.findRequestFirst({
       where: { id, teamId },
       select: { id: true, projectId: true, environmentId: true },
     });
@@ -823,7 +353,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async getInstanceAccessScope(teamId: string, id: string) {
-    const instance = await (this.prisma as PrismaAny).resourceInstance.findFirst({
+    const instance = await this.repo.findInstanceFirst({
       where: { id, teamId },
       select: { id: true, projectId: true, environmentId: true },
     });
@@ -844,7 +374,7 @@ export class ResourceRequestService implements OnModuleInit {
     const projectId = environmentRef?.projectId ?? dto.projectId;
     await this.ensureProject(teamId, projectId);
 
-    const request = await (this.prisma as PrismaAny).resourceRequest.create({
+    const request = await this.repo.createRequest({
       data: {
         teamId,
         projectId,
@@ -886,7 +416,7 @@ export class ResourceRequestService implements OnModuleInit {
     if (query.resourceTypeId) where.resourceTypeId = query.resourceTypeId;
     if (query.requesterId) where.requesterId = query.requesterId;
 
-    return (this.prisma as PrismaAny).resourceRequest.findMany({
+    return this.repo.findRequests({
       where,
       include: this.resourceRequestInclude(),
       orderBy: { createdAt: 'desc' },
@@ -894,7 +424,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async getRequest(teamId: string, id: string) {
-    const request = await (this.prisma as PrismaAny).resourceRequest.findFirst({
+    const request = await this.repo.findRequestFirst({
       where: { id, teamId },
       include: {
         ...this.resourceRequestInclude(),
@@ -923,7 +453,7 @@ export class ResourceRequestService implements OnModuleInit {
 
   async replayProvisioningRun(teamId: string, userId: string, requestId: string, runId: string) {
     const existing = await this.getRequest(teamId, requestId);
-    const run = await (this.prisma as PrismaAny).resourceProvisioningRun.findFirst({
+    const run = await this.repo.findRunFirst({
       where: { id: runId, teamId, requestId },
     });
 
@@ -962,7 +492,7 @@ export class ResourceRequestService implements OnModuleInit {
     dto: ReconcileProviderResourceProvisioningRunDto,
   ) {
     const existing = await this.getRequest(teamId, requestId);
-    const run = await (this.prisma as PrismaAny).resourceProvisioningRun.findFirst({
+    const run = await this.repo.findRunFirst({
       where: { id: runId, teamId, requestId },
     });
 
@@ -1168,7 +698,7 @@ export class ResourceRequestService implements OnModuleInit {
   ): Promise<ProvisioningQueueProcessSummary> {
     const now = new Date();
     const lockOwner = userId || 'resource-request-queue-worker';
-    const run = await (this.prisma as PrismaAny).resourceProvisioningRun.findFirst({
+    const run = await this.repo.findRunFirst({
       where: {
         ...(teamId ? { teamId } : {}),
         status: 'queued',
@@ -1202,7 +732,7 @@ export class ResourceRequestService implements OnModuleInit {
       };
     }
 
-    const claim = await (this.prisma as PrismaAny).resourceProvisioningRun.updateMany({
+    const claim = await this.repo.updateRuns({
       where: {
         id: run.id,
         ...(teamId ? { teamId } : {}),
@@ -1339,7 +869,7 @@ export class ResourceRequestService implements OnModuleInit {
     const limit = Math.min(Math.max(options.limit ?? 10, 1), 100);
     const now = options.now ?? new Date();
     const lockOwner = 'resource-request-provider-state-poller';
-    const runs = await (this.prisma as PrismaAny).resourceProvisioningRun.findMany({
+    const runs = await this.repo.findRuns({
       where: {
         mode: 'provider',
         status: 'planned',
@@ -1397,7 +927,7 @@ export class ResourceRequestService implements OnModuleInit {
 
       const attempt = (readNonNegativeInteger(run.attempt) ?? 0) + 1;
       const nextAvailableAt = new Date(now.getTime() + pollingConfig.intervalSeconds * 1000);
-      const claim = await (this.prisma as PrismaAny).resourceProvisioningRun.updateMany({
+      const claim = await this.repo.updateRuns({
         where: {
           id: run.id,
           mode: 'provider',
@@ -1538,7 +1068,7 @@ export class ResourceRequestService implements OnModuleInit {
       throw new BadRequestException('只有待审批的申请可以审批');
     }
 
-    const request = await (this.prisma as PrismaAny).resourceRequest.update({
+    const request = await this.repo.updateRequest({
       where: { id },
       data: {
         status: dto.status,
@@ -1676,7 +1206,7 @@ export class ResourceRequestService implements OnModuleInit {
   ): Promise<ProvisioningAutoRetrySummary> {
     const limit = Math.min(Math.max(options.limit ?? 10, 1), 100);
     const now = options.now ?? new Date();
-    const requests = await (this.prisma as PrismaAny).resourceRequest.findMany({
+    const requests = await this.repo.findRequests({
       where: { status: 'approved' },
       include: this.resourceRequestInclude(),
       orderBy: { updatedAt: 'asc' },
@@ -1733,7 +1263,7 @@ export class ResourceRequestService implements OnModuleInit {
     const now = options.now ?? new Date();
     const staleAfterSeconds = this.readStaleProvisioningRunAfterSeconds(options.staleAfterSeconds);
     const staleBefore = new Date(now.getTime() - staleAfterSeconds * 1000);
-    const runs = await (this.prisma as PrismaAny).resourceProvisioningRun.findMany({
+    const runs = await this.repo.findRuns({
       where: {
         ...(options.teamId ? { teamId: options.teamId } : {}),
         status: 'running',
@@ -1786,7 +1316,7 @@ export class ResourceRequestService implements OnModuleInit {
           recovery,
         };
 
-        await (this.prisma as PrismaAny).resourceProvisioningRun.update({
+        await this.repo.updateRun({
           where: { id: run.id },
           data: {
             status: 'failed',
@@ -1871,7 +1401,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   private async getProvisioningResourceType(resourceTypeId: string): Promise<ProvisioningResourceType> {
-    const resourceType = await (this.prisma as PrismaAny).resourceType.findUnique({
+    const resourceType = await this.repo.findResourceTypeByUnique({
       where: { id: resourceTypeId },
       select: {
         id: true,
@@ -2628,7 +2158,7 @@ export class ResourceRequestService implements OnModuleInit {
     },
   ): Promise<ResourceProvisioningRunRecord> {
     if (context.provisioningRunId) {
-      const existingRun = await (this.prisma as PrismaAny).resourceProvisioningRun.findFirst({
+      const existingRun = await this.repo.findRunFirst({
         where: {
           id: context.provisioningRunId,
           teamId,
@@ -2678,7 +2208,7 @@ export class ResourceRequestService implements OnModuleInit {
       params.environmentId = request.environmentId;
     }
 
-    const run = await (this.prisma as PrismaAny).resourceProvisioningRun.create({
+    const run = await this.repo.createRun({
       data: {
         teamId,
         actorId: userId,
@@ -2715,7 +2245,7 @@ export class ResourceRequestService implements OnModuleInit {
       return;
     }
 
-    await (this.prisma as PrismaAny).resourceProvisioningRun.update({
+    await this.repo.updateRun({
       where: { id: run.id },
       data: {
         credentialId: credentialRef.referenceId,
@@ -2804,7 +2334,7 @@ export class ResourceRequestService implements OnModuleInit {
       data.error = reason;
     }
 
-    await (this.prisma as PrismaAny).resourceProvisioningRun.update({
+    await this.repo.updateRun({
       where: { id: run.id },
       data,
     });
@@ -2820,7 +2350,7 @@ export class ResourceRequestService implements OnModuleInit {
       ...asRecord(request.result),
       provisioning,
     };
-    const updated = await (this.prisma as PrismaAny).resourceRequest.update({
+    const updated = await this.repo.updateRequest({
       where: { id: request.id },
       data: { result: nextResult },
       include: this.resourceRequestInclude(),
@@ -2849,7 +2379,7 @@ export class ResourceRequestService implements OnModuleInit {
     let instance: JsonRecord | null = null;
 
     if (input.createInstance) {
-      instance = await (this.prisma as PrismaAny).resourceInstance.create({
+      instance = await this.repo.createInstance({
         data: {
           teamId,
           projectId: existing.projectId,
@@ -2870,7 +2400,7 @@ export class ResourceRequestService implements OnModuleInit {
     }
 
     const completedAt = new Date();
-    const request = await (this.prisma as PrismaAny).resourceRequest.update({
+    const request = await this.repo.updateRequest({
       where: { id: existing.id },
       data: {
         status: 'completed',
@@ -2952,7 +2482,7 @@ export class ResourceRequestService implements OnModuleInit {
       updatedAt: now.toISOString(),
     };
 
-    await (this.prisma as PrismaAny).resourceProvisioningRun.update({
+    await this.repo.updateRun({
       where: { id: run.id },
       data: {
         status: 'planned',
@@ -2998,7 +2528,7 @@ export class ResourceRequestService implements OnModuleInit {
       providerStateStatus: readString(provisioning.providerStateStatus) || undefined,
       reason: readString(provisioning.reason) || undefined,
     });
-    await (this.prisma as PrismaAny).resourceProvisioningRun.update({
+    await this.repo.updateRun({
       where: { id: run.id },
       data: {
         status: 'planned',
@@ -3076,7 +2606,7 @@ export class ResourceRequestService implements OnModuleInit {
       stateFound: false,
       reason,
     });
-    await (this.prisma as PrismaAny).resourceProvisioningRun.update({
+    await this.repo.updateRun({
       where: { id: run.id },
       data: {
         status: 'planned',
@@ -3121,7 +2651,7 @@ export class ResourceRequestService implements OnModuleInit {
       return null;
     }
 
-    const record = await (this.prisma as PrismaAny).teamCredential.findFirst({
+    const record = await this.repo.findTeamCredential({
       where: { id: credentialId, teamId },
       select: { id: true, name: true, type: true },
     });
@@ -3159,7 +2689,7 @@ export class ResourceRequestService implements OnModuleInit {
       throw new BadRequestException('已完成的申请不能取消');
     }
 
-    const request = await (this.prisma as PrismaAny).resourceRequest.update({
+    const request = await this.repo.updateRequest({
       where: { id },
       data: {
         status: 'canceled',
@@ -3187,7 +2717,7 @@ export class ResourceRequestService implements OnModuleInit {
     if (query.environmentId) where.environmentId = query.environmentId;
     if (query.resourceTypeId) where.resourceTypeId = query.resourceTypeId;
 
-    const instances = await (this.prisma as PrismaAny).resourceInstance.findMany({
+    const instances = await this.repo.findInstances({
       where,
       include: this.resourceInstanceInclude(),
       orderBy: { createdAt: 'desc' },
@@ -3197,7 +2727,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async getInstance(teamId: string, id: string) {
-    const instance = await (this.prisma as PrismaAny).resourceInstance.findFirst({
+    const instance = await this.repo.findInstanceFirst({
       where: { id, teamId },
       include: {
         ...this.resourceInstanceInclude(),
@@ -3216,7 +2746,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async getInstanceCredentialForGeneration(teamId: string, id: string) {
-    const instance = await (this.prisma as PrismaAny).resourceInstance.findFirst({
+    const instance = await this.repo.findInstanceFirst({
       where: { id, teamId },
       include: {
         resourceType: {
@@ -3252,7 +2782,7 @@ export class ResourceRequestService implements OnModuleInit {
   }
 
   async releaseInstance(teamId: string, userId: string, id: string) {
-    const existing = await (this.prisma as PrismaAny).resourceInstance.findFirst({
+    const existing = await this.repo.findInstanceFirst({
       where: { id, teamId },
     });
 
@@ -3264,7 +2794,7 @@ export class ResourceRequestService implements OnModuleInit {
       throw new BadRequestException('只有 active 状态的资源实例可以释放');
     }
 
-    const instance = await (this.prisma as PrismaAny).resourceInstance.update({
+    const instance = await this.repo.updateInstance({
       where: { id },
       data: {
         status: 'released',
@@ -3293,7 +2823,7 @@ export class ResourceRequestService implements OnModuleInit {
     if (query.resourceTypeId) where.resourceTypeId = query.resourceTypeId;
     if (query.action) where.action = query.action;
 
-    return (this.prisma as PrismaAny).resourceAuditLog.findMany({
+    return this.repo.findResourceAuditLogs({
       where,
       include: {
         actor: { select: { id: true, name: true, email: true } },

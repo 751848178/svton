@@ -2,7 +2,9 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ResourcePoolService } from '../resource-pool/resource-pool.service';
 import { ServerExecutorService } from '../server-executor/server-executor.service';
+import { ResourceRequestRepository } from './resource-request.repository';
 import { ResourceRequestService } from './resource-request.service';
+import { ResourceTypeService } from './resource-type.service';
 import { ResourceProvisioningRunSupervisorService } from './resource-provisioning-run-supervisor.service';
 import { ResourceProvisioningRunReadService } from './resource-provisioning-run-read.service';
 
@@ -2318,7 +2320,8 @@ function createService(options: { httpEnabled?: boolean; configValues?: Record<s
   };
 
   const service = new ResourceRequestService(
-    prisma as unknown as PrismaService,
+    new ResourceRequestRepository(prisma as unknown as PrismaService),
+    new ResourceTypeService(new ResourceRequestRepository(prisma as unknown as PrismaService)),
     config as unknown as ConfigService,
     resourcePoolService as unknown as ResourcePoolService,
     serverExecutor as unknown as ServerExecutorService,
