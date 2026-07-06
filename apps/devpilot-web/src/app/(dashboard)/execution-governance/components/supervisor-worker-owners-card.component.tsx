@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { SupervisorExecutionAuditSection } from './supervisor-execution-audit-section.component';
 import { SupervisorQueueCoordinationSection } from './supervisor-queue-coordination-section.component';
 import { SupervisorRemoteOrphanSection } from './supervisor-remote-orphan-section.component';
@@ -16,6 +19,8 @@ export function SupervisorWorkerOwnersCard({
 }: {
   supervisor: ServerExecutionSupervisorSnapshot;
 }) {
+  const t = useTranslations('executionGovernance');
+  const tc = useTranslations('common');
   const inventory = supervisor.workerInventory;
 
   return (
@@ -45,7 +50,7 @@ export function SupervisorWorkerOwnersCard({
         />
         <SupervisorField
           label="queue worker"
-          value={inventory.current.queueWorkerEnabled ? '开启' : '关闭'}
+          value={inventory.current.queueWorkerEnabled ? tc('enabled') : tc('disabled')}
         />
         <SupervisorField
           label="ready/scheduled"

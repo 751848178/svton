@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useExecutionGovernance } from '../hooks/use-execution-governance';
@@ -14,6 +15,8 @@ import {
 } from '../execution-governance-scope.utils';
 
 export function ExecutionGovernanceContent() {
+  const t = useTranslations('executionGovernance');
+  const tc = useTranslations('common');
   const searchParams = useSearchParams();
   const scope = useMemo(() => readExecutionGovernanceScope(searchParams), [searchParams]);
   const scopeSummary = useMemo(() => formatExecutionJobScope(scope), [scope]);
@@ -48,8 +51,8 @@ export function ExecutionGovernanceContent() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="执行治理"
-        description="查看 Server executor 执行任务、live 占用、阻塞和释放记录"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <div className="flex gap-2">
             <button
@@ -57,27 +60,27 @@ export function ExecutionGovernanceContent() {
               disabled={processingQueue}
               className="rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
             >
-              {processingQueue ? '处理中...' : '处理队列'}
+              {processingQueue ? t('processing') : t('processQueue')}
             </button>
             <button
               onClick={recoverStaleJobs}
               disabled={recoveringStale}
               className="rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
             >
-              {recoveringStale ? '恢复中...' : '恢复僵尸'}
+              {recoveringStale ? t('recovering') : t('recoverZombie')}
             </button>
             <button
               onClick={expireStale}
               disabled={actingLease}
               className="rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
             >
-              {actingLease ? '处理中...' : '释放过期'}
+              {actingLease ? t('processing') : t('releaseExpired')}
             </button>
             <button
               onClick={handleRetry}
               className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
             >
-              刷新
+              {tc('refresh')}
             </button>
           </div>
         }
@@ -92,7 +95,7 @@ export function ExecutionGovernanceContent() {
 
       {scopeSummary ? (
         <div className="rounded-lg border p-4 text-sm">
-          <div className="font-medium">执行治理范围</div>
+          <div className="font-medium">{t('governanceScope')}</div>
           <div className="mt-2 break-all rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             {scopeSummary}
           </div>

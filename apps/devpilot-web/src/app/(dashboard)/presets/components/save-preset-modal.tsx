@@ -2,10 +2,13 @@
  * 保存预设弹窗
  *
  * 单一职责：收集预设名称并提交保存。
+ * react-hook-form 样板：取代手写 useState + 受控 onChange。
  */
 
-import { useState } from 'react';
-import { usePersistFn } from '@svton/hooks';
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/ui';
 
 interface SavePresetModalProps {
@@ -15,44 +18,48 @@ interface SavePresetModalProps {
   onSave: (name: string) => Promise<void>;
 }
 
-export function SavePresetModal({ open, config, onClose, onSave }: SavePresetModalProps) {
-  const [name, setName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+interface SavePresetFormData {
+  name: string;
+}
 
-  const handleSubmit = usePersistFn(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+export function SavePresetModal({ open, config, onClose, onSave }: SavePresetModalProps) {
+  const t = useTranslations('presets');
+  const tc = useTranslations('common');
+  const { register, handleSubmit, watch, reset, formState } = useForm<SavePresetFormData>({
+    defaultValues: { name: '' },
+  });
+  const name = watch('name');
+  const isSubmitting = formState.isSubmitting;
+
+  const onSubmit = async (data: SavePresetFormData) => {
     try {
-      await onSave(name);
+      await onSave(data.name);
       onClose();
-      setName('');
+      reset({ name: '' });
     } catch (error) {
       console.error('Failed to save preset:', error);
-      alert('保存失败');
-    } finally {
-      setIsSubmitting(false);
+      alert(t('saveFailed'));
     }
-  });
+  };
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="保存预设"
+      title={t('savePreset')}
     >
       <form
-        onSubmit={handleSubmit}
+        onSubmit={handleSubmit(onSubmit)}
         className="space-y-4"
       >
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">预设名称</span>
+          <span className="mb-1 block font-medium">{t('presetName')}</span>
           <input
             type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            {...register('name')}
             required
             className="w-full rounded-md border bg-background px-3 py-2"
-            placeholder="如：电商项目模板"
+            placeholder={t('presetNamePlaceholder')}
           />
         </label>
         <div className="flex justify-end gap-2 pt-4">
@@ -61,14 +68,14 @@ export function SavePresetModal({ open, config, onClose, onSave }: SavePresetMod
             onClick={onClose}
             className="rounded-md border px-4 py-2 transition-colors hover:bg-accent"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             type="submit"
             disabled={isSubmitting || !name}
             className="rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
-            {isSubmitting ? '保存中...' : '保存'}
+            {isSubmitting ? t('saving') : tc('save')}
           </button>
         </div>
       </form>

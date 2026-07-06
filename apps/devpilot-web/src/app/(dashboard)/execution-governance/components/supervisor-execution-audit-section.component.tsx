@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { SupervisorField, StatusBadge } from './ui-bits';
 import {
   formatAuditRisk,
@@ -14,6 +17,7 @@ export function SupervisorExecutionAuditSection({
 }: {
   auditVisibility: ExecutionAuditVisibility;
 }) {
+  const t = useTranslations('executionGovernance');
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -78,7 +82,7 @@ export function SupervisorExecutionAuditSection({
               </div>
               <div className="mt-1">
                 {event.metadata?.operationKey || event.summary || 'execution audit'} ·{' '}
-                {event.server?.name || '未关联服务器'} · {formatDate(event.occurredAt)}
+                {event.server?.name || t('noServer')} · {formatDate(event.occurredAt)}
               </div>
             </div>
           ))}

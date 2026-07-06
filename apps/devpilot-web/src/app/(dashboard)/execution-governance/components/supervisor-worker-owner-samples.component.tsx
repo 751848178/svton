@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { formatNullableRuntimeSeconds } from '../supervisor-orphan-audit-format.utils';
 import { formatWorkerInventoryState } from '../supervisor-worker-format.utils';
 import { shortId } from '../utils';
@@ -6,8 +9,9 @@ import type { ServerExecutionSupervisorSnapshot } from '../supervisor';
 type WorkerInventory = ServerExecutionSupervisorSnapshot['workerInventory'];
 
 export function SupervisorWorkerOwnerSamples({ inventory }: { inventory: WorkerInventory }) {
+  const t = useTranslations('executionGovernance');
   if (inventory.owners.samples.length === 0) {
-    return <div className="mt-4 text-muted-foreground">暂无 running job owner</div>;
+    return <div className="mt-4 text-muted-foreground">{t('noRunningJobOwner')}</div>;
   }
 
   return (
@@ -24,7 +28,7 @@ export function SupervisorWorkerOwnerSamples({ inventory }: { inventory: WorkerI
             </div>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {worker.sampleJob.operationKey} · {worker.sampleJob.server?.name || '未关联服务器'}
+            {worker.sampleJob.operationKey} · {worker.sampleJob.server?.name || t('noServer')}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {formatWorkerInventoryState(worker.status)} · seen{' '}

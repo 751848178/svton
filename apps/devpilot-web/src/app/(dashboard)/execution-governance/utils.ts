@@ -89,15 +89,5 @@ export function shortId(id: string) {
   return id.length > 8 ? id.slice(0, 8) : id;
 }
 
-export function formatDate(value?: string | null) {
-  if (!value) return '-';
-
-  return new Date(value).toLocaleString('zh-CN', {
-    hour12: false,
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-}
+/** 日期时间格式化（带秒，统一走共享 util）。 */
+export { formatDateTime as formatDate } from '@/lib/format-date';

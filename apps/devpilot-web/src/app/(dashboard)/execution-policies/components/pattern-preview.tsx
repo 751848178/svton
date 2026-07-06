@@ -4,6 +4,10 @@
  * 单一职责：展示 Allow/Block 模式列表（最多 4 条）。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
+
 interface PatternPreviewProps {
   allowed: string[];
   blocked: string[];
@@ -26,11 +30,12 @@ export function PatternPreview({ allowed, blocked }: PatternPreviewProps) {
 }
 
 function PatternList({ title, items }: { title: string; items: string[] }) {
+  const t = useTranslations('executionPolicies');
   return (
     <div className="rounded-md border bg-background p-3">
       <div className="mb-2 text-xs font-medium text-muted-foreground">{title}</div>
       {items.length === 0 ? (
-        <div className="text-xs text-muted-foreground">无</div>
+        <div className="text-xs text-muted-foreground">{t('patternNone')}</div>
       ) : (
         <div className="space-y-1">
           {items.slice(0, 4).map((item) => (
@@ -42,7 +47,9 @@ function PatternList({ title, items }: { title: string; items: string[] }) {
             </code>
           ))}
           {items.length > 4 ? (
-            <div className="text-xs text-muted-foreground">另有 {items.length - 4} 条</div>
+            <div className="text-xs text-muted-foreground">
+              {t('patternMore', { count: items.length - 4 })}
+            </div>
           ) : null}
         </div>
       )}

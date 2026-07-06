@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { SupervisorField, StatusBadge } from './ui-bits';
 import {
   formatQueueCoordinationAction,
@@ -14,6 +17,8 @@ export function SupervisorQueueCoordinationSection({
 }: {
   coordination: QueueCoordinationPreflight;
 }) {
+  const t = useTranslations('executionGovernance');
+  const tc = useTranslations('common');
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -27,7 +32,7 @@ export function SupervisorQueueCoordinationSection({
         />
         <SupervisorField
           label="worker"
-          value={`${coordination.gates.worker.enabled ? '开启' : '关闭'} · ${formatQueueCoordinationReason(coordination.gates.worker.reason)}`}
+          value={`${coordination.gates.worker.enabled ? tc('enabled') : tc('disabled')} · ${formatQueueCoordinationReason(coordination.gates.worker.reason)}`}
         />
         <SupervisorField
           label="queue"

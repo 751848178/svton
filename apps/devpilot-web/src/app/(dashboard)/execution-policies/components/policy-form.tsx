@@ -4,6 +4,9 @@
  * 单一职责：收集策略模板字段并提交保存。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import type { FormEvent } from 'react';
 import type { PolicyForm, Project, ProjectEnvironment } from '../types';
@@ -24,6 +27,8 @@ interface PolicyFormProps {
 export function PolicyFormView(props: PolicyFormProps) {
   const { form, onChange, editingId, saving, projects, environmentOptions, environments } = props;
   const { onSubmit, onReset, onSelectProject } = props;
+  const t = useTranslations('executionPolicies');
+  const tc = useTranslations('common');
 
   const handleEnvChange = usePersistFn((value: string) => {
     const env = environments.find((e) => e.id === value);
@@ -37,10 +42,10 @@ export function PolicyFormView(props: PolicyFormProps) {
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">{editingId ? '编辑策略模板' : '新建策略模板'}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            模板会在危险命令基线之后参与 Server executor 命令判定
-          </p>
+          <h2 className="text-lg font-semibold">
+            {editingId ? t('editTemplate') : t('newTemplate')}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t('formHint')}</p>
         </div>
         <div className="flex gap-2">
           {editingId ? (
@@ -49,7 +54,7 @@ export function PolicyFormView(props: PolicyFormProps) {
               onClick={onReset}
               className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
             >
-              取消编辑
+              {t('cancelEdit')}
             </button>
           ) : null}
           <button
@@ -57,21 +62,21 @@ export function PolicyFormView(props: PolicyFormProps) {
             disabled={saving}
             className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
           >
-            {saving ? '保存中...' : '保存策略'}
+            {saving ? t('saving') : t('savePolicy')}
           </button>
         </div>
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <Field label="名称">
+        <Field label={tc('name')}>
           <input
             value={form.name}
             onChange={(e) => onChange({ name: e.target.value })}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            placeholder="生产环境 Docker 只读巡检"
+            placeholder={t('namePlaceholder')}
           />
         </Field>
-        <Field label="优先级">
+        <Field label={t('priority')}>
           <input
             type="number"
             min="0"
@@ -80,13 +85,13 @@ export function PolicyFormView(props: PolicyFormProps) {
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </Field>
-        <Field label="项目">
+        <Field label={t('project')}>
           <select
             value={form.projectId}
             onChange={(e) => onSelectProject(e.target.value)}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
-            <option value="">团队全局</option>
+            <option value="">{t('teamGlobal')}</option>
             {projects.map((p) => (
               <option
                 key={p.id}
@@ -97,13 +102,13 @@ export function PolicyFormView(props: PolicyFormProps) {
             ))}
           </select>
         </Field>
-        <Field label="环境">
+        <Field label={t('environment')}>
           <select
             value={form.environmentId}
             onChange={(e) => handleEnvChange(e.target.value)}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
-            <option value="">不限环境</option>
+            <option value="">{t('anyEnvironment')}</option>
             {environmentOptions.map((e) => (
               <option
                 key={e.id}
@@ -132,14 +137,14 @@ export function PolicyFormView(props: PolicyFormProps) {
           />
         </Field>
         <Field
-          label="说明"
+          label={t('descriptionLabel')}
           className="lg:col-span-2"
         >
           <input
             value={form.description}
             onChange={(e) => onChange({ description: e.target.value })}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            placeholder="限定生产环境只允许健康检查和受控重载"
+            placeholder={t('descriptionPlaceholder')}
           />
         </Field>
         <Field label="Allow patterns">
@@ -166,7 +171,7 @@ export function PolicyFormView(props: PolicyFormProps) {
           checked={form.enabled}
           onChange={(e) => onChange({ enabled: e.target.checked })}
         />
-        启用策略模板
+        {t('enableTemplate')}
       </label>
     </form>
   );

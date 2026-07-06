@@ -4,6 +4,9 @@
  * 单一职责：展示单个已连接账号 + 其仓库，触发查看/断开。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
 import type { GitConnection, GitRepo } from '../types';
@@ -24,6 +27,7 @@ export function ConnectionCard({
   onViewRepos,
   onDisconnect,
 }: ConnectionCardProps) {
+  const t = useTranslations('git');
   const handleView = usePersistFn(() => onViewRepos(connection.provider));
   const handleDisconnect = usePersistFn(() => onDisconnect(connection.provider));
 
@@ -44,13 +48,13 @@ export function ConnectionCard({
             onClick={handleView}
             className="rounded border px-3 py-1 text-sm transition-colors hover:bg-accent"
           >
-            查看仓库
+            {t('viewRepos')}
           </button>
           <button
             onClick={handleDisconnect}
             className="rounded px-3 py-1 text-sm text-destructive transition-colors hover:bg-destructive/10"
           >
-            断开
+            {t('disconnect')}
           </button>
         </div>
       </div>
@@ -61,8 +65,9 @@ export function ConnectionCard({
 }
 
 function RepoList({ repos }: { repos: GitRepo[] }) {
+  const t = useTranslations('git');
   if (repos.length === 0) {
-    return <p className="mt-3 text-sm text-muted-foreground">没有找到仓库</p>;
+    return <p className="mt-3 text-sm text-muted-foreground">{t('noRepos')}</p>;
   }
   return (
     <div className="mt-3 space-y-2">
@@ -77,9 +82,9 @@ function RepoList({ repos }: { repos: GitRepo[] }) {
           <div className="flex items-center justify-between">
             <div>
               <h4 className="font-medium">{repo.name}</h4>
-              <p className="text-sm text-muted-foreground">{repo.description || '无描述'}</p>
+              <p className="text-sm text-muted-foreground">{repo.description || t('noDescription')}</p>
             </div>
-            {repo.private ? <Tag color="default">私有</Tag> : null}
+            {repo.private ? <Tag color="default">{t('private')}</Tag> : null}
           </div>
         </a>
       ))}

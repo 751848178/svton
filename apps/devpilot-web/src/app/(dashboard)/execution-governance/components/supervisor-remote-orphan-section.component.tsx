@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { SupervisorField, StatusBadge } from './ui-bits';
 import {
   formatRemoteOrphanAction,
@@ -16,6 +19,8 @@ export function SupervisorRemoteOrphanSection({
 }: {
   orphanGovernance: RemoteOrphanGovernancePreflight;
 }) {
+  const t = useTranslations('executionGovernance');
+  const tc = useTranslations('common');
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -33,7 +38,7 @@ export function SupervisorRemoteOrphanSection({
         />
         <SupervisorField
           label="cleanup"
-          value={`${orphanGovernance.gates.cleanup.enabled ? '开启' : '关闭'} · ${orphanGovernance.gates.cleanup.cleanupAttempted}/${orphanGovernance.gates.cleanup.cleanupSucceeded}/${orphanGovernance.gates.cleanup.cleanupFailed}`}
+          value={`${orphanGovernance.gates.cleanup.enabled ? tc('enabled') : tc('disabled')} · ${orphanGovernance.gates.cleanup.cleanupAttempted}/${orphanGovernance.gates.cleanup.cleanupSucceeded}/${orphanGovernance.gates.cleanup.cleanupFailed}`}
         />
         <SupervisorField
           label="owners"
@@ -81,7 +86,7 @@ export function SupervisorRemoteOrphanSection({
             <div key={sample.id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  {sample.operationKey} · {sample.server?.name || '未关联服务器'}
+                  {sample.operationKey} · {sample.server?.name || t('noServer')}
                 </span>
                 <span className="font-mono">{shortId(sample.id)}</span>
               </div>

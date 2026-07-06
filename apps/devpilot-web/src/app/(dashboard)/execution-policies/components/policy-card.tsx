@@ -4,10 +4,14 @@
  * 单一职责：渲染单个策略模板 + 启停/编辑/删除操作 + 模式预览。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
 import type { PolicyTemplate } from '../types';
 import { readStringArray, listLabel, scopeLabel } from '../utils';
+import { formatDateTime } from '@/lib/format-date';
 import { PatternPreview } from './pattern-preview';
 
 interface PolicyCardProps {
@@ -19,6 +23,8 @@ interface PolicyCardProps {
 }
 
 export function PolicyCard({ template, actingId, onEdit, onToggle, onDelete }: PolicyCardProps) {
+  const t = useTranslations('executionPolicies');
+  const tc = useTranslations('common');
   const handleEdit = usePersistFn(() => onEdit(template));
   const handleToggle = usePersistFn(() => onToggle(template));
   const handleDelete = usePersistFn(() => onDelete(template));
@@ -30,7 +36,7 @@ export function PolicyCard({ template, actingId, onEdit, onToggle, onDelete }: P
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{template.name}</h3>
             <Tag color={template.enabled ? 'green' : 'default'}>
-              {template.enabled ? '已启用' : '已停用'}
+              {template.enabled ? tc('enabled') : t('disabled')}
             </Tag>
             <Tag color="blue">P{template.priority}</Tag>
             <Tag color="default">{scopeLabel(template)}</Tag>
@@ -43,7 +49,7 @@ export function PolicyCard({ template, actingId, onEdit, onToggle, onDelete }: P
             <span>Operation: {listLabel(readStringArray(template.operationKeys))}</span>
             <span>Allow {readStringArray(template.allowedPatterns).length}</span>
             <span>Block {readStringArray(template.blockedPatterns).length}</span>
-            <span>更新 {new Date(template.updatedAt).toLocaleString('zh-CN')}</span>
+            <span>{t('updatedAt', { value: formatDateTime(template.updatedAt) })}</span>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -51,21 +57,21 @@ export function PolicyCard({ template, actingId, onEdit, onToggle, onDelete }: P
             onClick={handleEdit}
             className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
           >
-            编辑
+            {tc('edit')}
           </button>
           <button
             onClick={handleToggle}
             disabled={actingId === `${template.id}:toggle`}
             className="rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-60"
           >
-            {template.enabled ? '停用' : '启用'}
+            {template.enabled ? t('disable') : t('enable')}
           </button>
           <button
             onClick={handleDelete}
             disabled={actingId === `${template.id}:delete`}
             className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-60"
           >
-            删除
+            {tc('delete')}
           </button>
         </div>
       </div>

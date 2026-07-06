@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
@@ -8,6 +9,8 @@ import { PolicyFormView } from './components/policy-form';
 import { PolicyCard } from './components/policy-card';
 
 export default function ExecutionPoliciesPage() {
+  const t = useTranslations('executionPolicies');
+  const tc = useTranslations('common');
   const {
     templates,
     projects,
@@ -32,20 +35,20 @@ export default function ExecutionPoliciesPage() {
   const handleRetry = usePersistFn(() => reload());
 
   if (loading) {
-    return <LoadingState text="加载中..." />;
+    return <LoadingState text={tc('loading')} />;
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="执行策略"
-        description="管理 Server executor 在团队、项目和环境范围内的命令 allow/block 模板"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <button
             onClick={handleRetry}
             className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
           >
-            刷新
+            {tc('refresh')}
           </button>
         }
       />
@@ -59,23 +62,23 @@ export default function ExecutionPoliciesPage() {
 
       <div className="grid gap-4 md:grid-cols-5">
         <MetricCard
-          label="策略模板"
+          label={t('metricTemplates')}
           value={stats.total}
         />
         <MetricCard
-          label="已启用"
+          label={tc('enabled')}
           value={stats.enabled}
         />
         <MetricCard
-          label="限定作用域"
+          label={t('metricScoped')}
           value={stats.scoped}
         />
         <MetricCard
-          label="Block 规则"
+          label={t('metricBlockRules')}
           value={stats.blockingRules}
         />
         <MetricCard
-          label="Allow 规则"
+          label={t('metricAllowRules')}
           value={stats.allowingRules}
         />
       </div>
@@ -95,10 +98,10 @@ export default function ExecutionPoliciesPage() {
 
       <div className="overflow-hidden rounded-lg border">
         <div className="border-b bg-muted/30 px-4 py-3">
-          <h2 className="font-semibold">策略模板列表</h2>
+          <h2 className="font-semibold">{t('templateListTitle')}</h2>
         </div>
         {templates.length === 0 ? (
-          <EmptyState text="还没有执行策略模板" />
+          <EmptyState text={t('noTemplates')} />
         ) : (
           <div className="divide-y">
             {templates.map((template) => (

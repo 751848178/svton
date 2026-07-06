@@ -4,6 +4,9 @@
  * 单一职责：渲染 queue worker、Agent readiness、worker owners 三列概览。
  */
 
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { SupervisorAgentReadinessCard } from './supervisor-agent-readiness-card.component';
 import { SupervisorSummary } from './supervisor-summary.component';
@@ -18,9 +21,11 @@ interface SupervisorPanelProps {
 }
 
 export function SupervisorPanel({ supervisor, loading, error }: SupervisorPanelProps) {
-  if (loading) return <LoadingState text="加载中..." />;
+  const t = useTranslations('executionGovernance');
+  const tc = useTranslations('common');
+  if (loading) return <LoadingState text={tc('loading')} />;
   if (!supervisor) {
-    return <EmptyState text={error || 'Supervisor 状态不可用'} />;
+    return <EmptyState text={error || t('supervisorUnavailable')} />;
   }
 
   return (

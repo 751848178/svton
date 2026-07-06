@@ -3,12 +3,13 @@
  *
  * 单一职责：收集 Git 提供商与 Access Token 并提交连接。
  * 使用 @svton/ui Modal（含焦点陷阱、过渡、遮罩关闭）。
+ * react-hook-form 样板：取代手写 useState + 受控 onChange。
  */
 
-import { useState } from 'react';
-import { usePersistFn } from '@svton/hooks';
+import { useForm } from 'react-hook-form';
+import { useTranslations } from 'next-intl';
 import { Modal, ErrorBanner } from '@/components/ui';
-import type { GitConnectInput, GitProvider } from '../types';
+import type { GitConnectInput } from '../types';
 import { PROVIDER_OPTIONS, tokenPermissionHints } from '../constants';
 
 interface ConnectGitModalProps {
@@ -18,23 +19,34 @@ interface ConnectGitModalProps {
 }
 
 export function ConnectGitModal({ open, onClose, onConnect }: ConnectGitModalProps) {
-  const [provider, setProvider] = useState<GitProvider>('github');
-  const [accessToken, setAccessToken] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const t = useTranslations('git');
+  const tc = useTranslations('common');
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    setError,
+    formState,
+  } = useForm<GitConnectInput>({
+    defaultValues: {
+      provider: 'github',
+      accessToken: '',
+    },
+  });
 
-  const handleSubmit = usePersistFn(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsSubmitting(true);
+  const provider = watch('provider');
+  const accessToken = watch('accessToken');
+
+  const submit = handleSubmit(async (data) => {
     try {
-      await onConnect({ provider, accessToken });
+      await onConnect(data);
       onClose();
-      setAccessToken('');
+      reset({ provider: data.provider, accessToken: '' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : '连接失败');
-    } finally {
-      setIsSubmitting(false);
+      setError('root', {
+        message: err instanceof Error ? err.message : t('connectFailed'),
+      });
     }
   });
 
@@ -42,25 +54,24 @@ export function ConnectGitModal({ open, onClose, onConnect }: ConnectGitModalPro
     <Modal
       open={open}
       onClose={onClose}
-      title="连接 Git 账号"
+      title={t('connect')}
       width={480}
     >
       <form
-        onSubmit={handleSubmit}
+        onSubmit={submit}
         className="space-y-4"
       >
-        {error ? (
+        {(formState.errors.root as { message?: string } | undefined)?.message ? (
           <ErrorBanner
-            message={error}
+            message={(formState.errors.root as { message?: string } | undefined)?.message || ''}
             variant="inline"
           />
         ) : null}
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Git 提供商</span>
+          <span className="mb-1 block font-medium">{t('provider')}</span>
           <select
-            value={provider}
-            onChange={(e) => setProvider(e.target.value as GitProvider)}
+            {...register('provider')}
             className="w-full rounded-md border bg-background px-3 py-2"
           >
             {PROVIDER_OPTIONS.map((opt) => (
@@ -75,14 +86,13 @@ export function ConnectGitModal({ open, onClose, onConnect }: ConnectGitModalPro
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Access Token</span>
+          <span className="mb-1 block font-medium">{t('accessToken')}</span>
           <input
             type="password"
-            value={accessToken}
-            onChange={(e) => setAccessToken(e.target.value)}
+            {...register('accessToken', { required: true })}
             required
             className="w-full rounded-md border bg-background px-3 py-2"
-            placeholder="输入你的 Personal Access Token"
+            placeholder={t('tokenPlaceholder')}
           />
           <p className="mt-1 text-xs text-muted-foreground">{tokenPermissionHints[provider]}</p>
         </label>
@@ -93,14 +103,14 @@ export function ConnectGitModal({ open, onClose, onConnect }: ConnectGitModalPro
             onClick={onClose}
             className="rounded-md border px-4 py-2 transition-colors hover:bg-accent"
           >
-            取消
+            {tc('cancel')}
           </button>
           <button
             type="submit"
-            disabled={isSubmitting || !accessToken}
+            disabled={formState.isSubmitting || !accessToken}
             className="rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
-            {isSubmitting ? '连接中...' : '连接'}
+            {formState.isSubmitting ? t('connecting') : t('connect')}
           </button>
         </div>
       </form>

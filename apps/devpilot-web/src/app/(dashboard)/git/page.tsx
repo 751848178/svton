@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useBoolean } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
@@ -11,6 +12,8 @@ import { ConnectGitModal } from './components/connect-git-modal';
 import { providerNames } from './constants';
 
 export default function GitPage() {
+  const t = useTranslations('git');
+  const tc = useTranslations('common');
   const { isAuthenticated } = useAuthStore();
   const [modalOpen, { setTrue: openModal, setFalse: closeModal }] = useBoolean(false);
   const { connections, repos, selectedProvider, isLoading, loadRepos, connect, disconnect } =
@@ -19,7 +22,7 @@ export default function GitPage() {
   if (!isAuthenticated) {
     return (
       <div className="py-12 text-center">
-        <p className="text-muted-foreground">请先登录</p>
+        <p className="text-muted-foreground">{t('pleaseLogin')}</p>
       </div>
     );
   }
@@ -27,31 +30,31 @@ export default function GitPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title="Git 集成"
-        description="连接你的 Git 账号，将生成的项目直接推送到仓库"
+        title={t('pageTitle')}
+        description={t('pageDescription')}
         actions={
           <button
             onClick={openModal}
             className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            连接账号
+            {t('connectAccount')}
           </button>
         }
       />
 
       <div className="mb-8 mt-8">
-        <h2 className="mb-4 text-lg font-medium">已连接账号</h2>
+        <h2 className="mb-4 text-lg font-medium">{t('connectedAccounts')}</h2>
         {isLoading ? (
-          <LoadingState text="加载中..." />
+          <LoadingState text={tc('loading')} />
         ) : connections.length === 0 ? (
           <EmptyState
-            text="还没有连接任何 Git 账号"
+            text={t('noConnections')}
             action={
               <button
                 onClick={openModal}
                 className="text-primary hover:underline"
               >
-                连接第一个账号
+                {t('connectFirst')}
               </button>
             }
           />
@@ -73,7 +76,9 @@ export default function GitPage() {
 
       {selectedProvider ? (
         <div>
-          <h2 className="mb-4 text-lg font-medium">{providerNames[selectedProvider]} 仓库</h2>
+          <h2 className="mb-4 text-lg font-medium">
+            {t('providerRepos', { provider: providerNames[selectedProvider] })}
+          </h2>
         </div>
       ) : null}
 

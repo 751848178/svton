@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { SupervisorAgentFleetSection } from './supervisor-agent-fleet-section.component';
 import { SupervisorAgentJobsHealthSection } from './supervisor-agent-jobs-health-section.component';
 import { SupervisorAgentLifecycleSection } from './supervisor-agent-lifecycle-section.component';
@@ -14,6 +17,8 @@ export function SupervisorAgentReadinessCard({
 }: {
   supervisor: ServerExecutionSupervisorSnapshot;
 }) {
+  const t = useTranslations('executionGovernance');
+  const tc = useTranslations('common');
   const agent = supervisor.agent;
   const preflight = agent.lifecyclePreflight;
   const taskPull = agent.taskPullReadiness;
@@ -44,11 +49,11 @@ export function SupervisorAgentReadinessCard({
       <div className="mt-4 grid gap-x-6 gap-y-2 sm:grid-cols-2">
         <SupervisorField
           label="executor"
-          value={agent.dispatcher.executorEnabled ? '开启' : '关闭'}
+          value={agent.dispatcher.executorEnabled ? tc('enabled') : tc('disabled')}
         />
         <SupervisorField
           label="dispatcher"
-          value={agent.dispatcher.dispatcherConfigured ? '已配置' : '未配置'}
+          value={agent.dispatcher.dispatcherConfigured ? t('configured') : t('notConfigured')}
         />
         <SupervisorField
           label="timeout"
@@ -56,26 +61,26 @@ export function SupervisorAgentReadinessCard({
         />
         <SupervisorField
           label="token"
-          value={agent.dispatcher.tokenConfigured ? '已配置' : '未配置'}
+          value={agent.dispatcher.tokenConfigured ? t('configured') : t('notConfigured')}
         />
         <SupervisorField
           label="heartbeat"
-          value={agent.runtime.heartbeatEnabled ? '开启' : '关闭'}
+          value={agent.runtime.heartbeatEnabled ? tc('enabled') : tc('disabled')}
         />
         <SupervisorField
           label="hb token"
-          value={agent.runtime.tokenConfigured ? '已配置' : '未配置'}
+          value={agent.runtime.tokenConfigured ? t('configured') : t('notConfigured')}
         />
         <SupervisorField
-          label="services 来源"
+          label={t('servicesSource')}
           value={String(agent.serviceCapabilityServers)}
         />
         <SupervisorField
-          label="tags 来源"
+          label={t('tagsSource')}
           value={String(agent.tagCapabilityServers)}
         />
         <SupervisorField
-          label="在线可用"
+          label={t('onlineAvailable')}
           value={String(agent.onlineCapableServers)}
         />
         <SupervisorField
@@ -95,7 +100,7 @@ export function SupervisorAgentReadinessCard({
           value={String(agent.runtimeHealth.expiringSoonServers)}
         />
         <SupervisorField
-          label="状态分布"
+          label={t('statusDistribution')}
           value={
             agent.statusCounts.length
               ? agent.statusCounts.map((item) => `${item.status}:${item.count}`).join(' · ')

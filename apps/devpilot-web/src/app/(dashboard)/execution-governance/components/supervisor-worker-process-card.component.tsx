@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { SupervisorField, StatusBadge } from './ui-bits';
 import type { ServerExecutionSupervisorSnapshot } from '../supervisor';
 
@@ -6,11 +9,13 @@ export function SupervisorWorkerProcessCard({
 }: {
   supervisor: ServerExecutionSupervisorSnapshot;
 }) {
+  const t = useTranslations('executionGovernance');
+  const tc = useTranslations('common');
   return (
     <div className="rounded-lg border p-4 text-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-medium">本进程</h3>
+          <h3 className="font-medium">{t('thisProcess')}</h3>
           <div className="mt-1 font-mono text-xs text-muted-foreground">
             {supervisor.worker.workerId}
           </div>
@@ -19,44 +24,44 @@ export function SupervisorWorkerProcessCard({
       </div>
       <div className="mt-4 grid gap-x-6 gap-y-2 sm:grid-cols-2">
         <SupervisorField
-          label="处理队列"
-          value={supervisor.worker.processingQueue ? '是' : '否'}
+          label={t('processingQueue')}
+          value={supervisor.worker.processingQueue ? t('yes') : t('no')}
         />
         <SupervisorField
-          label="取消令牌"
+          label={t('cancelToken')}
           value={String(supervisor.worker.runningCancellations)}
         />
         <SupervisorField
-          label="批量大小"
+          label={t('batchSize')}
           value={String(supervisor.worker.queueBatchSize)}
         />
         <SupervisorField
-          label="轮询间隔"
+          label={t('pollInterval')}
           value={`${supervisor.worker.queueIntervalSeconds}s`}
         />
         <SupervisorField
-          label="锁 TTL"
+          label={t('lockTtl')}
           value={`${supervisor.worker.queueLockTtlSeconds}s`}
         />
         <SupervisorField
-          label="心跳间隔"
+          label={t('heartbeatInterval')}
           value={`${supervisor.worker.queueHeartbeatSeconds}s`}
         />
         <SupervisorField
-          label="取消轮询"
+          label={t('cancelPoll')}
           value={`${supervisor.worker.cancellationPollSeconds}s`}
         />
         <SupervisorField
-          label="远端追偿"
-          value={supervisor.worker.staleRemoteCleanupEnabled ? '开启' : '关闭'}
+          label={t('staleRemoteCleanup')}
+          value={supervisor.worker.staleRemoteCleanupEnabled ? tc('enabled') : tc('disabled')}
         />
       </div>
       {supervisor.queue.nextQueuedJob ? (
         <div className="mt-4 border-t pt-3 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">下一任务</span>
+          <span className="font-medium text-foreground">{t('nextJob')}</span>
           <span> · {supervisor.queue.nextQueuedJob.operationKey}</span>
           <span> · {supervisor.queue.nextQueuedJob.adapterKey}</span>
-          <span> · {supervisor.queue.nextQueuedJob.server?.name || '未关联服务器'}</span>
+          <span> · {supervisor.queue.nextQueuedJob.server?.name || t('noServer')}</span>
         </div>
       ) : null}
     </div>

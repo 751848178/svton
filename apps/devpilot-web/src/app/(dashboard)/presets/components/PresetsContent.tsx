@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
@@ -15,6 +16,8 @@ import type { Preset } from '../types';
  * 接收首屏 server 数据 initialPresets（SWR fallback），加载/导入/导出/删除等交互在此完成。
  */
 export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }) {
+  const t = useTranslations('presets');
+  const tc = useTranslations('common');
   const router = useRouter();
   const { config, loadPreset } = useProjectConfigStore();
   const { presets, isLoading, fetchConfig, create, remove, importPreset, exportPreset } =
@@ -43,7 +46,7 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
   });
 
   const handleDelete = usePersistFn(async (id: string) => {
-    if (!confirm('确定要删除这个预设吗？')) return;
+    if (!confirm(t('deleteConfirm'))) return;
     await remove(id);
   });
 
@@ -55,7 +58,7 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
       await importPreset({ name: data.name, config: data.config });
     } catch (error) {
       console.error('Failed to import preset:', error);
-      alert('导入失败，请检查文件格式');
+      alert(t('importFailed'));
     }
   });
 
@@ -67,12 +70,12 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
     <div className="mx-auto max-w-4xl">
       <div className="mb-8">
         <PageHeader
-          title="配置预设"
-          description="保存和管理你的项目配置预设"
+          title={t('pageTitle')}
+          description={t('pageDescription')}
           actions={
             <div className="flex gap-2">
               <label className="cursor-pointer rounded-md border px-4 py-2 font-medium transition-colors hover:bg-accent">
-                导入
+                {t('importLabel')}
                 <input
                   type="file"
                   accept=".json"
@@ -84,7 +87,7 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
                 onClick={openModal}
                 className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
-                保存当前配置
+                {t('saveCurrent')}
               </button>
             </div>
           }
@@ -92,13 +95,13 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
       </div>
 
       {isLoading ? (
-        <LoadingState text="加载中..." />
+        <LoadingState text={tc('loading')} />
       ) : presets.length === 0 ? (
         <EmptyState
-          text="还没有保存任何预设"
+          text={t('noPresets')}
           action={
             <button onClick={openModal} className="text-primary hover:underline">
-              保存第一个预设
+              {t('saveFirst')}
             </button>
           }
         />
@@ -112,7 +115,7 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
               <div>
                 <h3 className="font-medium">{preset.name}</h3>
                 <p className="text-sm text-muted-foreground">
-                  更新于 {new Date(preset.updatedAt).toLocaleString()}
+                  {t('updatedAt', { date: new Date(preset.updatedAt).toLocaleString() })}
                 </p>
               </div>
               <PresetActions
@@ -147,6 +150,8 @@ function PresetActions({
   onExport: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const t = useTranslations('presets');
+  const tc = useTranslations('common');
   const handleLoad = usePersistFn(() => onLoad(presetId));
   const handleExport = usePersistFn(() => onExport(presetId));
   const handleDelete = usePersistFn(() => onDelete(presetId));
@@ -156,19 +161,19 @@ function PresetActions({
         onClick={handleLoad}
         className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground transition-colors hover:bg-primary/90"
       >
-        加载
+        {t('load')}
       </button>
       <button
         onClick={handleExport}
         className="rounded border px-3 py-1 text-sm transition-colors hover:bg-accent"
       >
-        导出
+        {t('export')}
       </button>
       <button
         onClick={handleDelete}
         className="rounded px-3 py-1 text-sm text-destructive transition-colors hover:bg-destructive/10"
       >
-        删除
+        {tc('delete')}
       </button>
     </div>
   );
