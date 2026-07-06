@@ -1,0 +1,38 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "empty": "No data",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "save": "Save",
+    "create": "Create",
+    "edit": "Edit",
+    "close": "Close",
+    "submit": "Submit",
+    "retry": "Retry",
+    "back": "Back"
+  },
+  "keys": {
+    "pageTitle": "Key Center",
+    "pageDescription": "Securely store and manage all kinds of keys",
+    "generate": "Generate Key",
+    "store": "Store Key",
+    "deleteConfirm": "Are you sure you want to delete this key? This action cannot be undone.",
+    "reveal": "Reveal",
+    "hide": "Hide",
+    "copy": "Copy",
+    "copied": "Copied",
+    "saveToKeyCenter": "Save to Key Center →",
+    "generateSuccess": "Generated successfully!",
+    "keyType": "Key Type",
+    "length": "Length",
+    "generateButton": "Generate",
+    "name": "Name",
+    "description": "Description",
+    "value": "Value",
+    "noKeys": "No keys yet. Click \"Generate Key\" to create your first one.",
+    "storeTitle": "Store Key",
+    "close": "Close"
+  }
+}
