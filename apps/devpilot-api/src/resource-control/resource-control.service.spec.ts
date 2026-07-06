@@ -10,6 +10,7 @@ import { CloudProviderInventoryService } from './inventory/cloud-provider-invent
 import { ResourceControlRepository } from './resource-control.repository';
 import { ResourceControlService } from './resource-control.service';
 import { ResourceControlListReadService } from './resource-control-list-read.service';
+import { ResourceControlBindingService } from './resource-control-binding.service';
 import { ResourceControlCloudProviderHealthService } from './resource-control-cloud-provider-health.service';
 import {
   buildMetricSeries,
@@ -22,6 +23,7 @@ describe('ResourceControlService cloud provider health summary', () => {
     {} as PrismaService,
     {} as ResourceControlRepository,
     new ResourceControlListReadService({} as ResourceControlRepository, cloudProviderHealthService),
+    {} as ResourceControlBindingService,
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,
@@ -413,6 +415,7 @@ function buildService(prisma: PrismaService) {
       new ResourceControlRepository(prisma),
       new ResourceControlCloudProviderHealthService(prisma),
     ),
+    new ResourceControlBindingService(new ResourceControlRepository(prisma), {} as AuditEventService),
     {} as DefaultCredentialResolver,
     {} as ResourceExecutorRouter,
     {} as DirectDbQueryExecutor,

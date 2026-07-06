@@ -50,6 +50,7 @@ import { CloudProviderInventoryService } from './inventory/cloud-provider-invent
 import { ResourceControlCapabilitiesService } from './resource-control-capabilities.service';
 import { ResourceControlRepository } from './resource-control.repository';
 import { ResourceControlListReadService } from './resource-control-list-read.service';
+import { ResourceControlBindingService } from './resource-control-binding.service';
 import {
   actionRunInclude,
   connectionRunInclude,
@@ -207,6 +208,7 @@ export class ResourceControlService {
     private readonly prisma: PrismaService,
     private readonly repo: ResourceControlRepository,
     private readonly listRead: ResourceControlListReadService,
+    private readonly binding: ResourceControlBindingService,
     private readonly credentialResolver: DefaultCredentialResolver,
     private readonly executorRouter: ResourceExecutorRouter,
     private readonly directDbQueryExecutor: DirectDbQueryExecutor,
@@ -253,101 +255,9 @@ export class ResourceControlService {
   resolveEnvironmentAccessScope = (teamId: string, environmentId?: string | null) =>
     this.listRead.resolveEnvironmentAccessScope(teamId, environmentId);
 
-  async updateResourceBinding(
-    teamId: string,
-    userId: string,
-    resourceId: string,
-    dto: UpdateManagedResourceBindingDto,
-  ) {
-    const resource = await this.getManagedResource(teamId, resourceId);
-    const hasProject = this.hasOwn(dto, 'projectId');
-    const hasEnvironment = this.hasOwn(dto, 'environmentId');
-    const hasServer = this.hasOwn(dto, 'serverId');
-    const hasCredential = this.hasOwn(dto, 'credentialId');
-    const hasQueryCredential = this.hasOwn(dto, 'queryCredentialId');
-    const before = this.buildResourceBindingSnapshot(resource);
-
-    let nextProjectId = resource.projectId;
-    let nextEnvironmentId = resource.environmentId;
-
-    if (hasEnvironment) {
-      if (dto.environmentId) {
-        const environment = await this.resolveProjectEnvironment(teamId, dto.environmentId);
-        if (!environment) {
-          throw new NotFoundException('项目环境不存在或已归档');
-        }
-        if (hasProject && dto.projectId && dto.projectId !== environment.projectId) {
-          throw new BadRequestException('项目环境不属于指定项目');
-        }
-        if (hasProject && dto.projectId === null) {
-          throw new BadRequestException('绑定环境时不能清空项目');
-        }
-        nextEnvironmentId = environment.id;
-        nextProjectId = environment.projectId;
-      } else {
-        nextEnvironmentId = null;
-        nextProjectId = hasProject ? (dto.projectId ?? null) : null;
-      }
-    } else if (hasProject) {
-      if (resource.environmentId && dto.projectId !== resource.projectId) {
-        throw new BadRequestException('资源已绑定环境，调整项目时需要同步改选或清空环境');
-      }
-      nextProjectId = dto.projectId ?? null;
-    }
-
-    if (nextProjectId) {
-      await this.ensureProject(teamId, nextProjectId);
-    }
-
-    const nextServerId = hasServer ? (dto.serverId ?? null) : resource.serverId;
-    if (resource.sourceType === 'server' && !nextServerId) {
-      throw new BadRequestException('服务器来源资源必须绑定服务器');
-    }
-    if (nextServerId) {
-      await this.ensureServer(teamId, nextServerId);
-    }
-
-    const nextCredentialId = hasCredential ? (dto.credentialId ?? null) : resource.credentialId;
-    if (nextCredentialId) {
-      await this.ensureTeamCredential(teamId, nextCredentialId);
-    }
-
-    const nextQueryCredentialId = hasQueryCredential
-      ? (dto.queryCredentialId ?? null)
-      : (this.resolveQueryCredentialId(resource) ?? null);
-    if (nextQueryCredentialId) {
-      await this.ensureTeamCredential(teamId, nextQueryCredentialId);
-    }
-
-    if (nextEnvironmentId && nextServerId) {
-      const environment = await this.resolveProjectEnvironment(teamId, nextEnvironmentId);
-      if (!environment) {
-        throw new NotFoundException('项目环境不存在或已归档');
-      }
-      await this.bindServerToEnvironment(teamId, environment, nextServerId, {
-        source: 'resource-control.updateResourceBinding',
-        managedResourceId: resource.id,
-      });
-    }
-
-    const updated = await this.repo.updateManagedResource({
-      where: { id: resource.id },
-      data: {
-        projectId: nextProjectId,
-        environmentId: nextEnvironmentId,
-        serverId: nextServerId,
-        credentialId: nextCredentialId,
-        config: hasQueryCredential
-          ? toJsonValueUtil(this.mergeQueryCredentialBinding(resource.config, nextQueryCredentialId))
-          : undefined,
-      },
-      include: this.managedResourceInclude(),
-    });
-
-    await this.writeResourceBindingAudit(teamId, userId, resource, updated, before, dto.reason);
-
-    return updated;
-  }
+  updateResourceBinding = (
+    teamId: string, userId: string, resourceId: string, dto: UpdateManagedResourceBindingDto,
+  ) => this.binding.updateResourceBinding(teamId, userId, resourceId, dto);
 
   async probeResourceConnection(teamId: string, userId: string, resourceId: string, dto: ProbeResourceConnectionDto) {
     const resource = await this.getManagedResource(teamId, resourceId);
@@ -758,7 +668,7 @@ export class ResourceControlService {
   async syncCloudResources(teamId: string, userId: string, dto: SyncCloudResourcesDto) {
     const environmentRef = await this.resolveProjectEnvironment(teamId, dto.environmentId);
     const credential = dto.credentialId
-      ? await this.prisma.teamCredential.findFirst({
+      ? await this.repo.findTeamCredential({
           where: { id: dto.credentialId, teamId },
           select: { id: true, name: true, type: true },
         })
@@ -1097,7 +1007,7 @@ export class ResourceControlService {
     action: ResourceActionDefinition,
     optional = false,
   ): Promise<ResolvedCredentialRef | null> {
-    const credential = await this.prisma.teamCredential.findFirst({
+    const credential = await this.repo.findTeamCredential({
       where: { id: credentialId, teamId },
       select: { id: true, name: true, type: true },
     });
@@ -2199,7 +2109,7 @@ export class ResourceControlService {
   }
 
   private async ensureTeamCredential(teamId: string, credentialId: string) {
-    const credential = await this.prisma.teamCredential.findFirst({
+    const credential = await this.repo.findTeamCredential({
       where: { id: credentialId, teamId },
       select: { id: true },
     });
