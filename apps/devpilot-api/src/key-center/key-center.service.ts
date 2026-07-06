@@ -1,32 +1,26 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as crypto from 'crypto';
+import { CryptoService } from '../common/crypto/crypto.service';
 import { GenerateKeyDto, StoreKeyDto, KeyType } from './dto/key-center.dto';
 
 @Injectable()
 export class KeyCenterService {
   private readonly logger = new Logger(KeyCenterService.name);
-  private readonly encryptionKey = process.env.ENCRYPTION_KEY || 'default-key-32-chars-long!!!!!';
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cryptoService: CryptoService,
+  ) {}
 
   // 加密
   private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(this.encryptionKey.padEnd(32).slice(0, 32)), iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return iv.toString('hex') + ':' + encrypted;
+    return this.cryptoService.encryptCbc(text);
   }
 
   // 解密
   private decrypt(text: string): string {
-    const [ivHex, encrypted] = text.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(this.encryptionKey.padEnd(32).slice(0, 32)), iv);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+    return this.cryptoService.decryptCbc(text);
   }
 
   // 生成密钥
@@ -59,6 +53,8 @@ export class KeyCenterService {
   }
 
   // 生成安全密码（包含大小写字母、数字、特殊字符）
+  // 使用 crypto.randomInt（CSPRNG）选字符，并用 Fisher-Yates 洗牌，
+  // 杜绝 Math.random() 生成 JWT 密钥/加密密钥/API key 的安全风险。
   private generateSecurePassword(length: number): string {
     const lowercase = 'abcdefghijklmnopqrstuvwxyz';
     const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -66,20 +62,24 @@ export class KeyCenterService {
     const special = '!@#$%^&*()_+-=[]{}|;:,.<>?';
     const all = lowercase + uppercase + numbers + special;
 
-    let password = '';
+    const chars: string[] = [];
     // 确保至少包含每种字符
-    password += lowercase[Math.floor(Math.random() * lowercase.length)];
-    password += uppercase[Math.floor(Math.random() * uppercase.length)];
-    password += numbers[Math.floor(Math.random() * numbers.length)];
-    password += special[Math.floor(Math.random() * special.length)];
+    chars.push(lowercase[crypto.randomInt(0, lowercase.length)]);
+    chars.push(uppercase[crypto.randomInt(0, uppercase.length)]);
+    chars.push(numbers[crypto.randomInt(0, numbers.length)]);
+    chars.push(special[crypto.randomInt(0, special.length)]);
 
     // 填充剩余长度
-    for (let i = password.length; i < length; i++) {
-      password += all[Math.floor(Math.random() * all.length)];
+    for (let i = chars.length; i < length; i++) {
+      chars.push(all[crypto.randomInt(0, all.length)]);
     }
 
-    // 打乱顺序
-    return password.split('').sort(() => Math.random() - 0.5).join('');
+    // Fisher-Yates 洗牌（CSPRNG），避免 sort(() => Math.random() - 0.5) 的有偏分布
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = crypto.randomInt(0, i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join('');
   }
 
   private getDefaultLength(type: KeyType): number {

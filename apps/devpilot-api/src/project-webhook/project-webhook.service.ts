@@ -6,9 +6,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { isMatch as microMatch } from 'micromatch';
 import { PrismaService } from '../prisma/prisma.service';
 import { DeploymentService } from '../deployment/deployment.service';
+import { CryptoService } from '../common/crypto/crypto.service';
 import {
   CreateProjectWebhookDto,
   ListProjectWebhooksQueryDto,
@@ -88,16 +90,14 @@ function readStringArray(value: unknown): string[] {
 
 @Injectable()
 export class ProjectWebhookService {
-  private readonly encryptionKey: Buffer;
   private readonly replayWindowSeconds: number;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly deploymentService: DeploymentService,
     configService: ConfigService,
+    private readonly cryptoService: CryptoService,
   ) {
-    const key = configService.get('ENCRYPTION_KEY', 'default-32-char-encryption-key!');
-    this.encryptionKey = scryptSync(key, 'webhook-secret', 32);
     this.replayWindowSeconds = this.normalizeReplayWindowSeconds(
       configService.get('WEBHOOK_REPLAY_WINDOW_SECONDS', 300),
     );
@@ -671,24 +671,11 @@ export class ProjectWebhookService {
   }
 
   private encrypt(text: string) {
-    const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', this.encryptionKey, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted}`;
+    return this.cryptoService.encryptWebhook(text);
   }
 
   private decrypt(encryptedText: string) {
-    const [ivHex, authTagHex, encrypted] = encryptedText.split(':');
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      this.encryptionKey,
-      Buffer.from(ivHex, 'hex'),
-    );
-    decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
+    return this.cryptoService.decryptWebhook(encryptedText);
   }
 
   private safeEqual(left: string, right: string) {
@@ -705,11 +692,10 @@ export class ProjectWebhookService {
   private isBranchAllowed(pattern: string | null, branch?: string) {
     if (!pattern) return true;
     if (!branch) return false;
+    // 历史语义：裸 '*' 视为匹配所有分支（micromatch 的 '*' 不跨 '/'，故单独特判）。
     if (pattern === '*') return true;
-    if (pattern.endsWith('*')) {
-      return branch.startsWith(pattern.slice(0, -1));
-    }
-    return branch === pattern;
+    // 其余 pattern 走 micromatch：支持 'feature/*'、'release-*'、'{main,develop}' 等 glob。
+    return microMatch(branch, pattern);
   }
 
   private extractBranch(payload: unknown) {

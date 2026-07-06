@@ -1,9 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import * as crypto from 'crypto';
 import { AuditEventService } from '../audit-event';
 import { PrismaService } from '../prisma/prisma.service';
 import { SiteService } from '../site';
+import { CryptoService } from '../common/crypto/crypto.service';
 import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
@@ -252,26 +252,17 @@ const DEFAULT_RESOURCE_BINDING_TYPES: EnvironmentResourceBindingType[] = [
 
 @Injectable()
 export class ProjectEnvironmentService {
-  private readonly encryptionKey = process.env.ENCRYPTION_KEY || 'default-key-32-chars-long!!!!!';
-
   constructor(
     private readonly prisma: PrismaService,
     @Optional()
-    private readonly auditEventService?: AuditEventService,
+    private readonly auditEventService: AuditEventService,
     @Optional()
-    private readonly siteService?: SiteService,
+    private readonly siteService: SiteService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   private encryptSecretValue(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(
-      'aes-256-cbc',
-      Buffer.from(this.encryptionKey.padEnd(32).slice(0, 32)),
-      iv,
-    );
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return `${iv.toString('hex')}:${encrypted}`;
+    return this.cryptoService.encryptCbc(text);
   }
 
   async list(teamId: string, query: ListProjectEnvironmentsQueryDto) {

@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from "class-validator";
 
 export class ListOperationApprovalsQueryDto {
   @IsOptional()
@@ -8,6 +8,14 @@ export class ListOperationApprovalsQueryDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  @IsOptional()
+  @IsString()
+  action?: string;
+
+  @IsOptional()
+  @IsString()
+  targetType?: string;
 
   @IsOptional()
   @IsString()
@@ -27,8 +35,8 @@ export class ListOperationApprovalsQueryDto {
 }
 
 export class ReviewOperationApprovalDto {
-  @IsIn(['approved', 'rejected'])
-  decision: 'approved' | 'rejected';
+  @IsIn(["approved", "rejected"])
+  decision: "approved" | "rejected";
 
   @IsOptional()
   @IsString()

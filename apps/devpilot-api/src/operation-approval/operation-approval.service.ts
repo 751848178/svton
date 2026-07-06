@@ -7,6 +7,7 @@ import {
   ListOperationApprovalsQueryDto,
   ReviewOperationApprovalDto,
 } from './dto/operation-approval.dto';
+import { buildOperationApprovalWhere } from './operation-approval-list-query.utils';
 
 export type CreateOperationApprovalInput = {
   teamId: string;
@@ -42,17 +43,8 @@ export class OperationApprovalService {
   ) {}
 
   async list(teamId: string, query: ListOperationApprovalsQueryDto) {
-    const where: Prisma.OperationApprovalWhereInput = { teamId };
-
-    if (query.status) where.status = query.status;
-    if (query.category) where.category = query.category;
-    if (query.risk) where.risk = query.risk;
-    if (query.projectId) where.projectId = query.projectId;
-    if (query.environmentId) where.environmentId = query.environmentId;
-    if (query.requesterId) where.requesterId = query.requesterId;
-
     return this.prisma.operationApproval.findMany({
-      where,
+      where: buildOperationApprovalWhere(teamId, query),
       orderBy: { requestedAt: 'desc' },
       take: 100,
       include: this.approvalInclude(),

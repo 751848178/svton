@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
-import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../common/crypto/crypto.service';
+import { createTestCryptoService } from '../common/crypto/crypto.test-helpers';
 import { ProjectEnvironmentService } from './project-environment.service';
 
 type PrismaMock = {
@@ -45,17 +46,10 @@ const environments = [
   },
 ];
 
+const secretCrypto = createTestCryptoService('test-encryption-key-32-chars-ok!!!');
+
 function decryptStoredSecret(value: string) {
-  const encryptionKey = process.env.ENCRYPTION_KEY || 'default-key-32-chars-long!!!!!';
-  const [ivHex, encrypted] = value.split(':');
-  const decipher = crypto.createDecipheriv(
-    'aes-256-cbc',
-    Buffer.from(encryptionKey.padEnd(32).slice(0, 32)),
-    Buffer.from(ivHex, 'hex'),
-  );
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
+  return secretCrypto.decryptCbc(value);
 }
 
 describe('ProjectEnvironmentService sync suggestions', () => {
@@ -205,6 +199,7 @@ describe('ProjectEnvironmentService sync suggestions', () => {
       prisma as unknown as PrismaService,
       auditEventService as never,
       siteService as never,
+      secretCrypto as unknown as CryptoService,
     );
   });
 

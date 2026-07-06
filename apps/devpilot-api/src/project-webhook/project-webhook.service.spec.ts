@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { createTestCryptoService } from '../common/crypto/crypto.test-helpers';
 import { DeploymentService } from '../deployment/deployment.service';
 import { ProjectWebhookService } from './project-webhook.service';
 
@@ -56,6 +57,7 @@ describe('ProjectWebhookService PR preview webhooks', () => {
       prisma as unknown as PrismaService,
       deploymentService as unknown as DeploymentService,
       { get: jest.fn((_key: string, fallback?: unknown) => fallback) } as unknown as ConfigService,
+      createTestCryptoService(),
     );
   });
 
