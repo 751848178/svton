@@ -105,7 +105,22 @@ pure-utils files by resource family so each stays ≤200 lines.
 | F276.2 | done   | Extract builders/warnings into 3 focused pure-utils files.                                               | New `site-sync-plan.utils.ts` (189 lines: `buildSyncPlan`/`buildRollbackPlan`/`buildDiagnosticsPlan`/`collectWarnings`/`normalizeTailLines`), `site-openresty-plan.utils.ts` (85 lines: 3 OpenResty plans + 3 collectors), `site-ops-plan.utils.ts` (187 lines: smoke/TLS plans + collectors). `site.service.ts` imports them, drops the ~600-line cluster + 17 private methods, and calls the pure functions directly. `SiteRecordLike.server` tightened to `name?: string; host?: string` to satisfy the plan target types (structurally compatible with the host's Prisma `SiteRecord`). Host dropped from 1996 to 1394 lines. |
 | F276.3 | done   | Run focused API verification and hygiene checks, then sync final evidence + update maps.                 | Focused site Jest passed (27 tests, 4 suites): `/tmp/codex-tool-runs/svton/f276-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f276-tc2-20260707.log`; all 3 new files ≤200 lines (189/85/187); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved. |
 
-## Site Module Backend Maps (current, post-F276)
+## F277. Site Service Operation-Policy + Config-Diff Extraction
+
+Purpose: continue the site backend split by extracting the pure operation-policy
+and config-diff helpers that `executeSiteSyncOperation` and its siblings depend
+on. This is a safe, high-value pure boundary (~180 lines) that shrinks the host
+and makes the policy/diff logic unit-testable. The large `executeSiteSyncOperation`
+orchestration method itself remains on the host (it is tightly coupled to prisma,
+approval, executor, audit — a service extraction is a separate future slice).
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F277.1 | done   | Map the operation-policy + config-diff boundary.                                                         | Manual graph confirmed the 7 policy helpers (`modeForAction`/`mutatesNginxConfig`/`mutatesSiteStatus`/`requiresSiteOperationApproval`/`requiresExecutionConfirmation`/`siteOperationRisk`/`siteOperationLabel`) and 2 diff helpers (`diffConfigText`/`buildNoConfigDiff`) are pure; the 5 site-operation types (`SiteConfigDiff`/`SiteOperationAction`/`SiteOperationKey`/`SiteOperationMode`/`SiteOperationTrigger`) are shared and move to the types file. The async `buildConfigDiff` reads Prisma so stays on the host. |
+| F277.2 | done   | Extract policy/diff helpers + operation types.                                                           | New `site-operation-policy.utils.ts` (64 lines: 7 policy functions), `site-config-diff.utils.ts` (99 lines: `diffConfigText`/`buildNoConfigDiff`/`buildConfigDiffFromBaseline` pure diff shaping), and 5 operation types moved into `site-plan.types.ts` (107 lines). `site.service.ts` imports them, drops the 9 private pure methods + 5 inline type aliases, and the async `buildConfigDiff` now delegates to `buildConfigDiffFromBaseline`. Host dropped from 1394 to 1217 lines. |
+| F277.3 | done   | Run focused API verification and hygiene checks, then sync final evidence + update maps.                 | Focused site Jest passed (27 tests, 4 suites): `/tmp/codex-tool-runs/svton/f277-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f277-tc1-20260707.log`; all new/updated files ≤200 lines (64/99/107); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved. |
+
+## Site Module Backend Maps (current, post-F277)
 
 Business logic map: project/environment-scoped Site record → CRUD (list/create/
 update/delete) → sync/probe/diagnostics action plan build → server-executor
@@ -114,16 +129,19 @@ post-sync site/TLS status update → TLS probe/renew scheduling → rollback.
 
 Organization map (backend files → responsibility):
 - `site.controller.ts` (384, over-ceiling) — HTTP routes.
-- `site.service.ts` (1394, over-ceiling) — Site CRUD + sync/diagnostics/
-  openresty/smoke/tls action orchestration + execution + approval + audit +
-  post-sync updates + rollback (plan builders + warnings extracted in F276).
+- `site.service.ts` (1217, over-ceiling) — Site CRUD + sync/diagnostics/
+  openresty/smoke/tls action orchestration + `executeSiteSyncOperation` execution
+  + approval + audit + post-sync updates + rollback (plan builders, warnings,
+  policy, diff extracted in F275–F277).
 - `site-config-gen.utils.ts` (184) — pure Nginx/access-policy/upstream/certificate
   generators + safety checks (F275).
 - `site-sync-plan.utils.ts` (189) — sync/rollback/diagnostics plan builders +
   collectWarnings + normalizeTailLines (F276).
 - `site-openresty-plan.utils.ts` (85) — 3 OpenResty plans + collectors (F276).
 - `site-ops-plan.utils.ts` (187) — smoke/TLS probe/renew plans + collectors (F276).
-- `site-plan.types.ts` (58) — shared plan/config types + readers (F275).
+- `site-operation-policy.utils.ts` (64) — action→mode/risk/label + approval/confirmation policy (F277).
+- `site-config-diff.utils.ts` (99) — pure nginx-config diff math + no-diff/baseline shaping (F277).
+- `site-plan.types.ts` (107) — shared plan/config/operation types + readers (F275/F277).
 - `site-tls-probe.ts` (282, over-ceiling) + `site-tls-renew.ts` (255, over-ceiling)
   — TLS probe/renew metadata + command builders.
 - `site-tls-probe-scheduler.service.ts` (254) + `site-tls-renew-scheduler.service.ts`
@@ -143,12 +161,13 @@ openresty-module-baseline,smoke-check,tls-probe,tls-renew,rollback,takeover-prev
 
 ## Gaps Identified From The Site Backend Maps (post-F275)
 
-- **`site.service.ts` still 1394 lines** (over ceiling). Plan builders + warnings
-  (the previous largest boundary) were extracted in F276. Next largest boundary:
-  `executeSiteSyncOperation` (the largest remaining orchestration method) and the
-  post-sync update helpers (`updateSiteAfterSync`/`updateSiteTlsAfterProbe`/
-  `updateSiteAfterNonMutatingOperation`/`updateSiteTlsAfterRenew`/
-  `queueTlsProbeAfterRenewal`), plus the audit/approval-context builders.
+- **`site.service.ts` still 1217 lines** (over ceiling). Plan builders, warnings,
+  operation-policy, and config-diff (the previous largest boundaries) were
+  extracted in F275–F277. Next largest boundary: `executeSiteSyncOperation` (the
+  largest remaining orchestration method) and the post-sync update helpers
+  (`updateSiteAfterSync`/`updateSiteTlsAfterProbe`/`updateSiteAfterNonMutatingOperation`/
+  `updateSiteTlsAfterRenew`/`queueTlsProbeAfterRenewal`), plus the audit/approval-context
+  builders — these form a coupled execution cluster best extracted as a focused service.
 - **Over-ceiling TLS files:** `site-tls-probe.ts` (282), `site-tls-renew.ts` (255),
   `site-tls-probe-scheduler.service.ts` (254), `site-tls-renew-scheduler.service.ts`
   (280) — each needs its own config/metadata extraction.
@@ -158,8 +177,9 @@ openresty-module-baseline,smoke-check,tls-probe,tls-renew,rollback,takeover-prev
 ## Next Candidates
 
 - Continue the site backend split: extract `executeSiteSyncOperation` + post-sync
-  update helpers next (F277), then the audit/approval-context builders, then the
-  TLS files, then the controller.
+  update helpers + audit/approval-context builders into a focused `SiteSyncExecutionService`
+  (F278) — the largest remaining coupled cluster.
+- Then the TLS files, then the controller.
 - After site, move to monitoring / log-center / ops-governance backend splits.
 
 ## Maps To Maintain

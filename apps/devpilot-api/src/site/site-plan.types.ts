@@ -56,3 +56,52 @@ export function readStringArray(value: unknown): string[] {
 }
 
 export type { SiteRuntimeType };
+
+export type SiteConfigDiff = {
+  sourceRunId?: string | null;
+  hasBaseline: boolean;
+  hasChanges: boolean;
+  added: number;
+  removed: number;
+  unchanged: number;
+  summary: string;
+  unifiedDiff: string;
+};
+
+export type SiteOperationAction =
+  | 'site.sync'
+  | 'site.rollback'
+  | 'site.diagnostics'
+  | 'site.openresty_module_baseline'
+  | 'site.openresty_modules'
+  | 'site.openresty_status'
+  | 'site.smoke_check'
+  | 'site.tls_probe'
+  | 'site.tls_renew';
+
+export type SiteOperationKey = SiteOperationAction;
+
+export type SiteOperationMode =
+  | 'sync'
+  | 'rollback'
+  | 'diagnostics'
+  | 'openresty_module_baseline'
+  | 'openresty_modules'
+  | 'openresty_status'
+  | 'smoke_check'
+  | 'tls_probe'
+  | 'tls_renew';
+
+export type SiteOperationTrigger =
+  | 'manual'
+  | 'manual_rollback'
+  | 'manual_diagnostics'
+  | 'manual_openresty_module_baseline'
+  | 'manual_openresty_modules'
+  | 'manual_openresty_status'
+  | 'manual_smoke_check'
+  | 'manual_tls_probe'
+  | 'manual_tls_renew'
+  | 'scheduled_tls_probe'
+  | 'scheduled_tls_renew'
+  | 'renewal_follow_up_tls_probe';

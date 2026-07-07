@@ -37,8 +37,26 @@ import {
   readBoolean,
   readStringArray,
   type JsonRecord,
+  type SiteConfigDiff,
+  type SiteOperationAction,
+  type SiteOperationKey,
+  type SiteOperationMode,
+  type SiteOperationTrigger,
   type SiteSyncExecutionPlan,
 } from './site-plan.types';
+import {
+  modeForAction,
+  mutatesNginxConfig,
+  mutatesSiteStatus,
+  requiresExecutionConfirmation,
+  requiresSiteOperationApproval,
+  siteOperationLabel,
+  siteOperationRisk,
+} from './site-operation-policy.utils';
+import {
+  buildConfigDiffFromBaseline,
+  buildNoConfigDiff,
+} from './site-config-diff.utils';
 import {
   buildCertificateCommand,
   buildCertificateRenewCommand,
@@ -70,59 +88,6 @@ import {
 } from './site-ops-plan.utils';
 
 type SiteRecord = Awaited<ReturnType<SiteService['getSite']>>;
-type SiteConfigDiff = {
-  sourceRunId?: string | null;
-  hasBaseline: boolean;
-  hasChanges: boolean;
-  added: number;
-  removed: number;
-  unchanged: number;
-  summary: string;
-  unifiedDiff: string;
-};
-type SiteOperationAction =
-  | 'site.sync'
-  | 'site.rollback'
-  | 'site.diagnostics'
-  | 'site.openresty_module_baseline'
-  | 'site.openresty_modules'
-  | 'site.openresty_status'
-  | 'site.smoke_check'
-  | 'site.tls_probe'
-  | 'site.tls_renew';
-type SiteOperationKey =
-  | 'site.sync'
-  | 'site.rollback'
-  | 'site.diagnostics'
-  | 'site.openresty_module_baseline'
-  | 'site.openresty_modules'
-  | 'site.openresty_status'
-  | 'site.smoke_check'
-  | 'site.tls_probe'
-  | 'site.tls_renew';
-type SiteOperationMode =
-  | 'sync'
-  | 'rollback'
-  | 'diagnostics'
-  | 'openresty_module_baseline'
-  | 'openresty_modules'
-  | 'openresty_status'
-  | 'smoke_check'
-  | 'tls_probe'
-  | 'tls_renew';
-type SiteOperationTrigger =
-  | 'manual'
-  | 'manual_rollback'
-  | 'manual_diagnostics'
-  | 'manual_openresty_module_baseline'
-  | 'manual_openresty_modules'
-  | 'manual_openresty_status'
-  | 'manual_smoke_check'
-  | 'manual_tls_probe'
-  | 'manual_tls_renew'
-  | 'scheduled_tls_probe'
-  | 'scheduled_tls_renew'
-  | 'renewal_follow_up_tls_probe';
 type SiteSyncRunSummary = {
   id: string;
   operationApprovalId?: string | null;
@@ -562,9 +527,9 @@ export class SiteService {
     },
   ): Promise<SiteOperationExecutionResult> {
     const target = await this.serverExecutor.resolveTarget(teamId, site.serverId);
-    const configDiff = this.mutatesNginxConfig(options.mode)
+    const configDiff = mutatesNginxConfig(options.mode)
       ? await this.buildConfigDiff(teamId, site.id, plan.nginxConfig, options.sourceRunId)
-      : this.buildNoConfigDiff(`${this.siteOperationLabel(options.action)}不变更 Nginx 配置`);
+      : buildNoConfigDiff(`${siteOperationLabel(options.action)}不变更 Nginx 配置`);
     const approvalContext = this.buildSiteApprovalContext(
       teamId,
       userId,
@@ -573,7 +538,7 @@ export class SiteService {
       options,
       configDiff,
     );
-    const requiresApproval = this.requiresSiteOperationApproval(options.action, options.dryRun);
+    const requiresApproval = requiresSiteOperationApproval(options.action, options.dryRun);
     const approvedApproval = requiresApproval
       ? await this.operationApprovalService.resolveApproved({
           ...approvalContext,
@@ -697,7 +662,7 @@ export class SiteService {
           businessRunSync: options.queue ? 'site_sync' : undefined,
         },
         blockOnWarnings: !options.dryRun,
-        requiredConfirmationText: this.requiresExecutionConfirmation(options.action) ? site.name : undefined,
+        requiredConfirmationText: requiresExecutionConfirmation(options.action) ? site.name : undefined,
         confirmationText: options.confirmationText,
       };
 
@@ -770,7 +735,7 @@ export class SiteService {
       throw error;
     }
 
-    const shouldUpdateSite = !options.dryRun && this.mutatesSiteStatus(options.mode);
+    const shouldUpdateSite = !options.dryRun && mutatesSiteStatus(options.mode);
     const syncedSite = shouldUpdateSite
       ? await this.updateSiteAfterSync(site.id, execution.status, execution.error)
       : await this.updateSiteAfterNonMutatingOperation(
@@ -1013,7 +978,7 @@ export class SiteService {
     },
     action: SiteOperationAction,
   ) {
-    const label = this.siteOperationLabel(action);
+    const label = siteOperationLabel(action);
     await this.auditEventService.create({
       teamId,
       actorId: userId ?? undefined,
@@ -1027,7 +992,7 @@ export class SiteService {
       action,
       targetType: 'site',
       targetId: site.id,
-      risk: dryRun ? 'low' : this.siteOperationRisk(action),
+      risk: dryRun ? 'low' : siteOperationRisk(action),
       status: execution.status,
       summary: `${label} ${site.name} ${execution.status}`,
       metadata: {
@@ -1101,7 +1066,7 @@ export class SiteService {
     },
     configDiff: SiteConfigDiff,
   ) {
-    const label = this.siteOperationLabel(options.action);
+    const label = siteOperationLabel(options.action);
 
     return {
       teamId,
@@ -1114,7 +1079,7 @@ export class SiteService {
       action: options.action,
       targetType: 'site',
       targetId: site.id,
-      risk: this.siteOperationRisk(options.action),
+      risk: siteOperationRisk(options.action),
       summary: `申请执行${label} ${site.name}`,
       reason: options.approvalReason || `申请执行非 dry-run ${label}`,
       metadata: {
@@ -1133,62 +1098,6 @@ export class SiteService {
         diffSourceRunId: configDiff.sourceRunId,
       },
     };
-  }
-
-  private requiresSiteOperationApproval(action: SiteOperationAction, dryRun: boolean) {
-    return !dryRun && (this.mutatesNginxConfig(this.modeForAction(action)) || action === 'site.tls_renew');
-  }
-
-  private requiresExecutionConfirmation(action: SiteOperationAction) {
-    return action === 'site.sync' || action === 'site.rollback' || action === 'site.tls_renew';
-  }
-
-  private mutatesNginxConfig(mode: SiteOperationMode) {
-    return mode === 'sync' || mode === 'rollback';
-  }
-
-  private mutatesSiteStatus(mode: SiteOperationMode) {
-    return mode === 'sync' || mode === 'rollback';
-  }
-
-  private modeForAction(action: SiteOperationAction): SiteOperationMode {
-    if (action === 'site.rollback') return 'rollback';
-    if (action === 'site.diagnostics') return 'diagnostics';
-    if (action === 'site.openresty_module_baseline') return 'openresty_module_baseline';
-    if (action === 'site.openresty_modules') return 'openresty_modules';
-    if (action === 'site.openresty_status') return 'openresty_status';
-    if (action === 'site.smoke_check') return 'smoke_check';
-    if (action === 'site.tls_probe') return 'tls_probe';
-    if (action === 'site.tls_renew') return 'tls_renew';
-    return 'sync';
-  }
-
-  private siteOperationRisk(action: SiteOperationAction) {
-    if (action === 'site.rollback') return 'high';
-    if (
-      action === 'site.diagnostics' ||
-      action === 'site.openresty_module_baseline' ||
-      action === 'site.openresty_modules' ||
-      action === 'site.openresty_status' ||
-      action === 'site.smoke_check' ||
-      action === 'site.tls_probe'
-    ) {
-      return 'low';
-    }
-    if (action === 'site.tls_renew') return 'medium';
-    return 'medium';
-  }
-
-  private siteOperationLabel(action: SiteOperationAction) {
-    if (action === 'site.rollback') return '站点回滚';
-    if (action === 'site.diagnostics') return '站点诊断';
-    if (action === 'site.openresty_module_baseline') return 'OpenResty 模块基线检查';
-    if (action === 'site.openresty_modules') return 'OpenResty 模块盘点';
-    if (action === 'site.openresty_status') return 'OpenResty 运行态探测';
-    if (action === 'site.smoke_check') return '站点 Smoke 检查';
-    if (action === 'site.tls_probe') return 'TLS 证书探测';
-    if (action === 'site.tls_renew') return 'TLS 证书续期';
-    return '站点同步';
   }
 
   private syncRunInclude(): Prisma.SiteSyncRunInclude {
@@ -1285,97 +1194,11 @@ export class SiteService {
     sourceRunId?: string | null,
   ): Promise<SiteConfigDiff> {
     const baselineRun = await this.prisma.siteSyncRun.findFirst({
-      where: {
-        teamId,
-        siteId,
-        status: 'completed',
-        dryRun: false,
-      },
+      where: { teamId, siteId, status: 'completed', dryRun: false },
       orderBy: { startedAt: 'desc' },
       select: { id: true, nginxConfig: true },
     });
-
-    const baselineConfig = baselineRun?.nginxConfig || '';
-    const diff = this.diffConfigText(baselineConfig, nextConfig);
-    const hasBaseline = Boolean(baselineRun);
-    const hasChanges = !hasBaseline || diff.added > 0 || diff.removed > 0;
-
-    return {
-      sourceRunId: baselineRun?.id || sourceRunId || null,
-      hasBaseline,
-      hasChanges,
-      added: diff.added,
-      removed: diff.removed,
-      unchanged: diff.unchanged,
-      summary: hasBaseline
-        ? (hasChanges
-            ? `与最近成功配置相比：新增 ${diff.added} 行，删除 ${diff.removed} 行`
-            : '与最近成功配置无差异')
-        : `暂无成功配置快照，本次将新增 ${diff.added} 行配置`,
-      unifiedDiff: diff.unifiedDiff,
-    };
-  }
-
-  private buildNoConfigDiff(summary: string): SiteConfigDiff {
-    return {
-      sourceRunId: null,
-      hasBaseline: false,
-      hasChanges: false,
-      added: 0,
-      removed: 0,
-      unchanged: 0,
-      summary,
-      unifiedDiff: [
-        '--- last-successful-nginx.conf',
-        '+++ planned-nginx.conf',
-        summary,
-      ].join('\n'),
-    };
-  }
-
-  private diffConfigText(previousConfig: string, nextConfig: string) {
-    const previousLines = previousConfig ? previousConfig.split('\n') : [];
-    const nextLines = nextConfig ? nextConfig.split('\n') : [];
-    const maxLength = Math.max(previousLines.length, nextLines.length);
-    const lines: string[] = [];
-    let added = 0;
-    let removed = 0;
-    let unchanged = 0;
-
-    for (let index = 0; index < maxLength; index += 1) {
-      const previousLine = previousLines[index];
-      const nextLine = nextLines[index];
-
-      if (previousLine === nextLine && nextLine !== undefined) {
-        unchanged += 1;
-        lines.push(` ${String(index + 1).padStart(4, ' ')} | ${nextLine}`);
-        continue;
-      }
-
-      if (previousLine !== undefined) {
-        removed += 1;
-        lines.push(`-${String(index + 1).padStart(4, ' ')} | ${previousLine}`);
-      }
-      if (nextLine !== undefined) {
-        added += 1;
-        lines.push(`+${String(index + 1).padStart(4, ' ')} | ${nextLine}`);
-      }
-    }
-
-    const maxLines = 240;
-    const clipped = lines.length > maxLines;
-
-    return {
-      added,
-      removed,
-      unchanged,
-      unifiedDiff: [
-        '--- last-successful-nginx.conf',
-        '+++ planned-nginx.conf',
-        ...lines.slice(0, maxLines),
-        ...(clipped ? [`... diff truncated, ${lines.length - maxLines} more lines`] : []),
-      ].join('\n'),
-    };
+    return buildConfigDiffFromBaseline(nextConfig, baselineRun, sourceRunId);
   }
 
 
