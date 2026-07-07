@@ -64,6 +64,7 @@ import {
 import { SITE_INCLUDE, SYNC_RUN_INCLUDE } from './site-includes.utils';
 import { SitePostSyncUpdateService } from './site-post-sync-update.service';
 import { SiteSyncExecutionService, type SiteOperationExecutionResult } from './site-sync-execution.service';
+import { validateTakeoverInput, buildTakeoverRuntimeConfig } from './site-takeover-preview.utils';
 import {
   buildCertificateCommand,
   buildCertificateRenewCommand,
@@ -228,79 +229,20 @@ export class SiteService {
 
   async takeoverPreviewSite(teamId: string, userId: string, id: string, dto: PreviewSiteTakeoverDto) {
     const existing = await this.getSite(teamId, id);
-    const runtimeConfig = isRecord(existing.runtimeConfig) ? { ...existing.runtimeConfig } : {};
-    const preview = isRecord(runtimeConfig.preview) ? { ...runtimeConfig.preview } : {};
-
-    if (!isPreviewSitePlaceholder(runtimeConfig)) {
-      throw new BadRequestException('只有 PR Preview draft Site 占位可以执行预览接管');
-    }
-    if (readString(preview.status) === 'archived' || readBoolean(preview.enabled) === false) {
-      throw new BadRequestException('已归档的 PR Preview Site 不能执行预览接管');
-    }
-
-    const serverId = dto.serverId.trim();
-    const upstreamUrl = dto.upstreamUrl.trim();
-    if (!serverId) {
-      throw new BadRequestException('预览站点接管需要绑定目标服务器');
-    }
-    if (!upstreamUrl) {
-      throw new BadRequestException('预览站点接管需要提供上游地址');
-    }
-    if (!isSafeUpstream(upstreamUrl)) {
-      throw new BadRequestException('上游地址必须是安全的 http/https upstream，且不能包含空白或 shell/nginx 注入字符');
-    }
-
+    const { serverId, upstreamUrl, preview } = validateTakeoverInput(dto, existing.runtimeConfig);
     await this.assertBindings(teamId, { serverId });
-
-    const now = new Date().toISOString();
-    const nextPreview: Record<string, unknown> = {
-      ...preview,
-      status: 'ready_for_sync',
-      syncBlocked: false,
-      activatedAt: now,
-      activatedById: userId,
-      upstreamUrl,
-    };
-    delete nextPreview.syncBlockedReason;
-
-    const nextRuntimeConfig: Record<string, unknown> = {
-      ...runtimeConfig,
-      placeholder: false,
-      syncBlocked: false,
-      upstreamUrl,
-      websocket: dto.websocket ?? readBoolean(runtimeConfig.websocket) === true,
-      preview: nextPreview,
-    };
-    delete nextRuntimeConfig.syncBlockedReason;
+    const nextRuntimeConfig = buildTakeoverRuntimeConfig(existing.runtimeConfig, preview, upstreamUrl, userId, dto.websocket);
 
     const data: Prisma.SiteUncheckedUpdateInput = {
-      serverId,
-      runtimeType: 'reverse_proxy',
-      runtimeConfig: this.toJsonValue(nextRuntimeConfig),
-      status: 'pending',
-      syncError: null,
+      serverId, runtimeType: 'reverse_proxy', runtimeConfig: this.toJsonValue(nextRuntimeConfig), status: 'pending', syncError: null,
     };
+    if (dto.tls !== undefined) data.tls = this.toJsonValue(dto.tls);
+    if (dto.accessPolicy !== undefined) data.accessPolicy = this.toJsonValue(dto.accessPolicy);
 
-    if (dto.tls !== undefined) {
-      data.tls = this.toJsonValue(dto.tls);
-    }
-    if (dto.accessPolicy !== undefined) {
-      data.accessPolicy = this.toJsonValue(dto.accessPolicy);
-    }
-
-    const site = await this.prisma.site.update({
-      where: { id },
-      data,
-      include: SITE_INCLUDE,
-    });
+    const site = await this.prisma.site.update({ where: { id }, data, include: SITE_INCLUDE });
     const syncPlan = dto.createDryRunPlan === false
       ? null
-      : await this.createSyncPlan(teamId, userId, id, {
-          dryRun: true,
-          queue: dto.queue,
-          maxAttempts: dto.maxAttempts,
-        });
-
+      : await this.createSyncPlan(teamId, userId, id, { dryRun: true, queue: dto.queue, maxAttempts: dto.maxAttempts });
     return { site, syncPlan };
   }
 
