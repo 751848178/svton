@@ -104,6 +104,26 @@ behavior (dry-run planning, sanitization, queued-live metadata, audit follow-up)
 | F265.2 | done   | Extract site-copy into a focused service while preserving the public service facade and fixing spec wiring. | New `ProjectEnvironmentCopySiteService` (99 lines) owns `copySites` + `getSiteCopyAccessScope` + private `resolveProjectEnvironment`/`assertServer`; `ProjectEnvironmentService` keeps one-line arrow-function delegates and drops the 273-line inline copy body; module registers the new provider. Spec constructor rewired to inject a real `ProjectEnvironmentCopySiteService(repo, siteService, auditEventService)` so the existing copy integration tests still exercise real copy behavior. Host service dropped from ~1986 to 1713 lines. |
 | F265.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites): `/tmp/codex-tool-runs/svton/pe-final-jest-20260707-095948.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/pe-final-tc-20260707.log`; new file 99 lines (≤200); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved (no Prettier double-quote regressions).                                                                                                                                            |
 
+## F266. Project Environment Sync-Suggestions Service Split
+
+Purpose: split the cross-environment sync diff/apply orchestration out of the
+over-limit `ProjectEnvironmentService` (1713 lines). Source inspection confirmed
+`listSyncSuggestions` (read-only diff against a reference environment),
+`getSyncApplyAccessScope`, and `applySyncSuggestions` (create-missing-service
+skeletons + complete-deploy-config, dry-run or applied) form a self-contained
+sync-suggestions boundary independent of environment CRUD, server binding, and
+resource/CDN/secret copy. `syncFromProject` stays in the host because it
+orchestrates `ensureDefaultsForProject` + `list` and has no tests. This slice
+preserves the public controller API and every diff/apply behavior; to respect
+the 200-line ceiling the boundary is split into a read service, an apply service,
+and two pure-utils files.
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F266.1 | done   | Map the sync-suggestions boundary, callers, helpers, and data flow.                                      | CodeGraph CLI is present but uninitialized; manual graph confirmed `listSyncSuggestions`/`getSyncApplyAccessScope`/`applySyncSuggestions` are called only by `ProjectEnvironmentController`; the diff/apply path depends on `repo.*` reads/writes, `auditEventService.create`, and the existing pure helpers in `project-environment-sync-diff.utils.ts` / `project-environment-audit.utils.ts`. |
+| F266.2 | done   | Extract sync-suggestions into focused services + pure utils while preserving the public facade.          | New `ProjectEnvironmentSyncService` (174 lines, owns `listSyncSuggestions`) and `ProjectEnvironmentSyncApplyService` (198 lines, owns `applySyncSuggestions` + `getSyncApplyAccessScope`, depends on the read service); new pure `project-environment-sync.utils.ts` (181 lines: constants, types, profile builder, query-arg builders) and `project-environment-sync-step.utils.ts` (178 lines: dry-run/applied step builders, create payload, missing-field computation). `ProjectEnvironmentService` keeps one-line arrow-function delegates and drops ~494 lines; module registers both new providers; spec rewired to inject real `ProjectEnvironmentSyncService(repo)` and `ProjectEnvironmentSyncApplyService(repo, syncService, auditEventService)`. Host dropped from 1713 to 1197 lines. |
+| F266.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, all 8 sync tests green): `/tmp/codex-tool-runs/svton/f266-jest-ceil-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f266-tc-ceil-20260707.log`; all 5 new sync files ≤200 lines (198/181/178/174/118); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.      |
+
 ## Source-Backed Maps
 
 Business logic map: environment workbench gap -> resource-control page context
@@ -135,10 +155,11 @@ query runs to render inventory, binding, credential, query, and action panels.
 
 ## Next Candidates
 
-- Continue splitting `ProjectEnvironmentService` (still 1713 lines, over the
-  200-line ceiling) by verified behavior boundary: environment CRUD/listing,
-  sync-from-project/diff, server binding, secret management, and resource copy
-  (managed-resource / resource-instance / CDN / secret cross-environment copy).
+- Continue splitting `ProjectEnvironmentService` (now 1197 lines, still over
+  the 200-line ceiling) by verified behavior boundary: environment
+  CRUD/listing, sync-from-project, server binding, secret management, and
+  resource copy (managed-resource / resource-instance / CDN / secret
+  cross-environment copy).
 - Continue splitting `ResourceControlService` by verified behavior boundary:
   binding validation/write orchestration, query run orchestration, connection
   probe orchestration, action execution/approval orchestration, inventory sync,
