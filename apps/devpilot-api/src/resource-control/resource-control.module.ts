@@ -14,8 +14,9 @@ import { CloudProviderInventoryService } from './inventory/cloud-provider-invent
 import { ResourceControlSchedulerService } from './resource-control-scheduler.service';
 import { ResourceControlCapabilitiesService } from './resource-control-capabilities.service';
 import { ResourceControlCloudProviderHealthService } from './resource-control-cloud-provider-health.service';
-import { ResourceControlController } from './resource-control.controller';
+import { ResourceControlReadController, ResourceControlWriteController } from './resource-control.controller';
 import { ResourceControlService } from './resource-control.service';
+import { ResourceControlAccessPolicyService } from './resource-control-access-policy.service';
 import { ResourceControlRepository } from './resource-control.repository';
 import { ResourceControlListReadService } from './resource-control-list-read.service';
 import { ResourceControlBindingService } from './resource-control-binding.service';
@@ -28,9 +29,10 @@ import { ResourceControlSyncService } from './resource-control-sync.service';
 
 @Module({
   imports: [ServerExecutorModule, AuditEventModule, OperationApprovalModule, ControlAccessPolicyModule],
-  controllers: [ResourceControlController],
+  controllers: [ResourceControlReadController, ResourceControlWriteController],
   providers: [
     ResourceControlService,
+    ResourceControlAccessPolicyService,
     ResourceControlRepository,
     ResourceControlListReadService,
     ResourceControlBindingService,

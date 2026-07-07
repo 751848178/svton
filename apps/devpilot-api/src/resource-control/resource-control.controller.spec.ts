@@ -1,8 +1,12 @@
 import { ControlAccessPolicyService } from '../control-access-policy';
-import { ResourceControlController } from './resource-control.controller';
+import {
+  ResourceControlReadController,
+  ResourceControlWriteController,
+} from './resource-control.controller';
 import { ResourceControlService } from './resource-control.service';
+import { ResourceControlAccessPolicyService } from './resource-control-access-policy.service';
 
-describe('ResourceControlController authorization', () => {
+describe('ResourceControl controllers authorization', () => {
   const req = {
     user: { id: 'user-1' },
     teamId: 'team-1',
@@ -24,7 +28,8 @@ describe('ResourceControlController authorization', () => {
     canRead: jest.Mock;
     assertCanWrite: jest.Mock;
   };
-  let controller: ResourceControlController;
+  let readController: ResourceControlReadController;
+  let writeController: ResourceControlWriteController;
 
   beforeEach(() => {
     resourceControlService = {
@@ -43,9 +48,16 @@ describe('ResourceControlController authorization', () => {
       canRead: jest.fn(),
       assertCanWrite: jest.fn(),
     };
-    controller = new ResourceControlController(
-      resourceControlService as unknown as ResourceControlService,
+    const accessPolicy = new ResourceControlAccessPolicyService(
       accessPolicyService as unknown as ControlAccessPolicyService,
+    );
+    readController = new ResourceControlReadController(
+      resourceControlService as unknown as ResourceControlService,
+      accessPolicy,
+    );
+    writeController = new ResourceControlWriteController(
+      resourceControlService as unknown as ResourceControlService,
+      accessPolicy,
     );
   });
 
@@ -56,7 +68,7 @@ describe('ResourceControlController authorization', () => {
     ]);
     accessPolicyService.canRead.mockImplementation(({ targetId }) => Promise.resolve(targetId === 'resource-allowed'));
 
-    await expect(controller.listResources(req, { projectId: 'project-1' })).resolves.toEqual([
+    await expect(readController.listResources(req, { projectId: 'project-1' })).resolves.toEqual([
       resourceRecord('resource-allowed', 'env-dev'),
     ]);
     expect(accessPolicyService.canRead).toHaveBeenCalledWith(expect.objectContaining({
@@ -77,7 +89,7 @@ describe('ResourceControlController authorization', () => {
     ]);
     accessPolicyService.canRead.mockImplementation(({ targetId }) => Promise.resolve(targetId === 'run-allowed'));
 
-    await expect(controller.listActionRuns(req, {})).resolves.toEqual([
+    await expect(readController.listActionRuns(req, {})).resolves.toEqual([
       runRecord('run-allowed', { resource: scope('env-dev') }),
     ]);
     expect(accessPolicyService.canRead).toHaveBeenCalledWith(expect.objectContaining({
@@ -96,7 +108,7 @@ describe('ResourceControlController authorization', () => {
     ]);
     accessPolicyService.canRead.mockImplementation(({ targetId }) => Promise.resolve(targetId === 'sync-allowed'));
 
-    await expect(controller.listSyncRuns(req)).resolves.toEqual([
+    await expect(readController.listSyncRuns(req)).resolves.toEqual([
       runRecord('sync-allowed', { metadata: scope('env-dev') }),
     ]);
     expect(accessPolicyService.canRead).toHaveBeenCalledWith(expect.objectContaining({
@@ -112,7 +124,7 @@ describe('ResourceControlController authorization', () => {
     resourceControlService.executeResourceAction.mockResolvedValue({ id: 'run-1' });
     accessPolicyService.assertCanWrite.mockResolvedValue({ allowed: true });
 
-    await expect(controller.executeResourceAction(req, 'resource-1', {
+    await expect(writeController.executeResourceAction(req, 'resource-1', {
       action: 'restart',
       dryRun: false,
     })).resolves.toEqual({ id: 'run-1' });
@@ -130,7 +142,7 @@ describe('ResourceControlController authorization', () => {
     resourceControlService.getResourceAccessScope.mockResolvedValue(scope('env-prod'));
     accessPolicyService.assertCanWrite.mockRejectedValue(new Error('denied'));
 
-    await expect(controller.executeResourceAction(req, 'resource-1', {
+    await expect(writeController.executeResourceAction(req, 'resource-1', {
       action: 'restart',
       dryRun: false,
     })).rejects.toThrow('denied');
@@ -143,7 +155,7 @@ describe('ResourceControlController authorization', () => {
     resourceControlService.updateResourceBinding.mockResolvedValue({ id: 'resource-1', environmentId: 'env-prod' });
     accessPolicyService.assertCanWrite.mockResolvedValue({ allowed: true });
 
-    await expect(controller.updateResourceBinding(req, 'resource-1', { environmentId: 'env-prod' }))
+    await expect(writeController.updateResourceBinding(req, 'resource-1', { environmentId: 'env-prod' }))
       .resolves
       .toEqual({ id: 'resource-1', environmentId: 'env-prod' });
     expect(accessPolicyService.assertCanWrite).toHaveBeenCalledTimes(2);
@@ -164,10 +176,10 @@ describe('ResourceControlController authorization', () => {
     resourceControlService.syncCloudResources.mockResolvedValue({ id: 'cloud-sync' });
     accessPolicyService.assertCanWrite.mockResolvedValue({ allowed: true });
 
-    await expect(controller.syncServerDocker(req, 'server-1', { environmentId: 'env-prod' }))
+    await expect(writeController.syncServerDocker(req, 'server-1', { environmentId: 'env-prod' }))
       .resolves
       .toEqual({ id: 'docker-sync' });
-    await expect(controller.syncCloudResources(req, { environmentId: 'env-prod', provider: 'aliyun-rds' }))
+    await expect(writeController.syncCloudResources(req, { environmentId: 'env-prod', provider: 'aliyun-rds' }))
       .resolves
       .toEqual({ id: 'cloud-sync' });
     expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
