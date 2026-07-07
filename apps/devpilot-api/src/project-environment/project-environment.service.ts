@@ -14,7 +14,6 @@ import {
   toJsonValue as toJsonValueUtil,
 } from './project-environment-helpers.utils';
 import {
-  buildCdnConfigCopyAuditInput,
   buildResourceBulkBindingAuditInput,
   buildServerBindingAuditInput,
   buildSiteCopyAuditInput,
@@ -23,6 +22,7 @@ import { ProjectEnvironmentCopySiteService } from './project-environment-copy-si
 import { ProjectEnvironmentSyncService } from './project-environment-sync.service';
 import { ProjectEnvironmentSyncApplyService } from './project-environment-sync-apply.service';
 import { ProjectEnvironmentResourceCopyService } from './project-environment-resource-copy.service';
+import { ProjectEnvironmentCdnCopyService } from './project-environment-cdn-copy.service';
 import {
   buildSiteCopyQueuedLiveSyncFollowUp as buildSiteCopyQueuedLiveSyncFollowUpUtil,
   resourceBindingStep as resourceBindingStepUtil,
@@ -190,15 +190,6 @@ type SiteCopyQueuedLiveSyncFollowUp = {
   alerts: SiteCopyQueuedLiveSyncAlert[];
 };
 
-type EnvironmentCdnConfigCopyStep = {
-  status: 'planned' | 'applied' | 'skipped';
-  sourceCdnConfigId: string;
-  targetCdnConfigId?: string | null;
-  title: string;
-  description: string;
-  metadata?: Record<string, unknown>;
-};
-
 const DEFAULT_RESOURCE_BINDING_TYPES: EnvironmentResourceBindingType[] = [
   'managed_resource',
   'resource_instance',
@@ -216,6 +207,7 @@ export class ProjectEnvironmentService {
     private readonly syncService: ProjectEnvironmentSyncService,
     private readonly syncApplyService: ProjectEnvironmentSyncApplyService,
     private readonly resourceCopyService: ProjectEnvironmentResourceCopyService,
+    private readonly cdnCopyService: ProjectEnvironmentCdnCopyService,
     @Optional()
     private readonly auditEventService: AuditEventService,
     @Optional()
@@ -489,172 +481,11 @@ export class ProjectEnvironmentService {
   }
 
 
-  async getCdnConfigCopyAccessScope(teamId: string, dto: CopyProjectEnvironmentCdnConfigsDto) {
-    const source = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.sourceEnvironmentId);
-    const target = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.targetEnvironmentId);
-    return {
-      projectId: source.projectId,
-      sourceEnvironmentId: source.id,
-      targetEnvironmentId: target.id,
-    };
-  }
+  getCdnConfigCopyAccessScope = (teamId: string, dto: CopyProjectEnvironmentCdnConfigsDto) =>
+    this.cdnCopyService.getCdnConfigCopyAccessScope(teamId, dto);
 
-  async copyCdnConfigs(teamId: string, userId: string, dto: CopyProjectEnvironmentCdnConfigsDto) {
-    if (!dto.projectId || !dto.sourceEnvironmentId || !dto.targetEnvironmentId) {
-      throw new BadRequestException('projectId、sourceEnvironmentId 和 targetEnvironmentId 不能为空');
-    }
-
-    const dryRun = dto.dryRun !== false;
-    const source = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.sourceEnvironmentId);
-    const target = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.targetEnvironmentId);
-    if (source.id === target.id) {
-      throw new BadRequestException('源环境和目标环境不能相同');
-    }
-    if (!dryRun && dto.confirmationText !== target.name && dto.confirmationText !== target.key) {
-      throw new BadRequestException(`确认文本必须等于目标环境名称或 key：${target.name} / ${target.key}`);
-    }
-
-    const sourceConfigs = await this.repo.findCDNConfigs({
-      where: {
-        teamId,
-        projectId: dto.projectId,
-        environmentId: source.id,
-        ...(dto.cdnConfigIds?.length ? { id: { in: dto.cdnConfigIds } } : {}),
-      },
-      select: {
-        id: true,
-        name: true,
-        domain: true,
-        origin: true,
-        provider: true,
-        credentialId: true,
-        cacheRules: true,
-        status: true,
-      },
-      orderBy: [{ name: 'asc' }, { domain: 'asc' }],
-    });
-    const targetConfigs = await this.repo.findCDNConfigs({
-      where: { teamId, projectId: dto.projectId, environmentId: target.id },
-      select: { id: true, domain: true },
-    });
-    const existingTargetDomains = new Set(targetConfigs.map((config: any) => config.domain));
-    const targetDomainOverrides = dto.targetDomainOverrides || {};
-    const targetOriginOverrides = dto.targetOriginOverrides || {};
-    const targetCredentialIds = dto.targetCredentialIds || {};
-    const steps: EnvironmentCdnConfigCopyStep[] = [];
-
-    for (const config of sourceConfigs) {
-      const targetDomain = targetDomainOverrides[config.id]?.trim();
-      const targetOrigin = targetOriginOverrides[config.id]?.trim();
-      const targetCredentialId = targetCredentialIds[config.id]?.trim();
-      const baseMetadata = {
-        provider: config.provider,
-        sourceDomain: config.domain,
-        sourceOrigin: config.origin,
-        targetDomain: targetDomain || null,
-        targetOrigin: targetOrigin || null,
-        targetCredentialId: targetCredentialId || null,
-      };
-
-      if (!targetDomain) {
-        steps.push({
-          status: 'skipped',
-          sourceCdnConfigId: config.id,
-          title: `CDN ${config.name}`,
-          description: '缺少目标域名，apply 时不会自动复制该 CDN 配置',
-          metadata: { ...baseMetadata, reason: 'missing_target_domain' },
-        });
-        continue;
-      }
-      if (!targetOrigin) {
-        steps.push({
-          status: 'skipped',
-          sourceCdnConfigId: config.id,
-          title: `CDN ${config.name}`,
-          description: '缺少目标源站，apply 时不会自动复制该 CDN 配置',
-          metadata: { ...baseMetadata, reason: 'missing_target_origin' },
-        });
-        continue;
-      }
-      if (!targetCredentialId) {
-        steps.push({
-          status: 'skipped',
-          sourceCdnConfigId: config.id,
-          title: `CDN ${config.name}`,
-          description: '缺少目标云凭据，apply 时不会自动复制该 CDN 配置',
-          metadata: { ...baseMetadata, reason: 'missing_target_credential' },
-        });
-        continue;
-      }
-      if (existingTargetDomains.has(targetDomain)) {
-        steps.push({
-          status: 'skipped',
-          sourceCdnConfigId: config.id,
-          title: `CDN ${config.name}`,
-          description: `目标环境已存在 CDN 域名 ${targetDomain}`,
-          metadata: { ...baseMetadata, reason: 'target_domain_exists' },
-        });
-        continue;
-      }
-
-      if (dryRun) {
-        steps.push({
-          status: 'planned',
-          sourceCdnConfigId: config.id,
-          title: `复制 CDN ${config.name}`,
-          description: `将以 pending CDN 配置复制到 ${target.name}，目标域名 ${targetDomain}`,
-          metadata: baseMetadata,
-        });
-        continue;
-      }
-
-      const created = await this.repo.createCDNConfig({
-        data: {
-          teamId,
-          createdById: userId,
-          projectId: dto.projectId,
-          environmentId: target.id,
-          credentialId: targetCredentialId,
-          name: `${config.name} (${target.name})`,
-          domain: targetDomain,
-          origin: targetOrigin,
-          provider: config.provider,
-          cacheRules: config.cacheRules ? toJsonValueUtil(config.cacheRules) : undefined,
-          status: 'pending',
-        },
-        select: { id: true },
-      });
-      existingTargetDomains.add(targetDomain);
-      steps.push({
-        status: 'applied',
-        sourceCdnConfigId: config.id,
-        targetCdnConfigId: created.id,
-        title: `复制 CDN ${config.name}`,
-        description: `已创建目标环境 pending CDN 配置 ${targetDomain}`,
-        metadata: baseMetadata,
-      });
-    }
-
-    const result = {
-      projectId: dto.projectId,
-      sourceEnvironment: { id: source.id, key: source.key, name: source.name },
-      targetEnvironment: { id: target.id, key: target.key, name: target.name },
-      dryRun,
-      status: dryRun ? 'planned' : 'completed',
-      plannedCount: steps.filter((step) => step.status === 'planned').length,
-      appliedCount: steps.filter((step) => step.status === 'applied').length,
-      skippedCount: steps.filter((step) => step.status === 'skipped').length,
-      steps,
-      warnings: [
-        '只复制 CDN 配置骨架并创建 pending 配置，不调用云 provider API、不执行刷新或同步。',
-        '不会复制 providerData、syncError，也不会读取或复用源环境凭据值。',
-        '非 dry-run 时每个待复制 CDN 必须显式提供目标域名、目标源站和目标 credentialId。',
-      ],
-    };
-
-    await this.auditEventService?.create(buildCdnConfigCopyAuditInput(teamId, userId, result) as any);
-    return result;
-  }
+  copyCdnConfigs = (teamId: string, userId: string, dto: CopyProjectEnvironmentCdnConfigsDto) =>
+    this.cdnCopyService.copyCdnConfigs(teamId, userId, dto);
 
   getResourceCopyAccessScope = (teamId: string, dto: CopyProjectEnvironmentResourcesDto) =>
     this.resourceCopyService.getResourceCopyAccessScope(teamId, dto);

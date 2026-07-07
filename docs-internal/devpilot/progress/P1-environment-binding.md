@@ -142,42 +142,109 @@ a pure-utils file to respect the 200-line ceiling.
 | F267.2 | done   | Extract resource-copy into a focused service + pure utils while preserving the public facade.            | New `ProjectEnvironmentResourceCopyService` (197 lines, owns `copyResources` + `getResourceCopyAccessScope` + private `copyManagedResources`/`copySecrets`/`resolveProjectEnvironment`/`assertServer`/`assertTeamCredential`/`encryptSecretValue`) and pure `project-environment-resource-copy.utils.ts` (179 lines: skipped/planned/applied step builders for resource and secret, create payloads, result assembly). `ProjectEnvironmentService` keeps one-line arrow-function delegates, drops the `EnvironmentResourceCopyStep` type and ~278 lines, and the now-unused `buildResourceCopyAuditInput` import; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentResourceCopyService(repo, cryptoService, auditEventService)`. Host dropped from 1197 to 916 lines. |
 | F267.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, both resource-copy tests green): `/tmp/codex-tool-runs/svton/f267-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f267-tc2-20260707.log`; both new files ≤200 lines (197/179); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                       |
 
+## F268. Project Environment CDN-Config Copy Service Split
+
+Purpose: split the CDN-config cross-environment copy orchestration out of the
+over-limit `ProjectEnvironmentService` (916 lines). Source inspection confirmed
+`copyCdnConfigs` (~157 lines: per-CDN dry-run/applied skeleton copy with
+domain/origin/credential overrides and target-domain dedup skips, plus an audit
+record) and `getCdnConfigCopyAccessScope` form a self-contained CDN-copy
+boundary independent of environment CRUD, sync-suggestions, and resource/secret
+copy. This slice preserves the public controller API and every CDN copy-step
+behavior; the step shaping and create payload move to a pure-utils file.
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F268.1 | done   | Map the CDN-copy boundary, callers, helpers, and data flow.                                              | CodeGraph CLI is present but uninitialized; manual graph confirmed `copyCdnConfigs`/`getCdnConfigCopyAccessScope` are called only by `ProjectEnvironmentController` and depend on `repo.findCDNConfigs`/`createCDNConfig`, `auditEventService.create`, `buildCdnConfigCopyAuditInput`, and `toJsonValue`. Unlike resource-copy, CDN copy does NOT assert credentials (writes the credentialId verbatim). |
+| F268.2 | done   | Extract CDN-copy into a focused service + pure utils while preserving the public facade.                 | New `ProjectEnvironmentCdnCopyService` (120 lines, owns `copyCdnConfigs` + `getCdnConfigCopyAccessScope` + private `resolveProjectEnvironment`) and pure `project-environment-cdn-copy.utils.ts` (114 lines: skipped/planned/applied step builders, create payload, result assembly). `ProjectEnvironmentService` keeps one-line arrow-function delegates, drops the `EnvironmentCdnConfigCopyStep` type and ~167 lines, and the now-unused `buildCdnConfigCopyAuditInput` import; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentCdnCopyService(repo, auditEventService)`. Host dropped from 916 to 747 lines. |
+| F268.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, both CDN-copy tests green): `/tmp/codex-tool-runs/svton/f268-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f268-tc1-20260707.log`; both new files ≤200 lines (120/114); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                          |
+
 ## Source-Backed Maps
+
+The first map block tracks the **project-environment module itself** (the focus
+of F261–F268). A second block retains the cross-cutting resource-control map.
+
+### Project-environment module (current, post-F268)
+
+Business logic map: project → ensure dev/test/staging/prod environments
+(`ensureDefaultsForProject`) → per-environment ownership of servers, managed
+resources, resource instances, CDN configs, secrets, application services,
+deployment runs, and sites. Cross-environment operations: (a) sync diff against
+a reference environment → apply create-missing-service / complete-deploy-config;
+(b) copy sites / CDN configs / managed-resource+secret indices across
+environments (dry-run or applied); (c) bulk-bind managed-resource /
+resource-instance / site / CDN / secret to an environment; (d) bind/unbind
+servers by role.
+
+Organization map (file → responsibility, all ≤200 lines except host + controller):
+- `project-environment.controller.ts` (385) — HTTP routes only.
+- `project-environment.service.ts` (747) — compatibility facade: one-line
+  delegates to focused services + remaining `list/create/update/archive`,
+  `syncFromProject`, `bulkBindResources`, server binding, `ensureDefaultsForProject`.
+- `project-environment.repository.ts` (104) — Prisma access boundary.
+- `project-environment-sync.service.ts` (174) — `listSyncSuggestions` read model.
+- `project-environment-sync-apply.service.ts` (198) — `applySyncSuggestions` + `getSyncApplyAccessScope`.
+- `project-environment-copy-site.service.ts` (99) — site copy + OpenResty takeover.
+- `project-environment-resource-copy.service.ts` (197) — managed-resource + secret copy.
+- `project-environment-cdn-copy.service.ts` (120) — CDN-config copy.
+- Pure utils: `-helpers` (149), `-sync-diff` (118), `-sync` (181), `-sync-step` (178),
+  `-resource-copy` (179), `-cdn-copy` (114), `-audit` (93), `-copy` (75).
+
+Function map: environment CRUD; ensure-defaults seeding; sync-suggestions read
++ apply; site/CDN/resource/secret cross-environment copy; bulk resource binding;
+server role binding/unbinding. Each copy path produces skipped/planned/applied
+steps with warnings + an audit event; none mutate real cloud resources.
+
+Data-flow map: project/environment identifiers flow from URL/DTO into repo
+where/select filters and create payloads; cross-environment copies read source
+rows, dedup against target (domains / externalIds / secret names), and write
+skeleton target rows (draft / pending / unknown) without copying live cloud
+state or secret plaintext; every mutating apply writes an audit event via
+`build*AuditInput`; secrets are encrypted via `cryptoService.encryptCbc`.
+
+Page structure map (controller routes): `GET /project-environments` (list),
+`POST /` (create), `PUT :id` (update), `DELETE :id` (archive),
+`GET sync-suggestions` + `POST sync-suggestions/apply` (sync diff/apply),
+`POST sync-from-project`, `POST resources/bulk-bind`, `POST sites/copy`,
+`POST cdn-configs/copy`, `POST resources/copy`, `GET/POST/DELETE :id/servers`.
+The `/projects/[id]` web workbench consumes these to surface environments,
+gaps, and contextual entry links into resource-control/applications/sites.
+
+### Cross-cutting resource-control (unchanged anchor)
 
 Business logic map: environment workbench gap -> resource-control page context
 filter -> managed resource inventory/binding -> connection probe/read-only query
 or action run -> server/cloud executor boundary -> audit and approval records.
+Organization: `ResourceControlController` (routes) + `ResourceControlService`
+(facade) + `ResourceControlCapabilitiesService` (read-only capabilities) +
+`ResourceControlCloudProviderHealthService` + focused executor/credential/
+inventory/query subfolders.
 
-Organization map: `ResourceControlController` keeps HTTP routes;
-`ResourceControlService` remains the compatibility facade for resource-control
-business operations; `ResourceControlCapabilitiesService` owns the read-only
-capabilities contract; executor, credential, inventory, and query helpers remain
-in their focused subfolders.
+## Gaps Identified From The Module Maps (post-F268)
 
-Function map: capabilities describe available source types, executor adapters,
-credential/auth adapters, credential profiles, query adapters, planned actions,
-reusable svton libraries/resources, and safety notes for live execution.
-Provider health functions now split into recent cloud sync-run read projection,
-diagnostic parsing, failure/fallback signal scoring, and summary response
-shaping.
-
-Data-flow map: project/environment identifiers flow from URL or API queries into
-resource filters and binding updates; managed resources carry optional
-`projectId`/`environmentId`/credential bindings; action/query/connection runs
-write auditable operation records without exposing credential material.
-
-Page structure map: `/projects/[id]` surfaces environment gaps and contextual
-entry links; `/resource-control` consumes capabilities plus projects,
-environments, credentials, managed resources, action runs, connection runs, and
-query runs to render inventory, binding, credential, query, and action panels.
+- **Host over ceiling:** `project-environment.service.ts` is 747 lines, still
+  over the 200-line ceiling. Remaining extractable boundaries: `bulkBindResources`
+  (~167) + `getResourceBulkBindingAccessScope`, `ensureDefaultsForProject` (~149),
+  server binding (`listServers`/`bindServer`/`unbindServer`/`getAccessScope` ~98),
+  environment CRUD (`list`/`create`/`update`/`archive` ~68), `syncFromProject` (~6).
+- **Untracked secrets crypto:** host still injects `cryptoService` + a private
+  `encryptSecretValue` that are now unused after F267 (encryption lives only in
+  `ProjectEnvironmentResourceCopyService`). Removing them is safe once no
+  remaining host path encrypts — verify before the next slice.
+- **Controller size:** `project-environment.controller.ts` is 385 lines; it is a
+  thin route layer (no business logic) but exceeds the ceiling. A future slice
+  could split access-scope handlers from write handlers if enforced strictly.
+- **No behavioral test gaps added:** all extracted boundaries retain their
+  pre-existing behavioral coverage (34/34 spec tests green through F268);
+  `getSyncApplyAccessScope`, `syncFromProject`, and the four access-scope
+  resolvers remain untested (pre-existing gap, not introduced by these slices).
 
 ## Next Candidates
 
-- Continue splitting `ProjectEnvironmentService` (now 916 lines, still over
-  the 200-line ceiling) by verified behavior boundary: environment
-  CRUD/listing, sync-from-project, server binding, secret management, and
-  CDN-config copy / bulk resource binding (the remaining copy/bind
-  boundaries).
+- Continue splitting `ProjectEnvironmentService` (now 747 lines, still over the
+  200-line ceiling): next largest boundary is `bulkBindResources` (~167) +
+  `getResourceBulkBindingAccessScope`, followed by `ensureDefaultsForProject`
+  (~149) and server binding (~98).
 - Continue splitting `ResourceControlService` by verified behavior boundary:
   binding validation/write orchestration, query run orchestration, connection
   probe orchestration, action execution/approval orchestration, inventory sync,
