@@ -1,4 +1,12 @@
 import { Prisma } from '@prisma/client';
+import {
+  collectText,
+  isRecord,
+  parseOpenSslCertificateText,
+  parseOpenSslDate,
+  readNumber,
+  readString,
+} from './site-tls-openssl-parser.utils';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -34,24 +42,10 @@ export type SiteTlsProbeMetadata = {
 };
 
 export type SiteTlsCertificateAssetSnapshot = {
-  id: string;
-  kind: 'observed_tls_certificate';
-  source: 'openssl_s_client';
-  managed: false;
-  active: boolean;
-  probeHost: string;
-  probePort: number;
-  firstSeenAt: string;
-  lastSeenAt: string;
-  observationCount: number;
-  subject?: string;
-  issuer?: string;
-  serialNumber?: string;
-  notBefore?: string;
-  notAfter: string;
-  expiresAt: string;
-  fingerprintSha256?: string;
-  daysRemaining: number;
+  id: string; kind: 'observed_tls_certificate'; source: 'openssl_s_client'; managed: false; active: boolean;
+  probeHost: string; probePort: number; firstSeenAt: string; lastSeenAt: string; observationCount: number;
+  subject?: string; issuer?: string; serialNumber?: string; notBefore?: string;
+  notAfter: string; expiresAt: string; fingerprintSha256?: string; daysRemaining: number;
 };
 
 export function buildSiteTlsProbeCommand(host: string, port = 443) {
@@ -188,93 +182,11 @@ function readAssetArray(value: unknown): JsonRecord[] {
 }
 
 function buildCertificateAssetId(metadata: SiteTlsProbeMetadata) {
-  const fingerprint = normalizeAssetPart(metadata.fingerprintSha256);
+  const fingerprint = metadata.fingerprintSha256?.replace(/\s+/g, '').toUpperCase();
   if (fingerprint) return `sha256:${fingerprint}`;
-
-  const serialNumber = normalizeAssetPart(metadata.serialNumber);
-  if (serialNumber) return `serial:${serialNumber}`;
-
+  const serial = metadata.serialNumber?.replace(/\s+/g, '').toUpperCase();
+  if (serial) return `serial:${serial}`;
   return `observed:${metadata.probeHost}:${metadata.expiresAt}`;
-}
-
-function normalizeAssetPart(value?: string) {
-  return value?.replace(/\s+/g, '').toUpperCase();
-}
-
-function parseOpenSslCertificateText(text: string) {
-  const result: {
-    subject?: string;
-    issuer?: string;
-    serialNumber?: string;
-    notBefore?: string;
-    notAfter?: string;
-    fingerprintSha256?: string;
-  } = {};
-
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    const separatorIndex = trimmed.indexOf('=');
-    if (separatorIndex < 0) continue;
-
-    const key = trimmed.slice(0, separatorIndex).trim().toLowerCase();
-    const value = trimmed.slice(separatorIndex + 1).trim();
-    if (!value) continue;
-
-    if (key === 'subject') result.subject = value;
-    if (key === 'issuer') result.issuer = value;
-    if (key === 'serial') result.serialNumber = value;
-    if (key === 'notbefore') result.notBefore = value;
-    if (key === 'notafter') result.notAfter = value;
-    if (key === 'sha256 fingerprint') result.fingerprintSha256 = value;
-  }
-
-  return result;
-}
-
-function parseOpenSslDate(value?: string) {
-  if (!value) return null;
-  const normalized = value.replace(/\s+/g, ' ').trim();
-  const date = new Date(normalized);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function collectText(value: unknown, target: string[]) {
-  if (typeof value === 'string') {
-    target.push(value);
-    return;
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item) => collectText(item, target));
-    return;
-  }
-  if (!isRecord(value)) {
-    return;
-  }
-
-  for (const key of ['stdoutPreview', 'stdout', 'message', 'output', 'stderrPreview', 'stderr']) {
-    const item = value[key];
-    if (typeof item === 'string') {
-      target.push(item);
-    }
-  }
-
-  for (const key of ['logs', 'result', 'results', 'commandResults', 'steps']) {
-    collectText(value[key], target);
-  }
-}
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readString(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-function readNumber(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
