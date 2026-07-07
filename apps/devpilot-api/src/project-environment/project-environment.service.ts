@@ -11,7 +11,6 @@ import {
   toJsonValue as toJsonValueUtil,
 } from './project-environment-helpers.utils';
 import {
-  buildServerBindingAuditInput,
   buildSiteCopyAuditInput,
 } from './project-environment-audit.utils';
 import { ProjectEnvironmentCopySiteService } from './project-environment-copy-site.service';
@@ -21,6 +20,7 @@ import { ProjectEnvironmentResourceCopyService } from './project-environment-res
 import { ProjectEnvironmentCdnCopyService } from './project-environment-cdn-copy.service';
 import { ProjectEnvironmentBulkBindService } from './project-environment-bulk-bind.service';
 import { ProjectEnvironmentDefaultsService } from './project-environment-defaults.service';
+import { ProjectEnvironmentServerBindingService } from './project-environment-server-binding.service';
 import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
@@ -185,6 +185,7 @@ export class ProjectEnvironmentService {
     private readonly cdnCopyService: ProjectEnvironmentCdnCopyService,
     private readonly bulkBindService: ProjectEnvironmentBulkBindService,
     private readonly defaultsService: ProjectEnvironmentDefaultsService,
+    private readonly serverBindingService: ProjectEnvironmentServerBindingService,
     @Optional()
     private readonly auditEventService: AuditEventService,
     @Optional()
@@ -296,103 +297,17 @@ export class ProjectEnvironmentService {
   copyResources = (teamId: string, userId: string, dto: CopyProjectEnvironmentResourcesDto) =>
     this.resourceCopyService.copyResources(teamId, userId, dto);
 
-  async listServers(teamId: string, environmentId: string) {
-    const environment = await this.get(teamId, environmentId);
+  listServers = (teamId: string, environmentId: string) =>
+    this.serverBindingService.listServers(teamId, environmentId);
 
-    return (this.repo.findProjectEnvironmentServers({
-      where: { teamId, environmentId: environment.id, status: 'active' },
-      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
-      include: {
-        server: { select: { id: true, name: true, host: true, status: true, services: true } },
-        project: { select: { id: true, name: true } },
-        environment: { select: { id: true, key: true, name: true, status: true } },
-      },
-    }) as any);
-  }
+  getAccessScope = (teamId: string, environmentId: string) =>
+    this.serverBindingService.getAccessScope(teamId, environmentId);
 
-  async getAccessScope(teamId: string, environmentId: string) {
-    const environment = await this.get(teamId, environmentId);
-    return {
-      projectId: environment.projectId,
-      environmentId: environment.id,
-    };
-  }
+  bindServer = (teamId: string, userId: string, environmentId: string, dto: BindProjectEnvironmentServerDto) =>
+    this.serverBindingService.bindServer(teamId, userId, environmentId, dto);
 
-  async bindServer(teamId: string, userId: string, environmentId: string, dto: BindProjectEnvironmentServerDto) {
-    const environment = await this.get(teamId, environmentId);
-    await this.assertServer(teamId, dto.serverId);
-
-    const binding = await this.repo.upsertProjectEnvironmentServer({
-      where: {
-        environmentId_serverId: {
-          environmentId: environment.id,
-          serverId: dto.serverId,
-        },
-      },
-      create: {
-        teamId,
-        projectId: environment.projectId,
-        environmentId: environment.id,
-        serverId: dto.serverId,
-        role: dto.role || null,
-        metadata: dto.metadata ? toJsonValueUtil(dto.metadata) : undefined,
-      },
-      update: {
-        projectId: environment.projectId,
-        role: dto.role || null,
-        status: 'active',
-        metadata: dto.metadata ? toJsonValueUtil(dto.metadata) : undefined,
-      },
-      include: {
-        server: { select: { id: true, name: true, host: true, status: true, services: true } },
-        project: { select: { id: true, name: true } },
-        environment: { select: { id: true, key: true, name: true, status: true } },
-      },
-    });
-
-    await this.auditEventService?.create(buildServerBindingAuditInput(teamId, userId, {
-      projectId: environment.projectId,
-      environmentId: environment.id,
-      environmentName: environment.name,
-      serverId: dto.serverId,
-      serverName: binding.server.name,
-      role: dto.role || null,
-      action: 'bind',
-      status: 'completed',
-    }) as any);
-
-    return binding;
-  }
-
-  async unbindServer(teamId: string, userId: string, environmentId: string, serverId: string) {
-    const environment = await this.get(teamId, environmentId);
-    const binding = await this.repo.findProjectEnvironmentServer({
-      where: { teamId, environmentId: environment.id, serverId },
-      select: {
-        id: true,
-        role: true,
-        server: { select: { id: true, name: true } },
-      },
-    });
-
-    if (!binding) {
-      throw new NotFoundException('环境服务器绑定不存在');
-    }
-
-    await this.repo.deleteProjectEnvironmentServer({ where: { id: binding.id } });
-    await this.auditEventService?.create(buildServerBindingAuditInput(teamId, userId, {
-      projectId: environment.projectId,
-      environmentId: environment.id,
-      environmentName: environment.name,
-      serverId,
-      serverName: binding.server.name,
-      role: binding.role,
-      action: 'unbind',
-      status: 'completed',
-    }) as any);
-
-    return { success: true };
-  }
+  unbindServer = (teamId: string, userId: string, environmentId: string, serverId: string) =>
+    this.serverBindingService.unbindServer(teamId, userId, environmentId, serverId);
 
   ensureDefaultsForProject = (teamId: string, projectId: string, config: unknown) =>
     this.defaultsService.ensureDefaultsForProject(teamId, projectId, config);
@@ -421,51 +336,6 @@ export class ProjectEnvironmentService {
 
     return project;
   }
-
-  private async assertServer(teamId: string, serverId: string) {
-    const server = await this.repo.findServer({
-      where: { id: serverId, teamId },
-      select: { id: true },
-    });
-
-    if (!server) {
-      throw new NotFoundException('服务器不存在或不属于当前团队');
-    }
-
-    return server;
-  }
-
-  private async assertTeamCredential(teamId: string, credentialId: string) {
-    const credential = await this.repo.findTeamCredential({
-      where: { id: credentialId, teamId },
-      select: { id: true },
-    });
-
-    if (!credential) {
-      throw new NotFoundException('凭据不存在或不属于当前团队');
-    }
-
-    return credential;
-  }
-
-
-
-  private async resolveProjectEnvironment(teamId: string, projectId: string, environmentId: string) {
-    const environment = await this.repo.findProjectEnvironment({
-      where: { id: environmentId, teamId, projectId, status: 'active' },
-      select: { id: true, projectId: true, key: true, name: true, status: true },
-    });
-
-    if (!environment) {
-      throw new NotFoundException('项目环境不存在或不可用');
-    }
-
-    return environment;
-  }
-
-
-
-
 
   getSiteCopyAccessScope = (teamId: string, dto: CopyProjectEnvironmentSitesDto) =>
     this.copySiteService.getSiteCopyAccessScope(teamId, dto);

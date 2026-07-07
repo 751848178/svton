@@ -196,6 +196,25 @@ index-based `sortOrder: index * 10`.
 | F270.2 | done   | Extract defaults-seeding into a focused service + pure utils while preserving the public facade.         | New `ProjectEnvironmentDefaultsService` (23 lines, owns `ensureDefaultsForProject`) and pure `project-environment-defaults.utils.ts` (48 lines: `resolveSeedEnvironmentKeys`, `buildSeedUpsertArgs`). Host keeps a one-line arrow-function delegate, drops the inline body and the now-unused `environmentKeysFromConfigUtil` import; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentDefaultsService(repo)`. The persisted `initializedBy: 'ProjectEnvironmentService.ensureDefaultsForProject'` string is preserved verbatim to avoid any stored-config drift. Host dropped from 501 to 474 lines. |
 | F270.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, defaults-seeding tests green): `/tmp/codex-tool-runs/svton/f270-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f270-tc1-20260707.log`; both new files ≤200 lines (23/48); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                          |
 
+## F271. Project Environment Server-Binding Service Split
+
+Purpose: split the per-environment server role-binding lifecycle out of the
+over-limit `ProjectEnvironmentService` (474 lines). Source inspection confirmed
+`listServers`, `getAccessScope`, `bindServer`, and `unbindServer` form a
+self-contained server-binding boundary; `getAccessScope` is also shared by the
+host `update`/`archive` routes, so the host keeps a one-line delegate to the new
+service's `getAccessScope`. Private helpers `assertServer`/`assertTeamCredential`/
+`resolveProjectEnvironment` became dead in the host after this extract and are
+removed; `get` and `assertProject` stay (still used by `update`/`archive`/`create`/
+`syncFromProject`). This slice preserves the public controller API and every
+bind/unbind/list behavior (including both audit events).
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F271.1 | done   | Map the server-binding boundary + dead helpers.                                                          | CodeGraph CLI is present but uninitialized; manual graph confirmed the four server-binding methods are called only by `ProjectEnvironmentController`, depend on `repo.findProjectEnvironmentServers`/`upsertProjectEnvironmentServer`/`findProjectEnvironmentServer`/`deleteProjectEnvironmentServer`, `auditEventService.create`, `buildServerBindingAuditInput`, and private `get`/`assertServer`. `getAccessScope` is also called by `update`/`archive` (shared). `assertServer`/`assertTeamCredential`/`resolveProjectEnvironment` had no remaining host caller after extraction. |
+| F271.2 | done   | Extract server-binding into a focused service while preserving the public facade; clean up dead helpers. | New `ProjectEnvironmentServerBindingService` (102 lines, owns `listServers` + `getAccessScope` + `bindServer` + `unbindServer` + private `get`/`assertServer`). Host keeps one-line arrow-function delegates (incl. `getAccessScope` → `serverBindingService.getAccessScope` for the shared `update`/`archive` routes), drops the 4 method bodies, the 3 now-dead private helpers, and the now-unused `buildServerBindingAuditInput` import; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentServerBindingService(repo, auditEventService)`. Host dropped from 474 to 344 lines. |
+| F271.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, bind/unbind tests green): `/tmp/codex-tool-runs/svton/f271-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f271-tc1-20260707.log`; new file 102 lines (≤200); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                          |
+
 ## Source-Backed Maps
 
 The first map block tracks the **project-environment module itself** (the focus
@@ -215,10 +234,10 @@ servers by role.
 
 Organization map (file → responsibility, all ≤200 lines except host + controller):
 - `project-environment.controller.ts` (385) — HTTP routes only.
-- `project-environment.service.ts` (474) — compatibility facade: one-line
+- `project-environment.service.ts` (344) — compatibility facade: one-line
   delegates to focused services + remaining `list/create/update/archive`,
-  `syncFromProject`, server binding. (Crypto surface removed in F269; encryption
-  lives only in resource-copy; defaults-seeding moved in F270.)
+  `syncFromProject`. (Crypto removed in F269; defaults in F270; server binding
+  in F271; encryption lives only in resource-copy.)
 - `project-environment.repository.ts` (104) — Prisma access boundary.
 - `project-environment-sync.service.ts` (174) — `listSyncSuggestions` read model.
 - `project-environment-sync-apply.service.ts` (198) — `applySyncSuggestions` + `getSyncApplyAccessScope`.
@@ -227,6 +246,7 @@ Organization map (file → responsibility, all ≤200 lines except host + contro
 - `project-environment-cdn-copy.service.ts` (120) — CDN-config copy.
 - `project-environment-bulk-bind.service.ts` (101) — bulk resource binding.
 - `project-environment-defaults.service.ts` (23) — dev/test/staging/prod seeding.
+- `project-environment-server-binding.service.ts` (102) — server role bind/unbind/list + access scope.
 - Pure utils: `-helpers` (149), `-sync-diff` (118), `-sync` (181), `-sync-step` (178),
   `-resource-copy` (179), `-cdn-copy` (114), `-bulk-bind` (118), `-defaults` (48),
   `-audit` (93), `-copy` (75).
@@ -261,30 +281,29 @@ Organization: `ResourceControlController` (routes) + `ResourceControlService`
 `ResourceControlCloudProviderHealthService` + focused executor/credential/
 inventory/query subfolders.
 
-## Gaps Identified From The Module Maps (post-F270)
+## Gaps Identified From The Module Maps (post-F271)
 
-- **Host over ceiling:** `project-environment.service.ts` is 474 lines, still
-  over the 200-line ceiling. Remaining extractable boundaries: server binding
-  (`listServers`/`bindServer`/`unbindServer`/`getAccessScope` ~98), environment
-  CRUD (`list`/`create`/`update`/`archive` ~68), `syncFromProject` (~6), and the
-  trailing shared private helpers (`get`/`assertProject`/`assertServer`/
-  `assertTeamCredential`/`resolveProjectEnvironment`) that move with their last
-  consumer.
+- **Host over ceiling:** `project-environment.service.ts` is 344 lines, still
+  over the 200-line ceiling. Remaining extractable boundaries: environment CRUD
+  (`list`/`create`/`update`/`archive` ~68), `syncFromProject` (~6), and the
+  trailing shared private helpers (`get`/`assertProject`) that move with their
+  last consumer. (`assertServer`/`assertTeamCredential`/`resolveProjectEnvironment`
+  were removed as dead in F271.)
 - **Crypto dead code — RESOLVED in F269.**
 - **Controller size:** `project-environment.controller.ts` is 385 lines; it is a
   thin route layer (no business logic) but exceeds the ceiling. A future slice
   could split access-scope handlers from write handlers if enforced strictly.
 - **No behavioral test gaps added:** all extracted boundaries retain their
-  pre-existing behavioral coverage (34/34 spec tests green through F270);
-  `getSyncApplyAccessScope`, `syncFromProject`, and the four access-scope
+  pre-existing behavioral coverage (34/34 spec tests green through F271);
+  `getSyncApplyAccessScope`, `syncFromProject`, `listServers`, and the access-scope
   resolvers remain untested (pre-existing gap, not introduced by these slices).
 
 ## Next Candidates
 
-- Continue splitting `ProjectEnvironmentService` (now 474 lines, still over the
-  200-line ceiling): next largest boundary is server binding (~98), then
-  environment CRUD (~68). The shared private helpers can move to a shared
-  access helper once their last consumers are extracted.
+- Continue splitting `ProjectEnvironmentService` (now 344 lines, still over the
+  200-line ceiling): next boundary is environment CRUD (`list`/`create`/`update`/
+  `archive`) + `syncFromProject`; extracting those plus the last shared helpers
+  (`get`/`assertProject`) should bring the host to/below the ceiling.
 - Continue splitting `ResourceControlService` by verified behavior boundary:
   binding validation/write orchestration, query run orchestration, connection
   probe orchestration, action execution/approval orchestration, inventory sync,

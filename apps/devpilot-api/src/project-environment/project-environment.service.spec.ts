@@ -11,6 +11,7 @@ import { ProjectEnvironmentResourceCopyService } from './project-environment-res
 import { ProjectEnvironmentCdnCopyService } from './project-environment-cdn-copy.service';
 import { ProjectEnvironmentBulkBindService } from './project-environment-bulk-bind.service';
 import { ProjectEnvironmentDefaultsService } from './project-environment-defaults.service';
+import { ProjectEnvironmentServerBindingService } from './project-environment-server-binding.service';
 
 type PrismaMock = {
   project: { findFirst: jest.Mock };
@@ -223,6 +224,7 @@ describe('ProjectEnvironmentService sync suggestions', () => {
     const cdnCopyService = new ProjectEnvironmentCdnCopyService(repository, auditEventService as never);
     const bulkBindService = new ProjectEnvironmentBulkBindService(repository, auditEventService as never);
     const defaultsService = new ProjectEnvironmentDefaultsService(repository);
+    const serverBindingService = new ProjectEnvironmentServerBindingService(repository, auditEventService as never);
     service = new ProjectEnvironmentService(
       prisma as unknown as PrismaService,
       repository,
@@ -233,6 +235,7 @@ describe('ProjectEnvironmentService sync suggestions', () => {
       cdnCopyService,
       bulkBindService,
       defaultsService,
+      serverBindingService,
       auditEventService as never,
       siteService as never,
     );
