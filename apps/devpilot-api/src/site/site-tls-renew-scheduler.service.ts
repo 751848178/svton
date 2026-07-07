@@ -5,28 +5,23 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BaseIntervalScheduler } from '../common/scheduler/base-interval-scheduler';
 import { SiteService } from './site.service';
-
-type JsonRecord = Record<string, unknown>;
+import { isRecord, readBoolean, readString } from './site-tls-openssl-parser.utils';
+import {
+  tlsRenewBeforeMsClamped,
+  tlsRenewBatchSize,
+  tlsRenewIntervalMs,
+  tlsRenewMaxAttempts,
+  tlsRenewMinIntervalMsClamped,
+  tlsRenewSchedulerDryRun,
+  tlsRenewSchedulerEnabled,
+} from './site-tls-scheduler-config.utils';
 
 type ScheduledSiteTlsRenewSummary = {
-  skipped: boolean;
-  enabled: boolean;
-  dryRun: boolean;
-  scanned: number;
-  attempted: number;
-  submitted: number;
-  skippedNotLetsEncrypt: number;
-  skippedMissingExpiry: number;
-  skippedNotDue: number;
-  skippedRecent: number;
-  failed: number;
+  skipped: boolean; enabled: boolean; dryRun: boolean; scanned: number; attempted: number; submitted: number;
+  skippedNotLetsEncrypt: number; skippedMissingExpiry: number; skippedNotDue: number; skippedRecent: number; failed: number;
 };
 
-type SiteRenewCandidate = {
-  id: string;
-  teamId: string;
-  tls: Prisma.JsonValue | null;
-};
+type SiteRenewCandidate = { id: string; teamId: string; tls: Prisma.JsonValue | null };
 
 @Injectable()
 export class SiteTlsRenewSchedulerService extends BaseIntervalScheduler {
@@ -37,21 +32,11 @@ export class SiteTlsRenewSchedulerService extends BaseIntervalScheduler {
     private readonly siteService: SiteService,
     private readonly configService: ConfigService,
     @Optional() schedulerRegistry?: SchedulerRegistry,
-  ) {
-    super(schedulerRegistry);
-  }
+  ) { super(schedulerRegistry); }
 
-  schedulerName(): string {
-    return 'site-tls-renew';
-  }
-
-  isEnabled(): boolean {
-    return this.schedulerEnabled();
-  }
-
-  intervalMs(): number {
-    return this.schedulerIntervalMs();
-  }
+  schedulerName(): string { return 'site-tls-renew'; }
+  isEnabled(): boolean { return this.schedulerEnabled(); }
+  intervalMs(): number { return this.schedulerIntervalMs(); }
 
   async runOnce(now = new Date()): Promise<ScheduledSiteTlsRenewSummary> {
     if (!this.schedulerEnabled()) {
@@ -147,29 +132,15 @@ export class SiteTlsRenewSchedulerService extends BaseIntervalScheduler {
   }
 
   private async recentTlsRenewRunMap(siteIds: string[], now: Date) {
-    if (siteIds.length === 0) {
-      return new Map<string, Date>();
-    }
-
+    if (siteIds.length === 0) return new Map<string, Date>();
     const cutoff = new Date(now.getTime() - this.minRenewIntervalMs());
     const runs = await this.prisma.siteSyncRun.findMany({
-      where: {
-        siteId: { in: siteIds },
-        mode: 'tls_renew',
-        startedAt: { gte: cutoff },
-      },
+      where: { siteId: { in: siteIds }, mode: 'tls_renew', startedAt: { gte: cutoff } },
       orderBy: { startedAt: 'desc' },
-      select: {
-        siteId: true,
-        startedAt: true,
-      },
+      select: { siteId: true, startedAt: true },
     });
     const recent = new Map<string, Date>();
-    for (const run of runs) {
-      if (!recent.has(run.siteId)) {
-        recent.set(run.siteId, run.startedAt);
-      }
-    }
+    for (const run of runs) { if (!recent.has(run.siteId)) recent.set(run.siteId, run.startedAt); }
     return recent;
   }
 
@@ -203,78 +174,21 @@ export class SiteTlsRenewSchedulerService extends BaseIntervalScheduler {
   }
 
   private emptySummary(skipped: boolean, enabled: boolean): ScheduledSiteTlsRenewSummary {
-    return {
-      skipped,
-      enabled,
-      dryRun: this.schedulerDryRun(),
-      scanned: 0,
-      attempted: 0,
-      submitted: 0,
-      skippedNotLetsEncrypt: 0,
-      skippedMissingExpiry: 0,
-      skippedNotDue: 0,
-      skippedRecent: 0,
-      failed: 0,
-    };
+    return { skipped, enabled, dryRun: this.schedulerDryRun(), scanned: 0, attempted: 0, submitted: 0, skippedNotLetsEncrypt: 0, skippedMissingExpiry: 0, skippedNotDue: 0, skippedRecent: 0, failed: 0 };
   }
 
-  private schedulerEnabled() {
-    return this.configService.get('SITE_TLS_RENEW_SCHEDULER_ENABLED', 'false') === 'true';
-  }
-
-  private schedulerDryRun() {
-    return this.configService.get('SITE_TLS_RENEW_SCHEDULER_DRY_RUN', 'true') !== 'false';
-  }
-
-  private schedulerIntervalMs() {
-    const seconds = Number(this.configService.get('SITE_TLS_RENEW_SCHEDULER_INTERVAL_SECONDS', '86400'));
-    const safeSeconds = Number.isFinite(seconds) && seconds >= 3600 ? seconds : 86400;
-    return safeSeconds * 1000;
-  }
-
-  private batchSize() {
-    const size = Number(this.configService.get('SITE_TLS_RENEW_SCHEDULER_BATCH_SIZE', '20'));
-    return Number.isInteger(size) && size > 0 ? Math.min(size, 100) : 20;
-  }
-
-  private maxAttempts() {
-    const attempts = Number(this.configService.get('SITE_TLS_RENEW_MAX_ATTEMPTS', '1'));
-    return Number.isInteger(attempts) && attempts > 0 ? Math.min(attempts, 5) : 1;
-  }
-
-  private renewBeforeMs() {
-    const days = Number(this.configService.get('SITE_TLS_RENEW_BEFORE_DAYS', '30'));
-    const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 30;
-    return safeDays * 24 * 60 * 60 * 1000;
-  }
-
-  private minRenewIntervalMs() {
-    const seconds = Number(this.configService.get('SITE_TLS_RENEW_MIN_INTERVAL_SECONDS', '86400'));
-    const safeSeconds = Number.isFinite(seconds) && seconds >= 3600 ? seconds : 86400;
-    return safeSeconds * 1000;
-  }
-}
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
+  private schedulerEnabled() { return tlsRenewSchedulerEnabled(this.configService.get('SITE_TLS_RENEW_SCHEDULER_ENABLED', 'false')); }
+  private schedulerDryRun() { return tlsRenewSchedulerDryRun(this.configService.get('SITE_TLS_RENEW_SCHEDULER_DRY_RUN', 'true')); }
+  private schedulerIntervalMs() { return tlsRenewIntervalMs(this.configService.get('SITE_TLS_RENEW_SCHEDULER_INTERVAL_SECONDS', '86400')); }
+  private batchSize() { return tlsRenewBatchSize(this.configService.get('SITE_TLS_RENEW_SCHEDULER_BATCH_SIZE', '20')); }
+  private maxAttempts() { return tlsRenewMaxAttempts(this.configService.get('SITE_TLS_RENEW_MAX_ATTEMPTS', '1')); }
+  private renewBeforeMs() { return tlsRenewBeforeMsClamped(this.configService.get('SITE_TLS_RENEW_BEFORE_DAYS', '30')); }
+  private minRenewIntervalMs() { return tlsRenewMinIntervalMsClamped(this.configService.get('SITE_TLS_RENEW_MIN_INTERVAL_SECONDS', '86400')); }
 }
 
 function readDate(value: unknown) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value;
-  }
-  if (typeof value !== 'string' || !value.trim()) {
-    return null;
-  }
-
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value !== 'string' || !value.trim()) return null;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

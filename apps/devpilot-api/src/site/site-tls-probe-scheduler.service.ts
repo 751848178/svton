@@ -5,25 +5,15 @@ import { Prisma } from '@prisma/client';
 import { BaseIntervalScheduler } from '../common/scheduler/base-interval-scheduler';
 import { PrismaService } from '../prisma/prisma.service';
 import { SiteService } from './site.service';
-
-type JsonRecord = Record<string, unknown>;
+import { isRecord, readBoolean, readString } from './site-tls-openssl-parser.utils';
+import { tlsProbeBatchSize, tlsProbeIntervalMs, tlsProbeMaxAttempts, tlsProbeMinIntervalMs, tlsProbeSchedulerEnabled } from './site-tls-scheduler-config.utils';
 
 type ScheduledSiteTlsProbeSummary = {
-  skipped: boolean;
-  enabled: boolean;
-  scanned: number;
-  attempted: number;
-  submitted: number;
-  skippedNotTls: number;
-  skippedRecent: number;
-  failed: number;
+  skipped: boolean; enabled: boolean; scanned: number; attempted: number;
+  submitted: number; skippedNotTls: number; skippedRecent: number; failed: number;
 };
 
-type SiteCandidate = {
-  id: string;
-  teamId: string;
-  tls: Prisma.JsonValue | null;
-};
+type SiteCandidate = { id: string; teamId: string; tls: Prisma.JsonValue | null };
 
 @Injectable()
 export class SiteTlsProbeSchedulerService extends BaseIntervalScheduler {
@@ -42,15 +32,8 @@ export class SiteTlsProbeSchedulerService extends BaseIntervalScheduler {
     return 'site-tls-probe';
   }
 
-  isEnabled(): boolean {
-    return this.configService.get('SITE_TLS_PROBE_SCHEDULER_ENABLED', 'false') === 'true';
-  }
-
-  intervalMs(): number {
-    const seconds = Number(this.configService.get('SITE_TLS_PROBE_SCHEDULER_INTERVAL_SECONDS', '3600'));
-    const safeSeconds = Number.isFinite(seconds) && seconds >= 60 ? seconds : 3600;
-    return safeSeconds * 1000;
-  }
+  isEnabled(): boolean { return tlsProbeSchedulerEnabled(this.configService.get('SITE_TLS_PROBE_SCHEDULER_ENABLED', 'false')); }
+  intervalMs(): number { return tlsProbeIntervalMs(this.configService.get('SITE_TLS_PROBE_SCHEDULER_INTERVAL_SECONDS', '3600')); }
 
   async runOnce(now = new Date()): Promise<ScheduledSiteTlsProbeSummary> {
     if (!this.isEnabled()) {
@@ -200,55 +183,17 @@ export class SiteTlsProbeSchedulerService extends BaseIntervalScheduler {
   }
 
   private emptySummary(skipped: boolean, enabled: boolean): ScheduledSiteTlsProbeSummary {
-    return {
-      skipped,
-      enabled,
-      scanned: 0,
-      attempted: 0,
-      submitted: 0,
-      skippedNotTls: 0,
-      skippedRecent: 0,
-      failed: 0,
-    };
+    return { skipped, enabled, scanned: 0, attempted: 0, submitted: 0, skippedNotTls: 0, skippedRecent: 0, failed: 0 };
   }
 
-  private batchSize() {
-    const size = Number(this.configService.get('SITE_TLS_PROBE_SCHEDULER_BATCH_SIZE', '20'));
-    return Number.isInteger(size) && size > 0 ? Math.min(size, 100) : 20;
-  }
-
-  private maxAttempts() {
-    const attempts = Number(this.configService.get('SITE_TLS_PROBE_MAX_ATTEMPTS', '1'));
-    return Number.isInteger(attempts) && attempts > 0 ? Math.min(attempts, 5) : 1;
-  }
-
-  private minProbeIntervalMs() {
-    const seconds = Number(this.configService.get('SITE_TLS_PROBE_MIN_INTERVAL_SECONDS', '21600'));
-    const safeSeconds = Number.isFinite(seconds) && seconds >= 300 ? seconds : 21600;
-    return safeSeconds * 1000;
-  }
-}
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
+  private batchSize() { return tlsProbeBatchSize(this.configService.get('SITE_TLS_PROBE_SCHEDULER_BATCH_SIZE', '20')); }
+  private maxAttempts() { return tlsProbeMaxAttempts(this.configService.get('SITE_TLS_PROBE_MAX_ATTEMPTS', '1')); }
+  private minProbeIntervalMs() { return tlsProbeMinIntervalMs(this.configService.get('SITE_TLS_PROBE_MIN_INTERVAL_SECONDS', '21600')); }
 }
 
 function readDate(value: unknown) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value;
-  }
-  if (typeof value !== 'string' || !value.trim()) {
-    return null;
-  }
-
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value !== 'string' || !value.trim()) return null;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
