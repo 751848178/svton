@@ -1,8 +1,15 @@
 import { Prisma } from '@prisma/client';
+import {
+  classifyCertbotRenewOutput,
+  collectText,
+  fallbackSummary,
+  isRecord,
+  type SiteTlsRenewalStatus,
+} from './site-certbot-classifier.utils';
 
 type JsonRecord = Record<string, unknown>;
 
-export type SiteTlsRenewalStatus = 'succeeded' | 'not_due' | 'failed' | 'unknown';
+export type { SiteTlsRenewalStatus };
 
 export type SiteTlsRenewMetadata = {
   source: 'certbot_renew';
@@ -127,127 +134,6 @@ export function mergeSiteTlsRenewFollowUpProbeMetadata(
     lastRenewalFollowUpProbeQueuedAt: metadata.queuedAt,
     lastRenewalFollowUpProbeFailedAt: metadata.failedAt,
   });
-}
-
-function classifyCertbotRenewOutput(
-  text: string,
-  executionStatus?: string,
-): { status: SiteTlsRenewalStatus; attempted: boolean; summary?: string } {
-  const lower = text.toLowerCase();
-
-  if (executionStatus === 'failed') {
-    return {
-      status: 'failed',
-      attempted: true,
-      summary: selectSummaryLine(text, ['failed', 'error', 'unable', 'could not']),
-    };
-  }
-
-  if (
-    /congratulations/.test(lower)
-    || /successfully renewed/.test(lower)
-    || /renewal succeeded/.test(lower)
-    || /all renewals succeeded/.test(lower)
-    || /all simulated renewals succeeded/.test(lower)
-  ) {
-    return {
-      status: 'succeeded',
-      attempted: true,
-      summary: selectSummaryLine(text, [
-        'congratulations',
-        'successfully renewed',
-        'renewal succeeded',
-        'all renewals succeeded',
-        'all simulated renewals succeeded',
-      ]),
-    };
-  }
-
-  if (
-    /no renewals were attempted/.test(lower)
-    || /not due for renewal/.test(lower)
-    || /not yet due/.test(lower)
-    || /skipping/.test(lower)
-  ) {
-    return {
-      status: 'not_due',
-      attempted: false,
-      summary: selectSummaryLine(text, [
-        'no renewals were attempted',
-        'not due for renewal',
-        'not yet due',
-        'skipping',
-      ]),
-    };
-  }
-
-  if (/failed/.test(lower) || /error/.test(lower) || /unable to renew/.test(lower) || /could not/.test(lower)) {
-    return {
-      status: 'failed',
-      attempted: true,
-      summary: selectSummaryLine(text, ['failed', 'error', 'unable to renew', 'could not']),
-    };
-  }
-
-  return {
-    status: executionStatus === 'completed' ? 'unknown' : 'failed',
-    attempted: executionStatus !== 'completed',
-    summary: selectSummaryLine(text, []),
-  };
-}
-
-function selectSummaryLine(text: string, keywords: string[]) {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const lowerKeywords = keywords.map((keyword) => keyword.toLowerCase());
-  const matched = lowerKeywords.length > 0
-    ? lines.find((line) => lowerKeywords.some((keyword) => line.toLowerCase().includes(keyword)))
-    : lines[0];
-  return truncateSummary(matched);
-}
-
-function fallbackSummary(status: SiteTlsRenewalStatus, dryRun: boolean) {
-  if (status === 'succeeded') return dryRun ? 'Certbot renewal dry-run succeeded' : 'Certbot renewal succeeded';
-  if (status === 'not_due') return 'Certificate is not due for renewal';
-  if (status === 'failed') return dryRun ? 'Certbot renewal dry-run failed' : 'Certbot renewal failed';
-  return 'Certbot renewal completed with unknown result';
-}
-
-function truncateSummary(value?: string) {
-  if (!value) return undefined;
-  return value.length > 240 ? `${value.slice(0, 237)}...` : value;
-}
-
-function collectText(value: unknown, target: string[]) {
-  if (typeof value === 'string') {
-    target.push(value);
-    return;
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item) => collectText(item, target));
-    return;
-  }
-  if (!isRecord(value)) {
-    return;
-  }
-
-  for (const key of ['stdoutPreview', 'stdout', 'message', 'output', 'stderrPreview', 'stderr']) {
-    const item = value[key];
-    if (typeof item === 'string') {
-      target.push(item);
-    }
-  }
-
-  for (const key of ['logs', 'result', 'results', 'commandResults', 'steps']) {
-    collectText(value[key], target);
-  }
-}
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
