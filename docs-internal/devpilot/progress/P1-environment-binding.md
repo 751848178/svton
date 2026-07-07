@@ -159,12 +159,32 @@ behavior; the step shaping and create payload move to a pure-utils file.
 | F268.2 | done   | Extract CDN-copy into a focused service + pure utils while preserving the public facade.                 | New `ProjectEnvironmentCdnCopyService` (120 lines, owns `copyCdnConfigs` + `getCdnConfigCopyAccessScope` + private `resolveProjectEnvironment`) and pure `project-environment-cdn-copy.utils.ts` (114 lines: skipped/planned/applied step builders, create payload, result assembly). `ProjectEnvironmentService` keeps one-line arrow-function delegates, drops the `EnvironmentCdnConfigCopyStep` type and ~167 lines, and the now-unused `buildCdnConfigCopyAuditInput` import; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentCdnCopyService(repo, auditEventService)`. Host dropped from 916 to 747 lines. |
 | F268.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, both CDN-copy tests green): `/tmp/codex-tool-runs/svton/f268-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f268-tc1-20260707.log`; both new files ≤200 lines (120/114); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                          |
 
+## F269. Project Environment Bulk-Bind Service Split + Dead Crypto Cleanup
+
+Purpose: split the bulk resource-binding orchestration out of the over-limit
+`ProjectEnvironmentService` (747 lines), and clean up the now-unused crypto
+surface flagged in the post-F268 gaps checklist. Source inspection confirmed
+`bulkBindResources` (~167 lines: read unbound managed-resource / resource-instance
+/ site / CDN / secret rows, build per-type binding steps, apply the environmentId
+write, audit), `getResourceBulkBindingAccessScope`, and the private
+`applyResourceEnvironmentBinding` (47 lines, only called by bulkBind) form a
+self-contained bulk-bind boundary. Separately, the host `cryptoService` field +
+`encryptSecretValue` private method + `CryptoService` import were dead after F267
+(encryption now lives only in `ProjectEnvironmentResourceCopyService`); they and
+the dead `DEFAULT_RESOURCE_BINDING_TYPES` constant are removed here.
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F269.1 | done   | Map the bulk-bind boundary + crypto dead code.                                                           | CodeGraph CLI is present but uninitialized; manual graph confirmed `bulkBindResources`/`getResourceBulkBindingAccessScope` are called only by `ProjectEnvironmentController`, `applyResourceEnvironmentBinding` only by `bulkBindResources`, and depend on `repo.*` reads + `update*` writes, `normalizeResourceBindingTypes`, `resourceBindingStep`, `auditEventService.create`, `buildResourceBulkBindingAuditInput`. `cryptoService`/`encryptSecretValue` had no remaining host caller. |
+| F269.2 | done   | Extract bulk-bind into a focused service + pure utils; clean up dead crypto + dead constant.             | New `ProjectEnvironmentBulkBindService` (101 lines, owns `bulkBindResources` + `getResourceBulkBindingAccessScope` + private `applyResourceEnvironmentBinding`/`resolveProjectEnvironment`/`unboundWhere`) and pure `project-environment-bulk-bind.utils.ts` (118 lines: per-type binding-step builders, id collection, result assembly). Host keeps one-line delegates, drops `EnvironmentResourceBindingType`/`EnvironmentResourceBindingStep` types, the dead `DEFAULT_RESOURCE_BINDING_TYPES` const, the now-unused `cryptoService` field + `encryptSecretValue` method + `CryptoService` import + 3 unused util imports; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentBulkBindService(repo, auditEventService)` and drop the host `secretCrypto` arg (still used by `ProjectEnvironmentResourceCopyService`). Host dropped from 747 to 501 lines. |
+| F269.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, all 4 bulk-bind tests green): `/tmp/codex-tool-runs/svton/f269-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f269-tc1-20260707.log`; both new files ≤200 lines (101/118); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                          |
+
 ## Source-Backed Maps
 
 The first map block tracks the **project-environment module itself** (the focus
-of F261–F268). A second block retains the cross-cutting resource-control map.
+of F261–F269). A second block retains the cross-cutting resource-control map.
 
-### Project-environment module (current, post-F268)
+### Project-environment module (current, post-F269)
 
 Business logic map: project → ensure dev/test/staging/prod environments
 (`ensureDefaultsForProject`) → per-environment ownership of servers, managed
@@ -178,17 +198,19 @@ servers by role.
 
 Organization map (file → responsibility, all ≤200 lines except host + controller):
 - `project-environment.controller.ts` (385) — HTTP routes only.
-- `project-environment.service.ts` (747) — compatibility facade: one-line
+- `project-environment.service.ts` (501) — compatibility facade: one-line
   delegates to focused services + remaining `list/create/update/archive`,
-  `syncFromProject`, `bulkBindResources`, server binding, `ensureDefaultsForProject`.
+  `syncFromProject`, server binding, `ensureDefaultsForProject`. (Crypto surface
+  removed in F269; encryption lives only in resource-copy.)
 - `project-environment.repository.ts` (104) — Prisma access boundary.
 - `project-environment-sync.service.ts` (174) — `listSyncSuggestions` read model.
 - `project-environment-sync-apply.service.ts` (198) — `applySyncSuggestions` + `getSyncApplyAccessScope`.
 - `project-environment-copy-site.service.ts` (99) — site copy + OpenResty takeover.
-- `project-environment-resource-copy.service.ts` (197) — managed-resource + secret copy.
+- `project-environment-resource-copy.service.ts` (197) — managed-resource + secret copy (owns encryption).
 - `project-environment-cdn-copy.service.ts` (120) — CDN-config copy.
+- `project-environment-bulk-bind.service.ts` (101) — bulk resource binding.
 - Pure utils: `-helpers` (149), `-sync-diff` (118), `-sync` (181), `-sync-step` (178),
-  `-resource-copy` (179), `-cdn-copy` (114), `-audit` (93), `-copy` (75).
+  `-resource-copy` (179), `-cdn-copy` (114), `-bulk-bind` (118), `-audit` (93), `-copy` (75).
 
 Function map: environment CRUD; ensure-defaults seeding; sync-suggestions read
 + apply; site/CDN/resource/secret cross-environment copy; bulk resource binding;
@@ -220,31 +242,30 @@ Organization: `ResourceControlController` (routes) + `ResourceControlService`
 `ResourceControlCloudProviderHealthService` + focused executor/credential/
 inventory/query subfolders.
 
-## Gaps Identified From The Module Maps (post-F268)
+## Gaps Identified From The Module Maps (post-F269)
 
-- **Host over ceiling:** `project-environment.service.ts` is 747 lines, still
-  over the 200-line ceiling. Remaining extractable boundaries: `bulkBindResources`
-  (~167) + `getResourceBulkBindingAccessScope`, `ensureDefaultsForProject` (~149),
-  server binding (`listServers`/`bindServer`/`unbindServer`/`getAccessScope` ~98),
-  environment CRUD (`list`/`create`/`update`/`archive` ~68), `syncFromProject` (~6).
-- **Untracked secrets crypto:** host still injects `cryptoService` + a private
-  `encryptSecretValue` that are now unused after F267 (encryption lives only in
-  `ProjectEnvironmentResourceCopyService`). Removing them is safe once no
-  remaining host path encrypts — verify before the next slice.
+- **Host over ceiling:** `project-environment.service.ts` is 501 lines, still
+  over the 200-line ceiling. Remaining extractable boundaries:
+  `ensureDefaultsForProject` (~149), server binding
+  (`listServers`/`bindServer`/`unbindServer`/`getAccessScope` ~98), environment
+  CRUD (`list`/`create`/`update`/`archive` ~68), `syncFromProject` (~6).
+- **Crypto dead code — RESOLVED in F269:** host `cryptoService` field +
+  `encryptSecretValue` + `CryptoService` import + dead `DEFAULT_RESOURCE_BINDING_TYPES`
+  const removed; encryption now lives only in `ProjectEnvironmentResourceCopyService`.
 - **Controller size:** `project-environment.controller.ts` is 385 lines; it is a
   thin route layer (no business logic) but exceeds the ceiling. A future slice
   could split access-scope handlers from write handlers if enforced strictly.
 - **No behavioral test gaps added:** all extracted boundaries retain their
-  pre-existing behavioral coverage (34/34 spec tests green through F268);
+  pre-existing behavioral coverage (34/34 spec tests green through F269);
   `getSyncApplyAccessScope`, `syncFromProject`, and the four access-scope
   resolvers remain untested (pre-existing gap, not introduced by these slices).
 
 ## Next Candidates
 
-- Continue splitting `ProjectEnvironmentService` (now 747 lines, still over the
-  200-line ceiling): next largest boundary is `bulkBindResources` (~167) +
-  `getResourceBulkBindingAccessScope`, followed by `ensureDefaultsForProject`
-  (~149) and server binding (~98).
+- Continue splitting `ProjectEnvironmentService` (now 501 lines, still over the
+  200-line ceiling): next largest boundary is `ensureDefaultsForProject` (~149),
+  followed by server binding (~98) and environment CRUD (~68). After those the
+  host should approach the ceiling.
 - Continue splitting `ResourceControlService` by verified behavior boundary:
   binding validation/write orchestration, query run orchestration, connection
   probe orchestration, action execution/approval orchestration, inventory sync,

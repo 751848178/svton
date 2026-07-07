@@ -3,18 +3,15 @@ import { Prisma } from '@prisma/client';
 import { AuditEventService } from '../audit-event';
 import { PrismaService } from '../prisma/prisma.service';
 import { SiteService } from '../site';
-import { CryptoService } from '../common/crypto/crypto.service';
 import { ProjectEnvironmentRepository } from './project-environment.repository';
 import {
   environmentKeysFromConfig as environmentKeysFromConfigUtil,
   labelForKey as labelForKeyUtil,
   normalizeKey as normalizeKeyUtil,
-  normalizeResourceBindingTypes as normalizeResourceBindingTypesUtil,
   sortOrderForKey as sortOrderForKeyUtil,
   toJsonValue as toJsonValueUtil,
 } from './project-environment-helpers.utils';
 import {
-  buildResourceBulkBindingAuditInput,
   buildServerBindingAuditInput,
   buildSiteCopyAuditInput,
 } from './project-environment-audit.utils';
@@ -23,10 +20,7 @@ import { ProjectEnvironmentSyncService } from './project-environment-sync.servic
 import { ProjectEnvironmentSyncApplyService } from './project-environment-sync-apply.service';
 import { ProjectEnvironmentResourceCopyService } from './project-environment-resource-copy.service';
 import { ProjectEnvironmentCdnCopyService } from './project-environment-cdn-copy.service';
-import {
-  buildSiteCopyQueuedLiveSyncFollowUp as buildSiteCopyQueuedLiveSyncFollowUpUtil,
-  resourceBindingStep as resourceBindingStepUtil,
-} from './project-environment-copy.utils';
+import { ProjectEnvironmentBulkBindService } from './project-environment-bulk-bind.service';
 import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
@@ -131,17 +125,6 @@ export interface EnvironmentSyncSuggestionAction {
   metadata: Record<string, unknown>;
 }
 
-type EnvironmentResourceBindingType = 'managed_resource' | 'resource_instance' | 'site' | 'cdn_config' | 'secret_key';
-
-type EnvironmentResourceBindingStep = {
-  type: EnvironmentResourceBindingType;
-  status: 'planned' | 'applied' | 'skipped';
-  resourceId: string;
-  title: string;
-  description: string;
-  metadata?: Record<string, unknown>;
-};
-
 type EnvironmentSiteCopyStep = {
   status: 'planned' | 'applied' | 'skipped';
   sourceSiteId: string;
@@ -190,14 +173,6 @@ type SiteCopyQueuedLiveSyncFollowUp = {
   alerts: SiteCopyQueuedLiveSyncAlert[];
 };
 
-const DEFAULT_RESOURCE_BINDING_TYPES: EnvironmentResourceBindingType[] = [
-  'managed_resource',
-  'resource_instance',
-  'site',
-  'cdn_config',
-  'secret_key',
-];
-
 @Injectable()
 export class ProjectEnvironmentService {
   constructor(
@@ -208,16 +183,12 @@ export class ProjectEnvironmentService {
     private readonly syncApplyService: ProjectEnvironmentSyncApplyService,
     private readonly resourceCopyService: ProjectEnvironmentResourceCopyService,
     private readonly cdnCopyService: ProjectEnvironmentCdnCopyService,
+    private readonly bulkBindService: ProjectEnvironmentBulkBindService,
     @Optional()
     private readonly auditEventService: AuditEventService,
     @Optional()
     private readonly siteService: SiteService,
-    private readonly cryptoService: CryptoService,
   ) {}
-
-  private encryptSecretValue(text: string): string {
-    return this.cryptoService.encryptCbc(text);
-  }
 
   async list(teamId: string, query: ListProjectEnvironmentsQueryDto) {
     const where: Prisma.ProjectEnvironmentWhereInput = { teamId };
@@ -306,180 +277,11 @@ export class ProjectEnvironmentService {
     this.syncApplyService.applySyncSuggestions(teamId, userId, dto);
 
 
-  async getResourceBulkBindingAccessScope(teamId: string, dto: BulkBindProjectEnvironmentResourcesDto) {
-    const environment = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.environmentId);
-    return {
-      projectId: environment.projectId,
-      environmentId: environment.id,
-    };
-  }
+  getResourceBulkBindingAccessScope = (teamId: string, dto: BulkBindProjectEnvironmentResourcesDto) =>
+    this.bulkBindService.getResourceBulkBindingAccessScope(teamId, dto);
 
-  async bulkBindResources(teamId: string, userId: string, dto: BulkBindProjectEnvironmentResourcesDto) {
-    if (!dto.projectId || !dto.environmentId) {
-      throw new BadRequestException('projectId 和 environmentId 不能为空');
-    }
-
-    const dryRun = dto.dryRun !== false;
-    const environment = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.environmentId);
-    if (!dryRun && dto.confirmationText !== environment.name && dto.confirmationText !== environment.key) {
-      throw new BadRequestException(`确认文本必须等于目标环境名称或 key：${environment.name} / ${environment.key}`);
-    }
-
-    const requestedTypes = normalizeResourceBindingTypesUtil(dto.resourceTypes);
-    const resourceIds = dto.resourceIds || {};
-    const [
-      managedResources,
-      resourceInstances,
-      sites,
-      cdnConfigs,
-      secretKeys,
-    ] = await Promise.all([
-      requestedTypes.has('managed_resource')
-        ? this.repo.findManagedResources({
-            where: {
-              teamId,
-              projectId: dto.projectId,
-              environmentId: null,
-              ...(resourceIds.managedResourceIds?.length ? { id: { in: resourceIds.managedResourceIds } } : {}),
-            },
-            select: { id: true, name: true, provider: true, kind: true, status: true, endpoint: true },
-            orderBy: [{ provider: 'asc' }, { kind: 'asc' }, { name: 'asc' }],
-          })
-        : Promise.resolve([]),
-      requestedTypes.has('resource_instance')
-        ? this.repo.findResourceInstances({
-            where: {
-              teamId,
-              projectId: dto.projectId,
-              environmentId: null,
-              ...(resourceIds.resourceInstanceIds?.length ? { id: { in: resourceIds.resourceInstanceIds } } : {}),
-            },
-            select: {
-              id: true,
-              name: true,
-              status: true,
-              resourceType: { select: { id: true, key: true, name: true, category: true } },
-            },
-            orderBy: [{ status: 'asc' }, { name: 'asc' }],
-          })
-        : Promise.resolve([]),
-      requestedTypes.has('site')
-        ? this.repo.findSites({
-            where: {
-              teamId,
-              projectId: dto.projectId,
-              environmentId: null,
-              ...(resourceIds.siteIds?.length ? { id: { in: resourceIds.siteIds } } : {}),
-            },
-            select: { id: true, name: true, primaryDomain: true, runtimeType: true, status: true },
-            orderBy: [{ status: 'asc' }, { name: 'asc' }],
-          })
-        : Promise.resolve([]),
-      requestedTypes.has('cdn_config')
-        ? this.repo.findCDNConfigs({
-            where: {
-              teamId,
-              projectId: dto.projectId,
-              environmentId: null,
-              ...(resourceIds.cdnConfigIds?.length ? { id: { in: resourceIds.cdnConfigIds } } : {}),
-            },
-            select: { id: true, name: true, domain: true, provider: true, status: true },
-            orderBy: [{ provider: 'asc' }, { name: 'asc' }],
-          })
-        : Promise.resolve([]),
-      requestedTypes.has('secret_key')
-        ? this.repo.findSecretKeys({
-            where: {
-              teamId,
-              projectId: dto.projectId,
-              environmentId: null,
-              ...(resourceIds.secretKeyIds?.length ? { id: { in: resourceIds.secretKeyIds } } : {}),
-            },
-            select: { id: true, name: true, type: true, description: true },
-            orderBy: [{ type: 'asc' }, { name: 'asc' }],
-          })
-        : Promise.resolve([]),
-    ]);
-
-    const steps: EnvironmentResourceBindingStep[] = [
-      ...managedResources.map((resource: any) => resourceBindingStepUtil(
-        'managed_resource',
-        dryRun ? 'planned' : 'applied',
-        resource.id,
-        `${resource.provider}/${resource.kind} ${resource.name}`,
-        `绑定托管资源到 ${environment.name}`,
-        { provider: resource.provider, kind: resource.kind, status: resource.status, endpoint: resource.endpoint },
-      )),
-      ...resourceInstances.map((resource: any) => resourceBindingStepUtil(
-        'resource_instance',
-        dryRun ? 'planned' : 'applied',
-        resource.id,
-        `资源实例 ${resource.name}`,
-        `绑定资源实例到 ${environment.name}`,
-        { status: resource.status, resourceType: resource.resourceType?.key || resource.resourceType?.name },
-      )),
-      ...sites.map((site: any) => resourceBindingStepUtil(
-        'site',
-        dryRun ? 'planned' : 'applied',
-        site.id,
-        `站点 ${site.name}`,
-        `绑定站点 ${site.primaryDomain} 到 ${environment.name}`,
-        { runtimeType: site.runtimeType, status: site.status, primaryDomain: site.primaryDomain },
-      )),
-      ...cdnConfigs.map((config: any) => resourceBindingStepUtil(
-        'cdn_config',
-        dryRun ? 'planned' : 'applied',
-        config.id,
-        `CDN ${config.name}`,
-        `绑定 CDN ${config.domain} 到 ${environment.name}`,
-        { provider: config.provider, status: config.status, domain: config.domain },
-      )),
-      ...secretKeys.map((secret: any) => resourceBindingStepUtil(
-        'secret_key',
-        dryRun ? 'planned' : 'applied',
-        secret.id,
-        `密钥 ${secret.name}`,
-        `绑定密钥类型 ${secret.type} 到 ${environment.name}，不会读取或修改密钥值`,
-        { type: secret.type, hasDescription: Boolean(secret.description) },
-      )),
-    ];
-
-    if (!dryRun) {
-      await this.applyResourceEnvironmentBinding(teamId, dto.projectId, environment.id, {
-        managedResourceIds: managedResources.map((resource: any) => resource.id),
-        resourceInstanceIds: resourceInstances.map((resource: any) => resource.id),
-        siteIds: sites.map((site: any) => site.id),
-        cdnConfigIds: cdnConfigs.map((config: any) => config.id),
-        secretKeyIds: secretKeys.map((secret: any) => secret.id),
-      });
-    }
-
-    const result = {
-      projectId: dto.projectId,
-      environment: { id: environment.id, key: environment.key, name: environment.name },
-      dryRun,
-      status: dryRun ? 'planned' : 'completed',
-      plannedCount: steps.filter((step) => step.status === 'planned').length,
-      appliedCount: steps.filter((step) => step.status === 'applied').length,
-      skippedCount: steps.filter((step) => step.status === 'skipped').length,
-      steps,
-      summary: {
-        managedResources: managedResources.length,
-        resourceInstances: resourceInstances.length,
-        sites: sites.length,
-        cdnConfigs: cdnConfigs.length,
-        secretKeys: secretKeys.length,
-      },
-      warnings: [
-        '只绑定现有项目资源的环境归属，不复制、创建或删除实际服务器/云资源。',
-        '密钥只更新 environmentId，不读取、不解密、不修改 value。',
-      ],
-    };
-
-    await this.auditEventService?.create(buildResourceBulkBindingAuditInput(teamId, userId, result) as any);
-    return result;
-  }
-
+  bulkBindResources = (teamId: string, userId: string, dto: BulkBindProjectEnvironmentResourcesDto) =>
+    this.bulkBindService.bulkBindResources(teamId, userId, dto);
 
   getCdnConfigCopyAccessScope = (teamId: string, dto: CopyProjectEnvironmentCdnConfigsDto) =>
     this.cdnCopyService.getCdnConfigCopyAccessScope(teamId, dto);
@@ -691,54 +493,6 @@ export class ProjectEnvironmentService {
 
 
 
-
-  private async applyResourceEnvironmentBinding(
-    teamId: string,
-    projectId: string,
-    environmentId: string,
-    ids: {
-      managedResourceIds: string[];
-      resourceInstanceIds: string[];
-      siteIds: string[];
-      cdnConfigIds: string[];
-      secretKeyIds: string[];
-    },
-  ) {
-    const updates: Array<Promise<unknown>> = [];
-
-    if (ids.managedResourceIds.length > 0) {
-      updates.push(this.repo.updateManagedResources({
-        where: { teamId, projectId, environmentId: null, id: { in: ids.managedResourceIds } },
-        data: { environmentId },
-      }));
-    }
-    if (ids.resourceInstanceIds.length > 0) {
-      updates.push(this.repo.updateResourceInstances({
-        where: { teamId, projectId, environmentId: null, id: { in: ids.resourceInstanceIds } },
-        data: { environmentId },
-      }));
-    }
-    if (ids.siteIds.length > 0) {
-      updates.push(this.repo.updateSites({
-        where: { teamId, projectId, environmentId: null, id: { in: ids.siteIds } },
-        data: { environmentId },
-      }));
-    }
-    if (ids.cdnConfigIds.length > 0) {
-      updates.push(this.repo.updateCDNConfigs({
-        where: { teamId, projectId, environmentId: null, id: { in: ids.cdnConfigIds } },
-        data: { environmentId },
-      }));
-    }
-    if (ids.secretKeyIds.length > 0) {
-      updates.push(this.repo.updateSecretKeys({
-        where: { teamId, projectId, environmentId: null, id: { in: ids.secretKeyIds } },
-        data: { environmentId },
-      }));
-    }
-
-    await Promise.all(updates);
-  }
 
   getSiteCopyAccessScope = (teamId: string, dto: CopyProjectEnvironmentSitesDto) =>
     this.copySiteService.getSiteCopyAccessScope(teamId, dto);
