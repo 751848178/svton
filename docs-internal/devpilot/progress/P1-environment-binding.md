@@ -215,6 +215,21 @@ bind/unbind/list behavior (including both audit events).
 | F271.2 | done   | Extract server-binding into a focused service while preserving the public facade; clean up dead helpers. | New `ProjectEnvironmentServerBindingService` (102 lines, owns `listServers` + `getAccessScope` + `bindServer` + `unbindServer` + private `get`/`assertServer`). Host keeps one-line arrow-function delegates (incl. `getAccessScope` → `serverBindingService.getAccessScope` for the shared `update`/`archive` routes), drops the 4 method bodies, the 3 now-dead private helpers, and the now-unused `buildServerBindingAuditInput` import; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentServerBindingService(repo, auditEventService)`. Host dropped from 474 to 344 lines. |
 | F271.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, bind/unbind tests green): `/tmp/codex-tool-runs/svton/f271-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f271-tc1-20260707.log`; new file 102 lines (≤200); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                          |
 
+## F272. Project Environment CRUD Service Split + Host Ceiling Reached
+
+Purpose: finish the project-environment god-service split. Extract the last
+behavior boundary — environment CRUD (`list`/`create`/`update`/`archive`) +
+`syncFromProject` — into a focused `ProjectEnvironmentCrudService`, move the
+externally-consumed shared domain types into a dedicated `*.types.ts`, and
+remove the remaining dead constants/helpers. After this slice the host
+`ProjectEnvironmentService` is a 117-line pure delegation facade (≤200 ceiling).
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F272.1 | done   | Map the CRUD/syncFromProject boundary + shared-type coupling.                                            | Manual graph confirmed `list`/`create`/`update`/`archive`/`syncFromProject` are the last real host logic; `syncFromProject` calls `ensureDefaultsForProject` + `list`; `get`/`assertProject` move with them. The host also declared the shared sync domain types (`EnvironmentSyncProfile`/`EnvironmentSyncDifferences`/`EnvironmentSyncSuggestionAction`/`DeployConfigCoverage`/`DeployConfigField`) consumed by sync.service/sync.utils/sync-diff.utils via `from './project-environment.service'`, plus dead `ENVIRONMENT_LABELS`/`DEFAULT_PROJECT_ENVIRONMENT_KEYS`/`isSafeUpstreamUrl`/`EnvironmentSiteCopyStep`/`SiteCopyQueuedLiveSync*` types. |
+| F272.2 | done   | Extract CRUD service + shared types; reduce host to a thin facade.                                       | New `ProjectEnvironmentCrudService` (102 lines, owns the 5 methods + private `get`/`assertProject`, depends on `ProjectEnvironmentDefaultsService`) and `project-environment.types.ts` (85 lines, owns the 5 shared domain types). Host re-exports the types (`export * from './project-environment.types'`) so every existing import site + the barrel `index.ts` keep resolving; replaces the 5 method bodies + 2 helpers with one-line delegates; removes the dead constants/helpers and unused imports (`BadRequestException`/`NotFoundException`/`Prisma`/`buildSiteCopyAuditInput`/4 helper-utils). Module registers the new provider; spec rewired to inject a real `ProjectEnvironmentCrudService(repo, defaultsService)`. Host dropped from 344 to **117 lines**. |
+| F272.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites): `/tmp/codex-tool-runs/svton/f272-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f272-tc1-20260707.log`; host 117 lines + both new files ≤200 lines (102/85); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved. **Module split essentially complete:** every `.service.ts`/`.utils.ts`/`.types.ts` in the directory is now ≤200 lines (only `project-environment.controller.ts` at 385 remains over, flagged as a thin route layer). |
+
 ## Source-Backed Maps
 
 The first map block tracks the **project-environment module itself** (the focus
@@ -234,10 +249,11 @@ servers by role.
 
 Organization map (file → responsibility, all ≤200 lines except host + controller):
 - `project-environment.controller.ts` (385) — HTTP routes only.
-- `project-environment.service.ts` (344) — compatibility facade: one-line
-  delegates to focused services + remaining `list/create/update/archive`,
-  `syncFromProject`. (Crypto removed in F269; defaults in F270; server binding
-  in F271; encryption lives only in resource-copy.)
+- `project-environment.service.ts` (117) — pure delegation facade (one-line
+  arrow-function delegates to every focused service). All real logic extracted
+  in F265–F272.
+- `project-environment.types.ts` (85) — shared sync domain types (moved off the
+  facade in F272; re-exported by the facade + barrel for back-compat).
 - `project-environment.repository.ts` (104) — Prisma access boundary.
 - `project-environment-sync.service.ts` (174) — `listSyncSuggestions` read model.
 - `project-environment-sync-apply.service.ts` (198) — `applySyncSuggestions` + `getSyncApplyAccessScope`.
@@ -247,6 +263,7 @@ Organization map (file → responsibility, all ≤200 lines except host + contro
 - `project-environment-bulk-bind.service.ts` (101) — bulk resource binding.
 - `project-environment-defaults.service.ts` (23) — dev/test/staging/prod seeding.
 - `project-environment-server-binding.service.ts` (102) — server role bind/unbind/list + access scope.
+- `project-environment-crud.service.ts` (102) — environment list/create/update/archive + syncFromProject.
 - Pure utils: `-helpers` (149), `-sync-diff` (118), `-sync` (181), `-sync-step` (178),
   `-resource-copy` (179), `-cdn-copy` (114), `-bulk-bind` (118), `-defaults` (48),
   `-audit` (93), `-copy` (75).
@@ -281,32 +298,28 @@ Organization: `ResourceControlController` (routes) + `ResourceControlService`
 `ResourceControlCloudProviderHealthService` + focused executor/credential/
 inventory/query subfolders.
 
-## Gaps Identified From The Module Maps (post-F271)
+## Gaps Identified From The Module Maps (post-F272)
 
-- **Host over ceiling:** `project-environment.service.ts` is 344 lines, still
-  over the 200-line ceiling. Remaining extractable boundaries: environment CRUD
-  (`list`/`create`/`update`/`archive` ~68), `syncFromProject` (~6), and the
-  trailing shared private helpers (`get`/`assertProject`) that move with their
-  last consumer. (`assertServer`/`assertTeamCredential`/`resolveProjectEnvironment`
-  were removed as dead in F271.)
-- **Crypto dead code — RESOLVED in F269.**
-- **Controller size:** `project-environment.controller.ts` is 385 lines; it is a
-  thin route layer (no business logic) but exceeds the ceiling. A future slice
-  could split access-scope handlers from write handlers if enforced strictly.
+- **Host ceiling — RESOLVED in F272:** `project-environment.service.ts` is now
+  117 lines (a pure delegation facade), ≤200. The project-environment
+  god-service split is essentially complete: every `.service.ts`/`.utils.ts`/
+  `.types.ts` in the directory is ≤200 lines.
+- **Controller size (only remaining over-ceiling file):**
+  `project-environment.controller.ts` is 385 lines; it is a thin route layer
+  (no business logic) but exceeds the ceiling. A future slice could split
+  access-scope handlers from write handlers, or split by resource family.
 - **No behavioral test gaps added:** all extracted boundaries retain their
-  pre-existing behavioral coverage (34/34 spec tests green through F271);
+  pre-existing behavioral coverage (34/34 spec tests green through F272);
   `getSyncApplyAccessScope`, `syncFromProject`, `listServers`, and the access-scope
   resolvers remain untested (pre-existing gap, not introduced by these slices).
 
 ## Next Candidates
 
-- Continue splitting `ProjectEnvironmentService` (now 344 lines, still over the
-  200-line ceiling): next boundary is environment CRUD (`list`/`create`/`update`/
-  `archive`) + `syncFromProject`; extracting those plus the last shared helpers
-  (`get`/`assertProject`) should bring the host to/below the ceiling.
-- Continue splitting `ResourceControlService` by verified behavior boundary:
-  binding validation/write orchestration, query run orchestration, connection
-  probe orchestration, action execution/approval orchestration, inventory sync,
-  and resource metric summaries.
+- **project-environment module: essentially complete.** Optional polish: split
+  the 385-line controller, and add tests for the untested access-scope resolvers.
+- **Move to the next module (逐模块).** Per the cross-module goal, the next
+  candidates are in other modules: `ResourceControlService` (binding/query/
+  connection/action/inventory/metric boundaries), then site / monitoring /
+  log-center / ops-governance god services.
 - Keep every split tied to the existing project/environment resource-control
   contract. Do not add new product behavior without TODO/roadmap evidence.
