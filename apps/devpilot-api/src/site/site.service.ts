@@ -61,6 +61,7 @@ import {
   buildSiteApprovalContext,
   buildSiteSyncAuditInput,
 } from './site-sync-approval.utils';
+import { SITE_INCLUDE, SYNC_RUN_INCLUDE } from './site-includes.utils';
 import {
   buildCertificateCommand,
   buildCertificateRenewCommand,
@@ -149,7 +150,7 @@ export class SiteService {
     return this.prisma.site.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: this.siteInclude(),
+      include: SITE_INCLUDE,
     });
   }
 
@@ -173,14 +174,14 @@ export class SiteService {
         proxyConfigId: dto.proxyConfigId,
         status: 'draft',
       },
-      include: this.siteInclude(),
+      include: SITE_INCLUDE,
     });
   }
 
   async getSite(teamId: string, id: string) {
     const site = await this.prisma.site.findFirst({
       where: { id, teamId },
-      include: this.siteInclude(),
+      include: SITE_INCLUDE,
     });
 
     if (!site) {
@@ -201,7 +202,7 @@ export class SiteService {
       where,
       orderBy: { startedAt: 'desc' },
       take: 20,
-      include: this.syncRunInclude(),
+      include: SYNC_RUN_INCLUDE,
     });
   }
 
@@ -227,7 +228,7 @@ export class SiteService {
     return this.prisma.site.update({
       where: { id },
       data,
-      include: this.siteInclude(),
+      include: SITE_INCLUDE,
     });
   }
 
@@ -296,7 +297,7 @@ export class SiteService {
     const site = await this.prisma.site.update({
       where: { id },
       data,
-      include: this.siteInclude(),
+      include: SITE_INCLUDE,
     });
     const syncPlan = dto.createDryRunPlan === false
       ? null
@@ -478,7 +479,7 @@ export class SiteService {
     const site = await this.getSite(teamId, id);
     const sourceRun = await this.prisma.siteSyncRun.findFirst({
       where: { id: runId, teamId, siteId: id },
-      include: this.syncRunInclude(),
+      include: SYNC_RUN_INCLUDE,
     });
 
     if (!sourceRun) {
@@ -571,7 +572,7 @@ export class SiteService {
         configDiff: this.toJsonValue(configDiff),
         warnings: this.toJsonValue(plan.warnings),
       },
-      include: this.syncRunInclude(),
+      include: SYNC_RUN_INCLUDE,
     });
 
     let execution: ServerExecutionResult;
@@ -600,7 +601,7 @@ export class SiteService {
               approvalStatus: approval.status,
             }),
           },
-          include: this.syncRunInclude(),
+          include: SYNC_RUN_INCLUDE,
         });
         const blockedExecution = buildApprovalBlockedExecution(plan, approval.id);
         await this.writeSiteSyncAudit(
@@ -689,7 +690,7 @@ export class SiteService {
             warnings: this.toJsonValue(queuedExecution.warnings),
             error: queuedExecution.error ?? null,
           },
-          include: this.syncRunInclude(),
+          include: SYNC_RUN_INCLUDE,
         });
         await this.writeSiteSyncAudit(
           teamId,
@@ -766,7 +767,7 @@ export class SiteService {
         error: execution.error ?? null,
         finishedAt: new Date(),
       },
-      include: this.syncRunInclude(),
+      include: SYNC_RUN_INCLUDE,
     });
     await this.writeSiteSyncAudit(
       teamId,
@@ -815,7 +816,7 @@ export class SiteService {
         lastSyncAt: new Date(),
         syncError: status === 'completed' ? null : error || '站点同步执行未完成',
       },
-      include: this.siteInclude(),
+      include: SITE_INCLUDE,
     });
   }
 
@@ -847,7 +848,7 @@ export class SiteService {
       data: {
         tls: mergeSiteTlsProbeMetadata(site.tls, metadata),
       },
-      include: this.siteInclude(),
+      include: SITE_INCLUDE,
     });
   }
 
@@ -895,7 +896,7 @@ export class SiteService {
       data: {
         tls: mergeSiteTlsRenewMetadata(site.tls, metadata),
       },
-      include: this.siteInclude(),
+      include: SITE_INCLUDE,
     });
 
     if (!dryRun && execution.status === 'completed' && metadata.succeeded) {
@@ -938,7 +939,7 @@ export class SiteService {
             queuedAt,
           }),
         },
-        include: this.siteInclude(),
+        include: SITE_INCLUDE,
       });
     } catch (error) {
       this.logger.warn(
@@ -955,7 +956,7 @@ export class SiteService {
             error: this.errorMessage(error),
           }),
         },
-        include: this.siteInclude(),
+        include: SITE_INCLUDE,
       });
     }
   }
@@ -985,45 +986,6 @@ export class SiteService {
     await this.auditEventService?.create(
       buildSiteSyncAuditInput(teamId, userId, site, execution, dryRun, plan, syncRun, action) as any,
     );
-  }
-
-  private syncRunInclude(): Prisma.SiteSyncRunInclude {
-    return {
-      actor: { select: { id: true, name: true, email: true } },
-      operationApproval: { select: { id: true, status: true, risk: true, reviewedAt: true, consumedAt: true } },
-      serverExecutionJob: {
-        select: {
-          id: true,
-          status: true,
-          queueMode: true,
-          attempt: true,
-          maxAttempts: true,
-          queuedAt: true,
-          startedAt: true,
-          finishedAt: true,
-        },
-      },
-      sourceRun: {
-        select: {
-          id: true,
-          mode: true,
-          status: true,
-          dryRun: true,
-          startedAt: true,
-          targetConfigPath: true,
-        },
-      },
-    };
-  }
-
-  private siteInclude() {
-    return {
-      project: { select: { id: true, name: true } },
-      environment: { select: { id: true, key: true, name: true, status: true } },
-      server: { select: { id: true, name: true, host: true, status: true } },
-      proxyConfig: { select: { id: true, name: true, domain: true, status: true } },
-      createdBy: { select: { id: true, name: true, email: true } },
-    };
   }
 
   private async assertBindings(
