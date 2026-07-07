@@ -179,6 +179,23 @@ the dead `DEFAULT_RESOURCE_BINDING_TYPES` constant are removed here.
 | F269.2 | done   | Extract bulk-bind into a focused service + pure utils; clean up dead crypto + dead constant.             | New `ProjectEnvironmentBulkBindService` (101 lines, owns `bulkBindResources` + `getResourceBulkBindingAccessScope` + private `applyResourceEnvironmentBinding`/`resolveProjectEnvironment`/`unboundWhere`) and pure `project-environment-bulk-bind.utils.ts` (118 lines: per-type binding-step builders, id collection, result assembly). Host keeps one-line delegates, drops `EnvironmentResourceBindingType`/`EnvironmentResourceBindingStep` types, the dead `DEFAULT_RESOURCE_BINDING_TYPES` const, the now-unused `cryptoService` field + `encryptSecretValue` method + `CryptoService` import + 3 unused util imports; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentBulkBindService(repo, auditEventService)` and drop the host `secretCrypto` arg (still used by `ProjectEnvironmentResourceCopyService`). Host dropped from 747 to 501 lines. |
 | F269.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, all 4 bulk-bind tests green): `/tmp/codex-tool-runs/svton/f269-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f269-tc1-20260707.log`; both new files ≤200 lines (101/118); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                          |
 
+## F270. Project Environment Defaults-Seeding Service Split
+
+Purpose: split the environment defaults-seeding orchestration out of the
+over-limit `ProjectEnvironmentService` (501 lines). Source inspection confirmed
+the visible `ensureDefaultsForProject` body is ~30 lines (resolves
+dev/test/staging/prod keys from project config, then issues per-key Prisma
+upserts); it is consumed by the host `syncFromProject` and the spec. This slice
+preserves the public method (as a one-line delegate), every upsert payload
+(`source: project_config`, `initializedBy` string kept verbatim), and the
+index-based `sortOrder: index * 10`.
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F270.1 | done   | Map the defaults-seeding boundary.                                                                       | CodeGraph CLI is present but uninitialized; manual graph confirmed `ensureDefaultsForProject` is called by host `syncFromProject` and the spec (no controller route), depends only on `repo.upsertProjectEnvironment` + the pure helpers `environmentKeysFromConfig` / `labelForKey` / `toJsonValue`. The visible method body is 30 lines (the earlier ~149 estimate over-counted trailing shared private helpers). |
+| F270.2 | done   | Extract defaults-seeding into a focused service + pure utils while preserving the public facade.         | New `ProjectEnvironmentDefaultsService` (23 lines, owns `ensureDefaultsForProject`) and pure `project-environment-defaults.utils.ts` (48 lines: `resolveSeedEnvironmentKeys`, `buildSeedUpsertArgs`). Host keeps a one-line arrow-function delegate, drops the inline body and the now-unused `environmentKeysFromConfigUtil` import; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentDefaultsService(repo)`. The persisted `initializedBy: 'ProjectEnvironmentService.ensureDefaultsForProject'` string is preserved verbatim to avoid any stored-config drift. Host dropped from 501 to 474 lines. |
+| F270.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, defaults-seeding tests green): `/tmp/codex-tool-runs/svton/f270-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f270-tc1-20260707.log`; both new files ≤200 lines (23/48); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                          |
+
 ## Source-Backed Maps
 
 The first map block tracks the **project-environment module itself** (the focus
@@ -198,10 +215,10 @@ servers by role.
 
 Organization map (file → responsibility, all ≤200 lines except host + controller):
 - `project-environment.controller.ts` (385) — HTTP routes only.
-- `project-environment.service.ts` (501) — compatibility facade: one-line
+- `project-environment.service.ts` (474) — compatibility facade: one-line
   delegates to focused services + remaining `list/create/update/archive`,
-  `syncFromProject`, server binding, `ensureDefaultsForProject`. (Crypto surface
-  removed in F269; encryption lives only in resource-copy.)
+  `syncFromProject`, server binding. (Crypto surface removed in F269; encryption
+  lives only in resource-copy; defaults-seeding moved in F270.)
 - `project-environment.repository.ts` (104) — Prisma access boundary.
 - `project-environment-sync.service.ts` (174) — `listSyncSuggestions` read model.
 - `project-environment-sync-apply.service.ts` (198) — `applySyncSuggestions` + `getSyncApplyAccessScope`.
@@ -209,8 +226,10 @@ Organization map (file → responsibility, all ≤200 lines except host + contro
 - `project-environment-resource-copy.service.ts` (197) — managed-resource + secret copy (owns encryption).
 - `project-environment-cdn-copy.service.ts` (120) — CDN-config copy.
 - `project-environment-bulk-bind.service.ts` (101) — bulk resource binding.
+- `project-environment-defaults.service.ts` (23) — dev/test/staging/prod seeding.
 - Pure utils: `-helpers` (149), `-sync-diff` (118), `-sync` (181), `-sync-step` (178),
-  `-resource-copy` (179), `-cdn-copy` (114), `-bulk-bind` (118), `-audit` (93), `-copy` (75).
+  `-resource-copy` (179), `-cdn-copy` (114), `-bulk-bind` (118), `-defaults` (48),
+  `-audit` (93), `-copy` (75).
 
 Function map: environment CRUD; ensure-defaults seeding; sync-suggestions read
 + apply; site/CDN/resource/secret cross-environment copy; bulk resource binding;
@@ -242,30 +261,30 @@ Organization: `ResourceControlController` (routes) + `ResourceControlService`
 `ResourceControlCloudProviderHealthService` + focused executor/credential/
 inventory/query subfolders.
 
-## Gaps Identified From The Module Maps (post-F269)
+## Gaps Identified From The Module Maps (post-F270)
 
-- **Host over ceiling:** `project-environment.service.ts` is 501 lines, still
-  over the 200-line ceiling. Remaining extractable boundaries:
-  `ensureDefaultsForProject` (~149), server binding
+- **Host over ceiling:** `project-environment.service.ts` is 474 lines, still
+  over the 200-line ceiling. Remaining extractable boundaries: server binding
   (`listServers`/`bindServer`/`unbindServer`/`getAccessScope` ~98), environment
-  CRUD (`list`/`create`/`update`/`archive` ~68), `syncFromProject` (~6).
-- **Crypto dead code — RESOLVED in F269:** host `cryptoService` field +
-  `encryptSecretValue` + `CryptoService` import + dead `DEFAULT_RESOURCE_BINDING_TYPES`
-  const removed; encryption now lives only in `ProjectEnvironmentResourceCopyService`.
+  CRUD (`list`/`create`/`update`/`archive` ~68), `syncFromProject` (~6), and the
+  trailing shared private helpers (`get`/`assertProject`/`assertServer`/
+  `assertTeamCredential`/`resolveProjectEnvironment`) that move with their last
+  consumer.
+- **Crypto dead code — RESOLVED in F269.**
 - **Controller size:** `project-environment.controller.ts` is 385 lines; it is a
   thin route layer (no business logic) but exceeds the ceiling. A future slice
   could split access-scope handlers from write handlers if enforced strictly.
 - **No behavioral test gaps added:** all extracted boundaries retain their
-  pre-existing behavioral coverage (34/34 spec tests green through F269);
+  pre-existing behavioral coverage (34/34 spec tests green through F270);
   `getSyncApplyAccessScope`, `syncFromProject`, and the four access-scope
   resolvers remain untested (pre-existing gap, not introduced by these slices).
 
 ## Next Candidates
 
-- Continue splitting `ProjectEnvironmentService` (now 501 lines, still over the
-  200-line ceiling): next largest boundary is `ensureDefaultsForProject` (~149),
-  followed by server binding (~98) and environment CRUD (~68). After those the
-  host should approach the ceiling.
+- Continue splitting `ProjectEnvironmentService` (now 474 lines, still over the
+  200-line ceiling): next largest boundary is server binding (~98), then
+  environment CRUD (~68). The shared private helpers can move to a shared
+  access helper once their last consumers are extracted.
 - Continue splitting `ResourceControlService` by verified behavior boundary:
   binding validation/write orchestration, query run orchestration, connection
   probe orchestration, action execution/approval orchestration, inventory sync,

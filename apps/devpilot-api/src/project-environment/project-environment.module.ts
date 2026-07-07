@@ -12,11 +12,12 @@ import { ProjectEnvironmentSyncApplyService } from './project-environment-sync-a
 import { ProjectEnvironmentResourceCopyService } from './project-environment-resource-copy.service';
 import { ProjectEnvironmentCdnCopyService } from './project-environment-cdn-copy.service';
 import { ProjectEnvironmentBulkBindService } from './project-environment-bulk-bind.service';
+import { ProjectEnvironmentDefaultsService } from './project-environment-defaults.service';
 
 @Module({
   imports: [PrismaModule, AuditEventModule, ControlAccessPolicyModule, SiteModule],
   controllers: [ProjectEnvironmentController],
-  providers: [ProjectEnvironmentService, ProjectEnvironmentRepository, ProjectEnvironmentCopySiteService, ProjectEnvironmentSyncService, ProjectEnvironmentSyncApplyService, ProjectEnvironmentResourceCopyService, ProjectEnvironmentCdnCopyService, ProjectEnvironmentBulkBindService],
+  providers: [ProjectEnvironmentService, ProjectEnvironmentRepository, ProjectEnvironmentCopySiteService, ProjectEnvironmentSyncService, ProjectEnvironmentSyncApplyService, ProjectEnvironmentResourceCopyService, ProjectEnvironmentCdnCopyService, ProjectEnvironmentBulkBindService, ProjectEnvironmentDefaultsService],
   exports: [ProjectEnvironmentService],
 })
 export class ProjectEnvironmentModule {}

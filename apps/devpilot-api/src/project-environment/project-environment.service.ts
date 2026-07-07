@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SiteService } from '../site';
 import { ProjectEnvironmentRepository } from './project-environment.repository';
 import {
-  environmentKeysFromConfig as environmentKeysFromConfigUtil,
   labelForKey as labelForKeyUtil,
   normalizeKey as normalizeKeyUtil,
   sortOrderForKey as sortOrderForKeyUtil,
@@ -21,6 +20,7 @@ import { ProjectEnvironmentSyncApplyService } from './project-environment-sync-a
 import { ProjectEnvironmentResourceCopyService } from './project-environment-resource-copy.service';
 import { ProjectEnvironmentCdnCopyService } from './project-environment-cdn-copy.service';
 import { ProjectEnvironmentBulkBindService } from './project-environment-bulk-bind.service';
+import { ProjectEnvironmentDefaultsService } from './project-environment-defaults.service';
 import {
   ApplyProjectEnvironmentSyncSuggestionsDto,
   BindProjectEnvironmentServerDto,
@@ -184,6 +184,7 @@ export class ProjectEnvironmentService {
     private readonly resourceCopyService: ProjectEnvironmentResourceCopyService,
     private readonly cdnCopyService: ProjectEnvironmentCdnCopyService,
     private readonly bulkBindService: ProjectEnvironmentBulkBindService,
+    private readonly defaultsService: ProjectEnvironmentDefaultsService,
     @Optional()
     private readonly auditEventService: AuditEventService,
     @Optional()
@@ -393,36 +394,8 @@ export class ProjectEnvironmentService {
     return { success: true };
   }
 
-  async ensureDefaultsForProject(teamId: string, projectId: string, config: unknown) {
-    const keys = environmentKeysFromConfigUtil(config);
-
-    for (const [index, key] of keys.entries()) {
-      await this.repo.upsertProjectEnvironment({
-        where: {
-          projectId_key: {
-            projectId,
-            key,
-          },
-        },
-        create: {
-          teamId,
-          projectId,
-          key,
-          name: labelForKeyUtil(key),
-          sortOrder: index * 10,
-          config: toJsonValueUtil({
-            source: 'project_config',
-            initializedBy: 'ProjectEnvironmentService.ensureDefaultsForProject',
-          }),
-        },
-        update: {
-          name: labelForKeyUtil(key),
-          sortOrder: index * 10,
-          status: 'active',
-        },
-      });
-    }
-  }
+  ensureDefaultsForProject = (teamId: string, projectId: string, config: unknown) =>
+    this.defaultsService.ensureDefaultsForProject(teamId, projectId, config);
 
   private async get(teamId: string, id: string) {
     const environment = await this.repo.findProjectEnvironment({
