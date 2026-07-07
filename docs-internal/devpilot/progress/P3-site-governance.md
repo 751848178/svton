@@ -90,7 +90,22 @@ backend slices needed to bring `site.service.ts` under the ceiling.
 | F275.2 | done   | Extract generators/safety into pure utils + shared types.                                                | New `site-plan.types.ts` (58 lines: `JsonRecord`/`SiteRecordLike`/`SiteSyncExecutionPlan` + `isRecord`/`readString`/`readBoolean`/`readStringArray` readers, preserving the original non-empty-trim filter) and `site-config-gen.utils.ts` (184 lines: all generators + safety checks + `filenameForDomain`). `site.service.ts` imports them, drops the inline type/readers + 14 private config methods, and calls the pure functions directly. `cleanAliases` stays (used by create/update). Host dropped from 2177 to 1996 lines. |
 | F275.3 | done   | Run focused API verification and hygiene checks, then sync final evidence + add full site-module maps.  | Focused site Jest passed (27 tests, 4 suites): `/tmp/codex-tool-runs/svton/f275-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f275-tc2-20260707.log`; both new files ≤200 lines (58/184); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved. Full site-module map set (below) added for the backend. |
 
-## Site Module Backend Maps (current, post-F275)
+## F276. Site Service Plan-Builder + Warnings Extraction
+
+Purpose: continue the site backend split by extracting the next largest pure
+boundary — the 9 execution-plan builders (`buildSyncPlan`/`buildRollbackPlan`/
+`buildDiagnosticsPlan`/3 OpenResty plans/`buildSmokeCheckPlan`/`buildTlsProbePlan`/
+`buildTlsRenewPlan`) + the 7 `collect*Warnings`/`collectWarnings` collectors +
+`normalizeTailLines` (~600 lines of pure functions). Split across three focused
+pure-utils files by resource family so each stays ≤200 lines.
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F276.1 | done   | Map the plan-builder + warnings boundary.                                                                | Manual graph confirmed the 9 builders + 7 warning collectors + `normalizeTailLines` are pure (no `this` state, no I/O), used by the sync/diagnostics/openresty/smoke/tls/rollback orchestration methods. They split cleanly by family: sync/rollback/diagnostics (uses `collectWarnings`), OpenResty (3 plans + 3 collectors), smoke/TLS (3 plans + 3 collectors). |
+| F276.2 | done   | Extract builders/warnings into 3 focused pure-utils files.                                               | New `site-sync-plan.utils.ts` (189 lines: `buildSyncPlan`/`buildRollbackPlan`/`buildDiagnosticsPlan`/`collectWarnings`/`normalizeTailLines`), `site-openresty-plan.utils.ts` (85 lines: 3 OpenResty plans + 3 collectors), `site-ops-plan.utils.ts` (187 lines: smoke/TLS plans + collectors). `site.service.ts` imports them, drops the ~600-line cluster + 17 private methods, and calls the pure functions directly. `SiteRecordLike.server` tightened to `name?: string; host?: string` to satisfy the plan target types (structurally compatible with the host's Prisma `SiteRecord`). Host dropped from 1996 to 1394 lines. |
+| F276.3 | done   | Run focused API verification and hygiene checks, then sync final evidence + update maps.                 | Focused site Jest passed (27 tests, 4 suites): `/tmp/codex-tool-runs/svton/f276-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f276-tc2-20260707.log`; all 3 new files ≤200 lines (189/85/187); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved. |
+
+## Site Module Backend Maps (current, post-F276)
 
 Business logic map: project/environment-scoped Site record → CRUD (list/create/
 update/delete) → sync/probe/diagnostics action plan build → server-executor
@@ -99,11 +114,15 @@ post-sync site/TLS status update → TLS probe/renew scheduling → rollback.
 
 Organization map (backend files → responsibility):
 - `site.controller.ts` (384, over-ceiling) — HTTP routes.
-- `site.service.ts` (1996, over-ceiling) — Site CRUD + sync/diagnostics/
-  openresty/smoke/tls action orchestration + plan builders + execution +
-  approval + audit + post-sync updates + rollback.
+- `site.service.ts` (1394, over-ceiling) — Site CRUD + sync/diagnostics/
+  openresty/smoke/tls action orchestration + execution + approval + audit +
+  post-sync updates + rollback (plan builders + warnings extracted in F276).
 - `site-config-gen.utils.ts` (184) — pure Nginx/access-policy/upstream/certificate
-  generators + safety checks (extracted in F275).
+  generators + safety checks (F275).
+- `site-sync-plan.utils.ts` (189) — sync/rollback/diagnostics plan builders +
+  collectWarnings + normalizeTailLines (F276).
+- `site-openresty-plan.utils.ts` (85) — 3 OpenResty plans + collectors (F276).
+- `site-ops-plan.utils.ts` (187) — smoke/TLS probe/renew plans + collectors (F276).
 - `site-plan.types.ts` (58) — shared plan/config types + readers (F275).
 - `site-tls-probe.ts` (282, over-ceiling) + `site-tls-renew.ts` (255, over-ceiling)
   — TLS probe/renew metadata + command builders.
@@ -124,14 +143,12 @@ openresty-module-baseline,smoke-check,tls-probe,tls-renew,rollback,takeover-prev
 
 ## Gaps Identified From The Site Backend Maps (post-F275)
 
-- **`site.service.ts` still 1996 lines** (over ceiling). Next largest extractable
-  boundary: the 8 plan builders (`buildSyncPlan`/`buildRollbackPlan`/
-  `buildDiagnosticsPlan`/`buildOpenRestyStatusPlan`/`buildOpenRestyModulesPlan`/
-  `buildOpenRestyModuleBaselinePlan`/`buildSmokeCheckPlan`/`buildTlsProbePlan`/
-  `buildTlsRenewPlan`) + the `collect*Warnings` cluster (~600 lines pure) — split
-  across 2–3 plan-builder utils files.
-- **`executeSiteSyncOperation` (293 lines)** is the largest orchestration method;
-  a later slice should split it into submit/wait/post-update phases.
+- **`site.service.ts` still 1394 lines** (over ceiling). Plan builders + warnings
+  (the previous largest boundary) were extracted in F276. Next largest boundary:
+  `executeSiteSyncOperation` (the largest remaining orchestration method) and the
+  post-sync update helpers (`updateSiteAfterSync`/`updateSiteTlsAfterProbe`/
+  `updateSiteAfterNonMutatingOperation`/`updateSiteTlsAfterRenew`/
+  `queueTlsProbeAfterRenewal`), plus the audit/approval-context builders.
 - **Over-ceiling TLS files:** `site-tls-probe.ts` (282), `site-tls-renew.ts` (255),
   `site-tls-probe-scheduler.service.ts` (254), `site-tls-renew-scheduler.service.ts`
   (280) — each needs its own config/metadata extraction.
@@ -140,10 +157,9 @@ openresty-module-baseline,smoke-check,tls-probe,tls-renew,rollback,takeover-prev
 
 ## Next Candidates
 
-- Continue the site backend split: extract the plan builders + warnings cluster
-  into focused pure-utils files (F276).
-- Then split `executeSiteSyncOperation` orchestration, then the TLS files, then
-  the controller.
+- Continue the site backend split: extract `executeSiteSyncOperation` + post-sync
+  update helpers next (F277), then the audit/approval-context builders, then the
+  TLS files, then the controller.
 - After site, move to monitoring / log-center / ops-governance backend splits.
 
 ## Maps To Maintain

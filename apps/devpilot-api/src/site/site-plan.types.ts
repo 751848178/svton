@@ -22,7 +22,7 @@ export type SiteRecordLike = {
   tls: unknown;
   accessPolicy: unknown;
   aliases: unknown;
-  server?: { name?: string | null; host?: string | null } | null;
+  server?: { name?: string; host?: string } | null;
 };
 
 export type SiteSyncExecutionPlan = {

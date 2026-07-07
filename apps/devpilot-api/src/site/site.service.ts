@@ -53,6 +53,21 @@ import {
   resolveCertificateName,
   resolveUpstream,
 } from './site-config-gen.utils';
+import {
+  buildDiagnosticsPlan,
+  buildRollbackPlan,
+  buildSyncPlan,
+} from './site-sync-plan.utils';
+import {
+  buildOpenRestyModuleBaselinePlan,
+  buildOpenRestyModulesPlan,
+  buildOpenRestyStatusPlan,
+} from './site-openresty-plan.utils';
+import {
+  buildSmokeCheckPlan,
+  buildTlsProbePlan,
+  buildTlsRenewPlan,
+} from './site-ops-plan.utils';
 
 type SiteRecord = Awaited<ReturnType<SiteService['getSite']>>;
 type SiteConfigDiff = {
@@ -333,7 +348,7 @@ export class SiteService {
 
   async createSyncPlan(teamId: string, userId: string, id: string, dto: CreateSiteSyncPlanDto) {
     const site = await this.getSite(teamId, id);
-    const plan = this.buildSyncPlan(site);
+    const plan = buildSyncPlan(site);
     const dryRun = dto.dryRun !== false;
 
     return this.executeSiteSyncOperation(teamId, userId, site, plan, {
@@ -352,7 +367,7 @@ export class SiteService {
 
   async createDiagnostics(teamId: string, userId: string, id: string, dto: CreateSiteDiagnosticsDto) {
     const site = await this.getSite(teamId, id);
-    const plan = this.buildDiagnosticsPlan(site, dto.tailLines);
+    const plan = buildDiagnosticsPlan(site, dto.tailLines);
     const dryRun = dto.dryRun === true;
 
     return this.executeSiteSyncOperation(teamId, userId, site, plan, {
@@ -368,7 +383,7 @@ export class SiteService {
 
   async createOpenRestyStatus(teamId: string, userId: string, id: string, dto: CreateSiteOpenRestyStatusDto) {
     const site = await this.getSite(teamId, id);
-    const plan = this.buildOpenRestyStatusPlan(site);
+    const plan = buildOpenRestyStatusPlan(site);
     const dryRun = dto.dryRun === true;
 
     return this.executeSiteSyncOperation(teamId, userId, site, plan, {
@@ -384,7 +399,7 @@ export class SiteService {
 
   async createOpenRestyModules(teamId: string, userId: string, id: string, dto: CreateSiteOpenRestyModulesDto) {
     const site = await this.getSite(teamId, id);
-    const plan = this.buildOpenRestyModulesPlan(site);
+    const plan = buildOpenRestyModulesPlan(site);
     const dryRun = dto.dryRun === true;
 
     return this.executeSiteSyncOperation(teamId, userId, site, plan, {
@@ -405,7 +420,7 @@ export class SiteService {
     dto: CreateSiteOpenRestyModuleBaselineDto,
   ) {
     const site = await this.getSite(teamId, id);
-    const plan = this.buildOpenRestyModuleBaselinePlan(site);
+    const plan = buildOpenRestyModuleBaselinePlan(site);
     const dryRun = dto.dryRun === true;
 
     return this.executeSiteSyncOperation(teamId, userId, site, plan, {
@@ -421,7 +436,7 @@ export class SiteService {
 
   async createSmokeCheck(teamId: string, userId: string, id: string, dto: CreateSiteSmokeCheckDto) {
     const site = await this.getSite(teamId, id);
-    const plan = this.buildSmokeCheckPlan(site);
+    const plan = buildSmokeCheckPlan(site);
     const dryRun = dto.dryRun === true;
 
     return this.executeSiteSyncOperation(teamId, userId, site, plan, {
@@ -444,7 +459,7 @@ export class SiteService {
     sourceRunId?: string | null,
   ): Promise<SiteOperationExecutionResult> {
     const site = await this.getSite(teamId, id);
-    const plan = this.buildTlsProbePlan(site);
+    const plan = buildTlsProbePlan(site);
     const dryRun = dto.dryRun === true;
 
     return this.executeSiteSyncOperation(teamId, userId, site, plan, {
@@ -468,7 +483,7 @@ export class SiteService {
   ) {
     const site = await this.getSite(teamId, id);
     const dryRun = dto.dryRun !== false;
-    const plan = this.buildTlsRenewPlan(site, dryRun);
+    const plan = buildTlsRenewPlan(site, dryRun);
 
     return this.executeSiteSyncOperation(teamId, userId, site, plan, {
       action: 'site.tls_renew',
@@ -508,7 +523,7 @@ export class SiteService {
     }
 
     const dryRun = dto.dryRun !== false;
-    const plan = this.buildRollbackPlan(site, sourceRun.nginxConfig, sourceRun.targetConfigPath);
+    const plan = buildRollbackPlan(site, sourceRun.nginxConfig, sourceRun.targetConfigPath);
 
     return this.executeSiteSyncOperation(teamId, userId, site, plan, {
       action: 'site.rollback',
@@ -1363,623 +1378,6 @@ export class SiteService {
     };
   }
 
-  private buildSyncPlan(site: Awaited<ReturnType<SiteService['getSite']>>) {
-    const runtimeConfig = isRecord(site.runtimeConfig) ? site.runtimeConfig : {};
-    const tls = isRecord(site.tls) ? site.tls : {};
-    const accessPolicy = isRecord(site.accessPolicy) ? site.accessPolicy : {};
-    const aliases = readStringArray(site.aliases);
-    const serverNames = [site.primaryDomain, ...aliases].filter(Boolean);
-    const nginxConfig = generateNginxConfig(
-      site.runtimeType as SiteRuntimeType,
-      site.primaryDomain,
-      serverNames,
-      runtimeConfig,
-      tls,
-      accessPolicy,
-    );
-    const configPath = `/etc/nginx/conf.d/${filenameForDomain(site.primaryDomain)}.conf`;
-    const warnings = this.collectWarnings(site, runtimeConfig, tls);
-    const commandPlan: ServerCommandStep[] = [
-      {
-        key: 'write_nginx_config',
-        label: '写入 Nginx 站点配置',
-        command: `cat > ${configPath} <<'EOF'\n${nginxConfig}\nEOF`,
-        preview: configPath,
-        required: true,
-        risk: 'medium',
-        timeoutSeconds: 30,
-      },
-      {
-        key: 'issue_certificate',
-        label: '签发或续期证书',
-        command: buildCertificateCommand(serverNames, tls),
-        required: readBoolean(tls.enabled) === true && readString(tls.type) === 'letsencrypt',
-        risk: 'medium',
-        timeoutSeconds: 180,
-      },
-      {
-        key: 'validate_nginx',
-        label: '校验 Nginx 配置',
-        command: 'nginx -t',
-        required: true,
-        risk: 'low',
-        timeoutSeconds: 30,
-      },
-      {
-        key: 'reload_nginx',
-        label: '重载 Nginx',
-        command: 'systemctl reload nginx || nginx -s reload',
-        required: true,
-        risk: 'medium',
-        timeoutSeconds: 30,
-      },
-    ];
-
-    return {
-      target: {
-        serverId: site.serverId,
-        serverName: site.server?.name,
-        serverHost: site.server?.host,
-        configPath,
-        runtimeType: site.runtimeType,
-      },
-      warnings,
-      commandPlan,
-      nginxConfig,
-    };
-  }
-
-  private buildRollbackPlan(
-    site: SiteRecord,
-    nginxConfig: string,
-    targetConfigPath?: string | null,
-  ): SiteSyncExecutionPlan {
-    const fallbackConfigPath = `/etc/nginx/conf.d/${filenameForDomain(site.primaryDomain)}.conf`;
-    const configPath = targetConfigPath && isSafeNginxSiteConfigPath(targetConfigPath)
-      ? targetConfigPath
-      : fallbackConfigPath;
-    const warnings: string[] = [];
-
-    if (!site.serverId) {
-      warnings.push('未关联目标服务器，无法生成可执行的 server-executor 回滚计划');
-    }
-    if (targetConfigPath && targetConfigPath !== configPath) {
-      warnings.push('历史同步记录中的配置路径不安全，已回退到当前站点默认 Nginx 配置路径');
-    }
-
-    const commandPlan: ServerCommandStep[] = [
-      {
-        key: 'write_nginx_config',
-        label: '写回历史 Nginx 站点配置',
-        command: `cat > ${configPath} <<'EOF'\n${nginxConfig}\nEOF`,
-        preview: configPath,
-        required: true,
-        risk: 'medium',
-        timeoutSeconds: 30,
-      },
-      {
-        key: 'validate_nginx',
-        label: '校验 Nginx 配置',
-        command: 'nginx -t',
-        required: true,
-        risk: 'low',
-        timeoutSeconds: 30,
-      },
-      {
-        key: 'reload_nginx',
-        label: '重载 Nginx',
-        command: 'systemctl reload nginx || nginx -s reload',
-        required: true,
-        risk: 'medium',
-        timeoutSeconds: 30,
-      },
-    ];
-
-    return {
-      target: {
-        serverId: site.serverId,
-        serverName: site.server?.name,
-        serverHost: site.server?.host,
-        configPath,
-        runtimeType: site.runtimeType,
-      },
-      warnings,
-      commandPlan,
-      nginxConfig,
-    };
-  }
-
-  private buildDiagnosticsPlan(site: SiteRecord, tailLines?: number): SiteSyncExecutionPlan {
-    const basePlan = this.buildSyncPlan(site);
-    const lines = this.normalizeTailLines(tailLines);
-    const commandPlan: ServerCommandStep[] = [
-      {
-        key: 'validate_nginx',
-        label: '校验 Nginx/OpenResty 配置',
-        command: 'nginx -t',
-        required: true,
-        risk: 'low',
-        timeoutSeconds: 30,
-      },
-      {
-        key: 'tail_nginx_access_log',
-        label: `读取 access.log 最近 ${lines} 行`,
-        command: `tail -n ${lines} /var/log/nginx/access.log || true`,
-        preview: '/var/log/nginx/access.log',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 20,
-      },
-      {
-        key: 'tail_nginx_error_log',
-        label: `读取 error.log 最近 ${lines} 行`,
-        command: `tail -n ${lines} /var/log/nginx/error.log || true`,
-        preview: '/var/log/nginx/error.log',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 20,
-      },
-    ];
-
-    return {
-      ...basePlan,
-      commandPlan,
-      warnings: basePlan.warnings,
-    };
-  }
-
-  private buildOpenRestyStatusPlan(site: SiteRecord): SiteSyncExecutionPlan {
-    const warnings = this.collectOpenRestyStatusWarnings(site);
-    const commandPlan: ServerCommandStep[] = [
-      {
-        key: 'nginx_config_test_status',
-        label: '读取 Nginx/OpenResty 配置测试结果',
-        command: 'nginx -t 2>&1 || true',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 30,
-      },
-      {
-        key: 'nginx_build_info',
-        label: '读取 Nginx 构建信息',
-        command: 'nginx -V 2>&1 || true',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'openresty_build_info',
-        label: '读取 OpenResty 构建信息',
-        command: 'openresty -V 2>&1 || true',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'nginx_service_status',
-        label: '读取 Nginx systemd 活跃状态',
-        command: 'systemctl is-active nginx || true',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'openresty_service_status',
-        label: '读取 OpenResty systemd 活跃状态',
-        command: 'systemctl is-active openresty || true',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'nginx_openresty_process_status',
-        label: '读取 Nginx/OpenResty 进程摘要',
-        command: "ps -eo pid,comm,args | grep -E 'nginx|openresty' | grep -v grep | head -20 || true",
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-    ];
-
-    return {
-      target: {
-        serverId: site.serverId,
-        serverName: site.server?.name,
-        serverHost: site.server?.host,
-        configPath: `openresty-status://${site.primaryDomain || site.id}`,
-        runtimeType: site.runtimeType,
-      },
-      commandPlan,
-      warnings,
-      nginxConfig: '',
-    };
-  }
-
-  private buildOpenRestyModulesPlan(site: SiteRecord): SiteSyncExecutionPlan {
-    const warnings = this.collectOpenRestyModulesWarnings(site);
-    const commandPlan: ServerCommandStep[] = [
-      {
-        key: 'nginx_module_config_args',
-        label: '读取 Nginx 编译模块参数',
-        command: 'nginx -V 2>&1 || true',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'openresty_module_config_args',
-        label: '读取 OpenResty 编译模块参数',
-        command: 'openresty -V 2>&1 || true',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'nginx_dynamic_module_files',
-        label: '读取 Nginx/OpenResty 动态模块文件',
-        command: "find /etc/nginx/modules-enabled /usr/lib/nginx/modules /usr/local/openresty/nginx/modules -maxdepth 1 -type f -name '*.so' -print 2>/dev/null | sort || true",
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-    ];
-
-    return {
-      target: {
-        serverId: site.serverId,
-        serverName: site.server?.name,
-        serverHost: site.server?.host,
-        configPath: `openresty-modules://${site.primaryDomain || site.id}`,
-        runtimeType: site.runtimeType,
-      },
-      commandPlan,
-      warnings,
-      nginxConfig: '',
-    };
-  }
-
-  private buildOpenRestyModuleBaselinePlan(site: SiteRecord): SiteSyncExecutionPlan {
-    const warnings = this.collectOpenRestyModuleBaselineWarnings(site);
-    const commandPlan: ServerCommandStep[] = [
-      {
-        key: 'baseline_tls_module',
-        label: '检查 TLS/SSL 模块能力',
-        command: "(nginx -V 2>&1 || true; openresty -V 2>&1 || true) | grep -Eq -- '--with-http_ssl_module|--with-openssl' && echo 'present: tls' || echo 'missing: tls'",
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'baseline_http2_module',
-        label: '检查 HTTP/2 或 HTTP/3 模块能力',
-        command: "(nginx -V 2>&1 || true; openresty -V 2>&1 || true) | grep -Eq -- '--with-http_v2_module|--with-http_v3_module' && echo 'present: http2_or_http3' || echo 'missing: http2_or_http3'",
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'baseline_realip_module',
-        label: '检查真实客户端 IP 模块能力',
-        command: "(nginx -V 2>&1 || true; openresty -V 2>&1 || true) | grep -Eq -- '--with-http_realip_module' && echo 'present: realip' || echo 'missing: realip'",
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'baseline_stub_status_module',
-        label: '检查 stub_status 状态模块能力',
-        command: "(nginx -V 2>&1 || true; openresty -V 2>&1 || true) | grep -Eq -- '--with-http_stub_status_module' && echo 'present: stub_status' || echo 'missing: stub_status'",
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'baseline_stream_module',
-        label: '检查 stream 转发模块能力',
-        command: "(nginx -V 2>&1 || true; openresty -V 2>&1 || true) | grep -Eq -- '--with-stream' && echo 'present: stream' || echo 'missing: stream'",
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-      {
-        key: 'baseline_lua_module',
-        label: '检查 Lua/OpenResty 模块能力',
-        command: "(nginx -V 2>&1 || true; openresty -V 2>&1 || true; find /etc/nginx/modules-enabled /usr/lib/nginx/modules /usr/local/openresty/nginx/modules -maxdepth 1 -type f -name '*.so' -print 2>/dev/null || true) | grep -Eiq 'http_lua|lua-nginx|ngx_http_lua|lua.*\\.so' && echo 'present: lua' || echo 'missing: lua'",
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 10,
-      },
-    ];
-
-    return {
-      target: {
-        serverId: site.serverId,
-        serverName: site.server?.name,
-        serverHost: site.server?.host,
-        configPath: `openresty-module-baseline://${site.primaryDomain || site.id}`,
-        runtimeType: site.runtimeType,
-      },
-      commandPlan,
-      warnings,
-      nginxConfig: '',
-    };
-  }
-
-  private buildSmokeCheckPlan(site: SiteRecord): SiteSyncExecutionPlan {
-    const warnings = this.collectSmokeCheckWarnings(site);
-    const runtimeConfig = isRecord(site.runtimeConfig) ? site.runtimeConfig : {};
-    const tls = isRecord(site.tls) ? site.tls : {};
-    const scheme = readBoolean(tls.enabled) === true ? 'https' : 'http';
-    const domainUrl = `${scheme}://${site.primaryDomain}`;
-    const localUrl = 'http://127.0.0.1/';
-    const upstream = resolveUpstream(site.runtimeType as SiteRuntimeType, runtimeConfig);
-    const commandPlan: ServerCommandStep[] = [
-      {
-        key: 'public_domain_smoke',
-        label: '访问公开域名',
-        command: isSafeProbeHostname(site.primaryDomain) ? `curl -fsS ${domainUrl}` : '',
-        preview: domainUrl,
-        required: true,
-        risk: 'low',
-        timeoutSeconds: 20,
-      },
-      {
-        key: 'nginx_local_host_smoke',
-        label: '本机 Nginx Host 路由检查',
-        command: isSafeProbeHostname(site.primaryDomain)
-          ? `curl -fsS -H 'Host: ${site.primaryDomain}' ${localUrl}`
-          : '',
-        preview: `${localUrl} Host: ${site.primaryDomain}`,
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 20,
-      },
-      {
-        key: 'upstream_smoke',
-        label: '上游服务检查',
-        command: upstream && isSafeUpstream(upstream) ? `curl -fsS ${upstream}` : '',
-        preview: upstream || '未配置上游',
-        required: false,
-        risk: 'low',
-        timeoutSeconds: 20,
-      },
-    ];
-
-    return {
-      target: {
-        serverId: site.serverId,
-        serverName: site.server?.name,
-        serverHost: site.server?.host,
-        configPath: `smoke://${site.primaryDomain}`,
-        runtimeType: site.runtimeType,
-      },
-      commandPlan,
-      warnings,
-      nginxConfig: '',
-    };
-  }
-
-  private buildTlsProbePlan(site: SiteRecord): SiteSyncExecutionPlan {
-    const warnings = this.collectTlsProbeWarnings(site);
-    const host = site.primaryDomain;
-    const commandPlan: ServerCommandStep[] = [
-      {
-        key: 'probe_tls_certificate',
-        label: '探测站点 TLS 证书',
-        command: isSafeProbeHostname(host) ? buildSiteTlsProbeCommand(host, 443) : '',
-        preview: `${host}:443`,
-        required: true,
-        risk: 'low',
-        timeoutSeconds: 20,
-      },
-    ];
-
-    return {
-      target: {
-        serverId: site.serverId,
-        serverName: site.server?.name,
-        serverHost: site.server?.host,
-        configPath: `tls://${host}:443`,
-        runtimeType: site.runtimeType,
-      },
-      commandPlan,
-      warnings,
-      nginxConfig: '',
-    };
-  }
-
-  private buildTlsRenewPlan(site: SiteRecord, dryRun: boolean): SiteSyncExecutionPlan {
-    const tls = isRecord(site.tls) ? site.tls : {};
-    const certName = resolveCertificateName(site, tls);
-    const warnings = this.collectTlsRenewWarnings(site, tls, certName);
-    const commandPlan: ServerCommandStep[] = [
-      {
-        key: 'renew_tls_certificate',
-        label: dryRun ? '演练续期 TLS 证书' : '续期 TLS 证书',
-        command: isSafeProbeHostname(certName)
-          ? buildCertificateRenewCommand(certName, dryRun)
-          : '',
-        preview: certName,
-        required: true,
-        risk: dryRun ? 'low' : 'medium',
-        timeoutSeconds: dryRun ? 240 : 300,
-      },
-      {
-        key: 'validate_nginx',
-        label: '校验 Nginx/OpenResty 配置',
-        command: 'nginx -t',
-        required: !dryRun,
-        risk: 'low',
-        timeoutSeconds: 30,
-      },
-      {
-        key: 'reload_nginx',
-        label: '重载 Nginx/OpenResty',
-        command: 'systemctl reload nginx || nginx -s reload',
-        required: !dryRun,
-        risk: 'medium',
-        timeoutSeconds: 30,
-      },
-    ];
-
-    return {
-      target: {
-        serverId: site.serverId,
-        serverName: site.server?.name,
-        serverHost: site.server?.host,
-        configPath: `tls-renew://${certName}`,
-        runtimeType: site.runtimeType,
-      },
-      commandPlan,
-      warnings,
-      nginxConfig: '',
-    };
-  }
-
-  private collectTlsProbeWarnings(site: SiteRecord) {
-    const warnings: string[] = [];
-
-    if (!site.serverId) {
-      warnings.push('未关联目标服务器，无法通过 Server executor 探测 TLS 证书');
-    }
-    if (!site.primaryDomain) {
-      warnings.push('未配置主域名');
-    } else if (!isSafeProbeHostname(site.primaryDomain)) {
-      warnings.push('主域名不是可探测的安全域名，TLS 证书探测只支持普通域名，不支持通配符或特殊字符');
-    }
-
-    return warnings;
-  }
-
-  private collectSmokeCheckWarnings(site: SiteRecord) {
-    const warnings: string[] = [];
-    const runtimeConfig = isRecord(site.runtimeConfig) ? site.runtimeConfig : {};
-    const upstream = resolveUpstream(site.runtimeType as SiteRuntimeType, runtimeConfig);
-
-    if (!site.serverId) {
-      warnings.push('未关联目标服务器，无法通过 Server executor 执行站点 Smoke 检查');
-    }
-    if (!site.primaryDomain) {
-      warnings.push('未配置主域名');
-    } else if (!isSafeProbeHostname(site.primaryDomain)) {
-      warnings.push('主域名不是可探测的安全域名，Smoke 检查只支持普通域名，不支持通配符或特殊字符');
-    }
-    if (upstream && !isSafeUpstream(upstream)) {
-      warnings.push('上游地址包含不安全字符，Smoke 检查不会生成上游访问命令');
-    }
-
-    return warnings;
-  }
-
-  private collectOpenRestyStatusWarnings(site: SiteRecord) {
-    const warnings: string[] = [];
-
-    if (!site.serverId) {
-      warnings.push('未关联目标服务器，无法通过 Server executor 探测 OpenResty/Nginx 运行态');
-    }
-
-    return warnings;
-  }
-
-  private collectOpenRestyModulesWarnings(site: SiteRecord) {
-    const warnings: string[] = [];
-
-    if (!site.serverId) {
-      warnings.push('未关联目标服务器，无法通过 Server executor 盘点 OpenResty/Nginx 模块');
-    }
-
-    return warnings;
-  }
-
-  private collectOpenRestyModuleBaselineWarnings(site: SiteRecord) {
-    const warnings: string[] = [];
-
-    if (!site.serverId) {
-      warnings.push('未关联目标服务器，无法通过 Server executor 检查 OpenResty/Nginx 模块基线');
-    }
-
-    return warnings;
-  }
-
-  private collectTlsRenewWarnings(site: SiteRecord, tls: JsonRecord, certName: string) {
-    const warnings: string[] = [];
-
-    if (!site.serverId) {
-      warnings.push('未关联目标服务器，无法通过 Server executor 续期 TLS 证书');
-    }
-    if (!site.primaryDomain) {
-      warnings.push('未配置主域名');
-    } else if (!isSafeProbeHostname(site.primaryDomain)) {
-      warnings.push('主域名不是可续期的安全域名，证书续期只支持普通域名，不支持通配符或特殊字符');
-    }
-    if (readBoolean(tls.enabled) !== true || readString(tls.type) !== 'letsencrypt') {
-      warnings.push('当前站点未启用 Let’s Encrypt TLS，无法生成 certbot 续期计划');
-    }
-    if (!isSafeProbeHostname(certName)) {
-      warnings.push('证书名称不是安全域名格式，无法生成 certbot 续期命令');
-    }
-
-    return warnings;
-  }
-
-  private normalizeTailLines(value?: number) {
-    if (!Number.isFinite(value)) {
-      return 200;
-    }
-    return Math.max(10, Math.min(Math.floor(value || 200), 1000));
-  }
-
-  private collectWarnings(
-    site: Awaited<ReturnType<SiteService['getSite']>>,
-    runtimeConfig: JsonRecord,
-    tls: JsonRecord,
-  ) {
-    const warnings: string[] = [];
-
-    if (readBoolean(runtimeConfig.syncBlocked) === true) {
-      warnings.push(
-        readString(runtimeConfig.syncBlockedReason) ||
-        '当前站点被标记为占位配置，需要补齐真实运行时和域名策略后才能同步',
-      );
-    }
-
-    if (!site.serverId) {
-      warnings.push('未关联目标服务器，无法生成可执行的 server-executor 计划');
-    }
-    if (!site.primaryDomain) {
-      warnings.push('未配置主域名');
-    } else if (!isSafeDomain(site.primaryDomain)) {
-      warnings.push('主域名包含不安全字符，无法写入 Nginx 配置');
-    }
-
-    for (const alias of readStringArray(site.aliases)) {
-      if (!isSafeDomain(alias)) {
-        warnings.push(`域名别名 ${alias} 包含不安全字符，无法写入 Nginx 配置`);
-      }
-    }
-
-    if (site.runtimeType === 'static') {
-      const rootPath = readString(runtimeConfig.rootPath);
-      if (!rootPath) {
-        warnings.push('静态站点未配置 rootPath');
-      } else if (!isSafeNginxPath(rootPath)) {
-        warnings.push('静态站点 rootPath 必须是安全的绝对路径');
-      }
-    } else {
-      const upstream = resolveUpstream(site.runtimeType as SiteRuntimeType, runtimeConfig);
-      if (!upstream) {
-        warnings.push('反向代理/运行时站点未配置 upstreamUrl 或 host/port');
-      } else if (!isSafeUpstream(upstream)) {
-        warnings.push('上游地址必须是安全的 http/https upstream，且不能包含空白或 shell/nginx 注入字符');
-      }
-    }
-
-    if (readBoolean(tls.enabled) === true && readString(tls.type) === 'letsencrypt' && !readString(tls.email)) {
-      warnings.push('Let’s Encrypt 未配置 email，证书签发命令需要补齐联系人邮箱');
-    }
-
-    return warnings;
-  }
 
   private cleanAliases(aliases: string[]) {
     return aliases.map((alias) => alias.trim()).filter(Boolean);
