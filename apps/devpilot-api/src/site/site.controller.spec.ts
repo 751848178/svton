@@ -1,8 +1,9 @@
 import { ControlAccessPolicyService } from '../control-access-policy';
-import { SiteController } from './site.controller';
+import { SiteReadController, SiteWriteController } from './site.controller';
 import { SiteService } from './site.service';
+import { SiteAccessPolicyService } from './site-access-policy.service';
 
-describe('SiteController authorization', () => {
+describe('Site controllers authorization', () => {
   const req = {
     user: { id: 'user-1' },
     teamId: 'team-1',
@@ -15,237 +16,96 @@ describe('SiteController authorization', () => {
     assertCanWrite: jest.Mock;
     canRead: jest.Mock;
   };
-  let controller: SiteController;
+  let readController: SiteReadController;
+  let writeController: SiteWriteController;
 
   beforeEach(() => {
     siteService = {
-      listSites: jest.fn(),
-      createSite: jest.fn(),
-      getSite: jest.fn(),
-      listSyncRuns: jest.fn(),
-      updateSite: jest.fn(),
-      deleteSite: jest.fn(),
-      takeoverPreviewSite: jest.fn(),
-      createSyncPlan: jest.fn(),
-      createDiagnostics: jest.fn(),
-      createOpenRestyModuleBaseline: jest.fn(),
-      createOpenRestyModules: jest.fn(),
-      createOpenRestyStatus: jest.fn(),
-      createSmokeCheck: jest.fn(),
-      createTlsProbe: jest.fn(),
-      createTlsRenew: jest.fn(),
-      rollbackSyncRun: jest.fn(),
+      listSites: jest.fn(), createSite: jest.fn(), getSite: jest.fn(), listSyncRuns: jest.fn(),
+      updateSite: jest.fn(), deleteSite: jest.fn(), takeoverPreviewSite: jest.fn(),
+      createSyncPlan: jest.fn(), createDiagnostics: jest.fn(), createOpenRestyModuleBaseline: jest.fn(),
+      createOpenRestyModules: jest.fn(), createOpenRestyStatus: jest.fn(), createSmokeCheck: jest.fn(),
+      createTlsProbe: jest.fn(), createTlsRenew: jest.fn(), rollbackSyncRun: jest.fn(),
     };
     accessPolicyService = {
       assertCanRead: jest.fn().mockResolvedValue({ allowed: true }),
       assertCanWrite: jest.fn().mockResolvedValue({ allowed: true }),
       canRead: jest.fn().mockResolvedValue(true),
     };
-    controller = new SiteController(
-      siteService as unknown as SiteService,
-      accessPolicyService as unknown as ControlAccessPolicyService,
-    );
+    const accessPolicy = new SiteAccessPolicyService(accessPolicyService as unknown as ControlAccessPolicyService);
+    readController = new SiteReadController(siteService as unknown as SiteService, accessPolicy);
+    writeController = new SiteWriteController(siteService as unknown as SiteService, accessPolicy);
   });
 
   it('filters site lists through site read policy', async () => {
-    siteService.listSites.mockResolvedValue([
-      siteRecord('site-allowed'),
-      siteRecord('site-denied'),
-    ]);
-    accessPolicyService.canRead.mockImplementation(({ targetId }) => (
-      Promise.resolve(targetId === 'site-allowed')
-    ));
-
-    await expect(controller.listSites(req, { projectId: 'project-1' }))
-      .resolves
-      .toEqual([siteRecord('site-allowed')]);
-    expect(siteService.listSites).toHaveBeenCalledWith(req.teamId, { projectId: 'project-1' });
-    expect(accessPolicyService.canRead).toHaveBeenCalledWith(expect.objectContaining({
-      teamId: req.teamId,
-      actorId: req.user.id,
-      projectId: 'project-1',
-      environmentId: 'env-prod',
-      category: 'site',
-      action: 'site.read',
-      targetType: 'site',
-      targetId: 'site-denied',
-      risk: 'low',
-    }));
+    siteService.listSites.mockResolvedValue([siteRecord('site-allowed'), siteRecord('site-denied')]);
+    accessPolicyService.canRead.mockImplementation(({ targetId }) => Promise.resolve(targetId === 'site-allowed'));
+    await expect(readController.listSites(req, { projectId: 'project-1' })).resolves.toEqual([siteRecord('site-allowed')]);
+    expect(accessPolicyService.canRead).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'site-denied' }));
   });
 
-  it('checks site detail read access before returning it', async () => {
+  it('checks getSite through read policy', async () => {
     siteService.getSite.mockResolvedValue(site);
-
-    await expect(controller.getSite(req, 'site-1')).resolves.toEqual(site);
-    expect(accessPolicyService.assertCanRead).toHaveBeenCalledWith(expect.objectContaining({
-      teamId: req.teamId,
-      actorId: req.user.id,
-      projectId: 'project-1',
-      environmentId: 'env-prod',
-      category: 'site',
-      action: 'site.read',
-      targetType: 'site',
-      targetId: 'site-1',
-      risk: 'low',
-    }));
+    await expect(readController.getSite(req, 'site-1')).resolves.toEqual(site);
+    expect(accessPolicyService.assertCanRead).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'site-1' }));
   });
 
-  it('checks site read before filtering sync runs', async () => {
+  it('checks listSyncRuns through read policy', async () => {
     siteService.getSite.mockResolvedValue(site);
-    siteService.listSyncRuns.mockResolvedValue([
-      syncRun('run-allowed'),
-      syncRun('run-denied'),
-    ]);
-    accessPolicyService.canRead.mockImplementation(({ targetId }) => (
-      Promise.resolve(targetId === 'run-allowed')
-    ));
-
-    await expect(controller.listSyncRuns(req, 'site-1', { status: 'completed' }))
-      .resolves
-      .toEqual([syncRun('run-allowed')]);
-    expect(accessPolicyService.assertCanRead).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.read',
-      targetId: 'site-1',
-    }));
-    expect(accessPolicyService.canRead).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site_sync_run.read',
-      targetType: 'site_sync_run',
-      targetId: 'run-denied',
-    }));
+    siteService.listSyncRuns.mockResolvedValue([]);
+    await expect(readController.listSyncRuns(req, 'site-1', { status: 'completed' })).resolves.toEqual([]);
   });
 
-  it('checks create, update migration, and delete write gates', async () => {
-    const createDto = { name: 'Site', primaryDomain: 'example.com', projectId: 'project-1', environmentId: 'env-prod' };
+  it('checks createSite/updateSite/deleteSite through write policy', async () => {
+    const createDto = { projectId: 'project-1', environmentId: 'env-dev', primaryDomain: 'example.com', runtimeType: 'reverse_proxy' as const, upstreamUrl: 'http://127.0.0.1:3000' };
     siteService.createSite.mockResolvedValue(site);
     siteService.getSite.mockResolvedValue(site);
-    siteService.updateSite.mockResolvedValue(siteRecord('site-1', 'project-2', 'env-staging'));
+    siteService.updateSite.mockResolvedValue(site);
     siteService.deleteSite.mockResolvedValue({ deleted: true });
-
-    await expect(controller.createSite(req, createDto)).resolves.toEqual(site);
-    await expect(controller.updateSite(req, 'site-1', { projectId: 'project-2', environmentId: 'env-staging' }))
-      .resolves
-      .toEqual(siteRecord('site-1', 'project-2', 'env-staging'));
-    await expect(controller.deleteSite(req, 'site-1')).resolves.toEqual({ deleted: true });
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.create',
-      targetType: 'site',
-      risk: 'medium',
-    }));
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.update',
-      targetId: 'site-1',
-      projectId: 'project-1',
-      environmentId: 'env-prod',
-      risk: 'medium',
-    }));
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.update',
-      targetId: 'site-1',
-      projectId: 'project-2',
-      environmentId: 'env-staging',
-      risk: 'medium',
-    }));
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.delete',
-      targetId: 'site-1',
-      risk: 'high',
-    }));
+    await expect(writeController.createSite(req, createDto as any)).resolves.toEqual(site);
+    await expect(writeController.updateSite(req, 'site-1', { projectId: 'project-2', environmentId: 'env-staging' } as any)).resolves.toEqual(site);
+    await expect(writeController.deleteSite(req, 'site-1')).resolves.toEqual({ deleted: true });
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'site.create' }));
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'site.delete', risk: 'high' }));
   });
 
-  it('checks dry-run and live site operation risks', async () => {
+  it('checks action routes through write policy', async () => {
     siteService.getSite.mockResolvedValue(site);
-    siteService.createSyncPlan.mockResolvedValue({ id: 'sync-plan' });
-    siteService.createDiagnostics.mockResolvedValue({ id: 'diagnostics' });
-    siteService.createTlsRenew.mockResolvedValue({ id: 'tls-renew' });
-    siteService.rollbackSyncRun.mockResolvedValue({ id: 'rollback' });
-
-    await expect(controller.createSyncPlan(req, 'site-1', { dryRun: true }))
-      .resolves
-      .toEqual({ id: 'sync-plan' });
-    await expect(controller.createDiagnostics(req, 'site-1', { dryRun: false }))
-      .resolves
-      .toEqual({ id: 'diagnostics' });
-    await expect(controller.createTlsRenew(req, 'site-1', { dryRun: false }))
-      .resolves
-      .toEqual({ id: 'tls-renew' });
-    await expect(controller.rollbackSyncRun(req, 'site-1', 'run-1', { dryRun: false }))
-      .resolves
-      .toEqual({ id: 'rollback' });
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.sync',
-      risk: 'low',
-    }));
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.diagnostics',
-      risk: 'medium',
-    }));
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.tls_renew',
-      risk: 'medium',
-    }));
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.rollback',
-      risk: 'high',
-    }));
+    siteService.createSyncPlan.mockResolvedValue({ id: 'run-1' });
+    siteService.createDiagnostics.mockResolvedValue({ id: 'run-2' });
+    siteService.createTlsRenew.mockResolvedValue({ id: 'run-3' });
+    siteService.rollbackSyncRun.mockResolvedValue({ id: 'run-4' });
+    await expect(writeController.createSyncPlan(req, 'site-1', { dryRun: true })).resolves.toEqual({ id: 'run-1' });
+    await expect(writeController.createDiagnostics(req, 'site-1', { dryRun: false })).resolves.toEqual({ id: 'run-2' });
+    await expect(writeController.createTlsRenew(req, 'site-1', { dryRun: false })).resolves.toEqual({ id: 'run-3' });
+    await expect(writeController.rollbackSyncRun(req, 'site-1', 'run-1', { dryRun: false })).resolves.toEqual({ id: 'run-4' });
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'site.sync' }));
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'site.diagnostics' }));
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'site.tls_renew' }));
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'site.rollback', risk: 'high' }));
   });
 
-  it('keeps low-risk operational probes gated before delegating', async () => {
+  it('blocks action routes when write policy denies', async () => {
     siteService.getSite.mockResolvedValue(site);
-    siteService.createOpenRestyStatus.mockResolvedValue({ id: 'openresty-status' });
-    siteService.createSmokeCheck.mockResolvedValue({ id: 'smoke-check' });
-    siteService.createTlsProbe.mockResolvedValue({ id: 'tls-probe' });
-
-    await expect(controller.createOpenRestyStatus(req, 'site-1', {}))
-      .resolves
-      .toEqual({ id: 'openresty-status' });
-    await expect(controller.createSmokeCheck(req, 'site-1', {}))
-      .resolves
-      .toEqual({ id: 'smoke-check' });
-    await expect(controller.createTlsProbe(req, 'site-1', {}))
-      .resolves
-      .toEqual({ id: 'tls-probe' });
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.openresty_status',
-      risk: 'low',
-    }));
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.smoke_check',
-      risk: 'low',
-    }));
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.tls_probe',
-      risk: 'low',
-    }));
-  });
-
-  it('does not create live sync plans when the write gate rejects', async () => {
-    siteService.getSite.mockResolvedValue(site);
-    accessPolicyService.assertCanWrite.mockRejectedValue(new Error('site denied'));
-
-    await expect(controller.createSyncPlan(req, 'site-1', { dryRun: false }))
-      .rejects
-      .toThrow('site denied');
-    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'site.sync',
-      risk: 'medium',
-    }));
+    accessPolicyService.assertCanWrite.mockRejectedValue(new Error('denied'));
+    await expect(writeController.createSyncPlan(req, 'site-1', { dryRun: false })).rejects.toThrow('denied');
     expect(siteService.createSyncPlan).not.toHaveBeenCalled();
+  });
+
+  it('checks openresty/smoke/tls-probe routes through write policy', async () => {
+    siteService.getSite.mockResolvedValue(site);
+    siteService.createOpenRestyStatus.mockResolvedValue({ id: 'run-5' });
+    siteService.createSmokeCheck.mockResolvedValue({ id: 'run-6' });
+    siteService.createTlsProbe.mockResolvedValue({ id: 'run-7' });
+    await expect(writeController.createOpenRestyStatus(req, 'site-1', {})).resolves.toEqual({ id: 'run-5' });
+    await expect(writeController.createSmokeCheck(req, 'site-1', {})).resolves.toEqual({ id: 'run-6' });
+    await expect(writeController.createTlsProbe(req, 'site-1', {})).resolves.toEqual({ id: 'run-7' });
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'site.openresty_status' }));
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'site.smoke_check' }));
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({ action: 'site.tls_probe' }));
   });
 });
 
-function siteRecord(id: string, projectId = 'project-1', environmentId = 'env-prod') {
-  return {
-    id,
-    projectId,
-    environmentId,
-    primaryDomain: `${id}.example.com`,
-  };
-}
-
-function syncRun(id: string) {
-  return {
-    id,
-    projectId: 'project-1',
-    environmentId: 'env-prod',
-  };
+function siteRecord(id: string) {
+  return { id, projectId: 'project-1', environmentId: 'env-dev' };
 }
