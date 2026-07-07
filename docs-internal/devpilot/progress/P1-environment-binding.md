@@ -87,6 +87,23 @@ extracts land together.
 | F264.2 | done   | Extract the provisioning-run listing into a focused read service.                                        | `ResourceProvisioningRunReadService` (74 lines) owns the team/request-scoped `findMany` and list-limit read; `ResourceRequestService.listProvisioningRuns()` is a one-line delegate passing `serializeProvisioningRun` as a callback; the module registers the new service. Combined with F263, `resource-request.service.ts` dropped from 4394 to 4272 lines.                                                                                                                                                                                                              |
 | F264.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused resource-request Jest passed (44 tests, 5 suites): `/tmp/codex-tool-runs/svton/f264-jest2-20260705.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f264-tc2-20260705.log`; API build passed: `/tmp/codex-tool-runs/svton/f264-build2-20260705.log`; `git diff --check` clean with a small touched-file diff (3 files, 27 insertions / 135 deletions); conflict-marker scan clean.                                                                                                                                                                  |
 
+## F265. Project Environment Site-Copy Service Split
+
+Purpose: split the `copySites` + `getSiteCopyAccessScope` site-copy orchestration
+out of the over-limit `ProjectEnvironmentService`. Source inspection confirmed
+both methods are consumed only by `ProjectEnvironmentController`
+(`POST /project-environments/copy-sites`) and form a self-contained site-copy
+boundary (draft-skeleton copy + optional OpenResty dry-run/queued-live takeover),
+independent of environment CRUD, sync-from-project, server binding, and secret
+management. This slice preserves the public controller API and every copy-step
+behavior (dry-run planning, sanitization, queued-live metadata, audit follow-up).
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F265.1 | done   | Map the site-copy boundary, callers, helpers, and data flow.                                             | CodeGraph CLI is present but uninitialized; manual graph confirmed `copySites`/`getSiteCopyAccessScope` are called only by `ProjectEnvironmentController` and depend on `repo.findSites`/`createSite`/`findProjectEnvironment`/`findServer`, `siteService.createSyncPlan`, and `auditEventService.create`; pure helpers (`sanitizeSiteTlsForCopy`, `buildSiteCopyQueuedLiveSyncFollowUp`, `buildSiteCopyAuditInput`) already live in shared utils. |
+| F265.2 | done   | Extract site-copy into a focused service while preserving the public service facade and fixing spec wiring. | New `ProjectEnvironmentCopySiteService` (99 lines) owns `copySites` + `getSiteCopyAccessScope` + private `resolveProjectEnvironment`/`assertServer`; `ProjectEnvironmentService` keeps one-line arrow-function delegates and drops the 273-line inline copy body; module registers the new provider. Spec constructor rewired to inject a real `ProjectEnvironmentCopySiteService(repo, siteService, auditEventService)` so the existing copy integration tests still exercise real copy behavior. Host service dropped from ~1986 to 1713 lines. |
+| F265.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites): `/tmp/codex-tool-runs/svton/pe-final-jest-20260707-095948.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/pe-final-tc-20260707.log`; new file 99 lines (≤200); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved (no Prettier double-quote regressions).                                                                                                                                            |
+
 ## Source-Backed Maps
 
 Business logic map: environment workbench gap -> resource-control page context
@@ -118,6 +135,10 @@ query runs to render inventory, binding, credential, query, and action panels.
 
 ## Next Candidates
 
+- Continue splitting `ProjectEnvironmentService` (still 1713 lines, over the
+  200-line ceiling) by verified behavior boundary: environment CRUD/listing,
+  sync-from-project/diff, server binding, secret management, and resource copy
+  (managed-resource / resource-instance / CDN / secret cross-environment copy).
 - Continue splitting `ResourceControlService` by verified behavior boundary:
   binding validation/write orchestration, query run orchestration, connection
   probe orchestration, action execution/approval orchestration, inventory sync,

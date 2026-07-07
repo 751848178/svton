@@ -4,6 +4,7 @@ import { CryptoService } from '../common/crypto/crypto.service';
 import { createTestCryptoService } from '../common/crypto/crypto.test-helpers';
 import { ProjectEnvironmentService } from './project-environment.service';
 import { ProjectEnvironmentRepository } from './project-environment.repository';
+import { ProjectEnvironmentCopySiteService } from './project-environment-copy-site.service';
 
 type PrismaMock = {
   project: { findFirst: jest.Mock };
@@ -196,9 +197,16 @@ describe('ProjectEnvironmentService sync suggestions', () => {
         syncRun: { id: 'site-sync-copy' },
       }),
     };
+    const repository = new ProjectEnvironmentRepository(prisma as unknown as PrismaService);
+    const copySiteService = new ProjectEnvironmentCopySiteService(
+      repository,
+      siteService as never,
+      auditEventService as never,
+    );
     service = new ProjectEnvironmentService(
       prisma as unknown as PrismaService,
-      new ProjectEnvironmentRepository(prisma as unknown as PrismaService),
+      repository,
+      copySiteService,
       auditEventService as never,
       siteService as never,
       secretCrypto as unknown as CryptoService,

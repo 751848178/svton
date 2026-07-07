@@ -44,6 +44,7 @@ import {
   buildSiteCopyAuditInput,
   buildSyncApplyAuditInput,
 } from './project-environment-audit.utils';
+import { ProjectEnvironmentCopySiteService } from './project-environment-copy-site.service';
 import {
   buildSiteCopyQueuedLiveSyncFollowUp as buildSiteCopyQueuedLiveSyncFollowUpUtil,
   resourceBindingStep as resourceBindingStepUtil,
@@ -290,6 +291,7 @@ export class ProjectEnvironmentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly repo: ProjectEnvironmentRepository,
+    private readonly copySiteService: ProjectEnvironmentCopySiteService,
     @Optional()
     private readonly auditEventService: AuditEventService,
     @Optional()
@@ -1011,278 +1013,6 @@ export class ProjectEnvironmentService {
     return result;
   }
 
-  async getSiteCopyAccessScope(teamId: string, dto: CopyProjectEnvironmentSitesDto) {
-    const source = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.sourceEnvironmentId);
-    const target = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.targetEnvironmentId);
-    return {
-      projectId: source.projectId,
-      sourceEnvironmentId: source.id,
-      targetEnvironmentId: target.id,
-    };
-  }
-
-  async copySites(teamId: string, userId: string, dto: CopyProjectEnvironmentSitesDto) {
-    if (!dto.projectId || !dto.sourceEnvironmentId || !dto.targetEnvironmentId) {
-      throw new BadRequestException('projectId、sourceEnvironmentId 和 targetEnvironmentId 不能为空');
-    }
-
-    const dryRun = dto.dryRun !== false;
-    const source = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.sourceEnvironmentId);
-    const target = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.targetEnvironmentId);
-    if (source.id === target.id) {
-      throw new BadRequestException('源环境和目标环境不能相同');
-    }
-    if (!dryRun && dto.confirmationText !== target.name && dto.confirmationText !== target.key) {
-      throw new BadRequestException(`确认文本必须等于目标环境名称或 key：${target.name} / ${target.key}`);
-    }
-
-    const sourceSites = await this.repo.findSites({
-      where: {
-        teamId,
-        projectId: dto.projectId,
-        environmentId: source.id,
-        ...(dto.siteIds?.length ? { id: { in: dto.siteIds } } : {}),
-      },
-      select: {
-        id: true,
-        name: true,
-        primaryDomain: true,
-        aliases: true,
-        runtimeType: true,
-        runtimeConfig: true,
-        tls: true,
-        accessPolicy: true,
-        status: true,
-      },
-      orderBy: [{ name: 'asc' }, { primaryDomain: 'asc' }],
-    });
-    const targetSites = await this.repo.findSites({
-      where: { teamId, projectId: dto.projectId, environmentId: target.id },
-      select: { id: true, primaryDomain: true },
-    });
-    const existingTargetDomains = new Set(targetSites.map((site: any) => site.primaryDomain));
-    const targetDomainOverrides = dto.targetDomainOverrides || {};
-    const openRestyTakeover = dto.openRestyTakeover === true;
-    const createDryRunSyncPlan = openRestyTakeover && dto.createDryRunSyncPlan !== false;
-    const createQueuedLiveSync = openRestyTakeover && !dryRun && dto.createQueuedLiveSync === true;
-    const targetServerIds = dto.targetServerIds || {};
-    const targetUpstreamUrls = dto.targetUpstreamUrls || {};
-    const queuedLiveSyncApprovalIds = dto.queuedLiveSyncApprovalIds || {};
-    const queuedLiveSyncConfirmationTexts = dto.queuedLiveSyncConfirmationTexts || {};
-    const queuedLiveSyncApprovalReasons = dto.queuedLiveSyncApprovalReasons || {};
-    const steps: EnvironmentSiteCopyStep[] = [];
-
-    if ((createDryRunSyncPlan || createQueuedLiveSync) && !this.siteService) {
-      throw new BadRequestException('Site copy OpenResty 接管执行治理需要 Site sync 服务');
-    }
-
-    for (const site of sourceSites) {
-      const targetDomain = targetDomainOverrides[site.id]?.trim();
-      const targetServerId = targetServerIds[site.id]?.trim();
-      const targetUpstreamUrl = targetUpstreamUrls[site.id]?.trim();
-      const baseMetadata = {
-        runtimeType: site.runtimeType,
-        sourceDomain: site.primaryDomain,
-        targetDomain: targetDomain || null,
-        openRestyTakeover: openRestyTakeover
-          ? {
-              enabled: true,
-              targetServerId: targetServerId || null,
-              upstreamUrl: targetUpstreamUrl || null,
-              createDryRunSyncPlan,
-              createQueuedLiveSync,
-            }
-          : undefined,
-      };
-
-      if (!targetDomain) {
-        steps.push({
-          status: 'skipped',
-          sourceSiteId: site.id,
-          title: `站点 ${site.name}`,
-          description: '缺少目标域名，apply 时不会自动复制该站点',
-          metadata: { ...baseMetadata, reason: 'missing_target_domain' },
-        });
-        continue;
-      }
-      if (openRestyTakeover && !targetServerId) {
-        steps.push({
-          status: 'skipped',
-          sourceSiteId: site.id,
-          title: `站点 ${site.name}`,
-          description: '缺少目标服务器，无法生成 OpenResty 接管计划',
-          metadata: { ...baseMetadata, reason: 'missing_target_server' },
-        });
-        continue;
-      }
-      if (openRestyTakeover && !targetUpstreamUrl) {
-        steps.push({
-          status: 'skipped',
-          sourceSiteId: site.id,
-          title: `站点 ${site.name}`,
-          description: '缺少目标 upstream，无法生成 OpenResty 接管计划',
-          metadata: { ...baseMetadata, reason: 'missing_target_upstream' },
-        });
-        continue;
-      }
-      if (openRestyTakeover && targetUpstreamUrl && !isSafeUpstreamUrl(targetUpstreamUrl)) {
-        steps.push({
-          status: 'skipped',
-          sourceSiteId: site.id,
-          title: `站点 ${site.name}`,
-          description: '目标 upstream 包含不安全字符，无法生成 OpenResty 接管计划',
-          metadata: { ...baseMetadata, reason: 'unsafe_target_upstream' },
-        });
-        continue;
-      }
-      if (existingTargetDomains.has(targetDomain)) {
-        steps.push({
-          status: 'skipped',
-          sourceSiteId: site.id,
-          title: `站点 ${site.name}`,
-          description: `目标环境已存在域名 ${targetDomain}`,
-          metadata: { ...baseMetadata, reason: 'target_domain_exists' },
-        });
-        continue;
-      }
-
-      if (dryRun) {
-        steps.push({
-          status: 'planned',
-          sourceSiteId: site.id,
-          title: `复制站点 ${site.name}`,
-          description: openRestyTakeover
-            ? `将以待同步站点复制到 ${target.name}，绑定目标服务器并生成 OpenResty dry-run 接管计划`
-            : `将以 draft 站点复制到 ${target.name}，目标域名 ${targetDomain}`,
-          metadata: baseMetadata,
-        });
-        continue;
-      }
-
-      if (openRestyTakeover && targetServerId) {
-        await this.assertServer(teamId, targetServerId);
-      }
-      const runtimeConfig = isRecord(site.runtimeConfig) ? { ...site.runtimeConfig } : {};
-      if (openRestyTakeover && targetUpstreamUrl) {
-        runtimeConfig.upstreamUrl = targetUpstreamUrl;
-        runtimeConfig.syncBlocked = false;
-        delete runtimeConfig.syncBlockedReason;
-      }
-      const siteData: Prisma.SiteUncheckedCreateInput = {
-        teamId,
-        createdById: userId,
-        projectId: dto.projectId,
-        environmentId: target.id,
-        name: `${site.name} (${target.name})`,
-        primaryDomain: targetDomain,
-        aliases: site.aliases ? toJsonValueUtil(site.aliases) : undefined,
-        runtimeType: site.runtimeType,
-        runtimeConfig: Object.keys(runtimeConfig).length > 0 ? toJsonValueUtil(runtimeConfig) : undefined,
-        tls: toJsonValueUtil(sanitizeSiteTlsForCopyUtil(site.tls)),
-        accessPolicy: site.accessPolicy ? toJsonValueUtil(site.accessPolicy) : undefined,
-        status: openRestyTakeover ? 'pending' : 'draft',
-      };
-      if (openRestyTakeover) {
-        siteData.serverId = targetServerId;
-        siteData.syncError = null;
-      }
-      const created = await this.repo.createSite({
-        data: siteData,
-        select: { id: true },
-      });
-      const syncPlan = createDryRunSyncPlan
-        ? await this.siteService!.createSyncPlan(teamId, userId, created.id, { dryRun: true })
-        : null;
-      const queuedLiveSync = createQueuedLiveSync
-        ? await this.siteService!.createSyncPlan(teamId, userId, created.id, {
-            dryRun: false,
-            queue: true,
-            maxAttempts: dto.queuedLiveSyncMaxAttempts,
-            confirmationText: queuedLiveSyncConfirmationTexts[site.id]?.trim() || undefined,
-            approvalId: queuedLiveSyncApprovalIds[site.id]?.trim() || undefined,
-            approvalReason: queuedLiveSyncApprovalReasons[site.id]?.trim() || undefined,
-          })
-        : null;
-      existingTargetDomains.add(targetDomain);
-      steps.push({
-        status: 'applied',
-        sourceSiteId: site.id,
-        targetSiteId: created.id,
-        title: `复制站点 ${site.name}`,
-        description: openRestyTakeover
-          ? createQueuedLiveSync
-            ? createDryRunSyncPlan
-              ? `已创建目标环境待同步站点 ${targetDomain}，生成 OpenResty dry-run 接管计划并请求 queued live sync`
-              : `已创建目标环境待同步站点 ${targetDomain} 并请求 queued live sync`
-            : createDryRunSyncPlan
-            ? `已创建目标环境待同步站点 ${targetDomain} 并生成 OpenResty dry-run 接管计划`
-            : `已创建目标环境待同步站点 ${targetDomain}`
-          : `已创建目标环境 draft 站点 ${targetDomain}`,
-        metadata: {
-          ...baseMetadata,
-          openRestyTakeover: openRestyTakeover
-            ? {
-                enabled: true,
-                targetServerId,
-                upstreamUrl: targetUpstreamUrl,
-                createDryRunSyncPlan,
-                syncRunId: extractNestedString(syncPlan, ['syncRun', 'id']),
-                syncStatus: extractStringUtil(syncPlan, 'status'),
-                queuedLiveSync: createQueuedLiveSync
-                  ? {
-                      enabled: true,
-                      syncRunId: extractNestedString(queuedLiveSync, ['syncRun', 'id']),
-                      syncStatus: extractStringUtil(queuedLiveSync, 'status'),
-                      serverExecutionJobId:
-                        extractNestedString(queuedLiveSync, ['syncRun', 'serverExecutionJobId']) ||
-                        extractNestedString(queuedLiveSync, ['syncRun', 'serverExecutionJob', 'id']),
-                      approvalId:
-                        extractNestedString(queuedLiveSync, ['approval', 'id']) ||
-                        extractNestedString(queuedLiveSync, ['syncRun', 'operationApprovalId']) ||
-                        extractNestedString(queuedLiveSync, ['syncRun', 'operationApproval', 'id']),
-                      approvalStatus:
-                        extractNestedString(queuedLiveSync, ['approval', 'status']) ||
-                        extractNestedString(queuedLiveSync, ['syncRun', 'operationApproval', 'status']),
-                      maxAttempts: dto.queuedLiveSyncMaxAttempts ?? null,
-                      confirmationTextProvided: Boolean(queuedLiveSyncConfirmationTexts[site.id]?.trim()),
-                    }
-                  : undefined,
-              }
-            : undefined,
-        },
-      });
-    }
-
-    const queuedLiveSyncFollowUp = buildSiteCopyQueuedLiveSyncFollowUpUtil(steps);
-    const result = {
-      projectId: dto.projectId,
-      sourceEnvironment: { id: source.id, key: source.key, name: source.name },
-      targetEnvironment: { id: target.id, key: target.key, name: target.name },
-      dryRun,
-      status: dryRun ? 'planned' : 'completed',
-      plannedCount: steps.filter((step) => step.status === 'planned').length,
-      appliedCount: steps.filter((step) => step.status === 'applied').length,
-      skippedCount: steps.filter((step) => step.status === 'skipped').length,
-      steps,
-      followUp: {
-        queuedLiveSync: queuedLiveSyncFollowUp,
-      },
-      warnings: [
-        openRestyTakeover
-          ? createQueuedLiveSync
-            ? 'OpenResty 接管会请求 queued live sync；没有已批准审批时只生成 blocked approval，不在 copy 请求内执行 live 写入。'
-            : createDryRunSyncPlan
-            ? 'OpenResty 接管只生成 dry-run 同步计划，不执行 live Nginx/OpenResty 写入。'
-            : 'OpenResty 接管只绑定目标服务器和 upstream，不执行 live Nginx/OpenResty 写入。'
-          : '只复制 Site 配置骨架并创建 draft 站点，不执行 Nginx/OpenResty 同步。',
-        '不会复制 serverId、proxyConfigId、证书观测资产、续期状态或真实 TLS 证书内容。',
-        '非 dry-run 时每个待复制站点必须显式提供目标域名。',
-      ],
-    };
-
-    await this.auditEventService?.create(buildSiteCopyAuditInput(teamId, userId, result) as any);
-    return result;
-  }
 
   async getCdnConfigCopyAccessScope(teamId: string, dto: CopyProjectEnvironmentCdnConfigsDto) {
     const source = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.sourceEnvironmentId);
@@ -1976,5 +1706,8 @@ export class ProjectEnvironmentService {
     await Promise.all(updates);
   }
 
-
+  getSiteCopyAccessScope = (teamId: string, dto: CopyProjectEnvironmentSitesDto) =>
+    this.copySiteService.getSiteCopyAccessScope(teamId, dto);
+  copySites = (teamId: string, userId: string, dto: CopyProjectEnvironmentSitesDto) =>
+    this.copySiteService.copySites(teamId, userId, dto);
 }
