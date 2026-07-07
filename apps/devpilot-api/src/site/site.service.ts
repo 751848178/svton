@@ -31,21 +31,30 @@ import {
   mergeSiteTlsRenewFollowUpProbeMetadata,
   mergeSiteTlsRenewMetadata,
 } from './site-tls-renew';
+import {
+  isRecord,
+  readString,
+  readBoolean,
+  readStringArray,
+  type JsonRecord,
+  type SiteSyncExecutionPlan,
+} from './site-plan.types';
+import {
+  buildCertificateCommand,
+  buildCertificateRenewCommand,
+  filenameForDomain,
+  generateNginxConfig,
+  isPreviewSitePlaceholder,
+  isSafeDomain,
+  isSafeNginxPath,
+  isSafeNginxSiteConfigPath,
+  isSafeProbeHostname,
+  isSafeUpstream,
+  resolveCertificateName,
+  resolveUpstream,
+} from './site-config-gen.utils';
 
-type JsonRecord = Record<string, unknown>;
 type SiteRecord = Awaited<ReturnType<SiteService['getSite']>>;
-type SiteSyncExecutionPlan = {
-  target: {
-    serverId?: string | null;
-    serverName?: string;
-    serverHost?: string;
-    configPath: string;
-    runtimeType: string;
-  };
-  warnings: string[];
-  commandPlan: ServerCommandStep[];
-  nginxConfig: string;
-};
 type SiteConfigDiff = {
   sourceRunId?: string | null;
   hasBaseline: boolean;
@@ -125,23 +134,6 @@ type SiteOperationExecutionResult = {
   sourceRun?: unknown;
   site: SiteRecord;
 };
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined;
-}
-
-function readStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
-}
 
 @Injectable()
 export class SiteService {
@@ -260,7 +252,7 @@ export class SiteService {
     const runtimeConfig = isRecord(existing.runtimeConfig) ? { ...existing.runtimeConfig } : {};
     const preview = isRecord(runtimeConfig.preview) ? { ...runtimeConfig.preview } : {};
 
-    if (!this.isPreviewSitePlaceholder(runtimeConfig)) {
+    if (!isPreviewSitePlaceholder(runtimeConfig)) {
       throw new BadRequestException('只有 PR Preview draft Site 占位可以执行预览接管');
     }
     if (readString(preview.status) === 'archived' || readBoolean(preview.enabled) === false) {
@@ -275,7 +267,7 @@ export class SiteService {
     if (!upstreamUrl) {
       throw new BadRequestException('预览站点接管需要提供上游地址');
     }
-    if (!this.isSafeUpstream(upstreamUrl)) {
+    if (!isSafeUpstream(upstreamUrl)) {
       throw new BadRequestException('上游地址必须是安全的 http/https upstream，且不能包含空白或 shell/nginx 注入字符');
     }
 
@@ -1377,7 +1369,7 @@ export class SiteService {
     const accessPolicy = isRecord(site.accessPolicy) ? site.accessPolicy : {};
     const aliases = readStringArray(site.aliases);
     const serverNames = [site.primaryDomain, ...aliases].filter(Boolean);
-    const nginxConfig = this.generateNginxConfig(
+    const nginxConfig = generateNginxConfig(
       site.runtimeType as SiteRuntimeType,
       site.primaryDomain,
       serverNames,
@@ -1385,7 +1377,7 @@ export class SiteService {
       tls,
       accessPolicy,
     );
-    const configPath = `/etc/nginx/conf.d/${this.filenameForDomain(site.primaryDomain)}.conf`;
+    const configPath = `/etc/nginx/conf.d/${filenameForDomain(site.primaryDomain)}.conf`;
     const warnings = this.collectWarnings(site, runtimeConfig, tls);
     const commandPlan: ServerCommandStep[] = [
       {
@@ -1400,7 +1392,7 @@ export class SiteService {
       {
         key: 'issue_certificate',
         label: '签发或续期证书',
-        command: this.buildCertificateCommand(serverNames, tls),
+        command: buildCertificateCommand(serverNames, tls),
         required: readBoolean(tls.enabled) === true && readString(tls.type) === 'letsencrypt',
         risk: 'medium',
         timeoutSeconds: 180,
@@ -1442,8 +1434,8 @@ export class SiteService {
     nginxConfig: string,
     targetConfigPath?: string | null,
   ): SiteSyncExecutionPlan {
-    const fallbackConfigPath = `/etc/nginx/conf.d/${this.filenameForDomain(site.primaryDomain)}.conf`;
-    const configPath = targetConfigPath && this.isSafeNginxSiteConfigPath(targetConfigPath)
+    const fallbackConfigPath = `/etc/nginx/conf.d/${filenameForDomain(site.primaryDomain)}.conf`;
+    const configPath = targetConfigPath && isSafeNginxSiteConfigPath(targetConfigPath)
       ? targetConfigPath
       : fallbackConfigPath;
     const warnings: string[] = [];
@@ -1720,12 +1712,12 @@ export class SiteService {
     const scheme = readBoolean(tls.enabled) === true ? 'https' : 'http';
     const domainUrl = `${scheme}://${site.primaryDomain}`;
     const localUrl = 'http://127.0.0.1/';
-    const upstream = this.resolveUpstream(site.runtimeType as SiteRuntimeType, runtimeConfig);
+    const upstream = resolveUpstream(site.runtimeType as SiteRuntimeType, runtimeConfig);
     const commandPlan: ServerCommandStep[] = [
       {
         key: 'public_domain_smoke',
         label: '访问公开域名',
-        command: this.isSafeProbeHostname(site.primaryDomain) ? `curl -fsS ${domainUrl}` : '',
+        command: isSafeProbeHostname(site.primaryDomain) ? `curl -fsS ${domainUrl}` : '',
         preview: domainUrl,
         required: true,
         risk: 'low',
@@ -1734,7 +1726,7 @@ export class SiteService {
       {
         key: 'nginx_local_host_smoke',
         label: '本机 Nginx Host 路由检查',
-        command: this.isSafeProbeHostname(site.primaryDomain)
+        command: isSafeProbeHostname(site.primaryDomain)
           ? `curl -fsS -H 'Host: ${site.primaryDomain}' ${localUrl}`
           : '',
         preview: `${localUrl} Host: ${site.primaryDomain}`,
@@ -1745,7 +1737,7 @@ export class SiteService {
       {
         key: 'upstream_smoke',
         label: '上游服务检查',
-        command: upstream && this.isSafeUpstream(upstream) ? `curl -fsS ${upstream}` : '',
+        command: upstream && isSafeUpstream(upstream) ? `curl -fsS ${upstream}` : '',
         preview: upstream || '未配置上游',
         required: false,
         risk: 'low',
@@ -1774,7 +1766,7 @@ export class SiteService {
       {
         key: 'probe_tls_certificate',
         label: '探测站点 TLS 证书',
-        command: this.isSafeProbeHostname(host) ? buildSiteTlsProbeCommand(host, 443) : '',
+        command: isSafeProbeHostname(host) ? buildSiteTlsProbeCommand(host, 443) : '',
         preview: `${host}:443`,
         required: true,
         risk: 'low',
@@ -1798,14 +1790,14 @@ export class SiteService {
 
   private buildTlsRenewPlan(site: SiteRecord, dryRun: boolean): SiteSyncExecutionPlan {
     const tls = isRecord(site.tls) ? site.tls : {};
-    const certName = this.resolveCertificateName(site, tls);
+    const certName = resolveCertificateName(site, tls);
     const warnings = this.collectTlsRenewWarnings(site, tls, certName);
     const commandPlan: ServerCommandStep[] = [
       {
         key: 'renew_tls_certificate',
         label: dryRun ? '演练续期 TLS 证书' : '续期 TLS 证书',
-        command: this.isSafeProbeHostname(certName)
-          ? this.buildCertificateRenewCommand(certName, dryRun)
+        command: isSafeProbeHostname(certName)
+          ? buildCertificateRenewCommand(certName, dryRun)
           : '',
         preview: certName,
         required: true,
@@ -1852,7 +1844,7 @@ export class SiteService {
     }
     if (!site.primaryDomain) {
       warnings.push('未配置主域名');
-    } else if (!this.isSafeProbeHostname(site.primaryDomain)) {
+    } else if (!isSafeProbeHostname(site.primaryDomain)) {
       warnings.push('主域名不是可探测的安全域名，TLS 证书探测只支持普通域名，不支持通配符或特殊字符');
     }
 
@@ -1862,17 +1854,17 @@ export class SiteService {
   private collectSmokeCheckWarnings(site: SiteRecord) {
     const warnings: string[] = [];
     const runtimeConfig = isRecord(site.runtimeConfig) ? site.runtimeConfig : {};
-    const upstream = this.resolveUpstream(site.runtimeType as SiteRuntimeType, runtimeConfig);
+    const upstream = resolveUpstream(site.runtimeType as SiteRuntimeType, runtimeConfig);
 
     if (!site.serverId) {
       warnings.push('未关联目标服务器，无法通过 Server executor 执行站点 Smoke 检查');
     }
     if (!site.primaryDomain) {
       warnings.push('未配置主域名');
-    } else if (!this.isSafeProbeHostname(site.primaryDomain)) {
+    } else if (!isSafeProbeHostname(site.primaryDomain)) {
       warnings.push('主域名不是可探测的安全域名，Smoke 检查只支持普通域名，不支持通配符或特殊字符');
     }
-    if (upstream && !this.isSafeUpstream(upstream)) {
+    if (upstream && !isSafeUpstream(upstream)) {
       warnings.push('上游地址包含不安全字符，Smoke 检查不会生成上游访问命令');
     }
 
@@ -1917,13 +1909,13 @@ export class SiteService {
     }
     if (!site.primaryDomain) {
       warnings.push('未配置主域名');
-    } else if (!this.isSafeProbeHostname(site.primaryDomain)) {
+    } else if (!isSafeProbeHostname(site.primaryDomain)) {
       warnings.push('主域名不是可续期的安全域名，证书续期只支持普通域名，不支持通配符或特殊字符');
     }
     if (readBoolean(tls.enabled) !== true || readString(tls.type) !== 'letsencrypt') {
       warnings.push('当前站点未启用 Let’s Encrypt TLS，无法生成 certbot 续期计划');
     }
-    if (!this.isSafeProbeHostname(certName)) {
+    if (!isSafeProbeHostname(certName)) {
       warnings.push('证书名称不是安全域名格式，无法生成 certbot 续期命令');
     }
 
@@ -1956,12 +1948,12 @@ export class SiteService {
     }
     if (!site.primaryDomain) {
       warnings.push('未配置主域名');
-    } else if (!this.isSafeDomain(site.primaryDomain)) {
+    } else if (!isSafeDomain(site.primaryDomain)) {
       warnings.push('主域名包含不安全字符，无法写入 Nginx 配置');
     }
 
     for (const alias of readStringArray(site.aliases)) {
-      if (!this.isSafeDomain(alias)) {
+      if (!isSafeDomain(alias)) {
         warnings.push(`域名别名 ${alias} 包含不安全字符，无法写入 Nginx 配置`);
       }
     }
@@ -1970,14 +1962,14 @@ export class SiteService {
       const rootPath = readString(runtimeConfig.rootPath);
       if (!rootPath) {
         warnings.push('静态站点未配置 rootPath');
-      } else if (!this.isSafeNginxPath(rootPath)) {
+      } else if (!isSafeNginxPath(rootPath)) {
         warnings.push('静态站点 rootPath 必须是安全的绝对路径');
       }
     } else {
-      const upstream = this.resolveUpstream(site.runtimeType as SiteRuntimeType, runtimeConfig);
+      const upstream = resolveUpstream(site.runtimeType as SiteRuntimeType, runtimeConfig);
       if (!upstream) {
         warnings.push('反向代理/运行时站点未配置 upstreamUrl 或 host/port');
-      } else if (!this.isSafeUpstream(upstream)) {
+      } else if (!isSafeUpstream(upstream)) {
         warnings.push('上游地址必须是安全的 http/https upstream，且不能包含空白或 shell/nginx 注入字符');
       }
     }
@@ -1989,181 +1981,8 @@ export class SiteService {
     return warnings;
   }
 
-  private isSafeDomain(domain: string) {
-    return /^(?:\*\.)?(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(domain);
-  }
-
-  private isSafeProbeHostname(domain: string) {
-    return /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(domain);
-  }
-
-  private isSafeNginxPath(path: string) {
-    return /^\/(?!.*\.\.)(?:[a-zA-Z0-9._@-]+\/?)+$/.test(path);
-  }
-
-  private isSafeNginxSiteConfigPath(path: string) {
-    return /^\/etc\/nginx\/conf\.d\/[a-z0-9.-]+\.conf$/.test(path);
-  }
-
-  private isSafeUpstream(upstream: string) {
-    return /^https?:\/\/[a-zA-Z0-9._:-]+(?:\/[a-zA-Z0-9._~:/?#[\]@!$&'()*+,;=%-]*)?$/.test(upstream)
-      && !/[\s{};`$\\]/.test(upstream);
-  }
-
-  private generateNginxConfig(
-    runtimeType: SiteRuntimeType,
-    primaryDomain: string,
-    serverNames: string[],
-    runtimeConfig: JsonRecord,
-    tls: JsonRecord,
-    accessPolicy: JsonRecord,
-  ) {
-    const tlsEnabled = readBoolean(tls.enabled) === true;
-    const serverNameLine = serverNames.length > 0 ? serverNames.join(' ') : primaryDomain;
-    const lines: string[] = [
-      'server {',
-      tlsEnabled ? '    listen 443 ssl http2;' : '    listen 80;',
-      tlsEnabled ? '    listen [::]:443 ssl http2;' : '    listen [::]:80;',
-      `    server_name ${serverNameLine};`,
-      '',
-    ];
-
-    if (tlsEnabled) {
-      lines.push(
-        `    ssl_certificate /etc/letsencrypt/live/${primaryDomain}/fullchain.pem;`,
-        `    ssl_certificate_key /etc/letsencrypt/live/${primaryDomain}/privkey.pem;`,
-        '    ssl_protocols TLSv1.2 TLSv1.3;',
-        '',
-      );
-    }
-
-    lines.push(...this.generateAccessPolicy(accessPolicy));
-
-    if (runtimeType === 'static') {
-      const rootPath = readString(runtimeConfig.rootPath) || `/var/www/${primaryDomain}`;
-      lines.push(
-        '    location / {',
-        `        root ${rootPath};`,
-        '        try_files $uri $uri/ /index.html;',
-        '    }',
-      );
-    } else {
-      const upstream = this.resolveUpstream(runtimeType, runtimeConfig) || 'http://127.0.0.1:3000';
-      lines.push(
-        '    location / {',
-        `        proxy_pass ${upstream};`,
-        '        proxy_http_version 1.1;',
-        '        proxy_set_header Host $host;',
-        '        proxy_set_header X-Real-IP $remote_addr;',
-        '        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;',
-        '        proxy_set_header X-Forwarded-Proto $scheme;',
-      );
-
-      if (readBoolean(runtimeConfig.websocket) === true) {
-        lines.push(
-          '        proxy_set_header Upgrade $http_upgrade;',
-          '        proxy_set_header Connection "upgrade";',
-        );
-      }
-
-      lines.push('    }');
-    }
-
-    lines.push('}');
-
-    if (tlsEnabled) {
-      lines.push(
-        '',
-        'server {',
-        '    listen 80;',
-        '    listen [::]:80;',
-        `    server_name ${serverNameLine};`,
-        '    return 301 https://$server_name$request_uri;',
-        '}',
-      );
-    }
-
-    return lines.join('\n');
-  }
-
-  private generateAccessPolicy(accessPolicy: JsonRecord) {
-    const lines: string[] = [];
-    const allowedCidrs = readStringArray(accessPolicy.allowedCidrs);
-
-    if (allowedCidrs.length > 0) {
-      for (const cidr of allowedCidrs) {
-        lines.push(`    allow ${cidr};`);
-      }
-      lines.push('    deny all;', '');
-    }
-
-    if (readBoolean(accessPolicy.basicAuth) === true) {
-      lines.push(
-        '    auth_basic "Devpilot managed site";',
-        '    auth_basic_user_file /etc/nginx/.htpasswd;',
-        '',
-      );
-    }
-
-    return lines;
-  }
-
-  private resolveUpstream(runtimeType: SiteRuntimeType, runtimeConfig: JsonRecord) {
-    const upstreamUrl = readString(runtimeConfig.upstreamUrl);
-    if (upstreamUrl) return upstreamUrl;
-
-    const host = readString(runtimeConfig.host);
-    const port = readString(runtimeConfig.port) || String(runtimeConfig.port || '');
-    if (host && port) {
-      return `http://${host}:${port}`;
-    }
-
-    if (runtimeType === 'docker') {
-      const containerName = readString(runtimeConfig.containerName);
-      const containerPort = readString(runtimeConfig.containerPort) || String(runtimeConfig.containerPort || '');
-      if (containerName && containerPort) {
-        return `http://${containerName}:${containerPort}`;
-      }
-    }
-
-    return undefined;
-  }
-
-  private buildCertificateCommand(serverNames: string[], tls: JsonRecord) {
-    if (readBoolean(tls.enabled) !== true || readString(tls.type) !== 'letsencrypt') {
-      return '';
-    }
-
-    const email = readString(tls.email);
-    if (!email) {
-      return '';
-    }
-
-    const domains = serverNames.map((domain) => `-d ${domain}`).join(' ');
-    return `certbot --nginx ${domains} --email ${email} --agree-tos --non-interactive`;
-  }
-
-  private buildCertificateRenewCommand(certName: string, dryRun: boolean) {
-    const dryRunFlag = dryRun ? ' --dry-run' : '';
-    return `certbot renew --cert-name ${certName}${dryRunFlag} --non-interactive`;
-  }
-
-  private resolveCertificateName(site: SiteRecord, tls: JsonRecord) {
-    return readString(tls.certName) || site.primaryDomain;
-  }
-
-  private isPreviewSitePlaceholder(runtimeConfig: JsonRecord) {
-    const preview = isRecord(runtimeConfig.preview) ? runtimeConfig.preview : {};
-
-    return readString(preview.kind) === 'draft_site_placeholder';
-  }
-
   private cleanAliases(aliases: string[]) {
     return aliases.map((alias) => alias.trim()).filter(Boolean);
-  }
-
-  private filenameForDomain(domain: string) {
-    return domain.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
   }
 
   private errorMessage(error: unknown) {
