@@ -196,13 +196,26 @@ openresty-module-baseline,smoke-check,tls-probe,tls-renew,rollback,takeover-prev
 - **`site.service.ts` still 1066 lines** (over ceiling). Plan builders, warnings,
   operation-policy, config-diff, approval/audit builders, and includes (the
   previous largest boundaries) were extracted in F275–F279. Next largest boundary:
-  `executeSiteSyncOperation` (the largest remaining orchestration method) and the
-  post-sync update helpers (`updateSiteAfterSync`/`updateSiteTlsAfterProbe`/
-  `updateSiteAfterNonMutatingOperation`/`updateSiteTlsAfterRenew`/
-  `queueTlsProbeAfterRenewal`) — these form a coupled execution cluster best
-  extracted as a focused `SiteSyncExecutionService`. Note: `queueTlsProbeAfterRenewal`
-  calls `createTlsProbe`, so the extraction needs a callback/interface to avoid a
-  circular dependency — best done in a fresh session.
+  `executeSiteSyncOperation` (lines ~514-805, ~293 lines, the largest remaining
+  orchestration method) + post-sync update helpers (lines ~807-961, ~156 lines) +
+  `writeSiteSyncAudit` (lines ~964-989). **F280 extraction design blueprint:**
+  - **`SiteSyncExecutionService`** (target ≤200 lines): owns `executeSiteSyncOperation`
+    — but since it is 293 lines it must be decomposed into sub-methods:
+    `buildExecutionInput`, `handleBlockedApproval` (returns early), `runQueuedExecution`
+    (returns early), `runDirectExecution` (the happy path). Also owns `writeSiteSyncAudit`
+    (delegates to `buildSiteSyncAuditInput` + `auditEventService.create`) and the async
+    `buildConfigDiff` (Prisma baseline read + `buildConfigDiffFromBaseline`).
+    Injects: `prisma`, `serverExecutor`, `operationApprovalService`, `auditEventService`,
+    `postSyncUpdateService`.
+  - **`SitePostSyncUpdateService`** (target ≤200 lines): owns `updateSiteAfterSync`,
+    `updateSiteTlsAfterProbe`, `updateSiteAfterNonMutatingOperation`,
+    `updateSiteTlsAfterRenew`, `queueTlsProbeAfterRenewal`. Injects: `prisma`,
+    `logger`, and a **`createTlsProbeCallback`** (`(teamId, userId, siteId, dto,
+    trigger, sourceRunId) => Promise<SiteOperationExecutionResult>`) wired from
+    the host's `createTlsProbe` to break the circular dependency.
+  - Host `site.service.ts` keeps `createTlsProbe`/`createSyncPlan`/etc. public methods,
+    delegates `executeSiteSyncOperation` → `executionService.execute(...)`, and wires
+    the `createTlsProbe` callback into the post-sync service.
 - **Over-ceiling TLS files:** `site-tls-probe.ts` (282), `site-tls-renew.ts` (255),
   `site-tls-probe-scheduler.service.ts` (254), `site-tls-renew-scheduler.service.ts`
   (280) — each needs its own config/metadata extraction.
@@ -211,11 +224,15 @@ openresty-module-baseline,smoke-check,tls-probe,tls-renew,rollback,takeover-prev
 
 ## Next Candidates
 
-- Continue the site backend split: extract `executeSiteSyncOperation` + post-sync
-  update helpers into a focused `SiteSyncExecutionService` (F280) — the largest
-  remaining coupled cluster (needs a `createTlsProbe` callback/interface).
-- Then the TLS files, then the controller.
-- After site, move to monitoring / log-center / ops-governance backend splits.
+- **F280 (next session):** extract `executeSiteSyncOperation` (decomposed into
+  sub-methods) + `writeSiteSyncAudit` + `buildConfigDiff` into
+  `SiteSyncExecutionService`, and the 5 post-sync update helpers into
+  `SitePostSyncUpdateService` (with a `createTlsProbe` callback). This is the
+  highest-complexity remaining extraction — needs careful interface design and
+  full spec coverage; do it in a fresh session.
+- Then the 4 over-ceiling TLS files, then the controller.
+- After site, move to monitoring / log-center / ops-governance backend splits
+  (each needs its own split pass + full module map set).
 
 ## Maps To Maintain
 
