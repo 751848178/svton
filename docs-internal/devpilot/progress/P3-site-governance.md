@@ -150,7 +150,24 @@ deferred to a fresh session due to its tight coupling to `createTlsProbe`).
 | F279.2 | done   | Extract includes into a pure constants file.                                                             | New `site-includes.utils.ts` (44 lines: `SITE_INCLUDE` + `SYNC_RUN_INCLUDE` constants typed via `satisfies Prisma.SiteInclude`/`Prisma.SiteSyncRunInclude`). `site.service.ts` imports them, replaces all `this.siteInclude()`/`this.syncRunInclude()` call sites with the constants, and drops the 2 private methods. Host dropped from 1104 to 1066 lines. |
 | F279.3 | done   | Run focused API verification and hygiene checks, then sync final evidence + update maps.                 | Focused site Jest passed (27 tests, 4 suites): `/tmp/codex-tool-runs/svton/f279-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f279-tc1-20260707.log`; new file 44 lines (≤200); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved. |
 
-## Site Module Backend Maps (current, post-F279)
+## F280. Site Sync Execution + Post-Sync Service Extraction
+
+Purpose: extract the largest remaining coupled cluster — `executeSiteSyncOperation`
+(293 lines, the core sync/diagnostics/probe/renew execution loop) + 5 post-sync
+update helpers + `writeSiteSyncAudit` + `buildConfigDiff` — into two focused
+services, decomposing the 293-line method into sub-methods (`buildExecutionInput`/
+`handleBlockedApproval`/`runQueued`/`runDirect`) to stay ≤200 lines. The circular
+dependency (`queueTlsProbeAfterRenewal` → `createTlsProbe`) is broken via a callback
+interface. The host `SiteService` constructs `SiteSyncExecutionService` internally
+from its own injected deps so specs reuse the same mocks.
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F280.1 | done   | Map + design the extraction (blueprint committed in prior turn).                                         | Blueprint documented: `SiteSyncExecutionService` (execute decomposed into 4 sub-methods + writeAudit + buildConfigDiff) and `SitePostSyncUpdateService` (5 post-sync helpers + createTlsProbe callback). Circular dependency broken via `setCreateTlsProbeCallback`. |
+| F280.2 | done   | Extract execution + post-sync services.                                                                  | New `SiteSyncExecutionService` (163 lines: `execute`/`buildExecutionInput`/`handleBlockedApproval`/`runQueued`/`runDirect`/`buildConfigDiff`/`writeAudit`) and `SitePostSyncUpdateService` (121 lines: 5 post-sync helpers + `setCreateTlsProbeCallback`). `site.service.ts` constructs `SiteSyncExecutionService` internally (reuses own injected deps), wires the callback, delegates all `executeSiteSyncOperation` calls → `executionService.execute(...)`. Dropped the 8 moved methods + 2 inline types. Host dropped from 1066 to **569 lines**. |
+| F280.3 | done   | Run focused API verification and hygiene checks, then sync final evidence + update maps.                 | Focused site Jest passed (27 tests, 4 suites): `/tmp/codex-tool-runs/svton/f280-jest4-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f280-tc8-20260707.log`; both new services ≤200 lines (163/121); `git diff --check` clean; conflict-marker scan clean. |
+
+## Site Module Backend Maps (current, post-F280)
 
 Business logic map: project/environment-scoped Site record → CRUD (list/create/
 update/delete) → sync/probe/diagnostics action plan build → server-executor

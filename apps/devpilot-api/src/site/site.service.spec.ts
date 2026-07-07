@@ -3,6 +3,7 @@ import { OperationApprovalService } from '../operation-approval';
 import { PrismaService } from '../prisma/prisma.service';
 import { ServerExecutorService } from '../server-executor';
 import { SiteService } from './site.service';
+import { SitePostSyncUpdateService } from './site-post-sync-update.service';
 
 const opensslOutput = [
   'subject=CN = api.example.com',
@@ -90,7 +91,8 @@ describe('SiteService TLS probe', () => {
       prisma as unknown as PrismaService,
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
-      { resolveApproved: jest.fn(), createPending: jest.fn(), consume: jest.fn() } as unknown as OperationApprovalService,
+      { resolveApproved: jest.fn(), createPending: jest.fn().mockResolvedValue({ id: 'approval-1', status: 'pending' }), consume: jest.fn() } as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.createTlsProbe('team-1', 'user-1', 'site-1', { dryRun: false });
@@ -197,7 +199,8 @@ describe('SiteService TLS probe', () => {
       prisma as unknown as PrismaService,
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
-      { resolveApproved: jest.fn(), createPending: jest.fn(), consume: jest.fn() } as unknown as OperationApprovalService,
+      { resolveApproved: jest.fn(), createPending: jest.fn().mockResolvedValue({ id: 'approval-1', status: 'pending' }), consume: jest.fn() } as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.createTlsRenew('team-1', 'user-1', 'site-1', {});
@@ -335,6 +338,7 @@ describe('SiteService TLS probe', () => {
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
       operationApprovalService as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.createTlsRenew('team-1', 'user-1', 'site-1', {
@@ -440,7 +444,8 @@ describe('SiteService TLS probe', () => {
       prisma as unknown as PrismaService,
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
-      { resolveApproved: jest.fn(), createPending: jest.fn(), consume: jest.fn() } as unknown as OperationApprovalService,
+      { resolveApproved: jest.fn(), createPending: jest.fn().mockResolvedValue({ id: 'approval-1', status: 'pending' }), consume: jest.fn() } as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.createSmokeCheck('team-1', 'user-1', 'site-1', { dryRun: false });
@@ -543,7 +548,8 @@ describe('SiteService TLS probe', () => {
       prisma as unknown as PrismaService,
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
-      { resolveApproved: jest.fn(), createPending: jest.fn(), consume: jest.fn() } as unknown as OperationApprovalService,
+      { resolveApproved: jest.fn(), createPending: jest.fn().mockResolvedValue({ id: 'approval-1', status: 'pending' }), consume: jest.fn() } as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.createSyncPlan('team-1', 'user-1', 'site-1', {});
@@ -652,7 +658,8 @@ describe('SiteService TLS probe', () => {
       prisma as unknown as PrismaService,
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
-      { resolveApproved: jest.fn(), createPending: jest.fn(), consume: jest.fn() } as unknown as OperationApprovalService,
+      { resolveApproved: jest.fn(), createPending: jest.fn().mockResolvedValue({ id: 'approval-1', status: 'pending' }), consume: jest.fn() } as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.takeoverPreviewSite('team-1', 'user-1', 'site-1', {
@@ -725,7 +732,8 @@ describe('SiteService TLS probe', () => {
       prisma as unknown as PrismaService,
       { resolveTarget: jest.fn(), execute: jest.fn() } as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
-      { resolveApproved: jest.fn(), createPending: jest.fn(), consume: jest.fn() } as unknown as OperationApprovalService,
+      { resolveApproved: jest.fn(), createPending: jest.fn().mockResolvedValue({ id: 'approval-1', status: 'pending' }), consume: jest.fn() } as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     await expect(service.takeoverPreviewSite('team-1', 'user-1', 'site-1', {
@@ -777,7 +785,8 @@ describe('SiteService TLS probe', () => {
       prisma as unknown as PrismaService,
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
-      { resolveApproved: jest.fn(), createPending: jest.fn(), consume: jest.fn() } as unknown as OperationApprovalService,
+      { resolveApproved: jest.fn(), createPending: jest.fn().mockResolvedValue({ id: 'approval-1', status: 'pending' }), consume: jest.fn() } as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.createOpenRestyStatus('team-1', 'user-1', 'site-1', { dryRun: false });
@@ -873,7 +882,8 @@ describe('SiteService TLS probe', () => {
       prisma as unknown as PrismaService,
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
-      { resolveApproved: jest.fn(), createPending: jest.fn(), consume: jest.fn() } as unknown as OperationApprovalService,
+      { resolveApproved: jest.fn(), createPending: jest.fn().mockResolvedValue({ id: 'approval-1', status: 'pending' }), consume: jest.fn() } as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.createOpenRestyModules('team-1', 'user-1', 'site-1', { dryRun: false });
@@ -957,7 +967,8 @@ describe('SiteService TLS probe', () => {
       prisma as unknown as PrismaService,
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
-      { resolveApproved: jest.fn(), createPending: jest.fn(), consume: jest.fn() } as unknown as OperationApprovalService,
+      { resolveApproved: jest.fn(), createPending: jest.fn().mockResolvedValue({ id: 'approval-1', status: 'pending' }), consume: jest.fn() } as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.createOpenRestyModuleBaseline('team-1', 'user-1', 'site-1', { dryRun: false });
@@ -1050,6 +1061,7 @@ describe('SiteService TLS probe', () => {
       serverExecutor as unknown as ServerExecutorService,
       { create: jest.fn().mockResolvedValue({}) } as unknown as AuditEventService,
       operationApprovalService as unknown as OperationApprovalService,
+      new SitePostSyncUpdateService(prisma as unknown as PrismaService),
     );
 
     const result = await service.createTlsRenew('team-1', 'user-1', 'site-1', {

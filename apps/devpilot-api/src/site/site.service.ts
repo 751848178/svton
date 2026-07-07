@@ -62,6 +62,8 @@ import {
   buildSiteSyncAuditInput,
 } from './site-sync-approval.utils';
 import { SITE_INCLUDE, SYNC_RUN_INCLUDE } from './site-includes.utils';
+import { SitePostSyncUpdateService } from './site-post-sync-update.service';
+import { SiteSyncExecutionService, type SiteOperationExecutionResult } from './site-sync-execution.service';
 import {
   buildCertificateCommand,
   buildCertificateRenewCommand,
@@ -93,43 +95,35 @@ import {
 } from './site-ops-plan.utils';
 
 type SiteRecord = Awaited<ReturnType<SiteService['getSite']>>;
-type SiteSyncRunSummary = {
-  id: string;
-  operationApprovalId?: string | null;
-  serverExecutionJobId?: string | null;
-  configDiff?: Prisma.JsonValue | null;
-} & Record<string, unknown>;
-type SiteOperationExecutionResult = {
-  mode: string;
-  status: ServerExecutionResult['status'];
-  executorKey: string;
-  adapterKey: string;
-  executable: boolean;
-  warnings: string[];
-  commandPlan: ServerCommandStep[];
-  executionPlan: Prisma.InputJsonValue;
-  logs: Prisma.InputJsonValue;
-  result: Prisma.InputJsonValue;
-  error?: string;
-  nginxConfig: string;
-  configDiff: SiteConfigDiff;
-  target: SiteSyncExecutionPlan['target'];
-  syncRun: SiteSyncRunSummary;
-  approval?: unknown;
-  sourceRun?: unknown;
-  site: SiteRecord;
-};
 
 @Injectable()
 export class SiteService {
   private readonly logger = new Logger(SiteService.name);
+
+  private readonly executionService: SiteSyncExecutionService;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly serverExecutor: ServerExecutorService,
     private readonly auditEventService: AuditEventService,
     private readonly operationApprovalService: OperationApprovalService,
-  ) {}
+    private readonly postSyncUpdateService: SitePostSyncUpdateService,
+  ) {
+    // Build the execution service internally so it reuses the same injected deps
+    // (no separate mock needed in specs). Breaks the circular dependency: the
+    // host's createTlsProbe is wired into the post-sync service via callback.
+    this.executionService = new SiteSyncExecutionService(
+      prisma,
+      serverExecutor,
+      operationApprovalService,
+      postSyncUpdateService,
+      auditEventService,
+    );
+    this.postSyncUpdateService.setCreateTlsProbeCallback(
+      (teamId, userId, siteId, dto, trigger, sourceRunId) =>
+        this.createTlsProbe(teamId, userId, siteId, dto, trigger, sourceRunId),
+    );
+  }
 
   async listSites(teamId: string, query: ListSitesQueryDto) {
     const where: Prisma.SiteWhereInput = { teamId };
@@ -321,7 +315,7 @@ export class SiteService {
     const plan = buildSyncPlan(site);
     const dryRun = dto.dryRun !== false;
 
-    return this.executeSiteSyncOperation(teamId, userId, site, plan, {
+    return this.executionService.execute(teamId, userId, site, plan, {
       action: 'site.sync',
       operationKey: 'site.sync',
       mode: 'sync',
@@ -340,7 +334,7 @@ export class SiteService {
     const plan = buildDiagnosticsPlan(site, dto.tailLines);
     const dryRun = dto.dryRun === true;
 
-    return this.executeSiteSyncOperation(teamId, userId, site, plan, {
+    return this.executionService.execute(teamId, userId, site, plan, {
       action: 'site.diagnostics',
       operationKey: 'site.diagnostics',
       mode: 'diagnostics',
@@ -356,7 +350,7 @@ export class SiteService {
     const plan = buildOpenRestyStatusPlan(site);
     const dryRun = dto.dryRun === true;
 
-    return this.executeSiteSyncOperation(teamId, userId, site, plan, {
+    return this.executionService.execute(teamId, userId, site, plan, {
       action: 'site.openresty_status',
       operationKey: 'site.openresty_status',
       mode: 'openresty_status',
@@ -372,7 +366,7 @@ export class SiteService {
     const plan = buildOpenRestyModulesPlan(site);
     const dryRun = dto.dryRun === true;
 
-    return this.executeSiteSyncOperation(teamId, userId, site, plan, {
+    return this.executionService.execute(teamId, userId, site, plan, {
       action: 'site.openresty_modules',
       operationKey: 'site.openresty_modules',
       mode: 'openresty_modules',
@@ -393,7 +387,7 @@ export class SiteService {
     const plan = buildOpenRestyModuleBaselinePlan(site);
     const dryRun = dto.dryRun === true;
 
-    return this.executeSiteSyncOperation(teamId, userId, site, plan, {
+    return this.executionService.execute(teamId, userId, site, plan, {
       action: 'site.openresty_module_baseline',
       operationKey: 'site.openresty_module_baseline',
       mode: 'openresty_module_baseline',
@@ -409,7 +403,7 @@ export class SiteService {
     const plan = buildSmokeCheckPlan(site);
     const dryRun = dto.dryRun === true;
 
-    return this.executeSiteSyncOperation(teamId, userId, site, plan, {
+    return this.executionService.execute(teamId, userId, site, plan, {
       action: 'site.smoke_check',
       operationKey: 'site.smoke_check',
       mode: 'smoke_check',
@@ -432,7 +426,7 @@ export class SiteService {
     const plan = buildTlsProbePlan(site);
     const dryRun = dto.dryRun === true;
 
-    return this.executeSiteSyncOperation(teamId, userId, site, plan, {
+    return this.executionService.execute(teamId, userId, site, plan, {
       action: 'site.tls_probe',
       operationKey: 'site.tls_probe',
       mode: 'tls_probe',
@@ -455,7 +449,7 @@ export class SiteService {
     const dryRun = dto.dryRun !== false;
     const plan = buildTlsRenewPlan(site, dryRun);
 
-    return this.executeSiteSyncOperation(teamId, userId, site, plan, {
+    return this.executionService.execute(teamId, userId, site, plan, {
       action: 'site.tls_renew',
       operationKey: 'site.tls_renew',
       mode: 'tls_renew',
@@ -495,7 +489,7 @@ export class SiteService {
     const dryRun = dto.dryRun !== false;
     const plan = buildRollbackPlan(site, sourceRun.nginxConfig, sourceRun.targetConfigPath);
 
-    return this.executeSiteSyncOperation(teamId, userId, site, plan, {
+    return this.executionService.execute(teamId, userId, site, plan, {
       action: 'site.rollback',
       operationKey: 'site.rollback',
       mode: 'rollback',
@@ -509,483 +503,6 @@ export class SiteService {
       sourceRunId: sourceRun.id,
       sourceRun,
     });
-  }
-
-  private async executeSiteSyncOperation(
-    teamId: string,
-    userId: string | null,
-    site: SiteRecord,
-    plan: SiteSyncExecutionPlan,
-    options: {
-      action: SiteOperationAction;
-      operationKey: SiteOperationKey;
-      mode: SiteOperationMode;
-      trigger: SiteOperationTrigger;
-      dryRun: boolean;
-      queue?: boolean;
-      maxAttempts?: number;
-      confirmationText?: string;
-      approvalId?: string;
-      approvalReason?: string;
-      sourceRunId?: string | null;
-      sourceRun?: unknown;
-    },
-  ): Promise<SiteOperationExecutionResult> {
-    const target = await this.serverExecutor.resolveTarget(teamId, site.serverId);
-    const configDiff = mutatesNginxConfig(options.mode)
-      ? await this.buildConfigDiff(teamId, site.id, plan.nginxConfig, options.sourceRunId)
-      : buildNoConfigDiff(`${siteOperationLabel(options.action)}不变更 Nginx 配置`);
-    const approvalContext = buildSiteApprovalContext(
-      teamId,
-      userId,
-      site,
-      plan,
-      options,
-      configDiff,
-    );
-    const requiresApproval = requiresSiteOperationApproval(options.action, options.dryRun);
-    const approvedApproval = requiresApproval
-      ? await this.operationApprovalService.resolveApproved({
-          ...approvalContext,
-          approvalId: options.approvalId,
-        })
-      : null;
-    const run = await this.prisma.siteSyncRun.create({
-      data: {
-        teamId,
-        actorId: userId ?? undefined,
-        siteId: site.id,
-        projectId: site.projectId,
-        environmentId: site.environmentId,
-        serverId: site.serverId,
-        sourceRunId: options.sourceRunId ?? undefined,
-        operationApprovalId: approvedApproval?.id,
-        mode: options.mode,
-        trigger: options.trigger,
-        executorKey: 'server-executor',
-        adapterKey: 'nginx-site-plan',
-        dryRun: options.dryRun,
-        status: options.queue ? 'queued' : 'running',
-        targetConfigPath: plan.target.configPath,
-        nginxConfig: plan.nginxConfig,
-        commandPlan: this.toJsonValue(plan.commandPlan),
-        configDiff: this.toJsonValue(configDiff),
-        warnings: this.toJsonValue(plan.warnings),
-      },
-      include: SYNC_RUN_INCLUDE,
-    });
-
-    let execution: ServerExecutionResult;
-    try {
-      if (requiresApproval && !approvedApproval) {
-        const approval = await this.operationApprovalService.createPending({
-          ...approvalContext,
-          reusePending: false,
-          metadata: {
-            ...approvalContext.metadata,
-            siteSyncRunId: run.id,
-            sourceRunId: options.sourceRunId,
-            configDiff,
-          },
-        });
-        const blockedRun = await this.prisma.siteSyncRun.update({
-          where: { id: run.id },
-          data: {
-            status: 'blocked',
-            operationApprovalId: approval.id,
-            error: '非 dry-run 的站点操作需要审批',
-            finishedAt: new Date(),
-            result: this.toJsonValue({
-              mode: 'blocked_operation_approval',
-              approvalId: approval.id,
-              approvalStatus: approval.status,
-            }),
-          },
-          include: SYNC_RUN_INCLUDE,
-        });
-        const blockedExecution = buildApprovalBlockedExecution(plan, approval.id);
-        await this.writeSiteSyncAudit(
-          teamId,
-          userId,
-          site,
-          blockedExecution,
-          options.dryRun,
-          plan,
-          blockedRun,
-          options.action,
-        );
-
-        return {
-          mode: blockedExecution.mode,
-          status: blockedExecution.status,
-          executorKey: blockedExecution.executorKey,
-          adapterKey: blockedExecution.adapterKey,
-          executable: blockedExecution.executable,
-          warnings: blockedExecution.warnings,
-          commandPlan: blockedExecution.commandSteps,
-          executionPlan: blockedExecution.commandPlan,
-          logs: blockedExecution.logs,
-          result: blockedExecution.result,
-          error: blockedExecution.error,
-          nginxConfig: plan.nginxConfig,
-          configDiff,
-          target: plan.target,
-          syncRun: blockedRun,
-          approval,
-          sourceRun: options.sourceRun,
-          site,
-        };
-      }
-
-      const executionInput = {
-        teamId,
-        userId: userId ?? undefined,
-        operationKey: options.operationKey,
-        adapterKey: 'nginx-site-plan',
-        dryRun: options.dryRun,
-        target,
-        steps: plan.commandPlan,
-        warnings: plan.warnings,
-        metadata: {
-          siteId: site.id,
-          siteSyncRunId: run.id,
-          projectId: site.projectId,
-          environmentId: site.environmentId,
-          siteName: site.name,
-          primaryDomain: site.primaryDomain,
-          runtimeType: site.runtimeType,
-          configPath: plan.target.configPath,
-          tlsProbeHost: options.mode === 'tls_probe' ? site.primaryDomain : undefined,
-          tlsProbePort: options.mode === 'tls_probe' ? 443 : undefined,
-          tlsType: options.mode === 'tls_probe' && isRecord(site.tls)
-            ? readString(site.tls.type)
-            : undefined,
-          mode: options.mode,
-          trigger: options.trigger,
-          sourceRunId: options.sourceRunId,
-          operationApprovalId: approvedApproval?.id,
-          businessRunSync: options.queue ? 'site_sync' : undefined,
-        },
-        blockOnWarnings: !options.dryRun,
-        requiredConfirmationText: requiresExecutionConfirmation(options.action) ? site.name : undefined,
-        confirmationText: options.confirmationText,
-      };
-
-      if (options.queue) {
-        const queuedExecution = await this.serverExecutor.queueExecution(executionInput, {
-          maxAttempts: options.maxAttempts,
-        });
-        const queuedRun = await this.prisma.siteSyncRun.update({
-          where: { id: run.id },
-          data: {
-            status: queuedExecution.status,
-            serverExecutionJobId: queuedExecution.serverExecutionJobId,
-            executorKey: queuedExecution.executorKey,
-            adapterKey: queuedExecution.adapterKey,
-            commandPlan: this.toJsonValue(queuedExecution.commandSteps),
-            configDiff: this.toJsonValue(configDiff),
-            executionPlan: queuedExecution.commandPlan,
-            logs: queuedExecution.logs,
-            result: queuedExecution.result,
-            warnings: this.toJsonValue(queuedExecution.warnings),
-            error: queuedExecution.error ?? null,
-          },
-          include: SYNC_RUN_INCLUDE,
-        });
-        await this.writeSiteSyncAudit(
-          teamId,
-          userId,
-          site,
-          queuedExecution,
-          options.dryRun,
-          plan,
-          queuedRun,
-          options.action,
-        );
-        if (approvedApproval && queuedRun.status !== 'blocked') {
-          await this.operationApprovalService.consume(teamId, approvedApproval.id);
-        }
-
-        return {
-          mode: queuedExecution.mode,
-          status: queuedExecution.status,
-          executorKey: queuedExecution.executorKey,
-          adapterKey: queuedExecution.adapterKey,
-          executable: queuedExecution.executable,
-          warnings: queuedExecution.warnings,
-          commandPlan: queuedExecution.commandSteps,
-          executionPlan: queuedExecution.commandPlan,
-          logs: queuedExecution.logs,
-          result: queuedExecution.result,
-          error: queuedExecution.error,
-          nginxConfig: plan.nginxConfig,
-          configDiff,
-          target: plan.target,
-          syncRun: queuedRun,
-          sourceRun: options.sourceRun,
-          site,
-        };
-      }
-
-      execution = await this.serverExecutor.execute(executionInput);
-    } catch (error) {
-      await this.prisma.siteSyncRun.update({
-        where: { id: run.id },
-        data: {
-          status: 'failed',
-          error: this.errorMessage(error),
-          finishedAt: new Date(),
-        },
-      });
-      throw error;
-    }
-
-    const shouldUpdateSite = !options.dryRun && mutatesSiteStatus(options.mode);
-    const syncedSite = shouldUpdateSite
-      ? await this.updateSiteAfterSync(site.id, execution.status, execution.error)
-      : await this.updateSiteAfterNonMutatingOperation(
-          teamId,
-          userId,
-          site,
-          execution,
-          options.dryRun,
-          options.mode,
-          run.id,
-        );
-    const syncRun = await this.prisma.siteSyncRun.update({
-      where: { id: run.id },
-      data: {
-        status: execution.status,
-        executorKey: execution.executorKey,
-        adapterKey: execution.adapterKey,
-        commandPlan: this.toJsonValue(execution.commandSteps),
-        configDiff: this.toJsonValue(configDiff),
-        executionPlan: execution.commandPlan,
-        logs: execution.logs,
-        result: execution.result,
-        warnings: this.toJsonValue(execution.warnings),
-        error: execution.error ?? null,
-        finishedAt: new Date(),
-      },
-      include: SYNC_RUN_INCLUDE,
-    });
-    await this.writeSiteSyncAudit(
-      teamId,
-      userId,
-      syncedSite,
-      execution,
-      options.dryRun,
-      plan,
-      syncRun,
-      options.action,
-    );
-    if (approvedApproval && syncRun.status !== 'blocked') {
-      await this.operationApprovalService.consume(teamId, approvedApproval.id);
-    }
-
-    return {
-      mode: execution.mode,
-      status: execution.status,
-      executorKey: execution.executorKey,
-      adapterKey: execution.adapterKey,
-      executable: execution.executable,
-      warnings: execution.warnings,
-      commandPlan: execution.commandSteps,
-      executionPlan: execution.commandPlan,
-      logs: execution.logs,
-      result: execution.result,
-      error: execution.error,
-      nginxConfig: plan.nginxConfig,
-      configDiff,
-      target: plan.target,
-      syncRun,
-      sourceRun: options.sourceRun,
-      site: syncedSite,
-    };
-  }
-
-  private async updateSiteAfterSync(
-    siteId: string,
-    status: ServerExecutionResult['status'],
-    error?: string,
-  ) {
-    return this.prisma.site.update({
-      where: { id: siteId },
-      data: {
-        status: status === 'completed' ? 'active' : 'error',
-        lastSyncAt: new Date(),
-        syncError: status === 'completed' ? null : error || '站点同步执行未完成',
-      },
-      include: SITE_INCLUDE,
-    });
-  }
-
-  private async updateSiteTlsAfterProbe(
-    site: SiteRecord,
-    execution: ServerExecutionResult,
-    dryRun: boolean,
-    mode: SiteOperationMode,
-  ) {
-    if (dryRun || mode !== 'tls_probe' || execution.status !== 'completed') {
-      return site;
-    }
-
-    const tls = isRecord(site.tls) ? site.tls : {};
-    const metadata = extractSiteTlsProbeMetadata({
-      host: site.primaryDomain,
-      port: 443,
-      result: execution.result,
-      logs: execution.logs,
-      currentType: readString(tls.type),
-    });
-
-    if (!metadata) {
-      return site;
-    }
-
-    return this.prisma.site.update({
-      where: { id: site.id },
-      data: {
-        tls: mergeSiteTlsProbeMetadata(site.tls, metadata),
-      },
-      include: SITE_INCLUDE,
-    });
-  }
-
-  private async updateSiteAfterNonMutatingOperation(
-    teamId: string,
-    userId: string | null,
-    site: SiteRecord,
-    execution: ServerExecutionResult,
-    dryRun: boolean,
-    mode: SiteOperationMode,
-    runId: string,
-  ): Promise<SiteRecord> {
-    if (mode === 'tls_probe') {
-      return this.updateSiteTlsAfterProbe(site, execution, dryRun, mode);
-    }
-    if (mode === 'tls_renew') {
-      return this.updateSiteTlsAfterRenew(teamId, userId, site, execution, dryRun, runId);
-    }
-
-    return site;
-  }
-
-  private async updateSiteTlsAfterRenew(
-    teamId: string,
-    userId: string | null,
-    site: SiteRecord,
-    execution: ServerExecutionResult,
-    dryRun: boolean,
-    runId: string,
-  ): Promise<SiteRecord> {
-    if (execution.status !== 'completed' && execution.status !== 'failed') {
-      return site;
-    }
-
-    const metadata = extractSiteTlsRenewMetadata({
-      result: execution.result,
-      logs: execution.logs,
-      executionStatus: execution.status,
-      dryRun,
-      runId,
-    });
-
-    const renewedSite = await this.prisma.site.update({
-      where: { id: site.id },
-      data: {
-        tls: mergeSiteTlsRenewMetadata(site.tls, metadata),
-      },
-      include: SITE_INCLUDE,
-    });
-
-    if (!dryRun && execution.status === 'completed' && metadata.succeeded) {
-      return this.queueTlsProbeAfterRenewal(teamId, userId, renewedSite, runId);
-    }
-
-    return renewedSite;
-  }
-
-  private async queueTlsProbeAfterRenewal(
-    teamId: string,
-    userId: string | null,
-    site: SiteRecord,
-    sourceRenewalRunId: string,
-  ): Promise<SiteRecord> {
-    try {
-      const probe: SiteOperationExecutionResult = await this.createTlsProbe(
-        teamId,
-        userId,
-        site.id,
-        {
-          dryRun: false,
-          queue: true,
-          maxAttempts: 1,
-        },
-        'renewal_follow_up_tls_probe',
-        sourceRenewalRunId,
-      );
-      const syncRun = probe.syncRun;
-      const queuedAt = new Date().toISOString();
-
-      return this.prisma.site.update({
-        where: { id: site.id },
-        data: {
-          tls: mergeSiteTlsRenewFollowUpProbeMetadata(site.tls, {
-            status: 'queued',
-            sourceRenewalRunId,
-            siteSyncRunId: syncRun?.id,
-            serverExecutionJobId: syncRun?.serverExecutionJobId || undefined,
-            queuedAt,
-          }),
-        },
-        include: SITE_INCLUDE,
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Failed to queue TLS probe after renewal for site ${site.id}: ${this.errorMessage(error)}`,
-      );
-
-      return this.prisma.site.update({
-        where: { id: site.id },
-        data: {
-          tls: mergeSiteTlsRenewFollowUpProbeMetadata(site.tls, {
-            status: 'failed',
-            sourceRenewalRunId,
-            failedAt: new Date().toISOString(),
-            error: this.errorMessage(error),
-          }),
-        },
-        include: SITE_INCLUDE,
-      });
-    }
-  }
-
-  private async writeSiteSyncAudit(
-    teamId: string,
-    userId: string | null,
-    site: SiteRecord,
-    execution: {
-      status: ServerExecutionResult['status'];
-      mode: string;
-      executorKey: string;
-      adapterKey: string;
-      executable: boolean;
-      warnings: string[];
-      error?: string;
-    },
-    dryRun: boolean,
-    plan: SiteSyncExecutionPlan,
-    syncRun: {
-      id: string;
-      operationApprovalId?: string | null;
-      configDiff?: Prisma.JsonValue | null;
-    },
-    action: SiteOperationAction,
-  ) {
-    await this.auditEventService?.create(
-      buildSiteSyncAuditInput(teamId, userId, site, execution, dryRun, plan, syncRun, action) as any,
-    );
   }
 
   private async assertBindings(
@@ -1034,20 +551,6 @@ export class SiteService {
       });
       if (!proxyConfig) throw new BadRequestException('代理配置不存在或不属于当前团队');
     }
-  }
-
-  private async buildConfigDiff(
-    teamId: string,
-    siteId: string,
-    nextConfig: string,
-    sourceRunId?: string | null,
-  ): Promise<SiteConfigDiff> {
-    const baselineRun = await this.prisma.siteSyncRun.findFirst({
-      where: { teamId, siteId, status: 'completed', dryRun: false },
-      orderBy: { startedAt: 'desc' },
-      select: { id: true, nginxConfig: true },
-    });
-    return buildConfigDiffFromBaseline(nextConfig, baselineRun, sourceRunId);
   }
 
 

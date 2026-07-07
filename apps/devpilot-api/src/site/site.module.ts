@@ -8,6 +8,8 @@ import { SiteController } from './site.controller';
 import { SiteTlsProbeSchedulerService } from './site-tls-probe-scheduler.service';
 import { SiteTlsRenewSchedulerService } from './site-tls-renew-scheduler.service';
 import { SiteService } from './site.service';
+import { SitePostSyncUpdateService } from './site-post-sync-update.service';
+import { SiteSyncExecutionService } from './site-sync-execution.service';
 
 @Module({
   imports: [
@@ -18,7 +20,7 @@ import { SiteService } from './site.service';
     ControlAccessPolicyModule,
   ],
   controllers: [SiteController],
-  providers: [SiteService, SiteTlsProbeSchedulerService, SiteTlsRenewSchedulerService],
+  providers: [SiteService, SitePostSyncUpdateService, SiteSyncExecutionService, SiteTlsProbeSchedulerService, SiteTlsRenewSchedulerService],
   exports: [SiteService, SiteTlsProbeSchedulerService, SiteTlsRenewSchedulerService],
 })
 export class SiteModule {}
