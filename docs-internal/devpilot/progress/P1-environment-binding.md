@@ -53,6 +53,24 @@ write paths.
 | F262.2 | done   | Extract cloud provider health read/summarization into focused files.        | Added `ResourceControlCloudProviderHealthService`, `resource-control-cloud-provider-health.utils.ts`, `resource-control-cloud-provider-health.types.ts`, and shared `resource-control-value.utils.ts`; `ResourceControlService` keeps public delegate methods and drops the cloud health private helpers.                                                                                  |
 | F262.3 | done   | Run focused API verification and sync final evidence.                       | Focused resource-control Jest passed: `/tmp/codex-tool-runs/svton/f262-resource-control-jest-20260705-134225.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f262-api-type-check-20260705-134239.log`; API build passed: `/tmp/codex-tool-runs/svton/f262-api-build-20260705-134239.log`.                                                                                         |
 
+## F273. Resource Control Scheduler Config Extraction
+
+Purpose: begin the cross-module (逐模块) push by bringing the resource-control
+scheduler under the 200-line ceiling. Source inspection confirmed
+`ResourceControlSchedulerService` (315 lines) already had its behavior split into
+focused phases (`markStaleResources`, `runScheduledDockerSync`,
+`runScheduledDockerMetrics`); the over-ceiling size came from ~10 inline
+config-read helpers + the empty-summary builder. This slice moves those into a
+pure config utils file (matching the F239 pattern) so the numeric clamping
+becomes unit-testable and the scheduler stays under the ceiling. No public API
+or behavior change.
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F273.1 | done   | Map the scheduler over-ceiling cause.                                                                    | Manual graph confirmed the scheduler's behavior phases are already focused; the size came from 10 inline config readers (`isEnabled`/`intervalMs`/`staleAfterMs`/`serverBatchSize`/`metricResourceBatchSize`/`metricsMaxAttempts`/`metricsMinIntervalMs`/`scheduledDockerSyncEnabled`/`scheduledDockerMetricsEnabled`) + the `ScheduledSyncSummary` type + `emptySummary` builder. |
+| F273.2 | done   | Extract config readers + summary builders into a pure utils file.                                        | New `resource-control-scheduler-config.utils.ts` (101 lines): pure readers taking the raw config string (preserving all defaults: sync default 'true', metrics default 'false', interval default 300s, stale-after 86400s, batch sizes 10/20, max-attempts 1, min-interval 300s) + `ScheduledSyncSummary` type + `emptyScheduledSyncSummary`/`disabledDockerSyncSummary`/`disabledDockerMetricsSummary`. The scheduler (`resource-control-scheduler.service.ts`) now one-line-delegates each config read and the empty-summary build to the utils. Scheduler dropped from 315 to 172 lines. |
+| F273.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused resource-control Jest passed (63 tests, 12 suites, incl. the full scheduler suite): `/tmp/codex-tool-runs/svton/f273-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f273-tc1-20260707.log`; scheduler 172 + utils 101 (both ≤200); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved. The only remaining over-ceiling resource-control file is the 413-line thin-route controller. |
+
 ## F263. Resource Provisioning Run Supervisor Service Split
 
 Purpose: begin splitting the over-limit `resource-request.service.ts` (4385 lines)
@@ -317,9 +335,13 @@ inventory/query subfolders.
 
 - **project-environment module: essentially complete.** Optional polish: split
   the 385-line controller, and add tests for the untested access-scope resolvers.
-- **Move to the next module (逐模块).** Per the cross-module goal, the next
-  candidates are in other modules: `ResourceControlService` (binding/query/
-  connection/action/inventory/metric boundaries), then site / monitoring /
-  log-center / ops-governance god services.
+- **resource-control module (F273 started the cross-module push):** the scheduler
+  is now under ceiling (172 lines). Next: split the 413-line
+  `resource-control.controller.ts` (thin route layer); the host
+  `ResourceControlService` is already a 75-line facade and its behavior
+  boundaries (binding/query/connection/action/inventory/metrics) are already in
+  focused ≤200-line services.
+- **Move to further modules (逐模块):** site / monitoring / log-center /
+  ops-governance god services.
 - Keep every split tied to the existing project/environment resource-control
   contract. Do not add new product behavior without TODO/roadmap evidence.
