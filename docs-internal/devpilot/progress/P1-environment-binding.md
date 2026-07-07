@@ -124,6 +124,24 @@ and two pure-utils files.
 | F266.2 | done   | Extract sync-suggestions into focused services + pure utils while preserving the public facade.          | New `ProjectEnvironmentSyncService` (174 lines, owns `listSyncSuggestions`) and `ProjectEnvironmentSyncApplyService` (198 lines, owns `applySyncSuggestions` + `getSyncApplyAccessScope`, depends on the read service); new pure `project-environment-sync.utils.ts` (181 lines: constants, types, profile builder, query-arg builders) and `project-environment-sync-step.utils.ts` (178 lines: dry-run/applied step builders, create payload, missing-field computation). `ProjectEnvironmentService` keeps one-line arrow-function delegates and drops ~494 lines; module registers both new providers; spec rewired to inject real `ProjectEnvironmentSyncService(repo)` and `ProjectEnvironmentSyncApplyService(repo, syncService, auditEventService)`. Host dropped from 1713 to 1197 lines. |
 | F266.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, all 8 sync tests green): `/tmp/codex-tool-runs/svton/f266-jest-ceil-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f266-tc-ceil-20260707.log`; all 5 new sync files ≤200 lines (198/181/178/174/118); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.      |
 
+## F267. Project Environment Resource-Copy Service Split
+
+Purpose: split the ManagedResource + SecretKey cross-environment copy
+orchestration out of the over-limit `ProjectEnvironmentService` (1197 lines).
+Source inspection confirmed `copyResources` (~268 lines: per-resource and
+per-secret dry-run/applied copy with dedup skips, server/credential assertions,
+encrypted secret values, and an audit record) and `getResourceCopyAccessScope`
+form a self-contained resource-copy boundary independent of environment CRUD,
+sync-suggestions, and CDN/site copy. This slice preserves the public controller
+API and every copy-step behavior; the step shaping and create payloads move to
+a pure-utils file to respect the 200-line ceiling.
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F267.1 | done   | Map the resource-copy boundary, callers, helpers, and data flow.                                         | CodeGraph CLI is present but uninitialized; manual graph confirmed `copyResources`/`getResourceCopyAccessScope` are called only by `ProjectEnvironmentController` and depend on `repo.findManagedResources`/`findSecretKeys`/`createManagedResource`/`createSecretKey`, `assertServer`/`assertTeamCredential`, `cryptoService.encryptCbc`, `auditEventService.create`, and `buildResourceCopyAuditInput`. |
+| F267.2 | done   | Extract resource-copy into a focused service + pure utils while preserving the public facade.            | New `ProjectEnvironmentResourceCopyService` (197 lines, owns `copyResources` + `getResourceCopyAccessScope` + private `copyManagedResources`/`copySecrets`/`resolveProjectEnvironment`/`assertServer`/`assertTeamCredential`/`encryptSecretValue`) and pure `project-environment-resource-copy.utils.ts` (179 lines: skipped/planned/applied step builders for resource and secret, create payloads, result assembly). `ProjectEnvironmentService` keeps one-line arrow-function delegates, drops the `EnvironmentResourceCopyStep` type and ~278 lines, and the now-unused `buildResourceCopyAuditInput` import; module registers the new provider; spec rewired to inject a real `ProjectEnvironmentResourceCopyService(repo, cryptoService, auditEventService)`. Host dropped from 1197 to 916 lines. |
+| F267.3 | done   | Run focused API verification and hygiene checks, then sync final evidence.                               | Focused project-environment Jest passed (34 tests, 2 suites, both resource-copy tests green): `/tmp/codex-tool-runs/svton/f267-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f267-tc2-20260707.log`; both new files ≤200 lines (197/179); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved.                       |
+
 ## Source-Backed Maps
 
 Business logic map: environment workbench gap -> resource-control page context
@@ -155,11 +173,11 @@ query runs to render inventory, binding, credential, query, and action panels.
 
 ## Next Candidates
 
-- Continue splitting `ProjectEnvironmentService` (now 1197 lines, still over
+- Continue splitting `ProjectEnvironmentService` (now 916 lines, still over
   the 200-line ceiling) by verified behavior boundary: environment
   CRUD/listing, sync-from-project, server binding, secret management, and
-  resource copy (managed-resource / resource-instance / CDN / secret
-  cross-environment copy).
+  CDN-config copy / bulk resource binding (the remaining copy/bind
+  boundaries).
 - Continue splitting `ResourceControlService` by verified behavior boundary:
   binding validation/write orchestration, query run orchestration, connection
   probe orchestration, action execution/approval orchestration, inventory sync,

@@ -16,13 +16,13 @@ import {
 import {
   buildCdnConfigCopyAuditInput,
   buildResourceBulkBindingAuditInput,
-  buildResourceCopyAuditInput,
   buildServerBindingAuditInput,
   buildSiteCopyAuditInput,
 } from './project-environment-audit.utils';
 import { ProjectEnvironmentCopySiteService } from './project-environment-copy-site.service';
 import { ProjectEnvironmentSyncService } from './project-environment-sync.service';
 import { ProjectEnvironmentSyncApplyService } from './project-environment-sync-apply.service';
+import { ProjectEnvironmentResourceCopyService } from './project-environment-resource-copy.service';
 import {
   buildSiteCopyQueuedLiveSyncFollowUp as buildSiteCopyQueuedLiveSyncFollowUpUtil,
   resourceBindingStep as resourceBindingStepUtil,
@@ -199,16 +199,6 @@ type EnvironmentCdnConfigCopyStep = {
   metadata?: Record<string, unknown>;
 };
 
-type EnvironmentResourceCopyStep = {
-  type: 'managed_resource' | 'secret_key';
-  status: 'planned' | 'applied' | 'skipped';
-  sourceId: string;
-  targetId?: string | null;
-  title: string;
-  description: string;
-  metadata?: Record<string, unknown>;
-};
-
 const DEFAULT_RESOURCE_BINDING_TYPES: EnvironmentResourceBindingType[] = [
   'managed_resource',
   'resource_instance',
@@ -225,6 +215,7 @@ export class ProjectEnvironmentService {
     private readonly copySiteService: ProjectEnvironmentCopySiteService,
     private readonly syncService: ProjectEnvironmentSyncService,
     private readonly syncApplyService: ProjectEnvironmentSyncApplyService,
+    private readonly resourceCopyService: ProjectEnvironmentResourceCopyService,
     @Optional()
     private readonly auditEventService: AuditEventService,
     @Optional()
@@ -665,283 +656,11 @@ export class ProjectEnvironmentService {
     return result;
   }
 
-  async getResourceCopyAccessScope(teamId: string, dto: CopyProjectEnvironmentResourcesDto) {
-    const source = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.sourceEnvironmentId);
-    const target = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.targetEnvironmentId);
-    return {
-      projectId: source.projectId,
-      sourceEnvironmentId: source.id,
-      targetEnvironmentId: target.id,
-    };
-  }
+  getResourceCopyAccessScope = (teamId: string, dto: CopyProjectEnvironmentResourcesDto) =>
+    this.resourceCopyService.getResourceCopyAccessScope(teamId, dto);
 
-  async copyResources(teamId: string, userId: string, dto: CopyProjectEnvironmentResourcesDto) {
-    if (!dto.projectId || !dto.sourceEnvironmentId || !dto.targetEnvironmentId) {
-      throw new BadRequestException('projectId、sourceEnvironmentId 和 targetEnvironmentId 不能为空');
-    }
-
-    const dryRun = dto.dryRun !== false;
-    const source = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.sourceEnvironmentId);
-    const target = await this.resolveProjectEnvironment(teamId, dto.projectId, dto.targetEnvironmentId);
-    if (source.id === target.id) {
-      throw new BadRequestException('源环境和目标环境不能相同');
-    }
-    if (!dryRun && dto.confirmationText !== target.name && dto.confirmationText !== target.key) {
-      throw new BadRequestException(`确认文本必须等于目标环境名称或 key：${target.name} / ${target.key}`);
-    }
-
-    const sourceResources = await this.repo.findManagedResources({
-      where: {
-        teamId,
-        projectId: dto.projectId,
-        environmentId: source.id,
-        ...(dto.managedResourceIds?.length ? { id: { in: dto.managedResourceIds } } : {}),
-      },
-      select: {
-        id: true,
-        sourceType: true,
-        provider: true,
-        kind: true,
-        name: true,
-        externalId: true,
-        status: true,
-        endpoint: true,
-        serverId: true,
-        credentialId: true,
-      },
-      orderBy: [{ name: 'asc' }, { externalId: 'asc' }],
-    });
-    const sourceSecrets = await this.repo.findSecretKeys({
-      where: {
-        teamId,
-        projectId: dto.projectId,
-        environmentId: source.id,
-        ...(dto.secretKeyIds?.length ? { id: { in: dto.secretKeyIds } } : {}),
-      },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        description: true,
-      },
-      orderBy: [{ name: 'asc' }, { type: 'asc' }],
-    });
-    const targetResourceExternalIds = dto.targetResourceExternalIds || {};
-    const targetResourceNames = dto.targetResourceNames || {};
-    const targetResourceEndpoints = dto.targetResourceEndpoints || {};
-    const targetResourceServerIds = dto.targetResourceServerIds || {};
-    const targetResourceCredentialIds = dto.targetResourceCredentialIds || {};
-    const targetSecretNames = dto.targetSecretNames || {};
-    const targetSecretValues = dto.targetSecretValues || {};
-    const targetSecretDescriptions = dto.targetSecretDescriptions || {};
-    const requestedTargetExternalIds = Object.values(targetResourceExternalIds)
-      .map((value) => value?.trim())
-      .filter(Boolean);
-    const existingResources = requestedTargetExternalIds.length
-      ? await this.repo.findManagedResources({
-        where: { teamId, externalId: { in: requestedTargetExternalIds } },
-        select: { sourceType: true, provider: true, externalId: true },
-      })
-      : [];
-    const existingResourceKeys = new Set(
-      existingResources.map((resource: any) => `${resource.sourceType}:${resource.provider}:${resource.externalId}`),
-    );
-    const existingTargetSecrets = await this.repo.findSecretKeys({
-      where: { teamId, projectId: dto.projectId, environmentId: target.id },
-      select: { name: true },
-    });
-    const existingTargetSecretNames = new Set(existingTargetSecrets.map((secret: any) => secret.name));
-    const steps: EnvironmentResourceCopyStep[] = [];
-
-    for (const resource of sourceResources) {
-      const targetExternalId = targetResourceExternalIds[resource.id]?.trim();
-      const targetName = targetResourceNames[resource.id]?.trim() || `${resource.name} (${target.name})`;
-      const targetEndpoint = targetResourceEndpoints[resource.id]?.trim();
-      const targetServerId = targetResourceServerIds[resource.id]?.trim();
-      const targetCredentialId = targetResourceCredentialIds[resource.id]?.trim();
-      const baseMetadata = {
-        sourceType: resource.sourceType,
-        provider: resource.provider,
-        kind: resource.kind,
-        sourceExternalId: resource.externalId,
-        targetExternalId: targetExternalId || null,
-        hasTargetServer: Boolean(targetServerId),
-        hasTargetCredential: Boolean(targetCredentialId),
-      };
-
-      if (!targetExternalId) {
-        steps.push({
-          type: 'managed_resource',
-          status: 'skipped',
-          sourceId: resource.id,
-          title: `资源 ${resource.name}`,
-          description: '缺少目标 externalId，apply 时不会自动复制该资源索引',
-          metadata: { ...baseMetadata, reason: 'missing_target_external_id' },
-        });
-        continue;
-      }
-
-      const resourceKey = `${resource.sourceType}:${resource.provider}:${targetExternalId}`;
-      if (existingResourceKeys.has(resourceKey)) {
-        steps.push({
-          type: 'managed_resource',
-          status: 'skipped',
-          sourceId: resource.id,
-          title: `资源 ${resource.name}`,
-          description: `团队内已存在同 provider/sourceType 的 externalId ${targetExternalId}`,
-          metadata: { ...baseMetadata, reason: 'target_external_id_exists' },
-        });
-        continue;
-      }
-
-      if (dryRun) {
-        steps.push({
-          type: 'managed_resource',
-          status: 'planned',
-          sourceId: resource.id,
-          title: `复制资源 ${resource.name}`,
-          description: `将以 unknown 状态复制到 ${target.name}，目标 externalId ${targetExternalId}`,
-          metadata: baseMetadata,
-        });
-        existingResourceKeys.add(resourceKey);
-        continue;
-      }
-
-      if (targetServerId) {
-        await this.assertServer(teamId, targetServerId);
-      }
-      if (targetCredentialId) {
-        await this.assertTeamCredential(teamId, targetCredentialId);
-      }
-
-      const created = await this.repo.createManagedResource({
-        data: {
-          teamId,
-          createdById: userId,
-          projectId: dto.projectId,
-          environmentId: target.id,
-          serverId: targetServerId || undefined,
-          credentialId: targetCredentialId || undefined,
-          sourceType: resource.sourceType,
-          provider: resource.provider,
-          kind: resource.kind,
-          name: targetName,
-          externalId: targetExternalId,
-          endpoint: targetEndpoint || undefined,
-          status: 'unknown',
-        },
-        select: { id: true },
-      });
-      existingResourceKeys.add(resourceKey);
-      steps.push({
-        type: 'managed_resource',
-        status: 'applied',
-        sourceId: resource.id,
-        targetId: created.id,
-        title: `复制资源 ${resource.name}`,
-        description: `已创建目标环境资源索引 ${targetExternalId}`,
-        metadata: baseMetadata,
-      });
-    }
-
-    for (const secret of sourceSecrets) {
-      const targetName = targetSecretNames[secret.id]?.trim() || `${secret.name} (${target.name})`;
-      const rawTargetValue = targetSecretValues[secret.id];
-      const targetValue = typeof rawTargetValue === 'string' && rawTargetValue.length > 0
-        ? rawTargetValue
-        : undefined;
-      const targetDescription =
-        targetSecretDescriptions[secret.id] !== undefined
-          ? targetSecretDescriptions[secret.id]
-          : secret.description || undefined;
-      const baseMetadata = {
-        type: secret.type,
-        sourceName: secret.name,
-        targetName,
-        hasTargetValue: Boolean(targetValue),
-      };
-
-      if (!targetValue) {
-        steps.push({
-          type: 'secret_key',
-          status: 'skipped',
-          sourceId: secret.id,
-          title: `密钥 ${secret.name}`,
-          description: '缺少目标密钥值，apply 时不会自动复制该密钥',
-          metadata: { ...baseMetadata, reason: 'missing_target_secret_value' },
-        });
-        continue;
-      }
-      if (existingTargetSecretNames.has(targetName)) {
-        steps.push({
-          type: 'secret_key',
-          status: 'skipped',
-          sourceId: secret.id,
-          title: `密钥 ${secret.name}`,
-          description: `目标环境已存在同名密钥 ${targetName}`,
-          metadata: { ...baseMetadata, reason: 'target_secret_name_exists' },
-        });
-        continue;
-      }
-
-      if (dryRun) {
-        steps.push({
-          type: 'secret_key',
-          status: 'planned',
-          sourceId: secret.id,
-          title: `复制密钥 ${secret.name}`,
-          description: `将以新提供的值复制到 ${target.name}`,
-          metadata: baseMetadata,
-        });
-        existingTargetSecretNames.add(targetName);
-        continue;
-      }
-
-      const created = await this.repo.createSecretKey({
-        data: {
-          teamId,
-          createdById: userId,
-          projectId: dto.projectId,
-          environmentId: target.id,
-          name: targetName,
-          type: secret.type,
-          value: this.encryptSecretValue(targetValue),
-          description: targetDescription,
-        },
-        select: { id: true },
-      });
-      existingTargetSecretNames.add(targetName);
-      steps.push({
-        type: 'secret_key',
-        status: 'applied',
-        sourceId: secret.id,
-        targetId: created.id,
-        title: `复制密钥 ${secret.name}`,
-        description: `已创建目标环境密钥 ${targetName}`,
-        metadata: { ...baseMetadata, hasTargetValue: true },
-      });
-    }
-
-    const result = {
-      projectId: dto.projectId,
-      sourceEnvironment: { id: source.id, key: source.key, name: source.name },
-      targetEnvironment: { id: target.id, key: target.key, name: target.name },
-      dryRun,
-      status: dryRun ? 'planned' : 'completed',
-      plannedCount: steps.filter((step) => step.status === 'planned').length,
-      appliedCount: steps.filter((step) => step.status === 'applied').length,
-      skippedCount: steps.filter((step) => step.status === 'skipped').length,
-      steps,
-      warnings: [
-        '只复制 ManagedResource 和 SecretKey 骨架，不创建或修改真实外部资源。',
-        'ManagedResource 不复制 metadata、config、syncError、lastSyncAt、resourceInstanceId，也不会自动复用源 server/credential。',
-        'SecretKey 不读取源密钥值；非 dry-run 时必须为每个目标密钥显式提供新 value，且审计 metadata 不记录该值。',
-      ],
-    };
-
-    await this.auditEventService?.create(buildResourceCopyAuditInput(teamId, userId, result) as any);
-    return result;
-  }
+  copyResources = (teamId: string, userId: string, dto: CopyProjectEnvironmentResourcesDto) =>
+    this.resourceCopyService.copyResources(teamId, userId, dto);
 
   async listServers(teamId: string, environmentId: string) {
     const environment = await this.get(teamId, environmentId);

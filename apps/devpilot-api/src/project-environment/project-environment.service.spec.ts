@@ -7,6 +7,7 @@ import { ProjectEnvironmentRepository } from './project-environment.repository';
 import { ProjectEnvironmentCopySiteService } from './project-environment-copy-site.service';
 import { ProjectEnvironmentSyncService } from './project-environment-sync.service';
 import { ProjectEnvironmentSyncApplyService } from './project-environment-sync-apply.service';
+import { ProjectEnvironmentResourceCopyService } from './project-environment-resource-copy.service';
 
 type PrismaMock = {
   project: { findFirst: jest.Mock };
@@ -211,12 +212,18 @@ describe('ProjectEnvironmentService sync suggestions', () => {
       syncService,
       auditEventService as never,
     );
+    const resourceCopyService = new ProjectEnvironmentResourceCopyService(
+      repository,
+      secretCrypto as unknown as CryptoService,
+      auditEventService as never,
+    );
     service = new ProjectEnvironmentService(
       prisma as unknown as PrismaService,
       repository,
       copySiteService,
       syncService,
       syncApplyService,
+      resourceCopyService,
       auditEventService as never,
       siteService as never,
       secretCrypto as unknown as CryptoService,

@@ -9,11 +9,12 @@ import { ProjectEnvironmentRepository } from './project-environment.repository';
 import { ProjectEnvironmentCopySiteService } from './project-environment-copy-site.service';
 import { ProjectEnvironmentSyncService } from './project-environment-sync.service';
 import { ProjectEnvironmentSyncApplyService } from './project-environment-sync-apply.service';
+import { ProjectEnvironmentResourceCopyService } from './project-environment-resource-copy.service';
 
 @Module({
   imports: [PrismaModule, AuditEventModule, ControlAccessPolicyModule, SiteModule],
   controllers: [ProjectEnvironmentController],
-  providers: [ProjectEnvironmentService, ProjectEnvironmentRepository, ProjectEnvironmentCopySiteService, ProjectEnvironmentSyncService, ProjectEnvironmentSyncApplyService],
+  providers: [ProjectEnvironmentService, ProjectEnvironmentRepository, ProjectEnvironmentCopySiteService, ProjectEnvironmentSyncService, ProjectEnvironmentSyncApplyService, ProjectEnvironmentResourceCopyService],
   exports: [ProjectEnvironmentService],
 })
 export class ProjectEnvironmentModule {}
