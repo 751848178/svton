@@ -120,7 +120,22 @@ approval, executor, audit — a service extraction is a separate future slice).
 | F277.2 | done   | Extract policy/diff helpers + operation types.                                                           | New `site-operation-policy.utils.ts` (64 lines: 7 policy functions), `site-config-diff.utils.ts` (99 lines: `diffConfigText`/`buildNoConfigDiff`/`buildConfigDiffFromBaseline` pure diff shaping), and 5 operation types moved into `site-plan.types.ts` (107 lines). `site.service.ts` imports them, drops the 9 private pure methods + 5 inline type aliases, and the async `buildConfigDiff` now delegates to `buildConfigDiffFromBaseline`. Host dropped from 1394 to 1217 lines. |
 | F277.3 | done   | Run focused API verification and hygiene checks, then sync final evidence + update maps.                 | Focused site Jest passed (27 tests, 4 suites): `/tmp/codex-tool-runs/svton/f277-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f277-tc1-20260707.log`; all new/updated files ≤200 lines (64/99/107); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved. |
 
-## Site Module Backend Maps (current, post-F277)
+## F278. Site Sync Approval/Audit Builder Extraction
+
+Purpose: continue the site backend split by extracting the pure approval-context,
+blocked-execution, and audit-input builders that `executeSiteSyncOperation` and
+`writeSiteSyncAudit` depend on. Safe pure boundary (~140 lines) that shrinks the
+host and makes the approval/audit shaping unit-testable. The `executeSiteSyncOperation`
+orchestration loop itself stays on the host (it remains the next large coupled
+cluster for a dedicated execution service).
+
+| Task   | Status | Description                                                                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F278.1 | done   | Map the approval/audit builder boundary.                                                                 | Manual graph confirmed `buildSiteApprovalContext`/`buildApprovalBlockedExecution` (private) + the audit-input shaping inside `writeSiteSyncAudit` are pure value shaping; they depend only on the policy label/risk helpers and the plan/config-diff/site inputs. The async I/O (`auditEventService.create`) stays on the host as a thin wrapper. |
+| F278.2 | done   | Extract approval/audit builders into a pure utils file.                                                  | New `site-sync-approval.utils.ts` (171 lines: `buildSiteApprovalContext`/`buildApprovalBlockedExecution`/`buildSiteSyncAuditInput` + a local pure `toJsonValue`). `site.service.ts` imports them, drops the 2 private builder methods, and `writeSiteSyncAudit` now delegates to `buildSiteSyncAuditInput` + `auditEventService.create`. `SiteRecordLike` gained `name`/`projectId`/`environmentId` (structurally compatible with the host Prisma `SiteRecord`). Host dropped from 1217 to 1104 lines; the now-unused `siteOperationRisk` import removed. |
+| F278.3 | done   | Run focused API verification and hygiene checks, then sync final evidence + update maps.                 | Focused site Jest passed (27 tests, 4 suites): `/tmp/codex-tool-runs/svton/f278-jest-20260707.log`; API type-check passed (0 errors): `/tmp/codex-tool-runs/svton/f278-tc3-20260707.log`; new file 171 + updated types 110 (both ≤200); `git diff --check` clean; conflict-marker scan clean; single-quote API convention preserved. |
+
+## Site Module Backend Maps (current, post-F278)
 
 Business logic map: project/environment-scoped Site record → CRUD (list/create/
 update/delete) → sync/probe/diagnostics action plan build → server-executor
@@ -129,10 +144,10 @@ post-sync site/TLS status update → TLS probe/renew scheduling → rollback.
 
 Organization map (backend files → responsibility):
 - `site.controller.ts` (384, over-ceiling) — HTTP routes.
-- `site.service.ts` (1217, over-ceiling) — Site CRUD + sync/diagnostics/
+- `site.service.ts` (1104, over-ceiling) — Site CRUD + sync/diagnostics/
   openresty/smoke/tls action orchestration + `executeSiteSyncOperation` execution
-  + approval + audit + post-sync updates + rollback (plan builders, warnings,
-  policy, diff extracted in F275–F277).
+  + post-sync updates + rollback (plan builders, warnings, policy, diff,
+  approval/audit builders extracted in F275–F278).
 - `site-config-gen.utils.ts` (184) — pure Nginx/access-policy/upstream/certificate
   generators + safety checks (F275).
 - `site-sync-plan.utils.ts` (189) — sync/rollback/diagnostics plan builders +
@@ -141,7 +156,8 @@ Organization map (backend files → responsibility):
 - `site-ops-plan.utils.ts` (187) — smoke/TLS probe/renew plans + collectors (F276).
 - `site-operation-policy.utils.ts` (64) — action→mode/risk/label + approval/confirmation policy (F277).
 - `site-config-diff.utils.ts` (99) — pure nginx-config diff math + no-diff/baseline shaping (F277).
-- `site-plan.types.ts` (107) — shared plan/config/operation types + readers (F275/F277).
+- `site-sync-approval.utils.ts` (171) — pure approval-context/blocked-execution/audit-input builders (F278).
+- `site-plan.types.ts` (110) — shared plan/config/operation types + readers (F275/F277/F278).
 - `site-tls-probe.ts` (282, over-ceiling) + `site-tls-renew.ts` (255, over-ceiling)
   — TLS probe/renew metadata + command builders.
 - `site-tls-probe-scheduler.service.ts` (254) + `site-tls-renew-scheduler.service.ts`
@@ -161,13 +177,14 @@ openresty-module-baseline,smoke-check,tls-probe,tls-renew,rollback,takeover-prev
 
 ## Gaps Identified From The Site Backend Maps (post-F275)
 
-- **`site.service.ts` still 1217 lines** (over ceiling). Plan builders, warnings,
-  operation-policy, and config-diff (the previous largest boundaries) were
-  extracted in F275–F277. Next largest boundary: `executeSiteSyncOperation` (the
-  largest remaining orchestration method) and the post-sync update helpers
-  (`updateSiteAfterSync`/`updateSiteTlsAfterProbe`/`updateSiteAfterNonMutatingOperation`/
-  `updateSiteTlsAfterRenew`/`queueTlsProbeAfterRenewal`), plus the audit/approval-context
-  builders — these form a coupled execution cluster best extracted as a focused service.
+- **`site.service.ts` still 1104 lines** (over ceiling). Plan builders, warnings,
+  operation-policy, config-diff, and approval/audit builders (the previous largest
+  boundaries) were extracted in F275–F278. Next largest boundary:
+  `executeSiteSyncOperation` (the largest remaining orchestration method) and the
+  post-sync update helpers (`updateSiteAfterSync`/`updateSiteTlsAfterProbe`/
+  `updateSiteAfterNonMutatingOperation`/`updateSiteTlsAfterRenew`/
+  `queueTlsProbeAfterRenewal`) — these form a coupled execution cluster best
+  extracted as a focused `SiteSyncExecutionService`.
 - **Over-ceiling TLS files:** `site-tls-probe.ts` (282), `site-tls-renew.ts` (255),
   `site-tls-probe-scheduler.service.ts` (254), `site-tls-renew-scheduler.service.ts`
   (280) — each needs its own config/metadata extraction.
@@ -177,8 +194,8 @@ openresty-module-baseline,smoke-check,tls-probe,tls-renew,rollback,takeover-prev
 ## Next Candidates
 
 - Continue the site backend split: extract `executeSiteSyncOperation` + post-sync
-  update helpers + audit/approval-context builders into a focused `SiteSyncExecutionService`
-  (F278) — the largest remaining coupled cluster.
+  update helpers into a focused `SiteSyncExecutionService` (F279) — the largest
+  remaining coupled cluster.
 - Then the TLS files, then the controller.
 - After site, move to monitoring / log-center / ops-governance backend splits.
 

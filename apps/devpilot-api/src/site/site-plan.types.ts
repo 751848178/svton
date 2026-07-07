@@ -15,6 +15,9 @@ export type JsonRecord = Record<string, unknown>;
 
 export type SiteRecordLike = {
   id: string;
+  name: string;
+  projectId?: string | null;
+  environmentId?: string | null;
   primaryDomain: string;
   serverId?: string | null;
   runtimeType: string;

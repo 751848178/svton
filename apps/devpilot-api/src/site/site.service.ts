@@ -51,12 +51,16 @@ import {
   requiresExecutionConfirmation,
   requiresSiteOperationApproval,
   siteOperationLabel,
-  siteOperationRisk,
 } from './site-operation-policy.utils';
 import {
   buildConfigDiffFromBaseline,
   buildNoConfigDiff,
 } from './site-config-diff.utils';
+import {
+  buildApprovalBlockedExecution,
+  buildSiteApprovalContext,
+  buildSiteSyncAuditInput,
+} from './site-sync-approval.utils';
 import {
   buildCertificateCommand,
   buildCertificateRenewCommand,
@@ -530,7 +534,7 @@ export class SiteService {
     const configDiff = mutatesNginxConfig(options.mode)
       ? await this.buildConfigDiff(teamId, site.id, plan.nginxConfig, options.sourceRunId)
       : buildNoConfigDiff(`${siteOperationLabel(options.action)}不变更 Nginx 配置`);
-    const approvalContext = this.buildSiteApprovalContext(
+    const approvalContext = buildSiteApprovalContext(
       teamId,
       userId,
       site,
@@ -598,7 +602,7 @@ export class SiteService {
           },
           include: this.syncRunInclude(),
         });
-        const blockedExecution = this.buildApprovalBlockedExecution(plan, approval.id);
+        const blockedExecution = buildApprovalBlockedExecution(plan, approval.id);
         await this.writeSiteSyncAudit(
           teamId,
           userId,
@@ -978,126 +982,9 @@ export class SiteService {
     },
     action: SiteOperationAction,
   ) {
-    const label = siteOperationLabel(action);
-    await this.auditEventService.create({
-      teamId,
-      actorId: userId ?? undefined,
-      projectId: site.projectId,
-      environmentId: site.environmentId,
-      serverId: site.serverId,
-      siteId: site.id,
-      siteSyncRunId: syncRun.id,
-      operationApprovalId: syncRun.operationApprovalId,
-      category: 'site_sync',
-      action,
-      targetType: 'site',
-      targetId: site.id,
-      risk: dryRun ? 'low' : siteOperationRisk(action),
-      status: execution.status,
-      summary: `${label} ${site.name} ${execution.status}`,
-      metadata: {
-        dryRun,
-        mode: execution.mode,
-        siteName: site.name,
-        primaryDomain: site.primaryDomain,
-        runtimeType: site.runtimeType,
-        executorKey: execution.executorKey,
-        adapterKey: execution.adapterKey,
-        executable: execution.executable,
-        configPath: plan.target.configPath,
-        siteSyncRunId: syncRun.id,
-        operationApprovalId: syncRun.operationApprovalId,
-        configDiff: syncRun.configDiff,
-        warnings: execution.warnings,
-        error: execution.error,
-      },
-    });
-  }
-
-  private buildApprovalBlockedExecution(
-    plan: SiteSyncExecutionPlan,
-    approvalId: string,
-  ): ServerExecutionResult {
-    const warnings = [...plan.warnings, '非 dry-run 的站点操作需要审批'];
-
-    return {
-      status: 'blocked',
-      mode: 'blocked_live_execution',
-      executorKey: 'server-executor',
-      adapterKey: 'nginx-site-plan',
-      executable: false,
-      warnings,
-      commandSteps: plan.commandPlan,
-      commandPlan: this.toJsonValue({
-        mode: 'blocked_operation_approval',
-        executorKey: 'server-executor',
-        adapterKey: 'nginx-site-plan',
-        approvalId,
-        steps: plan.commandPlan,
-      }),
-      logs: this.toJsonValue([
-        {
-          level: 'warn',
-          message: '非 dry-run 的站点操作需要审批后执行',
-        },
-      ]),
-      result: this.toJsonValue({
-        mode: 'blocked_operation_approval',
-        approvalId,
-        executed: false,
-      }),
-      error: '非 dry-run 的站点操作需要审批',
-    };
-  }
-
-  private buildSiteApprovalContext(
-    teamId: string,
-    userId: string | null,
-    site: SiteRecord,
-    plan: SiteSyncExecutionPlan,
-    options: {
-      action: SiteOperationAction;
-      mode: SiteOperationMode;
-      dryRun: boolean;
-      queue?: boolean;
-      maxAttempts?: number;
-      approvalReason?: string;
-      sourceRunId?: string | null;
-    },
-    configDiff: SiteConfigDiff,
-  ) {
-    const label = siteOperationLabel(options.action);
-
-    return {
-      teamId,
-      requesterId: userId ?? undefined,
-      projectId: site.projectId,
-      environmentId: site.environmentId,
-      serverId: site.serverId,
-      siteId: site.id,
-      category: 'site_sync',
-      action: options.action,
-      targetType: 'site',
-      targetId: site.id,
-      risk: siteOperationRisk(options.action),
-      summary: `申请执行${label} ${site.name}`,
-      reason: options.approvalReason || `申请执行非 dry-run ${label}`,
-      metadata: {
-        siteName: site.name,
-        primaryDomain: site.primaryDomain,
-        runtimeType: site.runtimeType,
-        mode: options.mode,
-        dryRun: options.dryRun,
-        sourceRunId: options.sourceRunId,
-        queue: options.queue === true,
-        maxAttempts: options.maxAttempts,
-        configPath: plan.target.configPath,
-        diffSummary: configDiff.summary,
-        diffAdded: configDiff.added,
-        diffRemoved: configDiff.removed,
-        diffSourceRunId: configDiff.sourceRunId,
-      },
-    };
+    await this.auditEventService?.create(
+      buildSiteSyncAuditInput(teamId, userId, site, execution, dryRun, plan, syncRun, action) as any,
+    );
   }
 
   private syncRunInclude(): Prisma.SiteSyncRunInclude {
