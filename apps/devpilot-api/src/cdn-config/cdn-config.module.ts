@@ -1,4 +1,3 @@
-import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { ControlAccessPolicyModule } from '../control-access-policy';
 import { TeamModule } from '../team/team.module';
@@ -11,7 +10,7 @@ import { QiniuCdnProvider } from './providers/qiniu-cdn-provider';
 import { TencentCdnProvider } from './providers/tencent-cdn-provider';
 
 @Module({
-  imports: [TeamModule, ControlAccessPolicyModule, HttpModule],
+  imports: [TeamModule, ControlAccessPolicyModule],
   controllers: [CDNConfigController, TeamCredentialController],
   providers: [
     CDNConfigService,

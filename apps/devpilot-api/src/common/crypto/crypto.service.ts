@@ -8,6 +8,7 @@ import {
   CRYPTO_ALGORITHM_CBC,
   CRYPTO_ALGORITHM_GCM,
   deriveCbcKey,
+  deriveCbcKeyLegacy,
   deriveGcmKey,
   deriveWebhookKey,
   GCM_DEFAULT_KEY,
@@ -28,12 +29,14 @@ import {
 @Injectable()
 export class CryptoService {
   private readonly cbcKey: Buffer;
+  private readonly cbcLegacyKey: Buffer;
   private readonly gcmKey: Buffer;
   private readonly webhookKey: Buffer;
 
   constructor(configService: ConfigService) {
     const encryptionKey = configService.get<string>('ENCRYPTION_KEY');
     this.cbcKey = deriveCbcKey(encryptionKey ?? CBC_DEFAULT_KEY);
+    this.cbcLegacyKey = deriveCbcKeyLegacy(encryptionKey ?? CBC_DEFAULT_KEY);
     this.gcmKey = deriveGcmKey(encryptionKey ?? GCM_DEFAULT_KEY);
     this.webhookKey = deriveWebhookKey(encryptionKey ?? GCM_DEFAULT_KEY);
   }
@@ -73,14 +76,28 @@ export class CryptoService {
     return `${iv.toString('hex')}:${encrypted}`;
   }
 
-  /** 解密 {@link encryptCbc} 的输出。 */
+  /**
+   * 解密 {@link encryptCbc} 的输出（兼容历史 legacy key）。
+   *
+   * KDF 改造前用 `deriveCbcKeyLegacy`（padEnd 截断），改造后用 `deriveCbcKey`（scrypt）。
+   * 先用新 key 解密，`final()` 失败（CBC padding 错误，意味着 key 不匹配）时回退到 legacy key。
+   * 格式错误（split 后缺段）直接抛错，不回退。
+   */
   decryptCbc(encryptedText: string): string {
     const [ivHex, encrypted] = encryptedText.split(':');
     if (!ivHex || !encrypted) {
       throw new Error('invalid encrypted credential format');
     }
     const iv = Buffer.from(ivHex, 'hex');
-    const decipher = crypto.createDecipheriv(CRYPTO_ALGORITHM_CBC, this.cbcKey, iv);
+    try {
+      return this.decryptCbcWithKey(iv, encrypted, this.cbcKey);
+    } catch {
+      return this.decryptCbcWithKey(iv, encrypted, this.cbcLegacyKey);
+    }
+  }
+
+  private decryptCbcWithKey(iv: Buffer, encrypted: string, key: Buffer): string {
+    const decipher = crypto.createDecipheriv(CRYPTO_ALGORITHM_CBC, key, iv);
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;

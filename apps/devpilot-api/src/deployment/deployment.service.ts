@@ -12,17 +12,18 @@ import {
   RetryDeploymentRunDto,
   SmokeDeploymentRunDto,
 } from './dto/deployment.dto';
+import {
+  buildCommandSteps,
+  buildRollbackCommandSteps,
+  buildSmokeCheckCommandSteps,
+  collectWarnings,
+  collectRollbackWarnings,
+  safeGitCommitSha,
+  safePositiveInt,
+  type DeploymentConfig,
+} from './deployment-command-builders.utils';
 
 type ProjectConfigRecord = Record<string, unknown>;
-
-type DeploymentConfig = {
-  targetType: string;
-  workingDirectory?: string;
-  buildCommand?: string;
-  deployCommand?: string;
-  rollbackCommand?: string;
-  healthCheckUrl?: string;
-};
 
 type SmokeFailureAutoRollbackPolicy = {
   enabled: boolean;
@@ -260,12 +261,12 @@ export class DeploymentService {
     );
     const environment = dto.environment || environmentRef?.key || this.readDefaultEnvironment(config);
     const dryRun = dto.dryRun !== false;
-    const warnings = this.collectWarnings(deployment, gitRepo, branch);
+    const warnings = collectWarnings(deployment, gitRepo, branch);
     const serverId = dto.serverId || applicationServiceRef?.serverId || undefined;
     const target = await this.serverExecutor.resolveTarget(teamId, serverId);
     const applicationId = applicationServiceRef?.applicationId || applicationRef?.id;
     const queue = dto.queue === true;
-    const steps = this.buildCommandSteps(deployment, gitRepo, branch);
+    const steps = buildCommandSteps(deployment, gitRepo, branch);
     const requiresApproval = this.requiresDeploymentOperationApproval(dryRun);
     const approvalContext = this.buildDeploymentApprovalContext({
       teamId,
@@ -587,8 +588,8 @@ export class DeploymentService {
     const serverId = sourceRun.serverId || sourceRun.applicationService?.serverId || undefined;
     const target = await this.serverExecutor.resolveTarget(teamId, serverId);
     const applicationId = sourceRun.applicationService?.applicationId || sourceRun.applicationId || sourceRun.application?.id;
-    const warnings = this.collectRollbackWarnings(deployment, gitRepo, sourceRun.commitSha);
-    const steps = this.buildRollbackCommandSteps(deployment, gitRepo, sourceRun.commitSha);
+    const warnings = collectRollbackWarnings(deployment, gitRepo, sourceRun.commitSha);
+    const steps = buildRollbackCommandSteps(deployment, gitRepo, sourceRun.commitSha);
     const requiresApproval = this.requiresDeploymentOperationApproval(dryRun);
     const approvalContext = this.buildDeploymentApprovalContext({
       teamId,
@@ -1053,7 +1054,7 @@ export class DeploymentService {
         dryRun: false,
       },
       orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
-      take: this.safePositiveInt(input.limit, 20, 100),
+      take: safePositiveInt(input.limit, 20, 100),
       select: {
         id: true,
         teamId: true,
@@ -1120,7 +1121,7 @@ export class DeploymentService {
         dryRun: false,
       },
       orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
-      take: this.safePositiveInt(input.limit, 20, 100),
+      take: safePositiveInt(input.limit, 20, 100),
       select: {
         id: true,
         teamId: true,
@@ -1315,7 +1316,7 @@ export class DeploymentService {
     const dryRun = dto.dryRun !== false;
     const queue = dto.queue === true;
     const target = await this.serverExecutor.resolveTarget(teamId, sourceRun.serverId);
-    const steps = this.buildSmokeCheckCommandSteps(healthCheckUrl);
+    const steps = buildSmokeCheckCommandSteps(healthCheckUrl);
     const autoRollbackPolicy = this.buildSmokeFailureAutoRollbackPolicy(dto);
     const run = await this.prisma.deploymentRun.create({
       data: {
@@ -1644,7 +1645,7 @@ export class DeploymentService {
       enabled: true,
       dryRun: dto.autoRollbackDryRun !== false,
       queue: dto.autoRollbackQueue !== false,
-      maxAttempts: this.safePositiveInt(dto.autoRollbackMaxAttempts, 1, 10),
+      maxAttempts: safePositiveInt(dto.autoRollbackMaxAttempts, 1, 10),
     };
 
     const approvalId = readString(dto.autoRollbackApprovalId)?.trim();
@@ -1661,7 +1662,7 @@ export class DeploymentService {
       enabled: raw.enabled === true,
       dryRun: raw.dryRun !== false,
       queue: raw.queue !== false,
-      maxAttempts: this.safePositiveInt(raw.maxAttempts, 1, 10),
+      maxAttempts: safePositiveInt(raw.maxAttempts, 1, 10),
     };
 
     const approvalId = readString(raw.approvalId)?.trim();
@@ -1795,7 +1796,7 @@ export class DeploymentService {
       enabled: true,
       dryRun: dto.postRollbackSmokeDryRun !== false,
       queue: dto.postRollbackSmokeQueue !== false,
-      maxAttempts: this.safePositiveInt(dto.postRollbackSmokeMaxAttempts, 1, 10),
+      maxAttempts: safePositiveInt(dto.postRollbackSmokeMaxAttempts, 1, 10),
       ...(healthCheckUrl ? { healthCheckUrl } : {}),
     };
   }
@@ -1809,7 +1810,7 @@ export class DeploymentService {
       enabled: raw.enabled === true,
       dryRun: raw.dryRun !== false,
       queue: raw.queue !== false,
-      maxAttempts: this.safePositiveInt(raw.maxAttempts, 1, 10),
+      maxAttempts: safePositiveInt(raw.maxAttempts, 1, 10),
       ...(healthCheckUrl ? { healthCheckUrl } : {}),
     };
   }
@@ -2077,192 +2078,6 @@ export class DeploymentService {
 
   private readDefaultEnvironment(config: ProjectConfigRecord) {
     return readStringArray(config.environments)[0];
-  }
-
-  private buildCommandSteps(
-    deployment: DeploymentConfig,
-    gitRepo?: string,
-    branch?: string,
-  ): ServerCommandStep[] {
-    return [
-      {
-        key: 'checkout',
-        label: '拉取代码',
-        command: gitRepo
-          ? `git fetch --all --prune && git checkout ${branch || 'main'} && git pull`
-          : '',
-        cwd: deployment.workingDirectory || '',
-        required: Boolean(gitRepo),
-        risk: 'low',
-        timeoutSeconds: 120,
-      },
-      {
-        key: 'build',
-        label: '构建',
-        command: deployment.buildCommand || '',
-        cwd: deployment.workingDirectory || '',
-        required: Boolean(deployment.buildCommand),
-        risk: 'medium',
-        timeoutSeconds: 600,
-      },
-      {
-        key: 'deploy',
-        label: '部署',
-        command: deployment.deployCommand || '',
-        cwd: deployment.workingDirectory || '',
-        required: true,
-        risk: 'medium',
-        timeoutSeconds: 600,
-      },
-      {
-        key: 'health_check',
-        label: '健康检查',
-        command: deployment.healthCheckUrl
-          ? `curl -fsS ${deployment.healthCheckUrl}`
-          : '',
-        cwd: '',
-        required: Boolean(deployment.healthCheckUrl),
-        risk: 'low',
-        timeoutSeconds: 30,
-      },
-    ];
-  }
-
-  private buildRollbackCommandSteps(
-    deployment: DeploymentConfig,
-    gitRepo?: string,
-    commitSha?: string | null,
-  ): ServerCommandStep[] {
-    const safeCommitSha = this.safeGitCommitSha(commitSha);
-    const deployCommand = deployment.rollbackCommand || deployment.deployCommand || '';
-
-    return [
-      {
-        key: 'checkout_rollback',
-        label: '切换到回滚版本',
-        command: gitRepo && safeCommitSha
-          ? `git fetch --all --prune && git checkout ${safeCommitSha}`
-          : '',
-        cwd: deployment.workingDirectory || '',
-        required: Boolean(gitRepo && safeCommitSha),
-        risk: 'low',
-        timeoutSeconds: 120,
-      },
-      {
-        key: 'build_rollback',
-        label: '构建回滚版本',
-        command: deployment.buildCommand || '',
-        cwd: deployment.workingDirectory || '',
-        required: Boolean(deployment.buildCommand),
-        risk: 'medium',
-        timeoutSeconds: 600,
-      },
-      {
-        key: 'deploy_rollback',
-        label: deployment.rollbackCommand ? '执行回滚命令' : '重新部署回滚版本',
-        command: deployCommand,
-        cwd: deployment.workingDirectory || '',
-        required: true,
-        risk: 'high',
-        timeoutSeconds: 600,
-      },
-      {
-        key: 'health_check',
-        label: '回滚后健康检查',
-        command: deployment.healthCheckUrl
-          ? `curl -fsS ${deployment.healthCheckUrl}`
-          : '',
-        cwd: '',
-        required: Boolean(deployment.healthCheckUrl),
-        risk: 'low',
-        timeoutSeconds: 30,
-      },
-    ];
-  }
-
-  private buildSmokeCheckCommandSteps(healthCheckUrl: string): ServerCommandStep[] {
-    return [
-      {
-        key: 'deployment_smoke_check',
-        label: '部署 Smoke 检查',
-        command: `curl -fsS ${healthCheckUrl}`,
-        cwd: '',
-        required: true,
-        risk: 'low',
-        timeoutSeconds: 30,
-      },
-    ];
-  }
-
-  private collectWarnings(
-    deployment: DeploymentConfig,
-    gitRepo?: string,
-    branch?: string,
-  ) {
-    const warnings: string[] = [];
-
-    if (!gitRepo) {
-      warnings.push('未配置 Git 仓库，无法生成代码拉取步骤');
-    }
-    if (gitRepo && !branch) {
-      warnings.push('未配置默认分支，将使用 main');
-    }
-    if (!deployment.workingDirectory) {
-      warnings.push('未配置工作目录');
-    }
-    if (!deployment.deployCommand) {
-      warnings.push('未配置部署命令');
-    }
-    if (!deployment.healthCheckUrl) {
-      warnings.push('未配置健康检查地址');
-    }
-
-    return warnings;
-  }
-
-  private collectRollbackWarnings(
-    deployment: DeploymentConfig,
-    gitRepo?: string,
-    commitSha?: string | null,
-  ) {
-    const warnings: string[] = [];
-
-    if (!gitRepo) {
-      warnings.push('未配置 Git 仓库，无法生成回滚代码 checkout 步骤。');
-    }
-    if (!commitSha) {
-      warnings.push('回滚源部署运行没有记录 commitSha，无法生成精确 checkout 步骤。');
-    } else if (!this.safeGitCommitSha(commitSha)) {
-      warnings.push('回滚源部署运行的 commitSha 格式不安全，已阻止 checkout 步骤。');
-    }
-    if (!deployment.workingDirectory) {
-      warnings.push('未配置工作目录');
-    }
-    if (!deployment.rollbackCommand && !deployment.deployCommand) {
-      warnings.push('未配置 rollbackCommand 或 deployCommand，无法生成回滚部署步骤。');
-    }
-    if (!deployment.healthCheckUrl) {
-      warnings.push('未配置健康检查地址');
-    }
-
-    return warnings;
-  }
-
-  private safeGitCommitSha(value?: string | null) {
-    if (!value) {
-      return undefined;
-    }
-
-    const trimmed = value.trim();
-    return /^[a-fA-F0-9]{7,64}$/.test(trimmed) ? trimmed : undefined;
-  }
-
-  private safePositiveInt(value: unknown, fallback: number, max: number) {
-    const numberValue = typeof value === 'number' ? value : Number(value);
-    if (!Number.isFinite(numberValue)) {
-      return fallback;
-    }
-    return Math.max(1, Math.min(Math.floor(numberValue), max));
   }
 
   private readHealthCheckUrl(value?: string | null) {

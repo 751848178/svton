@@ -1,36 +1,44 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Cloudflare } from 'cloudflare';
 import { CdnRefreshProvider, CdnRefreshCredentials } from './cdn-refresh-provider';
 
 /**
- * Cloudflare CDN 刷新。
+ * Cloudflare CDN 刷新（基于官方 SDK `cloudflare`）。
  *
- * 通过 Cloudflare REST API（`/zones/{zoneId}/purge_cache`）调用。
+ * SDK 提供 bearer token 鉴权、重试、结构化错误（RateLimitError 等），
+ * 取代原本手搓的 fetch + 手动 header 拼装。
+ *
  * 凭据结构：`{ apiToken, zoneId }`。
  * 按 URL 精确刷新；不传 urls 时整站刷新（purge_everything）。
  */
+type CloudflareClientLike = {
+  cache: {
+    purge(params: {
+      zone_id: string;
+      files?: string[];
+      purge_everything?: boolean;
+    }): Promise<{ id?: string }>;
+  };
+};
+
 @Injectable()
 export class CloudflareCdnProvider implements CdnRefreshProvider {
   readonly provider = 'cloudflare';
   private readonly logger = new Logger(CloudflareCdnProvider.name);
-  private readonly baseUrl = 'https://api.cloudflare.com/client/v4';
-
-  constructor(private readonly httpService: HttpService) {}
 
   async purge(credentials: CdnRefreshCredentials, urls: string[], _isDirectory: boolean) {
     const { apiToken, zoneId } = this.extractCreds(credentials.raw);
-    const body = urls.length > 0 ? { files: urls } : { purge_everything: true };
-    const { data } = await firstValueFrom(
-      this.httpService.post(`${this.baseUrl}/zones/${zoneId}/purge_cache`, body, {
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-      }),
-    );
+
+    const client = new Cloudflare({ apiToken }) as unknown as CloudflareClientLike;
+    const purgeParams =
+      urls.length > 0
+        ? { zone_id: zoneId, files: urls }
+        : { zone_id: zoneId, purge_everything: true };
+
+    const result = await client.cache.purge(purgeParams);
+    const requestId = result?.id ? String(result.id) : undefined;
     this.logger.log(`Cloudflare purge submitted: zone=${zoneId}, urls=${urls.length}`);
-    return { requestId: data?.result?.id ? String(data.result.id) : undefined };
+    return { requestId };
   }
 
   private extractCreds(raw: Record<string, unknown>) {

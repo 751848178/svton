@@ -16,9 +16,9 @@ describe('CdnRefreshProviderFactory routing', () => {
   // 用真实 provider 实例（它们的 provider 字段是静态 readonly，无需依赖网络）
   const factory = new CdnRefreshProviderFactory(
     new AliyunCdnProvider(),
-    new TencentCdnProvider({} as never),
+    new TencentCdnProvider(),
     new QiniuCdnProvider(),
-    new CloudflareCdnProvider({} as never),
+    new CloudflareCdnProvider(),
   );
 
   it('resolves each provider enum to its implementation', () => {
@@ -60,7 +60,7 @@ describe('AliyunCdnProvider credential validation', () => {
 });
 
 describe('CloudflareCdnProvider credential validation', () => {
-  const provider = new CloudflareCdnProvider({} as never);
+  const provider = new CloudflareCdnProvider();
 
   it('throws when credentials missing apiToken/zoneId', async () => {
     await expect(
@@ -70,7 +70,7 @@ describe('CloudflareCdnProvider credential validation', () => {
 });
 
 describe('TencentCdnProvider credential validation', () => {
-  const provider = new TencentCdnProvider({} as never);
+  const provider = new TencentCdnProvider();
 
   it('throws when credentials missing secretId/secretKey', async () => {
     await expect(

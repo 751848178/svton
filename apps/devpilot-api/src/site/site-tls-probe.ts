@@ -4,6 +4,7 @@ import {
   isRecord,
   parseOpenSslCertificateText,
   parseOpenSslDate,
+  parseX509FromPem,
   readNumber,
   readString,
 } from './site-tls-openssl-parser.utils';
@@ -49,6 +50,8 @@ export type SiteTlsCertificateAssetSnapshot = {
 };
 
 export function buildSiteTlsProbeCommand(host: string, port = 443) {
+  // 键值对文本输出（紧凑、抗 8000 字符截断）。解析端在文本中检测到 PEM 段时优先用
+  // X509Certificate 结构化解析，否则回退到文本解析。
   return `echo | openssl s_client -servername ${host} -connect ${host}:${port} 2>/dev/null | openssl x509 -noout -subject -issuer -serial -dates -fingerprint -sha256`;
 }
 
@@ -63,7 +66,10 @@ export function extractSiteTlsProbeMetadata(input: {
   const textChunks: string[] = [];
   collectText(input.result, textChunks);
   collectText(input.logs, textChunks);
-  const parsed = parseOpenSslCertificateText(textChunks.join('\n'));
+  const fullText = textChunks.join('\n');
+
+  // 优先用 X509Certificate 解析 PEM（结构化、不依赖 locale）；PEM 缺失/截断时回退文本解析
+  const parsed = parseX509FromPem(fullText) ?? parseOpenSslCertificateText(fullText);
   const notAfter = parseOpenSslDate(parsed.notAfter);
 
   if (!notAfter) {

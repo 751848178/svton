@@ -1,50 +1,57 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
 import { CdnRefreshProvider, CdnRefreshCredentials } from './cdn-refresh-provider';
 
 /**
- * 腾讯云 CDN 刷新。
+ * 腾讯云 CDN 刷新（基于官方 SDK `tencentcloud-sdk-nodejs-cdn`）。
  *
- * 通过腾讯云 CDN REST API（`PurgeUrlsCache` / `PurgePathCache`）调用。
+ * SDK 内部完成 TC3-HMAC-SHA256 签名，不再手搓（历史实现曾在 header 里留空 Signature
+ * 并把 secretKey 明文放进 X-TC-Secret-Key —— 安全 + 功能双重缺陷）。
+ *
  * 凭据结构：`{ secretId, secretKey }`。
- * SDK `tencentcloud-sdk-nodejs-cdn` 的 TS 类型导出不完整，故走 REST（仍是官方 API）。
  */
+// SDK 的 TS 类型随版本不全，且作为 devdep 时类型声明可能缺失，统一走 any。
+type TencentCdnClient = {
+  PurgeUrlsCache(req: { Urls: string[] }): Promise<{ RequestId?: string }>;
+  PurgePathCache(req: { Paths: string[] }): Promise<{ RequestId?: string }>;
+};
+
+type TencentCdnClientCtor = new (config: {
+  credential: { secretId: string; secretKey: string };
+  region: string;
+  profile?: { httpProfile?: { endpoint?: string } };
+}) => TencentCdnClient;
+
+// 动态加载避免 SDK 类型缺失导致编译失败；保留可测试性（测试 mock 此模块）。
+function loadTencentCdnClient(): TencentCdnClientCtor {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const sdk = require('tencentcloud-sdk-nodejs-cdn');
+  return sdk.cdn.v20180606.Client as TencentCdnClientCtor;
+}
+
 @Injectable()
 export class TencentCdnProvider implements CdnRefreshProvider {
   readonly provider = 'tencent';
   private readonly logger = new Logger(TencentCdnProvider.name);
 
-  constructor(private readonly httpService: HttpService) {}
-
   async purge(credentials: CdnRefreshCredentials, urls: string[], isDirectory: boolean) {
     const { secretId, secretKey } = this.extractCreds(credentials.raw);
-    const action = isDirectory ? 'PurgePathCache' : 'PurgeUrlsCache';
-    const body = isDirectory ? { Paths: urls } : { Urls: urls };
 
-    // 腾讯云 API 需 TC3-HMAC-SHA256 签名；这里通过云 API 网关的简单调用，
-    // 实际生产建议用 tencentcloud-sdk-nodejs 的签名器（此处聚焦接口契约）。
-    const { data } = await firstValueFrom(
-      this.httpService.post(
-        `https://cdn.tencentcloudapi.com`,
-        { Action: action, Version: '2018-06-06', ...body },
-        {
-          headers: this.buildTencentHeaders(secretId, secretKey, action),
-        },
-      ),
+    const Client = loadTencentCdnClient();
+    const client = new Client({
+      credential: { secretId, secretKey },
+      region: 'ap-guangzhou',
+      profile: { httpProfile: { endpoint: 'cdn.tencentcloudapi.com' } },
+    });
+
+    const response = isDirectory
+      ? await client.PurgePathCache({ Paths: urls })
+      : await client.PurgeUrlsCache({ Urls: urls });
+
+    const requestId = response?.RequestId ? String(response.RequestId) : undefined;
+    this.logger.log(
+      `Tencent CDN purge submitted: ${isDirectory ? 'PurgePathCache' : 'PurgeUrlsCache'}, urls=${urls.length}`,
     );
-    this.logger.log(`Tencent CDN purge submitted: ${action}, urls=${urls.length}`);
-    return { requestId: data?.RequestId ? String(data.RequestId) : undefined };
-  }
-
-  private buildTencentHeaders(secretId: string, secretKey: string, action: string) {
-    return {
-      'Content-Type': 'application/json',
-      'X-TC-Action': action,
-      'X-TC-Version': '2018-06-06',
-      Authorization: `TC3-HMAC-SHA256 Credential=${secretId}/cdn/tc3_request, SignedHeaders=, Signature=`,
-      'X-TC-Secret-Key': secretKey,
-    };
+    return { requestId };
   }
 
   private extractCreds(raw: Record<string, unknown>) {
