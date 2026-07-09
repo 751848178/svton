@@ -995,6 +995,7 @@ describe('WebSearchExecutor', () => {
     expect(result.isError).toBeUndefined();
     expect(globalThis.fetch).toHaveBeenCalledWith(
       'https://search.api/search?q=test%20query',
+      expect.objectContaining({ method: 'GET' }),
     );
   });
 
@@ -1167,7 +1168,7 @@ describe('WebSearchExecutor', () => {
     const executor = new WebSearchExecutor('https://searxng/search');
     await executor.execute(makeToolCall('web_search', { query: 'q' }), makeContext());
 
-    expect(globalThis.fetch).toHaveBeenCalledWith('https://searxng/search?q=q');
+    expect(globalThis.fetch).toHaveBeenCalledWith('https://searxng/search?q=q', expect.objectContaining({ method: 'GET' }));
   });
 });
 

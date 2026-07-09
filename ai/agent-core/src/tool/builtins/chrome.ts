@@ -85,6 +85,15 @@ function getCdpClient(port?: number): CDPClient {
   return cdpClient;
 }
 
+/**
+ * Test-only hook: inject a mock CDP client (or null to reset). Production
+ * code never calls this. Tests use it to verify executors issue the correct
+ * CDP methods and format results — without a real Chrome / WebSocket.
+ */
+export function __setCdpClientForTesting(client: { send: (m: string, p?: Record<string, unknown>) => Promise<any> } | null): void {
+  cdpClient = client as CDPClient | null;
+}
+
 // ── Chrome Navigate ─────────────────────────────────────────
 
 export const chromeNavigateDef: ToolDefinition = {

@@ -1,5 +1,31 @@
 import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import type { IHttpClient, IHttpResponse } from '@svton/agent-platform';
+
+/** Resolve an HTTP client: prefer the platform-injected one, fall back to fetch. */
+function resolveHttp(ctx: ToolContext): IHttpClient {
+  return ctx.platform.http ?? globalFetchClient;
+}
+
+/** Minimal IHttpClient backed by global fetch (used when platform has no http). */
+const globalFetchClient: IHttpClient = {
+  async request(url: string, opts?: { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; timeoutMs?: number }) {
+    const res = await fetch(url, {
+      method: opts?.method ?? 'GET',
+      headers: opts?.headers,
+      body: opts?.body,
+      signal: opts?.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
+    });
+    return {
+      ok: res.ok,
+      status: res.status,
+      statusText: res.statusText,
+      text: () => res.text(),
+      json: () => res.json(),
+      header: (name: string) => res.headers.get(name),
+    } satisfies IHttpResponse;
+  },
+};
 
 // ============================================================
 // web_search
@@ -93,7 +119,7 @@ export class WebSearchExecutor implements IToolExecutor {
     }
   }
 
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     const { query } = call.arguments as { query?: string };
 
     if (!query || typeof query !== 'string') {
@@ -108,10 +134,11 @@ export class WebSearchExecutor implements IToolExecutor {
       };
     }
 
+    const http = resolveHttp(ctx);
     try {
       const { response, data } = this.config.provider === 'tavily'
-        ? await this.searchTavily(query)
-        : await this.searchCustom(query);
+        ? await this.searchTavily(query, http)
+        : await this.searchCustom(query, http);
 
       if (!response.ok) {
         throw new Error(`Search API returned ${response.status}`);
@@ -135,11 +162,11 @@ export class WebSearchExecutor implements IToolExecutor {
   }
 
   /** Tavily: POST /search with Bearer auth. */
-  private async searchTavily(query: string): Promise<{ response: Response; data: any }> {
+  private async searchTavily(query: string, http: IHttpClient): Promise<{ response: IHttpResponse; data: any }> {
     const apiKey = this.config?.apiKey;
     if (!apiKey) throw new Error('Tavily API key is not configured');
 
-    const response = await fetch(TAVILY_ENDPOINT, {
+    const response = await http.request(TAVILY_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -162,12 +189,17 @@ export class WebSearchExecutor implements IToolExecutor {
   }
 
   /** Custom endpoint (SearXNG): GET ?q=. */
-  private async searchCustom(query: string): Promise<{ response: Response; data: any }> {
+  private async searchCustom(query: string, http: IHttpClient): Promise<{ response: IHttpResponse; data: any }> {
     const endpoint = this.config?.endpoint;
     if (!endpoint) throw new Error('Custom search endpoint is not configured');
 
-    const response = await fetch(`${endpoint}?q=${encodeURIComponent(query)}`);
-    const data = response.ok ? await response.json() : null;
+    const response = await http.request(`${endpoint}?q=${encodeURIComponent(query)}`);
+    let data: any = null;
+    try {
+      data = response.ok ? await response.json() : null;
+    } catch {
+      data = null;
+    }
     return { response, data };
   }
 }
@@ -223,17 +255,16 @@ export const webFetchDef: ToolDefinition = {
 };
 
 export class WebFetchExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     const { url } = call.arguments as { url?: string; format?: string };
 
     if (!url || typeof url !== 'string') {
       return { callId: call.id, output: 'Error: "url" is required and must be a string.', isError: true };
     }
 
+    const http = resolveHttp(ctx);
     try {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(30000),
-      });
+      const response = await http.request(url, { timeoutMs: 30000 });
 
       if (!response.ok) {
         return {
@@ -243,13 +274,13 @@ export class WebFetchExecutor implements IToolExecutor {
         };
       }
 
-      const contentType = response.headers.get('content-type') || '';
+      const contentType = response.header('content-type') || '';
       let output: string;
 
       if (contentType.includes('text/') || contentType.includes('json') || contentType.includes('xml')) {
         output = await response.text();
       } else {
-        output = `Binary content (${contentType}), ${response.headers.get('content-length') || 'unknown'} bytes`;
+        output = `Binary content (${contentType}), ${response.header('content-length') || 'unknown'} bytes`;
       }
 
       // Truncate very large responses

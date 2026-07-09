@@ -515,7 +515,12 @@ export class AgentRuntime implements IRuntime {
         const toolDefs = client.toToolDefinitions(mcpTools);
 
         for (const def of toolDefs) {
-          const parts = def.name.split('__');
+          // Codex-standard namespacing: mcp__<server>__<tool>
+          // The MCP client already returns names as <server>__<tool>; add the
+          // mcp__ prefix so MCP tools are structurally distinguishable from
+          // built-in tools (matching the convention used by Codex).
+          const namespacedName = def.name.startsWith('mcp__') ? def.name : `mcp__${def.name}`;
+          const parts = namespacedName.split('__');
           const originalName = parts[parts.length - 1];
 
           // Apply per-server tool filtering
@@ -535,7 +540,8 @@ export class AgentRuntime implements IRuntime {
           }
 
           const executor = client.createToolExecutor(originalName);
-          this.toolRegistry.register(def, executor);
+          // Register with the Codex-standard mcp__ prefixed name.
+          this.toolRegistry.register({ ...def, name: namespacedName }, executor);
 
           // Add permission rule based on server approval mode
           if (serverConfig?.approvalMode === 'auto' && this.permissionManager) {

@@ -7,6 +7,24 @@
 
 import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 
+/**
+ * Resolve the Computer Use backend: prefer the platform-injected
+ * `computerUse.invoke` (testable, set by TauriPlatform); fall back to a direct
+ * `@tauri-apps/api/core` dynamic import for environments where the platform
+ * doesn't wire it (legacy / non-desktop-registered tools).
+ */
+async function computerInvoke<T = unknown>(
+  ctx: ToolContext,
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  if (ctx.platform.computerUse) {
+    return ctx.platform.computerUse.invoke<T>(command, args);
+  }
+  const api = await import('@tauri-apps/api/core' as string);
+  return (api as any).invoke(command, args);
+}
+
 // ── Screenshot ──────────────────────────────────────────────
 
 export const screenshotDef: ToolDefinition = {
@@ -29,12 +47,10 @@ export const screenshotDef: ToolDefinition = {
 };
 
 export class ScreenshotExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const displayIndex = (call.arguments as any).display ?? 0;
-      const base64 = await invoke('screenshot_display', { displayIndex });
+      const base64 = await computerInvoke<string>(ctx, 'screenshot_display', { displayIndex });
       return {
         callId: call.id,
         output: JSON.stringify({
@@ -79,12 +95,10 @@ export const mouseClickDef: ToolDefinition = {
 };
 
 export class MouseClickExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const { x, y, button } = call.arguments as any;
-      await invoke('mouse_click', { x, y, button: button || 'left' });
+      await computerInvoke(ctx, 'mouse_click', { x, y, button: button || 'left' });
       return { callId: call.id, output: `Clicked ${button || 'left'} at (${x}, ${y})` };
     } catch (err: any) {
       return { callId: call.id, output: `Mouse click failed: ${err.message || err}`, isError: true };
@@ -118,12 +132,10 @@ export const mouseDoubleClickDef: ToolDefinition = {
 };
 
 export class MouseDoubleClickExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const { x, y, button } = call.arguments as any;
-      await invoke('mouse_double_click', { x, y, button: button || 'left' });
+      await computerInvoke(ctx, 'mouse_double_click', { x, y, button: button || 'left' });
       return { callId: call.id, output: `Double-clicked ${button || 'left'} at (${x}, ${y})` };
     } catch (err: any) {
       return { callId: call.id, output: `Double click failed: ${err.message || err}`, isError: true };
@@ -151,12 +163,10 @@ export const mouseMoveDef: ToolDefinition = {
 };
 
 export class MouseMoveExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const { x, y } = call.arguments as any;
-      await invoke('mouse_move', { x, y });
+      await computerInvoke(ctx, 'mouse_move', { x, y });
       return { callId: call.id, output: `Moved mouse to (${x}, ${y})` };
     } catch (err: any) {
       return { callId: call.id, output: `Mouse move failed: ${err.message || err}`, isError: true };
@@ -189,12 +199,10 @@ export const mouseDownDef: ToolDefinition = {
 };
 
 export class MouseDownExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const { x, y, button } = call.arguments as any;
-      await invoke('mouse_down', { x, y, button: button || 'left' });
+      await computerInvoke(ctx, 'mouse_down', { x, y, button: button || 'left' });
       return { callId: call.id, output: `Pressed ${button || 'left'} at (${x}, ${y})` };
     } catch (err: any) {
       return { callId: call.id, output: `Mouse down failed: ${err.message || err}`, isError: true };
@@ -227,12 +235,10 @@ export const mouseUpDef: ToolDefinition = {
 };
 
 export class MouseUpExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const { x, y, button } = call.arguments as any;
-      await invoke('mouse_up', { x, y, button: button || 'left' });
+      await computerInvoke(ctx, 'mouse_up', { x, y, button: button || 'left' });
       return { callId: call.id, output: `Released ${button || 'left'} at (${x}, ${y})` };
     } catch (err: any) {
       return { callId: call.id, output: `Mouse up failed: ${err.message || err}`, isError: true };
@@ -267,12 +273,10 @@ export const mouseDragDef: ToolDefinition = {
 };
 
 export class MouseDragExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const { start_x, start_y, end_x, end_y, button } = call.arguments as any;
-      await invoke('mouse_drag', { startX: start_x, startY: start_y, endX: end_x, endY: end_y, button: button || 'left' });
+      await computerInvoke(ctx, 'mouse_drag', { startX: start_x, startY: start_y, endX: end_x, endY: end_y, button: button || 'left' });
       return { callId: call.id, output: `Dragged from (${start_x}, ${start_y}) to (${end_x}, ${end_y})` };
     } catch (err: any) {
       return { callId: call.id, output: `Mouse drag failed: ${err.message || err}`, isError: true };
@@ -309,12 +313,10 @@ export const scrollDef: ToolDefinition = {
 };
 
 export class ScrollExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const { x, y, direction, amount } = call.arguments as any;
-      await invoke('scroll', { x, y, direction, amount: amount ?? 3 });
+      await computerInvoke(ctx, 'scroll', { x, y, direction, amount: amount ?? 3 });
       return { callId: call.id, output: `Scrolled ${direction} by ${amount ?? 3} at (${x}, ${y})` };
     } catch (err: any) {
       return { callId: call.id, output: `Scroll failed: ${err.message || err}`, isError: true };
@@ -341,12 +343,10 @@ export const keyboardTypeDef: ToolDefinition = {
 };
 
 export class KeyboardTypeExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const { text } = call.arguments as any;
-      await invoke('keyboard_type_text', { text });
+      await computerInvoke(ctx, 'keyboard_type_text', { text });
       return { callId: call.id, output: `Typed: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"` };
     } catch (err: any) {
       return { callId: call.id, output: `Keyboard type failed: ${err.message || err}`, isError: true };
@@ -381,12 +381,10 @@ export const keyboardPressKeyDef: ToolDefinition = {
 };
 
 export class KeyboardPressKeyExecutor implements IToolExecutor {
-  async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
+  async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
     try {
-      const api = await import('@tauri-apps/api/core' as string);
-      const invoke = (api as any).invoke;
       const { key, modifiers } = call.arguments as any;
-      await invoke('keyboard_press_key', { key, modifiers: modifiers || [] });
+      await computerInvoke(ctx, 'keyboard_press_key', { key, modifiers: modifiers || [] });
       const modStr = modifiers?.length ? `${modifiers.join('+')}+` : '';
       return { callId: call.id, output: `Pressed: ${modStr}${key}` };
     } catch (err: any) {

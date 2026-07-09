@@ -301,3 +301,7 @@ export { logger } from './utils/logger';
 
 // Token estimation utility
 export { countTokens } from './utils/token';
+
+// Time + id abstractions (injectable for deterministic tests)
+export type { IClock, IIdGenerator } from './utils/clock';
+export { SYSTEM_CLOCK, RANDOM_ID_GENERATOR, FakeClock, SequentialIdGenerator } from './utils/clock';
