@@ -236,15 +236,18 @@ describe('storedToDisplayMessages', () => {
     expect(restored[0].blocks![1].type).toBe('tool_call');
   });
 
-  it('skips entries without role or content', () => {
+  it('skips entries without role (but keeps empty-content assistant messages)', () => {
     const stored = [
       { role: 'user', content: 'Valid' },
-      { role: 'assistant' }, // missing content
-      { content: 'No role' }, // missing role
+      { role: 'assistant' }, // missing content → kept (content defaults to '')
+      { content: 'No role' }, // missing role → skipped
     ];
     const restored = storedToDisplayMessages(stored);
-    expect(restored).toHaveLength(1);
+    // 'No role' is dropped, but 'assistant' with no content is kept
+    expect(restored).toHaveLength(2);
     expect(restored[0].content).toBe('Valid');
+    expect(restored[1].role).toBe('assistant');
+    expect(restored[1].content).toBe('');
   });
 
   it('filters out tool_call blocks with no call data', () => {
@@ -286,6 +289,28 @@ describe('storedToDisplayMessages', () => {
     expect(restored[1].toolCalls).toHaveLength(1);
     expect(restored[1].toolCalls![0].name).toBe('test');
     expect(restored[1].toolCalls![0].status).toBe('completed');
+  });
+
+  it('round-trips activeSkills through display → stored → display', () => {
+    const original: DisplayMessage[] = [
+      {
+        id: 'm1', role: 'assistant', content: 'reviewing', timestamp: 1,
+        activeSkills: ['code-review', 'plan-before-code'],
+      },
+    ];
+    const restored = storedToDisplayMessages(displayToStoredMessages(original));
+    expect(restored[0].activeSkills).toEqual(['code-review', 'plan-before-code']);
+  });
+
+  it('round-trips activeSkills=undefined as omitted (not an empty array)', () => {
+    const original: DisplayMessage[] = [
+      { id: 'm1', role: 'assistant', content: 'hi', timestamp: 1 },
+    ];
+    const stored = displayToStoredMessages(original);
+    // activeSkills is undefined → not serialised as a key
+    expect((stored[0] as Record<string, unknown>).activeSkills).toBeUndefined();
+    const restored = storedToDisplayMessages(stored);
+    expect(restored[0].activeSkills).toBeUndefined();
   });
 
   it('generates unique IDs for restored messages', () => {

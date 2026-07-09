@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { Service, observable, action } from '@svton/service';
 import type { IStorage } from '@svton/agent-platform';
+import { SYSTEM_CLOCK, RANDOM_ID_GENERATOR } from '@svton/agent-core';
+import type { IClock, IIdGenerator } from '@svton/agent-core';
 import type { Project } from '../types';
 
 const LIST_KEY = 'agent:project_list';
@@ -13,11 +15,16 @@ export class ProjectService {
   @observable() ready: boolean = false;
 
   private storage: IStorage | null = null;
+  // Injectable for deterministic tests.
+  private clock: IClock = SYSTEM_CLOCK;
+  private idGen: IIdGenerator = RANDOM_ID_GENERATOR;
 
   @action()
-  async init(storage: IStorage): Promise<void> {
+  async init(storage: IStorage, opts?: { clock?: IClock; idGen?: IIdGenerator }): Promise<void> {
     if (this.ready) return;
     this.storage = storage;
+    if (opts?.clock) this.clock = opts.clock;
+    if (opts?.idGen) this.idGen = opts.idGen;
     await this.loadProjects();
     await this.loadCurrentProject();
     this.ready = true;
@@ -25,9 +32,9 @@ export class ProjectService {
 
   @action()
   async createProject(name: string, path: string): Promise<Project> {
-    const now = Date.now();
+    const now = this.clock.now();
     const project: Project = {
-      id: `project_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      id: this.idGen.nextId('project'),
       name,
       path,
       createdAt: now,

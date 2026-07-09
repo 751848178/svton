@@ -214,54 +214,36 @@ export function useSession() {
   useEffect(() => { setFlushFn(flush); return () => setFlushFn(async () => {}); }, [flush]);
 
   // ── Desktop (Tauri) only: flush messages before window closes ──
-  // On native window close, visibilitychange is unreliable and the webview
-  // may be destroyed before the auto-save completes, losing the last batch
-  // of messages. We intercept the close request, persist everything, then
-  // destroy the window ourselves. Only registered for the main window
-  // (popout/preview windows are identified by query params and skipped).
+  // Uses beforeunload + pagehide (not onCloseRequested) so the native close
+  // button is NEVER intercepted. The previous approach (onCloseRequested with
+  // preventDefault) caused the window close button to stop working because
+  // destroy() could fail silently. Now we persist synchronously via
+  // beforeunload and let the OS close the window naturally.
   useEffect(() => {
     if (platform.type !== 'tauri') return;
-    // Skip popout session windows and standalone preview windows
-    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-    if (params.get('popout') === '1' || params.get('preview') === '1') return;
 
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-    (async () => {
-      try {
-        // Dynamic import with `as string` so TypeScript does not try to
-        // resolve the module (it is only installed in the desktop app, not
-        // in agent-client's own node_modules).
-        const mod: any = await import('@tauri-apps/api/window' as string);
-        const getCurrentWindow = mod.getCurrentWindow;
-        if (typeof getCurrentWindow !== 'function') return;
-        const appWindow = getCurrentWindow();
-        unlisten = await appWindow.onCloseRequested(async (event: any) => {
-          event.preventDefault();
-          try {
-            await flush();
-          } catch {
-            // Flush errors must not block window close
-          }
-          // Allow close to proceed now that state is persisted
-          try {
-            await appWindow.destroy();
-          } catch {
-            // If destroy fails, the window is already closing
-          }
-        });
-        if (cancelled && unlisten) unlisten();
-      } catch {
-        // @tauri-apps/api not available (non-desktop context) — ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (unlisten) {
-        try { unlisten(); } catch { /* already cleaned up */ }
+    const handler = () => {
+      // Synchronous flush attempt — fire and forget, the OS will close
+      // the window regardless. The visibilitychange handler + auto-save
+      // on idle already covers most cases; this is a last-resort safety net.
+      if (activeSessionId.current) {
+        try {
+          const snapshot = chatService.forcePrepareForSave();
+          // Can't await in beforeunload — fire synchronously
+          saveSessionMessages(activeSessionId.current, snapshot).catch(() => {});
+        } catch {
+          // Don't block close on errors
+        }
       }
     };
-  }, [platform, flush]);
+
+    window.addEventListener('beforeunload', handler);
+    window.addEventListener('pagehide', handler);
+    return () => {
+      window.removeEventListener('beforeunload', handler);
+      window.removeEventListener('pagehide', handler);
+    };
+  }, [platform, flush, chatService, saveSessionMessages]);
 
   // ── First message: immediate title + projectId + sidebar visibility ──
   useEffect(() => {
@@ -493,7 +475,12 @@ export function storedToDisplayMessages(msgs: unknown[]): DisplayMessage[] {
   const out: DisplayMessage[] = [];
   for (const raw of msgs) {
     const m = raw as Record<string, unknown>;
-    if (!m.role || !m.content) continue;
+    // Only require role; content can be empty for assistant messages whose
+    // answer lives entirely in blocks/thinking/toolCalls. Previously
+    // `!m.content` dropped these, causing messages to "vanish" on reload.
+    if (!m.role) continue;
+    // Ensure content is at least '' (not undefined/null)
+    const content = (m.content as string) ?? '';
     const tc = m.toolCalls as Array<{ id: string; name: string; arguments: Record<string, unknown>; status: string; result?: { callId: string; output: string; isError?: boolean } }> | undefined;
     const restoredTc = tc?.map((t) => ({
       id: t.id, name: t.name, arguments: t.arguments,
@@ -525,7 +512,7 @@ export function storedToDisplayMessages(msgs: unknown[]): DisplayMessage[] {
     out.push({
       id: `restored_${++c}_${Date.now()}`,
       role: m.role as 'user' | 'assistant',
-      content: m.content as string,
+      content,
       thinking: m.thinking as string | undefined,
       images: m.images as Array<{ data: string; mimeType?: string }> | undefined,
       toolCalls: restoredTc,

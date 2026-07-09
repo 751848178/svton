@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { Service, observable, action } from '@svton/service';
 import type { IStorage } from '@svton/agent-platform';
+import { SYSTEM_CLOCK, RANDOM_ID_GENERATOR } from '@svton/agent-core';
+import type { IClock, IIdGenerator } from '@svton/agent-core';
 
 export interface SessionInfo {
   id: string;
@@ -33,14 +35,21 @@ export class SessionService {
   @observable() ready: boolean = false;
 
   private storage: IStorage | null = null;
+  // Injectable for deterministic tests; default to the real clock/id generator.
+  private clock: IClock = SYSTEM_CLOCK;
+  private idGen: IIdGenerator = RANDOM_ID_GENERATOR;
 
   /**
    * Initialize with storage backend.
+   * The clock/idGen params are optional and default to the system singletons;
+   * tests pass in FakeClock / SequentialIdGenerator for determinism.
    */
   @action()
-  async init(storage: IStorage): Promise<void> {
+  async init(storage: IStorage, opts?: { clock?: IClock; idGen?: IIdGenerator }): Promise<void> {
     if (this.ready) return;
     this.storage = storage;
+    if (opts?.clock) this.clock = opts.clock;
+    if (opts?.idGen) this.idGen = opts.idGen;
     await this.loadSessionList();
     this.ready = true;
   }
@@ -56,8 +65,8 @@ export class SessionService {
       this.sessions = [];
     }
 
-    const id = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const now = Date.now();
+    const id = this.idGen.nextId('session');
+    const now = this.clock.now();
 
     const session: SessionData = {
       id,
@@ -105,7 +114,7 @@ export class SessionService {
   async saveSession(data: SessionData): Promise<void> {
     if (!Array.isArray(this.sessions)) return;
 
-    const now = Date.now();
+    const now = this.clock.now();
     const toSave: SessionData = {
       id: data.id,
       title: data.title,
