@@ -198,6 +198,16 @@ export function Sidebar({
     return () => document.removeEventListener('mousedown', fn);
   }, [projectMenuId]);
 
+  // Close "more" menu on outside click
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const fn = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) setMoreMenuOpen(false);
+    };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, [moreMenuOpen]);
+
   // Cmd+K / Ctrl+K to open search
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
