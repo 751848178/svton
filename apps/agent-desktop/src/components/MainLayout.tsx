@@ -16,19 +16,7 @@ import {
   IntegrationsPanelView,
   ChroniclePanelExtra,
 } from '@/components/ExtraPanels';
-
-// Tauri v2 window drag — use startDragging() for reliable cross-platform support
-let startDraggingFn: (() => Promise<void>) | null = null;
-async function initDrag() {
-  if (startDraggingFn) { startDraggingFn(); return; }
-  try {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window' as string);
-    const appWindow = getCurrentWindow();
-    startDraggingFn = () => appWindow.startDragging();
-    startDraggingFn();
-  } catch { /* non-Tauri environment */ }
-}
-const handleDragStart = () => { initDrag(); };
+import { startDragging, toggleMaximize } from '@/lib/window-controls';
 
 interface ToolDefinition {
   name: string;
@@ -367,7 +355,8 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
       <div className="flex flex-col h-screen bg-black text-gray-100 font-mono">
         {/* Draggable spacer for macOS traffic light buttons */}
         <div
-          onMouseDown={handleDragStart}
+          onMouseDown={() => startDragging()}
+          onDoubleClick={() => toggleMaximize()}
           className="h-9 flex-shrink-0 cursor-default select-none"
         />
         <SettingsPanel platform={platform} agentConfig={config} extra={extra} onBack={() => setView('chat')} onReinit={onReinit} />
@@ -395,7 +384,8 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
       <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-black">
         {/* Draggable title bar with session name */}
         <div
-          onMouseDown={handleDragStart}
+          onMouseDown={() => startDragging()}
+          onDoubleClick={() => toggleMaximize()}
           className="flex items-center justify-between h-10 px-4 border-b border-[#2a2a2a] bg-[#111] flex-shrink-0 select-none cursor-default"
         >
           <div className="flex items-center gap-2">

@@ -23,6 +23,7 @@ import {
   BashExecutor,
   // Web tools
   webFetchDef,
+  WebFetchExecutor,
   webSearchDef,
   WebSearchExecutor,
   createWebSearchExecutor,
@@ -117,7 +118,6 @@ import {
 } from '@svton/agent-core';
 import type { McpServerConfig } from '@svton/agent-ui';
 import { loadConfig, type LoadConfigResult } from './config-store';
-import { CurlWebFetchExecutor } from './curl-web-fetch';
 
 export type InitResult =
   | { kind: 'ready'; config: AgentConfig; extra?: AgentExtra }
@@ -224,11 +224,11 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   toolRegistry.register(bashDef, new BashExecutor());
 
   // Web tools
-  // web_fetch: use curl on desktop to bypass webview CORS restrictions.
-  // The default WebFetchExecutor uses fetch(), which in the Tauri webview is
-  // blocked by CORS for most external sites ("Fetch error: Load failed").
-  // curl runs natively and is not subject to CORS.
-  toolRegistry.register(webFetchDef, new CurlWebFetchExecutor());
+  // web_fetch: the standard WebFetchExecutor routes through platform.http,
+  // which on desktop is a curl-backed client (TauriPlatform wires this in its
+  // constructor). This bypasses the webview CORS restrictions that broke
+  // direct fetch() ("Fetch error: Load failed"). No special executor needed.
+  toolRegistry.register(webFetchDef, new WebFetchExecutor());
   // web_search: only register when a search backend is configured.
   // Reads Tavily API key first (recommended), then falls back to a custom
   // SearXNG-style endpoint. Without this guard the LLM sees the tool, calls

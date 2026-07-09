@@ -3,19 +3,7 @@ import { cn } from '@svton/ui';
 import type { AgentConfig } from '@svton/agent-core';
 import type { SessionInfo, Project } from '@svton/agent-client';
 import { PlusIcon, SearchIcon, FolderIcon, GearIcon, TrashIcon, ChatIcon, AutomationIcon, SkillIcon, PluginIcon, AgentIcon, WorktreeIcon, ChronicleIcon, IntegrationIcon } from './icons';
-
-// Tauri v2 window drag helper (shared with MainLayout)
-let startDraggingFn: (() => Promise<void>) | null = null;
-async function startDrag() {
-  if (startDraggingFn) { startDraggingFn(); return; }
-  try {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window' as string);
-    const appWindow = getCurrentWindow();
-    startDraggingFn = () => appWindow.startDragging();
-    startDraggingFn();
-  } catch { /* non-Tauri environment */ }
-}
-const handleDragStart = () => { startDrag(); };
+import { startDragging, toggleMaximize } from '@/lib/window-controls';
 
 export type View = 'chat' | 'search' | 'automation' | 'skills' | 'plugins' | 'agents' | 'worktrees' | 'chronicle' | 'integrations' | 'settings';
 
@@ -80,6 +68,56 @@ function NavItem({
   );
 }
 
+/** Secondary navigation — skills/plugins/agents/worktrees/integrations/chronicle
+ *  collapsed under a "更多" toggle to keep the sidebar clean. */
+function SecondaryNav({ activeView, onNavigate }: { activeView: View; onNavigate: (v: View) => void }) {
+  const [open, setOpen] = useState(false);
+  const items: { icon: React.ReactNode; label: string; view: View }[] = [
+    { icon: <SkillIcon />, label: '技能', view: 'skills' },
+    { icon: <PluginIcon />, label: '插件', view: 'plugins' },
+    { icon: <AgentIcon />, label: 'Agents', view: 'agents' },
+    { icon: <WorktreeIcon />, label: '工作树', view: 'worktrees' },
+    { icon: <IntegrationIcon />, label: '集成', view: 'integrations' },
+    { icon: <ChronicleIcon />, label: '屏幕记忆', view: 'chronicle' },
+  ];
+  // Auto-expand if a secondary view is active
+  const hasActiveSecondary = items.some((i) => i.view === activeView);
+  const isExpanded = open || hasActiveSecondary;
+
+  return (
+    <div className="px-2">
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          'w-full text-left px-3 py-1.5 text-[13px] rounded-md flex items-center gap-2.5 transition-colors',
+          hasActiveSecondary
+            ? 'text-white bg-[#2a2a2a]'
+            : 'text-gray-400 hover:text-gray-200 hover:bg-[#2a2a2a]/60',
+        )}
+      >
+        <span className="flex-shrink-0 opacity-70">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
+        </span>
+        <span>更多</span>
+        <span className="ml-auto text-[10px] text-gray-600">{isExpanded ? '▾' : '▸'}</span>
+      </button>
+      {isExpanded && (
+        <div className="mt-0.5 space-y-0.5">
+          {items.map((item) => (
+            <NavItem
+              key={item.view}
+              icon={item.icon}
+              label={item.label}
+              active={activeView === item.view}
+              onClick={() => onNavigate(activeView === item.view ? 'chat' : item.view)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Sidebar Component ────────────────────────────────
 
 export function Sidebar({
@@ -103,7 +141,9 @@ export function Sidebar({
   const [confirmDeleteProjectId, setConfirmDeleteProjectId] = useState<string | null>(null);
   const [projectMenuId, setProjectMenuId] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const safeSessions = Array.isArray(sessions) ? sessions : [];
 
@@ -188,39 +228,74 @@ export function Sidebar({
       )}
     >
       {/* Header — also serves as drag region */}
-      <div onMouseDown={handleDragStart} className="px-4 pt-9 pb-3 flex items-center justify-between border-b border-white/[0.06] cursor-default">
+      <div
+        onMouseDown={() => startDragging()}
+        onDoubleClick={() => toggleMaximize()}
+        className="px-4 pt-9 pb-3 flex items-center justify-between border-b border-white/[0.06] cursor-default"
+      >
         <div className="flex items-center gap-2">
           <img src="/agent-icon.svg" alt="" className="w-5 h-5" />
           <span className="text-white text-[15px] font-semibold tracking-tight">Svton</span>
         </div>
       </div>
 
-      {/* Top navigation */}
+      {/* Primary navigation — 新对话 / 搜索 / 自动化 */}
       <nav className="px-2 pt-2 space-y-0.5">
+        <div className="px-1 pb-1">
+          <button
+            onClick={onNewChat}
+            className="w-full px-3 py-1.5 text-[13px] font-medium rounded-md border border-dashed border-[#333] text-gray-400 hover:text-white hover:border-gray-500 hover:bg-[#2a2a2a]/60 transition-colors flex items-center justify-center gap-1.5"
+          >
+            <PlusIcon />
+            新对话
+          </button>
+        </div>
         <NavItem icon={<SearchIcon />} label="搜索" onClick={() => setSearchOpen(true)} />
         <NavItem icon={<AutomationIcon />} label="自动化" active={activeView === 'automation'} onClick={() => onNavigate(activeView === 'automation' ? 'chat' : 'automation')} />
-        <NavItem icon={<ChatIcon />} label="对话" active={activeView === 'chat'} onClick={() => onNavigate('chat')} />
-        <NavItem icon={<SkillIcon />} label="技能" active={activeView === 'skills'} onClick={() => onNavigate(activeView === 'skills' ? 'chat' : 'skills')} />
-        <NavItem icon={<PluginIcon />} label="插件" active={activeView === 'plugins'} onClick={() => onNavigate(activeView === 'plugins' ? 'chat' : 'plugins')} />
-        <NavItem icon={<AgentIcon />} label="Agents" active={activeView === 'agents'} onClick={() => onNavigate(activeView === 'agents' ? 'chat' : 'agents')} />
-        <NavItem icon={<WorktreeIcon />} label="工作树" active={activeView === 'worktrees'} onClick={() => onNavigate(activeView === 'worktrees' ? 'chat' : 'worktrees')} />
-        <NavItem icon={<IntegrationIcon />} label="集成" active={activeView === 'integrations'} onClick={() => onNavigate(activeView === 'integrations' ? 'chat' : 'integrations')} />
-        <NavItem icon={<ChronicleIcon />} label="屏幕记忆" active={activeView === 'chronicle'} onClick={() => onNavigate(activeView === 'chronicle' ? 'chat' : 'chronicle')} />
       </nav>
 
-      {/* New chat button */}
-      <div className="px-3 pb-1">
-        <button
-          onClick={onNewChat}
-          className="w-full px-3 py-1.5 text-[13px] font-medium rounded-md border border-dashed border-[#333] text-gray-400 hover:text-white hover:border-gray-500 hover:bg-[#2a2a2a]/60 transition-colors flex items-center justify-center gap-1.5"
-        >
-          <PlusIcon />
-          新对话
-        </button>
-      </div>
-
-      {/* Session list grouped by project */}
+      {/* Session list header with "更多" popup menu */}
       <div className="flex-1 overflow-y-auto px-2">
+        <div className="flex items-center justify-between px-2 pt-2 pb-1">
+          <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">会话</span>
+          <div ref={moreMenuRef} className="relative">
+            <button
+              onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+              className={cn(
+                'text-gray-600 hover:text-gray-300 p-0.5 rounded hover:bg-[#2a2a2a]/60 transition-colors',
+                moreMenuOpen && 'text-gray-300',
+              )}
+              title="更多"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+            </button>
+            {moreMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-36 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl z-50 py-1">
+                {([
+                  { icon: <SkillIcon />, label: '技能', view: 'skills' as View },
+                  { icon: <PluginIcon />, label: '插件', view: 'plugins' as View },
+                  { icon: <AgentIcon />, label: 'Agents', view: 'agents' as View },
+                  { icon: <WorktreeIcon />, label: '工作树', view: 'worktrees' as View },
+                  { icon: <IntegrationIcon />, label: '集成', view: 'integrations' as View },
+                  { icon: <ChronicleIcon />, label: '屏幕记忆', view: 'chronicle' as View },
+                ]).map((item) => (
+                  <button
+                    key={item.view}
+                    onClick={() => { setMoreMenuOpen(false); onNavigate(item.view); }}
+                    className={cn(
+                      'w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors',
+                      activeView === item.view ? 'text-white bg-[#252525]' : 'text-gray-400 hover:bg-[#252525] hover:text-gray-200',
+                    )}
+                  >
+                    <span className="flex-shrink-0 opacity-70">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Projects section header with "..." menu */}
         {projects.length > 0 && (
           <div className="flex items-center justify-between px-2 pt-2 pb-1">
