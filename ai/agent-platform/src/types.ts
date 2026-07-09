@@ -178,6 +178,80 @@ export interface IDocumentPreview {
 }
 
 // ============================================================
+// HTTP client (platform-injected to bypass webview CORS on desktop)
+// ============================================================
+
+/**
+ * Minimal HTTP response contract — the subset of `Response` that consumers
+ * (WebFetchExecutor, WebSearchExecutor) actually read. Kept small so a curl
+ * backed implementation can satisfy it without constructing a real Response.
+ */
+export interface IHttpResponse {
+  readonly ok: boolean;
+  readonly status: number;
+  readonly statusText: string;
+  text(): Promise<string>;
+  json(): Promise<unknown>;
+  header(name: string): string | null;
+}
+
+export interface IHttpClient {
+  /**
+   * Issue a request and return the response. Implementations are expected to
+   * follow redirects and apply a reasonable timeout. Desktop implementations
+   * route through curl/the native stack to avoid browser CORS restrictions;
+   * browser implementations fall back to global `fetch`.
+   */
+  request(url: string, opts?: {
+    method?: 'GET' | 'POST';
+    headers?: Record<string, string>;
+    body?: string;
+    timeoutMs?: number;
+  }): Promise<IHttpResponse>;
+}
+
+/** A simple adapter from a fetch `Response` to {@link IHttpResponse}. */
+export class FetchHttpResponse implements IHttpResponse {
+  constructor(private readonly res: Response) {}
+  get ok(): boolean { return this.res.ok; }
+  get status(): number { return this.res.status; }
+  get statusText(): string { return this.res.statusText; }
+  text(): Promise<string> { return this.res.text(); }
+  json(): Promise<unknown> { return this.res.json(); }
+  header(name: string): string | null { return this.res.headers.get(name); }
+}
+
+/** Browser-side IHttpClient that delegates to global `fetch`. */
+export class FetchHttpClient implements IHttpClient {
+  async request(
+    url: string,
+    opts?: { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; timeoutMs?: number },
+  ): Promise<IHttpResponse> {
+    const res = await fetch(url, {
+      method: opts?.method ?? 'GET',
+      headers: opts?.headers,
+      body: opts?.body,
+      signal: opts?.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
+    });
+    return new FetchHttpResponse(res);
+  }
+}
+
+// ============================================================
+// Computer Use (screen / mouse / keyboard control)
+// ============================================================
+
+/**
+ * Screen / input control abstraction. Desktop implementations route through
+ * Tauri commands (screenshot_display, mouse_click, ...); tests inject a mock.
+ * Kept as a single `invoke(cmd, args)` so adding a new Computer Use command
+ * does not require changing the interface.
+ */
+export interface IComputerUse {
+  invoke<T = unknown>(command: string, args?: Record<string, unknown>): Promise<T>;
+}
+
+// ============================================================
 // Platform Capabilities
 // ============================================================
 
@@ -200,6 +274,8 @@ export interface IPlatformCapabilities {
   pty: boolean;
   /** Document preview (PDF, Excel, PPTX) */
   documentPreview: boolean;
+  /** Screen capture + mouse/keyboard control (Computer Use) */
+  computerUse: boolean;
 }
 
 // ============================================================
@@ -217,4 +293,12 @@ export interface IPlatform {
   readonly sandbox?: ISandbox;
   /** Document preview (optional, present when capabilities.documentPreview === true) */
   readonly preview?: IDocumentPreview;
+  /**
+   * HTTP client (optional). When present, tools use it instead of global
+   * `fetch` so desktop builds can route through curl/native code and bypass
+   * webview CORS. When absent, tools fall back to `fetch`.
+   */
+  readonly http?: IHttpClient;
+  /** Computer Use (optional). Present when capabilities.computerUse === true. */
+  readonly computerUse?: IComputerUse;
 }

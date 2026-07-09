@@ -16,6 +16,7 @@ import type {
   IPlatformCapabilities,
   IDocumentPreview,
   DocumentPreviewResult,
+  IComputerUse,
   ExecOptions,
   ExecResult,
   FileStat,
@@ -28,6 +29,8 @@ import type {
   IChildProcess,
   SpawnOptions,
 } from './types';
+import { CurlHttpClient } from './curl-http';
+import type { IHttpClient } from './types';
 
 // Lazy-load @tauri-apps/api to avoid crashes in non-Tauri environments
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -378,7 +381,19 @@ const TAURI_CAPABILITIES: IPlatformCapabilities = {
   sandboxing: true,
   pty: true,
   documentPreview: true,
+  computerUse: true,
 };
+
+// ============================================================
+// Tauri Computer Use (screen / mouse / keyboard via invoke)
+// ============================================================
+
+class TauriComputerUse implements IComputerUse {
+  async invoke<T = unknown>(command: string, args?: Record<string, unknown>): Promise<T> {
+    const api: any = await import('@tauri-apps/api/core' as string);
+    return api.invoke(command, args);
+  }
+}
 
 // ============================================================
 // Tauri Sandbox (Seatbelt on macOS, bwrap on Linux)
@@ -436,6 +451,14 @@ export class TauriPlatform implements IPlatform {
   readonly search: ISearch;
   readonly sandbox: ISandbox;
   readonly preview: IDocumentPreview;
+  /**
+   * HTTP client. Defaults to a curl-backed client so tools (web_fetch /
+   * web_search) bypass webview CORS by routing through the native process.
+   * Apps may replace this after construction (e.g. tests inject a mock).
+   */
+  http: IHttpClient;
+  /** Computer Use (screen/mouse/keyboard) — routes through Tauri invoke. */
+  computerUse: IComputerUse;
 
   constructor() {
     this.fs = new TauriFileSystem();
@@ -444,5 +467,8 @@ export class TauriPlatform implements IPlatform {
     this.search = new TauriSearch();
     this.sandbox = new TauriSandbox();
     this.preview = new TauriDocumentPreview();
+    // curl-backed client; uses this.process.exec under the hood.
+    this.http = new CurlHttpClient({ process: this.process });
+    this.computerUse = new TauriComputerUse();
   }
 }

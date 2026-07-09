@@ -250,6 +250,7 @@ const BROWSER_CAPABILITIES: IPlatformCapabilities = {
   sandboxing: false,
   pty: false,
   documentPreview: false,
+  computerUse: false,
 };
 
 export class BrowserPlatform implements IPlatform {
