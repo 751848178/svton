@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { cn } from '@svton/ui';
 import { sanitizeHtml } from '../../lib/sanitize';
+import { hljs } from '../../lib/highlight-setup';
 
 const PREVIEWABLE_LANGS = new Set(['html', 'css', 'javascript', 'js', 'jsx', 'ts', 'typescript']);
 
@@ -62,11 +63,10 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   const label = filename || language || '';
   const canPreview = isPreviewable(language) && !!onPreview;
 
-  // Syntax highlighting (lazy — only when highlight=true)
+  // Syntax highlighting — uses the shared ESM hljs instance (not CJS require).
   const highlightedHtml = useMemo(() => {
     if (!highlight || !language) return null;
     try {
-      const hljs = require('highlight.js/lib/core');
       const result = hljs.highlight(code, { language });
       return result.value;
     } catch {

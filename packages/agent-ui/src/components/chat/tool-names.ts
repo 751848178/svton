@@ -31,7 +31,24 @@ const I18N_TOOL_KEYS: Record<string, string> = {
 };
 
 export function getToolDisplayName(name: string): string {
+  // MCP tools use the Codex-standard mcp__<server>__<tool> namespace.
+  // Display as "<server>/<tool>" so the source is visible at a glance.
+  if (name.startsWith('mcp__')) {
+    const parts = name.split('__');     // ['mcp', 'server', 'tool']
+    if (parts.length >= 3) {
+      const server = parts[1];
+      const tool = parts.slice(2).join('__');
+      return `${server}/${tool}`;
+    }
+  }
   const i18nKey = I18N_TOOL_KEYS[name];
   if (i18nKey) return t(i18nKey);
   return TOOL_DISPLAY_NAMES[name] || name;
+}
+
+/** Extract the MCP server name from a namespaced tool name (mcp__server__tool). */
+export function getMcpServerName(name: string): string | null {
+  if (!name.startsWith('mcp__')) return null;
+  const parts = name.split('__');
+  return parts.length >= 3 ? parts[1] : null;
 }

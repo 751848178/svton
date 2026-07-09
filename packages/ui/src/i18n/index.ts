@@ -30,7 +30,7 @@ const zh: Record<string, string> = {
   // ChatPanel
   'chat.emptyMessage': '开始对话...',
   'chat.thinking': '思考中...',
-  'chat.usingSkill': '正在使用',
+  'chat.usingSkill': '执行',
   'chat.expandProcess': '点击展开过程详情',
   'chat.scrollToBottom': '回到底部',
   'chat.matchedSkills': '已匹配技能',

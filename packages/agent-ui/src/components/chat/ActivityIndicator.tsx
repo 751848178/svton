@@ -37,7 +37,7 @@ export const ActivityIndicator: React.FC<ActivityIndicatorProps> = ({
   // Derive the label: explicit text > active skills > generic "thinking".
   const label = text
     ?? (activeSkills && activeSkills.length > 0
-      ? `${t('chat.usingSkill')} ${activeSkills.join(', ')}...`
+      ? `${activeSkills.join(', ')} ${t('chat.usingSkill')}中...`
       : t('chat.thinking'));
   return (
     <div className={cn('flex items-center gap-1.5 py-1.5 text-xs select-none cursor-pointer hover:opacity-80 transition-opacity', className)}>

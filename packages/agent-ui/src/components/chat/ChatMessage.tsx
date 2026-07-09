@@ -125,10 +125,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [hovered, setHovered] = useState(false);
-  // Process blocks (thinking / tool calls / intermediate text) default to
-  // collapsed — even while streaming. This mirrors Codex / Claude Code: while
-  // the agent works, a single shimmering status line is shown instead of
-  // flooding the chat with intermediate steps. Users can still click to expand.
+  // Process blocks (thinking / tool calls / intermediate text) are ALWAYS
+  // collapsed by default — both during streaming and after completion.
+  // During streaming: a shimmering ActivityIndicator shows (animated, alive).
+  // After completion: a static "已处理 Xs ▸" button shows (no animation).
+  // Users can click either to expand and inspect the details.
   const [processExpanded, setProcessExpanded] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
@@ -237,7 +238,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           ) : (
             <>
               <div className="bg-[#1c1c1c] rounded-2xl px-4 py-2.5 min-w-0 w-fit">
-                <div className="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap break-words">
+                <div className="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap break-all">
                   {content}
                 </div>
                 {images && images.length > 0 && (
@@ -354,7 +355,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     >
       {hasBlocks ? (
         <>
-          {/* Collapsed + streaming → shimmering activity indicator (click to expand process details) */}
+          {/* Collapsed + streaming → shimmering activity indicator (animated, alive).
+              Click to expand process details. */}
           {!processExpanded && isStreaming && hasProcess && (
             <button
               type="button"
@@ -365,7 +367,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               <ActivityIndicator activeSkills={activeSkills} />
             </button>
           )}
-          {/* Collapsed + done → "已处理 Xs ▸" expand button */}
+          {/* Collapsed + done → static "已处理 Xs ▸" button (no animation).
+              The shimmer has stopped; this is a quiet expand toggle. */}
           {!processExpanded && !isStreaming && hasProcess && (
             <button
               onClick={() => setProcessExpanded(true)}
@@ -378,16 +381,23 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               )}
             </button>
           )}
-          {/* Expanded → "已处理 Xs ▾" collapse button (works during streaming too) */}
+          {/* Expanded → collapse button. During streaming shows a minimal
+              "▾ 收起" toggle; after completion shows "已处理 Xs ▾". */}
           {processExpanded && hasProcess && (
             <button
               onClick={() => setProcessExpanded(false)}
               className="w-full flex items-center gap-2 py-1.5 mb-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 transition-colors text-left"
             >
               <span className="text-gray-400 select-none">▾</span>
-              <span className="text-gray-400">已处理</span>
-              {duration != null && (
-                <span className="text-gray-600 ml-1">{formatDuration(duration)}</span>
+              {isStreaming ? (
+                <span className="text-gray-500">收起</span>
+              ) : (
+                <>
+                  <span className="text-gray-400">已处理</span>
+                  {duration != null && (
+                    <span className="text-gray-600 ml-1">{formatDuration(duration)}</span>
+                  )}
+                </>
               )}
             </button>
           )}
@@ -420,7 +430,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               const txt = block.text;
               return (
                 <div key={`text-${i}`}>
-                  <div className="min-w-0 text-sm text-gray-900 dark:text-gray-100 leading-relaxed">
+                  <div className="min-w-0 text-sm text-gray-900 dark:text-gray-100 leading-relaxed break-words">
                     {isStreaming && i === blocks!.length - 1 ? (
                       <StreamingMarkdown text={txt} />
                     ) : !isStreaming && onOpenDocument && detectDocumentContent(txt) ? (
@@ -529,7 +539,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
           {content && (
             <div>
-              <div className="min-w-0 text-sm text-gray-900 dark:text-gray-100 leading-relaxed">
+              <div className="min-w-0 text-sm text-gray-900 dark:text-gray-100 leading-relaxed break-words">
                 {isStreaming ? (
                   <StreamingMarkdown text={content} />
                 ) : !isStreaming && onOpenDocument && detectDocumentContent(content) ? (
@@ -551,24 +561,41 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           )}
 
           {error && (
-            <div className="flex items-start gap-2 mt-2">
+            <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg border border-red-900/50 bg-red-950/20">
               <span className="text-red-500 select-none flex-shrink-0 mt-px">✗</span>
-              <div className="text-sm text-red-600 leading-relaxed">{error}</div>
+              <div className="text-sm text-red-400 leading-relaxed">{error}</div>
             </div>
           )}
         </>
       )}
 
-      {/* Action buttons — visible on hover for completed assistant messages */}
-      {!isStreaming && content && (
-        <AssistantActions
-          content={content}
-          hovered={hovered}
-          isLast={isLast}
-          onRetry={onRetry}
-          onOpenEditor={onOpenEditor}
-        />
-      )}
+      {/* Action buttons — visible on hover for completed assistant messages.
+          Also show when the answer lives in blocks (last text block) even if
+          the top-level content prop is empty. */}
+      {(() => {
+        // Derive the effective text: top-level content OR last text block.
+        let effectiveText: string | undefined = content;
+        if (!effectiveText && blocks) {
+          for (let i = blocks.length - 1; i >= 0; i--) {
+            if (blocks[i].type === 'text' && blocks[i].text) {
+              effectiveText = blocks[i].text;
+              break;
+            }
+          }
+        }
+        if (!isStreaming && effectiveText) {
+          return (
+            <AssistantActions
+              content={effectiveText}
+              hovered={hovered}
+              isLast={isLast}
+              onRetry={onRetry}
+              onOpenEditor={onOpenEditor}
+            />
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 };
@@ -594,7 +621,7 @@ function ThinkingBlock({ text, isStreaming }: { text: string; isStreaming?: bool
         className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-500 transition-colors"
       >
         <span className="text-[10px]">{open ? '▾' : '▸'}</span>
-        <span className="italic">Thinking</span>
+        <span className="italic">{t('chat.thinking')}</span>
       </button>
       {open && (
         <div className="mt-1 pl-4 border-l-2 border-[#333] text-xs text-gray-400 italic leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">

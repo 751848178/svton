@@ -3,7 +3,7 @@ import { cn, t } from '@svton/ui';
 import { DiffView, isDiff } from './DiffView';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ScreenshotView, isImageOutput } from './ScreenshotView';
-import { getToolDisplayName } from './tool-names';
+import { getToolDisplayName, getMcpServerName } from './tool-names';
 
 export interface ToolCallInfo {
   id: string;
@@ -41,8 +41,9 @@ const COMPUTER_USE_TOOLS = new Set([
 /** Screenshot-producing tools */
 const SCREENSHOT_TOOLS = new Set(['screenshot', 'chrome_screenshot']);
 
-/** Max lines of output to show when expanded (head + tail budget) */
-const OUTPUT_MAX_LINES = 20;
+/** Max lines of output to show when expanded (head + tail budget).
+ *  Matches Codex's TOOL_CALL_MAX_LINES = 5 — keeps the conversation scannable. */
+const OUTPUT_MAX_LINES = 5;
 
 /** Status → icon */
 const STATUS_ICON: Record<ToolCallInfo['status'], { char: string; color: string }> = {
@@ -88,10 +89,9 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
   className,
 }) => {
   const isDone = toolCall.status === 'completed' || toolCall.status === 'error';
-  // Default collapsed — even while running. The agent's overall streaming
-  // state is signalled by the ActivityIndicator on the message, not by
-  // expanding every tool card. Users click to inspect details on demand.
-  const [expanded, setExpanded] = useState(false);
+  // Codex-style: running tools start expanded (user sees what's happening);
+  // completed tools start collapsed (historical detail available on click).
+  const [expanded, setExpanded] = useState(!isDone);
 
   const icon = STATUS_ICON[toolCall.status];
   const isShell = SHELL_TOOLS.has(toolCall.name);
@@ -99,6 +99,8 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
   const isComputerUse = COMPUTER_USE_TOOLS.has(toolCall.name);
   const isScreenshotTool = SCREENSHOT_TOOLS.has(toolCall.name);
   const displayName = getToolDisplayName(toolCall.name);
+  const mcpServer = getMcpServerName(toolCall.name);
+  const isMcp = !!mcpServer;
 
   // For shell tools, extract the command for inline display
   const shellCommand = isShell ? (toolCall.arguments.command as string || '') : '';
@@ -117,11 +119,12 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
   const output = toolCall.result?.output ?? '';
   const isDiffOutput = isDiff(output);
   const isImageOutputResult = isScreenshotTool && isImageOutput(output);
+  // Only treat output as markdown when it contains strong markdown signals.
+  // Previously `- ` and `1. ` were included, but those match ordinary shell
+  // output (e.g. `ls -la`, version strings) and cause misrendering.
   const isMarkdownOutput = output && !isImageOutputResult && (
-    output.includes('##') ||
     output.includes('```') ||
-    output.includes('- ') ||
-    output.includes('1. ')
+    /^#{1,6}\s/m.test(output)   // markdown heading: # / ## / ### ...
   );
 
   return (
@@ -158,13 +161,16 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
             )}
           </span>
         ) : (
-          /* Generic tool */
+          /* Generic tool (includes MCP tools) */
           <>
-            <span className="font-mono text-xs text-cyan-600 flex-shrink-0">{displayName}</span>
+            {isMcp && (
+              <span className="text-[9px] font-medium text-purple-500 bg-purple-950/40 px-1.5 py-0.5 rounded flex-shrink-0">MCP</span>
+            )}
+            <span className={cn('font-mono text-xs flex-shrink-0', isMcp ? 'text-purple-400' : 'text-cyan-600')}>{displayName}</span>
             <span className="text-xs text-gray-400 truncate flex-1">{argsPreview}</span>
           </>
         )}
-        <span className="text-gray-500 text-xs flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="text-gray-500 text-xs flex-shrink-0 transition-opacity">
           {expanded ? '▾' : '▸'}
         </span>
       </button>
@@ -270,7 +276,7 @@ function ShellOutput({ output, isError, maxLines }: { output: string; isError?: 
         'text-xs rounded-md px-3 py-1.5 overflow-x-auto max-h-80 overflow-y-auto border',
         isError
           ? 'bg-red-950/30 text-red-400/90 border-red-900/30'
-          : 'bg-[#1a1a1a] text-gray-500 border-[#252525]',
+          : 'bg-[#1a1a1a] text-gray-600 border-[#252525]',
       )}
     >
       {text}

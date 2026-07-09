@@ -19,7 +19,9 @@
   "scripts": {
     "build": "tsup src/index.tsx --format cjs,esm --dts",
     "dev": "tsup src/index.tsx --format cjs,esm --dts --watch",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@svton/agent-core": "^0.3.1",
@@ -37,6 +39,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.5.0",
-    "tsup": "^8.0.0"
+    "tsup": "^8.0.0",
+    "vitest": "^3.0.0"
   }
 }

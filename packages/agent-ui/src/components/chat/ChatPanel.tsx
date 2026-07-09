@@ -78,6 +78,31 @@ function formatUsage(usage?: { promptTokens: number; completionTokens: number; t
   return `${fmt(usage.promptTokens)} in → ${fmt(usage.completionTokens)} out`;
 }
 
+/** Format duration for the turn separator (Codex-style: "Worked for Xm Ys" when >60s). */
+function formatDuration(ms?: number): string | undefined {
+  if (!ms || ms < 1000) return undefined;
+  const s = Math.round(ms / 1000);
+  if (s < 60) return undefined; // Only show when >= 60s (matches Codex threshold)
+  const m = Math.floor(s / 60);
+  const remainingSec = s % 60;
+  if (m < 60) return `Worked for ${m}m ${String(remainingSec).padStart(2, '0')}s`;
+  const h = Math.floor(m / 60);
+  return `Worked for ${h}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+/** Build the turn separator label: duration (if >60s) + token usage. */
+function buildSeparatorLabel(
+  prevMsg?: ChatPanelMessage,
+): string | undefined {
+  if (!prevMsg || prevMsg.role !== 'assistant') return undefined;
+  const parts: string[] = [];
+  const dur = formatDuration(prevMsg.duration);
+  if (dur) parts.push(dur);
+  const usage = formatUsage(prevMsg.usage);
+  if (usage) parts.push(usage);
+  return parts.length > 0 ? parts.join(' · ') : undefined;
+}
+
 /** Threshold in px to consider "near bottom" for auto-scroll */
 const SCROLL_THRESHOLD = 120;
 
@@ -117,12 +142,23 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const userScrolledUp = useRef(false);
 
-  // Find the first pending tool approval across all messages
+  // Find the first pending tool approval across all messages.
+  // Checks BOTH msg.toolCalls (legacy path) AND msg.blocks (modern path),
+  // since tool calls may live in either place.
   const pendingApproval = useMemo<ToolCallInfo | null>(() => {
     for (const msg of messages) {
+      // Legacy: msg.toolCalls array
       if (msg.toolCalls) {
         const pending = msg.toolCalls.find((tc) => tc.status === 'pending_approval');
         if (pending) return pending;
+      }
+      // Modern: msg.blocks with tool_call type
+      if (msg.blocks) {
+        for (const block of msg.blocks) {
+          if (block.type === 'tool_call' && block.call?.status === 'pending_approval') {
+            return block.call;
+          }
+        }
       }
     }
     return null;
@@ -162,7 +198,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto relative"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative"
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full px-6">
@@ -182,16 +218,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             )}
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto py-2">
+          <div className="max-w-[1472px] mx-auto py-2">
             {messages.map((msg, i) => (
               <React.Fragment key={msg.id}>
                 {/* Turn separator — only between user→assistant, show usage after assistant completes */}
                 {i > 0 && isTurnBoundary(messages[i - 1], msg) && (
                   <TurnSeparator
                     label={
-                      // Show usage label only when assistant turn ends (i.e., next is user)
+                      // Show label when assistant turn ends (i.e., next message is user)
                       msg.role === 'user' && messages[i - 1]?.role === 'assistant'
-                        ? formatUsage(messages[i - 1]?.usage)
+                        ? buildSeparatorLabel(messages[i - 1])
                         : undefined
                     }
                   />
@@ -254,7 +290,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       )}
 
       {/* Input — aligned to the same max-width column as messages */}
-      <div className="max-w-4xl w-full mx-auto px-6">
+      <div className="max-w-[1472px] w-full mx-auto px-6">
         <ChatInput
           onSend={onSend}
           onAbort={onAbort}

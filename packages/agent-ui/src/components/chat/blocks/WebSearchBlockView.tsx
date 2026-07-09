@@ -25,7 +25,9 @@ function domainFromUrl(url: string): string {
  * Inline web search block — shows query + result cards.
  */
 export const WebSearchBlockView: React.FC<WebSearchBlockViewProps> = ({ query, results, className }) => {
-  const [expanded, setExpanded] = useState(true);
+  // Codex-style: default collapsed to a single-line summary.
+  // The summary shows the query + result count; expand to see full results.
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <div className={cn('rounded-lg border border-[#2a2a2a] bg-[#1c1c1c] overflow-hidden my-1', className)}>
