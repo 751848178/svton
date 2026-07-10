@@ -86,7 +86,7 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
           }
           setDropdownOpen(!dropdownOpen);
         }}
-        className="flex items-center gap-1.5 px-2 py-0.5 text-[11px] rounded-md bg-[#222] hover:bg-[#333] text-gray-400 hover:text-gray-200 border border-[#333] transition-colors"
+        className="flex items-center gap-1.5 px-2 py-0.5 text-[11px] rounded-md bg-[#2a2a2a] hover:bg-[#333] text-gray-400 hover:text-gray-200 border border-[#333] transition-colors"
       >
         <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" className="text-gray-500">
           <circle cx="8" cy="8" r="3" />
@@ -99,12 +99,12 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
       {dropdownOpen && (
         <div
           style={{ position: 'fixed', left: modelDropPos.left, bottom: modelDropPos.bottom, zIndex: 9999 }}
-          className="w-56 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl py-1 overflow-hidden max-h-80 overflow-y-auto"
+          className="w-56 bg-[#2a2a2a] rounded-lg border border-[#383838] shadow-xl py-1 overflow-hidden max-h-80 overflow-y-auto"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {modelGroups.map(([provider, ms], gi) => (
             <div key={provider}>
-              {gi > 0 && <div className="border-t border-[#2a2a2a] my-1" />}
+              {gi > 0 && <div className="border-t border-[#383838] my-1" />}
               <div className="px-3 py-1.5 text-[11px] font-medium text-gray-500 uppercase tracking-wide">
                 {provider}
               </div>
@@ -206,24 +206,10 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
   const tools = useMemo(() => (config.toolRegistry?.listDefinitions() ?? []) as ToolDefinition[], [config.toolRegistry]);
   const agentSkills = useMemo(() => (config.capabilities?.skillManager?.list() ?? []) as SkillDefinition[], [config.capabilities]);
 
-  // Permission mode
+  // Permission mode — declared BEFORE handlers that reference setPermissionMode/setPlanMode
   const [permissionMode, setPermissionMode] = useState<'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto'>(
     () => (config.capabilities?.permissionManager?.getMode() as any) ?? 'default'
   );
-  const handlePermissionModeChange = useCallback(async (mode: 'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto') => {
-    setPermissionMode(mode);
-    config.capabilities?.permissionManager?.setMode(mode);
-    await platform.storage.set('agent:permission_mode', mode);
-    // Sync planMode state: if user explicitly sets a non-plan mode, plan mode is off
-    setPlanMode(mode === 'plan');
-  }, [config, platform]);
-
-  // Reasoning effort — applied to the runtime via ChatService
-  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(undefined);
-  const handleReasoningEffortChange = useCallback((effort: ReasoningEffort) => {
-    setReasoningEffort(effort);
-    chatService?.setReasoningEffort(effort);
-  }, [chatService]);
 
   // Plan mode — initialize from permission manager state (sync with stored mode)
   const [planMode, setPlanMode] = useState(() => {
@@ -237,6 +223,31 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
       return (m === 'plan' ? 'default' : m) as 'read_only' | 'default' | 'accept_edits' | 'auto';
     })()
   );
+
+  // Reasoning effort — applied to the runtime via ChatService
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(undefined);
+
+  // P1-11: Sync local state when agent is re-initialized (model switch, reinit)
+  useEffect(() => {
+    const mode = config.capabilities?.permissionManager?.getMode() as any;
+    if (mode) {
+      setPermissionMode(mode);
+      setPlanMode(mode === 'plan');
+    }
+  }, [config]);
+
+  const handlePermissionModeChange = useCallback(async (mode: 'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto') => {
+    setPermissionMode(mode);
+    config.capabilities?.permissionManager?.setMode(mode);
+    await platform.storage.set('agent:permission_mode', mode);
+    setPlanMode(mode === 'plan');
+  }, [config, platform]);
+
+  const handleReasoningEffortChange = useCallback((effort: ReasoningEffort) => {
+    setReasoningEffort(effort);
+    chatService?.setReasoningEffort(effort);
+  }, [chatService]);
+
   const handlePlanModeChange = useCallback(async (enabled: boolean) => {
     if (enabled) {
       // Save current mode before entering plan mode (but not 'plan' itself)
@@ -352,7 +363,7 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
   // Settings: full-screen like web /settings route — no Sidebar or title bar
   if (view === 'settings') {
     return (
-      <div className="flex flex-col h-screen bg-black text-gray-100 font-mono">
+      <div className="flex flex-col h-screen bg-[#212121] text-gray-100">
         {/* Draggable spacer for macOS traffic light buttons */}
         <div
           onMouseDown={() => startDragging()}
@@ -365,7 +376,7 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
   }
 
   return (
-    <div className="flex h-screen bg-transparent text-gray-100 font-mono">
+    <div className="flex h-screen bg-[#212121] text-gray-100">
       <Sidebar
         config={config}
         sessions={sessions}
@@ -381,12 +392,12 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
         onDeleteProject={handleDeleteProject}
         activeView={view}
       />
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-black">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-[#1e1e1e]">
         {/* Draggable title bar with session name */}
         <div
           onMouseDown={() => startDragging()}
           onDoubleClick={() => toggleMaximize()}
-          className="flex items-center justify-between h-10 px-4 border-b border-[#2a2a2a] bg-[#111] flex-shrink-0 select-none cursor-default"
+          className="flex items-center justify-between h-10 px-4 border-b border-[#333] bg-[#252525] flex-shrink-0 select-none cursor-default"
         >
           <div className="flex items-center gap-2">
             <span className="text-[12px] text-gray-400 truncate max-w-[200px]">{sessionTitle}</span>
@@ -484,7 +495,7 @@ function AutomationPanel({ tools, onManage }: { tools: ToolDefinition[]; onManag
       ) : (
         <div className="space-y-2">
           {tools.map((tool) => (
-            <div key={tool.name} className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3">
+            <div key={tool.name} className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-3">
               <div className="text-sm text-white font-medium">{tool.name}</div>
               {tool.description && <div className="text-xs text-gray-500 mt-1">{tool.description}</div>}
             </div>
@@ -543,7 +554,7 @@ function SkillsPanel({ skills, platform, onManage, onReinit }: { skills: SkillDe
       <p className="text-[11px] text-gray-500 mb-4">管理项目级与用户级技能。启用后可在聊天里通过 $skill-name 使用。</p>
 
       {/* Search bar */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#222] border border-[#2a2a2a] mb-4">
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#2a2a2a] border border-[#383838] mb-4">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-500"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
         <input
           type="text"
@@ -566,7 +577,7 @@ function SkillsPanel({ skills, platform, onManage, onReinit }: { skills: SkillDe
                 {workspaceSkills.map((skill) => {
                   const isDisabled = disabledSkills.has(skill.name);
                   return (
-                    <div key={skill.name} className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3 flex items-center justify-between">
+                    <div key={skill.name} className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-3 flex items-center justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className={`text-sm font-medium ${isDisabled ? 'text-gray-600' : 'text-white'}`}>{skill.name}</span>
@@ -596,7 +607,7 @@ function SkillsPanel({ skills, platform, onManage, onReinit }: { skills: SkillDe
                 {pluginSkills.map((skill) => {
                   const isDisabled = disabledSkills.has(skill.name);
                   return (
-                    <div key={skill.name} className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3 flex items-center justify-between">
+                    <div key={skill.name} className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-3 flex items-center justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className={`text-sm font-medium ${isDisabled ? 'text-gray-600' : 'text-white'}`}>{skill.name}</span>
@@ -720,7 +731,6 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
 
       // 1. Export extension to temp dir and open in Finder
       const extPath = await api.invoke('export_chrome_extension');
-      console.log('Extension exported to:', extPath);
 
       // 2. Open Chrome extensions page after a short delay
       setTimeout(async () => {
@@ -750,7 +760,7 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
             { key: 'accessibility' as const, label: '辅助功能', desc: '鼠标和键盘控制需要此权限', granted: permissions.accessibility },
             { key: 'screen_recording' as const, label: '屏幕录制', desc: '截图功能需要此权限', granted: permissions.screen_recording },
           ].map(p => (
-            <div key={p.key} className="flex items-center justify-between bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg px-4 py-3">
+            <div key={p.key} className="flex items-center justify-between bg-[#2a2a2a] border border-[#383838] rounded-lg px-4 py-3">
               <div className="flex items-center gap-3">
                 <span className={`w-2 h-2 rounded-full ${p.granted ? 'bg-green-500' : 'bg-yellow-500'}`} />
                 <div><div className="text-sm text-white">{p.label}</div><div className="text-[11px] text-gray-500">{p.desc}</div></div>
@@ -766,7 +776,7 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
         <h3 className="text-[13px] text-gray-400 font-medium mb-2">Chrome 连接</h3>
 
         {/* Method 1: Chrome Extension (recommended) */}
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg px-4 py-3">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg px-4 py-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
               <span className={`w-2 h-2 rounded-full ${extConnected === true ? 'bg-green-500' : extConnected === false ? 'bg-gray-500' : 'bg-gray-600'}`} />
@@ -780,7 +790,7 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
                 <span className="text-[11px] text-green-500">已连接</span>
               ) : (
                 <>
-                  <button onClick={detectExtension} className="px-2 py-1 text-[11px] text-gray-300 border border-[#333] rounded-md hover:bg-[#222]">检测</button>
+                  <button onClick={detectExtension} className="px-2 py-1 text-[11px] text-gray-300 border border-[#333] rounded-md hover:bg-[#2a2a2a]">检测</button>
                   <button onClick={handleInstallExtension} className="px-2 py-1 text-[11px] text-blue-400 hover:text-blue-300">安装扩展 →</button>
                 </>
               )}
@@ -797,7 +807,7 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
         </div>
 
         {/* Method 2: Launch Parameter (fallback) */}
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg px-4 py-3">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <span className={`w-2 h-2 rounded-full ${cdpConnected ? 'bg-green-500' : 'bg-gray-500'}`} />
@@ -809,7 +819,7 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
             {cdpConnected ? (
               <span className="text-[11px] text-green-500">已连接</span>
             ) : (
-              <button onClick={launchChrome} className="px-3 py-1 text-[11px] text-gray-300 border border-[#333] rounded-md hover:bg-[#222]">启动 Chrome</button>
+              <button onClick={launchChrome} className="px-3 py-1 text-[11px] text-gray-300 border border-[#333] rounded-md hover:bg-[#2a2a2a]">启动 Chrome</button>
             )}
           </div>
         </div>
@@ -821,7 +831,7 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
           <h3 className="text-[13px] text-gray-400 font-medium">Computer Use</h3>
           <Toggle enabled={COMPUTER_USE_TOOLS.some(t => !disabledTools.has(t))} onChange={(v) => toggleGroup(COMPUTER_USE_TOOLS, v)} />
         </div>
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg divide-y divide-[#252525]">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg divide-y divide-[#252525]">
           {COMPUTER_USE_TOOLS.map(name => (
             <div key={name} className="flex items-center justify-between px-4 py-2">
               <span className="text-[13px] text-gray-300">{name}</span>
@@ -837,7 +847,7 @@ function PluginsPanel({ config, platform, tools }: { config: AgentConfig; platfo
           <h3 className="text-[13px] text-gray-400 font-medium">Chrome CDP</h3>
           <Toggle enabled={CHROME_CDP_TOOLS.some(t => !disabledTools.has(t))} onChange={(v) => toggleGroup(CHROME_CDP_TOOLS, v)} />
         </div>
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg divide-y divide-[#252525]">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg divide-y divide-[#252525]">
           {CHROME_CDP_TOOLS.map(name => (
             <div key={name} className="flex items-center justify-between px-4 py-2">
               <span className="text-[13px] text-gray-300">{name}</span>

@@ -249,7 +249,7 @@ export function InputControls({
         <div
           id="perm-dropdown"
           style={{ position: 'fixed', left: permsPos.left, bottom: permsPos.bottom, zIndex: 9999, maxHeight: '50vh' }}
-          className="w-48 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl py-1 overflow-y-auto"
+          className="w-48 bg-[#2a2a2a] rounded-lg border border-[#383838] shadow-xl py-1 overflow-y-auto"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {PERMISSION_MODES.map((m) => (
@@ -276,7 +276,7 @@ export function InputControls({
         <div
           id="project-dropdown"
           style={{ position: 'fixed', left: projectsPos.left, bottom: projectsPos.bottom, zIndex: 9999 }}
-          className="w-56 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl py-1 max-h-60 overflow-y-auto"
+          className="w-56 bg-[#2a2a2a] rounded-lg border border-[#383838] shadow-xl py-1 max-h-60 overflow-y-auto"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="px-3 py-1.5 text-[10px] text-gray-600 uppercase tracking-wide">选择项目</div>
@@ -296,7 +296,7 @@ export function InputControls({
             <span className="text-[11px]">Chat 模式</span>
             {!currentProjectId && <span className="text-cyan-400 text-[10px] ml-auto">&#10003;</span>}
           </button>
-          <div className="mx-3 my-1 border-t border-[#2a2a2a]" />
+          <div className="mx-3 my-1 border-t border-[#383838]" />
           {projects?.map((p) => (
             <button
               key={p.id}
@@ -323,7 +323,7 @@ export function InputControls({
         <div
           id="plugin-dropdown"
           style={{ position: 'fixed', left: pluginsPos.left, bottom: pluginsPos.bottom, zIndex: 9999 }}
-          className="w-52 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl py-1 max-h-60 overflow-y-auto"
+          className="w-52 bg-[#2a2a2a] rounded-lg border border-[#383838] shadow-xl py-1 max-h-60 overflow-y-auto"
           onMouseDown={(e) => e.stopPropagation()}
         >
           {plugins.map((p) => (
@@ -339,7 +339,7 @@ export function InputControls({
         <div
           id="reasoning-dropdown"
           style={{ position: 'fixed', left: reasoningPos.left, bottom: reasoningPos.bottom, zIndex: 9999 }}
-          className="w-52 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl py-1"
+          className="w-52 bg-[#2a2a2a] rounded-lg border border-[#383838] shadow-xl py-1"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="px-3 py-1 text-[10px] text-gray-600 uppercase tracking-wide">推理强度</div>

@@ -43,7 +43,6 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
     refresh();
     if (automationManager && onTrigger) {
       automationManager.setTriggerHandler(async (automation) => {
-        console.log(`[Automation] Fired: ${automation.name}`);
         onTrigger(automation.prompt);
       });
     }
@@ -113,13 +112,13 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
       </div>
 
       {!automationManager ? (
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-8 text-center">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-8 text-center">
           <p className="text-gray-400 text-sm">自动化管理器未初始化</p>
         </div>
       ) : (
         <>
           {creating && (
-            <div className="mb-4 bg-[#1c1c1c] border border-cyan-900/50 rounded-lg p-4 space-y-3">
+            <div className="mb-4 bg-[#2a2a2a] border border-cyan-900/50 rounded-lg p-4 space-y-3">
               <div className="text-sm text-cyan-400 font-medium">创建自动化任务</div>
               {error && <div className="text-[11px] text-red-400">{error}</div>}
               <div>
@@ -129,7 +128,7 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   placeholder="每日报表"
-                  className="w-full px-3 py-2 text-sm bg-[#222] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600"
+                  className="w-full px-3 py-2 text-sm bg-[#2a2a2a] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600"
                 />
               </div>
               <div>
@@ -138,7 +137,7 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
                   value={newPrompt}
                   onChange={(e) => setNewPrompt(e.target.value)}
                   placeholder="Agent 执行的提示词..."
-                  className="w-full px-3 py-2 text-sm bg-[#222] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600 resize-none h-20"
+                  className="w-full px-3 py-2 text-sm bg-[#2a2a2a] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600 resize-none h-20"
                 />
               </div>
               <div>
@@ -148,7 +147,7 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
                     <button
                       key={t}
                       onClick={() => setTriggerType(t)}
-                      className={`px-3 py-1 text-[11px] rounded-md transition-colors ${triggerType === t ? 'bg-cyan-600 text-white' : 'bg-[#222] text-gray-400 hover:text-gray-200'}`}
+                      className={`px-3 py-1 text-[11px] rounded-md transition-colors ${triggerType === t ? 'bg-cyan-600 text-white' : 'bg-[#2a2a2a] text-gray-400 hover:text-gray-200'}`}
                     >
                       {t === 'interval' ? '定时' : t === 'cron' ? 'Cron' : '事件'}
                     </button>
@@ -159,14 +158,14 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
                 <div>
                   <label className="text-[11px] text-gray-500 uppercase tracking-wider block mb-1">间隔（分钟）</label>
                   <input type="number" value={newInterval} onChange={(e) => setNewInterval(e.target.value)} min={1}
-                    className="w-24 px-3 py-2 text-sm bg-[#222] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600" />
+                    className="w-24 px-3 py-2 text-sm bg-[#2a2a2a] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600" />
                 </div>
               )}
               {triggerType === 'cron' && (
                 <div>
                   <label className="text-[11px] text-gray-500 uppercase tracking-wider block mb-1">Cron 表达式 <span className="text-gray-600 normal-case">(分 时 日 月 周)</span></label>
                   <input type="text" value={newCron} onChange={(e) => setNewCron(e.target.value)} placeholder="0 9 * * *"
-                    className="w-48 px-3 py-2 text-sm bg-[#222] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600 font-mono" />
+                    className="w-48 px-3 py-2 text-sm bg-[#2a2a2a] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600 font-mono" />
                   <p className="text-[10px] text-gray-600 mt-1">例: <code>0 9 * * *</code> = 每天 9:00, <code>*/30 * * * *</code> = 每 30 分钟</p>
                 </div>
               )}
@@ -174,7 +173,7 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
                 <div>
                   <label className="text-[11px] text-gray-500 uppercase tracking-wider block mb-1">事件类型</label>
                   <input type="text" value={newEvent} onChange={(e) => setNewEvent(e.target.value)} placeholder="file_save"
-                    className="w-48 px-3 py-2 text-sm bg-[#222] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600" />
+                    className="w-48 px-3 py-2 text-sm bg-[#2a2a2a] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600" />
                   <p className="text-[10px] text-gray-600 mt-1">事件触发型任务需外部调用 runNow()</p>
                 </div>
               )}
@@ -197,19 +196,19 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
           )}
 
           {automations.length === 0 && !creating ? (
-            <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-8 text-center">
+            <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-8 text-center">
               <p className="text-gray-400 text-sm mb-1">暂无自动化任务</p>
               <p className="text-gray-600 text-xs">点击「+ 新建」创建定时或事件触发的自动化任务</p>
             </div>
           ) : (
             <div className="space-y-2">
               {automations.map((a: any) => (
-                <div key={a.id} className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3">
+                <div key={a.id} className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${a.enabled ? 'bg-green-500' : 'bg-gray-600'}`} />
                       <span className="text-sm text-white font-medium">{a.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#222] text-gray-500">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#2a2a2a] text-gray-500">
                         {a.trigger?.type === 'interval' ? `每 ${a.trigger.minutes} 分钟` :
                          a.trigger?.type === 'cron' ? `cron: ${a.trigger.expression}` :
                          a.trigger?.type === 'event' ? `事件: ${a.trigger.eventType ?? ''}` : '未知'}
@@ -243,7 +242,7 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
           <h3 className="text-[13px] text-gray-400 font-medium mb-2">执行历史</h3>
           <div className="space-y-1">
             {recentRuns.map((run: any) => (
-              <div key={run.id} className="flex items-center gap-2 px-3 py-1.5 bg-[#1a1a1a] border border-[#252525] rounded-md">
+              <div key={run.id} className="flex items-center gap-2 px-3 py-1.5 bg-[#252525] border border-[#333] rounded-md">
                 <span className={`text-[10px] flex-shrink-0 ${run.status === 'completed' ? 'text-green-400' : run.status === 'failed' ? 'text-red-400' : 'text-blue-400 animate-pulse'}`}>
                   {run.status === 'completed' ? '✓' : run.status === 'failed' ? '✗' : '●'}
                 </span>
@@ -331,7 +330,7 @@ export function WorktreePanelExtra({ worktreeManager, workingDir, onManage }: {
       </div>
 
       {!worktreeManager ? (
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-8 text-center">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-8 text-center">
           <p className="text-gray-400 text-sm">Worktree 管理器未初始化</p>
         </div>
       ) : (
@@ -341,7 +340,7 @@ export function WorktreePanelExtra({ worktreeManager, workingDir, onManage }: {
           )}
 
           {creating && (
-            <div className="mb-4 bg-[#1c1c1c] border border-cyan-900/50 rounded-lg p-4 space-y-3">
+            <div className="mb-4 bg-[#2a2a2a] border border-cyan-900/50 rounded-lg p-4 space-y-3">
               <div className="text-sm text-cyan-400 font-medium">创建工作树</div>
               <div>
                 <label className="text-[11px] text-gray-500 uppercase tracking-wider block mb-1">分支名称</label>
@@ -350,7 +349,7 @@ export function WorktreePanelExtra({ worktreeManager, workingDir, onManage }: {
                   value={branchName}
                   onChange={(e) => setBranchName(e.target.value)}
                   placeholder="feature-branch"
-                  className="w-full px-3 py-2 text-sm bg-[#222] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600"
+                  className="w-full px-3 py-2 text-sm bg-[#2a2a2a] border border-[#333] rounded-lg text-gray-200 outline-none focus:border-cyan-600"
                   autoFocus
                 />
               </div>
@@ -373,18 +372,18 @@ export function WorktreePanelExtra({ worktreeManager, workingDir, onManage }: {
           )}
 
           {loading ? (
-            <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-8 text-center">
+            <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-8 text-center">
               <p className="text-gray-500 text-sm">加载中...</p>
             </div>
           ) : worktrees.length === 0 ? (
-            <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-8 text-center">
+            <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-8 text-center">
               <p className="text-gray-400 text-sm mb-1">暂无工作树</p>
               <p className="text-gray-600 text-xs">工作目录可能不是 Git 仓库</p>
             </div>
           ) : (
             <div className="space-y-2">
               {worktrees.map((w: any) => (
-                <div key={w.path} className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3">
+                <div key={w.path} className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${w.locked ? 'bg-yellow-500' : 'bg-green-500'}`} />
@@ -496,11 +495,11 @@ export function AgentsPanelExtra({ config, onManage, onSwitchAgent }: {
       </div>
 
       {!agentDefinitionManager ? (
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-8 text-center">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-8 text-center">
           <p className="text-gray-400 text-sm">Agent 定义管理器未初始化</p>
         </div>
       ) : (
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-5">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-5">
           <AgentEditorPanel agents={editorAgents} onSave={handleSave} onDelete={handleDelete} />
         </div>
       )}
@@ -576,7 +575,7 @@ export function IntegrationsPanelView({ integrationManager, onManage }: {
       </div>
 
       {!integrationManager ? (
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-8 text-center">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-8 text-center">
           <p className="text-gray-400 text-sm">集成管理器未初始化</p>
         </div>
       ) : (
@@ -638,12 +637,12 @@ export function ChroniclePanelExtra({ chronicleManager, onManage }: {
       </div>
 
       {!chronicleManager ? (
-        <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-8 text-center">
+        <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-8 text-center">
           <p className="text-gray-400 text-sm">Chronicle 管理器未初始化</p>
         </div>
       ) : (
         <>
-          <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-4 mb-4">
+          <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-500' : config?.enabled ? 'bg-yellow-500' : 'bg-gray-600'}`} />
@@ -651,7 +650,7 @@ export function ChroniclePanelExtra({ chronicleManager, onManage }: {
                   {isRunning ? '运行中' : config?.pausedUntil && config.pausedUntil > Date.now() ? '已暂停' : config?.enabled ? '已启用（未运行）' : '已停止'}
                 </span>
                 {config && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#222] text-gray-500">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#2a2a2a] text-gray-500">
                     每 {config.intervalSeconds}s · 保留 {config.retentionDays} 天
                   </span>
                 )}
@@ -684,13 +683,13 @@ export function ChroniclePanelExtra({ chronicleManager, onManage }: {
 
           <h3 className="text-[13px] text-gray-400 font-medium mb-2">最近捕获 ({captures.length})</h3>
           {captures.length === 0 ? (
-            <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-8 text-center">
+            <div className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-8 text-center">
               <p className="text-gray-500 text-sm">暂无屏幕捕获记录</p>
             </div>
           ) : (
             <div className="space-y-2">
               {captures.map((c: any) => (
-                <div key={c.id} className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3">
+                <div key={c.id} className="bg-[#2a2a2a] border border-[#383838] rounded-lg p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {c.appContext && (
