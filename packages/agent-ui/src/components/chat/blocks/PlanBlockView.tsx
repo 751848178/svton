@@ -37,11 +37,11 @@ export const PlanBlockView: React.FC<PlanBlockViewProps> = ({ plan, className })
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <div className={cn('rounded-lg border border-[#2a2a2a] bg-[#1c1c1c] overflow-hidden my-1', className)}>
+    <div className={cn('rounded-lg border border-[#383838] bg-[#2a2a2a] overflow-hidden my-1', className)}>
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#222] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#2a2a2a] transition-colors"
       >
         <span className="text-xs">📋</span>
         <span className="text-xs font-medium text-gray-200 flex-1 truncate">{plan.title}</span>
@@ -58,7 +58,7 @@ export const PlanBlockView: React.FC<PlanBlockViewProps> = ({ plan, className })
 
       {/* Steps */}
       {expanded && (
-        <div className="px-3 py-1.5 space-y-0.5 border-t border-[#252525]">
+        <div className="px-3 py-1.5 space-y-0.5 border-t border-[#3a3a3a]">
           {plan.steps.map((step) => {
             const style = STEP_STYLE[step.status] || STEP_STYLE.pending;
             return (

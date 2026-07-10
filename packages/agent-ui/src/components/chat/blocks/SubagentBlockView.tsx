@@ -22,12 +22,12 @@ export const SubagentBlockView: React.FC<SubagentBlockViewProps> = ({
   const isRunning = status === 'running';
 
   return (
-    <div className={cn('rounded-lg border border-[#2a2a2a] bg-[#1c1c1c] overflow-hidden my-1', className)}>
+    <div className={cn('rounded-lg border border-[#383838] bg-[#2a2a2a] overflow-hidden my-1', className)}>
       <button
         onClick={() => summary && setExpanded(!expanded)}
         className={cn(
           'w-full flex items-center gap-2 px-3 py-2 text-left transition-colors',
-          summary && 'hover:bg-[#222] cursor-pointer',
+          summary && 'hover:bg-[#2a2a2a] cursor-pointer',
         )}
       >
         <span className="text-xs flex-shrink-0">🤖</span>
@@ -44,7 +44,7 @@ export const SubagentBlockView: React.FC<SubagentBlockViewProps> = ({
         )}
       </button>
       {expanded && summary && (
-        <div className="px-3 py-2 border-t border-[#252525]">
+        <div className="px-3 py-2 border-t border-[#3a3a3a]">
           <p className="text-[11px] text-gray-400 leading-relaxed whitespace-pre-wrap">{summary}</p>
         </div>
       )}

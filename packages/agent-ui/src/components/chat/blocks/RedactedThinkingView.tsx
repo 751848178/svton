@@ -13,7 +13,7 @@ interface RedactedThinkingViewProps {
 export const RedactedThinkingView: React.FC<RedactedThinkingViewProps> = ({ reason, className }) => {
   return (
     <div className={cn(
-      'flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2a2a2a] bg-[#181818] my-1',
+      'flex items-center gap-2 px-3 py-2 rounded-lg border border-[#383838] bg-[#181818] my-1',
       className,
     )}>
       <span className="text-gray-600 text-xs flex-shrink-0">🔒</span>

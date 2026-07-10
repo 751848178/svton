@@ -35,8 +35,8 @@ export const ReferenceBlockView: React.FC<ReferenceBlockViewProps> = ({ refs, cl
           className={cn(
             'inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] transition-colors',
             onOpen
-              ? 'border-[#333] bg-[#1c1c1c] hover:bg-[#222] hover:border-[#444] cursor-pointer'
-              : 'border-[#2a2a2a] bg-[#1c1c1c] cursor-default',
+              ? 'border-[#3a3a3a] bg-[#2a2a2a] hover:bg-[#2a2a2a] hover:border-[#444] cursor-pointer'
+              : 'border-[#383838] bg-[#2a2a2a] cursor-default',
           )}
           title={ref.path}
         >
