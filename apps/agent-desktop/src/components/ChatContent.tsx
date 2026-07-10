@@ -179,8 +179,12 @@ export function ChatContent({
             }
           }}
           onCommand={async (action) => {
-            // Command actions can be extended; for now, log and handle common ones
-            console.log('Command action:', action);
+            // Execute slash-command actions (e.g. run-tests, deploy).
+            // The action string is a semantic command id; send it as a prompt
+            // so the agent can act on it.
+            if (action && typeof action === 'string') {
+              send(action);
+            }
           }}
           isStreaming={isStreaming}
           placeholder="描述你想做的事情...  输入 / 查看命令  @ 引用"

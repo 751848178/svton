@@ -23,7 +23,7 @@ export function BlockShowcase() {
         {/* 2. tool_call */}
         <section>
           <h2 className="text-sm text-gray-400 mb-2">2. tool_call (工具调用)</h2>
-          <div className="bg-[#1c1c1c] border border-[#2a2a2a] rounded-lg p-3">
+          <div className="bg-[#2a2a2a] border border-[#2a2a2a] rounded-lg p-3">
             <div className="flex items-center gap-2">
               <span className="text-green-400 text-xs">✓</span>
               <span className="text-xs text-cyan-600">bash</span>

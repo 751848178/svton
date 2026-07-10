@@ -8,6 +8,7 @@ import { ChatPanel, SplitScreenPanel, type ChatPanelMessage, type SplitScreenCon
 import { initAgent, type AgentExtra } from '@/lib/agent-setup';
 import { loadConfig, createDefaultConfig, openConfigInEditor } from '@/lib/config-store';
 import { Sidebar, type View } from '@/components/Sidebar';
+import { startDragging, toggleMaximize } from '@/lib/window-controls';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MainLayout } from '@/components/MainLayout';
@@ -43,7 +44,7 @@ function PreviewWindow() {
   }, []);
 
   return (
-    <div className="h-screen bg-[#1c1c1c] text-gray-100">
+    <div className="h-screen bg-[#2a2a2a] text-gray-100">
       <SplitScreenPanel
         content={content}
         onClose={() => {
@@ -221,16 +222,17 @@ export default function App() {
         </AgentProvider>
       ) : unconfiguredView === 'settings' && platform ? (
         // Settings: full-screen — no Sidebar
-        <div className="flex flex-col h-screen bg-black text-gray-100 font-mono">
+        <div className="flex flex-col h-screen bg-[#212121] text-gray-100">
           {/* Draggable spacer for macOS traffic light buttons */}
           <div
-            onMouseDown={() => {}}
+            onMouseDown={() => startDragging()}
+            onDoubleClick={() => toggleMaximize()}
             className="h-9 flex-shrink-0 cursor-default select-none"
           />
           <SettingsPanel platform={platform} onBack={() => setUnconfiguredView('chat')} />
         </div>
       ) : (
-        <div className="flex h-screen bg-transparent text-gray-100 font-mono">
+        <div className="flex h-screen bg-[#212121] text-gray-100">
           {platform && (
             <Sidebar
               config={null}
