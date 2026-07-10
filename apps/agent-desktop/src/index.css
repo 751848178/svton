@@ -4,8 +4,8 @@
 @tailwind utilities;
 
 :root {
-  --background: transparent;
-  --foreground: #ededed;
+  --background: #212121;
+  --foreground: #f0f0f0;
 }
 
 html, body, #root {
@@ -13,13 +13,13 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: transparent !important;
+  background: #212121 !important;
 }
 
 body {
   color: var(--foreground);
-  background: transparent !important;
-  font-family: 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', monospace;
+  background: #212121 !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -webkit-background-clip: padding-box;
 }
