@@ -35,9 +35,9 @@ export const FileChangeView: React.FC<FileChangeViewProps> = ({ changes, classNa
   if (!changes.length) return null;
 
   return (
-    <div className={cn('rounded-lg border border-[#2a2a2a] bg-[#1c1c1c] overflow-hidden my-1', className)}>
+    <div className={cn('rounded-lg border border-[#383838] bg-[#2a2a2a] overflow-hidden my-1', className)}>
       {/* Summary header */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#252525]">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#3a3a3a]">
         <span className="text-xs">📄</span>
         <span className="text-[11px] text-gray-400">
           {changes.length} {changes.length === 1 ? 'file' : 'files'} changed
@@ -57,7 +57,7 @@ export const FileChangeView: React.FC<FileChangeViewProps> = ({ changes, classNa
                 onClick={() => hasDiff && setExpandedIdx(isExpanded ? null : i)}
                 className={cn(
                   'w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors',
-                  hasDiff && 'hover:bg-[#222] cursor-pointer',
+                  hasDiff && 'hover:bg-[#2a2a2a] cursor-pointer',
                 )}
               >
                 <span className={cn('text-xs font-mono w-3 text-center', style.color)}>
@@ -74,7 +74,7 @@ export const FileChangeView: React.FC<FileChangeViewProps> = ({ changes, classNa
               </button>
               {isExpanded && hasDiff && (
                 <div className="px-2 pb-2">
-                  <DiffView diff={change.diff!} className="border-[#252525]" />
+                  <DiffView diff={change.diff!} className="border-[#3a3a3a]" />
                 </div>
               )}
             </div>

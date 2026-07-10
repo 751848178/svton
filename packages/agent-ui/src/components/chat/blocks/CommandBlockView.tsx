@@ -28,7 +28,7 @@ export const CommandBlockView: React.FC<CommandBlockViewProps> = ({
         'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] transition-all my-0.5',
         onCommand
           ? 'border-[#3B82F6]/30 bg-[#3B82F6]/10 text-blue-400 hover:bg-[#3B82F6]/20 hover:border-[#3B82F6]/50 cursor-pointer'
-          : 'border-[#2a2a2a] bg-[#1c1c1c] text-gray-500 cursor-default',
+          : 'border-[#383838] bg-[#2a2a2a] text-gray-500 cursor-default',
         className,
       )}
     >

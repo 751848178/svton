@@ -21,7 +21,7 @@ function TreeItem({ node, depth }: { node: FileTreeNode; depth: number }) {
       <button
         onClick={() => isDir && setExpanded(!expanded)}
         className={cn(
-          'flex items-center gap-1 text-[11px] py-0.5 hover:bg-[#222] rounded px-1 w-full text-left transition-colors',
+          'flex items-center gap-1 text-[11px] py-0.5 hover:bg-[#2a2a2a] rounded px-1 w-full text-left transition-colors',
           !isDir && 'cursor-default',
         )}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
@@ -56,8 +56,8 @@ export const FileTreeBlockView: React.FC<FileTreeBlockViewProps> = ({ tree, clas
   if (!tree.length) return null;
 
   return (
-    <div className={cn('rounded-lg border border-[#2a2a2a] bg-[#1c1c1c] overflow-hidden my-1', className)}>
-      <div className="px-3 py-1.5 border-b border-[#252525]">
+    <div className={cn('rounded-lg border border-[#383838] bg-[#2a2a2a] overflow-hidden my-1', className)}>
+      <div className="px-3 py-1.5 border-b border-[#3a3a3a]">
         <span className="text-[11px] text-gray-500">📁 目录结构</span>
       </div>
       <div className="py-1 max-h-60 overflow-y-auto">

@@ -57,7 +57,7 @@ export function VersionTabs({ versions, activeIndex: controlledIndex, onVersionC
               'px-2 py-0.5 text-[10px] font-medium rounded-md transition-colors',
               i === activeIndex
                 ? 'bg-blue-100 text-blue-700'
-                : 'bg-[#222] text-gray-400 hover:text-gray-300 hover:bg-[#333]',
+                : 'bg-[#2a2a2a] text-gray-400 hover:text-gray-300 hover:bg-[#333]',
             )}
           >
             {v.label || `v${i + 1}`}
