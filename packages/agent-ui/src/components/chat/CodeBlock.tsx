@@ -42,7 +42,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   if (inline) {
     return (
       <code className={cn(
-        'bg-[#222] text-gray-300 px-1.5 py-0.5 rounded text-[13px] font-mono',
+        'bg-[#2a2a2a] text-gray-300 px-1.5 py-0.5 rounded text-[13px] font-mono',
         className,
       )}>
         {code}
@@ -75,7 +75,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   }, [code, language, highlight]);
 
   return (
-    <div className={cn('rounded-lg overflow-hidden my-3 bg-[#0d1117]', className)}>
+    <div className={cn('rounded-lg overflow-hidden my-3 bg-[#1a1a1a]', className)}>
       {/* Header bar */}
       {(label || canPreview) && (
         <div className="flex items-center justify-between px-4 py-2 bg-[#161b22]">

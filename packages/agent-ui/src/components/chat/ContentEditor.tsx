@@ -42,9 +42,9 @@ export function ContentEditor({ content: initialContent, title, onClose, onSave 
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-4xl max-h-[90vh] bg-[#1c1c1c] rounded-xl shadow-2xl flex flex-col mx-4">
+      <div className="w-full max-w-4xl max-h-[90vh] bg-[#2a2a2a] rounded-xl shadow-2xl flex flex-col mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#2a2a2a]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#383838]">
           <div className="flex items-center gap-3">
             <h3 className="text-base font-semibold text-gray-100">
               {title || 'Content Editor'}
@@ -55,7 +55,7 @@ export function ContentEditor({ content: initialContent, title, onClose, onSave 
           </div>
           <div className="flex items-center gap-2">
             {/* Mode toggle */}
-            <div className="flex bg-[#222] rounded-lg p-0.5">
+            <div className="flex bg-[#2a2a2a] rounded-lg p-0.5">
               <button
                 onClick={() => setMode('edit')}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
@@ -79,7 +79,7 @@ export function ContentEditor({ content: initialContent, title, onClose, onSave 
               {(onClick) => (
                 <button
                   onClick={onClick}
-                  className="px-3 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#222] rounded-lg transition-colors"
+                  className="px-3 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#2a2a2a] rounded-lg transition-colors"
                 >
                   Export
                 </button>

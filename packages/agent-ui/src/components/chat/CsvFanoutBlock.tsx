@@ -44,10 +44,10 @@ export const CsvFanoutBlock: React.FC<CsvFanoutBlockProps> = ({
   }, [rows]);
 
   return (
-    <div className={`svton-csv-fanout rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] overflow-hidden ${className ?? ''}`}>
+    <div className={`svton-csv-fanout rounded-lg border border-[#383838] bg-[#252525] overflow-hidden ${className ?? ''}`}>
       {/* Header */}
       <button
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[#222] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[#2a2a2a] transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
         <span className="text-xs font-semibold text-gray-300">CSV Fan-out</span>
@@ -69,7 +69,7 @@ export const CsvFanoutBlock: React.FC<CsvFanoutBlockProps> = ({
       </button>
 
       {/* Progress bar */}
-      <div className="h-1 bg-[#222]">
+      <div className="h-1 bg-[#2a2a2a]">
         <div
           className={`h-full transition-all duration-300 ${failed > 0 ? 'bg-orange-400' : 'bg-green-400'}`}
           style={{ width: `${pct}%` }}
@@ -80,8 +80,8 @@ export const CsvFanoutBlock: React.FC<CsvFanoutBlockProps> = ({
       {expanded && (
         <div className="overflow-x-auto max-h-80 overflow-y-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-[#1c1c1c] z-10">
-              <tr className="border-b border-[#2a2a2a]">
+            <thead className="sticky top-0 bg-[#2a2a2a] z-10">
+              <tr className="border-b border-[#383838]">
                 <th className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium w-8">#</th>
                 <th className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium w-20">Status</th>
                 {allKeys.map((key) => (
@@ -98,7 +98,7 @@ export const CsvFanoutBlock: React.FC<CsvFanoutBlockProps> = ({
                 return (
                   <tr
                     key={row.rowIndex}
-                    className="border-b border-[#222] hover:bg-[#1e1e1e]"
+                    className="border-b border-[#333] hover:bg-[#1e1e1e]"
                   >
                     <td className="px-2 py-1 text-gray-600 text-[10px]">{row.rowIndex}</td>
                     <td className="px-2 py-1">

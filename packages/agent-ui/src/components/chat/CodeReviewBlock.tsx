@@ -60,10 +60,10 @@ export const CodeReviewBlock: React.FC<CodeReviewBlockProps> = ({
   const warningCount = findings.filter((f) => f.severity === 'warning').length;
 
   return (
-    <div className={`svton-code-review rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] overflow-hidden ${className ?? ''}`}>
+    <div className={`svton-code-review rounded-lg border border-[#383838] bg-[#252525] overflow-hidden ${className ?? ''}`}>
       {/* Header */}
       <button
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[#222] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[#2a2a2a] transition-colors"
         onClick={() => setCollapsed(!collapsed)}
       >
         <span className="text-xs font-semibold text-gray-300">Code Review</span>
