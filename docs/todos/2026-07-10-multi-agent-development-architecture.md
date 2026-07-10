@@ -43,7 +43,7 @@ Purpose: Prove the new artifacts are structurally valid and isolated from unrela
 | ID | Status | Atomic TODO | Context Boundary | Evidence |
 |----|--------|-------------|------------------|----------|
 | F3.1 | done | Check frontmatter, links, and changed-file diff hygiene. | New/edited docs and skill files only. | `git diff --check` passed; Node artifact check passed; trailing-whitespace scan returned no matches. |
-| F3.2 | in_progress | Summarize modified paths and remaining follow-ups. | Final response only. | Pending final response. |
+| F3.2 | done | Summarize modified paths and remaining follow-ups. | Final response only. | Ready for final response with modified paths, verification commands, and follow-up options. |
 
 ## Verification Plan
 
@@ -56,3 +56,4 @@ Purpose: Prove the new artifacts are structurally valid and isolated from unrela
 - 2026-07-10 16:00 CST: Created the TODO plan and started F1.1.
 - 2026-07-10 16:18 CST: Completed F1 and F2 artifacts; verification remains.
 - 2026-07-10 16:24 CST: Completed scoped validation; final summary remains.
+- 2026-07-10 16:26 CST: Completed the TODO plan.

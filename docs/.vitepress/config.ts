@@ -125,6 +125,7 @@ export default defineConfig({
             { text: '记忆系统', link: '/agent/core/memory' },
             { text: '自动化任务', link: '/agent/core/automation' },
             { text: '子代理', link: '/agent/core/subagent' },
+            { text: '多 Agent 开发架构', link: '/agent/core/multi-agent-architecture' },
             { text: 'MCP 协议', link: '/agent/core/mcp' },
             { text: '权限系统', link: '/agent/core/permission' },
             { text: '生命周期钩子', link: '/agent/core/hooks' },
