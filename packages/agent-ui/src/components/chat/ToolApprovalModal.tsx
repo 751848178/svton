@@ -46,9 +46,9 @@ export const ToolApprovalModal: React.FC<ToolApprovalModalProps> = ({
       <div className="absolute inset-0 bg-black/40" />
 
       {/* Dialog */}
-      <div className="relative bg-[#1c1c1c] rounded-xl shadow-2xl border border-[#2a2a2a] max-w-md w-full mx-4 overflow-hidden">
+      <div className="relative bg-[#2a2a2a] rounded-xl shadow-2xl border border-[#383838] max-w-md w-full mx-4 overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-[#2a2a2a] flex items-center gap-3">
+        <div className="px-5 py-4 border-b border-[#383838] flex items-center gap-3">
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-900/30 text-yellow-400 text-sm">
             ⚠
           </span>
@@ -62,7 +62,7 @@ export const ToolApprovalModal: React.FC<ToolApprovalModalProps> = ({
 
         {/* Arguments — show as readable key-value list */}
         {Object.keys(toolCall.arguments).length > 0 && (
-          <div className="px-5 py-3 border-b border-[#2a2a2a]">
+          <div className="px-5 py-3 border-b border-[#383838]">
             <div className="text-[10px] text-gray-400 font-medium mb-1.5 uppercase tracking-wider">{t('tool.parameters')}</div>
             <div className="space-y-1.5">
               {formatArguments(toolCall.arguments).map(({ key, value }) => (
@@ -79,7 +79,7 @@ export const ToolApprovalModal: React.FC<ToolApprovalModalProps> = ({
         <div className="px-5 py-3 flex items-center justify-end gap-2 bg-[#171717]">
           <button
             onClick={() => onReject(toolCall.id)}
-            className="px-4 py-2 text-xs font-medium rounded-lg border border-[#333] text-gray-400 hover:bg-[#2a2a2a] transition-colors"
+            className="px-4 py-2 text-xs font-medium rounded-lg border border-[#3a3a3a] text-gray-400 hover:bg-[#2a2a2a] transition-colors"
           >
             {t('tool.deny')}
           </button>

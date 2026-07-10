@@ -83,11 +83,11 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
 
   return (
     <div className={cn(
-      'flex flex-col h-full bg-[#1c1c1c] border-l border-[#2a2a2a] shadow-lg',
+      'flex flex-col h-full bg-[#2a2a2a] border-l border-[#383838] shadow-lg',
       className,
     )}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#383838]">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-medium text-gray-200 truncate">
             {content.title}
@@ -99,7 +99,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
         <div className="flex items-center gap-1 flex-shrink-0">
           {/* Mode toggle — only for document/code */}
           {(content.type === 'document' || content.type === 'code') && (
-          <div className="flex items-center bg-[#222] rounded-lg p-0.5">
+          <div className="flex items-center bg-[#2a2a2a] rounded-lg p-0.5">
             <button
               onClick={() => setMode('preview')}
               className={cn(
@@ -165,7 +165,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
               className="flex-1 w-full p-4 text-sm font-mono text-gray-300 bg-[#171717] resize-none outline-none"
               placeholder="Edit content..."
             />
-            <div className="px-4 py-2 border-t border-[#2a2a2a] text-[11px] text-gray-600">
+            <div className="px-4 py-2 border-t border-[#383838] text-[11px] text-gray-600">
               {editContent.length} characters
             </div>
           </div>
@@ -175,7 +175,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
           <iframe
             ref={iframeRef}
             sandbox="allow-scripts"
-            className="w-full h-full border-none bg-[#1c1c1c]"
+            className="w-full h-full border-none bg-[#2a2a2a]"
             title={content.title}
           />
         )}
@@ -194,7 +194,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
 
         {/* PDF preview — render page images */}
         {content.type === 'pdf' && (
-          <div className="h-full overflow-auto bg-[#222] p-4 flex flex-col items-center gap-3">
+          <div className="h-full overflow-auto bg-[#2a2a2a] p-4 flex flex-col items-center gap-3">
             {content.images.length === 0 ? (
               <p className="text-gray-500 text-sm mt-8">PDF 渲染失败。请确认系统已安装 poppler-utils。</p>
             ) : content.images.map((img, i) => (
@@ -202,7 +202,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
                 key={i}
                 src={`data:image/png;base64,${img}`}
                 alt={`Page ${i + 1}`}
-                className="max-w-full shadow-lg border border-[#333] rounded"
+                className="max-w-full shadow-lg border border-[#3a3a3a] rounded"
               />
             ))}
           </div>
@@ -210,7 +210,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
 
         {/* Image preview */}
         {content.type === 'image' && (
-          <div className="h-full overflow-auto bg-[#222] flex items-center justify-center p-4">
+          <div className="h-full overflow-auto bg-[#2a2a2a] flex items-center justify-center p-4">
             <img
               src={content.src.startsWith('data:') ? content.src : `data:image/png;base64,${content.src}`}
               alt={content.alt || content.title}
@@ -221,13 +221,13 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
 
         {/* Preview images (Excel/PPTX rendered as images) */}
         {content.type === 'preview_images' && (
-          <div className="h-full overflow-auto bg-[#222] p-4 flex flex-col items-center gap-3">
+          <div className="h-full overflow-auto bg-[#2a2a2a] p-4 flex flex-col items-center gap-3">
             {content.images.map((img, i) => (
               <img
                 key={i}
                 src={img.startsWith('data:') ? img : `data:image/png;base64,${img}`}
                 alt={`Preview ${i + 1}`}
-                className="max-w-full shadow-lg border border-[#333] rounded"
+                className="max-w-full shadow-lg border border-[#3a3a3a] rounded"
               />
             ))}
           </div>

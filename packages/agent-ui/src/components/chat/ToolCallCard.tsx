@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { cn, t } from '@svton/ui';
 import { DiffView, isDiff } from './DiffView';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -61,8 +61,10 @@ function truncateOutput(output: string, maxLines: number): { text: string; trunc
   const lines = output.split('\n');
   if (lines.length <= maxLines) return { text: output, truncated: 0 };
 
-  const headCount = Math.ceil(maxLines / 2);
-  const tailCount = Math.floor(maxLines / 2);
+  // Tail gets more lines than head — the end of tool output is usually more
+  // important (final result, error message, exit code).
+  const tailCount = Math.ceil(maxLines / 2);
+  const headCount = Math.floor(maxLines / 2);
   const head = lines.slice(0, headCount);
   const tail = lines.slice(-tailCount);
   const truncated = lines.length - headCount - tailCount;
@@ -89,9 +91,17 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
   className,
 }) => {
   const isDone = toolCall.status === 'completed' || toolCall.status === 'error';
-  // Codex-style: running tools start expanded (user sees what's happening);
-  // completed tools start collapsed (historical detail available on click).
+  // Codex-style: running tools start expanded; completed tools start collapsed.
   const [expanded, setExpanded] = useState(!isDone);
+
+  // Auto-collapse when a running tool transitions to done.
+  const prevDoneRef = useRef(isDone);
+  useEffect(() => {
+    if (!prevDoneRef.current && isDone) {
+      setExpanded(false);
+    }
+    prevDoneRef.current = isDone;
+  }, [isDone]);
 
   const icon = STATUS_ICON[toolCall.status];
   const isShell = SHELL_TOOLS.has(toolCall.name);
@@ -207,7 +217,7 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
           {/* Shell command — show full command */}
           {isShell && shellCommand && (
             <div className="text-xs">
-              <div className="bg-[#1a1a1a] rounded-md px-3 py-1.5 font-mono text-gray-300 border border-[#252525] overflow-x-auto">
+              <div className="bg-[#252525] rounded-md px-3 py-1.5 font-mono text-gray-300 border border-[#3a3a3a] overflow-x-auto">
                 <span className="text-gray-500 select-none">$ </span>
                 {shellCommand}
               </div>
@@ -226,7 +236,7 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
           {!isShell && !isFileEdit && !isComputerUse && (
             <div>
               <div className="text-[10px] text-gray-500 mb-0.5">{t('tool.parameters')}</div>
-              <pre className="text-xs text-gray-400 bg-[#1a1a1a] rounded-md px-3 py-1.5 overflow-x-auto overflow-y-auto max-h-60 border border-[#252525]">
+              <pre className="text-xs text-gray-400 bg-[#252525] rounded-md px-3 py-1.5 overflow-x-auto overflow-y-auto max-h-60 border border-[#3a3a3a]">
                 {JSON.stringify(toolCall.arguments, null, 2)}
               </pre>
             </div>
@@ -245,7 +255,7 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
               ) : isMarkdownOutput && !toolCall.result.isError ? (
                 <div className={cn(
                   'rounded-md px-3 py-1.5 overflow-x-auto overflow-y-auto max-h-80 text-xs',
-                  toolCall.result.isError ? 'bg-red-950/50 text-red-400' : 'bg-[#1a1a1a] text-gray-400',
+                  toolCall.result.isError ? 'bg-red-950/50 text-red-400' : 'bg-[#252525] text-gray-400',
                 )}>
                   <MarkdownRenderer content={output} className="text-xs" />
                 </div>
@@ -276,7 +286,7 @@ function ShellOutput({ output, isError, maxLines }: { output: string; isError?: 
         'text-xs rounded-md px-3 py-1.5 overflow-x-auto max-h-80 overflow-y-auto border',
         isError
           ? 'bg-red-950/30 text-red-400/90 border-red-900/30'
-          : 'bg-[#1a1a1a] text-gray-600 border-[#252525]',
+          : 'bg-[#252525] text-gray-600 border-[#3a3a3a]',
       )}
     >
       {text}

@@ -59,11 +59,11 @@ export const ScreenshotView: React.FC<ScreenshotViewProps> = ({ output, classNam
     : `data:${parsed.mimeType || 'image/png'};base64,${parsed.data}`;
 
   return (
-    <div className={cn('rounded-lg overflow-hidden border border-[#2a2a2a] my-1', className)}>
+    <div className={cn('rounded-lg overflow-hidden border border-[#383838] my-1', className)}>
       <img
         src={src}
         alt="Screenshot"
-        className="max-w-full max-h-96 object-contain bg-[#111]"
+        className="max-w-full max-h-96 object-contain bg-[#1a1a1a]"
         loading="lazy"
       />
     </div>
