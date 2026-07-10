@@ -30,9 +30,9 @@ describe('User message bubble layout', () => {
     expect(screen.getByText('Hello AI')).toBeInTheDocument();
   });
 
-  it('has dark background bubble (#1c1c1c)', () => {
+  it('has dark background bubble (#2a2a2a)', () => {
     const { container } = render(<ChatMessage id="m1" role="user" content="Hi" />);
-    expect(container.innerHTML).toContain('bg-[#1c1c1c]');
+    expect(container.innerHTML).toContain('bg-[#2a2a2a]');
   });
 });
 
