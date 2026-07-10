@@ -64,7 +64,7 @@ const markdownComponents: Components = {
     // Inline code
     if (!text.includes('\n') && text.length < 200) {
       return (
-        <code className="bg-[#222] text-gray-300 px-1.5 py-0.5 rounded text-[13px] font-mono">
+        <code className="bg-[#2a2a2a] text-gray-300 px-1.5 py-0.5 rounded text-[13px] font-mono">
           {text}
         </code>
       );
@@ -113,36 +113,36 @@ const markdownComponents: Components = {
 
   blockquote({ children }) {
     return (
-      <blockquote className="border-l-2 border-[#333] pl-3 my-2 text-gray-500 italic">
+      <blockquote className="border-l-2 border-[#3a3a3a] pl-3 my-2 text-gray-500 italic">
         {children}
       </blockquote>
     );
   },
 
   hr() {
-    return <hr className="border-t border-[#2a2a2a] my-3" />;
+    return <hr className="border-t border-[#383838] my-3" />;
   },
 
   table({ children }) {
     return (
       <div className="overflow-x-auto my-2">
-        <table className="min-w-full border border-[#2a2a2a] rounded text-sm">{children}</table>
+        <table className="min-w-full border border-[#383838] rounded text-sm">{children}</table>
       </div>
     );
   },
   thead({ children }) {
-    return <thead className="bg-[#1c1c1c]">{children}</thead>;
+    return <thead className="bg-[#2a2a2a]">{children}</thead>;
   },
   th({ children }) {
     return (
-      <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-400 border-b border-[#2a2a2a]">
+      <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-400 border-b border-[#383838]">
         {children}
       </th>
     );
   },
   td({ children }) {
     return (
-      <td className="px-3 py-1.5 border-b border-[#222] text-gray-300">{children}</td>
+      <td className="px-3 py-1.5 border-b border-[#333] text-gray-300">{children}</td>
     );
   },
 

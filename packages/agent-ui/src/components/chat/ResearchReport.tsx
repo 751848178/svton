@@ -50,9 +50,9 @@ export function ResearchReport({ title, content, phase = 'complete', sources, cl
   }
 
   return (
-    <div className={`rounded-xl border border-[#2a2a2a] bg-[#1c1c1c] overflow-hidden my-4 ${className || ''}`}>
+    <div className={`rounded-xl border border-[#383838] bg-[#2a2a2a] overflow-hidden my-4 ${className || ''}`}>
       {/* Header */}
-      <div className="px-6 py-4 bg-[#111] border-b border-[#2a2a2a]">
+      <div className="px-6 py-4 bg-[#1a1a1a] border-b border-[#383838]">
         <div className="flex items-center gap-2 mb-1">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -66,7 +66,7 @@ export function ResearchReport({ title, content, phase = 'complete', sources, cl
       <div className="flex">
         {/* Sidebar — Table of Contents */}
         {headings.length > 2 && (
-          <nav className="hidden md:block w-48 flex-shrink-0 p-4 border-r border-[#222] bg-[#111]">
+          <nav className="hidden md:block w-48 flex-shrink-0 p-4 border-r border-[#333] bg-[#1a1a1a]">
             <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-2">Contents</div>
             <ul className="space-y-1">
               {headings.map((h, i) => (
@@ -100,11 +100,11 @@ export function ResearchReport({ title, content, phase = 'complete', sources, cl
 
       {/* Sources */}
       {sources && sources.length > 0 && (
-        <div className="px-6 py-3 border-t border-[#222] bg-[#111]">
+        <div className="px-6 py-3 border-t border-[#333] bg-[#1a1a1a]">
           <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-1.5">Sources</div>
           <div className="flex flex-wrap gap-2">
             {sources.map((s, i) => (
-              <span key={i} className="inline-flex items-center gap-1 text-xs text-gray-400 bg-[#222] px-2 py-0.5 rounded">
+              <span key={i} className="inline-flex items-center gap-1 text-xs text-gray-400 bg-[#2a2a2a] px-2 py-0.5 rounded">
                 {s.url ? (
                   <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600">
                     [{i + 1}] {s.title}
@@ -132,8 +132,8 @@ function ResearchProgress({ phase, title }: { phase: string; title: string }) {
   const currentIndex = phases.findIndex((p) => p.key === phase);
 
   return (
-    <div className="rounded-xl border border-[#2a2a2a] bg-[#1c1c1c] overflow-hidden my-4">
-      <div className="px-6 py-4 bg-[#111] border-b border-[#2a2a2a]">
+    <div className="rounded-xl border border-[#383838] bg-[#2a2a2a] overflow-hidden my-4">
+      <div className="px-6 py-4 bg-[#1a1a1a] border-b border-[#383838]">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
           <span className="text-sm font-medium text-gray-300">{title}</span>
@@ -147,7 +147,7 @@ function ResearchProgress({ phase, title }: { phase: string; title: string }) {
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
                   i < currentIndex ? 'bg-green-100 text-green-600' :
                   i === currentIndex ? 'bg-blue-100 text-blue-600 animate-pulse' :
-                  'bg-[#222] text-gray-400'
+                  'bg-[#2a2a2a] text-gray-400'
                 }`}>
                   {i < currentIndex ? '✓' : i + 1}
                 </div>

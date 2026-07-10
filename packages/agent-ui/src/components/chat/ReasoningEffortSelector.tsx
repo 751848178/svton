@@ -65,7 +65,7 @@ export const ReasoningEffortSelector: React.FC<ReasoningEffortSelectorProps> = (
     <div ref={containerRef} className={`svton-reasoning-effort relative inline-block ${className ?? ''}`}>
       {/* Trigger button */}
       <button
-        className="svton-reasoning-effort-trigger flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-gray-400 hover:text-gray-300 hover:bg-[#222] border border-transparent hover:border-[#2a2a2a] transition-colors"
+        className="svton-reasoning-effort-trigger flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-gray-400 hover:text-gray-300 hover:bg-[#2a2a2a] border border-transparent hover:border-[#383838] transition-colors"
         onClick={() => setOpen(!open)}
         title={`Reasoning: ${selectedOption.label}`}
       >
@@ -76,14 +76,14 @@ export const ReasoningEffortSelector: React.FC<ReasoningEffortSelectorProps> = (
 
       {/* Dropdown menu */}
       {open && (
-        <div className="svton-reasoning-effort-menu absolute right-0 top-full mt-1 min-w-[180px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] shadow-xl z-50 overflow-hidden py-0.5">
+        <div className="svton-reasoning-effort-menu absolute right-0 top-full mt-1 min-w-[180px] rounded-lg border border-[#383838] bg-[#252525] shadow-xl z-50 overflow-hidden py-0.5">
           {EFFORT_OPTIONS.map((option) => {
             const isSelected = option.value === value;
             return (
               <button
                 key={option.label}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-[#222] transition-colors ${
-                  isSelected ? 'bg-[#222]' : ''
+                className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-[#2a2a2a] transition-colors ${
+                  isSelected ? 'bg-[#2a2a2a]' : ''
                 }`}
                 onClick={() => {
                   onChange(option.value);

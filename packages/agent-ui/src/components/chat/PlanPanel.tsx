@@ -22,7 +22,7 @@ const STATUS_STYLE: Record<string, { icon: string; color: string; bg: string }> 
   completed: { icon: '✓', color: 'text-green-400', bg: 'bg-green-900/30' },
   in_progress: { icon: '●', color: 'text-blue-400 animate-pulse', bg: 'bg-blue-900/30' },
   failed: { icon: '✗', color: 'text-red-400', bg: 'bg-red-900/30' },
-  skipped: { icon: '—', color: 'text-gray-500', bg: 'bg-[#222]' },
+  skipped: { icon: '—', color: 'text-gray-500', bg: 'bg-[#2a2a2a]' },
   pending: { icon: '○', color: 'text-gray-500', bg: '' },
 };
 
@@ -36,7 +36,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ plan, className }) => {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <div className={cn('mx-4 mb-1 rounded-lg border [#2a2a2a] bg-[#1c1c1c] overflow-hidden', className)}>
+    <div className={cn('mx-4 mb-1 rounded-lg border [#2a2a2a] bg-[#2a2a2a] overflow-hidden', className)}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 dark:border-gray-700">
         <span className="text-xs font-semibold gray-300">{plan.title}</span>
