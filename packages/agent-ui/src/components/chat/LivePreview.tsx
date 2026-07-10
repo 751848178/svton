@@ -61,9 +61,9 @@ try {
   if (!iframeSrc) return null;
 
   return (
-    <div className={`rounded-lg overflow-hidden border border-[#2a2a2a] my-3 ${className || ''}`}>
+    <div className={`rounded-lg overflow-hidden border border-[#383838] my-3 ${className || ''}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#111] border-b border-[#2a2a2a]">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#1a1a1a] border-b border-[#383838]">
         <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">
           Live Preview
         </span>
@@ -77,14 +77,14 @@ try {
 
       {/* Content */}
       {showCode ? (
-        <pre className="px-4 py-3 text-xs font-mono text-gray-300 bg-[#111] overflow-x-auto max-h-64 overflow-y-auto">
+        <pre className="px-4 py-3 text-xs font-mono text-gray-300 bg-[#1a1a1a] overflow-x-auto max-h-64 overflow-y-auto">
           <code>{code}</code>
         </pre>
       ) : (
         <iframe
           srcDoc={iframeSrc}
           sandbox="allow-scripts"
-          className="w-full bg-[#1c1c1c]"
+          className="w-full bg-[#2a2a2a]"
           style={{ height: '200px', border: 'none' }}
           title="Code preview"
         />

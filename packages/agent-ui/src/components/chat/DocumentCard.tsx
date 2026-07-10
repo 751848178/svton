@@ -36,7 +36,7 @@ export function DocumentCard({ title, snippet, kind = 'document', extension, onC
       onClick={onClick}
       className={cn(
         'flex items-start gap-3 w-full text-left px-4 py-3 rounded-xl',
-        'border border-[#2a2a2a] bg-[#1c1c1c] hover:bg-[#222] hover:border-[#333]',
+        'border border-[#383838] bg-[#2a2a2a] hover:bg-[#2a2a2a] hover:border-[#3a3a3a]',
         'transition-all duration-150 group',
         className,
       )}

@@ -52,7 +52,7 @@ export const DiffView: React.FC<DiffViewProps> = ({ diff, className }) => {
   const lines = parseDiff(diff);
 
   return (
-    <div className={cn('rounded-lg border border-[#2a2a2a] overflow-hidden my-1 max-h-80', className)}>
+    <div className={cn('rounded-lg border border-[#383838] overflow-hidden my-1 max-h-80', className)}>
       <div className="overflow-x-auto overflow-y-auto max-h-80">
         <table className="w-full text-xs font-mono">
           <tbody>

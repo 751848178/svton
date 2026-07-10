@@ -35,9 +35,9 @@ export const ImageResultBlock: React.FC<ImageResultBlockProps> = ({
   if (images.length === 0) return null;
 
   return (
-    <div className={`svton-image-result rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] overflow-hidden ${className ?? ''}`}>
+    <div className={`svton-image-result rounded-lg border border-[#383838] bg-[#252525] overflow-hidden ${className ?? ''}`}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#252525]">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#3a3a3a]">
         <span className="text-xs font-semibold text-gray-300">
           {images.length} {images.length === 1 ? 'Image' : 'Images'} Generated
         </span>
@@ -60,7 +60,7 @@ export const ImageResultBlock: React.FC<ImageResultBlockProps> = ({
           if (!src) return null;
 
           return (
-            <div key={idx} className="svton-image-result-item relative group rounded-md overflow-hidden border border-[#252525]">
+            <div key={idx} className="svton-image-result-item relative group rounded-md overflow-hidden border border-[#3a3a3a]">
               <img
                 src={src}
                 alt={img.revisedPrompt ?? `Generated image ${idx + 1}`}
@@ -90,7 +90,7 @@ export const ImageResultBlock: React.FC<ImageResultBlockProps> = ({
 
               {/* Revised prompt caption */}
               {img.revisedPrompt && showPrompt === idx && (
-                <div className="px-2 py-1 text-[10px] text-gray-400 bg-[#1a1a1a]/95 border-t border-[#252525]">
+                <div className="px-2 py-1 text-[10px] text-gray-400 bg-[#252525]/95 border-t border-[#3a3a3a]">
                   <span className="text-gray-500">Prompt: </span>
                   {img.revisedPrompt}
                 </div>
