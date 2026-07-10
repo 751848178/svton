@@ -1,0 +1,7 @@
+interface:
+  display_name: "Multi-Agent Development"
+  short_description: "Route layered development work through bounded agents."
+  default_prompt: "Use $multi-agent-development to split this development goal into bounded agent roles, context packs, and atomic todos."
+
+policy:
+  allow_implicit_invocation: true
