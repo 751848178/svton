@@ -302,8 +302,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     // Navigate mention — two-layer selector
     if (showMentions && filteredMentions.length > 0) {
-      // Build category groups for navigation
-      const mentionGroups = buildMentionGroups(filteredMentions);
+      // Reuse the memoized mentionGroups (avoids diverging from the rendered list)
       const currentGroup = mentionGroups[mentionCategoryIdx];
       const currentItems = currentGroup?.items ?? [];
 
@@ -392,7 +391,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (!isComposing && e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -465,9 +464,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'mb-4 rounded-2xl border bg-[#1c1c1c] transition-shadow relative shrink-0',
+        'mb-4 rounded-2xl border bg-[#2a2a2a] transition-shadow relative shrink-0',
         dragOver ? 'border-blue-400 shadow-lg ring-2 ring-blue-200' :
-        focused ? 'border-[#333] shadow-lg' : 'border-[#2a2a2a] shadow-md',
+        focused ? 'border-[#3a3a3a] shadow-lg' : 'border-[#383838] shadow-md',
         disabled && 'opacity-60',
         className,
       )}
@@ -476,7 +475,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {showCommands && (
         <div
           style={{ position: 'fixed', left: popupPos.left, bottom: popupPos.bottom, width: popupPos.width, zIndex: 9999 }}
-          className="bg-[#1c1c1c] rounded-xl border border-[#2a2a2a] shadow-xl py-1 max-h-64 overflow-y-auto"
+          className="bg-[#2a2a2a] rounded-xl border border-[#383838] shadow-xl py-1 max-h-64 overflow-y-auto"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="px-3 py-1.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">
@@ -496,7 +495,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onMouseEnter={() => setSelectedCmd(i)}
               className={cn(
                 'w-full text-left px-3 py-2 flex items-center gap-3 transition-colors',
-                i === selectedCmd ? 'bg-[#2a2a2a]' : 'hover:bg-[#222]',
+                i === selectedCmd ? 'bg-[#2a2a2a]' : 'hover:bg-[#2a2a2a]',
               )}
             >
               <span className="text-xs font-mono text-cyan-600 flex-shrink-0">/{cmd.name}</span>
@@ -512,11 +511,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return (
           <div
             style={{ position: 'fixed', left: popupPos.left, bottom: popupPos.bottom, width: popupPos.width, zIndex: 9999 }}
-            className="flex bg-[#1c1c1c] rounded-xl border border-[#2a2a2a] shadow-xl max-h-72 overflow-hidden"
+            className="flex bg-[#2a2a2a] rounded-xl border border-[#383838] shadow-xl max-h-72 overflow-hidden"
             onMouseDown={(e) => e.stopPropagation()}
           >
             {/* Left: category list */}
-            <div className="w-28 border-r border-[#2a2a2a] py-1 overflow-y-auto flex-shrink-0">
+            <div className="w-28 border-r border-[#383838] py-1 overflow-y-auto flex-shrink-0">
               {mentionGroups.map((group, gi) => (
                 <button
                   id={`mention-cat-${gi}`}
@@ -535,7 +534,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     'w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-1.5 transition-colors',
                     gi === mentionCategoryIdx
                       ? 'bg-[#2a2a2a] text-gray-100'
-                      : 'text-gray-500 hover:bg-[#222] hover:text-gray-300',
+                      : 'text-gray-500 hover:bg-[#2a2a2a] hover:text-gray-300',
                   )}
                 >
                   <span className="text-[10px]">{group.icon}</span>
@@ -549,7 +548,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               {currentGroup.items.map((item, ii) => (
                 <button
                   id={`mention-item-${ii}`}
-                  key={`${item.category}-${item.label}`}
+                  key={`${item.category}-${item.label}-${ii}`}
                   onMouseDown={(e) => e.stopPropagation()}
                   onMouseEnter={() => {
                     setMentionItemIdx(ii);
@@ -566,7 +565,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   }}
                   className={cn(
                     'w-full text-left px-3 py-1.5 flex items-center gap-2.5 transition-colors',
-                    mentionPhase === 'items' && ii === mentionItemIdx ? 'bg-[#2a2a2a]' : 'hover:bg-[#222]',
+                    mentionPhase === 'items' && ii === mentionItemIdx ? 'bg-[#2a2a2a]' : 'hover:bg-[#2a2a2a]',
                   )}
                 >
                   {item.icon && <span className="flex-shrink-0">{item.icon}</span>}
@@ -607,7 +606,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {images.length > 0 && (
         <div className="flex gap-2 px-4 pb-2 overflow-x-auto">
           {images.map((img, i) => (
-            <div key={i} className="relative flex-shrink-0 w-16 h-16 rounded-lg border border-[#2a2a2a] overflow-hidden bg-[#222]">
+            <div key={i} className="relative flex-shrink-0 w-16 h-16 rounded-lg border border-[#383838] overflow-hidden bg-[#2a2a2a]">
               <img
                 src={`data:${img.mimeType};base64,${img.data}`}
                 alt={`Attachment ${i + 1}`}
@@ -648,7 +647,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </svg>
           </button>
           {showAttachMenu && (
-            <div className="absolute bottom-full left-0 mb-1 w-40 bg-[#1c1c1c] rounded-lg border border-[#2a2a2a] shadow-xl z-[60] py-1">
+            <div className="absolute bottom-full left-0 mb-1 w-40 bg-[#2a2a2a] rounded-lg border border-[#383838] shadow-xl z-[60] py-1">
               <button
                 onClick={() => { fileInputRef.current?.click(); }}
                 className="w-full text-left px-3 py-1.5 text-[11px] text-gray-400 hover:bg-[#252525] hover:text-gray-200 flex items-center gap-2 transition-colors"
@@ -693,11 +692,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 	                  if (text) {
 	                    const truncated = text.length > MAX_INLINE_FILE_CHARS;
 	                    const inlineText = truncated ? text.slice(0, MAX_INLINE_FILE_CHARS) : text;
-	                    const prefix = value ? '\n' : '';
-	                    setValue(prefix + `📄 ${file.name}${truncated ? ' (truncated)' : ''}\n\`\`\`\n${inlineText}\n\`\`\`${truncated ? '\n[File truncated in the input preview.]' : ''}`);
+	                    // Insert at end of current content, preserving what user already typed
+	                    const sep = value && !value.endsWith('\n') ? '\n' : '';
+	                    setValue(value + sep + `📄 ${file.name}${truncated ? ' (truncated)' : ''}\n\`\`\`\n${inlineText}\n\`\`\`${truncated ? '\n[File truncated in the input preview.]' : ''}`);
 	                    textareaRef.current?.focus();
 	                  }
-                };
+	                };
                 reader.readAsText(file);
               }
               e.target.value = '';

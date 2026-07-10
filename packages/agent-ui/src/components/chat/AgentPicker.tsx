@@ -60,7 +60,7 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
     <div ref={containerRef} className={`svton-agent-picker relative inline-block ${className ?? ''}`}>
       {/* Trigger button */}
       <button
-        className="svton-agent-picker-trigger flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-[#1a1a1a] hover:bg-[#222] border border-[#2a2a2a] transition-colors"
+        className="svton-agent-picker-trigger flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-[#252525] hover:bg-[#2a2a2a] border border-[#383838] transition-colors"
         onClick={() => setOpen(!open)}
       >
         {currentAgent?.icon && (
@@ -77,12 +77,12 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
       {/* Dropdown menu */}
       {open && (
         <div
-          className="svton-agent-picker-menu absolute right-0 top-full mt-1 min-w-[240px] max-w-[320px] rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] shadow-xl z-50 overflow-hidden"
+          className="svton-agent-picker-menu absolute right-0 top-full mt-1 min-w-[240px] max-w-[320px] rounded-lg border border-[#383838] bg-[#252525] shadow-xl z-50 overflow-hidden"
         >
           {/* Default / None option */}
           <button
-            className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#222] transition-colors ${
-              current === null ? 'bg-[#222]' : ''
+            className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#2a2a2a] transition-colors ${
+              current === null ? 'bg-[#2a2a2a]' : ''
             }`}
             onClick={() => {
               onSelect('');
@@ -108,8 +108,8 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
           {agents.map((agent) => (
             <button
               key={agent.name}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#222] transition-colors ${
-                current === agent.name ? 'bg-[#222]' : ''
+              className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#2a2a2a] transition-colors ${
+                current === agent.name ? 'bg-[#2a2a2a]' : ''
               }`}
               onClick={() => {
                 onSelect(agent.name);

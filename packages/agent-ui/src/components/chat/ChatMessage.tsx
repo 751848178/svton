@@ -131,6 +131,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   // After completion: a static "已处理 Xs ▸" button shows (no animation).
   // Users can click either to expand and inspect the details.
   const [processExpanded, setProcessExpanded] = useState(false);
+  // userCopied must be declared at the top level (not inside the role==='user'
+  // branch) to comply with React's Rules of Hooks.
+  const [userCopied, setUserCopied] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -170,8 +173,6 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   }
 
   if (role === 'user') {
-    const [userCopied, setUserCopied] = useState(false);
-
     const handleCopy = async () => {
       try {
         await navigator.clipboard.writeText(content);
@@ -217,7 +218,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   }
                   if (e.key === 'Escape') handleCancelEdit();
                 }}
-                className="w-full text-sm text-gray-100 bg-[#222] rounded-lg px-3 py-2 border border-[#333] focus:border-cyan-600 focus:ring-1 focus:ring-blue-400 outline-none resize-none max-h-[200px]"
+                className="w-full text-sm text-gray-100 bg-[#2a2a2a] rounded-lg px-3 py-2 border border-[#3a3a3a] focus:border-cyan-600 focus:ring-1 focus:ring-blue-400 outline-none resize-none max-h-[200px]"
               />
               <div className="flex items-center gap-2 mt-1.5">
                 <button
@@ -228,7 +229,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 </button>
                 <button
                   onClick={handleCancelEdit}
-                  className="px-3 py-1 text-xs font-medium rounded-lg border border-[#333] text-gray-400 hover:bg-[#222]"
+                  className="px-3 py-1 text-xs font-medium rounded-lg border border-[#3a3a3a] text-gray-400 hover:bg-[#2a2a2a]"
                 >
                   取消
                 </button>
@@ -237,8 +238,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
           ) : (
             <>
-              <div className="bg-[#1c1c1c] rounded-2xl px-4 py-2.5 min-w-0 w-fit">
-                <div className="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap break-all">
+              <div className="bg-[#2a2a2a] rounded-2xl px-4 py-2.5 min-w-0 w-fit">
+                <div className="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap break-words" style={{ overflowWrap: 'anywhere' }}>
                   {content}
                 </div>
                 {images && images.length > 0 && (
@@ -248,7 +249,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                         key={i}
                         src={img.data.startsWith('data:') || img.data.startsWith('http') ? img.data : `data:${img.mimeType || 'image/png'};base64,${img.data}`}
                         alt={`Image ${i + 1}`}
-                        className="max-w-xs max-h-48 rounded-lg border border-[#2a2a2a]"
+                        className="max-w-xs max-h-48 rounded-lg border border-[#383838]"
                       />
                     ))}
                   </div>
@@ -513,7 +514,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
               const verdictColor = block.verdict === 'approve' ? 'text-green-400' : block.verdict === 'deny' ? 'text-red-400' : 'text-yellow-400';
               const verdictIcon = block.verdict === 'approve' ? '✓' : block.verdict === 'deny' ? '✗' : '⚠';
               return (
-                <div key={`ar-${i}`} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2a2a2a] bg-[#1c1c1c] my-1">
+                <div key={`ar-${i}`} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#383838] bg-[#2a2a2a] my-1">
                   <span className={`text-xs ${verdictColor}`}>{verdictIcon}</span>
                   <span className="text-[12px] text-gray-300">
                     Auto-Review: <span className={verdictColor}>{block.verdict}</span>
@@ -624,7 +625,7 @@ function ThinkingBlock({ text, isStreaming }: { text: string; isStreaming?: bool
         <span className="italic">{t('chat.thinking')}</span>
       </button>
       {open && (
-        <div className="mt-1 pl-4 border-l-2 border-[#333] text-xs text-gray-400 italic leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+        <div className="mt-1 pl-4 border-l-2 border-[#3a3a3a] text-xs text-gray-400 italic leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
           {text}
         </div>
       )}
@@ -704,7 +705,7 @@ function AssistantActions({
       {onOpenEditor && (
         <button
           onClick={() => onOpenEditor(content)}
-          className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 hover:text-gray-300 rounded-md hover:bg-[#222] transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 hover:text-gray-300 rounded-md hover:bg-[#2a2a2a] transition-colors"
           title="Edit"
         >
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -719,7 +720,7 @@ function AssistantActions({
         {(onClick) => (
           <button
             onClick={onClick}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 hover:text-gray-300 rounded-md hover:bg-[#222] transition-colors"
+            className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 hover:text-gray-300 rounded-md hover:bg-[#2a2a2a] transition-colors"
             title="Export"
           >
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -736,7 +737,7 @@ function AssistantActions({
       {onRetry && isLast && (
         <button
           onClick={() => onRetry()}
-          className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 hover:text-gray-300 rounded-md hover:bg-[#222] transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 hover:text-gray-300 rounded-md hover:bg-[#2a2a2a] transition-colors"
           title="Regenerate"
         >
           <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

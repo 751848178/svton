@@ -209,7 +209,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   <button
                     key={preset.label}
                     onClick={() => onSend(preset.prompt)}
-                    className="text-left px-4 py-3 rounded-xl border border-[#2a2a2a] bg-[#1c1c1c] hover:bg-[#222] hover:border-[#333] transition-colors text-sm text-gray-400 leading-snug"
+                    className="text-left px-4 py-3 rounded-xl border border-[#383838] bg-[#2a2a2a] hover:bg-[#2a2a2a] hover:border-[#3a3a3a] transition-colors text-sm text-gray-400 leading-snug"
                   >
                     {preset.label}
                   </button>
@@ -272,7 +272,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         {showScrollBtn && (
           <button
             onClick={scrollToBottom}
-            className="sticky bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#1c1c1c]/90 border border-[#2a2a2a] shadow-sm text-xs text-gray-500 hover:text-gray-300 hover:bg-[#222] transition-all"
+            className="sticky bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#2a2a2a]/90 border border-[#383838] shadow-sm text-xs text-gray-500 hover:text-gray-300 hover:bg-[#2a2a2a] transition-all"
           >
             <span>↓</span>
             <span>{t('chat.scrollToBottom')}</span>
