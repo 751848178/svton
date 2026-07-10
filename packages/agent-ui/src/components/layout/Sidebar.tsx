@@ -168,7 +168,7 @@ export function Sidebar({
 
       <div
         className={cn(
-          'flex-shrink-0 bg-[#171717] border-r border-[#222] flex flex-col transition-[width] duration-200 ease-in-out',
+          'flex-shrink-0 bg-[#171717] border-r border-[#333] flex flex-col transition-[width] duration-200 ease-in-out',
           // Mobile: fixed overlay
           'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40',
           isMobileOpen ? 'max-md:flex' : 'max-md:hidden',
@@ -178,7 +178,7 @@ export function Sidebar({
         style={{ width: currentWidth }}
       >
         {/* Header */}
-        <div className="px-2 py-2 border-b border-[#222] flex items-center justify-between flex-shrink-0">
+        <div className="px-2 py-2 border-b border-[#333] flex items-center justify-between flex-shrink-0">
           {!isCollapsed && (
             <span className="text-sm font-medium text-gray-200 truncate px-1">{title}</span>
           )}
@@ -210,7 +210,7 @@ export function Sidebar({
             <button
               onClick={() => { onNewChat?.(); onMobileClose?.(); }}
               className={cn(
-                'w-full border border-dashed border-[#333] text-gray-400 hover:text-white hover:border-gray-500 hover:bg-[#1c1c1c]/60 rounded-md flex items-center justify-center gap-1.5 transition-colors',
+                'w-full border border-dashed border-[#333] text-gray-400 hover:text-white hover:border-gray-500 hover:bg-[#2a2a2a]/60 rounded-md flex items-center justify-center gap-1.5 transition-colors',
                 isCollapsed ? 'p-1.5' : 'px-3 py-1.5 text-[13px] font-medium',
               )}
               title="新对话"
@@ -235,7 +235,7 @@ export function Sidebar({
                     isCollapsed ? 'justify-center p-2' : 'px-2.5 py-1.5',
                     isActive
                       ? 'bg-[#222] text-gray-200'
-                      : 'text-gray-500 hover:bg-[#1c1c1c]/60 hover:text-gray-300',
+                      : 'text-gray-500 hover:bg-[#2a2a2a]/60 hover:text-gray-300',
                   )}
                   title={isCollapsed ? (item.collapsedTooltip || item.label) : undefined}
                 >
@@ -269,7 +269,7 @@ export function Sidebar({
                 onClick={() => { onSwitchSession?.(s.id); onMobileClose?.(); }}
                 className={cn(
                   'w-full p-2 rounded-md text-[10px] text-center transition-colors mb-0.5',
-                  s.id === currentSessionId ? 'bg-[#222] text-gray-200' : 'text-gray-600 hover:bg-[#1c1c1c]/60',
+                  s.id === currentSessionId ? 'bg-[#222] text-gray-200' : 'text-gray-600 hover:bg-[#2a2a2a]/60',
                 )}
                 title={s.title}
               >
@@ -286,11 +286,11 @@ export function Sidebar({
 
         {/* Settings */}
         {showSettings && (
-          <div className="px-1 py-1.5 border-t border-[#222] flex-shrink-0">
+          <div className="px-1 py-1.5 border-t border-[#333] flex-shrink-0">
             <button
               onClick={() => { onOpenSettings?.(); onMobileClose?.(); }}
               className={cn(
-                'w-full flex items-center gap-2 rounded-md text-gray-500 hover:text-gray-300 hover:bg-[#1c1c1c]/60 transition-colors text-[12px]',
+                'w-full flex items-center gap-2 rounded-md text-gray-500 hover:text-gray-300 hover:bg-[#2a2a2a]/60 transition-colors text-[12px]',
                 isCollapsed ? 'justify-center p-2' : 'px-2.5 py-1.5',
               )}
               title={isCollapsed ? '设置' : undefined}
@@ -335,7 +335,7 @@ function SessionList({
               'group flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer text-[12px] mb-0.5 transition-colors',
               s.id === currentSessionId
                 ? 'bg-[#222] text-gray-200'
-                : 'text-gray-500 hover:bg-[#1c1c1c]/60 hover:text-gray-300',
+                : 'text-gray-500 hover:bg-[#2a2a2a]/60 hover:text-gray-300',
             )}
           >
             <span className="flex-1 truncate">{s.title}</span>

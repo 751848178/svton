@@ -30,11 +30,11 @@ export const WebSearchBlockView: React.FC<WebSearchBlockViewProps> = ({ query, r
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={cn('rounded-lg border border-[#2a2a2a] bg-[#1c1c1c] overflow-hidden my-1', className)}>
+    <div className={cn('rounded-lg border border-[#383838] bg-[#2a2a2a] overflow-hidden my-1', className)}>
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#222] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#2a2a2a] transition-colors"
       >
         <span className="text-xs flex-shrink-0">🔍</span>
         <span className="text-[11px] text-gray-300 truncate flex-1">{query}</span>
@@ -44,9 +44,9 @@ export const WebSearchBlockView: React.FC<WebSearchBlockViewProps> = ({ query, r
 
       {/* Results */}
       {expanded && results.length > 0 && (
-        <div className="border-t border-[#252525] divide-y divide-[#252525]">
+        <div className="border-t border-[#3a3a3a] divide-y divide-[#252525]">
           {results.map((result, i) => (
-            <div key={i} className="px-3 py-2 hover:bg-[#1a1a1a] transition-colors">
+            <div key={i} className="px-3 py-2 hover:bg-[#252525] transition-colors">
               <a
                 href={result.url}
                 target="_blank"

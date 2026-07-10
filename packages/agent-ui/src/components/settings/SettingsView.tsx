@@ -311,7 +311,7 @@ function Badge({ color, children }: { color: 'green' | 'blue' | 'yellow' | 'gray
 }
 
 function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('bg-[#1c1c1c] rounded-xl border border-[#2a2a2a] p-5', className)}>{children}</div>;
+  return <div className={cn('bg-[#2a2a2a] rounded-xl border border-[#383838] p-5', className)}>{children}</div>;
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -431,7 +431,7 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
         <div className="w-52 flex-shrink-0 border-r border-[#1a1a1a] flex flex-col">
           <div className="px-3 pt-3 pb-2">
             <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="搜索设置..."
-              className="w-full px-2.5 py-1.5 text-[12px] bg-[#1c1c1c] border border-[#2a2a2a] rounded-md text-gray-300 placeholder:text-gray-600 outline-none focus:border-[#444]" />
+              className="w-full px-2.5 py-1.5 text-[12px] bg-[#2a2a2a] border border-[#383838] rounded-md text-gray-300 placeholder:text-gray-600 outline-none focus:border-[#444]" />
           </div>
           <div className="flex-1 overflow-y-auto px-2 pb-4">
             {GROUPS.map((group) => {
@@ -443,7 +443,7 @@ export function SettingsView({ adapter, onBack, refreshKey: refreshKeyProp }: Se
                   {gs.map((sec) => (
                     <button key={sec.id} onClick={() => setActiveSection(sec.id)}
                       className={cn('w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition-colors text-left',
-                        activeSection === sec.id ? 'bg-[#1c1c1c] text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-[#111]')}>
+                        activeSection === sec.id ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-[#1a1a1a]')}>
                       <span className="opacity-60">{ICONS[sec.id]}</span>{sec.label}
                     </button>
                   ))}
@@ -622,7 +622,7 @@ function GeneralSection({ allModels, defaultModel, onModelChange, workingDir, on
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <div className="flex-1 text-sm text-gray-400 font-mono bg-[#171717] rounded-lg px-3 py-2 border border-[#2a2a2a] truncate">{workingDir}</div>
+              <div className="flex-1 text-sm text-gray-400 font-mono bg-[#171717] rounded-lg px-3 py-2 border border-[#383838] truncate">{workingDir}</div>
               {onWorkingDirChange && (
                 <button onClick={() => { setDirInput(workingDir); setEditingDir(true); }}
                   className="px-3 py-2 text-[11px] font-medium rounded-lg bg-[#222] border border-[#333] text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex-shrink-0">
@@ -728,7 +728,7 @@ function ProvidersSection({ providers, showKey, setShowKey, showAddProvider, set
                 )}
                 <div className="space-y-1.5">
                   {p.models.map((m) => (
-                    <div key={m.id} className="flex items-center gap-2 px-2.5 py-1.5 bg-[#171717] rounded-lg border border-[#2a2a2a] group">
+                    <div key={m.id} className="flex items-center gap-2 px-2.5 py-1.5 bg-[#171717] rounded-lg border border-[#383838] group">
                       <Toggle checked={true} onChange={() => handleRemoveModel(i, m.id)} />
                       <div className="flex-1 min-w-0">
                         <span className="text-[12px] text-gray-300 font-mono">{m.id}</span>
@@ -783,7 +783,7 @@ function PersonalizationSection({ value, onChange, onSave }: { value: string; on
       <Card>
         <FieldLabel>自定义指令</FieldLabel>
         <p className="text-[10px] text-gray-600 mb-2">这些指令会附加到系统提示中，影响 Agent 的回复风格和行为</p>
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={"例如：\n- 使用中文回复\n- 代码注释使用英文\n- 优先使用函数式编程风格"} className="w-full text-sm text-gray-200 bg-[#171717] rounded-lg p-3 border border-[#2a2a2a] focus:border-cyan-600 outline-none placeholder:text-gray-600 resize-none h-48" />
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={"例如：\n- 使用中文回复\n- 代码注释使用英文\n- 优先使用函数式编程风格"} className="w-full text-sm text-gray-200 bg-[#171717] rounded-lg p-3 border border-[#383838] focus:border-cyan-600 outline-none placeholder:text-gray-600 resize-none h-48" />
         <div className="mt-3"><button onClick={onSave} className="px-4 py-1.5 text-[12px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors">保存</button></div>
       </Card>
     </div>
@@ -1122,7 +1122,7 @@ function SkillsListSection({ skills, disabledSkills, hasAgent, onToggle, onAdd, 
               <div><FieldLabel>名称</FieldLabel><input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="my-skill" className={INPUT_CLS} disabled={!!editingSkill} /></div>
               <div><FieldLabel>描述</FieldLabel><input type="text" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="描述技能用途..." className={INPUT_CLS} /></div>
             </div>
-            <div><FieldLabel>指令内容</FieldLabel><textarea value={formInstructions} onChange={(e) => setFormInstructions(e.target.value)} placeholder="技能的详细指令（Markdown 格式）..." className="w-full text-xs text-gray-300 bg-[#171717] rounded-lg p-3 border border-[#2a2a2a] focus:border-cyan-600 outline-none placeholder:text-gray-600 resize-none h-32" /></div>
+            <div><FieldLabel>指令内容</FieldLabel><textarea value={formInstructions} onChange={(e) => setFormInstructions(e.target.value)} placeholder="技能的详细指令（Markdown 格式）..." className="w-full text-xs text-gray-300 bg-[#171717] rounded-lg p-3 border border-[#383838] focus:border-cyan-600 outline-none placeholder:text-gray-600 resize-none h-32" /></div>
             <div className="flex items-center gap-2">
               <button onClick={editingSkill ? handleEdit : handleAdd} disabled={!formName.trim()} className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 disabled:opacity-50 transition-colors">{editingSkill ? '保存修改' : '添加'}</button>
               <button onClick={resetForm} className="px-3 py-1.5 text-[11px] text-gray-500 hover:text-gray-300">取消</button>
@@ -1236,7 +1236,7 @@ function McpSection({ servers, configs, onAdd, onRemove, onToggle, getMcpServerT
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 mb-4 border-b border-[#2a2a2a]">
+      <div className="flex gap-1 mb-4 border-b border-[#383838]">
         <button onClick={() => setMcpTab('config')} className={cn('px-3 py-1.5 text-[12px] border-b-2 transition-colors', mcpTab === 'config' ? 'text-white border-cyan-500' : 'text-gray-500 border-transparent hover:text-gray-300')}>已配置</button>
         <button onClick={() => setMcpTab('market')} className={cn('px-3 py-1.5 text-[12px] border-b-2 transition-colors', mcpTab === 'market' ? 'text-white border-cyan-500' : 'text-gray-500 border-transparent hover:text-gray-300')}>市场</button>
       </div>
@@ -1272,7 +1272,7 @@ function McpSection({ servers, configs, onAdd, onRemove, onToggle, getMcpServerT
 
               {/* Expanded tool permissions */}
               {expandedServer === c.name && connectedNames.has(c.name) && (
-                <div className="px-4 pb-3 border-t border-[#2a2a2a] bg-[#1a1a1a]/50">
+                <div className="px-4 pb-3 border-t border-[#383838] bg-[#252525]/50">
                   {/* Approval mode */}
                   <div className="flex items-center gap-3 mt-2 mb-3">
                     <span className="text-[11px] text-gray-500">审批模式:</span>
@@ -1372,7 +1372,7 @@ function McpSection({ servers, configs, onAdd, onRemove, onToggle, getMcpServerT
                 }
               }}
               placeholder="搜索 MCP 服务器..."
-              className="flex-1 text-sm text-gray-300 bg-[#171717] rounded-lg px-3 py-2 border border-[#2a2a2a] focus:border-cyan-600 outline-none placeholder:text-gray-600"
+              className="flex-1 text-sm text-gray-300 bg-[#171717] rounded-lg px-3 py-2 border border-[#383838] focus:border-cyan-600 outline-none placeholder:text-gray-600"
             />
             <button
               onClick={() => {
@@ -1463,7 +1463,7 @@ function PermissionsSection({ mode, onChange }: { mode: string; onChange: (m: st
       <h2 className="text-lg text-white font-medium mb-1">权限</h2>
       <p className="text-xs text-gray-500 mb-6">控制 Agent 在执行操作时的权限范围。</p>
       <div className="space-y-2">{modes.map((m) => (
-        <button key={m.id} onClick={() => onChange(m.id)} className={cn('w-full text-left p-4 rounded-xl border transition-colors', m.id === mode ? 'border-cyan-700 bg-cyan-950/30' : 'border-[#2a2a2a] bg-[#1c1c1c] hover:border-[#333]')}>
+        <button key={m.id} onClick={() => onChange(m.id)} className={cn('w-full text-left p-4 rounded-xl border transition-colors', m.id === mode ? 'border-cyan-700 bg-cyan-950/30' : 'border-[#383838] bg-[#2a2a2a] hover:border-[#333]')}>
           <div className="flex items-center gap-2 mb-1"><span className={cn('w-3 h-3 rounded-full border-2 flex items-center justify-center', m.id === mode ? 'border-cyan-500' : 'border-[#444]')}>{m.id === mode && <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />}</span><span className={cn('text-sm font-medium', m.id === mode ? 'text-cyan-300' : 'text-gray-300')}>{m.label}</span></div>
           <p className="text-[11px] text-gray-500 ml-5">{m.desc}</p>
         </button>
@@ -1509,7 +1509,7 @@ function MemorySection({ hasMemory, memoryText, entries, memoryInput, setMemoryI
         <div className="flex items-center gap-2 mb-4"><span className={cn('w-2 h-2 rounded-full', hasMemory ? 'bg-green-400' : 'bg-gray-600')} /><span className={cn('text-sm', hasMemory ? 'text-green-400' : 'text-gray-500')}>{hasMemory ? '已启用' : '暂无记忆'}</span></div>
         <div>
           <FieldLabel>添加新记忆</FieldLabel>
-          <textarea value={memoryInput} onChange={(e) => setMemoryInput(e.target.value)} placeholder="输入你想让 Agent 记住的内容..." className="w-full text-xs text-gray-300 bg-[#171717] rounded-lg p-3 border border-[#2a2a2a] focus:border-cyan-600 outline-none placeholder:text-gray-600 resize-none h-24" />
+          <textarea value={memoryInput} onChange={(e) => setMemoryInput(e.target.value)} placeholder="输入你想让 Agent 记住的内容..." className="w-full text-xs text-gray-300 bg-[#171717] rounded-lg p-3 border border-[#383838] focus:border-cyan-600 outline-none placeholder:text-gray-600 resize-none h-24" />
           <div className="flex items-center gap-2 mt-2">
             <button onClick={onAdd} className="px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors">添加记忆</button>
             {hasMemory && <button onClick={onClear} className="px-3 py-1.5 text-[11px] font-medium rounded-lg border border-red-900 text-red-400 hover:bg-red-900/30 transition-colors">清除所有记忆</button>}
@@ -1545,7 +1545,7 @@ function SearchSection({
       <Card>
         <FieldLabel>自定义搜索端点（高级）</FieldLabel>
         <input type="url" value={endpoint} onChange={(e) => onChange(e.target.value)} placeholder="https://your-searxng-instance.com/search?format=json" className={INPUT_CLS} />
-        <p className="mt-2 text-[10px] text-gray-600">端点需接受 <code className="font-mono bg-[#171717] px-1 py-0.5 rounded border border-[#2a2a2a]">?q=查询词</code> 并返回 JSON。适用于自建 SearXNG 实例。</p>
+        <p className="mt-2 text-[10px] text-gray-600">端点需接受 <code className="font-mono bg-[#171717] px-1 py-0.5 rounded border border-[#383838]">?q=查询词</code> 并返回 JSON。适用于自建 SearXNG 实例。</p>
         <button onClick={onSave} className="mt-3 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors">保存端点</button>
       </Card>
     </div>
@@ -1577,7 +1577,7 @@ function AutomationSection({ hasSubagent, hasPlanning, tools, adapter }: { hasSu
       {/* Planning */}
       <Card className="mb-4">
         <div className="flex items-center justify-between mb-3"><span className="text-sm text-gray-200 font-medium">规划 (Planning)</span><Badge color={hasPlanning ? 'green' : 'gray'}>{hasPlanning ? '已启用' : '未启用'}</Badge></div>
-        <div className="p-2.5 rounded-lg bg-[#171717] border border-[#2a2a2a]"><div className="space-y-1">
+        <div className="p-2.5 rounded-lg bg-[#171717] border border-[#383838]"><div className="space-y-1">
           {(planTools.length > 0 ? planTools : [{ name: 'plan_create', description: '创建多步骤计划' }, { name: 'plan_get_status', description: '查看计划和下一步' }, { name: 'plan_update_step', description: '更新步骤状态' }]).map((t) => (
             <div key={t.name} className="flex items-center gap-2 text-[11px]"><span className="w-1 h-1 rounded-full bg-green-400" /><span className="font-mono text-cyan-400">{t.name}</span><span className="text-gray-500">{t.description}</span></div>
           ))}
@@ -1588,8 +1588,8 @@ function AutomationSection({ hasSubagent, hasPlanning, tools, adapter }: { hasSu
       <Card className="mb-4">
         <div className="flex items-center justify-between mb-3"><span className="text-sm text-gray-200 font-medium">子代理 (Subagent)</span><Badge color={hasSubagent ? 'green' : 'gray'}>{hasSubagent ? '已启用' : '未启用'}</Badge></div>
         <div className="grid grid-cols-2 gap-2 text-[11px]">
-          <div className="p-2 rounded bg-[#171717] border border-[#2a2a2a]"><span className="text-gray-500">最大迭代</span><span className="ml-2 font-mono text-gray-400">20</span></div>
-          <div className="p-2 rounded bg-[#171717] border border-[#2a2a2a]"><span className="text-gray-500">超时时间</span><span className="ml-2 font-mono text-gray-400">120s</span></div>
+          <div className="p-2 rounded bg-[#171717] border border-[#383838]"><span className="text-gray-500">最大迭代</span><span className="ml-2 font-mono text-gray-400">20</span></div>
+          <div className="p-2 rounded bg-[#171717] border border-[#383838]"><span className="text-gray-500">超时时间</span><span className="ml-2 font-mono text-gray-400">120s</span></div>
         </div>
       </Card>
 
@@ -1600,7 +1600,7 @@ function AutomationSection({ hasSubagent, hasPlanning, tools, adapter }: { hasSu
           <div className="mb-3 space-y-1">
             <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1">已注册</div>
             {hooks.map((h) => (
-              <div key={h.id} className="flex items-center justify-between p-1.5 rounded bg-[#171717] border border-[#2a2a2a]">
+              <div key={h.id} className="flex items-center justify-between p-1.5 rounded bg-[#171717] border border-[#383838]">
                 <div className="flex items-center gap-2 text-[11px]">
                   <span className="font-mono text-cyan-400">{h.event}</span>
                   <span className="text-gray-600">priority: {h.priority}</span>
@@ -1615,7 +1615,7 @@ function AutomationSection({ hasSubagent, hasPlanning, tools, adapter }: { hasSu
           {HOOK_EVENTS.map(([ev, desc]) => {
             const active = hooks.some(h => h.event === ev);
             return (
-              <div key={ev} className={`flex items-center gap-2 text-[11px] p-1.5 rounded border ${active ? 'bg-green-950/20 border-green-900/30' : 'bg-[#171717] border-[#2a2a2a]'}`}>
+              <div key={ev} className={`flex items-center gap-2 text-[11px] p-1.5 rounded border ${active ? 'bg-green-950/20 border-green-900/30' : 'bg-[#171717] border-[#383838]'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-green-400' : 'bg-gray-600'}`} />
                 <span className="font-mono text-cyan-400">{ev}</span>
                 <span className="text-gray-500">{desc}</span>
@@ -1633,7 +1633,7 @@ function AutomationSection({ hasSubagent, hasPlanning, tools, adapter }: { hasSu
         ) : (
           <div className="space-y-1">
             {checkpoints.map((cp) => (
-              <div key={cp.sessionId} className="flex items-center justify-between p-2 rounded bg-[#171717] border border-[#2a2a2a]">
+              <div key={cp.sessionId} className="flex items-center justify-between p-2 rounded bg-[#171717] border border-[#383838]">
                 <div className="min-w-0 flex-1">
                   <span className="text-[11px] text-gray-300 font-mono">{cp.sessionId}</span>
                   <span className="ml-2 text-[10px] text-gray-600">{cp.messageCount} 条消息</span>
@@ -1680,7 +1680,7 @@ function PreviewModeSection({ adapter }: { adapter: ISettingsAdapter }) {
         <label
           className={cn(
             'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
-            mode === 'sidebar' ? 'border-cyan-600 bg-cyan-900/10' : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
+            mode === 'sidebar' ? 'border-cyan-600 bg-cyan-900/10' : 'border-[#383838] hover:border-[#3a3a3a]'
           )}
         >
           <input
@@ -1697,7 +1697,7 @@ function PreviewModeSection({ adapter }: { adapter: ISettingsAdapter }) {
         <label
           className={cn(
             'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
-            mode === 'window' ? 'border-cyan-600 bg-cyan-900/10' : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
+            mode === 'window' ? 'border-cyan-600 bg-cyan-900/10' : 'border-[#383838] hover:border-[#3a3a3a]'
           )}
         >
           <input
