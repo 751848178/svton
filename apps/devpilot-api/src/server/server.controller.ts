@@ -77,15 +77,7 @@ export class ServerController {
 
   @Post(':id/test')
   async testConnection(@Request() req: AuthRequest, @Param('id') id: string) {
-    await this.accessPolicyService.assertCanSelfServiceWrite({
-      teamId: req.teamId,
-      actorId: req.user.id,
-      category: 'server',
-      action: 'server.connection_test',
-      targetType: 'server',
-      targetId: id,
-      risk: 'low',
-    });
+    await this.assertCanSelfServiceWriteServer(req, 'server.connection_test', id, 'low');
     return this.serverService.testConnection(req.teamId, id);
   }
 
@@ -95,21 +87,54 @@ export class ServerController {
     return this.serverService.detectServices(req.teamId, id);
   }
 
-  private assertCanWriteServer(
+  private async assertCanWriteServer(
     req: AuthRequest,
     action: string,
     serverId: string | null,
     risk: string,
   ) {
-    return this.accessPolicyService.assertCanWrite({
-      teamId: req.teamId,
-      actorId: req.user.id,
-      category: 'server',
-      action,
-      targetType: 'server',
-      targetId: serverId,
-      risk,
-    });
+    const scopes = await this.getWritableServerScopes(req, serverId);
+    for (const scope of scopes) {
+      await this.accessPolicyService.assertCanWrite({
+        teamId: req.teamId,
+        actorId: req.user.id,
+        projectId: scope.projectId ?? null,
+        environmentId: scope.environmentId ?? null,
+        category: 'server',
+        action,
+        targetType: 'server',
+        targetId: serverId,
+        risk,
+      });
+    }
+  }
+
+  private async assertCanSelfServiceWriteServer(
+    req: AuthRequest,
+    action: string,
+    serverId: string,
+    risk: string,
+  ) {
+    const scopes = await this.getWritableServerScopes(req, serverId);
+    for (const scope of scopes) {
+      await this.accessPolicyService.assertCanSelfServiceWrite({
+        teamId: req.teamId,
+        actorId: req.user.id,
+        projectId: scope.projectId ?? null,
+        environmentId: scope.environmentId ?? null,
+        category: 'server',
+        action,
+        targetType: 'server',
+        targetId: serverId,
+        risk,
+      });
+    }
+  }
+
+  private async getWritableServerScopes(req: AuthRequest, serverId: string | null) {
+    if (!serverId) return [{ projectId: null, environmentId: null }];
+    const server = await this.serverService.findOne(req.teamId, serverId);
+    return this.getServerAccessScopes(server);
   }
 
   private async filterReadableServers<T extends ReadableServerRecord>(

@@ -34,6 +34,11 @@ import { ServerExecutorSupervisorAgentBlockedReasonsSummaryService } from "./ser
 import { ServerExecutorSupervisorAgentFleetSummaryService } from "./server-executor-supervisor-agent-fleet-summary.service";
 import { ServerExecutorSupervisorAgentLifecycleSummaryService } from "./server-executor-supervisor-agent-lifecycle-summary.service";
 import { ServerExecutorSupervisorAgentTaskPullSummaryService } from "./server-executor-supervisor-agent-task-pull-summary.service";
+import { ServerAgentTaskPullAckService } from "./server-agent-task-pull-ack.service";
+import { ServerAgentTaskPullClaimService } from "./server-agent-task-pull-claim.service";
+import { ServerAgentTaskPullFinishService } from "./server-agent-task-pull-finish.service";
+import { ServerAgentTaskPullFinishSyncService } from "./server-agent-task-pull-finish-sync.service";
+import { ServerAgentTaskPullQueryService } from "./server-agent-task-pull-query.service";
 
 @Module({
   imports: [
@@ -54,6 +59,11 @@ import { ServerExecutorSupervisorAgentTaskPullSummaryService } from "./server-ex
     ServerExecutorService,
     ServerAgentAuthService,
     ServerAgentCapabilityService,
+    ServerAgentTaskPullAckService,
+    ServerAgentTaskPullClaimService,
+    ServerAgentTaskPullFinishService,
+    ServerAgentTaskPullFinishSyncService,
+    ServerAgentTaskPullQueryService,
     ServerExecutorRuntimeConfigService,
     ServerExecutorRemoteExecutionMetadataService,
     ServerExecutorSupervisorService,
