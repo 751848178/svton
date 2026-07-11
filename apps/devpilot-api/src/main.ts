@@ -25,7 +25,7 @@ async function bootstrap() {
 
   // CORS 配置
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3100',
+    origin: parseCorsOrigins(process.env.CORS_ORIGIN),
     credentials: true,
   });
 
@@ -40,3 +40,11 @@ async function bootstrap() {
 }
 
 bootstrap();
+
+function parseCorsOrigins(value?: string) {
+  const origins = (value || 'http://localhost:3100')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return origins.length === 1 ? origins[0] : origins;
+}

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { encryptResourcePoolCredential } from '../resource-pool/resource-pool-credential.utils';
 
 @Injectable()
 export class AdminService {
@@ -85,7 +86,16 @@ export class AdminService {
   async getResourcePools() {
     return this.prisma.resourcePool.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        endpoint: true,
+        capacity: true,
+        allocated: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         _count: {
           select: { allocations: true },
         },
@@ -104,6 +114,7 @@ export class AdminService {
     const pool = await this.prisma.resourcePool.create({
       data: {
         ...data,
+        adminConfig: encryptResourcePoolCredential(data.adminConfig),
         status: 'active',
       },
     });

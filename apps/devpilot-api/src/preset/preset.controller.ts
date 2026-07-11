@@ -29,15 +29,30 @@ export class PresetController {
   }
 
   @Get()
-  findAll(@Request() req: AuthRequest) {
-    return this.presetService.findAll(req.teamId);
+  async findAll(@Request() req: AuthRequest) {
+    const presets = await this.presetService.findAll(req.teamId);
+    const readable = await Promise.all(presets.map(async (preset) => ({
+      preset,
+      allowed: await this.canReadPreset(req, preset.id),
+    })));
+    return readable.filter((item) => item.allowed).map((item) => item.preset);
   }
 
-  @Get(':id')
-  findOne(
+  @Get(':id/export')
+  async exportPreset(
     @Request() req: AuthRequest,
     @Param('id') id: string,
   ) {
+    await this.assertCanReadPreset(req, id);
+    return this.presetService.exportPreset(req.teamId, id);
+  }
+
+  @Get(':id')
+  async findOne(
+    @Request() req: AuthRequest,
+    @Param('id') id: string,
+  ) {
+    await this.assertCanReadPreset(req, id);
     return this.presetService.findOne(req.teamId, id);
   }
 
@@ -58,14 +73,6 @@ export class PresetController {
   ) {
     await this.assertCanWritePreset(req, 'preset.delete', id, 'medium');
     return this.presetService.remove(req.teamId, id);
-  }
-
-  @Get(':id/export')
-  exportPreset(
-    @Request() req: AuthRequest,
-    @Param('id') id: string,
-  ) {
-    return this.presetService.exportPreset(req.teamId, id);
   }
 
   @Post('import')
@@ -91,6 +98,30 @@ export class PresetController {
       targetType: 'preset',
       targetId,
       risk,
+    });
+  }
+
+  private assertCanReadPreset(req: AuthRequest, targetId: string) {
+    return this.accessPolicyService.assertCanRead({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      category: 'preset',
+      action: 'preset.read',
+      targetType: 'preset',
+      targetId,
+      risk: 'low',
+    });
+  }
+
+  private canReadPreset(req: AuthRequest, targetId: string) {
+    return this.accessPolicyService.canRead({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      category: 'preset',
+      action: 'preset.read',
+      targetType: 'preset',
+      targetId,
+      risk: 'low',
     });
   }
 }
