@@ -13,7 +13,7 @@
 ### P1. 项目环境与资源绑定
 
 - 目标:跨环境配置复制、资源接管、环境工作台。
-- 状态:✅ 第一版完成(环境绑定闭环、跨环境 Site/CDN/Resource/Secret copy、资源接管入口、未绑定资源归属)。
+- 状态:✅ 第一版完成(环境绑定闭环、跨环境 Site/CDN/Resource/Secret copy、资源接管入口、未绑定资源归属；后端 project-environment/resource-control 非 spec 文件已收敛到 ≤200 行)。
 - 进度:`../progress/P1-environment-binding.md`
 - 下一步:更细的项目/环境级 RBAC;把 Site copy queued live sync 的 follow-up 摘要接到前端治理入口/worker 运行态可视化;资源 copy 后的同步/指标/告警接管入口做深。
 
@@ -27,7 +27,7 @@
 ### P3. 站点管控
 
 - 目标:`Site` 模型承载 Nginx/OpenResty 同步、诊断、Smoke、配置 diff、审批、回滚、TLS 证书生命周期。
-- 状态:🟡 主链路完成(Site 闭环、live sync 边界、诊断、Smoke、告警、配置 diff、审批、同步历史、配置快照回滚、证书探测/续期链路);模块管理、证书库、真实环境 smoke 自动化、日志归档自动化、队列/并发治理待补。
+- 状态:🟡 主链路完成(Site 闭环、live sync 边界、诊断、Smoke、告警、配置 diff、审批、同步历史、配置快照回滚、证书探测/续期链路)，后端 runtime/DTO 文件已收敛到 ≤200 行；模块管理、证书库、真实环境 smoke 自动化、日志归档自动化和队列/并发治理待补。
 - 进度:`../progress/P3-site-governance.md`
 - 下一步:把 ProxyConfig 收敛为 Site 路由能力;OpenResty 模块基线策略化与失败告警、性能调优、日志归档自动化、队列/并发治理;证书库、上传、绑定、私钥敏感存储、更细粒度证书策略告警。
 
@@ -55,14 +55,14 @@
 ### P7. 日志中心
 
 - 目标:统一日志归档/查询、采集 dry-run、SLS live 查询、SSE 流式 tail、会话治理。
-- 状态:🟡 主体完成(日志流/条目、采集 dry-run、队列桥、定时 follow、SLS dry-run/live 查询、按流回填、自动入库、脱敏、SSE tail、cursor resume、断线重连、有界会话、活跃会话控制、限流、级别统计、错误告警、保留清理);agent 级持续日志 follow 待补。
+- 状态:🟡 主体完成(日志流/条目、采集 dry-run、队列桥、定时 follow、SLS dry-run/live 查询、按流回填、自动入库、脱敏、SSE tail、cursor resume、断线重连、有界会话、活跃会话控制、限流、级别统计、错误告警、保留清理、agent follow task-pull 只读 sample、默认关闭 claim/ack/terminal writeback 边界、log collection finish sync);agent 级持续日志 runtime、长连接和非日志业务 Run 结果同步待补。
 - 进度:`../progress/P7-log-center.md`
 - 下一步:远端命令/agent 级持续日志 follow、跨实例会话持久化、更细的租户级限流策略;更细的日志告警模板和 SLS 真实凭据 smoke。
 
 ### P8. 安全和运维治理
 
 - 目标:统一审计、高风险审批、Server executor 命令策略、并发门禁、执行治理可视化、控制面访问策略、server-agent 边界。
-- 状态:🟡 大量最小闭环完成(审计事件、审批门禁、命令策略/模板、live lease、execution job、队列 worker、Supervisor 各状态面、6 个业务 Run 队列桥、锁租约恢复、持久取消、SSH 远端 cleanup、stale orphan cleanup、访问策略覆盖主要读写接口、第一组授权回归);真实 agent runtime 长连接/任务拉取/生命周期、更多 e2e 授权覆盖、真实日志写入待补。
+- 状态:🟡 大量最小闭环完成(审计事件、审批门禁、Operation Approval repository/match 边界、审批要求 metadata、Control Access Policy repository/CRUD/access/audit 边界、命令策略/模板、live lease、execution job、队列 worker、Supervisor 各状态面、6 个业务 Run 队列桥、锁租约恢复、持久取消、SSH 远端 cleanup、stale orphan cleanup、访问策略覆盖主要读写接口、第一组授权回归、task-pull 只读 log-follow sample、默认关闭 claim/ack/terminal writeback 边界、log collection finish sync、non-log business-run finish sync、claimed task payload、terminal command-plan fallback、terminal result fallback、ack cancellation hint、ack progress writeback、supervisor progress visibility、claimed task lifecycle envelope、lifecycle contract discovery/claim-field alignment、CLI once runner、CLI bounded poll runner、CLI heartbeat writeback、CLI graceful stop、CLI command-step cancellation、CLI once signal wiring、CLI abortable poll sleep、CLI command-step force kill fallback、CLI in-step ack renewal、CLI timeout terminal summary、CLI optional timeout semantics、CLI final ack cancellation、CLI configurable ack renewal interval、CLI configurable force-kill grace、CLI command cwd boundary、CLI output truncation visibility、CLI dry-run command skip、CLI spawn error writeback、CLI loop heartbeat failure summary、CLI loop heartbeat rejection guard、CLI step ack rejection guard、CLI finish writeback helper extraction、CLI finish response summary、CLI once summary builder extraction、CLI loop finish writeback failure stop、CLI run failure exit surface、CLI once failure exit surface、CLI loop poll failure summary);真实 agent runtime 长连接、daemon 化、多实例治理、更多 e2e 授权覆盖待补。
 - 进度:`../progress/P8-ops-governance.md`
 - 下一步:控制面只读可见性过滤扩展到更多读路径;真实 agent runtime 长连接/任务拉取/生命周期执行、跨实例远端 orphan 治理、实际多实例队列协调;资源危险操作二次确认。
 

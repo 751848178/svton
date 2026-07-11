@@ -11,11 +11,23 @@ visibility, server-agent readiness, and safe operations handoff.
 - Roadmap status: approval gating, command policies, live execution leases,
   execution jobs, queue/retry/cancel/stale recovery, remote cleanup metadata,
   audit visibility, server-agent dispatcher boundary, runtime health, and
-  task-pull readiness skeleton are present in the current control plane.
+  task-pull readiness skeleton plus read-only log-follow job sample hints,
+  default-off task-pull claim/ack/terminal writeback boundaries, minimal log
+  collection finish sync, non-log business-run finish sync, a claimed task
+  payload envelope, terminal command-plan fallback, terminal result fallback,
+  ack cancellation hints, ack progress writeback, supervisor progress
+  visibility, a claimed task lifecycle envelope, and task-pull lifecycle
+  contract discovery with claim-field alignment, the CLI task-pull once runner,
+  a bounded CLI task-pull poll runner, optional CLI heartbeat writeback,
+  CLI graceful stop, CLI command-step cancellation, CLI once signal wiring, CLI
+  abortable poll sleep, CLI command-step force kill, CLI in-step ack renewal,
+  CLI timeout terminal summaries, CLI optional timeout semantics, CLI final ack
+  cancellation handling, and configurable CLI ack renewal intervals are present
+  in the current control plane.
 - Remaining product/runtime gaps from source docs: real agent long connection,
-  task claim/ack, lifecycle execution, complete multi-instance coordination,
-  broader e2e permission coverage, and deeper production remote-orphan
-  governance remain follow-ups.
+  full terminal task execution/runtime after the claimed payload, complete
+  multi-instance coordination, broader e2e permission coverage, and deeper
+  production remote-orphan governance remain follow-ups.
 - Recent verified contract slice: F128 repaired execution-governance scope type
   exports and `useExecutionGovernance(scope)` parameter contract.
 - Current source-backed structure result: F150 split worker/queue, remote
@@ -1550,11 +1562,11 @@ interactions.
 - Page structure: no Web page or interaction surface changes in this backend
   wiring structure slice.
 
-| Task   | Status      | Description                                      | Evidence                                                                                                                                                                                                                                               |
-| ------ | ----------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| F239.1 | done        | Build a source-backed map of facade wiring.      | CodeGraph CLI is present but uninitialized; manual graph confirmed the remaining constructor collaborators are assembled in `server-executor.service.ts` and consumed only by public facade delegates, queue callbacks, and supervisor snapshot reads. |
-| F239.2 | done        | Extract focused facade wiring factory.           | `server-executor-wiring-factory.service.ts` now owns facade collaborator assembly by composing linked business sync, audit, execution core, queue governance, agent runtime endpoint, target resolution, read query, and supervisor host services. `server-executor-submission.service.ts` owns execute/queue/cancel submission delegates, and `server-executor.service.ts` is a 196-line public facade. |
-| F239.3 | done        | Run focused API verification and hygiene checks. | Focused server-executor Jest passed: `/tmp/codex-tool-runs/svton/f239-server-executor-jest-20260705-023558.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f239-api-type-check-20260705-023558.log`; API build passed: `/tmp/codex-tool-runs/svton/f239-api-build-20260705-023558.log`; line-count, diff check, conflict-marker scan, and trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f239-line-count-final-20260705-023647.log`, `/tmp/codex-tool-runs/svton/f239-diff-check-20260705-023638.log`, `/tmp/codex-tool-runs/svton/f239-conflict-scan-20260705-023638.log`, `/tmp/codex-tool-runs/svton/f239-trailing-whitespace-scan-20260705-023638.log`. |
+| Task   | Status | Description                                      | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------ | ------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F239.1 | done   | Build a source-backed map of facade wiring.      | CodeGraph CLI is present but uninitialized; manual graph confirmed the remaining constructor collaborators are assembled in `server-executor.service.ts` and consumed only by public facade delegates, queue callbacks, and supervisor snapshot reads.                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| F239.2 | done   | Extract focused facade wiring factory.           | `server-executor-wiring-factory.service.ts` now owns facade collaborator assembly by composing linked business sync, audit, execution core, queue governance, agent runtime endpoint, target resolution, read query, and supervisor host services. `server-executor-submission.service.ts` owns execute/queue/cancel submission delegates, and `server-executor.service.ts` is a 196-line public facade.                                                                                                                                                                                                                                                                           |
+| F239.3 | done   | Run focused API verification and hygiene checks. | Focused server-executor Jest passed: `/tmp/codex-tool-runs/svton/f239-server-executor-jest-20260705-023558.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f239-api-type-check-20260705-023558.log`; API build passed: `/tmp/codex-tool-runs/svton/f239-api-build-20260705-023558.log`; line-count, diff check, conflict-marker scan, and trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f239-line-count-final-20260705-023647.log`, `/tmp/codex-tool-runs/svton/f239-diff-check-20260705-023638.log`, `/tmp/codex-tool-runs/svton/f239-conflict-scan-20260705-023638.log`, `/tmp/codex-tool-runs/svton/f239-trailing-whitespace-scan-20260705-023638.log`. |
 
 ## F240. DB Job Queue Repository Boundary Split
 
@@ -1586,11 +1598,1774 @@ slice.
 - Page structure: no Web page or interaction surface changes in this backend
   persistence structure slice.
 
-| Task   | Status      | Description                                      | Evidence |
-| ------ | ----------- | ------------------------------------------------ | -------- |
-| F240.1 | done        | Build a source-backed map of DB queue duties.    | CodeGraph CLI is present but uninitialized; manual graph confirmed `DbJobQueue` is bound in `ServerExecutorQueueModule` as `JOB_QUEUE_PORT`, its callers go through `JobQueuePort`, and the file mixes queued job persistence, lease persistence, config reads, and unique-constraint handling. |
-| F240.2 | done        | Extract focused DB queue repository boundaries.  | `DbJobQueue` remains the Nest provider and `JobQueuePort` facade. Queued job claim/heartbeat/completion/recovery persistence now lives in `db-queued-job.repository.ts`; live lease acquire/release/expire persistence and unique-constraint handling now live in `db-live-lease.repository.ts`. `db-job-queue.ts` is 67 lines, queued repository is 156 lines, and live-lease repository is 90 lines. |
-| F240.3 | done        | Run focused API verification and hygiene checks. | Focused DB queue Jest passed: `/tmp/codex-tool-runs/svton/f240-db-job-queue-jest-20260705-024238.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f240-api-type-check-20260705-024238.log`; API build passed: `/tmp/codex-tool-runs/svton/f240-api-build-20260705-024238.log`; line-count, diff check, conflict-marker scan, and trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f240-line-count-20260705-024312.log`, `/tmp/codex-tool-runs/svton/f240-diff-check-20260705-024312.log`, `/tmp/codex-tool-runs/svton/f240-conflict-scan-20260705-024312.log`, `/tmp/codex-tool-runs/svton/f240-trailing-whitespace-scan-20260705-024312.log`. |
+| Task   | Status | Description                                      | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------ | ------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F240.1 | done   | Build a source-backed map of DB queue duties.    | CodeGraph CLI is present but uninitialized; manual graph confirmed `DbJobQueue` is bound in `ServerExecutorQueueModule` as `JOB_QUEUE_PORT`, its callers go through `JobQueuePort`, and the file mixes queued job persistence, lease persistence, config reads, and unique-constraint handling.                                                                                                                                                                                                                                                                                                                                                                    |
+| F240.2 | done   | Extract focused DB queue repository boundaries.  | `DbJobQueue` remains the Nest provider and `JobQueuePort` facade. Queued job claim/heartbeat/completion/recovery persistence now lives in `db-queued-job.repository.ts`; live lease acquire/release/expire persistence and unique-constraint handling now live in `db-live-lease.repository.ts`. `db-job-queue.ts` is 67 lines, queued repository is 156 lines, and live-lease repository is 90 lines.                                                                                                                                                                                                                                                             |
+| F240.3 | done   | Run focused API verification and hygiene checks. | Focused DB queue Jest passed: `/tmp/codex-tool-runs/svton/f240-db-job-queue-jest-20260705-024238.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f240-api-type-check-20260705-024238.log`; API build passed: `/tmp/codex-tool-runs/svton/f240-api-build-20260705-024238.log`; line-count, diff check, conflict-marker scan, and trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f240-line-count-20260705-024312.log`, `/tmp/codex-tool-runs/svton/f240-diff-check-20260705-024312.log`, `/tmp/codex-tool-runs/svton/f240-conflict-scan-20260705-024312.log`, `/tmp/codex-tool-runs/svton/f240-trailing-whitespace-scan-20260705-024312.log`. |
+
+## F280. Operation Approval Repository Boundary Split
+
+Purpose: continue P8 approval-governance structure convergence after F240. Current
+source confirms `operation-approval.service.ts` is 413 lines and mixes approval
+request/review/consume business rules with Prisma include/create/update shapes.
+This slice only extracts the persistence, include projection, approval-match rule,
+and shared record shape boundaries while preserving approval
+list/reuse/review/resolve/consume behavior, access policy assertions, audit
+payloads, HTTP routes, and Web UI behavior.
+
+Assumption: F280 is a structure slice for operation approval only; it does not
+change RBAC policy decisions, approval status transitions, audit semantics,
+Prisma schema, queue behavior, or page interactions.
+
+- Business logic map: requesters can still create or reuse pending approvals,
+  reviewers approve/reject pending approvals, execution resolves only approved
+  unconsumed matching approvals, and consume marks approved approvals used.
+- Organization map: `OperationApprovalService` remains the public approval
+  business facade; a focused repository owns Prisma include/read/write shapes and
+  shared approval record types.
+- Function map: controller/server-executor callers -> service -> access policy
+  checks + repository reads/writes + match service + audit writer.
+- Data flow: approval input -> access assertion -> repository persistence ->
+  approval record -> audit payload; resolve/consume read/update the same approval
+  rows through the repository boundary.
+- Page structure: no Web page or interaction surface changes in this backend
+  repository-boundary slice.
+
+| Task   | Status | Description                                          | Allowed Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Read-only Files                                                                                                                                                                                                                          | Forbidden Scope                                                                                                    | Acceptance                                                                                                                                                                              | Verification                                                                                                          | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------ | ------ | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F280.1 | done   | Build a source-backed map of approval service seams. | `docs-internal/devpilot/progress/P8-ops-governance.md`, `docs-internal/todos/2026-06-25-existing-project-onboarding.md`                                                                                                                                                                                                                                                                                                                                                                                                          | `apps/devpilot-api/src/operation-approval/operation-approval.service.ts`, `apps/devpilot-api/src/operation-approval/operation-approval.controller.spec.ts`, `apps/devpilot-api/src/operation-approval/operation-approval.module.ts`      | No schema, controller route, policy, audit, Web, queue, or server-executor behavior changes.                       | Map confirms a single-module repository-boundary slice with no cross-module write need.                                                                                                 | Bounded source reads and scoped line-count scan only.                                                                 | Manual graph confirmed `OperationApprovalService` is only provided/exported in the operation-approval module, consumed by its controller/module exports, and directly owns Prisma list/reuse/create/review/resolve/consume shapes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| F280.2 | done   | Extract focused repository and shared record types.  | `apps/devpilot-api/src/operation-approval/operation-approval.service.ts`, `apps/devpilot-api/src/operation-approval/operation-approval.repository.ts`, `apps/devpilot-api/src/operation-approval/operation-approval.types.ts`, `apps/devpilot-api/src/operation-approval/operation-approval-match.service.ts`, `apps/devpilot-api/src/operation-approval/operation-approval-includes.constants.ts`, `apps/devpilot-api/src/operation-approval/operation-approval.module.ts`, `apps/devpilot-api/src/operation-approval/index.ts` | `apps/devpilot-api/src/operation-approval/operation-approval.controller.ts`, `apps/devpilot-api/src/operation-approval/dto/operation-approval.dto.ts`, `apps/devpilot-api/src/operation-approval/operation-approval-list-query.utils.ts` | No DTO/API shape, access-policy rule, audit-event contract, Prisma schema, queue, server-executor, or Web changes. | Service no longer injects `PrismaService` or owns Prisma include/create/update shapes; new source files stay under 200 lines; public methods preserve existing signatures and behavior. | Focused operation-approval Jest plus API type-check/build; source line-count check.                                   | `OperationApprovalRepository` owns list/reuse/create/review/consume Prisma access; `OPERATION_APPROVAL_INCLUDE` owns shared projections; `OperationApprovalMatchService` owns approval/input match assertions; `OperationApprovalService` is a 198-line facade. New files: repository 125, includes 79, types 51, match service 44 lines.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| F280.3 | done   | Run focused verification and sync docs.              | `docs-internal/devpilot/progress/P8-ops-governance.md`, `docs-internal/todos/2026-06-25-existing-project-onboarding.md`, `docs-internal/devpilot/progress/INDEX.md`, `docs-internal/devpilot/roadmap/05-phases.md`, `docs-internal/devpilot/refactor-architecture.md`, `/tmp/codex-tool-runs/svton/` logs.                                                                                                                                                                                                                       | Touched source files and focused verification logs.                                                                                                                                                                                      | No broad unrelated doc rewrites or historical session replay.                                                      | Progress/TODO evidence records changed files, verification commands, line counts, and any residual risks.                                                                               | Focused Jest, API type-check/build as needed, line-count, diff check, conflict-marker scan, trailing-whitespace scan. | Docs Prettier write/check passed: `/tmp/codex-tool-runs/svton/f280-prettier-write-docs-20260710-170059.log`, `/tmp/codex-tool-runs/svton/f280-prettier-check-after-write-20260710-170124.log`; focused operation-approval Jest passed: `/tmp/codex-tool-runs/svton/f280-operation-approval-jest-20260710-170045.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f280-api-type-check-20260710-170124.log`; API build passed: `/tmp/codex-tool-runs/svton/f280-api-build-20260710-170144.log`; line-count, diff check, conflict-marker scan, and trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f280-line-count-20260710-170144.log`, `/tmp/codex-tool-runs/svton/f280-diff-check-20260710-170144.log`, `/tmp/codex-tool-runs/svton/f280-conflict-scan-20260710-170207.log`, `/tmp/codex-tool-runs/svton/f280-trailing-whitespace-scan-20260710-170207.log`. |
+
+## F281. Operation Approval Rule Requirement Evaluation
+
+Purpose: when a high-risk operation creates an approval request, attach a
+source-backed requirement explanation based on existing control access policy
+rules. This slice keeps existing blocked-run behavior and approval APIs stable,
+and only enriches the approval record metadata returned by `createPending`.
+
+| Task   | Status | Description                                                                                        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | ------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F281.1 | done   | Map the current approval creation flow, reusable rule source, and smallest compatible return path. | Manual graph confirmed `createPending()` is called by resource/action, service operation, deployment, and site live paths after those callers already decide an approval is required. The reusable rule source is `ControlAccessPolicy` scope/principal/action/risk matching; there is no separate operation approval rule model.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| F281.2 | done   | Add focused rule requirement evaluation and metadata enrichment without changing caller contracts. | `OperationApprovalRequirementService` now evaluates approval requirements from existing `ControlAccessPolicy` scope/category/action/risk rules, records resource type (`targetType`), operation type (`action`), environment, requester role, default/admin reviewer rule, owner bypass, extra allowed roles/users, and matched policies under `metadata.approvalRequirement`. `OperationApprovalAuditService` keeps the public facade under 200 lines while preserving the existing audit payload.                                                                                                                                                                                                                                                                                                                                                                          |
+| F281.3 | done   | Run focused API verification and sync TODO/progress evidence.                                      | Focused operation-approval Jest passed: `/tmp/codex-tool-runs/svton/f281-operation-approval-jest-20260710-175310.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f281-api-type-check-20260710-175324.log`; API build passed: `/tmp/codex-tool-runs/svton/f281-api-build-20260710-175335.log`; final Prettier, diff check, conflict scan, and trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f281-final-prettier-check2-20260710-175600.log`, `/tmp/codex-tool-runs/svton/f281-final-diff-check2-20260710-175600.log`, `/tmp/codex-tool-runs/svton/f281-final-conflict-scan2-20260710-175600.log`, `/tmp/codex-tool-runs/svton/f281-final-trailing-whitespace-scan2-20260710-175600.log`; line-count confirmed touched operation-approval files remain ≤200 lines (service 187, requirement service 130, requirement repository 66, audit service 41). |
+
+## F282. Control Access Policy Repository Boundary Split
+
+Purpose: continue P8 access-governance structure convergence after F281. Current
+source confirms `control-access-policy.service.ts` is 465 lines and mixes policy
+CRUD orchestration, Prisma include/read/write shapes, membership lookup,
+candidate policy loading, binding existence checks, matcher helpers, and audit
+payload construction. This slice only extracts the Prisma-backed repository
+boundary while preserving policy list/create/update/delete behavior, allow/deny
+matching semantics, owner/default role fallback, audit payloads, HTTP routes,
+DTOs, and Web UI behavior.
+
+Assumption: F282 is a backend structure slice for control-access-policy only; it
+does not change RBAC decisions, policy priority/order, policy matching, Prisma
+schema, controller routes, operation-approval integration, or page interactions.
+
+- Business logic map: policy CRUD still validates bindings and principals,
+  writes audit events, and access checks still resolve membership, load
+  candidate policies, then apply deny/allow/default-role decisions.
+- Organization map: `ControlAccessPolicyService` remains the public facade; a
+  focused repository owns Prisma policy reads/writes, membership lookup, and
+  binding existence reads.
+- Function map: controller and downstream modules -> service -> repository
+  persistence/read helpers + policy matcher + audit event writer.
+- Data flow: DTO/input -> service validation -> repository persistence or
+  candidate policy reads -> service matching decision -> audit/response.
+- Page structure: no Web page or interaction surface changes in this backend
+  repository-boundary slice.
+
+| Task   | Status | Description                                                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------ | ------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F282.1 | done   | Build a source-backed map of access-policy service seams.     | Routing: focused slice + noisy-tools verification; no multi-agent needed because the change is confined to P8 `control-access-policy` backend files and docs. Manual graph confirmed `ControlAccessPolicyService` owned CRUD, policy matching, membership/binding reads, audit writes, and public access-check methods; controller and downstream modules consume the service facade.                                                                                                                                                                                                                                                                                                                                                                            |
+| F282.2 | done   | Extract focused repository while preserving service behavior. | `ControlAccessPolicyRepository` now owns Prisma list/create/update/delete, membership lookup, binding existence reads, and candidate policy loading; `ControlAccessPolicyCrudService` owns CRUD orchestration and validation; `ControlAccessPolicyAccessService` owns deny/allow/default-role decisions; `ControlAccessPolicyAuditService` owns audit payload writes; `ControlAccessPolicyService` remains a 101-line public facade. Non-spec control-access-policy source files are all ≤200 lines (repository 199, CRUD 178, access 106, facade 101).                                                                                                                                                                                                          |
+| F282.3 | done   | Run focused verification and sync docs.                       | Focused control-access-policy Jest passed: `/tmp/codex-tool-runs/svton/f282-control-access-policy-jest-rerun-20260710.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f282-api-type-check-rerun-20260710.log`; API build passed: `/tmp/codex-tool-runs/svton/f282-api-build-rerun-20260710.log`; Prettier, line-count, diff check, conflict-marker scan, and trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f282-final-prettier-check-20260710.log`, `/tmp/codex-tool-runs/svton/f282-line-count-rerun-20260710.log`, `/tmp/codex-tool-runs/svton/f282-final-diff-check-20260710.log`, `/tmp/codex-tool-runs/svton/f282-final-conflict-scan-20260710.log`, `/tmp/codex-tool-runs/svton/f282-final-trailing-whitespace-scan-20260710.log`. |
+
+## F286. Server-agent Task-pull Log Follow Sample
+
+Purpose: improve the default-off, read-only server-agent task-pull contract
+without implementing claim/ack/lifecycle runtime. The contract now exposes a
+safe log-follow hint for the next queued `server_agent` log collection job so
+agent/runtime operators can distinguish log follow demand from generic execution
+demand.
+
+| Task   | Status | Description                                                        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------ | ------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F286.1 | done   | Map the task-pull contract sample path and queued job metadata.    | Manual graph confirmed `ServerAgentController.taskPullContract()` delegates to `ServerAgentRuntimeEndpointService.readTaskPullContract()`, which reads `ServerAgentTaskPullQueryService.readQueueSnapshot()` and serializes `nextQueuedJob` through `buildServerAgentTaskPullSample()`.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| F286.2 | done   | Add a whitelisted log-follow sample object without changing queue. | `ServerAgentTaskPullQueryService` selects `inputSnapshot`, and `buildServerAgentTaskPullSample()` now emits optional `logFollow` for `log.collect.*` agent-follow jobs. The sample remains readiness-only and does not expose the full snapshot, command plan, token, Secret, log content, claim, ack, or lifecycle payload.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| F286.3 | done   | Run focused API verification and sync docs.                        | Focused server-executor Jest passed: `/tmp/codex-tool-runs/svton/f286-server-executor-jest-20260710-203342.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f286-api-type-check-20260710-203358.log`; API build passed: `/tmp/codex-tool-runs/svton/f286-api-build-20260710-203429.log`; final Prettier/diff/conflict/trailing checks passed: `/tmp/codex-tool-runs/svton/f286-final-prettier-check-rerun-20260710-204729.log`, `/tmp/codex-tool-runs/svton/f286-final-diff-check-rerun-20260710-204729.log`, `/tmp/codex-tool-runs/svton/f286-final-conflict-scan-clean2-20260710-204815.log`, `/tmp/codex-tool-runs/svton/f286-final-trailing-whitespace-scan-clean2-20260710-204816.log`; touched production line-count is 87/120/108. |
+
+## F287. Server-agent Task-pull Claim Boundary
+
+Purpose: move P8 server-agent task-pull governance from visibility-only
+readiness to a default-off claim boundary. The new claim path is still gated by
+task-pull auth/config and only marks matching ready `server_agent` jobs running;
+ack/completion, lifecycle execution, dispatcher execution, long connection,
+result writeback, and log content writeback remain out of scope.
+
+| Task   | Status | Description                                                        | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F287.1 | done   | Map task-pull claim endpoint, auth, queue claim, and sample flow.  | Routing: focused slice + noisy-tools verification; manual graph confirmed `ServerAgentController.taskPullClaim()` delegates through `ServerExecutorService` and `ServerAgentRuntimeEndpointService` to `ServerAgentTaskPullClaimService`, with queue mutation isolated in `ServerAgentTaskPullQueryService.claimNextReadyJob()`.                                                                                                                                            |
+| F287.2 | done   | Add the default-off server-agent claim endpoint and safe envelope. | `POST /server-agent/task-pull/claim` now uses the task-pull token and `SERVER_EXECUTOR_AGENT_TASK_PULL_ENABLED`; claim filters `teamId/serverId/transport=server_agent/status=queued/queueMode=queued/availableAt<=now`, sets running lock fields, and returns only a safe job sample plus optional `logFollow` hint. Contract/supervisor readiness now report claim support when task-pull is enabled, while ack/lifecycle stay unsupported.                               |
+| F287.3 | done   | Run focused API verification and sync docs.                        | Final focused claim/server-executor Jest passed: `/tmp/codex-tool-runs/svton/f287-final-jest-20260710-214926.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f287-final-api-type-check-20260710-214926.log`; API build passed: `/tmp/codex-tool-runs/svton/f287-final-api-build-20260710-214926.log`; touched production line-count passed: `/tmp/codex-tool-runs/svton/f287-line-count-20260710-214854.log` (43/118/121/125/129/130/150/157/171/182/183/193/193). |
+
+## F288. Server-agent Task-pull Ack Boundary
+
+Purpose: move P8 server-agent task-pull governance one step beyond claim by
+adding a default-off ack boundary. The new endpoint confirms that a claimed
+running `server_agent` job still belongs to the requesting server/agent lock
+owner and renews lock heartbeat state only; completion/failure, lifecycle
+execution, result/log writeback, dispatcher execution, and long connection stay
+out of scope.
+
+| Task   | Status | Description                                                      | Evidence                                                                                                                                                                                                                                                                                                                                                            |
+| ------ | ------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F288.1 | done   | Map task-pull ack endpoint, auth, running lock, and response.    | Routing: focused slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed ack should only renew the matching claimed running job lock and safe response.                                                                                                                                                                          |
+| F288.2 | done   | Add the default-off server-agent ack endpoint and safe envelope. | Added `POST /server-agent/task-pull/ack`, `ServerAgentTaskPullAckService`, `ServerAgentTaskPullAckDto`, and shared lock-owner utility; ack renews lock heartbeat state and keeps terminal lifecycle/log/result writeback out of scope.                                                                                                                              |
+| F288.3 | done   | Run focused API verification and sync docs.                      | Focused ack/server-executor Jest passed: `/tmp/codex-tool-runs/svton/f288-final-jest-20260710-221447.log`; API type-check/build passed: `/tmp/codex-tool-runs/svton/f288-api-type-check-20260710-221447.log`, `/tmp/codex-tool-runs/svton/f288-api-build-20260710-221447.log`; line-count passed: `/tmp/codex-tool-runs/svton/f288-line-count-20260710-221447.log`. |
+
+## F289. Server-agent Task-pull Terminal Writeback Boundary
+
+Purpose: move P8 server-agent task-pull governance one step beyond ack by adding
+a default-off terminal writeback boundary. The new endpoint confirms that a
+claimed running `server_agent` job still belongs to the requesting
+server/agent lock owner, writes the agent-reported terminal status/log/result
+payload, and releases the lock; adapter/dispatcher execution, long connection,
+automatic retry, and broader business-run sync remain follow-ups.
+
+| Task   | Status | Description                                                             | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------ | ------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F289.1 | done   | Map task-pull finish endpoint, auth, running lock, and writeback.       | Routing: focused slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed finish should only write a matching claimed running `server_agent` job for the same `teamId/serverId/jobId/lockOwner`, then release lock fields.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| F289.2 | done   | Add the default-off server-agent finish endpoint and writeback service. | Added `POST /server-agent/task-pull/finish`, `ServerAgentTaskPullFinishDto`, and `ServerAgentTaskPullFinishService`; finish accepts only `completed`/`failed`/`cancelled`, writes optional commandPlan/logs/result/error, clears lock heartbeat fields, and keeps adapter/dispatcher execution and auto-retry out of scope. Contract, claim, ack, and supervisor metadata now advertise terminal writeback support while keeping lifecycle execution false.                                                                                                                                                                                                                                                                                    |
+| F289.3 | done   | Run focused API verification and sync docs.                             | Focused finish/ack/claim/server-executor Jest passed: `/tmp/codex-tool-runs/svton/f289-final-jest-20260710-222358.log`; API type-check/build passed: `/tmp/codex-tool-runs/svton/f289-final-api-type-check-20260710-222433.log`, `/tmp/codex-tool-runs/svton/f289-final-api-build-20260710-222433.log`; line-count passed: `/tmp/codex-tool-runs/svton/f289-final-line-count-20260710-222358.log`; final hygiene passed: `/tmp/codex-tool-runs/svton/f289-final-prettier-check-20260710-222358.log`, `/tmp/codex-tool-runs/svton/f289-final-diff-check-20260710-222358.diff`, `/tmp/codex-tool-runs/svton/f289-final-conflict-scan-20260710-222433.log`, `/tmp/codex-tool-runs/svton/f289-final-trailing-whitespace-scan-20260710-222433.log`. |
+
+## F290. Server-agent Task-pull Log Collection Finish Sync
+
+Purpose: add one governed linked-run writeback after terminal finish. The
+default-off finish path now syncs only `businessRunSync=log_collection`
+snapshots that carry a `logCollectionRunId`, preserving the existing
+team/server/agent lock-owner guard and leaving long connection runtime,
+adapter/dispatcher execution, auto-retry, and broader business-run sync out of
+scope.
+
+| Task   | Status | Description                                                           | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F290.1 | done   | Map finish to log collection linked-run sync and governance boundary. | Routing: focused slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed finish should delegate linked-run sync only after the claimed running job writeback succeeds, and only through the log collection sync service.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| F290.2 | done   | Add focused sync service and finish response metadata.                | Added `ServerAgentTaskPullFinishSyncService`; finish now reports `linkedRunSync`, can sync terminal logs/result/error into `LogCollectionRun` for log collection snapshots, and attempts completed-run ingestion only after a matched run update, while every non-log business run remains a no-op.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| F290.3 | done   | Run focused API verification and sync docs.                           | Post-format focused task-pull/server-executor Jest passed: `/tmp/codex-tool-runs/svton/f290-post-format-jest-20260710-223644.log`; post-format API type-check passed: `/tmp/codex-tool-runs/svton/f290-post-format-api-type-check-20260710-223644.log`; API build passed: `/tmp/codex-tool-runs/svton/f290-api-build-20260710-223226.log`; final Prettier/line-count/hygiene passed: `/tmp/codex-tool-runs/svton/f290-prettier-check-20260710-223614.log`, `/tmp/codex-tool-runs/svton/f290-line-count-rerun-20260710-223625.log`, `/tmp/codex-tool-runs/svton/f290-diff-check-20260710-223614.log`, `/tmp/codex-tool-runs/svton/f290-conflict-scan-20260710-223614.log`, `/tmp/codex-tool-runs/svton/f290-trailing-whitespace-scan-20260710-223614.log`. |
+
+## F291. Server-agent Task-pull Non-log Business-run Finish Sync
+
+Purpose: complete the smallest non-log linked-run terminal sync after F290. The
+default-off finish path now reuses the existing linked business-run sync boundary
+for `deployment`, `site_sync`, `resource_action`, `service_operation`, and
+`backup_run` metadata after a claimed running `server_agent` job writes terminal
+status/log/result/error. Log collection keeps its dedicated ingestion metadata;
+long connection runtime, adapter/dispatcher execution, auto-retry, and broader
+runtime orchestration remain follow-ups.
+
+| Task   | Status | Description                                                       | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------ | ------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F291.1 | done   | Map finish sync to existing non-log linked business-run sync.     | Routing: long-goal focused slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `ServerAgentTaskPullFinishService` writes terminal job state, then delegates `linkedRunSync` to `ServerAgentTaskPullFinishSyncService`, which can reuse `ServerExecutorLinkedBusinessRunSyncService` for supported non-log `businessRunSync` metadata while preserving the log-collection special path.                                                                                                                                                                                                                                                                                                                                                    |
+| F291.2 | done   | Sync non-log business runs without changing finish runtime scope. | `ServerAgentTaskPullFinishSyncService` now no-ops unsupported metadata before snapshot rehydration, keeps `log_collection` on `ServerExecutorLogCollectionRunSyncService`, and delegates `deployment`/`site_sync`/`resource_action`/`service_operation`/`backup_run` to `ServerExecutorLinkedBusinessRunSyncService.syncAfterExecution()`, including existing linked approval consumption only when a linked run actually syncs.                                                                                                                                                                                                                                                                                                                                                 |
+| F291.3 | done   | Run focused API verification and sync docs.                       | Focused task-pull/server-executor Jest passed: `/tmp/codex-tool-runs/svton/f291-focused-jest-pass-20260711-002112.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f291-api-type-check-20260711-002134.log`; API build passed: `/tmp/codex-tool-runs/svton/f291-api-build-20260711-002146.log`; final Prettier/line-count/diff/conflict/trailing checks passed: `/tmp/codex-tool-runs/svton/f291-final-doc-prettier-check2-20260711-002527.log`, `/tmp/codex-tool-runs/svton/f291-final-line-count-20260711-002352.log`, `/tmp/codex-tool-runs/svton/f291-final-doc-diff-check2-20260711-002528.log`, `/tmp/codex-tool-runs/svton/f291-final-conflict-scan2-20260711-002540.log`, `/tmp/codex-tool-runs/svton/f291-final-trailing-whitespace-scan2-20260711-002540.log`. |
+
+## F292. Server-agent Task-pull Claimed Task Payload
+
+Purpose: after F291 completed terminal linked-run sync, expose the smallest
+agent-facing execution payload on successful claim. F292 only adds a
+white-listed task envelope derived from the claimed job input snapshot so the
+agent can see operation, target, command steps, warnings, and safe correlation
+metadata. It does not enable lifecycle execution, long connection runtime,
+adapter dispatch, auto-retry, or raw input snapshot exposure.
+
+| Task   | Status | Description                                                  | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------ | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F292.1 | done   | Map claim response to a sanitized task payload boundary.     | Routing: long-goal focused slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing was limited to task-pull claim, job sample, input snapshot rehydration, server-agent dispatch envelope utilities, and focused specs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| F292.2 | done   | Return claimed task payload without expanding runtime scope. | `POST /server-agent/task-pull/claim` now returns `task` with operation/adapter, dryRun, redacted target, command steps, warnings, safe correlation, and whitelisted metadata. The job sample still omits `inputSnapshot`, claim metadata still reports `lifecycleExecutionSupported=false`, and contract/gates now expose `claimedTaskPayloadSupported`.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| F292.3 | done   | Run focused API verification and sync docs.                  | Focused task-pull/server-executor Jest passed: `/tmp/codex-tool-runs/svton/f292-final-focused-jest-20260711-003612.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f292-final-api-type-check-20260711-003626.log`; API build passed: `/tmp/codex-tool-runs/svton/f292-final-api-build-20260711-003626.log`; final Prettier/line-count/diff/conflict/trailing checks passed: `/tmp/codex-tool-runs/svton/f292-final-prettier-check-20260711-003923.log`, `/tmp/codex-tool-runs/svton/f292-line-count-20260711-003822.log`, `/tmp/codex-tool-runs/svton/f292-final-diff-check-20260711-003924.log`, `/tmp/codex-tool-runs/svton/f292-final-conflict-scan-20260711-003924.log`, `/tmp/codex-tool-runs/svton/f292-final-trailing-whitespace-scan-20260711-003924.log`. |
+
+## F293. Server-agent Task-pull Terminal Command-plan Fallback
+
+Purpose: after F292 exposed the claimed task payload, persist the smallest
+terminal execution summary when an agent finishes a claimed task without
+resending a full `commandPlan`. F293 only derives a sanitized terminal
+command-plan fallback from the claimed job snapshot and finish status. It does
+not enable long connection runtime, server-side adapter dispatch, auto-retry,
+or arbitrary agent metadata persistence.
+
+| Task   | Status | Description                                                     | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------ | ------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F293.1 | done   | Map finish writeback to claimed snapshot command-plan fallback. | Routing: focused P8 task-pull slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to finish service, finish sync, claimed task payload utils, Prisma job commandPlan field, and focused finish/payload specs.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| F293.2 | done   | Persist fallback terminal command-plan summary on finish.       | `ServerAgentTaskPullFinishService` now reads the matching claimed job before terminal writeback, derives `agent_task_pull_terminal_summary` from the claimed task payload when `dto.commandPlan` is omitted, writes it to `ServerExecutionJob.commandPlan`, and passes the same fallback to linked-run finish sync while preserving the lock-checked `updateMany` terminal state write.                                                                                                                                                                                                                                                                                                                                        |
+| F293.3 | done   | Run focused API verification and sync docs.                     | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f293-focused-jest-after-format-20260711-121909.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f293-api-type-check-20260711-121926.log`; API build passed: `/tmp/codex-tool-runs/svton/f293-api-build-20260711-121926.log`; final Prettier/line-count/diff/conflict/trailing checks passed: `/tmp/codex-tool-runs/svton/f293-prettier-check-20260711-122102.log`, `/tmp/codex-tool-runs/svton/f293-line-count-20260711-122102.log`, `/tmp/codex-tool-runs/svton/f293-diff-check-20260711-122102.log`, `/tmp/codex-tool-runs/svton/f293-conflict-scan-20260711-122102.log`, `/tmp/codex-tool-runs/svton/f293-trailing-whitespace-scan-20260711-122112.log`. |
+
+## F294. Server-agent Task-pull Terminal Result Fallback
+
+Purpose: after F293 made the terminal command plan traceable, persist a minimal
+terminal outcome when an agent finishes a claimed task without sending explicit
+`logs` or `result`. F294 only derives default job-level logs/result from the
+finish status and job id, then passes the same outcome to linked-run sync. It
+does not enable long connection runtime, server-side adapter dispatch,
+auto-retry, or arbitrary agent metadata persistence.
+
+| Task   | Status | Description                                             | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------ | ------ | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F294.1 | done   | Map finish writeback to job-level logs/result fallback. | Routing: focused P8 task-pull slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to finish service, finish sync outcome fallback, Prisma job logs/result fields, and focused finish specs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| F294.2 | done   | Persist fallback terminal logs/result on finish.        | `ServerAgentTaskPullFinishService` now builds a terminal outcome before writeback. When the agent omits `logs` or `result`, it writes a minimal status/job-id fallback to `ServerExecutionJob.logs/result` and passes the same outcome to linked-run finish sync while preserving supplied agent logs/result and lock-checked terminal state writes.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| F294.3 | done   | Run focused API verification and sync docs.             | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f294-focused-jest-after-line-fix-20260711-122623.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f294-api-type-check-20260711-122644.log`; API build passed: `/tmp/codex-tool-runs/svton/f294-api-build-20260711-122644.log`; final Prettier/line-count/diff/conflict/trailing checks passed: `/tmp/codex-tool-runs/svton/f294-final-prettier-check-20260711-122816.log`, `/tmp/codex-tool-runs/svton/f294-final-line-count-20260711-122816.log`, `/tmp/codex-tool-runs/svton/f294-final-diff-check-20260711-122816.log`, `/tmp/codex-tool-runs/svton/f294-final-conflict-scan-20260711-122816.log`, `/tmp/codex-tool-runs/svton/f294-final-trailing-whitespace-scan-20260711-122828.log`. |
+
+## F295. Server-agent Task-pull Ack Cancellation Hint
+
+Purpose: after F294 completed terminal outcome fallback, expose the smallest
+runtime cancellation signal through the existing ack heartbeat. F295 only
+returns a whitelisted `cancellation` hint when a claimed running job has
+`cancelRequestedAt`; it does not mutate job terminal state, force finish,
+implement long connection runtime, or add server-side adapter dispatch.
+
+| Task   | Status | Description                                          | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | ------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F295.1 | done   | Map running cancellation request to ack hint.        | Routing: focused P8 task-pull slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to running cancellation write, ack lock renewal, task-pull contract metadata, and focused ack specs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| F295.2 | done   | Return cancellation hint from ack without finishing. | `ServerAgentTaskPullAckService` now selects `cancelRequestedAt`/`error` after lock renewal and returns a whitelisted `cancellation` hint with `shouldStop=true` and `finishStatus=cancelled` when cancellation was requested. The ack path still only renews heartbeat/lock fields and does not mutate terminal status. Contract/gates expose `ackCancellationHintSupported`.                                                                                                                                                                                                                                                                                                                                                                                |
+| F295.3 | done   | Run focused API verification and sync docs.          | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f295-focused-jest-after-format-20260711-123309.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f295-api-type-check-20260711-123323.log`; API build passed: `/tmp/codex-tool-runs/svton/f295-api-build-20260711-123323.log`; final Prettier/line-count/diff/conflict/trailing checks passed: `/tmp/codex-tool-runs/svton/f295-final-prettier-check-20260711-123451.log`, `/tmp/codex-tool-runs/svton/f295-final-line-count-20260711-123451.log`, `/tmp/codex-tool-runs/svton/f295-final-diff-check-20260711-123451.log`, `/tmp/codex-tool-runs/svton/f295-final-conflict-scan-20260711-123451.log`, `/tmp/codex-tool-runs/svton/f295-final-trailing-whitespace-scan-20260711-123507.log`. |
+
+## F296. Server-agent Task-pull Ack Progress Writeback
+
+Purpose: after F295 exposed cancellation hints through ack, let a claimed
+server agent report lightweight in-flight progress through the same ack
+heartbeat. F296 only persists a controlled `metadata.taskPullProgress` snapshot
+while preserving existing job metadata; it does not mutate terminal status,
+append logs/results, execute lifecycle work, enable long connections, or add
+server-side adapter dispatch.
+
+| Task   | Status | Description                                    | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | ------ | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F296.1 | done   | Map ack progress writeback to job metadata.    | Routing: focused P8 task-pull slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to ack lock renewal, metadata merge patterns, contract/gates, and focused ack specs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| F296.2 | done   | Persist controlled progress after ack renewal. | `ServerAgentTaskPullAckService` now accepts optional ack `progress`, merges it into `metadata.taskPullProgress` while preserving existing metadata under the claimed running job lock, and returns a recorded progress result. Contract/gates expose `ackProgressWritebackSupported`; ack still does not mutate terminal status or write logs/results.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| F296.3 | done   | Run focused API verification and sync docs.    | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f296-focused-jest-20260711-ack-progress.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f296-api-type-check-20260711-ack-progress.log`; API build passed: `/tmp/codex-tool-runs/svton/f296-api-build-20260711-ack-progress.log`; final Prettier/line-count/diff/conflict/trailing checks passed: `/tmp/codex-tool-runs/svton/f296-final-prettier-check-20260711-ack-progress.log`, `/tmp/codex-tool-runs/svton/f296-final-line-count-20260711-ack-progress.log`, `/tmp/codex-tool-runs/svton/f296-final-diff-check-20260711-ack-progress.log`, `/tmp/codex-tool-runs/svton/f296-final-conflict-scan-20260711-ack-progress.log`, `/tmp/codex-tool-runs/svton/f296-final-trailing-whitespace-scan-20260711-ack-progress.log`. |
+
+## F297. Server-agent Task-pull Progress Visibility
+
+Purpose: after F296 persists controlled ack progress, expose that progress in
+the execution-governance supervisor read-model so operators can see whether a
+running server-agent task is advancing. F297 only reads and serializes the
+existing `metadata.taskPullProgress` snapshot and surfaces the related
+task-pull capability flags; it does not add a new write path, mutate terminal
+state, append logs/results, enable long connections, or execute lifecycle work.
+
+| Task   | Status | Description                                     | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | ------ | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F297.1 | done   | Map task-pull progress visibility boundary.     | Routing: focused P8 task-pull visibility slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to supervisor agent fleet query/serializer, task-pull gates, Web agent fleet types, and focused specs.                                                                                                                                                                                                                                                                                                                                                                                    |
+| F297.2 | done   | Expose running progress in supervisor views.    | Agent fleet queries now select job metadata, the supervisor serializer whitelists `taskPullProgress` into `updatedAt/agentId/runnerId/stepKey/message/percent`, supervisor task-pull gates expose cancellation/progress capability flags, and the execution-governance Agent fleet panel renders the latest running progress per server.                                                                                                                                                                                                                                                                                                     |
+| F297.3 | done   | Run focused API/Web verification and sync docs. | Focused API Jest passed: `/tmp/codex-tool-runs/svton/f297-focused-api-jest-20260711-progress-visibility.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f297-api-type-check-20260711-progress-visibility.log`; API build passed after moving stale generated `dist` aside: `/tmp/codex-tool-runs/svton/f297-api-build-clean-dist-20260711-progress-visibility.log`; Web build passed: `/tmp/codex-tool-runs/svton/f297-web-build-20260711-progress-visibility.log`; Web type-check passed after Web build regenerated `.next/types`: `/tmp/codex-tool-runs/svton/f297-web-type-check-after-build-20260711-progress-visibility.log`. |
+
+## F298. Server-agent Claimed Task Lifecycle Envelope
+
+Purpose: after F297 made running progress visible, make each claimed task
+payload self-describing enough for an external agent runner to execute the
+terminal command steps and report status through the existing ack/progress/finish
+protocol. F298 only adds a whitelisted `lifecycle` envelope to the claimed task
+payload; it does not add a new write path, mutate terminal state, execute
+server-side adapters, enable long connections, auto-retry, or change queue
+worker ownership.
+
+| Task   | Status | Description                                    | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------ | ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F298.1 | done   | Map claimed task lifecycle envelope boundary.  | Routing: focused P8 task-pull payload slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to claimed task payload, claim metadata, ack/finish endpoints, and focused payload/claim specs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| F298.2 | done   | Add lifecycle protocol hints to claimed tasks. | Claimed task payloads now include a sanitized `lifecycle` envelope with ack endpoint, progress writeback support, cancellation hint support, finish endpoint/statuses, fallback support, and explicit boundaries: agent executes command steps, no server-side adapter dispatch, no long connection runtime, and no auto-retry.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| F298.3 | done   | Run focused API verification and sync docs.    | Focused payload/claim/ack/finish Jest passed: `/tmp/codex-tool-runs/svton/f298-focused-api-jest-20260711-lifecycle-envelope.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f298-api-type-check-20260711-lifecycle-envelope.log`; API build passed: `/tmp/codex-tool-runs/svton/f298-api-build-20260711-lifecycle-envelope.log`; final Prettier/line-count/diff/conflict/trailing checks passed: `/tmp/codex-tool-runs/svton/f298-final-prettier-check-20260711-lifecycle-envelope.log`, `/tmp/codex-tool-runs/svton/f298-final-line-count-20260711-lifecycle-envelope.log`, `/tmp/codex-tool-runs/svton/f298-final-diff-check-20260711-lifecycle-envelope.log`, `/tmp/codex-tool-runs/svton/f298-final-conflict-scan-20260711-lifecycle-envelope.log`, `/tmp/codex-tool-runs/svton/f298-final-trailing-whitespace-scan-20260711-lifecycle-envelope.log`. |
+
+## F299. Server-agent Task-pull Lifecycle Contract Discovery
+
+Purpose: after F298 made each claimed task payload self-describing, expose the
+same lifecycle envelope capability in the read-only task-pull contract and
+supervisor readiness gates so an external agent can discover the protocol before
+claiming work. F299 only publishes contract/readiness discovery fields; it does
+not implement a runner, execute command steps, enable long connections, add new
+terminal write paths, or change queue ownership.
+
+| Task   | Status | Description                                      | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------ | ------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F299.1 | done   | Map lifecycle contract discovery boundary.       | Routing: focused P8 task-pull contract discovery slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to task-pull contract utils, readiness gates, supervisor readiness builder, claimed task payload lifecycle envelope, and focused specs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| F299.2 | done   | Expose lifecycle envelope in contract/readiness. | Task-pull contract and readiness gates now expose `claimedTaskLifecycleEnvelopeSupported` plus lifecycle envelope discovery (`server-agent-claimed-task-lifecycle.v0`, ack/progress/cancellation/finish endpoints, fallback support, and explicit boundaries) while keeping `lifecycleExecutionSupported: false` and `longConnectionSupported: false`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| F299.3 | done   | Run focused API verification and sync docs.      | Prettier write passed: `/tmp/codex-tool-runs/svton/f299-prettier-write-20260711-lifecycle-discovery.log` and `/tmp/codex-tool-runs/svton/f299-docs-prettier-write-20260711-lifecycle-discovery.log`; focused contract/payload/claim Jest passed: `/tmp/codex-tool-runs/svton/f299-focused-api-jest-20260711-lifecycle-discovery.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f299-api-type-check-20260711-lifecycle-discovery.log`; API build passed: `/tmp/codex-tool-runs/svton/f299-api-build-20260711-lifecycle-discovery.log`; line-count, diff, conflict, and trailing-whitespace checks passed: `/tmp/codex-tool-runs/svton/f299-line-count-20260711-lifecycle-discovery.log`, `/tmp/codex-tool-runs/svton/f299-diff-check-20260711-lifecycle-discovery.log`, `/tmp/codex-tool-runs/svton/f299-conflict-scan-20260711-lifecycle-discovery.log`, `/tmp/codex-tool-runs/svton/f299-trailing-whitespace-scan-20260711-lifecycle-discovery.log`. |
+
+## F300. Server-agent Task-pull Lifecycle Claim-field Alignment
+
+Purpose: while mapping the next agent runner slice, current source showed a
+protocol mismatch: claim responses return the executable payload under
+`task.lifecycle`, but F299 discovery advertised `job.lifecycle`. F300 fixes that
+agent-facing coordinate before any runner consumes it. This slice only aligns
+contract/readiness discovery, tests, and docs; it does not add a runner, execute
+command steps, enable long connections, or change claim/ack/finish write paths.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------ | ------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F300.1 | done   | Map claim response field mismatch.          | Routing: focused P8 task-pull protocol alignment slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing confirmed `ServerAgentTaskPullClaimService` returns `task: buildServerAgentClaimedTaskPayload(...)`, while discovery/spec/docs advertised `job.lifecycle`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| F300.2 | done   | Align discovery with actual claim payload.  | Lifecycle discovery and focused contract specs now advertise `claimResponseField: "task.lifecycle"`, matching the actual claim response payload location and preserving the existing claim/ack/finish write paths.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| F300.3 | done   | Run focused API verification and sync docs. | Prettier write passed: `/tmp/codex-tool-runs/svton/f300-prettier-write-20260711-claim-field-alignment.log` and `/tmp/codex-tool-runs/svton/f300-docs-prettier-write-20260711-claim-field-alignment.log`; focused contract/payload/claim Jest passed: `/tmp/codex-tool-runs/svton/f300-focused-api-jest-20260711-claim-field-alignment.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f300-api-type-check-20260711-claim-field-alignment.log`; API build passed: `/tmp/codex-tool-runs/svton/f300-api-build-20260711-claim-field-alignment.log`; line-count, diff, conflict, and trailing-whitespace checks passed: `/tmp/codex-tool-runs/svton/f300-line-count-20260711-claim-field-alignment.log`, `/tmp/codex-tool-runs/svton/f300-diff-check-20260711-claim-field-alignment.log`, `/tmp/codex-tool-runs/svton/f300-conflict-scan-20260711-claim-field-alignment.log`, `/tmp/codex-tool-runs/svton/f300-trailing-whitespace-scan-20260711-claim-field-alignment.log`. |
+
+## F301. CLI Server-agent Task-pull Once Runner
+
+Purpose: after F300 aligned lifecycle discovery with the actual claim payload,
+add the first agent-side executable surface in `@svton/cli`: a bounded
+`svton agent task-pull once` command. The command reads the contract by default;
+only explicit `--execute` claims one task, ack/progresses it, runs command steps
+sequentially, and finishes the job with terminal logs/result. F301 does not add
+a daemon, long connection, polling loop, API schema change, or new server-side
+write path.
+
+| Task   | Status | Description                                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------ | ------ | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F301.1 | done   | Map CLI runner boundary and API contract.  | Routing: focused P8 task-pull runner slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing scoped to CLI commander entry, CLI exec utilities, task-pull contract/claim/ack/finish DTOs, and claimed task payload.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| F301.2 | done   | Add opt-in once runner command.            | Added `svton agent task-pull once`: default mode reads the contract only; explicit `--execute` validates `task.lifecycle`, claims one task, sends ack/progress, runs command steps sequentially through a focused executor, and finishes with terminal logs/result. CLI code is split into command/client/types/executor/runner files, and README documents the command.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| F301.3 | done   | Run focused CLI/API verification and docs. | Prettier passed: `/tmp/codex-tool-runs/svton/f301-prettier-write-20260711-cli-task-pull-once.log`, `/tmp/codex-tool-runs/svton/f301-prettier-register-split-20260711-cli-task-pull-once.log`, `/tmp/codex-tool-runs/svton/f301-docs-prettier-final-20260711-cli-task-pull-once.log`; CLI focused Jest passed: `/tmp/codex-tool-runs/svton/f301-cli-jest-final-20260711-cli-task-pull-once.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f301-cli-type-check-final-20260711-cli-task-pull-once.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f301-cli-build-final-20260711-cli-task-pull-once.log`; focused API Jest passed: `/tmp/codex-tool-runs/svton/f301-focused-api-jest-20260711-cli-task-pull-once.log`; final line-count, diff, conflict, and trailing-whitespace checks passed: `/tmp/codex-tool-runs/svton/f301-line-count-register-split-20260711-cli-task-pull-once.log`, `/tmp/codex-tool-runs/svton/f301-diff-check-final-20260711-cli-task-pull-once.log`, `/tmp/codex-tool-runs/svton/f301-conflict-scan-final-20260711-cli-task-pull-once.log`, `/tmp/codex-tool-runs/svton/f301-trailing-whitespace-scan-final-20260711-cli-task-pull-once.log`. |
+
+## F302. CLI Server-agent Task-pull Bounded Poll Runner
+
+Purpose: after F301 added a one-shot agent task-pull runner, add the next
+bounded runtime surface in `@svton/cli`: `svton agent task-pull run` can execute
+multiple poll iterations with explicit iteration/idle bounds while reusing the
+existing contract, claim, ack/progress, command-step execution, and finish
+protocol. F302 does not add a daemon, long connection, server API schema change,
+server-side scheduler change, heartbeat writeback, or multi-instance
+coordination.
+
+| Task   | Status | Description                                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------ | ------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F302.1 | done   | Map CLI polling boundary and source files. | Routing: focused CLI task-pull runtime slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing scoped to F301 CLI command/config/client/runner/test files and server-agent task-pull contract/claim/ack/finish boundaries.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| F302.2 | done   | Add bounded `task-pull run` command.       | Added `svton agent task-pull run`: it always executes claimed tasks, reuses the F301 once runner per iteration, supports `--interval-ms`, `--max-iterations`, `--idle-limit`, and `--forever`, and refuses an unbounded loop unless `--forever` is explicit. Production CLI files remain ≤200 lines.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| F302.3 | done   | Run focused CLI/API verification and docs. | Prettier passed: `/tmp/codex-tool-runs/svton/f302-prettier-code-20260711-cli-task-pull-loop.log`, `/tmp/codex-tool-runs/svton/f302-docs-prettier-20260711-cli-task-pull-loop.log`; CLI focused Jest passed: `/tmp/codex-tool-runs/svton/f302-cli-jest-20260711-cli-task-pull-loop.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f302-cli-type-check-20260711-cli-task-pull-loop.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f302-cli-build-20260711-cli-task-pull-loop.log`; focused API Jest passed: `/tmp/codex-tool-runs/svton/f302-focused-api-jest-20260711-cli-task-pull-loop.log`; final line-count, diff, conflict, and trailing-whitespace checks passed: `/tmp/codex-tool-runs/svton/f302-line-count-20260711-cli-task-pull-loop.log`, `/tmp/codex-tool-runs/svton/f302-diff-check-20260711-cli-task-pull-loop.log`, `/tmp/codex-tool-runs/svton/f302-conflict-scan-20260711-cli-task-pull-loop.log`, `/tmp/codex-tool-runs/svton/f302-trailing-whitespace-scan-20260711-cli-task-pull-loop.log`. |
+
+## F303. CLI Server-agent Task-pull Heartbeat Writeback
+
+Purpose: after F302 added a bounded CLI polling loop, connect that loop to the
+existing server-agent heartbeat endpoint so a running CLI agent can refresh
+`Server.services.devpilotAgent` while polling. F303 only adds optional CLI
+heartbeat writeback around `svton agent task-pull run`; it does not add a
+daemon, long connection, server API schema change, database migration,
+server-side scheduler change, or multi-instance coordination.
+
+| Task   | Status | Description                                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------ | ------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F303.1 | done   | Map CLI heartbeat writeback boundary.      | Routing: focused CLI task-pull heartbeat slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing scoped to existing `/server-agent/heartbeat`, F302 CLI loop, CLI command/config files, and focused tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| F303.2 | done   | Add optional heartbeat client and wiring.  | Added optional heartbeat writeback for `svton agent task-pull run`: when `--heartbeat-token` or `DEVPILOT_AGENT_HEARTBEAT_TOKEN` is configured, the loop posts heartbeat before poll iterations with agent/runner/capability/status/hostname/version/ttl fields; config parsing now lives in a focused file and production CLI files remain ≤200 lines.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| F303.3 | done   | Run focused CLI/API verification and docs. | Prettier passed: `/tmp/codex-tool-runs/svton/f303-prettier-code-20260711-cli-heartbeat.log`; CLI focused Jest passed: `/tmp/codex-tool-runs/svton/f303-cli-jest-20260711-cli-heartbeat.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f303-cli-type-check-20260711-cli-heartbeat.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f303-cli-build-20260711-cli-heartbeat.log`; focused API Jest passed: `/tmp/codex-tool-runs/svton/f303-focused-api-jest-20260711-cli-heartbeat.log`; final line-count, diff, conflict, and trailing-whitespace checks passed: `/tmp/codex-tool-runs/svton/f303-line-count-20260711-cli-heartbeat.log`, `/tmp/codex-tool-runs/svton/f303-diff-check-20260711-cli-heartbeat.log`, `/tmp/codex-tool-runs/svton/f303-conflict-scan-20260711-cli-heartbeat.log`, `/tmp/codex-tool-runs/svton/f303-trailing-whitespace-scan-20260711-cli-heartbeat.log`. |
+
+## F304. CLI Server-agent Task-pull Graceful Stop
+
+Purpose: after F303 connected the bounded CLI polling loop to heartbeat
+writeback, add a graceful stop boundary so `svton agent task-pull run` can
+observe process stop signals and exit at the polling boundary with a structured
+summary. F304 does not add a daemon, background supervisor, long connection,
+server API schema change, database migration, or multi-instance coordination.
+
+| Task   | Status | Description                            | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------ | ------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F304.1 | done   | Map CLI loop stop boundary.            | Routing: focused CLI task-pull graceful-stop slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing scoped to F303 CLI loop/command/test files and signal-free existing task-pull behavior.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| F304.2 | done   | Add signal-aware loop stop wiring.     | `task-pull run` now installs temporary SIGINT/SIGTERM handlers, passes an `AbortSignal` into the loop, cleans handlers after completion, and exits with `stoppedReason: "signal"` at a poll boundary; production CLI files remain ≤200 lines.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| F304.3 | done   | Run focused CLI verification and docs. | Prettier passed: `/tmp/codex-tool-runs/svton/f304-prettier-code-20260711-cli-graceful-stop.log`; CLI focused Jest passed: `/tmp/codex-tool-runs/svton/f304-cli-jest-20260711-cli-graceful-stop.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f304-cli-type-check-20260711-cli-graceful-stop.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f304-cli-build-20260711-cli-graceful-stop.log`; focused API Jest passed: `/tmp/codex-tool-runs/svton/f304-focused-api-jest-20260711-cli-graceful-stop.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f304-cli-lint-20260711-cli-graceful-stop.log`; final line-count, diff, conflict, and trailing-whitespace checks passed: `/tmp/codex-tool-runs/svton/f304-line-count-20260711-cli-graceful-stop.log`, `/tmp/codex-tool-runs/svton/f304-diff-check-20260711-cli-graceful-stop.log`, `/tmp/codex-tool-runs/svton/f304-conflict-scan-20260711-cli-graceful-stop.log`, `/tmp/codex-tool-runs/svton/f304-trailing-whitespace-scan-20260711-cli-graceful-stop.log`. |
+
+## F305. CLI Server-agent Task-pull Command-step Cancellation
+
+Purpose: after F304 made `svton agent task-pull run` observe process stop
+signals at loop boundaries, propagate the same stop signal into an in-flight
+command step so the foreground runtime can terminate its child process and
+finish the claimed task as cancelled. F305 does not add a daemon, long
+connection, server API schema change, database migration, or multi-instance
+coordination.
+
+| Task   | Status | Description                                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------ | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F305.1 | done   | Map CLI command-step cancellation boundary.   | Routing: focused CLI task-pull foreground-runtime slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to F304 CLI loop/once runner/executor/test files and no service API.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| F305.2 | done   | Propagate stop signal into command execution. | `task-pull run` now passes its stop signal through the loop and once runner into command-step execution; an aborted signal terminates the current child process with SIGTERM, records `cancelled: true`, and finishes the claimed task as `cancelled`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| F305.3 | done   | Run focused CLI/API verification and docs.    | Prettier passed: `/tmp/codex-tool-runs/svton/f305-prettier-20260711-cli-command-cancel.log`, `/tmp/codex-tool-runs/svton/f305-final-docs-prettier-20260711-cli-command-cancel.log`; CLI focused Jest passed: `/tmp/codex-tool-runs/svton/f305-cli-jest-20260711-cli-command-cancel.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f305-cli-type-check-20260711-cli-command-cancel.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f305-cli-build-20260711-cli-command-cancel.log`; focused API Jest passed: `/tmp/codex-tool-runs/svton/f305-focused-api-jest-20260711-cli-command-cancel.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f305-cli-lint-20260711-cli-command-cancel.log`; final line-count, diff, conflict, and trailing-whitespace checks passed: `/tmp/codex-tool-runs/svton/f305-line-count-20260711-cli-command-cancel.log`, `/tmp/codex-tool-runs/svton/f305-diff-check-20260711-cli-command-cancel.log`, `/tmp/codex-tool-runs/svton/f305-conflict-scan-20260711-cli-command-cancel.log`, `/tmp/codex-tool-runs/svton/f305-trailing-whitespace-scan-20260711-cli-command-cancel.log`. |
+
+## F306. CLI Server-agent Task-pull Once Signal Wiring
+
+Purpose: after F305 made the once runner and executor signal-aware, wire the
+same SIGINT/SIGTERM stop controller into the `svton agent task-pull once`
+command entry so one-shot execution can finish a claimed task as cancelled
+instead of relying on process exit. F306 does not add a daemon, long connection,
+server API schema change, database migration, or multi-instance coordination.
+
+| Task   | Status | Description                                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------ | ------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F306.1 | done   | Map one-shot command signal wiring gap.    | Routing: focused CLI task-pull one-shot runtime slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to the CLI command entry, stop controller, runner, and tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| F306.2 | done   | Wire stop signal into task-pull once.      | `task-pull once` now creates the same temporary SIGINT/SIGTERM stop controller as `task-pull run`, passes its signal into `runAgentTaskPullOnce()`, logs the structured summary, and always cleans up handlers after completion.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| F306.3 | done   | Run focused CLI/API verification and docs. | Prettier passed: `/tmp/codex-tool-runs/svton/f306-prettier-20260711-cli-once-signal.log`, `/tmp/codex-tool-runs/svton/f306-prettier-test-fix-20260711-cli-once-signal.log`, `/tmp/codex-tool-runs/svton/f306-docs-prettier-20260711-cli-once-signal.log`; CLI focused Jest passed after a test type fix: `/tmp/codex-tool-runs/svton/f306-cli-jest-rerun-20260711-cli-once-signal.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f306-cli-type-check-20260711-cli-once-signal.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f306-cli-build-20260711-cli-once-signal.log`; focused API Jest passed: `/tmp/codex-tool-runs/svton/f306-focused-api-jest-20260711-cli-once-signal.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f306-cli-lint-20260711-cli-once-signal.log`; final line-count, diff, conflict, and trailing-whitespace checks passed: `/tmp/codex-tool-runs/svton/f306-line-count-20260711-cli-once-signal.log`, `/tmp/codex-tool-runs/svton/f306-diff-check-20260711-cli-once-signal.log`, `/tmp/codex-tool-runs/svton/f306-conflict-scan-20260711-cli-once-signal.log`, `/tmp/codex-tool-runs/svton/f306-trailing-whitespace-scan-20260711-cli-once-signal.log`. |
+
+## F307. CLI Server-agent Task-pull Abortable Poll Sleep
+
+Purpose: after F306 made both `task-pull once` and in-flight command execution
+signal-aware, make the bounded `task-pull run` polling interval itself
+abortable so SIGINT/SIGTERM can stop the foreground runtime during idle sleep
+instead of waiting for the configured interval to elapse. F307 does not add a
+daemon, long connection, server API schema change, database migration, or
+multi-instance coordination.
+
+| Task   | Status | Description                                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------ | ------ | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F307.1 | done   | Map loop interval stop boundary.           | Routing: focused CLI task-pull loop responsiveness slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to the loop runner, signal flow, and focused loop tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| F307.2 | done   | Make poll interval sleep abortable.        | `task-pull run` now passes the existing stop signal into interval sleep; the default delay clears its timer and resolves immediately when the signal aborts, so the loop can return `stoppedReason: "signal"` without waiting for the full `--interval-ms`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| F307.3 | done   | Run focused CLI/API verification and docs. | Prettier passed: `/tmp/codex-tool-runs/svton/f307-prettier-20260711-cli-abortable-sleep.log`, `/tmp/codex-tool-runs/svton/f307-docs-prettier-20260711-cli-abortable-sleep.log`; CLI loop Jest passed: `/tmp/codex-tool-runs/svton/f307-cli-loop-jest-20260711-cli-abortable-sleep.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f307-cli-type-check-20260711-cli-abortable-sleep.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f307-cli-build-20260711-cli-abortable-sleep.log`; focused API Jest passed: `/tmp/codex-tool-runs/svton/f307-focused-api-jest-20260711-cli-abortable-sleep.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f307-cli-lint-20260711-cli-abortable-sleep.log`; final line-count, diff, conflict, and trailing-whitespace checks passed: `/tmp/codex-tool-runs/svton/f307-line-count-20260711-cli-abortable-sleep.log`, `/tmp/codex-tool-runs/svton/f307-diff-check-20260711-cli-abortable-sleep.log`, `/tmp/codex-tool-runs/svton/f307-conflict-scan-20260711-cli-abortable-sleep.log`, `/tmp/codex-tool-runs/svton/f307-trailing-whitespace-scan-20260711-cli-abortable-sleep.log`. |
+
+## F308. CLI Server-agent Task-pull Command-step Force Kill
+
+Purpose: after F307 made loop idle sleep abortable, harden command-step
+cancellation so a command that ignores SIGTERM does not keep the foreground
+agent runner hanging forever. F308 adds a local CLI fallback from graceful
+SIGTERM to force kill for cancelled/timed-out command steps; it does not add a
+daemon, long connection, server API schema change, database migration, or
+multi-instance coordination.
+
+| Task   | Status | Description                                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | ------ | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F308.1 | done   | Map command-step termination fallback.     | Routing: focused CLI executor cancellation-hardening slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to `agent-task-pull-executor.ts`, focused executor tests, and the existing task-pull once/loop/signal tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| F308.2 | done   | Add SIGKILL fallback after SIGTERM.        | `executeAgentTaskPullStep()` now starts command steps in a local process group on non-Windows platforms and routes abort/timeout through a single termination path: send SIGTERM first, then send SIGKILL after a bounded grace window when the process ignores graceful termination. The runner result surface remains unchanged except for a test-only configurable force-kill grace window.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| F308.3 | done   | Run focused CLI/API verification and docs. | Prettier passed after formatting touched docs: `/tmp/codex-tool-runs/svton/f308-final-prettier-write-20260711-cli-force-kill.log`, `/tmp/codex-tool-runs/svton/f308-final-prettier-check4-20260711-cli-force-kill.log`; focused CLI executor Jest passed: `/tmp/codex-tool-runs/svton/f308-cli-executor-jest-20260711-cli-force-kill.log`; focused CLI task-pull Jest passed: `/tmp/codex-tool-runs/svton/f308-cli-focused-jest-20260711-cli-force-kill.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f308-cli-tsc-20260711-cli-force-kill.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f308-cli-build-20260711-cli-force-kill.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f308-api-task-pull-jest-20260711-cli-force-kill.log`; line-count, diff check, and combined conflict/trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f308-line-count-final-20260711-cli-force-kill.log`, `/tmp/codex-tool-runs/svton/f308-diff-check4-20260711-cli-force-kill.log`, `/tmp/codex-tool-runs/svton/f308-final-marker-whitespace-scan2-20260711-cli-force-kill.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f308-cli-lint-20260711-cli-force-kill.log`. |
+
+## F309. CLI Server-agent Task-pull In-step Ack Renewal
+
+Purpose: after F308 made stubborn command-step cancellation bounded, keep the
+claimed job lock fresh while a long command step is running. The server ack
+endpoint already renews lock heartbeat state; F309 only adds a local CLI renewal
+loop around the currently executing command step so long-running steps do not
+silently lose their claimed lock. It does not add daemonization, long
+connection, server API schema changes, database migrations, or multi-instance
+coordination.
+
+| Task   | Status | Description                                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------ | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F309.1 | done   | Map in-step ack renewal boundary.          | Routing: focused CLI task-pull runner renewal slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to `agent-task-pull-runner.ts`, client/types, focused CLI tests, and the server ack contract that renews lock heartbeat state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| F309.2 | done   | Add bounded ack renewal during step run.   | `runAgentTaskPullOnce()` now wraps each executing command step with a linked abort signal and a bounded renewal timer. The timer reuses the existing ack endpoint with current step progress; cancellation returned by renewal ack aborts the running step and finishes the task as cancelled with the server-provided reason. Pure command-plan/result builders were extracted so the runner remains under the 200-line ceiling.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| F309.3 | done   | Run focused CLI/API verification and docs. | Final Prettier passed after formatting touched docs: `/tmp/codex-tool-runs/svton/f309-final-prettier-write-20260711-ack-renewal.log`, `/tmp/codex-tool-runs/svton/f309-final-prettier-check2-20260711-ack-renewal.log`; focused CLI once Jest passed: `/tmp/codex-tool-runs/svton/f309-cli-once-jest3-20260711-ack-renewal.log`; focused CLI task-pull Jest passed: `/tmp/codex-tool-runs/svton/f309-cli-focused-jest2-20260711-ack-renewal.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f309-cli-type-check2-20260711-ack-renewal.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f309-cli-build2-20260711-ack-renewal.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f309-api-task-pull-jest-20260711-ack-renewal.log`; line-count, diff check, and combined conflict/trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f309-line-count-final2-20260711-ack-renewal.log`, `/tmp/codex-tool-runs/svton/f309-diff-check2-20260711-ack-renewal.log`, `/tmp/codex-tool-runs/svton/f309-marker-whitespace-scan2-20260711-ack-renewal.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f309-cli-lint-20260711-ack-renewal.log`. |
+
+## F310. CLI Server-agent Task-pull Timeout Terminal Summary
+
+Purpose: after F309 kept long command steps alive through ack renewal, make
+step timeout outcomes explicit in the CLI terminal summary. The executor already
+returns `timedOut`; F310 only maps that result to a timeout-specific finish
+reason and log message so operators can distinguish a timeout from a generic
+nonzero command failure. It does not change executor process control, server API
+schema, database state, daemonization, long connections, or multi-instance
+coordination.
+
+| Task   | Status | Description                                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------ | ------ | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F310.1 | done   | Map timeout result propagation.            | Routing: focused CLI task-pull terminal-summary slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to runner/executor/result utils and focused CLI tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| F310.2 | done   | Add timeout-specific finish reason/logs.   | `runAgentTaskPullOnce()` now maps `timedOut` step results to `step_timeout:<key>` before the generic nonzero-exit failure path; terminal logs now say `step <key> timed out` while preserving the existing result step payload. No server DTO/schema, executor process-control, daemon, long-connection, or multi-instance behavior changed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| F310.3 | done   | Run focused CLI/API verification and docs. | Final Prettier passed after formatting touched docs: `/tmp/codex-tool-runs/svton/f310-final-prettier-write-20260711-timeout-summary.log`, `/tmp/codex-tool-runs/svton/f310-final-prettier-check2-20260711-timeout-summary.log`; focused CLI once Jest passed: `/tmp/codex-tool-runs/svton/f310-cli-once-jest-20260711-timeout-summary.log`; focused CLI task-pull Jest passed: `/tmp/codex-tool-runs/svton/f310-cli-focused-jest-20260711-timeout-summary.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f310-cli-type-check-20260711-timeout-summary.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f310-cli-build-20260711-timeout-summary.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f310-api-task-pull-jest-20260711-timeout-summary.log`; line-count, diff check, and combined conflict/trailing-whitespace scan passed: `/tmp/codex-tool-runs/svton/f310-line-count-final2-20260711-timeout-summary.log`, `/tmp/codex-tool-runs/svton/f310-diff-check2-20260711-timeout-summary.log`, `/tmp/codex-tool-runs/svton/f310-marker-whitespace-scan2-20260711-timeout-summary.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f310-cli-lint-20260711-timeout-summary.log`. |
+
+## F311. CLI Server-agent Task-pull Optional Timeout Semantics
+
+Purpose: after F310 made timeout terminal summaries explicit, align timeout
+handling with the existing optional-step contract. The runner already lets
+`required: false` steps continue after a nonzero exit; F311 makes timed-out
+optional steps follow the same best-effort semantics while still logging the
+timeout and preserving required-step timeout failure behavior. It does not
+change executor process control, server API schema, database state,
+daemonization, long connections, or multi-instance coordination.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------ | ------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F311.1 | done   | Map optional timeout vs required semantics. | Routing: focused CLI task-pull optional-timeout slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to runner/result utils and focused CLI tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| F311.2 | done   | Let optional timed-out steps continue.      | `runAgentTaskPullOnce()` now only fails timeout results when the step is required. Optional timed-out steps continue to later command steps while preserving timeout logs and result metadata; required-step timeout still finishes failed with `step_timeout:<key>`. No executor process-control, server DTO/schema, daemon, long-connection, or multi-instance behavior changed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| F311.3 | done   | Run focused CLI/API verification and docs.  | Prettier passed: `/tmp/codex-tool-runs/svton/f311-final-prettier-check2-20260711-optional-timeout.log`; focused CLI once Jest passed: `/tmp/codex-tool-runs/svton/f311-cli-once-jest2-20260711-optional-timeout.log`; focused CLI task-pull Jest passed: `/tmp/codex-tool-runs/svton/f311-cli-focused-jest-20260711-optional-timeout.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f311-cli-type-check-20260711-optional-timeout.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f311-cli-build-20260711-optional-timeout.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f311-api-task-pull-jest-20260711-optional-timeout.log`; line-count passed: `/tmp/codex-tool-runs/svton/f311-line-count-final2-20260711-optional-timeout.log`; diff/check hygiene passed: `/tmp/codex-tool-runs/svton/f311-diff-check2-20260711-optional-timeout.log`, `/tmp/codex-tool-runs/svton/f311-marker-whitespace-scan2-20260711-optional-timeout.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f311-cli-lint-20260711-optional-timeout.log`. |
+
+## F312. CLI Server-agent Task-pull Final Ack Cancellation Boundary
+
+Purpose: close the last CLI cancellation gap after F311. The runner already
+honors cancellation from the pre-step ack and in-step ack renewal, but the final
+100% ack after all command steps currently ignores `cancellation.shouldStop`.
+F312 makes that final ack boundary cancellation-aware before finish writeback,
+without changing executor process control, server API schema, database state,
+daemonization, long connections, or multi-instance coordination.
+
+| Task   | Status | Description                                           | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F312.1 | done   | Map final ack cancellation vs completion.             | Routing: focused CLI task-pull final-ack cancellation slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to runner/result utils and focused CLI tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| F312.2 | done   | Honor final ack cancellation before finish writeback. | `runAgentTaskPullOnce()` now reads the final 100% ack response and returns a `cancelled` execution result when `cancellation.shouldStop` is present, preserving the server cancellation reason before finish writeback. No executor process-control, server DTO/schema, daemon, long-connection, or multi-instance behavior changed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| F312.3 | done   | Run focused CLI/API verification and docs.            | Final Prettier passed: `/tmp/codex-tool-runs/svton/f312-final-prettier-write-20260711-final-ack-cancellation.log`, `/tmp/codex-tool-runs/svton/f312-final-prettier-check-20260711-final-ack-cancellation.log`; focused CLI once Jest passed: `/tmp/codex-tool-runs/svton/f312-cli-once-jest-20260711-final-ack-cancellation.log`; focused CLI task-pull Jest passed: `/tmp/codex-tool-runs/svton/f312-cli-focused-jest-20260711-final-ack-cancellation.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f312-cli-type-check-20260711-final-ack-cancellation.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f312-cli-build-20260711-final-ack-cancellation.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f312-api-task-pull-jest-20260711-final-ack-cancellation.log`; line-count and hygiene passed: `/tmp/codex-tool-runs/svton/f312-line-count-final-20260711-final-ack-cancellation.log`, `/tmp/codex-tool-runs/svton/f312-diff-check-final-20260711-final-ack-cancellation.log`, `/tmp/codex-tool-runs/svton/f312-marker-whitespace-scan-final-20260711-final-ack-cancellation.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f312-cli-lint-20260711-final-ack-cancellation.log`. |
+
+## F313. CLI Server-agent Task-pull Configurable Ack Renewal Interval
+
+Purpose: after F312 closed the final ack cancellation boundary, make the
+foreground CLI runner configurable for different server lock TTLs. The CLI
+already renews ack during long command steps, but the renewal interval is only
+available through test deps; F313 exposes an option/env config path and passes
+it into once/run execution while keeping the default behavior unchanged. It does
+not change executor process control, server API schema, database state,
+daemonization, long connections, or multi-instance coordination.
+
+| Task   | Status | Description                                            | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------ | ------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F313.1 | done   | Map CLI ack-renewal config and line-count constraints. | Routing: focused CLI task-pull ack-renewal-config slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to CLI config/command/loop runner and focused tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| F313.2 | done   | Expose ack renewal interval option/env wiring.         | Added `--ack-renewal-interval-ms` and `DEVPILOT_AGENT_TASK_PULL_ACK_RENEWAL_INTERVAL_MS` config for `svton agent task-pull once/run`, wired the parsed interval into once execution and loop iterations, and extracted pure task-pull config readers into `agent-task-pull-config.utils.ts` so production CLI files stay under 200 lines. Defaults remain unchanged.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| F313.3 | done   | Run focused CLI/API verification and docs.             | Final Prettier passed: `/tmp/codex-tool-runs/svton/f313-final-prettier-write-20260711-ack-renewal-config.log`, `/tmp/codex-tool-runs/svton/f313-final-prettier-check-20260711-ack-renewal-config.log`; focused CLI once Jest passed: `/tmp/codex-tool-runs/svton/f313-cli-once-jest-20260711-ack-renewal-config.log`; focused CLI loop Jest passed: `/tmp/codex-tool-runs/svton/f313-cli-loop-jest-20260711-ack-renewal-config.log`; focused CLI task-pull Jest passed: `/tmp/codex-tool-runs/svton/f313-cli-focused-jest-20260711-ack-renewal-config.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f313-cli-type-check-20260711-ack-renewal-config.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f313-cli-build-20260711-ack-renewal-config.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f313-api-task-pull-jest-20260711-ack-renewal-config.log`; line-count and hygiene passed: `/tmp/codex-tool-runs/svton/f313-line-count-final-20260711-ack-renewal-config.log`, `/tmp/codex-tool-runs/svton/f313-diff-check-final-20260711-ack-renewal-config.log`, `/tmp/codex-tool-runs/svton/f313-marker-whitespace-scan-final-20260711-ack-renewal-config.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f313-cli-lint-20260711-ack-renewal-config.log`. |
+
+## F314. CLI Server-agent Task-pull Configurable Force-kill Grace
+
+Purpose: after F313 made ack renewal cadence configurable, expose the local
+command termination grace window that already exists in the executor. The CLI
+currently force-kills a command step after SIGTERM when the child ignores
+graceful termination, but `forceKillGraceMs` is only injectable in tests; F314
+adds option/env config for once/run while preserving the default grace period.
+It does not change executor process-control semantics, server API schema,
+database state, daemonization, long connections, or multi-instance
+coordination.
+
+| Task   | Status | Description                                                    | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------ | ------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F314.1 | done   | Map CLI force-kill grace config and existing executor support. | Routing: focused CLI task-pull force-kill-grace slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to CLI config/command/runner/executor and focused tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| F314.2 | done   | Expose force-kill grace option/env wiring.                     | Added `--force-kill-grace-ms` and `DEVPILOT_AGENT_TASK_PULL_FORCE_KILL_GRACE_MS` config for `svton agent task-pull once/run`, wired the parsed value through once execution and loop iterations into the existing executor force-kill grace option, and preserved default behavior when unset.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| F314.3 | done   | Run focused CLI/API verification and docs.                     | Focused CLI once Jest passed after fixing a loop-runner deps typing regression: `/tmp/codex-tool-runs/svton/f314-cli-once-jest2-20260711-force-kill-grace.log`; focused CLI loop Jest passed: `/tmp/codex-tool-runs/svton/f314-cli-loop-jest2-20260711-force-kill-grace.log`; focused CLI task-pull Jest passed: `/tmp/codex-tool-runs/svton/f314-cli-focused-jest-20260711-force-kill-grace.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f314-cli-type-check2-20260711-force-kill-grace.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f314-cli-build-20260711-force-kill-grace.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f314-api-task-pull-jest-20260711-force-kill-grace.log`; CLI lint was attempted and remains blocked by the existing `packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`: `/tmp/codex-tool-runs/svton/f314-cli-lint-20260711-force-kill-grace.log`. |
+
+Final F314 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f314-final-prettier-write-20260711-force-kill-grace.log`,
+`/tmp/codex-tool-runs/svton/f314-final-prettier-check-20260711-force-kill-grace.log`);
+production CLI line-count passed with no file over 200 lines
+(`/tmp/codex-tool-runs/svton/f314-line-count-final-20260711-force-kill-grace.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f314-diff-check-final-20260711-force-kill-grace.log`,
+`/tmp/codex-tool-runs/svton/f314-marker-whitespace-scan-final-20260711-force-kill-grace.log`).
+
+## F315. CLI Server-agent Task-pull Command Cwd Boundary
+
+Purpose: continue the CLI terminal runtime hardening after F314 by constraining
+command-step working directories before spawning shell commands. The claimed
+task payload can include per-step `cwd`, and the CLI also accepts a global
+`--cwd`; F315 treats the global cwd as the execution base, resolves relative
+step cwd values under that base, and rejects step cwd values that escape it.
+It does not change the server task payload schema, command execution semantics,
+daemonization, long connections, or multi-instance coordination.
+
+| Task   | Status | Description                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------ | ------ | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F315.1 | done   | Map CLI command cwd flow and boundary choice.            | Routing: focused CLI task-pull cwd-boundary slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to task-pull payload, config, runner, executor, and focused tests.                                                                                                                                                                                                                                       |
+| F315.2 | done   | Normalize command cwd and fail escaped step cwd safely.  | Added a focused cwd resolver for CLI task-pull command steps. The executor now resolves global `--cwd` as the execution base, runs relative step cwd inside that base, and returns a failed step result with `step_cwd_outside_execution_base` instead of spawning when a step cwd escapes the base.                                                                                                                                                           |
+| F315.3 | done   | Run focused CLI/API verification and sync progress docs. | CLI focused Jest passed after fixing a macOS realpath assertion: `/tmp/codex-tool-runs/svton/f315-cli-focused-jest2-20260711-cwd-boundary.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f315-cli-type-check-20260711-cwd-boundary.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f315-cli-build-20260711-cwd-boundary.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f315-api-task-pull-jest-20260711-cwd-boundary.log`. |
+
+Final F315 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f315-docs-prettier-write-final2-20260711-cwd-boundary.log`,
+`/tmp/codex-tool-runs/svton/f315-final-prettier-check2-20260711-cwd-boundary.log`);
+production CLI line-count passed with no file over 200 lines
+(`/tmp/codex-tool-runs/svton/f315-line-count-final-20260711-cwd-boundary.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f315-diff-check-final2-20260711-cwd-boundary.log`,
+`/tmp/codex-tool-runs/svton/f315-marker-whitespace-scan-final2-20260711-cwd-boundary.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f315-cli-lint-20260711-cwd-boundary.log`).
+
+## F316. CLI Server-agent Task-pull Output Truncation Visibility
+
+Purpose: continue CLI terminal runtime hardening after F315 by making bounded
+command output explicit. The executor already caps captured stdout/stderr to a
+fixed local limit, but that truncation is silent in the finish payload; F316
+keeps the existing cap and command execution semantics while surfacing
+`stdoutTruncated`/`stderrTruncated` on affected step results and logs. It does
+not change the server API schema, raise output limits, add streaming, enable
+daemonization, or implement long connections.
+
+| Task   | Status | Description                                                    | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------ | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F316.1 | done   | Map CLI bounded output capture and finish writeback.           | Routing: focused CLI task-pull output-visibility slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to executor output capture, result logs, and focused tests.                                                                                                                                                                                                                    |
+| F316.2 | done   | Surface stdout/stderr truncation flags without raising limits. | Extracted bounded output capture into `agent-task-pull-output.utils.ts`; the executor now keeps the existing 16KB stdout/stderr cap while marking `stdoutTruncated`/`stderrTruncated`, and finish logs copy true flags for operator visibility.                                                                                                                                                                                           |
+| F316.3 | done   | Run focused CLI/API verification and sync progress docs.       | CLI focused Jest passed: `/tmp/codex-tool-runs/svton/f316-cli-focused-jest-20260711-output-truncation.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f316-cli-type-check-20260711-output-truncation.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f316-cli-build-20260711-output-truncation.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f316-api-task-pull-jest-20260711-output-truncation.log`. |
+
+Final F316 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f316-final-prettier-write-20260711-output-truncation.log`,
+`/tmp/codex-tool-runs/svton/f316-final-prettier-check-20260711-output-truncation.log`);
+production CLI line-count passed with no file over 200 lines
+(`/tmp/codex-tool-runs/svton/f316-line-count-final-20260711-output-truncation.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f316-diff-check-final-20260711-output-truncation.log`,
+`/tmp/codex-tool-runs/svton/f316-marker-whitespace-scan-final-20260711-output-truncation.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f316-cli-lint-20260711-output-truncation.log`).
+
+## F317. CLI Server-agent Task-pull Dry-run Command Skip
+
+Purpose: continue CLI terminal runtime safety after F316 by honoring the
+claimed task payload's existing `dryRun` flag. The server already includes
+`dryRun` in claimed task payloads, but the CLI task type/runner does not read it
+and therefore can execute command steps for dry-run jobs. F317 adds CLI-side
+dry-run recognition, reports skipped command-step results through the existing
+finish payload, and keeps server API schema, database state, long connections,
+daemonization, and multi-instance coordination unchanged.
+
+| Task   | Status | Description                                                | Evidence                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------ | ------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F317.1 | done   | Map claimed task dryRun payload and CLI runner gap.        | Routing: focused CLI task-pull dry-run-skip slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to payload dryRun, CLI task type, runner, result logs, and focused tests.                                                                                                                                                                                       |
+| F317.2 | done   | Skip command execution for dry-run tasks and write result. | Added CLI task `dryRun` typing and a dry-run result builder; dry-run claimed tasks now skip local shell execution, emit per-step `dryRunSkipped` results/logs, include `dryRun: true` in commandPlan, send the existing final ack, and finish through the current payload shape. Runner lifecycle/identity helpers were extracted so production files stay under 200 lines.                                           |
+| F317.3 | done   | Run focused CLI/API verification and sync progress docs.   | CLI focused Jest passed: `/tmp/codex-tool-runs/svton/f317-cli-focused-jest-20260711-dry-run-skip.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f317-cli-type-check-20260711-dry-run-skip.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f317-cli-build-20260711-dry-run-skip.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f317-api-task-pull-jest-20260711-dry-run-skip.log`. |
+
+Final F317 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f317-final-prettier-write-20260711-dry-run-skip.log`,
+`/tmp/codex-tool-runs/svton/f317-final-prettier-check-20260711-dry-run-skip.log`);
+production CLI line-count passed with no file over 200 lines
+(`/tmp/codex-tool-runs/svton/f317-line-count-final-20260711-dry-run-skip.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f317-diff-check-final-20260711-dry-run-skip.log`,
+`/tmp/codex-tool-runs/svton/f317-marker-whitespace-scan-final-20260711-dry-run-skip.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing `@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f317-cli-lint-20260711-dry-run-skip.log`).
+
+## F318. CLI Server-agent Task-pull Spawn Error Writeback
+
+Purpose: continue CLI terminal runtime hardening after F317 by keeping local
+spawn failures inside the existing task-pull finish path. The executor
+currently rejects on child process spawn errors, which can bypass
+`finish:failed` and leave a claimed task running; for example, a step cwd can
+resolve inside the execution base but still fail because the directory does not
+exist. F318 converts local spawn errors into failed step results so the runner
+can finish through the current payload shape. It does not change command
+execution semantics, service API schema, database state, long connections,
+daemonization, or multi-instance coordination.
+
+| Task   | Status | Description                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------ | ------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F318.1 | done   | Map executor spawn error path and finish writeback gap.  | Routing: focused CLI task-pull spawn-error-writeback slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to executor error handling, runner finish behavior, and focused tests.                                                                                                                                                                             |
+| F318.2 | done   | Convert spawn errors to failed step results.             | `executeAgentTaskPullStep()` now converts child process spawn errors into failed step results with `spawn_error:<code>` stderr, allowing required steps to finish `failed` through the existing runner writeback path while preserving optional-step continuation semantics.                                                                                                                                      |
+| F318.3 | done   | Run focused CLI/API verification and sync progress docs. | CLI focused Jest passed: `/tmp/codex-tool-runs/svton/f318-cli-focused-jest-20260711-spawn-error.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f318-cli-type-check-20260711-spawn-error.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f318-cli-build-20260711-spawn-error.log`; focused API task-pull Jest passed: `/tmp/codex-tool-runs/svton/f318-api-task-pull-jest-20260711-spawn-error.log`. |
+
+Final F318 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f318-final-prettier-write-20260711-spawn-error.log`,
+`/tmp/codex-tool-runs/svton/f318-final-prettier-check-20260711-spawn-error.log`);
+production CLI line-count passed with no file over 200 lines
+(`/tmp/codex-tool-runs/svton/f318-line-count-final-20260711-spawn-error.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f318-diff-check-final-20260711-spawn-error.log`,
+`/tmp/codex-tool-runs/svton/f318-marker-whitespace-scan-final-20260711-spawn-error.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f318-cli-lint-20260711-spawn-error.log`).
+
+## F319. CLI Server-agent Task-pull Loop Heartbeat Failure Summary
+
+Purpose: continue CLI terminal runtime hardening after F318 by keeping
+configured heartbeat failures observable inside the `task-pull run` loop
+summary. The loop currently awaits `heartbeatClient.heartbeat()` before each
+poll; if that request fails, the command rejects without a structured stop
+reason. F319 records heartbeat failure as a bounded loop stop result so
+operators can distinguish heartbeat connectivity/auth failure from signal,
+idle-limit, and max-iteration exits. It does not change the server heartbeat
+API, task claim/ack/finish payloads, long connections, daemonization, or
+multi-instance coordination.
+
+| Task   | Status | Description                                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------ | ------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F319.1 | done   | Map loop heartbeat failure path and existing stop model. | Routing: focused CLI task-pull loop heartbeat-failure slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to loop runner/config/tests.                                                                                                                                                                                                                                  |
+| F319.2 | done   | Return a structured loop summary when heartbeat fails.   | `runAgentTaskPullLoop()` now catches configured heartbeat write failures before polling and returns `stoppedReason: "heartbeat_failed"` with `heartbeatError`, without claiming a task.                                                                                                                                                                                                                                       |
+| F319.3 | done   | Run focused CLI verification and sync progress docs.     | CLI loop Jest passed: `/tmp/codex-tool-runs/svton/f319-cli-loop-jest-20260711-heartbeat-failure.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f319-cli-type-check-20260711-heartbeat-failure.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f319-cli-build-20260711-heartbeat-failure.log`; line-count precheck passed: `/tmp/codex-tool-runs/svton/f319-line-count-precheck-20260711-heartbeat-failure.log`. |
+
+Final F319 hygiene evidence: expanded task-pull Jest passed
+(`/tmp/codex-tool-runs/svton/f319-cli-task-pull-jest-20260711-heartbeat-failure.log`);
+Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f319-final-prettier-write-20260711-heartbeat-failure.log`,
+`/tmp/codex-tool-runs/svton/f319-final-prettier-check-20260711-heartbeat-failure.log`);
+production CLI line-count passed with no file over 200 lines
+(`/tmp/codex-tool-runs/svton/f319-line-count-final-20260711-heartbeat-failure.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f319-diff-check-final-20260711-heartbeat-failure.log`,
+`/tmp/codex-tool-runs/svton/f319-marker-whitespace-scan-final-20260711-heartbeat-failure.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f319-cli-lint-20260711-heartbeat-failure.log`).
+
+## F320. CLI Server-agent Task-pull Loop Heartbeat Rejection Guard
+
+Purpose: continue CLI terminal runtime hardening after F319 by honoring the
+typed heartbeat response contract. The server heartbeat success path returns
+`accepted: true`, and the CLI response type exposes `accepted?: boolean`; the
+loop currently treats any non-throwing heartbeat response as successful. F320
+will stop the loop with the existing structured heartbeat failure summary when
+a configured heartbeat response explicitly reports `accepted: false`, before
+claiming work. It does not change the server heartbeat API, task
+claim/ack/finish payloads, long connections, daemonization, or multi-instance
+coordination.
+
+| Task   | Status | Description                                                     | Evidence                                                                                                                                                                                                                                                                                                          |
+| ------ | ------ | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F320.1 | done   | Map heartbeat response contract and current loop success check. | Routing: focused CLI task-pull heartbeat rejection guard + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to heartbeat response type, server success shape, loop runner, and tests.                                                                            |
+| F320.2 | done   | Treat explicit heartbeat rejection as structured loop stop.     | `runAgentTaskPullLoop()` now treats `accepted: false` heartbeat responses as `stoppedReason: "heartbeat_failed"` with `heartbeatError: "heartbeat rejected"` before polling or claiming work.                                                                                                                     |
+| F320.3 | done   | Run focused CLI verification and sync progress docs.            | CLI loop Jest passed: `/tmp/codex-tool-runs/svton/f320-cli-loop-jest-20260711-heartbeat-rejection.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f320-cli-type-check-20260711-heartbeat-rejection.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f320-cli-build-20260711-heartbeat-rejection.log`. |
+
+Final F320 hygiene evidence: expanded task-pull Jest passed
+(`/tmp/codex-tool-runs/svton/f320-cli-task-pull-jest-20260711-heartbeat-rejection.log`);
+Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f320-final-prettier-write-20260711-heartbeat-rejection.log`,
+`/tmp/codex-tool-runs/svton/f320-final-prettier-check-20260711-heartbeat-rejection.log`);
+production CLI line-count passed with no file over 200 lines
+(`/tmp/codex-tool-runs/svton/f320-line-count-final-20260711-heartbeat-rejection.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f320-diff-check-final-20260711-heartbeat-rejection.log`,
+`/tmp/codex-tool-runs/svton/f320-marker-whitespace-scan-final-20260711-heartbeat-rejection.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f320-cli-lint-20260711-heartbeat-rejection.log`).
+
+## F321. CLI Server-agent Task-pull Step Ack Rejection Guard
+
+Purpose: continue CLI terminal runtime hardening after F320 by honoring the
+task-pull ack response contract before local command execution. The server ack
+path can return `acked: false` with a reason such as lock mismatch, and the CLI
+response type exposes `acked?: boolean`; the runner currently checks only
+cancellation hints and can still execute a command after a rejected step ack.
+F321 stops command execution when the pre-step ack is explicitly rejected and
+returns a structured cancelled result through the existing finish path. It does
+not change the server ack API, claim/finish payload schemas, long connections,
+daemonization, or multi-instance coordination.
+
+| Task   | Status | Description                                          | Evidence                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------ | ------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F321.1 | done   | Map ack rejection contract and runner execution gap. | Routing: focused CLI task-pull step ack rejection guard + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to ack response type, server ack shape, runner, and tests.                                                                                                                                                                                        |
+| F321.2 | done   | Prevent local command execution after rejected ack.  | `runAgentTaskPullOnce()` now treats explicit pre-step `acked: false` responses as cancelled with the server reason, skips local command execution, and keeps the existing finish writeback attempt; `AgentTaskPullRunSummary` moved to `agent-task-pull-types.ts`, and ack rejection parsing lives in `agent-task-pull-ack.utils.ts` to keep runner line count at 200.                                        |
+| F321.3 | done   | Run focused CLI verification and sync progress docs. | CLI once Jest passed: `/tmp/codex-tool-runs/svton/f321-cli-once-jest-20260711-ack-rejection.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f321-cli-type-check-20260711-ack-rejection.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f321-cli-build-20260711-ack-rejection.log`; line-count precheck passed: `/tmp/codex-tool-runs/svton/f321-line-count-precheck-20260711-ack-rejection.log`. |
+
+Final F321 hygiene evidence: expanded task-pull Jest passed
+(`/tmp/codex-tool-runs/svton/f321-cli-task-pull-jest-20260711-ack-rejection.log`);
+Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f321-final-prettier-write-20260711-ack-rejection.log`,
+`/tmp/codex-tool-runs/svton/f321-final-prettier-check-20260711-ack-rejection.log`);
+production CLI line-count passed with no file over 200 lines
+(`/tmp/codex-tool-runs/svton/f321-line-count-final-20260711-ack-rejection.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f321-diff-check-final-20260711-ack-rejection.log`,
+`/tmp/codex-tool-runs/svton/f321-marker-whitespace-scan-final-20260711-ack-rejection.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f321-cli-lint-20260711-ack-rejection.log`).
+
+## F322. CLI Server-agent Task-pull Finish Writeback Helper Extraction
+
+Purpose: keep the CLI task-pull once runner below the production file-size
+ceiling before adding more terminal writeback behavior. F321 left
+`agent-task-pull-runner.ts` exactly at 200 lines with finish payload assembly
+still inlined in the orchestration path. F322 extracts the existing finish
+payload/writeback boundary into a focused helper so runner remains responsible
+for claim/execute/summary orchestration only. It is behavior-preserving and
+does not change server finish APIs, payload schemas, daemonization, loop
+heartbeats, or multi-instance coordination.
+
+| Task   | Status | Description                                             | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------ | ------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F322.1 | done   | Map current finish writeback boundary and line ceiling. | CodeGraph is installed but uninitialized, so manual graphing was scoped to runner, types, result utils, and task-pull tests; `agent-task-pull-runner.ts` started exactly at 200 lines.                                                                                                                                                                                                                                            |
+| F322.2 | done   | Extract finish payload/writeback helper.                | `agent-task-pull-finish.utils.ts` now owns existing finish payload construction/writeback, and `runAgentTaskPullOnce()` delegates the finish call while keeping claim/execute/summary orchestration in the runner.                                                                                                                                                                                                                |
+| F322.3 | done   | Run focused CLI verification and sync progress docs.    | CLI once/helper Jest passed: `/tmp/codex-tool-runs/svton/f322-cli-once-jest-20260711-finish-helper.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f322-cli-type-check-20260711-finish-helper.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f322-cli-build-20260711-finish-helper.log`; line-count passed with runner at 194 lines: `/tmp/codex-tool-runs/svton/f322-line-count-final-20260711-finish-helper.log`. |
+
+Final F322 hygiene evidence: expanded task-pull Jest passed
+(`/tmp/codex-tool-runs/svton/f322-cli-task-pull-jest-20260711-finish-helper.log`);
+Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f322-final-prettier-write-20260711-finish-helper.log`,
+`/tmp/codex-tool-runs/svton/f322-final-prettier-check-20260711-finish-helper.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f322-diff-check-final-20260711-finish-helper.log`,
+`/tmp/codex-tool-runs/svton/f322-marker-whitespace-scan-final-20260711-finish-helper.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f322-cli-lint-20260711-finish-helper.log`).
+
+## F323. CLI Server-agent Task-pull Finish Response Summary
+
+Purpose: make CLI task-pull finish writeback outcomes visible after F322
+extracted the finish helper boundary. The server finish endpoint returns
+`accepted`, `finished`, and `reason`; `finished: false` can indicate a lock
+mismatch after local execution, but the CLI currently treats the response as
+`unknown` and drops it from once/loop summaries. F323 preserves the local
+execution status while adding finish writeback metadata to the summary. It does
+not change the server finish API, finish payload schema, command execution,
+loop heartbeat behavior, daemonization, or multi-instance coordination.
+
+| Task   | Status | Description                                          | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F323.1 | done   | Map finish response shape and CLI summary gap.       | CodeGraph is installed but uninitialized, so manual graphing was scoped to server finish response, CLI finish helper, runner, loop summary, and tests; server finish returns `accepted`, `finished`, and `reason`, while CLI previously typed the response as `unknown`.                                                                                                                                                                  |
+| F323.2 | done   | Surface finish writeback metadata in CLI summaries.  | `AgentTaskPullFinishResponse` now types finish responses, `finishAgentTaskPullExecution()` converts rejected writeback outcomes into summary metadata, and `runAgentTaskPullOnce()` exposes `finishAccepted`, `finishFinished`, and `finishReason` without changing local execution status.                                                                                                                                               |
+| F323.3 | done   | Run focused CLI verification and sync progress docs. | CLI once/helper Jest passed: `/tmp/codex-tool-runs/svton/f323-cli-once-jest-20260711-finish-response.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f323-cli-type-check-20260711-finish-response.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f323-cli-build-20260711-finish-response.log`; line-count passed with runner at 200 lines: `/tmp/codex-tool-runs/svton/f323-line-count-final-20260711-finish-response.log`. |
+
+Final F323 hygiene evidence: expanded task-pull Jest passed
+(`/tmp/codex-tool-runs/svton/f323-cli-task-pull-jest-20260711-finish-response.log`);
+Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f323-final-prettier-write-20260711-finish-response.log`,
+`/tmp/codex-tool-runs/svton/f323-final-prettier-check-20260711-finish-response.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f323-diff-check-final-20260711-finish-response.log`,
+`/tmp/codex-tool-runs/svton/f323-marker-whitespace-scan-final-20260711-finish-response.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f323-cli-lint-20260711-finish-response.log`).
+
+## F324. CLI Server-agent Task-pull Once Summary Builder Extraction
+
+Purpose: keep the CLI task-pull once runner below the production file-size
+ceiling before adding more terminal runtime behavior. F323 made finish response
+metadata visible but left `agent-task-pull-runner.ts` exactly at 200 lines with
+executed-run summary assembly still in the orchestration path. F324 extracts
+the existing executed summary builder into a focused pure utility so the runner
+continues to own claim/execute/finish orchestration only. It is
+behavior-preserving and does not change command execution, finish payloads,
+HTTP response contracts, loop heartbeat behavior, daemonization, or
+multi-instance coordination.
+
+| Task   | Status | Description                                          | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F324.1 | done   | Map once summary assembly and runner line ceiling.   | CodeGraph is installed but uninitialized, so manual graphing was scoped to runner, summary shape, finish metadata, and task-pull tests; `agent-task-pull-runner.ts` started this slice exactly at 200 lines.                                                                                                                                                                                                                              |
+| F324.2 | done   | Extract executed-run summary builder.                | `agent-task-pull-summary.utils.ts` now owns executed-run summary assembly, and `finishAgentTaskPullExecution()` returns the completed run summary after writeback metadata normalization; runner keeps claim/execute/finish orchestration only.                                                                                                                                                                                           |
+| F324.3 | done   | Run focused CLI verification and sync progress docs. | CLI once/helper Jest passed: `/tmp/codex-tool-runs/svton/f324-cli-once-jest-20260711-summary-builder.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f324-cli-type-check-20260711-summary-builder.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f324-cli-build-20260711-summary-builder.log`; line-count passed with runner at 186 lines: `/tmp/codex-tool-runs/svton/f324-line-count-final-20260711-summary-builder.log`. |
+
+Final F324 hygiene evidence: expanded task-pull Jest passed
+(`/tmp/codex-tool-runs/svton/f324-cli-task-pull-jest-20260711-summary-builder.log`);
+Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f324-prettier-write-20260711-summary-builder.log`,
+`/tmp/codex-tool-runs/svton/f324-final-prettier-check-20260711-summary-builder.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f324-diff-check-final-20260711-summary-builder.log`,
+`/tmp/codex-tool-runs/svton/f324-marker-whitespace-scan-final-20260711-summary-builder.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f324-cli-lint-20260711-summary-builder.log`).
+
+## F325. CLI Server-agent Task-pull Loop Finish Writeback Failure Stop
+
+Purpose: make long-running CLI task-pull loops stop when terminal writeback is
+not accepted or not finished. F323 surfaced finish writeback metadata on each
+once run, and F324 moved summary assembly out of the once runner. The loop still
+continues polling after a run reports `finishFinished: false`, which can hide a
+lost job lock or failed terminal writeback in daemon-like operation. F325 stops
+the loop with a structured `finish_writeback_failed` reason while preserving
+the local command execution status. It does not change server finish APIs,
+finish payload schemas, command execution, heartbeat writeback, daemonization,
+or multi-instance coordination.
+
+| Task   | Status | Description                                                  | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F325.1 | done   | Map loop handling for finish writeback metadata.             | CodeGraph is installed but uninitialized, so manual graphing was scoped to loop runner, once summary metadata, and loop tests; the loop previously continued polling even when a run reported failed terminal writeback metadata.                                                                                                                                                                                                           |
+| F325.2 | done   | Stop loop on finish writeback failure with explicit summary. | `runAgentTaskPullLoop()` now stops with `stoppedReason: "finish_writeback_failed"` and `finishWritebackError` when a run reports `finishAccepted: false` or `finishFinished: false`, while preserving the once run's local execution status.                                                                                                                                                                                                |
+| F325.3 | done   | Run focused CLI verification and sync progress docs.         | CLI loop Jest passed: `/tmp/codex-tool-runs/svton/f325-cli-loop-jest-20260711-loop-finish-stop.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f325-cli-type-check-20260711-loop-finish-stop.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f325-cli-build-20260711-loop-finish-stop.log`; line-count passed with loop runner at 190 lines: `/tmp/codex-tool-runs/svton/f325-line-count-final-20260711-loop-finish-stop.log`. |
+
+Final F325 hygiene evidence: expanded task-pull Jest passed
+(`/tmp/codex-tool-runs/svton/f325-cli-task-pull-jest-20260711-loop-finish-stop.log`);
+Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f325-final-prettier-write-20260711-loop-finish-stop.log`,
+`/tmp/codex-tool-runs/svton/f325-final-prettier-check-20260711-loop-finish-stop.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f325-diff-check-final-20260711-loop-finish-stop.log`,
+`/tmp/codex-tool-runs/svton/f325-marker-whitespace-scan-final-20260711-loop-finish-stop.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f325-cli-lint-20260711-loop-finish-stop.log`).
+
+## F326. CLI Server-agent Task-pull Run Failure Exit Surface
+
+Purpose: make long-running CLI task-pull runs expose failure stop reasons as a
+process failure signal for supervisors and scripts. F325 made the loop stop with
+structured `heartbeat_failed` and `finish_writeback_failed` reasons, but the
+`agent task-pull run` command still only prints the JSON summary and exits
+successfully. F326 keeps the loop contract unchanged and only maps failure stop
+reasons at the command boundary. It does not add daemonization, multi-instance
+coordination, new server APIs, or retry policy.
+
+| Task   | Status | Description                                             | Evidence                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------ | ------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F326.1 | done   | Map command handling for loop failure stop reasons.     | CodeGraph is installed but uninitialized, so manual graphing was scoped to `agent-task-pull.ts`, loop summary shape, and command tests; `agent task-pull run` previously logged failure summaries without setting a process failure signal.                                                                                                                                                                         |
+| F326.2 | done   | Surface failure stop reasons through CLI run exit code. | `runAgentTaskPullRunCommand()` now logs the loop summary and maps `heartbeat_failed` / `finish_writeback_failed` to `process.exitCode = 1`, while normal stop reasons such as `idle_limit` keep the default success exit.                                                                                                                                                                                           |
+| F326.3 | done   | Run focused CLI verification and sync progress docs.    | CLI command Jest passed: `/tmp/codex-tool-runs/svton/f326-cli-command-jest-20260711-run-exit-surface.log`; CLI loop Jest passed: `/tmp/codex-tool-runs/svton/f326-cli-loop-jest-20260711-run-exit-surface.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f326-cli-type-check-20260711-run-exit-surface.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f326-cli-build-20260711-run-exit-surface.log`. |
+
+Final F326 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f326-final-prettier-write-20260711-run-exit-surface.log`,
+`/tmp/codex-tool-runs/svton/f326-final-prettier-check-20260711-run-exit-surface.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f326-diff-check-final-20260711-run-exit-surface.log`,
+`/tmp/codex-tool-runs/svton/f326-marker-whitespace-scan-final-20260711-run-exit-surface.log`);
+line-count check passed with `agent-task-pull.ts` at 148 lines
+(`/tmp/codex-tool-runs/svton/f326-line-count-final-20260711-run-exit-surface.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f326-cli-lint-20260711-run-exit-surface.log`).
+
+## F327. CLI Server-agent Task-pull Once Failure Exit Surface
+
+Purpose: make one-shot CLI task-pull execution expose local execution and finish
+writeback failures as a process failure signal for scripts and supervisors. F326
+covered the long-running `run` command, but `agent task-pull once --execute`
+still only logs the JSON summary when command execution fails, is cancelled, or
+the finish writeback is rejected/not finished. F327 keeps the once runner,
+finish payload, server APIs, and loop behavior unchanged; it only maps failure
+summaries at the command boundary.
+
+| Task   | Status | Description                                               | Evidence                                                                                                                                                                                                                                                                                                          |
+| ------ | ------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F327.1 | done   | Map once command handling for failure summaries.          | CodeGraph is installed but uninitialized, so manual graphing was scoped to `agent-task-pull.ts`, once summary shape, and command tests; `agent task-pull once --execute` previously logged failed/cancelled/writeback-failed summaries without setting a process failure signal.                                  |
+| F327.2 | done   | Surface failed/cancelled/writeback-failed once summaries. | `runAgentTaskPullOnceCommand()` now maps executed `failed` / `cancelled` summaries and `finishAccepted: false` / `finishFinished: false` writeback metadata to `process.exitCode = 1`, while `contract_only`, `no_task`, and completed once summaries keep the default success exit.                              |
+| F327.3 | done   | Run focused CLI verification and sync progress docs.      | CLI command Jest passed: `/tmp/codex-tool-runs/svton/f327-cli-command-jest-20260711-once-exit-surface.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f327-cli-type-check-20260711-once-exit-surface.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f327-cli-build-20260711-once-exit-surface.log`. |
+
+Final F327 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f327-final-prettier-write-20260711-once-exit-surface.log`,
+`/tmp/codex-tool-runs/svton/f327-final-prettier-check-20260711-once-exit-surface.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f327-diff-check-final-20260711-once-exit-surface.log`,
+`/tmp/codex-tool-runs/svton/f327-marker-whitespace-scan-final-20260711-once-exit-surface.log`);
+line-count check passed with `agent-task-pull.ts` at 162 lines
+(`/tmp/codex-tool-runs/svton/f327-line-count-final-20260711-once-exit-surface.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f327-cli-lint-20260711-once-exit-surface.log`).
+
+## F328. CLI Server-agent Task-pull Loop Poll Failure Summary
+
+Purpose: make long-running CLI task-pull loops return a structured summary when
+the poll/claim/ack/finish execution path throws before producing a once summary.
+F326/F327 mapped known failure summaries to process exit signals, but a contract
+or claim request failure inside `runAgentTaskPullOnce()` still rejects the loop
+without a loop summary. F328 keeps server APIs, once runner behavior, retry
+policy, daemonization, and multi-instance coordination unchanged; it only adds a
+`poll_failed` loop stop reason and keeps it mapped to nonzero CLI exit.
+
+| Task   | Status | Description                                          | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------ | ------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F328.1 | done   | Map loop handling for poll-path exceptions.          | CodeGraph is installed but uninitialized, so manual graphing was scoped to loop runner, command mapping, and loop/command tests; poll-path exceptions previously rejected the loop before a loop summary could be logged.                                                                                                                                                                                                           |
+| F328.2 | done   | Return structured `poll_failed` loop summaries.      | `runAgentTaskPullLoop()` now catches once-run poll/claim/ack/finish-path exceptions and returns `stoppedReason: "poll_failed"` with `pollError`, while preserving existing heartbeat, finish-writeback, idle, signal, and max-iteration summaries.                                                                                                                                                                                  |
+| F328.3 | done   | Run focused CLI verification and sync progress docs. | CLI loop Jest passed: `/tmp/codex-tool-runs/svton/f328-cli-loop-jest-20260711-poll-failure-summary.log`; CLI command Jest passed: `/tmp/codex-tool-runs/svton/f328-cli-command-jest-20260711-poll-failure-summary.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f328-cli-type-check-20260711-poll-failure-summary.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f328-cli-build-20260711-poll-failure-summary.log`. |
+
+Final F328 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f328-final-prettier-write-20260711-poll-failure-summary.log`,
+`/tmp/codex-tool-runs/svton/f328-final-prettier-check-20260711-poll-failure-summary.log`);
+diff whitespace check and marker/trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f328-diff-check-final-20260711-poll-failure-summary.log`,
+`/tmp/codex-tool-runs/svton/f328-marker-whitespace-scan-final-20260711-poll-failure-summary.log`);
+line-count check passed with loop runner at 193 lines and command at 163 lines
+(`/tmp/codex-tool-runs/svton/f328-line-count-final-20260711-poll-failure-summary.log`);
+CLI lint was attempted and remains blocked by the existing
+`packages/cli/.eslintrc.js` reference to missing
+`@typescript-eslint/recommended`
+(`/tmp/codex-tool-runs/svton/f328-cli-lint-20260711-poll-failure-summary.log`).
+
+## F329. Server-agent Task-pull Disabled Claim Surface
+
+Purpose: make `POST /server-agent/task-pull/claim` match the default-off
+contract/readiness surface when task-pull is disabled. The contract already
+reports `task_pull_disabled`, while claim currently routes through the enabled
+auth gate before returning any task-pull response. F329 keeps token
+authentication, ack/finish behavior, task payload schema, CLI behavior,
+daemonization, and multi-instance coordination unchanged; it only lets a
+valid-token claim request observe a structured no-claim result without touching
+the queue while `SERVER_EXECUTOR_AGENT_TASK_PULL_ENABLED` is false.
+
+| Task   | Status | Description                                           | Evidence                                                                                                                                                                                                                                                                                                                         |
+| ------ | ------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F329.1 | done   | Map disabled claim behavior and boundary.             | CodeGraph is installed but uninitialized, so manual graphing was scoped to task-pull auth, contract/readiness gates, claim service, and claim tests; disabled claim currently fails in auth before a no-claim body.                                                                                                              |
+| F329.2 | done   | Return structured disabled no-claim without mutation. | `ServerAgentTaskPullClaimService` now validates the task-pull token separately from the enabled gate, returns `claimed: false` / `reason: "task_pull_disabled"` for valid-token disabled claims, and skips `claimNextReadyJob()` / queue mutation.                                                                               |
+| F329.3 | done   | Run focused API verification and sync progress docs.  | Focused claim Jest passed: `/tmp/codex-tool-runs/svton/f329-api-claim-jest-20260711-disabled-claim-surface.log`; API type-check passed: `/tmp/codex-tool-runs/svton/f329-api-type-check-20260711-disabled-claim-surface.log`; API build passed: `/tmp/codex-tool-runs/svton/f329-api-build-20260711-disabled-claim-surface.log`. |
+
+Final F329 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f329-prettier-write-20260711-disabled-claim-surface.log`,
+`/tmp/codex-tool-runs/svton/f329-prettier-check-20260711-disabled-claim-surface.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f329-diff-check-20260711-disabled-claim-surface.log`,
+`/tmp/codex-tool-runs/svton/f329-marker-scan-20260711-disabled-claim-surface.log`,
+`/tmp/codex-tool-runs/svton/f329-trailing-whitespace-scan-20260711-disabled-claim-surface.log`,
+`/tmp/codex-tool-runs/svton/f329-line-count-20260711-disabled-claim-surface.log`).
+
+## F330. CLI Task-pull Disabled Claim Loop Stop
+
+Purpose: make `svton agent task-pull run` consume the F329 disabled claim
+surface without treating it as ordinary empty-queue idleness. F329 lets the API
+return `claimed: false` / `reason: "task_pull_disabled"` for valid-token
+disabled claims; the loop runner should stop immediately with a structured
+`task_pull_disabled` summary instead of continuing until `idle_limit` or
+`max_iterations`. F330 keeps the once runner, API contract, daemonization,
+multi-instance coordination, and process failure mapping unchanged.
+
+| Task   | Status | Description                                          | Evidence                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F330.1 | done   | Map disabled claim handling in the CLI loop runner.  | Routing: focused CLI loop slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to F329 claim response, once runner `no_task` summaries, loop stop reasons, command mapping, and tests.                                                                                                 |
+| F330.2 | done   | Stop loops on `task_pull_disabled` no-task runs.     | `runAgentTaskPullLoop()` now returns `stoppedReason: "task_pull_disabled"` when the latest no-task run carries `reason: "task_pull_disabled"`, while keeping it out of nonzero failure stop reasons.                                                                                                                                        |
+| F330.3 | done   | Run focused CLI verification and sync progress docs. | Focused CLI loop/command Jest passed: `/tmp/codex-tool-runs/svton/f330-cli-jest-20260711-disabled-claim-loop-stop.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f330-cli-type-check-20260711-disabled-claim-loop-stop.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f330-cli-build-20260711-disabled-claim-loop-stop.log`. |
+
+Final F330 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f330-prettier-write-20260711-disabled-claim-loop-stop.log`,
+`/tmp/codex-tool-runs/svton/f330-prettier-check-20260711-disabled-claim-loop-stop.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f330-diff-check-20260711-disabled-claim-loop-stop.log`,
+`/tmp/codex-tool-runs/svton/f330-marker-scan-20260711-disabled-claim-loop-stop.log`,
+`/tmp/codex-tool-runs/svton/f330-trailing-whitespace-scan-20260711-disabled-claim-loop-stop.log`,
+`/tmp/codex-tool-runs/svton/f330-line-count-20260711-disabled-claim-loop-stop.log`).
+
+## F331. CLI Task-pull Run Default Runner Identity
+
+Purpose: make long-running `svton agent task-pull run` advertise a stable
+per-process runner identity even when the operator omits `--runner` /
+`DEVPILOT_AGENT_RUNNER_ID`. The server can already include `runnerId` in
+heartbeat, claim, ack, and finish, and its lock owner falls back to
+`agentId:serverId` when runner id is missing. F331 keeps `once`, API schemas,
+server lock-owner rules, daemonization, and full multi-instance scheduling out
+of scope; it only gives bounded/forever loop runs a deterministic CLI runner id
+so concurrent local runners are distinguishable in task-pull locks and
+heartbeat visibility.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                               |
+| ------ | ------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F331.1 | done   | Map runner identity flow for CLI loop runs. | Routing: focused CLI config slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to CLI config, heartbeat config, task-pull HTTP payloads, and server lock-owner fallback rules.                                                                                  |
+| F331.2 | done   | Generate a loop-only default runner id.     | `task-pull run` keeps explicit `--runner` / `DEVPILOT_AGENT_RUNNER_ID`, otherwise uses `cli-<sanitized-host>-<pid>`; `task-pull once` remains optional/no generated runner and heartbeat inherits the loop runner id.                                                                                                  |
+| F331.3 | done   | Run focused CLI verification and sync docs. | Focused CLI loop/command Jest passed: `/tmp/codex-tool-runs/svton/f331-cli-jest-20260711-default-runner-id.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f331-cli-type-check-20260711-default-runner-id.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f331-cli-build-20260711-default-runner-id.log`. |
+
+Final F331 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f331-prettier-write-20260711-default-runner-id.log`,
+`/tmp/codex-tool-runs/svton/f331-prettier-check-20260711-default-runner-id.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f331-diff-check-20260711-default-runner-id.log`,
+`/tmp/codex-tool-runs/svton/f331-marker-scan-20260711-default-runner-id.log`,
+`/tmp/codex-tool-runs/svton/f331-trailing-whitespace-scan-20260711-default-runner-id.log`,
+`/tmp/codex-tool-runs/svton/f331-line-count-20260711-default-runner-id.log`).
+
+## F332. CLI Task-pull Run Runner Identity Summary
+
+Purpose: make `svton agent task-pull run` logs expose the runner identity that
+F331 now guarantees for loop runs. The loop config has a runner id, and claim /
+heartbeat payloads carry it, but the command-level loop summary logged to
+operators still omits it. F332 keeps the loop runner core summary, API schemas,
+execution behavior, daemonization, and multi-instance scheduling unchanged; it
+only includes `runnerId` in the logged command summary when present.
+
+| Task   | Status | Description                                      | Evidence                                                                                                                                                                                                                                                                                                      |
+| ------ | ------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F332.1 | done   | Map command summary logging and runner identity. | Routing: focused CLI command observability slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to CLI command logging, loop config, loop summary tests, and README.                                                                                     |
+| F332.2 | done   | Include `runnerId` in logged run summaries.      | `runAgentTaskPullRunCommand()` now logs the configured/generated `runnerId` with the loop summary; loop runner return shape, failure exit mapping, once behavior, and API payloads remain unchanged.                                                                                                          |
+| F332.3 | done   | Run focused CLI verification and sync docs.      | Focused CLI command/loop Jest passed: `/tmp/codex-tool-runs/svton/f332-cli-jest-20260711-runner-summary.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f332-cli-type-check-20260711-runner-summary.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f332-cli-build-20260711-runner-summary.log`. |
+
+Final F332 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f332-prettier-write-20260711-runner-summary.log`,
+`/tmp/codex-tool-runs/svton/f332-prettier-check-20260711-runner-summary.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f332-diff-check-20260711-runner-summary.log`,
+`/tmp/codex-tool-runs/svton/f332-marker-scan-20260711-runner-summary.log`,
+`/tmp/codex-tool-runs/svton/f332-trailing-whitespace-scan-20260711-runner-summary.log`,
+`/tmp/codex-tool-runs/svton/f332-line-count-20260711-runner-summary.log`).
+
+## F333. CLI Task-pull Run PID File Lifecycle
+
+Purpose: add the smallest daemon/readiness precursor for
+`svton agent task-pull run`: an opt-in `--pid-file` lifecycle that writes the
+current CLI process id before the loop starts and removes it during command
+cleanup. F333 keeps the loop runner core, API schemas, process supervision,
+background daemonization, and multi-instance scheduling unchanged; it only gives
+external supervisors and scripts a stable local process handle for the
+foreground runner.
+
+| Task   | Status | Description                                    | Evidence                                                                                                                                                                                                                                                                                    |
+| ------ | ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F333.1 | done   | Map run command cleanup and PID-file boundary. | Routing: focused CLI command lifecycle slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to command options, run command cleanup, config types, and command tests.                                                                  |
+| F333.2 | done   | Add opt-in `--pid-file` install and cleanup.   | `task-pull run --pid-file <path>` now writes the current process id before the loop starts and cleans it during command cleanup, while once/API/loop execution semantics remain unchanged.                                                                                                  |
+| F333.3 | done   | Run focused CLI verification and sync docs.    | Focused CLI command/loop Jest passed: `/tmp/codex-tool-runs/svton/f333-cli-jest-20260711-pid-file.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f333-cli-type-check-20260711-pid-file.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f333-cli-build-20260711-pid-file.log`. |
+
+Final F333 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f333-prettier-write-20260711-pid-file.log`,
+`/tmp/codex-tool-runs/svton/f333-prettier-check-20260711-pid-file.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f333-diff-check-20260711-pid-file.log`,
+`/tmp/codex-tool-runs/svton/f333-marker-scan-20260711-pid-file.log`,
+`/tmp/codex-tool-runs/svton/f333-trailing-whitespace-scan-20260711-pid-file.log`,
+`/tmp/codex-tool-runs/svton/f333-line-count-20260711-pid-file.log`).
+
+## F334. CLI Task-pull Run PID File Live-owner Guard
+
+Purpose: make the opt-in `svton agent task-pull run --pid-file <path>` lifecycle
+safe for local supervisor use by refusing to overwrite an existing pid file
+whose owner process is still alive, while still replacing stale pid files. F334
+keeps foreground runner execution, loop polling, API schemas, background
+daemonization, and multi-instance scheduling unchanged.
+
+| Task   | Status | Description                                   | Evidence                                                                                                                                                                                                                                                                                                                                       |
+| ------ | ------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F334.1 | done   | Map pid-file ownership and liveness boundary. | Routing: focused CLI pid-file lifecycle slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to pid-file util, run command injection, command tests, and README.                                                                                                                          |
+| F334.2 | done   | Refuse live-owner pid-file overwrites.        | `installAgentTaskPullPidFile()` now refuses to overwrite an existing pid file when its parsed owner pid is still live, still replaces stale/non-live pid files, and preserves existing own-value cleanup semantics.                                                                                                                            |
+| F334.3 | done   | Run focused CLI verification and sync docs.   | Focused pid-file/command Jest passed: `/tmp/codex-tool-runs/svton/f334-cli-jest-final-20260711-pid-file-live-guard.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f334-cli-type-check-final-20260711-pid-file-live-guard.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f334-cli-build-final-20260711-pid-file-live-guard.log`. |
+
+Final F334 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f334-prettier-write-20260711-pid-file-live-guard.log`,
+`/tmp/codex-tool-runs/svton/f334-prettier-check-20260711-pid-file-live-guard.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f334-diff-check-20260711-pid-file-live-guard.log`,
+`/tmp/codex-tool-runs/svton/f334-marker-scan-20260711-pid-file-live-guard.log`,
+`/tmp/codex-tool-runs/svton/f334-trailing-whitespace-scan-20260711-pid-file-live-guard.log`,
+`/tmp/codex-tool-runs/svton/f334-line-count-20260711-pid-file-live-guard.log`).
+
+## F335. CLI Task-pull Run PID File Install Failure Cleanup
+
+Purpose: close the command-layer cleanup gap after the F334 live-owner guard:
+when `svton agent task-pull run --pid-file <path>` fails before the polling loop
+because the pid-file install rejects, the command must not start the loop and
+must still clean up the stop controller it already created. F335 keeps pid-file
+ownership rules, loop execution, API schemas, background daemonization, and
+multi-instance scheduling unchanged.
+
+| Task   | Status | Description                                      | Evidence                                                                                                                                                                                                                                                                                                                                                                              |
+| ------ | ------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F335.1 | done   | Map pid-file install failure cleanup boundary.   | Routing: focused CLI command lifecycle slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to `runAgentTaskPullRunCommand()`, pid-file injection, command tests, and README/docs.                                                                                                                                               |
+| F335.2 | done   | Ensure stop cleanup when pid-file install fails. | `runAgentTaskPullRunCommand()` now installs the pid file inside the existing `try/finally`, so pid-file install failures skip the polling loop but still clean up the stop controller.                                                                                                                                                                                                |
+| F335.3 | done   | Run focused CLI verification and sync docs.      | Focused command/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f335-cli-jest-final-20260711-pid-file-install-failure-cleanup.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f335-cli-type-check-final-20260711-pid-file-install-failure-cleanup.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f335-cli-build-final-20260711-pid-file-install-failure-cleanup.log`. |
+
+Final F335 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f335-prettier-docs-final-write-20260711-pid-file-install-failure-cleanup.log`,
+`/tmp/codex-tool-runs/svton/f335-prettier-check-final-20260711-pid-file-install-failure-cleanup.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f335-diff-check-final-20260711-pid-file-install-failure-cleanup.log`,
+`/tmp/codex-tool-runs/svton/f335-marker-scan-final-20260711-pid-file-install-failure-cleanup.log`,
+`/tmp/codex-tool-runs/svton/f335-trailing-whitespace-scan-final-20260711-pid-file-install-failure-cleanup.log`,
+`/tmp/codex-tool-runs/svton/f335-line-count-20260711-pid-file-install-failure-cleanup.log`).
+
+## F336. CLI Task-pull Run PID File Install Failure Exit Surface
+
+Purpose: make the F334/F335 pid-file install failure path supervisor-friendly:
+when `svton agent task-pull run --pid-file <path>` cannot install the pid file,
+the command should log a concise startup error, set a nonzero exit code, skip
+the polling loop, and still clean up the stop controller instead of surfacing as
+an unhandled action rejection. F336 keeps pid-file ownership rules, loop
+execution, API schemas, background daemonization, and multi-instance scheduling
+unchanged.
+
+| Task   | Status | Description                                   | Evidence                                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | ------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F336.1 | done   | Map pid-file install failure exit surface.    | Routing: focused CLI command lifecycle slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to `runAgentTaskPullRunCommand()`, command tests, and CLI entry error behavior.                                                                                                                                             |
+| F336.2 | done   | Convert pid-file install rejection to exit 1. | `runAgentTaskPullRunCommand()` now logs a concise startup error, sets exit code 1, skips polling, and still runs stop cleanup when pid-file install fails.                                                                                                                                                                                                                   |
+| F336.3 | done   | Run focused CLI verification and sync docs.   | Focused command/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f336-cli-jest-final-20260711-pid-file-install-exit-surface.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f336-cli-type-check-final-20260711-pid-file-install-exit-surface.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f336-cli-build-final-20260711-pid-file-install-exit-surface.log`. |
+
+Final F336 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f336-prettier-docs-final-write-20260711-pid-file-install-exit-surface.log`,
+`/tmp/codex-tool-runs/svton/f336-prettier-check-final-docs-20260711-pid-file-install-exit-surface.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f336-diff-check-final-docs-20260711-pid-file-install-exit-surface.log`,
+`/tmp/codex-tool-runs/svton/f336-marker-scan-final-docs-20260711-pid-file-install-exit-surface.log`,
+`/tmp/codex-tool-runs/svton/f336-trailing-whitespace-scan-final-docs-20260711-pid-file-install-exit-surface.log`,
+`/tmp/codex-tool-runs/svton/f336-line-count-20260711-pid-file-install-exit-surface.log`).
+
+## F337. CLI Task-pull Run Startup Boundary Extraction
+
+Purpose: keep `svton agent task-pull run` ready for the next supervisor-facing
+slices by moving the startup pid-file install/error/exit handling out of the
+near-limit command entry file and into a focused startup service. F337 preserves
+the F333-F336 pid-file lifecycle, live-owner guard, install-failure cleanup,
+install-failure exit surface, loop execution, API schemas, background
+daemonization, and multi-instance scheduling.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F337.1 | done   | Map run startup and command entry boundary. | Routing: focused CLI structure slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to `runAgentTaskPullRunCommand()`, pid-file install, startup error handling, and command tests.                                                                                                                  |
+| F337.2 | done   | Extract startup pid-file/error handling.    | `prepareAgentTaskPullRunStartup()` now owns pid-file install, startup error logging, exit-code mapping, and loop gating; `runAgentTaskPullRunCommand()` remains the command orchestration entry and preserves F336 behavior.                                                                                                                              |
+| F337.3 | done   | Run focused CLI verification and sync docs. | Focused command/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f337-cli-jest-final-20260711-run-startup-boundary.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f337-cli-type-check-final-20260711-run-startup-boundary.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f337-cli-build-final-20260711-run-startup-boundary.log`. |
+
+Final F337 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f337-prettier-docs-final-write-20260711-run-startup-boundary.log`,
+`/tmp/codex-tool-runs/svton/f337-prettier-check-final-docs-20260711-run-startup-boundary.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f337-diff-check-final-docs-20260711-run-startup-boundary.log`,
+`/tmp/codex-tool-runs/svton/f337-marker-scan-final-docs-20260711-run-startup-boundary.log`,
+`/tmp/codex-tool-runs/svton/f337-trailing-whitespace-scan-final-docs-20260711-run-startup-boundary.log`,
+`/tmp/codex-tool-runs/svton/f337-line-count-20260711-run-startup-boundary.log`).
+
+## F338. CLI Task-pull Run Startup Failure Summary
+
+Purpose: make startup failures observable through the same structured loop
+summary channel used by normal `svton agent task-pull run` stops. When pid-file
+startup fails before polling, the command should still log the startup error
+and exit 1, but should also emit a zero-iteration `startup_failed` loop summary
+so supervisors can parse a consistent status envelope. F338 keeps pid-file
+ownership rules, loop execution, API schemas, background daemonization, and
+multi-instance scheduling unchanged.
+
+| Task   | Status | Description                                  | Evidence                                                                                                                                                                                                                                                                                                                                                           |
+| ------ | ------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F338.1 | done   | Map startup failure summary boundary.        | Routing: focused CLI observability slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to startup service result, loop summary type, command logging, and tests.                                                                                                                                             |
+| F338.2 | done   | Emit structured startup_failed loop summary. | Startup failures now emit a zero-iteration loop summary with `stoppedReason: "startup_failed"`, `startupError`, and the command runner id while preserving the F336 error log, exit code 1, no-loop behavior, and cleanup.                                                                                                                                         |
+| F338.3 | done   | Run focused CLI verification and sync docs.  | Focused command/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f338-cli-jest-final-20260711-startup-failure-summary.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f338-cli-type-check-final-20260711-startup-failure-summary.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f338-cli-build-final-20260711-startup-failure-summary.log`. |
+
+Final F338 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f338-prettier-write-final-20260711-startup-failure-summary.log`,
+`/tmp/codex-tool-runs/svton/f338-prettier-check-final-20260711-startup-failure-summary.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f338-diff-check-final-20260711-startup-failure-summary.log`,
+`/tmp/codex-tool-runs/svton/f338-marker-scan-final-20260711-startup-failure-summary.log`,
+`/tmp/codex-tool-runs/svton/f338-trailing-whitespace-scan-final-20260711-startup-failure-summary.log`,
+`/tmp/codex-tool-runs/svton/f338-line-count-final-20260711-startup-failure-summary.log`).
+
+## F339. CLI Task-pull Loop Summary Type Boundary
+
+Purpose: keep the task-pull loop runner structurally ready for additional
+observability and supervisor-facing slices by moving its public loop summary
+contract into a focused `.types.ts` file. F339 preserves the F338
+`startup_failed` summary, all existing stopped reasons, loop execution,
+command logging, API schemas, background daemonization, and multi-instance
+scheduling.
+
+| Task   | Status | Description                                   | Evidence                                                                                                                                                                                                                                                                                                                                            |
+| ------ | ------ | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F339.1 | done   | Map loop summary type/import boundary.        | Routing: focused CLI type-boundary slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to loop summary imports, loop runner, command logging, and focused tests.                                                                                                                              |
+| F339.2 | done   | Extract loop summary contract to `.types.ts`. | `AgentTaskPullLoopSummary` and stopped-reason typing now live in `agent-task-pull-loop-summary.types.ts`; loop runner behavior and command summary output are unchanged.                                                                                                                                                                            |
+| F339.3 | done   | Run focused CLI verification and sync docs.   | Focused command/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f339-cli-jest-final-20260711-loop-summary-types.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f339-cli-type-check-final-20260711-loop-summary-types.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f339-cli-build-final-20260711-loop-summary-types.log`. |
+
+Final F339 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f339-prettier-write-20260711-loop-summary-types.log`,
+`/tmp/codex-tool-runs/svton/f339-prettier-check-20260711-loop-summary-types.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f339-diff-check-20260711-loop-summary-types.log`,
+`/tmp/codex-tool-runs/svton/f339-marker-scan-20260711-loop-summary-types.log`,
+`/tmp/codex-tool-runs/svton/f339-trailing-whitespace-scan-20260711-loop-summary-types.log`,
+`/tmp/codex-tool-runs/svton/f339-line-count-20260711-loop-summary-types.log`).
+
+## F340. CLI Task-pull Command Result Policy Boundary
+
+Purpose: keep the `agent task-pull` command entry focused on command
+orchestration by moving summary logging and process-exit policy into a focused
+command result service. F340 preserves once/run execution, the F338
+`startup_failed` summary, all existing failure exit rules, pid-file behavior,
+loop execution, API schemas, background daemonization, and multi-instance
+scheduling.
+
+| Task   | Status | Description                                  | Evidence                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | ------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F340.1 | done   | Map command result logging/exit boundaries.  | Routing: focused CLI command-result boundary slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing was scoped to command summary logging, failure exit predicates, and command tests.                                                                                                                               |
+| F340.2 | done   | Extract summary logging and exit predicates. | Summary logging, once failure detection, loop failure stop detection, and default exit-code setting now live in `agent-task-pull-command-result.service.ts`; command behavior is unchanged.                                                                                                                                                                  |
+| F340.3 | done   | Run focused CLI verification and sync docs.  | Focused command/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f340-cli-jest-final-20260711-command-result-policy.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f340-cli-type-check-final-20260711-command-result-policy.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f340-cli-build-final-20260711-command-result-policy.log`. |
+
+Final F340 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f340-prettier-write-20260711-command-result-policy.log`,
+`/tmp/codex-tool-runs/svton/f340-prettier-check-20260711-command-result-policy.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f340-diff-check-20260711-command-result-policy.log`,
+`/tmp/codex-tool-runs/svton/f340-marker-scan-20260711-command-result-policy.log`,
+`/tmp/codex-tool-runs/svton/f340-trailing-whitespace-scan-20260711-command-result-policy.log`,
+`/tmp/codex-tool-runs/svton/f340-line-count-20260711-command-result-policy.log`).
+
+## F341. CLI Task-pull Loop Summary Builder Boundary
+
+Purpose: keep the `agent task-pull run` command entry focused on command
+orchestration by moving loop summary construction and runner-id enrichment into
+the command result service. F341 preserves the F338 `startup_failed` summary,
+the F340 logging/exit policy boundary, pid-file behavior, loop execution, API
+schemas, background daemonization, and multi-instance scheduling.
+
+| Task   | Status | Description                                           | Evidence                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | ------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F341.1 | done   | Map loop summary construction/enrichment boundaries.  | Routing: focused CLI loop-summary builder slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing stays within the command run entry, command result service, and command tests.                                                                                                                                                  |
+| F341.2 | done   | Extract startup failure summary and runner-id helper. | Startup failure loop-summary construction and runner-id enrichment now live in `agent-task-pull-command-result.service.ts`; command behavior is unchanged.                                                                                                                                                                                                               |
+| F341.3 | done   | Run focused CLI verification and sync docs.           | Focused command/result-service/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f341-cli-jest-final-20260711-loop-summary-builder.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f341-cli-type-check-final-20260711-loop-summary-builder.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f341-cli-build-final-20260711-loop-summary-builder.log`. |
+
+Final F341 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f341-prettier-write-20260711-loop-summary-builder.log`,
+`/tmp/codex-tool-runs/svton/f341-prettier-check-final-20260711-loop-summary-builder.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f341-diff-check-final-20260711-loop-summary-builder.log`,
+`/tmp/codex-tool-runs/svton/f341-marker-scan-final-20260711-loop-summary-builder.log`,
+`/tmp/codex-tool-runs/svton/f341-trailing-whitespace-scan-final-20260711-loop-summary-builder.log`,
+`/tmp/codex-tool-runs/svton/f341-line-count-final-20260711-loop-summary-builder.log`).
+
+## F342. CLI Task-pull Summary Emission Boundary
+
+Purpose: keep the `agent task-pull` command entry focused on execution
+orchestration by moving summary emission and process-exit mapping into the
+command result service. F342 preserves once/run execution, the F338
+`startup_failed` summary, F341 runner-id enrichment, pid-file behavior, loop
+execution, API schemas, background daemonization, and multi-instance
+scheduling.
+
+| Task   | Status | Description                                    | Evidence                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F342.1 | done   | Map command summary emission and exit mapping. | Routing: focused CLI summary-emission slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing stays within the command entry, command result service, and command tests.                                                                                                                                              |
+| F342.2 | done   | Extract once/run summary emission helpers.     | Summary logging plus nonzero-exit decisions now live in `agent-task-pull-command-result.service.ts`; command behavior and dependency-injected tests are unchanged.                                                                                                                                                                                           |
+| F342.3 | done   | Run focused CLI verification and sync docs.    | Focused command/result-service/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f342-cli-jest-final-20260711-summary-emission.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f342-cli-type-check-final-20260711-summary-emission.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f342-cli-build-final-20260711-summary-emission.log`. |
+
+Final F342 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f342-prettier-write-20260711-summary-emission.log`,
+`/tmp/codex-tool-runs/svton/f342-prettier-check-final-20260711-summary-emission.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f342-diff-check-final-20260711-summary-emission.log`,
+`/tmp/codex-tool-runs/svton/f342-marker-scan-final-20260711-summary-emission.log`,
+`/tmp/codex-tool-runs/svton/f342-trailing-whitespace-scan-final-20260711-summary-emission.log`,
+`/tmp/codex-tool-runs/svton/f342-line-count-final-20260711-summary-emission.log`).
+
+## F343. CLI Task-pull Command Registration Boundary
+
+Purpose: keep the `agent task-pull` execution entry focused on once/run
+orchestration by moving Commander command registration into a focused CLI
+controller. F343 preserves once/run execution, option names, the F338
+`startup_failed` summary, F341 runner-id enrichment, F342 result emission,
+pid-file behavior, loop execution, API schemas, background daemonization, and
+multi-instance scheduling.
+
+| Task   | Status | Description                                     | Evidence                                                                                                                                                                                                                                                                                                                                                                            |
+| ------ | ------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F343.1 | done   | Map task-pull command registration boundaries.  | Routing: focused CLI registration boundary slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing stays within registration, command execution, and command tests.                                                                                                                                                                          |
+| F343.2 | done   | Extract Commander registration into controller. | `agent task-pull once/run` Commander registration now lives in `agent-task-pull-command.controller.ts`; execution command behavior is unchanged.                                                                                                                                                                                                                                    |
+| F343.3 | done   | Run focused CLI verification and sync docs.     | Focused command/controller/result-service/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f343-cli-jest-final-20260711-command-registration.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f343-cli-type-check-final-20260711-command-registration.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f343-cli-build-final-20260711-command-registration.log`. |
+
+Final F343 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f343-prettier-write-20260711-command-registration.log`,
+`/tmp/codex-tool-runs/svton/f343-prettier-check-final-20260711-command-registration.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f343-diff-check-final-20260711-command-registration.log`,
+`/tmp/codex-tool-runs/svton/f343-marker-scan-final-20260711-command-registration.log`,
+`/tmp/codex-tool-runs/svton/f343-trailing-whitespace-scan-final-20260711-command-registration.log`,
+`/tmp/codex-tool-runs/svton/f343-line-count-final-20260711-command-registration.log`).
+
+## F344. CLI Task-pull Once Command Execution Boundary
+
+Purpose: keep the remaining `agent task-pull` execution entry focused by moving
+the `once` command orchestration into a focused CLI service. F344 preserves
+once/run execution, option names, the F342 result emission policy, the F343
+registration boundary, pid-file behavior, loop execution, API schemas,
+background daemonization, and multi-instance scheduling.
+
+| Task   | Status | Description                                    | Evidence                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F344.1 | done   | Map once command execution and callers.        | Routing: focused CLI once-command boundary slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing stays within once/run execution, controller imports, and command tests.                                                                                                                                                                           |
+| F344.2 | done   | Extract once execution into a focused service. | `agentTaskPullOnce()` and `runAgentTaskPullOnceCommand()` now live in `agent-task-pull-once-command.service.ts`; the existing public re-export and command behavior are unchanged.                                                                                                                                                                                                          |
+| F344.3 | done   | Run focused CLI verification and sync docs.    | Focused command/service/controller/result-service/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f344-cli-jest-final-20260711-once-command-service.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f344-cli-type-check-final-20260711-once-command-service.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f344-cli-build-final-20260711-once-command-service.log`. |
+
+Final F344 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f344-prettier-write-20260711-once-command-service.log`,
+`/tmp/codex-tool-runs/svton/f344-prettier-check-final-20260711-once-command-service.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f344-diff-check-final-20260711-once-command-service.log`,
+`/tmp/codex-tool-runs/svton/f344-marker-scan-final-20260711-once-command-service.log`,
+`/tmp/codex-tool-runs/svton/f344-trailing-whitespace-scan-final-20260711-once-command-service.log`,
+`/tmp/codex-tool-runs/svton/f344-line-count-final-20260711-once-command-service.log`).
+
+## F345. CLI Task-pull Run Command Execution Boundary
+
+Purpose: keep the `agent task-pull` command module as a thin public boundary by
+moving the remaining `run` command orchestration into a focused CLI service.
+F345 preserves once/run execution, option names, the F338 `startup_failed`
+summary, F341 runner-id enrichment, F342 result emission, F343 registration,
+F344 once service boundary, pid-file behavior, loop execution, API schemas,
+background daemonization, and multi-instance scheduling.
+
+| Task   | Status | Description                                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | ------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F345.1 | done   | Map run command execution and callers.        | Routing: focused CLI run-command boundary slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing stays within run execution, controller imports, and command tests.                                                                                                                                                                              |
+| F345.2 | done   | Extract run execution into a focused service. | `agentTaskPullRun()` and `runAgentTaskPullRunCommand()` now live in `agent-task-pull-run-command.service.ts`; the existing public re-export and command behavior are unchanged.                                                                                                                                                                                                          |
+| F345.3 | done   | Run focused CLI verification and sync docs.   | Focused command/service/controller/result-service/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f345-cli-jest-final-20260711-run-command-service.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f345-cli-type-check-final-20260711-run-command-service.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f345-cli-build-final-20260711-run-command-service.log`. |
+
+Final F345 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f345-prettier-write-20260711-run-command-service.log`,
+`/tmp/codex-tool-runs/svton/f345-prettier-check-final-20260711-run-command-service.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f345-diff-check-final-20260711-run-command-service.log`,
+`/tmp/codex-tool-runs/svton/f345-marker-scan-final-20260711-run-command-service.log`,
+`/tmp/codex-tool-runs/svton/f345-trailing-whitespace-scan-final-20260711-run-command-service.log`,
+`/tmp/codex-tool-runs/svton/f345-line-count-final-20260711-run-command-service.log`).
+
+## F346. CLI Task-pull Shared Option Registration Boundary
+
+Purpose: keep the task-pull Commander controller focused on command shape by
+moving shared once/run option registration into a focused CLI service. F346
+preserves once/run execution, option names and order, F343 registration, F344
+once service, F345 run service, pid-file behavior, loop execution, API schemas,
+background daemonization, and multi-instance scheduling.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F346.1 | done   | Map duplicated task-pull command options.   | Routing: focused CLI shared-option registration slice + noisy-tools verification; CodeGraph is installed but uninitialized, so manual graphing stays within controller options and controller tests.                                                                                                                                                                      |
+| F346.2 | done   | Extract shared option registration service. | Common once/run option registration now lives in `agent-task-pull-command-options.service.ts`; command option names, order, and action wiring are unchanged.                                                                                                                                                                                                              |
+| F346.3 | done   | Run focused CLI verification and sync docs. | Focused command/controller/options/result-service/startup/pid-file Jest passed: `/tmp/codex-tool-runs/svton/f346-cli-jest-final-20260711-shared-options.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f346-cli-type-check-final-20260711-shared-options.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f346-cli-build-final-20260711-shared-options.log`. |
+
+Final F346 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f346-prettier-write-20260711-shared-options.log`,
+`/tmp/codex-tool-runs/svton/f346-prettier-check-final-20260711-shared-options.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f346-diff-check-final-20260711-shared-options.log`,
+`/tmp/codex-tool-runs/svton/f346-marker-scan-final-20260711-shared-options.log`,
+`/tmp/codex-tool-runs/svton/f346-trailing-whitespace-scan-final-20260711-shared-options.log`,
+`/tmp/codex-tool-runs/svton/f346-line-count-final-20260711-shared-options.log`).
+
+## F347. CLI Task-pull Config Test Boundary
+
+Purpose: keep the CLI task-pull verification surface maintainable after the
+F341-F346 command boundary splits. Current source-backed scan shows task-pull
+runtime files are under the production 200-line ceiling, while
+`agent-task-pull.test.ts` still combines config parsing, command wrappers, run
+PID behavior, once execution, step control, output, timeout, cancellation, and
+finish writeback scenarios in a 1105-line spec. F347 only moves config parsing
+coverage into a focused test file and preserves runtime code, command behavior,
+API schemas, and test assertions.
+
+| Task   | Status | Description                                          | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------ | ------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F347.1 | done   | Map oversized CLI task-pull test responsibilities.   | Routing: focused CLI test-boundary slice + noisy-tools verification; source scan confirmed task-pull production files remain under the production line ceiling, while config parsing assertions lived inside the oversized once/loop behavior specs.                                                                                                                                       |
+| F347.2 | done   | Extract config parsing coverage into a focused spec. | Once config fallback/capability assertions and loop-bound/heartbeat/default-runner config assertions now live in `agent-task-pull-config.test.ts`; runtime code and assertion bodies are behavior-preserving.                                                                                                                                                                              |
+| F347.3 | done   | Run focused CLI verification and sync docs.          | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f347-cli-jest-20260711-config-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f347-cli-type-check-20260711-config-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f347-cli-build-20260711-config-test.log`; new config spec is 130 lines, while remaining behavior specs are still oversized follow-ups. |
+
+Final F347 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f347-prettier-write-20260711-config-test.log`,
+`/tmp/codex-tool-runs/svton/f347-prettier-docs-final-write-20260711-config-test.log`,
+`/tmp/codex-tool-runs/svton/f347-prettier-check-final2-20260711-config-test.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+check passed
+(`/tmp/codex-tool-runs/svton/f347-diff-check-final2-20260711-config-test.log`,
+`/tmp/codex-tool-runs/svton/f347-marker-scan-final2-20260711-config-test.log`,
+`/tmp/codex-tool-runs/svton/f347-trailing-whitespace-scan-final2-20260711-config-test.log`,
+`/tmp/codex-tool-runs/svton/f347-line-count-final-20260711-config-test.log`).
+
+## F348. CLI Task-pull Command Wrapper Test Boundary
+
+Purpose: continue making the CLI task-pull verification surface navigable after
+F347. Current source-backed map shows `agent-task-pull.test.ts` still mixes
+command wrapper / exit-code / pid-file startup assertions with once-runner
+execution flow scenarios. F348 only moves command wrapper coverage into focused
+spec files and preserves runtime code, public re-exports, command behavior, API
+schemas, and assertion intent.
+
+| Task   | Status | Description                                      | Evidence                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | ------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F348.1 | done   | Map command wrapper tests and once-runner tests. | Routing: focused CLI command-wrapper test-boundary slice + noisy-tools verification; source map confirmed the first eight `agent-task-pull.test.ts` cases covered command wrapper signal wiring, exit-code policy, PID-file startup, and run-loop wrapper failures, while the rest covers once-runner execution flow.                                                                    |
+| F348.2 | done   | Extract once/run command wrapper coverage.       | Once command wrapper coverage now lives in `agent-task-pull-once-command.service.test.ts`; run command wrapper/PID/startup coverage now lives in `agent-task-pull-run-command.service.test.ts`; `agent-task-pull.test.ts` is down from 1052 to 704 lines and now starts at the once-runner contract/execution behavior.                                                                  |
+| F348.3 | done   | Run focused CLI verification and sync docs.      | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f348-cli-jest-20260711-command-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f348-cli-type-check-20260711-command-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f348-cli-build-20260711-command-test.log`; line-count log: `/tmp/codex-tool-runs/svton/f348-line-count-20260711-command-test.log`. |
+
+Final F348 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f348-prettier-write-20260711-command-test.log`,
+`/tmp/codex-tool-runs/svton/f348-prettier-docs-final-write-20260711-command-test.log`,
+`/tmp/codex-tool-runs/svton/f348-prettier-check-final-20260711-command-test.log`);
+diff whitespace check, marker scan, and trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f348-diff-check-final-20260711-command-test.log`,
+`/tmp/codex-tool-runs/svton/f348-marker-scan-final-20260711-command-test.log`,
+`/tmp/codex-tool-runs/svton/f348-trailing-whitespace-scan-final-20260711-command-test.log`).
+
+## F349. CLI Task-pull Once Command-step Test Boundary
+
+Purpose: continue making the CLI once-runner verification surface navigable
+after F348. Current source-backed map shows `agent-task-pull.test.ts` still
+mixes claim/ack lifecycle, command-step result handling, timeout handling, and
+signal cancellation in one 704-line spec. F349 only moves command-step result
+coverage into a focused once-runner spec and preserves runtime code, public
+re-exports, command behavior, API schemas, and assertion intent.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F349.1 | done   | Map once-runner command-step result tests.  | Routing: focused CLI once-runner command-step test-boundary slice + noisy-tools verification; source map confirmed `agent-task-pull.test.ts` grouped command-step result handling with claim/ack lifecycle, timeout, and cancellation tests.                                                                                                                                                                 |
+| F349.2 | done   | Extract command-step result coverage.       | Required-step failure, cwd escape, output truncation, dry-run skip, and spawn-error coverage now live in `agent-task-pull-once-command-step.test.ts`; `agent-task-pull.test.ts` is down from 704 to 458 lines and now focuses on claim/ack lifecycle, timeout, cancellation, and raw child-process abort behavior.                                                                                           |
+| F349.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f349-cli-jest-20260711-command-step-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f349-cli-type-check-20260711-command-step-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f349-cli-build-20260711-command-step-test.log`; line-count log: `/tmp/codex-tool-runs/svton/f349-line-count-20260711-command-step-test.log`. |
+
+Final F349 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f349-prettier-write-20260711-command-step-test.log`,
+`/tmp/codex-tool-runs/svton/f349-prettier-docs-final-write-20260711-command-step-test.log`,
+`/tmp/codex-tool-runs/svton/f349-prettier-check-final-20260711-command-step-test.log`);
+diff whitespace check, marker scan, and trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f349-diff-check-final-20260711-command-step-test.log`,
+`/tmp/codex-tool-runs/svton/f349-marker-scan-final-20260711-command-step-test.log`,
+`/tmp/codex-tool-runs/svton/f349-trailing-whitespace-scan-final-20260711-command-step-test.log`).
+
+## F350. CLI Task-pull Once Timeout/Cancellation Test Boundary
+
+Purpose: continue making the CLI once-runner verification surface navigable
+after F349. Current source-backed map shows `agent-task-pull.test.ts` now
+focuses on claim/ack lifecycle plus timeout, cancellation, and raw
+child-process abort scenarios. F350 only moves timeout/cancellation coverage
+into a focused once-runner spec and preserves runtime code, public re-exports,
+command behavior, API schemas, and assertion intent.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------ | ------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F350.1 | done   | Map once-runner timeout/cancellation tests. | Routing: focused CLI once-runner timeout/cancellation test-boundary slice + noisy-tools verification; source map confirmed `agent-task-pull.test.ts` grouped timeout, optional-timeout continuation, final ack cancellation, stop-signal cancellation, and raw child-process abort with claim/ack lifecycle tests.                                                                                                                           |
+| F350.2 | done   | Extract timeout/cancellation coverage.      | Timeout, optional timeout, final ack cancellation, stop-signal cancellation, and child-process abort coverage now live in `agent-task-pull-once-timeout-cancellation.test.ts`; `agent-task-pull.test.ts` is down from 458 to 248 lines and now focuses on once-runner contract/claim/ack lifecycle behavior.                                                                                                                                 |
+| F350.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f350-cli-jest-20260711-timeout-cancellation-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f350-cli-type-check-20260711-timeout-cancellation-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f350-cli-build-20260711-timeout-cancellation-test.log`; line-count log: `/tmp/codex-tool-runs/svton/f350-line-count-20260711-timeout-cancellation-test.log`. |
+
+Final F350 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f350-prettier-write-20260711-timeout-cancellation-test.log`,
+`/tmp/codex-tool-runs/svton/f350-prettier-docs-final-write-20260711-timeout-cancellation-test.log`,
+`/tmp/codex-tool-runs/svton/f350-prettier-check-final-20260711-timeout-cancellation-test.log`);
+diff whitespace check, marker scan, and trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f350-diff-check-final-20260711-timeout-cancellation-test.log`,
+`/tmp/codex-tool-runs/svton/f350-marker-scan-final-20260711-timeout-cancellation-test.log`,
+`/tmp/codex-tool-runs/svton/f350-trailing-whitespace-scan-final-20260711-timeout-cancellation-test.log`).
+
+## F351. CLI Task-pull Once Lifecycle Test Naming Boundary
+
+Purpose: finish the once-runner test-boundary cleanup after F350. Current
+source-backed map shows `agent-task-pull.test.ts` now only covers once-runner
+contract, claim, ack renewal, ack cancellation, and ack rejection lifecycle
+behavior, while command wrapper, command-step results, and timeout/cancellation
+coverage are already focused elsewhere. F351 only renames the remaining generic
+spec into a focused lifecycle spec and preserves runtime code, public
+re-exports, command behavior, API schemas, and assertion intent.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------ | ------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F351.1 | done   | Map remaining once lifecycle coverage.      | Routing: focused CLI once-lifecycle test naming slice + noisy-tools verification; source map confirmed the remaining generic `agent-task-pull.test.ts` only covered once-runner contract, claim, ack renewal, ack cancellation, and ack rejection lifecycle behavior.                                                                                                                                                |
+| F351.2 | done   | Rename generic once spec to lifecycle spec. | Remaining once lifecycle coverage now lives in `agent-task-pull-once-lifecycle.test.ts`; the generic `agent-task-pull.test.ts` file was removed so command wrapper, command-step, timeout/cancellation, config, loop, and lifecycle coverage each have focused spec names.                                                                                                                                           |
+| F351.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f351-cli-jest-20260711-once-lifecycle-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f351-cli-type-check-20260711-once-lifecycle-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f351-cli-build-20260711-once-lifecycle-test.log`; line-count log: `/tmp/codex-tool-runs/svton/f351-line-count-20260711-once-lifecycle-test.log`. |
+
+Final F351 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f351-prettier-write-20260711-once-lifecycle-test.log`,
+`/tmp/codex-tool-runs/svton/f351-prettier-docs-final-write-20260711-once-lifecycle-test.log`,
+`/tmp/codex-tool-runs/svton/f351-prettier-check-final-20260711-once-lifecycle-test.log`);
+diff whitespace check, marker scan, and trailing-whitespace scan passed
+(`/tmp/codex-tool-runs/svton/f351-diff-check-final-20260711-once-lifecycle-test.log`,
+`/tmp/codex-tool-runs/svton/f351-marker-scan-final-20260711-once-lifecycle-test.log`,
+`/tmp/codex-tool-runs/svton/f351-trailing-whitespace-scan-final-20260711-once-lifecycle-test.log`).
+
+## F352. CLI Task-pull Loop Heartbeat Test Boundary
+
+Purpose: continue the CLI task-pull test-boundary cleanup after F351. Current
+source-backed map shows `agent-task-pull-loop.test.ts` still mixes core loop
+iteration/finish/error behavior with heartbeat pre-poll writeback behavior.
+F352 only extracts heartbeat loop coverage into a focused spec and preserves
+runtime code, public re-exports, command behavior, API schemas, and assertion
+intent.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                         |
+| ------ | ------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F352.1 | done   | Map loop heartbeat coverage.                | Routing: focused CLI loop heartbeat test-boundary slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `agent-task-pull-loop.test.ts` mixed core loop behavior with three heartbeat pre-poll cases.                                                                                        |
+| F352.2 | done   | Extract heartbeat loop coverage.            | Heartbeat success/failure/rejection coverage now lives in `agent-task-pull-loop-heartbeat.test.ts`; shared loop fixtures live in `agent-task-pull-loop.test-utils.ts`, and `agent-task-pull-loop.test.ts` now focuses on core loop, finish, polling error, ack interval, force-kill, idle, disabled, and stop-boundary behavior. |
+| F352.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f352-cli-jest-20260711-loop-heartbeat-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f352-cli-type-check-20260711-loop-heartbeat-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f352-cli-build-20260711-loop-heartbeat-test.log`.            |
+
+Final F352 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f352-prettier-write-20260711-loop-heartbeat-test.log`,
+`/tmp/codex-tool-runs/svton/f352-prettier-check-final-20260711-loop-heartbeat-test.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+scan passed
+(`/tmp/codex-tool-runs/svton/f352-diff-check-final-20260711-loop-heartbeat-test.log`,
+`/tmp/codex-tool-runs/svton/f352-marker-scan-final-20260711-loop-heartbeat-test.log`,
+`/tmp/codex-tool-runs/svton/f352-trailing-whitespace-scan-final-20260711-loop-heartbeat-test.log`,
+`/tmp/codex-tool-runs/svton/f352-line-count-20260711-loop-heartbeat-test.log`).
+
+## F353. CLI Task-pull Loop Stop-Boundary Test Boundary
+
+Purpose: continue the CLI task-pull loop test-boundary cleanup after F352.
+Current source-backed map shows `agent-task-pull-loop.test.ts` now focuses on
+core loop execution plus idle/disabled/signal stop-boundary behavior. F353 only
+extracts idle-limit, disabled-claim, and signal-stop coverage into a focused
+loop stop spec and preserves runtime code, public re-exports, command behavior,
+API schemas, and assertion intent.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                  |
+| ------ | ------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F353.1 | done   | Map loop stop-boundary coverage.            | Routing: focused CLI loop stop-boundary test slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `agent-task-pull-loop.test.ts` mixed core loop execution with idle-limit, disabled-claim, already-aborted, next-boundary signal, and default-delay wake coverage. |
+| F353.2 | done   | Extract loop stop-boundary coverage.        | Stop-boundary coverage now lives in `agent-task-pull-loop-stop.test.ts`; `agent-task-pull-loop.test.ts` is down to 181 lines and now focuses on core loop execution, finish writeback stop, polling errors, ack interval, and force-kill command options.                                                 |
+| F353.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f353-cli-jest-20260711-loop-stop-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f353-cli-type-check-20260711-loop-stop-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f353-cli-build-20260711-loop-stop-test.log`.    |
+
+Final F353 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f353-prettier-write-20260711-loop-stop-test.log`,
+`/tmp/codex-tool-runs/svton/f353-prettier-check-final-20260711-loop-stop-test.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+scan passed
+(`/tmp/codex-tool-runs/svton/f353-diff-check-final-20260711-loop-stop-test.log`,
+`/tmp/codex-tool-runs/svton/f353-marker-scan-final-20260711-loop-stop-test.log`,
+`/tmp/codex-tool-runs/svton/f353-trailing-whitespace-scan-final-20260711-loop-stop-test.log`,
+`/tmp/codex-tool-runs/svton/f353-line-count-20260711-loop-stop-test.log`).
+
+## F354. CLI Task-pull Once Command-Step Guard Test Boundary
+
+Purpose: continue the CLI task-pull test-boundary cleanup after F353. Current
+source-backed map shows `agent-task-pull-once-command-step.test.ts` still mixes
+normal command-step result handling with local execution guard cases for cwd
+escape and spawn failure. F354 only extracts those guard cases into a focused
+spec and shared fixture, preserving runtime code, public re-exports, command
+behavior, API schemas, and assertion intent.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                          |
+| ------ | ------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F354.1 | done   | Map once command-step guard coverage.       | Routing: focused CLI once command-step guard test slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `agent-task-pull-once-command-step.test.ts` mixed normal command-step result handling with cwd escape and spawn-error guard cases.                                                   |
+| F354.2 | done   | Extract once command-step guard coverage.   | Cwd escape and spawn-error coverage now live in `agent-task-pull-once-command-step-guard.test.ts`; shared fixtures live in `agent-task-pull-once-command-step.test-utils.ts`, and `agent-task-pull-once-command-step.test.ts` is down to 146 lines.                                                                               |
+| F354.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f354-cli-jest-20260711-command-step-guard-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f354-cli-type-check-20260711-command-step-guard-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f354-cli-build-20260711-command-step-guard-test.log`. |
+
+Final F354 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f354-prettier-write-20260711-command-step-guard-test.log`,
+`/tmp/codex-tool-runs/svton/f354-prettier-check-final-20260711-command-step-guard-test.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+scan passed
+(`/tmp/codex-tool-runs/svton/f354-diff-check-final-20260711-command-step-guard-test.log`,
+`/tmp/codex-tool-runs/svton/f354-marker-scan-final-20260711-command-step-guard-test.log`,
+`/tmp/codex-tool-runs/svton/f354-trailing-whitespace-scan-final-20260711-command-step-guard-test.log`,
+`/tmp/codex-tool-runs/svton/f354-line-count-20260711-command-step-guard-test.log`).
+
+## F355. CLI Task-pull Once Timeout Semantics Test Boundary
+
+Purpose: continue the CLI task-pull test-boundary cleanup after F354. Current
+source-backed map shows `agent-task-pull-once-timeout-cancellation.test.ts`
+mixes required/optional timeout semantics with final-ack cancellation,
+stop-signal cancellation, and raw child-process abort coverage. F355 only
+extracts required and optional timeout semantics into a focused spec and shared
+fixture, preserving runtime code, public re-exports, command behavior, API
+schemas, and assertion intent.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                       |
+| ------ | ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F355.1 | done   | Map once timeout semantics coverage.        | Routing: focused CLI once timeout semantics test slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `agent-task-pull-once-timeout-cancellation.test.ts` mixed required/optional timeout semantics with cancellation and raw child-process abort coverage.                              |
+| F355.2 | done   | Extract once timeout semantics coverage.    | Required timeout and optional timeout continuation coverage now live in `agent-task-pull-once-timeout-semantics.test.ts`; shared fixtures live in `agent-task-pull-once-timeout-cancellation.test-utils.ts`, and cancellation coverage remains in the original spec.                                                           |
+| F355.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f355-cli-jest-20260711-timeout-semantics-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f355-cli-type-check-20260711-timeout-semantics-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f355-cli-build-20260711-timeout-semantics-test.log`. |
+
+Final F355 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f355-prettier-write-20260711-timeout-semantics-test.log`,
+`/tmp/codex-tool-runs/svton/f355-prettier-check-final-20260711-timeout-semantics-test.log`);
+diff whitespace check, marker scan, trailing-whitespace scan, and line-count
+scan passed
+(`/tmp/codex-tool-runs/svton/f355-diff-check-final-20260711-timeout-semantics-test.log`,
+`/tmp/codex-tool-runs/svton/f355-marker-scan-final-20260711-timeout-semantics-test.log`,
+`/tmp/codex-tool-runs/svton/f355-trailing-whitespace-scan-final-20260711-timeout-semantics-test.log`,
+`/tmp/codex-tool-runs/svton/f355-line-count-20260711-timeout-semantics-test.log`).
+
+## F356. CLI Task-pull Run Command PID-file Test Boundary
+
+Purpose: continue the CLI task-pull test-boundary cleanup after F355. Current
+source-backed map shows `agent-task-pull-run-command.service.test.ts` still
+mixes run loop exit-code behavior with pid-file install/cleanup and startup
+failure behavior. F356 only extracts pid-file lifecycle and install-failure
+coverage into a focused run-command pid-file spec, preserving runtime code,
+public re-exports, command behavior, API schemas, and assertion intent.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                                |
+| ------ | ------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F356.1 | done   | Map run command pid-file coverage.          | Routing: focused CLI run command pid-file test slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `agent-task-pull-run-command.service.test.ts` mixed generic loop exit-code assertions with pid-file install/cleanup and install-failure startup behavior.                                     |
+| F356.2 | done   | Extract run command pid-file coverage.      | PID-file install/cleanup and pid-file install-failure startup coverage now lives in `agent-task-pull-run-command-pid-file.service.test.ts`; `agent-task-pull-run-command.service.test.ts` is down to 129 lines and focuses on failure/success/poll-failure exit-code mapping.                                                           |
+| F356.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f356-cli-jest-20260711-run-command-pid-file-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f356-cli-type-check-20260711-run-command-pid-file-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f356-cli-build-20260711-run-command-pid-file-test.log`. |
+
+Final F356 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f356-prettier-write-20260711-run-command-pid-file-test.log`,
+`/tmp/codex-tool-runs/svton/f356-prettier-check-final-20260711-run-command-pid-file-test.log`),
+diff check passed
+(`/tmp/codex-tool-runs/svton/f356-diff-check-final-20260711-run-command-pid-file-test.log`),
+conflict marker and trailing whitespace scans passed
+(`/tmp/codex-tool-runs/svton/f356-marker-scan-final-20260711-run-command-pid-file-test.log`,
+`/tmp/codex-tool-runs/svton/f356-trailing-whitespace-scan-final-20260711-run-command-pid-file-test.log`),
+and touched CLI run-command test files remain under 200 lines
+(`/tmp/codex-tool-runs/svton/f356-line-count-20260711-run-command-pid-file-test.log`).
+
+## F357. CLI Task-pull Once Ack-renewal Test Boundary
+
+Purpose: continue the CLI task-pull test-boundary cleanup after F356. Current
+source inspection shows `agent-task-pull-once-lifecycle.test.ts` is 248 lines
+and mixes base contract/claim/finish lifecycle assertions with ack-renewal
+progress and cancellation behavior plus step-ack rejection coverage. F357 only
+extracts the ack-renewal progress/cancellation coverage into a focused once
+ack-renewal spec and keeps runtime code unchanged.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F357.1 | done   | Map once ack-renewal lifecycle coverage.    | Routing: focused CLI once ack-renewal test-boundary slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `agent-task-pull-once-lifecycle.test.ts` mixed base contract/claim/finish lifecycle assertions with ack-renewal progress/cancellation and step-ack rejection coverage.       |
+| F357.2 | done   | Extract once ack-renewal coverage.          | Ack-renewal progress and cancellation coverage now lives in `agent-task-pull-once-ack-renewal.test.ts`; shared lifecycle fixtures live in `agent-task-pull-once-lifecycle.test-utils.ts`; `agent-task-pull-once-lifecycle.test.ts` is down to 114 lines and focuses on base lifecycle plus step-ack rejection.              |
+| F357.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f357-cli-jest-20260711-once-ack-renewal-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f357-cli-type-check-20260711-once-ack-renewal-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f357-cli-build-20260711-once-ack-renewal-test.log`. |
+
+Final F357 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f357-prettier-write-20260711-once-ack-renewal-test.log`,
+`/tmp/codex-tool-runs/svton/f357-prettier-check-final-20260711-once-ack-renewal-test.log`),
+diff check passed
+(`/tmp/codex-tool-runs/svton/f357-diff-check-final-20260711-once-ack-renewal-test.log`),
+conflict marker and trailing whitespace scans passed
+(`/tmp/codex-tool-runs/svton/f357-marker-scan-final-20260711-once-ack-renewal-test.log`,
+`/tmp/codex-tool-runs/svton/f357-trailing-whitespace-scan-final-20260711-once-ack-renewal-test.log`),
+and touched CLI once lifecycle test files remain under 200 lines
+(`/tmp/codex-tool-runs/svton/f357-line-count-20260711-once-ack-renewal-test.log`).
+
+## F358. CLI Task-pull Loop Execution Option Test Boundary
+
+Purpose: continue the CLI task-pull test-boundary cleanup after F357. Current
+source inspection shows `agent-task-pull-loop.test.ts` mixes core loop
+iteration/finish/poll-failure assertions with execution-option propagation for
+ack renewal interval and force-kill grace. F358 only extracts loop execution
+option propagation coverage into a focused spec and keeps runtime code
+unchanged.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                                      |
+| ------ | ------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F358.1 | done   | Map loop execution option coverage.         | Routing: focused CLI loop execution-option test-boundary slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `agent-task-pull-loop.test.ts` mixed core loop iteration/finish/poll-failure assertions with ack-renewal interval and force-kill grace propagation.                                       |
+| F358.2 | done   | Extract loop execution option coverage.     | Ack-renewal interval and force-kill grace propagation coverage now lives in `agent-task-pull-loop-execution-options.test.ts`; `agent-task-pull-loop.test.ts` is down to 127 lines and focuses on core loop iteration, finish writeback stop, and poll failure summaries.                                                                      |
+| F358.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f358-cli-jest-20260712-loop-execution-options-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f358-cli-type-check-20260712-loop-execution-options-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f358-cli-build-20260712-loop-execution-options-test.log`. |
+
+Final F358 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f358-prettier-write-20260712-loop-execution-options-test.log`,
+`/tmp/codex-tool-runs/svton/f358-prettier-check-final-20260712-loop-execution-options-test.log`),
+diff check passed
+(`/tmp/codex-tool-runs/svton/f358-diff-check-final-20260712-loop-execution-options-test.log`),
+conflict marker and trailing whitespace scans passed
+(`/tmp/codex-tool-runs/svton/f358-marker-scan-final-20260712-loop-execution-options-test.log`,
+`/tmp/codex-tool-runs/svton/f358-trailing-whitespace-scan-final-20260712-loop-execution-options-test.log`),
+and touched CLI loop test files remain under 200 lines
+(`/tmp/codex-tool-runs/svton/f358-line-count-20260712-loop-execution-options-test.log`).
+
+## F359. CLI Task-pull Once Command-step Result Payload Test Boundary
+
+Purpose: continue the CLI task-pull test-boundary cleanup after F358. Current
+source inspection shows `agent-task-pull-once-command-step.test.ts` mixes
+required step failure coverage with finish payload/result detail assertions for
+output truncation flags and dry-run skipped steps. F359 only extracts the
+result-payload coverage into a focused once command-step result spec and keeps
+runtime code unchanged.
+
+| Task   | Status | Description                                        | Evidence                                                                                                                                                                                                                                                                                                                             |
+| ------ | ------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F359.1 | done   | Map once command-step result payload coverage.     | Routing: focused CLI once command-step result-payload test-boundary slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `agent-task-pull-once-command-step.test.ts` mixed required step failure coverage with output truncation and dry-run result-payload assertions.                        |
+| F359.2 | done   | Extract once command-step result payload coverage. | Output truncation and dry-run skipped result-payload coverage now lives in `agent-task-pull-once-command-step-result.test.ts`; `agent-task-pull-once-command-step.test.ts` is down to 33 lines and focuses on required step failure behavior.                                                                                        |
+| F359.3 | done   | Run focused CLI verification and sync docs.        | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f359-cli-jest-20260712-command-step-result-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f359-cli-type-check-20260712-command-step-result-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f359-cli-build-20260712-command-step-result-test.log`. |
+
+Final F359 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f359-prettier-write-20260712-command-step-result-test.log`,
+`/tmp/codex-tool-runs/svton/f359-prettier-check-final-20260712-command-step-result-test.log`),
+diff check passed
+(`/tmp/codex-tool-runs/svton/f359-diff-check-final-20260712-command-step-result-test.log`),
+conflict marker and trailing whitespace scans passed
+(`/tmp/codex-tool-runs/svton/f359-marker-scan-final-20260712-command-step-result-test.log`,
+`/tmp/codex-tool-runs/svton/f359-trailing-whitespace-scan-final-20260712-command-step-result-test.log`),
+and touched CLI once command-step test files remain under 200 lines
+(`/tmp/codex-tool-runs/svton/f359-line-count-20260712-command-step-result-test.log`).
+
+## F360. CLI Task-pull Loop Signal-stop Test Boundary
+
+Purpose: continue the CLI task-pull test-boundary cleanup after F359. Current
+source inspection shows `agent-task-pull-loop-stop.test.ts` mixes idle/disabled
+stop behavior with signal-abort stop and interval wake-up behavior. F360 only
+extracts the signal stop coverage into a focused loop signal-stop spec and keeps
+runtime code unchanged.
+
+| Task   | Status | Description                                 | Evidence                                                                                                                                                                                                                                                                                                                    |
+| ------ | ------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F360.1 | done   | Map loop signal-stop coverage.              | Routing: focused CLI loop signal-stop test-boundary slice + noisy-tools verification; CodeGraph is uninitialized, so manual graphing confirmed `agent-task-pull-loop-stop.test.ts` mixed idle/disabled stop behavior with signal-abort stop and interval wake-up behavior.                                                  |
+| F360.2 | done   | Extract loop signal-stop coverage.          | Pre-poll signal stop, next-boundary signal stop, and interval wake-up coverage now lives in `agent-task-pull-loop-signal-stop.test.ts`; `agent-task-pull-loop-stop.test.ts` is down to 53 lines and focuses on idle-limit and task-pull-disabled stops.                                                                     |
+| F360.3 | done   | Run focused CLI verification and sync docs. | Focused task-pull Jest passed: `/tmp/codex-tool-runs/svton/f360-cli-jest-20260712-loop-signal-stop-test.log`; CLI type-check passed: `/tmp/codex-tool-runs/svton/f360-cli-type-check-20260712-loop-signal-stop-test.log`; CLI build passed: `/tmp/codex-tool-runs/svton/f360-cli-build-20260712-loop-signal-stop-test.log`. |
+
+Final F360 hygiene evidence: Prettier write/check passed
+(`/tmp/codex-tool-runs/svton/f360-prettier-write-20260712-loop-signal-stop-test.log`,
+`/tmp/codex-tool-runs/svton/f360-prettier-check-final-20260712-loop-signal-stop-test.log`),
+diff check passed
+(`/tmp/codex-tool-runs/svton/f360-diff-check-final-20260712-loop-signal-stop-test.log`),
+conflict marker and trailing whitespace scans passed
+(`/tmp/codex-tool-runs/svton/f360-marker-scan-final-20260712-loop-signal-stop-test.log`,
+`/tmp/codex-tool-runs/svton/f360-trailing-whitespace-scan-final-20260712-loop-signal-stop-test.log`),
+and touched CLI loop stop test files remain under 200 lines
+(`/tmp/codex-tool-runs/svton/f360-line-count-20260712-loop-signal-stop-test.log`).
 
 ## Maps To Maintain
 

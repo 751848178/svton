@@ -125,6 +125,30 @@ api-client token 拦截器
 
 ## 七、迁移进度（截至本文档更新）
 
+- 2026-07-10: P1 ProjectEnvironment controller route/access split completed:
+  `project-environment.controller.ts` is now a compatibility barrel; read/write
+  routes and read/write/copy access-policy gates live in focused controller and
+  service files. ProjectEnvironment and ResourceControl backend non-spec files
+  are now under the 200-line ceiling.
+- 2026-07-10: P3 Site backend facade + DTO family convergence completed:
+  `SiteService` is now a 167-line facade; Site CRUD/binding,
+  sync/diagnostics/OpenResty/smoke operation-plan dispatch, and TLS/rollback
+  dispatch live in focused services. `dto/site.dto.ts` is now a compatibility
+  barrel over focused CRUD/operation/TLS DTO files plus runtime values/types.
+  Backend Site runtime and DTO files are now under the 200-line ceiling.
+- 2026-07-10: P8 Control Access Policy backend structure slice completed:
+  `ControlAccessPolicyService` is now a 101-line public facade; Prisma access,
+  CRUD orchestration, access decisions, audit payloads, and string-list matching
+  live in focused files, all non-spec source files under 200 lines.
+- 2026-07-10: P8 Operation Approval backend structure slice completed:
+  `OperationApprovalService` is now a 198-line business facade; Prisma access,
+  include projections, approval match rules, and shared record types live in
+  focused operation-approval files, all under 200 lines.
+- 2026-07-10: P8 Operation Approval requirement evaluation completed: new
+  approval requests now include `metadata.approvalRequirement` with resource
+  type, operation type, environment, requester role, default/admin review rule,
+  owner bypass, extra reviewer roles/users, and matched control-access policies.
+
 | 基础设施            | 状态                          |
 | ------------------- | ----------------------------- |
 | skills 安装（6 个） | ✅ 完成                       |
