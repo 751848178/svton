@@ -2,6 +2,7 @@ import {
   buildServerAgentTaskPullGates,
   buildServerAgentTaskPullSample,
 } from "./server-agent-task-pull-gates.utils";
+import { buildServerAgentTaskPullLifecycleDiscovery } from "./server-agent-task-pull-lifecycle-discovery.utils";
 import { buildServerAgentTaskPullReadiness } from "./server-agent-task-pull-readiness.utils";
 
 type TaskPullServerSnapshot = {
@@ -21,6 +22,7 @@ type TaskPullNextQueuedJobSnapshot = {
   priority: number;
   queuedAt: Date;
   availableAt: Date;
+  inputSnapshot?: unknown;
   server: TaskPullServerSnapshot | null;
 } | null;
 
@@ -93,15 +95,27 @@ export function buildServerAgentTaskPullContract(
 }
 
 function buildTaskPullContract(input: ServerAgentTaskPullContractBuilderInput) {
+  const lifecycleDiscovery = buildServerAgentTaskPullLifecycleDiscovery(
+    input.taskPullEnabled,
+  );
+
   return {
     version: "server-agent-task-pull.v0",
-    mode: "readiness_only",
+    mode: input.taskPullEnabled ? "claim_ack_finish" : "readiness_only",
     endpoint: "/server-agent/task-pull/contract",
     contractEndpointEnabled: true,
-    pullEndpointImplemented: false,
+    pullEndpointImplemented: true,
+    claimEndpoint: "/server-agent/task-pull/claim",
+    ackEndpoint: "/server-agent/task-pull/ack",
+    finishEndpoint: "/server-agent/task-pull/finish",
     taskPullEnabled: input.taskPullEnabled,
-    claimSupported: false,
-    ackSupported: false,
+    claimSupported: input.taskPullEnabled,
+    claimedTaskPayloadSupported: input.taskPullEnabled,
+    ackSupported: input.taskPullEnabled,
+    ackCancellationHintSupported: input.taskPullEnabled,
+    ackProgressWritebackSupported: input.taskPullEnabled,
+    terminalWritebackSupported: input.taskPullEnabled,
+    ...lifecycleDiscovery,
     lifecycleExecutionSupported: false,
     longConnectionSupported: false,
     poll: {
@@ -110,8 +124,11 @@ function buildTaskPullContract(input: ServerAgentTaskPullContractBuilderInput) {
     },
     boundaries: [
       "readiness_only",
-      "no_job_claim",
-      "no_ack",
+      "claim_only",
+      "ack_only",
+      "ack_cancellation_hint_only",
+      "ack_progress_writeback_only",
+      "terminal_writeback_only",
       "no_lifecycle_execution",
       "no_long_connection",
     ],

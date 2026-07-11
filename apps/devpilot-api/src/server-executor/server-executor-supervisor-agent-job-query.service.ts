@@ -119,6 +119,7 @@ export class ServerExecutorSupervisorAgentJobQueryService {
         finishedAt: true,
         error: true,
         result: true,
+        metadata: true,
         server: { select: SERVER_SELECT },
       },
     });

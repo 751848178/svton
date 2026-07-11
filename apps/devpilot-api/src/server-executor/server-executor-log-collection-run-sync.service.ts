@@ -43,7 +43,7 @@ export class ServerExecutorLogCollectionRunSyncService {
       },
     });
 
-    if (result.status === "completed") {
+    if (updated.count > 0 && result.status === "completed") {
       await this.logCollectionIngestionService.ingestCompletedRun(
         input.teamId,
         logCollectionRunId,

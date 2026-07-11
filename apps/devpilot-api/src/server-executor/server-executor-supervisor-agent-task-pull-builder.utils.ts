@@ -1,3 +1,4 @@
+import { buildServerAgentTaskPullLifecycleDiscovery } from "./server-agent-task-pull-lifecycle-discovery.utils";
 import { ServerAgentTaskPullReadinessState } from "./server-executor-supervisor.types";
 import { AgentTaskPullReadinessInput } from "./server-executor-supervisor-agent-task-pull-input.types";
 
@@ -143,18 +144,24 @@ function buildQueueGate(
 
 function buildPullContractGate(input: AgentTaskPullReadinessInput) {
   return {
-    ready: false,
+    ready: input.taskPullEnabled,
     endpointImplemented: true,
     contractEndpointEnabled: input.taskPullContractEnabled,
-    pullEndpointImplemented: false,
+    pullEndpointImplemented: true,
+    ackEndpointImplemented: true,
+    finishEndpointImplemented: true,
     taskPullEnabled: input.taskPullEnabled,
-    claimSupported: false,
-    ackSupported: false,
+    claimSupported: input.taskPullEnabled,
+    ackSupported: input.taskPullEnabled,
+    ackCancellationHintSupported: input.taskPullEnabled,
+    ackProgressWritebackSupported: input.taskPullEnabled,
+    terminalWritebackSupported: input.taskPullEnabled,
+    ...buildServerAgentTaskPullLifecycleDiscovery(input.taskPullEnabled),
     lifecycleExecutionSupported: false,
     reason: !input.taskPullContractEnabled
       ? "task_pull_contract_disabled"
       : input.taskPullEnabled
-        ? "task_pull_claim_not_implemented"
+        ? "task_pull_claim_ack_finish_supported"
         : "task_pull_disabled",
   };
 }

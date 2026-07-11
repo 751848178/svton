@@ -44,6 +44,7 @@ export class ServerExecutorLinkedBusinessRunSyncService {
     if (synced && result.status !== "blocked") {
       await this.consumeLinkedApproval(input.teamId, metadata);
     }
+    return synced;
   }
 
   async syncAfterFailure(
@@ -144,13 +145,12 @@ export class ServerExecutorLinkedBusinessRunSyncService {
           metadata,
         );
       case "backup_run":
-        await this.backupRunSyncService.syncAfterExecution(
+        return this.backupRunSyncService.syncAfterExecution(
           input,
           jobId,
           result,
           metadata,
         );
-        return false;
       case "log_collection":
         await this.logCollectionRunSyncService.syncAfterExecution(
           input,

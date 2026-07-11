@@ -36,6 +36,24 @@ export class ServerAgentAuthService {
       throw new UnauthorizedException("Server agent task-pull contract 未启用");
     }
 
+    this.assertTaskPullTokenAuthorized(
+      headers,
+      "Server agent task-pull contract token 无效",
+    );
+  }
+
+  assertTaskPullAuthorized(headers: HeaderBag) {
+    if (!this.taskPullEnabled()) {
+      throw new UnauthorizedException("Server agent task-pull 未启用");
+    }
+
+    this.assertTaskPullTokenAuthorized(
+      headers,
+      "Server agent task-pull token 无效",
+    );
+  }
+
+  assertTaskPullTokenAuthorized(headers: HeaderBag, invalidMessage: string) {
     const expectedToken =
       readOptionalString(
         this.configService.get("SERVER_EXECUTOR_AGENT_TASK_PULL_TOKEN"),
@@ -49,9 +67,7 @@ export class ServerAgentAuthService {
       !providedToken ||
       !this.constantTimeEquals(providedToken, expectedToken)
     ) {
-      throw new UnauthorizedException(
-        "Server agent task-pull contract token 无效",
-      );
+      throw new UnauthorizedException(invalidMessage);
     }
   }
 

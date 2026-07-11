@@ -62,7 +62,7 @@ function buildTaskPullBlockers(
 
   if (!input.agentRef) push("no_agent_capability", "critical");
   if (!state.runtimeReady) push(runtimeReason(input), "critical");
-  if (state.activeDemandJobs > 0) {
+  if (state.activeDemandJobs > 0 && !input.taskPullEnabled) {
     push(
       taskPullDemandReason(input.taskPullEnabled),
       "critical",
@@ -92,7 +92,7 @@ function buildTaskPullNextSteps(
     const reason = taskPullDemandReason(input.taskPullEnabled);
     push(
       input.taskPullEnabled
-        ? "implement_agent_task_claim"
+        ? "call_agent_task_claim"
         : "enable_agent_task_pull_after_claim_design",
       reason,
     );
@@ -116,7 +116,7 @@ function resolveTaskPullReadinessState(
 ): ServerAgentTaskPullReadinessState {
   if (criticalBlocker) return "blocked";
   if (warningBlocker) return "degraded";
-  return pressureJobs > 0 ? "blocked" : "idle";
+  return pressureJobs > 0 ? "ready" : "idle";
 }
 
 function runtimeReason(input: ServerAgentTaskPullContractBuilderInput) {
@@ -126,7 +126,5 @@ function runtimeReason(input: ServerAgentTaskPullContractBuilderInput) {
 }
 
 function taskPullDemandReason(taskPullEnabled: boolean) {
-  return taskPullEnabled
-    ? "task_pull_claim_not_implemented"
-    : "task_pull_disabled";
+  return taskPullEnabled ? "task_pull_claim_ready" : "task_pull_disabled";
 }

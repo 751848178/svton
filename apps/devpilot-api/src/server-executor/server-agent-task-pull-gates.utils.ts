@@ -1,4 +1,11 @@
 import type { ServerAgentTaskPullContractBuilderInput } from "./server-agent-task-pull-contract.utils";
+import { buildServerAgentTaskPullLifecycleDiscovery } from "./server-agent-task-pull-lifecycle-discovery.utils";
+import { isRecord, readOptionalString } from "./server-executor-json.utils";
+
+type ServerAgentLogFollowJobSnapshot = {
+  operationKey: string;
+  inputSnapshot?: unknown;
+};
 
 export function buildServerAgentTaskPullGates(
   input: ServerAgentTaskPullContractBuilderInput,
@@ -38,16 +45,23 @@ export function buildServerAgentTaskPullGates(
           : "agent_queue_idle",
     },
     contract: {
-      ready: false,
+      ready: input.taskPullEnabled,
       contractEndpointImplemented: true,
       contractEndpointEnabled: true,
-      pullEndpointImplemented: false,
+      pullEndpointImplemented: true,
+      ackEndpointImplemented: true,
+      finishEndpointImplemented: true,
       taskPullEnabled: input.taskPullEnabled,
-      claimSupported: false,
-      ackSupported: false,
+      claimSupported: input.taskPullEnabled,
+      claimedTaskPayloadSupported: input.taskPullEnabled,
+      ackSupported: input.taskPullEnabled,
+      ackCancellationHintSupported: input.taskPullEnabled,
+      ackProgressWritebackSupported: input.taskPullEnabled,
+      terminalWritebackSupported: input.taskPullEnabled,
+      ...buildServerAgentTaskPullLifecycleDiscovery(input.taskPullEnabled),
       lifecycleExecutionSupported: false,
       reason: input.taskPullEnabled
-        ? "task_pull_claim_not_implemented"
+        ? "task_pull_claim_ack_finish_supported"
         : "task_pull_disabled",
     },
   };
@@ -56,9 +70,14 @@ export function buildServerAgentTaskPullGates(
 export function buildServerAgentTaskPullSample(
   input: ServerAgentTaskPullContractBuilderInput,
 ) {
-  const job = input.nextQueuedJob;
-  if (!job) return null;
+  return input.nextQueuedJob
+    ? buildServerAgentTaskPullJobSample(input.nextQueuedJob)
+    : null;
+}
 
+export function buildServerAgentTaskPullJobSample(
+  job: NonNullable<ServerAgentTaskPullContractBuilderInput["nextQueuedJob"]>,
+) {
   return {
     id: job.id,
     operationKey: job.operationKey,
@@ -68,5 +87,40 @@ export function buildServerAgentTaskPullSample(
     queuedAt: job.queuedAt.toISOString(),
     availableAt: job.availableAt.toISOString(),
     server: job.server,
+    logFollow: buildServerAgentLogFollowHint(job),
+  };
+}
+
+export function buildServerAgentLogFollowHint(
+  job: ServerAgentLogFollowJobSnapshot,
+) {
+  if (!job.operationKey.startsWith("log.collect.")) return null;
+
+  const snapshot = isRecord(job.inputSnapshot) ? job.inputSnapshot : {};
+  const metadata = isRecord(snapshot.metadata) ? snapshot.metadata : {};
+  const params = isRecord(metadata.params) ? metadata.params : {};
+  const followMode = readOptionalString(params.followMode);
+  const requiredTransport = readOptionalString(params.requiredTransport);
+
+  if (followMode !== "agent" && requiredTransport !== "server_agent") {
+    return null;
+  }
+
+  return {
+    kind: "log_follow",
+    mode: followMode || "agent",
+    streamId: readOptionalString(metadata.logStreamId) || null,
+    collectionRunId: readOptionalString(metadata.logCollectionRunId) || null,
+    sourceType:
+      readOptionalString(metadata.sourceType) ||
+      readOptionalString(params.sourceType) ||
+      null,
+    sourceKey: readOptionalString(metadata.sourceKey) || null,
+    requiredTransport:
+      requiredTransport === "server_agent" ? "server_agent" : null,
+    confirmLiveRead:
+      typeof params.confirmLiveRead === "boolean"
+        ? params.confirmLiveRead
+        : null,
   };
 }

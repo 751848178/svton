@@ -140,17 +140,14 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     return this.services.readQueryService.listJobs(teamId, query);
   }
 
-  async getSupervisorSnapshot(teamId: string) {
+  getSupervisorSnapshot(teamId: string) {
     return this.supervisorService.buildSnapshot(
       teamId,
       this.services.supervisorHostService,
     );
   }
 
-  async recordServerAgentHeartbeat(
-    headers: HeaderBag,
-    dto: ServerAgentHeartbeatDto,
-  ) {
+  recordServerAgentHeartbeat(headers: HeaderBag, dto: ServerAgentHeartbeatDto) {
     return this.services.agentRuntimeEndpointService.recordHeartbeat(
       headers,
       dto,

@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from 'react';
+import type { ComponentType } from 'react';
 
 /**
  * Service 类构造函数类型
@@ -85,7 +85,7 @@ export interface ServiceInstance<T> {
  * Provider 组件 Props
  */
 export interface ProviderProps {
-  children: ReactNode;
+  children?: any;
 }
 
 /**

@@ -116,17 +116,19 @@ export class ServerExecutorSupervisorAgentTaskPullSummaryService {
         "enable_agent_task_pull_contract",
         "task_pull_contract_disabled",
       );
-    } else if (hasTaskPullDemand) {
+    } else if (hasTaskPullDemand && !input.taskPullEnabled) {
       const reason = input.taskPullEnabled
-        ? "task_pull_claim_not_implemented"
+        ? "task_pull_claim_ready"
         : "task_pull_disabled";
       addBlocker(reason, "critical", agentQueuedJobs + input.agentRunningJobs);
       addNextStep(
         input.taskPullEnabled
-          ? "implement_agent_task_claim"
+          ? "call_agent_task_claim"
           : "enable_agent_task_pull_after_claim_design",
         reason,
       );
+    } else if (hasTaskPullDemand) {
+      addNextStep("call_agent_task_claim", "task_pull_claim_ready");
     }
     if (input.agentStaleRunningJobs > 0) {
       addBlocker(

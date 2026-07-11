@@ -10,6 +10,7 @@ import type { JobQueuePort } from "./queue/job-queue.port";
 import { ServerAgentAuthService } from "./server-agent-auth.service";
 import { ServerAgentCapabilityService } from "./server-agent-capability.service";
 import { ServerAgentRuntimeEndpointService } from "./server-agent-runtime-endpoint.service";
+import { ServerAgentTaskPullClaimService } from "./server-agent-task-pull-claim.service";
 import { ServerAgentTaskPullQueryService } from "./server-agent-task-pull-query.service";
 import { ServerCommandPolicyService } from "./server-command-policy.service";
 import { ServerExecutorAuditService } from "./server-executor-audit.service";
@@ -133,11 +134,19 @@ export class ServerExecutorWiringFactoryService {
     const agentTaskPullQueryService = new ServerAgentTaskPullQueryService(
       this.prisma,
     );
+    const agentTaskPullClaimService = new ServerAgentTaskPullClaimService(
+      this.prisma,
+      this.options.agentAuthService,
+      this.options.agentCapabilityService,
+      this.options.runtimeConfigService,
+      agentTaskPullQueryService,
+    );
     const agentRuntimeEndpointService = new ServerAgentRuntimeEndpointService(
       this.prisma,
       this.options.agentAuthService,
       this.options.agentCapabilityService,
       agentTaskPullQueryService,
+      agentTaskPullClaimService,
     );
     const targetResolutionService = new ServerExecutorTargetResolutionService(
       this.prisma,
@@ -170,6 +179,7 @@ export class ServerExecutorWiringFactoryService {
       submissionService,
       ...queueGovernanceServices,
       agentTaskPullQueryService,
+      agentTaskPullClaimService,
       agentRuntimeEndpointService,
       targetResolutionService,
       readQueryService,

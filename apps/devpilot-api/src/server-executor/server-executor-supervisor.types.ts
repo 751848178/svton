@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from "@prisma/client";
 
 export type WorkerLockServer = {
   id: string;
@@ -75,6 +75,16 @@ export type ServerAgentFleetJobRecord = ServerAgentBlockedJobRecord & {
   priority: number;
   availableAt: Date;
   lockExpiresAt: Date | null;
+  metadata: Prisma.JsonValue | null;
+};
+
+export type ServerAgentTaskPullProgressSnapshot = {
+  updatedAt: string;
+  agentId: string;
+  runnerId?: string;
+  stepKey?: string;
+  message?: string;
+  percent?: number;
 };
 
 export type ServerAgentDispatcherConfig = {
@@ -86,7 +96,7 @@ export type ServerAgentDispatcherConfig = {
 };
 
 export type ServerAgentRuntimeSummary = {
-  state: 'online' | 'stale' | 'unknown';
+  state: "online" | "stale" | "unknown";
   status?: string;
   agentId?: string;
   runnerId?: string;
@@ -98,7 +108,12 @@ export type ServerAgentRuntimeSummary = {
   capabilities: string[];
 };
 
-export type ServerAgentRuntimeHealthState = 'ready' | 'degraded' | 'stale' | 'unknown' | 'missing';
+export type ServerAgentRuntimeHealthState =
+  | "ready"
+  | "degraded"
+  | "stale"
+  | "unknown"
+  | "missing";
 
 export type ServerAgentRuntimeHealthSummary = {
   state: ServerAgentRuntimeHealthState;
@@ -111,17 +126,33 @@ export type ServerAgentRuntimeHealthSummary = {
   heartbeatTtlSeconds?: number;
 };
 
-export type ServerAgentLifecyclePreflightState = 'ready' | 'degraded' | 'blocked' | 'disabled';
-export type ServerAgentLifecyclePreflightSeverity = 'critical' | 'warning';
-export type ServerAgentTaskPullReadinessState = 'ready' | 'degraded' | 'blocked' | 'idle';
-export type ServerAgentTaskPullReadinessSeverity = 'critical' | 'warning';
-export type QueueCoordinationPreflightState = 'ready' | 'degraded' | 'blocked' | 'idle';
-export type QueueCoordinationPreflightSeverity = 'critical' | 'warning';
-export type RemoteOrphanGovernancePreflightState = 'ready' | 'degraded' | 'blocked' | 'idle';
-export type RemoteOrphanGovernancePreflightSeverity = 'critical' | 'warning';
+export type ServerAgentLifecyclePreflightState =
+  | "ready"
+  | "degraded"
+  | "blocked"
+  | "disabled";
+export type ServerAgentLifecyclePreflightSeverity = "critical" | "warning";
+export type ServerAgentTaskPullReadinessState =
+  | "ready"
+  | "degraded"
+  | "blocked"
+  | "idle";
+export type ServerAgentTaskPullReadinessSeverity = "critical" | "warning";
+export type QueueCoordinationPreflightState =
+  | "ready"
+  | "degraded"
+  | "blocked"
+  | "idle";
+export type QueueCoordinationPreflightSeverity = "critical" | "warning";
+export type RemoteOrphanGovernancePreflightState =
+  | "ready"
+  | "degraded"
+  | "blocked"
+  | "idle";
+export type RemoteOrphanGovernancePreflightSeverity = "critical" | "warning";
 
 export type ServerAgentCapabilityRef = NonNullable<{
-  source: 'server_services' | 'server_tags';
+  source: "server_services" | "server_tags";
   referenceId: string;
   displayName: string;
   capabilityKey: string;
@@ -130,8 +161,13 @@ export type ServerAgentCapabilityRef = NonNullable<{
 }>;
 
 export type ServerAgentCapabilityRecord = Pick<
-  { id: string; name: string; services: Prisma.JsonValue | null; tags: Prisma.JsonValue | null },
-  'id' | 'name' | 'services' | 'tags'
+  {
+    id: string;
+    name: string;
+    services: Prisma.JsonValue | null;
+    tags: Prisma.JsonValue | null;
+  },
+  "id" | "name" | "services" | "tags"
 >;
 
 export type SupervisorQueuedJobSample = {

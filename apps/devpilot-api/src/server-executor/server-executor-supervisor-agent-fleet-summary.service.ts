@@ -13,6 +13,7 @@ import {
   pickServerAgentNextQueuedJob,
   readServerAgentBlockedJobSummary,
   readServerAgentFleetBlockingReasons,
+  pickServerAgentRunningProgressJob,
   serializeServerAgentFleetJob,
 } from "./server-executor-supervisor-agent-job.utils";
 
@@ -26,6 +27,7 @@ type FleetJobStats = {
   cancelled: number;
   pressure: number;
   nextQueuedJob?: ServerAgentFleetJobRecord;
+  runningProgressJob?: ServerAgentFleetJobRecord;
   blockedSample?: ServerAgentFleetJobRecord;
 };
 
@@ -116,6 +118,9 @@ export class ServerExecutorSupervisorAgentFleetSummaryService {
           nextQueuedJob: stats.nextQueuedJob
             ? serializeServerAgentFleetJob(stats.nextQueuedJob)
             : null,
+          runningProgress: stats.runningProgressJob
+            ? serializeServerAgentFleetJob(stats.runningProgressJob)
+            : null,
           blockedSample: stats.blockedSample
             ? {
                 ...serializeServerAgentFleetJob(stats.blockedSample),
@@ -160,6 +165,10 @@ export class ServerExecutorSupervisorAgentFleetSummaryService {
       stats.running += 1;
       if (job.lockExpiresAt && job.lockExpiresAt.getTime() <= now.getTime())
         stats.staleRunning += 1;
+      stats.runningProgressJob = pickServerAgentRunningProgressJob(
+        stats.runningProgressJob,
+        job,
+      );
     } else if (job.status === "blocked") {
       stats.blocked += 1;
       if (!stats.blockedSample) stats.blockedSample = job;

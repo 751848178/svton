@@ -2,9 +2,11 @@ import { NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
   ServerAgentHeartbeatDto,
+  ServerAgentTaskPullClaimDto,
   ServerAgentTaskPullContractDto,
 } from "./dto/server-execution-lease.dto";
 import { HeaderBag, ServerAgentAuthService } from "./server-agent-auth.service";
+import { ServerAgentTaskPullClaimService } from "./server-agent-task-pull-claim.service";
 import { buildServerAgentTaskPullContract } from "./server-agent-task-pull-contract.utils";
 import { ServerAgentTaskPullQueryService } from "./server-agent-task-pull-query.service";
 import { ServerAgentCapabilityService } from "./server-agent-capability.service";
@@ -30,6 +32,7 @@ export class ServerAgentRuntimeEndpointService {
     private readonly agentAuthService: ServerAgentAuthService,
     private readonly agentCapabilityService: ServerAgentCapabilityService,
     private readonly taskPullQueryService: ServerAgentTaskPullQueryService,
+    private readonly taskPullClaimService: ServerAgentTaskPullClaimService,
   ) {}
 
   async recordHeartbeat(headers: HeaderBag, dto: ServerAgentHeartbeatDto) {
@@ -126,6 +129,10 @@ export class ServerAgentRuntimeEndpointService {
       cancelledJobs,
       nextQueuedJob,
     });
+  }
+
+  claimTaskPullJob(headers: HeaderBag, dto: ServerAgentTaskPullClaimDto) {
+    return this.taskPullClaimService.claim(headers, dto);
   }
 
   private async readServer(teamId: string, serverId: string) {

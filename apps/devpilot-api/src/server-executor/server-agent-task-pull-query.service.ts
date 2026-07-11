@@ -1,3 +1,4 @@
+import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
 type ServerAgentTaskPullJobWhere = {
@@ -6,6 +7,7 @@ type ServerAgentTaskPullJobWhere = {
   transport: "server_agent";
 };
 
+@Injectable()
 export class ServerAgentTaskPullQueryService {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -69,18 +71,55 @@ export class ServerAgentTaskPullQueryService {
         availableAt: { lte: now },
       },
       orderBy: [{ priority: "desc" }, { queuedAt: "asc" }],
-      select: {
-        id: true,
-        operationKey: true,
-        adapterKey: true,
-        serverId: true,
-        priority: true,
-        queuedAt: true,
-        availableAt: true,
-        server: {
-          select: { id: true, name: true, host: true, status: true },
-        },
+      select: taskPullJobSelect,
+    });
+  }
+
+  async claimNextReadyJob(
+    where: ServerAgentTaskPullJobWhere,
+    now: Date,
+    lockOwner: string,
+    lockExpiresAt: Date,
+  ) {
+    const job = await this.readNextQueuedJob(where, now);
+    if (!job) return null;
+
+    const claimed = await this.prisma.serverExecutionJob.updateMany({
+      where: {
+        id: job.id,
+        ...where,
+        status: "queued",
+        queueMode: "queued",
+        availableAt: { lte: now },
       },
+      data: {
+        status: "running",
+        lockedAt: now,
+        lockOwner,
+        lockExpiresAt,
+        lastHeartbeatAt: now,
+        startedAt: now,
+      },
+    });
+
+    if (claimed.count === 0) return null;
+    return this.prisma.serverExecutionJob.findUnique({
+      where: { id: job.id },
+      select: taskPullJobSelect,
     });
   }
 }
+
+const taskPullJobSelect = {
+  id: true,
+  operationKey: true,
+  adapterKey: true,
+  serverId: true,
+  priority: true,
+  queuedAt: true,
+  availableAt: true,
+  inputSnapshot: true,
+  server: {
+    select: { id: true, name: true, host: true, status: true },
+  },
+};

@@ -1,4 +1,13 @@
-import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from "class-validator";
 
 export class ListServerExecutionLeasesQueryDto {
   @IsOptional()
@@ -70,7 +79,7 @@ export class ServerAgentHeartbeatDto {
   agentId!: string;
 
   @IsOptional()
-  @IsIn(['online', 'ready', 'healthy', 'connected', 'degraded'])
+  @IsIn(["online", "ready", "healthy", "connected", "degraded"])
   status?: string;
 
   @IsOptional()
@@ -115,4 +124,32 @@ export class ServerAgentTaskPullContractDto {
   @IsArray()
   @IsString({ each: true })
   capabilities?: string[];
+}
+
+export class ServerAgentTaskPullClaimDto extends ServerAgentTaskPullContractDto {}
+
+export class ServerAgentTaskPullAckDto extends ServerAgentTaskPullClaimDto {
+  @IsString()
+  jobId!: string;
+
+  @IsOptional()
+  progress?: unknown;
+}
+
+export class ServerAgentTaskPullFinishDto extends ServerAgentTaskPullAckDto {
+  @IsIn(["completed", "failed", "cancelled"])
+  status!: "completed" | "failed" | "cancelled";
+
+  @IsOptional()
+  commandPlan?: unknown;
+
+  @IsOptional()
+  logs?: unknown;
+
+  @IsOptional()
+  result?: unknown;
+
+  @IsOptional()
+  @IsString()
+  error?: string;
 }
