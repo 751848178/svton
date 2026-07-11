@@ -44,6 +44,8 @@ svton db <generate|migrate|studio|...>   # Prisma 生命周期
 svton services <init|up|down|status>     # 本地 MySQL/Redis(docker compose)
 svton docker <init|build|up|down|logs>   # 容器化生产(镜像内构建,无需手动 build)
 svton generate <module|app|package|api-contract> [name]   # 代码生成(别名 g)
+svton agent task-pull once [--execute] --ack-renewal-interval-ms 30000 --force-kill-grace-ms 5000   # 读取/执行一条 Devpilot server-agent task，失败/取消/finish 写回失败会非零退出
+svton agent task-pull run --max-iterations 3 --pid-file /tmp/devpilot-agent.pid --heartbeat-token xxx --ack-renewal-interval-ms 30000 --force-kill-grace-ms 5000   # 有界轮询、可选 pid-file/heartbeat；pid-file 拒绝覆盖 live owner；缺省生成 runner id 并写入 summary；disabled claim 会结构化停止，poll/heartbeat/finish 写回失败会非零退出
 
 # AI agent skills
 svton skill install [source] [options]
@@ -138,6 +140,7 @@ svton skill build --skills-dir ./skills --out-dir ./dist/skills --clean
 ```
 
 构建器使用标准 skill 目录格式：
+
 - `SKILL.md` + 可选 `references/`、`scripts/`、`assets/`、`agents/`
 
 ### 查看已安装 Skill
@@ -153,22 +156,24 @@ svton skill list --out-dir ./dist/skills
 
 ### 生命周期命令(委托 turbo / 包管理器)
 
-| 命令 | 作用 |
-|------|------|
-| `svton dev [app]` | 启动开发服务器(`turbo run dev`);带 app 名则只跑该 app |
-| `svton build [app]` | 构建 |
-| `svton start [app]` | 生产启动(跑各 app 的 `start` 脚本;`--all` 启动全部) |
-| `svton lint [app]` | Lint(`--fix` 透传给 linter) |
-| `svton typecheck [app]` | 类型检查(映射 turbo 任务 `type-check`) |
-| `svton test [app]` | 运行测试 |
-| `svton clean [--keep-deps]` | 清理构建产物(默认含 node_modules) |
-| `svton info [--json]` | 打印解析出的项目清单(apps/端口/db/services) |
-| `svton doctor [--fix]` | 环境 & 项目体检(Node/pnpm/turbo/脚本契约/env/端口/Docker) |
-| `svton env check [app]` | 比对 `.env` 与 `.env.example`,列出缺失 key(`--fix` 自动补建) |
-| `svton db <generate\|migrate\|migrate:deploy\|studio\|seed\|init>` | Prisma 生命周期(自动定位含 `prisma/schema.prisma` 的 app) |
-| `svton services <init\|up\|down\|status>` | 本地 MySQL/Redis(`docker compose`;无 compose 时先 `init` 生成) |
-| `svton docker <init\|build\|up\|down\|logs>` | 容器化生产部署:**镜像内构建** + 起整套(apps + mysql + redis);无需手动 `svton build` |
-| `svton generate <module\|app\|package\|api-contract> [name]` | 代码生成器(别名 `g`;`module` 已实现,自动接线进 `app.module.ts`) |
+| 命令                                                               | 作用                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `svton dev [app]`                                                  | 启动开发服务器(`turbo run dev`);带 app 名则只跑该 app                                                                                                                                                                                                                                                                                                              |
+| `svton build [app]`                                                | 构建                                                                                                                                                                                                                                                                                                                                                               |
+| `svton start [app]`                                                | 生产启动(跑各 app 的 `start` 脚本;`--all` 启动全部)                                                                                                                                                                                                                                                                                                                |
+| `svton lint [app]`                                                 | Lint(`--fix` 透传给 linter)                                                                                                                                                                                                                                                                                                                                        |
+| `svton typecheck [app]`                                            | 类型检查(映射 turbo 任务 `type-check`)                                                                                                                                                                                                                                                                                                                             |
+| `svton test [app]`                                                 | 运行测试                                                                                                                                                                                                                                                                                                                                                           |
+| `svton clean [--keep-deps]`                                        | 清理构建产物(默认含 node_modules)                                                                                                                                                                                                                                                                                                                                  |
+| `svton info [--json]`                                              | 打印解析出的项目清单(apps/端口/db/services)                                                                                                                                                                                                                                                                                                                        |
+| `svton doctor [--fix]`                                             | 环境 & 项目体检(Node/pnpm/turbo/脚本契约/env/端口/Docker)                                                                                                                                                                                                                                                                                                          |
+| `svton env check [app]`                                            | 比对 `.env` 与 `.env.example`,列出缺失 key(`--fix` 自动补建)                                                                                                                                                                                                                                                                                                       |
+| `svton db <generate\|migrate\|migrate:deploy\|studio\|seed\|init>` | Prisma 生命周期(自动定位含 `prisma/schema.prisma` 的 app)                                                                                                                                                                                                                                                                                                          |
+| `svton services <init\|up\|down\|status>`                          | 本地 MySQL/Redis(`docker compose`;无 compose 时先 `init` 生成)                                                                                                                                                                                                                                                                                                     |
+| `svton docker <init\|build\|up\|down\|logs>`                       | 容器化生产部署:**镜像内构建** + 起整套(apps + mysql + redis);无需手动 `svton build`                                                                                                                                                                                                                                                                                |
+| `svton generate <module\|app\|package\|api-contract> [name]`       | 代码生成器(别名 `g`;`module` 已实现,自动接线进 `app.module.ts`)                                                                                                                                                                                                                                                                                                    |
+| `svton agent task-pull once [--execute]`                           | Devpilot server-agent task-pull 一次性 runner;默认只读 contract,显式 `--execute` 才 claim/ack/finish,长 command step 会 ack 续约,并支持 `--ack-renewal-interval-ms`、`--force-kill-grace-ms`、取消/强杀/timeout 摘要、optional timeout 继续、final ack 取消；执行失败、取消或 finish 写回失败会非零退出                                                            |
+| `svton agent task-pull run --max-iterations <n>`                   | Devpilot server-agent task-pull 有界轮询 runner;支持 `--idle-limit`/`--forever`、interval、可选 pid-file/heartbeat、pid-file live owner 保护、缺省 runner id、summary runner 标识、可取消轮询等待、可配置 step ack 续约、可配置强杀宽限、timeout 摘要、optional timeout 继续、final ack 取消和 disabled claim 结构化停止；poll/heartbeat/finish 写回失败会非零退出 |
 
 > 生命周期命令的设计原则是**不重造 turbo** —— 仅做稳定入口 + Svton 专有的人性化(端口/健康/env/db/生成器)。
 
@@ -177,20 +182,33 @@ svton skill list --out-dir ./dist/skills
 Svton 架构规范用**混合方式**声明一个项目:
 
 1. **主配置 `svton.config.ts`**(类型安全,推荐):
+
    ```ts
-   import { defineSvtonProject } from '@svton/cli';
+   import { defineSvtonProject } from "@svton/cli";
 
    export default defineSvtonProject({
      schema: 1,
      apps: {
-       api: { dir: 'apps/backend', type: 'nest', port: 4000, baseURL: 'http://localhost:4000/api', ready: { http: 'http://localhost:4000/api/health' } },
-       web: { dir: 'apps/admin', type: 'next', port: 3000, ready: { http: 'http://localhost:3000' } },
-       mobile: { dir: 'apps/mobile', type: 'taro' },
+       api: {
+         dir: "apps/backend",
+         type: "nest",
+         port: 4000,
+         baseURL: "http://localhost:4000/api",
+         ready: { http: "http://localhost:4000/api/health" },
+       },
+       web: {
+         dir: "apps/admin",
+         type: "next",
+         port: 3000,
+         ready: { http: "http://localhost:3000" },
+       },
+       mobile: { dir: "apps/mobile", type: "taro" },
      },
-     database: { orm: 'prisma', dir: 'apps/backend' },
-     services: { compose: 'docker-compose.yml' },
+     database: { orm: "prisma", dir: "apps/backend" },
+     services: { compose: "docker-compose.yml" },
    });
    ```
+
 2. **根 `package.json` 的 `"svton"` 标记**(快速检测):
    ```json
    { "svton": { "schema": 1 } }
@@ -205,13 +223,16 @@ Svton 架构规范用**混合方式**声明一个项目:
 ## 模板
 
 ### 全栈模板 (`full-stack`)
+
 完整应用包含：
+
 - **后端**: NestJS + Prisma + MySQL + Redis
 - **管理后台**: Next.js + TailwindCSS + shadcn/ui
 - **移动端**: Taro + React (微信小程序)
 - **共享类型**: TypeScript 类型定义
 
 ### 仅后端 (`backend-only`)
+
 - NestJS API 服务器
 - Prisma ORM + MySQL
 - JWT 认证
@@ -219,12 +240,14 @@ Svton 架构规范用**混合方式**声明一个项目:
 - Swagger 文档
 
 ### 仅管理后台 (`admin-only`)
+
 - Next.js 15 + App Router
 - TailwindCSS + shadcn/ui
 - TypeScript + ESLint
 - API 客户端集成
 
 ### 仅移动端 (`mobile-only`)
+
 - Taro 3.6 框架
 - React 18
 - 微信小程序支持
@@ -253,16 +276,19 @@ my-app/
 `svton create` 生成的项目根已带 `svton.config.ts`,可直接用 `svton` 命令操作:
 
 1. **启动数据库**（全栈/后端模板）：
+
    ```bash
    svton services up          # = docker compose up -d(无 compose 时先 svton services init)
    ```
 
 2. **配置环境变量**：
+
    ```bash
    svton env check --fix      # 自动从 .env.example 补建缺失的 .env,再手动编辑
    ```
 
 3. **初始化数据库**（后端模板）：
+
    ```bash
    svton db init              # = prisma generate + migrate dev
    ```
