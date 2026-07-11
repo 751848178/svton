@@ -3,10 +3,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const DEFAULT_STATUS_PATTERN = '下一步|待补|未完成|blockedBy';
-const DEFAULT_DEVPILOT_FILES = [
-  'docs-internal/todos/2026-06-25-existing-project-onboarding.md',
-  'docs-internal/devpilot/project-onboarding-control-plane-roadmap.md',
-  'docs-internal/devpilot/requirements-and-progress.md',
+const DEFAULT_PROGRESS_FILES = [
+  'docs/todos.md',
+  'docs/todos/INDEX.md',
+  'docs/roadmap.md',
+  'docs/roadmap/INDEX.md',
+  'docs/requirements.md',
+  'docs/progress.md',
+  'TODO.md',
+  'ROADMAP.md',
+  'REQUIREMENTS.md',
 ];
 
 function usage() {
@@ -16,8 +22,8 @@ function usage() {
     [--max-items <n>] [--context <n>]
 
 Examples:
-  progress-snapshot.mjs --project svton --cwd /repo --task devpilot-progress --keyword F82
-  progress-snapshot.mjs --cwd /repo --file docs/todos/platform.md --keyword server_agent --context 1
+  progress-snapshot.mjs --project my-project --cwd /path/to/repo --task progress --keyword TASK-123 --file docs/todos/platform.md
+  PROGRESS_SNAPSHOT_FILES="docs/todos/platform.md:docs/roadmap.md" progress-snapshot.mjs --cwd /path/to/repo --keyword feature-id --context 1
 `);
 }
 
@@ -101,8 +107,17 @@ function compileRegex(value, fallbackFlags = 'i') {
   }
 }
 
+function splitPathList(value) {
+  return String(value ?? '')
+    .split(path.delimiter)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function defaultFiles(cwd) {
-  return DEFAULT_DEVPILOT_FILES.filter((file) => fs.existsSync(path.resolve(cwd, file)));
+  const configured = splitPathList(process.env.PROGRESS_SNAPSHOT_FILES);
+  const candidates = configured.length > 0 ? configured : DEFAULT_PROGRESS_FILES;
+  return candidates.filter((file) => fs.existsSync(path.resolve(cwd, file)));
 }
 
 function headingForLine(headingStack) {

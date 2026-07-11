@@ -8,8 +8,8 @@ Preflight classifier for commands that might dump too much output. It does not r
 
 ```bash
 node <skill-dir>/scripts/token-guard.mjs \
-  --project svton --cwd /repo \
-  --command 'rg -n "server_agent" apps docs-internal'
+  --project <project> --cwd /path/to/repo \
+  --command 'rg -n "policy" src docs'
 ```
 
 Use it before a raw `rg/find/grep`, long `sed/tail/cat`, raw `git diff`, log reread, or session JSONL inspection when the output size is uncertain. If `status` is `route_to_compact_tool`, rewrite the command before running it.
@@ -23,7 +23,7 @@ Two-stage search wrapper for broad `rg` work. It writes full ripgrep JSON to a l
 Prefer it when searching across a repository, docs tree, generated-adjacent paths, or multiple packages.
 
 ```bash
-node <skill-dir>/scripts/smart-rg.mjs --project svton --task search-policy --cwd /repo -- "ControlAccessPolicyService" apps docs
+node <skill-dir>/scripts/smart-rg.mjs --project <project> --task search-policy --cwd /path/to/repo -- "AccessPolicyService" src docs
 ```
 
 Useful options:
@@ -59,22 +59,22 @@ Use stable target IDs as the hot path. A continuation brief should carry an F-id
 
 ```bash
 node <skill-dir>/scripts/progress-snapshot.mjs \
-  --project svton --task devpilot-progress --cwd /repo \
-  --keyword F82
+  --project <project> --task progress --cwd /path/to/repo \
+  --keyword TASK-123 --file docs/todos/platform.md
 node <skill-dir>/scripts/progress-snapshot.mjs \
-  --cwd /repo --file docs/todos/platform.md --keyword server_agent --context 1
+  --cwd /path/to/repo --file docs/todos/platform.md --keyword feature-id --context 1
 ```
 
 When no target ID is known, run one compact snapshot that returns only candidate `id/status/module/next/file:line` rows, choose the next target, then switch back to ID lookup plus bounded reads. Do not repeatedly scan broad keywords like `TODO|pending|blocked|下一步` across multiple progress docs.
 
-When no `--file` is passed and the svton Devpilot docs exist, it uses the standard Devpilot TODO, roadmap, and requirements files. Use returned file:line anchors with `safe-read.mjs` for precise follow-up windows.
+When no `--file` is passed, the script checks common progress-document names under `docs/` and repository root. Repositories with custom planning files should pass one or more `--file` values or set `PROGRESS_SNAPSHOT_FILES` to a path-list. Use returned file:line anchors with `safe-read.mjs` for precise follow-up windows.
 
 ## `diff-summary.mjs`
 
 Diff wrapper that writes full diff to a log and prints compact `stat`, `name_status`, `numstat`, and `check` summaries.
 
 ```bash
-node <skill-dir>/scripts/diff-summary.mjs --project svton --task touched-diff --cwd /repo -- apps/devpilot-api/src docs-internal
+node <skill-dir>/scripts/diff-summary.mjs --project <project> --task touched-diff --cwd /path/to/repo -- src docs
 ```
 
 Use `--staged` for staged changes.

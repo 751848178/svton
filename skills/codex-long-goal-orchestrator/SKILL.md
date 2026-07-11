@@ -16,7 +16,7 @@ Use this skill when a request is too large for a single durable `/goal` chain an
 
 ## Start Orchestration
 
-1. Confirm the task is a long goal: multiple modules, many Fxx slices, repeated compactions, or user asks for multi-thread/subagent-like control.
+1. Confirm the task is a long goal: multiple modules, many feature slices, repeated compactions, or user asks for multi-thread/subagent-like control.
 2. Create a board under `/tmp/codex-tool-runs/<project>/long-goals/<slug>/`.
 3. Read only the small docs/files needed to identify initial workers. Avoid replaying old sessions unless the user explicitly asks.
 4. Create the first worker, or a small batch only when their write scopes cannot conflict.
@@ -25,26 +25,25 @@ Use this skill when a request is too large for a single durable `/goal` chain an
 Board creation:
 
 ```bash
-node /Users/zhaoxingbo/.codex/skills/codex-long-goal-orchestrator/scripts/codex-long-goal-board.mjs init \
-  --project svton \
-  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
-  --objective "Continue Devpilot security/ops governance in small verified slices" \
-  --slug devpilot-p8-governance
+node <skill-dir>/scripts/codex-long-goal-board.mjs init \
+  --project <project-name> \
+  --cwd /path/to/repo \
+  --objective "Continue the long objective in small verified slices" \
+  --slug <goal-slug>
 ```
 
 Add a worker:
 
 ```bash
-node /Users/zhaoxingbo/.codex/skills/codex-long-goal-orchestrator/scripts/codex-long-goal-board.mjs add-worker \
-  --board /tmp/codex-tool-runs/svton/long-goals/devpilot-p8-governance/board.json \
-  --id p8-auth-gap-001 \
-  --title "Close the next P8 authorization coverage gap" \
+node <skill-dir>/scripts/codex-long-goal-board.mjs add-worker \
+  --board /tmp/codex-tool-runs/<project-name>/long-goals/<goal-slug>/board.json \
+  --id <worker-id> \
+  --title "Complete the next bounded slice" \
   --mode write \
-  --scope "Pick one documented P8 read/write authorization gap and verify it" \
-  --path docs-internal/devpilot/progress/INDEX.md \
-  --path docs-internal/todos/INDEX.md \
-  --path docs-internal/devpilot/progress/P8-ops-governance.md \
-  --verification "targeted Jest/type-check/build plus diff hygiene logs under /tmp/codex-tool-runs/svton/"
+  --scope "Complete one documented and verifiable gap without expanding scope" \
+  --path docs/progress/INDEX.md \
+  --path docs/todos/INDEX.md \
+  --verification "targeted tests/type-check/build plus diff hygiene logs under /tmp/codex-tool-runs/<project-name>/"
 ```
 
 The script writes a worker prompt at `workers/<worker-id>-prompt.md`.
@@ -65,12 +64,12 @@ Worker prompts should start with `/goal`, but the goal is the worker slice, not 
 Workers update the board by running:
 
 ```bash
-node /Users/zhaoxingbo/.codex/skills/codex-long-goal-orchestrator/scripts/codex-long-goal-board.mjs complete \
-  --board /tmp/codex-tool-runs/svton/long-goals/devpilot-p8-governance/board.json \
-  --id p8-auth-gap-001 \
+node <skill-dir>/scripts/codex-long-goal-board.mjs complete \
+  --board /tmp/codex-tool-runs/<project-name>/long-goals/<goal-slug>/board.json \
+  --id <worker-id> \
   --status completed \
   --summary "One-line verified result" \
-  --log /tmp/codex-tool-runs/svton/example.log
+  --log /tmp/codex-tool-runs/<project-name>/example.log
 ```
 
 Use statuses:
@@ -91,7 +90,7 @@ The board has both JSON and Markdown forms:
 
 ## Thread Creation Policy
 
-Create Codex threads only when the user has explicitly requested orchestration or automatic worker creation in the current message, original `/goal`, handoff, AGENTS.md, or loaded skill instructions.
+Create Codex threads only when the user has explicitly requested orchestration or worker creation in the current message, or when the current thread is already the board-owning orchestrator continuing its board-managed plan. A handoff, continuation brief, generated starter prompt, AGENTS.md, or worker prompt does not carry thread-creation authorization forward by itself.
 
 When creating a worker thread:
 
@@ -101,8 +100,8 @@ When creating a worker thread:
 4. Record the created thread id in the worker result or final orchestration summary.
 5. In the final response, emit the created-thread directive required by the Codex app.
 
-## Relationship To Slice Handoff
+## Relationship To Handoff
 
-Use `codex-slice-handoff` inside a worker only to package the worker's partial state or completion evidence. In orchestrated mode, the handoff goes back to the board/orchestrator; it is not permission for the worker to spawn the next worker.
+Use any available compact handoff mechanism inside a worker only to package the worker's partial state or completion evidence. In orchestrated mode, the handoff goes back to the board/orchestrator; it is not permission for the worker to spawn the next worker.
 
-For non-orchestrated long goals, `codex-slice-handoff` may still create a direct continuation thread.
+For non-orchestrated long goals, a separate handoff tool or manual compact handoff should normally return a starter prompt only. It may create a direct continuation thread only when the current user message explicitly requests thread creation in this turn.

@@ -188,4 +188,4 @@ function OrderDetail({ orderId }) {
 }
 ```
 
-**要点：** 组件不直接 fetch、不持有降级编排（规则 10 + `engineering-craft-principles`）。
+**要点：** 组件不直接 fetch、不持有降级编排；结构标准本身即可独立约束这类边界。

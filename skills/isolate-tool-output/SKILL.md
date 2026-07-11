@@ -48,7 +48,7 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 7. 主 Agent 只读取摘要和必要的精确日志片段；不要把完整日志、全量搜索结果或大段网页摘录重新拉进主上下文。
 8. 如果摘要显示错误与当前改动相关，主 Agent 决策并修改代码；如果是 baseline 噪声，记录为无关并避免扩散范围。
 9. 最终验证也默认隔离执行；最终回复报告关键命令、状态、相关错误、日志路径和仍未覆盖的风险。
-10. 如果当前是 `/goal` 会话且建议新线程继续，不得假定 goal 状态会自动迁移；最终回复必须附一条可复制的下一线程 `/goal` 命令。
+10. 如果当前是 `/goal` 会话且建议新线程继续，不得假定 goal 状态会自动迁移；最终回复必须附一条可复制的下一线程 `/goal` 命令，但不得自动创建下一线程，除非当前用户消息明确要求本轮创建。
 
 ## Session-Level Caching（避免同一内容反复进上下文）
 
@@ -58,13 +58,13 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - **进度文档必须从稳定目标 ID 进入热路径。** `/goal`、handoff 或 continuation brief 应携带 F-id、module id、ticket id 或同等稳定标识；先用该 ID 定位当前 heading/table row，再用 `safe-read.mjs` 读取目标块及 30-60 行上下文。行号只作为当前文件版本的临时 anchor，不得当作长期事实来源。
 - **没有稳定目标 ID 时，只能先生成短候选索引。** 最多运行一次 compact snapshot，返回 `id/status/module/next/file:line` 候选清单；选定下一项后立刻切回按 ID 定位 + bounded read，不得用 `TODO|pending|blocked|下一步` 之类宽关键词反复扫多份进度文档。
 - **把“找下一步”和“理解某一项”分离。** 热路径索引只保留短状态行、下一步和验证锚点；历史背景、长验收说明和已完成记录应留在详情文档或归档段落，默认不进入主上下文。
-- **源码文件默认禁 `cat`/整文件 `nl -ba`。** 读源码结构优先用 `codegraph-cli-navigation` 建图一次，读具体片段用 `safe-read.mjs` 按符号或行号窗口；同一段源码在同一会话不重复整段读第二次。
+- **源码文件默认禁 `cat`/整文件 `nl -ba`。** 读源码结构优先用可用的代码图谱/调用链工具建图一次，读具体片段用 `safe-read.mjs` 按符号或行号窗口；同一段源码在同一会话不重复整段读第二次。
 - **同一目录被反复 `rg` 超过 3 次时**，首次结果生成一份结构快照（接口/schema/关键符号清单）写入 `docs-internal/.../*-snapshot.md`，后续引用快照而非重搜。
 - **`MEMORY.md`、`SKILL.md`、`AGENTS.md` 等会话内恒定的文件**只读一次；如发现同会话重复读取，按工作流 bug 处理。
 
 ## Batch Verification（避免每次编辑后跑构建）
 
-- `type-check`/`lint`/`build` 不要在每次编辑后跑。按一个逻辑改动单元（一个 feature 或一组相关 patch）合并一次，验证统一用 `verify-before-done` 收尾。
+- `type-check`/`lint`/`build` 不要在每次编辑后跑。按一个逻辑改动单元（一个 feature 或一组相关 patch）合并一次，验证统一交给可用的完成前验证流程收尾。
 - 不要在每次提交前都跑 `git diff --check`。无改动或纯验证场景跳过；只有实际准备提交时才跑一次。
 - 多包仓库优先用 turbo/pnpm 的增量目标（如 `--filter @scope/pkg`），而非全仓重新构建。
 
@@ -75,7 +75,9 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - `长期目标`: 原始 `/goal` 目标，尽量保持稳定。
 - `当前进度`: 已完成切片、关键文件、验证证据、当前工作区/日志/风险。
 - `本线程任务`: 下一线程只处理的最小任务边界和验收标准，按优先级列 1-3 项。
-- `交接说明`: 简短说明“切线程规则由 `isolate-tool-output` 执行”，不复制通用阈值细节。
+- `交接说明`: 简短说明切线程规则由当前输出隔离/切片流程执行，不复制通用阈值细节。
+
+只生成下一线程命令不等于自动创建线程。不得写入或传播 “authorization carries forward” 之类的继承授权语句；下一线程若再次需要切分，也只能再次生成 handoff/命令，不能递归开线程，除非当轮用户明确授权。
 
 ## Hard Routing Rules
 
@@ -115,8 +117,8 @@ Apply this whenever tool output is likely to overwhelm the main conversation. Th
 - **进度/规划文档（roadmap/todos/requirements/progress）会话内最多读一次**，后续引用 `progress-snapshot.mjs` 摘要；禁止反复 `cat`/`rg` 同一份 markdown 全文。
 - **进度/规划文档禁止以行号作为唯一目标。** 行号必须由稳定 ID 当场定位得到；若 handoff 只给了旧行号，先用附近 heading 或 ID 重新确认，再读小窗口。
 - **源码文件默认禁 `cat` 整文件读取**；用 `safe-read.mjs` 按符号或行号窗口，同一段源码本会话不重复读第二次。
-- **`type-check`/`build` 不得每次编辑后跑**；按逻辑改动单元合并，收尾统一用 `verify-before-done`，不做无意义的重复 `git diff --check`。
-- **`/goal` 新线程不会自动继承当前 goal 状态**；建议切线程时必须提供下一线程可直接使用的 `/goal` 命令。通用切线程规则由本 skill 负责，下一条 `/goal` 只携带目标、进度、下一切片和交接说明。
+- **`type-check`/`build` 不得每次编辑后跑**；按逻辑改动单元合并，收尾统一用可用的完成前验证流程，不做无意义的重复 `git diff --check`。
+- **`/goal` 新线程不会自动继承当前 goal 状态**；建议切线程时必须提供下一线程可直接使用的 `/goal` 命令。通用切线程规则由本 skill 负责，下一条 `/goal` 只携带目标、进度、下一切片和交接说明。不得自动创建下一线程或继承自动创建授权，除非当前用户消息明确要求。
 - 不得对 Codex/Claude session JSONL 做会返回整行的宽 `rg`；一行可能包含完整 prompt、tool schema 或大输出。
 - 不得把 `max_output_tokens` 设到 20K/30K 来“硬接住”宽搜索；先压缩为摘要或写日志。
 - 子 Agent 的 `recommended_next` 只能建议，不替代主 Agent 的最终决策。

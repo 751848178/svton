@@ -46,13 +46,13 @@ Use `relevant_errors: []` when nothing relevant was found. For web research, use
 For local shell commands, prefer:
 
 ```bash
-node <skill-dir>/scripts/capture-tool-run.mjs --project svton --task typecheck -- corepack pnpm type-check
+node <skill-dir>/scripts/capture-tool-run.mjs --project <project> --task typecheck -- <typecheck-command>
 ```
 
 For shell features such as pipes or redirects:
 
 ```bash
-node <skill-dir>/scripts/capture-tool-run.mjs --project svton --task rg-generated --shell -- "rg -n \"TODO\" .next dist build"
+node <skill-dir>/scripts/capture-tool-run.mjs --project <project> --task rg-generated --shell -- "rg -n \"TODO\" .next dist build"
 ```
 
 The script writes full stdout/stderr to the log file and prints compact JSON with `task`, `status`, `command`, `exit_code`, `full_log`, byte counts, and duration.
@@ -60,7 +60,7 @@ The script writes full stdout/stderr to the log file and prints compact JSON wit
 Before running an uncertain raw command, preflight it:
 
 ```bash
-node <skill-dir>/scripts/token-guard.mjs --project svton --cwd /repo --command 'git diff -- apps docs-internal'
+node <skill-dir>/scripts/token-guard.mjs --project <project> --cwd /path/to/repo --command 'git diff -- src docs'
 ```
 
 If the result says `route_to_compact_tool`, use the recommended compact tool instead of running the raw command.
@@ -70,11 +70,11 @@ If the result says `route_to_compact_tool`, use the recommended compact tool ins
 Use these scripts when the raw operation is mostly discovery output:
 
 ```bash
-node <skill-dir>/scripts/token-guard.mjs --project svton --cwd /repo --command 'rg -n "server_agent" apps docs'
-node <skill-dir>/scripts/smart-rg.mjs --project svton --task find-policy --cwd /repo -- "ControlAccessPolicyService" apps/devpilot-api/src
-node <skill-dir>/scripts/safe-read.mjs --file apps/devpilot-api/src/deployment/deployment.service.ts --pattern "autoRollback" --before 40 --after 80
-node <skill-dir>/scripts/progress-snapshot.mjs --project svton --task devpilot-progress --cwd /repo --keyword F82
-node <skill-dir>/scripts/diff-summary.mjs --project svton --task current-diff --cwd /repo -- apps/devpilot-api/src
+node <skill-dir>/scripts/token-guard.mjs --project <project> --cwd /path/to/repo --command 'rg -n "policy" src docs'
+node <skill-dir>/scripts/smart-rg.mjs --project <project> --task find-policy --cwd /path/to/repo -- "AccessPolicyService" src
+node <skill-dir>/scripts/safe-read.mjs --file src/deployment.service.ts --pattern "rollback" --before 40 --after 80
+node <skill-dir>/scripts/progress-snapshot.mjs --project <project> --task progress --cwd /path/to/repo --keyword TASK-123 --file docs/todos/platform.md
+node <skill-dir>/scripts/diff-summary.mjs --project <project> --task current-diff --cwd /path/to/repo -- src
 node <skill-dir>/scripts/codex-session-token-audit.mjs --thread-id <codex-thread-id>
 ```
 

@@ -13,13 +13,11 @@ These rules apply at the moment code is written. Do not write a file knowing it 
 
 The goal is code that is easy to understand, modify, test, and reuse. Splitting serves *clear boundaries*, not line-count quotas. Applying these standards from the first line of a new file is far cheaper than retrofitting them onto a 600-line file later. So this skill triggers on **any implementation task**, not only on refactor requests.
 
-## Relationship to sibling skills
+## Optional Related Guidance
 
-- `universal-craft-principles` — *why* to separate orchestration / execution / fallback at module level (design philosophy). Apply on top of this standard.
-- `engineering-craft-principles` — *why* to split React/TSX components and hooks (frontend structure). Apply on top of this standard.
-- **This skill** — the *concrete floor*: line limits, file suffixes, layering rules, acceptance checklist. Non-negotiable regardless of which sibling skill also applies.
+This skill is independently usable. It provides the concrete floor: line limits, file suffixes, layering rules, and an acceptance checklist.
 
-If a sibling skill's guidance and this standard ever seem to conflict, the **stricter rule wins**.
+When available and relevant, broader craft guidance can add design rationale for module-level refactors or React/TSX boundary work. Those workflows are optional composition, not prerequisites for using this standard.
 
 ## Use When
 

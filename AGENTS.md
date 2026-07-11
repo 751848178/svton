@@ -28,6 +28,7 @@ On first run in Codex, approve the repo hook via `/hooks`; the project is alread
 - Treat `skills/` as source code for skill packages, not as the active Codex or Claude install directory.
 - Do not read `skills/*/dist`, `.skills/`, or `apps/agent-web/public/skills` unless the task is explicitly about those runtime public skill assets.
 - Keep generic workflow skills at user level: planning, verification, codegraph navigation, and noisy-tool isolation.
+- Treat `project-skills/` as inactive source for svton-specific project skills; do not sync it to user-level skill directories by default.
 - Keep project skills focused on svton-specific behavior only. Do not duplicate generic workflow skills into project install layers.
 
 ## Noisy Commands

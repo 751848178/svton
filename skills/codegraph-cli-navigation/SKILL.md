@@ -48,7 +48,7 @@ Apply this when a user request is complex enough that the agent should build a c
 - 逻辑问题优先从用户提到的错误、接口、函数、状态名、事件名或测试名出发建立调用图谱。
 - UI/样式问题优先用 `files`、`query`、`node --file --symbols-only` 和源码阅读建立 route-to-component-to-style 图谱。
 - 使用 `codegraph affected -p . <changed-files> --quiet` 辅助找测试，但测试选择最终以源码、脚本和项目约定为准。
-- **对会反复触及的模块（如某 service 目录、某 resource 模块群），建图后把结构快照（入口、核心符号、caller/callee、schema 字段、受影响测试）写入一份 `docs-internal/.../*-snapshot.md` 或会话内笔记。** 后续引用快照，而非对同一目录反复 `rg`/`sed` 重搜——审计显示同一模块被重搜数十到数百次是 token 主因之一。
+- **对会反复触及的模块（如某 service 目录、某 resource 模块群），建图后把结构快照（入口、核心符号、caller/callee、schema 字段、受影响测试）写入仓库约定的 docs/scratch 位置或会话内笔记。** 后续引用快照，而非对同一目录反复 `rg`/`sed` 重搜——审计显示同一模块被重搜数十到数百次是 token 主因之一。
 
 ## Rules
 

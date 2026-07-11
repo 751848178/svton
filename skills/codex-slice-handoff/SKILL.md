@@ -1,6 +1,6 @@
 ---
 name: codex-slice-handoff
-description: "Generate minimal continuation handoffs for long Codex sessions, decide when to split a thread, create a fresh direct continuation thread when requested, or report an orchestrated worker back to a long-goal board. Use when a Codex thread is nearing compaction, has high last_input/token usage, completed a feature slice, hit wrap_and_split, is a worker under codex-long-goal-orchestrator, or the user asks to automatically slice a long-running session while carrying only necessary context."
+description: "Generate minimal continuation handoffs for long Codex sessions, decide when to split a thread, return a starter prompt for manual continuation, or report an orchestrated worker back to a long-goal board. Use when a Codex thread is nearing compaction, has high last_input/token usage, completed a feature slice, hit wrap_and_split, is a worker under an orchestrator, or the user asks to slice a long-running session while carrying only necessary context."
 ---
 
 # Codex Slice Handoff
@@ -14,9 +14,9 @@ Use this skill to end a long thread cleanly and continue in a fresh slice with o
    - Use `--session <path/to/rollout.jsonl>` when working from a local session file.
 2. Generate a handoff with `scripts/codex-slice-handoff.mjs`.
 3. Read only the generated Markdown handoff, not the full diagnostics JSON.
-4. If `should_slice: yes`, stop the current feature slice after any required commit/report and continue from the starter prompt in a fresh thread or fresh goal.
+4. If `should_slice: yes`, stop the current feature slice after any required commit/report and return a starter prompt for a fresh thread or fresh goal.
 5. If this is an orchestrated worker, report the handoff to the long-goal board/orchestrator and stop; do not create a successor worker from inside the worker.
-6. If this is a direct continuation and thread tools are available, create the new Codex thread with the starter prompt from the handoff before the final response when automatic new-thread continuation was requested in the current message, original `/goal`, handoff, continuation brief, AGENTS.md, or skill standing instructions. Otherwise, return the handoff path and starter prompt to the user.
+6. Create a new Codex thread only when the current user message explicitly asks this agent to create/start/open the next thread now, or when the current thread is the long-goal orchestrator creating a board-managed worker. A prior `/goal`, handoff, continuation brief, generated starter prompt, AGENTS.md, or skill instruction does not carry thread-creation authorization forward. Otherwise, return the handoff path and starter prompt to the user.
 7. Never call `update_goal(status="blocked")` for slicing, compaction, token budget, or `wrap_and_split`. `blocked` is only for a real external blocker after the platform's repeated-blocker rule is satisfied.
 
 ## Script
@@ -24,19 +24,19 @@ Use this skill to end a long thread cleanly and continue in a fresh slice with o
 Run the script from any repository:
 
 ```bash
-node /Users/zhaoxingbo/.codex/skills/codex-slice-handoff/scripts/codex-slice-handoff.mjs \
+node <skill-dir>/scripts/codex-slice-handoff.mjs \
   --thread-id <thread-id> \
   --cwd /path/to/repo \
-  --project svton \
-  --stage F101 \
+  --project <project-name> \
+  --stage <feature-or-module-stage> \
   --next "Implement the next smallest verifiable slice" \
-  --output /tmp/codex-tool-runs/svton/f101-handoff.md
+  --output /tmp/codex-tool-runs/<project-name>/<stage>-handoff.md
 ```
 
 Useful inputs:
 
 - `--objective`: one sentence for the next slice. Keep it short.
-- `--stage`: current Fxx/module/stage label.
+- `--stage`: current feature/module/stage label.
 - `--done`: repeat for completed facts that must carry forward.
 - `--next`: repeat for next actions that should carry forward.
 - `--risk`: repeat for known gaps or risks.
@@ -45,7 +45,7 @@ Useful inputs:
 - `--tool-output-threshold`: default `40000`.
 - `--json`: print compact machine-readable output for automation.
 - `--include-skill-files`: include project/user skill package files in `important_files`; leave this off unless the task is explicitly about skills.
-- `--orchestrator-board`: mark this handoff as a worker report for a `codex-long-goal-orchestrator` board.
+- `--orchestrator-board`: mark this handoff as a worker report for an orchestrator board.
 - `--worker-id`: worker id to pair with `--orchestrator-board`.
 
 The script writes full diagnostics under `/tmp/codex-tool-runs/<project>/` and returns only a compact handoff.
@@ -76,28 +76,28 @@ Do not carry:
 
 Treat slicing as required when any of these are true:
 
-- a feature/Fxx stage is done
+- a feature/stage is done
 - one compaction has already happened and another substantial slice is starting
 - `last_input` is above `120K`
 - `max_last_input` is above `120K`
 - large raw tool output has accumulated above `40K` tokens
 - work is moving to an independent module or feature area
 
-For long-running Devpilot work, prefer one thread per Fxx feature or module boundary.
+For long-running project work, prefer one thread per feature or module boundary.
 
 ## Orchestrated Worker Mode
 
-When the current thread was created by `codex-long-goal-orchestrator`, use this skill only to package the worker's state or completion evidence:
+When the current thread was created by an orchestrator, use this skill only to package the worker's state or completion evidence:
 
 ```bash
-node /Users/zhaoxingbo/.codex/skills/codex-slice-handoff/scripts/codex-slice-handoff.mjs \
+node <skill-dir>/scripts/codex-slice-handoff.mjs \
   --thread-id <thread-id> \
   --cwd /path/to/repo \
-  --project svton \
+  --project <project-name> \
   --stage <worker-stage> \
-  --orchestrator-board /tmp/codex-tool-runs/svton/long-goals/<slug>/board.json \
+  --orchestrator-board /tmp/codex-tool-runs/<project-name>/long-goals/<slug>/board.json \
   --worker-id <worker-id> \
-  --output /tmp/codex-tool-runs/svton/<worker-id>-handoff.md
+  --output /tmp/codex-tool-runs/<project-name>/<worker-id>-handoff.md
 ```
 
 In this mode:
@@ -109,16 +109,26 @@ In this mode:
 
 ## Thread Creation Rule
 
-When automatic direct continuation in a new thread has been requested anywhere in the active instruction chain, and the current thread is not an orchestrated worker, treat `should_slice: yes` as a required handoff-plus-thread-creation flow. Count all of these as explicit authorization: the current user message, the original `/goal` objective, a handoff or continuation brief, AGENTS.md, or a loaded skill that says to "open/create/start a new thread and continue" or "生成 handoff 并开启新线程继续". Do not require the user to repeat the request in the same final turn.
+Default to handoff-only. A direct continuation handoff must not recursively create the next thread just because an earlier prompt, handoff, continuation brief, generated starter prompt, AGENTS.md, or loaded skill mentioned automatic continuation.
+
+Only create a new thread when one of these is true:
+
+- the current user message explicitly says to create/start/open the next continuation thread now;
+- the current thread is a long-goal orchestrator creating a board-managed worker from `board.json`;
+- the user explicitly asks for an automatic thread handoff in this turn and accepts the one-active-writer risk.
+
+If thread creation is explicitly authorized:
 
 1. Generate and read the handoff Markdown.
-2. Build the new prompt from the handoff's "Starter Prompt For New Slice". Preserve the leading `/goal`, the handoff path, and only the compact carry facts so the successor keeps the goal auto-continue loop.
-3. If Codex app thread tools are exposed, run `list_projects`, select the project whose cwd matches the current repository, then call `create_thread` with a project `local` environment unless the user explicitly requested a new worktree.
-4. In the final response, include the created thread directive and the handoff path. Do not merely print a starter prompt when thread creation succeeded.
-5. If `create_thread` is not available or no matching project is available, say that automatic creation was unavailable and provide the exact starter prompt for manual use.
+2. Build the new prompt from the handoff's "Starter Prompt For New Slice". Preserve the leading `/goal`, the handoff path, and only the compact carry facts.
+3. Strip any wording that says authorization "carries forward" or that the successor may create its own successor.
+4. If Codex app thread tools are exposed, run `list_projects`, select the project whose cwd matches the current repository, then call `create_thread` with a project `local` environment unless the user explicitly requested a new worktree.
+5. In the final response, include the created thread directive and the handoff path. If `create_thread` is not available or no matching project is available, say that automatic creation was unavailable and provide the exact starter prompt for manual use.
+
+If thread creation is not explicitly authorized, do not call `create_thread`; provide only the handoff path and starter prompt.
 
 ## Automation Boundary
 
-The bundled script can decide and generate the handoff. It cannot directly call Codex app thread tools by itself. When the app exposes `create_thread`, automatic continuation was requested anywhere in the active instruction chain, and the current thread is not an orchestrated worker, the agent must create a new thread after generating the handoff, using only the starter prompt and handoff content.
+The bundled script can decide and generate the handoff. It cannot directly call Codex app thread tools by itself. Handoff generation is not thread-creation authorization. The agent may create a new thread only under the explicit cases in [Thread Creation Rule](#thread-creation-rule).
 
 For orchestrated workers, the automation target is the board/orchestrator, not `create_thread`.

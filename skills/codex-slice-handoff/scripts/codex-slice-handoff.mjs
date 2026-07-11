@@ -533,7 +533,7 @@ function isUsefulFile(file, options = {}) {
   if (/(^|\/)(node_modules|\.git|\.next|dist|build|\.turbo|coverage|\.codegraph|target)(\/|$)/.test(file)) {
     return false;
   }
-  if (!options.includeSkillFiles && /^(?:skills|\.svton\/skills|\.codex\/skills|\.claude\/skills|apps\/agent-web\/public\/skills)(\/|$)/.test(file)) {
+  if (!options.includeSkillFiles && /^(?:skills|\.codex\/skills|\.claude\/skills|\.agents\/skills|(?:[^/]+\/)*public\/skills)(\/|$)/.test(file)) {
     return false;
   }
   if (options.cwd) {
@@ -678,7 +678,7 @@ Verification evidence: ${verification.length ? verification.map((item) => `${ite
 Respect the carry rules above. Start by checking git status and the specific files needed for this worker only.`
     : `/goal Continue the Codex work using only this handoff as prior context. Do not read old sessions.
 
-Continuation rule: keep the broader objective moving in small verified slices. After each completed slice, run the repo/session health check. If it returns wrap_and_split, generate a compact handoff and, when Codex thread tools are available, create the next continuation thread from that handoff. This authorization carries forward from this prompt; do not require the user to repeat it in the final turn, and do not use update_goal(status="blocked") merely to split or save tokens.
+Continuation rule: keep the broader objective moving in small verified slices. After each completed slice, run the repo/session health check. If it returns wrap_and_split, generate a compact handoff and stop. Do not create another continuation thread unless the current user message explicitly asks this agent to create/start/open it now, or this thread is an orchestrator creating a board-managed worker. Authorization does not carry forward through handoffs or starter prompts. Do not use update_goal(status="blocked") merely to split or save tokens.
 
 Objective: ${objective}
 Current stage: ${stage}
@@ -786,7 +786,7 @@ function isNoisyStatusPath(statusPath, options = {}) {
   if (/(^|\/)(node_modules|\.git|\.next|dist|build|\.turbo|coverage|\.codegraph|target)(\/|$)/.test(statusPath)) {
     return true;
   }
-  if (!options.includeSkillFiles && /^(?:skills|\.svton\/skills|\.codex\/skills|\.claude\/skills|apps\/agent-web\/public\/skills)(\/|$)/.test(statusPath)) {
+  if (!options.includeSkillFiles && /^(?:skills|\.codex\/skills|\.claude\/skills|\.agents\/skills|(?:[^/]+\/)*public\/skills)(\/|$)/.test(statusPath)) {
     return true;
   }
   return false;

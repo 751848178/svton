@@ -94,7 +94,7 @@ Workers return this instead of broadening their own scope.
   "summary": "Extracted config validation into a focused validator without behavior changes.",
   "verification": {
     "status": "passed",
-    "log": "/tmp/codex-tool-runs/svton/DEP-001-test.log"
+    "log": "/tmp/codex-tool-runs/<project>/DEP-001-test.log"
   },
   "risks": [],
   "needs_followup": []
@@ -113,7 +113,7 @@ Workers return this instead of broadening their own scope.
   "relevant_errors": [
     "config.service.spec.ts:42 expected default strategy to equal rolling"
   ],
-  "full_log": "/tmp/codex-tool-runs/svton/DEP-001-test.log"
+  "full_log": "/tmp/codex-tool-runs/<project>/DEP-001-test.log"
 }
 ```
 

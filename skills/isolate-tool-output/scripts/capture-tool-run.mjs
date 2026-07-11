@@ -8,8 +8,8 @@ function printUsage() {
   capture-tool-run.mjs --project <name> --task <name> [--cwd <path>] [--log-dir <path>] [--shell] -- <command> [args...]
 
 Examples:
-  capture-tool-run.mjs --project svton --task typecheck -- corepack pnpm type-check
-  capture-tool-run.mjs --project svton --task rg-generated --shell -- "rg -n 'TODO' .next dist build"
+  capture-tool-run.mjs --project my-project --task typecheck -- npm run typecheck
+  capture-tool-run.mjs --project my-project --task rg-generated --shell -- "rg -n 'TODO' .next dist build"
 `);
 }
 

@@ -40,7 +40,7 @@ The lower the agent layer, the narrower its context and authority.
 - Worker outputs must be facts and file paths, not long reasoning transcripts.
 - Verifier outputs must include `command`, `status`, `exit_code`, `summary`, `relevant_errors`, and `full_log`.
 - Diagrams must be source diagrams such as Mermaid, PlantUML, or JSON graph; avoid opaque images for architecture evidence.
-- Preserve existing repo-specific routing skills. For svton agent capabilities, apply `svton-agent-routing` before inventing new runtime code.
+- Preserve existing project-specific routing skills. When a repository already defines routing for agent capabilities, frameworks, libraries, or code ownership, apply that routing before inventing new runtime code or installing new dependencies.
 
 ## Reference Loading
 

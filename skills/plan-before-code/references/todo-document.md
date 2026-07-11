@@ -7,7 +7,7 @@ Use this reference when creating or updating the persistent development TODO doc
 Prefer an existing project planning directory. If the repository has no convention, use:
 
 - `docs/todos/YYYY-MM-DD-<slug>.md` when `docs/` is already used for project documents.
-- `.svton/todos/YYYY-MM-DD-<slug>.md` when the task should stay local to agent execution.
+- A repository-defined hidden local TODO directory when the task should stay local to agent execution.
 
 ## Required Sections
 
@@ -27,6 +27,10 @@ Prefer an existing project planning directory. If the repository has no conventi
 
 - Confirmed: ...
 - Assumption: ...
+
+## Workflow Routing
+
+`routing: <direct|focused slice|todo-plan|specialized-workflow|long-goal>[ + noisy-tools]; <brief reason>.`
 
 ## Functional TODO Breakdown
 

@@ -7,8 +7,8 @@ function usage() {
   token-guard.mjs [--project <name>] [--cwd <path>] --command <shell-command>
 
 Examples:
-  token-guard.mjs --project svton --cwd /repo --command 'rg -n "server_agent" apps docs-internal'
-  token-guard.mjs --command "git diff -- apps/devpilot-api/src docs-internal"
+  token-guard.mjs --project my-project --cwd /path/to/repo --command 'rg -n "policy" src docs'
+  token-guard.mjs --command "git diff -- src docs"
 `);
 }
 
@@ -186,6 +186,10 @@ export function parseTailLines(command) {
   return Number.parseInt(match[1], 10);
 }
 
+function referencesProgressDocument(command) {
+  return /(?:^|\s)(?:[^ "'`]*\/)?(?:todo|todos|roadmap|requirements|progress|planning|plans|onboarding)[^ "'`]*\.md\b/i.test(command);
+}
+
 export function analyze(options) {
   const normalized = options.command.trim().replace(/\s+/g, ' ');
   const tokens = shellTokens(normalized);
@@ -266,12 +270,12 @@ export function analyze(options) {
     }
   }
 
-  if (/docs-internal\/(todos|devpilot)/.test(normalized) && (/tail\s+-n/.test(normalized) || /sed\s+-n\s+['"]?1,/.test(normalized))) {
+  if (referencesProgressDocument(normalized) && (/tail\s+-n/.test(normalized) || /sed\s+-n\s+['"]?1,/.test(normalized))) {
     violations.push('progress-doc-raw-read');
     recommended.push({
       tool: 'progress-snapshot',
       reason: 'Repeated TODO/roadmap reads should use compact status extraction.',
-      command: `node ${quoteArg(progressSnapshot)} --project ${quoteArg(options.project)} --cwd ${quoteArg(options.cwd)} --task devpilot-progress --keyword <F-id-or-topic>`,
+      command: `node ${quoteArg(progressSnapshot)} --project ${quoteArg(options.project)} --cwd ${quoteArg(options.cwd)} --task <task-name> --keyword <stable-id-or-topic> --file <progress-doc>`,
     });
   }
 
