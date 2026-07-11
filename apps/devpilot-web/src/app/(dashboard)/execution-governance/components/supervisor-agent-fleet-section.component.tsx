@@ -64,6 +64,12 @@ export function SupervisorAgentFleetSection({ agent }: { agent: SupervisorAgent 
                     {server.jobs.nextQueuedJob.priority}
                   </div>
                 ) : null}
+                {server.jobs.runningProgress?.taskPullProgress ? (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    progress {server.jobs.runningProgress.operationKey} ·{' '}
+                    {formatTaskPullProgress(server.jobs.runningProgress.taskPullProgress)}
+                  </div>
+                ) : null}
                 {server.jobs.blockedSample ? (
                   <div className="mt-1 text-xs text-muted-foreground">
                     blocked {server.jobs.blockedSample.operationKey} ·{' '}
@@ -113,4 +119,20 @@ export function SupervisorAgentFleetSection({ agent }: { agent: SupervisorAgent 
       )}
     </>
   );
+}
+
+function formatTaskPullProgress(progress: {
+  updatedAt: string;
+  agentId: string;
+  runnerId?: string;
+  stepKey?: string;
+  message?: string;
+  percent?: number;
+}) {
+  const details = [
+    progress.message || progress.stepKey,
+    progress.percent !== undefined ? `${progress.percent}%` : undefined,
+    shortId(progress.agentId),
+  ].filter(Boolean);
+  return details.length ? details.join(' · ') : formatDate(progress.updatedAt);
 }

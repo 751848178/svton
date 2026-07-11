@@ -77,7 +77,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 border-r bg-background">
+    <aside className="hidden w-64 shrink-0 border-r bg-background md:block">
       <div className="space-y-4 py-4">
         {sidebarItems.map((section) => (
           <div

@@ -46,7 +46,7 @@ export function TeamSwitcher() {
 
   if (!isLoading && teams.length === 0) {
     return (
-      <div className="relative">
+      <div className="relative shrink-0">
         <button
           onClick={openModal}
           className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
@@ -66,10 +66,10 @@ export function TeamSwitcher() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative shrink-0">
       <button
         onClick={() => (isOpen ? closeDropdown() : openDropdown())}
-        className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+        className="flex max-w-[150px] items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
       >
         <span className="max-w-[120px] truncate">{currentTeam?.name || t('selectTeam')}</span>
         <span className="text-xs">{isOpen ? '▲' : '▼'}</span>

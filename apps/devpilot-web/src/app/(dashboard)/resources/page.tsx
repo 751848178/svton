@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { Resource, ResourceType } from './types';
 import { ResourcesContent } from './components/ResourcesContent';
@@ -25,6 +26,7 @@ export default async function ResourcesPage() {
     initialResources = resources.length > 0 ? resources : undefined;
     initialResourceTypes = resourceTypes.length > 0 ? resourceTypes : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/resources');
     console.error('Failed to load resources:', error);
   }
 

@@ -80,7 +80,7 @@ export function useProjectDetail(projectId: string) {
   const loadEnvironmentSyncSuggestions = usePersistFn(async () => {
     try {
       setEnvironmentSyncSuggestions(
-        await apiRequest<EnvironmentSyncSuggestions>('/project-environments/sync-suggestions', {
+        await apiRequest<EnvironmentSyncSuggestions>('GET:/project-environments/sync-suggestions', {
           projectId,
         }),
       );

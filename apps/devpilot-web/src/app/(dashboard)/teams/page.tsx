@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { Team } from '@/types/api-registry';
 import { TeamsContent } from './components/TeamsContent';
@@ -21,6 +22,7 @@ export default async function TeamsPage() {
     const data = await serverRequest<Team[]>('GET:/teams');
     initialTeams = data.length > 0 ? data : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/teams');
     console.error('Failed to load teams:', error);
   }
 

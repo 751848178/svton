@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { EmptyState, Tag } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import {
   getProjectDescription,
@@ -31,6 +32,7 @@ export default async function ProjectsPage() {
   try {
     projects = await serverRequest<Project[]>('GET:/projects');
   } catch (error) {
+    redirectOnUnauthorized(error, '/projects');
     console.error('Failed to load projects:', error);
   }
 

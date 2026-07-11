@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { ResourcePool } from './types';
 import { ResourcePoolsContent } from './components/ResourcePoolsContent';
@@ -21,6 +22,7 @@ export default async function ResourcePoolsPage() {
     const data = await serverRequest<ResourcePool[]>('GET:/resource-pools');
     initialPools = data.length > 0 ? data : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/admin/resource-pools');
     console.error('Failed to load resource pools:', error);
   }
 

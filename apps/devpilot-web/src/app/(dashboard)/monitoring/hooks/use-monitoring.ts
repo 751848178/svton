@@ -90,8 +90,8 @@ export function useMonitoring(options: UseMonitoringOptions = {}) {
       ] = await Promise.all([
         apiRequest<AlertRule[]>('GET:/monitoring/alert-rules'),
         apiRequest<AlertEvent[]>('GET:/monitoring/alert-events'),
-        apiRequest<AlertSilence[]>('GET:/monitoring/alert-silences'),
-        apiRequest<AlertNotificationChannel[]>('GET:/monitoring/alert-notification-channels'),
+        apiRequest<AlertSilence[]>('GET:/monitoring/silences'),
+        apiRequest<AlertNotificationChannel[]>('GET:/monitoring/notification-channels'),
         apiRequest<Project[]>('GET:/projects'),
         apiRequest<ApplicationItem[]>('GET:/applications'),
         apiRequest<Server[]>('GET:/servers'),

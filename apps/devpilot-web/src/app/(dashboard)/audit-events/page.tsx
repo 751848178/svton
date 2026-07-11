@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { AuditEvent } from './types';
 import { AuditEventsContent } from './components/AuditEventsContent';
@@ -21,6 +22,7 @@ export default async function AuditEventsPage() {
     const data = await serverRequest<AuditEvent[]>('GET:/audit-events');
     initialEvents = data.length > 0 ? data : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/audit-events');
     console.error('Failed to load audit events:', error);
   }
 

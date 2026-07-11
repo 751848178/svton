@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { SecretKey } from './types';
 import { KeysContent } from './components/KeysContent';
@@ -21,6 +22,7 @@ export default async function KeyCenterPage() {
     const data = await serverRequest<SecretKey[]>('GET:/keys');
     initialKeys = data.length > 0 ? data : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/keys');
     console.error('Failed to load keys:', error);
   }
 

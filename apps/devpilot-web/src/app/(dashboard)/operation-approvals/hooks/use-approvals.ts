@@ -58,7 +58,7 @@ export function useApprovals(initialApprovals?: OperationApproval[]) {
     setActingId(`${approval.id}:${decision}`);
     setError('');
     try {
-      await apiRequest(`/operation-approvals/${approval.id}/review`, {
+      await apiRequest(`POST:/operation-approvals/${approval.id}/review`, {
         decision,
         reviewComment: decision === 'approved' ? '同意执行' : '拒绝执行',
       });

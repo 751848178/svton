@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { CDNConfig, TeamCredential } from './types';
 import { CdnConfigsContent } from './components/CdnConfigsContent';
@@ -26,6 +27,7 @@ export default async function CDNConfigsPage() {
     initialConfigs = configs.length > 0 ? configs : undefined;
     initialCredentials = credentials.length > 0 ? credentials : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/cdn-configs');
     console.error('Failed to load CDN configs:', error);
   }
 

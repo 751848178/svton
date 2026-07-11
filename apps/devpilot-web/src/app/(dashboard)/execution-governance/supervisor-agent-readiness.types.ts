@@ -95,6 +95,8 @@ export interface SupervisorAgentTaskPullReadiness {
       taskPullEnabled?: boolean;
       claimSupported: boolean;
       ackSupported: boolean;
+      ackCancellationHintSupported?: boolean;
+      ackProgressWritebackSupported?: boolean;
       lifecycleExecutionSupported?: boolean;
       reason: string;
     };

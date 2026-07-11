@@ -18,7 +18,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isAuthenticated) router.push('/projects');
+    if (isAuthenticated) router.push('/teams');
   }, [isAuthenticated, router]);
 
   const handleSubmit = usePersistFn(async (e: React.FormEvent) => {
@@ -34,7 +34,7 @@ export default function RegisterPage() {
     }
     try {
       await register({ email, password, name: name || undefined });
-      router.push('/projects');
+      router.push('/teams');
     } catch (err) {
       setError(err instanceof Error ? err.message : '注册失败');
     }

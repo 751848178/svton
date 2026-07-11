@@ -32,7 +32,7 @@ function executeResourceAction(approval: OperationApproval): Promise<void> {
   if (!approval.managedResourceId || !approval.managedResource?.name) {
     throw new Error('审批单缺少资源目标');
   }
-  return apiRequest(`/resource-control/resources/${approval.managedResourceId}/actions`, {
+  return apiRequest(`POST:/resource-control/resources/${approval.managedResourceId}/actions`, {
     action: stripPrefix(approval.action, RESOURCE_PREFIX),
     dryRun: false,
     queue: readMetadataBoolean(approval.metadata, 'queue'),
@@ -51,7 +51,7 @@ function executeServiceOperation(approval: OperationApproval): Promise<void> {
     throw new Error('审批单缺少服务目标');
   }
   return apiRequest(
-    `/applications/${approval.applicationId}/services/${approval.applicationServiceId}/operations`,
+    `POST:/applications/${approval.applicationId}/services/${approval.applicationServiceId}/operations`,
     {
       action: stripPrefix(approval.action, SERVICE_PREFIX),
       dryRun: false,
@@ -77,9 +77,9 @@ function executeSiteSync(approval: OperationApproval): Promise<void> {
   if (approval.action === 'site.rollback') {
     const sourceRunId = readMetadataString(approval.metadata, 'sourceRunId');
     if (!sourceRunId) throw new Error('审批单缺少回滚源运行记录');
-    return apiRequest(`/sites/${siteId}/sync-runs/${sourceRunId}/rollback`, common);
+    return apiRequest(`POST:/sites/${siteId}/sync-runs/${sourceRunId}/rollback`, common);
   }
-  return apiRequest(`/sites/${siteId}/sync-plan`, common);
+  return apiRequest(`POST:/sites/${siteId}/sync-plan`, common);
 }
 
 function executeDeployment(approval: OperationApproval): Promise<void> {
@@ -96,9 +96,9 @@ function executeDeployment(approval: OperationApproval): Promise<void> {
   if (approval.action === 'deployment.rollback') {
     const sourceRunId = readMetadataString(approval.metadata, 'sourceRunId');
     if (!sourceRunId) throw new Error('审批单缺少回滚源运行记录');
-    return apiRequest(`/deployments/runs/${sourceRunId}/rollback`, common);
+    return apiRequest(`POST:/deployments/runs/${sourceRunId}/rollback`, common);
   }
-  return apiRequest(`/deployments/projects/${approval.projectId}/runs`, {
+  return apiRequest(`POST:/deployments/projects/${approval.projectId}/runs`, {
     ...common,
     environmentId: approval.environmentId || readMetadataString(approval.metadata, 'environmentId'),
     applicationId: approval.applicationId || readMetadataString(approval.metadata, 'applicationId'),

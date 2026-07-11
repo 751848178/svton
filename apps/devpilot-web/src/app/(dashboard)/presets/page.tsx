@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { Preset } from './types';
 import { PresetsContent } from './components/PresetsContent';
@@ -18,6 +19,7 @@ export default async function PresetsPage() {
     const data = await serverRequest<Preset[]>('GET:/presets');
     initialPresets = data.length > 0 ? data : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/presets');
     console.error('Failed to load presets:', error);
   }
 

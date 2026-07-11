@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { ResourceInstance } from './types';
 import { ResourceInstancesContent } from './components/ResourceInstancesContent';
@@ -21,6 +22,7 @@ export default async function ResourceInstancesPage() {
     const data = await serverRequest<ResourceInstance[]>('GET:/resource-instances');
     initialInstances = data.length > 0 ? data : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/resource-instances');
     console.error('Failed to load resource instances:', error);
   }
 

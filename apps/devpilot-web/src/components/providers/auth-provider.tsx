@@ -3,6 +3,12 @@
 import { useEffect } from 'react';
 import { ServiceProviders } from './service-providers';
 import { AuthServiceProvider } from '@/store/services';
+import { readPersistedAuth } from '@/lib/auth/token-storage';
+import { buildLoginRedirectPath } from '@/lib/auth/redirect-path.utils';
+
+function isAuthPage(pathname: string): boolean {
+  return pathname === '/login' || pathname === '/register';
+}
 
 /**
  * 内部：在 AuthServiceProvider 内部消费 auth service，挂载时恢复登录态。
@@ -11,10 +17,20 @@ import { AuthServiceProvider } from '@/store/services';
 function AuthHydrator() {
   const auth = AuthServiceProvider.useService();
   const hydrate = auth.useAction.hydrate();
+  const checkAuth = auth.useAction.checkAuth();
 
   useEffect(() => {
     hydrate();
-  }, [hydrate]);
+    if (!readPersistedAuth().token || isAuthPage(window.location.pathname)) return;
+    void checkAuth().then((ok) => {
+      if (!ok) {
+        window.location.href = buildLoginRedirectPath(
+          window.location.pathname,
+          window.location.search,
+        );
+      }
+    });
+  }, [checkAuth, hydrate]);
 
   return null;
 }

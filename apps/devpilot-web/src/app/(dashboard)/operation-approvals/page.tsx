@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { OperationApproval } from './types';
 import { ApprovalsContent } from './components/ApprovalsContent';
@@ -20,6 +21,7 @@ export default async function OperationApprovalsPage() {
     });
     initialApprovals = data.length > 0 ? data : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/operation-approvals');
     console.error('Failed to load operation approvals:', error);
   }
 

@@ -14,6 +14,7 @@ import {
   type RequestInterceptor,
 } from '@svton/api-client';
 import { readPersistedAuth, readTeamId, clearPersistedAuth } from '@/lib/auth/token-storage';
+import { buildLoginRedirectPath } from '@/lib/auth/redirect-path.utils';
 
 /** 路径以这些结尾时，401 属于业务错误（登录/注册），不触发会话清理。 */
 const AUTH_FLOW_SUFFIXES = ['/auth/login', '/auth/register', '/auth/refresh'];
@@ -57,11 +58,8 @@ export const sessionExpiredInterceptor: ErrorInterceptor = (error) => {
   const requestUrl = (error.details as { url?: string } | undefined)?.url;
   if (isAuthFlow(requestUrl)) return;
 
-  // 仅在确实持有 token 时才视为会话失效（避免匿名请求的 401 触发跳转）
-  if (!readPersistedAuth().token) return;
-
   clearPersistedAuth();
-  window.location.href = '/login';
+  window.location.href = buildLoginRedirectPath(window.location.pathname, window.location.search);
 };
 
 /** 组装全量拦截器，供 createApiClient 使用。 */

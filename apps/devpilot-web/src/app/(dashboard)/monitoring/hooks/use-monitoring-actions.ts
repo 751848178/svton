@@ -78,7 +78,7 @@ export function useMonitoringActions(args: UseMonitoringActionsArgs) {
     setActingId(`silence:${silence.id}`);
     setError('');
     try {
-      await apiRequest(`PATCH:/monitoring/alert-silences/${silence.id}`, { status });
+      await apiRequest(`PUT:/monitoring/silences/${silence.id}`, { status });
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : '更新静默状态失败');
@@ -92,7 +92,7 @@ export function useMonitoringActions(args: UseMonitoringActionsArgs) {
       setActingId(`channel:${channel.id}`);
       setError('');
       try {
-        await apiRequest(`PATCH:/monitoring/alert-notification-channels/${channel.id}`, { status });
+        await apiRequest(`PUT:/monitoring/notification-channels/${channel.id}`, { status });
         await loadData();
       } catch (err) {
         setError(err instanceof Error ? err.message : '更新通道状态失败');
@@ -132,7 +132,7 @@ export function useMonitoringActions(args: UseMonitoringActionsArgs) {
     setCreatingSilence(true);
     setError('');
     try {
-      await apiRequest('POST:/monitoring/alert-silences', body);
+      await apiRequest('POST:/monitoring/silences', body);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建静默失败');
@@ -145,7 +145,7 @@ export function useMonitoringActions(args: UseMonitoringActionsArgs) {
     setCreatingChannel(true);
     setError('');
     try {
-      await apiRequest('POST:/monitoring/alert-notification-channels', body);
+      await apiRequest('POST:/monitoring/notification-channels', body);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建通道失败');

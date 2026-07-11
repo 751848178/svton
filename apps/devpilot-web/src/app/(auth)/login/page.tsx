@@ -7,6 +7,7 @@ import { usePersistFn } from '@svton/hooks';
 import { Card } from '@svton/ui';
 import { ErrorBanner } from '@/components/ui';
 import { useAuthStore } from '@/store/hooks';
+import { toSafeRedirectPath } from '@/lib/auth/redirect-path.utils';
 
 // React 19 类型下 Suspense 跨包 JSX 校验差异（TS2786），用类型断言归一化（与 components/ui/modal.tsx 同范式）。
 const Suspense = ReactSuspense as unknown as (props: {
@@ -21,7 +22,7 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const redirect = searchParams.get('redirect') || '/projects';
+  const redirect = toSafeRedirectPath(searchParams.get('redirect'));
 
   useEffect(() => {
     if (isAuthenticated) router.push(redirect);

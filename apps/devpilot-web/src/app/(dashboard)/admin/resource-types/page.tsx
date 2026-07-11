@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { ResourceType } from './types';
 import { ResourceTypesContent } from './components/ResourceTypesContent';
@@ -21,6 +22,7 @@ export default async function ResourceTypesPage() {
     const data = await serverRequest<ResourceType[]>('GET:/resource-types?includeDisabled=true');
     initialResourceTypes = data.length > 0 ? data : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/admin/resource-types');
     console.error('Failed to load resource types:', error);
   }
 

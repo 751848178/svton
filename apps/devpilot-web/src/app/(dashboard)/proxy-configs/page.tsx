@@ -1,4 +1,5 @@
 import { serverRequest } from '@/lib/api-client/server';
+import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { ProxyConfig } from './types';
 import { ProxyConfigsContent } from './components/ProxyConfigsContent';
@@ -21,6 +22,7 @@ export default async function ProxyConfigsPage() {
     const data = await serverRequest<ProxyConfig[]>('GET:/proxy-configs');
     initialConfigs = data.length > 0 ? data : undefined;
   } catch (error) {
+    redirectOnUnauthorized(error, '/proxy-configs');
     console.error('Failed to load proxy configs:', error);
   }
 

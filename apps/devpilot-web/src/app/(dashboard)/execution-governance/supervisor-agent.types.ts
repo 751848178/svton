@@ -111,6 +111,7 @@ export interface SupervisorAgentFleetItem extends SupervisorAgentServerSample {
     cancelled: number;
     pressure: number;
     nextQueuedJob?: SupervisorAgentFleetJobSample | null;
+    runningProgress?: SupervisorAgentFleetJobSample | null;
     blockedSample?: SupervisorAgentFleetBlockedJobSample | null;
   };
 }
@@ -118,6 +119,16 @@ export interface SupervisorAgentFleetItem extends SupervisorAgentServerSample {
 export interface SupervisorAgentFleetJobSample extends SupervisorQueuedJobSample {
   status: string;
   finishedAt?: string | null;
+  taskPullProgress?: SupervisorAgentTaskPullProgress | null;
+}
+
+export interface SupervisorAgentTaskPullProgress {
+  updatedAt: string;
+  agentId: string;
+  runnerId?: string;
+  stepKey?: string;
+  message?: string;
+  percent?: number;
 }
 
 export interface SupervisorAgentFleetBlockedJobSample extends SupervisorAgentFleetJobSample {

@@ -61,7 +61,7 @@ export function useBackups() {
     setRunningPlanId(plan.id);
     setError('');
     try {
-      await apiRequest(`/backups/plans/${plan.id}/runs`, {
+      await apiRequest(`POST:/backups/plans/${plan.id}/runs`, {
         dryRun: true,
         queue: queueBackupRuns && canQueue(plan),
         trigger: 'manual',

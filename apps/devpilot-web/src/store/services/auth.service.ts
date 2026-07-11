@@ -18,6 +18,12 @@ import {
   clearPersistedAuth,
   bootstrapCookieFromStorage,
 } from '@/lib/auth/token-storage';
+import { buildLoginRedirectPath } from '@/lib/auth/redirect-path.utils';
+
+function redirectToLogin(): void {
+  if (typeof window === 'undefined') return;
+  window.location.href = buildLoginRedirectPath(window.location.pathname, window.location.search);
+}
 
 @Service()
 export class AuthService {
@@ -76,6 +82,7 @@ export class AuthService {
       return true;
     } catch {
       this.reset();
+      redirectToLogin();
       return false;
     }
   }
