@@ -62,4 +62,6 @@ routing: todo-plan + noisy-tools + product-flow audit. The task crosses auth, se
   - done: browser E2E script path `scripts/devpilot-ui-e2e.mjs`
   - done: isolated browser E2E log `/tmp/codex-tool-runs/svton/s010-ui-e2e-20260713-001121.log`
   - done: browser E2E summary/screenshots `/tmp/codex-tool-runs/svton/s010-ui-e2e-20260713-001121`
-  - blocked: live fake-target deploy -> completed -> rollback was not run because ports `3100`/`3101` are occupied by `twgg` containers, not Devpilot API/Web; probe log `/tmp/codex-tool-runs/svton/s010-live-target-probe.log`
+  - done: live fake-target deploy -> task-pull completed -> rollback completed on ports `3211`/`3210`; final evidence `/tmp/codex-tool-runs/svton/live-deploy-rollback-20260713-001800/final-live-summary.json`
+  - done: product screenshots for `/execution-governance`, `/logs`, and `/monitoring` captured under `/tmp/codex-tool-runs/svton/live-deploy-rollback-20260713-001800/screenshots`
+  - fixed: CLI task-pull now unwraps Devpilot API response envelopes and skips optional empty command steps before executing terminal lifecycle jobs

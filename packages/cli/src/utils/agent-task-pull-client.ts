@@ -90,10 +90,23 @@ export class HttpAgentTaskPullClient implements AgentTaskPullHttpClient {
           : response.statusText;
       throw new Error(`Devpilot task-pull request failed: ${message}`);
     }
-    return payload as T;
+    return unwrapDevpilotResponse(payload) as T;
   }
 
   private url(pathname: string) {
     return `${this.config.apiUrl.replace(/\/+$/, "")}${pathname}`;
   }
+}
+
+function unwrapDevpilotResponse(payload: unknown) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (!("code" in payload) || !("data" in payload)) {
+    return payload;
+  }
+
+  const wrapped = payload as { data: unknown };
+  return wrapped.data;
 }

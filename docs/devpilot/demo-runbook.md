@@ -92,7 +92,7 @@ If the user already exists, log in:
 TOKEN=$(curl -sS http://localhost:3101/api/auth/login \
   -H 'content-type: application/json' \
   -d '{"email":"devpilot-demo@example.test","password":"DemoPass123"}' \
-  | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>console.log(JSON.parse(s).accessToken))')
+  | node -e 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>{const r=JSON.parse(s); console.log((r.data||r).accessToken)})')
 ```
 
 Create a team if needed and keep the returned `id` as `TEAM_ID`:
@@ -146,21 +146,25 @@ The dry-run checkpoint is the job row plus a deployment run whose status is not
 Run a bounded local agent loop:
 
 ```bash
-corepack pnpm --filter @svton/cli svton agent task-pull run \
+corepack pnpm --filter @svton/cli exec svton agent task-pull run \
   --api-url http://localhost:3101/api \
-  --team-id "$TEAM_ID" \
-  --server-id "$SERVER_ID" \
-  --task-pull-token devpilot-demo-task-token \
+  --team "$TEAM_ID" \
+  --server "$SERVER_ID" \
+  --agent devpilot-demo-agent \
+  --runner devpilot-demo-runner \
+  --token devpilot-demo-task-token \
   --heartbeat-token devpilot-demo-heartbeat-token \
   --max-iterations 3 \
   --ack-renewal-interval-ms 30000 \
-  --force-kill-grace-ms 5000 \
-  --execute
+  --force-kill-grace-ms 5000
 ```
 
 The checkpoint is a CLI summary containing a claimed task and a terminal
 `completed` finish result. Afterward, `/execution-governance` should show task
 pull readiness and a completed job state.
+
+If command steps use an absolute disposable worktree under `/tmp`, pass
+`--cwd /tmp` so the local agent allows only that bounded execution base.
 
 ## Logs And Monitoring
 

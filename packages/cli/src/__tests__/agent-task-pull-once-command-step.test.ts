@@ -144,4 +144,42 @@ describe("agent task-pull once command steps", () => {
     });
     expect(client.calls).toEqual(["contract", "claim", "ack", "finish:failed"]);
   });
+
+  it("skips optional empty command steps", async () => {
+    const client = createCommandStepClient();
+    const executor = jest.fn();
+    let finishPayload: AgentTaskPullFinishPayload | undefined;
+    client.claim = async () => ({
+      claimed: true,
+      task: {
+        available: true,
+        jobId: "job-1",
+        operationKey: "deployment.run",
+        commandSteps: [{ key: "build", command: "", required: false }],
+      },
+    });
+    client.finish = async (_identity, _jobId, payload) => {
+      finishPayload = payload;
+      return { accepted: true, finished: true };
+    };
+
+    const summary = await runAgentTaskPullOnce(baseCommandStepConfig(true), {
+      client,
+      executor,
+    });
+
+    expect(summary).toEqual({
+      mode: "executed",
+      jobId: "job-1",
+      status: "completed",
+      stepCount: 1,
+    });
+    expect(executor).not.toHaveBeenCalled();
+    expect(finishPayload).toMatchObject({
+      status: "completed",
+      result: {
+        steps: [expect.objectContaining({ key: "build", dryRunSkipped: true })],
+      },
+    });
+  });
 });

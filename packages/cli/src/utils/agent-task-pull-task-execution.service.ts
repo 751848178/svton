@@ -53,6 +53,19 @@ export async function executeAgentTaskPullTask(
     if (deps.signal?.aborted) {
       return buildAgentTaskPullExecutionResult("cancelled", results, "signal");
     }
+    if (!step.command.trim() && step.required === false) {
+      results.push({
+        key: step.key,
+        command: step.command,
+        exitCode: 0,
+        durationMs: 0,
+        stdout: "",
+        stderr: "",
+        timedOut: false,
+        dryRunSkipped: true,
+      });
+      continue;
+    }
     const stepProgress = {
       stepKey: step.key,
       message: `Running ${step.label || step.key}`,
