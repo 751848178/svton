@@ -17,10 +17,29 @@ export type AgentTaskPullLoopSummary = {
   idle: number;
   heartbeats: number;
   runnerId?: string;
+  runtimeProfile?: AgentTaskPullRunRuntimeProfile;
   stoppedReason: AgentTaskPullLoopStoppedReason;
   startupError?: string;
   heartbeatError?: string;
   pollError?: string;
   finishWritebackError?: string;
   runs: AgentTaskPullRunSummary[];
+};
+
+export type AgentTaskPullRunRuntimeProfile = {
+  processId: number;
+  runnerId?: string;
+  pidFileConfigured: boolean;
+  pidFile?: string;
+  heartbeatConfigured: boolean;
+  heartbeatStatus?: string;
+  heartbeatTtlSeconds?: number;
+  loop: {
+    intervalMs: number;
+    forever: boolean;
+    maxIterations?: number;
+    idleLimit?: number;
+  };
+  ackRenewalIntervalMs?: number;
+  forceKillGraceMs?: number;
 };

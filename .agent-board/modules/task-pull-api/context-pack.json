@@ -1,0 +1,34 @@
+{
+  "module": "task-pull-api",
+  "allowed_scope": [
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack-result.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish-result.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish-sync.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish-sync-result.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-task-payload.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-claimed-payload-details.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-agent-task-pull-builder.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-agent-task-pull-gates.utils.ts",
+    "focused specs for the files above"
+  ],
+  "read_only_scope": [
+    "apps/devpilot-api/src/server-executor/server-agent.controller.ts",
+    "apps/devpilot-api/src/server-executor/dto/server-execution-lease.dto.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-query.service.ts",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "forbidden_scope": [
+    "Do not edit Prisma schema or migrations.",
+    "Do not change endpoint paths or auth token fallback behavior.",
+    "Do not alter CLI files from this module owner context.",
+    "Do not change unrelated server-executor queue, lease, or adapter behavior."
+  ],
+  "known_evidence": [
+    "Current sampled line counts: ack service 141, finish service 130, finish sync service 142, task payload utils 70, supervisor builder utils 93.",
+    "Current P8 docs describe remaining gaps: real long connection, complete multi-instance coordination, broader e2e permission coverage, and deeper remote-orphan governance."
+  ],
+  "needs_context_rule": "Return needs_context if a required contract lives outside allowed or read-only scope."
+}

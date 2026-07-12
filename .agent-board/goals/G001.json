@@ -1,0 +1,81 @@
+{
+  "id": "G001",
+  "title": "Devpilot P8 server-agent task-pull hardening",
+  "status": "active",
+  "source_evidence": [
+    "git status --short",
+    "docs-internal/devpilot/progress/INDEX.md",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/INDEX.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
+    "sampled source line counts for current dirty task-pull files"
+  ],
+  "architecture_brief": {
+    "id": "ARCH-BRIEF-001",
+    "module_boundaries": [
+      {
+        "module": "task-pull-api",
+        "owns": [
+          "server-agent task-pull auth-gated lifecycle endpoints",
+          "claim/ack/finish result metadata",
+          "finish sync into linked business runs",
+          "supervisor task-pull capability/gate visibility"
+        ],
+        "does_not_own": [
+          "local command execution",
+          "CLI daemon process ownership",
+          "frontend rendering",
+          "Prisma schema changes without separate approval"
+        ]
+      },
+      {
+        "module": "task-pull-cli",
+        "owns": [
+          "agent task-pull once/run config parsing",
+          "contract/claim/ack/execute/finish orchestration",
+          "local command execution and cancellation behavior",
+          "CLI summaries and process exit signaling"
+        ],
+        "does_not_own": [
+          "server endpoint schemas",
+          "server-side job mutation rules",
+          "database migrations",
+          "web UI"
+        ]
+      },
+      {
+        "module": "task-pull-docs-verification",
+        "owns": [
+          "TODO/progress evidence sync",
+          "isolated verification log summaries",
+          "line-count and hygiene evidence"
+        ],
+        "does_not_own": [
+          "runtime behavior changes",
+          "source refactors outside documented evidence needs"
+        ]
+      }
+    ],
+    "dependency_rules": [
+      "CLI consumes task-pull contract; API does not depend on CLI internals.",
+      "API lifecycle endpoints preserve auth/default-off gates before job mutation.",
+      "Finish sync depends on terminal job outcome metadata, not on local CLI process details.",
+      "Docs and verification record evidence after behavior is implemented and checked."
+    ],
+    "migration_order": [
+      "confirm boundary and data flow",
+      "stabilize API lifecycle/result helper boundaries",
+      "stabilize CLI config/runtime/result boundaries",
+      "sync progress/TODO evidence",
+      "run focused verification",
+      "review shared contracts",
+      "integrate or create follow-up todos"
+    ],
+    "risks": [
+      "API and CLI can drift on finish/ack/result metadata shape.",
+      "Default-off server-agent task-pull gates must not be accidentally widened.",
+      "Line-count cleanup can hide behavior changes if refactors are too broad.",
+      "Docs can claim readiness before real long-connection or multi-instance gaps are closed."
+    ]
+  }
+}

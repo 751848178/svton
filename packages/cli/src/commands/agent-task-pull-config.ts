@@ -1,6 +1,9 @@
-import { hostname } from "node:os";
 import type { AgentTaskPullLoopConfig } from "../utils/agent-task-pull-loop-runner";
 import type { AgentTaskPullConfig } from "../utils/agent-task-pull-types";
+import {
+  buildAgentTaskPullHeartbeatConfig,
+  buildDefaultAgentTaskPullLoopRunnerId,
+} from "./agent-task-pull-heartbeat-config.service";
 import {
   readCapabilities,
   readInteger,
@@ -102,7 +105,7 @@ export function buildAgentTaskPullLoopConfig(
   };
   const loopConfig = {
     ...config,
-    runnerId: config.runnerId || buildDefaultLoopRunnerId(env),
+    runnerId: config.runnerId || buildDefaultAgentTaskPullLoopRunnerId(env),
   };
   if (!options.forever && !config.maxIterations && !config.idleLimit) {
     throw new Error(
@@ -111,78 +114,11 @@ export function buildAgentTaskPullLoopConfig(
   }
   return {
     ...loopConfig,
-    heartbeat: buildHeartbeatConfig(options, env, loopConfig),
+    heartbeat: buildAgentTaskPullHeartbeatConfig(options, env, loopConfig),
   };
 }
 
 export function collect(value: string, previous: string[]) {
   previous.push(value);
   return previous;
-}
-
-function buildHeartbeatConfig(
-  options: AgentTaskPullRunOptions,
-  env: NodeJS.ProcessEnv,
-  config: AgentTaskPullConfig,
-) {
-  const token = readOptional(
-    options.heartbeatToken,
-    env.DEVPILOT_AGENT_HEARTBEAT_TOKEN,
-  );
-  if (!token) return undefined;
-  return {
-    apiUrl: config.apiUrl,
-    token,
-    teamId: config.teamId,
-    serverId: config.serverId,
-    agentId: config.agentId,
-    runnerId: config.runnerId,
-    capabilities: config.capabilities,
-    status: readHeartbeatStatus(
-      readOptional(
-        options.heartbeatStatus,
-        env.DEVPILOT_AGENT_HEARTBEAT_STATUS,
-      ),
-    ),
-    hostname: readOptional(
-      options.heartbeatHostname,
-      env.DEVPILOT_AGENT_HEARTBEAT_HOSTNAME,
-    ),
-    version: readOptional(
-      options.heartbeatVersion,
-      env.DEVPILOT_AGENT_HEARTBEAT_VERSION,
-    ),
-    ttlSeconds: readHeartbeatTtlSeconds(
-      readOptional(
-        options.heartbeatTtlSeconds,
-        env.DEVPILOT_AGENT_HEARTBEAT_TTL_SECONDS,
-      ),
-    ),
-  };
-}
-
-function readHeartbeatStatus(value: string | undefined) {
-  if (!value) return undefined;
-  if (
-    !["online", "ready", "healthy", "connected", "degraded"].includes(value)
-  ) {
-    throw new Error("Invalid task-pull option: heartbeatStatus");
-  }
-  return value;
-}
-
-function readHeartbeatTtlSeconds(value: string | undefined) {
-  const ttlSeconds = readOptionalInteger("heartbeatTtlSeconds", value);
-  if (ttlSeconds !== undefined && (ttlSeconds < 30 || ttlSeconds > 3600)) {
-    throw new Error("Invalid task-pull option: heartbeatTtlSeconds");
-  }
-  return ttlSeconds;
-}
-
-function buildDefaultLoopRunnerId(env: NodeJS.ProcessEnv) {
-  const host =
-    readOptional(env.DEVPILOT_AGENT_HEARTBEAT_HOSTNAME, env.HOSTNAME) ||
-    hostname();
-  const safeHost = host.replace(/[^a-zA-Z0-9_.-]+/g, "-").slice(0, 48);
-  return `cli-${safeHost || "local"}-${process.pid}`;
 }

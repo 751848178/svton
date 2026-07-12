@@ -1,0 +1,25 @@
+{
+  "slice_id": "S005",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S005 terminal runtime proof passed: the CLI once runner executed a real local command from a claimed task, emitted step/final ack progress, and wrote a finish payload; focused CLI/API task-pull verification, CLI type-check, and CLI build passed.",
+  "relevant_errors": [
+    {
+      "log": "/tmp/codex-tool-runs/svton/s005-api-focused-jest-20260712-214329.log",
+      "classification": "command_selector_error",
+      "summary": "Initial API Jest command used --testMatch in a package that already configures testRegex; rerun with API package-relative spec paths passed."
+    }
+  ],
+  "full_log": {
+    "cli_runtime_proof_jest": "/tmp/codex-tool-runs/svton/s005-cli-runtime-proof-jest-20260712-214259.log",
+    "cli_focused_jest": "/tmp/codex-tool-runs/svton/s005-cli-focused-jest-20260712-214329.log",
+    "api_focused_jest_initial_selector_error": "/tmp/codex-tool-runs/svton/s005-api-focused-jest-20260712-214329.log",
+    "api_focused_jest": "/tmp/codex-tool-runs/svton/s005-api-focused-jest-rerun-20260712-214345.log",
+    "cli_type_check": "/tmp/codex-tool-runs/svton/s005-cli-type-check-20260712-214359.log",
+    "cli_build": "/tmp/codex-tool-runs/svton/s005-cli-build-20260712-214359.log",
+    "json": "/tmp/codex-tool-runs/svton/s005-final-json-check-20260712-214650.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s005-final-events-jsonl-check-20260712-214650.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s005-final-prettier-check-rerun-20260712-214721.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s005-final-diff-check-rerun-20260712-214721.log"
+  }
+}

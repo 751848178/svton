@@ -1,0 +1,17 @@
+{
+  "todo_id": "API-001-EXEC-001",
+  "status": "done",
+  "changed_files": [
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.spec.ts"
+  ],
+  "summary": "Added focused ack and finish tests proving disabled task-pull and invalid task-pull tokens reject before any job mutation or linked-run sync.",
+  "verification": {
+    "status": "passed",
+    "log": ".agent-board/verification/API-001-EXEC-001-verification.json"
+  },
+  "risks": [],
+  "needs_followup": [
+    "REV-001 should still review API/CLI finish and ack metadata drift plus default-off gate preservation across the full diff."
+  ]
+}

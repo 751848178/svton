@@ -1,0 +1,31 @@
+{
+  "todo_id": "CLI-001-E001",
+  "status": "done",
+  "changed_files": [
+    "packages/cli/src/commands/agent-task-pull-config.ts",
+    "packages/cli/src/commands/agent-task-pull-heartbeat-config.service.ts",
+    "packages/cli/src/utils/agent-task-pull-dry-run.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-executor.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-summary.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-result.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-task-execution.service.ts",
+    "packages/cli/src/utils/agent-task-pull-types.ts",
+    "packages/cli/src/__tests__/agent-task-pull-config.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-executor.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-executor-cwd.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-loop.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-loop-config.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-loop-failure.test.ts"
+  ],
+  "summary": "Verified the current CLI task-pull helper/service split, focused test relocation, type-check, build, formatting, and line-count acceptance without adding extra CLI edits in this executor pass.",
+  "verification": {
+    "status": "passed",
+    "log": ".agent-board/verification/CLI-001-E001-verification.json"
+  },
+  "risks": [],
+  "needs_followup": [
+    "REV-001 should review coverage preservation and API/CLI ack/finish metadata compatibility across the combined diff."
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "slice_id": "S006",
+  "status": "not_deliverable_yet",
+  "summary": "Ran the S006 deliverability prerequisite, runtime, and permission gates. All executed checks passed, but final deliverability is not yet proven because source-backed implementable backlog remains. S007 and S008 were queued for the remaining work.",
+  "changed_files": [
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/events.jsonl",
+    ".agent-board/slices/S006.json",
+    ".agent-board/slices/S007.json",
+    ".agent-board/slices/S008.json",
+    ".agent-board/verification/S006-verification.json",
+    ".agent-board/reviews/S006-review.json",
+    ".agent-board/results/S006-result.json",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "verification": ".agent-board/verification/S006-verification.json",
+  "review": ".agent-board/reviews/S006-review.json",
+  "hygiene_logs": {
+    "json": "/tmp/codex-tool-runs/svton/s006-final-json-check-20260712-215947.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s006-final-events-jsonl-check-20260712-215948.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s006-final-prettier-check-rerun-20260712-220022.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s006-final-diff-check-rerun-20260712-220022.log"
+  },
+  "deliverable_judgment": "not_deliverable_yet",
+  "queued_followups": ["S007", "S008"],
+  "remaining_risks": [
+    "Multi-instance coordination is still an implementable repo-owned gap and must be closed or explicitly reclassified by evidence.",
+    "Production remote-orphan governance is still an implementable repo-owned gap and must be closed or explicitly reclassified by evidence.",
+    "Final deliverability requires a rerun of S006-style broad gates after S007/S008."
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "module": "task-pull-cli",
+  "allowed_scope": [
+    "packages/cli/src/commands/agent-task-pull-config.ts",
+    "packages/cli/src/commands/agent-task-pull-heartbeat-config.service.ts",
+    "packages/cli/src/utils/agent-task-pull-dry-run.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-executor.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-summary.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-result.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-task-execution.service.ts",
+    "packages/cli/src/utils/agent-task-pull-types.ts",
+    "focused CLI tests for the files above"
+  ],
+  "read_only_scope": [
+    "packages/cli/src/utils/agent-task-pull-client.ts",
+    "packages/cli/src/utils/agent-task-pull-finish.utils.ts",
+    "packages/cli/src/commands/agent-task-pull.ts",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "forbidden_scope": [
+    "Do not edit server API endpoint paths or DTO schemas.",
+    "Do not introduce daemonization, long connection, or multi-instance coordination in this slice.",
+    "Do not change unrelated CLI commands.",
+    "Do not widen filesystem execution behavior beyond existing cwd/config contracts."
+  ],
+  "known_evidence": [
+    "Current sampled line counts: config 124, runner 51, loop runner 141, executor 131, result utils 98, types 126.",
+    "Previous CLI lint attempts are known blocked by the existing packages/cli/.eslintrc.js missing @typescript-eslint/recommended reference."
+  ],
+  "needs_context_rule": "Return needs_context before reading or editing files outside this context pack."
+}

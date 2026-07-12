@@ -1,0 +1,43 @@
+{
+  "id": "S008",
+  "title": "Close production remote-orphan governance gap",
+  "status": "done",
+  "started_at": "2026-07-12T22:08:00+08:00",
+  "completed_at": "2026-07-12T22:12:00+08:00",
+  "mode": "write",
+  "depends_on": ["S007"],
+  "goal": "Use source-backed evidence to close the remaining production remote-orphan governance gap, or explicitly reclassify any part as an external blocker with proof.",
+  "allowed_files": [
+    ".agent-board/**",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-remote-orphan-summary.service.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-remote-orphan-summary.service.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-remote-orphan-blockers.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-stale-remote-cleanup.service.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-stale-running-recovery.service.ts",
+    "apps/devpilot-api/src/server-executor/server-executor.service.spec.ts",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "forbidden_scope": [
+    "No provider adapter behavior changes unless a focused remote-orphan test proves it is required.",
+    "No Web UI redesign.",
+    "No schema migration unless current code/tests prove the gap cannot be closed without it.",
+    "No unrelated stale recovery or queue-worker refactor."
+  ],
+  "acceptance": [
+    "A source graph identifies current remote-orphan summary/blocker/cleanup behavior and exact production governance gap.",
+    "The gap is closed with focused code/tests or explicitly reclassified as an external blocker with concrete evidence.",
+    "Focused stale remote cleanup/supervisor/server-executor tests pass.",
+    "API type-check/build and hygiene checks pass for touched files.",
+    "Docs and board sync are completed."
+  ],
+  "verification_commands": [
+    "Focused server-executor remote-orphan/stale-cleanup Jest.",
+    "API type-check and build if API source changes.",
+    "Prettier, JSON/event parsing, diff hygiene, and production line-count checks."
+  ],
+  "review_gate": "Production remote-orphan governance review: cleanup default-off safety, auditability, stale-session evidence, and operator-visible blockers.",
+  "verification": ".agent-board/verification/S008-verification.json",
+  "review": ".agent-board/reviews/S008-review.json",
+  "result": ".agent-board/results/S008-result.json"
+}

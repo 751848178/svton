@@ -1,8 +1,9 @@
 import type {
+  AgentTaskPullCommandStep,
   AgentTaskPullFinishStatus,
+  AgentTaskPullStepResult,
   AgentTaskPullTask,
 } from "./agent-task-pull-types";
-import type { AgentTaskPullStepResult } from "./agent-task-pull-executor";
 
 export function buildAgentTaskPullExecutionResult(
   status: AgentTaskPullFinishStatus,
@@ -46,4 +47,52 @@ export function buildAgentTaskPullCommandPlan(task: AgentTaskPullTask) {
 export function percent(index: number, total: number) {
   if (total <= 0) return 0;
   return Math.min(99, Math.round((index / total) * 100));
+}
+
+export function buildAgentTaskPullSpawnErrorResult(
+  step: AgentTaskPullCommandStep,
+  startedAt: number,
+  error: NodeJS.ErrnoException,
+): AgentTaskPullStepResult {
+  return {
+    key: step.key,
+    command: step.command,
+    exitCode: null,
+    durationMs: Date.now() - startedAt,
+    stdout: "",
+    stderr: `spawn_error${error.code ? `:${error.code}` : ""}: ${error.message}`,
+    timedOut: false,
+  };
+}
+
+export function buildAgentTaskPullInvalidCwdResult(
+  step: AgentTaskPullCommandStep,
+  startedAt: number,
+  cwd: { baseCwd: string; requestedCwd: string; reason: string },
+): AgentTaskPullStepResult {
+  return {
+    key: step.key,
+    command: step.command,
+    exitCode: 1,
+    durationMs: Date.now() - startedAt,
+    stdout: "",
+    stderr: `${cwd.reason}: requested ${cwd.requestedCwd} outside ${cwd.baseCwd}`,
+    timedOut: false,
+  };
+}
+
+export function buildAgentTaskPullCancelledResult(
+  step: AgentTaskPullCommandStep,
+  startedAt: number,
+): AgentTaskPullStepResult {
+  return {
+    key: step.key,
+    command: step.command,
+    exitCode: null,
+    durationMs: Date.now() - startedAt,
+    stdout: "",
+    stderr: "",
+    timedOut: false,
+    cancelled: true,
+  };
 }

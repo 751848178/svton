@@ -1,0 +1,30 @@
+{
+  "slice_id": "S002",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "Current S001 task-pull API/CLI/docs/.agent-board diff passed focused API task-pull Jest, API type-check/build, focused CLI task-pull Jest, CLI type-check/build, Prettier, diff check, conflict scan, S002-scoped trailing-whitespace scan, board JSON/JSONL checks, and production line-count checks.",
+  "relevant_errors": [],
+  "notes": [
+    "The first CLI Jest command failed because --testMatch was passed with repository-root-expanded paths while Jest ran with packages/cli as root; the corrected package-root pattern passed.",
+    "A broad trailing-whitespace scan found unrelated baseline whitespace in non-task-pull CLI files; the S002-scoped task-pull/docs/.agent-board scan passed.",
+    "The initial Prettier check found .agent-board/board.md formatting drift; it was formatted and the rerun passed."
+  ],
+  "full_log": {
+    "api_jest": "/tmp/codex-tool-runs/svton/s002-api-task-pull-jest-20260712-211222.log",
+    "api_type_check": "/tmp/codex-tool-runs/svton/s002-api-type-check-20260712-211222.log",
+    "api_build": "/tmp/codex-tool-runs/svton/s002-api-build-20260712-211222.log",
+    "cli_jest_initial_command_failure": "/tmp/codex-tool-runs/svton/s002-cli-task-pull-jest-20260712-211224.log",
+    "cli_jest_corrected": "/tmp/codex-tool-runs/svton/s002-cli-task-pull-jest-rerun2-20260712-211304.log",
+    "cli_type_check": "/tmp/codex-tool-runs/svton/s002-cli-type-check-20260712-211222.log",
+    "cli_build": "/tmp/codex-tool-runs/svton/s002-cli-build-20260712-211222.log",
+    "prettier_write": "/tmp/codex-tool-runs/svton/s002-board-md-prettier-write-20260712-211436.log",
+    "prettier_check": "/tmp/codex-tool-runs/svton/s002-prettier-check-rerun-20260712-211514.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s002-diff-check-rerun-20260712-211514.log",
+    "conflict_scan": "/tmp/codex-tool-runs/svton/s002-conflict-scan-normalized-20260712-211411.log",
+    "trailing_whitespace": "/tmp/codex-tool-runs/svton/s002-trailing-whitespace-scan-rerun-20260712-211514.log",
+    "board_json": "/tmp/codex-tool-runs/svton/s002-board-json-check-20260712-211325.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s002-events-jsonl-check-20260712-211436.log",
+    "line_count": "/tmp/codex-tool-runs/svton/s002-line-count-20260712-211411.log",
+    "diff_summary": "/tmp/codex-tool-runs/svton/svton/s002-start-diff-20260712-210618.diff"
+  }
+}

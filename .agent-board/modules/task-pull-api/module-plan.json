@@ -1,0 +1,12 @@
+{
+  "module": "task-pull-api",
+  "context_pack": ".agent-board/modules/task-pull-api/context-pack.json",
+  "contracts": [
+    "Task-pull endpoints remain default-off and token-gated.",
+    "Claim/ack/finish response shapes remain compatible with existing CLI consumers.",
+    "Finish only mutates matching running server_agent jobs for the same team/server/job/lock owner.",
+    "Finish sync updates linked business runs only after the terminal job write succeeds."
+  ],
+  "atomic_todos": ["API-001"],
+  "review_gate": "REV-001"
+}

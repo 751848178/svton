@@ -1,0 +1,12 @@
+{
+  "module": "task-pull-docs-verification",
+  "context_pack": ".agent-board/modules/task-pull-docs-verification/context-pack.json",
+  "contracts": [
+    "Docs reflect verified behavior, not planned behavior.",
+    "Noisy command output stays under /tmp/codex-tool-runs/svton/.",
+    "Known lint blockers are reported as blockers, not silently treated as pass.",
+    "Follow-up gaps are explicit todos, not hidden prose."
+  ],
+  "atomic_todos": ["DOC-001", "VER-001"],
+  "review_gate": "REV-001"
+}

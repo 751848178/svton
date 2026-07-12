@@ -45,6 +45,11 @@ describe("agent task-pull run command", () => {
     expect(setExitCode).toHaveBeenCalledWith(1);
     expect(logSummary).toHaveBeenCalledWith(
       expect.objectContaining({
+        runtimeProfile: expect.objectContaining({
+          heartbeatConfigured: false,
+          pidFileConfigured: false,
+          runnerId: expect.stringMatching(/^cli-.+-\d+$/),
+        }),
         stoppedReason: "finish_writeback_failed",
       }),
     );
@@ -86,6 +91,11 @@ describe("agent task-pull run command", () => {
     expect(setExitCode).not.toHaveBeenCalled();
     expect(logSummary).toHaveBeenCalledWith(
       expect.objectContaining({
+        runtimeProfile: expect.objectContaining({
+          loop: expect.objectContaining({ idleLimit: 1 }),
+          pidFileConfigured: false,
+          runnerId: "runner-1",
+        }),
         runnerId: "runner-1",
         stoppedReason: "idle_limit",
       }),
@@ -125,5 +135,64 @@ describe("agent task-pull run command", () => {
     );
 
     expect(setExitCode).toHaveBeenCalledWith(1);
+  });
+
+  it("logs runtime profile details for foreground agent operability", async () => {
+    const logSummary = jest.fn();
+
+    await runAgentTaskPullRunCommand(
+      {
+        apiUrl: "https://devpilot.example.test",
+        token: "token-1",
+        team: "team-1",
+        server: "server-1",
+        agent: "agent-1",
+        runner: "runner-1",
+        forever: true,
+        pidFile: "/tmp/devpilot-agent.pid",
+        heartbeatToken: "heartbeat-token",
+        heartbeatStatus: "ready",
+        heartbeatTtlSeconds: "120",
+        ackRenewalIntervalMs: "25000",
+        forceKillGraceMs: "3000",
+      },
+      {
+        createStopController: () => ({
+          signal: new AbortController().signal,
+          cleanup: jest.fn(),
+        }),
+        installPidFile: () => jest.fn(),
+        runLoop: async () => ({
+          mode: "loop",
+          iterations: 1,
+          executed: 0,
+          idle: 1,
+          heartbeats: 1,
+          stoppedReason: "signal",
+          runs: [],
+        }),
+        logSummary,
+      },
+    );
+
+    expect(logSummary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runtimeProfile: {
+          processId: process.pid,
+          runnerId: "runner-1",
+          pidFileConfigured: true,
+          pidFile: "/tmp/devpilot-agent.pid",
+          heartbeatConfigured: true,
+          heartbeatStatus: "ready",
+          heartbeatTtlSeconds: 120,
+          loop: {
+            intervalMs: 5000,
+            forever: true,
+          },
+          ackRenewalIntervalMs: 25000,
+          forceKillGraceMs: 3000,
+        },
+      }),
+    );
   });
 });

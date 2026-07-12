@@ -1,0 +1,35 @@
+{
+  "id": "ARCH-001",
+  "type": "architecture",
+  "status": "done",
+  "role": "architect",
+  "module": "cross-module",
+  "title": "Validate task-pull API/CLI/docs boundaries",
+  "allowed_files": [
+    ".agent-board/goals/G001.json",
+    ".agent-board/slices/S001.json",
+    ".agent-board/modules/task-pull-api/diagrams/task-pull-flow.mmd",
+    ".agent-board/modules/task-pull-cli/diagrams/cli-runtime.mmd"
+  ],
+  "read_only_files": [
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts",
+    "packages/cli/src/utils/agent-task-pull-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-runner.ts"
+  ],
+  "forbidden_scope": [
+    "Do not edit implementation files.",
+    "Do not broaden into unrelated Devpilot phases."
+  ],
+  "acceptance": [
+    "Module ownership and dependency direction are explicit.",
+    "Migration order preserves API gates before CLI/runtime/docs integration.",
+    "Diagram matches the current contract/claim/ack/finish flow."
+  ],
+  "verification": {
+    "command": "rg -n \"task-pull|agent-task-pull|F37\" docs-internal/devpilot/progress/P8-ops-governance.md docs-internal/todos/2026-06-25-existing-project-onboarding.md --max-count 80",
+    "status": "passed",
+    "log": ".agent-board/results/ARCH-001-result.json"
+  }
+}

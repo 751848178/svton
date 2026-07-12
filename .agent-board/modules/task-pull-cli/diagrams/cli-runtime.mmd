@@ -1,0 +1,11 @@
+flowchart TD
+  Config["build CLI config"] --> Once["runAgentTaskPullOnce"]
+  Config --> Loop["runAgentTaskPullLoop"]
+  Loop --> Once
+  Once --> Contract["contract"]
+  Contract --> Claim["claim task"]
+  Claim --> Execute["executeAgentTaskPullTask"]
+  Execute --> Ack["ack progress"]
+  Execute --> Finish["finishAgentTaskPullExecution"]
+  Finish --> Summary["once or loop summary"]
+  Summary --> Exit["command output and exit code"]

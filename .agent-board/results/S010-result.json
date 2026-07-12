@@ -1,0 +1,25 @@
+{
+  "slice_id": "S010",
+  "status": "done",
+  "summary": "Added a reproducible Devpilot demo runbook and a Playwright browser UI E2E script. The E2E passed against real Next pages with mocked API fixtures for resource sync, execution governance/task-pull readiness, logs, and monitoring.",
+  "changed_files": [
+    "docs/devpilot/demo-runbook.md",
+    "scripts/devpilot-ui-e2e.mjs",
+    "scripts/devpilot-ui-e2e-fixtures.mjs",
+    "scripts/devpilot-ui-e2e-supervisor-fixture.mjs",
+    "scripts/devpilot-ui-e2e-supervisor-secondary-fixture.mjs",
+    "apps/devpilot-web/messages/zh.json",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/slices/S010.json",
+    ".agent-board/verification/S010-verification.json",
+    ".agent-board/results/S010-result.json"
+  ],
+  "verification": ".agent-board/verification/S010-verification.json",
+  "remaining_risks": [
+    "Live fake-target deploy -> completed -> rollback remains unproven in this run because the current 3100/3101 listeners are twgg containers, not Devpilot API/Web.",
+    "Browser UI E2E uses mocked API fixtures; it proves page/component/click coverage and i18n hygiene, not live DB/task-pull mutation."
+  ],
+  "next": "S005 should start a clean Devpilot API/Web stack on non-conflicting ports, seed a disposable target from docs/devpilot/demo-runbook.md, then execute live deploy -> completed -> rollback."
+}

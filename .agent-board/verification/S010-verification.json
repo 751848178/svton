@@ -1,0 +1,19 @@
+{
+  "slice_id": "S010",
+  "status": "passed_with_live_blocker",
+  "exit_code": 0,
+  "summary": "S010 browser UI E2E passed against real Next pages with mocked API fixtures, covering resource sync, execution governance task-pull readiness, logs, and monitoring. Live fake-target deploy/rollback was not run because current 3100/3101 listeners are twgg containers, not Devpilot API/Web.",
+  "relevant_errors": [],
+  "full_log": {
+    "node_check": "/tmp/codex-tool-runs/svton/s010-ui-e2e-node-check-after-fixture.log",
+    "playwright_runtime_install": "/tmp/codex-tool-runs/svton/s010-playwright-runtime-install.log",
+    "ui_e2e": "/tmp/codex-tool-runs/svton/s010-ui-e2e-20260713-001121.log",
+    "ui_e2e_artifacts": "/tmp/codex-tool-runs/svton/s010-ui-e2e-20260713-001121",
+    "live_target_probe": "/tmp/codex-tool-runs/svton/s010-live-target-probe.log",
+    "final_json": "/tmp/codex-tool-runs/svton/s010-final-json-20260713-001236.log",
+    "final_node_check": "/tmp/codex-tool-runs/svton/s010-final-node-check-20260713-001236.log",
+    "final_prettier": "/tmp/codex-tool-runs/svton/s010-final-prettier-20260713-001236.log",
+    "final_diff_check": "/tmp/codex-tool-runs/svton/s010-final-diff-check-20260713-001236.log",
+    "final_line_count": "/tmp/codex-tool-runs/svton/s010-final-line-count-20260713-001236.log"
+  }
+}

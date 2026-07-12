@@ -1,0 +1,35 @@
+{
+  "id": "API-001",
+  "type": "module-plan",
+  "status": "done",
+  "role": "module_owner",
+  "module": "task-pull-api",
+  "title": "Plan next API lifecycle/result helper executor todo",
+  "allowed_files": [
+    ".agent-board/modules/task-pull-api/module-plan.json",
+    ".agent-board/modules/task-pull-api/context-pack.json",
+    ".agent-board/todos/API-*.json"
+  ],
+  "read_only_files": [
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish-sync.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-task-payload.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-agent-task-pull-builder.utils.ts",
+    "focused server-executor task-pull specs"
+  ],
+  "forbidden_scope": [
+    "Do not edit production API code in module-owner planning mode.",
+    "Do not change Prisma schema, endpoint paths, auth gates, or CLI files."
+  ],
+  "acceptance": [
+    "Produce one next executor todo with exact allowed files.",
+    "Acceptance criteria mention endpoint response compatibility and default-off safety.",
+    "Verification command is focused to server-executor task-pull tests plus API type-check/build when needed."
+  ],
+  "verification": {
+    "command": "wc -l apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.ts apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts apps/devpilot-api/src/server-executor/server-agent-task-pull-finish-sync.service.ts",
+    "status": "passed",
+    "log": ".agent-board/results/API-001-result.json"
+  }
+}

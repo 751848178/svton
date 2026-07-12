@@ -1,0 +1,16 @@
+{
+  "slice_id": "S004",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S004 runtime operability slice passed focused CLI command/loop/pid-file Jest, CLI type-check, CLI build, JSON/event parsing, Prettier, and scoped diff hygiene.",
+  "relevant_errors": [],
+  "full_log": {
+    "cli_jest": "/tmp/codex-tool-runs/svton/s004-cli-jest-20260712-213211.log",
+    "cli_type_check": "/tmp/codex-tool-runs/svton/s004-cli-type-check-20260712-213211.log",
+    "cli_build": "/tmp/codex-tool-runs/svton/s004-cli-build-20260712-213211.log",
+    "json": "/tmp/codex-tool-runs/svton/s004-final-json-check-20260712-213706.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s004-final-events-jsonl-check-20260712-213736.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s004-final-prettier-check-rerun-20260712-213735.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s004-final-diff-check-rerun-20260712-213736.log"
+  }
+}

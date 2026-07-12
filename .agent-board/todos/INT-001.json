@@ -1,0 +1,35 @@
+{
+  "id": "INT-001",
+  "type": "integration",
+  "status": "done",
+  "role": "integrator",
+  "module": "integration",
+  "title": "Reconcile module, verification, review, and docs readiness",
+  "allowed_files": [
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/events.jsonl",
+    ".agent-board/results/INT-001-result.json"
+  ],
+  "read_only_files": [
+    ".agent-board/results/*.json",
+    ".agent-board/reviews/*.json",
+    ".agent-board/verification/*.json",
+    "git status --short",
+    "git diff --name-only"
+  ],
+  "forbidden_scope": [
+    "Do not edit runtime source code.",
+    "Do not mark done if verification or review is missing for shared contracts."
+  ],
+  "acceptance": [
+    "Board statuses reflect actual module outcomes.",
+    "Known blockers and follow-up todos are represented in board files.",
+    "Merge/commit readiness is stated with evidence paths."
+  ],
+  "verification": {
+    "command": "git status --short && git diff --name-only",
+    "status": "passed",
+    "log": ".agent-board/results/INT-001-result.json"
+  }
+}

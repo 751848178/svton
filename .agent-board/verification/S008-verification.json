@@ -1,0 +1,17 @@
+{
+  "slice_id": "S008",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S008 production remote-orphan governance proof passed. Focused API specs now cover cleanup-disabled critical blockers, cleanup failure visibility, truncated stale-job scans, and existing stale remote cleanup persistence.",
+  "relevant_errors": [],
+  "full_log": {
+    "api_remote_orphan_summary_jest": "/tmp/codex-tool-runs/svton/s008-api-remote-orphan-summary-jest-rerun-20260712-221133.log",
+    "api_server_executor_remote_orphan_jest": "/tmp/codex-tool-runs/svton/s008-api-server-executor-remote-orphan-jest-20260712-220923.log",
+    "api_type_check": "/tmp/codex-tool-runs/svton/s008-api-type-check-20260712-220937.log",
+    "api_build": "/tmp/codex-tool-runs/svton/s008-api-build-20260712-220937.log",
+    "json": "/tmp/codex-tool-runs/svton/s008-final-json-check-20260712-221105.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s008-final-events-jsonl-check-20260712-221105.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s008-final-prettier-check-rerun-20260712-221133.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s008-final-diff-check-rerun-20260712-221133.log"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "slice_id": "S004",
+  "status": "passed",
+  "findings": [],
+  "open_questions": [],
+  "summary": [
+    "runtimeProfile is non-sensitive: it includes runner id, process id, pid-file path, heartbeat enabled/status/ttl, loop bounds, ack renewal interval, and force-kill grace, but excludes task-pull and heartbeat tokens.",
+    "The change is command-output observability only; it does not alter API endpoints, DTOs, default-off gates, claim/ack/finish payloads, heartbeat writeback, pid-file ownership, local command execution, or loop exit policy.",
+    "Startup failure summaries receive the same runtime profile after config construction, so pid-file install failures remain supervisor-readable.",
+    "Background daemon/process-manager integration is not claimed by S004 and remains an explicit operator/deployment risk."
+  ],
+  "evidence": [
+    "packages/cli/src/utils/agent-task-pull-loop-summary.types.ts",
+    "packages/cli/src/commands/agent-task-pull-command-result.service.ts",
+    "packages/cli/src/commands/agent-task-pull-run-command.service.ts",
+    "packages/cli/src/__tests__/agent-task-pull-command-result.service.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-run-command.service.test.ts",
+    ".agent-board/verification/S004-verification.json"
+  ],
+  "review_gate": "Runtime contract/default-off/backward compatibility review."
+}

@@ -52,3 +52,14 @@ routing: todo-plan + noisy-tools + product-flow audit. The task crosses auth, se
   - done: API/Web production build log `/tmp/codex-tool-runs/svton/devpilot-full-flow-20260711/build-after-auth-seed.log`
   - done: Web rebuild logs after fixes under `/tmp/codex-tool-runs/svton/devpilot-full-flow-20260711/`
   - done: final E2E log `/tmp/codex-tool-runs/svton/devpilot-full-flow-20260711/full-flow-e2e-rerun2.log`
+
+## S010 Demo Runbook And Browser UI E2E
+
+- status: done
+- goal: make the deliverability proof repeatable by adding a local demo runbook and a browser-level UI E2E script for the remaining demo evidence gaps.
+- evidence:
+  - done: runbook path `docs/devpilot/demo-runbook.md`
+  - done: browser E2E script path `scripts/devpilot-ui-e2e.mjs`
+  - done: isolated browser E2E log `/tmp/codex-tool-runs/svton/s010-ui-e2e-20260713-001121.log`
+  - done: browser E2E summary/screenshots `/tmp/codex-tool-runs/svton/s010-ui-e2e-20260713-001121`
+  - blocked: live fake-target deploy -> completed -> rollback was not run because ports `3100`/`3101` are occupied by `twgg` containers, not Devpilot API/Web; probe log `/tmp/codex-tool-runs/svton/s010-live-target-probe.log`

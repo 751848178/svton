@@ -1,5 +1,7 @@
-import type { AgentTaskPullStepResult } from "./agent-task-pull-executor";
-import type { AgentTaskPullTask } from "./agent-task-pull-types";
+import type {
+  AgentTaskPullStepResult,
+  AgentTaskPullTask,
+} from "./agent-task-pull-types";
 
 export function buildAgentTaskPullDryRunResults(
   task: AgentTaskPullTask,

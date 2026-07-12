@@ -1,0 +1,48 @@
+{
+  "id": "S007",
+  "title": "Close task-pull multi-instance coordination gap",
+  "status": "done",
+  "started_at": "2026-07-12T22:01:30+08:00",
+  "completed_at": "2026-07-12T22:06:00+08:00",
+  "mode": "write",
+  "depends_on": ["S006"],
+  "goal": "Use source-backed evidence to close the remaining multi-instance coordination gap for task-pull: queue claim fairness, runner ownership recovery, and multi-runner scheduling semantics, or explicitly reclassify any part as an external blocker with proof.",
+  "allowed_files": [
+    ".agent-board/**",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-claim.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-claim-empty.service.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-claim.service.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-lock.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-lock.utils.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-query.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-query.service.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-queue-coordination-summary.service.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-queue-coordination-summary.service.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-executor.service.spec.ts",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "forbidden_scope": [
+    "No Prisma schema or migration unless current code/tests prove the gap cannot be closed without it.",
+    "No Web UI redesign.",
+    "No provider/deployment/site/resource behavior changes.",
+    "No daemon/process-manager implementation.",
+    "No speculative scheduling feature beyond the documented multi-instance coordination gap."
+  ],
+  "acceptance": [
+    "A source graph identifies the current claim/lock/runner ownership behavior and exact missing multi-instance semantics.",
+    "The gap is closed with focused code/tests or explicitly reclassified as an external blocker with concrete evidence.",
+    "Focused API task-pull/supervisor tests pass.",
+    "API type-check/build and hygiene checks pass for touched files.",
+    "Docs and board sync are completed."
+  ],
+  "verification_commands": [
+    "Focused server-agent task-pull claim/lock/supervisor Jest.",
+    "API type-check and build if API source changes.",
+    "Prettier, JSON/event parsing, diff hygiene, and production line-count checks."
+  ],
+  "review_gate": "Multi-instance safety review: claim fairness, lock ownership, stale owner recovery, and backward-compatible default-off behavior.",
+  "verification": ".agent-board/verification/S007-verification.json",
+  "review": ".agent-board/reviews/S007-review.json",
+  "result": ".agent-board/results/S007-result.json"
+}

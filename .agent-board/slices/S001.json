@@ -1,0 +1,26 @@
+{
+  "id": "S001",
+  "goal": "Split and coordinate current P8 task-pull hardening work by role and module.",
+  "status": "done",
+  "modules": ["task-pull-api", "task-pull-cli", "task-pull-docs-verification"],
+  "role_pipeline": [
+    "architect",
+    "module_owner",
+    "executor",
+    "verifier",
+    "reviewer",
+    "integrator"
+  ],
+  "acceptance": [
+    "Every active module has a context pack and module plan.",
+    "Every atomic todo has allowed files, forbidden scope, acceptance criteria, and a verification signal.",
+    "High-noise verification is represented as a Verifier todo with external log paths.",
+    "Shared lifecycle/API/default-off contract changes have a Reviewer todo.",
+    "Integration readiness is represented as a distinct Integrator todo."
+  ],
+  "verification": {
+    "status": "passed",
+    "todo": "VER-001",
+    "log": ".agent-board/verification/VER-001-verification.json"
+  }
+}

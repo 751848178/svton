@@ -1,5 +1,9 @@
 import { logger } from "../utils/logger";
-import type { AgentTaskPullLoopSummary } from "../utils/agent-task-pull-loop-summary.types";
+import type { AgentTaskPullLoopConfig } from "../utils/agent-task-pull-loop-runner";
+import type {
+  AgentTaskPullLoopSummary,
+  AgentTaskPullRunRuntimeProfile,
+} from "../utils/agent-task-pull-loop-summary.types";
 import type { AgentTaskPullRunSummary } from "../utils/agent-task-pull-runner";
 
 type AgentTaskPullSummaryResultDeps<Summary> = {
@@ -32,6 +36,51 @@ export function withAgentTaskPullLoopRunnerId(
   return {
     ...summary,
     runnerId,
+  };
+}
+
+export function buildAgentTaskPullRunRuntimeProfile(
+  config: AgentTaskPullLoopConfig,
+  options: { forever?: boolean; pidFile?: string } = {},
+): AgentTaskPullRunRuntimeProfile {
+  return {
+    processId: process.pid,
+    runnerId: config.runnerId,
+    pidFileConfigured: Boolean(options.pidFile),
+    ...(options.pidFile ? { pidFile: options.pidFile } : {}),
+    heartbeatConfigured: Boolean(config.heartbeat),
+    ...(config.heartbeat?.status
+      ? { heartbeatStatus: config.heartbeat.status }
+      : {}),
+    ...(config.heartbeat?.ttlSeconds
+      ? { heartbeatTtlSeconds: config.heartbeat.ttlSeconds }
+      : {}),
+    loop: {
+      intervalMs: config.intervalMs,
+      forever: Boolean(options.forever),
+      ...(config.maxIterations !== undefined
+        ? { maxIterations: config.maxIterations }
+        : {}),
+      ...(config.idleLimit !== undefined
+        ? { idleLimit: config.idleLimit }
+        : {}),
+    },
+    ...(config.ackRenewalIntervalMs !== undefined
+      ? { ackRenewalIntervalMs: config.ackRenewalIntervalMs }
+      : {}),
+    ...(config.forceKillGraceMs !== undefined
+      ? { forceKillGraceMs: config.forceKillGraceMs }
+      : {}),
+  };
+}
+
+export function withAgentTaskPullRunRuntimeProfile(
+  summary: AgentTaskPullLoopSummary,
+  runtimeProfile: AgentTaskPullRunRuntimeProfile,
+): AgentTaskPullLoopSummary {
+  return {
+    ...summary,
+    runtimeProfile,
   };
 }
 

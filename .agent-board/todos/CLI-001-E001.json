@@ -1,0 +1,60 @@
+{
+  "id": "CLI-001-E001",
+  "type": "executor",
+  "status": "done",
+  "role": "executor",
+  "module": "task-pull-cli",
+  "title": "Complete CLI task-pull helper/service split and focused test stabilization",
+  "allowed_files": [
+    "packages/cli/src/commands/agent-task-pull-config.ts",
+    "packages/cli/src/commands/agent-task-pull-heartbeat-config.service.ts",
+    "packages/cli/src/utils/agent-task-pull-dry-run.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-executor.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-summary.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-result.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-task-execution.service.ts",
+    "packages/cli/src/utils/agent-task-pull-types.ts",
+    "packages/cli/src/__tests__/agent-task-pull-config.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-executor.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-executor-cwd.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-loop.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-loop-config.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-loop-failure.test.ts"
+  ],
+  "read_only_files": [
+    "packages/cli/src/utils/agent-task-pull-client.ts",
+    "packages/cli/src/utils/agent-task-pull-finish.utils.ts",
+    "packages/cli/src/commands/agent-task-pull.ts"
+  ],
+  "forbidden_scope": [
+    "apps/devpilot-api/**",
+    "docs-internal/**",
+    ".agent-board/**",
+    "packages/cli/src/commands/agent-task-pull.ts",
+    "packages/cli/src/utils/agent-task-pull-client.ts",
+    "packages/cli/src/utils/agent-task-pull-finish.utils.ts",
+    "unrelated CLI commands",
+    "daemonization, long connection, or multi-instance coordination",
+    "public CLI default changes"
+  ],
+  "acceptance": [
+    "Loop stop-reason, summary, finish-writeback failure, and error formatting helpers live in agent-task-pull-loop-summary.utils.ts; agent-task-pull-loop-runner.ts keeps loop orchestration unchanged.",
+    "AgentTaskPullStepResult and AgentTaskPullExecutor live in agent-task-pull-types.ts; spawn/cwd/cancel result builders live in agent-task-pull-result.utils.ts; executor behavior is unchanged.",
+    "Heartbeat/default-runner config helpers live in agent-task-pull-heartbeat-config.service.ts; once and loop config defaults remain unchanged.",
+    "Claimed-task execution lives in agent-task-pull-task-execution.service.ts; once runner still owns contract, claim, and finish orchestration only.",
+    "Moved tests preserve the original assertions; no task-pull test coverage is silently dropped.",
+    "All touched production CLI files remain under 200 lines."
+  ],
+  "verification": {
+    "commands": [
+      "corepack pnpm --filter @svton/cli exec jest --testMatch '**/__tests__/agent-task-pull*.test.ts' --runInBand",
+      "corepack pnpm --filter @svton/cli type-check",
+      "corepack pnpm --filter @svton/cli build",
+      "wc -l packages/cli/src/commands/agent-task-pull-config.ts packages/cli/src/commands/agent-task-pull-heartbeat-config.service.ts packages/cli/src/utils/agent-task-pull-dry-run.utils.ts packages/cli/src/utils/agent-task-pull-executor.ts packages/cli/src/utils/agent-task-pull-loop-runner.ts packages/cli/src/utils/agent-task-pull-loop-summary.utils.ts packages/cli/src/utils/agent-task-pull-result.utils.ts packages/cli/src/utils/agent-task-pull-runner.ts packages/cli/src/utils/agent-task-pull-task-execution.service.ts packages/cli/src/utils/agent-task-pull-types.ts"
+    ],
+    "status": "passed",
+    "log": ".agent-board/verification/CLI-001-E001-verification.json"
+  }
+}

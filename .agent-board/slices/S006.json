@@ -1,0 +1,39 @@
+{
+  "id": "S006",
+  "title": "Run deliverability E2E and permission gate",
+  "status": "superseded_by_S009",
+  "started_at": "2026-07-12T21:48:30+08:00",
+  "completed_at": "2026-07-12T21:53:00+08:00",
+  "mode": "write",
+  "depends_on": ["S002", "S003", "S004", "S005"],
+  "goal": "Run the broadest necessary product/runtime verification after implementation slices, fix only verified defects in allowed windows, and decide deliverable readiness.",
+  "allowed_files": [
+    ".agent-board/** verification/review/integration files",
+    "docs-internal/** progress/TODO sync files",
+    "Only source files needed to fix defects found by assigned E2E/product verification"
+  ],
+  "forbidden_scope": [
+    "No speculative feature work.",
+    "No unrelated module cleanup.",
+    "No silent skipping of failed E2E paths.",
+    "No claiming readiness from type-check/build alone."
+  ],
+  "acceptance": [
+    "Current identifiable backlog is empty or reduced to explicit external blockers.",
+    "All completed slices have logs, review results, and docs sync.",
+    "Final risk list is concrete and dated.",
+    "Final answer gives direct deliverable/not-deliverable judgment."
+  ],
+  "verification_commands": [
+    "API/Web/CLI build and type-check prerequisites.",
+    "E2E-style product/runtime verification chosen from actual app surfaces.",
+    "Focused reruns after any defect fix.",
+    "Final hygiene and docs checks."
+  ],
+  "review_gate": "Final release-readiness review with findings first and explicit residual risk list.",
+  "orchestrator_worker_prompt": "/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/workers/s006-prompt.md",
+  "verification": ".agent-board/verification/S006-verification.json",
+  "review": ".agent-board/reviews/S006-review.json",
+  "result": ".agent-board/results/S006-result.json",
+  "queued_followups": ["S007", "S008"]
+}

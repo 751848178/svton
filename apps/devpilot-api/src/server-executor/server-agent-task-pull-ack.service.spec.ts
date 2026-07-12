@@ -13,6 +13,56 @@ describe("ServerAgentTaskPullAckService", () => {
     jest.useRealTimers();
   });
 
+  it("rejects when task-pull is disabled before mutating the job", async () => {
+    const prisma = {
+      serverExecutionJob: {
+        updateMany: jest.fn(),
+        findUnique: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const service = buildService(prisma, {
+      SERVER_EXECUTOR_AGENT_TASK_PULL_ENABLED: "false",
+    });
+
+    await expect(
+      service.ack(
+        { "x-devpilot-agent-task-pull-token": "task-token" },
+        {
+          teamId: "team-1",
+          serverId: "server-1",
+          agentId: "agent-prod-1",
+          jobId: "job-agent-running",
+        },
+      ),
+    ).rejects.toThrow("Server agent task-pull 未启用");
+    expect(prisma.serverExecutionJob.updateMany).not.toHaveBeenCalled();
+    expect(prisma.serverExecutionJob.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid task-pull tokens before mutating the job", async () => {
+    const prisma = {
+      serverExecutionJob: {
+        updateMany: jest.fn(),
+        findUnique: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const service = buildService(prisma);
+
+    await expect(
+      service.ack(
+        { "x-devpilot-agent-task-pull-token": "wrong-token" },
+        {
+          teamId: "team-1",
+          serverId: "server-1",
+          agentId: "agent-prod-1",
+          jobId: "job-agent-running",
+        },
+      ),
+    ).rejects.toThrow("Server agent task-pull token 无效");
+    expect(prisma.serverExecutionJob.updateMany).not.toHaveBeenCalled();
+    expect(prisma.serverExecutionJob.findUnique).not.toHaveBeenCalled();
+  });
+
   it("acknowledges a claimed running server_agent job and renews the lock", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-07-10T12:05:00.000Z"));
 
@@ -226,11 +276,15 @@ describe("ServerAgentTaskPullAckService", () => {
   });
 });
 
-function buildService(prisma: PrismaService) {
+function buildService(
+  prisma: PrismaService,
+  overrides: Record<string, string> = {},
+) {
   const configValues: Record<string, string> = {
     SERVER_EXECUTOR_AGENT_TASK_PULL_ENABLED: "true",
     SERVER_EXECUTOR_AGENT_TASK_PULL_TOKEN: "task-token",
     SERVER_EXECUTOR_QUEUE_LOCK_TTL_SECONDS: "120",
+    ...overrides,
   };
   const configService = {
     get: jest.fn(

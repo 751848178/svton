@@ -1,0 +1,30 @@
+{
+  "slice_id": "S005",
+  "status": "done",
+  "summary": "Closed the S005 terminal runtime verification-first slice by adding a local CLI runtime-proof test across claimed task payload, real local command execution, ack/progress, and finish payload writeback. The proof passed without requiring production code changes.",
+  "changed_files": [
+    "packages/cli/src/__tests__/agent-task-pull-once-command-step.test.ts",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/events.jsonl",
+    ".agent-board/slices/S005.json",
+    ".agent-board/verification/S005-verification.json",
+    ".agent-board/reviews/S005-review.json"
+  ],
+  "verification": ".agent-board/verification/S005-verification.json",
+  "review": ".agent-board/reviews/S005-review.json",
+  "hygiene_logs": {
+    "json": "/tmp/codex-tool-runs/svton/s005-final-json-check-20260712-214650.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s005-final-events-jsonl-check-20260712-214650.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s005-final-prettier-check-rerun-20260712-214721.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s005-final-diff-check-rerun-20260712-214721.log"
+  },
+  "remaining_risks": [
+    "S005 proves the single-agent terminal runtime surface through local CLI/API-focused tests; S006 still needs broader deliverability E2E and permission-gate verification before a deliverable judgment.",
+    "Multi-instance coordination remains a later candidate after final single-agent deliverability gates.",
+    "Production remote-orphan governance remains a later candidate and is not claimed by S005.",
+    "Background process-manager integration remains an operator/deployment risk outside repo-owned S004/S005 scope."
+  ]
+}

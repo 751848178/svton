@@ -1,0 +1,89 @@
+{
+  "slice_id": "S003",
+  "status": "done",
+  "summary": "Mapped remaining Devpilot deliverable gaps from P8 current status, active TODO ledger, task-pull API/CLI code, and existing test surfaces. No speculative backlog was added.",
+  "source_backed_gaps": [
+    {
+      "id": "GAP-REAL-AGENT-LONG-RUNTIME",
+      "source": [
+        "docs-internal/devpilot/progress/P8-ops-governance.md:27",
+        "docs-internal/todos/2026-06-25-existing-project-onboarding.md:F333-F340",
+        "packages/cli/src/commands/agent-task-pull-run-command.service.ts",
+        "packages/cli/src/commands/agent-task-pull-pid-file.ts",
+        "packages/cli/src/utils/agent-task-pull-loop-runner.ts"
+      ],
+      "current_evidence": "The CLI has bounded/forever foreground polling, optional heartbeat, default runner identity, pid-file lifecycle, startup failure summaries, and failure exit surfaces. The docs repeatedly keep background daemonization, process supervision, and full long-connection/runtime operation out of scope.",
+      "classification": "implementable_slice",
+      "next_slice": "S004",
+      "next_action": "Close the smallest real-agent runtime gap by making the foreground long-running agent profile operationally verifiable with current heartbeat/pid/summary surfaces, or mark production process-manager integration as an external blocker if it cannot be represented in repo-owned code/tests."
+    },
+    {
+      "id": "GAP-TERMINAL-RUNTIME-E2E",
+      "source": [
+        "docs-internal/devpilot/progress/P8-ops-governance.md:28",
+        "docs-internal/todos/2026-06-25-existing-project-onboarding.md:F292-F314",
+        "apps/devpilot-api/src/server-executor/server-agent-task-pull-claim.service.ts",
+        "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts",
+        "packages/cli/src/utils/agent-task-pull-runner.ts",
+        "packages/cli/src/utils/agent-task-pull-task-execution.service.ts"
+      ],
+      "current_evidence": "API claim returns a sanitized task payload with lifecycle/terminal hints, CLI once can execute command steps, ack/progress and final ack cancellation are implemented, and finish writes terminal logs/result with fallback. The remaining gap is not another helper split by itself; it needs an end-to-end runtime proof across claim -> local command execution -> finish writeback, followed by defect fixes only if that proof fails.",
+      "classification": "verification_first_slice",
+      "next_slice": "S005",
+      "next_action": "Run a local API/CLI terminal task-pull runtime scenario using the existing surfaces; if it exposes a product bug, fix inside the narrowed API/CLI terminal runtime window and rerun."
+    },
+    {
+      "id": "GAP-MULTI-INSTANCE-COORDINATION",
+      "source": [
+        "docs-internal/devpilot/progress/P8-ops-governance.md:29",
+        "docs-internal/todos/2026-06-25-existing-project-onboarding.md:1376",
+        "docs-internal/todos/2026-06-25-existing-project-onboarding.md:F331-F340",
+        "apps/devpilot-api/src/server-executor/server-executor-supervisor-queue-coordination-summary.service.ts",
+        "apps/devpilot-api/src/server-executor/server-agent-task-pull-lock.utils.ts"
+      ],
+      "current_evidence": "Queue coordination preflight/readiness and runner identity/lock-owner differentiation exist, but docs still exclude complete multi-instance scheduling and coordination from the completed task-pull runtime slices.",
+      "classification": "implementable_later",
+      "next_slice": "S007-candidate",
+      "next_action": "After S004/S005 prove the single-agent runtime, create a dedicated design/implementation slice for queue claim fairness, runner ownership recovery, and multi-runner scheduling semantics."
+    },
+    {
+      "id": "GAP-E2E-PERMISSION-COVERAGE",
+      "source": [
+        "docs-internal/devpilot/progress/P8-ops-governance.md:29",
+        "apps/devpilot-api/src/server-executor/server-execution-job.controller.ts",
+        "apps/devpilot-web/src/app/(dashboard)/execution-governance/hooks/use-execution-governance.ts",
+        "apps/devpilot-web/src/middleware.ts"
+      ],
+      "current_evidence": "Focused API/CLI task-pull Jest exists, supervisor endpoints are role-gated, and the Web execution-governance page consumes supervisor/job/lease APIs. S003 did not find a product-flow E2E gate proving a realistic permission path across API/Web/CLI surfaces.",
+      "classification": "verification_only_gate",
+      "next_slice": "S006",
+      "next_action": "Include permission/product-flow E2E verification in the final deliverability gate; fix only verified defects."
+    },
+    {
+      "id": "GAP-REMOTE-ORPHAN-PRODUCTION-GOVERNANCE",
+      "source": [
+        "docs-internal/devpilot/progress/P8-ops-governance.md:29",
+        "apps/devpilot-api/src/server-executor/server-executor-supervisor-remote-orphan-summary.service.ts",
+        "apps/devpilot-api/src/server-executor/server-executor-supervisor-remote-orphan-blockers.utils.ts"
+      ],
+      "current_evidence": "P8 current status still lists deeper production remote-orphan governance as a follow-up separate from task-pull runtime closure.",
+      "classification": "implementable_later",
+      "next_slice": "S008-candidate",
+      "next_action": "After task-pull runtime deliverability gates, create a remote-orphan production governance slice if it remains in the deliverable scope."
+    }
+  ],
+  "rejected_speculation": [
+    "No Prisma migration was inferred for S004/S005.",
+    "No Web UI redesign was inferred for S004/S005.",
+    "No server endpoint shape change was inferred before runtime verification proves it necessary.",
+    "No recursive worker or continuation thread is authorized by this gap map."
+  ],
+  "recommended_queue": [
+    "S004: real-agent long-running foreground runtime/operability slice",
+    "S005: terminal runtime end-to-end verification-first slice",
+    "S006: final deliverability E2E and permission gate",
+    "S007 candidate: multi-instance coordination after single-agent runtime proof",
+    "S008 candidate: production remote-orphan governance after task-pull runtime proof"
+  ],
+  "created_at": "2026-07-12T21:22:05+08:00"
+}

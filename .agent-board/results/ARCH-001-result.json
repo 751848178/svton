@@ -1,0 +1,43 @@
+{
+  "todo_id": "ARCH-001",
+  "status": "done",
+  "agent": {
+    "id": "019f55f0-dcc1-7e70-bcb4-7f9006075deb",
+    "nickname": "Copernicus",
+    "role": "architect"
+  },
+  "summary": [
+    "API/CLI/docs module ownership is explicit and matches current code: API owns gated server job mutation and linked-run finish sync; CLI owns local execution orchestration; docs/verifier own evidence only.",
+    "Dependency direction is correct: CLI consumes API contract/client responses; API finish service has no dependency on CLI internals.",
+    "Migration order is sound: boundary confirmation -> API helper/lifecycle stabilization -> CLI runtime/result stabilization -> docs/verification -> review/integration.",
+    "Diagrams match the current high-level contract/claim/ack/finish flow; optional loop heartbeat is outside the core contract/claim/finish diagram scope."
+  ],
+  "boundary_ok": true,
+  "migration_order_ok": true,
+  "diagram_ok": true,
+  "risks": [
+    "API and CLI finish/ack metadata can still drift; keep REV-001 focused on shared contract shape.",
+    "Loop heartbeat behavior is present in CLI runtime but not shown in the minimal CLI diagram.",
+    "Docs claim readiness must remain tied to isolated verification logs, not board intent alone."
+  ],
+  "recommended_board_updates": [
+    "ARCH-001 done: cross-module boundary accepted; API owns auth-gated lifecycle/job mutation/linked-run sync, CLI owns local contract/claim/execute/ack/finish orchestration, docs/verifier own evidence only.",
+    "No diagram edits required for ARCH-001; current diagrams match the high-level contract/claim/ack/finish flow, with loop heartbeat treated as CLI runtime detail.",
+    "Reviewer should explicitly check API/CLI finish and ack metadata drift plus default-off gate preservation."
+  ],
+  "evidence": [
+    ".agent-board/goals/G001.json:15-78",
+    ".agent-board/board.md:7,23-33,40-49",
+    ".agent-board/slices/S001.json:5-20",
+    ".agent-board/modules/task-pull-api/diagrams/task-pull-flow.mmd:8-21",
+    ".agent-board/modules/task-pull-cli/diagrams/cli-runtime.mmd:1-10",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts:29-91,95-107",
+    "packages/cli/src/utils/agent-task-pull-runner.ts:28-50",
+    "packages/cli/src/utils/agent-task-pull-loop-runner.ts:49-138",
+    "docs-internal/devpilot/progress/P8-ops-governance.md:3601-3672",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md:5063-5140"
+  ],
+  "needs_followup": [
+    "REV-001 should explicitly check API/CLI finish and ack metadata drift plus default-off gate preservation."
+  ]
+}

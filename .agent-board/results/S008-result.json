@@ -1,0 +1,28 @@
+{
+  "slice_id": "S008",
+  "status": "done",
+  "summary": "Closed S008 production remote-orphan governance as a proof gap: added focused API regression coverage for existing remote-orphan summary/blocker signals and reused existing stale remote cleanup persistence coverage without production behavior changes.",
+  "changed_files": [
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-remote-orphan-summary.service.spec.ts",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/events.jsonl",
+    ".agent-board/slices/S008.json",
+    ".agent-board/verification/S008-verification.json",
+    ".agent-board/reviews/S008-review.json"
+  ],
+  "verification": ".agent-board/verification/S008-verification.json",
+  "review": ".agent-board/reviews/S008-review.json",
+  "hygiene_logs": {
+    "json": "/tmp/codex-tool-runs/svton/s008-final-json-check-20260712-221105.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s008-final-events-jsonl-check-20260712-221105.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s008-final-prettier-check-rerun-20260712-221133.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s008-final-diff-check-rerun-20260712-221133.log"
+  },
+  "remaining_risks": [
+    "Post-S008 final deliverability gate still needs to be rerun across API/CLI/Web and runtime/product checks.",
+    "Background process-manager integration remains an operator/deployment risk outside the repo-owned task-pull runtime scope."
+  ]
+}

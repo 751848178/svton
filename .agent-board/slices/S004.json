@@ -1,0 +1,52 @@
+{
+  "id": "S004",
+  "title": "Implement next real-agent connection slice",
+  "status": "done",
+  "mode": "write",
+  "depends_on": ["S003"],
+  "goal": "Close the smallest real-agent long-running runtime/operability gap by making the foreground agent profile verifiable with current heartbeat, pid-file, runner identity, and structured summary surfaces, or record production process-manager integration as an external blocker if it cannot be represented in repo-owned code/tests.",
+  "allowed_files": [
+    ".agent-board/**",
+    "packages/cli/src/commands/agent-task-pull-command.controller.ts",
+    "packages/cli/src/commands/agent-task-pull-run-command.service.ts",
+    "packages/cli/src/commands/agent-task-pull-run-startup.service.ts",
+    "packages/cli/src/commands/agent-task-pull-pid-file.ts",
+    "packages/cli/src/commands/agent-task-pull-heartbeat-config.service.ts",
+    "packages/cli/src/commands/agent-task-pull-config.ts",
+    "packages/cli/src/commands/agent-task-pull-command-result.service.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-summary.types.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-summary.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-delay.utils.ts",
+    "packages/cli/src/__tests__/agent-task-pull-run-command*.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-loop*.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-pid-file.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-command-result*.test.ts",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "forbidden_scope": [
+    "No multi-instance scheduling.",
+    "No Prisma schema or migration.",
+    "No broad endpoint shape changes.",
+    "No web UI.",
+    "No server endpoint or DTO shape change unless S004 runtime evidence proves it is required.",
+    "No unrelated executor/provider refactors."
+  ],
+  "acceptance": [
+    "One documented real-agent long-runtime/daemon-readiness gap is implemented or explicitly downgraded to external blocker with evidence.",
+    "Behavior is covered by focused tests.",
+    "Progress/TODO/.agent-board docs are synced."
+  ],
+  "verification_commands": [
+    "Focused Jest for touched API/CLI task-pull behavior.",
+    "Package type-check/build as touched.",
+    "Line-count and hygiene checks."
+  ],
+  "review_gate": "Runtime contract/default-off/backward compatibility review.",
+  "orchestrator_worker_prompt": "/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/workers/s004-prompt.md",
+  "verification": ".agent-board/verification/S004-verification.json",
+  "review": ".agent-board/reviews/S004-review.json",
+  "result": ".agent-board/results/S004-result.json",
+  "completed_at": "2026-07-12T21:32:30+08:00"
+}

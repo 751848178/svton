@@ -164,7 +164,10 @@ function readCommandStepsSnapshot(value: unknown): ServerCommandStep[] {
     return {
       key: readRequiredString(item.key, `steps.${index}.key`),
       label: readRequiredString(item.label, `steps.${index}.label`),
-      command: readRequiredString(item.command, `steps.${index}.command`),
+      command: readCommandStringSnapshot(
+        item.command,
+        `steps.${index}.command`,
+      ),
       cwd: readOptionalString(item.cwd),
       required: typeof item.required === "boolean" ? item.required : true,
       risk:
@@ -175,4 +178,11 @@ function readCommandStepsSnapshot(value: unknown): ServerCommandStep[] {
       preview: readOptionalString(item.preview),
     };
   });
+}
+
+function readCommandStringSnapshot(value: unknown, field: string) {
+  if (typeof value !== "string") {
+    throw new BadRequestException(`Server executor 快照缺少 ${field}`);
+  }
+  return value;
 }

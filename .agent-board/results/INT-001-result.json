@@ -1,0 +1,44 @@
+{
+  "todo_id": "INT-001",
+  "status": "done",
+  "summary": "S001 is complete: architecture, module-owner planning, API executor, CLI executor verification, docs sync, aggregate verification, review, and integration are all closed.",
+  "merge_readiness": {
+    "status": "ready_for_user_review",
+    "active_writer": null,
+    "completed_todos": [
+      "ARCH-001",
+      "API-001",
+      "CLI-001",
+      "API-001-EXEC-001",
+      "CLI-001-E001",
+      "DOC-001",
+      "VER-001",
+      "REV-001",
+      "INT-001"
+    ],
+    "verification": [
+      ".agent-board/verification/API-001-EXEC-001-verification.json",
+      ".agent-board/verification/CLI-001-E001-verification.json",
+      ".agent-board/verification/VER-001-verification.json"
+    ],
+    "review": ".agent-board/reviews/REV-001-review.json"
+  },
+  "changed_by_main_agent": [
+    ".agent-board/**",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.spec.ts",
+    "docs-internal/devpilot/progress/INDEX.md",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "pre_existing_or_parallel_dirty_scope": [
+    "task-pull API helper/service structural files already dirty before S001 execution",
+    "task-pull CLI helper/service/test structural files already dirty before S001 execution",
+    ".zcode/ remains untracked and unrelated to this board"
+  ],
+  "risks": [
+    "Full repository status still contains broader task-pull dirty files outside the two API specs edited by the main agent; they were preserved and not reverted.",
+    "Reviewer passed the scoped API/CLI contract review, but final commit/PR review should still consider the complete task-pull diff."
+  ],
+  "next_recommended_todos": []
+}

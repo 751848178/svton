@@ -1,0 +1,57 @@
+{
+  "id": "S005",
+  "title": "Implement next terminal runtime slice",
+  "status": "done",
+  "started_at": "2026-07-12T21:42:00+08:00",
+  "completed_at": "2026-07-12T21:46:00+08:00",
+  "mode": "write",
+  "depends_on": ["S003"],
+  "goal": "Run a terminal task-pull runtime verification-first slice across claimed payload, local command execution, ack/progress, and finish writeback; fix only defects proven by that scenario.",
+  "allowed_files": [
+    ".agent-board/**",
+    "packages/cli/src/utils/agent-task-pull-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-task-execution.service.ts",
+    "packages/cli/src/utils/agent-task-pull-executor.ts",
+    "packages/cli/src/utils/agent-task-pull-result.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-finish.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-client.ts",
+    "packages/cli/src/utils/agent-task-pull-types.ts",
+    "packages/cli/src/commands/agent-task-pull-once-command.service.ts",
+    "packages/cli/src/__tests__/agent-task-pull-once*.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-executor*.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-finish.utils.test.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-claim.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish-sync.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-task-payload.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-claimed-payload-details.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-terminal-plan.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-terminal-outcome.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-*.spec.ts",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "forbidden_scope": [
+    "No long-running daemon process if assigned to S004.",
+    "No multi-instance scheduling.",
+    "No schema migration.",
+    "No web UI.",
+    "No unrelated executor refactor."
+  ],
+  "acceptance": [
+    "A local terminal task-pull runtime scenario is executed or a concrete environment blocker is recorded.",
+    "One terminal runtime behavior gap is implemented or marked external blocker with evidence only if verification proves it.",
+    "Tests prove success, failure, and cancellation paths as applicable.",
+    "Docs and board sync are completed."
+  ],
+  "verification_commands": [
+    "Focused task-pull Jest with explicit --testMatch.",
+    "CLI/API type-check and build as touched.",
+    "Hygiene and line-count checks."
+  ],
+  "review_gate": "Command execution safety, cancellation, and finish-writeback review.",
+  "orchestrator_worker_prompt": "/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/workers/s005-prompt.md",
+  "verification": ".agent-board/verification/S005-verification.json",
+  "review": ".agent-board/reviews/S005-review.json",
+  "result": ".agent-board/results/S005-result.json"
+}

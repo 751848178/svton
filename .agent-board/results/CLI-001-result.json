@@ -1,0 +1,42 @@
+{
+  "todo_id": "CLI-001",
+  "status": "done",
+  "agent": {
+    "id": "019f55f3-6b88-7a13-84bb-ddce3e5fa895",
+    "nickname": "Kierkegaard",
+    "role": "module_owner"
+  },
+  "summary": [
+    "ARCH-001 accepted the boundary: CLI owns local contract/claim/execute/ack/finish orchestration; API owns lifecycle/job mutation.",
+    "Current CLI scope already contains the smallest next unit: finish the behavior-preserving F365-F368 helper/service split and focused test relocation.",
+    "The executor todo must stay entirely inside packages/cli/src; no API files, docs files, daemon behavior, or public default changes.",
+    "Focused verification should use explicit task-pull test matching, plus CLI type-check/build and line-count hygiene."
+  ],
+  "proposed_executor_todo": "CLI-001-E001",
+  "why_next": "This is the next smallest CLI step because F365-F368 define already-scoped, behavior-preserving CLI helper boundaries and the current worktree contains exactly those CLI-side production/test changes. It closes the active CLI split before any new behavior, keeps once/loop/executor responsibilities narrow, and avoids overlap with API lifecycle work already handled by API-owned F369+ slices.",
+  "risks": [
+    "Untracked helper/test files must be included by the executor; otherwise imports or coverage relocation can be incomplete.",
+    "A fuzzy Jest selector can accidentally include *.test-utils.ts; use explicit --testMatch.",
+    "Moving assertions out of larger specs can hide coverage loss if the executor deletes rather than relocates cases.",
+    "CLI lint remains a known separate blocker if the existing ESLint config issue is still present."
+  ],
+  "evidence": [
+    ".agent-board/board.md:21-23",
+    ".agent-board/board.md:33-39",
+    ".agent-board/board.md:45-49",
+    ".agent-board/modules/task-pull-cli/context-pack.json:2-24",
+    ".agent-board/results/ARCH-001-result.json:24-25",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md:4922-5031",
+    "packages/cli/src/utils/agent-task-pull-loop-runner.ts:29-141",
+    "packages/cli/src/utils/agent-task-pull-loop-summary.utils.ts:9-65",
+    "packages/cli/src/utils/agent-task-pull-result.utils.ts:52-98",
+    "packages/cli/src/utils/agent-task-pull-types.ts:27-48",
+    "packages/cli/src/commands/agent-task-pull-config.ts:80-121",
+    "packages/cli/src/commands/agent-task-pull-heartbeat-config.service.ts:16-81",
+    "packages/cli/src/utils/agent-task-pull-runner.ts:17-50",
+    "packages/cli/src/utils/agent-task-pull-task-execution.service.ts:27-139",
+    "packages/cli/src/__tests__/agent-task-pull-loop-config.test.ts:3-68",
+    "packages/cli/src/__tests__/agent-task-pull-loop-failure.test.ts:7-78",
+    "packages/cli/src/__tests__/agent-task-pull-executor-cwd.test.ts:6-57"
+  ]
+}

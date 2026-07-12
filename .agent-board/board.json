@@ -1,0 +1,161 @@
+{
+  "id": "board-devpilot-p8-task-pull-20260712",
+  "goal": "Harden Devpilot P8 server-agent task-pull across API, CLI, docs, and verification.",
+  "status": "deliverable_with_demo_evidence",
+  "active_slice": null,
+  "active_writer": null,
+  "roles": {
+    "main": {
+      "owner": "main-agent",
+      "responsibility": "Own board state, dispatch decisions, and final integration."
+    },
+    "architect": {
+      "todo": "ARCH-001",
+      "responsibility": "Validate cross-module boundaries, dependency direction, and migration order."
+    },
+    "module_owner": {
+      "todos": ["API-001", "CLI-001", "DOC-001"],
+      "responsibility": "Keep each module context pack and atomic todo list narrow."
+    },
+    "executor": {
+      "responsibility": "Take exactly one ready implementation todo with explicit allowed files."
+    },
+    "verifier": {
+      "todo": "VER-001",
+      "responsibility": "Run noisy checks and write summaries with log paths."
+    },
+    "reviewer": {
+      "todo": "REV-001",
+      "responsibility": "Review shared API, CLI, lifecycle, and docs contract risks."
+    },
+    "integrator": {
+      "todo": "INT-001",
+      "responsibility": "Reconcile module results and decide merge readiness."
+    }
+  },
+  "todos": {
+    "ARCH-001": {
+      "status": "done",
+      "module": "cross-module",
+      "path": ".agent-board/todos/ARCH-001.json"
+    },
+    "API-001": {
+      "status": "done",
+      "module": "task-pull-api",
+      "path": ".agent-board/todos/API-001.json"
+    },
+    "CLI-001": {
+      "status": "done",
+      "module": "task-pull-cli",
+      "path": ".agent-board/todos/CLI-001.json"
+    },
+    "API-001-EXEC-001": {
+      "status": "done",
+      "module": "task-pull-api",
+      "path": ".agent-board/todos/API-001-EXEC-001.json"
+    },
+    "CLI-001-E001": {
+      "status": "done",
+      "module": "task-pull-cli",
+      "path": ".agent-board/todos/CLI-001-E001.json"
+    },
+    "DOC-001": {
+      "status": "done",
+      "module": "task-pull-docs-verification",
+      "path": ".agent-board/todos/DOC-001.json"
+    },
+    "VER-001": {
+      "status": "verified",
+      "module": "verification",
+      "path": ".agent-board/todos/VER-001.json"
+    },
+    "REV-001": {
+      "status": "done",
+      "module": "review",
+      "path": ".agent-board/todos/REV-001.json"
+    },
+    "INT-001": {
+      "status": "done",
+      "module": "integration",
+      "path": ".agent-board/todos/INT-001.json"
+    }
+  },
+  "long_goal": {
+    "id": "G002",
+    "status": "deliverable",
+    "board_path": "/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/board.json",
+    "objective": "Complete Devpilot remaining work until deliverable-ready, using evidence-backed S002+ slices with verification, review, and docs sync.",
+    "evidence_inputs": [
+      "git status --short",
+      ".agent-board/board.json",
+      ".agent-board/results/*.json",
+      ".agent-board/verification/*.json",
+      ".agent-board/reviews/*.json",
+      "docs-internal/devpilot/progress/INDEX.md",
+      "docs-internal/todos/INDEX.md",
+      "docs-internal/devpilot/progress/P8-ops-governance.md",
+      "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
+      "CodeGraph status: initialized=false; use scoped rg/safe-read instead"
+    ],
+    "known_backlog_sources": [
+      "Current worktree still contains the completed S001 task-pull API/CLI/docs/.agent-board diff and must be packaged with final verification/review before merge readiness.",
+      "P8 current status and S003 gap map named runtime/product gaps. S004 closed foreground runtime profile operability; S005 proved single-agent terminal runtime; S006 gates passed but kept deliverability open because multi-instance coordination and production remote-orphan governance remain repo-owned backlog."
+    ],
+    "worker_policy": "single-checkout-one-active-write-worker; read-only Architect/Reviewer/Verifier can run in parallel; workers must not create successor workers"
+  },
+  "backlog": {
+    "S002": {
+      "status": "done",
+      "mode": "write",
+      "path": ".agent-board/slices/S002.json"
+    },
+    "S003": {
+      "status": "done",
+      "mode": "read",
+      "path": ".agent-board/slices/S003.json"
+    },
+    "S004": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S003"],
+      "path": ".agent-board/slices/S004.json"
+    },
+    "S005": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S003"],
+      "path": ".agent-board/slices/S005.json"
+    },
+    "S006": {
+      "status": "superseded_by_S009",
+      "mode": "write",
+      "depends_on": ["S002", "S003", "S004", "S005"],
+      "path": ".agent-board/slices/S006.json"
+    },
+    "S007": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S006"],
+      "path": ".agent-board/slices/S007.json"
+    },
+    "S008": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S007"],
+      "path": ".agent-board/slices/S008.json"
+    },
+    "S009": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S008"],
+      "path": ".agent-board/slices/S009.json"
+    },
+    "S010": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S009"],
+      "path": ".agent-board/slices/S010.json"
+    }
+  },
+  "updated_at": "2026-07-13T00:05:00+08:00"
+}

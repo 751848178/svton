@@ -1,0 +1,29 @@
+{
+  "id": "G002",
+  "title": "Devpilot deliverable closure",
+  "status": "active",
+  "objective": "Complete Devpilot current remaining work until deliverable-ready.",
+  "orchestrator_board": "/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/board.json",
+  "created_at": "2026-07-12T21:03:03+08:00",
+  "source_evidence": [
+    "git status --short shows active P8 task-pull API, CLI, docs, and .agent-board changes plus unrelated .zcode/",
+    ".agent-board/board.json marks S001 done and all S001 todos done or verified",
+    ".agent-board/reviews/REV-001-review.json reports no findings for scoped API/CLI task-pull contract review",
+    ".agent-board/verification/VER-001-verification.json aggregates passed focused API/CLI verification logs",
+    "docs-internal/devpilot/progress/INDEX.md points P8 to P8-ops-governance.md through F374",
+    "docs-internal/todos/INDEX.md points active Devpilot work to 2026-06-25-existing-project-onboarding.md plus relevant P*.md",
+    "docs-internal/devpilot/progress/P8-ops-governance.md current status names remaining product/runtime gaps",
+    "CodeGraph status is initialized=false, so slice graphing must use scoped rg/safe-read"
+  ],
+  "completion_standard": [
+    "Current identifiable backlog is empty or only explicit external blockers remain.",
+    "Every completed slice has verification logs, review result, integration result, and docs sync.",
+    "Final answer gives a direct deliverable/not-deliverable judgment with residual risks."
+  ],
+  "worker_policy": [
+    "One active write worker in this checkout at a time.",
+    "Read-only Architect/Reviewer/Verifier work may run in parallel when it cannot edit source.",
+    "Workers complete only their assigned slice and must not create recursive continuation workers.",
+    "Noisy command logs stay under /tmp/codex-tool-runs/svton/."
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "S002",
+  "title": "Close current S001 task-pull diff for merge readiness",
+  "status": "done",
+  "mode": "write",
+  "goal": "Account for the existing dirty P8 task-pull API/CLI/docs/.agent-board diff, rerun focused verification, perform final scoped review, and produce integration result without adding new product behavior.",
+  "allowed_files": [
+    ".agent-board/**",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-*.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-agent-task-pull-*.ts",
+    "packages/cli/src/**/*agent-task-pull*",
+    "docs-internal/devpilot/progress/INDEX.md",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "forbidden_scope": [
+    "No Prisma schema or migrations.",
+    "No web UI changes.",
+    "No endpoint/schema/default-off/token behavior changes unless a verification or review finding proves they are required.",
+    "No new runtime behavior beyond fixing verification or review findings in the current task-pull diff.",
+    "No unrelated .zcode work."
+  ],
+  "acceptance": [
+    "git status scope is fully accounted for, including untracked task-pull files.",
+    "All changed production non-spec files meet the repo structure rules.",
+    "Focused API and CLI task-pull verification passes with logs under /tmp/codex-tool-runs/svton/.",
+    ".agent-board, progress, and TODO docs report verification, review, and integration evidence.",
+    "Unresolved findings become explicit follow-up slices or blockers."
+  ],
+  "verification_commands": [
+    "Focused API task-pull Jest.",
+    "API type-check and build.",
+    "Explicit CLI task-pull Jest --testMatch.",
+    "CLI type-check and build.",
+    "Prettier, git diff --check, conflict scan, trailing-whitespace scan, and line-count checks."
+  ],
+  "review_gate": "Lifecycle/default-off/API-CLI contract review with zero unresolved P1/P2 findings.",
+  "orchestrator_worker_prompt": "/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/workers/s002-prompt.md",
+  "verification": ".agent-board/verification/S002-verification.json",
+  "review": ".agent-board/reviews/S002-review.json",
+  "result": ".agent-board/results/S002-result.json",
+  "completed_at": "2026-07-12T21:16:39+08:00"
+}

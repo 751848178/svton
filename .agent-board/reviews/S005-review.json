@@ -1,0 +1,18 @@
+{
+  "slice_id": "S005",
+  "status": "passed",
+  "findings": [],
+  "open_questions": [],
+  "summary": [
+    "The new runtime proof is test-only and exercises the existing CLI once runner with the real local executor and an injected task-pull client; it does not alter production command execution, API, DTO, auth, token, schema, scheduler, daemon, web UI, or multi-instance behavior.",
+    "The proof covers the S003 terminal-runtime gap at the single-agent surface: contract/claim, command-step execution in a temporary cwd, step ack progress, final ack progress, and finish payload commandPlan/log/result writeback.",
+    "Focused API tests still cover claimed payload, ack progress/cancellation, finish writeback, and finish sync surfaces; focused CLI tests cover once/executor/finish, timeout/cancellation, ack renewal, cwd guard, and result payload behavior."
+  ],
+  "evidence": [
+    "packages/cli/src/__tests__/agent-task-pull-once-command-step.test.ts",
+    ".agent-board/verification/S005-verification.json",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "review_gate": "Command execution safety, cancellation, and finish-writeback review."
+}

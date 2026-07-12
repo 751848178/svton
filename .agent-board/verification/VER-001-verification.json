@@ -1,0 +1,19 @@
+{
+  "todo_id": "VER-001",
+  "command": "Aggregate completed API-001-EXEC-001 and CLI-001-E001 verification evidence.",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "API ack/finish auth hardening and CLI task-pull helper/service split evidence are both verified. Focused Jest, type-check/build where applicable, formatting, diff check, conflict scan, board JSON/JSONL checks, and line-count checks passed.",
+  "relevant_errors": [],
+  "full_log": {
+    "api": ".agent-board/verification/API-001-EXEC-001-verification.json",
+    "cli": ".agent-board/verification/CLI-001-E001-verification.json"
+  },
+  "external_logs": [
+    "/tmp/codex-tool-runs/svton/api-001-ack-finish-auth-jest.log",
+    "/tmp/codex-tool-runs/svton/api-001-api-type-check.log",
+    "/tmp/codex-tool-runs/svton/cli-001-task-pull-jest.log",
+    "/tmp/codex-tool-runs/svton/cli-001-type-check.log",
+    "/tmp/codex-tool-runs/svton/cli-001-build.log"
+  ]
+}

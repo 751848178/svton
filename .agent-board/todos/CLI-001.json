@@ -1,0 +1,37 @@
+{
+  "id": "CLI-001",
+  "type": "module-plan",
+  "status": "done",
+  "role": "module_owner",
+  "module": "task-pull-cli",
+  "title": "Plan next CLI runtime/config executor todo",
+  "allowed_files": [
+    ".agent-board/modules/task-pull-cli/module-plan.json",
+    ".agent-board/modules/task-pull-cli/context-pack.json",
+    ".agent-board/todos/CLI-*.json"
+  ],
+  "read_only_files": [
+    "packages/cli/src/commands/agent-task-pull-config.ts",
+    "packages/cli/src/utils/agent-task-pull-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-loop-runner.ts",
+    "packages/cli/src/utils/agent-task-pull-executor.ts",
+    "packages/cli/src/utils/agent-task-pull-result.utils.ts",
+    "packages/cli/src/utils/agent-task-pull-types.ts",
+    "focused CLI task-pull tests"
+  ],
+  "forbidden_scope": [
+    "Do not edit production CLI code in module-owner planning mode.",
+    "Do not change server API schemas, endpoint paths, or database behavior.",
+    "Do not introduce daemonization, long connection, or multi-instance coordination."
+  ],
+  "acceptance": [
+    "Produce one next executor todo with exact allowed files.",
+    "Acceptance criteria mention unchanged defaults and one-run/loop behavior.",
+    "Verification command is focused to CLI task-pull tests plus CLI type-check/build when needed."
+  ],
+  "verification": {
+    "command": "wc -l packages/cli/src/commands/agent-task-pull-config.ts packages/cli/src/utils/agent-task-pull-runner.ts packages/cli/src/utils/agent-task-pull-loop-runner.ts packages/cli/src/utils/agent-task-pull-executor.ts",
+    "status": "passed",
+    "log": ".agent-board/results/CLI-001-result.json"
+  }
+}

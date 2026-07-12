@@ -1,0 +1,37 @@
+{
+  "id": "S009",
+  "title": "Run post-S008 final deliverability gate",
+  "status": "done",
+  "started_at": "2026-07-12T22:15:00+08:00",
+  "completed_at": "2026-07-12T22:17:00+08:00",
+  "mode": "write",
+  "depends_on": ["S008"],
+  "goal": "Rerun the final deliverability gate after S007/S008 close the source-backed backlog, then give the direct deliverable/not-deliverable judgment with concrete residual risks.",
+  "allowed_files": [
+    ".agent-board/** final verification/review/result files",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "forbidden_scope": [
+    "No new feature work.",
+    "No speculative backlog.",
+    "No claiming readiness from build/type-check alone.",
+    "No source edits unless final verification proves a defect."
+  ],
+  "acceptance": [
+    "All source-backed backlog is done or explicitly external.",
+    "API/CLI/Web prerequisite gates are represented by current logs after the final source changes.",
+    "Runtime/product gates are represented by focused API/CLI logs.",
+    "Final review gives a direct deliverable/not-deliverable judgment and dated residual risks.",
+    "Docs and board sync are completed."
+  ],
+  "verification_commands": [
+    "API/Web/CLI build and type-check prerequisites.",
+    "Focused API/CLI runtime/product gate tests.",
+    "Final JSON/event parsing, Prettier, and diff hygiene checks."
+  ],
+  "review_gate": "Final release-readiness review.",
+  "verification": ".agent-board/verification/S009-verification.json",
+  "review": ".agent-board/reviews/S009-review.json",
+  "result": ".agent-board/results/S009-result.json"
+}

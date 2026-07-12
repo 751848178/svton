@@ -19,6 +19,45 @@ import type {
 } from '../types';
 import type { ResourceConnectionRun, ResourceQueryRun } from '../types-query';
 
+const CLOUD_SYNC_PROVIDERS = ['aliyun-rds', 'aliyun-sls', 'tencent-cos'] as const;
+
+function resolveCloudSyncProvider(provider: string) {
+  return CLOUD_SYNC_PROVIDERS.includes(provider as (typeof CLOUD_SYNC_PROVIDERS)[number])
+    ? provider
+    : 'all';
+}
+
+function buildResourceSyncRequest(resource: ManagedResource) {
+  const environmentId = resource.environment?.id;
+
+  if (resource.sourceType === 'server') {
+    if (!resource.serverId) {
+      throw new Error('服务器资源缺少 serverId，无法同步 Docker 资源');
+    }
+    return {
+      endpoint: `POST:/resource-control/servers/${resource.serverId}/sync-docker`,
+      body: {
+        environmentId,
+        includeContainers: true,
+        includeMiddleware: true,
+      },
+    };
+  }
+
+  if (resource.sourceType === 'cloud') {
+    return {
+      endpoint: 'POST:/resource-control/cloud/sync',
+      body: {
+        provider: resolveCloudSyncProvider(resource.provider),
+        credentialId: resource.credential?.id,
+        environmentId,
+      },
+    };
+  }
+
+  throw new Error('当前资源类型暂不支持同步');
+}
+
 export function useResourceControl() {
   const [servers, setServers] = useState<Server[]>([]);
   const [resources, setResources] = useState<ManagedResource[]>([]);
@@ -100,7 +139,8 @@ export function useResourceControl() {
     setActingResourceId(`${resource.id}:sync`);
     setError('');
     try {
-      await apiRequest(`POST:/resource-control/resources/${resource.id}/sync`);
+      const request = buildResourceSyncRequest(resource);
+      await apiRequest(request.endpoint, request.body);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : '同步资源失败');

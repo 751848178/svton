@@ -1,9 +1,11 @@
 import { runAgentTaskPullLoop } from "../utils/agent-task-pull-loop-runner";
 import type { AgentTaskPullLoopSummary } from "../utils/agent-task-pull-loop-summary.types";
 import {
+  buildAgentTaskPullRunRuntimeProfile,
   buildAgentTaskPullStartupFailureLoopSummary,
   emitAgentTaskPullLoopSummaryResult,
   withAgentTaskPullLoopRunnerId,
+  withAgentTaskPullRunRuntimeProfile,
 } from "./agent-task-pull-command-result.service";
 import { buildAgentTaskPullLoopConfig } from "./agent-task-pull-config";
 import type { AgentTaskPullRunOptions } from "./agent-task-pull-config";
@@ -27,6 +29,10 @@ export async function runAgentTaskPullRunCommand(
   } = {},
 ) {
   const config = buildAgentTaskPullLoopConfig(options);
+  const runtimeProfile = buildAgentTaskPullRunRuntimeProfile(config, {
+    forever: options.forever,
+    pidFile: options.pidFile,
+  });
   const stop =
     deps.createStopController?.() || createAgentTaskPullStopController();
   let cleanupPidFile: () => void = () => undefined;
@@ -38,10 +44,13 @@ export async function runAgentTaskPullRunCommand(
     cleanupPidFile = startup.cleanupPidFile;
     if (!startup.shouldRun) {
       emitAgentTaskPullLoopSummaryResult(
-        buildAgentTaskPullStartupFailureLoopSummary({
-          startupError: startup.startupError,
-          runnerId: config.runnerId,
-        }),
+        withAgentTaskPullRunRuntimeProfile(
+          buildAgentTaskPullStartupFailureLoopSummary({
+            startupError: startup.startupError,
+            runnerId: config.runnerId,
+          }),
+          runtimeProfile,
+        ),
         deps,
       );
       return;
@@ -50,7 +59,10 @@ export async function runAgentTaskPullRunCommand(
       signal: stop.signal,
     });
     emitAgentTaskPullLoopSummaryResult(
-      withAgentTaskPullLoopRunnerId(summary, config.runnerId),
+      withAgentTaskPullRunRuntimeProfile(
+        withAgentTaskPullLoopRunnerId(summary, config.runnerId),
+        runtimeProfile,
+      ),
       deps,
     );
   } finally {

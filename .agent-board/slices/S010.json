@@ -1,0 +1,31 @@
+{
+  "id": "S010",
+  "title": "Add reproducible demo runbook and browser UI E2E proof",
+  "status": "done",
+  "started_at": "2026-07-12T22:30:00+08:00",
+  "completed_at": "2026-07-13T00:05:00+08:00",
+  "mode": "write",
+  "depends_on": ["S009"],
+  "goal": "Close the post-deliverability demo evidence gap with a repeatable runbook and browser-level UI E2E covering resource sync, deployment/task-pull status, logs, and monitoring.",
+  "allowed_files": [
+    "docs/devpilot/demo-runbook.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    "scripts/devpilot-ui-e2e.mjs",
+    ".agent-board/**S010*.json",
+    ".agent-board/board.json",
+    ".agent-board/board.md"
+  ],
+  "forbidden_scope": [
+    "No unrelated S002/S003/P8 source refactors.",
+    "No live deploy or rollback unless an isolated local fake target is verified.",
+    "No broad verification output in the main context."
+  ],
+  "acceptance": [
+    "Runbook covers local DB/Redis, agent target, project onboarding, deployment dry-run, task-pull completed, logs, monitoring, and rollback checkpoints.",
+    "Browser-level Playwright E2E is committed as a reproducible script and covers resource sync, execution governance/task-pull status, logs, and monitoring pages.",
+    "Noisy command output is stored under /tmp/codex-tool-runs/svton/.",
+    "Live deploy-completed-rollback is executed against a safe fake target or recorded as a concrete blocker."
+  ],
+  "verification": ".agent-board/verification/S010-verification.json",
+  "result": ".agent-board/results/S010-result.json"
+}

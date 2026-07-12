@@ -1,11 +1,11 @@
 import {
+  buildAgentTaskPullRunRuntimeProfile,
   buildAgentTaskPullStartupFailureLoopSummary,
-  emitAgentTaskPullLoopSummaryResult,
-  emitAgentTaskPullOnceSummaryResult,
   withAgentTaskPullLoopRunnerId,
+  withAgentTaskPullRunRuntimeProfile,
 } from "../commands/agent-task-pull-command-result.service";
+import type { AgentTaskPullLoopConfig } from "../utils/agent-task-pull-loop-runner";
 import type { AgentTaskPullLoopSummary } from "../utils/agent-task-pull-loop-summary.types";
-import type { AgentTaskPullRunSummary } from "../utils/agent-task-pull-runner";
 
 describe("agent task-pull command result service", () => {
   it("builds a startup failure loop summary with runner context", () => {
@@ -54,65 +54,43 @@ describe("agent task-pull command result service", () => {
     expect(withAgentTaskPullLoopRunnerId(summary)).toBe(summary);
   });
 
-  it("emits once summaries and sets nonzero exit code for failures", () => {
-    const logSummary = jest.fn();
-    const setExitCode = jest.fn();
-    const summary = buildOnceSummary("failed");
-
-    emitAgentTaskPullOnceSummaryResult(summary, { logSummary, setExitCode });
-
-    expect(logSummary).toHaveBeenCalledWith(summary);
-    expect(setExitCode).toHaveBeenCalledWith(1);
+  it("builds a non-sensitive run runtime profile", () => {
+    expect(
+      buildAgentTaskPullRunRuntimeProfile(buildLoopConfig(), {
+        forever: true,
+        pidFile: "/tmp/devpilot-agent.pid",
+      }),
+    ).toEqual({
+      processId: process.pid,
+      runnerId: "runner-1",
+      pidFileConfigured: true,
+      pidFile: "/tmp/devpilot-agent.pid",
+      heartbeatConfigured: true,
+      heartbeatStatus: "ready",
+      heartbeatTtlSeconds: 120,
+      loop: {
+        intervalMs: 5000,
+        forever: true,
+        idleLimit: 3,
+      },
+      ackRenewalIntervalMs: 25000,
+      forceKillGraceMs: 3000,
+    });
   });
 
-  it("emits once summaries without exit code changes for success", () => {
-    const logSummary = jest.fn();
-    const setExitCode = jest.fn();
-    const summary = buildOnceSummary("completed");
-
-    emitAgentTaskPullOnceSummaryResult(summary, { logSummary, setExitCode });
-
-    expect(logSummary).toHaveBeenCalledWith(summary);
-    expect(setExitCode).not.toHaveBeenCalled();
-  });
-
-  it("emits loop summaries and sets nonzero exit code for failure stops", () => {
-    const logSummary = jest.fn();
-    const setExitCode = jest.fn();
-    const summary = {
-      ...buildLoopSummary(),
-      stoppedReason: "poll_failed",
-      pollError: "network unavailable",
-    } satisfies AgentTaskPullLoopSummary;
-
-    emitAgentTaskPullLoopSummaryResult(summary, { logSummary, setExitCode });
-
-    expect(logSummary).toHaveBeenCalledWith(summary);
-    expect(setExitCode).toHaveBeenCalledWith(1);
-  });
-
-  it("emits loop summaries without exit code changes for normal stops", () => {
-    const logSummary = jest.fn();
-    const setExitCode = jest.fn();
+  it("adds a runtime profile to loop summaries", () => {
     const summary = buildLoopSummary();
+    const runtimeProfile =
+      buildAgentTaskPullRunRuntimeProfile(buildLoopConfig());
 
-    emitAgentTaskPullLoopSummaryResult(summary, { logSummary, setExitCode });
-
-    expect(logSummary).toHaveBeenCalledWith(summary);
-    expect(setExitCode).not.toHaveBeenCalled();
+    expect(withAgentTaskPullRunRuntimeProfile(summary, runtimeProfile)).toEqual(
+      {
+        ...summary,
+        runtimeProfile,
+      },
+    );
   });
 });
-
-function buildOnceSummary(
-  status: "completed" | "failed",
-): AgentTaskPullRunSummary {
-  return {
-    mode: "executed",
-    jobId: "job-1",
-    status,
-    stepCount: 1,
-  };
-}
 
 function buildLoopSummary(): AgentTaskPullLoopSummary {
   return {
@@ -123,5 +101,33 @@ function buildLoopSummary(): AgentTaskPullLoopSummary {
     heartbeats: 0,
     stoppedReason: "max_iterations",
     runs: [],
+  };
+}
+
+function buildLoopConfig(): AgentTaskPullLoopConfig {
+  return {
+    apiUrl: "https://devpilot.example.test",
+    token: "secret-task-token",
+    teamId: "team-1",
+    serverId: "server-1",
+    agentId: "agent-1",
+    runnerId: "runner-1",
+    capabilities: ["deploy"],
+    execute: true,
+    intervalMs: 5000,
+    idleLimit: 3,
+    heartbeat: {
+      apiUrl: "https://devpilot.example.test",
+      token: "secret-heartbeat-token",
+      teamId: "team-1",
+      serverId: "server-1",
+      agentId: "agent-1",
+      runnerId: "runner-1",
+      capabilities: ["deploy"],
+      status: "ready",
+      ttlSeconds: 120,
+    },
+    ackRenewalIntervalMs: 25000,
+    forceKillGraceMs: 3000,
   };
 }

@@ -1,0 +1,21 @@
+{
+  "slice_id": "S009",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S009 final deliverability gate passed after S007/S008 closed the remaining source-backed backlog. API/CLI runtime/product gates passed, and API/CLI/Web build/type-check prerequisite logs are recorded.",
+  "relevant_errors": [],
+  "full_log": {
+    "api_final_gate_jest": "/tmp/codex-tool-runs/svton/s009-api-final-gate-jest-20260712-221344.log",
+    "cli_task_pull_gate_jest": "/tmp/codex-tool-runs/svton/s009-cli-task-pull-gate-jest-20260712-221344.log",
+    "api_type_check": "/tmp/codex-tool-runs/svton/s008-api-type-check-20260712-220937.log",
+    "api_build": "/tmp/codex-tool-runs/svton/s008-api-build-20260712-220937.log",
+    "cli_type_check": "/tmp/codex-tool-runs/svton/s006-cli-type-check-20260712-214906.log",
+    "cli_build": "/tmp/codex-tool-runs/svton/s006-cli-build-20260712-214929.log",
+    "web_build": "/tmp/codex-tool-runs/svton/s006-web-build-20260712-214930.log",
+    "web_type_check": "/tmp/codex-tool-runs/svton/s006-web-type-check-20260712-214952.log",
+    "json": "/tmp/codex-tool-runs/svton/s009-final-json-check-20260712-221527.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s009-final-events-jsonl-check-20260712-221527.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s009-final-prettier-check-rerun-20260712-221559.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s009-final-diff-check-rerun-20260712-221559.log"
+  }
+}

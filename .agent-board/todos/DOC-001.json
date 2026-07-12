@@ -1,0 +1,35 @@
+{
+  "id": "DOC-001",
+  "type": "documentation",
+  "status": "done",
+  "role": "module_owner",
+  "module": "task-pull-docs-verification",
+  "title": "Sync P8 progress and TODO evidence after implementation verification",
+  "allowed_files": [
+    "docs-internal/devpilot/progress/INDEX.md",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/events.jsonl"
+  ],
+  "read_only_files": [
+    ".agent-board/verification/VER-001-verification.json",
+    ".agent-board/reviews/REV-001-review.json"
+  ],
+  "forbidden_scope": [
+    "Do not claim readiness that verification did not prove.",
+    "Do not edit runtime source code from this todo.",
+    "Do not paste full logs into docs."
+  ],
+  "acceptance": [
+    "Docs name the exact verified slice and log paths.",
+    "Remaining runtime gaps are explicit follow-ups.",
+    "Board statuses are updated after verification/review evidence exists."
+  ],
+  "verification": {
+    "command": "corepack pnpm prettier --check docs-internal/devpilot/progress/INDEX.md docs-internal/devpilot/progress/P8-ops-governance.md docs-internal/todos/2026-06-25-existing-project-onboarding.md .agent-board/board.md",
+    "status": "passed",
+    "log": ".agent-board/results/DOC-001-result.json"
+  }
+}

@@ -1,30 +1,12 @@
 import spawn from "cross-spawn";
 import { resolveAgentTaskPullStepCwd } from "./agent-task-pull-cwd.utils";
 import { appendAgentTaskPullOutput } from "./agent-task-pull-output.utils";
-import type { AgentTaskPullCommandStep } from "./agent-task-pull-types";
-
-export type AgentTaskPullStepResult = {
-  key: string;
-  command: string;
-  exitCode: number | null;
-  durationMs: number;
-  stdout: string;
-  stderr: string;
-  stdoutTruncated?: boolean;
-  stderrTruncated?: boolean;
-  timedOut: boolean;
-  cancelled?: boolean;
-  dryRunSkipped?: boolean;
-};
-
-export type AgentTaskPullExecutor = (
-  step: AgentTaskPullCommandStep,
-  options: {
-    cwd?: string;
-    signal?: AbortSignal;
-    forceKillGraceMs?: number;
-  },
-) => Promise<AgentTaskPullStepResult>;
+import {
+  buildAgentTaskPullCancelledResult,
+  buildAgentTaskPullInvalidCwdResult,
+  buildAgentTaskPullSpawnErrorResult,
+} from "./agent-task-pull-result.utils";
+import type { AgentTaskPullExecutor } from "./agent-task-pull-types";
 
 const DEFAULT_FORCE_KILL_GRACE_MS = 5_000;
 
@@ -35,12 +17,12 @@ export const executeAgentTaskPullStep: AgentTaskPullExecutor = (
   new Promise((resolve) => {
     const startedAt = Date.now();
     if (options.signal?.aborted) {
-      resolve(buildCancelledResult(step, startedAt));
+      resolve(buildAgentTaskPullCancelledResult(step, startedAt));
       return;
     }
     const cwd = resolveAgentTaskPullStepCwd(step.cwd, options.cwd);
     if (!cwd.ok) {
-      resolve(buildInvalidCwdResult(step, startedAt, cwd));
+      resolve(buildAgentTaskPullInvalidCwdResult(step, startedAt, cwd));
       return;
     }
     const child = spawn(step.command, [], {
@@ -91,7 +73,7 @@ export const executeAgentTaskPullStep: AgentTaskPullExecutor = (
     });
     child.on("error", (error: NodeJS.ErrnoException) => {
       cleanup(timer, forceKillTimer, options.signal, abort);
-      resolve(buildSpawnErrorResult(step, startedAt, error));
+      resolve(buildAgentTaskPullSpawnErrorResult(step, startedAt, error));
     });
     child.on("close", (exitCode) => {
       cleanup(timer, forceKillTimer, options.signal, abort);
@@ -109,54 +91,6 @@ export const executeAgentTaskPullStep: AgentTaskPullExecutor = (
       });
     });
   });
-
-function buildSpawnErrorResult(
-  step: AgentTaskPullCommandStep,
-  startedAt: number,
-  error: NodeJS.ErrnoException,
-): AgentTaskPullStepResult {
-  return {
-    key: step.key,
-    command: step.command,
-    exitCode: null,
-    durationMs: Date.now() - startedAt,
-    stdout: "",
-    stderr: `spawn_error${error.code ? `:${error.code}` : ""}: ${error.message}`,
-    timedOut: false,
-  };
-}
-
-function buildInvalidCwdResult(
-  step: AgentTaskPullCommandStep,
-  startedAt: number,
-  cwd: { baseCwd: string; requestedCwd: string; reason: string },
-): AgentTaskPullStepResult {
-  return {
-    key: step.key,
-    command: step.command,
-    exitCode: 1,
-    durationMs: Date.now() - startedAt,
-    stdout: "",
-    stderr: `${cwd.reason}: requested ${cwd.requestedCwd} outside ${cwd.baseCwd}`,
-    timedOut: false,
-  };
-}
-
-function buildCancelledResult(
-  step: AgentTaskPullCommandStep,
-  startedAt: number,
-): AgentTaskPullStepResult {
-  return {
-    key: step.key,
-    command: step.command,
-    exitCode: null,
-    durationMs: Date.now() - startedAt,
-    stdout: "",
-    stderr: "",
-    timedOut: false,
-    cancelled: true,
-  };
-}
 
 function requestTermination(
   child: { pid?: number; kill(signal: NodeJS.Signals): boolean },

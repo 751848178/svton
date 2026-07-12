@@ -13,6 +13,66 @@ describe("ServerAgentTaskPullFinishService", () => {
     jest.useRealTimers();
   });
 
+  it("rejects when task-pull is disabled before mutating or syncing", async () => {
+    const prisma = {
+      serverExecutionJob: {
+        findFirst: jest.fn(),
+        updateMany: jest.fn(),
+        findUnique: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const syncService = buildSyncServiceMock(null);
+    const service = buildService(prisma, syncService, {
+      SERVER_EXECUTOR_AGENT_TASK_PULL_ENABLED: "false",
+    });
+
+    await expect(
+      service.finish(
+        { "x-devpilot-agent-task-pull-token": "task-token" },
+        {
+          teamId: "team-1",
+          serverId: "server-1",
+          agentId: "agent-prod-1",
+          jobId: "job-agent-running",
+          status: "completed",
+        },
+      ),
+    ).rejects.toThrow("Server agent task-pull 未启用");
+    expect(prisma.serverExecutionJob.findFirst).not.toHaveBeenCalled();
+    expect(prisma.serverExecutionJob.updateMany).not.toHaveBeenCalled();
+    expect(prisma.serverExecutionJob.findUnique).not.toHaveBeenCalled();
+    expect(syncService.syncAfterFinish).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid task-pull tokens before mutating or syncing", async () => {
+    const prisma = {
+      serverExecutionJob: {
+        findFirst: jest.fn(),
+        updateMany: jest.fn(),
+        findUnique: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const syncService = buildSyncServiceMock(null);
+    const service = buildService(prisma, syncService);
+
+    await expect(
+      service.finish(
+        { "x-devpilot-agent-task-pull-token": "wrong-token" },
+        {
+          teamId: "team-1",
+          serverId: "server-1",
+          agentId: "agent-prod-1",
+          jobId: "job-agent-running",
+          status: "completed",
+        },
+      ),
+    ).rejects.toThrow("Server agent task-pull token 无效");
+    expect(prisma.serverExecutionJob.findFirst).not.toHaveBeenCalled();
+    expect(prisma.serverExecutionJob.updateMany).not.toHaveBeenCalled();
+    expect(prisma.serverExecutionJob.findUnique).not.toHaveBeenCalled();
+    expect(syncService.syncAfterFinish).not.toHaveBeenCalled();
+  });
+
   it("writes a terminal result for a claimed running server_agent job", async () => {
     jest.useFakeTimers().setSystemTime(new Date("2026-07-10T12:10:00.000Z"));
 
@@ -187,10 +247,12 @@ describe("ServerAgentTaskPullFinishService", () => {
 function buildService(
   prisma: PrismaService,
   syncService: Pick<ServerAgentTaskPullFinishSyncService, "syncAfterFinish">,
+  overrides: Record<string, string> = {},
 ) {
   const configValues: Record<string, string> = {
     SERVER_EXECUTOR_AGENT_TASK_PULL_ENABLED: "true",
     SERVER_EXECUTOR_AGENT_TASK_PULL_TOKEN: "task-token",
+    ...overrides,
   };
   const configService = {
     get: jest.fn(

@@ -1,0 +1,28 @@
+{
+  "module": "task-pull-docs-verification",
+  "allowed_scope": [
+    "docs-internal/devpilot/progress/INDEX.md",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/INDEX.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
+    ".agent-board/**"
+  ],
+  "read_only_scope": [
+    "apps/devpilot-api/src/server-executor/**",
+    "packages/cli/src/**",
+    "package.json",
+    "pnpm-workspace.yaml",
+    "turbo.json"
+  ],
+  "forbidden_scope": [
+    "Do not edit runtime source code from docs/verification context.",
+    "Do not re-read old sessions or full unrelated roadmaps.",
+    "Do not paste full test/build logs into board files."
+  ],
+  "log_root": "/tmp/codex-tool-runs/svton/",
+  "known_evidence": [
+    "Relevant docs are P8 progress and the existing-project-onboarding TODO ledger.",
+    "Verification should include focused tests, type-check/build when needed, line-count, diff check, conflict marker scan, and trailing whitespace scan."
+  ],
+  "needs_context_rule": "Return needs_context if a verifier needs a command outside the listed project/package checks."
+}

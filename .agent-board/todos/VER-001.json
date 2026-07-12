@@ -1,0 +1,33 @@
+{
+  "id": "VER-001",
+  "type": "verification",
+  "status": "verified",
+  "role": "verifier",
+  "module": "verification",
+  "title": "Run focused task-pull verification and hygiene checks",
+  "allowed_files": [
+    ".agent-board/verification/VER-001-verification.json",
+    ".agent-board/events.jsonl"
+  ],
+  "read_only_files": [
+    "apps/devpilot-api/src/server-executor/**",
+    "packages/cli/src/**",
+    "docs-internal/devpilot/progress/**",
+    "docs-internal/todos/**"
+  ],
+  "forbidden_scope": [
+    "Do not edit production source files.",
+    "Do not paste full command output into the board.",
+    "Do not treat known CLI lint dependency failure as a pass."
+  ],
+  "acceptance": [
+    "Write a verifier summary with command, status, exit_code, summary, relevant_errors, and full_log.",
+    "Focused API and CLI checks are covered or explicitly marked not run with reason.",
+    "Line-count/hygiene checks cover touched source and docs."
+  ],
+  "verification": {
+    "command": "Run focused Jest/type-check/build/prettier/line-count/diff/conflict/trailing-whitespace commands with logs under /tmp/codex-tool-runs/svton/.",
+    "status": "passed",
+    "log": ".agent-board/verification/VER-001-verification.json"
+  }
+}

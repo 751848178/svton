@@ -1,0 +1,19 @@
+{
+  "todo_id": "DOC-001",
+  "status": "done",
+  "changed_files": [
+    "docs-internal/devpilot/progress/INDEX.md",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "summary": "Synced F374 server-agent task-pull ack/finish auth regression coverage into the P8 progress index, P8 progress file, and active TODO ledger without claiming new runtime readiness beyond verified foreground task-pull behavior.",
+  "verification": {
+    "status": "passed",
+    "logs": [
+      "/tmp/codex-tool-runs/svton/doc-001-prettier-check2.log",
+      "/tmp/codex-tool-runs/svton/doc-001-diff-check2.log"
+    ]
+  },
+  "risks": [],
+  "needs_followup": []
+}

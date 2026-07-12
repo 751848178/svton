@@ -1,0 +1,17 @@
+{
+  "slice_id": "S008",
+  "status": "passed",
+  "findings": [],
+  "open_questions": [],
+  "summary": [
+    "S008 did not require production code changes; source inspection showed remote-orphan governance summary/blocker and default-off stale remote cleanup behavior already existed.",
+    "The new focused test closes the proof gap by covering cleanup-disabled critical blockers, cleanup failure visibility, stale-job scan truncation, and recovery-batch pressure.",
+    "Existing server-executor coverage still proves stale remote cleanup is default-off and persists cleanup results when enabled."
+  ],
+  "evidence": [
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-remote-orphan-summary.service.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-executor.service.spec.ts",
+    ".agent-board/verification/S008-verification.json"
+  ],
+  "review_gate": "Production remote-orphan governance review: cleanup default-off safety, auditability, stale-session evidence, and operator-visible blockers."
+}

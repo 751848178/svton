@@ -1,0 +1,35 @@
+{
+  "id": "REV-001",
+  "type": "review",
+  "status": "done",
+  "role": "reviewer",
+  "module": "review",
+  "title": "Review task-pull lifecycle contracts and safety gates",
+  "allowed_files": [
+    ".agent-board/reviews/REV-001-review.json",
+    ".agent-board/events.jsonl"
+  ],
+  "read_only_files": [
+    ".agent-board/goals/G001.json",
+    ".agent-board/modules/task-pull-api/context-pack.json",
+    ".agent-board/modules/task-pull-cli/context-pack.json",
+    ".agent-board/verification/VER-001-verification.json",
+    "apps/devpilot-api/src/server-executor/**",
+    "packages/cli/src/**",
+    "docs-internal/devpilot/progress/P8-ops-governance.md"
+  ],
+  "forbidden_scope": [
+    "Do not edit implementation files.",
+    "Do not rewrite docs or code silently."
+  ],
+  "acceptance": [
+    "Findings are ordered by severity with file/line references when applicable.",
+    "Review covers API/CLI metadata compatibility, default-off/auth gates, lock-owner matching, cancellation/finish behavior, and missing tests.",
+    "Open questions are explicit."
+  ],
+  "verification": {
+    "command": "Review diff and verification summary after VER-001 completes.",
+    "status": "passed",
+    "log": ".agent-board/reviews/REV-001-review.json"
+  }
+}

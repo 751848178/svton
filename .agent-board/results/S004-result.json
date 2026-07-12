@@ -1,0 +1,33 @@
+{
+  "slice_id": "S004",
+  "status": "done",
+  "summary": "Implemented the S004 foreground real-agent runtime operability slice by adding non-sensitive runtimeProfile metadata to task-pull run summaries and startup-failure summaries.",
+  "changed_files": [
+    "packages/cli/src/utils/agent-task-pull-loop-summary.types.ts",
+    "packages/cli/src/commands/agent-task-pull-command-result.service.ts",
+    "packages/cli/src/commands/agent-task-pull-run-command.service.ts",
+    "packages/cli/src/__tests__/agent-task-pull-command-result.service.test.ts",
+    "packages/cli/src/__tests__/agent-task-pull-run-command.service.test.ts",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/events.jsonl",
+    ".agent-board/slices/S004.json",
+    ".agent-board/verification/S004-verification.json",
+    ".agent-board/reviews/S004-review.json"
+  ],
+  "verification": ".agent-board/verification/S004-verification.json",
+  "review": ".agent-board/reviews/S004-review.json",
+  "hygiene_logs": {
+    "json": "/tmp/codex-tool-runs/svton/s004-final-json-check-20260712-213706.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s004-final-events-jsonl-check-20260712-213736.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s004-final-prettier-check-rerun-20260712-213735.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s004-final-diff-check-rerun-20260712-213736.log"
+  },
+  "remaining_risks": [
+    "S004 does not implement background daemonization or systemd/launchd integration; that remains an operator/deployment integration risk.",
+    "S005 still needs terminal runtime end-to-end verification across claimed payload, local command execution, ack/progress, and finish writeback.",
+    "Multi-instance coordination remains a later candidate after single-agent runtime proof."
+  ]
+}

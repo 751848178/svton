@@ -24,6 +24,29 @@ export type AgentTaskPullCommandStep = {
   timeoutSeconds?: number;
 };
 
+export type AgentTaskPullStepResult = {
+  key: string;
+  command: string;
+  exitCode: number | null;
+  durationMs: number;
+  stdout: string;
+  stderr: string;
+  stdoutTruncated?: boolean;
+  stderrTruncated?: boolean;
+  timedOut: boolean;
+  cancelled?: boolean;
+  dryRunSkipped?: boolean;
+};
+
+export type AgentTaskPullExecutor = (
+  step: AgentTaskPullCommandStep,
+  options: {
+    cwd?: string;
+    signal?: AbortSignal;
+    forceKillGraceMs?: number;
+  },
+) => Promise<AgentTaskPullStepResult>;
+
 export type AgentTaskPullTask = {
   available: boolean;
   jobId: string;

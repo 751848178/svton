@@ -1,18 +1,21 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
 import { LogCollectionIngestionService } from "../log-center/log-collection-ingestion.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ServerAgentTaskPullFinishDto } from "./dto/server-execution-lease.dto";
 import { JobQueuePort, JOB_QUEUE_PORT } from "./queue/job-queue.port";
-import { rehydrateServerExecutionInput } from "./server-executor-input-snapshot.utils";
+import {
+  buildServerAgentTaskPullFinishSyncExecutionResult,
+  buildServerAgentTaskPullLogCollectionSyncResult,
+  isServerAgentTaskPullNonLogBusinessRunSync,
+  readServerAgentTaskPullFinishSyncBusinessRunSync,
+  readServerAgentTaskPullFinishSyncLogCollectionRunId,
+  readServerAgentTaskPullFinishSyncMetadata,
+  rehydrateServerAgentTaskPullFinishSyncInput,
+  type ServerAgentTaskPullFinishSyncJob,
+} from "./server-agent-task-pull-finish-sync-result.utils";
 import { ServerExecutorJobLifecycleWriteService } from "./server-executor-job-lifecycle-write.service";
 import { ServerExecutorLinkedBusinessRunSyncFactoryService } from "./server-executor-linked-business-run-sync-factory.service";
 import { ServerExecutorLinkedBusinessRunSyncService } from "./server-executor-linked-business-run-sync.service";
-import {
-  isRecord,
-  readOptionalString,
-  toJsonValue,
-} from "./server-executor-json.utils";
 import { ServerExecutorLogCollectionRunSyncService } from "./server-executor-log-collection-run-sync.service";
 import { buildServerExecutorQueuedResult } from "./server-executor-result.utils";
 import {
@@ -21,24 +24,7 @@ import {
   ServerQueuedExecutionResult,
 } from "./server-executor.types";
 
-export type ServerAgentTaskPullFinishSyncJob = {
-  id: string;
-  teamId: string;
-  actorId: string | null;
-  retryOfId: string | null;
-  attempt: number;
-  maxAttempts: number;
-  adapterKey: string;
-  inputSnapshot: Prisma.JsonValue;
-};
-
-const NON_LOG_BUSINESS_RUN_SYNC_TYPES = new Set([
-  "deployment",
-  "site_sync",
-  "resource_action",
-  "service_operation",
-  "backup_run",
-]);
+export type { ServerAgentTaskPullFinishSyncJob };
 
 @Injectable()
 export class ServerAgentTaskPullFinishSyncService {
@@ -80,15 +66,23 @@ export class ServerAgentTaskPullFinishSyncService {
     dto: ServerAgentTaskPullFinishDto,
     job: ServerAgentTaskPullFinishSyncJob,
   ) {
-    const metadata = this.readMetadata(job.inputSnapshot);
-    const businessRunSync = readOptionalString(metadata.businessRunSync);
+    const metadata = readServerAgentTaskPullFinishSyncMetadata(
+      job.inputSnapshot,
+    );
+    const businessRunSync =
+      readServerAgentTaskPullFinishSyncBusinessRunSync(metadata);
     const shouldSyncLogCollection = businessRunSync === "log_collection";
-    const shouldSyncNonLog = this.isNonLogBusinessRunSync(businessRunSync);
+    const shouldSyncNonLog =
+      isServerAgentTaskPullNonLogBusinessRunSync(businessRunSync);
 
     if (!shouldSyncLogCollection && !shouldSyncNonLog) return null;
 
-    const input = this.rehydrateInput(dto, job);
-    const result = this.buildExecutionResult(dto, input, job);
+    const input = rehydrateServerAgentTaskPullFinishSyncInput(dto, job);
+    const result = buildServerAgentTaskPullFinishSyncExecutionResult(
+      dto,
+      input,
+      job,
+    );
     if (shouldSyncLogCollection) {
       return this.syncLogCollectionRun(dto, input, result, job, metadata);
     }
@@ -113,7 +107,7 @@ export class ServerAgentTaskPullFinishSyncService {
     metadata: Record<string, unknown>,
   ) {
     const logCollectionRunId =
-      readOptionalString(metadata.logCollectionRunId) || null;
+      readServerAgentTaskPullFinishSyncLogCollectionRunId(metadata);
     if (!logCollectionRunId) return null;
 
     const synced = await this.logCollectionRunSyncService.syncAfterExecution(
@@ -123,21 +117,11 @@ export class ServerAgentTaskPullFinishSyncService {
       metadata,
     );
 
-    return {
-      businessRunSync: "log_collection",
+    return buildServerAgentTaskPullLogCollectionSyncResult(
+      dto,
       logCollectionRunId,
       synced,
-      completedIngestionAttempted: synced && dto.status === "completed",
-    };
-  }
-
-  private readMetadata(snapshot: Prisma.JsonValue): Record<string, unknown> {
-    if (!isRecord(snapshot)) return {};
-    return isRecord(snapshot.metadata) ? snapshot.metadata : {};
-  }
-
-  private isNonLogBusinessRunSync(value: string | null | undefined) {
-    return !!value && NON_LOG_BUSINESS_RUN_SYNC_TYPES.has(value);
+    );
   }
 
   private async queueLinkedSiteExecution(
@@ -154,44 +138,5 @@ export class ServerAgentTaskPullFinishSyncService {
       queuedAt: job.queuedAt,
       availableAt: job.availableAt,
     });
-  }
-
-  private rehydrateInput(
-    dto: ServerAgentTaskPullFinishDto,
-    job: ServerAgentTaskPullFinishSyncJob,
-  ): ServerExecutionInput {
-    return rehydrateServerExecutionInput(job.inputSnapshot, {
-      teamId: dto.teamId,
-      userId: job.actorId || undefined,
-      retryOfJobId: job.retryOfId || undefined,
-      retryAttempt: job.attempt,
-      maxAttempts: job.maxAttempts,
-    });
-  }
-
-  private buildExecutionResult(
-    dto: ServerAgentTaskPullFinishDto,
-    input: ServerExecutionInput,
-    job: ServerAgentTaskPullFinishSyncJob,
-  ): ServerExecutionResult {
-    return {
-      status: dto.status,
-      mode: dto.status === "cancelled" ? "cancelled" : "executed",
-      executorKey: "server-executor",
-      adapterKey: job.adapterKey,
-      executable: dto.status === "completed",
-      warnings: input.warnings || [],
-      commandSteps: input.steps,
-      commandPlan: toJsonValue(dto.commandPlan ?? null),
-      logs: toJsonValue(dto.logs ?? []),
-      result: toJsonValue(
-        dto.result ?? {
-          mode: "agent_task_pull_terminal_writeback",
-          serverExecutionJobId: job.id,
-          status: dto.status,
-        },
-      ),
-      error: dto.error,
-    };
   }
 }

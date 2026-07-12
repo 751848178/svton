@@ -1,0 +1,21 @@
+sequenceDiagram
+  participant CLI as CLI task-pull runner
+  participant API as Server-agent task-pull API
+  participant Job as ServerExecutionJob
+  participant Sync as Linked-run finish sync
+  participant Docs as Progress and verification evidence
+
+  CLI->>API: contract(identity)
+  API-->>CLI: default-off gates and lifecycle support
+  CLI->>API: claim(identity)
+  API->>Job: claim queued server_agent job
+  API-->>CLI: safe task payload
+  loop command execution
+    CLI->>API: ack(progress)
+    API->>Job: renew matching running lock
+  end
+  CLI->>API: finish(terminal status, logs, result)
+  API->>Job: write terminal outcome for matching lock owner
+  API->>Sync: sync linked business run after finish
+  API-->>CLI: finish metadata and job sample
+  Docs->>Docs: record verification logs and remaining gaps

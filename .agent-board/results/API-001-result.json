@@ -1,0 +1,39 @@
+{
+  "todo_id": "API-001",
+  "status": "done",
+  "agent": {
+    "id": "019f55f3-4080-7c33-b4d2-6fe59438d6d0",
+    "nickname": "Lovelace",
+    "role": "module_owner"
+  },
+  "summary": [
+    "F370-F373 API helper extraction/docs are already complete.",
+    "Ack/finish services assert task-pull auth before DB mutation, but focused specs only cover enabled-token paths and lock mismatch behavior.",
+    "Next smallest API-only step is spec hardening for default-off/token-gated ack and finish lifecycle endpoints, with production API files read-only.",
+    "No CLI files are included."
+  ],
+  "proposed_executor_todo": "API-001-EXEC-001",
+  "why_next": "F370-F373 completed structural API task-pull splits, so another helper extraction is not the next smallest justified step. The remaining board/architect risk is contract drift plus default-off gate preservation; ack and finish already call auth before mutation, but their focused specs exercise enabled-token success/failure paths rather than proving rejected lifecycle requests cannot mutate jobs or sync linked runs. Adding only spec coverage is the narrowest API step and avoids all CLI overlap.",
+  "risks": [
+    "Spec helper may need a small local override to construct disabled-token ConfigService without changing production files.",
+    "Exact thrown error text should not be over-specified unless already stable in existing auth tests.",
+    "API type-check may require prior build only if unrelated type artifacts are stale; executor should report that as verification environment noise, not expand scope."
+  ],
+  "evidence": [
+    ".agent-board/modules/task-pull-api/module-plan.json:5-8",
+    ".agent-board/todos/API-001.json:26-27",
+    ".agent-board/results/ARCH-001-result.json:19",
+    ".agent-board/results/ARCH-001-result.json:26",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.ts:30",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.ts:35",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts:29",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts:47",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts:75",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.spec.ts:16",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.spec.ts:229-232",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.spec.ts:16",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.spec.ts:187-193",
+    "docs-internal/devpilot/progress/P8-ops-governance.md:3695-3697",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md:5165-5167"
+  ]
+}

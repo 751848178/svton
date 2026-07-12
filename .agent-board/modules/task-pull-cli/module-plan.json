@@ -1,0 +1,12 @@
+{
+  "module": "task-pull-cli",
+  "context_pack": ".agent-board/modules/task-pull-cli/context-pack.json",
+  "contracts": [
+    "CLI defaults remain unchanged unless explicitly accepted by an API/architecture review.",
+    "Once runner owns one task lifecycle only: contract, claim, execute, finish.",
+    "Loop runner owns polling, idle/stop behavior, and failure-stop summaries.",
+    "Executor owns local process execution, cwd validation, cancellation, and result conversion."
+  ],
+  "atomic_todos": ["CLI-001"],
+  "review_gate": "REV-001"
+}

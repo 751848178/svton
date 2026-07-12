@@ -1,0 +1,29 @@
+{
+  "slice_id": "S009",
+  "status": "done",
+  "summary": "Post-S008 final deliverability gate passed. Current identifiable source-backed Devpilot backlog is closed, final API/CLI runtime gates passed, build/type-check prerequisites are green, and the direct judgment is deliverable with documented residual deployment/operator risks.",
+  "changed_files": [
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/events.jsonl",
+    ".agent-board/slices/S006.json",
+    ".agent-board/slices/S009.json",
+    ".agent-board/verification/S009-verification.json",
+    ".agent-board/reviews/S009-review.json",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md"
+  ],
+  "verification": ".agent-board/verification/S009-verification.json",
+  "review": ".agent-board/reviews/S009-review.json",
+  "hygiene_logs": {
+    "json": "/tmp/codex-tool-runs/svton/s009-final-json-check-20260712-221527.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s009-final-events-jsonl-check-20260712-221527.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s009-final-prettier-check-rerun-20260712-221559.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s009-final-diff-check-rerun-20260712-221559.log"
+  },
+  "deliverable_judgment": "deliverable",
+  "remaining_risks": [
+    "Background process-manager integration for running the foreground CLI agent under systemd/launchd remains an operator/deployment responsibility outside repo-owned code.",
+    "No live production deployment exercise was run; readiness is based on automated API/CLI/Web build/type-check plus focused runtime/product gates."
+  ]
+}

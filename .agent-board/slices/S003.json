@@ -1,0 +1,38 @@
+{
+  "id": "S003",
+  "title": "Map source-backed deliverable runtime gaps",
+  "status": "done",
+  "mode": "read",
+  "goal": "Classify the remaining Devpilot product/runtime gaps from docs, code, and current tests into implementation slices or external blockers before any new behavior work.",
+  "allowed_files": [
+    ".agent-board/** result/backlog files",
+    "docs-internal/devpilot/progress/INDEX.md",
+    "docs-internal/devpilot/progress/P8-ops-governance.md",
+    "docs-internal/todos/INDEX.md",
+    "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
+    "targeted reads in apps/devpilot-api/src/server-executor",
+    "targeted reads in packages/cli/src"
+  ],
+  "forbidden_scope": [
+    "No business code edits.",
+    "No broad roadmap replay.",
+    "No unrelated P1/P3/P6/P7 changes.",
+    "No schema, web, or provider changes."
+  ],
+  "acceptance": [
+    "Each backlog item cites a document, code, test, review finding, or validation failure source.",
+    "Each item is classified as implementable slice, verification-only gap, or external blocker.",
+    "The next implementable write slice has exact allowed files and validation commands.",
+    "Speculative items are rejected."
+  ],
+  "verification_commands": [
+    "Scoped rg/safe-read only unless runtime evidence is required.",
+    "No noisy build required for this read-only classification slice."
+  ],
+  "review_gate": "Orchestrator accepts only source-backed backlog.",
+  "orchestrator_worker_prompt": "/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/workers/s003-prompt.md",
+  "started_at": "2026-07-12T21:20:46+08:00",
+  "gap_map": ".agent-board/gap-maps/S003-gap-map.json",
+  "result": ".agent-board/results/S003-result.json",
+  "completed_at": "2026-07-12T21:22:05+08:00"
+}

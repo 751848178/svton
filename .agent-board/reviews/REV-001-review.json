@@ -1,0 +1,30 @@
+{
+  "todo_id": "REV-001",
+  "status": "passed",
+  "agent": {
+    "id": "019f55fd-2b59-73e3-bede-98ed2cccb936",
+    "nickname": "Aquinas",
+    "role": "reviewer"
+  },
+  "findings": [],
+  "open_questions": [],
+  "summary": [
+    "API ack/finish specs now assert disabled and invalid-token lifecycle requests reject before job mutation, lookup, or linked-run sync.",
+    "Ack/finish metadata shape remains compatible with CLI expectations: rejected ack/finish is surfaced via acked/finished plus reason, and loop stops on failed finish writeback.",
+    "Default-off and token-gate preservation is covered by API specs; CLI still requires explicit execute/loop bounds and heartbeat remains optional.",
+    "Focused CLI test relocation appears coverage-preserving within the scoped files; board evidence does not claim readiness beyond verified foreground task-pull behavior."
+  ],
+  "evidence": [
+    ".agent-board/board.json:52-73",
+    ".agent-board/results/ARCH-001-result.json:18-27",
+    ".agent-board/results/API-001-EXEC-001-result.json:4-15",
+    ".agent-board/results/CLI-001-E001-result.json:4-29",
+    ".agent-board/verification/VER-001-verification.json:2-18",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.spec.ts:16-39",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.spec.ts:42-63",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.spec.ts:16-44",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.spec.ts:47-73",
+    "packages/cli/src/utils/agent-task-pull-runner.ts:30-50",
+    "packages/cli/src/utils/agent-task-pull-loop-summary.utils.ts:51-60"
+  ]
+}

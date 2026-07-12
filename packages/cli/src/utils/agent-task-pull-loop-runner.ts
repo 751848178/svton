@@ -6,13 +6,19 @@ import type {
 } from "./agent-heartbeat-types";
 import type {
   AgentTaskPullConfig,
+  AgentTaskPullExecutor,
   AgentTaskPullHttpClient,
 } from "./agent-task-pull-types";
-import type { AgentTaskPullExecutor } from "./agent-task-pull-executor";
 import type { AgentTaskPullLoopSummary } from "./agent-task-pull-loop-summary.types";
 import { runAgentTaskPullOnce } from "./agent-task-pull-runner";
 import type { AgentTaskPullRunSummary } from "./agent-task-pull-runner";
 import { delayAgentTaskPullLoop } from "./agent-task-pull-loop-delay.utils";
+import {
+  buildAgentTaskPullLoopSummary,
+  formatAgentTaskPullLoopError,
+  readAgentTaskPullFinishWritebackFailureReason,
+  readAgentTaskPullLoopStopReason,
+} from "./agent-task-pull-loop-summary.utils";
 export type AgentTaskPullLoopConfig = AgentTaskPullConfig & {
   intervalMs: number;
   maxIterations?: number;
@@ -41,13 +47,19 @@ export async function runAgentTaskPullLoop(
 
   for (;;) {
     if (deps.signal?.aborted) {
-      return buildSummary(runs, executed, idle, heartbeats, "signal");
+      return buildAgentTaskPullLoopSummary(
+        runs,
+        executed,
+        idle,
+        heartbeats,
+        "signal",
+      );
     }
     if (config.heartbeat) {
       try {
         const heartbeat = await heartbeatClient.heartbeat(config.heartbeat);
         if (heartbeat.accepted === false) {
-          return buildSummary(
+          return buildAgentTaskPullLoopSummary(
             runs,
             executed,
             idle,
@@ -57,13 +69,13 @@ export async function runAgentTaskPullLoop(
           );
         }
       } catch (error) {
-        return buildSummary(
+        return buildAgentTaskPullLoopSummary(
           runs,
           executed,
           idle,
           heartbeats,
           "heartbeat_failed",
-          errorMessage(error),
+          formatAgentTaskPullLoopError(error),
         );
       }
       heartbeats += 1;
@@ -80,7 +92,7 @@ export async function runAgentTaskPullLoop(
         },
       );
     } catch (error) {
-      return buildSummary(
+      return buildAgentTaskPullLoopSummary(
         runs,
         executed,
         idle,
@@ -88,7 +100,7 @@ export async function runAgentTaskPullLoop(
         "poll_failed",
         undefined,
         undefined,
-        errorMessage(error),
+        formatAgentTaskPullLoopError(error),
       );
     }
     runs.push(run);
@@ -98,9 +110,10 @@ export async function runAgentTaskPullLoop(
     } else {
       idle += 1;
     }
-    const finishWritebackError = finishWritebackFailureReason(run);
+    const finishWritebackError =
+      readAgentTaskPullFinishWritebackFailureReason(run);
     if (finishWritebackError) {
-      return buildSummary(
+      return buildAgentTaskPullLoopSummary(
         runs,
         executed,
         idle,
@@ -111,68 +124,18 @@ export async function runAgentTaskPullLoop(
       );
     }
 
-    const stoppedReason = stopReason(config, runs, idle);
+    const stoppedReason = readAgentTaskPullLoopStopReason(config, runs, idle);
     if (stoppedReason) {
-      return buildSummary(runs, executed, idle, heartbeats, stoppedReason);
+      return buildAgentTaskPullLoopSummary(
+        runs,
+        executed,
+        idle,
+        heartbeats,
+        stoppedReason,
+      );
     }
     if (config.intervalMs > 0) {
       await sleep(config.intervalMs, deps.signal);
     }
   }
-}
-
-function stopReason(
-  config: AgentTaskPullLoopConfig,
-  runs: AgentTaskPullRunSummary[],
-  idle: number,
-) {
-  if (runs[runs.length - 1]?.reason === "task_pull_disabled") {
-    return "task_pull_disabled";
-  }
-  const iterations = runs.length;
-  if (config.maxIterations && iterations >= config.maxIterations) {
-    return "max_iterations";
-  }
-  if (config.idleLimit && idle >= config.idleLimit) {
-    return "idle_limit";
-  }
-  return null;
-}
-
-function buildSummary(
-  runs: AgentTaskPullRunSummary[],
-  executed: number,
-  idle: number,
-  heartbeats: number,
-  stoppedReason: AgentTaskPullLoopSummary["stoppedReason"],
-  heartbeatError?: string,
-  finishWritebackError?: string,
-  pollError?: string,
-): AgentTaskPullLoopSummary {
-  return {
-    mode: "loop",
-    iterations: runs.length,
-    executed,
-    idle,
-    heartbeats,
-    stoppedReason,
-    ...(heartbeatError ? { heartbeatError } : {}),
-    ...(finishWritebackError ? { finishWritebackError } : {}),
-    ...(pollError ? { pollError } : {}),
-    runs,
-  };
-}
-
-function finishWritebackFailureReason(run: AgentTaskPullRunSummary) {
-  if (run.finishAccepted === false) {
-    return run.finishReason || "finish_writeback_rejected";
-  }
-  if (run.finishFinished === false) {
-    return run.finishReason || "finish_writeback_not_finished";
-  }
-  return null;
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
 }

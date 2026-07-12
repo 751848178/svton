@@ -1,0 +1,17 @@
+{
+  "slice_id": "S007",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S007 multi-instance coordination proof passed. Focused API specs now cover task-pull claim ordering, queued-job lost-race no-claim behavior, runner-specific lock owners, server-id fallback lock owners, and supervisor ready/degraded coordination signals.",
+  "relevant_errors": [],
+  "full_log": {
+    "api_claim_lock_jest": "/tmp/codex-tool-runs/svton/s007-api-claim-lock-jest-20260712-220341.log",
+    "api_queue_coordination_jest": "/tmp/codex-tool-runs/svton/s007-api-queue-coordination-jest-20260712-220423.log",
+    "api_type_check": "/tmp/codex-tool-runs/svton/s007-api-type-check-20260712-220435.log",
+    "api_build": "/tmp/codex-tool-runs/svton/s007-api-build-20260712-220435.log",
+    "json": "/tmp/codex-tool-runs/svton/s007-final-json-check-20260712-220608.log",
+    "events_jsonl": "/tmp/codex-tool-runs/svton/s007-final-events-jsonl-check-20260712-220608.log",
+    "prettier": "/tmp/codex-tool-runs/svton/s007-final-prettier-check-rerun-20260712-220637.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s007-final-diff-check-rerun-20260712-220638.log"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "id": "API-001-EXEC-001",
+  "type": "test-hardening",
+  "status": "done",
+  "role": "executor",
+  "module": "task-pull-api",
+  "title": "Add ack/finish default-off and token-gate API specs",
+  "allowed_files": [
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.spec.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.spec.ts"
+  ],
+  "read_only_files": [
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish.service.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-ack-result.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent-task-pull-finish-result.utils.ts",
+    "apps/devpilot-api/src/server-executor/server-agent.controller.ts",
+    "apps/devpilot-api/src/server-executor/dto/server-execution-lease.dto.ts"
+  ],
+  "forbidden_scope": [
+    "Do not edit CLI files.",
+    "Do not edit production API files.",
+    "Do not change endpoint paths, DTO shapes, auth token fallback behavior, Prisma schema, migrations, or task-pull response shapes.",
+    "Do not touch unrelated server-executor queue, lease, adapter, or supervisor code."
+  ],
+  "acceptance": [
+    "Ack spec proves default-off or missing/invalid token rejects before serverExecutionJob.updateMany/findUnique and preserves the existing enabled response assertions.",
+    "Finish spec proves default-off or missing/invalid token rejects before readClaimedJob/updateMany/findUnique/syncAfterFinish and preserves existing finished/no-finish response assertions.",
+    "Tests assert no DB mutation or linked-run sync happens on rejected lifecycle requests.",
+    "No production behavior changes; endpoint response compatibility remains unchanged."
+  ],
+  "verification": {
+    "commands": [
+      "mkdir -p /tmp/codex-tool-runs/svton && corepack pnpm --filter @svton/devpilot-api exec jest --testRegex 'src/server-executor/server-agent-task-pull-(ack|finish)\\\\.service\\\\.spec\\\\.ts$' --runInBand > /tmp/codex-tool-runs/svton/api-001-ack-finish-auth-jest.log 2>&1",
+      "mkdir -p /tmp/codex-tool-runs/svton && corepack pnpm --filter @svton/devpilot-api type-check > /tmp/codex-tool-runs/svton/api-001-api-type-check.log 2>&1"
+    ],
+    "status": "passed",
+    "log": ".agent-board/verification/API-001-EXEC-001-verification.json"
+  }
+}
