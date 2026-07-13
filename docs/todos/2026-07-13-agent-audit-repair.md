@@ -1,6 +1,6 @@
 # Agent Audit Repair
 
-Status: verified_pending_delivery
+Status: verified_branch_pushed_pr_auth_required
 
 ## Workflow Routing
 
@@ -26,7 +26,7 @@ Status: verified_pending_delivery
 | A003 | done | Implementation | Apply the highest-priority repair slice with one active writer. | fixed config-reinit permission UI drift in web/app shell; P0 sandbox enforcement; P1 desktop reference open; P2 SDK web_search parity; desktop config fallback; web settings shell; automation trigger handler bootstrap |
 | A004 | done | Review | Run deep local review and adversarial review for AskUserQuestion-style decisions. | AskUserQuestion review done; deep local review found sandbox fail-open and git ref injection; architect review `019f5bd2-c71b-7b80-91f4-258977c535cb` accepted integration after follow-up tests |
 | A005 | done | Verification | Run unit/type/build/e2e/browser or desktop verification and collect screenshots. | logs under `/tmp/codex-tool-runs/svton/agent-audit-repair/`; screenshots under `/tmp/codex-tool-runs/svton/agent-audit-repair/screenshots/` |
-| A006 | pending | Delivery | Commit, push, and summarize functional flow with evidence. | pending commit/push/MR |
+| A006 | blocked | Delivery | Commit, push, and summarize functional flow with evidence. | commit `79d0735e2`; branch pushed to `origin/codex/agent-audit-repair-s028`; PR creation blocked because `gh` is not logged in and `GH_TOKEN`/`GITHUB_TOKEN` are unset (`/tmp/codex-tool-runs/svton/agent-audit-repair/gh-pr-create.log`) |
 
 ## Notes
 
@@ -34,3 +34,4 @@ Status: verified_pending_delivery
 - CodeGraph is installed but this checkout is not initialized, so this run uses manual scoped source graphing.
 - Invest result ranked sandbox enforcement as P0 because `AgentRuntime` creates `sandboxProfile`, while shell/git tools still execute through raw `platform.process.exec`.
 - Deferred: provider streaming HTTP abstraction for desktop webview/CORS requires a broader provider transport design because current `IHttpClient` is request/response and does not model SSE streams.
+- PR compare URL: `https://github.com/751848178/svton/compare/master...codex/agent-audit-repair-s028?expand=1`.
