@@ -1,0 +1,65 @@
+name: devpilot-g003-staging
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: devpilot-g003-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: devpilot_g003_staging
+    ports:
+      - "${DEVPILOT_STAGING_MYSQL_PORT:-3320}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -ppassword --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: devpilot-g003-redis
+    ports:
+      - "${DEVPILOT_STAGING_REDIS_PORT:-6384}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  virtual-nginx:
+    image: nginx:alpine
+    container_name: devpilot-g003-virtual-nginx
+    ports:
+      - "${DEVPILOT_STAGING_NGINX_PORT:-18098}:80"
+
+  backup-target:
+    image: alpine:3.20
+    container_name: devpilot-g003-backup-target
+    command: ["sh", "-lc", "mkdir -p /var/backups/devpilot/mysql /var/backups/devpilot/redis && echo '-- disposable staging backup' > /var/backups/devpilot/mysql/devpilot-backup.sql && touch /var/backups/devpilot/redis/dump.rdb && sleep infinity"]
+
+  fake-provider:
+    image: node:20-alpine
+    container_name: devpilot-g003-fake-provider
+    ports:
+      - "${DEVPILOT_STAGING_FAKE_PROVIDER_PORT:-19091}:19091"
+    command:
+      - node
+      - -e
+      - |
+        const http = require('http');
+        http.createServer((req, res) => {
+          let body = '';
+          req.on('data', (chunk) => body += chunk);
+          req.on('end', () => {
+            res.setHeader('content-type', 'application/json');
+            if (req.url === '/health') return res.end(JSON.stringify({ status: 'ok' }));
+            res.end(JSON.stringify({
+              providerRunId: 'fake-provider-' + Date.now(),
+              instanceName: 'docker-backed-mysql',
+              createInstance: true,
+              config: { host: '127.0.0.1', port: 3320, database: 'devpilot_g003_staging' },
+              delivery: { endpoint: 'mysql://127.0.0.1:3320/devpilot_g003_staging' },
+              credentials: { username: 'root', password: 'redacted-staging-password' }
+            }));
+          });
+        }).listen(19091, '0.0.0.0');
