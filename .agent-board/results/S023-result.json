@@ -1,0 +1,21 @@
+{
+  "slice": "S023",
+  "status": "done",
+  "completed_at": "2026-07-13T14:24:00+08:00",
+  "summary": "Verified the S022 commit groups were already committed on master/origin and corrected tracked .zcode plan artifacts by removing them from the current tracked tree.",
+  "commit_groups_observed": [
+    "dcf7876ab chore(devpilot): record G003 rehearsal governance",
+    "44d6cb10b feat(devpilot): add backup restore API",
+    "58bc27486 feat(devpilot): add Docker staging workflow"
+  ],
+  "changed_files": [
+    ".gitignore",
+    ".agent-board/slices/S023.json",
+    ".agent-board/results/S023-result.json",
+    ".agent-board/verification/S023-verification.json",
+    ".zcode/plans/plan-sess_1dfeb410-082c-4dc7-990a-768d3122d152.md",
+    ".zcode/plans/plan-sess_b27a4003-56ca-47ef-8428-eea5ae6dbad0.md"
+  ],
+  "verification": ".agent-board/verification/S023-verification.json",
+  "next_decision": "S024 release evidence package."
+}

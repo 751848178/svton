@@ -1,0 +1,16 @@
+{
+  "slice": "S024",
+  "status": "done",
+  "completed_at": "2026-07-13T14:28:00+08:00",
+  "summary": "Generated the G004 release evidence index with current MVP capabilities, verified local/Docker-backed scope, and forbidden production claims.",
+  "changed_files": [
+    ".agent-board/release-evidence/G004-S024-release-evidence-index.md",
+    ".agent-board/slices/S024.json",
+    ".agent-board/results/S024-result.json",
+    ".agent-board/verification/S024-verification.json"
+  ],
+  "release_evidence_index": ".agent-board/release-evidence/G004-S024-release-evidence-index.md",
+  "verification": ".agent-board/verification/S024-verification.json",
+  "current_judgment": "production_like_ready_external_signoff_required",
+  "next_decision": "S025 external signoff pack."
+}

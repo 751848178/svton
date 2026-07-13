@@ -1,0 +1,20 @@
+{
+  "slice": "S026",
+  "status": "passed",
+  "verified_at": "2026-07-13T14:28:00+08:00",
+  "summary": "Signoff dry-run automation passed local artifact checks and marked the remaining real-world checks as external-only.",
+  "commands": [
+    {
+      "command": "node scripts/devpilot-signoff-dry-run.mjs",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g004-s026/signoff-dry-run-20260713-142700.json",
+      "stderr": "/tmp/codex-tool-runs/svton/g004-s026/signoff-dry-run-20260713-142700.err"
+    }
+  ],
+  "external_only": [
+    "real-provider-resource-provisioning",
+    "production-backup-rollback-rehearsal",
+    "live-restore-approval"
+  ],
+  "next_decision": "Continue automatically to S027."
+}

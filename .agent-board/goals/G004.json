@@ -1,0 +1,31 @@
+{
+  "id": "G004",
+  "title": "Devpilot production-grade MVP final closure",
+  "status": "production_like_ready_external_signoff_required",
+  "objective": "Move Devpilot from Docker-backed production-like staging passed to production-grade MVP deliverability or a real external blocker.",
+  "created_at": "2026-07-13T14:28:00+08:00",
+  "completion_standard": [
+    "Code and documents are reconciled, verified, and committed.",
+    "Release evidence package is complete.",
+    "External signoff pack is complete.",
+    "Any local Docker, staging, or fake-target checks that can be run without real cloud or production credentials are automated or verified.",
+    "Real cloud, production credentials, and human approvals are not claimed unless the approved evidence exists."
+  ],
+  "completed_slices": ["S023", "S024", "S025", "S026"],
+  "active_slice": "S027",
+  "final_judgment": {
+    "status": "production_like_ready_external_signoff_required",
+    "reason": "All local and Docker-backed checks available in this checkout are complete; real provider/resource provisioning, production backup/rollback rehearsal, and live restore approval require external credentials, targets, and approvals.",
+    "not_production_mvp_ready_until": [
+      "approved real provider credentials and staging or production target ids are provided and provisioning evidence is captured",
+      "production backup and rollback rehearsal is approved and evidence is captured",
+      "live restore has release-owner and data-owner approval, isolated target, validation query, rollback plan, and dryRun:false authorization"
+    ]
+  },
+  "worker_policy": [
+    "One active writer in this checkout.",
+    "Noisy verification logs stay under /tmp/codex-tool-runs/svton/.",
+    "Do not read old sessions.",
+    "Do not claim real provider or production validation without external evidence."
+  ]
+}

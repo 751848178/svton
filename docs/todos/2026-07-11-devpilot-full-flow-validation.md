@@ -203,3 +203,52 @@ routing: todo-plan + noisy-tools + product-flow audit. The task crosses auth, se
   - done: API type-check passed; log `/tmp/codex-tool-runs/svton/g003-s022-final-hygiene/svton/g003-s022-api-type-check-20260713-135250.log`.
   - done: `.zcode/` remains local untracked state and is not part of the release evidence package.
   - remaining: real provider/resource provisioning, production backup/rollback rehearsal, and live restore approval/isolation/rollback validation remain external signoff items.
+
+## S023 Commit Closure
+
+- status: done
+- goal: verify the S022 grouped commits and keep local `.zcode/` plan artifacts out of the tracked tree.
+- evidence:
+  - done: S022 commit groups are visible in git log: `dcf7876ab`, `44d6cb10b`, and `58bc27486`.
+  - done: tracked `.zcode/` files were removed from the current index and `.zcode/` was added to `.gitignore`.
+  - done: git status/log evidence captured at `/tmp/codex-tool-runs/svton/g004-s023/git-status-log-zcode-20260713-142000.log`.
+  - done: diff whitespace hygiene passed at `/tmp/codex-tool-runs/svton/g004-s023/diff-check-20260713-142000.log`.
+
+## S024 Release Evidence Package
+
+- status: done
+- goal: summarize S019/S020/S021/S022 evidence, current MVP capability, verified scope, and claims that remain forbidden.
+- evidence:
+  - done: release evidence index written at `.agent-board/release-evidence/G004-S024-release-evidence-index.md`.
+  - done: index check passed at `/tmp/codex-tool-runs/svton/g004-s024/release-evidence-index-check-20260713-142800.log`.
+  - judgment: local Docker-backed production-like evidence is complete; real provider and production signoff evidence is not present.
+
+## S025 External Signoff Pack
+
+- status: done
+- goal: prepare boss/operations approval inputs for real provider/resource provisioning, production backup/rollback rehearsal, and live restore.
+- evidence:
+  - done: external signoff pack written at `docs/devpilot/external-signoff-pack.md`.
+  - done: pack check passed at `/tmp/codex-tool-runs/svton/g004-s025/external-signoff-pack-check-20260713-142800.log`.
+  - remaining: approvals, credentials, target ids, backup/rollback window, restore isolation, validation query, and rollback plan are external-only.
+
+## S026 Signoff Dry-run Automation
+
+- status: done
+- goal: convert the signoff pack into local dry-run automation without connecting to real cloud or executing production actions.
+- evidence:
+  - done: dry-run script added at `scripts/devpilot-signoff-dry-run.mjs`.
+  - done: local evidence dry-run passed at `/tmp/codex-tool-runs/svton/g004-s026/signoff-dry-run-20260713-142700.json`.
+  - external-only: real provider/resource provisioning, production backup/rollback rehearsal, and live restore approval.
+
+## S027 Production MVP Final Gate
+
+- status: done
+- goal: run final local checks and declare whether Devpilot is production MVP ready or production-like ready with external signoff required.
+- evidence:
+  - done: final JSON parse log `/tmp/codex-tool-runs/svton/g004-s027/final-json-parse-20260713-143400.log`.
+  - done: final signoff dry-run log `/tmp/codex-tool-runs/svton/g004-s027/final-signoff-dry-run-20260713-143400.json`.
+  - done: script line count log `/tmp/codex-tool-runs/svton/g004-s027/script-line-count-20260713-143400.log`.
+  - done: final diff hygiene log `/tmp/codex-tool-runs/svton/g004-s027/diff-check-20260713-143400.log`.
+  - done: final git status/log evidence `/tmp/codex-tool-runs/svton/g004-s027/git-status-log-20260713-143400.log`.
+  - final judgment: `production_like_ready_external_signoff_required`.

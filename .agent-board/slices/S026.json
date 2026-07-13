@@ -1,0 +1,17 @@
+{
+  "slice": "S026",
+  "title": "Signoff dry-run automation",
+  "status": "done",
+  "mode": "write",
+  "depends_on": ["S025"],
+  "goal": "Turn the external signoff pack into executable local dry-run checks without connecting to real cloud or executing production actions.",
+  "scope": [
+    "Add a dry-run script that validates local evidence artifacts.",
+    "Mark real provider/resource, production backup/rollback, and live restore checks as external-only.",
+    "Run the dry-run and store the full JSON output under /tmp/codex-tool-runs/svton/."
+  ],
+  "script": "scripts/devpilot-signoff-dry-run.mjs",
+  "result": ".agent-board/results/S026-result.json",
+  "evidence": ".agent-board/verification/S026-verification.json",
+  "next_decision": "Continue automatically to S027 production MVP final gate."
+}

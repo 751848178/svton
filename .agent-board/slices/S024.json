@@ -1,0 +1,17 @@
+{
+  "slice": "S024",
+  "title": "Release evidence package",
+  "status": "done",
+  "mode": "write",
+  "depends_on": ["S023"],
+  "goal": "Summarize S019/S020/S021/S022 key evidence and declare the exact MVP capability and claim boundary.",
+  "scope": [
+    "Generate a G004 release evidence index.",
+    "List current MVP capabilities and verified local/Docker-backed scope.",
+    "List claims that remain forbidden until external signoff."
+  ],
+  "release_evidence_index": ".agent-board/release-evidence/G004-S024-release-evidence-index.md",
+  "result": ".agent-board/results/S024-result.json",
+  "evidence": ".agent-board/verification/S024-verification.json",
+  "next_decision": "Continue automatically to S025 external signoff pack."
+}

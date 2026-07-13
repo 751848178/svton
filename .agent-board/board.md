@@ -1,17 +1,17 @@
 # Devpilot P8 Task-pull Multi-agent Board
 
-Updated: 2026-07-13T13:53:49+08:00
+Updated: 2026-07-13T14:28:00+08:00
 
 ## Goal
 
 Close Devpilot production-grade MVP readiness after live rehearsal and demo evidence while preserving default-off safety gates, auditability, and existing public contracts.
 
-Long-goal status: G003 is `production_like_staging_passed_external_signoff_required`. G002/S010 ended at `deliverable_with_demo_evidence`; G003 processed the production handoff gaps through S011-S022, cleared the local Docker-backed staging blocker, and packaged release evidence for commit readiness. Real provider and production signoff remains external. Orchestrator board:
+Long-goal status: G004 is `production_like_ready_external_signoff_required`. G003/S022 ended at `commit_ready_external_signoff_required`; G004 verified commit closure, packaged release evidence, prepared the external signoff pack, and added dry-run automation. Real provider, production backup/rollback, and live restore signoff remain external. Orchestrator board:
 `.agent-board/board.json`.
 
 ## Current Evidence
 
-- `git status --short` shows active S011 changes in `apps/devpilot-api/src/server-executor`, `docs/devpilot/demo-runbook.md`, and `docs/todos/2026-07-11-devpilot-full-flow-validation.md`.
+- `git status --short` is now scoped to active G004 changes only; S023 verified S022 commit groups and corrected tracked `.zcode/` artifacts from the current tree.
 - `docs-internal/devpilot/progress/INDEX.md` anchors P8 through F374 around server-agent task-pull gate/result/helper boundaries and ack/finish auth regression coverage.
 - `docs-internal/todos/INDEX.md` says project/environment Devpilot work should start from the active onboarding ledger and then the relevant `P*.md` file.
 - Current touched production files are under the 200-line ceiling in the sampled line-count check.
@@ -25,6 +25,10 @@ Long-goal status: G003 is `production_like_staging_passed_external_signoff_requi
 - S020 added `POST /api/backups/runs/:runId/restore` as a first-class restore dry-run endpoint/job while keeping live restore execution blocked by default. Verification: `/tmp/codex-tool-runs/svton/s020-backup-jest-20260713-104803.log` and `/tmp/codex-tool-runs/svton/s020-api-type-check-20260713-104844.log`.
 - S021 added a Docker-backed staging matrix and runner. Final local evidence: `/tmp/codex-tool-runs/svton/g003-docker-staging-20260713035954/summary.json`; deploy, rollback, backup, restore, task-pull jobs, monitoring, logs, and audit checks passed against disposable containers only.
 - S022 packaged the release evidence index and final hygiene. Evidence index: `.agent-board/release-evidence/G003-S022-release-evidence-index.md`; final hygiene logs live under `/tmp/codex-tool-runs/svton/g003-s022-final-hygiene/svton/`.
+- S023 verified grouped commit closure and `.zcode/` hygiene. Evidence: `/tmp/codex-tool-runs/svton/g004-s023/git-status-log-zcode-20260713-142000.log`.
+- S024 packaged the G004 release evidence index at `.agent-board/release-evidence/G004-S024-release-evidence-index.md`.
+- S025 prepared the external signoff pack at `docs/devpilot/external-signoff-pack.md`.
+- S026 added and ran `scripts/devpilot-signoff-dry-run.mjs`; local evidence passed, and real provider/resource provisioning, production backup/rollback rehearsal, and live restore approval are external-only.
 
 ## Role Split
 
@@ -60,6 +64,11 @@ Long-goal status: G003 is `production_like_staging_passed_external_signoff_requi
 10. `S020`: Source-backed backup restore readiness path.
 11. `S021`: Docker-backed staging matrix and local production-like rehearsal.
 12. `S022`: Release evidence package and final hygiene.
+13. `S023`: Commit closure and tracked local artifact hygiene.
+14. `S024`: G004 release evidence package.
+15. `S025`: External signoff pack.
+16. `S026`: Signoff dry-run automation.
+17. `S027`: Production MVP final gate.
 
 ## Slice Queue
 
@@ -87,6 +96,11 @@ Long-goal status: G003 is `production_like_staging_passed_external_signoff_requi
 | S020  | done               | write | Add source-backed backup restore readiness path             | S018, S019             | `.agent-board/results/S020-result.json`                                                       |
 | S021  | done               | write | Add Docker-backed staging matrix and runner                 | S020                   | `.agent-board/results/S021-result.json`                                                       |
 | S022  | done               | write | Package release evidence and final hygiene                  | S021                   | `.agent-board/results/S022-result.json`                                                       |
+| S023  | done               | write | Verify commit closure and remove tracked local artifacts    | S022                   | `.agent-board/results/S023-result.json`                                                       |
+| S024  | done               | write | Package G004 release evidence                               | S023                   | `.agent-board/results/S024-result.json`                                                       |
+| S025  | done               | write | Prepare external signoff pack                               | S024                   | `.agent-board/results/S025-result.json`                                                       |
+| S026  | done               | write | Add signoff dry-run automation                              | S025                   | `.agent-board/results/S026-result.json`                                                       |
+| S027  | done               | write | Run production MVP final gate                               | S026                   | `.agent-board/results/S027-result.json`                                                       |
 
 ## Active Constraints
 

@@ -1,0 +1,16 @@
+{
+  "slice": "S023",
+  "title": "Commit closure and tracked local artifact hygiene",
+  "status": "done",
+  "mode": "write",
+  "depends_on": ["S022"],
+  "goal": "Verify S022 recommended commit groups, keep .zcode out of the tracked tree, and record git hygiene evidence.",
+  "scope": [
+    "Check git status, branch, recent log, and tracked .zcode files.",
+    "Confirm the three S022 commit groups are present.",
+    "Remove tracked .zcode plan artifacts from the current tree without rewriting history."
+  ],
+  "result": ".agent-board/results/S023-result.json",
+  "evidence": ".agent-board/verification/S023-verification.json",
+  "next_decision": "Continue automatically to S024 release evidence packaging."
+}

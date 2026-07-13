@@ -1,0 +1,17 @@
+{
+  "slice": "S027",
+  "title": "Production MVP final gate",
+  "status": "done",
+  "mode": "write",
+  "depends_on": ["S026"],
+  "goal": "Recheck repo state, board, docs, release evidence, verification logs, and final local checks before declaring the production MVP gate outcome.",
+  "scope": [
+    "Parse G004 board, goal, slice, result, and verification JSON artifacts.",
+    "Rerun the signoff dry-run automation.",
+    "Check script line count, diff whitespace, git status, and recent git log.",
+    "Declare the final status without claiming real cloud or production validation."
+  ],
+  "result": ".agent-board/results/S027-result.json",
+  "evidence": ".agent-board/verification/S027-verification.json",
+  "final_judgment": "production_like_ready_external_signoff_required"
+}

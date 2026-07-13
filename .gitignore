@@ -50,6 +50,7 @@ apps/agent-web/out/
 .claude/
 .codegraph/
 .codex-runs/
+.zcode/
 .skills/
 skills/*/.turbo/
 skills/*/dist/

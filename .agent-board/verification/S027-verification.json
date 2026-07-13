@@ -1,0 +1,39 @@
+{
+  "slice": "S027",
+  "status": "passed",
+  "verified_at": "2026-07-13T14:34:00+08:00",
+  "summary": "Final local gate checks passed. The final release judgment is production-like ready with external signoff required.",
+  "commands": [
+    {
+      "command": "node - <<'NODE' ... parse G004 board, goal, S023-S027 slices/results/verification ... NODE",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g004-s027/final-json-parse-20260713-143400.log"
+    },
+    {
+      "command": "node scripts/devpilot-signoff-dry-run.mjs",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g004-s027/final-signoff-dry-run-20260713-143400.json"
+    },
+    {
+      "command": "node -e \"count scripts/devpilot-signoff-dry-run.mjs lines\"",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g004-s027/script-line-count-20260713-143400.log"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g004-s027/diff-check-20260713-143400.log"
+    },
+    {
+      "command": "git status --short && git log --oneline --decorate -8",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g004-s027/git-status-log-20260713-143400.log"
+    }
+  ],
+  "final_judgment": "production_like_ready_external_signoff_required",
+  "external_only_clearance_conditions": [
+    "approved real provider credentials and staging or production target ids",
+    "approved production backup and rollback rehearsal window plus target details",
+    "live restore approval with isolated target, validation query, rollback plan, and dryRun:false authorization"
+  ]
+}

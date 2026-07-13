@@ -1,0 +1,14 @@
+{
+  "slice": "S024",
+  "status": "passed",
+  "verified_at": "2026-07-13T14:28:00+08:00",
+  "summary": "Release evidence index exists and includes MVP capabilities, verified scope, forbidden claims, and the production-like external signoff boundary.",
+  "commands": [
+    {
+      "command": "test -s .agent-board/release-evidence/G004-S024-release-evidence-index.md && rg -n --max-count 20 'Current MVP Capabilities|Verified Scope|Cannot Claim Yet|production_like_ready_external_signoff_required' .agent-board/release-evidence/G004-S024-release-evidence-index.md",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g004-s024/release-evidence-index-check-20260713-142800.log"
+    }
+  ],
+  "next_decision": "Continue automatically to S025."
+}

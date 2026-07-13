@@ -1,0 +1,46 @@
+{
+  "slice": "S027",
+  "status": "done",
+  "completed_at": "2026-07-13T14:34:00+08:00",
+  "summary": "Final gate reached production-like readiness with external signoff required. Local and Docker-backed evidence is complete; real provider/resource provisioning, production backup/rollback rehearsal, and live restore approval remain external.",
+  "changed_files": [
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/goals/G004.json",
+    ".agent-board/events.jsonl",
+    ".agent-board/slices/S023.json",
+    ".agent-board/slices/S024.json",
+    ".agent-board/slices/S025.json",
+    ".agent-board/slices/S026.json",
+    ".agent-board/slices/S027.json",
+    ".agent-board/results/S023-result.json",
+    ".agent-board/results/S024-result.json",
+    ".agent-board/results/S025-result.json",
+    ".agent-board/results/S026-result.json",
+    ".agent-board/results/S027-result.json",
+    ".agent-board/verification/S023-verification.json",
+    ".agent-board/verification/S024-verification.json",
+    ".agent-board/verification/S025-verification.json",
+    ".agent-board/verification/S026-verification.json",
+    ".agent-board/verification/S027-verification.json",
+    ".agent-board/release-evidence/G004-S024-release-evidence-index.md",
+    "docs/devpilot/external-signoff-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    "scripts/devpilot-signoff-dry-run.mjs",
+    ".gitignore"
+  ],
+  "verification": ".agent-board/verification/S027-verification.json",
+  "final_judgment": {
+    "status": "production_like_ready_external_signoff_required",
+    "why_not_production_mvp_ready": [
+      "No approved real provider credentials or staging/production target ids were provided for real provisioning.",
+      "No production backup/rollback rehearsal approval or production target evidence was provided.",
+      "No live restore approval, isolated target, validation query, rollback plan, or dryRun:false authorization was provided."
+    ],
+    "clearance_conditions": [
+      "Provide approved provider credentials and target ids, then run and archive real provider/resource provisioning evidence.",
+      "Approve and run production backup and rollback rehearsal, then archive run ids, job ids, smoke result, owner signoff, and evidence path.",
+      "Approve live restore with isolated target, validation query, rollback plan, and dryRun:false authorization, then archive restore run evidence."
+    ]
+  }
+}

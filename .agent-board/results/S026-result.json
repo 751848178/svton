@@ -1,0 +1,20 @@
+{
+  "slice": "S026",
+  "status": "done",
+  "completed_at": "2026-07-13T14:28:00+08:00",
+  "summary": "Added and ran the signoff dry-run automation. Local evidence checks passed and real provider/resource, production backup/rollback, and live restore items are external-only.",
+  "changed_files": [
+    "scripts/devpilot-signoff-dry-run.mjs",
+    ".agent-board/slices/S026.json",
+    ".agent-board/results/S026-result.json",
+    ".agent-board/verification/S026-verification.json"
+  ],
+  "verification": ".agent-board/verification/S026-verification.json",
+  "dry_run_summary": "/tmp/codex-tool-runs/svton/g004-s026/signoff-dry-run-20260713-142700.json",
+  "external_only": [
+    "real-provider-resource-provisioning",
+    "production-backup-rollback-rehearsal",
+    "live-restore-approval"
+  ],
+  "next_decision": "S027 production MVP final gate."
+}

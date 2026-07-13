@@ -1,7 +1,7 @@
 {
   "id": "board-devpilot-p8-task-pull-20260712",
   "goal": "Close Devpilot production-grade MVP readiness after live rehearsal and demo evidence.",
-  "status": "production_like_staging_passed_external_signoff_required",
+  "status": "production_like_ready_external_signoff_required",
   "active_slice": null,
   "active_writer": null,
   "roles": {
@@ -14,7 +14,11 @@
       "responsibility": "Validate cross-module boundaries, dependency direction, and migration order."
     },
     "module_owner": {
-      "todos": ["API-001", "CLI-001", "DOC-001"],
+      "todos": [
+        "API-001",
+        "CLI-001",
+        "DOC-001"
+      ],
       "responsibility": "Keep each module context pack and atomic todo list narrow."
     },
     "executor": {
@@ -81,99 +85,123 @@
     }
   },
   "long_goal": {
-    "id": "G003",
-    "status": "production_like_staging_passed_external_signoff_required",
+    "id": "G004",
+    "status": "production_like_ready_external_signoff_required",
     "board_path": ".agent-board/board.json",
-    "objective": "Move Devpilot from live rehearsal and demo-evidence deliverability to production-grade MVP handoff readiness.",
+    "objective": "Move Devpilot from Docker-backed production-like staging passed to production-grade MVP deliverability or a real external blocker.",
     "evidence_inputs": [
       "git status --short",
       ".agent-board/board.json",
-      ".agent-board/results/*.json",
-      ".agent-board/verification/*.json",
-      ".agent-board/reviews/*.json",
-      "docs-internal/devpilot/progress/INDEX.md",
-      "docs-internal/todos/INDEX.md",
-      "docs-internal/devpilot/progress/P8-ops-governance.md",
-      "docs-internal/todos/2026-06-25-existing-project-onboarding.md",
-      "CodeGraph status: initialized=false; use scoped rg/safe-read instead"
+      ".agent-board/goals/G004.json",
+      ".agent-board/release-evidence/G004-S024-release-evidence-index.md",
+      "docs/devpilot/external-signoff-pack.md",
+      "scripts/devpilot-signoff-dry-run.mjs",
+      "/tmp/codex-tool-runs/svton/g004-s026/signoff-dry-run-20260713-142700.json"
     ],
     "known_backlog_sources": [
-      "G002/S010 ended at deliverable_with_demo_evidence with a reproducible demo runbook and browser UI E2E proof.",
-      "Current worktree contains the S011 readiness/history cleanup diff and must be closed before S012-S018 production-readiness slices start."
+      "G003/S022 ended at commit_ready_external_signoff_required with Docker-backed staging evidence packaged.",
+      "S023 verified the grouped commits and corrected tracked .zcode artifacts from the current tree.",
+      "S024-S026 packaged release evidence, external signoff requirements, and local dry-run automation."
     ],
-    "worker_policy": "single-checkout-one-active-write-worker; read-only Architect/Reviewer/Verifier can run in parallel; workers must not create successor workers"
+    "worker_policy": "single-checkout-one-active-write-worker; read-only review/verification can run in parallel; do not claim real provider or production validation without external evidence"
   },
   "backlog": {
     "S011": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S010"],
+      "depends_on": [
+        "S010"
+      ],
       "path": ".agent-board/slices/S011.json"
     },
     "S012": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S011"],
+      "depends_on": [
+        "S011"
+      ],
       "path": ".agent-board/slices/S012.json"
     },
     "S013": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S012"],
+      "depends_on": [
+        "S012"
+      ],
       "path": ".agent-board/slices/S013.json"
     },
     "S014": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S013"],
+      "depends_on": [
+        "S013"
+      ],
       "path": ".agent-board/slices/S014.json"
     },
     "S015": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S014"],
+      "depends_on": [
+        "S014"
+      ],
       "path": ".agent-board/slices/S015.json"
     },
     "S016": {
       "status": "blocked_external",
       "mode": "write",
-      "depends_on": ["S015"],
+      "depends_on": [
+        "S015"
+      ],
       "path": ".agent-board/slices/S016.json"
     },
     "S017": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S016"],
+      "depends_on": [
+        "S016"
+      ],
       "path": ".agent-board/slices/S017.json"
     },
     "S018": {
       "status": "done_with_blockers",
       "mode": "write",
-      "depends_on": ["S017"],
+      "depends_on": [
+        "S017"
+      ],
       "path": ".agent-board/slices/S018.json"
     },
     "S019": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S016", "S018"],
+      "depends_on": [
+        "S016",
+        "S018"
+      ],
       "path": ".agent-board/slices/S019.json"
     },
     "S020": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S018", "S019"],
+      "depends_on": [
+        "S018",
+        "S019"
+      ],
       "path": ".agent-board/slices/S020.json"
     },
     "S021": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S020"],
+      "depends_on": [
+        "S020"
+      ],
       "path": ".agent-board/slices/S021.json"
     },
     "S022": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S021"],
+      "depends_on": [
+        "S021"
+      ],
       "path": ".agent-board/slices/S022.json"
     },
     "S002": {
@@ -189,45 +217,131 @@
     "S004": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S003"],
+      "depends_on": [
+        "S003"
+      ],
       "path": ".agent-board/slices/S004.json"
     },
     "S005": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S003"],
+      "depends_on": [
+        "S003"
+      ],
       "path": ".agent-board/slices/S005.json"
     },
     "S006": {
       "status": "superseded_by_S009",
       "mode": "write",
-      "depends_on": ["S002", "S003", "S004", "S005"],
+      "depends_on": [
+        "S002",
+        "S003",
+        "S004",
+        "S005"
+      ],
       "path": ".agent-board/slices/S006.json"
     },
     "S007": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S006"],
+      "depends_on": [
+        "S006"
+      ],
       "path": ".agent-board/slices/S007.json"
     },
     "S008": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S007"],
+      "depends_on": [
+        "S007"
+      ],
       "path": ".agent-board/slices/S008.json"
     },
     "S009": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S008"],
+      "depends_on": [
+        "S008"
+      ],
       "path": ".agent-board/slices/S009.json"
     },
     "S010": {
       "status": "done",
       "mode": "write",
-      "depends_on": ["S009"],
+      "depends_on": [
+        "S009"
+      ],
       "path": ".agent-board/slices/S010.json"
+    },
+    "S023": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": [
+        "S022"
+      ],
+      "path": ".agent-board/slices/S023.json"
+    },
+    "S024": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": [
+        "S023"
+      ],
+      "path": ".agent-board/slices/S024.json"
+    },
+    "S025": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": [
+        "S024"
+      ],
+      "path": ".agent-board/slices/S025.json"
+    },
+    "S026": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": [
+        "S025"
+      ],
+      "path": ".agent-board/slices/S026.json"
+    },
+    "S027": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": [
+        "S026"
+      ],
+      "path": ".agent-board/slices/S027.json"
     }
   },
-  "updated_at": "2026-07-13T13:53:49+08:00"
+  "updated_at": "2026-07-13T14:34:00+08:00",
+  "final_judgment": {
+    "status": "production_like_ready_external_signoff_required",
+    "completed_slices": [
+      "S023",
+      "S024",
+      "S025",
+      "S026",
+      "S027"
+    ],
+    "in_progress_slices": [],
+    "local_verification": [
+      ".agent-board/verification/S023-verification.json",
+      ".agent-board/verification/S024-verification.json",
+      ".agent-board/verification/S025-verification.json",
+      ".agent-board/verification/S026-verification.json",
+      ".agent-board/verification/S027-verification.json"
+    ],
+    "external_signoff_required": [
+      "Real provider/resource provisioning requires approved provider credentials and staging/prod targets.",
+      "Production backup/rollback rehearsal requires approved target details, run window, owners, and evidence capture.",
+      "Live restore remains blocked until restore approval, target isolation, validation query, rollback plan, and dryRun:false authorization exist."
+    ],
+    "clearance_conditions": [
+      "Provide approved provider credentials and target ids, then run and archive real provider/resource provisioning evidence.",
+      "Approve and run production backup and rollback rehearsal, then archive run ids, job ids, smoke result, owner signoff, and evidence path.",
+      "Approve live restore with isolated target, validation query, rollback plan, and dryRun:false authorization, then archive restore run evidence."
+    ],
+    "declaration_boundary": "Docker-backed production-like staging passed; real provider/cloud/production validation has not been claimed."
+  }
 }

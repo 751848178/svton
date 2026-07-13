@@ -1,0 +1,14 @@
+{
+  "slice": "S025",
+  "status": "passed",
+  "verified_at": "2026-07-13T14:28:00+08:00",
+  "summary": "External signoff pack exists and includes provider provisioning, backup/rollback, live restore, and boss/operations approval sections.",
+  "commands": [
+    {
+      "command": "test -s docs/devpilot/external-signoff-pack.md && rg -n --max-count 30 'Provider And Resource Provisioning|Production Backup And Rollback Rehearsal|Live Restore Approval|Boss / Operations Approval Checklist|production_like_ready_external_signoff_required' docs/devpilot/external-signoff-pack.md",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g004-s025/external-signoff-pack-check-20260713-142800.log"
+    }
+  ],
+  "next_decision": "Continue automatically to S026."
+}

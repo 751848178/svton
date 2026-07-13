@@ -1,0 +1,17 @@
+{
+  "slice": "S025",
+  "title": "External signoff pack",
+  "status": "done",
+  "mode": "write",
+  "depends_on": ["S024"],
+  "goal": "Prepare the boss and operations approval pack for real provider/resource provisioning, production backup/rollback rehearsal, and live restore approval.",
+  "scope": [
+    "List real provider/resource provisioning inputs, approvals, and evidence.",
+    "List production backup and rollback rehearsal inputs, approvals, and evidence.",
+    "List live restore approval, target isolation, validation, and rollback conditions."
+  ],
+  "signoff_pack": "docs/devpilot/external-signoff-pack.md",
+  "result": ".agent-board/results/S025-result.json",
+  "evidence": ".agent-board/verification/S025-verification.json",
+  "next_decision": "Continue automatically to S026 signoff dry-run automation."
+}

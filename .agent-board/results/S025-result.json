@@ -1,0 +1,20 @@
+{
+  "slice": "S025",
+  "status": "done",
+  "completed_at": "2026-07-13T14:28:00+08:00",
+  "summary": "Prepared the external signoff pack with approvals and required evidence for provider/resource provisioning, production backup/rollback rehearsal, and live restore.",
+  "changed_files": [
+    "docs/devpilot/external-signoff-pack.md",
+    ".agent-board/slices/S025.json",
+    ".agent-board/results/S025-result.json",
+    ".agent-board/verification/S025-verification.json"
+  ],
+  "signoff_pack": "docs/devpilot/external-signoff-pack.md",
+  "verification": ".agent-board/verification/S025-verification.json",
+  "approvals_required": [
+    "real provider credentials and target ids",
+    "production backup target and rollback rehearsal window",
+    "live restore approval, isolated target, validation query, rollback plan, and dryRun:false authorization"
+  ],
+  "next_decision": "S026 signoff dry-run automation."
+}
