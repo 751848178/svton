@@ -179,6 +179,15 @@ claude-sonnet-4 = "Claude Sonnet 4"
       expect(written).toContain('openai');
     });
 
+    it('shell-quotes the config directory before creating a default config', async () => {
+      const home = "/tmp/bad' ; touch /tmp/pwn #";
+      const platform = makePlatform({}, { home });
+
+      await createDefaultConfig(platform);
+
+      expect(platform.execCalls[0]).toBe("mkdir -p '/tmp/bad'\\'' ; touch /tmp/pwn #/.svton'");
+    });
+
     it('does NOT overwrite an existing config file', async () => {
       const existing = '[model]\nname = "custom"\nprovider = "openai"\n[providers.openai]\ntype = "openai"\nbase_url = "x"\napi_key = "y"\n[providers.openai.models]\nm = "M"\n';
       const platform = makePlatform({ [CONFIG_PATH]: existing });
