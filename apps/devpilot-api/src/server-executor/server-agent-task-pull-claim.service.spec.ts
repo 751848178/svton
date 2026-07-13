@@ -8,6 +8,7 @@ import {
 } from "./server-agent-task-pull-claim.service";
 import { ServerAgentTaskPullQueryService } from "./server-agent-task-pull-query.service";
 import { ServerExecutorRuntimeConfigService } from "./server-executor-runtime-config.service";
+import { ServerCommandPolicyService } from "./server-command-policy.service";
 
 describe("ServerAgentTaskPullClaimService", () => {
   afterEach(() => {
@@ -122,9 +123,178 @@ describe("ServerAgentTaskPullClaimService", () => {
     expect(result.job).not.toHaveProperty("inputSnapshot");
     expect(JSON.stringify(result)).not.toContain("inputSnapshot");
   });
+
+  it("blocks a claimed job before returning command steps when command policy rejects it", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+
+    const job = buildJob({
+      inputSnapshot: {
+        ...buildJob().inputSnapshot,
+        steps: [
+          {
+            key: "danger",
+            label: "Danger",
+            command: "rm -rf /",
+            required: true,
+            risk: "high",
+          },
+        ],
+      },
+    });
+    const prisma = {
+      server: { findFirst: jest.fn().mockResolvedValue(buildServer()) },
+      serverExecutionJob: {
+        findFirst: jest.fn().mockResolvedValue(job),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUnique: jest.fn().mockResolvedValue({
+          ...job,
+          startedAt: new Date("2026-07-10T12:00:00.000Z"),
+          lockExpiresAt: new Date("2026-07-10T12:02:00.000Z"),
+        }),
+      },
+    } as unknown as PrismaService;
+    const finishSyncService = {
+      syncAfterPolicyBlocked: jest.fn().mockResolvedValue({
+        businessRunSync: "log_collection",
+        logCollectionRunId: "log-run-1",
+        synced: true,
+      }),
+    };
+    const service = buildService(
+      prisma,
+      {
+        status: "blocked",
+        policyKey: "test-policy",
+        mode: "built_in_baseline",
+        decisions: [
+          {
+            stepKey: "danger",
+            label: "Danger",
+            command: "rm -rf /",
+            status: "blocked",
+            ruleKey: "dangerous-rm-rf",
+            reason: "dangerous command",
+          },
+        ],
+        warnings: ["Danger: dangerous command"],
+        blockedReasons: ["dangerous command"],
+      },
+      finishSyncService as never,
+    );
+
+    const result = await service.claim(
+      { "x-devpilot-agent-task-pull-token": "task-token" },
+      {
+        teamId: "team-1",
+        serverId: "server-1",
+        agentId: "agent-prod-1",
+      },
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        accepted: true,
+        claimed: false,
+        reason: "command_policy_blocked",
+        job: null,
+      }),
+    );
+    expect(JSON.stringify(result)).not.toContain("rm -rf");
+    expect(prisma.serverExecutionJob.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "job-agent-next",
+          teamId: "team-1",
+          serverId: "server-1",
+          transport: "server_agent",
+          status: "running",
+          lockOwner: "server-agent:agent-prod-1:server-1",
+        },
+        data: expect.objectContaining({
+          status: "blocked",
+          error: expect.stringContaining("Server executor 命令策略阻断"),
+          lockOwner: null,
+          finishedAt: new Date("2026-07-10T12:00:00.000Z"),
+          metadata: expect.objectContaining({
+            existing: "metadata",
+            taskPullClaimBlockedByCommandPolicy: true,
+          }),
+        }),
+      }),
+    );
+    expect(finishSyncService.syncAfterPolicyBlocked).toHaveBeenCalledWith(
+      "team-1",
+      expect.objectContaining({ id: "job-agent-next" }),
+      expect.objectContaining({ status: "blocked" }),
+    );
+  });
+
+  it("does not claim jobs when online heartbeat identity belongs to another agent", async () => {
+    jest.useFakeTimers().setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+
+    const prisma = {
+      server: {
+        findFirst: jest.fn().mockResolvedValue(
+          buildServer({
+            services: {
+              serverAgent: true,
+              devpilotAgent: {
+                source: "agent_heartbeat",
+                agentId: "agent-prod-2",
+                runnerId: "runner-prod-2",
+                status: "online",
+                lastSeenAt: "2026-07-10T11:59:30.000Z",
+                expiresAt: "2026-07-10T12:02:30.000Z",
+              },
+            },
+          }),
+        ),
+      },
+      serverExecutionJob: {
+        findFirst: jest.fn(),
+        updateMany: jest.fn(),
+        findUnique: jest.fn(),
+      },
+    } as unknown as PrismaService;
+    const service = buildService(prisma);
+
+    const result = await service.claim(
+      { "x-devpilot-agent-task-pull-token": "task-token" },
+      {
+        teamId: "team-1",
+        serverId: "server-1",
+        agentId: "agent-prod-1",
+        runnerId: "runner-prod-1",
+      },
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        accepted: true,
+        claimed: false,
+        reason: "agent_runtime_identity_mismatch:agent_id",
+        job: null,
+      }),
+    );
+    expect(prisma.serverExecutionJob.findFirst).not.toHaveBeenCalled();
+    expect(prisma.serverExecutionJob.updateMany).not.toHaveBeenCalled();
+  });
 });
 
-function buildService(prisma: PrismaService) {
+function buildService(
+  prisma: PrismaService,
+  policyResult: Awaited<ReturnType<ServerCommandPolicyService["evaluate"]>> = {
+    status: "passed",
+    policyKey: "test-policy",
+    mode: "built_in_baseline",
+    decisions: [],
+    warnings: [],
+    blockedReasons: [],
+  },
+  finishSyncService = {
+    syncAfterPolicyBlocked: jest.fn().mockResolvedValue(null),
+  } as never,
+) {
   const configValues: Record<string, string> = {
     SERVER_EXECUTOR_AGENT_TASK_PULL_ENABLED: "true",
     SERVER_EXECUTOR_AGENT_TASK_PULL_TOKEN: "task-token",
@@ -143,10 +313,12 @@ function buildService(prisma: PrismaService) {
     capabilityService,
     new ServerExecutorRuntimeConfigService(configService),
     new ServerAgentTaskPullQueryService(prisma),
+    { evaluate: jest.fn().mockResolvedValue(policyResult) } as never,
+    finishSyncService,
   );
 }
 
-function buildServer() {
+function buildServer(overrides: Record<string, unknown> = {}) {
   return {
     id: "server-1",
     name: "prod-1",
@@ -154,12 +326,15 @@ function buildServer() {
     status: "online",
     services: { serverAgent: true },
     tags: [],
+    ...overrides,
   };
 }
 
-function buildJob() {
+function buildJob(overrides: Record<string, unknown> = {}) {
   return {
     id: "job-agent-next",
+    teamId: "team-1",
+    actorId: "user-1",
     operationKey: "log.collect.docker",
     adapterKey: "log-collection-plan",
     serverId: "server-1",
@@ -207,5 +382,7 @@ function buildJob() {
       host: "10.0.0.1",
       status: "online",
     },
+    metadata: { existing: "metadata" },
+    ...overrides,
   };
 }

@@ -1,14 +1,13 @@
-/** 策略面板 - SLS 回填 + Server follow + 脱敏策略。 */
+/** 策略面板 - 脱敏、SLS 回填、Server follow、Agent follow。 */
 'use client';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { ErrorBanner } from '@/components/ui';
 import type { useLogs } from '../hooks/use-logs';
+import { AgentFollowPolicyCard } from './agent-follow-policy-card.component';
 type LogsHook = ReturnType<typeof useLogs>;
 
 export function PolicyPanels({ logs }: { logs: LogsHook }) {
   const tl = useTranslations('logs');
-  const s = logs.s;
   const t = logs.t;
   const handleSaveRedaction = usePersistFn(() => logs.saveRedactionPolicy());
   const handleSaveSls = usePersistFn(() => logs.saveSlsBackfillPolicy());
@@ -16,7 +15,7 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
   if (!logs.selectedStream) return null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid gap-4 lg:grid-cols-4">
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="font-medium text-sm">{tl('redactionPolicy')}</h3>
         <label className="block text-sm">
@@ -136,6 +135,7 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
           {t.savingServerFollow ? tl('saving') : tl('saveFollow')}
         </button>
       </div>
+      <AgentFollowPolicyCard logs={logs} />
     </div>
   );
 }

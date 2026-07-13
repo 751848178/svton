@@ -8,6 +8,7 @@ import {
 } from "./server-agent-task-pull-claim.service";
 import { ServerAgentTaskPullQueryService } from "./server-agent-task-pull-query.service";
 import { ServerExecutorRuntimeConfigService } from "./server-executor-runtime-config.service";
+import { ServerCommandPolicyService } from "./server-command-policy.service";
 
 describe("ServerAgentTaskPullClaimService empty claim", () => {
   it("returns an empty claim result without mutating when no job is ready", async () => {
@@ -111,5 +112,18 @@ function buildService(
     capabilityService,
     new ServerExecutorRuntimeConfigService(configService),
     new ServerAgentTaskPullQueryService(prisma),
+    {
+      evaluate: jest.fn().mockResolvedValue({
+        status: "passed",
+        policyKey: "test-policy",
+        mode: "built_in_baseline",
+        decisions: [],
+        warnings: [],
+        blockedReasons: [],
+      }),
+    } as unknown as ServerCommandPolicyService,
+    {
+      syncAfterPolicyBlocked: jest.fn().mockResolvedValue(null),
+    } as never,
   );
 }

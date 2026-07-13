@@ -11,6 +11,7 @@ import { ServerAgentAuthService } from "./server-agent-auth.service";
 import { ServerAgentCapabilityService } from "./server-agent-capability.service";
 import { ServerAgentRuntimeEndpointService } from "./server-agent-runtime-endpoint.service";
 import { ServerAgentTaskPullClaimService } from "./server-agent-task-pull-claim.service";
+import { ServerAgentTaskPullFinishSyncService } from "./server-agent-task-pull-finish-sync.service";
 import { ServerAgentTaskPullQueryService } from "./server-agent-task-pull-query.service";
 import { ServerCommandPolicyService } from "./server-command-policy.service";
 import { ServerExecutorAuditService } from "./server-executor-audit.service";
@@ -134,12 +135,20 @@ export class ServerExecutorWiringFactoryService {
     const agentTaskPullQueryService = new ServerAgentTaskPullQueryService(
       this.prisma,
     );
+    const agentTaskPullFinishSyncService =
+      new ServerAgentTaskPullFinishSyncService(
+        this.prisma,
+        this.options.logCollectionIngestionService,
+        this.options.jobQueue,
+      );
     const agentTaskPullClaimService = new ServerAgentTaskPullClaimService(
       this.prisma,
       this.options.agentAuthService,
       this.options.agentCapabilityService,
       this.options.runtimeConfigService,
       agentTaskPullQueryService,
+      this.options.commandPolicy,
+      agentTaskPullFinishSyncService,
     );
     const agentRuntimeEndpointService = new ServerAgentRuntimeEndpointService(
       this.prisma,

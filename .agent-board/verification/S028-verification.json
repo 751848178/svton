@@ -1,0 +1,35 @@
+{
+  "slice": "S028",
+  "status": "passed",
+  "verified_at": "2026-07-13T20:20:00+08:00",
+  "logs": {
+    "api_task_pull_suite": "/tmp/codex-tool-runs/svton/s028-final/s028-api-task-pull-suite-last-20260713.log",
+    "api_type_check": "/tmp/codex-tool-runs/svton/s028-final/s028-api-type-check-last-20260713.log",
+    "cli_task_pull_lifecycle": "/tmp/codex-tool-runs/svton/s028-final/s028-cli-agent-tests-last-20260713.log",
+    "cli_type_check": "/tmp/codex-tool-runs/svton/s028-final/s028-cli-type-check-final-20260713.log",
+    "agent_ui_blocks": "/tmp/codex-tool-runs/svton/s028-final/s028-agent-ui-tests-after-chat-restore-20260713.log",
+    "agent_ui_type_check": "/tmp/codex-tool-runs/svton/s028-final/s028-agent-ui-type-check-after-chat-restore-20260713.log",
+    "web_lint": "/tmp/codex-tool-runs/svton/s028-final/s028-web-lint-final-20260713.log",
+    "web_type_check": "/tmp/codex-tool-runs/svton/s028-final/s028-web-type-check-final-20260713.log",
+    "web_build": "/tmp/codex-tool-runs/svton/s028-final/s028-web-build-final-20260713.log",
+    "ui_e2e": "/tmp/codex-tool-runs/svton/s028-final/s028-ui-e2e-final-20260713.log",
+    "prettier_check": "/tmp/codex-tool-runs/svton/s028-final/s028-prettier-check-last-20260713.log"
+  },
+  "screenshots": {
+    "resource_control": "/tmp/codex-tool-runs/svton/s028-ui-e2e-20260713-final/resource-control.png",
+    "execution_governance": "/tmp/codex-tool-runs/svton/s028-ui-e2e-20260713-final/execution-governance.png",
+    "logs_agent_follow": "/tmp/codex-tool-runs/svton/s028-ui-e2e-20260713-final/logs.png",
+    "monitoring": "/tmp/codex-tool-runs/svton/s028-ui-e2e-20260713-final/monitoring.png",
+    "summary": "/tmp/codex-tool-runs/svton/s028-ui-e2e-20260713-final/summary.json"
+  },
+  "high_level_flow_proof": [
+    "Resource Control loads fixture resources and runs a sync action.",
+    "Execution Governance renders supervisor and task-pull readiness, then processes the queue.",
+    "Logs renders the repaired Agent Follow policy card and an agent-follow-demo stream.",
+    "Monitoring loads after the same authenticated browser context with no console or page errors."
+  ],
+  "notes": [
+    "Playwright used PLAYWRIGHT_MODULE_PATH=/tmp/codex-tool-runs/svton/devpilot-playwright-runtime/node_modules/playwright.",
+    "ChatMessage.tsx is intentionally excluded from the final Prettier check because it is a pre-existing non-Prettier-style file; its final diff is limited to import and status normalization."
+  ]
+}

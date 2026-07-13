@@ -9,7 +9,7 @@ import {
 } from "./server-agent-task-pull-claimed-payload-details.utils";
 import type { ServerExecutionInput } from "./server-executor.types";
 
-export type ServerAgentClaimedTaskJob = {
+export type ServerAgentClaimedTaskPayloadJob = {
   id: string;
   operationKey: string;
   adapterKey: string;
@@ -17,11 +17,20 @@ export type ServerAgentClaimedTaskJob = {
   inputSnapshot: Prisma.JsonValue;
 };
 
+export type ServerAgentClaimedTaskJob = ServerAgentClaimedTaskPayloadJob & {
+  teamId: string;
+  actorId: string | null;
+  retryOfId: string | null;
+  attempt: number;
+  maxAttempts: number;
+  metadata?: Prisma.JsonValue | null;
+};
+
 export function buildServerAgentClaimedTaskPayload(
-  job: ServerAgentClaimedTaskJob,
+  job: ServerAgentClaimedTaskPayloadJob,
   options: { teamId: string },
 ) {
-  const input = readTaskInput(job, options.teamId);
+  const input = readServerAgentClaimedTaskInput(job, options.teamId);
   if (!input) {
     return {
       available: false,
@@ -58,8 +67,8 @@ export function buildServerAgentClaimedTaskPayload(
   };
 }
 
-function readTaskInput(
-  job: ServerAgentClaimedTaskJob,
+export function readServerAgentClaimedTaskInput(
+  job: ServerAgentClaimedTaskPayloadJob,
   teamId: string,
 ): ServerExecutionInput | null {
   try {

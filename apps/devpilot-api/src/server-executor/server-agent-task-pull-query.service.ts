@@ -112,6 +112,11 @@ export class ServerAgentTaskPullQueryService {
 
 const taskPullJobSelect = {
   id: true,
+  teamId: true,
+  actorId: true,
+  retryOfId: true,
+  attempt: true,
+  maxAttempts: true,
   operationKey: true,
   adapterKey: true,
   serverId: true,
@@ -119,6 +124,7 @@ const taskPullJobSelect = {
   queuedAt: true,
   availableAt: true,
   inputSnapshot: true,
+  metadata: true,
   server: {
     select: { id: true, name: true, host: true, status: true },
   },

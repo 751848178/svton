@@ -1,0 +1,40 @@
+{
+  "slice": "S028",
+  "title": "Agent full-flow audit and repair",
+  "status": "done_with_followups",
+  "mode": "write",
+  "depends_on": ["S027"],
+  "goal": "Inspect all agent-related backend, CLI, UI, process, and validation flows; fix source-backed defects and prove the repaired flows with automated and product-path verification.",
+  "routing": "specialized-workflow + noisy-tools + manual codegraph because the scope crosses API, CLI, Web/UI, docs, process, and e2e validation while CodeGraph is not initialized.",
+  "single_writer": "main-agent owns writes in this checkout; invest subagents are read-only until implementation todos receive disjoint allowed files.",
+  "invest_subagents": [
+    {
+      "id": "019f5b4a-0b35-7682-911d-12591a0b4491",
+      "scope": "devpilot-api server-agent/task-pull/supervisor-agent backend"
+    },
+    {
+      "id": "019f5b4a-2087-7542-b5b1-1c4ed0798b2c",
+      "scope": "packages/cli agent-task-pull command and runtime"
+    },
+    {
+      "id": "019f5b4a-390e-7fc3-afd5-5385b14fb631",
+      "scope": "agent-related web and UI flows"
+    },
+    {
+      "id": "019f5b4a-57ec-7f41-9c6b-97c156b0f111",
+      "scope": "agent docs, process, and e2e validation inventory"
+    }
+  ],
+  "acceptance": [
+    "Source-backed issue list covers backend, CLI, Web/UI, docs/process, and validation assets.",
+    "Every code fix has a focused test or e2e/product-path verification signal.",
+    "No default-off safety gate, endpoint contract, auth token behavior, or public CLI default is changed without an explicit architecture record.",
+    "No unrelated user edits are reverted.",
+    "Final evidence includes command logs, screenshots or browser/desktop proof when UI/product flows are touched, and a concise functional-flow explanation."
+  ],
+  "evidence": {
+    "logs_dir": "/tmp/codex-tool-runs/svton/",
+    "result": ".agent-board/results/S028-result.json",
+    "verification": ".agent-board/verification/S028-verification.json"
+  }
+}

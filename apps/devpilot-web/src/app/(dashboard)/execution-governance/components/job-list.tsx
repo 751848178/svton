@@ -102,7 +102,7 @@ export function JobList({
               <tr>
                 <th className="px-4 py-3 font-medium">{tc('status')}</th>
                 <th className="px-4 py-3 font-medium">{t('colServer')}</th>
-                <th className="px-4 py-3 font-medium">{tc('actions')}</th>
+                <th className="px-4 py-3 font-medium">{t('colExecutor')}</th>
                 <th className="px-4 py-3 font-medium">{t('colAttempt')}</th>
                 <th className="px-4 py-3 font-medium">{t('colApplicant')}</th>
                 <th className="px-4 py-3 font-medium">{tc('createdAt')}</th>

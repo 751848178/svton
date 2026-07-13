@@ -81,6 +81,52 @@ function logsStatsFixture() {
   };
 }
 
+function logStreamsFixture() {
+  return [
+    {
+      id: "log-stream-agent",
+      name: "agent-follow-demo",
+      sourceType: "docker",
+      sourceKey: "devpilot-demo-target",
+      status: "active",
+      retentionDays: 7,
+      lastEntryAt: now,
+      lastLevel: "info",
+      lastMessage: "agent follow ready",
+      metadata: {
+        agentFollow: {
+          enabled: true,
+          queue: true,
+          tail: 100,
+          intervalMinutes: 5,
+          maxAttempts: 1,
+        },
+      },
+      server: { id: "server-demo", name: "devpilot-demo-target" },
+      _count: { entries: 1 },
+    },
+  ];
+}
+
+function logEntriesFixture() {
+  return [
+    {
+      id: "log-entry-agent",
+      level: "info",
+      message: "agent follow ready",
+      source: "agent-follow-demo",
+      timestamp: now,
+      stream: {
+        id: "log-stream-agent",
+        name: "agent-follow-demo",
+        sourceType: "docker",
+        status: "active",
+      },
+      server: { id: "server-demo", name: "devpilot-demo-target" },
+    },
+  ];
+}
+
 function emptyListRoutes(pathname) {
   return [
     "/api/projects",
@@ -122,6 +168,12 @@ export function createFixtureHandler(calls) {
     if (url.pathname.endsWith("/server-execution-leases")) return json([]);
     if (url.pathname.endsWith("/server-execution-jobs/process-next"))
       return json({ status: "completed" });
+    if (url.pathname.startsWith("/api/logs/streams"))
+      return method === "PUT"
+        ? json(logStreamsFixture()[0])
+        : json(logStreamsFixture());
+    if (url.pathname.endsWith("/api/logs/entries"))
+      return json(logEntriesFixture());
     if (url.pathname.startsWith("/api/logs"))
       return json(url.pathname.endsWith("/stats") ? logsStatsFixture() : []);
     if (url.pathname.startsWith("/api/monitoring/service-slo/dashboard"))

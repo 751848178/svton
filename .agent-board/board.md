@@ -1,6 +1,6 @@
 # Devpilot P8 Task-pull Multi-agent Board
 
-Updated: 2026-07-13T14:28:00+08:00
+Updated: 2026-07-13T20:20:00+08:00
 
 ## Goal
 
@@ -69,38 +69,40 @@ Long-goal status: G004 is `production_like_ready_external_signoff_required`. G00
 15. `S025`: External signoff pack.
 16. `S026`: Signoff dry-run automation.
 17. `S027`: Production MVP final gate.
+18. `S028`: Agent full-flow audit and repair.
 
 ## Slice Queue
 
-| Slice | Status             | Mode  | Goal                                                        | Depends on             | Prompt                                                                                        |
-| ----- | ------------------ | ----- | ----------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
-| S001  | done               | write | Completed P8 task-pull API/CLI/docs verification and review | -                      | `.agent-board/slices/S001.json`                                                               |
-| S002  | done               | write | Close current S001 task-pull diff for merge readiness       | -                      | `/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/workers/s002-result.json` |
-| S003  | done               | read  | Map source-backed deliverable runtime gaps                  | -                      | `.agent-board/gap-maps/S003-gap-map.json`                                                     |
-| S004  | done               | write | Implement next real-agent connection slice                  | S003                   | `.agent-board/results/S004-result.json`                                                       |
-| S005  | done               | write | Implement next terminal runtime slice                       | S003                   | `.agent-board/results/S005-result.json`                                                       |
-| S006  | superseded by S009 | write | Run deliverability E2E and permission gate                  | S002, S003, S004, S005 | `.agent-board/results/S006-result.json`                                                       |
-| S007  | done               | write | Close task-pull multi-instance coordination gap             | S006                   | `.agent-board/results/S007-result.json`                                                       |
-| S008  | done               | write | Close production remote-orphan governance gap               | S007                   | `.agent-board/results/S008-result.json`                                                       |
-| S009  | done               | write | Run post-S008 final deliverability gate                     | S008                   | `.agent-board/results/S009-result.json`                                                       |
-| S010  | done               | write | Add reproducible demo runbook and browser UI E2E proof      | S009                   | `.agent-board/results/S010-result.json`                                                       |
-| S011  | done               | write | Close current worktree                                      | S010                   | `.agent-board/results/S011-result.json`                                                       |
-| S012  | done               | write | Production Config Pack                                      | S011                   | `.agent-board/results/S012-result.json`                                                       |
-| S013  | done               | write | Command Policy safety templates                             | S012                   | `.agent-board/results/S013-result.json`                                                       |
-| S014  | done               | write | Agent production operating mode                             | S013                   | `.agent-board/results/S014-result.json`                                                       |
-| S015  | done               | write | Failure record and rehearsal trace governance               | S014                   | `.agent-board/results/S015-result.json`                                                       |
-| S016  | blocked_external   | write | Permission and tenant E2E                                   | S015                   | `.agent-board/results/S016-result.json`                                                       |
-| S017  | done               | write | Resource request minimum loop                               | S016                   | `.agent-board/results/S017-result.json`                                                       |
-| S018  | done_with_blockers | write | Backup, restore, and upgrade handoff checklist              | S017                   | `.agent-board/results/S018-result.json`                                                       |
-| S019  | done               | write | Clear S016 permission and tenant live E2E blocker           | S016, S018             | `.agent-board/results/S019-result.json`                                                       |
-| S020  | done               | write | Add source-backed backup restore readiness path             | S018, S019             | `.agent-board/results/S020-result.json`                                                       |
-| S021  | done               | write | Add Docker-backed staging matrix and runner                 | S020                   | `.agent-board/results/S021-result.json`                                                       |
-| S022  | done               | write | Package release evidence and final hygiene                  | S021                   | `.agent-board/results/S022-result.json`                                                       |
-| S023  | done               | write | Verify commit closure and remove tracked local artifacts    | S022                   | `.agent-board/results/S023-result.json`                                                       |
-| S024  | done               | write | Package G004 release evidence                               | S023                   | `.agent-board/results/S024-result.json`                                                       |
-| S025  | done               | write | Prepare external signoff pack                               | S024                   | `.agent-board/results/S025-result.json`                                                       |
-| S026  | done               | write | Add signoff dry-run automation                              | S025                   | `.agent-board/results/S026-result.json`                                                       |
-| S027  | done               | write | Run production MVP final gate                               | S026                   | `.agent-board/results/S027-result.json`                                                       |
+| Slice | Status              | Mode  | Goal                                                        | Depends on             | Prompt                                                                                        |
+| ----- | ------------------- | ----- | ----------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
+| S001  | done                | write | Completed P8 task-pull API/CLI/docs verification and review | -                      | `.agent-board/slices/S001.json`                                                               |
+| S002  | done                | write | Close current S001 task-pull diff for merge readiness       | -                      | `/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/workers/s002-result.json` |
+| S003  | done                | read  | Map source-backed deliverable runtime gaps                  | -                      | `.agent-board/gap-maps/S003-gap-map.json`                                                     |
+| S004  | done                | write | Implement next real-agent connection slice                  | S003                   | `.agent-board/results/S004-result.json`                                                       |
+| S005  | done                | write | Implement next terminal runtime slice                       | S003                   | `.agent-board/results/S005-result.json`                                                       |
+| S006  | superseded by S009  | write | Run deliverability E2E and permission gate                  | S002, S003, S004, S005 | `.agent-board/results/S006-result.json`                                                       |
+| S007  | done                | write | Close task-pull multi-instance coordination gap             | S006                   | `.agent-board/results/S007-result.json`                                                       |
+| S008  | done                | write | Close production remote-orphan governance gap               | S007                   | `.agent-board/results/S008-result.json`                                                       |
+| S009  | done                | write | Run post-S008 final deliverability gate                     | S008                   | `.agent-board/results/S009-result.json`                                                       |
+| S010  | done                | write | Add reproducible demo runbook and browser UI E2E proof      | S009                   | `.agent-board/results/S010-result.json`                                                       |
+| S011  | done                | write | Close current worktree                                      | S010                   | `.agent-board/results/S011-result.json`                                                       |
+| S012  | done                | write | Production Config Pack                                      | S011                   | `.agent-board/results/S012-result.json`                                                       |
+| S013  | done                | write | Command Policy safety templates                             | S012                   | `.agent-board/results/S013-result.json`                                                       |
+| S014  | done                | write | Agent production operating mode                             | S013                   | `.agent-board/results/S014-result.json`                                                       |
+| S015  | done                | write | Failure record and rehearsal trace governance               | S014                   | `.agent-board/results/S015-result.json`                                                       |
+| S016  | blocked_external    | write | Permission and tenant E2E                                   | S015                   | `.agent-board/results/S016-result.json`                                                       |
+| S017  | done                | write | Resource request minimum loop                               | S016                   | `.agent-board/results/S017-result.json`                                                       |
+| S018  | done_with_blockers  | write | Backup, restore, and upgrade handoff checklist              | S017                   | `.agent-board/results/S018-result.json`                                                       |
+| S019  | done                | write | Clear S016 permission and tenant live E2E blocker           | S016, S018             | `.agent-board/results/S019-result.json`                                                       |
+| S020  | done                | write | Add source-backed backup restore readiness path             | S018, S019             | `.agent-board/results/S020-result.json`                                                       |
+| S021  | done                | write | Add Docker-backed staging matrix and runner                 | S020                   | `.agent-board/results/S021-result.json`                                                       |
+| S022  | done                | write | Package release evidence and final hygiene                  | S021                   | `.agent-board/results/S022-result.json`                                                       |
+| S023  | done                | write | Verify commit closure and remove tracked local artifacts    | S022                   | `.agent-board/results/S023-result.json`                                                       |
+| S024  | done                | write | Package G004 release evidence                               | S023                   | `.agent-board/results/S024-result.json`                                                       |
+| S025  | done                | write | Prepare external signoff pack                               | S024                   | `.agent-board/results/S025-result.json`                                                       |
+| S026  | done                | write | Add signoff dry-run automation                              | S025                   | `.agent-board/results/S026-result.json`                                                       |
+| S027  | done                | write | Run production MVP final gate                               | S026                   | `.agent-board/results/S027-result.json`                                                       |
+| S028  | done_with_followups | write | Audit and repair agent backend, CLI, UI, process, and e2e   | S027                   | `.agent-board/results/S028-result.json`                                                       |
 
 ## Active Constraints
 

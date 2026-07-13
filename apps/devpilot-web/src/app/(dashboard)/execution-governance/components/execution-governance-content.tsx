@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { Suspense as ReactSuspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
+import { LoadingState } from '@svton/ui';
 import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useExecutionGovernance } from '../hooks/use-execution-governance';
 import { SupervisorPanel } from './supervisor-panel';
@@ -14,7 +15,21 @@ import {
   readExecutionGovernanceScope,
 } from '../execution-governance-scope.utils';
 
+const Suspense = ReactSuspense as unknown as (props: {
+  fallback: React.ReactNode;
+  children: React.ReactNode;
+}) => JSX.Element;
+
 export function ExecutionGovernanceContent() {
+  const tc = useTranslations('common');
+  return (
+    <Suspense fallback={<LoadingState text={tc('loading')} />}>
+      <ExecutionGovernanceInner />
+    </Suspense>
+  );
+}
+
+function ExecutionGovernanceInner() {
   const t = useTranslations('executionGovernance');
   const tc = useTranslations('common');
   const searchParams = useSearchParams();

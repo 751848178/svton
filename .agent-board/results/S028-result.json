@@ -1,0 +1,58 @@
+{
+  "slice": "S028",
+  "status": "done_with_followups",
+  "completed_at": "2026-07-13T20:20:00+08:00",
+  "summary": "Completed source-backed agent audit and repaired critical backend task-pull policy blocking, CLI terminal writeback resilience, agent UI subagent status rendering, Devpilot web execution-governance/logs UI routing, and UI E2E fixtures.",
+  "invest_subagents": [
+    {
+      "id": "019f5b4a-0b35-7682-911d-12591a0b4491",
+      "scope": "devpilot-api server-agent/task-pull/supervisor-agent backend",
+      "applied_findings": [
+        "Command policy is evaluated before claimed command steps are returned.",
+        "Online runtime identity mismatch now prevents a different agent/runner from claiming work for the same server.",
+        "Policy-blocked claim jobs are written with ownership and running-state guards and preserve existing metadata.",
+        "Policy-blocked claim jobs now call finish sync so linked business runs are not stranded."
+      ]
+    },
+    {
+      "id": "019f5b4a-2087-7542-b5b1-1c4ed0798b2c",
+      "scope": "packages/cli agent-task-pull command and runtime",
+      "applied_findings": [
+        "Post-claim execution exceptions now best-effort finish the claimed task as failed or cancelled.",
+        "Finish writeback transport failures now produce a structured summary instead of throwing away the run result."
+      ]
+    },
+    {
+      "id": "019f5b4a-390e-7fc3-afd5-5385b14fb631",
+      "scope": "agent-related web and UI flows",
+      "applied_findings": [
+        "Execution governance page now delegates to the URL-scope-aware content component.",
+        "Logs policy panels now mount the Agent Follow card.",
+        "Subagent failed/error/cancelled/pending statuses no longer render as completed."
+      ]
+    },
+    {
+      "id": "019f5b4a-57ec-7f41-9c6b-97c156b0f111",
+      "scope": "agent docs, process, and e2e validation inventory",
+      "applied_findings": [
+        "Devpilot UI E2E fixtures now include an agent-follow log stream and entries so screenshots exercise the repaired card.",
+        "S028 board/result/verification evidence is recorded separately from the earlier external-signoff pack."
+      ]
+    }
+  ],
+  "review_subagent": {
+    "id": "019f5b5a-781d-7e12-a9e4-3aff39e7237a",
+    "scope": "deep local code review",
+    "resolved_findings": [
+      "Policy-blocked claims now sync linked business runs.",
+      "Policy-blocked claim writeback now uses guarded updateMany and metadata merge.",
+      "ChatMessage.tsx large Prettier churn was reverted to a minimal 4-line diff."
+    ]
+  },
+  "residual_followups": [
+    "Queue worker versus task-pull race, heartbeat cadence tuning, abortable CLI HTTP, unbounded payload limits, and agent-app subagent capability confidence remain larger hardening topics outside this focused repair.",
+    "Historical large files such as packages/agent-ui/src/components/chat/ChatMessage.tsx and broad test files remain structural debt; this slice avoided a risky unrelated refactor and kept the touched ChatMessage diff minimal.",
+    "Production readiness is still bounded by the existing G004 external signoff requirements for real provider/resource, production backup/rollback, and live restore approval."
+  ],
+  "verification": ".agent-board/verification/S028-verification.json"
+}

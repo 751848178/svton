@@ -9,7 +9,7 @@ import { DocumentCard, detectDocumentContent, type DocumentKind } from './Docume
 import type { SplitScreenContent } from './SplitScreenPanel';
 import { PlanBlockView, type PlanInfo } from './blocks/PlanBlockView';
 import { FileChangeView, type FileChangeEntry } from './blocks/FileChangeView';
-import { SubagentBlockView } from './blocks/SubagentBlockView';
+import { SubagentBlockView, normalizeSubagentBlockStatus } from './blocks/SubagentBlockView';
 import { WarningBlockView } from './blocks/WarningBlockView';
 import { ReferenceBlockView, type ReferenceEntry } from './blocks/ReferenceBlockView';
 import { WebSearchBlockView, type SearchResultEntry } from './blocks/WebSearchBlockView';
@@ -472,7 +472,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   key={`sub-${i}`}
                   agentId={block.agentId || ''}
                   task={block.task || ''}
-                  status={(block.status as 'running' | 'completed') || 'completed'}
+                  status={normalizeSubagentBlockStatus(block.status)}
                   summary={block.summary}
                 />
               );

@@ -5,7 +5,10 @@ import type {
   AgentTaskPullRunSummary,
 } from "./agent-task-pull-types";
 import { HttpAgentTaskPullClient } from "./agent-task-pull-client";
-import { finishAgentTaskPullExecution } from "./agent-task-pull-finish.utils";
+import {
+  finishAgentTaskPullExecutionSafely,
+  formatAgentTaskPullFinishError,
+} from "./agent-task-pull-finish.utils";
 import {
   assertAgentTaskPullLifecycleSupported,
   toAgentTaskPullIdentity,
@@ -40,12 +43,24 @@ export async function runAgentTaskPullOnce(
     return { mode: "no_task", reason: claim.reason || "no_task_claimed" };
   }
 
-  const executed = await executeAgentTaskPullTask(
-    identity,
-    claim.task,
-    config,
-    client,
-    deps,
-  );
-  return finishAgentTaskPullExecution(client, identity, claim.task, executed);
+  try {
+    const executed = await executeAgentTaskPullTask(
+      identity,
+      claim.task,
+      config,
+      client,
+      deps,
+    );
+    return finishAgentTaskPullExecutionSafely(
+      client,
+      identity,
+      claim.task,
+      executed,
+    );
+  } catch (error) {
+    return finishAgentTaskPullExecutionSafely(client, identity, claim.task, {
+      status: deps.signal?.aborted ? "cancelled" : "failed",
+      error: formatAgentTaskPullFinishError(error),
+    });
+  }
 }

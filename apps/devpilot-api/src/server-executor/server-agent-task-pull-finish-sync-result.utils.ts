@@ -70,6 +70,19 @@ export function rehydrateServerAgentTaskPullFinishSyncInput(
   });
 }
 
+export function rehydrateServerAgentTaskPullPolicyBlockedSyncInput(
+  job: ServerAgentTaskPullFinishSyncJob,
+  teamId: string,
+): ServerExecutionInput {
+  return rehydrateServerExecutionInput(job.inputSnapshot, {
+    teamId,
+    userId: job.actorId || undefined,
+    retryOfJobId: job.retryOfId || undefined,
+    retryAttempt: job.attempt,
+    maxAttempts: job.maxAttempts,
+  });
+}
+
 export function buildServerAgentTaskPullFinishSyncExecutionResult(
   dto: ServerAgentTaskPullFinishDto,
   input: ServerExecutionInput,

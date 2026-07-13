@@ -111,4 +111,73 @@ describe("agent task-pull once lifecycle", () => {
       "finish:cancelled",
     ]);
   });
+
+  it("finishes a claimed task as failed when execution throws", async () => {
+    const client = createLifecycleClient();
+    let finishPayload: unknown;
+    client.finish = async (_identity, _jobId, payload) => {
+      client.calls.push(`finish:${payload.status}`);
+      finishPayload = payload;
+      return { finished: true };
+    };
+
+    const summary = await runAgentTaskPullOnce(baseLifecycleConfig(true), {
+      client,
+      executor: async () => {
+        throw new Error("executor exploded");
+      },
+    });
+
+    expect(summary).toEqual({
+      mode: "executed",
+      jobId: "job-1",
+      status: "failed",
+      stepCount: 1,
+      reason: "executor exploded",
+    });
+    expect(finishPayload).toMatchObject({
+      status: "failed",
+      error: "executor exploded",
+    });
+    expect(client.calls).toEqual(["contract", "claim", "ack", "finish:failed"]);
+  });
+
+  it("returns a structured summary when finish writeback throws", async () => {
+    const client = createLifecycleClient();
+    client.finish = async (_identity, _jobId, payload) => {
+      client.calls.push(`finish:${payload.status}`);
+      throw new Error("finish transport failed");
+    };
+
+    const summary = await runAgentTaskPullOnce(baseLifecycleConfig(true), {
+      client,
+      executor: async (step) => ({
+        key: step.key,
+        command: step.command,
+        exitCode: 0,
+        durationMs: 5,
+        stdout: "ok",
+        stderr: "",
+        timedOut: false,
+      }),
+    });
+
+    expect(summary).toEqual({
+      mode: "executed",
+      jobId: "job-1",
+      status: "completed",
+      stepCount: 1,
+      reason: "finish transport failed",
+      finishAccepted: false,
+      finishFinished: false,
+      finishReason: "finish transport failed",
+    });
+    expect(client.calls).toEqual([
+      "contract",
+      "claim",
+      "ack",
+      "ack",
+      "finish:completed",
+    ]);
+  });
 });

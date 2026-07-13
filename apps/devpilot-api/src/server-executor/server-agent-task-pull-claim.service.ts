@@ -4,14 +4,28 @@ import { PrismaService } from "../prisma/prisma.service";
 import { ServerAgentAuthService, HeaderBag } from "./server-agent-auth.service";
 import { ServerAgentCapabilityService } from "./server-agent-capability.service";
 import { ServerExecutorRuntimeConfigService } from "./server-executor-runtime-config.service";
+import { ServerCommandPolicyService } from "./server-command-policy.service";
+import { buildServerExecutorPolicyBlockedResult } from "./server-executor-blocked-result.utils";
 import { buildServerAgentTaskPullJobSample } from "./server-agent-task-pull-gates.utils";
 import { buildServerAgentTaskPullLockOwner } from "./server-agent-task-pull-lock.utils";
 import { ServerAgentTaskPullQueryService } from "./server-agent-task-pull-query.service";
-import { buildServerAgentClaimedTaskPayload } from "./server-agent-task-pull-task-payload.utils";
+import { ServerAgentTaskPullFinishSyncService } from "./server-agent-task-pull-finish-sync.service";
+import { blockServerAgentTaskPullJobForPolicy } from "./server-agent-task-pull-policy-block.utils";
+import { readServerAgentRuntimeIdentityMismatch } from "./server-agent-task-pull-runtime-identity.utils";
+import {
+  buildServerAgentTaskPullClaimBaseResponse,
+  buildServerAgentTaskPullClaimMetadata,
+  buildServerAgentTaskPullNoClaimResult,
+  SERVER_AGENT_TASK_PULL_CLAIM_ENDPOINT,
+} from "./server-agent-task-pull-claim-result.utils";
+import {
+  buildServerAgentClaimedTaskPayload,
+  readServerAgentClaimedTaskInput,
+  type ServerAgentClaimedTaskJob,
+} from "./server-agent-task-pull-task-payload.utils";
 import { ServerAgentTaskPullClaimDto } from "./dto/server-execution-lease.dto";
 
-export const SERVER_AGENT_TASK_PULL_CLAIM_ENDPOINT =
-  "/server-agent/task-pull/claim";
+export { SERVER_AGENT_TASK_PULL_CLAIM_ENDPOINT } from "./server-agent-task-pull-claim-result.utils";
 
 type ServerAgentClaimServerRecord = {
   id: string;
@@ -30,6 +44,8 @@ export class ServerAgentTaskPullClaimService {
     private readonly capabilityService: ServerAgentCapabilityService,
     private readonly runtimeConfigService: ServerExecutorRuntimeConfigService,
     private readonly taskPullQueryService: ServerAgentTaskPullQueryService,
+    private readonly commandPolicyService: ServerCommandPolicyService,
+    private readonly finishSyncService: ServerAgentTaskPullFinishSyncService,
   ) {}
 
   async claim(headers: HeaderBag, dto: ServerAgentTaskPullClaimDto) {
@@ -47,15 +63,30 @@ export class ServerAgentTaskPullClaimService {
 
     const agentRef = this.capabilityService.readCapability(server);
     const runtime = this.capabilityService.readRuntime(server, now);
-    const base = this.buildBaseResponse(dto, server, now, agentRef, runtime);
+    const base = buildServerAgentTaskPullClaimBaseResponse(
+      dto,
+      server,
+      now,
+      agentRef,
+      runtime,
+    );
+    const identityMismatch = readServerAgentRuntimeIdentityMismatch(
+      dto,
+      runtime,
+    );
+    if (identityMismatch) {
+      return buildServerAgentTaskPullNoClaimResult(
+        `agent_runtime_identity_mismatch:${identityMismatch}`,
+      );
+    }
     if (!taskPullEnabled) {
       return {
         ...base,
-        ...this.noClaim("task_pull_disabled"),
+        ...buildServerAgentTaskPullNoClaimResult("task_pull_disabled"),
       };
     }
 
-    const lockOwner = this.buildLockOwner(dto);
+    const lockOwner = buildServerAgentTaskPullLockOwner(dto);
     const lockExpiresAt = this.runtimeConfigService.lockExpiresAt(now);
     const job = await this.taskPullQueryService.claimNextReadyJob(
       {
@@ -67,14 +98,24 @@ export class ServerAgentTaskPullClaimService {
       lockOwner,
       lockExpiresAt,
     );
-    if (!job) return this.noClaim("no_ready_server_agent_job");
+    if (!job)
+      return buildServerAgentTaskPullNoClaimResult("no_ready_server_agent_job");
+
+    const policyBlocked = await this.blockIfCommandPolicyRejects(
+      job,
+      dto.teamId,
+      lockOwner,
+      now,
+    );
+    if (policyBlocked)
+      return buildServerAgentTaskPullNoClaimResult("command_policy_blocked");
 
     return {
       ...base,
       claimed: true,
       reason: "server_agent_job_claimed",
       endpoint: SERVER_AGENT_TASK_PULL_CLAIM_ENDPOINT,
-      claim: this.buildClaimMetadata(lockOwner, lockExpiresAt),
+      claim: buildServerAgentTaskPullClaimMetadata(lockOwner, lockExpiresAt),
       job: buildServerAgentTaskPullJobSample(job),
       task: buildServerAgentClaimedTaskPayload(job, { teamId: dto.teamId }),
     };
@@ -87,68 +128,30 @@ export class ServerAgentTaskPullClaimService {
     }) as Promise<ServerAgentClaimServerRecord | null>;
   }
 
-  private buildBaseResponse(
-    dto: ServerAgentTaskPullClaimDto,
-    server: ServerAgentClaimServerRecord,
+  private async blockIfCommandPolicyRejects(
+    job: ServerAgentClaimedTaskJob,
+    teamId: string,
+    lockOwner: string,
     now: Date,
-    agentRef: unknown,
-    runtime: unknown,
   ) {
-    return {
-      accepted: true,
-      generatedAt: now.toISOString(),
-      server: {
-        id: server.id,
-        name: server.name,
-        host: server.host,
-        status: server.status,
-      },
-      agent: {
-        agentId: dto.agentId.trim(),
-        ...(dto.runnerId?.trim() ? { runnerId: dto.runnerId.trim() } : {}),
-        ...(agentRef ? { agentRef } : {}),
-        runtime: runtime || null,
-      },
-    };
-  }
+    const input = readServerAgentClaimedTaskInput(job, teamId);
+    if (!input) return false;
 
-  private noClaim(reason: string) {
-    return {
-      accepted: true,
-      claimed: false,
-      reason,
-      endpoint: SERVER_AGENT_TASK_PULL_CLAIM_ENDPOINT,
-      job: null,
-    };
-  }
+    const policy = await this.commandPolicyService.evaluate(input);
+    if (policy.status !== "blocked") return false;
 
-  private buildClaimMetadata(
-    lockOwner: string | null,
-    lockExpiresAt: Date | null,
-  ) {
-    return {
-      mode: "claim_only",
-      taskPullEnabled: true,
-      pullEndpointImplemented: true,
-      claimSupported: true,
-      ackSupported: true,
-      claimedTaskPayloadSupported: true,
-      terminalWritebackSupported: true,
-      lifecycleExecutionSupported: false,
-      longConnectionSupported: false,
+    const result = buildServerExecutorPolicyBlockedResult(input, policy);
+    const blocked = await blockServerAgentTaskPullJobForPolicy(
+      this.prisma,
+      job,
       lockOwner,
-      lockExpiresAt: lockExpiresAt?.toISOString() || null,
-      boundaries: [
-        "claim_only",
-        "ack_requires_follow_up",
-        "finish_supported",
-        "no_lifecycle_execution",
-      ],
-    };
-  }
+      result,
+      now,
+    );
+    if (!blocked) return false;
 
-  private buildLockOwner(dto: ServerAgentTaskPullClaimDto) {
-    return buildServerAgentTaskPullLockOwner(dto);
+    await this.finishSyncService.syncAfterPolicyBlocked(teamId, job, result);
+    return true;
   }
 }
 

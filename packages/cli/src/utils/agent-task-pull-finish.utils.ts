@@ -52,6 +52,33 @@ export function finishAgentTaskPullExecution(
     );
 }
 
+export async function finishAgentTaskPullExecutionSafely(
+  client: AgentTaskPullHttpClient,
+  identity: AgentTaskPullIdentity,
+  task: AgentTaskPullTask,
+  executed: AgentTaskPullExecutionFinish,
+): Promise<AgentTaskPullRunSummary> {
+  try {
+    return await finishAgentTaskPullExecution(client, identity, task, executed);
+  } catch (error) {
+    return buildAgentTaskPullExecutedRunSummary({
+      jobId: task.jobId,
+      status: executed.status,
+      stepCount: task.commandSteps.length,
+      error: executed.error || formatAgentTaskPullFinishError(error),
+      finishSummary: {
+        finishAccepted: false,
+        finishFinished: false,
+        finishReason: formatAgentTaskPullFinishError(error),
+      },
+    });
+  }
+}
+
+export function formatAgentTaskPullFinishError(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function readAgentTaskPullFinishWritebackSummary(
   response: AgentTaskPullFinishResponse,
 ): Pick<

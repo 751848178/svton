@@ -10,6 +10,7 @@ import {
   readServerAgentTaskPullFinishSyncBusinessRunSync,
   readServerAgentTaskPullFinishSyncLogCollectionRunId,
   readServerAgentTaskPullFinishSyncMetadata,
+  rehydrateServerAgentTaskPullPolicyBlockedSyncInput,
   rehydrateServerAgentTaskPullFinishSyncInput,
   type ServerAgentTaskPullFinishSyncJob,
 } from "./server-agent-task-pull-finish-sync-result.utils";
@@ -99,6 +100,42 @@ export class ServerAgentTaskPullFinishSyncService {
     };
   }
 
+  async syncAfterPolicyBlocked(
+    teamId: string,
+    job: ServerAgentTaskPullFinishSyncJob,
+    result: ServerExecutionResult,
+  ) {
+    const metadata = readServerAgentTaskPullFinishSyncMetadata(
+      job.inputSnapshot,
+    );
+    const businessRunSync =
+      readServerAgentTaskPullFinishSyncBusinessRunSync(metadata);
+    if (!businessRunSync) return null;
+
+    const input = rehydrateServerAgentTaskPullPolicyBlockedSyncInput(
+      job,
+      teamId,
+    );
+    if (businessRunSync === "log_collection") {
+      return this.syncLogCollectionRunAfterPolicyBlock(
+        input,
+        result,
+        job,
+        metadata,
+      );
+    }
+    if (!isServerAgentTaskPullNonLogBusinessRunSync(businessRunSync)) {
+      return null;
+    }
+
+    const synced = await this.linkedBusinessRunSyncService.syncAfterExecution(
+      input,
+      job.id,
+      result,
+    );
+    return { businessRunSync, synced };
+  }
+
   private async syncLogCollectionRun(
     dto: ServerAgentTaskPullFinishDto,
     input: ServerExecutionInput,
@@ -138,5 +175,29 @@ export class ServerAgentTaskPullFinishSyncService {
       queuedAt: job.queuedAt,
       availableAt: job.availableAt,
     });
+  }
+
+  private async syncLogCollectionRunAfterPolicyBlock(
+    input: ServerExecutionInput,
+    result: ServerExecutionResult,
+    job: ServerAgentTaskPullFinishSyncJob,
+    metadata: Record<string, unknown>,
+  ) {
+    const logCollectionRunId =
+      readServerAgentTaskPullFinishSyncLogCollectionRunId(metadata);
+    if (!logCollectionRunId) return null;
+
+    const synced = await this.logCollectionRunSyncService.syncAfterExecution(
+      input,
+      job.id,
+      result,
+      metadata,
+    );
+    return {
+      businessRunSync: "log_collection",
+      logCollectionRunId,
+      synced,
+      completedIngestionAttempted: false,
+    };
   }
 }

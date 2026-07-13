@@ -13,7 +13,7 @@ import type {
   ServerExecutionInput,
   ServerExecutorTarget,
 } from "./server-executor.types";
-import type { ServerAgentClaimedTaskJob } from "./server-agent-task-pull-task-payload.utils";
+import type { ServerAgentClaimedTaskPayloadJob } from "./server-agent-task-pull-task-payload.utils";
 
 export function buildServerAgentTaskPullRedactedTarget(
   target: ServerExecutorTarget,
@@ -51,7 +51,7 @@ export function buildServerAgentTaskPullCommandStepPayload(
 }
 
 export function buildServerAgentTaskPullLifecycleEnvelope(
-  job: ServerAgentClaimedTaskJob,
+  job: ServerAgentClaimedTaskPayloadJob,
 ) {
   return {
     mode: TASK_PULL_LIFECYCLE_MODE,
@@ -83,7 +83,7 @@ export function buildServerAgentTaskPullLifecycleEnvelope(
 }
 
 export function buildServerAgentTaskPullCorrelation(
-  job: ServerAgentClaimedTaskJob,
+  job: ServerAgentClaimedTaskPayloadJob,
   input: ServerExecutionInput,
   teamId: string,
 ) {
