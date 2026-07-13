@@ -12,11 +12,13 @@ import {
 import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ControlAccessPolicyService } from '../control-access-policy';
+import { BackupRestoreService } from './backup-restore.service';
 import { BackupService } from './backup.service';
 import {
   CreateBackupPlanDto,
   ListBackupPlansQueryDto,
   ListBackupRunsQueryDto,
+  RestoreBackupRunDto,
   RunBackupPlanDto,
   UpdateBackupPlanDto,
 } from './dto/backup.dto';
@@ -38,6 +40,7 @@ type ReadableBackupRecord = {
 export class BackupController {
   constructor(
     private readonly backupService: BackupService,
+    private readonly backupRestoreService: BackupRestoreService,
     private readonly accessPolicyService: ControlAccessPolicyService,
   ) {}
 
@@ -98,6 +101,24 @@ export class BackupController {
     return this.filterReadableBackupRecords(req, runs, 'backup_run.read', 'backup_run');
   }
 
+  @Post('runs/:runId/restore')
+  async restoreRun(
+    @Request() req: AuthRequest,
+    @Param('runId') runId: string,
+    @Body() dto: RestoreBackupRunDto,
+  ) {
+    const scope = await this.backupRestoreService.getRestoreAccessScope(req.teamId, runId);
+    await this.assertCanWriteBackup(
+      req,
+      'backup.restore',
+      runId,
+      scope.projectId,
+      scope.environmentId,
+      dto.dryRun === false ? 'high' : 'medium',
+    );
+    return this.backupRestoreService.restoreRun(req.teamId, req.user.id, runId, dto);
+  }
+
   private assertCanWriteBackup(
     req: AuthRequest,
     action: string,
@@ -113,7 +134,7 @@ export class BackupController {
       environmentId,
       category: 'backup',
       action,
-      targetType: action === 'backup.run' ? 'backup_run' : 'backup_plan',
+      targetType: action === 'backup.plan.create' || action === 'backup.plan.update' ? 'backup_plan' : 'backup_run',
       targetId,
       risk,
     });

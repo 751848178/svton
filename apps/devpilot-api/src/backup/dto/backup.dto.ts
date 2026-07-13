@@ -126,3 +126,37 @@ export class RunBackupPlanDto {
   @IsObject()
   overrides?: Record<string, unknown>;
 }
+
+export class RestoreBackupRunDto {
+  @IsOptional()
+  @IsBoolean()
+  dryRun?: boolean;
+
+  @IsOptional()
+  @IsIn(['manual', 'api'])
+  trigger?: 'manual' | 'api';
+
+  @IsOptional()
+  @IsString()
+  targetEnvironmentId?: string;
+
+  @IsOptional()
+  @IsString()
+  targetResourceId?: string;
+
+  @IsOptional()
+  @IsString()
+  targetServerId?: string;
+
+  @IsOptional()
+  @IsString()
+  validationQuery?: string;
+
+  @IsOptional()
+  @IsObject()
+  rollbackPlan?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  confirmationText?: string;
+}

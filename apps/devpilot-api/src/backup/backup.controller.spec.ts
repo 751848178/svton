@@ -1,4 +1,5 @@
 import { ControlAccessPolicyService } from '../control-access-policy';
+import { BackupRestoreService } from './backup-restore.service';
 import { BackupController } from './backup.controller';
 import { BackupService } from './backup.service';
 
@@ -21,6 +22,10 @@ describe('BackupController authorization', () => {
     canRead: jest.Mock;
     assertCanWrite: jest.Mock;
   };
+  let backupRestoreService: {
+    getRestoreAccessScope: jest.Mock;
+    restoreRun: jest.Mock;
+  };
   let controller: BackupController;
 
   beforeEach(() => {
@@ -37,8 +42,13 @@ describe('BackupController authorization', () => {
       canRead: jest.fn(),
       assertCanWrite: jest.fn(),
     };
+    backupRestoreService = {
+      getRestoreAccessScope: jest.fn(),
+      restoreRun: jest.fn(),
+    };
     controller = new BackupController(
       backupService as unknown as BackupService,
+      backupRestoreService as unknown as BackupRestoreService,
       accessPolicyService as unknown as ControlAccessPolicyService,
     );
   });
@@ -152,6 +162,35 @@ describe('BackupController authorization', () => {
 
     await expect(controller.runPlan(req, 'plan-1', { dryRun: false })).rejects.toThrow('backup denied');
     expect(backupService.runPlan).not.toHaveBeenCalled();
+  });
+
+  it('checks restore dry-run and live restore with different risk levels', async () => {
+    backupRestoreService.getRestoreAccessScope.mockResolvedValue(scope('env-prod'));
+    backupRestoreService.restoreRun.mockResolvedValue({ id: 'restore-run-1' });
+    accessPolicyService.assertCanWrite.mockResolvedValue({ allowed: true });
+
+    await expect(controller.restoreRun(req, 'source-run-1', { dryRun: true })).resolves.toEqual({ id: 'restore-run-1' });
+    await expect(controller.restoreRun(req, 'source-run-1', { dryRun: false })).resolves.toEqual({ id: 'restore-run-1' });
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'backup.restore',
+      targetType: 'backup_run',
+      targetId: 'source-run-1',
+      risk: 'medium',
+    }));
+    expect(accessPolicyService.assertCanWrite).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'backup.restore',
+      targetType: 'backup_run',
+      targetId: 'source-run-1',
+      risk: 'high',
+    }));
+  });
+
+  it('does not restore when the write gate rejects', async () => {
+    backupRestoreService.getRestoreAccessScope.mockResolvedValue(scope('env-prod'));
+    accessPolicyService.assertCanWrite.mockRejectedValue(new Error('restore denied'));
+
+    await expect(controller.restoreRun(req, 'source-run-1', { dryRun: false })).rejects.toThrow('restore denied');
+    expect(backupRestoreService.restoreRun).not.toHaveBeenCalled();
   });
 });
 
