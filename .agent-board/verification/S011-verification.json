@@ -1,0 +1,12 @@
+{
+  "slice_id": "S011",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S011 focused server-executor regression, API type-check, JSON parse, and diff hygiene passed after registering G003/S011-S018.",
+  "relevant_errors": [],
+  "full_log": {
+    "api_server_executor_jest": "/tmp/codex-tool-runs/svton/s011-api-server-executor-jest-20260713-101358.log",
+    "api_type_check": "/tmp/codex-tool-runs/svton/s011-api-type-check-20260713-101358.log",
+    "git_diff_check": "/tmp/codex-tool-runs/svton/s011-git-diff-check-20260713-101358.log"
+  }
+}

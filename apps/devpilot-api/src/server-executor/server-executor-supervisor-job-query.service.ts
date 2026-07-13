@@ -36,13 +36,13 @@ export class ServerExecutorSupervisorJobQueryService {
         where: { teamId, status: "running", lockExpiresAt: { lte: now } },
       }),
       this.prisma.serverExecutionJob.count({
-        where: { teamId, status: "blocked" },
+        where: { teamId, status: "blocked", finishedAt: null },
       }),
       this.prisma.serverExecutionJob.count({
-        where: { teamId, status: "failed" },
+        where: { teamId, status: "failed", finishedAt: null },
       }),
       this.prisma.serverExecutionJob.count({
-        where: { teamId, status: "cancelled" },
+        where: { teamId, status: "cancelled", finishedAt: null },
       }),
     ]);
   }

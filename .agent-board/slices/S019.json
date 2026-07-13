@@ -1,0 +1,34 @@
+{
+  "id": "S019",
+  "title": "Clear S016 permission and tenant live E2E blocker",
+  "status": "done",
+  "started_at": "2026-07-13T10:33:20+08:00",
+  "completed_at": "2026-07-13T10:40:30+08:00",
+  "mode": "write",
+  "depends_on": ["S016", "S018"],
+  "goal": "Run the permission and tenant E2E against a reachable disposable Devpilot API and update G003 blocker evidence.",
+  "allowed_files": [
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/goals/G003.json",
+    ".agent-board/slices/S019.json",
+    ".agent-board/verification/S019-verification.json",
+    ".agent-board/results/S019-result.json",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    "scripts/devpilot-permission-tenant-e2e.mjs"
+  ],
+  "forbidden_scope": [
+    "Do not rewrite S016/S018 historical result files; add S019 follow-up evidence instead.",
+    "Do not mark restore, provider provisioning, backup, or rollback blockers as cleared in this slice.",
+    "Do not change production auth or tenant behavior unless the E2E exposes a real bug."
+  ],
+  "acceptance": [
+    "A disposable Devpilot API is reachable or a concrete environment blocker is recorded.",
+    "scripts/devpilot-permission-tenant-e2e.mjs exits with status passed against that API, or a real product bug/external blocker is recorded.",
+    "Noisy startup, migration, and E2E logs are stored under /tmp/codex-tool-runs/svton/.",
+    "Board state records whether the S016 live E2E blocker is cleared."
+  ],
+  "verification": ".agent-board/verification/S019-verification.json",
+  "result": ".agent-board/results/S019-result.json",
+  "summary": "Cleared the S016 live permission/tenant E2E blocker against a disposable local Devpilot API."
+}

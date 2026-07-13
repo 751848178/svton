@@ -1,0 +1,21 @@
+{
+  "slice_id": "S014",
+  "status": "done",
+  "summary": "Added a production server-agent operating runbook covering API gates, service-manager env, systemd shape, pid-file protection, heartbeat, cwd boundary, restart, and token rotation.",
+  "changed_files": [
+    "docs/devpilot/agent-production-runbook.md",
+    "docs/devpilot/demo-runbook.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/slices/S014.json",
+    ".agent-board/verification/S014-verification.json",
+    ".agent-board/results/S014-result.json"
+  ],
+  "verification": ".agent-board/verification/S014-verification.json",
+  "remaining_risks": [
+    "The systemd unit is a handoff template, not an installed service on this machine.",
+    "Production team/server ids, release paths, and secret-manager values remain environment-owned inputs.",
+    "Failure/rehearsal trace governance is deferred to S015."
+  ],
+  "next": "S015 can start: govern failed records and rehearsal traces without deleting audit history."
+}

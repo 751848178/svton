@@ -1,0 +1,25 @@
+{
+  "id": "S018",
+  "title": "Backup, restore, and upgrade handoff checklist",
+  "status": "done_with_blockers",
+  "started_at": "2026-07-13T10:29:20+08:00",
+  "completed_at": "2026-07-13T10:31:00+08:00",
+  "mode": "write",
+  "depends_on": ["S017"],
+  "goal": "Produce the final backup, restore, and upgrade delivery checklist for production MVP.",
+  "allowed_files": [
+    "docs/devpilot/backup-restore-upgrade-checklist.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/slices/S018.json",
+    ".agent-board/verification/S018-verification.json",
+    ".agent-board/results/S018-result.json"
+  ],
+  "acceptance": [
+    "Backup, restore, migration, rollback, and upgrade checkpoints are listed.",
+    "Operational owners and evidence paths are clear.",
+    "Final G003 deliverable/not-deliverable judgment is recorded."
+  ]
+}

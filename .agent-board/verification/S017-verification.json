@@ -1,0 +1,12 @@
+{
+  "slice_id": "S017",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S017 resource-request minimum loop runbook is linked and focused resource-request controller/service/scheduler tests pass.",
+  "relevant_errors": [],
+  "full_log": {
+    "resource_request_jest": "/tmp/codex-tool-runs/svton/s017-resource-request-jest-20260713-102839.log",
+    "doc_link_check": "/tmp/codex-tool-runs/svton/s017-doc-link-check-20260713-102839.log",
+    "git_diff_check": "/tmp/codex-tool-runs/svton/s017-git-diff-check-20260713-102839.log"
+  }
+}

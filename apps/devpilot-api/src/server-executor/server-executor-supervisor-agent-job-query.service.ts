@@ -43,13 +43,28 @@ export class ServerExecutorSupervisorAgentJobQueryService {
         },
       }),
       this.prisma.serverExecutionJob.count({
-        where: { teamId, transport: "server_agent", status: "blocked" },
+        where: {
+          teamId,
+          transport: "server_agent",
+          status: "blocked",
+          finishedAt: null,
+        },
       }),
       this.prisma.serverExecutionJob.count({
-        where: { teamId, transport: "server_agent", status: "failed" },
+        where: {
+          teamId,
+          transport: "server_agent",
+          status: "failed",
+          finishedAt: null,
+        },
       }),
       this.prisma.serverExecutionJob.count({
-        where: { teamId, transport: "server_agent", status: "cancelled" },
+        where: {
+          teamId,
+          transport: "server_agent",
+          status: "cancelled",
+          finishedAt: null,
+        },
       }),
     ]);
   }
@@ -79,7 +94,12 @@ export class ServerExecutorSupervisorAgentJobQueryService {
 
   async loadAgentBlockedReasonJobs(teamId: string) {
     return this.prisma.serverExecutionJob.findMany({
-      where: { teamId, transport: "server_agent", status: "blocked" },
+      where: {
+        teamId,
+        transport: "server_agent",
+        status: "blocked",
+        finishedAt: null,
+      },
       orderBy: [{ finishedAt: "desc" }, { queuedAt: "desc" }],
       take: 20,
       select: {
@@ -101,7 +121,13 @@ export class ServerExecutorSupervisorAgentJobQueryService {
       where: {
         teamId,
         transport: "server_agent",
-        status: { in: ["queued", "running", "blocked", "failed", "cancelled"] },
+        OR: [
+          { status: { in: ["queued", "running"] } },
+          {
+            status: { in: ["blocked", "failed", "cancelled"] },
+            finishedAt: null,
+          },
+        ],
       },
       orderBy: [{ queuedAt: "desc" }],
       take: 200,

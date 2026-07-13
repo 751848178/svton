@@ -1,0 +1,25 @@
+{
+  "id": "S012",
+  "title": "Production Config Pack",
+  "status": "done",
+  "started_at": "2026-07-13T10:14:20+08:00",
+  "completed_at": "2026-07-13T10:18:40+08:00",
+  "mode": "write",
+  "depends_on": ["S011"],
+  "goal": "Create or harden production configuration guidance and templates needed for MVP handoff.",
+  "allowed_files": [
+    "docs/devpilot/production-config-pack.md",
+    "docs/devpilot/demo-runbook.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/slices/S012.json",
+    ".agent-board/verification/S012-verification.json",
+    ".agent-board/results/S012-result.json"
+  ],
+  "acceptance": [
+    "Production-required environment variables and defaults are listed from source-backed behavior.",
+    "Demo-safe values are separated from production-safe guidance.",
+    "Verification and remaining external dependencies are recorded."
+  ]
+}

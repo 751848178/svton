@@ -1,0 +1,32 @@
+{
+  "slice_id": "S011",
+  "status": "done",
+  "summary": "Closed the current worktree as a coherent readiness/history cleanup diff and registered G003 with S011-S018 in .agent-board.",
+  "changed_files": [
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-agent-job-query.service.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-job-query.service.ts",
+    "apps/devpilot-api/src/server-executor/server-executor.service.spec.ts",
+    "docs/devpilot/demo-runbook.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/goals/G003.json",
+    ".agent-board/slices/S011.json",
+    ".agent-board/slices/S012.json",
+    ".agent-board/slices/S013.json",
+    ".agent-board/slices/S014.json",
+    ".agent-board/slices/S015.json",
+    ".agent-board/slices/S016.json",
+    ".agent-board/slices/S017.json",
+    ".agent-board/slices/S018.json",
+    ".agent-board/verification/S011-verification.json",
+    ".agent-board/results/S011-result.json"
+  ],
+  "verification": ".agent-board/verification/S011-verification.json",
+  "remaining_risks": [
+    "S011 did not stage or commit changes because the current request only authorized slice execution and board updates.",
+    "The untracked .zcode/ local planning artifacts remain untouched and outside the readiness closure diff.",
+    "S012-S018 production-readiness gaps still need implementation or explicit blockers."
+  ],
+  "next": "S012 can start: build the Production Config Pack from source-backed env/default behavior and the existing demo runbook."
+}

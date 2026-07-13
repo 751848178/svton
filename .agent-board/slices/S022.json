@@ -1,0 +1,16 @@
+{
+  "slice": "S022",
+  "title": "Release evidence package and final hygiene",
+  "status": "done",
+  "mode": "write",
+  "depends_on": ["S021"],
+  "goal": "Package the G003 Docker-backed staging evidence for commit readiness without rerunning S011-S021 or claiming real provider/production signoff.",
+  "scope": [
+    "Audit S011-S021 board results, verification files, todo status, and Docker staging summary.",
+    "Run final hygiene checks for JSON parse, git diff whitespace, focused API tests, and API type-check.",
+    "Create a release evidence index that points to S019, S020, and S021 key evidence paths and records remaining external signoff."
+  ],
+  "evidence": ".agent-board/verification/S022-verification.json",
+  "result": ".agent-board/results/S022-result.json",
+  "release_evidence_index": ".agent-board/release-evidence/G003-S022-release-evidence-index.md"
+}

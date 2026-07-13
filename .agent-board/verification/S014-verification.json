@@ -1,0 +1,18 @@
+{
+  "slice_id": "S014",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S014 agent production runbook links are valid, CLI task-pull runtime boundary tests pass, and diff hygiene passes.",
+  "relevant_errors": [
+    {
+      "status": "rerun_passed",
+      "summary": "Initial CLI test command used an unsupported Jest --run flag; rerun used package-relative Jest paths and passed."
+    }
+  ],
+  "full_log": {
+    "cli_agent_tests_failed_bad_flag": "/tmp/codex-tool-runs/svton/s014-cli-agent-tests-20260713-102302.log",
+    "cli_agent_tests": "/tmp/codex-tool-runs/svton/s014-cli-agent-tests-rerun-20260713-102315.log",
+    "doc_link_check": "/tmp/codex-tool-runs/svton/s014-doc-link-check-20260713-102302.log",
+    "git_diff_check": "/tmp/codex-tool-runs/svton/s014-git-diff-check-20260713-102302.log"
+  }
+}

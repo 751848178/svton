@@ -1,0 +1,74 @@
+{
+  "slice": "S019",
+  "status": "passed",
+  "verified_at": "2026-07-13T10:40:30+08:00",
+  "environment": {
+    "api_url": "http://127.0.0.1:3211/api",
+    "database": "mysql://root:***@127.0.0.1:3310/devpilot_g003_s019",
+    "redis": "127.0.0.1:6383",
+    "api_server_stopped_after_verification": true
+  },
+  "logs": [
+    {
+      "name": "db_reset",
+      "status": "passed",
+      "path": "/tmp/codex-tool-runs/svton/s019-db-reset-20260713-103415.log"
+    },
+    {
+      "name": "prisma_generate",
+      "status": "passed",
+      "path": "/tmp/codex-tool-runs/svton/s019-prisma-generate-20260713-103416.log"
+    },
+    {
+      "name": "prisma_migrate_deploy",
+      "status": "passed",
+      "path": "/tmp/codex-tool-runs/svton/s019-prisma-migrate-deploy-20260713-103425.log"
+    },
+    {
+      "name": "initial_api_health",
+      "status": "failed_harness_start",
+      "path": "/tmp/codex-tool-runs/svton/s019-api-health-20260713-103504.log"
+    },
+    {
+      "name": "api_health_rerun",
+      "status": "passed",
+      "path": "/tmp/codex-tool-runs/svton/s019-api-health-rerun-20260713-103638.log"
+    },
+    {
+      "name": "e2e_initial",
+      "status": "failed_script_contract",
+      "path": "/tmp/codex-tool-runs/svton/s019-permission-tenant-e2e-20260713-103648.log"
+    },
+    {
+      "name": "e2e_rerun_login_status_fixed",
+      "status": "failed_script_contract",
+      "path": "/tmp/codex-tool-runs/svton/s019-permission-tenant-e2e-rerun-20260713-103848.log"
+    },
+    {
+      "name": "e2e_final",
+      "status": "passed",
+      "path": "/tmp/codex-tool-runs/svton/s019-permission-tenant-e2e-rerun2-20260713-103938.log"
+    },
+    {
+      "name": "script_line_count",
+      "status": "passed",
+      "path": "/tmp/codex-tool-runs/svton/s019-script-line-count-20260713-104023.log"
+    },
+    {
+      "name": "api_stopped",
+      "status": "passed",
+      "path": "/tmp/codex-tool-runs/svton/s019-api-stopped-20260713-104023.log"
+    }
+  ],
+  "checks": [
+    "Disposable database devpilot_g003_s019 was reset and migrated.",
+    "GET /auth/profile returned an auth boundary status from the local API.",
+    "scripts/devpilot-permission-tenant-e2e.mjs passed owner, cross-tenant denial, resource-control team header denial, and happy-path checks.",
+    "git diff --check passed.",
+    "The temporary API server was stopped after verification."
+  ],
+  "remaining_risks": [
+    "This clears the S016 live E2E blocker against a disposable local API; staging/prod should still run the same script with approved endpoints before release signoff.",
+    "Restore, live provider/resource provisioning, and production backup/rollback rehearsal blockers remain outside S019."
+  ]
+}

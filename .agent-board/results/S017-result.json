@@ -1,0 +1,19 @@
+{
+  "slice_id": "S017",
+  "status": "done",
+  "summary": "Added a resource request minimum-loop runbook covering creation, approval/completion, provisioning observability, queue processing, stale recovery, replay, and provider-state reconciliation.",
+  "changed_files": [
+    "docs/devpilot/resource-request-minimum-loop.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/slices/S017.json",
+    ".agent-board/verification/S017-verification.json",
+    ".agent-board/results/S017-result.json"
+  ],
+  "verification": ".agent-board/verification/S017-verification.json",
+  "remaining_risks": [
+    "Live provider provisioning remains environment-dependent and should be proven in staging with approved provider credentials.",
+    "S016 permission/tenant live E2E remains blocked on a reachable staging API."
+  ],
+  "next": "S018 can start: produce backup, restore, and upgrade delivery checklist and final readiness judgment."
+}

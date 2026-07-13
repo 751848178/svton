@@ -1,0 +1,20 @@
+{
+  "slice_id": "S015",
+  "status": "done",
+  "summary": "Added rehearsal trace governance that keeps failed/blocked history auditable while scoping current readiness pressure to active or unfinished terminal work.",
+  "changed_files": [
+    "docs/devpilot/rehearsal-trace-governance.md",
+    "docs/devpilot/demo-runbook.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/slices/S015.json",
+    ".agent-board/verification/S015-verification.json",
+    ".agent-board/results/S015-result.json"
+  ],
+  "verification": ".agent-board/verification/S015-verification.json",
+  "remaining_risks": [
+    "Governance is documented and the current-pressure code path is covered by focused regression, but production data repair remains an operator-approved process.",
+    "Permission and tenant E2E is deferred to S016."
+  ],
+  "next": "S016 can start: verify critical permission and tenant isolation paths."
+}

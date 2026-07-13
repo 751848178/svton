@@ -1,0 +1,26 @@
+{
+  "id": "S013",
+  "title": "Command Policy safety templates",
+  "status": "done",
+  "started_at": "2026-07-13T10:18:40+08:00",
+  "completed_at": "2026-07-13T10:21:40+08:00",
+  "mode": "write",
+  "depends_on": ["S012"],
+  "goal": "Harden command policy templates for production live-agent execution.",
+  "allowed_files": [
+    "docs/devpilot/command-policy-templates.md",
+    "docs/devpilot/demo-runbook.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/slices/S013.json",
+    ".agent-board/verification/S013-verification.json",
+    ".agent-board/results/S013-result.json"
+  ],
+  "acceptance": [
+    "Allow/deny examples cover demo-safe and production-safe operations separately.",
+    "Dangerous command classes remain blocked by default.",
+    "Policy verification evidence or blockers are recorded."
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "id": "S011",
+  "title": "Close current worktree",
+  "status": "done",
+  "started_at": "2026-07-13T10:12:26+08:00",
+  "completed_at": "2026-07-13T10:14:20+08:00",
+  "mode": "write",
+  "depends_on": ["S010"],
+  "goal": "Review and close the current dirty worktree before starting production-readiness feature slices.",
+  "allowed_files": [
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-agent-job-query.service.ts",
+    "apps/devpilot-api/src/server-executor/server-executor-supervisor-job-query.service.ts",
+    "apps/devpilot-api/src/server-executor/server-executor.service.spec.ts",
+    "docs/devpilot/demo-runbook.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/goals/G003.json",
+    ".agent-board/slices/S011.json",
+    ".agent-board/slices/S012.json",
+    ".agent-board/slices/S013.json",
+    ".agent-board/slices/S014.json",
+    ".agent-board/slices/S015.json",
+    ".agent-board/slices/S016.json",
+    ".agent-board/slices/S017.json",
+    ".agent-board/slices/S018.json",
+    ".agent-board/verification/S011-verification.json",
+    ".agent-board/results/S011-result.json"
+  ],
+  "forbidden_scope": [
+    "Do not start S012-S018 implementation changes inside S011.",
+    "Do not delete historical rehearsal/demo job evidence.",
+    "Do not stage, commit, or push unless explicitly requested."
+  ],
+  "acceptance": [
+    "Current dirty files are understood and either verified as coherent or repaired.",
+    "Focused server-executor regression passes or a real blocker is recorded.",
+    "Type-check or an equivalent package-level verification passes or a blocker is recorded.",
+    "G003 and S011-S018 are registered in .agent-board.",
+    "S011 result lists changed files, verification logs, remaining risks, and next-slice decision."
+  ],
+  "verification": ".agent-board/verification/S011-verification.json",
+  "result": ".agent-board/results/S011-result.json"
+}

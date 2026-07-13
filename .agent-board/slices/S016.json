@@ -1,0 +1,26 @@
+{
+  "id": "S016",
+  "title": "Permission and tenant E2E",
+  "status": "blocked_external",
+  "started_at": "2026-07-13T10:25:10+08:00",
+  "completed_at": "2026-07-13T10:27:20+08:00",
+  "mode": "write",
+  "depends_on": ["S015"],
+  "goal": "Verify production-critical permission and tenant isolation paths end to end.",
+  "allowed_files": [
+    "scripts/devpilot-permission-tenant-e2e.mjs",
+    "docs/devpilot/permission-tenant-e2e.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/slices/S016.json",
+    ".agent-board/verification/S016-verification.json",
+    ".agent-board/results/S016-result.json"
+  ],
+  "acceptance": [
+    "Cross-team access is denied on critical Devpilot flows.",
+    "Happy-path tenant operation remains functional.",
+    "E2E evidence or environment blockers are recorded."
+  ]
+}

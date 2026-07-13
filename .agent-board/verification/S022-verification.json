@@ -1,0 +1,41 @@
+{
+  "slice": "S022",
+  "status": "passed",
+  "verified_at": "2026-07-13T13:53:49+08:00",
+  "summary": "Final hygiene passed for G003 release evidence packaging; no live provider or production signoff was rerun.",
+  "commands": [
+    {
+      "command": "node - <<'NODE' ... JSON.parse board, G003, S011-S022 slices/results/verification, S021 summary ... NODE",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g003-s022-final-hygiene/svton/g003-s022-post-index-json-parse-20260713-135618.log"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g003-s022-final-hygiene/svton/g003-s022-post-index-diff-check-20260713-135618.log"
+    },
+    {
+      "command": "corepack pnpm --filter @svton/devpilot-api exec jest src/backup/backup.controller.spec.ts src/backup/backup-restore.service.spec.ts src/server-executor/server-executor.service.spec.ts --runInBand",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g003-s022-final-hygiene/svton/g003-s022-api-focused-jest-20260713-135250.log"
+    },
+    {
+      "command": "corepack pnpm --filter @svton/devpilot-api run type-check",
+      "status": "passed",
+      "log": "/tmp/codex-tool-runs/svton/g003-s022-final-hygiene/svton/g003-s022-api-type-check-20260713-135250.log"
+    }
+  ],
+  "checks": [
+    "S011-S021 result and verification JSON files exist and parse.",
+    "S021 Docker staging summary parses and reports status passed.",
+    "Focused API Jest passed for backup restore and server-executor current-pressure behavior.",
+    "API type-check passed.",
+    "git diff whitespace hygiene passed.",
+    ".zcode remains local untracked state and is not part of the release evidence package."
+  ],
+  "remaining_external_signoff": [
+    "Real provider/resource provisioning with approved cloud or staging credentials.",
+    "Production backup and rollback rehearsal against approved targets.",
+    "Live restore execution remains intentionally blocked until restore approval, target isolation, and rollback validation are implemented and approved."
+  ]
+}

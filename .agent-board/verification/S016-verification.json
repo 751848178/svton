@@ -1,0 +1,18 @@
+{
+  "slice_id": "S016",
+  "status": "passed_with_external_blocker",
+  "exit_code": 0,
+  "summary": "S016 added a real HTTP permission/tenant E2E script and runbook. The current local API URL is unreachable, so the live E2E is blocked externally; related API permission tests, script line count, and diff hygiene passed.",
+  "relevant_errors": [
+    {
+      "status": "blocked_external",
+      "summary": "scripts/devpilot-permission-tenant-e2e.mjs reported api_unreachable:fetch failed for http://127.0.0.1:3211/api."
+    }
+  ],
+  "full_log": {
+    "permission_tenant_e2e": "/tmp/codex-tool-runs/svton/s016-permission-tenant-e2e-20260713-102644.log",
+    "api_permission_tests": "/tmp/codex-tool-runs/svton/s016-api-permission-tests-20260713-102644.log",
+    "script_line_count": "/tmp/codex-tool-runs/svton/s016-script-line-count-20260713-102644.log",
+    "git_diff_check": "/tmp/codex-tool-runs/svton/s016-git-diff-check-20260713-102644.log"
+  }
+}

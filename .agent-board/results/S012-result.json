@@ -1,0 +1,20 @@
+{
+  "slice_id": "S012",
+  "status": "done",
+  "summary": "Added a source-backed Devpilot production config pack and linked the demo runbook to it so production handoff does not copy demo exports directly.",
+  "changed_files": [
+    "docs/devpilot/production-config-pack.md",
+    "docs/devpilot/demo-runbook.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/slices/S012.json",
+    ".agent-board/verification/S012-verification.json",
+    ".agent-board/results/S012-result.json"
+  ],
+  "verification": ".agent-board/verification/S012-verification.json",
+  "remaining_risks": [
+    "The pack is source-backed documentation; environment-specific production secret values and service-manager wiring remain external deployment inputs.",
+    "Command policy content is intentionally deferred to S013.",
+    "Agent production service unit/run mode is intentionally deferred to S014."
+  ],
+  "next": "S013 can start: harden command policy safety templates for demo-safe and production-safe live execution."
+}

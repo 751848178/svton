@@ -1,0 +1,20 @@
+{
+  "slice_id": "S016",
+  "status": "blocked_external",
+  "summary": "Added a reusable permission/tenant E2E script and runbook. The live E2E could not run in the current local environment because the default Devpilot API URL is unreachable.",
+  "changed_files": [
+    "scripts/devpilot-permission-tenant-e2e.mjs",
+    "docs/devpilot/permission-tenant-e2e.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/slices/S016.json",
+    ".agent-board/verification/S016-verification.json",
+    ".agent-board/results/S016-result.json"
+  ],
+  "verification": ".agent-board/verification/S016-verification.json",
+  "remaining_risks": [
+    "Must rerun `DEVPILOT_API_URL=<staging-api>/api node scripts/devpilot-permission-tenant-e2e.mjs` against a disposable staging API before production handoff.",
+    "The current evidence proves script readiness and related access-policy tests, not live cross-team behavior in this local environment."
+  ],
+  "next": "S017 can start while S016 remains an external environment blocker to clear before final production signoff."
+}

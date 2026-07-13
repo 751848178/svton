@@ -1,0 +1,25 @@
+{
+  "id": "S017",
+  "title": "Resource request minimum loop",
+  "status": "done",
+  "started_at": "2026-07-13T10:27:20+08:00",
+  "completed_at": "2026-07-13T10:29:20+08:00",
+  "mode": "write",
+  "depends_on": ["S016"],
+  "goal": "Close the minimal resource request loop needed for production MVP handoff.",
+  "allowed_files": [
+    "docs/devpilot/resource-request-minimum-loop.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/slices/S017.json",
+    ".agent-board/verification/S017-verification.json",
+    ".agent-board/results/S017-result.json"
+  ],
+  "acceptance": [
+    "Request creation, approval or execution, and observable result are covered.",
+    "Failure states are explicit and recoverable.",
+    "Verification evidence or blockers are recorded."
+  ]
+}

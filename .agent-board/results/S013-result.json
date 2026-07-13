@@ -1,0 +1,21 @@
+{
+  "slice_id": "S013",
+  "status": "done",
+  "summary": "Added a reusable command policy template pack and fixed the demo runbook templates to use explicit regex patterns that match the server policy engine.",
+  "changed_files": [
+    "docs/devpilot/command-policy-templates.md",
+    "docs/devpilot/demo-runbook.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/slices/S013.json",
+    ".agent-board/verification/S013-verification.json",
+    ".agent-board/results/S013-result.json"
+  ],
+  "verification": ".agent-board/verification/S013-verification.json",
+  "remaining_risks": [
+    "Templates are documentation artifacts; importing them into a production team remains an environment-specific operation.",
+    "Production live execution must still pair these templates with approval text, narrow target scope, and rollback ownership.",
+    "Agent process/service-manager operating mode is deferred to S014."
+  ],
+  "next": "S014 can start: define the production operating mode for the server-agent task-pull process."
+}

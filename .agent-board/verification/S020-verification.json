@@ -1,0 +1,26 @@
+{
+  "slice": "S020",
+  "status": "passed",
+  "verified_at": "2026-07-13T10:49:03+08:00",
+  "summary": "Restore is now source-backed by a dry-run endpoint/job with permission gates, audit metadata, and focused tests.",
+  "logs": {
+    "backup_jest": "/tmp/codex-tool-runs/svton/s020-backup-jest-20260713-104803.log",
+    "api_type_check": "/tmp/codex-tool-runs/svton/s020-api-type-check-20260713-104844.log",
+    "json_parse": "/tmp/codex-tool-runs/svton/s020-json-parse-20260713-105000.log",
+    "diff_check": "/tmp/codex-tool-runs/svton/s020-diff-check-20260713-105000.log",
+    "line_count": "/tmp/codex-tool-runs/svton/s020-line-count-20260713-105000.log"
+  },
+  "checks": [
+    "POST /api/backups/runs/:runId/restore is routed through BackupController.",
+    "backup.restore uses backup write policy with medium risk for dry-run and high risk for live restore.",
+    "BackupRestoreService creates restore dry-run evidence from completed backup runs.",
+    "dryRun:false restore requests are recorded and blocked until approval, target isolation, and rollback validation exist.",
+    "Restore audit metadata includes source backup id, validation query, rollback plan, and resulting status.",
+    "New source files remain under the 200-line ceiling.",
+    "Board JSON parses and git diff whitespace hygiene passes."
+  ],
+  "remaining_risks": [
+    "S020 clears the first-class restore implementation blocker, but production restore still needs an approved staging/prod rehearsal before release signoff.",
+    "Live provider/resource provisioning and production backup/rollback rehearsals still require approved credentials and targets."
+  ]
+}

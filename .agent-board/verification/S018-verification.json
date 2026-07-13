@@ -1,0 +1,21 @@
+{
+  "slice_id": "S018",
+  "status": "passed_with_blockers",
+  "exit_code": 0,
+  "summary": "S018 backup/rollback checklist is linked, focused backup/deployment tests pass, and final readiness judgment records remaining production blockers.",
+  "relevant_errors": [
+    {
+      "status": "production_blocker",
+      "summary": "Restore is not source-backed as a first-class product endpoint in the inspected backup module; production handoff requires rehearsed manual restore evidence or implementation evidence."
+    },
+    {
+      "status": "external_blocker",
+      "summary": "S016 live permission/tenant E2E still requires a reachable staging Devpilot API."
+    }
+  ],
+  "full_log": {
+    "backup_deployment_jest": "/tmp/codex-tool-runs/svton/s018-backup-deployment-jest-20260713-103015.log",
+    "doc_link_check": "/tmp/codex-tool-runs/svton/s018-doc-link-check-20260713-103015.log",
+    "git_diff_check": "/tmp/codex-tool-runs/svton/s018-git-diff-check-20260713-103015.log"
+  }
+}

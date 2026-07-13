@@ -1,0 +1,24 @@
+{
+  "slice": "S021",
+  "status": "passed",
+  "verified_at": "2026-07-13T12:01:00+08:00",
+  "commands": [
+    {
+      "command": "node scripts/devpilot-docker-staging.mjs run",
+      "status": "passed",
+      "summary": "/tmp/codex-tool-runs/svton/g003-docker-staging-20260713035954/summary.json"
+    },
+    {
+      "command": "docker compose -f docker-compose.devpilot-staging.yml exec -T mysql mysql -uroot -ppassword devpilot_g003_staging -e \"select id,mode,status,serverExecutionJobId from DeploymentRun; select id,status,operationKey,queueMode,finishedAt from ServerExecutionJob;\"",
+      "status": "passed",
+      "evidence": "deploy and rollback business runs plus deployment, backup, restore, and rollback server execution jobs reached completed"
+    }
+  ],
+  "logs": [
+    "/tmp/codex-tool-runs/svton/g003-docker-staging-20260713035954/compose-up.log",
+    "/tmp/codex-tool-runs/svton/g003-docker-staging-20260713035954/prisma-migrate.log",
+    "/tmp/codex-tool-runs/svton/g003-docker-staging-20260713035954/api.log",
+    "/tmp/codex-tool-runs/svton/g003-docker-staging-20260713035954/deployment-task-pull.log",
+    "/tmp/codex-tool-runs/svton/g003-docker-staging-20260713035954/rollback-task-pull.log"
+  ]
+}

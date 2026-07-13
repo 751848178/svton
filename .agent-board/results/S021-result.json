@@ -1,0 +1,34 @@
+{
+  "slice": "S021",
+  "status": "done",
+  "completed_at": "2026-07-13T12:01:00+08:00",
+  "summary": "Cleared the local G003 verification blocker with a disposable Docker-backed staging matrix.",
+  "changed_files": [
+    "docker-compose.devpilot-staging.yml",
+    "scripts/devpilot-docker-staging.mjs",
+    "scripts/devpilot-staging-http.mjs",
+    "docs/devpilot/demo-runbook.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/goals/G003.json",
+    ".agent-board/slices/S021.json",
+    ".agent-board/verification/S021-verification.json",
+    ".agent-board/results/S021-result.json"
+  ],
+  "docker_staging_matrix": {
+    "mysql": "devpilot-g003-mysql on 127.0.0.1:3320",
+    "redis": "devpilot-g003-redis on 127.0.0.1:6384",
+    "virtual_nginx_app_target": "devpilot-g003-virtual-nginx on http://127.0.0.1:18098",
+    "fake_provider": "devpilot-g003-fake-provider on http://127.0.0.1:19091",
+    "backup_restore_target": "devpilot-g003-backup-target plus Devpilot backup/restore dry-run jobs",
+    "task_pull_agent": "local svton CLI runner with /tmp/devpilot-g003-agent-work"
+  },
+  "verification": ".agent-board/verification/S021-verification.json",
+  "final_summary": "/tmp/codex-tool-runs/svton/g003-docker-staging-20260713035954/summary.json",
+  "remaining_external_signoff": [
+    "Real provider/resource provisioning with approved cloud or staging credentials.",
+    "Production backup and rollback rehearsal against approved targets.",
+    "Live restore execution remains intentionally blocked until restore approval, target isolation, and rollback validation are implemented and approved."
+  ]
+}

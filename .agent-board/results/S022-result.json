@@ -1,0 +1,32 @@
+{
+  "slice": "S022",
+  "status": "done",
+  "completed_at": "2026-07-13T13:53:49+08:00",
+  "summary": "Packaged G003 release evidence and final hygiene for commit readiness.",
+  "changed_files": [
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/slices/S022.json",
+    ".agent-board/verification/S022-verification.json",
+    ".agent-board/results/S022-result.json",
+    ".agent-board/release-evidence/G003-S022-release-evidence-index.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md"
+  ],
+  "verification": ".agent-board/verification/S022-verification.json",
+  "release_evidence_index": ".agent-board/release-evidence/G003-S022-release-evidence-index.md",
+  "commit_readiness": {
+    "status": "commit_ready_external_signoff_required",
+    "can_commit": true,
+    "do_not_include": [".zcode/"],
+    "recommended_groups": [
+      "board docs and rehearsal governance",
+      "backup restore API",
+      "Docker staging compose and scripts"
+    ]
+  },
+  "remaining_external_signoff": [
+    "Real provider/resource provisioning with approved cloud or staging credentials.",
+    "Production backup and rollback rehearsal against approved targets.",
+    "Live restore execution remains intentionally blocked until restore approval, target isolation, and rollback validation are implemented and approved."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "slice": "S020",
+  "status": "done",
+  "completed_at": "2026-07-13T10:49:03+08:00",
+  "summary": "Added source-backed backup restore readiness via a first-class restore dry-run endpoint/job.",
+  "changed_files": [
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/goals/G003.json",
+    ".agent-board/slices/S020.json",
+    ".agent-board/verification/S020-verification.json",
+    ".agent-board/results/S020-result.json",
+    "apps/devpilot-api/src/backup/backup.controller.ts",
+    "apps/devpilot-api/src/backup/backup.controller.spec.ts",
+    "apps/devpilot-api/src/backup/backup.module.ts",
+    "apps/devpilot-api/src/backup/backup-restore.service.ts",
+    "apps/devpilot-api/src/backup/backup-restore.service.spec.ts",
+    "apps/devpilot-api/src/backup/dto/backup.dto.ts",
+    "docs/devpilot/backup-restore-upgrade-checklist.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md"
+  ],
+  "verification": {
+    "status": "passed",
+    "logs": [
+      "/tmp/codex-tool-runs/svton/s020-backup-jest-20260713-104803.log",
+      "/tmp/codex-tool-runs/svton/s020-api-type-check-20260713-104844.log",
+      "/tmp/codex-tool-runs/svton/s020-json-parse-20260713-105000.log",
+      "/tmp/codex-tool-runs/svton/s020-diff-check-20260713-105000.log",
+      "/tmp/codex-tool-runs/svton/s020-line-count-20260713-105000.log"
+    ]
+  },
+  "remaining_risks": [
+    "Production restore rehearsal remains an external release-signoff activity.",
+    "G003 remains not deliverable until live provider/resource provisioning and production backup/rollback rehearsal evidence exists."
+  ],
+  "next_slice": {
+    "can_enter_next_slice": false,
+    "reason": "The remaining G003 blocker requires approved external credentials and targets, not more local source implementation in this checkout."
+  }
+}

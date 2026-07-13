@@ -1,0 +1,15 @@
+{
+  "slice": "S021",
+  "title": "Docker-backed staging matrix",
+  "status": "done",
+  "mode": "write",
+  "depends_on": ["S020"],
+  "goal": "Use disposable Docker containers to clear the local G003 verification blocker without touching real cloud or production resources.",
+  "scope": [
+    "Add a disposable Docker compose matrix for MySQL, Redis, virtual nginx/app target, fake provider, and backup/restore target.",
+    "Add a staging runner that exercises resource request approval/provisioning, live deploy, task-pull, backup, restore, rollback, logs, monitoring, and audit checks.",
+    "Keep real provider credentials and production signoff as external release-gate items."
+  ],
+  "evidence": ".agent-board/verification/S021-verification.json",
+  "result": ".agent-board/results/S021-result.json"
+}

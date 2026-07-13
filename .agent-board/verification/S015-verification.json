@@ -1,0 +1,12 @@
+{
+  "slice_id": "S015",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S015 trace governance docs are linked and the server-executor readiness/current-pressure regression remains green.",
+  "relevant_errors": [],
+  "full_log": {
+    "server_executor_jest": "/tmp/codex-tool-runs/svton/s015-server-executor-jest-20260713-102444.log",
+    "doc_link_check": "/tmp/codex-tool-runs/svton/s015-doc-link-check-20260713-102444.log",
+    "git_diff_check": "/tmp/codex-tool-runs/svton/s015-git-diff-check-20260713-102444.log"
+  }
+}

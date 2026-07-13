@@ -1,7 +1,7 @@
 {
   "id": "board-devpilot-p8-task-pull-20260712",
-  "goal": "Harden Devpilot P8 server-agent task-pull across API, CLI, docs, and verification.",
-  "status": "deliverable_with_demo_evidence",
+  "goal": "Close Devpilot production-grade MVP readiness after live rehearsal and demo evidence.",
+  "status": "production_like_staging_passed_external_signoff_required",
   "active_slice": null,
   "active_writer": null,
   "roles": {
@@ -81,10 +81,10 @@
     }
   },
   "long_goal": {
-    "id": "G002",
-    "status": "deliverable",
-    "board_path": "/tmp/codex-tool-runs/svton/long-goals/devpilot-deliverable-closure/board.json",
-    "objective": "Complete Devpilot remaining work until deliverable-ready, using evidence-backed S002+ slices with verification, review, and docs sync.",
+    "id": "G003",
+    "status": "production_like_staging_passed_external_signoff_required",
+    "board_path": ".agent-board/board.json",
+    "objective": "Move Devpilot from live rehearsal and demo-evidence deliverability to production-grade MVP handoff readiness.",
     "evidence_inputs": [
       "git status --short",
       ".agent-board/board.json",
@@ -98,12 +98,84 @@
       "CodeGraph status: initialized=false; use scoped rg/safe-read instead"
     ],
     "known_backlog_sources": [
-      "Current worktree still contains the completed S001 task-pull API/CLI/docs/.agent-board diff and must be packaged with final verification/review before merge readiness.",
-      "P8 current status and S003 gap map named runtime/product gaps. S004 closed foreground runtime profile operability; S005 proved single-agent terminal runtime; S006 gates passed but kept deliverability open because multi-instance coordination and production remote-orphan governance remain repo-owned backlog."
+      "G002/S010 ended at deliverable_with_demo_evidence with a reproducible demo runbook and browser UI E2E proof.",
+      "Current worktree contains the S011 readiness/history cleanup diff and must be closed before S012-S018 production-readiness slices start."
     ],
     "worker_policy": "single-checkout-one-active-write-worker; read-only Architect/Reviewer/Verifier can run in parallel; workers must not create successor workers"
   },
   "backlog": {
+    "S011": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S010"],
+      "path": ".agent-board/slices/S011.json"
+    },
+    "S012": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S011"],
+      "path": ".agent-board/slices/S012.json"
+    },
+    "S013": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S012"],
+      "path": ".agent-board/slices/S013.json"
+    },
+    "S014": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S013"],
+      "path": ".agent-board/slices/S014.json"
+    },
+    "S015": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S014"],
+      "path": ".agent-board/slices/S015.json"
+    },
+    "S016": {
+      "status": "blocked_external",
+      "mode": "write",
+      "depends_on": ["S015"],
+      "path": ".agent-board/slices/S016.json"
+    },
+    "S017": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S016"],
+      "path": ".agent-board/slices/S017.json"
+    },
+    "S018": {
+      "status": "done_with_blockers",
+      "mode": "write",
+      "depends_on": ["S017"],
+      "path": ".agent-board/slices/S018.json"
+    },
+    "S019": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S016", "S018"],
+      "path": ".agent-board/slices/S019.json"
+    },
+    "S020": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S018", "S019"],
+      "path": ".agent-board/slices/S020.json"
+    },
+    "S021": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S020"],
+      "path": ".agent-board/slices/S021.json"
+    },
+    "S022": {
+      "status": "done",
+      "mode": "write",
+      "depends_on": ["S021"],
+      "path": ".agent-board/slices/S022.json"
+    },
     "S002": {
       "status": "done",
       "mode": "write",
@@ -157,5 +229,5 @@
       "path": ".agent-board/slices/S010.json"
     }
   },
-  "updated_at": "2026-07-13T00:05:00+08:00"
+  "updated_at": "2026-07-13T13:53:49+08:00"
 }

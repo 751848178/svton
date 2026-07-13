@@ -1,0 +1,19 @@
+{
+  "slice_id": "S013",
+  "status": "passed",
+  "exit_code": 0,
+  "summary": "S013 command policy templates parse as JSON, use explicit regex prefixes, and keep the server command policy test suite green.",
+  "relevant_errors": [
+    {
+      "status": "rerun_passed",
+      "summary": "Two initial template extraction checks failed from shell quoting of Markdown fences; rerun2 avoided shell fence expansion and passed."
+    }
+  ],
+  "full_log": {
+    "template_json_check_failed_shell_quote": "/tmp/codex-tool-runs/svton/s013-template-json-check-20260713-102042.log",
+    "template_json_check_failed_fence_quote": "/tmp/codex-tool-runs/svton/s013-template-json-check-rerun-20260713-102100.log",
+    "template_json_check": "/tmp/codex-tool-runs/svton/s013-template-json-check-rerun2-20260713-102115.log",
+    "command_policy_jest": "/tmp/codex-tool-runs/svton/s013-command-policy-jest-20260713-102042.log",
+    "git_diff_check": "/tmp/codex-tool-runs/svton/s013-git-diff-check-20260713-102042.log"
+  }
+}

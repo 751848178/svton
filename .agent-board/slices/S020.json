@@ -1,0 +1,41 @@
+{
+  "id": "S020",
+  "title": "Add source-backed backup restore readiness path",
+  "status": "done",
+  "started_at": "2026-07-13T10:44:30+08:00",
+  "completed_at": "2026-07-13T10:49:03+08:00",
+  "mode": "write",
+  "depends_on": ["S018", "S019"],
+  "goal": "Clear the restore blocker by adding a first-class restore dry-run endpoint/job with permission gates, audit evidence, validation query, and rollback plan metadata.",
+  "allowed_files": [
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/goals/G003.json",
+    ".agent-board/slices/S020.json",
+    ".agent-board/verification/S020-verification.json",
+    ".agent-board/results/S020-result.json",
+    "apps/devpilot-api/src/backup/backup.controller.ts",
+    "apps/devpilot-api/src/backup/backup.controller.spec.ts",
+    "apps/devpilot-api/src/backup/backup.module.ts",
+    "apps/devpilot-api/src/backup/backup-restore.service.ts",
+    "apps/devpilot-api/src/backup/backup-restore.service.spec.ts",
+    "apps/devpilot-api/src/backup/dto/backup.dto.ts",
+    "docs/devpilot/backup-restore-upgrade-checklist.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md"
+  ],
+  "forbidden_scope": [
+    "Do not run destructive restore commands against production resources.",
+    "Do not change existing backup plan/run contracts beyond adding the restore path.",
+    "Do not clear live provider/resource provisioning or production backup/rollback rehearsal blockers in this slice."
+  ],
+  "acceptance": [
+    "POST /api/backups/runs/:runId/restore exists behind backup write policy with high risk for live restore.",
+    "Restore dry-run creates source-backed job evidence with source backup id, target environment, validation query, and rollback plan metadata.",
+    "Restore live execution remains blocked unless future approved execution policy is implemented.",
+    "Focused backup tests and diff hygiene pass with logs under /tmp/codex-tool-runs/svton/.",
+    "Board state records the restore blocker as cleared and keeps external provider/production rehearsal blockers."
+  ],
+  "verification": ".agent-board/verification/S020-verification.json",
+  "result": ".agent-board/results/S020-result.json",
+  "summary": "Added the first-class backup restore dry-run endpoint/job and cleared the restore implementation blocker."
+}

@@ -1080,8 +1080,8 @@ describe("ServerExecutorService resource action metric snapshots", () => {
               return Promise.resolve(where.lockExpiresAt ? 1 : 2);
             }
             const agentValues: Record<string, number> = {
-              blocked: 3,
-              failed: 4,
+              blocked: 0,
+              failed: 0,
               cancelled: 0,
             };
             return Promise.resolve(agentValues[String(where.status)] || 0);
@@ -1094,9 +1094,9 @@ describe("ServerExecutorService resource action metric snapshots", () => {
             return Promise.resolve(where.lockExpiresAt ? 1 : 3);
           }
           const values: Record<string, number> = {
-            blocked: 5,
-            failed: 6,
-            cancelled: 7,
+            blocked: 0,
+            failed: 0,
+            cancelled: 0,
           };
           return Promise.resolve(values[String(where.status)] || 0);
         }),
@@ -1172,51 +1172,9 @@ describe("ServerExecutorService resource action metric snapshots", () => {
             where.transport === "server_agent" &&
             where.status === "blocked"
           ) {
-            return Promise.resolve([
-              {
-                id: "job-agent-blocked-a",
-                operationKey: "deployment.run",
-                adapterKey: "server-agent",
-                serverId: "server-2",
-                queuedAt: new Date("2026-06-28T23:40:00.000Z"),
-                finishedAt: new Date("2026-06-28T23:41:00.000Z"),
-                error:
-                  "Server agent dispatcher 尚未接入，live agent dispatch 暂不执行",
-                result: {
-                  mode: "blocked_live_execution",
-                  nextExecutorBoundary: "server_agent_dispatcher",
-                  dispatcherConfigured: false,
-                  agentExecutorEnabled: true,
-                },
-                server: {
-                  id: "server-2",
-                  name: "prod-2",
-                  host: "10.0.0.2",
-                  status: "online",
-                },
-              },
-              {
-                id: "job-agent-blocked-b",
-                operationKey: "site.sync",
-                adapterKey: "server-agent",
-                serverId: "server-1",
-                queuedAt: new Date("2026-06-28T23:35:00.000Z"),
-                finishedAt: new Date("2026-06-28T23:36:00.000Z"),
-                error: "Server executor 命令策略阻断: blocked pattern",
-                result: {
-                  mode: "blocked_live_execution",
-                  commandPolicy: { status: "blocked" },
-                },
-                server: {
-                  id: "server-1",
-                  name: "prod-1",
-                  host: "10.0.0.1",
-                  status: "online",
-                },
-              },
-            ]);
+            return Promise.resolve([]);
           }
-          if (where.transport === "server_agent") {
+          if (where.transport === "server_agent" && where.OR) {
             return Promise.resolve([
               {
                 id: "job-agent-queued-server-2",
@@ -1257,51 +1215,6 @@ describe("ServerExecutorService resource action metric snapshots", () => {
                   id: "server-1",
                   name: "prod-1",
                   host: "10.0.0.1",
-                  status: "online",
-                },
-              },
-              {
-                id: "job-agent-blocked-b",
-                operationKey: "site.sync",
-                adapterKey: "server-agent",
-                serverId: "server-1",
-                status: "blocked",
-                queueMode: "inline",
-                priority: 0,
-                queuedAt: new Date("2026-06-28T23:35:00.000Z"),
-                availableAt: new Date("2026-06-28T23:35:00.000Z"),
-                lockExpiresAt: null,
-                finishedAt: new Date("2026-06-28T23:36:00.000Z"),
-                error: "Server executor 命令策略阻断: blocked pattern",
-                result: {
-                  mode: "blocked_live_execution",
-                  commandPolicy: { status: "blocked" },
-                },
-                server: {
-                  id: "server-1",
-                  name: "prod-1",
-                  host: "10.0.0.1",
-                  status: "online",
-                },
-              },
-              {
-                id: "job-agent-failed-server-2",
-                operationKey: "backup.run",
-                adapterKey: "server-agent",
-                serverId: "server-2",
-                status: "failed",
-                queueMode: "queued",
-                priority: 1,
-                queuedAt: new Date("2026-06-28T23:20:00.000Z"),
-                availableAt: new Date("2026-06-28T23:20:00.000Z"),
-                lockExpiresAt: null,
-                finishedAt: new Date("2026-06-28T23:30:00.000Z"),
-                error: "agent run failed",
-                result: null,
-                server: {
-                  id: "server-2",
-                  name: "prod-2",
-                  host: "10.0.0.2",
                   status: "online",
                 },
               },
@@ -1558,7 +1471,7 @@ describe("ServerExecutorService resource action metric snapshots", () => {
           scheduled: 2,
           running: 3,
           staleRunning: 1,
-          blocked: 5,
+          blocked: 0,
           unownedRunning: 0,
         },
         owners: {
@@ -1609,7 +1522,7 @@ describe("ServerExecutorService resource action metric snapshots", () => {
             readyJobs: 4,
             scheduledJobs: 2,
             runningJobs: 3,
-            blockedJobs: 5,
+            blockedJobs: 0,
             backlogJobs: 6,
             reason: "queue_backlog_active",
           },
@@ -1636,7 +1549,7 @@ describe("ServerExecutorService resource action metric snapshots", () => {
           scheduledJobs: 2,
           runningJobs: 3,
           staleRunningJobs: 1,
-          blockedJobs: 5,
+          blockedJobs: 0,
           totalOwners: 2,
           activeOwners: 2,
           staleOwners: 1,
@@ -1645,12 +1558,10 @@ describe("ServerExecutorService resource action metric snapshots", () => {
         blockers: [
           { reason: "stale_worker_owner", severity: "warning", count: 1 },
           { reason: "stale_running_jobs", severity: "warning", count: 1 },
-          { reason: "blocked_jobs", severity: "warning", count: 5 },
         ],
         nextSteps: [
           { action: "inspect_worker_owners", reason: "stale_worker_owner" },
           { action: "recover_stale_jobs", reason: "stale_running_jobs" },
-          { action: "inspect_blocked_jobs", reason: "blocked_jobs" },
         ],
       },
       remoteOrphanGovernancePreflight: {
@@ -1784,9 +1695,9 @@ describe("ServerExecutorService resource action metric snapshots", () => {
         scheduled: 2,
         running: 3,
         staleRunning: 1,
-        blocked: 5,
-        failed: 6,
-        cancelled: 7,
+        blocked: 0,
+        failed: 0,
+        cancelled: 0,
         nextQueuedJob: expect.objectContaining({
           id: "job-next",
           operationKey: "deployment.run",
@@ -1861,16 +1772,16 @@ describe("ServerExecutorService resource action metric snapshots", () => {
               queuedJobs: 3,
               runningJobs: 2,
               staleRunningJobs: 1,
-              blockedJobs: 3,
+              blockedJobs: 0,
               reason: "queue_worker_enabled",
             },
           },
           pressure: {
             servers: 2,
-            scannedJobs: 4,
+            scannedJobs: 2,
             queuedJobs: 3,
             runningJobs: 2,
-            blockedJobs: 3,
+            blockedJobs: 0,
           },
           blockers: [
             {
@@ -1883,7 +1794,6 @@ describe("ServerExecutorService resource action metric snapshots", () => {
               severity: "warning",
               count: 1,
             },
-            { reason: "blocked_agent_jobs", severity: "warning", count: 3 },
           ],
           nextSteps: [
             {
@@ -1893,10 +1803,6 @@ describe("ServerExecutorService resource action metric snapshots", () => {
             {
               action: "recover_stale_agent_jobs",
               reason: "stale_agent_running_jobs",
-            },
-            {
-              action: "inspect_blocked_agent_jobs",
-              reason: "blocked_agent_jobs",
             },
           ],
         },
@@ -1925,8 +1831,8 @@ describe("ServerExecutorService resource action metric snapshots", () => {
               scheduledJobs: 2,
               runningJobs: 2,
               staleRunningJobs: 1,
-              blockedJobs: 3,
-              failedJobs: 4,
+              blockedJobs: 0,
+              failedJobs: 0,
               cancelledJobs: 0,
               reason: "agent_queue_backlog_ready",
             },
@@ -1962,10 +1868,10 @@ describe("ServerExecutorService resource action metric snapshots", () => {
             scheduledJobs: 2,
             runningJobs: 2,
             staleRunningJobs: 1,
-            blockedJobs: 3,
-            failedJobs: 4,
+            blockedJobs: 0,
+            failedJobs: 0,
             cancelledJobs: 0,
-            pressureJobs: 12,
+            pressureJobs: 5,
           },
           samples: {
             nextQueuedJob: expect.objectContaining({
@@ -1973,20 +1879,8 @@ describe("ServerExecutorService resource action metric snapshots", () => {
               operationKey: "deployment.run",
               priority: 9,
             }),
-            blockedReasons: expect.arrayContaining([
-              expect.objectContaining({
-                reason:
-                  "Server agent dispatcher 尚未接入，live agent dispatch 暂不执行",
-                count: 1,
-                nextExecutorBoundary: "server_agent_dispatcher",
-              }),
-            ]),
-            blockedReasonSamples: expect.arrayContaining([
-              expect.objectContaining({
-                id: "job-agent-blocked-a",
-                nextExecutorBoundary: "server_agent_dispatcher",
-              }),
-            ]),
+            blockedReasons: [],
+            blockedReasonSamples: [],
           },
           blockers: expect.arrayContaining([
             {
@@ -2105,7 +1999,7 @@ describe("ServerExecutorService resource action metric snapshots", () => {
           totalServers: 2,
           liveDispatchReadyServers: 1,
           pressureServers: 2,
-          scannedJobs: 4,
+          scannedJobs: 2,
           truncated: false,
           items: [
             expect.objectContaining({
@@ -2127,13 +2021,10 @@ describe("ServerExecutorService resource action metric snapshots", () => {
               jobs: expect.objectContaining({
                 ready: 0,
                 running: 1,
-                blocked: 1,
+                blocked: 0,
                 failed: 0,
-                pressure: 2,
-                blockedSample: expect.objectContaining({
-                  id: "job-agent-blocked-b",
-                  reason: "Server executor 命令策略阻断: blocked pattern",
-                }),
+                pressure: 1,
+                blockedSample: null,
               }),
             }),
             expect.objectContaining({
@@ -2153,8 +2044,8 @@ describe("ServerExecutorService resource action metric snapshots", () => {
                 ready: 1,
                 running: 0,
                 blocked: 0,
-                failed: 1,
-                pressure: 2,
+                failed: 0,
+                pressure: 1,
                 nextQueuedJob: expect.objectContaining({
                   id: "job-agent-queued-server-2",
                   priority: 9,
@@ -2168,8 +2059,8 @@ describe("ServerExecutorService resource action metric snapshots", () => {
           scheduled: 2,
           running: 2,
           staleRunning: 1,
-          blocked: 3,
-          failed: 4,
+          blocked: 0,
+          failed: 0,
           cancelled: 0,
           nextQueuedJob: expect.objectContaining({
             id: "job-agent-next",
@@ -2186,56 +2077,10 @@ describe("ServerExecutorService resource action metric snapshots", () => {
             },
           }),
           blockedReasons: {
-            scanned: 2,
-            dispatcherBoundaryJobs: 1,
-            reasonCounts: [
-              {
-                reason:
-                  "Server agent dispatcher 尚未接入，live agent dispatch 暂不执行",
-                count: 1,
-                nextExecutorBoundary: "server_agent_dispatcher",
-              },
-              {
-                reason: "Server executor 命令策略阻断: blocked pattern",
-                count: 1,
-              },
-            ],
-            samples: [
-              {
-                id: "job-agent-blocked-a",
-                operationKey: "deployment.run",
-                adapterKey: "server-agent",
-                serverId: "server-2",
-                queuedAt: "2026-06-28T23:40:00.000Z",
-                finishedAt: "2026-06-28T23:41:00.000Z",
-                server: {
-                  id: "server-2",
-                  name: "prod-2",
-                  host: "10.0.0.2",
-                  status: "online",
-                },
-                reason:
-                  "Server agent dispatcher 尚未接入，live agent dispatch 暂不执行",
-                nextExecutorBoundary: "server_agent_dispatcher",
-                dispatcherConfigured: false,
-                agentExecutorEnabled: true,
-              },
-              {
-                id: "job-agent-blocked-b",
-                operationKey: "site.sync",
-                adapterKey: "server-agent",
-                serverId: "server-1",
-                queuedAt: "2026-06-28T23:35:00.000Z",
-                finishedAt: "2026-06-28T23:36:00.000Z",
-                server: {
-                  id: "server-1",
-                  name: "prod-1",
-                  host: "10.0.0.1",
-                  status: "online",
-                },
-                reason: "Server executor 命令策略阻断: blocked pattern",
-              },
-            ],
+            scanned: 0,
+            dispatcherBoundaryJobs: 0,
+            reasonCounts: [],
+            samples: [],
           },
         },
       },

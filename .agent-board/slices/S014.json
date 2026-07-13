@@ -1,0 +1,26 @@
+{
+  "id": "S014",
+  "title": "Agent production operating mode",
+  "status": "done",
+  "started_at": "2026-07-13T10:21:40+08:00",
+  "completed_at": "2026-07-13T10:23:40+08:00",
+  "mode": "write",
+  "depends_on": ["S013"],
+  "goal": "Document and verify the production operating shape for server-agent task-pull.",
+  "allowed_files": [
+    "docs/devpilot/agent-production-runbook.md",
+    "docs/devpilot/demo-runbook.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/slices/S014.json",
+    ".agent-board/verification/S014-verification.json",
+    ".agent-board/results/S014-result.json"
+  ],
+  "acceptance": [
+    "Agent startup, token, heartbeat, cwd, logging, and restart behavior are production-ready or explicitly blocked.",
+    "Default-off safety and enablement gates remain clear.",
+    "Verification evidence is recorded."
+  ]
+}

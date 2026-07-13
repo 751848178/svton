@@ -1,0 +1,26 @@
+{
+  "id": "S015",
+  "title": "Failure record and rehearsal trace governance",
+  "status": "done",
+  "started_at": "2026-07-13T10:23:40+08:00",
+  "completed_at": "2026-07-13T10:25:10+08:00",
+  "mode": "write",
+  "depends_on": ["S014"],
+  "goal": "Keep failed jobs and rehearsal traces auditable without polluting current readiness or demo pressure.",
+  "allowed_files": [
+    "docs/devpilot/rehearsal-trace-governance.md",
+    "docs/devpilot/demo-runbook.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/board.json",
+    ".agent-board/board.md",
+    ".agent-board/slices/S015.json",
+    ".agent-board/verification/S015-verification.json",
+    ".agent-board/results/S015-result.json"
+  ],
+  "acceptance": [
+    "Historical terminal records remain searchable.",
+    "Current readiness excludes finished terminal history where appropriate.",
+    "Runbook or UI guidance explains trace cleanup and archive boundaries."
+  ]
+}

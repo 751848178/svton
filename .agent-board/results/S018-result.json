@@ -1,0 +1,20 @@
+{
+  "slice_id": "S018",
+  "status": "done_with_blockers",
+  "summary": "Added the backup, restore, and upgrade handoff checklist and recorded the final G003 judgment as not deliverable until external blockers clear.",
+  "changed_files": [
+    "docs/devpilot/backup-restore-upgrade-checklist.md",
+    "docs/devpilot/production-config-pack.md",
+    "docs/todos/2026-07-11-devpilot-full-flow-validation.md",
+    ".agent-board/slices/S018.json",
+    ".agent-board/verification/S018-verification.json",
+    ".agent-board/results/S018-result.json"
+  ],
+  "verification": ".agent-board/verification/S018-verification.json",
+  "remaining_risks": [
+    "S016 live permission/tenant E2E must pass against a reachable staging API.",
+    "Restore must be rehearsed manually with evidence or implemented as a first-class product path with permission, audit, and verification evidence.",
+    "Live provider/resource provisioning and production backup/rollback rehearsals require approved credentials and targets."
+  ],
+  "next": "Do not declare production MVP deliverable until the remaining blockers have evidence."
+}
