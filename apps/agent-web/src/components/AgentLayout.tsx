@@ -8,6 +8,14 @@ import type { View } from './Sidebar';
 import { Sidebar } from './Sidebar';
 import { ChatContent } from './ChatContent';
 import { MenuIcon } from './icons';
+import {
+  readConfigPermissionMode,
+  readConfigPlanMode,
+  readRestorablePermissionMode,
+  toRestorablePermissionMode,
+  type AgentPermissionMode,
+  type RestorablePermissionMode,
+} from './agent-permission-mode.utils';
 
 interface AgentLayoutProps {
   config: AgentConfig;
@@ -174,10 +182,10 @@ export function AgentLayout({
   }, []);
 
   // ── Permission mode ──
-  const [permissionMode, setPermissionMode] = useState<'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto'>(
-    () => (config.capabilities?.permissionManager?.getMode() as any) ?? 'default'
+  const [permissionMode, setPermissionMode] = useState<AgentPermissionMode>(
+    () => readConfigPermissionMode(config)
   );
-  const handlePermissionModeChange = useCallback(async (mode: 'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto') => {
+  const handlePermissionModeChange = useCallback(async (mode: AgentPermissionMode) => {
     setPermissionMode(mode);
     config.capabilities?.permissionManager?.setMode(mode);
     await platform.storage.set('agent:permission_mode', mode);
@@ -187,8 +195,7 @@ export function AgentLayout({
 
   // ── Plan mode ──
   const [planMode, setPlanMode] = useState(() => {
-    const savedMode = config.capabilities?.permissionManager?.getMode();
-    return savedMode === 'plan';
+    return readConfigPlanMode(config);
   });
   // ── Reasoning effort — applied to runtime via ChatService ──
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(undefined);
@@ -196,17 +203,20 @@ export function AgentLayout({
     setReasoningEffort(effort);
     chatService?.setReasoningEffort(effort);
   }, [chatService]);
-  const prePlanModeRef = useRef<'read_only' | 'default' | 'accept_edits' | 'auto'>(
-    (() => {
-      const m = config.capabilities?.permissionManager?.getMode();
-      return (m === 'plan' ? 'default' : m) as 'read_only' | 'default' | 'accept_edits' | 'auto';
-    })()
-  );
+  const prePlanModeRef = useRef<RestorablePermissionMode>(readRestorablePermissionMode(config));
+  useEffect(() => {
+    const mode = readConfigPermissionMode(config);
+    setPermissionMode(mode);
+    setPlanMode(mode === 'plan');
+    if (mode !== 'plan') {
+      prePlanModeRef.current = toRestorablePermissionMode(mode);
+    }
+  }, [config]);
   const handlePlanModeChange = useCallback(async (enabled: boolean) => {
     if (enabled) {
       const currentMode = config.capabilities?.permissionManager?.getMode();
       if (currentMode && currentMode !== 'plan') {
-        prePlanModeRef.current = currentMode as 'read_only' | 'default' | 'accept_edits' | 'auto';
+        prePlanModeRef.current = toRestorablePermissionMode(currentMode as AgentPermissionMode);
       }
       setPlanMode(true);
       setPermissionMode('plan');

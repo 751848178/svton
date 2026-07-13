@@ -9,7 +9,7 @@ import { GitLogRangeExecutor } from '../src/tool/builtins/git_review';
 import { PreviewDocumentExecutor } from '../src/tool/builtins/preview_document';
 import { createMockPlatform } from './helpers';
 import type { ToolCall, ToolContext } from '../src/tool/types';
-import type { ExecResult } from '@svton/agent-platform';
+import type { ExecResult, SandboxProfile } from '@svton/agent-platform';
 
 function makeCall(name: string, args: Record<string, unknown>): ToolCall {
   return { id: 'c1', name, arguments: args };
@@ -53,6 +53,33 @@ describe('GitLogRangeExecutor', () => {
     expect(exec.mock.calls[0][0]).toContain('develop..HEAD');
   });
 
+  it('quotes shell-sensitive git refs before executing log', async () => {
+    const { ctx, exec } = makeCtx('commit');
+    await new GitLogRangeExecutor().execute(
+      makeCall('git_log_range', {
+        base: "main' ; touch /tmp/pwn #",
+        head: 'feature$(touch /tmp/pwn2)',
+      }),
+      ctx,
+    );
+
+    expect(exec.mock.calls[0][0]).toBe(
+      "git log --format=%H|%an|%ad|%s --date=short -50 'main'\\'' ; touch /tmp/pwn #..feature$(touch /tmp/pwn2)'",
+    );
+  });
+
+  it('rejects git log refs that start with an option prefix', async () => {
+    const { ctx, exec } = makeCtx('commit');
+    const result = await new GitLogRangeExecutor().execute(
+      makeCall('git_log_range', { base: '--output=/tmp/pwn' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('invalid git ref');
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it('respects limit argument', async () => {
     const { ctx, exec } = makeCtx('c');
     await new GitLogRangeExecutor().execute(
@@ -69,6 +96,57 @@ describe('GitLogRangeExecutor', () => {
       ctx,
     );
     expect(exec.mock.calls[0][0]).toContain('-50');
+  });
+
+  it('uses sandbox exec when sandbox profile is available', async () => {
+    const { ctx, exec } = makeCtx('process-log');
+    const sandboxProfile: SandboxProfile = {
+      mode: 'read_only',
+      writablePaths: [],
+      networkAccess: false,
+    };
+    const sandboxExec = vi.fn(async (): Promise<ExecResult> => ({
+      stdout: 'sandbox-log',
+      stderr: '',
+      exitCode: 0,
+      timedOut: false,
+    }));
+    (ctx.platform as any).sandbox = {
+      createProfile: vi.fn(),
+      exec: sandboxExec,
+    };
+
+    const result = await new GitLogRangeExecutor().execute(
+      makeCall('git_log_range', { base: 'main', head: 'feat', limit: 3 }),
+      { ...ctx, sandboxProfile },
+    );
+
+    expect(result.output).toContain('sandbox-log');
+    expect(sandboxExec).toHaveBeenCalledWith(
+      'git log --format=%H|%an|%ad|%s --date=short -3 main..feat',
+      { cwd: '/repo', timeout: 15_000, signal: undefined },
+      sandboxProfile,
+    );
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when sandbox is required but the profile is absent', async () => {
+    const { ctx, exec } = makeCtx('process-log');
+    const sandboxExec = vi.fn();
+    (ctx.platform as any).sandbox = {
+      createProfile: vi.fn(),
+      exec: sandboxExec,
+    };
+
+    const result = await new GitLogRangeExecutor().execute(
+      makeCall('git_log_range', { base: 'main', head: 'feat', limit: 3 }),
+      { ...ctx, sandboxRequired: true },
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('requires sandbox execution');
+    expect(exec).not.toHaveBeenCalled();
+    expect(sandboxExec).not.toHaveBeenCalled();
   });
 
   it('returns error when process.exec unavailable', async () => {

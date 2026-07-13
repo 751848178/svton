@@ -24,7 +24,7 @@ import {
   webFetchDef,
   WebFetchExecutor,
   webSearchDef,
-  WebSearchExecutor,
+  createWebSearchExecutor,
   memorySaveDef,
   MemorySaveExecutor,
   memoryRecallDef,
@@ -79,9 +79,11 @@ export async function createAgent(config: CreateAgentConfig): Promise<Agent> {
   // ----------------------------------------------------------
   const toolRegistry = new ToolRegistry();
   toolRegistry.register(webFetchDef, new WebFetchExecutor());
-
-  // web_search — executor returns an error message if no endpoint is configured
-  toolRegistry.register(webSearchDef, new WebSearchExecutor());
+  const webSearchExecutor = createWebSearchExecutor(
+    config.search ?? (config.searchApiKey ? { provider: 'tavily', apiKey: config.searchApiKey } : null),
+    config.searchEndpoint,
+  );
+  if (webSearchExecutor) toolRegistry.register(webSearchDef, webSearchExecutor);
 
   // ----------------------------------------------------------
   // 4. Capability managers

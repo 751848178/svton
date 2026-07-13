@@ -7,6 +7,8 @@
 
 import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import { resolveCommandRunner } from '../command-runner.utils';
+import { readSafeGitRefs, shellQuote } from '../git-review-command.utils';
 
 // ============================================================
 // git_diff
@@ -65,11 +67,14 @@ export class GitDiffExecutor implements IToolExecutor {
       parts.push('--stat');
     }
 
+    const refs = readSafeGitRefs(base, head);
+    if (refs.error) return { callId: call.id, output: refs.error, isError: true };
+
     // Range: "base...head" when both, "base" compares working tree to base
-    if (base && head) {
-      parts.push(`${base}...${head}`);
-    } else if (base) {
-      parts.push(base);
+    if (refs.base && refs.head) {
+      parts.push(shellQuote(`${refs.base}...${refs.head}`));
+    } else if (refs.base) {
+      parts.push(shellQuote(refs.base));
     }
     // No base/head → working tree diff (unstaged)
 
@@ -85,19 +90,17 @@ export class GitDiffExecutor implements IToolExecutor {
 
     const command = parts.join(' ');
 
-    // Ensure platform.process is available (desktop / Node). On web it is absent.
-    if (!ctx.platform.process?.exec) {
+    const runner = resolveCommandRunner(ctx, 'Git diff');
+    if (runner.kind === 'unavailable') {
       return {
         callId: call.id,
-        output:
-          'Error: Git diff requires process execution, which is not available in this environment (web). ' +
-          'Run in the desktop app or a Node-based runtime.',
+        output: runner.message,
         isError: true,
       };
     }
 
     try {
-      const result = await ctx.platform.process.exec(command, {
+      const result = await runner.run(command, {
         cwd: ctx.workingDir,
         timeout: 30_000,
         signal: ctx.signal,
@@ -183,25 +186,28 @@ export class GitLogRangeExecutor implements IToolExecutor {
       `-${maxCount}`,
     ];
 
-    if (base && head) {
-      parts.push(`${base}..${head}`);
-    } else if (base) {
-      parts.push(`${base}..HEAD`);
+    const refs = readSafeGitRefs(base, head);
+    if (refs.error) return { callId: call.id, output: refs.error, isError: true };
+
+    if (refs.base && refs.head) {
+      parts.push(shellQuote(`${refs.base}..${refs.head}`));
+    } else if (refs.base) {
+      parts.push(shellQuote(`${refs.base}..HEAD`));
     }
 
     const command = parts.join(' ');
 
-    if (!ctx.platform.process?.exec) {
+    const runner = resolveCommandRunner(ctx, 'Git log');
+    if (runner.kind === 'unavailable') {
       return {
         callId: call.id,
-        output:
-          'Error: Git log requires process execution, which is not available in this environment (web).',
+        output: runner.message,
         isError: true,
       };
     }
 
     try {
-      const result = await ctx.platform.process.exec(command, {
+      const result = await runner.run(command, {
         cwd: ctx.workingDir,
         timeout: 15_000,
         signal: ctx.signal,
@@ -234,17 +240,4 @@ export class GitLogRangeExecutor implements IToolExecutor {
       };
     }
   }
-}
-
-// ── Helpers ─────────────────────────────────────────────
-
-/**
- * Minimal shell quoting for file paths passed to git.
- * Wraps the value in single quotes and escapes any embedded single quotes.
- */
-function shellQuote(value: string): string {
-  if (/^[A-Za-z0-9@%+=:,./_-]+$/.test(value)) {
-    return value;
-  }
-  return `'${value.replace(/'/g, "'\\''")}'`;
 }

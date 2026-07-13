@@ -389,10 +389,7 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   // ── Automations ──
   const automationManager = new AutomationManager(platform.storage, new TimerScheduler());
   await automationManager.init();
-  // Note: the automation trigger handler is set in the React layer
-  // (ExtraPanels.tsx) when the Automation panel mounts, giving it access to
-  // the send() function. If the panel isn't open, triggers are silently
-  // queued until the user opens the panel.
+  // React shell binds the trigger handler after chat send() is available.
 
   // Register create_automation tool — lets the LLM create scheduled tasks
   toolRegistry.register(createAutomationDef, new CreateAutomationExecutor(automationManager));

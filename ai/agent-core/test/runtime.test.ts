@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import {
-  AgentRuntime,
-  ToolRegistry,
-  PermissionManager,
-  HookManager,
-} from '@svton/agent-core';
+import { AgentRuntime } from '../src/agent/runtime';
+import { ToolRegistry } from '../src/tool/registry';
+import { PermissionManager } from '../src/permission/manager';
+import { HookManager } from '../src/hooks/manager';
 import type {
   IProvider,
   StreamEvent,
@@ -12,14 +10,14 @@ import type {
   ChatOptions,
   ModelInfo,
   ToolDefinition,
-  AgentEvent,
-} from '@svton/agent-core';
+} from '../src/provider/types';
+import type { AgentEvent } from '../src/agent/types';
 import type {
   ToolCall,
   ToolResult,
   ToolContext,
   IToolExecutor,
-} from '@svton/agent-core';
+} from '../src/tool/types';
 import type { IPlatform } from '@svton/agent-platform';
 
 // ==============================================================
@@ -79,6 +77,10 @@ const mockPlatform: IPlatform = {
     mcpStdio: false,
     clipboard: false,
     notification: false,
+    sandboxing: false,
+    pty: false,
+    documentPreview: false,
+    computerUse: false,
   },
   fs: {} as any,
   process: {} as any,
@@ -111,10 +113,12 @@ function createRuntime(options?: {
   provider?: MockProvider;
   maxIterations?: number;
   contextConfig?: any;
+  platform?: IPlatform;
+  executor?: IToolExecutor;
 }) {
   const provider = options?.provider ?? new MockProvider();
   const registry = new ToolRegistry();
-  registry.register(testToolDef, createMockExecutor());
+  registry.register(testToolDef, options?.executor ?? createMockExecutor());
 
   const runtime = AgentRuntime.create(
     {
@@ -124,7 +128,7 @@ function createRuntime(options?: {
       maxIterations: options?.maxIterations,
       contextConfig: options?.contextConfig,
     },
-    mockPlatform,
+    options?.platform ?? mockPlatform,
   );
 
   return { runtime, provider, registry };
@@ -264,6 +268,51 @@ describe('AgentRuntime', () => {
 
       const assistantMsg = messages.filter((m) => m.role === 'assistant');
       expect(assistantMsg.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('keeps sandbox exec options after permission and hook manager reset', async () => {
+      const capturedCtx: ToolContext[] = [];
+      const sandboxProfile = {
+        mode: 'workspace_write' as const,
+        writablePaths: ['/repo'],
+        networkAccess: false,
+      };
+      const sandboxPlatform: IPlatform = {
+        ...mockPlatform,
+        capabilities: {
+          ...mockPlatform.capabilities,
+          process: true,
+          sandboxing: true,
+        },
+        sandbox: {
+          createProfile: () => sandboxProfile,
+          exec: async () => ({ stdout: 'ok', stderr: '', exitCode: 0, timedOut: false }),
+        },
+      };
+      const executor: IToolExecutor = {
+        execute: async (call, ctx) => {
+          capturedCtx.push(ctx);
+          return { callId: call.id, output: 'ok' };
+        },
+      };
+      const { runtime, provider } = createRuntime({ platform: sandboxPlatform, executor });
+
+      runtime.setPermissionManager(new PermissionManager({ mode: 'auto' }));
+      runtime.setHookManager(new HookManager());
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc-sandbox', name: 'test_tool' },
+        { type: 'tool_call_delta', id: 'tc-sandbox', argumentsDelta: '{"key":"value"}' },
+        { type: 'tool_call_end', id: 'tc-sandbox', name: 'test_tool', arguments: '{"key":"value"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+      provider.addResponse([{ type: 'done', stopReason: 'stop' }]);
+
+      await collectEvents(runtime.run('Use sandbox'));
+
+      expect(capturedCtx).toHaveLength(1);
+      expect(capturedCtx[0].sandboxRequired).toBe(true);
+      expect(capturedCtx[0].sandboxProfile).toBe(sandboxProfile);
     });
   });
 

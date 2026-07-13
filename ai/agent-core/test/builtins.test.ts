@@ -10,7 +10,7 @@ import { MemorySaveExecutor, MemoryRecallExecutor } from '../src/tool/builtins/m
 import { PlanCreateExecutor, PlanGetStatusExecutor, PlanUpdateStepExecutor } from '../src/tool/builtins/planning';
 
 import type { ToolCall, ToolResult, ToolContext } from '../src/tool/types';
-import type { IPlatform, IFileSystem, IProcess, ISearch, ExecResult } from '@svton/agent-platform';
+import type { IPlatform, IFileSystem, IProcess, ISearch, ExecResult, SandboxProfile } from '@svton/agent-platform';
 import type { Plan, PlanStep } from '../src/planning/types';
 
 // ============================================================
@@ -238,6 +238,103 @@ describe('BashExecutor', () => {
       timeout: 5000,
       signal,
     });
+  });
+
+  it('uses sandbox exec when sandbox profile is available', async () => {
+    const sandboxProfile: SandboxProfile = {
+      mode: 'workspace_write',
+      writablePaths: ['/project'],
+      networkAccess: false,
+    };
+    const sandboxExec = vi.fn(async (): Promise<ExecResult> => ({
+      stdout: 'sandboxed',
+      stderr: '',
+      exitCode: 0,
+      timedOut: false,
+    }));
+    const mockExec = ctx.platform.process.exec as ReturnType<typeof vi.fn>;
+    (ctx.platform as any).sandbox = {
+      createProfile: vi.fn(),
+      exec: sandboxExec,
+    };
+
+    const signal = new AbortController().signal;
+    const ctxWithSandbox = { ...ctx, sandboxProfile, signal };
+    const result = await executor.execute(
+      makeToolCall('bash', { command: 'pwd', timeout: 5000 }),
+      ctxWithSandbox,
+    );
+
+    expect(result.output).toBe('sandboxed');
+    expect(sandboxExec).toHaveBeenCalledWith('pwd', {
+      cwd: '/project',
+      timeout: 5000,
+      signal,
+    }, sandboxProfile);
+    expect(mockExec).not.toHaveBeenCalled();
+  });
+
+  it('falls back to process exec on legacy platforms when sandbox profile is absent', async () => {
+    const mockExec = ctx.platform.process.exec as ReturnType<typeof vi.fn>;
+    const sandboxExec = vi.fn();
+    mockExec.mockResolvedValue({
+      stdout: 'process',
+      stderr: '',
+      exitCode: 0,
+      timedOut: false,
+    });
+    (ctx.platform as any).sandbox = {
+      createProfile: vi.fn(),
+      exec: sandboxExec,
+    };
+
+    const result = await executor.execute(
+      makeToolCall('bash', { command: 'pwd' }),
+      ctx,
+    );
+
+    expect(result.output).toBe('process');
+    expect(mockExec).toHaveBeenCalledWith('pwd', {
+      cwd: '/project',
+      timeout: 120000,
+      signal: undefined,
+    });
+    expect(sandboxExec).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when sandbox is required but the profile is absent', async () => {
+    const mockExec = ctx.platform.process.exec as ReturnType<typeof vi.fn>;
+    const sandboxExec = vi.fn();
+    (ctx.platform as any).sandbox = {
+      createProfile: vi.fn(),
+      exec: sandboxExec,
+    };
+    const result = await executor.execute(
+      makeToolCall('bash', { command: 'pwd' }),
+      { ...ctx, sandboxRequired: true },
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('requires sandbox execution');
+    expect(mockExec).not.toHaveBeenCalled();
+    expect(sandboxExec).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when sandbox is required but the platform sandbox is absent', async () => {
+    const mockExec = ctx.platform.process.exec as ReturnType<typeof vi.fn>;
+    const sandboxProfile: SandboxProfile = {
+      mode: 'workspace_write',
+      writablePaths: ['/project'],
+      networkAccess: false,
+    };
+    const result = await executor.execute(
+      makeToolCall('bash', { command: 'pwd' }),
+      { ...ctx, sandboxProfile, sandboxRequired: true },
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('requires sandbox execution');
+    expect(mockExec).not.toHaveBeenCalled();
   });
 
   it('defaults timeout to 120000 when not provided', async () => {

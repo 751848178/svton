@@ -1,5 +1,6 @@
 import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import { resolveCommandRunner } from '../command-runner.utils';
 
 // ============================================================
 // bash
@@ -45,11 +46,16 @@ export class BashExecutor implements IToolExecutor {
     }
 
     try {
-      const result = await ctx.platform.process.exec(command, {
+      const execOptions = {
         cwd: ctx.workingDir,
         timeout: timeout ?? 120000,
         signal: ctx.signal,
-      });
+      };
+      const runner = resolveCommandRunner(ctx, 'Bash');
+      if (runner.kind === 'unavailable') {
+        return { callId: call.id, output: runner.message, isError: true };
+      }
+      const result = await runner.run(command, execOptions);
 
       const exitCode = result.exitCode ?? 0;
 

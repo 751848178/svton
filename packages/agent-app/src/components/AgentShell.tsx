@@ -27,6 +27,7 @@ import {
 } from '@svton/agent-client';
 import type { AgentConfig } from '@svton/agent-core';
 import type { View, ModelOption } from '../types';
+import { readAgentShellPermissionMode } from './agent-shell-permission.utils';
 
 interface AgentShellProps {
   config: AgentConfig;
@@ -57,7 +58,7 @@ export function AgentShell({
   const [view, setView] = useState<View>('chat');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [permissionMode, setPermissionMode] = useState(
-    config.capabilities?.permissionManager?.getMode() || 'default'
+    () => readAgentShellPermissionMode(config)
   );
   const [reasoningEffort, setReasoningEffortState] = useState<ReasoningEffort>(undefined);
   const [matchedSkills, setMatchedSkills] = useState<string[]>([]);
@@ -70,6 +71,9 @@ export function AgentShell({
     config.capabilities?.permissionManager?.setMode(mode as any);
     adapter.savePermissionMode?.(mode);
   }, [adapter, config]);
+  useEffect(() => {
+    setPermissionMode(readAgentShellPermissionMode(config));
+  }, [config]);
 
   // ── Reasoning effort ──
   const { chatService } = useAgentContext();

@@ -16,6 +16,7 @@ import type {
   ToolAnnotations,
   ToolContext,
   ToolParameterSchema,
+  WebSearchConfig,
 } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
 
@@ -91,6 +92,12 @@ export interface CreateAgentConfig {
   // ---- Tools ----
   /** Custom tools to register */
   tools?: UserToolDefinition[];
+  /** Web search backend configuration. If omitted, `web_search` is not registered. */
+  search?: WebSearchConfig;
+  /** Shortcut for Tavily search. Prefer `search` for new integrations. */
+  searchApiKey?: string;
+  /** Legacy custom search endpoint shortcut. Prefer `search` for new integrations. */
+  searchEndpoint?: string;
   /** MCP servers to connect */
   mcpServers?: SdkMcpServerConfig[];
 

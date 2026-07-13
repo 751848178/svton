@@ -3,27 +3,14 @@ import {
   ChatPanel,
   SplitScreenPanel,
   type ChatPanelMessage,
-  type PresetItem,
   type ToolCallInfo,
   type SplitScreenContent,
-  type SlashCommand,
-  type MentionItem,
-  type ReasoningEffort,
 } from '@svton/agent-ui';
 import { useChat, useToolApproval } from '@svton/agent-client';
 import { InputControls } from './InputControls';
-
-const PRESETS: PresetItem[] = [
-  { label: '帮我写一个 React 组件', prompt: '帮我写一个 React 组件，要求使用 TypeScript，支持 props 类型检查' },
-  { label: '解释这段代码的工作原理', prompt: '请解释这段代码的工作原理，逐行分析关键逻辑' },
-  { label: '帮我修复这个 Bug', prompt: '帮我分析和修复一个 Bug，我会描述具体的错误信息和复现步骤' },
-  { label: '优化代码性能', prompt: '请帮我审查并优化代码的性能，找出潜在的性能瓶颈' },
-];
-
-interface ProjectInfo {
-  id: string;
-  name: string;
-}
+import { buildOpenReferenceCommand } from '@/lib/reference-open.utils';
+import { CHAT_PRESETS } from './chat-content.constants';
+import type { ChatContentProps } from './ChatContent.types';
 
 export function ChatContent({
   modelSelector,
@@ -45,27 +32,8 @@ export function ChatContent({
   onMentionSelect,
   reasoningEffort,
   onReasoningEffortChange,
-}: {
-  modelSelector: React.ReactNode;
-  slashCommands: SlashCommand[];
-  matchedSkills: string[];
-  onAbort?: () => void;
-  permissionMode: 'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto';
-  onPermissionModeChange: (mode: 'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto') => void;
-  planMode: boolean;
-  onPlanModeChange: (enabled: boolean) => void;
-  plugins: Array<{ name: string; enabled: boolean }>;
-  onPluginToggle: (name: string, enabled: boolean) => void;
-  gitBranch?: string | null;
-  projectName?: string | null;
-  projects?: ProjectInfo[];
-  currentProjectId?: string | null;
-  onSelectProject?: (id: string | null) => void;
-  mentionItems?: MentionItem[];
-  onMentionSelect?: (item: MentionItem) => string;
-  reasoningEffort?: ReasoningEffort;
-  onReasoningEffortChange?: (effort: ReasoningEffort) => void;
-}) {
+  workingDir,
+}: ChatContentProps) {
   const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage, activePlan, inputHistory } = useChat();
   const { approve, reject } = useToolApproval();
   const [splitScreen, setSplitScreen] = useState<SplitScreenContent | null>(null);
@@ -99,7 +67,7 @@ export function ChatContent({
 
   const handleOpenEditor = useCallback((content: string) => { setSplitScreen({ type: 'document', title: 'Edit', content }); }, []);
 
-  const presets: PresetItem[] = useMemo(() => PRESETS, []);
+  const presets = useMemo(() => CHAT_PRESETS, []);
 
   const panelMessages: ChatPanelMessage[] = useMemo(
     () =>
@@ -170,10 +138,10 @@ export function ChatContent({
             try {
               const api = await import('@tauri-apps/api/core' as string);
               const invoke = (api as any).invoke;
-              // Resolve relative path against working directory
-              const workingDir = (window as any).__svtonWorkingDir || '';
-              const fullPath = path.startsWith('/') || path.startsWith('~') ? path : `${workingDir}/${path}`;
-              await invoke('process_exec', { command: ['open', fullPath], cwd: null });
+              await invoke('process_exec', {
+                command: buildOpenReferenceCommand(path, workingDir),
+                cwd: null,
+              });
             } catch (e) {
               console.error('Failed to open file:', e);
             }

@@ -38,10 +38,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <SettingsView
-      adapter={adapter}
-      onBack={() => { window.location.href = '/'; }}
-      refreshKey={refreshKey}
-    />
+    <main className="flex min-h-screen w-full bg-black text-gray-100">
+      <SettingsView
+        adapter={adapter}
+        onBack={() => { window.location.href = '/'; }}
+        refreshKey={refreshKey}
+      />
+    </main>
   );
 }

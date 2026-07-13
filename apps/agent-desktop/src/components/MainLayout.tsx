@@ -206,6 +206,13 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
   const tools = useMemo(() => (config.toolRegistry?.listDefinitions() ?? []) as ToolDefinition[], [config.toolRegistry]);
   const agentSkills = useMemo(() => (config.capabilities?.skillManager?.list() ?? []) as SkillDefinition[], [config.capabilities]);
 
+  useEffect(() => {
+    extra?.automationManager?.setTriggerHandler(async (automation) => {
+      send(automation.prompt);
+      setView('chat');
+    });
+  }, [extra?.automationManager, send]);
+
   // Permission mode — declared BEFORE handlers that reference setPermissionMode/setPlanMode
   const [permissionMode, setPermissionMode] = useState<'read_only' | 'plan' | 'default' | 'accept_edits' | 'auto'>(
     () => (config.capabilities?.permissionManager?.getMode() as any) ?? 'default'
@@ -448,6 +455,7 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
               onMentionSelect={handleMentionSelect}
               reasoningEffort={reasoningEffort}
               onReasoningEffortChange={handleReasoningEffortChange}
+              workingDir={effectiveWorkingDir}
             />
           )}
           {view === 'automation' && (

@@ -5,7 +5,7 @@
  */
 
 import type { ToolDefinition, ToolAnnotations } from '../provider/types';
-import type { IPlatform } from '@svton/agent-platform';
+import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 
 // Re-export from provider
 export type { ToolDefinition, ToolAnnotations };
@@ -27,6 +27,8 @@ export interface ToolContext {
   platform: IPlatform;
   sessionId: string;
   workingDir: string;
+  sandboxProfile?: SandboxProfile | null;
+  sandboxRequired?: boolean;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
 }

@@ -18,6 +18,7 @@ export interface ToolExecOptions {
   autoReviewer?: AutoReviewerManager | null;
   resumeManager?: SessionResumeManager | null;
   sandboxProfile?: SandboxProfile | null;
+  sandboxRequired?: boolean;
   sessionId?: string;
 }
 
@@ -121,8 +122,6 @@ export class ToolExecutionService {
 
           if (review.verdict === 'approve') {
             logger.info('Tool', `Auto-approved by rule: ${review.ruleId ?? 'auto'}`, { tool: call.name });
-            // Skip user approval — proceed to execution
-            // (fall through past the approval block)
           } else if (review.verdict === 'deny') {
             yield {
               type: 'tool_call_end',
@@ -211,6 +210,8 @@ export class ToolExecutionService {
       platform: this.platform,
       sessionId: this.execOptions.sessionId ?? '',
       workingDir: this.workingDir,
+      sandboxProfile: this.execOptions.sandboxProfile,
+      sandboxRequired: this.execOptions.sandboxRequired,
     };
 
     const result = await this.toolRegistry.execute(call, toolCtx);

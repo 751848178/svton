@@ -30,18 +30,26 @@ export interface LoadConfigResult {
 const CONFIG_DIR_NAME = '.svton';
 const CONFIG_FILE_NAME = 'config.toml';
 
-/** Get home directory via Tauri backend (sync getEnv doesn't work in browser) */
-async function getHomeDir(): Promise<string> {
-  const { invoke } = await import('@tauri-apps/api/core');
-  const home = await invoke<string | null>('process_get_env', { key: 'HOME' })
-    || await invoke<string | null>('process_get_env', { key: 'USERPROFILE' });
-  if (!home) throw new Error('Cannot determine home directory');
-  return home;
+async function readTauriEnv(key: string): Promise<string | null> {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return await invoke<string | null>('process_get_env', { key });
+  } catch {
+    return null;
+  }
+}
+
+/** Get home directory from platform env, then Tauri backend when available. */
+async function getHomeDir(platform: TauriPlatform): Promise<string | null> {
+  const platformHome = platform.process.getEnv('HOME') || platform.process.getEnv('USERPROFILE');
+  if (platformHome) return platformHome;
+  return await readTauriEnv('HOME') || await readTauriEnv('USERPROFILE');
 }
 
 /** Resolve ~/.svton/ directory path */
-async function getConfigDir(_platform: TauriPlatform): Promise<string> {
-  const home = await getHomeDir();
+async function getConfigDir(platform: TauriPlatform): Promise<string> {
+  const home = await getHomeDir(platform);
+  if (!home) throw new Error('Desktop config is only available when a home directory can be resolved');
   const sep = home.includes('\\') ? '\\' : '/';
   return `${home}${sep}${CONFIG_DIR_NAME}`;
 }
@@ -55,7 +63,12 @@ export async function getConfigPath(platform: TauriPlatform): Promise<string> {
 
 /** Load and parse config file */
 export async function loadConfig(platform: TauriPlatform): Promise<LoadConfigResult> {
-  const path = await getConfigPath(platform);
+  let path: string;
+  try {
+    path = await getConfigPath(platform);
+  } catch (err: any) {
+    return { config: null, error: err?.message || String(err) };
+  }
   const exists = await platform.fs.exists(path);
   if (!exists) return { config: null };
 

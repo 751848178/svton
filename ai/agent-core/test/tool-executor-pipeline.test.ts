@@ -13,7 +13,7 @@ import type {
   IToolExecutor,
   ToolDefinition,
 } from '@svton/agent-core';
-import type { IPlatform } from '@svton/agent-platform';
+import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 
 // ==============================================================
 // Mock Helpers
@@ -29,6 +29,10 @@ function createMockPlatform(): IPlatform {
       mcpStdio: false,
       clipboard: false,
       notification: false,
+      sandboxing: false,
+      pty: false,
+      documentPreview: false,
+      computerUse: false,
     },
     fs: {} as any,
     process: {} as any,
@@ -373,6 +377,41 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
 
       expect(capturedCtx).toHaveLength(1);
       expect(capturedCtx[0].sessionId).toBe('my-custom-session');
+    });
+
+    it('includes sandbox options from execOptions in tool context', async () => {
+      const capturedCtx: ToolContext[] = [];
+      const sandboxProfile: SandboxProfile = {
+        mode: 'workspace_write',
+        writablePaths: ['/project'],
+        networkAccess: false,
+      };
+      const exec: IToolExecutor = {
+        execute: async (call: ToolCall, ctx: ToolContext): Promise<ToolResult> => {
+          capturedCtx.push(ctx);
+          return { callId: call.id, output: 'ok' };
+        },
+      };
+      toolRegistry.register(makeToolDef('file_read'), exec);
+
+      const pm = new PermissionManager({ mode: 'default' });
+      const service = new ToolExecutionService(
+        toolRegistry,
+        contextManager,
+        platform,
+        workingDir,
+        pm,
+        null,
+        pendingApprovals,
+      );
+
+      service.setExecOptions({ sandboxProfile, sandboxRequired: true, sessionId: 'sandbox-session' });
+
+      await drain(service.execute(makeToolCall('file_read')));
+
+      expect(capturedCtx).toHaveLength(1);
+      expect(capturedCtx[0].sandboxProfile).toBe(sandboxProfile);
+      expect(capturedCtx[0].sandboxRequired).toBe(true);
     });
   });
 

@@ -26,9 +26,13 @@ import { loadConfig, saveConfig, createDefaultConfig, getConfigPath } from '../s
 import type { TauriPlatform } from '@svton/agent-platform';
 
 /** Build a fake platform with an in-memory fs rooted at FAKE_HOME. */
-function makePlatform(files: Record<string, string> = {}): TauriPlatform & { files: Record<string, string>; execCalls: string[] } {
+function makePlatform(
+  files: Record<string, string> = {},
+  options: { home?: string } = {},
+): TauriPlatform & { files: Record<string, string>; execCalls: string[] } {
   const execCalls: string[] = [];
   const store = { ...files };
+  const home = options.home === undefined ? FAKE_HOME : options.home;
   const platform: any = {
     type: 'tauri',
     capabilities: {
@@ -43,8 +47,8 @@ function makePlatform(files: Record<string, string> = {}): TauriPlatform & { fil
     },
     process: {
       exec: async (cmd: string) => { execCalls.push(cmd); return { stdout: '', stderr: '', exitCode: 0 }; },
-      getEnv: () => FAKE_HOME,
-      getCwd: () => FAKE_HOME,
+      getEnv: (key: string) => (key === 'HOME' ? home : undefined),
+      getCwd: () => home || '/',
     },
     storage: { get: async () => null, set: async () => {}, delete: async () => {}, list: async () => [] },
     search: { grep: async () => [], glob: async () => [] },
@@ -111,6 +115,16 @@ claude-sonnet-4 = "Claude Sonnet 4"
     it('returns null config when [model] section missing', async () => {
       const result = await loadConfig(makePlatform({ [CONFIG_PATH]: '[providers.x]\ntype = "openai"\n' }));
       expect(result.config).toBeNull();
+    });
+
+    it('returns a config-unavailable error outside the Tauri shell', async () => {
+      invokeMock.mockRejectedValueOnce(new Error('invoke unavailable'));
+      invokeMock.mockRejectedValueOnce(new Error('invoke unavailable'));
+
+      const result = await loadConfig(makePlatform({}, { home: '' }));
+
+      expect(result.config).toBeNull();
+      expect(result.error).toContain('home directory');
     });
   });
 

@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   codeReviewSkill,
   gitDiffDef,
-  GitDiffExecutor,
   gitLogRangeDef,
 } from '@svton/agent-core';
+import { GitDiffExecutor } from '../src/tool/builtins/git_review';
 import type { ToolCall, ToolContext } from '@svton/agent-core';
-import type { IPlatform, IProcess } from '@svton/agent-platform';
+import type { IPlatform, IProcess, SandboxProfile } from '@svton/agent-platform';
 
 // ==============================================================
 // Mock Helpers
@@ -215,6 +215,70 @@ describe('F11 — Code Review', () => {
       expect(result.output).toContain('diff --git');
     });
 
+    it('uses sandbox exec when sandbox profile is available', async () => {
+      const platform = createMockPlatform(true);
+      const processExec = platform.process.exec as ReturnType<typeof vi.fn>;
+      const sandboxProfile: SandboxProfile = {
+        mode: 'read_only',
+        writablePaths: [],
+        networkAccess: false,
+      };
+      const sandboxExec = vi.fn(async (): Promise<any> => ({
+        stdout: 'sandbox diff',
+        stderr: '',
+        exitCode: 0,
+        timedOut: false,
+      }));
+      (platform as any).sandbox = {
+        createProfile: vi.fn(),
+        exec: sandboxExec,
+      };
+
+      const executor = new GitDiffExecutor();
+      const call: ToolCall = {
+        id: 'sandbox-diff',
+        name: 'git_diff',
+        arguments: { base: 'main', head: 'feature' },
+      };
+
+      const result = await executor.execute(call, {
+        ...createContext(platform),
+        sandboxProfile,
+      });
+
+      expect(result.output).toContain('sandbox diff');
+      expect(sandboxExec).toHaveBeenCalledWith(
+        'git diff main...feature',
+        { cwd: '/repo', timeout: 30_000, signal: undefined },
+        sandboxProfile,
+      );
+      expect(processExec).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when sandbox is required but the profile is absent', async () => {
+      const platform = createMockPlatform(true);
+      const processExec = platform.process.exec as ReturnType<typeof vi.fn>;
+      const sandboxExec = vi.fn();
+      (platform as any).sandbox = {
+        createProfile: vi.fn(),
+        exec: sandboxExec,
+      };
+
+      const result = await new GitDiffExecutor().execute(
+        {
+          id: 'sandbox-required-diff',
+          name: 'git_diff',
+          arguments: { base: 'main', head: 'feature' },
+        },
+        { ...createContext(platform), sandboxRequired: true },
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('requires sandbox execution');
+      expect(processExec).not.toHaveBeenCalled();
+      expect(sandboxExec).not.toHaveBeenCalled();
+    });
+
     it('passes stat_only as --stat flag', async () => {
       const execMock = vi.fn(async (): Promise<any> => ({
         stdout: 'file.ts | 5 +++--',
@@ -286,6 +350,78 @@ describe('F11 — Code Review', () => {
 
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain('develop...feature-x');
+    });
+
+    it('quotes shell-sensitive git refs before executing diff', async () => {
+      const execMock = vi.fn(async (): Promise<any> => ({
+        stdout: 'diff output',
+        stderr: '',
+        exitCode: 0,
+        timedOut: false,
+      }));
+      const platform: IPlatform = {
+        type: 'tauri',
+        capabilities: {
+          filesystem: true,
+          process: true,
+          watch: false,
+          mcpStdio: false,
+          clipboard: false,
+          notification: false,
+        },
+        fs: {} as any,
+        process: { exec: execMock } as unknown as IProcess,
+        storage: {} as any,
+        search: {} as any,
+      };
+
+      await new GitDiffExecutor().execute(
+        {
+          id: 'quote-ref',
+          name: 'git_diff',
+          arguments: {
+            base: "main' ; touch /tmp/pwn #",
+            head: 'feature$(touch /tmp/pwn2)',
+          },
+        },
+        createContext(platform),
+      );
+
+      expect(execMock.mock.calls[0][0]).toBe(
+        "git diff 'main'\\'' ; touch /tmp/pwn #...feature$(touch /tmp/pwn2)'",
+      );
+    });
+
+    it('rejects git refs that start with an option prefix', async () => {
+      const execMock = vi.fn();
+      const platform: IPlatform = {
+        type: 'tauri',
+        capabilities: {
+          filesystem: true,
+          process: true,
+          watch: false,
+          mcpStdio: false,
+          clipboard: false,
+          notification: false,
+        },
+        fs: {} as any,
+        process: { exec: execMock } as unknown as IProcess,
+        storage: {} as any,
+        search: {} as any,
+      };
+
+      const result = await new GitDiffExecutor().execute(
+        {
+          id: 'bad-ref',
+          name: 'git_diff',
+          arguments: { base: '--output=/tmp/pwn' },
+        },
+        createContext(platform),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('invalid git ref');
+      expect(execMock).not.toHaveBeenCalled();
     });
 
     it('returns "(no changes detected)" when diff is empty', async () => {

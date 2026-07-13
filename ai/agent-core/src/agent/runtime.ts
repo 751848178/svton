@@ -15,6 +15,7 @@ import type { PlanningManager } from '../planning/manager';
 import type { SessionResumeManager } from '../checkpoint/manager';
 import { ContextManager } from './context';
 import { ToolExecutionService } from './tool-executor';
+import { createToolExecOptions } from './tool-exec-options.utils';
 import { logger } from '../utils/logger';
 
 const DEFAULT_MAX_ITERATIONS = 50;
@@ -109,17 +110,7 @@ export class AgentRuntime implements IRuntime {
       this.pendingApprovals,
     );
 
-    // Wire extra exec options (auto-reviewer, sandbox profile)
-    this.toolExecService.setExecOptions({
-      autoReviewer: this.autoReviewer,
-      resumeManager: this.resumeManager,
-      sandboxProfile: this.platform.sandbox
-        ? this.platform.sandbox.createProfile(
-            (caps?.autoReviewer ? 'workspace_write' : 'full_access'),
-            this.workingDir,
-          )
-        : null,
-    });
+    this.configureToolExecutionService();
   }
 
   /**
@@ -157,6 +148,7 @@ export class AgentRuntime implements IRuntime {
       this.hookManager,
       this.pendingApprovals,
     );
+    this.configureToolExecutionService();
   }
 
   /**
@@ -176,6 +168,11 @@ export class AgentRuntime implements IRuntime {
       manager,
       this.pendingApprovals,
     );
+    this.configureToolExecutionService();
+  }
+
+  private configureToolExecutionService(): void {
+    this.toolExecService.setExecOptions(createToolExecOptions({ platform: this.platform, workingDir: this.workingDir, autoReviewer: this.autoReviewer, resumeManager: this.resumeManager }));
   }
 
   /**
