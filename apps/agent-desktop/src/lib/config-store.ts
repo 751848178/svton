@@ -5,6 +5,7 @@
 
 import * as TOML from 'smol-toml';
 import type { TauriPlatform } from '@svton/agent-platform';
+import { buildEnsureDirCommand, buildOpenPathCommand, readNavigatorPlatform } from './config-store-command.utils';
 
 export interface SvtonConfig {
   model: {
@@ -96,7 +97,7 @@ export async function saveConfig(platform: TauriPlatform, config: SvtonConfig): 
   // Ensure directory exists
   const dirExists = await platform.fs.exists(dir);
   if (!dirExists) {
-    await platform.process.exec(`mkdir -p "${dir}"`);
+    await platform.process.exec(buildEnsureDirCommand(dir, readNavigatorPlatform()));
   }
 
   const content = TOML.stringify(config as any);
@@ -111,7 +112,7 @@ export async function createDefaultConfig(platform: TauriPlatform): Promise<void
   // Ensure directory exists
   const dirExists = await platform.fs.exists(dir);
   if (!dirExists) {
-    await platform.process.exec(`mkdir -p "${dir}"`);
+    await platform.process.exec(buildEnsureDirCommand(dir, readNavigatorPlatform()));
   }
 
   // Only create if file doesn't exist
@@ -165,8 +166,5 @@ deepseek-chat = "DeepSeek Chat"
 /** Open config file in system editor */
 export async function openConfigInEditor(platform: TauriPlatform): Promise<void> {
   const path = await getConfigPath(platform);
-  const cmd = navigator.platform.toLowerCase().includes('win')
-    ? `start "" "${path}"`
-    : `open "${path}"`;
-  await platform.process.exec(cmd);
+  await platform.process.exec(buildOpenPathCommand(path, readNavigatorPlatform()));
 }

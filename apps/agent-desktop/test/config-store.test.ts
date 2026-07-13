@@ -22,7 +22,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
 }));
 
-import { loadConfig, saveConfig, createDefaultConfig, getConfigPath } from '../src/lib/config-store';
+import { loadConfig, saveConfig, createDefaultConfig, getConfigPath, openConfigInEditor } from '../src/lib/config-store';
 import type { TauriPlatform } from '@svton/agent-platform';
 
 /** Build a fake platform with an in-memory fs rooted at FAKE_HOME. */
@@ -157,6 +157,15 @@ claude-sonnet-4 = "Claude Sonnet 4"
       await saveConfig(platform, { model: { name: 'x', provider: 'p' }, providers: {} });
       expect(platform.files[CONFIG_PATH]).toBeDefined();
     });
+
+    it('shell-quotes the config directory before creating it', async () => {
+      const home = '/tmp/bad" ; touch /tmp/pwn #';
+      const platform = makePlatform({}, { home });
+
+      await saveConfig(platform, { model: { name: 'x', provider: 'p' }, providers: {} });
+
+      expect(platform.execCalls[0]).toBe(`mkdir -p '${home}/.svton'`);
+    });
   });
 
   describe('createDefaultConfig', () => {
@@ -176,6 +185,19 @@ claude-sonnet-4 = "Claude Sonnet 4"
       await createDefaultConfig(platform);
       // content unchanged
       expect(platform.files[CONFIG_PATH]).toBe(existing);
+    });
+  });
+
+  describe('openConfigInEditor', () => {
+    it('shell-quotes the config path before opening it', async () => {
+      const home = '/tmp/bad" ; touch /tmp/pwn #';
+      const platform = makePlatform({
+        [`${home}/.svton/config.toml`]: '',
+      }, { home });
+
+      await openConfigInEditor(platform);
+
+      expect(platform.execCalls[0]).toBe(`open '${home}/.svton/config.toml'`);
     });
   });
 });
