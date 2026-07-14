@@ -128,6 +128,9 @@ export class OpenAIProvider implements IProvider {
       messages: formattedMessages,
       stream: options.stream !== false,
     };
+    if (body.stream) {
+      body.stream_options = { include_usage: true };
+    }
 
     if (options.temperature !== undefined) {
       body.temperature = options.temperature;
@@ -247,18 +250,27 @@ export class OpenAIProvider implements IProvider {
 
   private async *parseSSEStream(response: Response): AsyncGenerator<StreamEvent> {
     let usage: TokenUsage | null = null;
+    let stopReason: string = 'stop';
     const toolCallBuffers = new Map<number, { id: string; name: string; args: string }>();
 
     for await (const data of readSSELines(response)) {
       if (data === '[DONE]') {
         yield* this.flushToolCallBuffers(toolCallBuffers);
         if (usage) yield { type: 'usage', usage };
-        yield { type: 'done', stopReason: 'stop' };
+        yield { type: 'done', stopReason };
         return;
       }
 
       try {
         const chunk = JSON.parse(data);
+        if (chunk.usage) {
+          usage = {
+            promptTokens: chunk.usage.prompt_tokens,
+            completionTokens: chunk.usage.completion_tokens,
+            totalTokens: chunk.usage.total_tokens,
+          };
+        }
+
         const choice = chunk.choices?.[0];
         if (!choice) continue;
 
@@ -289,24 +301,17 @@ export class OpenAIProvider implements IProvider {
           }
         }
 
-        if (chunk.usage) {
-          usage = {
-            promptTokens: chunk.usage.prompt_tokens,
-            completionTokens: chunk.usage.completion_tokens,
-            totalTokens: chunk.usage.total_tokens,
-          };
-        }
-
         if (choice.finish_reason) {
-          yield* this.flushToolCallBuffers(toolCallBuffers);
-          if (usage) yield { type: 'usage', usage };
-          yield { type: 'done', stopReason: choice.finish_reason };
-          return;
+          stopReason = choice.finish_reason;
         }
       } catch {
         // Skip malformed JSON
       }
     }
+
+    yield* this.flushToolCallBuffers(toolCallBuffers);
+    if (usage) yield { type: 'usage', usage };
+    yield { type: 'done', stopReason };
   }
 
   /**

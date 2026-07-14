@@ -459,7 +459,7 @@ export function MainLayout({ config, platform, models, currentModel, setCurrentM
             />
           )}
           {view === 'automation' && (
-            <AutomationPanelExtra automationManager={extra?.automationManager} onManage={() => setView('settings')} onTrigger={(prompt) => { send(prompt); setView('chat'); }} />
+            <AutomationPanelExtra automationManager={extra?.automationManager} onManage={() => setView('settings')} />
           )}
           {view === 'skills' && (
             <SkillsPanel skills={agentSkills} platform={platform} onManage={() => setView('settings')} onReinit={onReinit} />

@@ -275,6 +275,32 @@ describe('OpenAIProvider', () => {
       });
     });
 
+    it('keeps reading usage chunks after finish_reason', async () => {
+      const sseData = [
+        'data: {"choices":[{"delta":{"content":"Hi"}}]}',
+        'data: {"choices":[{"finish_reason":"stop"}]}',
+        'data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}}',
+        'data: [DONE]',
+        '',
+      ].join('\n');
+
+      fetchSpy.mockResolvedValue(createSSEResponse(sseData));
+
+      const events = await collectEvents(
+        provider.chat([], { model: 'gpt-4o' }),
+      );
+
+      expect(events.find((e) => e.type === 'usage')).toEqual({
+        type: 'usage',
+        usage: {
+          promptTokens: 10,
+          completionTokens: 3,
+          totalTokens: 13,
+        },
+      });
+      expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'stop' });
+    });
+
     it('parses tool call SSE events', async () => {
       const sseData = [
         'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","type":"function","function":{"name":"read_file","arguments":""}}]}}]}',
@@ -532,6 +558,7 @@ describe('OpenAIProvider', () => {
       const [, init] = fetchSpy.mock.calls[0];
       const body = JSON.parse(init.body as string);
       expect(body.stream).toBe(true);
+      expect(body.stream_options).toEqual({ include_usage: true });
     });
 
     it('sets stream: false when stream option is false', async () => {
@@ -544,6 +571,7 @@ describe('OpenAIProvider', () => {
       const [, init] = fetchSpy.mock.calls[0];
       const body = JSON.parse(init.body as string);
       expect(body.stream).toBe(false);
+      expect(body.stream_options).toBeUndefined();
     });
 
     it('formats ContentBlock[] messages with text and image', async () => {

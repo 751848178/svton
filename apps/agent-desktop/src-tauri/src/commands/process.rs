@@ -1,12 +1,13 @@
 use serde::Serialize;
 use std::collections::HashMap;
-use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tauri;
 use tauri::Emitter;
 use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
 use tokio::process::ChildStdin;
 use tokio::sync::Mutex as AsyncMutex;
+use tokio::time::{timeout as tokio_timeout, Duration};
 
 /// Active child processes: processId → (pid, stdin_handle)
 pub struct ProcessManager {
@@ -43,42 +44,45 @@ pub async fn process_exec(
     env: Option<HashMap<String, String>>,
     timeout: Option<u64>,
 ) -> Result<ExecResult, String> {
-    let _timeout_ms = timeout.unwrap_or(30000);
+    let timeout_ms = timeout.unwrap_or(30000);
+    let mut cmd = if cfg!(target_os = "windows") {
+        let mut c = Command::new("cmd");
+        c.args(["/C", &command]);
+        c
+    } else {
+        let mut c = Command::new("sh");
+        c.args(["-c", &command]);
+        c
+    };
+    cmd.kill_on_drop(true);
 
-    let output = tokio::task::spawn_blocking(move || {
-        let mut cmd = if cfg!(target_os = "windows") {
-            let mut c = Command::new("cmd");
-            c.args(["/C", &command]);
-            c
-        } else {
-            let mut c = Command::new("sh");
-            c.args(["-c", &command]);
-            c
-        };
+    if let Some(dir) = &cwd {
+        cmd.current_dir(dir);
+    }
 
-        if let Some(dir) = &cwd {
-            cmd.current_dir(dir);
+    if let Some(env_vars) = &env {
+        for (k, v) in env_vars {
+            cmd.env(k, v);
         }
+    }
 
-        if let Some(env_vars) = &env {
-            for (k, v) in env_vars {
-                cmd.env(k, v);
-            }
-        }
-
-        cmd.output()
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
-
-    Ok(ExecResult {
-        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-        exit_code: output.status.code(),
-        signal: None,
-        timed_out: false,
-    })
+    match tokio_timeout(Duration::from_millis(timeout_ms), cmd.output()).await {
+        Ok(Ok(output)) => Ok(ExecResult {
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            exit_code: output.status.code(),
+            signal: None,
+            timed_out: false,
+        }),
+        Ok(Err(e)) => Err(e.to_string()),
+        Err(_) => Ok(ExecResult {
+            stdout: String::new(),
+            stderr: format!("Command timed out after {} ms", timeout_ms),
+            exit_code: None,
+            signal: None,
+            timed_out: true,
+        }),
+    }
 }
 
 #[tauri::command]
@@ -101,9 +105,7 @@ pub async fn process_spawn(
     cwd: Option<String>,
     env: Option<HashMap<String, String>>,
 ) -> Result<SpawnResult, String> {
-    use tokio::process::Command as TokioCommand;
-
-    let mut cmd = TokioCommand::new(&command);
+    let mut cmd = Command::new(&command);
     cmd.args(&args)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())

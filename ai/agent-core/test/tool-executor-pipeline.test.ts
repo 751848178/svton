@@ -55,11 +55,12 @@ function createRecordingExecutor(
   };
 }
 
-function makeToolDef(name: string): ToolDefinition {
+function makeToolDef(name: string, annotations?: ToolDefinition['annotations']): ToolDefinition {
   return {
     name,
     description: `Tool ${name}`,
     parameters: { type: 'object', properties: {} },
+    annotations,
   };
 }
 
@@ -461,6 +462,19 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       // Should have tool_call_end with the result
       const endEvents = events.filter((e) => e.type === 'tool_call_end');
       expect(endEvents).toHaveLength(1);
+    });
+
+    it('executes tools marked read-only by definition annotations in read_only mode', async () => {
+      const exec = createRecordingExecutor('diff output');
+      toolRegistry.register(makeToolDef('git_diff', { readOnlyHint: true, destructiveHint: false }), exec);
+      const pm = new PermissionManager({ mode: 'read_only' });
+
+      const service = createService(pm, null);
+      const events = await drain(service.execute(makeToolCall('git_diff')));
+
+      expect(exec.calls).toHaveLength(1);
+      expect(events.some((e) => e.type === 'tool_approval_needed')).toBe(false);
+      expect(events.some((e: any) => e.result?.output?.includes('Permission denied'))).toBe(false);
     });
   });
 });

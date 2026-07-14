@@ -95,7 +95,8 @@ export class ToolExecutionService {
 
     // 2. Permission check
     if (this.permissionManager) {
-      const decision = this.permissionManager.check(call);
+      const definition = this.toolRegistry.get(call.name)?.definition;
+      const decision = this.permissionManager.check(call, definition?.annotations);
 
       if (!decision.allowed) {
         yield {

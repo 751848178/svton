@@ -18,10 +18,9 @@ import {
 // AutomationPanel — manage scheduled/triggered automations
 // ════════════════════════════════════════════════════════════
 
-export function AutomationPanelExtra({ automationManager, onManage, onTrigger }: {
+export function AutomationPanelExtra({ automationManager, onManage }: {
   automationManager?: AutomationManager;
   onManage?: () => void;
-  onTrigger?: (prompt: string) => void;
 }) {
   const [automations, setAutomations] = useState<any[]>([]);
   const [recentRuns, setRecentRuns] = useState<any[]>([]);
@@ -41,12 +40,7 @@ export function AutomationPanelExtra({ automationManager, onManage, onTrigger }:
 
   useEffect(() => {
     refresh();
-    if (automationManager && onTrigger) {
-      automationManager.setTriggerHandler(async (automation) => {
-        onTrigger(automation.prompt);
-      });
-    }
-  }, [refresh, automationManager, onTrigger]);
+  }, [refresh]);
 
   const handleCreate = useCallback(async () => {
     if (!automationManager || !newName.trim() || !newPrompt.trim()) return;
