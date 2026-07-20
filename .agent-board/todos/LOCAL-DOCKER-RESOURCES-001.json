@@ -1,0 +1,89 @@
+{
+  "id": "LOCAL-DOCKER-RESOURCES-001",
+  "type": "infrastructure",
+  "status": "pending",
+  "role": "executor",
+  "module": "cross-module",
+  "title": "Add local Docker resources to verify end-to-end Devpilot project flow",
+  "branch": "codex/local-docker-resources-s031",
+  "worktree": "/Users/zhaoxingbo/Workspace/ai-driven/svton-agent-deep-s030",
+  "allowed_files": [
+    "docker-compose.devpilot-staging.yml",
+    "scripts/devpilot-docker-staging.mjs",
+    "apps/devpilot-api/.env.example",
+    "docs/devpilot/demo-runbook.md",
+    "docs/devpilot/resource-request-minimum-loop.md",
+    "docs/todos/2026-07-21-local-docker-resources-investigation.md",
+    "docs/todos/2026-07-21-local-docker-resources-plan.md",
+    ".agent-board/todos/LOCAL-DOCKER-RESOURCES-001.json"
+  ],
+  "read_only_files": [
+    "apps/devpilot-api/prisma/schema.prisma",
+    "apps/devpilot-api/src/resource-request/resource-type-defaults.constants.ts",
+    "apps/devpilot-api/src/resource-pool/resource-pool-provisioning.service.ts",
+    "apps/devpilot-api/src/resource-control/inventory/executors/docker-inventory-executor.factory.ts",
+    "apps/devpilot-api/src/backup/backup.service.ts",
+    "apps/devpilot-api/src/common/config/env.schema.ts",
+    ".agent-board/goals/G004.json",
+    "docs/devpilot/demo-runbook.md (current snapshot only)"
+  ],
+  "forbidden_scope": [
+    "Do not edit apps/devpilot-api/src/** production code.",
+    "Do not modify apps/devpilot-api/prisma/schema.prisma or run prisma migrations.",
+    "Do not modify apps/devpilot-api/src/resource-request/resource-type-defaults.constants.ts.",
+    "Do not create new docker-compose files; only edit docker-compose.devpilot-staging.yml.",
+    "Do not run `docker compose up` in investigation phase; impl phase may run it under /tmp/codex-tool-runs/svton/local-docker-resources-s031/.",
+    "Do not commit or push; the main orchestrator handles that after impl + CR.",
+    "Do not stand up Tier B services (gitlab, prometheus, rabbitmq, nginx-site-target) in this slice."
+  ],
+  "summary": "Extend docker-compose.devpilot-staging.yml and the staging seed runner so every locally-verifiable Devpilot flow (resource-request lifecycle, resource-pool allocation, backup/restore, ssh-transport server-executor, dockerode inventory, object-storage stand-in, SMTP notification) has a real Docker target on a developer machine. Investigation and plan already produced under docs/todos/2026-07-21-local-docker-resources-*.",
+  "deliverables": [
+    "docs/todos/2026-07-21-local-docker-resources-investigation.md (DONE during invest phase)",
+    "docs/todos/2026-07-21-local-docker-resources-plan.md (DONE during invest phase)",
+    "docker-compose.devpilot-staging.yml extended with 7 Tier A services and 5 volumes",
+    "scripts/devpilot-docker-staging.mjs extended (matrix, env, seedLocalResources, observability)",
+    "apps/devpilot-api/.env.example extended with commented SMTP_* and MINIO_* keys",
+    "docs/devpilot/demo-runbook.md and docs/devpilot/resource-request-minimum-loop.md updated"
+  ],
+  "acceptance": [
+    "docker compose -f docker-compose.devpilot-staging.yml config exits 0.",
+    "docker compose -f docker-compose.devpilot-staging.yml up -d --wait brings all 12 services healthy.",
+    "Per-service smoke tests pass: mysql SELECT 1, redis PING, postgres pg_isready, ssh nc :2223, minio /minio/health/live, docker-socket-proxy /version, mailhog nc :1025 and :8025.",
+    "MinIO bucket devpilot-test created via the `seed` profile one-shot minio-mc service.",
+    "node scripts/devpilot-docker-staging.mjs run exits 0; summary JSON status=passed; matrix lists all 13 entries; observability contains minioStatus=200 and dockerProxyStatus=200; localResources block contains resourceTypeIds, poolIds, serverId, credentialId.",
+    "apps/devpilot-api/.env.example documents SMTP_HOST, SMTP_PORT, MAIL_FROM, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET (all commented).",
+    "docs/devpilot/demo-runbook.md and docs/devpilot/resource-request-minimum-loop.md mention resource-mysql, ssh-server, minio, docker-socket-proxy, mailhog."
+  ],
+  "verification": {
+    "command": "docker compose -f docker-compose.devpilot-staging.yml config > /dev/null && docker compose -f docker-compose.devpilot-staging.yml up -d --wait && node scripts/devpilot-docker-staging.mjs run",
+    "expected_status": "passed",
+    "log_dir": "/tmp/codex-tool-runs/svton/local-docker-resources-s031/",
+    "evidence": [
+      "/tmp/codex-tool-runs/svton/local-docker-resources-s031/existing-compose-config.txt (investigation phase baseline)",
+      "/tmp/codex-tool-runs/svton/local-docker-resources-s031/run.log (full staging run output)",
+      "summary JSON produced by devpilot-docker-staging.mjs (path printed on stdout)"
+    ]
+  },
+  "sequencing": [
+    {"step": 1, "action": "Edit docker-compose.devpilot-staging.yml: rename mysql->api-mysql, redis->api-redis; add resource mysql/redis, postgres, ssh-server, minio, docker-socket-proxy, mailhog; add volumes block.", "depends_on": []},
+    {"step": 2, "action": "Validate with `docker compose config`.", "depends_on": [1]},
+    {"step": 3, "action": "`docker compose up -d --wait`; verify all healthy.", "depends_on": [2]},
+    {"step": 4, "action": "Run per-service smoke tests (AC-3).", "depends_on": [3]},
+    {"step": 5, "action": "Edit scripts/devpilot-docker-staging.mjs: matrix, startApi env, seedLocalResources, observability.", "depends_on": [3]},
+    {"step": 6, "action": "Run minio-mc seed profile to create bucket.", "depends_on": [3]},
+    {"step": 7, "action": "Run node scripts/devpilot-docker-staging.mjs run end-to-end.", "depends_on": [5, 6]},
+    {"step": 8, "action": "Update apps/devpilot-api/.env.example and the two docs.", "depends_on": []}
+  ],
+  "references": {
+    "investigation": "docs/todos/2026-07-21-local-docker-resources-investigation.md",
+    "plan": "docs/todos/2026-07-21-local-docker-resources-plan.md",
+    "goal": ".agent-board/goals/G004.json",
+    "baseline_compose": "docker-compose.devpilot-staging.yml",
+    "baseline_runner": "scripts/devpilot-docker-staging.mjs"
+  },
+  "risks": [
+    "lscr.io/linuxserver/openssh-server image pull may be rate-limited; mitigation: alternative ghcr.io/linuxserver/openssh-server tag, or fall back to server_agent transport.",
+    "docker-socket-proxy requires host /var/run/docker.sock; mitigation: healthcheck fails fast and seed runner records a warning, not a hard failure.",
+    "Renaming mysql service may collide with hardcoded references; mitigation: investigation doc §7.2 locks the resource pool mysql to the legacy container name devpilot-g003-mysql so backup.service.ts:504-563 and command policy regex (devpilot-docker-staging.mjs:152-154) keep matching."
+  ]
+}

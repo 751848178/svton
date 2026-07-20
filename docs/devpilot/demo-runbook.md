@@ -347,8 +347,15 @@ evidence only; do not present it as real cloud or production validation.
 
 | Target | Local default | Validation role |
 | --- | --- | --- |
-| MySQL | `devpilot-g003-mysql` on `127.0.0.1:3320` | Disposable Devpilot database plus backup resource target. |
-| Redis | `devpilot-g003-redis` on `127.0.0.1:6384` | Disposable API cache/queue dependency. |
+| API MySQL | `devpilot-g003-api-mysql` on `127.0.0.1:3320` | Disposable Devpilot database. |
+| API Redis | `devpilot-g003-api-redis` on `127.0.0.1:6384` | Disposable API cache/queue dependency. |
+| resource-mysql | `devpilot-g003-mysql` on `127.0.0.1:3321` (db `devpilot_resource_pool`) | Resource pool provisioning target plus `backup.service.ts` `docker exec` source (container name preserved on purpose). |
+| resource-redis | `devpilot-g003-redis` on `127.0.0.1:6385` | Redis pool allocation target plus `docker cp` redis dump source. |
+| postgres | `devpilot-g003-resource-postgres` on `127.0.0.1:5433` | PostgreSQL manual delivery endpoint for the `postgresql` default resource type. |
+| ssh-server | `devpilot-g003-ssh-server` on `127.0.0.1:2223` (`devpilot`/`devpilot`) | Exercises the `ssh` transport for `server-executor` instead of forcing `server_agent`. |
+| minio | `devpilot-g003-minio` S3 on `127.0.0.1:9100`, console on `127.0.0.1:9101` | S3-compatible endpoint standing in for `tencent-cos` / `qiniu` object storage flows. |
+| docker-socket-proxy | `devpilot-g003-docker-socket-proxy` on `127.0.0.1:2376` | Read-only docker daemon target for `resource-control` dockerode inventory (`dockerApiHost`). |
+| mailhog | `devpilot-g003-mailhog` SMTP on `127.0.0.1:1025`, UI on `127.0.0.1:8025` | SMTP sink for `SMTP_HOST`/`SMTP_PORT`/`MAIL_FROM` notification delivery config. |
 | virtual nginx/app | `devpilot-g003-virtual-nginx` on `http://127.0.0.1:18098` | Live deploy, smoke, rollback, and task-pull command target. |
 | fake provider | `devpilot-g003-fake-provider` on `http://127.0.0.1:19091` | Resource provisioning callback that returns redacted delivery evidence. |
 | backup/restore | `devpilot-g003-backup-target` plus Devpilot backup/restore jobs | Backup dry-run and restore dry-run command-policy validation. |
@@ -381,6 +388,45 @@ The runner writes full logs and `summary.json` under
 local matrix, resource request approval/provisioning, live deploy task-pull,
 backup dry-run, restore dry-run, rollback task-pull, log stream, monitoring,
 and audit endpoints. It does not clear real provider or production signoff.
+
+### Disposable staging rehearsal with local Docker resources
+
+The `run` command additionally brings up the local resource tier described in
+the matrix above and seeds the rows that let the API exercise the wider flow
+without real cloud credentials:
+
+- `ResourceType` rows `local-mysql-pool`, `local-redis-pool`, `local-postgres`,
+  `local-object-storage`, `local-ssh-server` (created by the runner — the
+  defaults in `resource-type-defaults.constants.ts` are intentionally left
+  untouched).
+- `ResourcePool` rows for `mysql` and `redis` pointing at `resource-mysql:3306`
+  and `resource-redis:6379` so pool provisioning (`resource-pool-provisioning.service.ts`)
+  returns a real host/port/database delivery object.
+- `Server` row with `tags: { dockerApiHost: 'tcp://docker-socket-proxy:2375' }`
+  so `docker-inventory-executor.factory.ts` selects the dockerode inventory
+  path; the live `mysql`/`redis`/`postgres`/`ssh-server`/`minio` containers
+  become discoverable as `ManagedResource` rows.
+- `TeamCredential` row carrying the MinIO S3-compatible shape so the
+  `tencent-cos` / `qiniu` object-storage code paths have a local target.
+- `SMTP_HOST`/`SMTP_PORT`/`MAIL_FROM` set to `127.0.0.1`/`1025`/`devpilot@staging.local`
+  so `monitoring-notification-delivery-config.service.ts` validates against
+  Mailhog.
+
+The MinIO bucket `devpilot-test` is created by a one-shot profile service:
+
+```bash
+docker compose -f docker-compose.devpilot-staging.yml --profile seed run --rm minio-mc
+```
+
+After it runs, the bucket is visible in the MinIO console at
+`http://127.0.0.1:9101` (login `minio` / `minio12345`).
+
+The full summary JSON contains a `localResources` block with the seeded
+`resourceTypeIds`, `poolIds`, `serverId`, and `credentialId`, and the
+`observability` block contains `minioStatus` and `dockerProxyStatus` (both
+expected to be `200` on a healthy stack). A non-200 `dockerProxyStatus`
+indicates the host has no `/var/run/docker.sock` and is treated as a warning,
+not a hard failure.
 
 ## Evidence To Capture
 

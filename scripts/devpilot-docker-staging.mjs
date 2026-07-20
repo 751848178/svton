@@ -29,7 +29,7 @@ async function run() {
   const evidence = { status: "running", runDir, apiUrl, matrix: matrix() };
   try {
     await compose(["up", "-d", "--remove-orphans"]);
-    await runLog("reset-db", "docker", ["compose", "-f", composeFile, "exec", "-T", "mysql", "sh", "-lc", "until mysqladmin ping -h 127.0.0.1 -uroot -ppassword --silent; do sleep 1; done; mysql -uroot -ppassword -e 'DROP DATABASE IF EXISTS devpilot_g003_staging; CREATE DATABASE devpilot_g003_staging;'"]);
+    await runLog("reset-db", "docker", ["compose", "-f", composeFile, "exec", "-T", "api-mysql", "sh", "-lc", "until mysqladmin ping -h 127.0.0.1 -uroot -ppassword --silent; do sleep 1; done; mysql -uroot -ppassword -e 'DROP DATABASE IF EXISTS devpilot_g003_staging; CREATE DATABASE devpilot_g003_staging;'"]);
     await runLog("prisma-generate", "corepack", ["pnpm", "--filter", "@svton/devpilot-api", "exec", "prisma", "generate"], { DATABASE_URL: dbUrl });
     await runLog("prisma-migrate", "corepack", ["pnpm", "--filter", "@svton/devpilot-api", "exec", "prisma", "migrate", "deploy"], { DATABASE_URL: dbUrl });
     api = startApi();
@@ -37,6 +37,8 @@ async function run() {
     const auth = await createIdentity();
     const seeded = await seedStagingRecords(auth);
     evidence.ids = { ...auth, ...seeded };
+    await runLog("minio-mb", "docker", ["compose", "-f", composeFile, "--profile", "seed", "run", "--rm", "minio-mc"]);
+    evidence.localResources = await seedLocalResources(auth, seeded);
     evidence.resourceRequest = await resourceRequestFlow(auth, seeded);
     evidence.commandPolicy = await commandPolicyFlow(auth, seeded);
     evidence.deployment = await deploymentFlow(auth, seeded);
@@ -59,8 +61,15 @@ async function run() {
 }
 
 function matrix() { return {
-    mysql: "docker compose service mysql on 127.0.0.1:3320, disposable DB devpilot_g003_staging",
-    redis: "docker compose service redis on 127.0.0.1:6384",
+    apiMysql: "docker compose service api-mysql on 127.0.0.1:3320, disposable DB devpilot_g003_staging",
+    apiRedis: "docker compose service api-redis on 127.0.0.1:6384",
+    resourceMysql: "docker compose service mysql on 127.0.0.1:3321 (resource pool)",
+    resourceRedis: "docker compose service redis on 127.0.0.1:6385 (resource pool)",
+    resourcePostgres: "docker compose service postgres on 127.0.0.1:5433",
+    sshServer: "ssh-server on 127.0.0.1:2223 (devpilot/devpilot) for ssh transport",
+    minio: "MinIO S3 on 127.0.0.1:9100 (console :9101), bucket devpilot-test",
+    dockerSocketProxy: "docker-socket-proxy on 127.0.0.1:2376 (read-only host daemon)",
+    mailhog: "Mailhog SMTP on 127.0.0.1:1025, UI :8025",
     virtualTarget: `nginx target on ${nginxUrl}, never production traffic`,
     fakeProvider: `HTTP fake-provider on ${providerUrl} for resource provisioning`,
     backupRestore: "backup-target container plus Devpilot backup/restore dry-run jobs",
@@ -95,6 +104,9 @@ function startApi() {
     SERVER_EXECUTOR_AGENT_TASK_PULL_TOKEN: taskToken,
     SERVER_EXECUTOR_AGENT_HEARTBEAT_ENABLED: "true",
     SERVER_EXECUTOR_AGENT_HEARTBEAT_TOKEN: heartbeatToken,
+    SMTP_HOST: "127.0.0.1",
+    SMTP_PORT: "1025",
+    MAIL_FROM: "devpilot@staging.local",
   };
   const child = spawn("corepack", ["pnpm", "--filter", "@svton/devpilot-api", "dev"], { cwd: root, env });
   child.stdout.pipe(apiLog);
@@ -131,11 +143,79 @@ async function seedStagingRecords(auth) {
     const env = await prisma.projectEnvironment.create({ data: { teamId: auth.teamId, projectId: project.id, key: "staging", name: "Docker staging", config: { disposable: true } } });
     const server = await prisma.server.create({ data: { teamId: auth.teamId, createdById: auth.userId, name: "devpilot-g003-virtual-nginx", host: "127.0.0.1", port: 22, username: "staging", authType: "password", credentials: "redacted", status: "online", tags: ["server-agent"], services: agentServices } });
     await prisma.projectEnvironmentServer.create({ data: { teamId: auth.teamId, projectId: project.id, environmentId: env.id, serverId: server.id, role: "staging-target" } });
-    const resource = await prisma.managedResource.create({ data: { teamId: auth.teamId, createdById: auth.userId, serverId: server.id, projectId: project.id, environmentId: env.id, sourceType: "server", provider: "docker", kind: "mysql", name: "devpilot-g003-mysql", externalId: "devpilot-g003-mysql", status: "running", endpoint: "mysql://127.0.0.1:3320/devpilot_g003_staging", config: { containerName: "devpilot-g003-mysql" }, metadata: { disposable: true } } });
+    // The legacy `devpilot-g003-mysql` container name now belongs to the
+    // resource pool mysql (post-rename in docker-compose.devpilot-staging.yml).
+    // Pointing this row at it keeps the backup command-policy regex
+    // (commandPolicyFlow below) and `backup.service.ts` hard-coded container
+    // name working unchanged.
+    const resource = await prisma.managedResource.create({ data: { teamId: auth.teamId, createdById: auth.userId, serverId: server.id, projectId: project.id, environmentId: env.id, sourceType: "server", provider: "docker", kind: "mysql", name: "devpilot-g003-mysql", externalId: "devpilot-g003-mysql", status: "running", endpoint: "mysql://127.0.0.1:3321/devpilot_resource_pool", config: { containerName: "devpilot-g003-mysql" }, metadata: { disposable: true } } });
     const app = await prisma.application.create({ data: { teamId: auth.teamId, projectId: project.id, createdById: auth.userId, name: "docker-staging-app", status: "active", config: {} } });
     const service = await prisma.applicationService.create({ data: { teamId: auth.teamId, projectId: project.id, applicationId: app.id, environmentId: env.id, serverId: server.id, managedResourceId: resource.id, name: "virtual-nginx", deployConfig: { targetType: "server", workingDirectory: "/tmp/devpilot-g003-agent-work", deployCommand: `curl -fsS ${nginxUrl}`, rollbackCommand: `curl -fsS ${nginxUrl}`, healthCheckUrl: nginxUrl } } });
     const type = await prisma.resourceType.create({ data: { key: `g003-docker-mysql-${stamp}`, name: "G003 Docker MySQL", approvalMode: "manual", provisioningMode: "api", provisioningConfig: { url: `${providerUrl}/provision`, method: "POST" }, deliverySchema: { credentialFields: ["password"] }, createdById: auth.userId } });
     return { projectId: project.id, environmentId: env.id, serverId: server.id, resourceId: resource.id, applicationId: app.id, serviceId: service.id, resourceTypeId: type.id };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+// Seeds the local Docker resource tier (Tier A) into the staging DB. Follows
+// the existing raw-Prisma pattern of seedStagingRecords: credentials /
+// adminConfig columns get a "redacted" placeholder instead of going through
+// the API's CryptoService, matching the existing convention at :132,134.
+async function seedLocalResources(auth, ids) {
+  const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } });
+  try {
+    // ResourceType rows for the new local backings. Defaults in
+    // resource-type-defaults.constants.ts are intentionally left untouched.
+    const typeSpecs = [
+      { key: `local-mysql-pool-${stamp}`, name: "Local MySQL Pool", category: "database", provisioningMode: "pool", provisioningConfig: { poolKey: "local-mysql" } },
+      { key: `local-redis-pool-${stamp}`, name: "Local Redis Pool", category: "cache", provisioningMode: "pool", provisioningConfig: { poolKey: "local-redis" } },
+      { key: `local-postgres-${stamp}`, name: "Local PostgreSQL", category: "database", provisioningMode: "manual" },
+      { key: `local-object-storage-${stamp}`, name: "Local Object Storage (MinIO)", category: "storage", provisioningMode: "manual" },
+      { key: `local-ssh-server-${stamp}`, name: "Local SSH Server", category: "compute", provisioningMode: "manual" },
+    ];
+    const resourceTypes = [];
+    for (const spec of typeSpecs) {
+      resourceTypes.push(await prisma.resourceType.create({ data: { key: spec.key, name: spec.name, category: spec.category, approvalMode: "manual", provisioningMode: spec.provisioningMode, provisioningConfig: spec.provisioningConfig ?? {}, deliverySchema: {}, createdById: auth.userId } }));
+    }
+
+    // ResourcePool rows pointing at the resource containers. adminConfig is a
+    // placeholder string matching the existing seed pattern (real runs encrypt
+    // this server-side via POST /resource-pools).
+    const mysqlPool = await prisma.resourcePool.create({ data: { type: "mysql", name: "Local MySQL Pool", endpoint: "mysql://resource-mysql:3306", adminConfig: "redacted", capacity: 10, allocated: 0, status: "active" } });
+    const redisPool = await prisma.resourcePool.create({ data: { type: "redis", name: "Local Redis Pool", endpoint: "redis://resource-redis:6379", adminConfig: "redacted", capacity: 15, allocated: 0, status: "active" } });
+
+    // Server row carrying the dockerApiHost tag so
+    // docker-inventory-executor.factory.ts picks the dockerode inventory path.
+    const dockerHost = await prisma.server.create({ data: { teamId: auth.teamId, createdById: auth.userId, name: "devpilot-g003-docker-host", host: "docker-socket-proxy", port: 2375, username: "", authType: "password", credentials: "redacted", status: "online", tags: ["local-docker"], services: { dockerApiHost: "tcp://docker-socket-proxy:2375" } } });
+
+    // TeamCredential row carrying the MinIO S3-compatible shape. The `config`
+    // column is encrypted in production via POST /team-credentials; here we use
+    // a placeholder to match the existing raw-Prisma pattern.
+    const minioCred = await prisma.teamCredential.create({ data: { teamId: auth.teamId, type: "object-storage", name: "Local MinIO (S3)", config: "redacted" } });
+
+    // ManagedResource rows mirroring the live containers so the resource-control
+    // inventory has known targets to list/metric/probe. Skip the resource-mysql
+    // container here because seedStagingRecords already creates a row for
+    // `devpilot-g003-mysql` (the backup flow depends on that exact externalId).
+    const mrSpecs = [
+      { kind: "redis", name: "devpilot-g003-redis", endpoint: "redis://resource-redis:6379" },
+      { kind: "database", name: "devpilot-g003-resource-postgres", endpoint: "postgres://resource-postgres:5432" },
+      { kind: "docker_container", name: "devpilot-g003-ssh-server", endpoint: "ssh://ssh-server:2222" },
+      { kind: "object_storage", name: "devpilot-g003-minio", endpoint: "http://minio:9000" },
+    ];
+    const managed = [];
+    for (const spec of mrSpecs) {
+      managed.push(await prisma.managedResource.create({ data: { teamId: auth.teamId, createdById: auth.userId, serverId: dockerHost.id, projectId: ids.projectId, environmentId: ids.environmentId, sourceType: "server", provider: "docker", kind: spec.kind, name: spec.name, externalId: spec.name, status: "running", endpoint: spec.endpoint, credentialId: spec.kind === "object_storage" ? minioCred.id : null, config: { containerName: spec.name }, metadata: { syncMode: "seeded_local" } } }));
+    }
+
+    return {
+      resourceTypeIds: resourceTypes.map((t) => t.id),
+      poolIds: [mysqlPool.id, redisPool.id],
+      serverId: dockerHost.id,
+      credentialId: minioCred.id,
+      managedResourceIds: managed.map((m) => m.id),
+    };
   } finally {
     await prisma.$disconnect();
   }
@@ -187,11 +267,13 @@ async function rollbackFlow(auth, ids, runId) {
 }
 
 async function observability(auth) {
-  const [jobs, logs, monitoring, audits] = await Promise.all([
+  const [jobs, logs, monitoring, audits, minioRes, dockerProxyRes] = await Promise.all([
     api("GET", "/server-execution-jobs", { auth }),
     api("GET", "/logs/streams", { auth }),
     api("GET", "/monitoring/service-slo/dashboard", { auth }),
     api("GET", "/audit-events", { auth }),
+    fetch("http://127.0.0.1:9100/minio/health/live").then((r) => r.status).catch(() => "error"),
+    fetch("http://127.0.0.1:2376/version").then((r) => r.status).catch(() => "error"),
   ]);
-  return { jobs: unwrap(jobs).length ?? 0, logsStatus: logs.status, monitoringStatus: monitoring.status, auditEvents: unwrap(audits).length ?? 0 };
+  return { jobs: unwrap(jobs).length ?? 0, logsStatus: logs.status, monitoringStatus: monitoring.status, auditEvents: unwrap(audits).length ?? 0, minioStatus: minioRes, dockerProxyStatus: dockerProxyRes };
 }
