@@ -3,9 +3,14 @@ name: devpilot-g003-staging
 services:
   # ---------- API's own infrastructure (renamed: was mysql/redis) ----------
   # Renamed so the new resource/pool mysql can take the legacy `mysql` service
-  # name and `devpilot-g003-mysql` container name — this keeps the backup
-  # command regex (scripts/devpilot-docker-staging.mjs:152-154) and
-  # backup.service.ts:504-563 container-name references unchanged.
+  # name and `devpilot-g003-mysql` container name. The real reason the name
+  # matters is the staging script's commandPolicyFlow regex (which matches
+  # `devpilot-g003-mysql` for the `docker cp` / `docker exec` patterns) and
+  # `backup.service.ts`'s `safeDockerName` fallback that derives a name from
+  # `resource.name` when no config is set.
+  # All staging published ports bind to 127.0.0.1 only so the unauthenticated
+  # services (mysql, minio, mailhog, ssh, the docker proxy) are not reachable
+  # from the LAN during a `pnpm dev` session.
   api-mysql:
     image: mysql:8.0
     container_name: devpilot-g003-api-mysql
@@ -13,7 +18,7 @@ services:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: devpilot_g003_staging
     ports:
-      - "${DEVPILOT_STAGING_MYSQL_PORT:-3320}:3306"
+      - "127.0.0.1:${DEVPILOT_STAGING_MYSQL_PORT:-3320}:3306"
     volumes:
       - devpilot-g003-api-mysql-data:/var/lib/mysql
     healthcheck:
@@ -26,7 +31,7 @@ services:
     image: redis:7-alpine
     container_name: devpilot-g003-api-redis
     ports:
-      - "${DEVPILOT_STAGING_REDIS_PORT:-6384}:6379"
+      - "127.0.0.1:${DEVPILOT_STAGING_REDIS_PORT:-6384}:6379"
     volumes:
       - devpilot-g003-api-redis-data:/data
     healthcheck:
@@ -43,7 +48,7 @@ services:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: devpilot_resource_pool
     ports:
-      - "${DEVPILOT_STAGING_RESOURCE_MYSQL_PORT:-3321}:3306"
+      - "127.0.0.1:${DEVPILOT_STAGING_RESOURCE_MYSQL_PORT:-3321}:3306"
     volumes:
       - devpilot-g003-mysql-data:/var/lib/mysql
     healthcheck:
@@ -56,7 +61,7 @@ services:
     image: redis:7-alpine
     container_name: devpilot-g003-redis
     ports:
-      - "${DEVPILOT_STAGING_RESOURCE_REDIS_PORT:-6385}:6379"
+      - "127.0.0.1:${DEVPILOT_STAGING_RESOURCE_REDIS_PORT:-6385}:6379"
     volumes:
       - devpilot-g003-redis-data:/data
     healthcheck:
@@ -72,7 +77,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: devpilot_resource_pool
     ports:
-      - "${DEVPILOT_STAGING_RESOURCE_POSTGRES_PORT:-5433}:5432"
+      - "127.0.0.1:${DEVPILOT_STAGING_RESOURCE_POSTGRES_PORT:-5433}:5432"
     volumes:
       - devpilot-g003-resource-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -92,7 +97,7 @@ services:
       PUID: "1000"
       PGID: "1000"
     ports:
-      - "${DEVPILOT_STAGING_SSH_PORT:-2223}:2222"
+      - "127.0.0.1:${DEVPILOT_STAGING_SSH_PORT:-2223}:2222"
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 2222 || exit 1"]
       interval: 5s
@@ -108,8 +113,8 @@ services:
       MINIO_ROOT_PASSWORD: minio12345
       MINIO_BROWSER: "on"
     ports:
-      - "${DEVPILOT_STAGING_MINIO_PORT:-9100}:9000"
-      - "${DEVPILOT_STAGING_MINIO_CONSOLE_PORT:-9101}:9001"
+      - "127.0.0.1:${DEVPILOT_STAGING_MINIO_PORT:-9100}:9000"
+      - "127.0.0.1:${DEVPILOT_STAGING_MINIO_CONSOLE_PORT:-9101}:9001"
     volumes:
       - devpilot-g003-minio-data:/data
     healthcheck:
@@ -131,20 +136,24 @@ services:
   docker-socket-proxy:
     image: tecnativa/docker-socket-proxy:0.3.0
     container_name: devpilot-g003-docker-socket-proxy
+    # Read-only docker daemon proxy. Only GET endpoints are unlocked below:
+    # the only dockerode call site is `listContainers` (GET /containers/json)
+    # in apps/devpilot-api/src/resource-control/inventory/executors/docker-api-inventory-executor.ts.
+    # Do NOT re-add POST=1 / EXEC=1 unless a future slice adds a dockerode
+    # `.exec()` / `.createContainer()` call site — there are none today
+    # (the original "exec probes need POST" rationale was false).
     environment:
-      CONTAINERS: "1"
-      INFO: "1"
-      IMAGES: "1"
-      EXEC: "1"
-      VERSION: "1"
-      NETWORKS: "1"
-      VOLUMES: "1"
-      POST: "1"            # needed for `docker exec` inventory probes
+      CONTAINERS: "1"      # GET /containers/json — listContainers
+      IMAGES: "1"          # GET /images/json   — future image inventory
+      INFO: "1"            # GET /info
+      VERSION: "1"         # GET /version (healthcheck + observability() smoke)
     ports:
-      - "${DEVPILOT_STAGING_DOCKER_PROXY_PORT:-2376}:2375"
+      - "127.0.0.1:${DEVPILOT_STAGING_DOCKER_PROXY_PORT:-2376}:2375"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
+      # tecnativa/docker-socket-proxy:0.3.0 is alpine-based and ships busybox
+      # wget but not curl, so the healthcheck must use wget.
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:2375/version >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
@@ -156,8 +165,8 @@ services:
     environment:
       MH_STORAGE: memory
     ports:
-      - "${DEVPILOT_STAGING_SMTP_PORT:-1025}:1025"
-      - "${DEVPILOT_STAGING_MAILHOG_HTTP_PORT:-8025}:8025"
+      - "127.0.0.1:${DEVPILOT_STAGING_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${DEVPILOT_STAGING_MAILHOG_HTTP_PORT:-8025}:8025"
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 8025 || exit 1"]
       interval: 10s
@@ -169,7 +178,7 @@ services:
     image: nginx:alpine
     container_name: devpilot-g003-virtual-nginx
     ports:
-      - "${DEVPILOT_STAGING_NGINX_PORT:-18098}:80"
+      - "127.0.0.1:${DEVPILOT_STAGING_NGINX_PORT:-18098}:80"
 
   backup-target:
     image: alpine:3.20
@@ -180,7 +189,7 @@ services:
     image: node:20-alpine
     container_name: devpilot-g003-fake-provider
     ports:
-      - "${DEVPILOT_STAGING_FAKE_PROVIDER_PORT:-19091}:19091"
+      - "127.0.0.1:${DEVPILOT_STAGING_FAKE_PROVIDER_PORT:-19091}:19091"
     command:
       - node
       - -e

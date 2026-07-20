@@ -74,28 +74,41 @@ When rehearsing against the disposable Docker stack in
 flow gaps without claiming real cloud validation. Each item is wired in by
 `node scripts/devpilot-docker-staging.mjs run`:
 
-- **Pool provisioning** — `resource-mysql` (`127.0.0.1:3321`) and
-  `resource-redis` (`127.0.0.1:6385`) back the seeded `ResourcePool` rows so
-  `resource-pool-provisioning.service.ts` returns a real host/port/database
-  delivery object for the `local-mysql-pool` and `local-redis-pool` resource
-  types. Allocation runs `CREATE DATABASE`/`CREATE USER` against this container,
-  never against the API's own mysql.
+- **Pool provisioning** — `127.0.0.1:3321` (mysql) and `127.0.0.1:6385` (redis)
+  back the seeded `ResourcePool` rows; `endpoint` is `mysql://127.0.0.1:3321/devpilot_resource_pool`
+  and `redis://127.0.0.1:6385` (host-reachable because the API runs via
+  `pnpm dev`, not inside compose), and `adminConfig` is encrypted with the
+  API's CBC default key so `resource-pool-provisioning.service.ts` decrypts and
+  returns a real host/port/database delivery object for the `local-mysql-pool`
+  and `local-redis-pool` resource types. The provisioning service returns
+  allocation credentials (random password + generated db/user names); it does
+  not itself run DDL — the operator (or a downstream cloud adapter) does.
 - **SSH transport** — `ssh-server` on `127.0.0.1:2223` (`devpilot`/`devpilot`)
   lets `script-plan` and `ssh-live` adapters run end-to-end instead of forcing
   the `server_agent` task-pull transport.
 - **Object storage** — MinIO S3 endpoint on `127.0.0.1:9100` (bucket
   `devpilot-test`, seeded via the `--profile seed minio-mc` one-shot) stands in
   for `tencent-cos` / `qiniu` object storage; the seeded `TeamCredential` row
-  carries the S3-compatible shape.
+  carries the S3-compatible shape, encrypted with the API's GCM default key so
+  `cloud-provider-inventory.service.ts` can decrypt it. The live S3 inventory
+  path additionally requires `RESOURCE_CONTROL_CLOUD_INVENTORY_LIVE_ENABLED=true`
+  AND a provider-specific adapter (`tencent-cos` / `aliyun-rds` / `aliyun-sls`);
+  there is no `s3` adapter, so the seeded MinIO credential is decryptable but
+  the dispatcher falls back to stub mode. By default the cloud inventory runs
+  in stub mode and the runner does not set the flag.
 - **PostgreSQL** — `postgres` on `127.0.0.1:5433` backs the seeded
   `local-postgres` resource type so the `postgresql` default has a real
   endpoint.
-- **Docker inventory** — `docker-socket-proxy` on `127.0.0.1:2376` exposes the
-  host docker daemon read-only; the seeded `Server` row with
-  `tags: { dockerApiHost: 'tcp://docker-socket-proxy:2375' }` makes
-  `docker-inventory-executor.factory.ts` pick the dockerode path. If the host
-  has no `/var/run/docker.sock`, the proxy healthcheck fails fast and the
-  runner records `dockerProxyStatus != 200` as a warning.
+- **Docker inventory** — `docker-socket-proxy` on `127.0.0.1:2376` exposes
+  the host docker daemon via GET-only endpoints (POST/EXEC disabled — see
+  `docker-compose.devpilot-staging.yml` env block on `docker-socket-proxy`).
+  The seeded `Server` row's `services.dockerApiHost = 'tcp://127.0.0.1:2376'`
+  (host-reachable — the API runs on the host) makes
+  `docker-inventory-executor.factory.ts` pick the dockerode path; the factory
+  hard-codes `port: 2376`, so only the hostname matters. If the host has no
+  `/var/run/docker.sock`, the proxy healthcheck fails fast and the runner
+  records `dockerProxyStatus != 200` as a warning. All published staging
+  ports bind to `127.0.0.1` so the stack is unreachable from the LAN.
 - **Notification delivery** — `mailhog` on `127.0.0.1:1025` (UI `:8025`) sinks
   SMTP for the `SMTP_HOST`/`SMTP_PORT`/`MAIL_FROM` envs consumed by
   `monitoring-notification-delivery-config.service.ts`.

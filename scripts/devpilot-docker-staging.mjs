@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from "node:child_process";
+import * as crypto from "node:crypto";
 import { mkdirSync, writeFileSync, createWriteStream } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -18,6 +19,33 @@ const heartbeatToken = process.env.DEVPILOT_AGENT_HEARTBEAT_TOKEN || "devpilot-g
 const nginxUrl = `http://127.0.0.1:${process.env.DEVPILOT_STAGING_NGINX_PORT || "18098"}`, providerUrl = `http://127.0.0.1:${process.env.DEVPILOT_STAGING_FAKE_PROVIDER_PORT || "19091"}`;
 const api = createApi(apiUrl);
 mkdirSync(runDir, { recursive: true });
+
+// Local copy of the API's CryptoService KDF + seal logic, kept in sync with
+// apps/devpilot-api/src/common/crypto/{crypto.constants,crypto.service}.ts.
+// Used only so the raw-Prisma seed can write ciphertext the API can decrypt
+// with its ENCRYPTION_KEY default — matches what POST /resource-pools and
+// POST /team-credentials would produce server-side. If the API's KDF or
+// default key changes, update this in lockstep. Declared at top level
+// (before `run()` is dispatched) so the consts are initialized by the time
+// seedLocalResources reads them.
+const SEED_ENCRYPTION_KEY = "default-32-char-encryption-key!";
+const seedCbcKey = crypto.scryptSync(SEED_ENCRYPTION_KEY, "cbc-salt", 32);
+const seedGcmKey = crypto.scryptSync(SEED_ENCRYPTION_KEY, "salt", 32);
+function encryptCbcForSeed(plainText) {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv("aes-256-cbc", seedCbcKey, iv);
+  let enc = cipher.update(plainText, "utf8", "hex");
+  enc += cipher.final("hex");
+  return `${iv.toString("hex")}:${enc}`;
+}
+function encryptGcmForSeed(plainText) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", seedGcmKey, iv);
+  let enc = cipher.update(plainText, "utf8", "hex");
+  enc += cipher.final("hex");
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("hex")}:${tag.toString("hex")}:${enc}`;
+}
 
 const command = process.argv[2] || "run";
 if (command === "up") await compose(["up", "-d", "--remove-orphans"]);
@@ -68,7 +96,7 @@ function matrix() { return {
     resourcePostgres: "docker compose service postgres on 127.0.0.1:5433",
     sshServer: "ssh-server on 127.0.0.1:2223 (devpilot/devpilot) for ssh transport",
     minio: "MinIO S3 on 127.0.0.1:9100 (console :9101), bucket devpilot-test",
-    dockerSocketProxy: "docker-socket-proxy on 127.0.0.1:2376 (read-only host daemon)",
+    dockerSocketProxy: "docker-socket-proxy on 127.0.0.1:2376 (GET-only docker daemon proxy; no POST/EXEC)",
     mailhog: "Mailhog SMTP on 127.0.0.1:1025, UI :8025",
     virtualTarget: `nginx target on ${nginxUrl}, never production traffic`,
     fakeProvider: `HTTP fake-provider on ${providerUrl} for resource provisioning`,
@@ -96,6 +124,12 @@ function startApi() {
     REDIS_PORT: "6384",
     REDIS_PASSWORD: "",
     JWT_SECRET: "devpilot-g003-jwt",
+    // Pin ENCRYPTION_KEY to the API default (env.schema.ts:33 makes it
+    // optional; CryptoService falls back to CBC_DEFAULT_KEY /
+    // GCM_DEFAULT_KEY when unset). Pinning it here keeps the runner's
+    // seed-side encryption and the API's runtime decryption on the same
+    // key even if a future slice changes the default or sets the env.
+    ENCRYPTION_KEY: "default-32-char-encryption-key!",
     RESOURCE_PROVISIONING_HTTP_ENABLED: "true",
     SERVER_EXECUTOR_LIVE_ENABLED: "true",
     SERVER_EXECUTOR_AGENT_TARGET_ENABLED: "true",
@@ -158,10 +192,12 @@ async function seedStagingRecords(auth) {
   }
 }
 
-// Seeds the local Docker resource tier (Tier A) into the staging DB. Follows
-// the existing raw-Prisma pattern of seedStagingRecords: credentials /
-// adminConfig columns get a "redacted" placeholder instead of going through
-// the API's CryptoService, matching the existing convention at :132,134.
+// Seeds the local Docker resource tier (Tier A) into the staging DB. Uses
+// raw Prisma to keep the drop-and-recreate idempotency model, but encrypts
+// adminConfig (CBC) and TeamCredential.config (GCM) with the API's default
+// ENCRYPTION_KEY so the seeded rows are consumable by
+// resource-pool-provisioning.service.ts and cloud-provider-inventory.
+// service.ts. See encryptCbcForSeed / encryptGcmForSeed above.
 async function seedLocalResources(auth, ids) {
   const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } });
   try {
@@ -179,30 +215,59 @@ async function seedLocalResources(auth, ids) {
       resourceTypes.push(await prisma.resourceType.create({ data: { key: spec.key, name: spec.name, category: spec.category, approvalMode: "manual", provisioningMode: spec.provisioningMode, provisioningConfig: spec.provisioningConfig ?? {}, deliverySchema: {}, createdById: auth.userId } }));
     }
 
-    // ResourcePool rows pointing at the resource containers. adminConfig is a
-    // placeholder string matching the existing seed pattern (real runs encrypt
-    // this server-side via POST /resource-pools).
-    const mysqlPool = await prisma.resourcePool.create({ data: { type: "mysql", name: "Local MySQL Pool", endpoint: "mysql://resource-mysql:3306", adminConfig: "redacted", capacity: 10, allocated: 0, status: "active" } });
-    const redisPool = await prisma.resourcePool.create({ data: { type: "redis", name: "Local Redis Pool", endpoint: "redis://resource-redis:6379", adminConfig: "redacted", capacity: 15, allocated: 0, status: "active" } });
+    // ResourcePool rows pointing at the resource containers. endpoint is
+    // host-reachable because the API runs on the host via `pnpm dev`, not
+    // inside the compose network. Matches the seedStagingRecords mysql row
+    // at :151. adminConfig is encrypted with the API's CBC default key so
+    // resource-pool-provisioning.service.ts:30-32 can decrypt+parse it when
+    // POST /resource-pools/allocate is invoked. Plaintext shape is the
+    // minimal object read by provisionResource(): { username, password }
+    // for mysql, { password } for redis.
+    const mysqlAdminConfig = encryptCbcForSeed(JSON.stringify({ username: "root", password: "password" }));
+    const redisAdminConfig = encryptCbcForSeed(JSON.stringify({ password: "" }));
+    const mysqlPool = await prisma.resourcePool.create({ data: { type: "mysql", name: "Local MySQL Pool", endpoint: "mysql://127.0.0.1:3321/devpilot_resource_pool", adminConfig: mysqlAdminConfig, capacity: 10, allocated: 0, status: "active" } });
+    const redisPool = await prisma.resourcePool.create({ data: { type: "redis", name: "Local Redis Pool", endpoint: "redis://127.0.0.1:6385", adminConfig: redisAdminConfig, capacity: 15, allocated: 0, status: "active" } });
 
     // Server row carrying the dockerApiHost tag so
     // docker-inventory-executor.factory.ts picks the dockerode inventory path.
-    const dockerHost = await prisma.server.create({ data: { teamId: auth.teamId, createdById: auth.userId, name: "devpilot-g003-docker-host", host: "docker-socket-proxy", port: 2375, username: "", authType: "password", credentials: "redacted", status: "online", tags: ["local-docker"], services: { dockerApiHost: "tcp://docker-socket-proxy:2375" } } });
+    // host/port/dockerApiHost are all host-reachable: the API runs on the host
+    // (startApi above), so docker-socket-proxy is reachable only via the
+    // published port 127.0.0.1:2376 (compose :144). The factory at
+    // docker-inventory-executor.factory.ts:60 hard-codes port 2376 from the
+    // dockerApiHost URL's hostname, so the URL must carry a resolvable host.
+    const dockerHost = await prisma.server.create({ data: { teamId: auth.teamId, createdById: auth.userId, name: "devpilot-g003-docker-host", host: "127.0.0.1", port: 2376, username: "", authType: "password", credentials: "redacted", status: "online", tags: ["local-docker"], services: { dockerApiHost: "tcp://127.0.0.1:2376" } } });
 
-    // TeamCredential row carrying the MinIO S3-compatible shape. The `config`
-    // column is encrypted in production via POST /team-credentials; here we use
-    // a placeholder to match the existing raw-Prisma pattern.
-    const minioCred = await prisma.teamCredential.create({ data: { teamId: auth.teamId, type: "object-storage", name: "Local MinIO (S3)", config: "redacted" } });
+    // TeamCredential row carrying the MinIO S3-compatible shape, with `config`
+    // encrypted (GCM profile) under the API's default ENCRYPTION_KEY so
+    // cloud-provider-inventory.service.ts:436 (decryptGcm) and the strict
+    // cdn-config.service.ts:212 path can both parse it. Note: the live cloud
+    // inventory path also requires RESOURCE_CONTROL_CLOUD_INVENTORY_LIVE_
+    // ENABLED=true AND a provider-specific adapter (tencent-cos / aliyun-rds
+    // / aliyun-sls) — there is no `s3` adapter, so MinIO stays in stub
+    // fallback; this row is decryptable but the only asserted property is
+    // that it parses, not that it triggers live S3 calls.
+    const minioConfig = encryptGcmForSeed(JSON.stringify({
+      provider: "s3",
+      endpoint: "http://127.0.0.1:9100",
+      region: "us-east-1",
+      accessKeyId: "minio",
+      secretAccessKey: "minio12345",
+      bucket: "devpilot-test",
+    }));
+    const minioCred = await prisma.teamCredential.create({ data: { teamId: auth.teamId, type: "object-storage", name: "Local MinIO (S3)", config: minioConfig } });
 
     // ManagedResource rows mirroring the live containers so the resource-control
     // inventory has known targets to list/metric/probe. Skip the resource-mysql
     // container here because seedStagingRecords already creates a row for
     // `devpilot-g003-mysql` (the backup flow depends on that exact externalId).
+    // All endpoints are host-reachable (API runs on the host via pnpm dev).
+    // Ports match the compose host-side bindings: resource redis 6385,
+    // postgres 5433, ssh 2223, minio 9100.
     const mrSpecs = [
-      { kind: "redis", name: "devpilot-g003-redis", endpoint: "redis://resource-redis:6379" },
-      { kind: "database", name: "devpilot-g003-resource-postgres", endpoint: "postgres://resource-postgres:5432" },
-      { kind: "docker_container", name: "devpilot-g003-ssh-server", endpoint: "ssh://ssh-server:2222" },
-      { kind: "object_storage", name: "devpilot-g003-minio", endpoint: "http://minio:9000" },
+      { kind: "redis", name: "devpilot-g003-redis", endpoint: "redis://127.0.0.1:6385" },
+      { kind: "database", name: "devpilot-g003-resource-postgres", endpoint: "postgres://127.0.0.1:5433/devpilot_resource_pool" },
+      { kind: "docker_container", name: "devpilot-g003-ssh-server", endpoint: "ssh://127.0.0.1:2223" },
+      { kind: "object_storage", name: "devpilot-g003-minio", endpoint: "http://127.0.0.1:9100" },
     ];
     const managed = [];
     for (const spec of mrSpecs) {

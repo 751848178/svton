@@ -222,9 +222,12 @@ volumes:
 
 Notes for impl:
 - The compose file currently has NO `volumes:` top-level block; adding one is required.
-- `POST: "1"` on docker-socket-proxy is required because dockerode's `listContainers` is GET but
-  `exec`-based probes (used by `docker-api-inventory-executor.ts`) need POST. Keep it scoped via
-  the proxy.
+- ~~`POST: "1"` on docker-socket-proxy is required because dockerode's `listContainers` is GET
+  but `exec`-based probes (used by `docker-api-inventory-executor.ts`) need POST. Keep it scoped
+  via the proxy.~~ **CORRECTION (post-CR): this rationale was false — there is no `.exec()` call
+  site in `apps/devpilot-api/src`, and the only dockerode call is `listContainers` (GET). The
+  impl dropped `POST=1` / `EXEC=1` / `NETWORKS=1` / `VOLUMES=1` from the proxy env and rewrote
+  this comment; see `docs/todos/2026-07-21-local-docker-resources-fix-major1.md`.**
 - `docker-socket-proxy` mounts `/var/run/docker.sock` read-only — this works on Linux and macOS
   Docker Desktop. If the host has no docker socket, the service healthcheck fails fast, which is
   the desired signal.
@@ -292,6 +295,8 @@ resourcePostgres: "docker compose service postgres on 127.0.0.1:5433",
 sshServer: "ssh-server on 127.0.0.1:2223 (devpilot/devpilot) for ssh transport",
 minio: "MinIO S3 on 127.0.0.1:9100 (console :9101), bucket devpilot-test",
 dockerSocketProxy: "docker-socket-proxy on 127.0.0.1:2376 (read-only host daemon)",
+# CORRECTION (post-CR): matrix description was updated to "GET-only docker
+# daemon proxy; no POST/EXEC" in the actual script — see fix-major1.md.
 mailhog: "Mailhog SMTP on 127.0.0.1:1025, UI :8025",
 ```
 

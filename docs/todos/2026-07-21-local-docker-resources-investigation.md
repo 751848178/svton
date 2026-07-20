@@ -372,7 +372,13 @@ Each seeded via the existing `prisma.resourceType.create` pattern (see
   row and calls `ResourcePoolProvisioningService.provisionResource()`
   (`resource-pool-provisioning.service.ts:29-72`) which parses the pool endpoint and returns a
   host/port/database/username/password delivery object. Seeding `ResourcePool` rows pointing at
-  `resource-mysql:3306` and `resource-redis:6379` closes this loop.
+  `127.0.0.1:3321` (mysql) and `127.0.0.1:6385` (redis) with `adminConfig`
+  encrypted under the API's CBC default key closes this loop. (The original
+  plan §3.1 called for POSTing via `/resource-pools` so the server would
+  encrypt; the impl deviated to raw Prisma for drop-and-recreate idempotency
+  but now seals the plaintext client-side with the same KDF + default key the
+  API uses. See `encryptCbcForSeed` / `encryptGcmForSeed` in
+  `scripts/devpilot-docker-staging.mjs`.)
 - `api` / `webhook` mode: continues to use `fake-provider` (`:40-65`).
 
 ### 8.4 Backup reachability
