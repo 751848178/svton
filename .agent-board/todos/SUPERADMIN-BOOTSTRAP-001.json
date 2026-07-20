@@ -1,0 +1,55 @@
+{
+  "id": "SUPERADMIN-BOOTSTRAP-001",
+  "type": "feature",
+  "status": "planned",
+  "role": "investigator",
+  "module": "admin",
+  "title": "System-level superadmin bootstrap (env-driven, idempotent)",
+  "allowed_files": [
+    "apps/devpilot-api/src/authz.config.ts",
+    "apps/devpilot-api/src/admin/admin-bootstrap.service.ts",
+    "apps/devpilot-api/src/admin/admin.module.ts",
+    "apps/devpilot-api/src/admin/index.ts",
+    "apps/devpilot-api/.env.example",
+    "apps/devpilot-api/src/common/config/env.schema.ts",
+    "scripts/devpilot-docker-staging.mjs"
+  ],
+  "read_only_files": [
+    "apps/devpilot-api/src/auth/auth.service.ts",
+    "apps/devpilot-api/src/auth/strategies/jwt.strategy.ts",
+    "apps/devpilot-api/src/prisma/prisma.service.ts",
+    "apps/devpilot-api/src/admin/admin.controller.ts",
+    "apps/devpilot-api/src/admin/admin.service.ts",
+    "apps/devpilot-api/prisma/schema.prisma",
+    "packages/nestjs-authz/src/guards/roles.guard.ts",
+    "packages/authz/src/authorizer.ts",
+    "packages/authz/src/utils.ts",
+    "docs/todos/2026-07-21-superadmin-bootstrap-investigation.md",
+    "docs/todos/2026-07-21-superadmin-bootstrap-plan.md"
+  ],
+  "forbidden_scope": [
+    "Do not modify getAssignments or getScope in authz.config.ts (team-scoped only).",
+    "Do not modify AuthService, JwtStrategy, schema.prisma, or any controller.",
+    "Do not introduce role='superadmin' (use role='admin').",
+    "Do not add a Team membership for the bootstrap admin (global role suffices).",
+    "Do not log the bootstrap password at any level.",
+    "Do not throw on missing env vars (must be a silent no-op)."
+  ],
+  "acceptance": [
+    "API starts normally when DEVPILOT_BOOTSTRAP_ADMIN_EMAIL / _PASSWORD are unset (no-op, debug log).",
+    "With env vars set, an idempotent upsert creates/promotes a User with role='admin' and a bcrypt-hashed password.",
+    "Login with the bootstrap credentials returns a JWT whose role claim is 'admin'.",
+    "GET /api/admin/stats and GET /api/resource-pools with that token return 200.",
+    "Restarting the API does not duplicate the bootstrap user.",
+    "Changing DEVPILOT_BOOTSTRAP_ADMIN_PASSWORD and restarting rotates the password (old fails, new works).",
+    "schema.roles in authz.config.ts declares an explicit 'admin' entry.",
+    "Password string never appears in logs (email may).",
+    "Existing admin.service.spec.ts tests still pass."
+  ],
+  "verification": {
+    "command": "cd apps/devpilot-api && pnpm test -- admin.service.spec && curl -s -X POST http://localhost:3101/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@devpilot.local\",\"password\":\"DemoPass123!\"}' | jq -r '.data.accessToken' | awk -F. '{print $2}' | base64 -d 2>/dev/null | jq .role",
+    "status": "pending",
+    "log": ".agent-board/results/SUPERADMIN-BOOTSTRAP-001-result.json",
+    "expected": "JWT role claim === \"admin\"; GET /api/admin/stats === 200; user count with bootstrap email === 1 across restarts."
+  }
+}

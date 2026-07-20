@@ -95,6 +95,8 @@ function startApi() {
     SERVER_EXECUTOR_AGENT_TASK_PULL_TOKEN: taskToken,
     SERVER_EXECUTOR_AGENT_HEARTBEAT_ENABLED: "true",
     SERVER_EXECUTOR_AGENT_HEARTBEAT_TOKEN: heartbeatToken,
+    DEVPILOT_BOOTSTRAP_ADMIN_EMAIL: "admin@devpilot.local",
+    DEVPILOT_BOOTSTRAP_ADMIN_PASSWORD: "DemoPass123!",
   };
   const child = spawn("corepack", ["pnpm", "--filter", "@svton/devpilot-api", "dev"], { cwd: root, env });
   child.stdout.pipe(apiLog);

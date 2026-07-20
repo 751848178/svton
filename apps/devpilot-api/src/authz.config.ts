@@ -80,6 +80,7 @@ export const useAuthzConfig = (prisma: PrismaService): AuthzModuleOptions => ({
   allowNoRoles: true,
   schema: {
     roles: {
+      admin: {},
       [TEAM_MEMBER_AUTHZ_ROLE]: {},
       [TEAM_ADMIN_AUTHZ_ROLE]: {
         inherits: [TEAM_MEMBER_AUTHZ_ROLE],

@@ -169,6 +169,10 @@ export const envSchema = z
     // ---------- 其他 ----------
     CORS_ORIGIN: z.string().optional(),
     DEVPILOT_GENERATED_PROJECTS_DIR: z.string().optional(),
+
+    // ---------- Bootstrap admin (optional) ----------
+    DEVPILOT_BOOTSTRAP_ADMIN_EMAIL: z.string().optional(),
+    DEVPILOT_BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),
   })
   .passthrough();
 
