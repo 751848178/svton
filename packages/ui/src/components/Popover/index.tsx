@@ -13,10 +13,15 @@ export interface PopoverProps {
   visible?: boolean;
   onVisibleChange?: (visible: boolean) => void;
   className?: string;
+  /**
+   * 额外 class,合并到 trigger 包裹 span(默认 `inline-block`)。
+   * 通过 twMerge 合并,后值优先 —— 例如传 `block w-full` 可让 trigger 撑满父容器。
+   */
+  triggerClassName?: string;
 }
 
 export const Popover = React.forwardRef<HTMLSpanElement, PopoverProps>(function Popover(props, ref) {
-  const { content, children, placement = 'bottom', trigger = 'click', visible: controlledVisible, onVisibleChange, className } = props;
+  const { content, children, placement = 'bottom', trigger = 'click', visible: controlledVisible, onVisibleChange, className, triggerClassName } = props;
   const [internalVisible, setInternalVisible] = useState(false);
   const visible = controlledVisible ?? internalVisible;
 
@@ -53,7 +58,7 @@ export const Popover = React.forwardRef<HTMLSpanElement, PopoverProps>(function 
 
   return (
     <>
-      <span ref={setTriggerRef} onClick={handleClick} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="inline-block">
+      <span ref={setTriggerRef} onClick={handleClick} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className={cn('inline-block', triggerClassName)}>
         {children}
       </span>
       {visible && (

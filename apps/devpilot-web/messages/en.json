@@ -41,6 +41,7 @@
     "updateSuccess": "Updated successfully",
     "login": "Log In",
     "logout": "Log Out",
+    "userMenu": "User menu",
     "notFoundTitle": "Page Not Found",
     "notFoundDescription": "The page you visited does not exist or has been moved. Please check the address.",
     "backToHome": "Back to Home",
@@ -108,7 +109,10 @@
     "teamName": "Team Name",
     "teamNamePlaceholder": "Enter team name",
     "searchMenu": "Search menu",
-    "sidebarSubtitle": "Project init & resource control"
+    "sidebarSubtitle": "Project init & resource control",
+    "more": "More",
+    "moreLabel": "Show more items",
+    "noResults": "No matches"
   },
   "keys": {
     "pageTitle": "Key Center",

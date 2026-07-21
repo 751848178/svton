@@ -65,7 +65,7 @@ export function Sidebar() {
             />
           ))}
           {visibleSections.length === 0 ? (
-            <p className="px-6 py-4 text-xs text-muted-foreground">{t('searchMenu')}…</p>
+            <p className="px-6 py-4 text-xs text-muted-foreground">{t('noResults')}</p>
           ) : null}
         </div>
       </div>

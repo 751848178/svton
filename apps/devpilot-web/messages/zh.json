@@ -41,6 +41,7 @@
     "updateSuccess": "更新成功",
     "login": "登录",
     "logout": "退出登录",
+    "userMenu": "用户菜单",
     "notFoundTitle": "页面不存在",
     "notFoundDescription": "您访问的页面不存在或已被移动，请检查地址是否正确。",
     "backToHome": "返回首页",
@@ -108,7 +109,10 @@
     "teamName": "团队名称",
     "teamNamePlaceholder": "输入团队名称",
     "searchMenu": "搜索菜单",
-    "sidebarSubtitle": "项目初始化与资源管控"
+    "sidebarSubtitle": "项目初始化与资源管控",
+    "more": "更多",
+    "moreLabel": "展开更多项",
+    "noResults": "无匹配项"
   },
   "keys": {
     "pageTitle": "密钥中心",

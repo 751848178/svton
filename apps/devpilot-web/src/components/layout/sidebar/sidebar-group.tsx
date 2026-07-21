@@ -54,6 +54,7 @@ export function SidebarGroup({ section, pathname, query }: SidebarGroupProps) {
         <div className="px-3 pt-1">
           <Popover
             placement="right"
+            triggerClassName="block w-full"
             content={
               <div className="w-44 space-y-0.5">
                 {moreItems.map((item) => (
@@ -68,11 +69,11 @@ export function SidebarGroup({ section, pathname, query }: SidebarGroupProps) {
           >
             <button
               type="button"
-              aria-label={`${t(section.titleKey)} 更多`}
+              aria-label={`${t(section.titleKey)} ${t('moreLabel')}`}
               className="flex h-7 w-full items-center gap-2 rounded-md px-3 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
             >
               <span aria-hidden="true">⋯</span>
-              <span>更多 ({moreItems.length})</span>
+              <span>{t('more')} ({moreItems.length})</span>
             </button>
           </Popover>
         </div>

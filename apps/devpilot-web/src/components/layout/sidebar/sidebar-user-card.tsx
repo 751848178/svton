@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Popover } from '@svton/ui';
@@ -21,14 +22,15 @@ export function SidebarUserCard() {
   // initials:优先 name 前两字符,回退 email 前两字符,最终回退 '?'
   const initials = (user?.name || user?.email || '?').trim().slice(0, 2).toUpperCase();
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     logout();
     router.push('/login');
-  };
+  }, [logout, router]);
 
   return (
     <Popover
       placement="top"
+      triggerClassName="block w-full"
       content={
         <div className="w-44 py-1">
           <button
@@ -43,6 +45,7 @@ export function SidebarUserCard() {
     >
       <button
         type="button"
+        aria-label={t('userMenu')}
         className="flex h-16 w-full items-center gap-3 rounded-lg border border-sidebar-border bg-card px-3 text-left transition-colors hover:bg-muted/50"
       >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-[13px] font-bold text-foreground">
