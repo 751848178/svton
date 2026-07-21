@@ -106,7 +106,9 @@
     "manageTeam": "Manage Team",
     "creating": "Creating...",
     "teamName": "Team Name",
-    "teamNamePlaceholder": "Enter team name"
+    "teamNamePlaceholder": "Enter team name",
+    "searchMenu": "Search menu",
+    "sidebarSubtitle": "Project init & resource control"
   },
   "keys": {
     "pageTitle": "Key Center",

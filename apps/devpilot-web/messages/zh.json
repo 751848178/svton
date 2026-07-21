@@ -106,7 +106,9 @@
     "manageTeam": "管理团队",
     "creating": "创建中...",
     "teamName": "团队名称",
-    "teamNamePlaceholder": "输入团队名称"
+    "teamNamePlaceholder": "输入团队名称",
+    "searchMenu": "搜索菜单",
+    "sidebarSubtitle": "项目初始化与资源管控"
   },
   "keys": {
     "pageTitle": "密钥中心",

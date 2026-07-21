@@ -32,6 +32,8 @@ export interface NavigationItem {
   href: string;
   labelKey: string;
   icon: NavIconName;
+  /** 次要项:默认收纳到分组「更多」浮层,仅当活跃或搜索时直接展开。Phase 1 默认不标,Phase 2 按业务逐项标记。 */
+  secondary?: boolean;
 }
 
 export interface NavigationSection {
