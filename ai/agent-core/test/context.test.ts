@@ -51,17 +51,14 @@ describe('ContextManager', () => {
       expect(cm.getMessages()).toHaveLength(1);
     });
 
-    it('returns a shallow copy of each message reference (pushing to copy does not alter internal)', () => {
+    it('returns message copies from getMessages', () => {
       const cm = new ContextManager();
       cm.addMessage({ role: 'user', content: 'Hello' });
 
       const copy = cm.getMessages();
       (copy[0] as { content: string }).content = 'Changed';
 
-      // Internal messages are not affected by mutating the copy's elements
-      // (spread creates a new array but elements are the same references,
-      //  so we verify the array length is still correct as a baseline)
-      expect(cm.getMessages()).toHaveLength(1);
+      expect(cm.getMessages()[0].content).toBe('Hello');
     });
 
     it('handles messages with ContentBlock arrays', () => {

@@ -381,7 +381,7 @@ describe('Full-scenario E2E conversations', () => {
 
     ctx.provider
       .addResponse([
-        ...toolSeq('c1', 'web_search', { query: 'testing best practices' }),
+        ...toolSeq('c1', 'web_search', { query: ' \ntesting best practices\t ', max_results: 1 }),
       ])
       .addResponse([
         { type: 'text_delta', text: 'According to search results, use tests.' },
@@ -394,6 +394,10 @@ describe('Full-scenario E2E conversations', () => {
     expect(allToolUses(msgs)).toContain('web_search');
     // Tavily POST was called
     expect(http.calls[0].method).toBe('POST');
+    expect(JSON.parse(http.calls[0].body)).toMatchObject({
+      query: 'testing best practices',
+      max_results: 1,
+    });
     expect(allToolResults(msgs).some((r) => r.includes('Best Practices'))).toBe(true);
   });
 
@@ -418,11 +422,12 @@ describe('Full-scenario E2E conversations', () => {
       ]);
 
     await collectEvents(ctx.runtime.run('Remember: I prefer TypeScript'));
+    await memMgr.saveAutoMemory('Project uses pnpm', 'general');
 
     // Turn 2: recall
     ctx.provider
       .addResponse([
-        ...toolSeq('c2', 'memory_recall', { query: 'preferences' }),
+        ...toolSeq('c2', 'memory_recall', { query: 'TypeScript' }),
       ])
       .addResponse([
         { type: 'text_delta', text: 'You prefer TypeScript.' },
@@ -434,6 +439,10 @@ describe('Full-scenario E2E conversations', () => {
     const msgs = ctx.runtime.getMessages();
     expect(allToolUses(msgs)).toContain('memory_save');
     expect(allToolUses(msgs)).toContain('memory_recall');
+    const results = allToolResults(msgs);
+    const recallResult = results[results.length - 1];
+    expect(recallResult).toContain('User prefers TypeScript');
+    expect(recallResult).not.toContain('pnpm');
   });
 
   // ── plan_create + plan_update ──

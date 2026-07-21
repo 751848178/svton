@@ -1,6 +1,7 @@
 import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import type { MemoryManager } from '../../memory/manager';
+import { formatUnknownErrorMessage } from './error-message.utils';
 
 // ============================================================
 // memory_save
@@ -39,24 +40,37 @@ export class MemorySaveExecutor implements IToolExecutor {
       category?: string;
     };
 
-    if (!content || typeof content !== 'string') {
+    if (typeof content !== 'string' || content.trim().length === 0) {
       return { callId: call.id, output: 'Error: "content" is required and must be a string.', isError: true };
     }
+    const resolvedContent = content.trim();
+    if (category !== undefined && typeof category !== 'string') {
+      return { callId: call.id, output: 'Error: "category" must be a string.', isError: true };
+    }
+    const resolvedCategory = category?.trim() || 'general';
 
     try {
       await this.memoryManager.saveAutoMemory(
-        content.trim(),
-        category || 'general',
+        resolvedContent,
+        resolvedCategory,
       );
       return {
         callId: call.id,
-        output: `Saved to memory: "${content.trim().slice(0, 80)}${content.length > 80 ? '...' : ''}"`,
+        output: `Saved ${resolvedContent.length} characters to memory category "${resolvedCategory}".`,
+        metadata: {
+          category: resolvedCategory,
+          contentLength: resolvedContent.length,
+        },
       };
     } catch (error) {
       return {
         callId: call.id,
-        output: `Failed to save memory: ${error instanceof Error ? error.message : String(error)}`,
+        output: `Failed to save memory: ${formatUnknownErrorMessage(error)}`,
         isError: true,
+        metadata: {
+          category: resolvedCategory,
+          contentLength: resolvedContent.length,
+        },
       };
     }
   }
@@ -77,6 +91,10 @@ export const memoryRecallDef: ToolDefinition = {
         type: 'string',
         description: 'Optional keyword to filter memories. If omitted, returns all memories.',
       },
+      query: {
+        type: 'string',
+        description: 'Alias for keyword, accepted for compatibility with natural tool calls.',
+      },
     },
     required: [],
   },
@@ -90,7 +108,21 @@ export class MemoryRecallExecutor implements IToolExecutor {
   constructor(private readonly memoryManager: MemoryManager) {}
 
   async execute(call: ToolCall, _ctx: ToolContext): Promise<ToolResult> {
-    const { keyword } = call.arguments as { keyword?: string };
+    const { keyword, query } = call.arguments as { keyword?: string; query?: string };
+
+    if (keyword !== undefined && query !== undefined) {
+      return { callId: call.id, output: 'Error: use either "keyword" or "query", not both.', isError: true };
+    }
+
+    const filter = keyword ?? query;
+    const filterName = keyword !== undefined ? 'keyword' : 'query';
+    if (filter !== undefined && typeof filter !== 'string') {
+      return { callId: call.id, output: `Error: "${filterName}" must be a string.`, isError: true };
+    }
+    if (filter !== undefined && filter.trim().length === 0) {
+      return { callId: call.id, output: `Error: "${filterName}" must be a non-empty string.`, isError: true };
+    }
+    const resolvedKeyword = filter?.trim();
 
     try {
       const allText = this.memoryManager.getAllMemoryText();
@@ -98,12 +130,12 @@ export class MemoryRecallExecutor implements IToolExecutor {
         return { callId: call.id, output: 'No memories saved yet.' };
       }
 
-      if (keyword && typeof keyword === 'string') {
+      if (resolvedKeyword) {
         const lines = allText.split('\n').filter((l) =>
-          l.toLowerCase().includes(keyword.toLowerCase()),
+          l.toLowerCase().includes(resolvedKeyword.toLowerCase()),
         );
         if (lines.length === 0) {
-          return { callId: call.id, output: `No memories matching "${keyword}".` };
+          return { callId: call.id, output: `No memories matching "${resolvedKeyword}".` };
         }
         return { callId: call.id, output: lines.join('\n') };
       }
@@ -112,8 +144,12 @@ export class MemoryRecallExecutor implements IToolExecutor {
     } catch (error) {
       return {
         callId: call.id,
-        output: `Failed to recall memory: ${error instanceof Error ? error.message : String(error)}`,
+        output: `Failed to recall memory: ${formatUnknownErrorMessage(error)}`,
         isError: true,
+        metadata: {
+          filterName: resolvedKeyword ? filterName : null,
+          keyword: resolvedKeyword ?? null,
+        },
       };
     }
   }

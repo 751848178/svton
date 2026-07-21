@@ -313,6 +313,178 @@ describe('storedToDisplayMessages', () => {
     expect(restored[0].activeSkills).toBeUndefined();
   });
 
+  it('round-trips pending tool call approval metadata', () => {
+    const autoReviewVerdict = {
+      verdict: 'ask_user',
+      reason: 'No matching rule',
+    };
+    const original: DisplayMessage[] = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        content: '',
+        timestamp: 1,
+        toolCalls: [{
+          id: 'tc-meta',
+          name: 'bash',
+          arguments: { command: 'rm -rf /tmp/x' },
+          status: 'pending_approval',
+          metadata: { autoReviewVerdict },
+        }],
+        blocks: [{
+          type: 'tool_call',
+          call: {
+            id: 'tc-meta',
+            name: 'bash',
+            arguments: { command: 'rm -rf /tmp/x' },
+            status: 'pending_approval',
+            metadata: { autoReviewVerdict },
+          },
+        }],
+      },
+    ];
+
+    const stored = displayToStoredMessages(original);
+    expect((stored[0] as any).toolCalls[0].metadata?.autoReviewVerdict).toEqual(autoReviewVerdict);
+    const restored = storedToDisplayMessages(stored);
+    expect(restored[0].toolCalls![0].metadata?.autoReviewVerdict).toEqual(autoReviewVerdict);
+    expect((restored[0].blocks![0] as any).call.metadata?.autoReviewVerdict).toEqual(autoReviewVerdict);
+  });
+
+  it('round-trips auto-review metadata on completed tool results', () => {
+    const autoReviewVerdict = {
+      verdict: 'deny',
+      reason: 'Dangerous command',
+      ruleId: 'deny-rm',
+    };
+    const original: DisplayMessage[] = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        content: '',
+        timestamp: 1,
+        toolCalls: [{
+          id: 'tc-result-meta',
+          name: 'bash',
+          arguments: { command: 'rm -rf /tmp/x' },
+          status: 'error',
+          result: {
+            callId: 'tc-result-meta',
+            output: 'Auto-reviewer denied: Dangerous command',
+            isError: true,
+            metadata: { autoReviewVerdict },
+          },
+        }],
+        blocks: [{
+          type: 'tool_call',
+          call: {
+            id: 'tc-result-meta',
+            name: 'bash',
+            arguments: { command: 'rm -rf /tmp/x' },
+            status: 'error',
+            result: {
+              callId: 'tc-result-meta',
+              output: 'Auto-reviewer denied: Dangerous command',
+              isError: true,
+              metadata: { autoReviewVerdict },
+            },
+          },
+        }],
+      },
+    ];
+
+    const stored = displayToStoredMessages(original);
+    expect((stored[0] as any).toolCalls[0].result.metadata?.autoReviewVerdict).toEqual(autoReviewVerdict);
+    const restored = storedToDisplayMessages(stored);
+    expect(restored[0].toolCalls![0].result?.metadata?.autoReviewVerdict).toEqual(autoReviewVerdict);
+    expect((restored[0].blocks![0] as any).call.result.metadata?.autoReviewVerdict).toEqual(autoReviewVerdict);
+  });
+
+  it('restores auto_review blocks from legacy tool result metadata', () => {
+    const restored = storedToDisplayMessages([
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [{
+          id: 'tc-legacy-review',
+          name: 'bash',
+          arguments: { command: 'rm -rf /tmp/x' },
+          status: 'error',
+          result: {
+            callId: 'tc-legacy-review',
+            output: 'Auto-reviewer denied: Dangerous command',
+            isError: true,
+            metadata: {
+              autoReviewVerdict: {
+                verdict: 'deny',
+                reason: 'Dangerous command',
+                ruleId: 'deny-rm',
+              },
+            },
+          },
+        }],
+      },
+    ]);
+
+    expect(restored[0].blocks).toEqual([
+      expect.objectContaining({
+        type: 'tool_call',
+        call: expect.objectContaining({ id: 'tc-legacy-review' }),
+      }),
+      {
+        type: 'auto_review',
+        toolName: 'bash',
+        verdict: 'deny',
+        reason: 'Dangerous command',
+        ruleId: 'deny-rm',
+      },
+    ]);
+  });
+
+  it('backfills auto_review blocks when stored blocks only contain tool calls', () => {
+    const restored = storedToDisplayMessages([
+      {
+        role: 'assistant',
+        content: '',
+        blocks: [{
+          type: 'tool_call',
+          call: {
+            id: 'tc-block-review',
+            name: 'bash',
+            arguments: { command: 'rm -rf /tmp/x' },
+            status: 'error',
+            result: {
+              callId: 'tc-block-review',
+              output: 'Auto-reviewer denied: Dangerous command',
+              isError: true,
+              metadata: {
+                autoReviewVerdict: {
+                  verdict: 'deny',
+                  reason: 'Dangerous command',
+                  ruleId: 'deny-rm',
+                },
+              },
+            },
+          },
+        }],
+      },
+    ]);
+
+    expect(restored[0].blocks).toEqual([
+      expect.objectContaining({
+        type: 'tool_call',
+        call: expect.objectContaining({ id: 'tc-block-review' }),
+      }),
+      {
+        type: 'auto_review',
+        toolName: 'bash',
+        verdict: 'deny',
+        reason: 'Dangerous command',
+        ruleId: 'deny-rm',
+      },
+    ]);
+  });
+
   it('generates unique IDs for restored messages', () => {
     const stored = [
       { role: 'user', content: 'A' },

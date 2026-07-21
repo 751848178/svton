@@ -38,11 +38,11 @@ class MockStorage implements IStorage {
 
 /** A no-op scheduler that records calls but never fires */
 class MockScheduler implements IAutomationScheduler {
-  public scheduleCalls: Array<{ nextRunAt: number }> = [];
+  public scheduleCalls: Array<{ nextRunAt: number; handler: () => Promise<void> }> = [];
   public cancelCount = 0;
 
-  schedule(nextRunAt: number, _handler: () => Promise<void>): () => void {
-    this.scheduleCalls.push({ nextRunAt });
+  schedule(nextRunAt: number, handler: () => Promise<void>): () => void {
+    this.scheduleCalls.push({ nextRunAt, handler });
     return () => {
       this.cancelCount++;
     };
@@ -271,7 +271,51 @@ describe('F4 — Automations (AutomationManager)', () => {
       expect(updated!.lastRunAt).toBeGreaterThanOrEqual(before);
     });
 
-    it('does nothing when no handler is set', async () => {
+    it('records scheduled trigger runs in recent history', async () => {
+      const handler = vi.fn(async () => {});
+      manager.setTriggerHandler(handler);
+      await manager.create({
+        name: 'Scheduled history',
+        description: '',
+        trigger: { type: 'interval', minutes: 5 },
+        prompt: 'p',
+      });
+
+      await scheduler.scheduleCalls[0].handler();
+
+      const recent = await manager.getRecentRuns();
+      expect(recent).toEqual([
+        expect.objectContaining({
+          automationName: 'Scheduled history',
+          status: 'completed',
+        }),
+      ]);
+    });
+
+    it('records scheduled trigger failures in recent history', async () => {
+      manager.setTriggerHandler(async () => {
+        throw new Error('scheduled failure');
+      });
+      await manager.create({
+        name: 'Failing schedule',
+        description: '',
+        trigger: { type: 'interval', minutes: 5 },
+        prompt: 'p',
+      });
+
+      await scheduler.scheduleCalls[0].handler();
+
+      const recent = await manager.getRecentRuns();
+      expect(recent).toEqual([
+        expect.objectContaining({
+          automationName: 'Failing schedule',
+          status: 'failed',
+          error: 'scheduled failure',
+        }),
+      ]);
+    });
+
+    it('records a failed run when no handler is set', async () => {
       const def = await manager.create({
         name: 'NoHandler',
         description: '',
@@ -279,8 +323,18 @@ describe('F4 — Automations (AutomationManager)', () => {
         prompt: 'p',
       });
 
-      // Should not throw
+      const before = Date.now();
       await expect(manager.runNow(def.id)).resolves.toBeUndefined();
+
+      const runs = await manager.getRuns(def.id);
+      expect(runs).toEqual([
+        expect.objectContaining({
+          automationId: def.id,
+          status: 'failed',
+          error: 'Automation trigger handler is not configured',
+        }),
+      ]);
+      expect(manager.get(def.id)!.lastRunAt).toBeGreaterThanOrEqual(before);
     });
   });
 

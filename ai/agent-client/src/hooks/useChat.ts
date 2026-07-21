@@ -42,7 +42,7 @@ export function useChat() {
     };
   }, [chatInternal]);
 
-  const isStreaming = status === 'running';
+  const isStreaming = status === 'running' || status === 'waiting_approval';
 
   return {
     messages,
@@ -57,6 +57,9 @@ export function useChat() {
     retryFromMessage: (id: string) => chatService.retryFromMessage(id),
     editMessage: (id: string, content: string) => chatService.editMessage(id, content),
     abort: () => chatService.abort(),
-    clear: () => chatService.clearMessages(),
+    clear: () => {
+      chatService.abortIfStreaming();
+      chatService.clearMessages();
+    },
   };
 }

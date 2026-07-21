@@ -7,13 +7,13 @@ import { CurlHttpClient } from '../../agent-platform/src/curl-http';
 import type { IProcess, ExecOptions, ExecResult } from '@svton/agent-platform';
 
 /** Build a fake IProcess whose exec captures the command and returns canned output. */
-function fakeProcess(stdout: string, opts: { exitCode?: number; timedOut?: boolean } = {}): IProcess & { commands: string[] } {
+function fakeProcess(stdout: string, opts: { exitCode?: number; timedOut?: boolean; stderr?: string } = {}): IProcess & { commands: string[] } {
   const commands: string[] = [];
   return {
     commands,
     async exec(command: string, _o?: ExecOptions): Promise<ExecResult> {
       commands.push(command);
-      return { stdout, stderr: '', exitCode: opts.exitCode ?? 0, timedOut: opts.timedOut ?? false };
+      return { stdout, stderr: opts.stderr ?? '', exitCode: opts.exitCode ?? 0, timedOut: opts.timedOut ?? false };
     },
     getEnv: () => '',
     getCwd: () => '/',
@@ -64,6 +64,16 @@ describe('CurlHttpClient', () => {
     expect(res.ok).toBe(false);
     expect(res.status).toBe(0);
     expect(res.statusText).toContain('timed out');
+  });
+
+  it('reports non-zero curl exits as non-ok responses', async () => {
+    const proc = fakeProcess('', { exitCode: 6, stderr: 'Could not resolve host' });
+    const client = new CurlHttpClient({ process: proc });
+    const res = await client.request('https://missing.example.test');
+    expect(res.ok).toBe(false);
+    expect(res.status).toBe(0);
+    expect(res.statusText).toContain('curl exited with 6');
+    expect(await res.text()).toContain('Could not resolve host');
   });
 
   it('defaults status to 200 when no metadata trailer', async () => {

@@ -275,11 +275,11 @@ describe('OpenAIProvider', () => {
       });
     });
 
-    it('keeps reading usage chunks after finish_reason', async () => {
+    it('preserves usage events from empty choice stream chunks', async () => {
       const sseData = [
         'data: {"choices":[{"delta":{"content":"Hi"}}]}',
+        'data: {"choices":[],"usage":{"prompt_tokens":11,"completion_tokens":4,"total_tokens":15}}',
         'data: {"choices":[{"finish_reason":"stop"}]}',
-        'data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}}',
         'data: [DONE]',
         '',
       ].join('\n');
@@ -290,15 +290,16 @@ describe('OpenAIProvider', () => {
         provider.chat([], { model: 'gpt-4o' }),
       );
 
-      expect(events.find((e) => e.type === 'usage')).toEqual({
-        type: 'usage',
-        usage: {
-          promptTokens: 10,
-          completionTokens: 3,
-          totalTokens: 13,
+      expect(events.filter((e) => e.type === 'usage')).toEqual([
+        {
+          type: 'usage',
+          usage: {
+            promptTokens: 11,
+            completionTokens: 4,
+            totalTokens: 15,
+          },
         },
-      });
-      expect(events[events.length - 1]).toEqual({ type: 'done', stopReason: 'stop' });
+      ]);
     });
 
     it('parses tool call SSE events', async () => {
@@ -333,6 +334,109 @@ describe('OpenAIProvider', () => {
 
       const doneEvents = events.filter((e) => e.type === 'done');
       expect(doneEvents[0]).toEqual({ type: 'done', stopReason: 'tool_calls' });
+    });
+
+    it('preserves tool call argument deltas that arrive before the function name', async () => {
+      const sseData = [
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_late_name","type":"function","function":{"arguments":"{\\"path\\""}}]}}]}',
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\\"late.ts\\"}"}}]}}]}',
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"read_file"}}]}}]}',
+        'data: {"choices":[{"finish_reason":"tool_calls"}]}',
+        'data: [DONE]',
+        '',
+      ].join('\n');
+
+      fetchSpy.mockResolvedValue(createSSEResponse(sseData));
+
+      const events = await collectEvents(
+        provider.chat([], { model: 'gpt-4o' }),
+      );
+
+      expect(events.filter((e) => e.type === 'tool_call_start')).toEqual([
+        { type: 'tool_call_start', id: 'call_late_name', name: 'read_file' },
+      ]);
+      expect(events.filter((e) => e.type === 'tool_call_delta')).toEqual([
+        { type: 'tool_call_delta', id: 'call_late_name', argumentsDelta: '{"path"' },
+        { type: 'tool_call_delta', id: 'call_late_name', argumentsDelta: ':"late.ts"}' },
+      ]);
+      expect(events.filter((e) => e.type === 'tool_call_end')).toEqual([
+        {
+          type: 'tool_call_end',
+          id: 'call_late_name',
+          name: 'read_file',
+          arguments: '{"path":"late.ts"}',
+        },
+      ]);
+    });
+
+    it('keeps multiple tool calls distinct when stream deltas omit index', async () => {
+      const sseData = [
+        'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_read","type":"function","function":{"name":"read_file","arguments":"{\\"path\\":\\"a.ts\\"}"}},{"id":"call_write","type":"function","function":{"name":"write_file","arguments":"{\\"path\\":\\"b.ts\\"}"}}]}}]}',
+        'data: {"choices":[{"finish_reason":"tool_calls"}]}',
+        'data: [DONE]',
+        '',
+      ].join('\n');
+
+      fetchSpy.mockResolvedValue(createSSEResponse(sseData));
+
+      const events = await collectEvents(
+        provider.chat([], { model: 'gpt-4o' }),
+      );
+
+      expect(events.filter((e) => e.type === 'tool_call_start')).toEqual([
+        { type: 'tool_call_start', id: 'call_read', name: 'read_file' },
+        { type: 'tool_call_start', id: 'call_write', name: 'write_file' },
+      ]);
+      expect(events.filter((e) => e.type === 'tool_call_end')).toEqual([
+        {
+          type: 'tool_call_end',
+          id: 'call_read',
+          name: 'read_file',
+          arguments: '{"path":"a.ts"}',
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_write',
+          name: 'write_file',
+          arguments: '{"path":"b.ts"}',
+        },
+      ]);
+    });
+
+    it('continues unindexed tool calls by id across later stream chunks', async () => {
+      const sseData = [
+        'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_read","type":"function","function":{"name":"read_file","arguments":"{\\"path\\":\\"a.ts\\"}"}},{"id":"call_write","type":"function","function":{"name":"write_file","arguments":"{\\"path\\":"}}]}}]}',
+        'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_write","type":"function","function":{"arguments":"\\"b.ts\\"}"}}]}}]}',
+        'data: {"choices":[{"finish_reason":"tool_calls"}]}',
+        'data: [DONE]',
+        '',
+      ].join('\n');
+
+      fetchSpy.mockResolvedValue(createSSEResponse(sseData));
+
+      const events = await collectEvents(
+        provider.chat([], { model: 'gpt-4o' }),
+      );
+
+      expect(events.filter((e) => e.type === 'tool_call_delta')).toEqual([
+        { type: 'tool_call_delta', id: 'call_read', argumentsDelta: '{"path":"a.ts"}' },
+        { type: 'tool_call_delta', id: 'call_write', argumentsDelta: '{"path":' },
+        { type: 'tool_call_delta', id: 'call_write', argumentsDelta: '"b.ts"}' },
+      ]);
+      expect(events.filter((e) => e.type === 'tool_call_end')).toEqual([
+        {
+          type: 'tool_call_end',
+          id: 'call_read',
+          name: 'read_file',
+          arguments: '{"path":"a.ts"}',
+        },
+        {
+          type: 'tool_call_end',
+          id: 'call_write',
+          name: 'write_file',
+          arguments: '{"path":"b.ts"}',
+        },
+      ]);
     });
 
     it('skips comment lines and empty lines in SSE', async () => {
@@ -385,6 +489,33 @@ describe('OpenAIProvider', () => {
         usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 },
       });
       expect(events).toContainEqual({ type: 'done', stopReason: 'stop' });
+    });
+
+    it('parses JSON response with reasoning content before text', async () => {
+      const jsonResponse = {
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              reasoning_content: 'I should reason first.',
+              content: 'Final answer',
+            },
+            finish_reason: 'stop',
+          },
+        ],
+      };
+
+      fetchSpy.mockResolvedValue(createJSONResponse(jsonResponse));
+
+      const events = await collectEvents(
+        provider.chat([], { model: 'gpt-4o', stream: false }),
+      );
+
+      expect(events).toContainEqual({
+        type: 'thinking_delta',
+        thinking: 'I should reason first.',
+      });
+      expect(events).toContainEqual({ type: 'text_delta', text: 'Final answer' });
     });
 
     it('parses JSON response with tool calls', async () => {
@@ -558,7 +689,6 @@ describe('OpenAIProvider', () => {
       const [, init] = fetchSpy.mock.calls[0];
       const body = JSON.parse(init.body as string);
       expect(body.stream).toBe(true);
-      expect(body.stream_options).toEqual({ include_usage: true });
     });
 
     it('sets stream: false when stream option is false', async () => {
@@ -571,7 +701,6 @@ describe('OpenAIProvider', () => {
       const [, init] = fetchSpy.mock.calls[0];
       const body = JSON.parse(init.body as string);
       expect(body.stream).toBe(false);
-      expect(body.stream_options).toBeUndefined();
     });
 
     it('formats ContentBlock[] messages with text and image', async () => {
@@ -599,6 +728,28 @@ describe('OpenAIProvider', () => {
       expect(userMsg.content[1].image_url.url).toContain('data:image/png;base64,');
     });
 
+    it('preserves remote image URLs in OpenAI image content', async () => {
+      fetchSpy.mockResolvedValue(createSSEResponse('data: {"choices":[{"finish_reason":"stop"}]}\ndata: [DONE]\n'));
+
+      const messages: ChatMessage[] = [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Describe this remote image' },
+            { type: 'image', data: 'https://example.com/cat.jpg', mimeType: 'image/jpeg' },
+          ],
+        },
+      ];
+
+      await collectEvents(provider.chat(messages, { model: 'gpt-4o' }));
+
+      const [, init] = fetchSpy.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      const imagePart = body.messages[0].content[1];
+      expect(imagePart.type).toBe('image_url');
+      expect(imagePart.image_url.url).toBe('https://example.com/cat.jpg');
+    });
+
     it('formats tool_use ContentBlock as tool_calls', async () => {
       fetchSpy.mockResolvedValue(createSSEResponse('data: {"choices":[{"finish_reason":"stop"}]}\ndata: [DONE]\n'));
 
@@ -608,6 +759,12 @@ describe('OpenAIProvider', () => {
           content: [
             { type: 'text', text: 'Let me check.' },
             { type: 'tool_use', id: 'call_1', name: 'bash', input: { command: 'ls' } },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [
+            { type: 'tool_result', toolUseId: 'call_1', output: 'file.txt' },
           ],
         },
       ];
@@ -699,6 +856,28 @@ describe('OpenAIProvider', () => {
       // Orphaned 'orphan_1' must be removed; matching 'call_2' must remain.
       expect(toolIds).not.toContain('orphan_1');
       expect(toolIds).toContain('call_2');
+    });
+
+    it('strips terminal orphaned tool calls that have no matching tool result', async () => {
+      fetchSpy.mockResolvedValue(createSSEResponse('data: {"choices":[{"finish_reason":"stop"}]}\ndata: [DONE]\n'));
+
+      const messages: ChatMessage[] = [
+        { role: 'user', content: 'hello' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'terminal_orphan', name: 'bash', input: { command: 'pwd' } },
+          ],
+        },
+      ];
+
+      await collectEvents(provider.chat(messages, { model: 'gpt-4o' }));
+
+      const [, init] = fetchSpy.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      const assistantMsg = body.messages.find((m: any) => m.role === 'assistant');
+      expect(assistantMsg?.tool_calls).toBeUndefined();
+      expect(assistantMsg?.content).toBe('');
     });
 
     it('passes AbortSignal to fetch', async () => {
@@ -907,6 +1086,38 @@ describe('AnthropicProvider', () => {
       expect(doneEvents).toEqual([{ type: 'done', stopReason: 'tool_use' }]);
     });
 
+    it('maps Anthropic tool deltas by content block index after text blocks', async () => {
+      const sseData = [
+        'data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Checking."}}',
+        'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"tool_after_text","name":"read_file"}}',
+        'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"path\\""}}',
+        'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":":\\"test.ts\\"}"}}',
+        'data: {"type":"content_block_stop","index":1}',
+        'data: {"type":"message_delta","delta":{"stop_reason":"tool_use"}}',
+        '',
+      ].join('\n');
+
+      fetchSpy.mockResolvedValue(createSSEResponse(sseData));
+
+      const events = await collectEvents(
+        provider.chat([], { model: 'claude-sonnet-4-20250514' }),
+      );
+
+      expect(events).toContainEqual({ type: 'text_delta', text: 'Checking.' });
+      expect(events).toContainEqual({
+        type: 'tool_call_delta',
+        id: 'tool_after_text',
+        argumentsDelta: '{"path"',
+      });
+      expect(events).toContainEqual({
+        type: 'tool_call_end',
+        id: 'tool_after_text',
+        name: 'read_file',
+        arguments: '{"path":"test.ts"}',
+      });
+    });
+
     it('yields usage event at the end', async () => {
       const sseData = [
         'data: {"type":"message_start","message":{"usage":{"input_tokens":25}}}',
@@ -1013,6 +1224,29 @@ describe('AnthropicProvider', () => {
         name: 'bash',
         arguments: '{"command":"ls -la"}',
       });
+    });
+
+    it('parses JSON response with thinking content blocks', async () => {
+      const jsonResponse = {
+        content: [
+          { type: 'thinking', thinking: 'I should inspect this.' },
+          { type: 'text', text: 'Done.' },
+        ],
+        usage: { input_tokens: 5, output_tokens: 6 },
+        stop_reason: 'end_turn',
+      };
+
+      fetchSpy.mockResolvedValue(createJSONResponse(jsonResponse));
+
+      const events = await collectEvents(
+        provider.chat([], { model: 'claude-sonnet-4-20250514', stream: false }),
+      );
+
+      expect(events).toContainEqual({
+        type: 'thinking_delta',
+        thinking: 'I should inspect this.',
+      });
+      expect(events).toContainEqual({ type: 'text_delta', text: 'Done.' });
     });
   });
 
@@ -1205,6 +1439,12 @@ describe('AnthropicProvider', () => {
 
       const messages: ChatMessage[] = [
         {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'tool_1', name: 'bash', input: { cmd: 'pwd' } },
+          ],
+        },
+        {
           role: 'tool',
           content: [
             { type: 'tool_result', toolUseId: 'tool_1', output: 'result' },
@@ -1219,7 +1459,8 @@ describe('AnthropicProvider', () => {
       const [, init] = fetchSpy.mock.calls[0];
       const body = JSON.parse(init.body as string);
       // tool role should be converted to user
-      expect(body.messages[0].role).toBe('user');
+      expect(body.messages[1].role).toBe('user');
+      expect(body.messages[1].content[0].type).toBe('tool_result');
     });
 
     it('formats image ContentBlock for Anthropic API', async () => {

@@ -19,8 +19,3 @@ export interface PermissionDecision {
   needsApproval: boolean;
   reason?: string;
 }
-
-export interface PermissionToolMetadata {
-  readOnlyHint?: boolean;
-  destructiveHint?: boolean;
-}

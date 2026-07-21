@@ -1,6 +1,7 @@
 import type { ChatMessage, StreamEvent } from '../provider/types';
 import type { IProvider } from '../provider/types';
 import { countTokens } from '../utils/token';
+import { cloneChatMessage, cloneChatMessages } from './message-snapshot.utils';
 
 const DEFAULT_MAX_TOKENS = 128000;
 const DEFAULT_THRESHOLD = 0.8;
@@ -44,17 +45,17 @@ export class ContextManager {
   }
 
   addMessage(message: ChatMessage): void {
-    this.messages.push(message);
+    this.messages.push(cloneChatMessage(message));
     this.estimatedTokens += this.estimateTokens(message);
   }
 
   getMessages(): ChatMessage[] {
-    return [...this.messages];
+    return cloneChatMessages(this.messages);
   }
 
   setMessages(messages: ChatMessage[]): void {
-    this.messages = messages;
-    this.estimatedTokens = messages.reduce(
+    this.messages = cloneChatMessages(messages);
+    this.estimatedTokens = this.messages.reduce(
       (sum, msg) => sum + this.estimateTokens(msg),
       0,
     );
@@ -87,7 +88,7 @@ export class ContextManager {
     const removedMessages = nonSystemMessages.slice(0, -this.preserveRecent);
 
     if (removedMessages.length === 0) {
-      return { removed: [], kept: [...this.messages] };
+      return { removed: [], kept: cloneChatMessages(this.messages) };
     }
 
     let summaryText: string | undefined;
@@ -117,7 +118,7 @@ export class ContextManager {
       0,
     );
 
-    return { removed: removedMessages, kept, summary: summaryText };
+    return { removed: cloneChatMessages(removedMessages), kept: cloneChatMessages(kept), summary: summaryText };
   }
 
   clear(): void {

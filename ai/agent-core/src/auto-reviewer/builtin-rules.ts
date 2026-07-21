@@ -1,3 +1,14 @@
+import {
+  isFindDeleteTargetingHome,
+  isFindDeleteTargetingRoot,
+} from './find-delete-command.utils';
+import {
+  isRmRecursiveForceTargetingHome,
+  isRmRecursiveForceTargetingRoot,
+} from './rm-command.utils';
+import { isRemoteFetchPipedToShell } from './remote-shell-pipe.utils';
+import { aliasExpandedShellCommand } from './shell-alias-command.utils';
+import { staticAssignmentCommandVariants } from './shell-static-assignment-variant.utils';
 import type { ReviewRule } from './types';
 
 /**
@@ -28,6 +39,12 @@ function getBashCommand(args: Record<string, unknown>): string {
   return typeof cmd === 'string' ? cmd : '';
 }
 
+function bashCommandVariants(command: string): string[] {
+  const aliasExpanded = aliasExpandedShellCommand(command);
+  const commands = aliasExpanded ? [command, aliasExpanded] : [command];
+  return commands.flatMap((commandVariant) => staticAssignmentCommandVariants(commandVariant));
+}
+
 /**
  * Extract the file path from a file_write tool call.
  */
@@ -48,8 +65,7 @@ export const BUILTIN_RULES: ReviewRule[] = [
     matches: (ctx) => {
       if (ctx.toolName !== 'bash' && ctx.toolName !== 'Bash') return false;
       const cmd = getBashCommand(ctx.args);
-      // Match: rm -rf / or rm -rf /* etc.
-      return /\brm\s+[^|;&]*-r[a-zA-Z]*f?\s+\/(\s|$|\*)/.test(cmd);
+      return bashCommandVariants(cmd).some((command) => isRmRecursiveForceTargetingRoot(command, ctx.workingDir));
     },
   },
   {
@@ -60,9 +76,29 @@ export const BUILTIN_RULES: ReviewRule[] = [
     matches: (ctx) => {
       if (ctx.toolName !== 'bash' && ctx.toolName !== 'Bash') return false;
       const cmd = getBashCommand(ctx.args);
-      // Match: rm -rf ~, rm -rf $HOME, rm -rf ~/*
-      return /\brm\s+[^|;&]*-r[a-zA-Z]*f?\s+~(\/|\s|$|\*)/.test(cmd)
-        || /\brm\s+[^|;&]*-r[a-zA-Z]*f?\s+\$HOME(\/|\s|$|\*)/.test(cmd);
+      return bashCommandVariants(cmd).some(isRmRecursiveForceTargetingHome);
+    },
+  },
+  {
+    id: 'bash-find-delete-root',
+    description: 'Deny find -delete targeting the filesystem root',
+    verdict: 'deny',
+    reason: 'Refusing to delete filesystem root (find / -delete)',
+    matches: (ctx) => {
+      if (ctx.toolName !== 'bash' && ctx.toolName !== 'Bash') return false;
+      const cmd = getBashCommand(ctx.args);
+      return bashCommandVariants(cmd).some((command) => isFindDeleteTargetingRoot(command, ctx.workingDir));
+    },
+  },
+  {
+    id: 'bash-find-delete-home',
+    description: 'Deny find -delete targeting the home directory',
+    verdict: 'deny',
+    reason: 'Refusing to delete home directory (find ~ -delete)',
+    matches: (ctx) => {
+      if (ctx.toolName !== 'bash' && ctx.toolName !== 'Bash') return false;
+      const cmd = getBashCommand(ctx.args);
+      return bashCommandVariants(cmd).some((command) => isFindDeleteTargetingHome(command, ctx.workingDir));
     },
   },
   {
@@ -73,8 +109,7 @@ export const BUILTIN_RULES: ReviewRule[] = [
     matches: (ctx) => {
       if (ctx.toolName !== 'bash' && ctx.toolName !== 'Bash') return false;
       const cmd = getBashCommand(ctx.args);
-      // Match: curl ... | bash/sh/zsh or wget ... | bash/sh/zsh
-      return /(curl|wget)\s+[^|]*\|\s*(bash|sh|zsh)\b/.test(cmd);
+      return bashCommandVariants(cmd).some((command) => isRemoteFetchPipedToShell(command, ctx.workingDir));
     },
   },
 

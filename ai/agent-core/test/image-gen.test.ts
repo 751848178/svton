@@ -17,6 +17,7 @@ import type { IPlatform } from '@svton/agent-platform';
 function createMockProvider(
   name: string,
   models: string[],
+  result?: ImageGenerationResult,
 ): IImageGenerationProvider & { generate: ReturnType<typeof vi.fn> } {
   return {
     name,
@@ -24,10 +25,12 @@ function createMockProvider(
     generate: vi.fn(async (
       _req: ImageGenerationRequest,
       _apiKey: string,
-    ): Promise<ImageGenerationResult> => ({
-      images: [{ url: `https://example.com/${name}-image.png` }],
-      model: _req.model,
-    })),
+    ): Promise<ImageGenerationResult> => (
+      result ?? {
+        images: [{ url: `https://example.com/${name}-image.png` }],
+        model: _req.model,
+      }
+    )),
   };
 }
 
@@ -236,6 +239,32 @@ describe('F9 — Image Generation', () => {
       );
     });
 
+    it('uses the trimmed explicit model before provider generation', async () => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      registry.register(provider, 'key');
+
+      const executor = new ImageGenerateExecutor(registry);
+      const call: ToolCall = {
+        id: 'tc_trim_model',
+        name: 'image_generate',
+        arguments: { prompt: 'a sunset', model: ' \ndall-e-3\t ' },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBeFalsy();
+      expect(provider.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'dall-e-3' }),
+        'key',
+      );
+    });
+
     it('returns an error result when prompt is missing', async () => {
       const registry = new ImageGenRegistry();
       registry.register(createMockProvider('t', ['m']), 'k');
@@ -257,6 +286,216 @@ describe('F9 — Image Generation', () => {
       expect(result.output).toContain('prompt');
     });
 
+    it('returns an error when prompt is blank before provider generation', async () => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const call: ToolCall = {
+        id: 'tc_blank_prompt',
+        name: 'image_generate',
+        arguments: { prompt: '  \n\t  ', model: 'dall-e-3' },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"prompt" is required');
+      expect(provider.generate).not.toHaveBeenCalled();
+    });
+
+    it('uses the trimmed prompt before provider generation', async () => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const call: ToolCall = {
+        id: 'tc_trim_prompt',
+        name: 'image_generate',
+        arguments: { prompt: '  \na sunset\t  ', model: 'dall-e-3' },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBeFalsy();
+      expect(provider.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'a sunset' }),
+        'key',
+      );
+    });
+
+    it.each([
+      ['non-string', 42],
+      ['blank', ' \n\t '],
+    ])('returns an error when model is %s before registry resolution', async (_label, model) => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      registry.register(provider, 'key');
+      const generateSpy = vi.spyOn(registry, 'generate');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const call: ToolCall = {
+        id: 'tc_invalid_model',
+        name: 'image_generate',
+        arguments: { prompt: 'a sunset', model },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"model" must be a non-empty string');
+      expect(generateSpy).not.toHaveBeenCalled();
+      expect(provider.generate).not.toHaveBeenCalled();
+    });
+
+    it('returns an error when n is not a number', async () => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const call: ToolCall = {
+        id: 'tc_invalid_n',
+        name: 'image_generate',
+        arguments: { prompt: 'a sunset', model: 'dall-e-3', n: '2' },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"n" must be a positive integer');
+      expect(provider.generate).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['NaN', Number.NaN],
+      ['fractional', 1.5],
+      ['zero', 0],
+    ])('returns an error when n is %s before provider generation', async (_label, n) => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const call: ToolCall = {
+        id: 'tc_invalid_n_value',
+        name: 'image_generate',
+        arguments: { prompt: 'a sunset', model: 'dall-e-3', n },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"n" must be a positive integer');
+      expect(provider.generate).not.toHaveBeenCalled();
+    });
+
+    it('returns an error when size is invalid', async () => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const call: ToolCall = {
+        id: 'tc_invalid_size',
+        name: 'image_generate',
+        arguments: { prompt: 'a sunset', model: 'dall-e-3', size: '2048x2048' },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"size" must be one of');
+      expect(provider.generate).not.toHaveBeenCalled();
+    });
+
+    it('returns an error when quality is invalid', async () => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const call: ToolCall = {
+        id: 'tc_invalid_quality',
+        name: 'image_generate',
+        arguments: { prompt: 'a sunset', model: 'dall-e-3', quality: 'ultra' },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"quality" must be one of');
+      expect(provider.generate).not.toHaveBeenCalled();
+    });
+
+    it('uses trimmed size and quality before provider generation', async () => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const call: ToolCall = {
+        id: 'tc_trim_size_quality',
+        name: 'image_generate',
+        arguments: {
+          prompt: 'a sunset',
+          model: 'dall-e-3',
+          size: ' \n1024x1024\t ',
+          quality: ' hd\n',
+        },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBeFalsy();
+      expect(provider.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ size: '1024x1024', quality: 'hd' }),
+        'key',
+      );
+    });
+
     it('returns an error when no models are registered', async () => {
       const registry = new ImageGenRegistry();
       const executor = new ImageGenerateExecutor(registry);
@@ -264,7 +503,7 @@ describe('F9 — Image Generation', () => {
       const call: ToolCall = {
         id: 'tc4',
         name: 'image_generate',
-        arguments: { prompt: 'hello' },
+        arguments: { prompt: '  private scene\t' },
       };
       const ctx: ToolContext = {
         platform: createMockPlatform(),
@@ -275,6 +514,128 @@ describe('F9 — Image Generation', () => {
       const result = await executor.execute(call, ctx);
       expect(result.isError).toBe(true);
       expect(result.output).toContain('No image generation models');
+      expect(result.output).not.toContain('private scene');
+      expect(result.metadata).toMatchObject({
+        model: null,
+        promptLength: 13,
+        size: 'auto',
+        quality: 'standard',
+        requestedCount: 1,
+      });
+    });
+
+    it.each([
+      ['empty image array', { images: [], model: 'dall-e-3' }],
+      [
+        'image without url or base64',
+        { images: [{ revisedPrompt: 'a sharper prompt' }], model: 'dall-e-3' },
+      ],
+    ])('returns an error when provider returns %s', async (_label, providerResult) => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3'], providerResult);
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const call: ToolCall = {
+        id: 'tc_empty_images',
+        name: 'image_generate',
+        arguments: { prompt: 'a sunset', model: 'dall-e-3' },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: 's1',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('no usable image data');
+      expect(result.output).not.toContain('a sunset');
+      expect(result.metadata).toMatchObject({
+        model: 'dall-e-3',
+        promptLength: 8,
+        size: 'auto',
+        quality: 'standard',
+        requestedCount: 1,
+        count: 0,
+      });
+      expect(provider.generate).toHaveBeenCalled();
+    });
+
+    it('returns non-sensitive request metadata when provider generation throws', async () => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3']);
+      provider.generate = vi.fn().mockRejectedValue(new Error('provider unavailable'));
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const result = await executor.execute(
+        {
+          id: 'tc_provider_throw',
+          name: 'image_generate',
+          arguments: {
+            prompt: '  a private sunset\t',
+            model: ' \ndall-e-3\t',
+            size: ' \n1024x1024\t',
+            quality: ' hd\n',
+            n: 2,
+          },
+        },
+        {
+          platform: createMockPlatform(),
+          sessionId: 's1',
+          workingDir: '/tmp',
+        },
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('provider unavailable');
+      expect(result.output).not.toContain('a private sunset');
+      expect(result.metadata).toMatchObject({
+        model: 'dall-e-3',
+        promptLength: 16,
+        size: '1024x1024',
+        quality: 'hd',
+        requestedCount: 2,
+      });
+    });
+
+    it('keeps usable images when a provider includes empty image entries', async () => {
+      const registry = new ImageGenRegistry();
+      const provider = createMockProvider('test', ['dall-e-3'], {
+        images: [
+          { revisedPrompt: 'empty placeholder' },
+          { url: 'https://example.com/usable.png' },
+          { base64: 'ZmFrZQ==', revisedPrompt: 'usable base64' },
+        ] as GeneratedImage[],
+        model: 'dall-e-3',
+      });
+      registry.register(provider, 'key');
+      const executor = new ImageGenerateExecutor(registry);
+
+      const result = await executor.execute(
+        {
+          id: 'tc_mixed_images',
+          name: 'image_generate',
+          arguments: { prompt: 'a sunset', model: 'dall-e-3' },
+        },
+        {
+          platform: createMockPlatform(),
+          sessionId: 's1',
+          workingDir: '/tmp',
+        },
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(result.metadata).toMatchObject({ count: 2 });
+      expect((result.metadata as any).images).toEqual([
+        { url: 'https://example.com/usable.png' },
+        { base64: 'ZmFrZQ==', revisedPrompt: 'usable base64' },
+      ]);
+      expect(result.output).toContain('Generated 2 image(s)');
+      expect(result.output).toContain('base64=(8 chars)');
+      expect(result.output).not.toContain('usable base64');
     });
   });
 });

@@ -189,6 +189,33 @@ describe('ChatService', () => {
       expect(spy).toHaveBeenCalledTimes(1);
       spy.mockRestore();
     });
+
+    it('marks pending approvals errored when runtime is reinitialized', async () => {
+      await service.init(mockPlatform, createConfig(provider), 'runtime-a');
+      service.messages = [{
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'tc1', name: 'test_tool', arguments: {}, status: 'pending_approval' }],
+        blocks: [{
+          type: 'tool_call',
+          call: { id: 'tc1', name: 'test_tool', arguments: {}, status: 'pending_approval' },
+        }],
+      }];
+      (service as any).pendingToolCalls.set('tc1', {
+        call: { id: 'tc1', name: 'test_tool', arguments: {} },
+        resolve: vi.fn(),
+      });
+      (service as any).status = 'waiting_approval';
+
+      await service.init(mockPlatform, createConfig(provider), 'runtime-b');
+
+      expect(service.status).toBe('idle');
+      expect(service.hasPendingApprovals).toBe(false);
+      expect(service.messages[0].toolCalls![0].status).toBe('error');
+      expect((service.messages[0].blocks![0] as any).call.status).toBe('error');
+    });
   });
 
   // ----------------------------------------------------------
@@ -223,6 +250,29 @@ describe('ChatService', () => {
 
       await service.sendMessage('Go');
       expect(service.status).toBe('idle');
+    });
+
+    it('does not mutate messages while waiting for tool approval', async () => {
+      service.messages = [
+        { id: 'u1', role: 'user', content: 'Use tool', timestamp: 1000 },
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: '',
+          timestamp: 1001,
+          toolCalls: [{ id: 'tc1', name: 'test_tool', arguments: {}, status: 'pending_approval' }],
+        },
+      ];
+      (service as any).status = 'waiting_approval';
+      const before = JSON.stringify(service.messages);
+
+      await service.sendMessage('New turn');
+      await service.retry();
+      await service.retryFromMessage('u1');
+      await service.editMessage('u1', 'Edited');
+
+      expect(service.status).toBe('waiting_approval');
+      expect(JSON.stringify(service.messages)).toBe(before);
     });
 
     it('records duration on the assistant message', async () => {
@@ -460,6 +510,32 @@ describe('ChatService', () => {
       expect(service.messages[0].isStreaming).toBe(false);
       expect(service.status).toBe('idle');
     });
+
+    it('clears pending approvals and marks them errored', async () => {
+      service.messages = [{
+        id: 'msg_approval',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'tc1', name: 'test_tool', arguments: {}, status: 'pending_approval' }],
+        blocks: [{
+          type: 'tool_call',
+          call: { id: 'tc1', name: 'test_tool', arguments: {}, status: 'pending_approval' },
+        }],
+      }];
+      (service as any).pendingToolCalls.set('tc1', {
+        call: { id: 'tc1', name: 'test_tool', arguments: {} },
+        resolve: vi.fn(),
+      });
+      (service as any).status = 'waiting_approval';
+
+      service.abort();
+
+      expect(service.hasPendingApprovals).toBe(false);
+      expect(service.messages[0].toolCalls![0].status).toBe('error');
+      expect((service.messages[0].blocks![0] as any).call.status).toBe('error');
+      expect(service.status).toBe('idle');
+    });
   });
 
   // ----------------------------------------------------------
@@ -529,6 +605,52 @@ describe('ChatService', () => {
 
       expect(service.messages[1].toolCalls).toHaveLength(1);
       expect(service.messages[1].toolCalls![0].name).toBe('test_tool');
+    });
+
+    it('marks loaded pending approvals errored when no runtime approval is preserved', () => {
+      const messages: DisplayMessage[] = [
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: '',
+          timestamp: 1000,
+          toolCalls: [{ id: 'tc1', name: 'test_tool', arguments: {}, status: 'pending_approval' }],
+          blocks: [{
+            type: 'tool_call',
+            call: { id: 'tc1', name: 'test_tool', arguments: {}, status: 'pending_approval' },
+          }],
+        },
+      ];
+
+      service.loadMessages(messages);
+
+      expect(service.messages[0].toolCalls![0].status).toBe('error');
+      expect((service.messages[0].blocks![0] as any).call.status).toBe('error');
+    });
+
+    it('preserves loaded pending approvals when runtime approval is preserved', () => {
+      const messages: DisplayMessage[] = [
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: '',
+          timestamp: 1000,
+          toolCalls: [{ id: 'tc1', name: 'test_tool', arguments: {}, status: 'pending_approval' }],
+          blocks: [{
+            type: 'tool_call',
+            call: { id: 'tc1', name: 'test_tool', arguments: {}, status: 'pending_approval' },
+          }],
+        },
+      ];
+      (service as any).pendingToolCalls.set('tc1', {
+        call: { id: 'tc1', name: 'test_tool', arguments: {} },
+        resolve: vi.fn(),
+      });
+
+      service.loadMessages(messages, { preservePendingToolCalls: true });
+
+      expect(service.messages[0].toolCalls![0].status).toBe('pending_approval');
+      expect((service.messages[0].blocks![0] as any).call.status).toBe('pending_approval');
     });
   });
 
@@ -659,6 +781,42 @@ describe('ChatService', () => {
       const result = service.abortIfStreaming();
       expect(result).toBe(true);
     });
+
+    it('finalizes visible-only pending approvals when aborting', () => {
+      service.messages = [{
+        id: 'msg-visible-pending',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        isStreaming: true,
+        toolCalls: [{
+          id: 'tc-visible-abort',
+          name: 'write_file',
+          arguments: { path: '/tmp/out.txt' },
+          status: 'pending_approval',
+        }],
+        blocks: [{
+          type: 'tool_call',
+          call: {
+            id: 'tc-visible-abort',
+            name: 'write_file',
+            arguments: { path: '/tmp/out.txt' },
+            status: 'pending_approval',
+          },
+        }],
+      }];
+      (service as any).status = 'waiting_approval';
+
+      const result = service.abortIfStreaming();
+
+      expect(result).toBe(true);
+      expect(service.messages[0].isStreaming).toBe(false);
+      expect(service.messages[0].toolCalls?.[0].status).toBe('error');
+      expect(service.messages[0].blocks?.[0]).toMatchObject({
+        type: 'tool_call',
+        call: { id: 'tc-visible-abort', status: 'error' },
+      });
+    });
   });
 
   // ----------------------------------------------------------
@@ -723,6 +881,762 @@ describe('ChatService', () => {
       expect(assistant!.blocks!.length).toBeGreaterThanOrEqual(2);
       // First block should be text
       expect(assistant!.blocks![0].type).toBe('text');
+    });
+
+    it('ignores late stream events after final done', async () => {
+      const run = vi.spyOn((service as any).runtime, 'run');
+      run.mockImplementation(() => (async function* () {
+        yield { type: 'text_delta', text: 'final' };
+        yield { type: 'done', stopReason: 'stop' };
+        yield { type: 'text_delta', text: 'late' };
+      })() as any);
+
+      await service.sendMessage('finish');
+
+      const assistant = service.messages.find((m) => m.role === 'assistant');
+      expect(assistant?.content).toBe('final');
+      expect(assistant?.blocks).toEqual([{ type: 'text', text: 'final' }]);
+      expect(assistant?.isStreaming).toBe(false);
+    });
+
+    it('marks read_file alias progress blocks done when the tool completes', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_read_alias',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [],
+        blocks: [],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_start',
+        call: { id: 'read-alias-1', name: 'read_file', arguments: { path: '/workspace/src/alias.ts' } },
+      }, 'msg_read_alias');
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'read-alias-1',
+          output: 'export const alias = true;',
+          isError: false,
+        },
+      }, 'msg_read_alias');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'progress',
+        text: 'Reading file',
+        status: 'done',
+      });
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'reference',
+        refs: [{ path: '/workspace/src/alias.ts' }],
+      });
+    });
+
+    it('preserves csv fanout row details in display blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_csv',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'csv-1', name: 'csv_fanout', arguments: {}, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'csv-1', name: 'csv_fanout', arguments: {}, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'csv-1',
+          output: JSON.stringify({
+            totalRows: '2',
+            succeeded: '1',
+            failed: '1',
+            rows: [
+              { rowIndex: 1, status: 'success', rowData: { email: 'a@example.com' }, summary: 'sent' },
+              { rowIndex: 2, status: 'failed', rowData: { email: 'b@example.com' }, summary: 'bounced' },
+            ],
+          }),
+          isError: false,
+        },
+      }, 'msg_csv');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'csv_fanout',
+        totalRows: 2,
+        succeeded: 1,
+        failed: 1,
+        rows: [
+          { rowIndex: 1, status: 'success', rowData: { email: 'a@example.com' }, summary: 'sent' },
+          { rowIndex: 2, status: 'failed', rowData: { email: 'b@example.com' }, summary: 'bounced' },
+        ],
+      });
+    });
+
+    it('normalizes nested file tree children in display blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_tree',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'list-1', name: 'list_files', arguments: {}, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'list-1', name: 'list_files', arguments: {}, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'list-1',
+          output: JSON.stringify([
+            { name: 'app.ts', type: 'file' },
+            {
+              path: '/workspace/src/components',
+              isDirectory: true,
+              children: [
+                { path: '/workspace/src/components/Button.tsx', type: 'file' },
+                {
+                  name: 'forms',
+                  type: 'directory',
+                  children: [{ path: '/workspace/src/components/forms/Input.tsx', type: 'file' }],
+                },
+              ],
+            },
+          ]),
+          isError: false,
+        },
+      }, 'msg_tree');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'file_tree',
+        tree: [
+          { name: 'app.ts', type: 'file', children: undefined },
+          {
+            name: 'components',
+            type: 'dir',
+            children: [
+              { name: 'Button.tsx', type: 'file', children: undefined },
+              {
+                name: 'forms',
+                type: 'dir',
+                children: [{ name: 'Input.tsx', type: 'file', children: undefined }],
+              },
+            ],
+          },
+        ],
+      });
+    });
+
+    it('surfaces csv fanout metadata results in display blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_csv_metadata',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'csv-metadata-1', name: 'csv_fanout', arguments: {}, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'csv-metadata-1', name: 'csv_fanout', arguments: {}, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'csv-metadata-1',
+          output: 'CSV fan-out completed: 1 succeeded, 1 failed out of 2 rows.',
+          isError: false,
+          metadata: {
+            totalRows: 2,
+            successCount: 1,
+            failCount: 1,
+            results: [
+              { summary: 'sent', success: true },
+              { summary: 'bounced', success: false, error: 'invalid email' },
+            ],
+          },
+        },
+      }, 'msg_csv_metadata');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'csv_fanout',
+        totalRows: 2,
+        succeeded: 1,
+        failed: 1,
+        rows: [
+          { rowIndex: 1, status: 'success', rowData: {}, summary: 'sent' },
+          { rowIndex: 2, status: 'failed', rowData: {}, summary: 'bounced' },
+        ],
+      });
+    });
+
+    it('surfaces glob newline file paths as file tree blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_glob_paths',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'glob-1', name: 'glob', arguments: { pattern: '**/*.ts' }, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'glob-1', name: 'glob', arguments: { pattern: '**/*.ts' }, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'glob-1',
+          output: 'src/app.ts\nsrc/components/Button.tsx',
+          isError: false,
+        },
+      }, 'msg_glob_paths');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'file_tree',
+        tree: [
+          { name: 'app.ts', type: 'file', children: undefined },
+          { name: 'Button.tsx', type: 'file', children: undefined },
+        ],
+      });
+    });
+
+    it('marks ls alias progress blocks done when the tool completes', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_ls_alias',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [],
+        blocks: [],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_start',
+        call: { id: 'ls-alias-1', name: 'ls', arguments: { path: '/workspace/src' } },
+      }, 'msg_ls_alias');
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'ls-alias-1',
+          output: JSON.stringify([{ name: 'alias.ts', type: 'file' }]),
+          isError: false,
+        },
+      }, 'msg_ls_alias');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'progress',
+        text: 'Listing files',
+        status: 'done',
+      });
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'file_tree',
+        tree: [{ name: 'alias.ts', type: 'file', children: undefined }],
+      });
+    });
+
+    it('accepts single web search result metadata in display blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_search',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'search-1', name: 'web_search', arguments: { query: 'agent client testing' }, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'search-1', name: 'web_search', arguments: { query: 'agent client testing' }, status: 'running' } }],
+      }];
+
+      expect(() => (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'search-1',
+          output: 'Search complete',
+          isError: false,
+          metadata: {
+            searchResults: {
+              title: 'Agent client testing guide',
+              url: 'https://example.com/client',
+              snippet: 'How to test agent client services.',
+            },
+          },
+        },
+      }, 'msg_search')).not.toThrow();
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'web_search',
+        query: 'agent client testing',
+        results: [
+          {
+            title: 'Agent client testing guide',
+            url: 'https://example.com/client',
+            snippet: 'How to test agent client services.',
+          },
+        ],
+      });
+    });
+
+    it('does not duplicate web search blocks when a tool result is replayed', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_search_replay',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'search-replay', name: 'web_search', arguments: { query: 'agent client replay' }, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'search-replay', name: 'web_search', arguments: { query: 'agent client replay' }, status: 'running' } }],
+      }];
+
+      const replayedEndEvent = {
+        type: 'tool_call_end',
+        result: {
+          callId: 'search-replay',
+          output: 'Search complete',
+          isError: false,
+          metadata: {
+            searchResults: {
+              title: 'Agent client replay guide',
+              url: 'https://example.com/client-replay',
+              snippet: 'Replay-safe search blocks.',
+            },
+          },
+        },
+      };
+
+      (service as any).handleEvent(replayedEndEvent, 'msg_search_replay');
+      (service as any).handleEvent(replayedEndEvent, 'msg_search_replay');
+
+      const webSearchBlocks = service.messages[0].blocks?.filter((block: any) => block.type === 'web_search');
+      expect(webSearchBlocks).toHaveLength(1);
+      expect(webSearchBlocks?.[0]).toEqual({
+        type: 'web_search',
+        query: 'agent client replay',
+        results: [
+          {
+            title: 'Agent client replay guide',
+            url: 'https://example.com/client-replay',
+            snippet: 'Replay-safe search blocks.',
+          },
+        ],
+      });
+    });
+
+    it('keeps overlapping tool result blocks next to their owning tool call', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_search_overlap',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [
+          { id: 'search-overlap', name: 'web_search', arguments: { query: 'agent client overlap' }, status: 'running' },
+          { id: 'read-overlap', name: 'file_read', arguments: { path: '/workspace/src/next.ts' }, status: 'running' },
+        ],
+        blocks: [
+          { type: 'progress', text: 'Searching the web', status: 'running' },
+          { type: 'tool_call', call: { id: 'search-overlap', name: 'web_search', arguments: { query: 'agent client overlap' }, status: 'running' } },
+          { type: 'progress', text: 'Reading file', status: 'running' },
+          { type: 'tool_call', call: { id: 'read-overlap', name: 'file_read', arguments: { path: '/workspace/src/next.ts' }, status: 'running' } },
+        ],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'search-overlap',
+          output: 'Search complete',
+          isError: false,
+          metadata: {
+            searchResults: {
+              title: 'Agent client overlap guide',
+              url: 'https://example.com/client-overlap',
+              snippet: 'Overlap-safe search blocks.',
+            },
+          },
+        },
+      }, 'msg_search_overlap');
+
+      expect(service.messages[0].blocks?.map((block) => block.type)).toEqual([
+        'progress',
+        'tool_call',
+        'web_search',
+        'progress',
+        'tool_call',
+      ]);
+      expect(service.messages[0].blocks?.[2]).toEqual({
+        type: 'web_search',
+        query: 'agent client overlap',
+        results: [
+          {
+            title: 'Agent client overlap guide',
+            url: 'https://example.com/client-overlap',
+            snippet: 'Overlap-safe search blocks.',
+          },
+        ],
+      });
+    });
+
+    it('accepts single image_generate images object in display blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_image',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'image-1', name: 'image_generate', arguments: { model: 'gpt-image-test' }, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'image-1', name: 'image_generate', arguments: { model: 'gpt-image-test' }, status: 'running' } }],
+      }];
+
+      expect(() => (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'image-1',
+          output: JSON.stringify({
+            images: { url: 'https://example.com/generated.png', revised_prompt: 'A clearer prompt' },
+          }),
+          isError: false,
+        },
+      }, 'msg_image')).not.toThrow();
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'image_generated',
+        images: [{ url: 'https://example.com/generated.png', base64: undefined, revisedPrompt: 'A clearer prompt' }],
+        model: 'gpt-image-test',
+      });
+    });
+
+    it('surfaces image generation metadata images in display blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_image_metadata',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'image-metadata-1', name: 'image_generate', arguments: { model: 'gpt-image-test' }, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'image-metadata-1', name: 'image_generate', arguments: { model: 'gpt-image-test' }, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'image-metadata-1',
+          output: 'Generated 1 image(s) using model "gpt-image-test".',
+          isError: false,
+          metadata: {
+            model: 'gpt-image-test',
+            images: [{ url: 'https://example.com/metadata-image.png', revisedPrompt: 'Metadata prompt' }],
+          },
+        },
+      }, 'msg_image_metadata');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'image_generated',
+        images: [{ url: 'https://example.com/metadata-image.png', base64: undefined, revisedPrompt: 'Metadata prompt' }],
+        model: 'gpt-image-test',
+      });
+    });
+
+    it('surfaces screenshot JSON image output in display blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_screenshot_image',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'screenshot-1', name: 'screenshot', arguments: {}, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'screenshot-1', name: 'screenshot', arguments: {}, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'screenshot-1',
+          output: JSON.stringify({ type: 'image', data: 'screenshot-base64', mimeType: 'image/jpeg' }),
+          isError: false,
+        },
+      }, 'msg_screenshot_image');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'image_generated',
+        images: [{ url: undefined, base64: 'screenshot-base64', mimeType: 'image/jpeg', revisedPrompt: undefined }],
+        model: 'screenshot',
+      });
+    });
+
+    it('normalizes single preview document image metadata in display blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_preview',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'preview-1', name: 'preview_document', arguments: { path: '/workspace/report.pdf' }, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'preview-1', name: 'preview_document', arguments: { path: '/workspace/report.pdf' }, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'preview-1',
+          output: JSON.stringify({ kind: 'images', count: 1, type: 'pdf' }),
+          isError: false,
+          metadata: {
+            previewResult: { kind: 'images', images: 'page-one-base64' },
+          },
+        },
+      }, 'msg_preview');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'preview_images',
+        images: ['page-one-base64'],
+        title: '/workspace/report.pdf',
+      });
+    });
+
+    it('deduplicates git diff file headers in code review blocks', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_diff',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'diff-1', name: 'git_diff', arguments: {}, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'diff-1', name: 'git_diff', arguments: {}, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'diff-1',
+          output: [
+            'diff --git a/src/app.ts b/src/app.ts',
+            '--- a/src/app.ts',
+            '+++ b/src/app.ts',
+            'diff --git a/src/new.ts b/src/new.ts',
+            '--- /dev/null',
+            '+++ b/src/new.ts',
+          ].join('\n'),
+          isError: false,
+        },
+      }, 'msg_diff');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'code_review',
+        findings: [
+          { file: 'src/app.ts', severity: 'info', comment: '文件变更' },
+          { file: 'src/new.ts', severity: 'info', comment: '文件变更' },
+        ],
+      });
+    });
+
+    it('skips file change blocks when file edit calls omit a path', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_write',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'write-1', name: 'write_file', arguments: {}, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'write-1', name: 'write_file', arguments: {}, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'write-1',
+          output: 'created file',
+          isError: false,
+        },
+      }, 'msg_write');
+
+      expect(service.messages[0].blocks?.some((block: any) => (
+        block.type === 'file_change' || block.type === 'turn_diff'
+      ))).toBe(false);
+    });
+
+    it('keeps overlapping file change blocks next to their owning write tool call', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_write_overlap',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [
+          { id: 'write-overlap', name: 'write_file', arguments: { path: '/workspace/src/overlap.ts' }, status: 'running' },
+          { id: 'read-after-write', name: 'file_read', arguments: { path: '/workspace/src/next.ts' }, status: 'running' },
+        ],
+        blocks: [
+          { type: 'tool_call', call: { id: 'write-overlap', name: 'write_file', arguments: { path: '/workspace/src/overlap.ts' }, status: 'running' } },
+          { type: 'progress', text: 'Reading file', status: 'running' },
+          { type: 'tool_call', call: { id: 'read-after-write', name: 'file_read', arguments: { path: '/workspace/src/next.ts' }, status: 'running' } },
+        ],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'write-overlap',
+          output: '+export const overlap = true;',
+          isError: false,
+        },
+      }, 'msg_write_overlap');
+
+      expect(service.messages[0].blocks?.map((block) => block.type)).toEqual([
+        'tool_call',
+        'file_change',
+        'progress',
+        'tool_call',
+      ]);
+      expect(service.messages[0].blocks?.[1]).toEqual({
+        type: 'file_change',
+        changes: [{
+          path: '/workspace/src/overlap.ts',
+          changeType: 'create',
+          diff: '+export const overlap = true;',
+        }],
+      });
+    });
+
+    it('extracts command blocks on done even without multiple file changes', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_command',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        blocks: [{ type: 'text', text: 'Ready [Run checks](action:run_checks)' }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'done',
+        stopReason: 'stop',
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      }, 'msg_command');
+
+      expect(service.messages[0].blocks).toEqual([
+        { type: 'text', text: 'Ready' },
+        { type: 'command', label: 'Run checks', action: 'run_checks' },
+      ]);
+    });
+
+    it('surfaces denied auto review metadata even when the tool result is an error', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_review',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'review-1', name: 'bash', arguments: { command: 'rm -rf /' }, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'review-1', name: 'bash', arguments: { command: 'rm -rf /' }, status: 'running' } }],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'review-1',
+          output: 'Auto-reviewer denied: Dangerous',
+          isError: true,
+          metadata: {
+            autoReviewVerdict: {
+              verdict: 'deny',
+              reason: 'Dangerous',
+              ruleId: 'deny-dangerous-bash',
+            },
+          },
+        },
+      }, 'msg_review');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'auto_review',
+        toolName: 'bash',
+        verdict: 'deny',
+        reason: 'Dangerous',
+        ruleId: 'deny-dangerous-bash',
+      });
+    });
+
+    it('ignores auto review metadata when a tool result has no matching tool call', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      service.messages = [{
+        id: 'msg_orphan_review',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [],
+        blocks: [],
+      }];
+
+      (service as any).handleEvent({
+        type: 'tool_call_end',
+        result: {
+          callId: 'missing-auto-review',
+          output: 'Auto-reviewer denied: Orphaned',
+          isError: true,
+          metadata: {
+            autoReviewVerdict: {
+              verdict: 'deny',
+              reason: 'Orphaned',
+              ruleId: 'orphan-auto-review',
+            },
+          },
+        },
+      }, 'msg_orphan_review');
+
+      expect(service.messages[0].blocks?.some((block: any) => block.type === 'auto_review')).toBe(false);
     });
   });
 
@@ -808,6 +1722,126 @@ describe('ChatService', () => {
       // After approval, status should eventually be idle
       expect(service.status).toBe('idle');
     });
+
+    it('preserves approval metadata on pending tool calls before the user decides', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.messages = [{
+        id: 'msg_metadata',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [
+          { id: 'tc-meta', name: 'test_tool', arguments: {}, status: 'running' },
+        ],
+        blocks: [
+          {
+            type: 'tool_call',
+            call: { id: 'tc-meta', name: 'test_tool', arguments: {}, status: 'running' },
+          },
+        ],
+      }];
+
+      await (service as any).handleEvent(
+        {
+          type: 'tool_approval_needed',
+          call: { id: 'tc-meta', name: 'test_tool', arguments: {} },
+          metadata: {
+            autoReviewVerdict: {
+              verdict: 'ask_user',
+              reason: 'No matching rule',
+              ruleId: undefined,
+            },
+          },
+        },
+        'msg_metadata',
+      );
+
+      expect(service.getPendingToolCalls()[0].metadata?.autoReviewVerdict).toEqual({
+        verdict: 'ask_user',
+        reason: 'No matching rule',
+        ruleId: undefined,
+      });
+      expect(service.messages[0].toolCalls![0].metadata?.autoReviewVerdict).toEqual({
+        verdict: 'ask_user',
+        reason: 'No matching rule',
+        ruleId: undefined,
+      });
+      expect((service.messages[0].blocks![0] as any).call.metadata?.autoReviewVerdict).toEqual({
+        verdict: 'ask_user',
+        reason: 'No matching rule',
+        ruleId: undefined,
+      });
+    });
+
+    it('keeps tool_call blocks in sync when approving or rejecting pending calls', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.messages = [{
+        id: 'msg_approval',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [
+          { id: 'tc-approve', name: 'test_tool', arguments: {}, status: 'pending_approval' },
+          { id: 'tc-reject', name: 'test_tool', arguments: {}, status: 'pending_approval' },
+        ],
+        blocks: [
+          {
+            type: 'tool_call',
+            call: { id: 'tc-approve', name: 'test_tool', arguments: {}, status: 'pending_approval' },
+          },
+          {
+            type: 'tool_call',
+            call: { id: 'tc-reject', name: 'test_tool', arguments: {}, status: 'pending_approval' },
+          },
+        ],
+      }];
+      (service as any).pendingToolCalls.set('tc-approve', {
+        call: { id: 'tc-approve', name: 'test_tool', arguments: {} },
+        resolve: vi.fn(),
+      });
+      (service as any).pendingToolCalls.set('tc-reject', {
+        call: { id: 'tc-reject', name: 'test_tool', arguments: {} },
+        resolve: vi.fn(),
+      });
+
+      service.approveToolCall('tc-approve');
+      service.rejectToolCall('tc-reject');
+
+      expect(service.messages[0].toolCalls![0].status).toBe('running');
+      expect((service.messages[0].blocks![0] as any).call.status).toBe('running');
+      expect(service.messages[0].toolCalls![1].status).toBe('error');
+      expect((service.messages[0].blocks![1] as any).call.status).toBe('error');
+    });
+
+    it('keeps subagent blocks in sync when approval state changes', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.messages = [{
+        id: 'msg_subagent_approval',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [
+          { id: 'subagent-approve', name: 'subagent_spawn', arguments: {}, status: 'running' },
+          { id: 'subagent-reject', name: 'subagent_spawn', arguments: {}, status: 'pending_approval' },
+        ],
+        blocks: [
+          { type: 'subagent', agentId: 'subagent-approve', task: 'approve task', status: 'running' },
+          { type: 'subagent', agentId: 'subagent-reject', task: 'reject task', status: 'pending' },
+        ],
+      }];
+      (service as any).pendingToolCalls.set('subagent-reject', {
+        call: { id: 'subagent-reject', name: 'subagent_spawn', arguments: {} },
+        resolve: vi.fn(),
+      });
+
+      (service as any).updateToolCallStatus('subagent-approve', 'pending_approval');
+      service.rejectToolCall('subagent-reject');
+
+      expect(service.messages[0].toolCalls![0].status).toBe('pending_approval');
+      expect((service.messages[0].blocks![0] as any).status).toBe('pending');
+      expect(service.messages[0].toolCalls![1].status).toBe('error');
+      expect((service.messages[0].blocks![1] as any).status).toBe('error');
+    });
   });
 
   // ----------------------------------------------------------
@@ -840,6 +1874,287 @@ describe('ChatService', () => {
       (service as any).handleEvent(event, 'msg_test');
 
       expect(service.messages[0].toolCalls![0].arguments).toEqual({ key: 'updated_value' });
+    });
+
+    it('updates tool call names via progress event', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      const assistantMsg: DisplayMessage = {
+        id: 'msg_test',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'tc1', name: 'test_', arguments: {}, status: 'running' }],
+        blocks: [{ type: 'tool_call', call: { id: 'tc1', name: 'test_', arguments: {}, status: 'running' } }],
+      };
+      service.messages = [assistantMsg];
+
+      const event: any = {
+        type: 'tool_call_progress',
+        callId: 'tc1',
+        name: 'test_tool',
+        message: '',
+        arguments: { key: 'updated_value' },
+      };
+      (service as any).handleEvent(event, 'msg_test');
+
+      expect(service.messages[0].toolCalls![0]).toMatchObject({
+        name: 'test_tool',
+        arguments: { key: 'updated_value' },
+      });
+      expect((service.messages[0].blocks![0] as any).call).toMatchObject({
+        name: 'test_tool',
+        arguments: { key: 'updated_value' },
+      });
+    });
+
+    it('reclassifies partial subagent starts when progress carries the final name', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      const assistantMsg: DisplayMessage = {
+        id: 'msg_test',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'subagent-1', name: 'subagent_', arguments: {}, status: 'running' }],
+        blocks: [{
+          type: 'tool_call',
+          call: { id: 'subagent-1', name: 'subagent_', arguments: {}, status: 'running' },
+        }],
+      };
+      service.messages = [assistantMsg];
+
+      const event: any = {
+        type: 'tool_call_progress',
+        callId: 'subagent-1',
+        name: 'subagent_spawn',
+        message: '',
+        arguments: { task: 'inspect auth flow' },
+      };
+      (service as any).handleEvent(event, 'msg_test');
+
+      expect(service.messages[0].toolCalls![0]).toMatchObject({
+        name: 'subagent_spawn',
+        arguments: { task: 'inspect auth flow' },
+      });
+      expect(service.messages[0].blocks![0]).toMatchObject({
+        type: 'subagent',
+        agentId: 'subagent-1',
+        task: 'inspect auth flow',
+        status: 'running',
+      });
+    });
+
+    it('adds slow tool progress blocks when progress carries the final slow tool name', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      const assistantMsg: DisplayMessage = {
+        id: 'msg_test',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'web-1', name: 'web_', arguments: {}, status: 'running' }],
+        blocks: [{
+          type: 'tool_call',
+          call: { id: 'web-1', name: 'web_', arguments: {}, status: 'running' },
+        }],
+      };
+      service.messages = [assistantMsg];
+
+      const event: any = {
+        type: 'tool_call_progress',
+        callId: 'web-1',
+        name: 'web_search',
+        message: '',
+        arguments: { query: 'agent runtime' },
+      };
+      (service as any).handleEvent(event, 'msg_test');
+
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'progress',
+        text: 'Searching the web',
+        status: 'running',
+      });
+      expect(service.messages[0].blocks).toContainEqual({
+        type: 'tool_call',
+        call: {
+          id: 'web-1',
+          name: 'web_search',
+          arguments: { query: 'agent runtime' },
+          status: 'running',
+        },
+      });
+    });
+
+    it('inserts progress-updated slow tool blocks before the matching tool call', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      const assistantMsg: DisplayMessage = {
+        id: 'msg_test',
+        role: 'assistant',
+        content: 'Intro',
+        timestamp: Date.now(),
+        toolCalls: [{ id: 'web-1', name: 'web_', arguments: {}, status: 'running' }],
+        blocks: [
+          { type: 'text', text: 'Intro' },
+          {
+            type: 'tool_call',
+            call: { id: 'web-1', name: 'web_', arguments: {}, status: 'running' },
+          },
+        ],
+      };
+      service.messages = [assistantMsg];
+
+      const event: any = {
+        type: 'tool_call_progress',
+        callId: 'web-1',
+        name: 'web_search',
+        message: '',
+        arguments: { query: 'agent runtime' },
+      };
+      (service as any).handleEvent(event, 'msg_test');
+
+      expect(service.messages[0].blocks![0]).toEqual({ type: 'text', text: 'Intro' });
+      expect(service.messages[0].blocks![1]).toEqual({
+        type: 'progress',
+        text: 'Searching the web',
+        status: 'running',
+      });
+      expect(service.messages[0].blocks![2]).toMatchObject({
+        type: 'tool_call',
+        call: { id: 'web-1', name: 'web_search' },
+      });
+    });
+
+    it('keeps separate progress blocks for repeated progress-updated slow tools', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      const assistantMsg: DisplayMessage = {
+        id: 'msg_test',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [
+          { id: 'web-1', name: 'web_', arguments: {}, status: 'running' },
+          { id: 'web-2', name: 'web_', arguments: {}, status: 'running' },
+        ],
+        blocks: [
+          { type: 'tool_call', call: { id: 'web-1', name: 'web_', arguments: {}, status: 'running' } },
+          { type: 'tool_call', call: { id: 'web-2', name: 'web_', arguments: {}, status: 'running' } },
+        ],
+      };
+      service.messages = [assistantMsg];
+
+      const firstEvent: any = {
+        type: 'tool_call_progress',
+        callId: 'web-1',
+        name: 'web_search',
+        message: '',
+        arguments: { query: 'first' },
+      };
+      const secondEvent: any = {
+        type: 'tool_call_progress',
+        callId: 'web-2',
+        name: 'web_search',
+        message: '',
+        arguments: { query: 'second' },
+      };
+      (service as any).handleEvent(firstEvent, 'msg_test');
+      (service as any).handleEvent(secondEvent, 'msg_test');
+
+      const progressBlocks = service.messages[0].blocks!.filter((block) =>
+        block.type === 'progress' && block.text === 'Searching the web'
+      );
+      expect(progressBlocks).toHaveLength(2);
+      expect(service.messages[0].blocks![0]).toMatchObject({ type: 'progress' });
+      expect(service.messages[0].blocks![1]).toMatchObject({
+        type: 'tool_call',
+        call: { id: 'web-1', arguments: { query: 'first' } },
+      });
+      expect(service.messages[0].blocks![2]).toMatchObject({ type: 'progress' });
+      expect(service.messages[0].blocks![3]).toMatchObject({
+        type: 'tool_call',
+        call: { id: 'web-2', arguments: { query: 'second' } },
+      });
+    });
+
+    it('marks only the completed slow tool progress block done', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      const assistantMsg: DisplayMessage = {
+        id: 'msg_test',
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+        toolCalls: [
+          { id: 'web-1', name: 'web_search', arguments: { query: 'first' }, status: 'running' },
+          { id: 'web-2', name: 'web_search', arguments: { query: 'second' }, status: 'running' },
+        ],
+        blocks: [
+          { type: 'progress', text: 'Searching the web', status: 'running' },
+          { type: 'tool_call', call: { id: 'web-1', name: 'web_search', arguments: { query: 'first' }, status: 'running' } },
+          { type: 'progress', text: 'Searching the web', status: 'running' },
+          { type: 'tool_call', call: { id: 'web-2', name: 'web_search', arguments: { query: 'second' }, status: 'running' } },
+        ],
+      };
+      service.messages = [assistantMsg];
+
+      const event: any = {
+        type: 'tool_call_end',
+        result: { callId: 'web-1', output: 'first done', isError: false },
+      };
+      (service as any).handleEvent(event, 'msg_test');
+
+      expect(service.messages[0].blocks![0]).toEqual({
+        type: 'progress',
+        text: 'Searching the web',
+        status: 'done',
+      });
+      expect(service.messages[0].blocks![2]).toEqual({
+        type: 'progress',
+        text: 'Searching the web',
+        status: 'running',
+      });
+    });
+
+    it('does not create orphan progress blocks for unknown tool calls', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-1');
+      (service as any).backgroundSessionId = 'sess-1';
+
+      const assistantMsg: DisplayMessage = {
+        id: 'msg_test',
+        role: 'assistant',
+        content: 'Intro',
+        timestamp: Date.now(),
+        toolCalls: [],
+        blocks: [{ type: 'text', text: 'Intro' }],
+      };
+      service.messages = [assistantMsg];
+
+      const event: any = {
+        type: 'tool_call_progress',
+        callId: 'missing-call',
+        name: 'web_search',
+        message: '',
+        arguments: { query: 'orphan' },
+      };
+      (service as any).handleEvent(event, 'msg_test');
+
+      expect(service.messages[0].toolCalls).toEqual([]);
+      expect(service.messages[0].blocks).toEqual([{ type: 'text', text: 'Intro' }]);
     });
   });
 
@@ -894,6 +2209,62 @@ describe('ChatService', () => {
       expect(callbackSessionId).toBe('sess-bg');
       expect(service.backgroundSessionId).toBeNull();
     });
+
+    it('invokes onBackgroundStreamEnd when a background stream is aborted', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-active');
+      (service as any).backgroundSessionId = 'sess-bg';
+
+      let callbackSessionId = '';
+      service.onBackgroundStreamEnd = (sid) => {
+        callbackSessionId = sid;
+      };
+
+      const bgMsgs: DisplayMessage[] = [
+        { id: 'bg_asst', role: 'assistant', content: 'Partial', toolCalls: [], isStreaming: true, timestamp: 1000 },
+      ];
+      service.cacheSessionMessages('sess-bg', bgMsgs);
+
+      service.abort();
+
+      const cached = service.getCachedMessages('sess-bg');
+      expect(cached![0].isStreaming).toBe(false);
+      expect(callbackSessionId).toBe('sess-bg');
+      expect(service.backgroundSessionId).toBeNull();
+    });
+
+    it('marks cached background tool calls pending when approval is requested', async () => {
+      await service.init(mockPlatform, createConfig(provider));
+      service.bindSession('sess-active');
+      (service as any).backgroundSessionId = 'sess-bg';
+
+      const bgMsgs: DisplayMessage[] = [
+        {
+          id: 'bg_asst',
+          role: 'assistant',
+          content: '',
+          toolCalls: [{ id: 'tc-bg', name: 'test_tool', arguments: {}, status: 'running' }],
+          blocks: [{
+            type: 'tool_call',
+            call: { id: 'tc-bg', name: 'test_tool', arguments: {}, status: 'running' },
+          }],
+          isStreaming: true,
+          timestamp: 1000,
+        },
+      ];
+      service.cacheSessionMessages('sess-bg', bgMsgs);
+
+      (service as any).handleEvent({
+        type: 'tool_approval_needed',
+        call: { id: 'tc-bg', name: 'test_tool', arguments: {} },
+      }, 'bg_asst');
+
+      const cached = service.getCachedMessages('sess-bg');
+      expect(service.hasPendingApprovals).toBe(true);
+      expect(cached![0].toolCalls![0].status).toBe('pending_approval');
+      expect((cached![0].blocks![0] as any).call.status).toBe('pending_approval');
+      expect(service.messages.find((m) => m.id === 'bg_asst')).toBeUndefined();
+    });
   });
 
   // ----------------------------------------------------------
@@ -919,6 +2290,40 @@ describe('ChatService', () => {
         { id: 'm1', role: 'system', content: 'System msg', timestamp: 1000 },
       ];
       expect(service.getMessagesForSave()).toEqual([]);
+    });
+
+    it('forcePrepareForSave finalizes visible-only pending approvals', () => {
+      service.messages = [{
+        id: 'm-visible-force-save',
+        role: 'assistant',
+        content: '',
+        timestamp: 1000,
+        isStreaming: true,
+        toolCalls: [{
+          id: 'tc-force-save',
+          name: 'write_file',
+          arguments: { path: '/tmp/out.txt' },
+          status: 'pending_approval',
+        }],
+        blocks: [{
+          type: 'tool_call',
+          call: {
+            id: 'tc-force-save',
+            name: 'write_file',
+            arguments: { path: '/tmp/out.txt' },
+            status: 'pending_approval',
+          },
+        }],
+      }];
+
+      const saved = service.forcePrepareForSave();
+
+      expect(saved[0].isStreaming).toBe(false);
+      expect(saved[0].toolCalls?.[0].status).toBe('error');
+      expect(saved[0].blocks?.[0]).toMatchObject({
+        type: 'tool_call',
+        call: { id: 'tc-force-save', status: 'error' },
+      });
     });
   });
 

@@ -1,5 +1,8 @@
-import type { Plan, PlanStep, PlanStepStatus } from './types';
+import type { Plan, PlanProgress, PlanStep, PlanStepStatus } from './types';
 import type { IStorage } from '@svton/agent-platform';
+import { formatPlanMarkdown } from './format.utils';
+import { clonePlan, clonePlanStep } from './plan-snapshot.utils';
+import { calculatePlanProgress, createEmptyPlanProgress } from './progress.utils';
 
 const STORAGE_PREFIX = 'plan:';
 
@@ -35,9 +38,10 @@ export class PlanningManager {
       for (const key of keys) {
         const plan = await this.storage.get<Plan>(key);
         if (plan?.id) {
-          this.plans.set(plan.id, plan);
+          const loadedPlan = clonePlan(plan);
+          this.plans.set(loadedPlan.id, loadedPlan);
           // Update counter to avoid ID collisions
-          const num = parseInt(plan.id.split('_')[1], 10);
+          const num = parseInt(loadedPlan.id.split('_')[1], 10);
           if (!isNaN(num) && num > planCounter) planCounter = num;
         }
       }
@@ -49,7 +53,7 @@ export class PlanningManager {
   private async persistPlan(plan: Plan): Promise<void> {
     if (!this.storage) return;
     try {
-      await this.storage.set(`${STORAGE_PREFIX}${plan.id}`, plan);
+      await this.storage.set(`${STORAGE_PREFIX}${plan.id}`, clonePlan(plan));
     } catch {
       // Persist failure is non-fatal
     }
@@ -87,14 +91,15 @@ export class PlanningManager {
 
     this.plans.set(planId, plan);
     this.persistPlan(plan);
-    return plan;
+    return clonePlan(plan);
   }
 
   /**
    * Get a plan by ID.
    */
   getPlan(planId: string): Plan | null {
-    return this.plans.get(planId) ?? null;
+    const plan = this.plans.get(planId);
+    return plan ? clonePlan(plan) : null;
   }
 
   /**
@@ -108,7 +113,11 @@ export class PlanningManager {
     if (!step) return false;
 
     step.status = status;
-    if (result !== undefined) step.result = result;
+    if (result !== undefined) {
+      step.result = result;
+    } else {
+      delete step.result;
+    }
     plan.updatedAt = Date.now();
     this.persistPlan(plan);
 
@@ -135,7 +144,7 @@ export class PlanningManager {
         if (!allDepsCompleted) continue;
       }
 
-      return step;
+      return clonePlanStep(step);
     }
 
     return null;
@@ -159,22 +168,15 @@ export class PlanningManager {
       }
 
       return true;
-    });
+    }).map(clonePlanStep);
   }
 
   /**
    * Get overall plan progress.
    */
-  getProgress(planId: string): { total: number; completed: number; failed: number; pending: number } {
+  getProgress(planId: string): PlanProgress {
     const plan = this.plans.get(planId);
-    if (!plan) return { total: 0, completed: 0, failed: 0, pending: 0 };
-
-    return {
-      total: plan.steps.length,
-      completed: plan.steps.filter((s) => s.status === 'completed').length,
-      failed: plan.steps.filter((s) => s.status === 'failed').length,
-      pending: plan.steps.filter((s) => s.status === 'pending').length,
-    };
+    return plan ? calculatePlanProgress(plan) : createEmptyPlanProgress();
   }
 
   /**
@@ -184,24 +186,7 @@ export class PlanningManager {
     const plan = this.plans.get(planId);
     if (!plan) return '';
 
-    const statusIcons: Record<PlanStepStatus, string> = {
-      pending: '[ ]',
-      in_progress: '[~]',
-      completed: '[x]',
-      skipped: '[-]',
-      failed: '[!]',
-    };
-
-    const lines: string[] = [
-      `# ${plan.title}`,
-      `Plan ID: ${plan.id}`,
-      '',
-      ...plan.steps.map(
-        (step) => `${statusIcons[step.status]} ${step.id}: ${step.title}${step.result ? `\n   ${step.result}` : ''}`,
-      ),
-    ];
-
-    return lines.join('\n');
+    return formatPlanMarkdown(plan);
   }
 
   /**

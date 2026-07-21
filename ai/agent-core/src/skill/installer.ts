@@ -1,6 +1,14 @@
 import type { SkillDefinition, SkillSource, SkillInstallRecord } from './types';
 import type { IStorage, IPlatform } from '@svton/agent-platform';
 import { SkillLoader } from './loader';
+import { readGitSkillContent } from './git-skill-content.utils';
+import {
+  snapshotSkillInstallRecord,
+  snapshotSkillInstallRecords,
+} from './skill-install-record-snapshot.utils';
+import { snapshotSkillDefinition } from './skill-definition-snapshot.utils';
+import { snapshotSkillSource } from './skill-source-snapshot.utils';
+import { formatUnknownErrorMessage } from '../utils/error-message.utils';
 
 export interface InstallResult {
   success: boolean;
@@ -34,8 +42,8 @@ export class SkillInstaller {
       }
       const content = await resp.text();
       return this.installFromContent(content, { type: 'url', url });
-    } catch (err: any) {
-      return { success: false, error: err.message || String(err) };
+    } catch (err) {
+      return { success: false, error: formatUnknownErrorMessage(err) };
     }
   }
 
@@ -44,69 +52,11 @@ export class SkillInstaller {
    * Uses git archive to fetch SKILL.md without cloning the full repo.
    */
   async installFromGit(repo: string, ref?: string): Promise<InstallResult> {
-    if (!this.platform?.process) {
-      return { success: false, error: 'Git installation requires desktop (process access)' };
+    const result = await readGitSkillContent(this.platform, repo, ref);
+    if (result.error || !result.content) {
+      return { success: false, error: result.error ?? 'No SKILL.md found in repository' };
     }
-
-    try {
-      // Try git archive to fetch SKILL.md directly
-      const archiveRef = ref || 'HEAD';
-      const { stdout, exitCode } = await this.platform.process.exec(
-        `git archive --remote=${repo} ${archiveRef} SKILL.md 2>/dev/null | tar -xO`,
-        { timeout: 30000 },
-      );
-
-      if (exitCode !== 0 || !stdout.trim()) {
-        // Fallback: try .svton/skills/*/SKILL.md patterns
-        return await this.installFromGitFallback(repo, ref);
-      }
-
-      return this.installFromContent(stdout, { type: 'git', repo, ref });
-    } catch (err: any) {
-      // Try fallback
-      try {
-        return await this.installFromGitFallback(repo, ref);
-      } catch {
-        return { success: false, error: err.message || String(err) };
-      }
-    }
-  }
-
-  /**
-   * Fallback for Git: clone to temp dir and search for SKILL.md files.
-   */
-  private async installFromGitFallback(repo: string, ref?: string): Promise<InstallResult> {
-    if (!this.platform?.process || !this.platform?.fs) {
-      return { success: false, error: 'Git installation requires desktop' };
-    }
-
-    const tmpDir = `/tmp/svton-skill-${Date.now()}`;
-    try {
-      // Shallow clone
-      const cloneCmd = ref
-        ? `git clone --depth 1 --branch ${ref} ${repo} ${tmpDir}`
-        : `git clone --depth 1 ${repo} ${tmpDir}`;
-
-      const { exitCode } = await this.platform.process.exec(cloneCmd, { timeout: 60000 });
-      if (exitCode !== 0) {
-        return { success: false, error: `git clone failed (exit code ${exitCode})` };
-      }
-
-      // Search for SKILL.md
-      const skillContent = await this.findSkillMdInDir(tmpDir);
-      if (!skillContent) {
-        return { success: false, error: 'No SKILL.md found in repository' };
-      }
-
-      return this.installFromContent(skillContent, { type: 'git', repo, ref });
-    } finally {
-      // Cleanup
-      try {
-        await this.platform.process.exec(`rm -rf ${tmpDir}`, { timeout: 5000 });
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
+    return this.installFromContent(result.content, { type: 'git', repo, ref });
   }
 
   /**
@@ -127,8 +77,8 @@ export class SkillInstaller {
 
       const content = await this.platform.fs.readFile(skillMdPath);
       return this.installFromContent(content, { type: 'local', path: dirPath });
-    } catch (err: any) {
-      return { success: false, error: err.message || String(err) };
+    } catch (err) {
+      return { success: false, error: formatUnknownErrorMessage(err) };
     }
   }
 
@@ -151,7 +101,7 @@ export class SkillInstaller {
       const record = await this.storage.get<SkillInstallRecord>(key);
       if (record) records.push(record);
     }
-    return records;
+    return snapshotSkillInstallRecords(records);
   }
 
   // ── Internal ──
@@ -166,85 +116,25 @@ export class SkillInstaller {
       return { success: false, error: 'SKILL.md missing required "name" field' };
     }
 
-    skill.source = source;
+    const sourceSnapshot = snapshotSkillSource(source);
+    const installedSkill = snapshotSkillDefinition({
+      ...skill,
+      source: sourceSnapshot,
+    });
 
     // Save the skill as installed
-    await SkillLoader.saveInstalled(this.storage, skill);
+    await SkillLoader.saveInstalled(this.storage, installedSkill);
 
     // Save the install record
-    const record: SkillInstallRecord = {
-      name: skill.name,
-      source,
+    const record = snapshotSkillInstallRecord({
+      name: installedSkill.name,
+      source: sourceSnapshot,
       installedAt: Date.now(),
-      version: skill.version,
-    };
-    await this.storage.set(`agent:skill-registry:${skill.name}`, record);
+      version: installedSkill.version,
+    });
+    await this.storage.set(`agent:skill-registry:${installedSkill.name}`, record);
 
-    return { success: true, skill };
+    return { success: true, skill: snapshotSkillDefinition(installedSkill) };
   }
 
-  /**
-   * Search for SKILL.md in a directory tree (first level + .svton/skills/).
-   */
-  private async findSkillMdInDir(dir: string): Promise<string | null> {
-    if (!this.platform?.fs) return null;
-
-    // Try root SKILL.md
-    try {
-      const rootPath = this.platform.fs.join(dir, 'SKILL.md');
-      if (await this.platform.fs.exists(rootPath)) {
-        return await this.platform.fs.readFile(rootPath);
-      }
-    } catch { /* skip */ }
-
-    // Try .svton/skills/*/SKILL.md
-    try {
-      const skillsDir = this.platform.fs.join(dir, '.svton', 'skills');
-      if (await this.platform.fs.exists(skillsDir)) {
-        const entries = await this.platform.fs.listDir(skillsDir);
-        for (const entry of entries) {
-          if (entry.isDirectory) {
-            try {
-              const path = this.platform.fs!.join(skillsDir, entry.name, 'SKILL.md');
-              return await this.platform.fs!.readFile(path);
-            } catch { /* skip */ }
-          }
-        }
-      }
-    } catch { /* skip */ }
-
-    // Try .claude/skills/*/SKILL.md (Claude Code compatibility)
-    try {
-      const claudeDir = this.platform.fs.join(dir, '.claude', 'skills');
-      if (await this.platform.fs.exists(claudeDir)) {
-        const entries = await this.platform.fs.listDir(claudeDir);
-        for (const entry of entries) {
-          if (entry.isDirectory) {
-            try {
-              const path = this.platform.fs!.join(claudeDir, entry.name, 'SKILL.md');
-              return await this.platform.fs!.readFile(path);
-            } catch { /* skip */ }
-          }
-        }
-      }
-    } catch { /* skip */ }
-
-    // Try .agents/skills/*/SKILL.md (Codex compatibility)
-    try {
-      const agentsDir = this.platform.fs.join(dir, '.agents', 'skills');
-      if (await this.platform.fs.exists(agentsDir)) {
-        const entries = await this.platform.fs.listDir(agentsDir);
-        for (const entry of entries) {
-          if (entry.isDirectory) {
-            try {
-              const path = this.platform.fs!.join(agentsDir, entry.name, 'SKILL.md');
-              return await this.platform.fs!.readFile(path);
-            } catch { /* skip */ }
-          }
-        }
-      }
-    } catch { /* skip */ }
-
-    return null;
-  }
 }

@@ -60,7 +60,7 @@ export class CurlHttpClient implements IHttpClient {
 
   async request(
     url: string,
-    opts?: { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; timeoutMs?: number },
+    opts?: { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; timeoutMs?: number; signal?: AbortSignal },
   ): Promise<IHttpResponse> {
     const timeoutS = Math.max(1, Math.round((opts?.timeoutMs ?? DEFAULT_TIMEOUT_S * 1000) / 1000));
     const headers = { 'User-Agent': DEFAULT_USER_AGENT, ...(opts?.headers ?? {}) };
@@ -77,13 +77,16 @@ export class CurlHttpClient implements IHttpClient {
     parts.push(`'${url.replace(/'/g, "'\\''")}'`);
 
     const command = parts.join(' ');
-    const result = await this.process.exec(command, { cwd: this.cwd, timeout: timeoutS * 1000 + 1000 });
+    const result = await this.process.exec(command, { cwd: this.cwd, timeout: timeoutS * 1000 + 1000, signal: opts?.signal });
 
     if (result.timedOut) {
       return new CurlHttpResponse('', 0, `timed out after ${timeoutS}s`, {});
     }
 
     const raw = (result.stdout || '') + (result.stderr ? `\n${result.stderr}` : '');
+    if (result.exitCode !== 0) {
+      return new CurlHttpResponse(raw.trim(), 0, `curl exited with ${result.exitCode}`, {});
+    }
     let body = raw;
     let contentType = '';
     let status = 200;

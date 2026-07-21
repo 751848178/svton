@@ -1,5 +1,7 @@
 import type { IPlatform } from '@svton/agent-platform';
 import type { WorktreeInfo, CreateWorktreeOptions } from './types';
+import { findContainingLinkedWorktree } from './worktree-path.utils';
+import { shellQuote } from '../utils/shell-quote.utils';
 
 /**
  * Manages git worktrees for parallel agent sessions.
@@ -39,9 +41,9 @@ export class WorktreeManager {
       opts.branch ?? `agent-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const worktreePath = opts.path ?? this.derivePath(repoDir, branch);
 
-    const args = ['worktree', 'add', '-b', branch, worktreePath];
+    const args = ['worktree', 'add', '-b', shellQuote(branch), shellQuote(worktreePath)];
     if (opts.baseBranch) {
-      args.push(opts.baseBranch);
+      args.push(shellQuote(opts.baseBranch));
     }
 
     const result = await this.platform.process.exec(`git ${args.join(' ')}`, {
@@ -68,7 +70,7 @@ export class WorktreeManager {
    * Uses `git worktree remove`.
    */
   async remove(repoDir: string, path: string, force: boolean = false): Promise<void> {
-    const args = ['worktree', 'remove', path];
+    const args = ['worktree', 'remove', shellQuote(path)];
     if (force) {
       args.push('--force');
     }
@@ -89,7 +91,7 @@ export class WorktreeManager {
   async detectCurrent(repoDir: string): Promise<WorktreeInfo | null> {
     const worktrees = await this.list(repoDir);
     const resolved = this.resolvePath(repoDir);
-    return worktrees.find((w) => w.path === resolved) ?? null;
+    return findContainingLinkedWorktree(worktrees, resolved);
   }
 
   // ----------------------------------------------------------

@@ -140,6 +140,27 @@ const VALID_MANIFEST: PluginManifest = {
   description: 'A test plugin',
 };
 
+function makeRichManifest(name = 'rich-plugin'): PluginManifest {
+  return {
+    name,
+    version: '1.0.0',
+    description: 'Rich plugin',
+    skills: ['skills/review/SKILL.md'],
+    mcpServers: [
+      {
+        name: 'docs',
+        transport: 'stdio',
+        command: 'node',
+        args: ['server.js'],
+        env: { TOKEN: 'secret' },
+        enabled: true,
+        approvalMode: 'ask',
+      },
+    ],
+    hooks: [{ event: 'pre_tool_use', description: 'validate tool calls' }],
+  };
+}
+
 function makeRecord(overrides: Partial<PluginInstallRecord> = {}): PluginInstallRecord {
   return {
     name: 'test-plugin',
@@ -201,6 +222,25 @@ describe('PluginManager', () => {
       expect(list).toHaveLength(1);
       expect(list[0].name).toBe('existing-plugin');
       expect(list[0].version).toBe('2.0.0');
+    });
+
+    it('loads registry records as manager-owned copies', async () => {
+      const { manager, storage } = makeManager();
+      const record = makeRecord({
+        name: 'stored-plugin',
+        manifest: makeRichManifest('stored-plugin'),
+      });
+      seedPluginInStorage(storage, record);
+
+      await manager.init(storage);
+      record.enabled = false;
+      record.manifest.skills!.push('evil-skill');
+      record.manifest.mcpServers![0].env!.TOKEN = 'evil';
+
+      const fresh = manager.list()[0];
+      expect(fresh.enabled).toBe(true);
+      expect(fresh.manifest.skills).toEqual(['skills/review/SKILL.md']);
+      expect(fresh.manifest.mcpServers?.[0].env).toEqual({ TOKEN: 'secret' });
     });
   });
 
@@ -284,6 +324,46 @@ describe('PluginManager', () => {
       // Should still be exactly one plugin in the list
       expect(manager.list()).toHaveLength(1);
       expect(manager.list()[0].version).toBe('2.0.0');
+    });
+
+    it('protects installed records and manifests from caller and storage mutation', async () => {
+      const { manager, storage } = await initManager();
+      const fs = new MockFileSystem();
+      const manifest = makeRichManifest();
+      fs.addFile('/plugins/rich/.svton-plugin/plugin.json', JSON.stringify(manifest));
+
+      const record = await manager.installFromDir('/plugins/rich', fs);
+      record.enabled = false;
+      record.manifest.description = 'Injected return';
+      record.manifest.skills!.push('evil-skill');
+      record.manifest.mcpServers![0].args!.push('--evil');
+      record.manifest.mcpServers![0].env!.TOKEN = 'evil';
+
+      const stored = await storage.get<PluginInstallRecord>('agent:plugin:rich-plugin');
+      stored!.enabled = false;
+      stored!.manifest.mcpServers![0].name = 'evil-server';
+      stored!.manifest.hooks![0].description = 'evil hook';
+
+      const fromList = manager.list()[0];
+      expect(fromList.enabled).toBe(true);
+      expect(fromList.manifest.description).toBe('Rich plugin');
+      expect(fromList.manifest.skills).toEqual(['skills/review/SKILL.md']);
+      expect(fromList.manifest.mcpServers?.[0]).toMatchObject({
+        name: 'docs',
+        args: ['server.js'],
+        env: { TOKEN: 'secret' },
+      });
+      expect(fromList.manifest.hooks?.[0].description).toBe('validate tool calls');
+
+      fromList.manifest.skills!.push('mutated-list');
+      manager.getEnabledPlugins()[0].manifest.mcpServers![0].env!.TOKEN = 'changed';
+      manager.getManifest('rich-plugin')!.mcpServers![0].args!.push('--get');
+
+      const fresh = manager.list()[0];
+      expect(fresh.enabled).toBe(true);
+      expect(fresh.manifest.skills).toEqual(['skills/review/SKILL.md']);
+      expect(fresh.manifest.mcpServers?.[0].args).toEqual(['server.js']);
+      expect(fresh.manifest.mcpServers?.[0].env).toEqual({ TOKEN: 'secret' });
     });
   });
 
@@ -614,6 +694,34 @@ describe('PluginManager', () => {
 
       const cloneCall = exec.mock.calls[0][0] as string;
       expect(cloneCall).not.toContain('--branch');
+    });
+
+    it('quotes git clone repo and ref arguments before shell execution', async () => {
+      const { manager } = await initManager();
+      const fs = new MockFileSystem();
+      const exec = vi.fn();
+
+      exec.mockResolvedValueOnce({ exitCode: 0, stderr: '' });
+      exec.mockResolvedValueOnce({ exitCode: 0, stderr: '' });
+
+      const manifest: PluginManifest = { name: 'git-plugin', version: '1.0.0' };
+      (fs as any).readFile = async (path: string) => {
+        if (path.endsWith('.svton-plugin/plugin.json')) return JSON.stringify(manifest);
+        throw new Error(`File not found: ${path}`);
+      };
+      (fs as any).exists = async (path: string) => path.endsWith('.svton-plugin/plugin.json');
+
+      await manager.installFromGit(
+        'https://example.com/plugin.git; touch /tmp/pwned #',
+        "main'; whoami #",
+        fs,
+        exec,
+      );
+
+      expect(exec.mock.calls[0][0]).toMatch(
+        /^git clone --depth 1 --branch 'main'\\''; whoami #' 'https:\/\/example\.com\/plugin\.git; touch \/tmp\/pwned #' \/tmp\/svton-plugin-\d+$/,
+      );
+      expect(exec.mock.calls[1][0]).toMatch(/^rm -rf \/tmp\/svton-plugin-\d+$/);
     });
   });
 });

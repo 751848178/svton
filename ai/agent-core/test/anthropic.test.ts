@@ -255,6 +255,31 @@ describe('AnthropicProvider', () => {
         usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
       }]);
     });
+
+    it('does not duplicate usage or done when message_stop follows stop_reason', async () => {
+      const sseData = [
+        'data: {"type":"message_start","message":{"usage":{"input_tokens":10}}}',
+        'data: {"type":"content_block_start","content_block":{"type":"text"}}',
+        'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}',
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}',
+        'data: {"type":"message_stop"}',
+        '',
+      ].join('\n');
+
+      mockFetch.mockResolvedValue(createSSEResponse(sseData));
+
+      const events = await collectEvents(
+        provider.chat([], { model: 'claude-sonnet-4-20250514' }),
+      );
+
+      expect(events.filter(e => e.type === 'usage')).toEqual([{
+        type: 'usage',
+        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+      }]);
+      expect(events.filter(e => e.type === 'done')).toEqual([
+        { type: 'done', stopReason: 'end_turn' },
+      ]);
+    });
   });
 
   // ----------------------------------------------------------
@@ -343,6 +368,45 @@ describe('AnthropicProvider', () => {
       const doneEvents = events.filter(e => e.type === 'done');
       expect(doneEvents).toEqual([{ type: 'done', stopReason: 'tool_use' }]);
     });
+
+    it('maps streamed tool deltas by content block index after text blocks', async () => {
+      const sseData = [
+        'data: {"type":"content_block_start","index":0,"content_block":{"type":"text"}}',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I will inspect it."}}',
+        'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"tool_after_text","name":"read_file"}}',
+        'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"path\\""}}',
+        'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":":\\"src/app.ts\\"}"}}',
+        'data: {"type":"content_block_stop","index":1}',
+        'data: {"type":"message_delta","delta":{"stop_reason":"tool_use"}}',
+        '',
+      ].join('\n');
+
+      mockFetch.mockResolvedValue(createSSEResponse(sseData));
+
+      const events = await collectEvents(
+        provider.chat([{ role: 'user', content: 'Read it' }], {
+          model: 'claude-sonnet-4-20250514',
+          tools: [{
+            name: 'read_file',
+            description: 'Read file',
+            parameters: { type: 'object', properties: { path: { type: 'string' } } },
+          }],
+        }),
+      );
+
+      expect(events).toContainEqual({ type: 'text_delta', text: 'I will inspect it.' });
+      expect(events).toContainEqual({
+        type: 'tool_call_delta',
+        id: 'tool_after_text',
+        argumentsDelta: '{"path"',
+      });
+      expect(events).toContainEqual({
+        type: 'tool_call_end',
+        id: 'tool_after_text',
+        name: 'read_file',
+        arguments: '{"path":"src/app.ts"}',
+      });
+    });
   });
 
   // ----------------------------------------------------------
@@ -371,6 +435,29 @@ describe('AnthropicProvider', () => {
         usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
       });
       expect(events).toContainEqual({ type: 'done', stopReason: 'end_turn' });
+    });
+
+    it('parses thinking content blocks before text in non-streaming JSON', async () => {
+      const jsonResponse = {
+        content: [
+          { type: 'thinking', thinking: 'I should inspect the code.' },
+          { type: 'text', text: 'Here is the answer.' },
+        ],
+        usage: { input_tokens: 12, output_tokens: 8 },
+        stop_reason: 'end_turn',
+      };
+
+      mockFetch.mockResolvedValue(createJSONResponse(jsonResponse));
+
+      const events = await collectEvents(
+        provider.chat([], { model: 'claude-sonnet-4-20250514', stream: false }),
+      );
+
+      expect(events).toContainEqual({
+        type: 'thinking_delta',
+        thinking: 'I should inspect the code.',
+      });
+      expect(events).toContainEqual({ type: 'text_delta', text: 'Here is the answer.' });
     });
   });
 
@@ -654,6 +741,82 @@ describe('AnthropicProvider', () => {
       expect(blockTypes).not.toContain('tool_result');
       expect(blockTypes).toContain('text');
     });
+
+    it('drops messages emptied by orphaned tool_result sanitization', async () => {
+      mockFetch.mockResolvedValue(createSSEResponse(minimalDone));
+
+      const messages: ChatMessage[] = [
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', toolUseId: 'orphan_result_only', output: 'leftover data' },
+          ],
+        },
+        { role: 'assistant', content: 'still here' },
+      ];
+
+      await collectEvents(
+        provider.chat(messages, { model: 'claude-sonnet-4-20250514' }),
+      );
+
+      const [, init] = mockFetch.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      expect(body.messages).toHaveLength(1);
+      expect(body.messages[0].role).toBe('assistant');
+      expect(body.messages[0].content).toBe('still here');
+    });
+
+    it('drops messages emptied by orphaned tool_use sanitization', async () => {
+      mockFetch.mockResolvedValue(createSSEResponse(minimalDone));
+
+      const messages: ChatMessage[] = [
+        { role: 'user', content: 'hello' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'orphan_tool_only', name: 'bash', input: { cmd: 'ls' } },
+          ],
+        },
+      ];
+
+      await collectEvents(
+        provider.chat(messages, { model: 'claude-sonnet-4-20250514' }),
+      );
+
+      const [, init] = mockFetch.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      expect(body.messages).toHaveLength(1);
+      expect(body.messages[0].role).toBe('user');
+      expect(body.messages[0].content).toBe('hello');
+    });
+
+    it('merges adjacent same-role messages after dropping emptied sanitized messages', async () => {
+      mockFetch.mockResolvedValue(createSSEResponse(minimalDone));
+
+      const messages: ChatMessage[] = [
+        { role: 'user', content: 'first' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'orphan_between_users', name: 'bash', input: { cmd: 'ls' } },
+          ],
+        },
+        { role: 'user', content: 'second' },
+      ];
+
+      await collectEvents(
+        provider.chat(messages, { model: 'claude-sonnet-4-20250514' }),
+      );
+
+      const [, init] = mockFetch.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      expect(body.messages).toHaveLength(1);
+      expect(body.messages[0].role).toBe('user');
+      expect(body.messages[0].content).toEqual([
+        { type: 'text', text: 'first' },
+        { type: 'text', text: 'second' },
+      ]);
+    });
   });
 
   // ----------------------------------------------------------
@@ -835,6 +998,12 @@ describe('AnthropicProvider', () => {
 
       const messages: ChatMessage[] = [
         {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'tool_1', name: 'bash', input: { cmd: 'pwd' } },
+          ],
+        },
+        {
           role: 'tool',
           content: [
             { type: 'tool_result', toolUseId: 'tool_1', output: 'result data' },
@@ -848,7 +1017,8 @@ describe('AnthropicProvider', () => {
 
       const [, init] = mockFetch.mock.calls[0];
       const body = JSON.parse(init.body as string);
-      expect(body.messages[0].role).toBe('user');
+      expect(body.messages[1].role).toBe('user');
+      expect(body.messages[1].content[0].type).toBe('tool_result');
     });
 
     it('formats image ContentBlock for Anthropic API', async () => {
@@ -874,6 +1044,58 @@ describe('AnthropicProvider', () => {
       expect(block.source.type).toBe('base64');
       expect(block.source.media_type).toBe('image/png');
       expect(block.source.data).toBe('iVBORw0KGgo=');
+    });
+
+    it('preserves remote image URLs in Anthropic image content', async () => {
+      mockFetch.mockResolvedValue(createSSEResponse(minimalDone));
+
+      const messages: ChatMessage[] = [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', data: 'https://example.com/cat.jpg', mimeType: 'image/jpeg' },
+          ],
+        },
+      ];
+
+      await collectEvents(
+        provider.chat(messages, { model: 'claude-sonnet-4-20250514' }),
+      );
+
+      const [, init] = mockFetch.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      const block = body.messages[0].content[0];
+      expect(block.type).toBe('image');
+      expect(block.source).toEqual({
+        type: 'url',
+        url: 'https://example.com/cat.jpg',
+      });
+    });
+
+    it('converts data URL image content into Anthropic base64 source', async () => {
+      mockFetch.mockResolvedValue(createSSEResponse(minimalDone));
+
+      const messages: ChatMessage[] = [
+        {
+          role: 'user',
+          content: [
+            { type: 'image', data: 'data:image/webp;base64,UklGRg==' },
+          ],
+        },
+      ];
+
+      await collectEvents(
+        provider.chat(messages, { model: 'claude-sonnet-4-20250514' }),
+      );
+
+      const [, init] = mockFetch.mock.calls[0];
+      const body = JSON.parse(init.body as string);
+      const block = body.messages[0].content[0];
+      expect(block.source).toEqual({
+        type: 'base64',
+        media_type: 'image/webp',
+        data: 'UklGRg==',
+      });
     });
 
     it('formats tool_use ContentBlock for Anthropic API', async () => {

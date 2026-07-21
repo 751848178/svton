@@ -12,6 +12,7 @@ import type { ToolCall, ToolResult } from '../tool/types';
 export interface IRuntime {
   run(userMessage: string | ContentBlock[], options?: RunOptions): AsyncGenerator<AgentEvent>;
   getMessages(): ChatMessage[];
+  setMessages?(messages: ChatMessage[]): void;
   abort(): void;
 }
 
@@ -23,9 +24,9 @@ export type AgentEvent =
   | { type: 'text_delta'; text: string }
   | { type: 'thinking_delta'; thinking: string }
   | { type: 'tool_call_start'; call: ToolCall }
-  | { type: 'tool_call_progress'; callId: string; message: string; arguments?: Record<string, unknown> }
+  | { type: 'tool_call_progress'; callId: string; message: string; name?: string; arguments?: Record<string, unknown> }
   | { type: 'tool_call_end'; result: ToolResult }
-  | { type: 'tool_approval_needed'; call: ToolCall }
+  | { type: 'tool_approval_needed'; call: ToolCall; metadata?: Record<string, unknown> }
   | { type: 'context_compacted'; summary: string }
   | { type: 'subagent_start'; agentId: string; task: string }
   | { type: 'subagent_end'; agentId: string; summary: string }

@@ -418,6 +418,117 @@ describe('F6 — CSV Fan-out', () => {
       expect(result.output).toContain('task_template');
     });
 
+    it('returns an error when csv_content is blank before spawning', async () => {
+      const mockManager = {
+        spawnOnCsv: vi.fn(),
+      } as unknown as SubagentManager;
+      const executor = new CsvFanoutExecutor(mockManager);
+
+      const result = await executor.execute(
+        {
+          id: 'blank-csv',
+          name: 'csv_fanout',
+          arguments: { csv_content: ' \n\t ', task_template: 'Find {{name}}' },
+        },
+        {
+          platform: createMockPlatform(),
+          sessionId: '',
+          workingDir: '/tmp',
+        },
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('csv_content');
+      expect(mockManager.spawnOnCsv).not.toHaveBeenCalled();
+    });
+
+    it('returns an error when task_template is blank before spawning', async () => {
+      const mockManager = {
+        spawnOnCsv: vi.fn(),
+      } as unknown as SubagentManager;
+      const executor = new CsvFanoutExecutor(mockManager);
+
+      const result = await executor.execute(
+        {
+          id: 'blank-template',
+          name: 'csv_fanout',
+          arguments: { csv_content: 'name\nAlice', task_template: ' \n\t ' },
+        },
+        {
+          platform: createMockPlatform(),
+          sessionId: '',
+          workingDir: '/tmp',
+        },
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('task_template');
+      expect(mockManager.spawnOnCsv).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['non-number', '2'],
+      ['non-finite', Number.NaN],
+      ['non-positive', 0],
+      ['fractional', 1.5],
+    ])('returns an error when concurrency is %s', async (_label, concurrency) => {
+      const mockManager = {
+        spawnOnCsv: vi.fn(),
+      } as unknown as SubagentManager;
+      const executor = new CsvFanoutExecutor(mockManager);
+
+      const call: ToolCall = {
+        id: 'invalid-concurrency',
+        name: 'csv_fanout',
+        arguments: {
+          csv_content: 'name\nAlice',
+          task_template: 'Find {{name}}',
+          concurrency,
+        },
+      };
+      const ctx: ToolContext = {
+        platform: createMockPlatform(),
+        sessionId: '',
+        workingDir: '/tmp',
+      };
+
+      const result = await executor.execute(call, ctx);
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"concurrency" must be a positive integer');
+      expect(mockManager.spawnOnCsv).not.toHaveBeenCalled();
+    });
+
+    it('uses trimmed csv_content and task_template before spawning', async () => {
+      const mockManager = {
+        spawnOnCsv: vi.fn(async () => ({ results: [] })),
+      } as unknown as SubagentManager;
+      const executor = new CsvFanoutExecutor(mockManager);
+
+      const result = await executor.execute(
+        {
+          id: 'trimmed-inputs',
+          name: 'csv_fanout',
+          arguments: {
+            csv_content: ' \nname\nAlice\t ',
+            task_template: ' Find {{name}}\n',
+          },
+        },
+        {
+          platform: createMockPlatform(),
+          sessionId: '',
+          workingDir: '/tmp',
+        },
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(mockManager.spawnOnCsv).toHaveBeenCalledWith({
+        csvContent: 'name\nAlice',
+        taskTemplate: 'Find {{name}}',
+        concurrency: undefined,
+      });
+    });
+
     it('delegates to spawnOnCsv and returns a summary', async () => {
       const mockManager = {
         spawnOnCsv: vi.fn(async () => ({
@@ -457,6 +568,41 @@ describe('F6 — CSV Fan-out', () => {
       expect(result.output).toContain('1 succeeded');
       expect(result.output).toContain('Found Alice');
       expect(mockManager.spawnOnCsv).toHaveBeenCalled();
+    });
+
+    it('preserves non-sensitive request metadata when spawnOnCsv throws', async () => {
+      const mockManager = {
+        spawnOnCsv: vi.fn(async () => {
+          throw new Error('fanout unavailable');
+        }),
+      } as unknown as SubagentManager;
+      const executor = new CsvFanoutExecutor(mockManager);
+
+      const result = await executor.execute(
+        {
+          id: 'spawn-failure',
+          name: 'csv_fanout',
+          arguments: {
+            csv_content: ' \nname\nAlice\t ',
+            task_template: ' Find {{name}}\n',
+            concurrency: 2,
+          },
+        },
+        {
+          platform: createMockPlatform(),
+          sessionId: '',
+          workingDir: '/tmp',
+        },
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('fanout unavailable');
+      expect(result.output).not.toContain('Alice');
+      expect(result.metadata).toMatchObject({
+        csvLength: 10,
+        taskTemplateLength: 13,
+        concurrency: 2,
+      });
     });
 
     it('csvFanoutDef has correct name and required fields', () => {

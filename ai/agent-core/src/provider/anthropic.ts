@@ -12,6 +12,11 @@ import type {
 } from './types';
 import { countTokens } from '../utils/token';
 import { readSSELines } from './sse-reader';
+import {
+  formatAnthropicImageSource,
+  type AnthropicImageSource,
+} from './anthropic-image-content.utils';
+import { sanitizeAnthropicToolUseChain } from './anthropic-tool-chain.utils';
 
 /**
  * Anthropic Claude Provider.
@@ -62,9 +67,7 @@ export class AnthropicProvider implements IProvider {
     options: ChatOptions,
   ): AsyncGenerator<StreamEvent> {
     const url = `${this.baseUrl}/v1/messages`;
-
     const body = this.buildRequestBody(messages, options);
-
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -143,11 +146,12 @@ export class AnthropicProvider implements IProvider {
     const merged = this.mergeMessages(conversationMessages);
 
     // Validate: ensure every tool_use has a matching tool_result
-    this.sanitizeToolUseChain(merged);
+    sanitizeAnthropicToolUseChain(merged);
+    const sanitizedMessages = this.mergeMessages(merged);
 
     const body: Record<string, unknown> = {
       model: options.model,
-      messages: merged,
+      messages: sanitizedMessages,
       stream: options.stream !== false,
     };
 
@@ -208,11 +212,7 @@ export class AnthropicProvider implements IProvider {
         case 'image':
           parts.push({
             type: 'image',
-            source: {
-              type: 'base64',
-              media_type: block.mimeType || 'image/png',
-              data: block.data,
-            },
+            source: formatAnthropicImageSource(block),
           });
           break;
         case 'tool_use':
@@ -276,12 +276,11 @@ export class AnthropicProvider implements IProvider {
 
   private async *parseSSEStream(response: Response): AsyncGenerator<StreamEvent> {
     let usage: TokenUsage | null = null;
-    const toolCallBuffers = new Map<string, { name: string; args: string }>();
-
+    let completionEmitted = false;
+    const toolCallBuffers = new Map<number, { id: string; name: string; args: string }>();
     for await (const data of readSSELines(response)) {
       try {
         const event = JSON.parse(data);
-
         switch (event.type) {
           case 'message_start':
             if (event.message?.usage) {
@@ -295,9 +294,10 @@ export class AnthropicProvider implements IProvider {
 
           case 'content_block_start':
             if (event.content_block?.type === 'tool_use') {
+              const index = typeof event.index === 'number' ? event.index : toolCallBuffers.size;
               const id = event.content_block.id;
               const name = event.content_block.name;
-              toolCallBuffers.set(id, { name, args: '' });
+              toolCallBuffers.set(index, { id, name, args: '' });
               yield { type: 'tool_call_start', id, name };
             }
             break;
@@ -310,10 +310,10 @@ export class AnthropicProvider implements IProvider {
               yield { type: 'thinking_delta', thinking: delta.thinking };
             } else if (delta?.type === 'input_json_delta') {
               const index = event.index;
-              const entries = Array.from(toolCallBuffers.entries());
-              if (entries[index]) {
-                entries[index][1].args += delta.partial_json;
-                yield { type: 'tool_call_delta', id: entries[index][0], argumentsDelta: delta.partial_json };
+              const buffer = toolCallBuffers.get(index);
+              if (buffer) {
+                buffer.args += delta.partial_json;
+                yield { type: 'tool_call_delta', id: buffer.id, argumentsDelta: delta.partial_json };
               }
             }
             break;
@@ -321,10 +321,9 @@ export class AnthropicProvider implements IProvider {
 
           case 'content_block_stop': {
             const index = event.index;
-            const entries = Array.from(toolCallBuffers.entries());
-            if (entries[index]) {
-              const [id, buf] = entries[index];
-              yield { type: 'tool_call_end', id, name: buf.name, arguments: buf.args };
+            const buffer = toolCallBuffers.get(index);
+            if (buffer) {
+              yield { type: 'tool_call_end', id: buffer.id, name: buffer.name, arguments: buffer.args };
             }
             break;
           }
@@ -337,12 +336,15 @@ export class AnthropicProvider implements IProvider {
             if (event.delta?.stop_reason) {
               if (usage) yield { type: 'usage', usage };
               yield { type: 'done', stopReason: event.delta.stop_reason };
+              completionEmitted = true;
             }
             break;
 
           case 'message_stop':
+            if (completionEmitted) break;
             if (usage) yield { type: 'usage', usage };
             yield { type: 'done', stopReason: 'end_turn' };
+            completionEmitted = true;
             break;
         }
       } catch {
@@ -358,6 +360,8 @@ export class AnthropicProvider implements IProvider {
       for (const block of data.content) {
         if (block.type === 'text') {
           yield { type: 'text_delta', text: block.text };
+        } else if (block.type === 'thinking') {
+          yield { type: 'thinking_delta', thinking: block.thinking };
         } else if (block.type === 'tool_use') {
           yield {
             type: 'tool_call_start',
@@ -389,72 +393,6 @@ export class AnthropicProvider implements IProvider {
     };
   }
 
-  /**
-   * Ensure tool_use / tool_result blocks are paired consistently.
-   *
-   * Two kinds of orphans can arise after retry, compaction, or skill-filtered
-   * tool calls, and both make the Anthropic API reject the request:
-   *
-   *  - Orphaned tool_use: assistant emitted a tool_use but no matching
-   *    tool_result exists. Strip the tool_use block.
-   *  - Orphaned tool_result: a tool_result block whose tool_use_id has no
-   *    matching tool_use anywhere in the history. Strip the block; if that
-   *    empties the message, drop the message so user/assistant roles still
-   *    alternate.
-   */
-  private sanitizeToolUseChain(messages: AnthropicMessage[]): void {
-    const toolUseIds = new Set<string>();
-    const toolResultIds = new Set<string>();
-
-    for (const msg of messages) {
-      if (!Array.isArray(msg.content)) continue;
-      for (const block of msg.content) {
-        if (block.type === 'tool_use') toolUseIds.add(block.id);
-        if (block.type === 'tool_result') toolResultIds.add((block as { tool_use_id: string }).tool_use_id);
-      }
-    }
-
-    // --- 1. Strip orphaned tool_result blocks (no matching tool_use) ---
-    const orphanedResults = new Set<string>();
-    for (const id of toolResultIds) {
-      if (!toolUseIds.has(id)) orphanedResults.add(id);
-    }
-    if (orphanedResults.size > 0) {
-      for (const msg of messages) {
-        if (!Array.isArray(msg.content)) continue;
-        const filtered = msg.content.filter((block) =>
-          block.type !== 'tool_result' ||
-          !orphanedResults.has((block as { tool_use_id: string }).tool_use_id),
-        );
-        if (filtered.length !== msg.content.length) {
-          msg.content = filtered;
-        }
-      }
-      // Refresh the result set
-      for (const id of orphanedResults) toolResultIds.delete(id);
-    }
-
-    // --- 2. Strip orphaned tool_use blocks (no matching tool_result) ---
-    if (toolResultIds.size >= toolUseIds.size) return;
-
-    const orphaned = new Set<string>();
-    for (const id of toolUseIds) {
-      if (!toolResultIds.has(id)) orphaned.add(id);
-    }
-
-    if (orphaned.size === 0) return;
-
-    for (const msg of messages) {
-      if (!Array.isArray(msg.content)) continue;
-      // Remove orphaned tool_use blocks
-      const filtered = msg.content.filter((block) =>
-        block.type !== 'tool_use' || !orphaned.has((block as { id: string }).id)
-      );
-      if (filtered.length !== msg.content.length) {
-        msg.content = filtered;
-      }
-    }
-  }
 }
 
 // ============================================================
@@ -468,6 +406,6 @@ interface AnthropicMessage {
 
 type AnthropicContentBlock =
   | { type: 'text'; text: string }
-  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+  | { type: 'image'; source: AnthropicImageSource }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean };

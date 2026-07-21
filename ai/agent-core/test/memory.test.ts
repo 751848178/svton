@@ -218,6 +218,63 @@ describe('MemoryManager', () => {
     expect(scopes).toContain('session');
   });
 
+  it('returns memory entry copies from getAllEntries and getRelevantMemories', async () => {
+    await manager.init(storage);
+
+    manager.addProjectMemory('Project rule', 'AGENT.md');
+    await manager.saveAutoMemory('Auto fact about TypeScript', 'auto');
+
+    const relevant = manager.getRelevantMemories('TypeScript');
+    expect(relevant).toHaveLength(1);
+    relevant[0].content = 'Injected relevant';
+
+    const entries = manager.getAllEntries();
+    entries.find((e) => e.scope === 'project')!.content = 'Injected project';
+    entries.find((e) => e.scope === 'session')!.content = 'Injected auto';
+
+    expect(manager.getProjectMemoryText()).toContain('Project rule');
+    expect(manager.getProjectMemoryText()).not.toContain('Injected project');
+    expect(manager.getAutoMemoryText()).toContain('Auto fact about TypeScript');
+    expect(manager.getAutoMemoryText()).not.toContain('Injected auto');
+    expect(manager.getAutoMemoryText()).not.toContain('Injected relevant');
+  });
+
+  it('separates auto memory state from storage-held entry references', async () => {
+    const persisted: MemoryEntry[] = [
+      {
+        key: 'auto:stored',
+        content: 'Stored fact about pnpm',
+        scope: 'session',
+        source: 'auto',
+        createdAt: 1000,
+        updatedAt: 1000,
+      },
+    ];
+    await storage.set('memory:auto:index', persisted);
+    await manager.init(storage);
+
+    persisted[0].content = 'Injected stored fact';
+    expect(manager.getAutoMemoryText()).toContain('Stored fact about pnpm');
+    expect(manager.getAutoMemoryText()).not.toContain('Injected stored fact');
+
+    await manager.saveAutoMemory('Fresh fact about tests', 'auto');
+    const stored = await storage.get<MemoryEntry[]>('memory:auto:index');
+    stored![0].content = 'Injected through storage';
+    stored!.push({
+      key: 'auto:evil',
+      content: 'Injected extra fact',
+      scope: 'session',
+      source: 'auto',
+      createdAt: 2000,
+      updatedAt: 2000,
+    });
+
+    expect(manager.getAutoMemoryText()).toContain('Stored fact about pnpm');
+    expect(manager.getAutoMemoryText()).toContain('Fresh fact about tests');
+    expect(manager.getAutoMemoryText()).not.toContain('Injected through storage');
+    expect(manager.getAutoMemoryText()).not.toContain('Injected extra fact');
+  });
+
   it('loadProjectMemory walks up directory tree and loads files', async () => {
     const fs = createMockFs({
       '/home/user/project/AGENT.md': 'Project-level rules',

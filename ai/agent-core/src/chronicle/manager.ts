@@ -1,5 +1,15 @@
 import type { ScreenCapture, ChronicleConfig } from './types';
 import type { IStorage, IPlatform } from '@svton/agent-platform';
+import { buildChronicleMemoryText } from './chronicle-memory-text.utils';
+import {
+  searchScreenCaptures,
+  sortNewestFirst,
+} from './chronicle-search.utils';
+import {
+  cloneChronicleConfig,
+  cloneScreenCapture,
+  cloneScreenCaptures,
+} from './chronicle-snapshot.utils';
 
 const STORAGE_PREFIX = 'agent:chronicle:';
 const CONFIG_KEY = `${STORAGE_PREFIX}config`;
@@ -11,14 +21,6 @@ const DEFAULT_CONFIG: ChronicleConfig = {
   retentionDays: 7,
 };
 
-/**
- * Chronicle screen memory manager.
- *
- * The manager keeps a chronological log of screen captures that can be
- * searched and summarised for agent context.  The actual screen capture
- * is platform-dependent — a native backend (e.g. the Tauri Rust process)
- * captures screenshots and pushes them here via `addCapture`.
- */
 export class ChronicleManager {
   private captures: ScreenCapture[] = [];
   private config: ChronicleConfig = { ...DEFAULT_CONFIG };
@@ -29,14 +31,14 @@ export class ChronicleManager {
     private platform: IPlatform,
   ) {}
 
-  /**
-   * Load config and captures from storage.
-   */
   async init(): Promise<void> {
     try {
       const storedConfig = await this.storage.get<ChronicleConfig>(CONFIG_KEY);
       if (storedConfig) {
-        this.config = { ...DEFAULT_CONFIG, ...storedConfig };
+        this.config = cloneChronicleConfig({
+          ...DEFAULT_CONFIG,
+          ...storedConfig,
+        });
       }
     } catch {
       // Non-fatal — use defaults
@@ -45,16 +47,13 @@ export class ChronicleManager {
     try {
       const storedCaptures = await this.storage.get<ScreenCapture[]>(CAPTURES_KEY);
       if (storedCaptures && Array.isArray(storedCaptures)) {
-        this.captures = storedCaptures;
+        this.captures = cloneScreenCaptures(storedCaptures);
       }
     } catch {
       // Non-fatal — start with empty captures
     }
   }
 
-  /**
-   * Start the interval timer that triggers periodic captures.
-   */
   async start(): Promise<void> {
     if (this.timerId !== null) return;
     if (!this.config.enabled) return;
@@ -68,9 +67,6 @@ export class ChronicleManager {
     }, intervalMs);
   }
 
-  /**
-   * Stop the interval timer.
-   */
   async stop(): Promise<void> {
     if (this.timerId !== null) {
       clearInterval(this.timerId);
@@ -78,18 +74,12 @@ export class ChronicleManager {
     }
   }
 
-  /**
-   * Pause capture for the given duration.
-   */
   async pause(durationMinutes: number): Promise<void> {
     this.config.pausedUntil = Date.now() + durationMinutes * 60_000;
     await this.persistConfig();
     await this.stop();
   }
 
-  /**
-   * Resume capture after a pause.
-   */
   async resume(): Promise<void> {
     this.config.pausedUntil = undefined;
     await this.persistConfig();
@@ -103,12 +93,12 @@ export class ChronicleManager {
   }
 
   getConfig(): ChronicleConfig {
-    return { ...this.config };
+    return cloneChronicleConfig(this.config);
   }
 
   async updateConfig(patch: Partial<ChronicleConfig>): Promise<void> {
     const wasRunning = this.isRunning();
-    this.config = { ...this.config, ...patch };
+    this.config = cloneChronicleConfig({ ...this.config, ...patch });
 
     await this.persistConfig();
 
@@ -121,11 +111,8 @@ export class ChronicleManager {
     }
   }
 
-  /**
-   * Called by the platform / native backend when a new capture is available.
-   */
   async addCapture(capture: ScreenCapture): Promise<void> {
-    this.captures.push(capture);
+    this.captures.push(cloneScreenCapture(capture));
 
     // Enforce retention — remove captures older than retentionDays
     await this.clearOlderThan(this.config.retentionDays);
@@ -133,72 +120,22 @@ export class ChronicleManager {
     await this.persistCaptures();
   }
 
-  /**
-   * Search captures by text query across OCR text, summary, app context, and window title.
-   */
   async search(
     query: string,
     opts?: { from?: number; to?: number; limit?: number },
   ): Promise<ScreenCapture[]> {
-    const q = query.toLowerCase();
-    let results = this.captures.filter((c) => {
-      const text = [c.ocrText, c.summary, c.appContext, c.windowTitle]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return text.includes(q);
-    });
-
-    if (opts?.from !== undefined) {
-      results = results.filter((c) => c.capturedAt >= opts.from!);
-    }
-    if (opts?.to !== undefined) {
-      results = results.filter((c) => c.capturedAt <= opts.to!);
-    }
-
-    // Sort newest first
-    results.sort((a, b) => b.capturedAt - a.capturedAt);
-
-    if (opts?.limit !== undefined) {
-      results = results.slice(0, opts.limit);
-    }
-
-    return results;
+    return cloneScreenCaptures(searchScreenCaptures(this.captures, query, opts));
   }
 
-  /**
-   * Get the most recent captures.
-   */
   async getRecent(limit: number): Promise<ScreenCapture[]> {
-    const sorted = [...this.captures].sort((a, b) => b.capturedAt - a.capturedAt);
-    return sorted.slice(0, limit);
+    return cloneScreenCaptures(sortNewestFirst(this.captures).slice(0, limit));
   }
 
-  /**
-   * Build a compact text summary of recent captures for agent context injection.
-   */
   async buildMemoryText(): Promise<string> {
     const recent = await this.getRecent(10);
-    if (recent.length === 0) return '';
-
-    const lines: string[] = ['## Recent Screen Activity'];
-
-    for (const c of recent) {
-      const time = new Date(c.capturedAt).toLocaleString();
-      const parts: string[] = [`[${time}]`];
-      if (c.windowTitle) parts.push(`"${c.windowTitle}"`);
-      if (c.appContext) parts.push(`(${c.appContext})`);
-      if (c.summary) parts.push(`— ${c.summary}`);
-      lines.push(`- ${parts.join(' ')}`);
-    }
-
-    return lines.join('\n');
+    return buildChronicleMemoryText(recent);
   }
 
-  /**
-   * Remove captures older than the given number of days.
-   * Returns the number of captures deleted.
-   */
   async clearOlderThan(days: number): Promise<number> {
     const cutoff = Date.now() - days * 86_400_000;
     const before = this.captures.length;
@@ -210,10 +147,6 @@ export class ChronicleManager {
     return removed;
   }
 
-  // ----------------------------------------------------------
-  // Private
-  // ----------------------------------------------------------
-
   private isPaused(): boolean {
     return (
       this.config.pausedUntil !== undefined &&
@@ -223,7 +156,7 @@ export class ChronicleManager {
 
   private async persistConfig(): Promise<void> {
     try {
-      await this.storage.set(CONFIG_KEY, this.config);
+      await this.storage.set(CONFIG_KEY, cloneChronicleConfig(this.config));
     } catch {
       // Non-fatal
     }
@@ -231,7 +164,7 @@ export class ChronicleManager {
 
   private async persistCaptures(): Promise<void> {
     try {
-      await this.storage.set(CAPTURES_KEY, this.captures);
+      await this.storage.set(CAPTURES_KEY, cloneScreenCaptures(this.captures));
     } catch {
       // Non-fatal
     }

@@ -2,6 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAgentContext, setFlushFn } from '../service/provider';
 import type { DisplayMessage } from '../service/chat.service';
 import type { SessionInfo } from '../service/session.service';
+import { deriveTitle, displayToStoredMessages, storedToDisplayMessages } from './session-message-conversion.utils';
+import { prepareBackgroundMessagesForSave } from './use-session-background-save.utils';
+import { hasVisiblePendingToolCalls } from './use-tool-approval.utils';
+import { loadSessionMessagesForSwitch } from './use-session-switch-load.utils';
+
+export { deriveTitle, displayToStoredMessages, storedToDisplayMessages } from './session-message-conversion.utils';
 
 /**
  * Session management hook.
@@ -80,6 +86,13 @@ export function useSession() {
       });
     }
   }, [sessionService, sessionInternal]);
+
+  const saveBackgroundSessionMessages = useCallback(async (sessionId: string) => {
+    const snapshot = prepareBackgroundMessagesForSave(chatService.getCachedMessages(sessionId));
+    if (snapshot.length > 0) {
+      await saveSessionMessages(sessionId, snapshot);
+    }
+  }, [chatService, saveSessionMessages]);
 
   // ── Startup: restore or create session ────────────────────
   const [sessionReady, setSessionReady] = useState(() => sessionInternal.getState('ready'));
@@ -176,19 +189,13 @@ export function useSession() {
         // Also save any background session's cached messages
         const bgId = backgroundStreamingId.current;
         if (bgId) {
-          const bgMsgs = chatService.getCachedMessages(bgId);
-          if (bgMsgs && bgMsgs.length > 0) {
-            const filtered = bgMsgs.filter((m: DisplayMessage) => m.role !== 'system').map((m) => ({ ...m, isStreaming: false }));
-            if (filtered.length > 0) {
-              saveSessionMessages(bgId, filtered);
-            }
-          }
+          saveBackgroundSessionMessages(bgId);
         }
       }
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
-  }, [chatService, saveSessionMessages]);
+  }, [chatService, saveBackgroundSessionMessages, saveSessionMessages]);
 
   // ── Flush: force-save all pending messages (for app shutdown) ──
   const flush = useCallback(async () => {
@@ -200,15 +207,9 @@ export function useSession() {
     // Background sessions
     const bgId = backgroundStreamingId.current;
     if (bgId) {
-      const bgMsgs = chatService.getCachedMessages(bgId);
-      if (bgMsgs && bgMsgs.length > 0) {
-        const filtered = bgMsgs.filter((m: DisplayMessage) => m.role !== 'system').map((m) => ({ ...m, isStreaming: false }));
-        if (filtered.length > 0) {
-          await saveSessionMessages(bgId, filtered);
-        }
-      }
+      await saveBackgroundSessionMessages(bgId);
     }
-  }, [chatService, saveSessionMessages]);
+  }, [chatService, saveBackgroundSessionMessages, saveSessionMessages]);
 
   // Register global flush for external callers (e.g. Tauri onCloseRequested)
   useEffect(() => { setFlushFn(flush); return () => setFlushFn(async () => {}); }, [flush]);
@@ -235,6 +236,10 @@ export function useSession() {
           // Don't block close on errors
         }
       }
+      const bgId = backgroundStreamingId.current;
+      if (bgId) {
+        saveBackgroundSessionMessages(bgId).catch(() => {});
+      }
     };
 
     window.addEventListener('beforeunload', handler);
@@ -243,7 +248,7 @@ export function useSession() {
       window.removeEventListener('beforeunload', handler);
       window.removeEventListener('pagehide', handler);
     };
-  }, [platform, flush, chatService, saveSessionMessages]);
+  }, [platform, flush, chatService, saveBackgroundSessionMessages, saveSessionMessages]);
 
   // ── First message: immediate title + projectId + sidebar visibility ──
   useEffect(() => {
@@ -273,32 +278,22 @@ export function useSession() {
 
   // ── Actions ───────────────────────────────────────────────
 
-  /**
-   * Create a new session:
-   * 1. Cache current messages (don't abort if streaming)
-   * 2. Save current session
-   * 3. Create new session
-   * 4. Clear chat messages
-   *
-   * Always creates a fresh session to avoid message misbinding.
-   */
   const create = useCallback(async (title?: string, model?: string, projectId?: string) => {
     if (isCreating.current) return;
     isCreating.current = true;
     isSwitching.current = true;
     try {
       const oldSessionId = activeSessionId.current;
+      let preservePendingToolCalls = chatService.hasPendingApprovals;
 
       if (oldSessionId) {
-        // Cache current messages (including streaming ones)
         const currentMsgs = [...chatService.messages];
         chatService.cacheSessionMessages(oldSessionId, currentMsgs);
 
-        // If streaming, mark as background session
         if (chatService.status === 'running' || chatService.status === 'waiting_approval') {
           backgroundStreamingId.current = oldSessionId;
+          preservePendingToolCalls = chatService.hasPendingApprovals;
         } else {
-          // Not streaming — save to storage
           const snapshot = chatService.getMessagesForSave();
           if (snapshot.length > 0) {
             await saveSessionMessages(oldSessionId, snapshot);
@@ -306,9 +301,8 @@ export function useSession() {
         }
       }
 
-      // Create new session
       const id = await sessionService.create(title, model, projectId);
-      chatService.clearMessages();
+      chatService.clearMessages({ preservePendingToolCalls });
       chatService.bindSession(id);
       activeSessionId.current = id;
       return id;
@@ -318,32 +312,23 @@ export function useSession() {
     }
   }, [saveSessionMessages, sessionService, chatService]);
 
-  /**
-   * Switch to another session:
-   * 1. Cache current messages (stream continues in background)
-   * 2. Switch observable (updates sidebar)
-   * 3. Load target session from cache or storage
-   */
   const switchTo = useCallback(async (id: string) => {
     if (id === activeSessionId.current) return;
 
     isSwitching.current = true;
     try {
       const oldSessionId = activeSessionId.current;
+      let preservePendingToolCalls = chatService.hasPendingApprovals;
 
       if (oldSessionId) {
-        // Cache current messages (the stream will continue updating this cache)
         const currentMsgs = [...chatService.messages];
         chatService.cacheSessionMessages(oldSessionId, currentMsgs);
 
-        // If streaming, mark this as the background streaming session
         if (chatService.status === 'running' || chatService.status === 'waiting_approval') {
           backgroundStreamingId.current = oldSessionId;
-          // Set displayed status to idle so the new session's UI shows idle
-          // The background stream continues running and updates the cache.
+          preservePendingToolCalls = chatService.hasPendingApprovals;
           chatService.status = 'idle';
         } else {
-          // Not streaming — save to storage immediately
           const snapshot = chatService.getMessagesForSave();
           if (snapshot.length > 0) {
             await saveSessionMessages(oldSessionId, snapshot);
@@ -351,21 +336,14 @@ export function useSession() {
         }
       }
 
-      // Switch observable (updates currentSessionId for sidebar highlight)
       sessionService.switchTo(id);
       chatService.bindSession(id);
 
-      // Try cache first, then fall back to storage
-      const cached = chatService.getCachedMessages(id);
-      if (cached) {
-        chatService.loadMessages(cached);
-      } else {
-        const data = await sessionService.loadSession(id);
-        if (data?.messages?.length) {
-          chatService.loadMessages(storedToDisplayMessages(data.messages));
-        } else {
-          chatService.clearMessages();
-        }
+      await loadSessionMessagesForSwitch(chatService, sessionService, id, preservePendingToolCalls);
+      if (chatService.isSessionStreaming(id)) {
+        const hasPendingApproval = preservePendingToolCalls
+          || hasVisiblePendingToolCalls(chatService.messages);
+        chatService.status = hasPendingApproval ? 'waiting_approval' : 'running';
       }
 
       activeSessionId.current = id;
@@ -377,7 +355,6 @@ export function useSession() {
   const deleteSession = useCallback(async (id: string) => {
     isSwitching.current = true;
     try {
-      // If deleting the active session, abort any stream and save
       if (id === activeSessionId.current) {
         chatService.abortIfStreaming();
         const snapshot = chatService.getMessagesForSave();
@@ -385,16 +362,21 @@ export function useSession() {
           await saveSessionMessages(id, snapshot);
         }
         chatService.cacheSessionMessages(id, []);
+      } else if (chatService.isSessionStreaming(id)) {
+        const onBackgroundStreamEnd = chatService.onBackgroundStreamEnd;
+        chatService.onBackgroundStreamEnd = null;
+        chatService.abort();
+        chatService.onBackgroundStreamEnd = onBackgroundStreamEnd;
+        backgroundStreamingId.current = null;
+        chatService.cacheSessionMessages(id, []);
       }
       await sessionService.delete(id);
       if (activeSessionId.current === id) {
-        // Switch to the next remaining session
         const remaining = sessionInternal.getState('sessions');
         if (remaining.length > 0) {
           const nextSession = remaining[0];
           sessionService.switchTo(nextSession.id);
           chatService.bindSession(nextSession.id);
-          // Try cache first, then storage
           const cached = chatService.getCachedMessages(nextSession.id);
           if (cached) {
             chatService.loadMessages(cached);
@@ -432,95 +414,3 @@ export function useSession() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────
-
-export function deriveTitle(currentTitle: string, messages: DisplayMessage[]): string {
-  if (!currentTitle.startsWith('Chat ')) return currentTitle;
-  const first = messages.find((m) => m.role === 'user');
-  if (!first?.content) return currentTitle;
-  const text = first.content.replace(/\n/g, ' ').trim();
-  return text.length > 40 ? text.slice(0, 40) + '...' : text;
-}
-
-export function displayToStoredMessages(msgs: DisplayMessage[]): unknown[] {
-  return msgs
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) => ({
-      role: m.role,
-      content: m.content,
-      thinking: m.thinking || undefined,
-      images: m.images || undefined,
-      duration: m.duration || undefined,
-      activeSkills: m.activeSkills?.length ? m.activeSkills : undefined,
-      toolCalls: m.toolCalls?.length ? m.toolCalls.map((tc) => ({
-        id: tc.id, name: tc.name, arguments: tc.arguments, status: tc.status,
-        result: tc.result ? { callId: tc.result.callId, output: tc.result.output, isError: tc.result.isError } : undefined,
-      })) : undefined,
-      blocks: m.blocks?.length ? m.blocks.map((b) => {
-        if (b.type === 'tool_call' && b.call) {
-          return {
-            type: b.type,
-            call: {
-              id: b.call.id, name: b.call.name, arguments: b.call.arguments, status: b.call.status,
-              result: b.call.result ? { callId: b.call.result.callId, output: b.call.result.output, isError: b.call.result.isError } : undefined,
-            },
-          };
-        }
-        return b;
-      }) : undefined,
-    }));
-}
-
-export function storedToDisplayMessages(msgs: unknown[]): DisplayMessage[] {
-  let c = 0;
-  const out: DisplayMessage[] = [];
-  for (const raw of msgs) {
-    const m = raw as Record<string, unknown>;
-    // Only require role; content can be empty for assistant messages whose
-    // answer lives entirely in blocks/thinking/toolCalls. Previously
-    // `!m.content` dropped these, causing messages to "vanish" on reload.
-    if (!m.role) continue;
-    // Ensure content is at least '' (not undefined/null)
-    const content = (m.content as string) ?? '';
-    const tc = m.toolCalls as Array<{ id: string; name: string; arguments: Record<string, unknown>; status: string; result?: { callId: string; output: string; isError?: boolean } }> | undefined;
-    const restoredTc = tc?.map((t) => ({
-      id: t.id, name: t.name, arguments: t.arguments,
-      status: t.status as 'running' | 'completed' | 'error' | 'pending_approval',
-      result: t.result ? { callId: t.result.callId, output: t.result.output, isError: t.result.isError } : undefined,
-    })) || [];
-    let blocks: import('../types').ContentBlock[] | undefined;
-    const rawBlocks = m.blocks as Array<Record<string, unknown>> | undefined;
-    if (rawBlocks && rawBlocks.length > 0) {
-      blocks = rawBlocks.map((b) => {
-        if (b.type === 'tool_call') {
-          const call = b.call as { id: string; name: string; arguments: Record<string, unknown>; status: string; result?: { callId: string; output: string; isError?: boolean } } | undefined;
-          return {
-            type: 'tool_call' as const,
-            call: call ? {
-              id: call.id, name: call.name, arguments: call.arguments,
-              status: call.status as 'running' | 'completed' | 'error' | 'pending_approval',
-              result: call.result ? { callId: call.result.callId, output: call.result.output, isError: call.result.isError } : undefined,
-            } : undefined as any,
-          };
-        }
-        return b as import('../types').ContentBlock;
-      }).filter((b) => b.type !== 'tool_call' || (b as any).call);
-    } else if ((m as any).thinking || restoredTc.length > 0) {
-      blocks = [];
-      if ((m as any).thinking) blocks.push({ type: 'thinking', text: (m as any).thinking as string });
-      for (const t of restoredTc) blocks.push({ type: 'tool_call', call: t });
-    }
-    out.push({
-      id: `restored_${++c}_${Date.now()}`,
-      role: m.role as 'user' | 'assistant',
-      content,
-      thinking: m.thinking as string | undefined,
-      images: m.images as Array<{ data: string; mimeType?: string }> | undefined,
-      toolCalls: restoredTc,
-      blocks,
-      duration: m.duration as number | undefined,
-      activeSkills: Array.isArray(m.activeSkills) ? (m.activeSkills as string[]) : undefined,
-      timestamp: Date.now(),
-    });
-  }
-  return out;
-}

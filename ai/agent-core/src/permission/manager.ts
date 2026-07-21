@@ -1,5 +1,6 @@
-import type { PermissionMode, PermissionRule, PermissionConfig, PermissionDecision, PermissionToolMetadata } from './types';
+import type { PermissionMode, PermissionRule, PermissionConfig, PermissionDecision } from './types';
 import type { ToolCall } from '../tool/types';
+import { matchesPermissionGlob } from './permission-glob.utils';
 
 /**
  * Manages tool call permissions.
@@ -7,7 +8,7 @@ import type { ToolCall } from '../tool/types';
  * Rule precedence: deny > ask > allow
  * Mode determines default behavior:
  * - read_only: deny everything except read-only tools
- * - plan: allow reads, deny everything else
+ * - plan: allow reads, ask for everything else
  * - default: allow reads, ask for edits and commands
  * - accept_edits: allow reads + edits, ask for commands
  * - auto: allow everything
@@ -24,7 +25,7 @@ export class PermissionManager {
   /**
    * Check if a tool call is allowed.
    */
-  check(toolCall: ToolCall, metadata?: PermissionToolMetadata): PermissionDecision {
+  check(toolCall: ToolCall): PermissionDecision {
     // Auto mode allows everything
     if (this.mode === 'auto') {
       return { allowed: true, needsApproval: false };
@@ -49,7 +50,7 @@ export class PermissionManager {
     }
 
     // Fall back to mode-based defaults
-    return this.getModeDefault(toolCall, metadata);
+    return this.getModeDefault(toolCall);
   }
 
   setMode(mode: PermissionMode): void {
@@ -82,47 +83,38 @@ export class PermissionManager {
 
       // Simple glob matching for specifier
       const args = JSON.stringify(toolCall.arguments);
-      return this.globMatch(specifier, args);
+      return matchesPermissionGlob(specifier, args);
     }
 
     return false;
   }
 
-  private globMatch(pattern: string, text: string): boolean {
-    const regex = pattern
-      .replace(/\*/g, '.*')
-      .replace(/\?/g, '.');
-    return new RegExp(`^${regex}$`).test(text);
-  }
-
-  private getModeDefault(toolCall: ToolCall, metadata?: PermissionToolMetadata): PermissionDecision {
+  private getModeDefault(toolCall: ToolCall): PermissionDecision {
     const name = toolCall.name;
     const readOnlyTools = ['file_read', 'grep', 'glob', 'web_search', 'web_fetch', 'screenshot', 'chrome_screenshot', 'chrome_get_content', 'scroll', 'mouse_move'];
     const editTools = ['file_write', 'file_edit'];
-    const isReadOnly = metadata?.readOnlyHint === true || readOnlyTools.includes(name);
-    const isEdit = metadata?.destructiveHint !== true && editTools.includes(name);
 
     switch (this.mode) {
       case 'read_only':
-        if (isReadOnly) {
+        if (readOnlyTools.includes(name)) {
           return { allowed: true, needsApproval: false };
         }
         return { allowed: false, needsApproval: false, reason: 'Read-only mode' };
 
       case 'plan':
-        if (isReadOnly) {
+        if (readOnlyTools.includes(name)) {
           return { allowed: true, needsApproval: false };
         }
         return { allowed: false, needsApproval: false, reason: 'Plan mode - no modifications allowed' };
 
       case 'default':
-        if (isReadOnly) {
+        if (readOnlyTools.includes(name)) {
           return { allowed: true, needsApproval: false };
         }
         return { allowed: true, needsApproval: true, reason: 'Requires approval' };
 
       case 'accept_edits':
-        if (isReadOnly || isEdit) {
+        if (readOnlyTools.includes(name) || editTools.includes(name)) {
           return { allowed: true, needsApproval: false };
         }
         return { allowed: true, needsApproval: true, reason: 'Requires approval' };

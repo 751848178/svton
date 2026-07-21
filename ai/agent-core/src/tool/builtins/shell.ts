@@ -1,6 +1,8 @@
 import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import { formatCommandResult } from '../command-result.utils';
 import { resolveCommandRunner } from '../command-runner.utils';
+import { formatUnknownErrorMessage } from './error-message.utils';
 
 // ============================================================
 // bash
@@ -38,52 +40,55 @@ export class BashExecutor implements IToolExecutor {
       timeout?: number;
     };
 
-    if (!command || typeof command !== 'string') {
+    if (typeof command !== 'string' || command.trim().length === 0) {
       return { callId: call.id, output: 'Error: "command" is required and must be a string.', isError: true };
     }
-    if (timeout !== undefined && (typeof timeout !== 'number' || timeout <= 0)) {
+    if (timeout !== undefined && (typeof timeout !== 'number' || !Number.isFinite(timeout) || timeout <= 0)) {
       return { callId: call.id, output: 'Error: "timeout" must be a positive number.', isError: true };
     }
 
+    const execOptions = {
+      cwd: ctx.workingDir,
+      timeout: timeout ?? 120000,
+      signal: ctx.signal,
+    };
+
     try {
-      const execOptions = {
-        cwd: ctx.workingDir,
-        timeout: timeout ?? 120000,
-        signal: ctx.signal,
-      };
       const runner = resolveCommandRunner(ctx, 'Bash');
       if (runner.kind === 'unavailable') {
-        return { callId: call.id, output: runner.message, isError: true };
+        return {
+          callId: call.id,
+          output: runner.message,
+          isError: true,
+          metadata: {
+            command,
+            timeout: execOptions.timeout,
+          },
+        };
       }
       const result = await runner.run(command, execOptions);
-
-      const exitCode = result.exitCode ?? 0;
-
-      let output = '';
-      if (result.stdout) output += result.stdout;
-      if (result.stderr) {
-        if (output) output += '\n';
-        output += `[stderr] ${result.stderr}`;
-      }
-
-      if (exitCode !== 0) {
-        output += `\n[exit code: ${exitCode}]`;
-      }
+      const formatted = formatCommandResult(result, '(no output)');
 
       return {
         callId: call.id,
-        output: output || '(no output)',
-        isError: exitCode !== 0,
+        output: formatted.output,
+        isError: formatted.isError,
         metadata: {
-          exitCode,
-          timedOut: result.timedOut ?? false,
+          exitCode: formatted.exitCode,
+          timedOut: formatted.timedOut,
+          command,
+          timeout: execOptions.timeout,
         },
       };
     } catch (error) {
       return {
         callId: call.id,
-        output: `Error executing command: ${error instanceof Error ? error.message : String(error)}`,
+        output: `Error executing command: ${formatUnknownErrorMessage(error)}`,
         isError: true,
+        metadata: {
+          command,
+          timeout: execOptions.timeout,
+        },
       };
     }
   }

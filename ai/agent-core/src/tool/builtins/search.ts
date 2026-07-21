@@ -1,5 +1,8 @@
 import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import { formatUnknownErrorMessage } from './error-message.utils';
+import { resolveToolPath } from './path-resolution.utils';
+import { formatGlobResults, formatGrepResults, globRequestMetadata, grepRequestMetadata } from './search-result-metadata.utils';
 
 // ============================================================
 // grep
@@ -51,25 +54,37 @@ export class GrepExecutor implements IToolExecutor {
       max_results?: number;
     };
 
-    if (!pattern || typeof pattern !== 'string') {
+    if (typeof pattern !== 'string' || pattern.trim().length === 0) {
       return { callId: call.id, output: 'Error: "pattern" is required and must be a string.', isError: true };
     }
-    if (!path || typeof path !== 'string') {
+    if (typeof path !== 'string' || path.trim().length === 0) {
       return { callId: call.id, output: 'Error: "path" is required and must be a string.', isError: true };
     }
+    if (include !== undefined && typeof include !== 'string') {
+      return { callId: call.id, output: 'Error: "include" must be a string.', isError: true };
+    }
+    const resolvedPattern = pattern.trim();
+    const resolvedPathArg = path.trim();
+    const resolvedInclude = include?.trim() || undefined;
+    if (ignore_case !== undefined && typeof ignore_case !== 'boolean') {
+      return { callId: call.id, output: 'Error: "ignore_case" must be a boolean.', isError: true };
+    }
+    if (max_results !== undefined && (!Number.isInteger(max_results) || max_results < 1)) {
+      return { callId: call.id, output: 'Error: "max_results" must be a positive integer.', isError: true };
+    }
 
-    const resolvedPath = ctx.platform.fs.resolve(
-      ctx.platform.fs.join(ctx.workingDir, path),
-    );
+    const resolvedPath = resolveToolPath(ctx, resolvedPathArg);
+    const maxResults = max_results ?? 250;
+    const requestMetadata = grepRequestMetadata(resolvedPattern, resolvedPath, resolvedInclude, ignore_case === true, maxResults);
 
     try {
       const results = await ctx.platform.search.grep(
-        pattern,
+        resolvedPattern,
         [resolvedPath],
         {
           ignoreCase: ignore_case,
-          includePattern: include,
-          maxResults: max_results ?? 250,
+          includePattern: resolvedInclude,
+          maxResults,
           contextLines: 2,
         },
       );
@@ -78,26 +93,23 @@ export class GrepExecutor implements IToolExecutor {
         return {
           callId: call.id,
           output: 'No matches found.',
+          metadata: { ...requestMetadata, matchCount: 0 },
         };
       }
 
-      const formatted = results
-        .map(
-          (r) =>
-            `${r.file}:${r.line}: ${r.text}`,
-        )
-        .join('\n');
+      const formatted = formatGrepResults(results);
 
       return {
         callId: call.id,
         output: formatted,
-        metadata: { matchCount: results.length },
+        metadata: { ...requestMetadata, matchCount: results.length },
       };
     } catch (error) {
       return {
         callId: call.id,
-        output: `Error searching: ${error instanceof Error ? error.message : String(error)}`,
+        output: `Error searching: ${formatUnknownErrorMessage(error)}`,
         isError: true,
+        metadata: requestMetadata,
       };
     }
   }
@@ -138,34 +150,41 @@ export class GlobExecutor implements IToolExecutor {
       path?: string;
     };
 
-    if (!pattern || typeof pattern !== 'string') {
+    if (typeof pattern !== 'string' || pattern.trim().length === 0) {
       return { callId: call.id, output: 'Error: "pattern" is required and must be a string.', isError: true };
     }
 
-    const searchPath = path
-      ? ctx.platform.fs.resolve(ctx.platform.fs.join(ctx.workingDir, path))
-      : ctx.workingDir;
+    if (path !== undefined && typeof path !== 'string') {
+      return { callId: call.id, output: 'Error: "path" must be a string.', isError: true };
+    }
+    const resolvedPattern = pattern.trim();
+    const resolvedPathArg = path?.trim();
+
+    const searchPath = resolvedPathArg ? resolveToolPath(ctx, resolvedPathArg) : ctx.workingDir;
+    const requestMetadata = globRequestMetadata(resolvedPattern, searchPath);
 
     try {
-      const files = await ctx.platform.search.glob(pattern, searchPath);
+      const files = await ctx.platform.search.glob(resolvedPattern, searchPath);
 
       if (files.length === 0) {
         return {
           callId: call.id,
           output: 'No files matched the pattern.',
+          metadata: { ...requestMetadata, fileCount: 0 },
         };
       }
 
       return {
         callId: call.id,
-        output: files.join('\n'),
-        metadata: { fileCount: files.length },
+        output: formatGlobResults(files),
+        metadata: { ...requestMetadata, fileCount: files.length },
       };
     } catch (error) {
       return {
         callId: call.id,
-        output: `Error searching files: ${error instanceof Error ? error.message : String(error)}`,
+        output: `Error searching files: ${formatUnknownErrorMessage(error)}`,
         isError: true,
+        metadata: requestMetadata,
       };
     }
   }

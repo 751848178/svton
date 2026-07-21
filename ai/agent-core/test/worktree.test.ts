@@ -195,6 +195,26 @@ describe('F3 — Git Worktrees (WorktreeManager)', () => {
       expect(addCommand).toContain('main');
     });
 
+    it('quotes branch, path, and base branch before shell execution', async () => {
+      const platform = createMockPlatform([
+        { stdout: '', stderr: '', exitCode: 0 },
+        { stdout: 'worktree /repo/.worktrees/feat weird\n', stderr: '', exitCode: 0 },
+      ]);
+      const manager = new WorktreeManager(platform);
+
+      await manager.create('/repo', {
+        branch: 'feat; rm -rf /',
+        path: '/repo/.worktrees/feat weird',
+        baseBranch: "origin/main'; touch /tmp/pwned #",
+      });
+
+      const addCommand = (platform.process.exec as any).mock.calls[0][0];
+      expect(addCommand).toBe(
+        "git worktree add -b 'feat; rm -rf /' '/repo/.worktrees/feat weird' " +
+          "'origin/main'\\''; touch /tmp/pwned #'",
+      );
+    });
+
     it('throws when git worktree add fails', async () => {
       const platform = createMockPlatform([
         { stdout: '', stderr: 'branch already exists', exitCode: 1 },
@@ -234,6 +254,18 @@ describe('F3 — Git Worktrees (WorktreeManager)', () => {
 
       const cmd = (platform.process.exec as any).mock.calls[0][0];
       expect(cmd).toContain('--force');
+    });
+
+    it('quotes remove path before shell execution', async () => {
+      const platform = createMockPlatform([
+        { stdout: '', stderr: '', exitCode: 0 },
+      ]);
+      const manager = new WorktreeManager(platform);
+
+      await manager.remove('/repo', '/repo/.worktrees/feat; rm -rf /', true);
+
+      const cmd = (platform.process.exec as any).mock.calls[0][0];
+      expect(cmd).toBe("git worktree remove '/repo/.worktrees/feat; rm -rf /' --force");
     });
 
     it('does not pass --force by default', async () => {
@@ -276,6 +308,31 @@ describe('F3 — Git Worktrees (WorktreeManager)', () => {
 
       expect(found).not.toBeNull();
       expect(found!.branch).toBe('feature-branch');
+    });
+
+    it('returns the containing linked worktree for nested paths', async () => {
+      const platform = createMockPlatform([
+        { stdout: SAMPLE_PORCELAIN, stderr: '', exitCode: 0 },
+      ]);
+      const manager = new WorktreeManager(platform);
+
+      const found = await manager.detectCurrent(
+        '/home/user/repo/.worktrees/feature/packages/app',
+      );
+
+      expect(found).not.toBeNull();
+      expect(found!.branch).toBe('feature-branch');
+    });
+
+    it('returns null for paths inside the main worktree', async () => {
+      const platform = createMockPlatform([
+        { stdout: SAMPLE_PORCELAIN, stderr: '', exitCode: 0 },
+      ]);
+      const manager = new WorktreeManager(platform);
+
+      const found = await manager.detectCurrent('/home/user/repo/packages/app');
+
+      expect(found).toBeNull();
     });
 
     it('returns null when repoDir does not match any worktree', async () => {

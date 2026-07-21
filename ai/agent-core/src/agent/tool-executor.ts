@@ -7,8 +7,14 @@ import type { AgentEvent } from './types';
 import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 import type { ContextManager } from './context';
 import type { AutoReviewerManager } from '../auto-reviewer/manager';
+import type { ReviewResult } from '../auto-reviewer/types';
 import type { SessionResumeManager } from '../checkpoint/manager';
 import { logger } from '../utils/logger';
+import { toAutoReviewMetadata, withAutoReviewMetadata } from './tool-auto-review-result.utils';
+import { createPermissionDeniedResult, requestUserApproval, stopIfRunAborted } from './tool-execution-approval.utils';
+import { enforceActiveSkillToolGate } from './tool-skill-gate.utils';
+import { addToolResultToContext } from './tool-context-result.utils';
+import { runPostToolUseHook, runPreToolUseHook } from './tool-hook-lifecycle.utils';
 
 /**
  * Additional options for tool execution pipeline.
@@ -20,8 +26,8 @@ export interface ToolExecOptions {
   sandboxProfile?: SandboxProfile | null;
   sandboxRequired?: boolean;
   sessionId?: string;
+  signal?: AbortSignal;
 }
-
 /**
  * Handles tool execution with permission gating, auto-review, sandbox wrapping,
  * and hook lifecycle.
@@ -31,7 +37,6 @@ export class ToolExecutionService {
   private activeSkills: SkillDefinition[] = [];
   /** Extra options settable post-construction */
   private execOptions: ToolExecOptions = {};
-
   constructor(
     private readonly toolRegistry: ToolRegistry,
     private readonly contextManager: ContextManager,
@@ -59,11 +64,10 @@ export class ToolExecutionService {
   /**
    * Execute a tool call through the full pipeline:
    * 1. Pre-tool hook
-   * 2. Permission check
-   * 3. User approval (if needed)
+   * 2. Active skill tool gate
+   * 3. Permission and user approval (if needed)
    * 4. Tool execution
-   * 5. Post-tool hook
-   * 6. Context update
+   * 5. Post-tool hook and context update
    */
   async *execute(call: ToolCall): AsyncGenerator<AgentEvent> {
     logger.info('Tool', `Executing: ${call.name}`, {
@@ -71,43 +75,41 @@ export class ToolExecutionService {
       args: call.arguments,
     });
 
-    // 1. Pre-tool hook
-    if (this.hookManager) {
-      const hookResult = await this.hookManager.trigger('pre_tool_use', {
-        event: 'pre_tool_use',
-        toolName: call.name,
-        toolCall: call,
-      });
-
-      if (hookResult.action === 'deny') {
-        yield {
-          type: 'tool_call_end',
-          result: {
-            callId: call.id,
-            output: `Tool call denied by hook: ${hookResult.reason || 'no reason given'}`,
-            isError: true,
-          },
-        };
-        this.addToolResultToContext(call.id, 'Tool call denied by hook', true);
-        return;
-      }
+    const initialAbort = yield* stopIfRunAborted(call, this.execOptions.signal);
+    if (initialAbort) {
+      addToolResultToContext(this.contextManager, call.id, initialAbort.output, true);
+      return;
     }
+
+    const preToolHook = await runPreToolUseHook(this.hookManager, call);
+    call = preToolHook.toolCall;
+    if (preToolHook.deniedResult) {
+      const hookDeniedResult = preToolHook.deniedResult;
+      yield { type: 'tool_call_end', result: hookDeniedResult };
+      addToolResultToContext(this.contextManager, call.id, hookDeniedResult.output, true);
+      return;
+    }
+
+    const skillGateResult = enforceActiveSkillToolGate(call, this.activeSkills);
+    if (skillGateResult) {
+      yield { type: 'tool_call_end', result: skillGateResult };
+      addToolResultToContext(this.contextManager, call.id, skillGateResult.output, true);
+      return;
+    }
+
+    let autoReviewResult: ReviewResult | null = null;
 
     // 2. Permission check
     if (this.permissionManager) {
-      const definition = this.toolRegistry.get(call.name)?.definition;
-      const decision = this.permissionManager.check(call, definition?.annotations);
+      const decision = this.permissionManager.check(call);
 
       if (!decision.allowed) {
+        const result = createPermissionDeniedResult(call.id, decision.reason);
         yield {
           type: 'tool_call_end',
-          result: {
-            callId: call.id,
-            output: `Permission denied: ${decision.reason || 'not allowed'}`,
-            isError: true,
-          },
+          result,
         };
-        this.addToolResultToContext(call.id, `Permission denied: ${decision.reason}`, true);
+        addToolResultToContext(this.contextManager, call.id, result.output, true);
         return;
       }
 
@@ -122,88 +124,48 @@ export class ToolExecutionService {
           });
 
           if (review.verdict === 'approve') {
+            autoReviewResult = review;
             logger.info('Tool', `Auto-approved by rule: ${review.ruleId ?? 'auto'}`, { tool: call.name });
           } else if (review.verdict === 'deny') {
             yield {
               type: 'tool_call_end',
-              result: {
+              result: withAutoReviewMetadata({
                 callId: call.id,
                 output: `Auto-reviewer denied: ${review.reason}`,
                 isError: true,
-              },
+              }, review),
             };
-            this.addToolResultToContext(call.id, `Auto-reviewer denied: ${review.reason}`, true);
+            addToolResultToContext(this.contextManager, call.id, `Auto-reviewer denied: ${review.reason}`, true);
             return;
           } else {
             // ask_user — fall through to user approval
-            // 3. User approval
-            yield { type: 'tool_approval_needed', call };
-
-            const approved = await this.waitForApproval(call);
-            if (!approved) {
-              yield {
-                type: 'tool_call_end',
-                result: {
-                  callId: call.id,
-                  output: 'Tool call rejected by user',
-                  isError: true,
-                },
-              };
-              this.addToolResultToContext(call.id, 'Tool call rejected by user', true);
+            const rejection = yield* requestUserApproval(
+              this.pendingApprovals,
+              call,
+              this.execOptions.signal,
+              (result) => withAutoReviewMetadata(result, review),
+              toAutoReviewMetadata(review),
+            );
+            if (rejection) {
+              addToolResultToContext(this.contextManager, call.id, rejection.output, true);
               return;
             }
+            autoReviewResult = review;
           }
         } else {
-          // 3. User approval (no auto-reviewer)
-          yield { type: 'tool_approval_needed', call };
-
-          const approved = await this.waitForApproval(call);
-          if (!approved) {
-            yield {
-              type: 'tool_call_end',
-              result: {
-                callId: call.id,
-                output: 'Tool call rejected by user',
-                isError: true,
-              },
-            };
-            this.addToolResultToContext(call.id, 'Tool call rejected by user', true);
+          const rejection = yield* requestUserApproval(this.pendingApprovals, call, this.execOptions.signal);
+          if (rejection) {
+            addToolResultToContext(this.contextManager, call.id, rejection.output, true);
             return;
           }
         }
       }
     }
 
-    // 2.5 Skill-scoped tool check
-    if (this.activeSkills.length > 0) {
-      for (const skill of this.activeSkills) {
-        // Check disallowedTools
-        if (skill.disallowedTools?.includes(call.name)) {
-          yield {
-            type: 'tool_call_end',
-            result: {
-              callId: call.id,
-              output: `Tool "${call.name}" is disallowed by active skill "${skill.name}"`,
-              isError: true,
-            },
-          };
-          this.addToolResultToContext(call.id, `Disallowed by skill "${skill.name}"`, true);
-          return;
-        }
-        // Check allowedTools (whitelist — if defined, tool must be in it)
-        if (skill.allowedTools?.length && !skill.allowedTools.includes(call.name)) {
-          yield {
-            type: 'tool_call_end',
-            result: {
-              callId: call.id,
-              output: `Tool "${call.name}" is not in the allowed list for active skill "${skill.name}"`,
-              isError: true,
-            },
-          };
-          this.addToolResultToContext(call.id, `Not allowed by skill "${skill.name}"`, true);
-          return;
-        }
-      }
+    const beforeExecuteAbort = yield* stopIfRunAborted(call, this.execOptions.signal);
+    if (beforeExecuteAbort) {
+      addToolResultToContext(this.contextManager, call.id, beforeExecuteAbort.output, true);
+      return;
     }
 
     // 4. Execute the tool
@@ -213,9 +175,13 @@ export class ToolExecutionService {
       workingDir: this.workingDir,
       sandboxProfile: this.execOptions.sandboxProfile,
       sandboxRequired: this.execOptions.sandboxRequired,
+      signal: this.execOptions.signal,
     };
 
-    const result = await this.toolRegistry.execute(call, toolCtx);
+    const result = withAutoReviewMetadata(
+      await this.toolRegistry.execute(call, toolCtx),
+      autoReviewResult,
+    );
 
     logger.info('Tool', `Result: ${call.name}`, {
       isError: result.isError,
@@ -224,41 +190,9 @@ export class ToolExecutionService {
 
     yield { type: 'tool_call_end', result };
 
-    // 5. Post-tool hook
-    if (this.hookManager) {
-      await this.hookManager.trigger('post_tool_use', {
-        event: 'post_tool_use',
-        toolName: call.name,
-        toolCall: call,
-        toolResult: result,
-      });
-    }
+    await runPostToolUseHook(this.hookManager, call, result);
 
     // 6. Context update
-    this.addToolResultToContext(call.id, result.output, result.isError);
-  }
-
-  private waitForApproval(call: ToolCall): Promise<boolean> {
-    return new Promise<boolean>((resolve) => {
-      this.pendingApprovals.set(call.id, {
-        call,
-        resolve,
-        timestamp: Date.now(),
-      });
-    });
-  }
-
-  private addToolResultToContext(callId: string, output: string, isError?: boolean): void {
-    this.contextManager.addMessage({
-      role: 'tool',
-      content: [
-        {
-          type: 'tool_result',
-          toolUseId: callId,
-          output,
-          isError,
-        },
-      ],
-    });
+    addToolResultToContext(this.contextManager, call.id, result.output, result.isError);
   }
 }

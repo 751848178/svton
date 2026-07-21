@@ -1,7 +1,5 @@
 import type {
   ITransport,
-  JSONRPCRequest,
-  JSONRPCResponse,
   MCPToolDefinition,
   MCPResource,
   MCPResourceContent,
@@ -12,20 +10,19 @@ import type {
 } from './types';
 import type { ToolDefinition } from '../provider/types';
 import type { ToolCall, ToolResult, IToolExecutor } from '../tool/types';
+import {
+  cloneMcpPrompts,
+  cloneMcpResources,
+  cloneMcpTools,
+  toToolDefinitions,
+} from './catalog-snapshot.utils';
+import { JsonRpcSession } from './jsonrpc-session.service';
 
 /**
  * MCP Client - connects to external MCP servers to discover and use tools, resources, prompts.
  */
 export class MCPClient {
-  private transport: ITransport | null = null;
-  private requestId = 0;
-  private pendingRequests = new Map<
-    string | number,
-    {
-      resolve: (response: JSONRPCResponse) => void;
-      reject: (error: Error) => void;
-    }
-  >();
+  private readonly session = new JsonRpcSession();
   private serverInfo: MCPServerInfo | null = null;
   private capabilities: MCPCapabilities | null = null;
   private toolCache: MCPToolDefinition[] | null = null;
@@ -33,7 +30,7 @@ export class MCPClient {
   private promptCache: MCPPrompt[] | null = null;
 
   get connected(): boolean {
-    return this.transport !== null;
+    return this.session.connected;
   }
 
   get info(): MCPServerInfo | null {
@@ -44,25 +41,10 @@ export class MCPClient {
    * Connect to an MCP server via a transport.
    */
   async connect(transport: ITransport): Promise<void> {
-    this.transport = transport;
-
-    // Set up message handler
-    transport.onMessage((message) => {
-      const pending = this.pendingRequests.get(message.id);
-      if (pending) {
-        this.pendingRequests.delete(message.id);
-        if (message.error) {
-          pending.reject(new Error(message.error.message));
-        } else {
-          pending.resolve(message);
-        }
-      }
-    });
-
-    await transport.connect();
+    await this.session.connect(transport);
 
     // Initialize
-    const initResult = await this.sendRequest<{
+    const initResult = await this.session.sendRequest<{
       serverInfo: MCPServerInfo;
       capabilities: MCPCapabilities;
     }>('initialize', {
@@ -75,18 +57,14 @@ export class MCPClient {
     this.capabilities = initResult.capabilities;
 
     // Send initialized notification
-    await this.sendNotification('notifications/initialized');
+    await this.session.sendNotification('notifications/initialized');
   }
 
   /**
    * Disconnect from the server.
    */
   async disconnect(): Promise<void> {
-    if (this.transport) {
-      await this.transport.close();
-      this.transport = null;
-    }
-    this.pendingRequests.clear();
+    await this.session.close();
     this.toolCache = null;
     this.resourceCache = null;
     this.promptCache = null;
@@ -100,20 +78,20 @@ export class MCPClient {
    * List available tools from the server.
    */
   async listTools(): Promise<MCPToolDefinition[]> {
-    if (this.toolCache) return this.toolCache;
+    if (this.toolCache) return cloneMcpTools(this.toolCache);
 
-    const result = await this.sendRequest<{ tools: MCPToolDefinition[] }>(
+    const result = await this.session.sendRequest<{ tools: MCPToolDefinition[] }>(
       'tools/list',
     );
-    this.toolCache = result.tools;
-    return result.tools;
+    this.toolCache = cloneMcpTools(result.tools);
+    return cloneMcpTools(this.toolCache);
   }
 
   /**
    * Call a tool on the server.
    */
   async callTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
-    const result = await this.sendRequest<{
+    const result = await this.session.sendRequest<{
       content: Array<{ type: string; text?: string }>;
       isError?: boolean;
     }>('tools/call', { name, arguments: args });
@@ -138,20 +116,20 @@ export class MCPClient {
    * List available resources.
    */
   async listResources(): Promise<MCPResource[]> {
-    if (this.resourceCache) return this.resourceCache;
+    if (this.resourceCache) return cloneMcpResources(this.resourceCache);
 
-    const result = await this.sendRequest<{ resources: MCPResource[] }>(
+    const result = await this.session.sendRequest<{ resources: MCPResource[] }>(
       'resources/list',
     );
-    this.resourceCache = result.resources;
-    return result.resources;
+    this.resourceCache = cloneMcpResources(result.resources);
+    return cloneMcpResources(this.resourceCache);
   }
 
   /**
    * Read a resource.
    */
   async readResource(uri: string): Promise<MCPResourceContent[]> {
-    const result = await this.sendRequest<{ contents: MCPResourceContent[] }>(
+    const result = await this.session.sendRequest<{ contents: MCPResourceContent[] }>(
       'resources/read',
       { uri },
     );
@@ -166,13 +144,13 @@ export class MCPClient {
    * List available prompt templates.
    */
   async listPrompts(): Promise<MCPPrompt[]> {
-    if (this.promptCache) return this.promptCache;
+    if (this.promptCache) return cloneMcpPrompts(this.promptCache);
 
-    const result = await this.sendRequest<{ prompts: MCPPrompt[] }>(
+    const result = await this.session.sendRequest<{ prompts: MCPPrompt[] }>(
       'prompts/list',
     );
-    this.promptCache = result.prompts;
-    return result.prompts;
+    this.promptCache = cloneMcpPrompts(result.prompts);
+    return cloneMcpPrompts(this.promptCache);
   }
 
   /**
@@ -182,7 +160,7 @@ export class MCPClient {
     name: string,
     args?: Record<string, string>,
   ): Promise<MCPPromptMessage[]> {
-    const result = await this.sendRequest<{ messages: MCPPromptMessage[] }>(
+    const result = await this.session.sendRequest<{ messages: MCPPromptMessage[] }>(
       'prompts/get',
       { name, arguments: args },
     );
@@ -197,21 +175,7 @@ export class MCPClient {
    * Convert MCP tools to ToolDefinition format for ToolRegistry.
    */
   toToolDefinitions(tools: MCPToolDefinition[]): ToolDefinition[] {
-    return tools.map((tool) => {
-      const { type: _, ...schemaRest } = tool.inputSchema as Record<string, unknown>;
-      return {
-        name: `mcp__${this.serverInfo?.name || 'unknown'}__${tool.name}`,
-        description: tool.description || `MCP tool: ${tool.name}`,
-        parameters: {
-          type: 'object' as const,
-          properties: (schemaRest.properties || {}) as Record<string, unknown>,
-          required: schemaRest.required as string[] | undefined,
-        },
-        annotations: {
-          openWorldHint: true,
-        },
-      };
-    });
+    return toToolDefinitions(tools, this.serverInfo?.name);
   }
 
   /**
@@ -223,47 +187,5 @@ export class MCPClient {
         return this.callTool(toolName, call.arguments);
       },
     };
-  }
-
-  // ----------------------------------------------------------
-  // Private
-  // ----------------------------------------------------------
-
-  private async sendRequest<T>(method: string, params?: Record<string, unknown>): Promise<T> {
-    if (!this.transport) throw new Error('Not connected');
-
-    const id = ++this.requestId;
-    const request: JSONRPCRequest = {
-      jsonrpc: '2.0',
-      id,
-      method,
-      params,
-    };
-
-    const response = await new Promise<JSONRPCResponse>((resolve, reject) => {
-      this.pendingRequests.set(id, { resolve, reject });
-      this.transport!.send(request).catch(reject);
-
-      // Timeout
-      setTimeout(() => {
-        if (this.pendingRequests.has(id)) {
-          this.pendingRequests.delete(id);
-          reject(new Error(`Request timeout: ${method}`));
-        }
-      }, 30000);
-    });
-
-    return response.result as T;
-  }
-
-  private async sendNotification(method: string, params?: Record<string, unknown>): Promise<void> {
-    if (!this.transport) throw new Error('Not connected');
-
-    await this.transport.send({
-      jsonrpc: '2.0',
-      id: ++this.requestId,
-      method,
-      params,
-    });
   }
 }

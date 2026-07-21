@@ -275,6 +275,7 @@ describe('F11 — Code Review', () => {
 
       expect(result.isError).toBe(true);
       expect(result.output).toContain('requires sandbox execution');
+      expect(result.metadata).toMatchObject({ command: 'git diff main...feature' });
       expect(processExec).not.toHaveBeenCalled();
       expect(sandboxExec).not.toHaveBeenCalled();
     });
@@ -314,6 +315,128 @@ describe('F11 — Code Review', () => {
       expect(execMock).toHaveBeenCalled();
       const cmd = execMock.mock.calls[0][0];
       expect(cmd).toContain('--stat');
+    });
+
+    it('rejects non-boolean stat_only before running git diff', async () => {
+      const platform = createMockPlatform(true);
+      const execMock = platform.process.exec as ReturnType<typeof vi.fn>;
+      const executor = new GitDiffExecutor();
+
+      const result = await executor.execute(
+        {
+          id: 'invalid-stat-only',
+          name: 'git_diff',
+          arguments: { stat_only: 'true' },
+        },
+        createContext(platform),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"stat_only" must be a boolean');
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    it('returns isError=true when git diff execution times out', async () => {
+      const execMock = vi.fn(async () => ({
+        stdout: '',
+        stderr: '',
+        exitCode: null,
+        timedOut: true,
+      }));
+      const platform = createMockPlatform(true);
+      platform.process = { exec: execMock } as unknown as IProcess;
+      const executor = new GitDiffExecutor();
+      const result = await executor.execute(
+        {
+          id: 'call_timeout',
+          name: 'git_diff',
+          arguments: { base: 'main' },
+        },
+        createContext(platform),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('[timed out]');
+      expect(result.metadata).toMatchObject({ exitCode: null });
+    });
+
+    it('preserves command metadata when git diff execution throws', async () => {
+      const execMock = vi.fn(async () => {
+        throw new Error('spawn failed');
+      });
+      const platform = createMockPlatform(true);
+      platform.process = { exec: execMock } as unknown as IProcess;
+
+      const result = await new GitDiffExecutor().execute(
+        {
+          id: 'call-throw',
+          name: 'git_diff',
+          arguments: { base: 'main', head: 'feature', paths: ['src/index.ts'] },
+        },
+        createContext(platform),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('spawn failed');
+      expect(result.metadata).toMatchObject({
+        command: 'git diff main...feature -- src/index.ts',
+      });
+    });
+
+    it.each([
+      ['non-array paths', 'src/index.ts'],
+      ['non-string path entry', ['src/index.ts', 123]],
+    ])('rejects %s before running git diff', async (_label, paths) => {
+      const platform = createMockPlatform(true);
+      const execMock = platform.process.exec as ReturnType<typeof vi.fn>;
+      const executor = new GitDiffExecutor();
+
+      const result = await executor.execute(
+        {
+          id: 'invalid-paths',
+          name: 'git_diff',
+          arguments: { paths },
+        },
+        createContext(platform),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"paths" must be an array of strings');
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects blank path entries before running git diff', async () => {
+      const platform = createMockPlatform(true);
+      const execMock = platform.process.exec as ReturnType<typeof vi.fn>;
+
+      const result = await new GitDiffExecutor().execute(
+        {
+          id: 'blank-paths',
+          name: 'git_diff',
+          arguments: { paths: ['src/index.ts', ' \n\t '] },
+        },
+        createContext(platform),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"paths" must not contain blank entries');
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    it('uses trimmed path entries when building git diff command', async () => {
+      const platform = createMockPlatform(true);
+      const execMock = platform.process.exec as ReturnType<typeof vi.fn>;
+
+      await new GitDiffExecutor().execute(
+        {
+          id: 'trimmed-paths',
+          name: 'git_diff',
+          arguments: { paths: [' \nsrc/index.ts\t '] },
+        },
+        createContext(platform),
+      );
+
+      expect(execMock.mock.calls[0][0]).toBe('git diff -- src/index.ts');
     });
 
     it('builds range argument as base...head when both provided', async () => {
@@ -392,6 +515,40 @@ describe('F11 — Code Review', () => {
       );
     });
 
+    it('rejects blank git refs before running git diff', async () => {
+      const platform = createMockPlatform(true);
+      const execMock = platform.process.exec as ReturnType<typeof vi.fn>;
+
+      const result = await new GitDiffExecutor().execute(
+        {
+          id: 'blank-ref',
+          name: 'git_diff',
+          arguments: { base: ' \n\t ' },
+        },
+        createContext(platform),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('invalid git ref');
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    it('uses trimmed git refs when building the diff command', async () => {
+      const platform = createMockPlatform(true);
+      const execMock = platform.process.exec as ReturnType<typeof vi.fn>;
+
+      await new GitDiffExecutor().execute(
+        {
+          id: 'trim-ref',
+          name: 'git_diff',
+          arguments: { base: ' \nmain\t ', head: ' feature\n' },
+        },
+        createContext(platform),
+      );
+
+      expect(execMock.mock.calls[0][0]).toBe('git diff main...feature');
+    });
+
     it('rejects git refs that start with an option prefix', async () => {
       const execMock = vi.fn();
       const platform: IPlatform = {
@@ -421,6 +578,42 @@ describe('F11 — Code Review', () => {
 
       expect(result.isError).toBe(true);
       expect(result.output).toContain('invalid git ref');
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects non-string git refs before running git diff', async () => {
+      const platform = createMockPlatform(true);
+      const execMock = platform.process.exec as ReturnType<typeof vi.fn>;
+
+      const result = await new GitDiffExecutor().execute(
+        {
+          id: 'invalid-ref-type',
+          name: 'git_diff',
+          arguments: { base: 123, head: 'feature' },
+        },
+        createContext(platform),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('invalid git ref');
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    it('rejects head without base before running git diff', async () => {
+      const platform = createMockPlatform(true);
+      const execMock = platform.process.exec as ReturnType<typeof vi.fn>;
+
+      const result = await new GitDiffExecutor().execute(
+        {
+          id: 'head-without-base',
+          name: 'git_diff',
+          arguments: { head: 'feature' },
+        },
+        createContext(platform),
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"head" requires "base"');
       expect(execMock).not.toHaveBeenCalled();
     });
 

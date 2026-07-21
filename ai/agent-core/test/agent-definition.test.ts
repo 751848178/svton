@@ -42,6 +42,16 @@ const customDef: AgentDefinition = {
   permissions: 'default',
 };
 
+function makeRichCustomDef(): AgentDefinition {
+  return {
+    ...customDef,
+    tools: ['file_read'],
+    excludeTools: ['bash'],
+    skills: ['review'],
+    mcpServers: [{ name: 'docs', url: 'http://mcp.local', type: 'http' }],
+  };
+}
+
 // ==============================================================
 // Tests
 // ==============================================================
@@ -95,6 +105,17 @@ describe('F5 — Custom Agent Definitions (AgentDefinitionManager)', () => {
 
       expect(planner.permissions).toBe('plan');
     });
+
+    it('returns builtin definition copies so defaults cannot be mutated through callers', () => {
+      const manager = new AgentDefinitionManager();
+
+      const researcher = manager.get('researcher')!;
+      researcher.tools!.push('bash');
+      manager.list().find((def) => def.name === 'planner')!.title = 'Injected Planner';
+
+      expect(manager.get('researcher')!.tools).not.toContain('bash');
+      expect(manager.get('planner')!.title).toBe('Planner');
+    });
   });
 
   // ----------------------------------------------------------
@@ -117,6 +138,29 @@ describe('F5 — Custom Agent Definitions (AgentDefinitionManager)', () => {
 
       const def = manager.get('my-custom-agent')!;
       expect(def.title).toBe('Updated Title');
+    });
+
+    it('register(), get(), and list() protect registered definitions from caller mutation', () => {
+      const manager = new AgentDefinitionManager();
+      const richCustomDef = makeRichCustomDef();
+
+      manager.register(richCustomDef);
+      richCustomDef.title = 'Injected title';
+      richCustomDef.tools!.push('bash');
+      richCustomDef.mcpServers![0].url = 'http://evil.local';
+
+      const fromGet = manager.get('my-custom-agent')!;
+      expect(fromGet.title).toBe('My Custom Agent');
+      expect(fromGet.tools).toEqual(['file_read']);
+      expect(fromGet.mcpServers?.[0].url).toBe('http://mcp.local');
+
+      fromGet.tools!.push('web_fetch');
+      const fromList = manager.list().find((def) => def.name === 'my-custom-agent')!;
+      fromList.mcpServers![0].name = 'injected';
+
+      const fresh = manager.get('my-custom-agent')!;
+      expect(fresh.tools).toEqual(['file_read']);
+      expect(fresh.mcpServers?.[0].name).toBe('docs');
     });
   });
 
@@ -190,6 +234,34 @@ describe('F5 — Custom Agent Definitions (AgentDefinitionManager)', () => {
 
       const coder = manager2.get('coder')!;
       expect(coder.title).toBe('Super Coder');
+    });
+
+    it('save() and loadFromStorage() separate storage-held definitions from manager state', async () => {
+      const storage = new MockStorage();
+      const manager = new AgentDefinitionManager(storage);
+      const richCustomDef = makeRichCustomDef();
+
+      await manager.save(richCustomDef);
+      richCustomDef.tools!.push('after-save-mutation');
+      richCustomDef.mcpServers![0].name = 'mutated-input';
+
+      const stored = await storage.get<AgentDefinition>('agent:agent_def:my-custom-agent');
+      expect(stored!.tools).toEqual(['file_read']);
+      expect(stored!.mcpServers?.[0].name).toBe('docs');
+
+      stored!.tools!.push('bash');
+      stored!.mcpServers![0].url = 'http://evil.local';
+
+      expect(manager.get('my-custom-agent')!.tools).toEqual(['file_read']);
+      expect(manager.get('my-custom-agent')!.mcpServers?.[0].url).toBe('http://mcp.local');
+
+      const manager2 = new AgentDefinitionManager(storage);
+      await manager2.loadFromStorage();
+      stored!.title = 'Injected stored title';
+      stored!.skills!.push('evil-skill');
+
+      expect(manager2.get('my-custom-agent')!.title).toBe('My Custom Agent');
+      expect(manager2.get('my-custom-agent')!.skills).toEqual(['review']);
     });
 
     it('loadFromStorage() is safe when no storage is provided', async () => {

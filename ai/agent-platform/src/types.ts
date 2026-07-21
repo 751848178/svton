@@ -4,7 +4,7 @@
  * All system-level operations are abstracted through these interfaces.
  * The core agent layer never directly calls any platform API.
  */
-
+import { createHttpAbortSignal } from './http-signal.utils';
 // ============================================================
 // File System
 // ============================================================
@@ -194,7 +194,6 @@ export interface IHttpResponse {
   json(): Promise<unknown>;
   header(name: string): string | null;
 }
-
 export interface IHttpClient {
   /**
    * Issue a request and return the response. Implementations are expected to
@@ -207,6 +206,7 @@ export interface IHttpClient {
     headers?: Record<string, string>;
     body?: string;
     timeoutMs?: number;
+    signal?: AbortSignal;
   }): Promise<IHttpResponse>;
 }
 
@@ -225,13 +225,13 @@ export class FetchHttpResponse implements IHttpResponse {
 export class FetchHttpClient implements IHttpClient {
   async request(
     url: string,
-    opts?: { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; timeoutMs?: number },
+    opts?: { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: string; timeoutMs?: number; signal?: AbortSignal },
   ): Promise<IHttpResponse> {
     const res = await fetch(url, {
       method: opts?.method ?? 'GET',
       headers: opts?.headers,
       body: opts?.body,
-      signal: opts?.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
+      signal: createHttpAbortSignal(opts),
     });
     return new FetchHttpResponse(res);
   }

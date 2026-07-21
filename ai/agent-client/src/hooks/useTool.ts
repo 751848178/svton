@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAgentContext } from '../service/provider';
 import type { DisplayToolCall } from '../service/chat.service';
+import {
+  getVisiblePendingToolCalls,
+  mergeRuntimePendingToolCalls,
+} from './use-tool-approval.utils';
 
 /**
  * Tool approval hook.
@@ -11,24 +15,31 @@ export function useToolApproval() {
 
   // Subscribe to messages so pendingCalls updates reactively
   const [messages, setMessages] = useState(() => chatInternal.getState('messages'));
+  const [pendingApprovalVersion, setPendingApprovalVersion] = useState(
+    () => chatInternal.getState('pendingApprovalVersion'),
+  );
 
   useEffect(() => {
     const unsub = chatInternal.subscribe('messages', () => {
       setMessages(chatInternal.getState('messages'));
     });
-    return () => unsub();
+    const unsubPending = chatInternal.subscribe('pendingApprovalVersion', () => {
+      setPendingApprovalVersion(chatInternal.getState('pendingApprovalVersion'));
+    });
+    return () => {
+      unsub();
+      unsubPending();
+    };
   }, [chatInternal]);
 
-  const pendingCalls: DisplayToolCall[] = useMemo(
-    () => messages.flatMap(
-      (m: any) => m.toolCalls?.filter((tc: any) => tc.status === 'pending_approval') || [],
-    ),
-    [messages],
-  );
+  const pendingCalls: DisplayToolCall[] = useMemo(() => {
+    const visible = getVisiblePendingToolCalls(messages);
+    return mergeRuntimePendingToolCalls(visible, chatService.getPendingToolCalls());
+  }, [messages, chatService, pendingApprovalVersion]);
 
   return {
     pendingCalls,
-    hasPending: chatService.hasPendingApprovals,
+    hasPending: pendingCalls.length > 0,
     approve: (callId: string) => chatService.approveToolCall(callId),
     reject: (callId: string) => chatService.rejectToolCall(callId),
   };

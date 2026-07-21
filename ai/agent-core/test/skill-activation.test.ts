@@ -14,6 +14,7 @@ import { SkillManager } from '../src/skill/manager';
 import type { SkillDefinition } from '../src/skill/types';
 import { MockProvider, createMockPlatform, collectEvents } from './helpers';
 import type { AgentEvent } from '../src/agent/types';
+import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 
 // A skill that matches "code review" / "审查代码" requests.
 const reviewSkill: SkillDefinition = {
@@ -33,7 +34,7 @@ const unavailableSkill: SkillDefinition = {
   requiredTools: ['nonexistent_tool'],
 };
 
-function buildRuntime(skills: SkillDefinition[]) {
+function buildRuntime(skills: SkillDefinition[], platform: IPlatform = createMockPlatform()) {
   const provider = new MockProvider();
   provider.addResponse([
     { type: 'text_delta', text: 'done' },
@@ -58,7 +59,8 @@ function buildRuntime(skills: SkillDefinition[]) {
     model: 'test-model',
     toolRegistry: registry,
     capabilities: { skillManager },
-  }, createMockPlatform());
+    workingDir: '/repo',
+  }, platform);
 
   return { runtime, provider };
 }
@@ -98,5 +100,74 @@ describe('skill_activated event flow', () => {
     expect(skillIdx).toBeGreaterThanOrEqual(0);
     expect(textIdx).toBeGreaterThanOrEqual(0);
     expect(skillIdx).toBeLessThan(textIdx);
+  });
+
+  it('resolves dynamic skill context commands through sandbox exec when available', async () => {
+    const processCalls: string[] = [];
+    const sandboxCalls: string[] = [];
+    const sandboxProfile: SandboxProfile = {
+      mode: 'full_access',
+      writablePaths: ['/repo'],
+      networkAccess: true,
+    };
+    const platform = createMockPlatform({
+      capabilities: { process: true, sandboxing: true },
+      process: {
+        exec: async (cmd) => {
+          processCalls.push(cmd);
+          return { stdout: 'raw', stderr: '', exitCode: 0, timedOut: false };
+        },
+      },
+    });
+    (platform as any).sandbox = {
+      createProfile: () => sandboxProfile,
+      exec: async (cmd: string, _opts: unknown, profile: SandboxProfile) => {
+        sandboxCalls.push(`${cmd}:${profile.mode}`);
+        return { stdout: 'sandboxed', stderr: '', exitCode: 0, timedOut: false };
+      },
+    };
+
+    const { runtime } = buildRuntime([
+      {
+        ...reviewSkill,
+        instructions: 'Context: !`pwd`',
+      },
+    ], platform);
+
+    await collectEvents(runtime.run('please code review'));
+
+    expect(processCalls).toEqual([]);
+    expect(sandboxCalls).toEqual(['pwd:full_access']);
+    expect(runtime.getMessages().some((m) =>
+      typeof m.content === 'string' && m.content.includes('Context: sandboxed'),
+    )).toBe(true);
+  });
+
+  it('does not fall back to raw process exec when dynamic skill context requires sandbox', async () => {
+    const processCalls: string[] = [];
+    const platform = createMockPlatform({
+      capabilities: { process: true, sandboxing: true },
+      process: {
+        exec: async (cmd) => {
+          processCalls.push(cmd);
+          return { stdout: 'raw', stderr: '', exitCode: 0, timedOut: false };
+        },
+      },
+    });
+
+    const { runtime } = buildRuntime([
+      {
+        ...reviewSkill,
+        instructions: 'Context: !`pwd`',
+      },
+    ], platform);
+
+    await collectEvents(runtime.run('please code review'));
+
+    expect(processCalls).toEqual([]);
+    expect(runtime.getMessages().some((m) =>
+      typeof m.content === 'string'
+        && m.content.includes('requires sandbox execution'),
+    )).toBe(true);
   });
 });

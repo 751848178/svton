@@ -8,6 +8,7 @@ export default defineConfig({
       // useSession imports @tauri-apps/api/window for onCloseRequested.
       // Neither is resolvable in the test environment — stub them.
       '@tauri-apps/api/core': path.resolve(__dirname, 'test/stubs/tauri-core.ts'),
+      '@tauri-apps/api/event': path.resolve(__dirname, 'test/stubs/tauri-event.ts'),
       '@tauri-apps/api/window': path.resolve(__dirname, 'test/stubs/tauri-window.ts'),
     },
   },

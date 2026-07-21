@@ -68,6 +68,18 @@ class MockProvider implements IProvider {
   }
 }
 
+class CountingProvider extends MockProvider {
+  calls = 0;
+
+  async *chat(
+    messages: ChatMessage[],
+    options: ChatOptions,
+  ): AsyncGenerator<StreamEvent> {
+    this.calls += 1;
+    yield* super.chat(messages, options);
+  }
+}
+
 const mockPlatform: IPlatform = {
   type: 'browser' as const,
   capabilities: {
@@ -239,6 +251,314 @@ describe('AgentRuntime', () => {
       }
     });
 
+    it('uses tool_call_end arguments when no delta chunks were emitted', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: 'test_tool' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"from-end"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const progressEvent = events.find((e) => e.type === 'tool_call_progress');
+      expect(progressEvent).toEqual({
+        type: 'tool_call_progress',
+        callId: 'tc1',
+        name: 'test_tool',
+        message: '',
+        arguments: { key: 'from-end' },
+      });
+
+      const endEvent = events.find((e) => e.type === 'tool_call_end');
+      if (endEvent?.type === 'tool_call_end') {
+        expect(endEvent.result.output).toContain('"key":"from-end"');
+      }
+    });
+
+    it('synthesizes tool_call_start when provider only emits tool_call_end', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"from-end"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const startEvent = events.find((e) => e.type === 'tool_call_start');
+      expect(startEvent).toEqual({
+        type: 'tool_call_start',
+        call: { id: 'tc1', name: 'test_tool', arguments: {} },
+      });
+
+      const progressEvent = events.find((e) => e.type === 'tool_call_progress');
+      expect(progressEvent).toEqual({
+        type: 'tool_call_progress',
+        callId: 'tc1',
+        name: 'test_tool',
+        message: '',
+        arguments: { key: 'from-end' },
+      });
+    });
+
+    it('wraps non-object parsed tool arguments as raw content', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: 'test_tool' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: 'null' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const progressEvent = events.find((e) => e.type === 'tool_call_progress');
+      expect(progressEvent).toEqual({
+        type: 'tool_call_progress',
+        callId: 'tc1',
+        name: 'test_tool',
+        message: '',
+        arguments: { raw: 'null' },
+      });
+
+      const endEvent = events.find((e) => e.type === 'tool_call_end');
+      if (endEvent?.type === 'tool_call_end') {
+        expect(endEvent.result.output).toContain('"raw":"null"');
+      }
+    });
+
+    it('uses final tool_call_end arguments when accumulated delta JSON is malformed', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: 'test_tool' },
+        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"key":' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"from-end"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const progressEvent = events.find((e) => e.type === 'tool_call_progress');
+      expect(progressEvent).toEqual({
+        type: 'tool_call_progress',
+        callId: 'tc1',
+        name: 'test_tool',
+        message: '',
+        arguments: { key: 'from-end' },
+      });
+
+      const endEvent = events.find((e) => e.type === 'tool_call_end');
+      if (endEvent?.type === 'tool_call_end') {
+        expect(endEvent.result.output).toContain('"key":"from-end"');
+      }
+    });
+
+    it('uses final tool_call_end arguments when accumulated delta JSON is an empty object', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: 'test_tool' },
+        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{}' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"from-end"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const progressEvent = events.find((e) => e.type === 'tool_call_progress');
+      expect(progressEvent).toEqual({
+        type: 'tool_call_progress',
+        callId: 'tc1',
+        name: 'test_tool',
+        message: '',
+        arguments: { key: 'from-end' },
+      });
+
+      const endEvent = events.find((e) => e.type === 'tool_call_end');
+      if (endEvent?.type === 'tool_call_end') {
+        expect(endEvent.result.output).toContain('"key":"from-end"');
+      }
+    });
+
+    it('wraps final non-object tool_call_end arguments as raw when accumulated delta JSON is an empty object', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: 'test_tool' },
+        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{}' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: 'null' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const progressEvent = events.find((e) => e.type === 'tool_call_progress');
+      expect(progressEvent).toEqual({
+        type: 'tool_call_progress',
+        callId: 'tc1',
+        name: 'test_tool',
+        message: '',
+        arguments: { raw: 'null' },
+      });
+
+      const endEvent = events.find((e) => e.type === 'tool_call_end');
+      if (endEvent?.type === 'tool_call_end') {
+        expect(endEvent.result.output).toContain('"raw":"null"');
+      }
+    });
+
+    it('uses final tool_call_end name when the streamed start name is blank', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: '' },
+        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"key":"value"}' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"value"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const endEvent = events.find((e) => e.type === 'tool_call_end');
+
+      if (endEvent?.type === 'tool_call_end') {
+        expect(endEvent.result.isError).toBeFalsy();
+        expect(endEvent.result.output).toContain('Executed test_tool');
+        expect(endEvent.result.output).toContain('"key":"value"');
+      }
+    });
+
+    it('trims streamed tool call names before executing the tool', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: ' test_tool ' },
+        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"key":"value"}' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"value"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const endEvent = events.find((e) => e.type === 'tool_call_end');
+
+      if (endEvent?.type === 'tool_call_end') {
+        expect(endEvent.result.isError).toBeFalsy();
+        expect(endEvent.result.output).toContain('Executed test_tool');
+        expect(endEvent.result.output).toContain('"key":"value"');
+      }
+    });
+
+    it('trims streamed tool call names before emitting the start event', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: ' test_tool ' },
+        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"key":"value"}' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"value"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const startEvent = events.find((e) => e.type === 'tool_call_start');
+
+      if (startEvent?.type === 'tool_call_start') {
+        expect(startEvent.call.name).toBe('test_tool');
+      }
+    });
+
+    it('uses the final tool_call_end name when the streamed start name is partial', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: 'test_' },
+        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"key":"value"}' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"value"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const endEvent = events.find((e) => e.type === 'tool_call_end');
+
+      if (endEvent?.type === 'tool_call_end') {
+        expect(endEvent.result.isError).toBeFalsy();
+        expect(endEvent.result.output).toContain('Executed test_tool');
+        expect(endEvent.result.output).toContain('"key":"value"');
+      }
+    });
+
+    it('emits the final tool name with progress when the streamed start name is partial', async () => {
+      const { runtime, provider } = createRuntime();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: 'test_' },
+        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"key":"value"}' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"value"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      provider.addResponse([
+        { type: 'text_delta', text: 'Done!' },
+        { type: 'done', stopReason: 'stop' },
+      ]);
+
+      const events = await collectEvents(runtime.run('Use the tool'));
+      const progressEvent = events.find((e) => e.type === 'tool_call_progress');
+
+      expect(progressEvent).toEqual({
+        type: 'tool_call_progress',
+        callId: 'tc1',
+        name: 'test_tool',
+        message: '',
+        arguments: { key: 'value' },
+      });
+    });
+
     it('adds messages to context in correct order', async () => {
       const { runtime, provider } = createRuntime();
 
@@ -343,6 +663,37 @@ describe('AgentRuntime', () => {
       }
     });
 
+    it('does not run startup side effects when AbortSignal is already aborted', async () => {
+      const provider = new CountingProvider();
+      const { runtime } = createRuntime({ provider });
+      const hookManager = new HookManager();
+      let sessionStarts = 0;
+      hookManager.register({
+        event: 'session_start',
+        handler: async () => {
+          sessionStarts += 1;
+          return { action: 'continue' };
+        },
+      });
+      runtime.setHookManager(hookManager);
+
+      const controller = new AbortController();
+      controller.abort();
+
+      const events = await collectEvents(
+        runtime.run('test', { signal: controller.signal }),
+      );
+
+      const doneEvent = events[events.length - 1];
+      expect(doneEvent.type).toBe('done');
+      if (doneEvent.type === 'done') {
+        expect(doneEvent.stopReason).toBe('aborted');
+      }
+      expect(sessionStarts).toBe(0);
+      expect(provider.calls).toBe(0);
+      expect(runtime.getMessages()).toHaveLength(0);
+    });
+
     it('abort() rejects pending tool approvals', async () => {
       const { runtime, provider } = createRuntime();
       const pm = new PermissionManager({ mode: 'default' });
@@ -376,11 +727,46 @@ describe('AgentRuntime', () => {
         result = await gen.next();
       }
 
-      // The tool should be rejected (isError=true) due to abort rejecting the approval
+      // The tool should be canceled (isError=true) due to abort rejecting the approval
       const toolEnd = events.find((e) => e.type === 'tool_call_end');
       if (toolEnd?.type === 'tool_call_end') {
         expect(toolEnd.result.isError).toBe(true);
-        expect(toolEnd.result.output).toContain('rejected');
+        expect(toolEnd.result.output).toContain('run was aborted');
+      }
+    });
+
+    it('external AbortSignal rejects pending tool approvals', async () => {
+      const { runtime, provider } = createRuntime();
+      const pm = new PermissionManager({ mode: 'default' });
+      runtime.setPermissionManager(pm);
+      const controller = new AbortController();
+
+      provider.addResponse([
+        { type: 'tool_call_start', id: 'tc1', name: 'test_tool' },
+        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"key":"val"}' },
+        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"val"}' },
+        { type: 'done', stopReason: 'tool_use' },
+      ]);
+
+      const gen = runtime.run('test', { signal: controller.signal });
+      let result = await gen.next();
+      while (!result.done && result.value.type !== 'tool_approval_needed') {
+        result = await gen.next();
+      }
+      expect(result.value?.type).toBe('tool_approval_needed');
+      controller.abort();
+
+      const next = await Promise.race([
+        gen.next(),
+        new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 25)),
+      ]);
+
+      expect(next).not.toBe('timeout');
+      if (next !== 'timeout') {
+        expect(next.value.type).toBe('tool_call_end');
+        if (next.value.type === 'tool_call_end') {
+          expect(next.value.result.isError).toBe(true);
+        }
       }
     });
   });
@@ -459,11 +845,7 @@ describe('AgentRuntime', () => {
         events.push(result.value);
 
         if (result.value.type === 'tool_approval_needed') {
-          // Must schedule approval via setTimeout: the runtime's waitForApproval
-          // promise is created after gen.next() resumes the generator, so we need
-          // the approval to fire asynchronously after that.
-          const callId = result.value.call.id;
-          setTimeout(() => runtime.approveToolCall(callId), 1);
+          runtime.approveToolCall(result.value.call.id);
         }
 
         result = await gen.next();

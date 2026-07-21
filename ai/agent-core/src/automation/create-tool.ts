@@ -3,6 +3,7 @@
  */
 import type { ToolDefinition } from '../provider/types';
 import type { ToolCall, ToolResult, IToolExecutor, ToolContext } from '../tool/types';
+import { formatUnknownErrorMessage } from '../utils/error-message.utils';
 import { AutomationManager } from './manager';
 
 export const createAutomationDef: ToolDefinition = {
@@ -88,7 +89,7 @@ export class CreateAutomationExecutor implements IToolExecutor {
     } catch (e) {
       return {
         callId: call.id,
-        output: `Failed to create automation: ${e instanceof Error ? e.message : String(e)}`,
+        output: `Failed to create automation: ${formatUnknownErrorMessage(e)}`,
         isError: true,
       };
     }

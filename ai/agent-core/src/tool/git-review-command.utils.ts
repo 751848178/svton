@@ -1,16 +1,24 @@
-export function shellQuote(value: string): string {
-  if (/^[A-Za-z0-9@%+=:,./_-]+$/.test(value)) return value;
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
+export { shellQuote } from '../utils/shell-quote.utils';
 
 export function readSafeGitRefs(
-  base?: string,
-  head?: string,
+  base?: unknown,
+  head?: unknown,
 ): { base?: string; head?: string; error?: string } {
-  if ((base !== undefined && isUnsafeGitRef(base)) || (head !== undefined && isUnsafeGitRef(head))) {
+  if (
+    (base !== undefined && typeof base !== 'string') ||
+    (head !== undefined && typeof head !== 'string')
+  ) {
+    return { error: 'Error: invalid git ref: refs must be strings.' };
+  }
+  const resolvedBase = typeof base === 'string' ? base.trim() : base;
+  const resolvedHead = typeof head === 'string' ? head.trim() : head;
+  if (
+    (resolvedBase !== undefined && isUnsafeGitRef(resolvedBase)) ||
+    (resolvedHead !== undefined && isUnsafeGitRef(resolvedHead))
+  ) {
     return { error: 'Error: invalid git ref: refs must not be empty or start with "-".' };
   }
-  return { base, head };
+  return { base: resolvedBase, head: resolvedHead };
 }
 
 function isUnsafeGitRef(value: string): boolean {

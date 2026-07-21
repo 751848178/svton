@@ -9,6 +9,7 @@ import type {
 } from './types';
 import type { ToolRegistry } from '../tool/registry';
 import type { IToolExecutor, ToolCall } from '../tool/types';
+import { formatUnknownErrorMessage } from '../utils/error-message.utils';
 
 /**
  * MCP Server - exposes Agent's tools to external MCP clients.
@@ -120,7 +121,7 @@ export class MCPServer {
         id: request.id,
         error: {
           code: -32603,
-          message: error instanceof Error ? error.message : String(error),
+          message: formatUnknownErrorMessage(error),
         },
       };
     }

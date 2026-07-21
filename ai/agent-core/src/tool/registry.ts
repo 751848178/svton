@@ -1,6 +1,8 @@
 import type { ToolDefinition } from '../provider/types';
 import type { ToolEntry, ToolCall, ToolResult, ToolContext, IToolExecutor } from './types';
 import type { IPlatform } from '@svton/agent-platform';
+import { formatUnknownErrorMessage } from '../utils/error-message.utils';
+import { cloneToolDefinition } from './tool-definition-snapshot.utils';
 
 /**
  * Tool Registry - manages tool definitions and their executors.
@@ -19,7 +21,7 @@ export class ToolRegistry {
     if (this.tools.has(definition.name)) {
       console.warn(`Tool "${definition.name}" is already registered. Overwriting.`);
     }
-    this.tools.set(definition.name, { definition, executor });
+    this.tools.set(definition.name, { definition: cloneToolDefinition(definition), executor });
   }
 
   /**
@@ -33,14 +35,15 @@ export class ToolRegistry {
    * Get a tool entry by name.
    */
   get(name: string): ToolEntry | null {
-    return this.tools.get(name) ?? null;
+    const entry = this.tools.get(name);
+    return entry ? { definition: cloneToolDefinition(entry.definition), executor: entry.executor } : null;
   }
 
   /**
    * List all registered tool definitions.
    */
   listDefinitions(): ToolDefinition[] {
-    return Array.from(this.tools.values()).map((entry) => entry.definition);
+    return Array.from(this.tools.values()).map((entry) => cloneToolDefinition(entry.definition));
   }
 
   /**
@@ -64,11 +67,11 @@ export class ToolRegistry {
     }
 
     try {
-      return await entry.executor.execute(call, context);
+      return normalizeToolResult(await entry.executor.execute(call, context), call.id);
     } catch (error) {
       return {
         callId: call.id,
-        output: error instanceof Error ? error.message : String(error),
+        output: formatUnknownErrorMessage(error),
         isError: true,
       };
     }
@@ -89,4 +92,23 @@ export class ToolRegistry {
   get size(): number {
     return this.tools.size;
   }
+}
+
+function normalizeToolResult(result: ToolResult, callId: string): ToolResult {
+  return {
+    ...result,
+    callId,
+    output: stringifyToolOutput(result.output),
+  };
+}
+
+function stringifyToolOutput(output: unknown): string {
+  if (typeof output === 'string') return output;
+  try {
+    const json = JSON.stringify(output);
+    if (typeof json === 'string') return json;
+  } catch {
+    // Fall through to String() for non-serializable values.
+  }
+  return String(output);
 }

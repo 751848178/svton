@@ -16,8 +16,11 @@ import type { SessionResumeManager } from '../checkpoint/manager';
 import { ContextManager } from './context';
 import { ToolExecutionService } from './tool-executor';
 import { createToolExecOptions } from './tool-exec-options.utils';
+import { isAbortSignalAborted, linkAbortSignal } from './abort-signal.utils';
+import { normalizeProviderToolName, readProviderToolCall } from './provider-tool-call.utils';
+import { toRuntimeError } from './runtime-error.utils';
+import { resolveSkillDynamicContext } from './skill-dynamic-context.utils';
 import { logger } from '../utils/logger';
-
 const DEFAULT_MAX_ITERATIONS = 50;
 
 /**
@@ -44,7 +47,6 @@ export class AgentRuntime implements IRuntime {
   private readonly contextManager: ContextManager;
   private readonly maxIterations: number;
   private readonly workingDir: string;
-
   // Capabilities (all nullable for backward compat)
   private readonly skillManager: SkillManager | null;
   private readonly memoryManager: MemoryManager | null;
@@ -58,7 +60,6 @@ export class AgentRuntime implements IRuntime {
   private readonly resumeManager: SessionResumeManager | null;
   private readonly autoReviewer: import('../auto-reviewer/manager').AutoReviewerManager | null;
   private readonly agentDefinitionManager: import('../agent-definition/manager').AgentDefinitionManager | null;
-
   private aborted = false;
   private pendingApprovals = new Map<string, PendingApproval>();
   private currentController: AbortController | null = null;
@@ -244,6 +245,12 @@ export class AgentRuntime implements IRuntime {
     const messageText = typeof userMessage === 'string' ? userMessage : userMessage.filter(b => b.type === 'text').map(b => b.type === 'text' ? b.text : '').join('');
     logger.info('Runtime', 'Run started', { model: this.model, messageLength: messageText.length });
 
+    if (isAbortSignalAborted(options?.signal)) {
+      logger.info('Runtime', 'Run aborted');
+      yield this.doneEvent('aborted');
+      return;
+    }
+
     // Handle /agent <name> command — switch agent definition
     const agentMatch = messageText.match(/^\/agent\s+(\S+)/);
     if (agentMatch && this.agentDefinitionManager) {
@@ -288,7 +295,7 @@ export class AgentRuntime implements IRuntime {
     const maxIterations = options?.maxIterations ?? this.maxIterations;
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
-      if (this.aborted || options?.signal?.aborted) {
+      if (this.aborted || isAbortSignalAborted(options?.signal, this.currentController?.signal)) {
         logger.info('Runtime', 'Run aborted');
         yield this.doneEvent('aborted');
         return;
@@ -309,7 +316,7 @@ export class AgentRuntime implements IRuntime {
       const messages = this.contextManager.getMessages();
       const tools = this.toolRegistry.listDefinitions();
       this.currentController = new AbortController();
-
+      const unlinkAbortSignal = linkAbortSignal(this.currentController, options?.signal);
       logger.debug('Runtime', `Iteration ${iteration + 1}/${maxIterations}`, {
         msgCount: messages.length,
         toolCount: tools.length,
@@ -324,7 +331,6 @@ export class AgentRuntime implements IRuntime {
           signal: this.currentController.signal,
           reasoningEffort: this.reasoningEffort,
         };
-
         let fullText = '';
         let thinkingText = '';
         let stopReason = '';
@@ -333,7 +339,7 @@ export class AgentRuntime implements IRuntime {
         let lastUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 
         for await (const event of this.provider.chat(messages, chatOptions)) {
-          if (this.aborted) break;
+          if (this.aborted || isAbortSignalAborted(options?.signal, this.currentController.signal)) break;
 
           switch (event.type) {
             case 'text_delta':
@@ -347,10 +353,11 @@ export class AgentRuntime implements IRuntime {
               break;
 
             case 'tool_call_start':
-              toolCallBuffers.set(event.id, { name: event.name, args: '' });
+              const toolName = normalizeProviderToolName(event.name);
+              toolCallBuffers.set(event.id, { name: toolName, args: '' });
               yield {
                 type: 'tool_call_start',
-                call: { id: event.id, name: event.name, arguments: {} },
+                call: { id: event.id, name: toolName, arguments: {} },
               };
               break;
 
@@ -362,23 +369,15 @@ export class AgentRuntime implements IRuntime {
 
             case 'tool_call_end': {
               const buf = toolCallBuffers.get(event.id);
-              if (buf) {
-                let args: Record<string, unknown> = {};
-                try {
-                  args = JSON.parse(buf.args || '{}');
-                } catch {
-                  args = { raw: buf.args };
-                }
-
-                const toolCall: ToolCall = {
-                  id: event.id,
-                  name: buf.name,
-                  arguments: args,
+              if (!buf) {
+                const toolName = normalizeProviderToolName(event.name);
+                yield {
+                  type: 'tool_call_start',
+                  call: { id: event.id, name: toolName, arguments: {} },
                 };
-                toolCalls.push(toolCall);
-                // Don't execute yet — assistant message must be added to
-                // context BEFORE tool results to satisfy OpenAI API ordering.
               }
+              const toolCall = readProviderToolCall(event, buf);
+              toolCalls.push(toolCall);
               break;
             }
 
@@ -392,19 +391,29 @@ export class AgentRuntime implements IRuntime {
           }
         }
 
-        // Add assistant message to context FIRST (must precede tool results)
+        if (
+          toolCalls.length === 0
+          && (this.aborted || isAbortSignalAborted(options?.signal, this.currentController.signal))
+        ) {
+          logger.info('Runtime', 'Run aborted');
+          yield this.doneEvent('aborted');
+          return;
+        }
         this.contextManager.addMessage(
           this.buildAssistantMessage(fullText, toolCalls, thinkingText || undefined),
         );
-
-        // Emit parsed arguments for UI update (tool_call_start sends empty {})
         for (const tc of toolCalls) {
-          yield { type: 'tool_call_progress', callId: tc.id, message: '', arguments: tc.arguments };
+          yield {
+            type: 'tool_call_progress',
+            callId: tc.id,
+            name: tc.name,
+            message: '',
+            arguments: tc.arguments,
+          };
         }
 
-        // NOW execute tools and add results to context (correct ordering)
         this.toolExecService.setActiveSkills(this.activeSkills);
-        this.toolExecService.setExecOptions({ sessionId: options?.sessionId });
+        this.toolExecService.setExecOptions({ sessionId: options?.sessionId, signal: this.currentController.signal });
         for (const toolCall of toolCalls) {
           yield* this.toolExecService.execute(toolCall);
         }
@@ -448,9 +457,11 @@ export class AgentRuntime implements IRuntime {
           yield this.doneEvent('aborted');
           return;
         }
-        yield { type: 'error', error: error instanceof Error ? error : new Error(String(error)) };
+        yield { type: 'error', error: toRuntimeError(error) };
         yield this.doneEvent('error');
         return;
+      } finally {
+        unlinkAbortSignal();
       }
     }
 
@@ -611,13 +622,24 @@ export class AgentRuntime implements IRuntime {
     this.activeSkills = usableSkills;
 
     const allToolNames = this.toolRegistry.listDefinitions().map((t) => t.name);
+    const execOptions = createToolExecOptions({
+      platform: this.platform,
+      workingDir: this.workingDir,
+      autoReviewer: this.autoReviewer,
+      resumeManager: this.resumeManager,
+    });
     const blocks: string[] = [];
     for (const s of usableSkills) {
       let instructions = this.skillManager!.loadInstructions(s.name) ?? s.description;
 
       // Resolve dynamic context on desktop (!`command` pattern)
       if (this.platform.capabilities.process) {
-        instructions = await this.resolveDynamicContext(instructions);
+        instructions = await resolveSkillDynamicContext(instructions, {
+          platform: this.platform,
+          workingDir: this.workingDir,
+          sandboxProfile: execOptions.sandboxProfile,
+          sandboxRequired: execOptions.sandboxRequired,
+        });
       }
 
       let block = `### Skill: ${s.name}\n${instructions}`;
@@ -638,34 +660,6 @@ export class AgentRuntime implements IRuntime {
     });
 
     return usableSkills.map((s) => s.name);
-  }
-
-  /**
-   * Resolve !`command` patterns in skill instructions by executing commands.
-   * Desktop only — replaces placeholders with command output.
-   */
-  private async resolveDynamicContext(instructions: string): Promise<string> {
-    const pattern = /!`([^`]+)`/g;
-    const matches: { match: string; command: string }[] = [];
-    let m;
-    while ((m = pattern.exec(instructions)) !== null) {
-      matches.push({ match: m[0], command: m[1] });
-    }
-    if (matches.length === 0) return instructions;
-
-    let result = instructions;
-    for (const { match, command } of matches) {
-      try {
-        const { stdout, exitCode } = await this.platform.process.exec(command, {
-          cwd: this.workingDir,
-          timeout: 10000,
-        });
-        result = result.replace(match, exitCode === 0 ? stdout.trim() : `[Command failed (exit ${exitCode})]`);
-      } catch (err) {
-        result = result.replace(match, `[Error: ${err instanceof Error ? err.message : String(err)}]`);
-      }
-    }
-    return result;
   }
 
   // ----------------------------------------------------------

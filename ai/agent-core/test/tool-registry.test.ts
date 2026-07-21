@@ -158,7 +158,7 @@ describe('ToolRegistry', () => {
       const entry = registry.get('my_tool');
 
       expect(entry).not.toBeNull();
-      expect(entry!.definition).toBe(def);
+      expect(entry!.definition).toEqual(def);
       expect(entry!.executor).toBe(executor);
     });
 
@@ -268,6 +268,42 @@ describe('ToolRegistry', () => {
 
       expect(result.isError).toBe(true);
       expect(result.output).toBe('string error');
+    });
+
+    it.each([
+      ['null output', null, 'null'],
+      ['object output', { ok: true }, '{"ok":true}'],
+    ])('normalizes malformed executor %s to a string output', async (_label, output, expected) => {
+      const registry = new ToolRegistry();
+      const executor: IToolExecutor = {
+        execute: vi.fn(async (call) => ({
+          callId: call.id,
+          output,
+        } as unknown as ToolResult)),
+      };
+      registry.register(makeToolDef('malformed_tool'), executor);
+
+      const result = await registry.execute(makeToolCall('malformed_tool'), mockContext);
+
+      expect(result.callId).toBe('call_malformed_tool_1');
+      expect(result.output).toBe(expected);
+      expect(typeof result.output).toBe('string');
+    });
+
+    it('normalizes executor result call IDs to the requested tool call ID', async () => {
+      const registry = new ToolRegistry();
+      const executor: IToolExecutor = {
+        execute: vi.fn(async () => ({
+          callId: 'wrong-call-id',
+          output: 'ok',
+        })),
+      };
+      registry.register(makeToolDef('mismatched_call_id_tool'), executor);
+
+      const result = await registry.execute(makeToolCall('mismatched_call_id_tool'), mockContext);
+
+      expect(result.callId).toBe('call_mismatched_call_id_tool_1');
+      expect(result.output).toBe('ok');
     });
 
     it('passes arguments through to executor', async () => {

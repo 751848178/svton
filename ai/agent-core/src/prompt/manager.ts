@@ -1,5 +1,6 @@
 import type { PromptTemplate, PromptVariable } from './types';
 import type { ToolDefinition } from '../provider/types';
+import { buildTemplateVariablePattern } from './prompt-template.utils';
 
 /**
  * Manages system prompts and templates.
@@ -96,7 +97,7 @@ export class PromptManager {
 
     let result = template.template;
     for (const v of variables) {
-      result = result.replace(new RegExp(`\\{\\{${v.key}\\}\\}`, 'g'), v.value);
+      result = result.replace(buildTemplateVariablePattern(v.key), v.value);
     }
     return result;
   }

@@ -147,14 +147,6 @@ describe('PermissionManager - plan mode', () => {
     expect(pm.check(webFetchTool())).toEqual({ allowed: true, needsApproval: false });
   });
 
-  it('allows tools marked read-only by metadata', () => {
-    const pm = new PermissionManager({ mode: 'plan' });
-    expect(pm.check(readTool('git_diff'), { readOnlyHint: true, destructiveHint: false })).toEqual({
-      allowed: true,
-      needsApproval: false,
-    });
-  });
-
   it('denies write tools with reason', () => {
     const pm = new PermissionManager({ mode: 'plan' });
     const decision = pm.check(writeTool());
@@ -185,14 +177,6 @@ describe('PermissionManager - default mode', () => {
     const pm = new PermissionManager({ mode: 'default' });
     const decision = pm.check(readTool());
     expect(decision).toEqual({ allowed: true, needsApproval: false });
-  });
-
-  it('allows read-only annotated tools without approval', () => {
-    const pm = new PermissionManager({ mode: 'default' });
-    expect(pm.check(readTool('git_log_range'), { readOnlyHint: true })).toEqual({
-      allowed: true,
-      needsApproval: false,
-    });
   });
 
   it('allows grep without approval', () => {

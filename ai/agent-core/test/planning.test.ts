@@ -102,13 +102,14 @@ describe('PlanningManager', () => {
     ]);
 
     const result = planner.updateStepStatus(plan.id, 'step_1', 'completed');
+    const updated = planner.getPlan(plan.id);
 
     expect(result).toBe(true);
-    expect(plan.steps[0].status).toBe('completed');
-    expect(plan.steps[1].status).toBe('pending');
+    expect(updated?.steps[0].status).toBe('completed');
+    expect(updated?.steps[1].status).toBe('pending');
 
     // updatedAt should change
-    expect(plan.updatedAt).toBeGreaterThanOrEqual(plan.createdAt);
+    expect(updated?.updatedAt).toBeGreaterThanOrEqual(plan.createdAt);
   });
 
   it('updateStepStatus stores result', () => {
@@ -118,7 +119,19 @@ describe('PlanningManager', () => {
 
     planner.updateStepStatus(plan.id, 'step_1', 'completed', 'Success output');
 
-    expect(plan.steps[0].result).toBe('Success output');
+    expect(planner.getPlan(plan.id)?.steps[0].result).toBe('Success output');
+  });
+
+  it('updateStepStatus clears stale result when result is omitted', () => {
+    const plan = planner.createPlan('Plan', [
+      { title: 'A', description: 'First' },
+    ]);
+
+    planner.updateStepStatus(plan.id, 'step_1', 'failed', 'Old failure');
+    planner.updateStepStatus(plan.id, 'step_1', 'in_progress');
+
+    expect(planner.getPlan(plan.id)?.steps[0].status).toBe('in_progress');
+    expect(planner.getPlan(plan.id)?.steps[0].result).toBeUndefined();
   });
 
   it('updateStepStatus returns false for unknown plan', () => {
@@ -244,6 +257,28 @@ describe('PlanningManager', () => {
       completed: 2,
       failed: 1,
       pending: 1,
+      inProgress: 0,
+      skipped: 0,
+    });
+  });
+
+  it('getProgress counts in_progress and skipped steps', () => {
+    const plan = planner.createPlan('Plan', [
+      { title: 'A', description: 'First' },
+      { title: 'B', description: 'Second' },
+      { title: 'C', description: 'Third' },
+    ]);
+
+    planner.updateStepStatus(plan.id, 'step_1', 'in_progress');
+    planner.updateStepStatus(plan.id, 'step_2', 'skipped');
+
+    expect(planner.getProgress(plan.id)).toEqual({
+      total: 3,
+      completed: 0,
+      failed: 0,
+      pending: 1,
+      inProgress: 1,
+      skipped: 1,
     });
   });
 
@@ -253,6 +288,8 @@ describe('PlanningManager', () => {
       completed: 0,
       failed: 0,
       pending: 0,
+      inProgress: 0,
+      skipped: 0,
     });
   });
 

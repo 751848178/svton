@@ -1,11 +1,7 @@
-/**
- * useToolApproval — extract pending tool calls from chat messages
- * and provide approve/reject callbacks.
- */
-
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAgentContext } from './context';
-import { useChat } from './use-chat';
+import { getSharedChatMessages, setSharedChatMessages, subscribeSharedChatMessages } from './chat-message-store';
+import { getPendingToolCallsFromMessages, updateToolCallStatusInMessages } from './tool-call-status.utils';
 import type { DisplayToolCall } from './types';
 
 export interface UseToolApprovalReturn {
@@ -19,25 +15,25 @@ export interface UseToolApprovalReturn {
 
 export function useToolApproval(): UseToolApprovalReturn {
   const { agent } = useAgentContext();
-  const { messages } = useChat();
+  const [messages, setMessages] = useState(() => getSharedChatMessages(agent));
 
-  const pendingCalls = useMemo(() => {
-    const calls: DisplayToolCall[] = [];
-    for (const msg of messages) {
-      for (const tc of msg.toolCalls) {
-        if (tc.status === 'pending_approval') {
-          calls.push(tc);
-        }
-      }
-    }
-    return calls;
-  }, [messages]);
+  useEffect(() => subscribeSharedChatMessages(agent, setMessages), [agent]);
+
+  const pendingCalls = useMemo(() => getPendingToolCallsFromMessages(messages), [messages]);
 
   const approve = (callId: string) => {
+    setSharedChatMessages(
+      agent,
+      updateToolCallStatusInMessages(getSharedChatMessages(agent), callId, 'running'),
+    );
     agent.approveToolCall(callId);
   };
 
   const reject = (callId: string) => {
+    setSharedChatMessages(
+      agent,
+      updateToolCallStatusInMessages(getSharedChatMessages(agent), callId, 'error'),
+    );
     agent.rejectToolCall(callId);
   };
 

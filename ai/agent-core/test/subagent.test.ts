@@ -189,6 +189,20 @@ describe('SubagentManager', () => {
       // but the result should always have the correct structure
       expect(typeof result.success).toBe('boolean');
     });
+
+    it('spawn rejects blank tasks before creating a runtime', async () => {
+      const manager = createManager();
+      const createRuntime = vi.fn();
+      (manager as any).createRuntime = createRuntime;
+
+      const result = await manager.spawn({ task: '  \n\t  ' });
+
+      expect(result.success).toBe(false);
+      expect(result.summary).toContain('Subagent failed');
+      expect(result.error).toContain('"task" is required');
+      expect(result.messages).toEqual([]);
+      expect(createRuntime).not.toHaveBeenCalled();
+    });
   });
 
   describe('spawnParallel', () => {

@@ -29,6 +29,8 @@ export type {
 export { FetchHttpResponse, FetchHttpClient } from './types';
 export { CurlHttpClient } from './curl-http';
 export type { CurlHttpClientOptions } from './curl-http';
+export { createHttpAbortSignal } from './http-signal.utils';
+export type { HttpAbortOptions } from './http-signal.utils';
 export { BrowserPlatform } from './browser';
 export { TauriPlatform } from './tauri';
 export { setPlatform, getPlatform, hasPlatform } from './context';

@@ -9,6 +9,11 @@
 import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import type { SubagentManager } from '../../subagent/manager';
+import {
+  CSV_FANOUT_CONCURRENCY_ERROR,
+  resolveCsvFanoutConcurrency,
+} from '../../subagent/csv-fanout.utils';
+import { formatUnknownErrorMessage } from './error-message.utils';
 
 export const csvFanoutDef: ToolDefinition = {
   name: 'csv_fanout',
@@ -54,25 +59,38 @@ export class CsvFanoutExecutor implements IToolExecutor {
       concurrency?: number;
     };
 
-    if (!csv_content || typeof csv_content !== 'string') {
+    if (typeof csv_content !== 'string' || csv_content.trim().length === 0) {
       return {
         callId: call.id,
         output: 'Error: "csv_content" is required and must be a string.',
         isError: true,
       };
     }
-    if (!task_template || typeof task_template !== 'string') {
+    const resolvedCsvContent = csv_content.trim();
+    if (typeof task_template !== 'string' || task_template.trim().length === 0) {
       return {
         callId: call.id,
         output: 'Error: "task_template" is required and must be a string.',
         isError: true,
       };
     }
+    const resolvedTaskTemplate = task_template.trim();
+    if (concurrency !== undefined) {
+      try {
+        resolveCsvFanoutConcurrency(concurrency);
+      } catch {
+        return {
+          callId: call.id,
+          output: CSV_FANOUT_CONCURRENCY_ERROR,
+          isError: true,
+        };
+      }
+    }
 
     try {
       const { results } = await this.subagentManager.spawnOnCsv({
-        csvContent: csv_content,
-        taskTemplate: task_template,
+        csvContent: resolvedCsvContent,
+        taskTemplate: resolvedTaskTemplate,
         concurrency,
       });
 
@@ -105,8 +123,13 @@ export class CsvFanoutExecutor implements IToolExecutor {
     } catch (error) {
       return {
         callId: call.id,
-        output: `CSV fan-out error: ${error instanceof Error ? error.message : String(error)}`,
+        output: `CSV fan-out error: ${formatUnknownErrorMessage(error)}`,
         isError: true,
+        metadata: {
+          csvLength: resolvedCsvContent.length,
+          taskTemplateLength: resolvedTaskTemplate.length,
+          concurrency: concurrency ?? null,
+        },
       };
     }
   }

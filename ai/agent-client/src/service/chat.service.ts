@@ -16,8 +16,18 @@ import { AgentRuntime } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
 import type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress } from '../types';
 import { SubagentSpawnExecutor, subagentSpawnDef } from '../tool/subagent-spawn';
+import {
+  finalizeStalePendingApprovals,
+  updateToolCallStatusInMessages,
+} from './chat-message-tool-status.utils';
+import { appendToolResultMetadataBlocks } from './chat-tool-result-blocks.utils';
+import {
+  insertSlowToolProgressBlock,
+  markSlowToolProgressBlockDone,
+  readSlowToolProgressBlock,
+} from './chat-tool-progress-block.utils';
+import { finalizeTurnBlocks } from './chat-turn-blocks.utils';
 
-/** Localizable strings */
 const L = {
   contextCompacted: '上下文已压缩',
 };
@@ -30,7 +40,6 @@ export type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress };
 
 @Service()
 export class ChatService {
-  /** Messages for the currently active (displayed) session */
   @observable() messages: DisplayMessage[] = [];
   @observable() status: ChatStatus = 'idle';
   @observable() currentModel = '';
@@ -38,7 +47,7 @@ export class ChatService {
   @observable() activePlan: PlanProgress | null = null;
   @observable() activeSessionId: string | null = null;
   @observable() inputHistory: string[] = [];
-
+  @observable() pendingApprovalVersion = 0;
   private runtime: AgentRuntime | null = null;
   private runtimeWorkingDir: string | undefined = undefined;
   private runtimeConfig: AgentConfig | null = null;
@@ -46,42 +55,21 @@ export class ChatService {
   private platform: IPlatform | null = null;
   private pendingToolCalls = new Map<string, {
     call: import('@svton/agent-core').ToolCall;
+    metadata?: Record<string, unknown>;
     resolve: (approved: boolean) => void;
   }>();
   private messageCounter = 0;
   private lastEventType: string | null = null;
   private inputHistoryLoaded = false;
   private pendingInputHistoryValues: string[] = [];
-
-  /**
-   * Callback invoked when a background stream completes.
-   * The argument is the session ID of the completed stream.
-   */
   onBackgroundStreamEnd: ((sessionId: string) => void) | null = null;
-
-  /**
-   * Per-session message cache. When user switches away from a session,
-   * its messages are stored here. When switching back, messages are
-   * restored from this cache (which may have been updated by a
-   * background stream).
-   */
   private sessionMessages = new Map<string, DisplayMessage[]>();
-
-  /**
-   * The session ID that currently has an active stream running in the background.
-   * null if no background stream is active.
-   */
   private backgroundSessionId: string | null = null;
-
-  /**
-   * The assistant message ID for the currently running (or background) stream.
-   * Used to route streaming events to the correct session's message array.
-   */
   private streamingAssistantMsgId: string | null = null;
 
   @computed()
   get isStreaming(): boolean {
-    return this.status === 'running';
+    return this.status === 'running' || this.status === 'waiting_approval';
   }
 
   @computed()
@@ -89,9 +77,20 @@ export class ChatService {
     return this.pendingToolCalls.size > 0;
   }
 
-  /**
-   * Whether a specific session has a background stream running.
-   */
+  getPendingToolCalls(): DisplayToolCall[] {
+    return Array.from(this.pendingToolCalls.values()).map(({ call, metadata }) => ({
+      id: call.id,
+      name: call.name,
+      arguments: call.arguments ?? {},
+      ...(metadata ? { metadata } : {}),
+      status: 'pending_approval',
+    }));
+  }
+
+  private bumpPendingApprovals(): void {
+    this.pendingApprovalVersion += 1;
+  }
+
   isSessionStreaming(sessionId: string): boolean {
     return this.backgroundSessionId === sessionId;
   }
@@ -110,14 +109,21 @@ export class ChatService {
       return;
     }
 
-    // Preserve messages across model switches
+    if (this.pendingToolCalls.size > 0) {
+      this.runtime?.abort();
+      for (const callId of this.pendingToolCalls.keys()) {
+        this.updateToolCallStatus(callId, 'error');
+      }
+      this.pendingToolCalls.clear();
+      this.bumpPendingApprovals();
+    }
+
     const preservedMessages = this.messages.length > 0 ? [...this.messages] : null;
 
     this.platform = platform;
     await this.loadInputHistory();
     this.runtime = await AgentRuntime.createAsync(config, platform);
 
-    // Wire SubagentManager post-creation (requires runtime reference)
     if (config.capabilities && !config.capabilities.subagentManager) {
       try {
         const subagentMgr = new SubagentManager(
@@ -129,16 +135,12 @@ export class ChatService {
         this.runtime.setSubagentManager(subagentMgr);
         config.capabilities.subagentManager = subagentMgr;
 
-        // Register subagent tool so the LLM can spawn subagents
         config.toolRegistry.register(subagentSpawnDef, new SubagentSpawnExecutor(subagentMgr));
 
-        // Register CSV fan-out tool (needs SubagentManager instance)
         if ((config.capabilities as any).csvFanoutEnabled !== false) {
           config.toolRegistry.register(csvFanoutDef, new CsvFanoutExecutor(subagentMgr));
         }
-      } catch {
-        // SubagentManager not available — non-critical
-      }
+      } catch {}
     }
 
     this.currentModel = config.model;
@@ -146,10 +148,8 @@ export class ChatService {
     this.runtimeConfig = config;
     this.runtimeKey = runtimeKey;
 
-    // Restore preserved messages or start fresh
     if (preservedMessages) {
       this.messages = preservedMessages;
-      // Feed history into the new runtime so the LLM has prior context
       const chatMessages: import('@svton/agent-core').ChatMessage[] = preservedMessages
         .filter((m) => m.role === 'user' || m.role === 'assistant')
         .map((m) => {
@@ -186,7 +186,6 @@ export class ChatService {
 
     this.status = 'idle';
     this.lastUsage = null;
-    this.pendingToolCalls.clear();
   }
 
   /**
@@ -194,7 +193,7 @@ export class ChatService {
    */
   @action()
   async sendMessage(content: string, images?: Array<{ data: string; mimeType?: string }>): Promise<void> {
-    if (!this.runtime || this.status === 'running') return;
+    if (!this.runtime || this.isStreaming) return;
 
     logger.info('Chat', 'Sending message', { length: content.length, hasImages: !!images?.length });
     this.recordInputHistory(content);
@@ -214,7 +213,7 @@ export class ChatService {
    */
   @action()
   async retry(): Promise<void> {
-    if (!this.runtime || this.status === 'running') return;
+    if (!this.runtime || this.isStreaming) return;
     if (this.messages.length === 0) return;
 
     // Find and remove the last assistant message
@@ -236,7 +235,7 @@ export class ChatService {
    */
   @action()
   async retryFromMessage(messageId: string): Promise<void> {
-    if (!this.runtime || this.status === 'running') return;
+    if (!this.runtime || this.isStreaming) return;
 
     const idx = this.messages.findIndex((m) => m.id === messageId);
     if (idx === -1 || this.messages[idx].role !== 'user') return;
@@ -252,7 +251,7 @@ export class ChatService {
    */
   @action()
   async editMessage(messageId: string, newContent: string): Promise<void> {
-    if (!this.runtime || this.status === 'running') return;
+    if (!this.runtime || this.isStreaming) return;
 
     const idx = this.messages.findIndex((m) => m.id === messageId);
     if (idx === -1 || this.messages[idx].role !== 'user') return;
@@ -300,6 +299,7 @@ export class ChatService {
 
       for await (const event of stream) {
         this.handleEvent(event, assistantMsg.id);
+        if (event.type === 'done') break;
       }
     } catch (error) {
       this.handleStreamEnd(assistantMsg.id, {
@@ -354,58 +354,63 @@ export class ChatService {
     }
   }
 
-  /**
-   * Approve a pending tool call.
-   */
   @action()
   approveToolCall(callId: string): void {
     const pending = this.pendingToolCalls.get(callId);
     if (pending) {
       pending.resolve(true);
       this.pendingToolCalls.delete(callId);
-      this.updateToolCallStatus(callId, 'running');
+      this.bumpPendingApprovals();
     }
+    this.updateToolCallStatus(callId, 'running');
     // Also notify the runtime so the ReAct loop can continue
     this.runtime?.approveToolCall(callId);
   }
 
-  /**
-   * Reject a pending tool call.
-   */
   @action()
   rejectToolCall(callId: string): void {
     const pending = this.pendingToolCalls.get(callId);
     if (pending) {
       pending.resolve(false);
       this.pendingToolCalls.delete(callId);
-      this.updateToolCallStatus(callId, 'error');
+      this.bumpPendingApprovals();
     }
+    this.updateToolCallStatus(callId, 'error');
     // Also notify the runtime
     this.runtime?.rejectToolCall(callId);
   }
 
-  /**
-   * Abort the current run.
-   */
   @action()
   abort(): void {
     this.runtime?.abort();
+    const bgId = this.backgroundSessionId;
+    const shouldNotifyBackgroundEnd = !!bgId && bgId !== this.activeSessionId;
+    for (const callId of this.pendingToolCalls.keys()) {
+      this.updateToolCallStatus(callId, 'error');
+    }
+    if (this.pendingToolCalls.size > 0) {
+      this.pendingToolCalls.clear();
+      this.bumpPendingApprovals();
+    }
     // Mark any streaming assistant messages as complete in the active session
-    this.messages = this.messages.map((m) =>
-      m.isStreaming ? { ...m, isStreaming: false } : m,
-    );
+    this.messages = finalizeStalePendingApprovals(this.messages)
+      .map((m) => m.isStreaming ? { ...m, isStreaming: false } : m);
     // Also finalize in background cache if applicable
-    if (this.backgroundSessionId) {
-      const cached = this.sessionMessages.get(this.backgroundSessionId);
+    if (bgId) {
+      const cached = this.sessionMessages.get(bgId);
       if (cached) {
-        this.sessionMessages.set(this.backgroundSessionId,
-          cached.map((m) => m.isStreaming ? { ...m, isStreaming: false } : m),
+        this.sessionMessages.set(bgId,
+          finalizeStalePendingApprovals(cached)
+            .map((m) => m.isStreaming ? { ...m, isStreaming: false } : m),
         );
       }
     }
     this.backgroundSessionId = null;
     this.streamingAssistantMsgId = null;
     this.status = 'idle';
+    if (shouldNotifyBackgroundEnd && bgId) {
+      this.onBackgroundStreamEnd?.(bgId);
+    }
   }
 
   /**
@@ -486,40 +491,41 @@ export class ChatService {
    * Used for shutdown/flush saves where we must persist even in-progress messages.
    */
   forcePrepareForSave(): DisplayMessage[] {
-    return this.messages
-      .filter((m) => m.role !== 'system')
+    const messages = this.messages.filter((m) => m.role !== 'system');
+    return finalizeStalePendingApprovals(messages)
       .map((m) => ({ ...m, isStreaming: false }));
   }
 
-  /**
-   * Clear all messages (active session only).
-   */
   @action()
-  clearMessages(): void {
+  clearMessages(options?: { preservePendingToolCalls?: boolean }): void {
     this.messages = [];
     this.status = 'idle';
     this.lastUsage = null;
-    this.pendingToolCalls.clear();
+    if (!options?.preservePendingToolCalls && this.pendingToolCalls.size > 0) {
+      this.pendingToolCalls.clear();
+      this.bumpPendingApprovals();
+    }
   }
 
-  /**
-   * Load messages from saved session data (for session switching).
-   */
   @action()
-  loadMessages(messages: DisplayMessage[]): void {
-    this.messages = messages;
+  loadMessages(messages: DisplayMessage[], options?: { preservePendingToolCalls?: boolean }): void {
+    const loadedMessages = options?.preservePendingToolCalls
+      ? messages
+      : finalizeStalePendingApprovals(messages);
+    this.messages = loadedMessages;
     this.status = 'idle';
     this.lastUsage = null;
-    this.pendingToolCalls.clear();
-    this.recordMessagesInInputHistory(messages);
+    if (!options?.preservePendingToolCalls && this.pendingToolCalls.size > 0) {
+      this.pendingToolCalls.clear();
+      this.bumpPendingApprovals();
+    }
+    this.recordMessagesInInputHistory(loadedMessages);
 
-    // Feed history into runtime context so the LLM has prior conversation
     if (this.runtime) {
       const chatMessages: import('@svton/agent-core').ChatMessage[] = [];
-      const filtered = messages.filter((m) => m.role === 'user' || m.role === 'assistant');
+      const filtered = loadedMessages.filter((m) => m.role === 'user' || m.role === 'assistant');
 
       for (const m of filtered) {
-        // Restore images if present
         if (m.role === 'user' && m.images && m.images.length > 0) {
           const blocks: import('@svton/agent-core').ContentBlock[] = [
             ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
@@ -533,7 +539,6 @@ export class ChatService {
           continue;
         }
 
-        // Restore tool calls if present (assistant messages with tool use)
         if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
           const blocks: import('@svton/agent-core').ContentBlock[] = [
             ...(m.thinking ? [{ type: 'reasoning' as const, text: m.thinking }] : []),
@@ -563,7 +568,6 @@ export class ChatService {
           continue;
         }
 
-        // Plain message — but assistant with thinking needs reasoning block
         if (m.role === 'assistant' && m.thinking) {
           const blocks: import('@svton/agent-core').ContentBlock[] = [
             { type: 'reasoning' as const, text: m.thinking },
@@ -732,20 +736,17 @@ export class ChatService {
     );
   }
 
-  private updateToolCallStatus(callId: string, status: DisplayToolCall['status']): void {
-    this.messages = this.messages.map((m) => {
-      if (!m.toolCalls) return m;
-      const toolCalls = m.toolCalls.map((tc) =>
-        tc.id === callId ? { ...tc, status } : tc,
-      );
-      return { ...m, toolCalls };
-    });
+  private updateToolCallStatus(
+    callId: string,
+    status: DisplayToolCall['status'],
+    metadata?: Record<string, unknown>,
+  ): void {
+    this.messages = updateToolCallStatusInMessages(this.messages, callId, status, metadata);
+    for (const [sessionId, messages] of this.sessionMessages.entries()) {
+      this.sessionMessages.set(sessionId, updateToolCallStatusInMessages(messages, callId, status, metadata));
+    }
   }
 
-  /**
-   * Update plan progress from structured tool result metadata.
-   * Also pushes/updates a plan block inline in the assistant message.
-   */
   private updatePlanProgress(result: import('@svton/agent-core').ToolResult, assistantMsgId: string): void {
     if (result.isError || !result.metadata) return;
 
@@ -857,20 +858,12 @@ export class ChatService {
         };
 
         const isSubagent = event.call.name === 'subagent_spawn' || event.call.name === 'spawn_subagent';
-        const SLOW_TOOLS = new Set(['grep', 'glob', 'file_read', 'read', 'web_search', 'list_files', 'list_dir']);
-        const isSlowTool = SLOW_TOOLS.has(event.call.name);
+        const progressBlock = readSlowToolProgressBlock(event.call.name);
 
         const applyToolStart = (m: DisplayMessage): DisplayMessage => {
           if (m.id !== assistantMsgId) return m;
           const blocks = [...(m.blocks || [])];
-          // Push a transient progress indicator for slow tools
-          if (isSlowTool && !isSubagent) {
-            const verb = event.call.name === 'web_search' ? 'Searching the web'
-              : event.call.name === 'grep' || event.call.name === 'glob' ? 'Searching codebase'
-              : event.call.name === 'file_read' || event.call.name === 'read' ? 'Reading file'
-              : 'Listing files';
-            blocks.push({ type: 'progress', text: verb, status: 'running' });
-          }
+          if (progressBlock && !isSubagent) blocks.push(progressBlock);
           if (isSubagent) {
             const task = (event.call.arguments as any)?.task || 'Subagent task';
             blocks.push({ type: 'subagent', agentId: event.call.id, task, status: 'running' });
@@ -890,19 +883,39 @@ export class ChatService {
       }
 
       case 'tool_call_progress': {
-        if (event.arguments) {
+        if (event.arguments || event.name) {
           const callId = event.callId;
           const applyProgress = (m: DisplayMessage): DisplayMessage => {
             if (m.id !== assistantMsgId) return m;
             const updatedCalls = (m.toolCalls || []).map((tc) =>
-              tc.id === callId ? { ...tc, arguments: event.arguments! } : tc
+              tc.id === callId
+                ? {
+                    ...tc,
+                    name: event.name ?? tc.name,
+                    arguments: event.arguments ?? tc.arguments,
+                  }
+                : tc
             );
-            const blocks = (m.blocks || []).map((b) =>
-              b.type === 'tool_call' && b.call.id === callId
-                ? { ...b, call: { ...b.call, arguments: event.arguments! } }
-                : b
-            );
-            return { ...m, toolCalls: updatedCalls, blocks };
+            const blocks = (m.blocks || []).map((b) => {
+              if (b.type !== 'tool_call' || b.call.id !== callId) return b;
+              const name = event.name ?? b.call.name;
+              const args = event.arguments ?? b.call.arguments;
+              if (name === 'subagent_spawn' || name === 'spawn_subagent') {
+                const task = (args as any)?.task;
+                return {
+                  type: 'subagent' as const,
+                  agentId: callId,
+                  task: typeof task === 'string' && task.trim().length > 0 ? task : 'Subagent task',
+                  status: 'running' as const,
+                };
+              }
+              return { ...b, call: { ...b.call, name, arguments: args } };
+            });
+            return {
+              ...m,
+              toolCalls: updatedCalls,
+              blocks: insertSlowToolProgressBlock(blocks, callId, event.name),
+            };
           };
 
           if (isActive) {
@@ -926,9 +939,6 @@ export class ChatService {
         const tc = lastMsg?.toolCalls?.find((t) => t.id === result.callId);
         const toolName = tc?.name || '';
 
-        // Detect file-changing tools
-        const FILE_TOOLS = new Set(['file_write', 'file_edit', 'write_file', 'edit_file', 'apply_diff']);
-        const isFileChange = FILE_TOOLS.has(toolName) && !result.isError;
         const isSubagentTool = toolName === 'subagent_spawn' || toolName === 'spawn_subagent';
 
         const applyEnd = (m: DisplayMessage): DisplayMessage => {
@@ -945,150 +955,13 @@ export class ChatService {
             }
             // Update subagent block
             if (b.type === 'subagent' && b.agentId === result.callId) {
-              return { ...b, status: 'completed' as const, summary: result.output };
+              return { ...b, status: result.isError ? 'error' as const : 'completed' as const, summary: result.output };
             }
             return b;
           });
 
-          // Push a file_change block for file-editing tools
-          if (isFileChange && tc) {
-            const filePath = (tc.arguments as any)?.path || (tc.arguments as any)?.file_path || 'unknown';
-            const existingIdx = blocks.findIndex(b => b.type === 'file_change');
-            const changeType = toolName.includes('write') || toolName.includes('create') ? 'create' : 'modify';
-            const newChange = { path: filePath, changeType: changeType as 'create' | 'modify', diff: result.output };
-            if (existingIdx >= 0 && blocks[existingIdx].type === 'file_change') {
-              const existing = blocks[existingIdx];
-              blocks[existingIdx] = { ...existing, changes: [...(existing.changes || []), newChange] };
-            } else {
-              blocks.push({ type: 'file_change', changes: [newChange] });
-            }
-          }
-
-          // Push a reference block for file-reading tools
-          const READ_TOOLS = new Set(['file_read', 'read', 'read_file']);
-          if (READ_TOOLS.has(toolName) && tc && !result.isError) {
-            const filePath = (tc.arguments as any)?.path || (tc.arguments as any)?.file_path || '';
-            if (filePath) {
-              blocks.push({ type: 'reference', refs: [{ path: filePath }] });
-            }
-          }
-
-          // Push a web_search block from metadata
-          if (toolName === 'web_search' && result.metadata?.searchResults && !result.isError) {
-            const searchResults = result.metadata.searchResults as any[];
-            const query = result.metadata.query as string || (tc?.arguments as any)?.query || '';
-            blocks.push({
-              type: 'web_search',
-              query,
-              results: searchResults.map((r: any) => ({
-                title: r.title || '',
-                url: r.url || '',
-                snippet: r.snippet,
-              })),
-            });
-          }
-
-          // Push a file_tree block for list_files/dir tools
-          const LIST_TOOLS = new Set(['list_files', 'list_dir', 'ls', 'glob']);
-          if (LIST_TOOLS.has(toolName) && !result.isError) {
-            try {
-              const parsed = JSON.parse(result.output);
-              if (Array.isArray(parsed)) {
-                const tree = parsed.map((item: any) => ({
-                  name: item.name || item.path?.split('/').pop() || 'unknown',
-                  type: item.isDirectory || item.type === 'dir' || item.type === 'directory' ? 'dir' as const : 'file' as const,
-                  children: item.children,
-                }));
-                if (tree.length > 0) {
-                  blocks.push({ type: 'file_tree', tree });
-                }
-              }
-            } catch { /* not JSON, skip */ }
-          }
-
-          // Push an image_generated block for image_generate tool
-          if (toolName === 'image_generate' && !result.isError) {
-            try {
-              const parsed = JSON.parse(result.output);
-              if (parsed.images || parsed.image) {
-                const images = parsed.images || [parsed.image];
-                blocks.push({
-                  type: 'image_generated',
-                  images: images.map((img: any) => ({
-                    url: img.url,
-                    base64: img.base64,
-                    revisedPrompt: img.revisedPrompt || img.revised_prompt,
-                  })),
-                  model: parsed.model || (tc?.arguments as any)?.model || 'unknown',
-                });
-              }
-            } catch { /* not JSON, skip */ }
-          }
-
-          // Push a csv_fanout block
-          if (toolName === 'csv_fanout' && !result.isError) {
-            try {
-              const parsed = JSON.parse(result.output);
-              if (parsed.totalRows !== undefined) {
-                blocks.push({
-                  type: 'csv_fanout',
-                  totalRows: parsed.totalRows,
-                  succeeded: parsed.succeeded,
-                  failed: parsed.failed,
-                  rows: [],
-                });
-              }
-            } catch { /* not JSON, skip */ }
-          }
-
-          // Push a code_review block for git_diff results
-          if (toolName === 'git_diff' && !result.isError && result.output) {
-            // Parse diff for basic findings (files changed, additions, deletions)
-            const lines = result.output.split('\n');
-            const findings: any[] = [];
-            for (const line of lines) {
-              if (line.startsWith('+++ ') || line.startsWith('--- ')) {
-                const path = line.replace(/^(\+\+\+|---) /, '').replace(/^b\//, '').replace(/^a\//, '');
-                if (path !== '/dev/null') {
-                  findings.push({ file: path, severity: 'info' as const, comment: '文件变更' });
-                }
-              }
-            }
-            if (findings.length > 0) {
-              blocks.push({ type: 'code_review', findings: findings.slice(0, 10) });
-            }
-          }
-
-          // Push an auto_review block from AutoReviewerManager verdicts
-          if (result.metadata?.autoReviewVerdict && !result.isError) {
-            const verdict = result.metadata.autoReviewVerdict as any;
-            blocks.push({
-              type: 'auto_review',
-              toolName,
-              verdict: verdict.verdict || 'approve',
-              reason: verdict.reason || '',
-              ruleId: verdict.ruleId,
-            });
-          }
-
-          // Push a preview_images block for preview_document results
-          if (toolName === 'preview_document' && !result.isError && result.metadata?.previewResult) {
-            const previewResult = result.metadata.previewResult as any;
-            if (previewResult.kind === 'images' && previewResult.images?.length > 0) {
-              blocks.push({
-                type: 'preview_images',
-                images: previewResult.images,
-                title: (tc?.arguments as any)?.path || 'Document Preview',
-              } as any);
-            }
-          }
-
-          // Update progress blocks to done
-          blocks = blocks.map((b) =>
-            b.type === 'progress' && b.status === 'running'
-              ? { ...b, status: 'done' as const }
-              : b
-          );
+          blocks = appendToolResultMetadataBlocks(blocks, toolName, result, tc);
+          blocks = markSlowToolProgressBlockDone(blocks, result.callId);
 
           return { ...m, toolCalls: updatedCalls, blocks };
         };
@@ -1107,12 +980,11 @@ export class ChatService {
         this.status = 'waiting_approval';
         this.pendingToolCalls.set(event.call.id, {
           call: event.call,
+          ...(event.metadata ? { metadata: event.metadata } : {}),
           resolve: () => {},
         });
-        // Only update displayed messages if it's the active session
-        if (isActive) {
-          this.updateToolCallStatus(event.call.id, 'pending_approval');
-        }
+        this.bumpPendingApprovals();
+        this.updateToolCallStatus(event.call.id, 'pending_approval', event.metadata);
         break;
       }
 
@@ -1135,42 +1007,9 @@ export class ChatService {
 
       case 'done': {
         this.lastUsage = event.usage;
-        // Post-process: extract commands from text, aggregate file_changes
         const applyTurnDiff = (m: DisplayMessage): DisplayMessage => {
           if (m.id !== assistantMsgId) return m;
-          let blocks = [...(m.blocks || [])];
-
-          // Extract command blocks from text ([label](action:xxx) patterns)
-          for (let i = 0; i < blocks.length; i++) {
-            const block = blocks[i];
-            if (block.type === 'text' && block.text) {
-              const cmdPattern = /\[([^\]]+)\]\(action:([^)]+)\)/g;
-              let match;
-              const commands: any[] = [];
-              while ((match = cmdPattern.exec(block.text)) !== null) {
-                commands.push({ type: 'command', label: match[1], action: match[2] });
-              }
-              if (commands.length > 0) {
-                const cleanText = block.text.replace(cmdPattern, '').trim();
-                blocks[i] = { type: 'text', text: cleanText };
-                blocks.push(...commands);
-              }
-            }
-          }
-
-          // Aggregate file_change blocks into turn_diff
-          const fileChanges = blocks.filter(b => b.type === 'file_change');
-          if (fileChanges.length >= 2) {
-            // Collect all changes from all file_change blocks
-            const allChanges = fileChanges.flatMap(b =>
-              b.type === 'file_change' ? b.changes : []
-            );
-            // Replace individual file_change blocks with a single turn_diff
-            const filtered = blocks.filter(b => b.type !== 'file_change');
-            filtered.push({ type: 'turn_diff', changes: allChanges });
-            return { ...m, blocks: filtered };
-          }
-          return m;
+          return finalizeTurnBlocks(m);
         };
         if (isActive) {
           this.messages = this.messages.map(applyTurnDiff);

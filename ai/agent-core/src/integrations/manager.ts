@@ -11,6 +11,10 @@
 import type { IStorage } from '@svton/agent-platform';
 import type { ToolDefinition } from '../provider/types';
 import type { IToolExecutor } from '../tool/types';
+import {
+  cloneIntegrationConfig,
+  cloneIntegrationManifest,
+} from './integration-snapshot.utils';
 import type { IntegrationManifest, IntegrationConfig } from './types';
 
 const STORAGE_PREFIX = 'agent:integration:';
@@ -30,7 +34,7 @@ export class IntegrationManager {
       const id = key.startsWith(STORAGE_PREFIX) ? key.slice(STORAGE_PREFIX.length) : key;
       const config = await this.storage.get<IntegrationConfig>(key);
       if (config) {
-        this.configs.set(id, config);
+        this.configs.set(id, cloneIntegrationConfig(config));
       }
     }
   }
@@ -39,14 +43,14 @@ export class IntegrationManager {
    * Register an integration manifest.
    */
   registerManifest(manifest: IntegrationManifest): void {
-    this.manifests.set(manifest.id, manifest);
+    this.manifests.set(manifest.id, cloneIntegrationManifest(manifest));
   }
 
   /**
    * List all registered manifests.
    */
   listManifests(): IntegrationManifest[] {
-    return Array.from(this.manifests.values());
+    return Array.from(this.manifests.values()).map(cloneIntegrationManifest);
   }
 
   /**
@@ -60,12 +64,12 @@ export class IntegrationManager {
     const config: IntegrationConfig = {
       id,
       enabled: true,
-      credentials,
+      credentials: { ...credentials },
       addedAt: Date.now(),
     };
 
-    this.configs.set(id, config);
-    await this.storage.set(`${STORAGE_PREFIX}${id}`, config);
+    this.configs.set(id, cloneIntegrationConfig(config));
+    await this.storage.set(`${STORAGE_PREFIX}${id}`, cloneIntegrationConfig(config));
   }
 
   /**
@@ -74,8 +78,15 @@ export class IntegrationManager {
   async disable(id: string): Promise<void> {
     const config = this.configs.get(id);
     if (config) {
-      config.enabled = false;
-      await this.storage.set(`${STORAGE_PREFIX}${id}`, config);
+      const disabledConfig = cloneIntegrationConfig({
+        ...config,
+        enabled: false,
+      });
+      this.configs.set(id, disabledConfig);
+      await this.storage.set(
+        `${STORAGE_PREFIX}${id}`,
+        cloneIntegrationConfig(disabledConfig),
+      );
     }
   }
 
@@ -110,7 +121,7 @@ export class IntegrationManager {
       const config = this.configs.get(id);
       if (!config) continue;
 
-      const integrationTools = manifest.getTools(config.credentials);
+      const integrationTools = manifest.getTools({ ...config.credentials });
       tools.push(...integrationTools);
     }
 

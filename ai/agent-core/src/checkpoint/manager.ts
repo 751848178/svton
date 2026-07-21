@@ -17,6 +17,7 @@ import type { IStorage } from '@svton/agent-platform';
 import type { ChatMessage, ReasoningEffort } from '../provider/types';
 import type { SerializedRuntime, CheckpointMeta } from './types';
 import type { AgentRuntime } from '../agent/runtime';
+import { parseSerializedRuntime } from './checkpoint-state.utils';
 import { logger } from '../utils/logger';
 
 const STORAGE_PREFIX = 'agent:checkpoint:';
@@ -50,7 +51,7 @@ export class SessionResumeManager {
     try {
       const raw = await this.storage.get<string>(STORAGE_PREFIX + sessionId);
       if (!raw) return null;
-      return JSON.parse(raw) as SerializedRuntime;
+      return parseSerializedRuntime(raw);
     } catch {
       return null;
     }
@@ -116,7 +117,8 @@ export class SessionResumeManager {
       try {
         const raw = await this.storage.get<string>(key);
         if (raw) {
-          const state = JSON.parse(raw) as SerializedRuntime;
+          const state = parseSerializedRuntime(raw);
+          if (!state) continue;
           results.push({
             sessionId: key.replace(STORAGE_PREFIX, ''),
             messageCount: state.messages.length,

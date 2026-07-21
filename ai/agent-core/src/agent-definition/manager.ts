@@ -1,53 +1,12 @@
 import type { IStorage, IFileSystem } from '@svton/agent-platform';
 import type { AgentDefinition, AgentDefinitionSource } from './types';
+import { parseAgentMarkdown } from './definition-markdown.service';
+import {
+  snapshotAgentDefinition,
+  snapshotAgentDefinitions,
+} from './definition-snapshot.service';
 
 const STORAGE_PREFIX = 'agent:agent_def:';
-
-/**
- * Parse an agent definition from markdown with YAML-like frontmatter.
- * Format:
- * ---
- * name: my-agent
- * title: My Agent
- * description: Does things
- * model: deepseek-chat
- * tools: file_read, grep, glob
- * icon: bug
- * ---
- * System prompt body here...
- */
-function parseAgentMarkdown(content: string, source: AgentDefinitionSource): AgentDefinition | null {
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!fmMatch) return null;
-
-  const frontmatter = fmMatch[1];
-  const body = fmMatch[2].trim();
-  const def: Partial<AgentDefinition> = { source };
-
-  for (const line of frontmatter.split('\n')) {
-    const m = line.match(/^(\w+):\s*(.*)$/);
-    if (!m) continue;
-    const [, key, value] = m;
-    switch (key) {
-      case 'name': def.name = value; break;
-      case 'title': def.title = value; break;
-      case 'description': def.description = value; break;
-      case 'model': def.model = value; break;
-      case 'tools': def.tools = value.split(',').map(s => s.trim()).filter(Boolean); break;
-      case 'excludeTools': def.excludeTools = value.split(',').map(s => s.trim()).filter(Boolean); break;
-      case 'icon': def.icon = value; break;
-      case 'color': def.color = value; break;
-      case 'permissions': def.permissions = value as any; break;
-      case 'skills': def.skills = value.split(',').map(s => s.trim()).filter(Boolean); break;
-    }
-  }
-
-  if (!def.name || !def.title) return null;
-  def.description = def.description || '';
-  def.systemPrompt = body || undefined;
-
-  return def as AgentDefinition;
-}
 
 /**
  * Manages custom agent definitions.
@@ -66,7 +25,7 @@ export class AgentDefinitionManager {
   constructor(private storage?: IStorage) {
     // Seed built-in defaults
     for (const def of this.getBuiltinDefaults()) {
-      this.definitions.set(def.name, def);
+      this.setDefinition(def);
     }
   }
 
@@ -75,14 +34,14 @@ export class AgentDefinitionManager {
    * If a definition with the same name exists, it is replaced.
    */
   register(def: AgentDefinition): void {
-    this.definitions.set(def.name, def);
+    this.setDefinition(def);
   }
 
   /**
    * List all registered definitions (built-in + user + project).
    */
   list(): AgentDefinition[] {
-    return Array.from(this.definitions.values());
+    return snapshotAgentDefinitions(this.definitions.values());
   }
 
   /**
@@ -121,7 +80,7 @@ export class AgentDefinitionManager {
         const content = await fs.readFile(fs.join(dir, file));
         const def = parseAgentMarkdown(content, source);
         if (def) {
-          this.definitions.set(def.name, def);
+          this.setDefinition(def);
           count++;
         }
       } catch { /* skip unreadable files */ }
@@ -133,7 +92,8 @@ export class AgentDefinitionManager {
    * Get a definition by name.
    */
   get(name: string): AgentDefinition | null {
-    return this.definitions.get(name) ?? null;
+    const def = this.definitions.get(name);
+    return def ? snapshotAgentDefinition(def) : null;
   }
 
   /**
@@ -148,7 +108,7 @@ export class AgentDefinitionManager {
     for (const key of keys) {
       const def = await this.storage.get<AgentDefinition>(key);
       if (def) {
-        this.definitions.set(def.name, def);
+        this.setDefinition(def);
       }
     }
   }
@@ -157,10 +117,15 @@ export class AgentDefinitionManager {
    * Persist a definition to storage and register it in memory.
    */
   async save(def: AgentDefinition): Promise<void> {
-    this.definitions.set(def.name, def);
+    this.setDefinition(def);
     if (this.storage) {
-      await this.storage.set(STORAGE_PREFIX + def.name, def);
+      await this.storage.set(STORAGE_PREFIX + def.name, snapshotAgentDefinition(def));
     }
+  }
+
+  private setDefinition(def: AgentDefinition): void {
+    const snapshot = snapshotAgentDefinition(def);
+    this.definitions.set(snapshot.name, snapshot);
   }
 
   /**

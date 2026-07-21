@@ -39,6 +39,12 @@ export interface FileTreeNode {
   children?: FileTreeNode[];
 }
 
+export interface PreviewImagesBlock {
+  type: 'preview_images';
+  images: string[];
+  title: string;
+}
+
 export type ContentBlock =
   | { type: 'thinking'; text: string }
   | { type: 'tool_call'; call: DisplayToolCall }
@@ -46,7 +52,7 @@ export type ContentBlock =
   | { type: 'error'; text: string }
   | { type: 'plan'; plan: PlanProgress }
   | { type: 'file_change'; changes: FileChange[] }
-  | { type: 'subagent'; agentId: string; task: string; status: 'running' | 'completed'; summary?: string }
+  | { type: 'subagent'; agentId: string; task: string; status: 'pending' | 'running' | 'completed' | 'error'; summary?: string }
   | { type: 'warning'; text: string; source?: string }
   | { type: 'reference'; refs: ReferenceEntry[] }
   | { type: 'web_search'; query: string; results: SearchResultEntry[] }
@@ -55,7 +61,8 @@ export type ContentBlock =
   | { type: 'command'; label: string; action: string; icon?: string }
   | { type: 'file_tree'; tree: FileTreeNode[] }
   | { type: 'redacted_thinking'; reason?: string }
-  | { type: 'image_generated'; images: Array<{ url?: string; base64?: string; revisedPrompt?: string }>; model: string }
+  | { type: 'image_generated'; images: Array<{ url?: string; base64?: string; mimeType?: string; revisedPrompt?: string }>; model: string }
+  | PreviewImagesBlock
   | { type: 'code_review'; findings: Array<{ file: string; line?: number; severity: 'info' | 'warning' | 'error'; comment: string }> }
   | { type: 'csv_fanout'; totalRows: number; succeeded: number; failed: number; rows: Array<{ rowIndex: number; status: string; rowData: Record<string, string>; summary?: string }> }
   | { type: 'auto_review'; toolName: string; verdict: 'approve' | 'deny' | 'ask_user'; reason: string; ruleId?: string };
@@ -83,6 +90,7 @@ export interface DisplayToolCall {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   result?: ToolResult;
   status: 'running' | 'completed' | 'error' | 'pending_approval';
 }

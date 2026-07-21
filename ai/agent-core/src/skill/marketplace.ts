@@ -1,76 +1,25 @@
 import type { IStorage } from '@svton/agent-platform';
-import type { SkillInstallRecord } from './types';
 import { SkillLoader } from './loader';
 import type { InstallResult } from './installer';
+import { installMarketplaceSkill } from './marketplace-install.service';
+import type {
+  AuditEntry,
+  AuditResponse,
+  MarketplaceSkill,
+  RemoteSkill,
+  RemoteSkillDetail,
+} from './marketplace.types';
+
+export type {
+  AuditEntry,
+  AuditResponse,
+  MarketplaceSkill,
+  RemoteSkill,
+  RemoteSkillDetail,
+  RemoteSkillFile,
+} from './marketplace.types';
 
 const DEFAULT_REGISTRY_URL = 'https://skills.sh';
-
-// ── skills.sh API Types ──────────────────────────────────
-
-/** A skill returned by listing/search endpoints. */
-export interface RemoteSkill {
-  /** Stable unique id: "owner/repo/skill-slug" */
-  id: string;
-  /** URL-safe slug: "next-js-development" */
-  slug: string;
-  /** Human-readable name */
-  name: string;
-  /** Source repo or provider: "vercel-labs/agent-skills" */
-  source: string;
-  /** Total deduplicated install count */
-  installs: number;
-  /** "github" or "well-known" */
-  sourceType: string;
-  /** GitHub repo URL or well-known base URL */
-  installUrl: string | null;
-  /** Direct link to the skill page on skills.sh */
-  url: string;
-}
-
-/** A file inside a skill detail response. */
-export interface RemoteSkillFile {
-  path: string;
-  contents: string;
-}
-
-/** Detailed skill info from the detail endpoint. */
-export interface RemoteSkillDetail {
-  id: string;
-  source: string;
-  slug: string;
-  installs: number;
-  hash: string | null;
-  files: RemoteSkillFile[] | null;
-}
-
-/** Security audit result from a single provider. */
-export interface AuditEntry {
-  provider: string;
-  slug: string;
-  status: 'pass' | 'warn' | 'fail';
-  summary: string;
-  auditedAt?: string;
-  riskLevel?: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-}
-
-/** Security audit response. */
-export interface AuditResponse {
-  id: string;
-  source: string;
-  slug: string;
-  audits: AuditEntry[];
-}
-
-/** Skill shaped for UI display in the marketplace panel. */
-export interface MarketplaceSkill {
-  id: string;
-  name: string;
-  source: string;
-  installs: number;
-  url: string;
-  /** Whether this skill is already installed locally */
-  installed: boolean;
-}
 
 // ── SkillMarketplace ─────────────────────────────────────
 
@@ -179,51 +128,13 @@ export class SkillMarketplace {
 
   /**
    * Install a skill from the marketplace into IStorage.
-   *
-   * Flow: getDetail → extract SKILL.md → parseMarkdown → save
    */
   async install(skillId: string, storage: IStorage): Promise<InstallResult> {
-    try {
-      const detail = await this.getDetail(skillId);
-
-      if (!detail.files || detail.files.length === 0) {
-        return { success: false, error: 'Skill has no downloadable files' };
-      }
-
-      // Find SKILL.md
-      const skillFile = detail.files.find((f) => f.path === 'SKILL.md');
-      if (!skillFile) {
-        return { success: false, error: 'SKILL.md not found in skill files' };
-      }
-
-      // Parse
-      const skill = SkillLoader.parseMarkdown(skillFile.contents);
-      if (!skill.name || skill.name === 'unnamed-skill') {
-        return { success: false, error: 'SKILL.md missing required "name" field' };
-      }
-
-      // Mark source
-      skill.source = {
-        type: 'url',
-        url: `https://skills.sh/${skillId}`,
-      };
-
-      // Save as installed skill
-      await SkillLoader.saveInstalled(storage, skill);
-
-      // Save install record
-      const record: SkillInstallRecord = {
-        name: skill.name,
-        source: skill.source,
-        installedAt: Date.now(),
-        version: skill.version,
-      };
-      await storage.set(`agent:skill-registry:${skill.name}`, record);
-
-      return { success: true, skill };
-    } catch (err: any) {
-      return { success: false, error: err.message || String(err) };
-    }
+    return installMarketplaceSkill({
+      skillId,
+      storage,
+      getDetail: (id) => this.getDetail(id),
+    });
   }
 
   // ── Helpers ──

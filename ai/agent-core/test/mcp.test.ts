@@ -129,6 +129,36 @@ describe('MCPClient', () => {
     expect(sentAfter).toBe(sentBefore);
   });
 
+  it('listTools returns cached tool copies so callers cannot mutate the cache', async () => {
+    const tools: MCPToolDefinition[] = [
+      {
+        name: 'read_file',
+        description: 'Read a file',
+        inputSchema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
+      },
+    ];
+
+    transport.setResponse('initialize', {
+      serverInfo: { name: 'test', version: '1.0.0' },
+      capabilities: {},
+    });
+    transport.setResponse('notifications/initialized', {});
+    transport.setResponse('tools/list', { tools });
+
+    await client.connect(transport);
+    const first = await client.listTools();
+    first[0].name = 'injected_tool';
+    first[0].inputSchema.properties!.path = { type: 'number' };
+    first[0].inputSchema.required!.push('extra');
+    tools[0].description = 'Injected source description';
+
+    const fresh = await client.listTools();
+    expect(fresh[0].name).toBe('read_file');
+    expect(fresh[0].description).toBe('Read a file');
+    expect(fresh[0].inputSchema.properties!.path).toEqual({ type: 'string' });
+    expect(fresh[0].inputSchema.required).toEqual(['path']);
+  });
+
   it('callTool calls tools/call and returns ToolResult', async () => {
     transport.setResponse('initialize', {
       serverInfo: { name: 'test', version: '1.0.0' },
@@ -185,6 +215,35 @@ describe('MCPClient', () => {
     expect(defs[0].parameters.type).toBe('object');
     expect(defs[0].parameters.properties).toEqual({ query: { type: 'string' } });
     expect(defs[0].annotations?.openWorldHint).toBe(true);
+  });
+
+  it('toToolDefinitions copies MCP input schemas before bridging to ToolRegistry definitions', async () => {
+    transport.setResponse('initialize', {
+      serverInfo: { name: 'my-server', version: '1.0.0' },
+      capabilities: {},
+    });
+    transport.setResponse('notifications/initialized', {});
+
+    await client.connect(transport);
+
+    const mcpTools: MCPToolDefinition[] = [
+      {
+        name: 'search',
+        description: 'Search for things',
+        inputSchema: {
+          type: 'object',
+          properties: { query: { type: 'string' } },
+          required: ['query'],
+        },
+      },
+    ];
+
+    const defs = client.toToolDefinitions(mcpTools);
+    mcpTools[0].inputSchema.properties!.query = { type: 'number' };
+    mcpTools[0].inputSchema.required!.push('extra');
+
+    expect(defs[0].parameters.properties.query).toEqual({ type: 'string' });
+    expect(defs[0].parameters.required).toEqual(['query']);
   });
 
   it('toToolDefinitions uses fallback when serverInfo is null', () => {
@@ -268,6 +327,24 @@ describe('MCPClient', () => {
     expect(resources[0].uri).toBe('file:///a.txt');
   });
 
+  it('listResources returns cached resource copies', async () => {
+    transport.setResponse('initialize', {
+      serverInfo: { name: 'test', version: '1.0.0' },
+      capabilities: {},
+    });
+    transport.setResponse('notifications/initialized', {});
+    transport.setResponse('resources/list', {
+      resources: [{ uri: 'file:///a.txt', name: 'a' }],
+    });
+
+    await client.connect(transport);
+    const first = await client.listResources();
+    first[0].name = 'injected';
+
+    const fresh = await client.listResources();
+    expect(fresh[0].name).toBe('a');
+  });
+
   it('readResource calls resources/read', async () => {
     transport.setResponse('initialize', {
       serverInfo: { name: 'test', version: '1.0.0' },
@@ -302,6 +379,28 @@ describe('MCPClient', () => {
 
     expect(prompts).toHaveLength(1);
     expect(prompts[0].name).toBe('code_review');
+  });
+
+  it('listPrompts returns cached prompt copies', async () => {
+    transport.setResponse('initialize', {
+      serverInfo: { name: 'test', version: '1.0.0' },
+      capabilities: {},
+    });
+    transport.setResponse('notifications/initialized', {});
+    transport.setResponse('prompts/list', {
+      prompts: [
+        { name: 'code_review', description: 'Review code', arguments: [{ name: 'path', required: true }] },
+      ],
+    });
+
+    await client.connect(transport);
+    const first = await client.listPrompts();
+    first[0].name = 'injected';
+    first[0].arguments![0].required = false;
+
+    const fresh = await client.listPrompts();
+    expect(fresh[0].name).toBe('code_review');
+    expect(fresh[0].arguments![0].required).toBe(true);
   });
 
   it('getPrompt calls prompts/get with arguments', async () => {

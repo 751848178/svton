@@ -1,5 +1,12 @@
 import type { IStorage, IFileSystem } from '@svton/agent-platform';
 import type { PluginManifest, PluginInstallRecord } from './types';
+import { shellQuote } from '../utils/shell-quote.utils';
+import { validatePluginManifest } from './plugin-manifest-validation.service';
+import {
+  snapshotPluginInstallRecord,
+  snapshotPluginInstallRecords,
+  snapshotPluginManifest,
+} from './plugin-record-snapshot.utils';
 
 const REGISTRY_KEY = 'agent:plugin_registry';
 const PLUGIN_DATA_PREFIX = 'agent:plugin:';
@@ -32,7 +39,7 @@ export class PluginManager {
 
     const raw = await fs.readFile(manifestPath);
     const manifest: PluginManifest = JSON.parse(raw);
-    this.validateManifest(manifest);
+    validatePluginManifest(manifest);
 
     const existing = this.plugins.find((p) => p.name === manifest.name);
     if (existing) {
@@ -46,9 +53,9 @@ export class PluginManager {
       };
       await this.savePlugin(updated);
       this.plugins = this.plugins.map((p) =>
-        p.name === manifest.name ? updated : p,
+        p.name === manifest.name ? snapshotPluginInstallRecord(updated) : p,
       );
-      return updated;
+      return snapshotPluginInstallRecord(updated);
     }
 
     const record: PluginInstallRecord = {
@@ -63,8 +70,8 @@ export class PluginManager {
     };
 
     await this.savePlugin(record);
-    this.plugins = [...this.plugins, record];
-    return record;
+    this.plugins = [...this.plugins, snapshotPluginInstallRecord(record)];
+    return snapshotPluginInstallRecord(record);
   }
 
   /**
@@ -78,8 +85,8 @@ export class PluginManager {
   ): Promise<PluginInstallRecord> {
     const tmpDir = `/tmp/svton-plugin-${Date.now()}`;
     const cloneCmd = ref
-      ? `git clone --depth 1 --branch ${ref} ${repo} ${tmpDir}`
-      : `git clone --depth 1 ${repo} ${tmpDir}`;
+      ? `git clone --depth 1 --branch ${shellQuote(ref)} ${shellQuote(repo)} ${shellQuote(tmpDir)}`
+      : `git clone --depth 1 ${shellQuote(repo)} ${shellQuote(tmpDir)}`;
 
     const result = await exec(cloneCmd);
     if (result.exitCode !== 0) {
@@ -91,11 +98,11 @@ export class PluginManager {
       const updated: PluginInstallRecord = { ...record, source: 'git', sourceUrl: repo };
       await this.savePlugin(updated);
       this.plugins = this.plugins.map((p) =>
-        p.name === updated.name ? updated : p,
+        p.name === updated.name ? snapshotPluginInstallRecord(updated) : p,
       );
-      return updated;
+      return snapshotPluginInstallRecord(updated);
     } finally {
-      await exec(`rm -rf ${tmpDir}`).catch(() => {});
+      await exec(`rm -rf ${shellQuote(tmpDir)}`).catch(() => {});
     }
   }
 
@@ -117,7 +124,7 @@ export class PluginManager {
     const updated = { ...plugin, enabled: true };
     await this.savePlugin(updated);
     this.plugins = this.plugins.map((p) =>
-      p.name === name ? updated : p,
+      p.name === name ? snapshotPluginInstallRecord(updated) : p,
     );
   }
 
@@ -130,7 +137,7 @@ export class PluginManager {
     const updated = { ...plugin, enabled: false };
     await this.savePlugin(updated);
     this.plugins = this.plugins.map((p) =>
-      p.name === name ? updated : p,
+      p.name === name ? snapshotPluginInstallRecord(updated) : p,
     );
   }
 
@@ -138,21 +145,22 @@ export class PluginManager {
    * Get the manifest for an installed plugin.
    */
   getManifest(name: string): PluginManifest | undefined {
-    return this.plugins.find((p) => p.name === name)?.manifest;
+    const manifest = this.plugins.find((p) => p.name === name)?.manifest;
+    return manifest ? snapshotPluginManifest(manifest) : undefined;
   }
 
   /**
    * Get all installed plugins.
    */
   list(): PluginInstallRecord[] {
-    return this.plugins;
+    return snapshotPluginInstallRecords(this.plugins);
   }
 
   /**
    * Get all enabled plugins.
    */
   getEnabledPlugins(): PluginInstallRecord[] {
-    return this.plugins.filter((p) => p.enabled);
+    return snapshotPluginInstallRecords(this.plugins.filter((p) => p.enabled));
   }
 
   // ----------------------------------------------------------
@@ -172,27 +180,21 @@ export class PluginManager {
         `${PLUGIN_DATA_PREFIX}${name}`,
       );
       if (record && typeof record === 'object' && (record as any).name === name) {
-        records.push(record);
+        records.push(snapshotPluginInstallRecord(record));
       }
     }
     this.plugins = records;
   }
 
   private async savePlugin(record: PluginInstallRecord): Promise<void> {
-    await this.storage!.set(`${PLUGIN_DATA_PREFIX}${record.name}`, record);
+    await this.storage!.set(
+      `${PLUGIN_DATA_PREFIX}${record.name}`,
+      snapshotPluginInstallRecord(record),
+    );
     const names = this.plugins.map((p) => p.name);
     if (!names.includes(record.name)) {
       names.push(record.name);
     }
     await this.storage!.set(REGISTRY_KEY, names);
-  }
-
-  private validateManifest(manifest: PluginManifest): void {
-    if (!manifest.name || typeof manifest.name !== 'string') {
-      throw new Error('Plugin manifest must have a "name" field');
-    }
-    if (!manifest.version || typeof manifest.version !== 'string') {
-      throw new Error('Plugin manifest must have a "version" field');
-    }
   }
 }

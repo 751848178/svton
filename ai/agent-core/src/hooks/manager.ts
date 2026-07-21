@@ -1,4 +1,5 @@
 import type { HookEvent, HookContext, HookResult, HookHandler, HookConfig } from './types';
+import { cloneHookContext, cloneHookUpdates } from './hook-context-snapshot.utils';
 
 /**
  * Manages lifecycle hooks.
@@ -48,11 +49,11 @@ export class HookManager {
 
     for (const hook of list) {
       try {
-        const result = await hook.handler({ ...context, event });
+        const result = await hook.handler(cloneHookContext({ ...context, event }));
 
         if (result.action === 'deny') return result;
         if (result.action === 'modify') {
-          Object.assign(context, result.updates);
+          Object.assign(context, cloneHookUpdates(result.updates));
         }
         // 'continue' and 'approve' proceed to next hook
       } catch (error) {

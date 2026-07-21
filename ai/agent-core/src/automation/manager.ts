@@ -1,11 +1,13 @@
-import type {
-  AutomationDefinition,
-  AutomationTrigger,
-  AutomationRun,
-} from './types';
+import type { AutomationDefinition, AutomationTrigger, AutomationRun } from './types';
 import type { IAutomationScheduler } from './scheduler';
 import type { IStorage } from '@svton/agent-platform';
-
+import { formatUnknownErrorMessage } from '../utils/error-message.utils';
+import { resolveAutomationNextRun } from './schedule-validation.utils';
+import { normalizeScheduleHour } from './schedule-time.utils';
+import { shouldRefreshAutomationSchedule } from './schedule-update.utils';
+import { normalizeEventTriggerName } from './event-trigger.utils';
+import { cloneAutomationDefinition, cloneAutomationTrigger } from './automation-definition.utils';
+import { cloneAutomationRun } from './automation-run.utils';
 const STORAGE_PREFIX = 'agent:automation:';
 const RUNS_PREFIX = 'agent:automation_runs:';
 const MAX_RUNS_PER_AUTOMATION = 20;
@@ -42,15 +44,14 @@ export class AutomationManager {
       for (const key of keys) {
         const def = await this.storage.get<AutomationDefinition>(key);
         if (def?.id) {
-          this.definitions.set(def.id, def);
+          const automation = cloneAutomationDefinition(def);
+          this.definitions.set(automation.id, automation);
           // Update counter to avoid ID collisions
-          const num = parseInt(def.id.split('_')[1], 10);
+          const num = parseInt(automation.id.split('_')[1], 10);
           if (!isNaN(num) && num > automationCounter) automationCounter = num;
 
           // Reschedule enabled automations
-          if (def.enabled) {
-            this.scheduleNext(def);
-          }
+          if (automation.enabled) this.scheduleNext(automation);
         }
       }
     } catch {
@@ -71,25 +72,19 @@ export class AutomationManager {
   async create(
     def: Omit<AutomationDefinition, 'id' | 'createdAt' | 'enabled'> & { enabled?: boolean },
   ): Promise<AutomationDefinition> {
+    const nextRunAt = resolveAutomationNextRun(def.trigger, (trigger) => this.computeNextRun(trigger));
     const id = `auto_${++automationCounter}_${Date.now()}`;
     const now = Date.now();
 
-    const automation: AutomationDefinition = {
-      ...def,
-      id,
-      createdAt: now,
-      enabled: def.enabled ?? true,
-    };
+    const automation: AutomationDefinition = { ...def, trigger: cloneAutomationTrigger(def.trigger), id, createdAt: now, enabled: def.enabled ?? true };
 
-    automation.nextRunAt = this.computeNextRun(automation.trigger);
+    automation.nextRunAt = nextRunAt;
     this.definitions.set(id, automation);
     await this.persist(automation);
 
-    if (automation.enabled) {
-      this.scheduleNext(automation);
-    }
+    if (automation.enabled) this.scheduleNext(automation);
 
-    return automation;
+    return cloneAutomationDefinition(automation);
   }
 
   /**
@@ -99,10 +94,9 @@ export class AutomationManager {
     const existing = this.definitions.get(id);
     if (!existing) return;
 
-    const updated: AutomationDefinition = { ...existing, ...patch, id: existing.id };
-    // Recompute next run if trigger changed
-    if (patch.trigger) {
-      updated.nextRunAt = this.computeNextRun(updated.trigger);
+    const updated: AutomationDefinition = { ...existing, ...patch, trigger: patch.trigger ? cloneAutomationTrigger(patch.trigger) : existing.trigger, id: existing.id };
+    if (shouldRefreshAutomationSchedule(existing, patch)) {
+      updated.nextRunAt = resolveAutomationNextRun(updated.trigger, (trigger) => this.computeNextRun(trigger));
     }
 
     this.definitions.set(id, updated);
@@ -110,9 +104,7 @@ export class AutomationManager {
 
     // Reschedule
     this.cancelSchedule(id);
-    if (updated.enabled) {
-      this.scheduleNext(updated);
-    }
+    if (updated.enabled) this.scheduleNext(updated);
   }
 
   /**
@@ -129,11 +121,12 @@ export class AutomationManager {
   }
 
   list(): AutomationDefinition[] {
-    return Array.from(this.definitions.values());
+    return Array.from(this.definitions.values(), cloneAutomationDefinition);
   }
 
   get(id: string): AutomationDefinition | null {
-    return this.definitions.get(id) ?? null;
+    const automation = this.definitions.get(id);
+    return automation ? cloneAutomationDefinition(automation) : null;
   }
 
   /**
@@ -156,7 +149,7 @@ export class AutomationManager {
    */
   async runNow(id: string): Promise<void> {
     const automation = this.definitions.get(id);
-    if (!automation || !this.onTrigger) return;
+    if (!automation) return;
 
     const run: AutomationRun = {
       id: `run_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -167,27 +160,29 @@ export class AutomationManager {
     };
 
     try {
-      await this.onTrigger(automation);
+      if (!this.onTrigger) {
+        throw new Error('Automation trigger handler is not configured');
+      }
+      await this.onTrigger(cloneAutomationDefinition(automation));
       run.status = 'completed';
       run.finishedAt = Date.now();
     } catch (e) {
       run.status = 'failed';
-      run.error = e instanceof Error ? e.message : String(e);
+      run.error = formatUnknownErrorMessage(e);
       run.finishedAt = Date.now();
     }
 
     // Record run in history
     await this.recordRun(run);
 
-    // Update lastRunAt and reschedule
-    automation.lastRunAt = Date.now();
-    automation.nextRunAt = this.computeNextRun(automation.trigger);
-    await this.persist(automation);
+    const latest = this.definitions.get(id);
+    if (!latest) return;
+    latest.lastRunAt = Date.now();
+    latest.nextRunAt = this.computeNextRun(latest.trigger);
+    await this.persist(latest);
 
     this.cancelSchedule(id);
-    if (automation.enabled) {
-      this.scheduleNext(automation);
-    }
+    if (latest.enabled) this.scheduleNext(latest);
   }
 
   /**
@@ -209,7 +204,7 @@ export class AutomationManager {
   async getRuns(automationId: string): Promise<AutomationRun[]> {
     try {
       const runs = await this.storage.get<AutomationRun[]>(RUNS_PREFIX + automationId);
-      return Array.isArray(runs) ? runs : [];
+      return Array.isArray(runs) ? runs.map(cloneAutomationRun) : [];
     } catch {
       return [];
     }
@@ -251,19 +246,17 @@ export class AutomationManager {
     // "every day at HH[:MM]" / "daily at HH[:MM]"
     m = s.match(/(?:every\s+day|daily)\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
     if (m) {
-      let hour = parseInt(m[1], 10);
+      const hour = normalizeScheduleHour(parseInt(m[1], 10), m[3]);
       const min = m[2] ? parseInt(m[2], 10) : 0;
-      if (m[3] === 'pm' && hour < 12) hour += 12;
-      if (m[3] === 'am' && hour === 12) hour = 0;
       return { type: 'cron', expression: `${min} ${hour} * * *` };
     }
 
-    // "weekly on DAY at HH"
-    m = s.match(/weekly\s+on\s+(\w+)\s+at\s+(\d{1,2})(?::(\d{2}))?/);
+    m = s.match(/weekly\s+on\s+(\w+)\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
     if (m) {
       const dayMap: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
-      const day = dayMap[m[1].slice(0, 3).toLowerCase()] ?? 1;
-      const hour = parseInt(m[2], 10);
+      const day = dayMap[m[1].slice(0, 3).toLowerCase()];
+      if (day === undefined) throw new Error('Invalid weekday in weekly schedule.');
+      const hour = normalizeScheduleHour(parseInt(m[2], 10), m[4]);
       const min = m[3] ? parseInt(m[3], 10) : 0;
       return { type: 'cron', expression: `${min} ${hour} * * ${day}` };
     }
@@ -274,7 +267,7 @@ export class AutomationManager {
     }
 
     // Default: treat as event trigger
-    return { type: 'event', eventType: s.replace(/\s+/g, '_') };
+    return { type: 'event', eventType: normalizeEventTriggerName(s) };
   }
 
   // ----------------------------------------------------------
@@ -424,20 +417,7 @@ export class AutomationManager {
     if (!automation.nextRunAt || automation.nextRunAt === 0) return; // event-driven or no schedule
 
     const handler = async () => {
-      if (!this.onTrigger) return;
-      try {
-        await this.onTrigger(automation);
-      } catch {
-        // Swallow — trigger handler errors are non-fatal
-      }
-
-      // Update last run and reschedule
-      automation.lastRunAt = Date.now();
-      automation.nextRunAt = this.computeNextRun(automation.trigger);
-      await this.persist(automation);
-
-      // Schedule the next run
-      this.scheduleNext(automation);
+      await this.runNow(automation.id);
     };
 
     const cancel = this.scheduler.schedule(automation.nextRunAt, handler);
@@ -454,7 +434,7 @@ export class AutomationManager {
 
   private async persist(automation: AutomationDefinition): Promise<void> {
     try {
-      await this.storage.set(`${STORAGE_PREFIX}${automation.id}`, automation);
+      await this.storage.set(`${STORAGE_PREFIX}${automation.id}`, cloneAutomationDefinition(automation));
     } catch {
       // Non-fatal
     }

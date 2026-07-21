@@ -42,7 +42,12 @@ interface MockFsOverrides {
   readFile?: (path: string) => Promise<string>;
 }
 
-function createMockPlatform(overrides: { fs?: MockFsOverrides } = {}): IPlatform {
+function createMockPlatform(
+  overrides: {
+    fs?: MockFsOverrides;
+    exec?: (command: string, options?: unknown) => Promise<any>;
+  } = {},
+): IPlatform {
   const defaultFs = {
     exists: async () => false,
     listDir: async () => [],
@@ -73,7 +78,7 @@ function createMockPlatform(overrides: { fs?: MockFsOverrides } = {}): IPlatform
     },
     fs: { ...defaultFs, ...overrides.fs },
     process: {
-      exec: async () => ({ stdout: '', stderr: '', exitCode: 0, timedOut: false }),
+      exec: overrides.exec ?? (async () => ({ stdout: '', stderr: '', exitCode: 0, timedOut: false })),
       spawn: () => ({
         pid: null,
         onStdout: () => {},
@@ -135,6 +140,56 @@ describe('SkillManager', () => {
 
     // Unregistering again returns false
     expect(manager.unregister('skill-a')).toBe(false);
+  });
+
+  it('protects registered skill definitions from caller and result mutation', () => {
+    const skill = makeSkill({
+      name: 'review-skill',
+      description: 'Review code',
+      instructions: 'Review carefully',
+      trigger: { type: 'implicit', patterns: ['review code'] },
+      requiredTools: ['git_diff'],
+      requiredCapabilities: ['sandboxing'],
+      allowedTools: ['git_diff', 'file_read'],
+      disallowedTools: ['bash'],
+      whenToUse: ['code review'],
+      avoidWhen: ['write docs'],
+      triggerSignals: ['review code'],
+      version: '1.0.0',
+      source: { type: 'git', repo: 'https://example.test/review.git', ref: 'main' },
+    });
+
+    manager.register(skill);
+    skill.description = 'Injected description';
+    skill.trigger!.patterns!.push('mutated registration');
+    skill.allowedTools!.push('bash');
+    (skill.source as { type: 'git'; repo: string; ref?: string }).repo = 'https://evil.test/review.git';
+
+    const fromGet = manager.get('review-skill')!;
+    expect(fromGet.description).toBe('Review code');
+    expect(fromGet.trigger?.patterns).toEqual(['review code']);
+    expect(fromGet.allowedTools).toEqual(['git_diff', 'file_read']);
+    expect(fromGet.source).toEqual({
+      type: 'git',
+      repo: 'https://example.test/review.git',
+      ref: 'main',
+    });
+
+    fromGet.trigger!.patterns!.push('mutated get');
+    fromGet.requiredTools!.push('missing_tool');
+    const fromList = manager.list().find((s) => s.name === 'review-skill')!;
+    fromList.triggerSignals!.push('mutated list');
+    fromList.disallowedTools!.push('sudo');
+
+    const firstRelevant = manager.findRelevant('please review code')[0];
+    firstRelevant.whenToUse!.push('mutated relevant');
+
+    const fresh = manager.get('review-skill')!;
+    expect(fresh.requiredTools).toEqual(['git_diff']);
+    expect(fresh.disallowedTools).toEqual(['bash']);
+    expect(fresh.triggerSignals).toEqual(['review code']);
+    expect(fresh.whenToUse).toEqual(['code review']);
+    expect(manager.isSkillAvailable(manager.findRelevant('please review code')[0], ['git_diff'])).toBe(true);
   });
 
   it('clear removes all skills', () => {
@@ -882,6 +937,49 @@ describe('SkillInstaller', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('desktop');
+  });
+
+  it('installFromGit quotes archive repo and ref arguments before shell execution', async () => {
+    const exec = vi.fn(async () => ({
+      stdout: '---\nname: git-skill\ndescription: Git\n---\n\nInstructions.',
+      stderr: '',
+      exitCode: 0,
+      timedOut: false,
+    }));
+    const installer = new SkillInstaller(storage, createMockPlatform({ exec }));
+
+    const result = await installer.installFromGit(
+      "https://example.com/repo.git; touch /tmp/pwned #",
+      "main'; whoami #",
+    );
+
+    expect(result.success).toBe(true);
+    expect(exec).toHaveBeenCalledTimes(1);
+    expect(exec.mock.calls[0][0]).toBe(
+      "git archive --remote='https://example.com/repo.git; touch /tmp/pwned #' " +
+        "'main'\\''; whoami #' SKILL.md 2>/dev/null | tar -xO",
+    );
+  });
+
+  it('installFromGit fallback quotes clone repo and ref arguments before shell execution', async () => {
+    const exec = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1, timedOut: false })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1, timedOut: false })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0, timedOut: false });
+    const installer = new SkillInstaller(storage, createMockPlatform({ exec }));
+
+    const result = await installer.installFromGit(
+      "https://example.com/repo.git; touch /tmp/pwned #",
+      "main'; whoami #",
+    );
+
+    expect(result.success).toBe(false);
+    expect(exec).toHaveBeenCalledTimes(3);
+    expect(exec.mock.calls[1][0]).toMatch(
+      /^git clone --depth 1 --branch 'main'\\''; whoami #' 'https:\/\/example\.com\/repo\.git; touch \/tmp\/pwned #' \/tmp\/svton-skill-\d+$/,
+    );
+    expect(exec.mock.calls[2][0]).toMatch(/^rm -rf \/tmp\/svton-skill-\d+$/);
   });
 
   it('installFromLocalDir no platform.fs returns failure', async () => {

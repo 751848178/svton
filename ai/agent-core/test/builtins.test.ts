@@ -125,7 +125,12 @@ describe('BashExecutor', () => {
     expect(result.output).toContain('hello world');
     expect(result.output).toContain('[stderr] some warning');
     expect(result.isError).toBe(false);
-    expect(result.metadata).toMatchObject({ exitCode: 0, timedOut: false });
+    expect(result.metadata).toMatchObject({
+      exitCode: 0,
+      timedOut: false,
+      command: 'echo hello',
+      timeout: 120000,
+    });
   });
 
   it('returns error when command is missing', async () => {
@@ -148,6 +153,19 @@ describe('BashExecutor', () => {
     expect(result.output).toContain('"command" is required');
   });
 
+  it('returns error when command is blank', async () => {
+    const mockExec = ctx.platform.process.exec as ReturnType<typeof vi.fn>;
+
+    const result = await executor.execute(
+      makeToolCall('bash', { command: '   ' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"command" is required');
+    expect(mockExec).not.toHaveBeenCalled();
+  });
+
   it('returns error when timeout is invalid (zero)', async () => {
     const result = await executor.execute(
       makeToolCall('bash', { command: 'ls', timeout: 0 }),
@@ -168,6 +186,19 @@ describe('BashExecutor', () => {
     expect(result.output).toContain('"timeout" must be a positive number');
   });
 
+  it('returns error when timeout is not finite', async () => {
+    const mockExec = ctx.platform.process.exec as ReturnType<typeof vi.fn>;
+
+    const result = await executor.execute(
+      makeToolCall('bash', { command: 'ls', timeout: Number.POSITIVE_INFINITY }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"timeout" must be a positive number');
+    expect(mockExec).not.toHaveBeenCalled();
+  });
+
   it('returns isError=true with exit code on non-zero exit', async () => {
     (ctx.platform.process.exec as ReturnType<typeof vi.fn>).mockResolvedValue({
       stdout: '',
@@ -186,6 +217,24 @@ describe('BashExecutor', () => {
     expect(result.metadata).toMatchObject({ exitCode: 127 });
   });
 
+  it('returns isError=true when command execution times out', async () => {
+    (ctx.platform.process.exec as ReturnType<typeof vi.fn>).mockResolvedValue({
+      stdout: '',
+      stderr: '',
+      exitCode: null,
+      timedOut: true,
+    } satisfies ExecResult);
+
+    const result = await executor.execute(
+      makeToolCall('bash', { command: 'sleep 10', timeout: 1 }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('[timed out]');
+    expect(result.metadata).toMatchObject({ exitCode: null, timedOut: true });
+  });
+
   it('catches exec throws and returns error', async () => {
     (ctx.platform.process.exec as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('spawn ENOENT'),
@@ -198,6 +247,10 @@ describe('BashExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('spawn ENOENT');
+    expect(result.metadata).toMatchObject({
+      command: 'ls',
+      timeout: 120000,
+    });
   });
 
   it('returns (no output) when stdout and stderr are empty', async () => {
@@ -228,7 +281,7 @@ describe('BashExecutor', () => {
     const signal = new AbortController().signal;
     const ctxWithSignal = { ...ctx, signal };
 
-    await executor.execute(
+    const result = await executor.execute(
       makeToolCall('bash', { command: 'ls', timeout: 5000 }),
       ctxWithSignal,
     );
@@ -238,6 +291,7 @@ describe('BashExecutor', () => {
       timeout: 5000,
       signal,
     });
+    expect(result.metadata).toMatchObject({ command: 'ls', timeout: 5000 });
   });
 
   it('uses sandbox exec when sandbox profile is available', async () => {
@@ -316,6 +370,7 @@ describe('BashExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('requires sandbox execution');
+    expect(result.metadata).toMatchObject({ command: 'pwd', timeout: 120000 });
     expect(mockExec).not.toHaveBeenCalled();
     expect(sandboxExec).not.toHaveBeenCalled();
   });
@@ -334,6 +389,7 @@ describe('BashExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('requires sandbox execution');
+    expect(result.metadata).toMatchObject({ command: 'pwd', timeout: 120000 });
     expect(mockExec).not.toHaveBeenCalled();
   });
 
@@ -395,8 +451,7 @@ describe('FileReadExecutor', () => {
     expect(result.isError).toBeUndefined();
   });
 
-  it('returns single numbered line for empty string content (split produces [""])', async () => {
-    // An empty string '' splits into [''], giving one numbered line "1\t"
+  it('returns empty file output and metadata for empty string content', async () => {
     (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue('');
 
     const result = await executor.execute(
@@ -404,11 +459,53 @@ describe('FileReadExecutor', () => {
       ctx,
     );
 
-    // empty string → split → [''] → one line "1\t", not "(empty file)"
-    expect(result.output).toBe('1\t');
+    expect(result.output).toBe('(empty file)');
+    expect(result.metadata).toMatchObject({
+      path: '/project/empty.txt',
+      startLine: 1,
+      endLine: null,
+      returnedLines: 0,
+      totalLines: 0,
+    });
   });
 
-  it('returns (empty file) for content that results in no selected lines', async () => {
+  it('does not invent a blank final line for newline-terminated content', async () => {
+    (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue('a\nb\n');
+
+    const result = await executor.execute(
+      makeToolCall('file_read', { path: 'ending-newline.txt' }),
+      ctx,
+    );
+
+    expect(result.output).toBe('1\ta\n2\tb');
+    expect(result.metadata).toMatchObject({
+      path: '/project/ending-newline.txt',
+      startLine: 1,
+      endLine: 2,
+      returnedLines: 2,
+      totalLines: 2,
+    });
+  });
+
+  it('normalizes CRLF line endings in numbered file output', async () => {
+    (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue('a\r\nb\r\n');
+
+    const result = await executor.execute(
+      makeToolCall('file_read', { path: 'windows.txt' }),
+      ctx,
+    );
+
+    expect(result.output).toBe('1\ta\n2\tb');
+    expect(result.metadata).toMatchObject({
+      path: '/project/windows.txt',
+      startLine: 1,
+      endLine: 2,
+      returnedLines: 2,
+      totalLines: 2,
+    });
+  });
+
+  it('returns no selected lines metadata when offset is beyond file length', async () => {
     // offset beyond file length → selectedLines is empty
     (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue('a\nb');
 
@@ -417,7 +514,13 @@ describe('FileReadExecutor', () => {
       ctx,
     );
 
-    expect(result.output).toBe('(empty file)');
+    expect(result.output).toBe('(no lines selected)');
+    expect(result.metadata).toMatchObject({
+      path: '/project/short.txt',
+      startLine: 100,
+      returnedLines: 0,
+      totalLines: 2,
+    });
   });
 
   it('applies offset to start from a given line', async () => {
@@ -439,7 +542,6 @@ describe('FileReadExecutor', () => {
   });
 
   it('applies limit to cap number of lines', async () => {
-    // limit=2 → endLine = startLine(1) + 2 = 3 → slice(0,3) = 3 lines
     (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue(
       'a\nb\nc\nd\ne',
     );
@@ -451,13 +553,11 @@ describe('FileReadExecutor', () => {
 
     expect(result.output).toContain('1\ta');
     expect(result.output).toContain('2\tb');
-    // limit=2 means endLine=3, so lines 1-3 are included
-    expect(result.output).toContain('3\tc');
+    expect(result.output).not.toContain('3\tc');
     expect(result.output).not.toContain('4\td');
   });
 
   it('applies both offset and limit', async () => {
-    // offset=2, limit=2 → startLine=2, endLine=2+2=4 → slice(1,4) = lines at index 1,2,3
     (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue(
       'a\nb\nc\nd\ne',
     );
@@ -469,7 +569,7 @@ describe('FileReadExecutor', () => {
 
     expect(result.output).toContain('2\tb');
     expect(result.output).toContain('3\tc');
-    expect(result.output).toContain('4\td');
+    expect(result.output).not.toContain('4\td');
     expect(result.output).not.toContain('1\ta');
     expect(result.output).not.toContain('5\te');
   });
@@ -494,6 +594,44 @@ describe('FileReadExecutor', () => {
     expect(result.output).toContain('"path" is required');
   });
 
+  it('returns error when path is blank before reading', async () => {
+    const result = await executor.execute(
+      makeToolCall('file_read', { path: '  \n\t  ' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"path" is required');
+    expect(ctx.platform.fs.resolve).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.readFile).not.toHaveBeenCalled();
+  });
+
+  it('uses the trimmed path before resolving the read target', async () => {
+    (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue('content');
+
+    await executor.execute(
+      makeToolCall('file_read', { path: '  src/a.ts\n' }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).toHaveBeenCalledWith('/project', 'src/a.ts');
+    expect(ctx.platform.fs.resolve).toHaveBeenCalledWith('/project/src/a.ts');
+    expect(ctx.platform.fs.readFile).toHaveBeenCalledWith('/project/src/a.ts');
+  });
+
+  it('preserves absolute file_read paths instead of joining them to workingDir', async () => {
+    (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue('content');
+
+    await executor.execute(
+      makeToolCall('file_read', { path: '/tmp/project/a.ts' }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.resolve).toHaveBeenCalledWith('/tmp/project/a.ts');
+    expect(ctx.platform.fs.readFile).toHaveBeenCalledWith('/tmp/project/a.ts');
+  });
+
   it('returns error for invalid offset (zero)', async () => {
     const result = await executor.execute(
       makeToolCall('file_read', { path: 'test.txt', offset: 0 }),
@@ -514,6 +652,19 @@ describe('FileReadExecutor', () => {
     expect(result.output).toContain('"offset" must be a positive number');
   });
 
+  it('rejects non-integer and non-finite offsets before reading', async () => {
+    for (const offset of [1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const result = await executor.execute(
+        makeToolCall('file_read', { path: 'test.txt', offset }),
+        ctx,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"offset" must be a positive number');
+    }
+    expect(ctx.platform.fs.readFile).not.toHaveBeenCalled();
+  });
+
   it('returns error for invalid limit', async () => {
     const result = await executor.execute(
       makeToolCall('file_read', { path: 'test.txt', limit: -1 }),
@@ -524,18 +675,36 @@ describe('FileReadExecutor', () => {
     expect(result.output).toContain('"limit" must be a positive number');
   });
 
+  it('rejects non-integer and non-finite limits before reading', async () => {
+    for (const limit of [1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const result = await executor.execute(
+        makeToolCall('file_read', { path: 'test.txt', limit }),
+        ctx,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"limit" must be a positive number');
+    }
+    expect(ctx.platform.fs.readFile).not.toHaveBeenCalled();
+  });
+
   it('catches readFile throws and returns error', async () => {
     (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('ENOENT: no such file'),
     );
 
     const result = await executor.execute(
-      makeToolCall('file_read', { path: 'missing.txt' }),
+      makeToolCall('file_read', { path: 'missing.txt', offset: 5, limit: 2 }),
       ctx,
     );
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('ENOENT: no such file');
+    expect(result.metadata).toMatchObject({
+      path: '/project/missing.txt',
+      startLine: 5,
+      requestedLimit: 2,
+    });
   });
 
   it('catches non-Error throws in readFile', async () => {
@@ -548,6 +717,7 @@ describe('FileReadExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('string error');
+    expect(result.metadata).toMatchObject({ path: '/project/bad.txt' });
   });
 });
 
@@ -580,6 +750,10 @@ describe('FileWriteExecutor', () => {
 
     expect(ctx.platform.fs.writeFile).toHaveBeenCalledWith('/project/output.txt', 'hello');
     expect(result.output).toContain('File written successfully');
+    expect(result.metadata).toMatchObject({
+      path: '/project/output.txt',
+      contentLength: 5,
+    });
     expect(result.isError).toBeUndefined();
   });
 
@@ -603,6 +777,44 @@ describe('FileWriteExecutor', () => {
     expect(result.output).toContain('"path" is required');
   });
 
+  it('returns error when path is blank before writing', async () => {
+    const result = await executor.execute(
+      makeToolCall('file_write', { path: '  \n\t  ', content: 'hello' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"path" is required');
+    expect(ctx.platform.fs.resolve).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('uses the trimmed path before resolving the write target', async () => {
+    (ctx.platform.fs.writeFile as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    await executor.execute(
+      makeToolCall('file_write', { path: '  out/result.txt\n', content: 'hello' }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).toHaveBeenCalledWith('/project', 'out/result.txt');
+    expect(ctx.platform.fs.resolve).toHaveBeenCalledWith('/project/out/result.txt');
+    expect(ctx.platform.fs.writeFile).toHaveBeenCalledWith('/project/out/result.txt', 'hello');
+  });
+
+  it('preserves absolute file_write paths instead of joining them to workingDir', async () => {
+    (ctx.platform.fs.writeFile as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    await executor.execute(
+      makeToolCall('file_write', { path: '/tmp/project/out.txt', content: 'hello' }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.resolve).toHaveBeenCalledWith('/tmp/project/out.txt');
+    expect(ctx.platform.fs.writeFile).toHaveBeenCalledWith('/tmp/project/out.txt', 'hello');
+  });
+
   it('returns error when content is missing (undefined)', async () => {
     const result = await executor.execute(
       makeToolCall('file_write', { path: 'test.txt' }),
@@ -623,6 +835,17 @@ describe('FileWriteExecutor', () => {
     expect(result.output).toContain('"content" is required');
   });
 
+  it('returns error when content is not a string before writing', async () => {
+    const result = await executor.execute(
+      makeToolCall('file_write', { path: 'test.txt', content: 123 }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"content" is required');
+    expect(ctx.platform.fs.writeFile).not.toHaveBeenCalled();
+  });
+
   it('catches writeFile throws and returns error', async () => {
     (ctx.platform.fs.writeFile as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('disk full'),
@@ -635,6 +858,10 @@ describe('FileWriteExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('disk full');
+    expect(result.metadata).toMatchObject({
+      path: '/project/test.txt',
+      contentLength: 4,
+    });
   });
 });
 
@@ -673,6 +900,11 @@ describe('FileEditExecutor', () => {
     );
 
     expect(result.output).toContain('Edit applied');
+    expect(result.metadata).toMatchObject({
+      path: '/project/code.ts',
+      replaceAll: false,
+      replacementCount: 1,
+    });
     expect(result.isError).toBeUndefined();
     // When replace_all is false, editFile is called (not writeFile)
     expect(ctx.platform.fs.editFile).toHaveBeenCalledWith(
@@ -701,6 +933,11 @@ describe('FileEditExecutor', () => {
     );
 
     expect(result.output).toContain('Replaced 3 occurrence(s)');
+    expect(result.metadata).toMatchObject({
+      path: '/project/test.txt',
+      replaceAll: true,
+      replacementCount: 3,
+    });
     expect(ctx.platform.fs.writeFile).toHaveBeenCalledWith(
       expect.any(String),
       'qux bar qux baz qux',
@@ -722,6 +959,7 @@ describe('FileEditExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('old_string not found');
+    expect(result.metadata).toMatchObject({ path: '/project/test.txt' });
   });
 
   it('returns error when old_string not found (replace_all)', async () => {
@@ -739,6 +977,7 @@ describe('FileEditExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('old_string not found');
+    expect(result.metadata).toMatchObject({ path: '/project/test.txt' });
   });
 
   it('returns error when path is missing', async () => {
@@ -752,6 +991,62 @@ describe('FileEditExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('"path" is required');
+  });
+
+  it('returns error when path is blank before editing', async () => {
+    const result = await executor.execute(
+      makeToolCall('file_edit', {
+        path: '  \n\t  ',
+        old_string: 'a',
+        new_string: 'b',
+      }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"path" is required');
+    expect(ctx.platform.fs.resolve).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.readFile).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.editFile).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('uses the trimmed path before resolving the edit target', async () => {
+    (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue('a');
+    (ctx.platform.fs.editFile as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+
+    await executor.execute(
+      makeToolCall('file_edit', {
+        path: '  src/app.ts\n',
+        old_string: 'a',
+        new_string: 'b',
+      }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).toHaveBeenCalledWith('/project', 'src/app.ts');
+    expect(ctx.platform.fs.resolve).toHaveBeenCalledWith('/project/src/app.ts');
+    expect(ctx.platform.fs.readFile).toHaveBeenCalledWith('/project/src/app.ts');
+    expect(ctx.platform.fs.editFile).toHaveBeenCalledWith('/project/src/app.ts', 'a', 'b');
+  });
+
+  it('preserves absolute file_edit paths instead of joining them to workingDir', async () => {
+    (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockResolvedValue('a');
+    (ctx.platform.fs.editFile as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+
+    await executor.execute(
+      makeToolCall('file_edit', {
+        path: '/tmp/project/app.ts',
+        old_string: 'a',
+        new_string: 'b',
+      }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.resolve).toHaveBeenCalledWith('/tmp/project/app.ts');
+    expect(ctx.platform.fs.readFile).toHaveBeenCalledWith('/tmp/project/app.ts');
+    expect(ctx.platform.fs.editFile).toHaveBeenCalledWith('/tmp/project/app.ts', 'a', 'b');
   });
 
   it('returns error when old_string is missing', async () => {
@@ -808,6 +1103,41 @@ describe('FileEditExecutor', () => {
     expect(result.output).toContain('"new_string" is required');
   });
 
+  it('returns error when new_string is not a string before file operations', async () => {
+    const result = await executor.execute(
+      makeToolCall('file_edit', {
+        path: 'test.txt',
+        old_string: 'a',
+        new_string: 123,
+      }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"new_string" is required');
+    expect(ctx.platform.fs.readFile).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.editFile).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('returns error when replace_all is not a boolean before file operations', async () => {
+    const result = await executor.execute(
+      makeToolCall('file_edit', {
+        path: 'test.txt',
+        old_string: 'a',
+        new_string: 'b',
+        replace_all: 'true',
+      }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"replace_all" must be a boolean');
+    expect(ctx.platform.fs.readFile).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.editFile).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.writeFile).not.toHaveBeenCalled();
+  });
+
   it('catches readFile throws and returns error', async () => {
     (ctx.platform.fs.readFile as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('permission denied'),
@@ -824,6 +1154,10 @@ describe('FileEditExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('permission denied');
+    expect(result.metadata).toMatchObject({
+      path: '/project/test.txt',
+      replaceAll: false,
+    });
   });
 });
 
@@ -859,7 +1193,13 @@ describe('GrepExecutor', () => {
 
     expect(result.output).toContain('/project/a.ts:10: const x = 1;');
     expect(result.output).toContain('/project/b.ts:25: const x = 2;');
-    expect(result.metadata).toMatchObject({ matchCount: 2 });
+    expect(result.metadata).toMatchObject({
+      pattern: 'const x',
+      path: '/project/.',
+      ignoreCase: false,
+      maxResults: 250,
+      matchCount: 2,
+    });
   });
 
   it('returns "No matches found" when results are empty', async () => {
@@ -871,6 +1211,13 @@ describe('GrepExecutor', () => {
     );
 
     expect(result.output).toBe('No matches found.');
+    expect(result.metadata).toMatchObject({
+      pattern: 'nonexistent',
+      path: '/project/.',
+      ignoreCase: false,
+      maxResults: 250,
+      matchCount: 0,
+    });
   });
 
   it('returns error when pattern is missing', async () => {
@@ -883,6 +1230,33 @@ describe('GrepExecutor', () => {
     expect(result.output).toContain('"pattern" is required');
   });
 
+  it('returns error when pattern is blank before searching', async () => {
+    const result = await executor.execute(
+      makeToolCall('grep', { pattern: '  \n\t  ', path: '.' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"pattern" is required');
+    expect(ctx.platform.search.grep).not.toHaveBeenCalled();
+  });
+
+  it('uses the trimmed pattern before searching', async () => {
+    const mockGrep = ctx.platform.search.grep as ReturnType<typeof vi.fn>;
+    mockGrep.mockResolvedValue([]);
+
+    await executor.execute(
+      makeToolCall('grep', { pattern: '  TODO\n', path: 'src' }),
+      ctx,
+    );
+
+    expect(mockGrep).toHaveBeenCalledWith(
+      'TODO',
+      ['/project/src'],
+      expect.any(Object),
+    );
+  });
+
   it('returns error when path is missing', async () => {
     const result = await executor.execute(
       makeToolCall('grep', { pattern: 'test' }),
@@ -891,6 +1265,54 @@ describe('GrepExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('"path" is required');
+  });
+
+  it('returns error when path is blank before searching', async () => {
+    const result = await executor.execute(
+      makeToolCall('grep', { pattern: 'test', path: '  \n\t  ' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"path" is required');
+    expect(ctx.platform.fs.resolve).not.toHaveBeenCalled();
+    expect(ctx.platform.search.grep).not.toHaveBeenCalled();
+  });
+
+  it('uses the trimmed path before resolving the search target', async () => {
+    const mockGrep = ctx.platform.search.grep as ReturnType<typeof vi.fn>;
+    mockGrep.mockResolvedValue([]);
+
+    await executor.execute(
+      makeToolCall('grep', { pattern: 'test', path: '  src\n' }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).toHaveBeenCalledWith('/project', 'src');
+    expect(ctx.platform.fs.resolve).toHaveBeenCalledWith('/project/src');
+    expect(mockGrep).toHaveBeenCalledWith(
+      'test',
+      ['/project/src'],
+      expect.any(Object),
+    );
+  });
+
+  it('preserves absolute grep paths instead of joining them to workingDir', async () => {
+    const mockGrep = ctx.platform.search.grep as ReturnType<typeof vi.fn>;
+    mockGrep.mockResolvedValue([]);
+
+    await executor.execute(
+      makeToolCall('grep', { pattern: 'test', path: '/tmp/project/src' }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.resolve).toHaveBeenCalledWith('/tmp/project/src');
+    expect(mockGrep).toHaveBeenCalledWith(
+      'test',
+      ['/tmp/project/src'],
+      expect.any(Object),
+    );
   });
 
   it('passes options to search.grep (ignoreCase, includePattern, maxResults)', async () => {
@@ -920,6 +1342,46 @@ describe('GrepExecutor', () => {
     );
   });
 
+  it('passes trimmed include pattern to search.grep', async () => {
+    const mockGrep = ctx.platform.search.grep as ReturnType<typeof vi.fn>;
+    mockGrep.mockResolvedValue([]);
+
+    await executor.execute(
+      makeToolCall('grep', {
+        pattern: 'TODO',
+        path: 'src',
+        include: '  *.ts\n',
+      }),
+      ctx,
+    );
+
+    expect(mockGrep).toHaveBeenCalledWith(
+      'TODO',
+      ['/project/src'],
+      expect.objectContaining({ includePattern: '*.ts' }),
+    );
+  });
+
+  it('omits include pattern when include is blank', async () => {
+    const mockGrep = ctx.platform.search.grep as ReturnType<typeof vi.fn>;
+    mockGrep.mockResolvedValue([]);
+
+    await executor.execute(
+      makeToolCall('grep', {
+        pattern: 'TODO',
+        path: 'src',
+        include: '  \n\t  ',
+      }),
+      ctx,
+    );
+
+    expect(mockGrep).toHaveBeenCalledWith(
+      'TODO',
+      ['/project/src'],
+      expect.objectContaining({ includePattern: undefined }),
+    );
+  });
+
   it('uses default maxResults of 250', async () => {
     const mockGrep = ctx.platform.search.grep as ReturnType<typeof vi.fn>;
     mockGrep.mockResolvedValue([]);
@@ -936,18 +1398,57 @@ describe('GrepExecutor', () => {
     );
   });
 
+  it('returns error for invalid max_results before searching', async () => {
+    for (const max_results of [0, 1.5, Number.POSITIVE_INFINITY]) {
+      const result = await executor.execute(
+        makeToolCall('grep', { pattern: 'test', path: '.', max_results }),
+        ctx,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"max_results" must be a positive integer');
+    }
+    expect(ctx.platform.search.grep).not.toHaveBeenCalled();
+  });
+
+  it('returns error for invalid ignore_case before searching', async () => {
+    const result = await executor.execute(
+      makeToolCall('grep', { pattern: 'test', path: '.', ignore_case: 'true' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"ignore_case" must be a boolean');
+    expect(ctx.platform.search.grep).not.toHaveBeenCalled();
+  });
+
+  it('returns error for invalid include before searching', async () => {
+    const result = await executor.execute(
+      makeToolCall('grep', { pattern: 'test', path: '.', include: 123 }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"include" must be a string');
+    expect(ctx.platform.search.grep).not.toHaveBeenCalled();
+  });
+
   it('catches search.grep throws and returns error', async () => {
     (ctx.platform.search.grep as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('regex invalid'),
     );
 
     const result = await executor.execute(
-      makeToolCall('grep', { pattern: '[', path: '.' }),
+      makeToolCall('grep', { pattern: '[', path: 'src' }),
       ctx,
     );
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('regex invalid');
+    expect(result.metadata).toMatchObject({
+      pattern: '[',
+      path: '/project/src',
+    });
   });
 });
 
@@ -983,7 +1484,11 @@ describe('GlobExecutor', () => {
 
     expect(result.output).toContain('/project/src/a.ts');
     expect(result.output).toContain('/project/src/b.ts');
-    expect(result.metadata).toMatchObject({ fileCount: 2 });
+    expect(result.metadata).toMatchObject({
+      pattern: '**/*.ts',
+      path: '/project',
+      fileCount: 2,
+    });
   });
 
   it('returns "No files matched" when no results', async () => {
@@ -995,6 +1500,11 @@ describe('GlobExecutor', () => {
     );
 
     expect(result.output).toBe('No files matched the pattern.');
+    expect(result.metadata).toMatchObject({
+      pattern: '*.xyz',
+      path: '/project',
+      fileCount: 0,
+    });
   });
 
   it('returns error when pattern is missing', async () => {
@@ -1017,6 +1527,44 @@ describe('GlobExecutor', () => {
     expect(result.output).toContain('"pattern" is required');
   });
 
+  it('returns error when pattern is blank before searching', async () => {
+    const result = await executor.execute(
+      makeToolCall('glob', { pattern: '  \n\t  ' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"pattern" is required');
+    expect(ctx.platform.search.glob).not.toHaveBeenCalled();
+  });
+
+  it('uses the trimmed pattern before searching', async () => {
+    const mockGlob = ctx.platform.search.glob as ReturnType<typeof vi.fn>;
+    mockGlob.mockResolvedValue([]);
+
+    await executor.execute(
+      makeToolCall('glob', { pattern: '  **/*.ts\n' }),
+      ctx,
+    );
+
+    expect(mockGlob).toHaveBeenCalledWith('**/*.ts', '/project');
+  });
+
+  it('returns error for invalid path before searching', async () => {
+    const mockGlob = ctx.platform.search.glob as ReturnType<typeof vi.fn>;
+
+    const result = await executor.execute(
+      makeToolCall('glob', { pattern: '*.ts', path: 123 }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"path" must be a string');
+    expect(ctx.platform.fs.join).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.resolve).not.toHaveBeenCalled();
+    expect(mockGlob).not.toHaveBeenCalled();
+  });
+
   it('uses workingDir as default search path when no path arg', async () => {
     const mockGlob = ctx.platform.search.glob as ReturnType<typeof vi.fn>;
     mockGlob.mockResolvedValue([]);
@@ -1026,6 +1574,20 @@ describe('GlobExecutor', () => {
       ctx,
     );
 
+    expect(mockGlob).toHaveBeenCalledWith('*.ts', '/project');
+  });
+
+  it('uses workingDir as default search path when path is blank', async () => {
+    const mockGlob = ctx.platform.search.glob as ReturnType<typeof vi.fn>;
+    mockGlob.mockResolvedValue([]);
+
+    await executor.execute(
+      makeToolCall('glob', { pattern: '*.ts', path: '  \n\t  ' }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.resolve).not.toHaveBeenCalled();
     expect(mockGlob).toHaveBeenCalledWith('*.ts', '/project');
   });
 
@@ -1043,18 +1605,36 @@ describe('GlobExecutor', () => {
     expect(mockGlob).toHaveBeenCalledWith('*.ts', expect.any(String));
   });
 
+  it('preserves absolute glob paths instead of joining them to workingDir', async () => {
+    const mockGlob = ctx.platform.search.glob as ReturnType<typeof vi.fn>;
+    mockGlob.mockResolvedValue([]);
+
+    await executor.execute(
+      makeToolCall('glob', { pattern: '*.ts', path: '/tmp/project/src' }),
+      ctx,
+    );
+
+    expect(ctx.platform.fs.join).not.toHaveBeenCalled();
+    expect(ctx.platform.fs.resolve).toHaveBeenCalledWith('/tmp/project/src');
+    expect(mockGlob).toHaveBeenCalledWith('*.ts', '/tmp/project/src');
+  });
+
   it('catches search.glob throws and returns error', async () => {
     (ctx.platform.search.glob as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('glob error'),
     );
 
     const result = await executor.execute(
-      makeToolCall('glob', { pattern: '*.ts' }),
+      makeToolCall('glob', { pattern: '  *.ts\n', path: 'src' }),
       ctx,
     );
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('glob error');
+    expect(result.metadata).toMatchObject({
+      pattern: '*.ts',
+      path: '/project/src',
+    });
   });
 });
 
@@ -1091,9 +1671,48 @@ describe('WebSearchExecutor', () => {
     expect(result.output).toContain('Test');
     expect(result.isError).toBeUndefined();
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'https://search.api/search?q=test%20query',
+      'https://search.api/search?q=test+query',
       expect.objectContaining({ method: 'GET' }),
     );
+  });
+
+  it('formats successful output from normalized search results without raw provider payload fields', async () => {
+    const mockData = {
+      debugToken: 'provider-debug-token',
+      results: [
+        {
+          title: 'Result Title',
+          url: 'https://result.example',
+          snippet: 'Result snippet',
+          rawProviderField: 'raw-field-value',
+        },
+      ],
+    };
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockData),
+    });
+
+    const executor = new WebSearchExecutor('https://search.api/search');
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'test query' }),
+      ctx,
+    );
+
+    expect(result.output).toContain('Result Title');
+    expect(result.output).toContain('https://result.example');
+    expect(result.output).toContain('Result snippet');
+    expect(result.output).not.toContain('provider-debug-token');
+    expect(result.output).not.toContain('raw-field-value');
+    expect(result.metadata.searchResults).toEqual([
+      {
+        title: 'Result Title',
+        url: 'https://result.example',
+        snippet: 'Result snippet',
+      },
+    ]);
   });
 
   it('returns error when no endpoint configured', async () => {
@@ -1135,6 +1754,95 @@ describe('WebSearchExecutor', () => {
     expect(result.output).toContain('"query" is required');
   });
 
+  it('returns error when query is blank before searching', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ results: [] }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const executor = new WebSearchExecutor('https://search.api/search');
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: '   \n\t  ' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"query" is required');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses the trimmed query for custom search and metadata', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ results: [{ title: 'Hit', url: 'https://hit.example' }] }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const executor = new WebSearchExecutor('https://search.api/search');
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: ' \nhello world\t ' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://search.api/search?q=hello+world',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result.metadata).toMatchObject({
+      provider: 'custom',
+      query: 'hello world',
+      maxResults: 10,
+    });
+  });
+
+  it('returns error for invalid max_results before searching', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ results: [] }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const executor = new WebSearchExecutor('https://search.api/search');
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'test', max_results: '3' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"max_results" must be a number');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('returns error for non-positive, fractional, or non-finite max_results before searching', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ results: [] }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const executor = new WebSearchExecutor('https://search.api/search');
+    const ctx = makeContext();
+
+    for (const max_results of [0, -1, 1.5, Number.POSITIVE_INFINITY]) {
+      const result = await executor.execute(
+        makeToolCall('web_search', { query: 'test', max_results }),
+        ctx,
+      );
+
+      expect(result.isError).toBe(true);
+      expect(result.output).toContain('"max_results" must be a positive integer');
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('catches fetch errors', async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('network failure'));
 
@@ -1148,12 +1856,14 @@ describe('WebSearchExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('network failure');
+    expect(result.metadata).toMatchObject({ query: 'test' });
   });
 
   it('catches non-ok HTTP responses', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
+      statusText: 'Server Error',
     });
 
     const executor = new WebSearchExecutor('https://search.api/search');
@@ -1166,6 +1876,48 @@ describe('WebSearchExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('Search API returned 500');
+    expect(result.metadata).toMatchObject({
+      provider: 'custom',
+      query: 'test',
+      maxResults: 10,
+      status: 500,
+      statusText: 'Server Error',
+    });
+  });
+
+  it('rejects non-http custom endpoints before calling fetch', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ results: [] }),
+    });
+    globalThis.fetch = fetchMock;
+
+    const executor = new WebSearchExecutor('file:///tmp/search.json');
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'local' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('http:// or https://');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-http custom endpoints before calling platform.http', async () => {
+    const http = { request: vi.fn().mockResolvedValue({ ok: true }) };
+    const executor = new WebSearchExecutor('ftp://search.example/query');
+    const ctx = makeContext({ http } as any);
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'ftp' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('http:// or https://');
+    expect(http.request).not.toHaveBeenCalled();
   });
 
   it('returns string data directly when response is a string', async () => {
@@ -1185,10 +1937,133 @@ describe('WebSearchExecutor', () => {
     expect(result.output).toBe('plain text result');
   });
 
+  it('extracts nested Bing-style webPages.value results', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        webPages: {
+          value: [
+            { name: 'Nested Result', url: 'https://nested.example', snippet: 'Nested snippet' },
+          ],
+        },
+      }),
+    });
+
+    const executor = new WebSearchExecutor('https://search.api/search');
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'nested' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.metadata.searchResults).toEqual([
+      {
+        title: 'Nested Result',
+        url: 'https://nested.example',
+        snippet: 'Nested snippet',
+      },
+    ]);
+  });
+
+  it('extracts nested Brave-style web.results entries', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        web: {
+          results: [
+            { title: 'Brave Result', url: 'https://brave.example', description: 'Brave description' },
+          ],
+        },
+      }),
+    });
+
+    const executor = new WebSearchExecutor('https://search.api/search');
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'brave' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.metadata.searchResults).toEqual([
+      {
+        title: 'Brave Result',
+        url: 'https://brave.example',
+        snippet: 'Brave description',
+      },
+    ]);
+  });
+
+  it('extracts top-level data array search results', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        data: [
+          { title: 'Data Result', link: 'https://data.example', body: 'Data body' },
+        ],
+      }),
+    });
+
+    const executor = new WebSearchExecutor('https://search.api/search');
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'data' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.metadata.searchResults).toEqual([
+      {
+        title: 'Data Result',
+        url: 'https://data.example',
+        snippet: 'Data body',
+      },
+    ]);
+  });
+
+  it('extracts response.results wrapped search results', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        response: {
+          results: [
+            { title: 'Wrapped Result', href: 'https://wrapped.example', summary: 'Wrapped summary' },
+          ],
+        },
+      }),
+    });
+
+    const executor = new WebSearchExecutor('https://search.api/search');
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_search', { query: 'wrapped' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.metadata.searchResults).toEqual([
+      {
+        title: 'Wrapped Result',
+        url: 'https://wrapped.example',
+        snippet: 'Wrapped summary',
+      },
+    ]);
+  });
+
   // ── Tavily provider mode ──
   it('calls Tavily API with Bearer auth and POST body', async () => {
     const mockData = {
-      results: [{ title: 'Tavily Hit', url: 'https://t.example', content: 'snippet text' }],
+      results: [
+        { title: 'Tavily Hit', url: 'https://t.example', content: 'snippet text' },
+        { title: 'Second Hit', url: 'https://second.example', content: 'second snippet' },
+        { title: 'Third Hit', url: 'https://third.example', content: 'third snippet' },
+        { title: 'Fourth Hit', url: 'https://fourth.example', content: 'fourth snippet' },
+      ],
       answer: 'summary',
     };
     const fetchMock = vi.fn().mockResolvedValue({
@@ -1201,7 +2076,7 @@ describe('WebSearchExecutor', () => {
     const ctx = makeContext();
 
     const result = await executor.execute(
-      makeToolCall('web_search', { query: 'hello' }),
+      makeToolCall('web_search', { query: ' \nhello\t ', max_results: 3 }),
       ctx,
     );
 
@@ -1214,10 +2089,17 @@ describe('WebSearchExecutor', () => {
     expect(init.headers['Content-Type']).toBe('application/json');
     const body = JSON.parse(init.body);
     expect(body.query).toBe('hello');
-    expect(body.max_results).toBe(10);
+    expect(body.max_results).toBe(3);
 
     // Result maps Tavily `content` field → snippet
     expect(result.isError).toBeUndefined();
+    expect(result.metadata).toMatchObject({
+      provider: 'tavily',
+      query: 'hello',
+      maxResults: 3,
+      resultCount: 3,
+    });
+    expect(result.metadata.searchResults).toHaveLength(3);
     expect(result.metadata.searchResults[0]).toMatchObject({
       title: 'Tavily Hit',
       url: 'https://t.example',
@@ -1267,6 +2149,22 @@ describe('WebSearchExecutor', () => {
 
     expect(globalThis.fetch).toHaveBeenCalledWith('https://searxng/search?q=q', expect.objectContaining({ method: 'GET' }));
   });
+
+  it('adds q to custom endpoints that already have query parameters', async () => {
+    const mockData = { results: [{ title: 'SearXNG', url: 'https://s.example' }] };
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockData),
+    });
+
+    const executor = new WebSearchExecutor('https://searxng/search?format=json');
+    await executor.execute(makeToolCall('web_search', { query: 'hello world' }), makeContext());
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://searxng/search?format=json&q=hello+world',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
 });
 
 describe('WebFetchExecutor', () => {
@@ -1304,10 +2202,113 @@ describe('WebFetchExecutor', () => {
     expect(result.output).toContain('<h1>Hello World</h1>');
     expect(result.isError).toBeUndefined();
     expect(result.metadata).toMatchObject({
-      url: 'https://example.com',
+      url: 'https://example.com/',
       contentType: 'text/html; charset=utf-8',
       status: 200,
     });
+  });
+
+  it('returns markdown when markdown format is requested for HTML', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        get: (name: string) => {
+          if (name === 'content-type') return 'text/html';
+          return null;
+        },
+      },
+      text: () => Promise.resolve('<h1>Hello</h1><p>Read <a href="https://example.com/docs">docs</a>.</p>'),
+    });
+
+    const executor = new WebFetchExecutor();
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_fetch', { url: 'https://example.com', format: 'markdown' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toContain('# Hello');
+    expect(result.output).toContain('[docs](https://example.com/docs)');
+    expect(result.output).not.toContain('<h1>');
+    expect(result.output).not.toContain('<a href=');
+  });
+
+  it('uses the trimmed format before fetching and formatting output', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        get: (name: string) => {
+          if (name === 'content-type') return 'text/html';
+          return null;
+        },
+      },
+      text: () => Promise.resolve('<h1>Hello</h1>'),
+    });
+
+    const executor = new WebFetchExecutor();
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_fetch', { url: 'https://example.com', format: ' markdown\n' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toContain('# Hello');
+    expect(globalThis.fetch).toHaveBeenCalled();
+  });
+
+  it('returns response body as text when content type is missing', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        get: () => null,
+      },
+      text: () => Promise.resolve('plain body without content type'),
+    });
+
+    const executor = new WebFetchExecutor();
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_fetch', { url: 'https://example.com/plain' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toBe('plain body without content type');
+    expect(result.output).not.toContain('Binary content');
+  });
+
+  it('treats content type media values case-insensitively', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        get: (name: string) => {
+          if (name === 'content-type') return 'TEXT/HTML; charset=utf-8';
+          return null;
+        },
+      },
+      text: () => Promise.resolve('<h1>Mixed Case</h1>'),
+    });
+
+    const executor = new WebFetchExecutor();
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_fetch', { url: 'https://example.com/mixed-case' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(result.output).toBe('<h1>Mixed Case</h1>');
+    expect(result.output).not.toContain('Binary content');
   });
 
   it('returns error when url is missing', async () => {
@@ -1334,6 +2335,81 @@ describe('WebFetchExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('"url" is required');
+  });
+
+  it('uses the normalized URL after validation when fetching', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'text/plain' },
+      text: () => Promise.resolve('body'),
+    });
+    globalThis.fetch = fetchMock;
+
+    const executor = new WebFetchExecutor();
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_fetch', { url: ' \nhttps://example.com\t ' }),
+      ctx,
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result.metadata).toMatchObject({ url: 'https://example.com/' });
+  });
+
+  it('returns error for invalid format before fetching', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'text/plain' },
+      text: () => Promise.resolve('body'),
+    });
+    globalThis.fetch = fetchMock;
+
+    const executor = new WebFetchExecutor();
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('web_fetch', { url: 'https://example.com', format: 'html' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"format" must be "text" or "markdown"');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-http URLs before calling fetch', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      text: () => Promise.resolve('local file'),
+    });
+    globalThis.fetch = fetchMock;
+
+    const executor = new WebFetchExecutor();
+    const ctx = makeContext();
+
+    const fileResult = await executor.execute(
+      makeToolCall('web_fetch', { url: 'file:///etc/passwd' }),
+      ctx,
+    );
+    const ftpResult = await executor.execute(
+      makeToolCall('web_fetch', { url: 'ftp://example.com/data' }),
+      ctx,
+    );
+
+    expect(fileResult.isError).toBe(true);
+    expect(fileResult.output).toContain('http:// or https://');
+    expect(ftpResult.isError).toBe(true);
+    expect(ftpResult.output).toContain('http:// or https://');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('returns isError for HTTP error status', async () => {
@@ -1422,6 +2498,7 @@ describe('WebFetchExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('connection refused');
+    expect(result.metadata).toMatchObject({ url: 'https://example.com/' });
   });
 
   it('handles JSON content type as text', async () => {
@@ -1469,8 +2546,9 @@ describe('MemorySaveExecutor', () => {
     );
 
     expect(mockManager.saveAutoMemory).toHaveBeenCalledWith('User prefers TypeScript', 'general');
-    expect(result.output).toContain('Saved to memory');
-    expect(result.output).toContain('User prefers TypeScript');
+    expect(result.output).toContain('Saved 23 characters');
+    expect(result.output).not.toContain('User prefers TypeScript');
+    expect(result.metadata).toMatchObject({ category: 'general', contentLength: 23 });
     expect(result.isError).toBeUndefined();
   });
 
@@ -1490,6 +2568,53 @@ describe('MemorySaveExecutor', () => {
     expect(mockManager.saveAutoMemory).toHaveBeenCalledWith('some fact', 'preferences');
   });
 
+  it('passes trimmed custom category to saveAutoMemory', async () => {
+    const mockManager = {
+      saveAutoMemory: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const executor = new MemorySaveExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    await executor.execute(
+      makeToolCall('memory_save', { content: 'some fact', category: '  preferences\n' }),
+      ctx,
+    );
+
+    expect(mockManager.saveAutoMemory).toHaveBeenCalledWith('some fact', 'preferences');
+  });
+
+  it('uses default category when category is blank', async () => {
+    const mockManager = {
+      saveAutoMemory: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const executor = new MemorySaveExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    await executor.execute(
+      makeToolCall('memory_save', { content: 'some fact', category: '  \n\t  ' }),
+      ctx,
+    );
+
+    expect(mockManager.saveAutoMemory).toHaveBeenCalledWith('some fact', 'general');
+  });
+
+  it('returns error when category is not a string', async () => {
+    const mockManager = { saveAutoMemory: vi.fn() };
+    const executor = new MemorySaveExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('memory_save', { content: 'some fact', category: 42 }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"category" must be a string');
+    expect(mockManager.saveAutoMemory).not.toHaveBeenCalled();
+  });
+
   it('returns error when content is missing', async () => {
     const mockManager = { saveAutoMemory: vi.fn() };
     const executor = new MemorySaveExecutor(mockManager as any);
@@ -1497,6 +2622,21 @@ describe('MemorySaveExecutor', () => {
 
     const result = await executor.execute(
       makeToolCall('memory_save', {}),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"content" is required');
+    expect(mockManager.saveAutoMemory).not.toHaveBeenCalled();
+  });
+
+  it('returns error when content is blank before saving', async () => {
+    const mockManager = { saveAutoMemory: vi.fn() };
+    const executor = new MemorySaveExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('memory_save', { content: '  \n\t  ' }),
       ctx,
     );
 
@@ -1534,9 +2674,13 @@ describe('MemorySaveExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('storage full');
+    expect(result.metadata).toMatchObject({
+      category: 'general',
+      contentLength: 4,
+    });
   });
 
-  it('trims content and truncates long content in output', async () => {
+  it('trims content without echoing long content in output', async () => {
     const longContent = 'a'.repeat(100);
     const mockManager = {
       saveAutoMemory: vi.fn().mockResolvedValue(undefined),
@@ -1552,8 +2696,8 @@ describe('MemorySaveExecutor', () => {
 
     // saveAutoMemory should receive trimmed content
     expect(mockManager.saveAutoMemory).toHaveBeenCalledWith(longContent, 'general');
-    // Output should show first 80 chars with ...
-    expect(result.output).toContain('...');
+    expect(result.output).not.toContain('a'.repeat(80));
+    expect(result.metadata).toMatchObject({ category: 'general', contentLength: 100 });
   });
 });
 
@@ -1601,6 +2745,134 @@ describe('MemoryRecallExecutor', () => {
     expect(result.output).not.toContain('pnpm');
   });
 
+  it('filters memories by trimmed keyword', async () => {
+    const mockManager = {
+      getAllMemoryText: vi.fn().mockReturnValue(
+        '- User prefers TypeScript\n- Project uses pnpm\n- User likes dark mode',
+      ),
+    };
+
+    const executor = new MemoryRecallExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('memory_recall', { keyword: '  typescript\n' }),
+      ctx,
+    );
+
+    expect(result.output).toContain('User prefers TypeScript');
+    expect(result.output).not.toContain('pnpm');
+  });
+
+  it('filters memories by query alias', async () => {
+    const mockManager = {
+      getAllMemoryText: vi.fn().mockReturnValue(
+        '- User prefers TypeScript\n- Project uses pnpm\n- User likes dark mode',
+      ),
+    };
+
+    const executor = new MemoryRecallExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('memory_recall', { query: 'typescript' }),
+      ctx,
+    );
+
+    expect(result.output).toContain('User prefers TypeScript');
+    expect(result.output).not.toContain('pnpm');
+  });
+
+  it('returns error when keyword is not a string', async () => {
+    const mockManager = {
+      getAllMemoryText: vi.fn().mockReturnValue('- secret memory'),
+    };
+
+    const executor = new MemoryRecallExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('memory_recall', { keyword: 42 }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"keyword" must be a string');
+    expect(mockManager.getAllMemoryText).not.toHaveBeenCalled();
+  });
+
+  it('returns error when query alias is not a string', async () => {
+    const mockManager = {
+      getAllMemoryText: vi.fn().mockReturnValue('- secret memory'),
+    };
+
+    const executor = new MemoryRecallExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('memory_recall', { query: 42 }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"query" must be a string');
+    expect(mockManager.getAllMemoryText).not.toHaveBeenCalled();
+  });
+
+  it('returns error when keyword is blank before reading memory', async () => {
+    const mockManager = {
+      getAllMemoryText: vi.fn().mockReturnValue('- secret memory'),
+    };
+
+    const executor = new MemoryRecallExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('memory_recall', { keyword: '  \n\t  ' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"keyword" must be a non-empty string');
+    expect(mockManager.getAllMemoryText).not.toHaveBeenCalled();
+  });
+
+  it('returns error when query alias is blank before reading memory', async () => {
+    const mockManager = {
+      getAllMemoryText: vi.fn().mockReturnValue('- secret memory'),
+    };
+
+    const executor = new MemoryRecallExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('memory_recall', { query: '  \n\t  ' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"query" must be a non-empty string');
+    expect(mockManager.getAllMemoryText).not.toHaveBeenCalled();
+  });
+
+  it('rejects ambiguous keyword and query alias together', async () => {
+    const mockManager = {
+      getAllMemoryText: vi.fn().mockReturnValue('- secret memory'),
+    };
+
+    const executor = new MemoryRecallExecutor(mockManager as any);
+    const ctx = makeContext();
+
+    const result = await executor.execute(
+      makeToolCall('memory_recall', { keyword: 'typescript', query: 'pnpm' }),
+      ctx,
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('use either "keyword" or "query"');
+    expect(mockManager.getAllMemoryText).not.toHaveBeenCalled();
+  });
+
   it('returns "No memories saved yet" when empty', async () => {
     const mockManager = {
       getAllMemoryText: vi.fn().mockReturnValue(''),
@@ -1644,12 +2916,16 @@ describe('MemoryRecallExecutor', () => {
     const ctx = makeContext();
 
     const result = await executor.execute(
-      makeToolCall('memory_recall', {}),
+      makeToolCall('memory_recall', { query: '  TypeScript\n' }),
       ctx,
     );
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('read error');
+    expect(result.metadata).toMatchObject({
+      filterName: 'query',
+      keyword: 'TypeScript',
+    });
   });
 });
 
@@ -1799,6 +3075,22 @@ describe('PlanCreateExecutor', () => {
     expect(result.isError).toBe(true);
     expect(result.output).toContain('"steps" is required');
   });
+
+  it('returns error when a step title is not a string', async () => {
+    const mockPM = makeMockPlanningManager();
+    const executor = new PlanCreateExecutor(mockPM as any);
+
+    const result = await executor.execute(
+      makeToolCall('plan_create', {
+        title: 'Plan',
+        steps: [{ title: 123, description: 'First' }],
+      }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"steps" must contain');
+    expect(mockPM.createPlan).not.toHaveBeenCalled();
+  });
 });
 
 // ============================================================
@@ -1924,6 +3216,26 @@ describe('PlanUpdateStepExecutor', () => {
         if (id !== 'plan_1') return '';
         return `# Test Plan\nPlan ID: plan_1\n\n${plan.steps.map((s) => `[${s.status === 'completed' ? 'x' : ' '}] ${s.id}: ${s.title}`).join('\n')}`;
       }),
+      getProgress: vi.fn((id: string) => {
+        if (id !== 'plan_1') {
+          return {
+            total: 0,
+            completed: 0,
+            failed: 0,
+            pending: 0,
+            inProgress: 0,
+            skipped: 0,
+          };
+        }
+        return {
+          total: plan.steps.length,
+          completed: plan.steps.filter((s) => s.status === 'completed').length,
+          failed: plan.steps.filter((s) => s.status === 'failed').length,
+          pending: plan.steps.filter((s) => s.status === 'pending').length,
+          inProgress: plan.steps.filter((s) => s.status === 'in_progress').length,
+          skipped: plan.steps.filter((s) => s.status === 'skipped').length,
+        };
+      }),
     };
   }
 
@@ -1961,6 +3273,24 @@ describe('PlanUpdateStepExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('"planId" is required');
+  });
+
+  it('returns error when planId is not a string', async () => {
+    const mockPM = makeMockPM();
+    const executor = new PlanUpdateStepExecutor(mockPM as any);
+
+    const result = await executor.execute(
+      makeToolCall('plan_update_step', {
+        planId: 42,
+        stepId: 'step_1',
+        status: 'completed',
+      }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"planId" is required');
+    expect(mockPM.getPlan).not.toHaveBeenCalled();
+    expect(mockPM.updateStepStatus).not.toHaveBeenCalled();
   });
 
   it('returns error when stepId is missing', async () => {
@@ -2007,6 +3337,25 @@ describe('PlanUpdateStepExecutor', () => {
 
     expect(result.isError).toBe(true);
     expect(result.output).toContain('"status" must be one of');
+  });
+
+  it('returns error when result is not a string', async () => {
+    const mockPM = makeMockPM();
+    const executor = new PlanUpdateStepExecutor(mockPM as any);
+
+    const result = await executor.execute(
+      makeToolCall('plan_update_step', {
+        planId: 'plan_1',
+        stepId: 'step_1',
+        status: 'completed',
+        result: 42,
+      }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('"result" must be a string');
+    expect(mockPM.getPlan).not.toHaveBeenCalled();
+    expect(mockPM.updateStepStatus).not.toHaveBeenCalled();
   });
 
   it('accepts "in_progress" as valid status', async () => {
