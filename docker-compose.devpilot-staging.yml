@@ -1,36 +1,184 @@
 name: devpilot-g003-staging
 
 services:
-  mysql:
+  # ---------- API's own infrastructure (renamed: was mysql/redis) ----------
+  # Renamed so the new resource/pool mysql can take the legacy `mysql` service
+  # name and `devpilot-g003-mysql` container name. The real reason the name
+  # matters is the staging script's commandPolicyFlow regex (which matches
+  # `devpilot-g003-mysql` for the `docker cp` / `docker exec` patterns) and
+  # `backup.service.ts`'s `safeDockerName` fallback that derives a name from
+  # `resource.name` when no config is set.
+  # All staging published ports bind to 127.0.0.1 only so the unauthenticated
+  # services (mysql, minio, mailhog, ssh, the docker proxy) are not reachable
+  # from the LAN during a `pnpm dev` session.
+  api-mysql:
     image: mysql:8.0
-    container_name: devpilot-g003-mysql
+    container_name: devpilot-g003-api-mysql
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: devpilot_g003_staging
     ports:
-      - "${DEVPILOT_STAGING_MYSQL_PORT:-3320}:3306"
+      - "127.0.0.1:${DEVPILOT_STAGING_MYSQL_PORT:-3320}:3306"
+    volumes:
+      - devpilot-g003-api-mysql-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -ppassword --silent"]
       interval: 5s
       timeout: 3s
       retries: 30
 
-  redis:
+  api-redis:
     image: redis:7-alpine
-    container_name: devpilot-g003-redis
+    container_name: devpilot-g003-api-redis
     ports:
-      - "${DEVPILOT_STAGING_REDIS_PORT:-6384}:6379"
+      - "127.0.0.1:${DEVPILOT_STAGING_REDIS_PORT:-6384}:6379"
+    volumes:
+      - devpilot-g003-api-redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 30
 
+  # ---------- Resource / pool / backup targets (Tier A) ----------
+  mysql:                                      # resource pool mysql; keeps legacy name so backup regex matches
+    image: mysql:8.0
+    container_name: devpilot-g003-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: devpilot_resource_pool
+    ports:
+      - "127.0.0.1:${DEVPILOT_STAGING_RESOURCE_MYSQL_PORT:-3321}:3306"
+    volumes:
+      - devpilot-g003-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -ppassword --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:                                      # resource pool redis
+    image: redis:7-alpine
+    container_name: devpilot-g003-redis
+    ports:
+      - "127.0.0.1:${DEVPILOT_STAGING_RESOURCE_REDIS_PORT:-6385}:6379"
+    volumes:
+      - devpilot-g003-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: devpilot-g003-resource-postgres
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: devpilot_resource_pool
+    ports:
+      - "127.0.0.1:${DEVPILOT_STAGING_RESOURCE_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - devpilot-g003-resource-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  ssh-server:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: devpilot-g003-ssh-server
+    environment:
+      PASSWORD_AUTH: "true"
+      USER_NAME: devpilot
+      USER_PASSWORD: devpilot
+      SUDO_ACCESS: "false"
+      PUID: "1000"
+      PGID: "1000"
+    ports:
+      - "127.0.0.1:${DEVPILOT_STAGING_SSH_PORT:-2223}:2222"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 2222 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: minio/minio:latest
+    container_name: devpilot-g003-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+      MINIO_BROWSER: "on"
+    ports:
+      - "127.0.0.1:${DEVPILOT_STAGING_MINIO_PORT:-9100}:9000"
+      - "127.0.0.1:${DEVPILOT_STAGING_MINIO_CONSOLE_PORT:-9101}:9001"
+    volumes:
+      - devpilot-g003-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  minio-mc:                                   # one-shot bucket bootstrap; not started by default
+    image: minio/mc:latest
+    container_name: devpilot-g003-minio-mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-lc"]
+    command: ["mc alias set local http://minio:9000 minio minio12345 && mc mb --ignore-existing local/devpilot-test"]
+    profiles: ["seed"]
+
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: devpilot-g003-docker-socket-proxy
+    # Read-only docker daemon proxy. Only GET endpoints are unlocked below:
+    # the only dockerode call site is `listContainers` (GET /containers/json)
+    # in apps/devpilot-api/src/resource-control/inventory/executors/docker-api-inventory-executor.ts.
+    # Do NOT re-add POST=1 / EXEC=1 unless a future slice adds a dockerode
+    # `.exec()` / `.createContainer()` call site — there are none today
+    # (the original "exec probes need POST" rationale was false).
+    environment:
+      CONTAINERS: "1"      # GET /containers/json — listContainers
+      IMAGES: "1"          # GET /images/json   — future image inventory
+      INFO: "1"            # GET /info
+      VERSION: "1"         # GET /version (healthcheck + observability() smoke)
+    ports:
+      - "127.0.0.1:${DEVPILOT_STAGING_DOCKER_PROXY_PORT:-2376}:2375"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      # tecnativa/docker-socket-proxy:0.3.0 is alpine-based and ships busybox
+      # wget but not curl, so the healthcheck must use wget.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:2375/version >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: devpilot-g003-mailhog
+    environment:
+      MH_STORAGE: memory
+    ports:
+      - "127.0.0.1:${DEVPILOT_STAGING_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${DEVPILOT_STAGING_MAILHOG_HTTP_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8025 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # ---------- Unchanged existing services ----------
   virtual-nginx:
     image: nginx:alpine
     container_name: devpilot-g003-virtual-nginx
     ports:
-      - "${DEVPILOT_STAGING_NGINX_PORT:-18098}:80"
+      - "127.0.0.1:${DEVPILOT_STAGING_NGINX_PORT:-18098}:80"
 
   backup-target:
     image: alpine:3.20
@@ -41,7 +189,7 @@ services:
     image: node:20-alpine
     container_name: devpilot-g003-fake-provider
     ports:
-      - "${DEVPILOT_STAGING_FAKE_PROVIDER_PORT:-19091}:19091"
+      - "127.0.0.1:${DEVPILOT_STAGING_FAKE_PROVIDER_PORT:-19091}:19091"
     command:
       - node
       - -e
@@ -63,3 +211,11 @@ services:
             }));
           });
         }).listen(19091, '0.0.0.0');
+
+volumes:
+  devpilot-g003-api-mysql-data:
+  devpilot-g003-api-redis-data:
+  devpilot-g003-mysql-data:
+  devpilot-g003-redis-data:
+  devpilot-g003-resource-postgres-data:
+  devpilot-g003-minio-data:
