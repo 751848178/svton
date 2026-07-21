@@ -46,7 +46,7 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
         <button
           onClick={handleSaveRedaction}
           disabled={t.savingRedaction}
-          className="w-full rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="min-h-11 w-full rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {t.savingRedaction ? tl('saving') : tl('saveRedaction')}
         </button>
@@ -62,7 +62,7 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
           {tl('enable')}
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Query</span>
+          <span className="mb-1 block font-medium">{tl('slsQuery')}</span>
           <input
             value={t.slsBackfillQuery}
             onChange={(e) => t.setSlsBackfillQuery(e.target.value)}
@@ -80,7 +80,7 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">Limit</span>
+            <span className="mb-1 block font-medium">{tl('slsLimit')}</span>
             <input
               type="number"
               value={t.slsBackfillLimit}
@@ -92,13 +92,13 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
         <button
           onClick={handleSaveSls}
           disabled={t.savingSlsBackfill}
-          className="w-full rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="min-h-11 w-full rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {t.savingSlsBackfill ? tl('saving') : tl('saveBackfill')}
         </button>
       </div>
       <div className="rounded-lg border p-4 space-y-3">
-        <h3 className="font-medium text-sm">Server Follow</h3>
+        <h3 className="font-medium text-sm">{tl('serverFollowPolicy')}</h3>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -130,7 +130,7 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
         <button
           onClick={handleSaveFollow}
           disabled={t.savingServerFollow}
-          className="w-full rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="min-h-11 w-full rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {t.savingServerFollow ? tl('saving') : tl('saveFollow')}
         </button>

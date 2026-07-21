@@ -6,14 +6,27 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { usePollingList } from '@/hooks/use-polling-list';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { BackupPlan, BackupRun, ManagedResource, BackupPlanInput } from '../types';
 import { isBackupableResource } from '../utils';
 
 export function useBackups() {
+  const t = useTranslations('backups');
+  // 备份运行记录（GET:/backups/runs）：存在 queued/running 运行时保持 10s 轮询，终态后自动停止。
+  const runsSWR = usePollingList<BackupRun>(
+    'GET:/backups/runs',
+    () => apiRequest<BackupRun[]>('GET:/backups/runs'),
+    {
+      isActive: (run) => run.status === 'queued' || run.status === 'running',
+      interval: 10000,
+    },
+  );
+  const runs = useMemo(() => runsSWR.data ?? [], [runsSWR.data]);
   const [plans, setPlans] = useState<BackupPlan[]>([]);
-  const [runs, setRuns] = useState<BackupRun[]>([]);
   const [resources, setResources] = useState<ManagedResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -25,13 +38,13 @@ export function useBackups() {
   const load = usePersistFn(async (opts?: { keepLoading?: boolean }) => {
     if (opts?.keepLoading !== false) setError('');
     try {
-      const [planData, runData, resourceData] = await Promise.all([
+      // runs 走 SWR mutate：手动 reload 与轮询共享缓存，不会双份请求。
+      const [planData, resourceData] = await Promise.all([
         apiRequest<BackupPlan[]>('GET:/backups/plans'),
-        apiRequest<BackupRun[]>('GET:/backups/runs'),
         apiRequest<ManagedResource[]>('GET:/resource-control/resources'),
+        runsSWR.mutate(),
       ]);
       setPlans(planData);
-      setRuns(runData);
       setResources(resourceData);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载备份数据失败');
@@ -88,6 +101,23 @@ export function useBackups() {
     }
   });
 
+  // 恢复入口由页面层 ConfirmDialog（danger）把关，这里只执行动作并反馈结果。
+  // dryRun: true 生成恢复计划（后端 dryRun !== false 时走 planRestore，live 恢复会被 block）。
+  const restoreRun = usePersistFn(async (runId: string) => {
+    try {
+      await apiRequest(`POST:/backups/runs/${runId}/restore`, {
+        dryRun: true,
+        trigger: 'manual',
+      });
+      // load 内含 runsSWR.mutate()，恢复产生的新 run 会立即出现在运行记录里并恢复轮询。
+      await load({ keepLoading: false });
+      feedback.success(t('restoreSuccess'));
+    } catch (err) {
+      console.error('Failed to restore backup run:', err);
+      feedback.error(t('restoreFailed'));
+    }
+  });
+
   const backupableResources = useMemo(() => resources.filter(isBackupableResource), [resources]);
 
   const stats = useMemo(
@@ -100,6 +130,9 @@ export function useBackups() {
     [plans, runs],
   );
 
+  // 手动 load 的错误与轮询期间的 SWR 错误合并为一个 string，保持原有 error 导出语义。
+  const errorMessage = error || (runsSWR.error ? runsSWR.error.message : '');
+
   return {
     plans,
     runs,
@@ -110,12 +143,13 @@ export function useBackups() {
     creating,
     runningPlanId,
     updatingPlanId,
-    error,
+    error: errorMessage,
     queueBackupRuns,
     setQueueBackupRuns,
     createPlan,
     runPlan,
     togglePlanStatus,
+    restoreRun,
     reload: load,
   };
 }

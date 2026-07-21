@@ -1,10 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { useProjectConfigStore } from '@/store/hooks';
 import { usePresets } from '../hooks/use-presets';
 import { SavePresetModal } from './save-preset-modal';
@@ -23,10 +26,13 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
   const { presets, isLoading, fetchConfig, create, remove, importPreset, exportPreset } =
     usePresets(initialPresets);
   const [modalOpen, { setTrue: openModal, setFalse: closeModal }] = useBoolean(false);
+  // 删除确认弹窗状态（一个操作一个确认实例）
+  const [deleteTarget, setDeleteTarget] = useState<Preset | null>(null);
 
   const handleLoad = usePersistFn(async (id: string) => {
     const cfg = await fetchConfig(id);
     loadPreset(cfg as typeof config);
+    feedback.success(t('loadSuccess'));
     router.push('/projects/new');
   });
 
@@ -42,12 +48,19 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to export preset:', error);
+      feedback.error(t('exportFailed'));
     }
   });
 
-  const handleDelete = usePersistFn(async (id: string) => {
-    if (!confirm(t('deleteConfirm'))) return;
-    await remove(id);
+  const handleConfirmDelete = usePersistFn(async () => {
+    if (!deleteTarget) return;
+    try {
+      await remove(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error('Failed to delete preset:', error);
+      feedback.error(t('deleteFailed'));
+    }
   });
 
   const handleImport = usePersistFn(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,7 +71,7 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
       await importPreset({ name: data.name, config: data.config });
     } catch (error) {
       console.error('Failed to import preset:', error);
-      alert(t('importFailed'));
+      feedback.error(t('importFailed'));
     }
   });
 
@@ -122,7 +135,7 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
                 presetId={preset.id}
                 onLoad={handleLoad}
                 onExport={handleExport}
-                onDelete={handleDelete}
+                onDelete={() => setDeleteTarget(preset)}
               />
             </div>
           ))}
@@ -134,6 +147,19 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
         config={config}
         onClose={closeModal}
         onSave={handleSave}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        tone="danger"
+        title={t('deleteConfirmTitle')}
+        description={t('deleteConfirm')}
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

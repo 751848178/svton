@@ -5,8 +5,10 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { CDNConfig } from '../types';
 
 interface EditForm {
@@ -15,6 +17,7 @@ interface EditForm {
 }
 
 export function useCdnConfig(configId: string) {
+  const t = useTranslations('cdnConfigs');
   const [config, setConfig] = useState<CDNConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [purging, setPurging] = useState(false);
@@ -41,10 +44,10 @@ export function useCdnConfig(configId: string) {
     setPurging(true);
     try {
       await apiRequest(`POST:/cdn-configs/${configId}/purge`, { paths });
-      alert('缓存清除请求已发送');
+      feedback.success(t('purgeSuccess'));
     } catch (error) {
       console.error('Purge failed:', error);
-      alert('缓存清除失败');
+      feedback.error(t('purgeFailed'));
     } finally {
       setPurging(false);
     }
@@ -57,6 +60,7 @@ export function useCdnConfig(configId: string) {
       await load();
     } catch (error) {
       console.error('Save failed:', error);
+      feedback.error(t('saveFailed'));
     }
   });
 

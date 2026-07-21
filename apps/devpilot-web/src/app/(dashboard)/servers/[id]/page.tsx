@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useServerDetail } from './hooks/use-server-detail';
 import { ServerDetailView } from './components/server-detail-view';
 
@@ -29,8 +31,9 @@ export default function ServerDetailPage() {
     remove,
   } = useServerDetail(serverId);
 
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
   const handleDelete = usePersistFn(async () => {
-    if (!confirm(t('deleteServerConfirm'))) return;
     await remove();
     router.push('/servers');
   });
@@ -91,7 +94,7 @@ export default function ServerDetailPage() {
                 {testing ? t('testing') : t('testConnection')}
               </button>
               <button
-                onClick={() => router.push(`/proxy-configs/new?serverId=${server.id}`)}
+                onClick={() => router.push(`/proxy-configs?new=true&serverId=${server.id}`)}
                 className="w-full rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
               >
                 {t('addProxyConfig')}
@@ -101,7 +104,7 @@ export default function ServerDetailPage() {
           <div className="rounded-lg border border-destructive/50 p-6">
             <h2 className="mb-4 font-semibold text-destructive">{t('dangerZone')}</h2>
             <button
-              onClick={handleDelete}
+              onClick={() => setDeleteOpen(true)}
               className="w-full rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
             >
               {t('deleteServer')}
@@ -109,6 +112,18 @@ export default function ServerDetailPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        tone="danger"
+        title={t('deleteServerTitle')}
+        description={t('deleteServerConfirm')}
+        resourceName={server.name}
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

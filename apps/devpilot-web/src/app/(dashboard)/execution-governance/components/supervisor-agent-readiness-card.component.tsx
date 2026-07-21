@@ -39,36 +39,39 @@ export function SupervisorAgentReadinessCard({
     <div className="rounded-lg border p-4 text-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="font-medium">Agent readiness</h3>
+          <h3 className="font-medium">{t('agentReadiness')}</h3>
           <div className="mt-1 text-xs text-muted-foreground">
-            {agent.capableServers}/{agent.totalServers} servers
+            {t('agentServersSummary', {
+              capable: agent.capableServers,
+              total: agent.totalServers,
+            })}
           </div>
         </div>
         <StatusBadge status={agent.targetSelectionEnabled ? 'running' : 'blocked'} />
       </div>
       <div className="mt-4 grid gap-x-6 gap-y-2 sm:grid-cols-2">
         <SupervisorField
-          label="executor"
+          label={t('fieldExecutor')}
           value={agent.dispatcher.executorEnabled ? tc('enabled') : tc('disabled')}
         />
         <SupervisorField
-          label="dispatcher"
+          label={t('fieldDispatcher')}
           value={agent.dispatcher.dispatcherConfigured ? t('configured') : t('notConfigured')}
         />
         <SupervisorField
-          label="timeout"
+          label={t('fieldTimeout')}
           value={`${agent.dispatcher.timeoutSeconds}s`}
         />
         <SupervisorField
-          label="token"
+          label={t('fieldToken')}
           value={agent.dispatcher.tokenConfigured ? t('configured') : t('notConfigured')}
         />
         <SupervisorField
-          label="heartbeat"
+          label={t('fieldHeartbeat')}
           value={agent.runtime.heartbeatEnabled ? tc('enabled') : tc('disabled')}
         />
         <SupervisorField
-          label="hb token"
+          label={t('fieldHbToken')}
           value={agent.runtime.tokenConfigured ? t('configured') : t('notConfigured')}
         />
         <SupervisorField
@@ -84,19 +87,19 @@ export function SupervisorAgentReadinessCard({
           value={String(agent.onlineCapableServers)}
         />
         <SupervisorField
-          label="runtime"
+          label={t('fieldRuntime')}
           value={`${agent.runtime.onlineServers}/${agent.runtime.staleServers}/${agent.runtime.unknownServers}`}
         />
         <SupervisorField
-          label="runtime ready"
+          label={t('fieldRuntimeReady')}
           value={`${agent.runtimeHealth.readyServers}/${agent.runtimeHealth.totalServers}`}
         />
         <SupervisorField
-          label="runtime issues"
+          label={t('fieldRuntimeIssues')}
           value={`${agent.runtimeHealth.degradedServers}/${agent.runtimeHealth.staleServers}/${agent.runtimeHealth.missingHeartbeatServers}`}
         />
         <SupervisorField
-          label="expiring soon"
+          label={t('fieldExpiringSoon')}
           value={String(agent.runtimeHealth.expiringSoonServers)}
         />
         <SupervisorField
@@ -108,27 +111,27 @@ export function SupervisorAgentReadinessCard({
           }
         />
         <SupervisorField
-          label="fleet live-ready"
+          label={t('fieldFleetLiveReady')}
           value={`${agent.fleet.liveDispatchReadyServers}/${agent.fleet.totalServers}`}
         />
         <SupervisorField
-          label="fleet pressure"
+          label={t('fieldFleetPressure')}
           value={`${agent.fleet.pressureServers}/${agent.fleet.scannedJobs}`}
         />
         <SupervisorField
-          label="lifecycle"
+          label={t('fieldLifecycle')}
           value={formatAgentLifecycleState(preflight.state)}
         />
         <SupervisorField
-          label="preflight blockers"
+          label={t('fieldPreflightBlockers')}
           value={`${criticalBlockers}/${warningBlockers}`}
         />
         <SupervisorField
-          label="task pull"
+          label={t('fieldTaskPull')}
           value={formatAgentLifecycleState(taskPull.state)}
         />
         <SupervisorField
-          label="pull blockers"
+          label={t('fieldPullBlockers')}
           value={`${taskPullCriticalBlockers}/${taskPullWarningBlockers}`}
         />
       </div>

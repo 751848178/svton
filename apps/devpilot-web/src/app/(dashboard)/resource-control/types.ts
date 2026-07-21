@@ -26,22 +26,6 @@ export interface ManagedResource {
   credential?: { id: string; name: string; type: string } | null;
 }
 
-export interface ProjectEnvironment {
-  id: string;
-  key: string;
-  name: string;
-  status: string;
-  project?: { id: string; name: string } | null;
-}
-
-export interface TeamCredential {
-  id: string;
-  type: string;
-  name: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
 export interface ServerExecutionJobRef {
   id: string;
   status: string;

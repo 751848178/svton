@@ -8,8 +8,10 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { useQueryLoose, mutate } from '@/hooks/api/use-api';
 import type { CDNConfig, TeamCredential, CDNConfigInput, CredentialInput } from '../types';
 
@@ -18,6 +20,7 @@ const CONFIGS_KEY = 'GET:/cdn-configs';
 const CREDENTIALS_KEY = 'GET:/team-credentials';
 
 export function useCdnConfigs(initialConfigs?: CDNConfig[], initialCredentials?: TeamCredential[]) {
+  const t = useTranslations('cdnConfigs');
   const {
     data: configsData,
     isLoading: configsLoading,
@@ -30,6 +33,8 @@ export function useCdnConfigs(initialConfigs?: CDNConfig[], initialCredentials?:
   const credentials = credentialsData ?? [];
   const loading = configsLoading || credentialsLoading;
   const [purgingId, setPurgingId] = useState<string | null>(null);
+  const [configTarget, setConfigTarget] = useState<CDNConfig | null>(null);
+  const [credentialTarget, setCredentialTarget] = useState<TeamCredential | null>(null);
 
   const createConfig = usePersistFn(async (input: CDNConfigInput) => {
     await apiRequest('POST:/cdn-configs', input);
@@ -49,25 +54,58 @@ export function useCdnConfigs(initialConfigs?: CDNConfig[], initialCredentials?:
     setPurgingId(id);
     try {
       await apiRequest(`POST:/cdn-configs/${id}/purge`, {});
-      alert('缓存清除请求已发送');
+      feedback.success(t('purgeSuccess'));
     } catch (error) {
-      console.error('Purge failed:', error);
-      alert('缓存清除失败');
+      feedback.error(t('purgeFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setPurgingId(null);
     }
   });
 
-  const removeConfig = usePersistFn(async (id: string) => {
-    if (!confirm('确定要删除这个 CDN 配置吗？')) return;
-    await apiRequest(`DELETE:/cdn-configs/${id}`);
-    await mutate(CONFIGS_KEY);
+  const removeConfig = usePersistFn((id: string) => {
+    setConfigTarget(configs.find((c) => c.id === id) ?? null);
   });
 
-  const removeCredential = usePersistFn(async (id: string) => {
-    if (!confirm('确定要删除这个凭证吗？关联的 CDN 配置可能会受影响。')) return;
-    await apiRequest(`DELETE:/team-credentials/${id}`);
-    await mutate(CREDENTIALS_KEY);
+  const cancelRemoveConfig = usePersistFn(() => {
+    setConfigTarget(null);
+  });
+
+  const confirmRemoveConfig = usePersistFn(async () => {
+    if (!configTarget) return;
+    try {
+      await apiRequest(`DELETE:/cdn-configs/${configTarget.id}`);
+      await mutate(CONFIGS_KEY);
+      setConfigTarget(null);
+      feedback.success(t('deleteSuccess'));
+    } catch (error) {
+      feedback.error(t('deleteFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  });
+
+  const removeCredential = usePersistFn((id: string) => {
+    setCredentialTarget(credentials.find((c) => c.id === id) ?? null);
+  });
+
+  const cancelRemoveCredential = usePersistFn(() => {
+    setCredentialTarget(null);
+  });
+
+  const confirmRemoveCredential = usePersistFn(async () => {
+    if (!credentialTarget) return;
+    try {
+      await apiRequest(`DELETE:/team-credentials/${credentialTarget.id}`);
+      await mutate(CREDENTIALS_KEY);
+      setCredentialTarget(null);
+      feedback.success(t('deleteSuccess'));
+    } catch (error) {
+      feedback.error(t('deleteFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
   });
 
   const reload = usePersistFn(async () => {
@@ -79,11 +117,17 @@ export function useCdnConfigs(initialConfigs?: CDNConfig[], initialCredentials?:
     credentials,
     loading,
     purgingId,
+    configTarget,
+    credentialTarget,
     createConfig,
     createCredential,
     purge,
     removeConfig,
+    cancelRemoveConfig,
+    confirmRemoveConfig,
     removeCredential,
+    cancelRemoveCredential,
+    confirmRemoveCredential,
     reload,
   };
 }

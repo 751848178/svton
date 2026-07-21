@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
+import { Toaster } from 'sonner';
 import { AuthProvider } from '@/components/providers/auth-provider';
 import './globals.css';
 
@@ -17,6 +18,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <NextIntlClientProvider messages={messages}>
           <AuthProvider>{children}</AuthProvider>
         </NextIntlClientProvider>
+        <Toaster position="top-right" richColors closeButton />
       </body>
     </html>
   );

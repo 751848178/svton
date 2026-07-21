@@ -17,7 +17,13 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="rounded-lg border p-4">
-        <h2 className="mb-3 font-semibold">{t('resourceMetrics')}</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">{t('resourceMetrics')}</h2>
+          <WindowSwitch
+            value={m.resourceMetricDashboardWindow}
+            onChange={m.setResourceMetricDashboardWindow}
+          />
+        </div>
         {!m.resourceMetricDashboard ? (
           <EmptyState text={t('noResourceMetrics')} />
         ) : (
@@ -25,13 +31,13 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
             {m.resourceMetricDashboard.rows.slice(0, 10).map((row) => (
               <div
                 key={row.id}
-                className="flex items-center justify-between text-sm"
+                className="flex flex-wrap items-center justify-between gap-2 text-sm"
               >
-                <span>
+                <span className="min-w-0 break-words">
                   {row.kind} ({row.metricSource})
                 </span>
-                <span className="text-muted-foreground">
-                  {row.status} · {row.sampleCount} samples
+                <span className="shrink-0 text-muted-foreground">
+                  {row.status} · {t('samples', { count: row.sampleCount })}
                 </span>
               </div>
             ))}
@@ -52,14 +58,20 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
                   )}`}
             </div>
           </div>
-          {m.applicationServiceId ? (
-            <Link
-              href="/monitoring"
-              className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent"
-            >
-              {t('viewAllServices')}
-            </Link>
-          ) : null}
+          <div className="flex items-center gap-2">
+            <WindowSwitch
+              value={m.serviceSloDashboardWindow}
+              onChange={m.setServiceSloDashboardWindow}
+            />
+            {m.applicationServiceId ? (
+              <Link
+                href="/monitoring"
+                className="inline-flex min-h-10 items-center rounded-md border px-3 text-xs font-medium hover:bg-accent"
+              >
+                {t('viewAllServices')}
+              </Link>
+            ) : null}
+          </div>
         </div>
         {!m.serviceSloDashboard ? (
           <EmptyState text={t('noSloData')} />
@@ -74,13 +86,13 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
                 key={row.id}
                 className="rounded-md bg-muted/40 p-3"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="font-medium">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="break-words font-medium">
                       {row.service.application?.name ? `${row.service.application.name} / ` : ''}
                       {row.service.name}
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
+                    <div className="mt-1 break-words text-xs text-muted-foreground">
                       {row.service.project?.name || row.projectId} ·{' '}
                       {row.service.environment?.name || row.environmentId}
                     </div>
@@ -104,7 +116,7 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
                     value={formatPercent(row.errorBudgetRemainingPercent)}
                   />
                   <ServiceSloMetric
-                    label="burn rate"
+                    label={t('burnRate')}
                     value={formatMetricNumber(row.burnRate)}
                   />
                   <ServiceSloMetric
@@ -156,6 +168,41 @@ function ServiceSloMetric({ label, value }: { label: string; value: string }) {
     <div className="min-w-0">
       <div className="text-[11px] text-muted-foreground">{label}</div>
       <div className="truncate text-xs font-medium">{value}</div>
+    </div>
+  );
+}
+
+const WINDOW_OPTIONS: Array<{ minutes: number; label: string }> = [
+  { minutes: 15, label: '15m' },
+  { minutes: 60, label: '1h' },
+  { minutes: 360, label: '6h' },
+  { minutes: 1440, label: '24h' },
+];
+
+/** 时间窗口切换按钮组（15m/1h/6h/24h）。 */
+function WindowSwitch({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (minutes: number) => void;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-md border text-xs">
+      {WINDOW_OPTIONS.map((option) => (
+        <button
+          key={option.minutes}
+          type="button"
+          onClick={() => onChange(option.minutes)}
+          className={`inline-flex min-h-8 items-center px-2.5 font-medium ${
+            value === option.minutes
+              ? 'bg-primary text-primary-foreground'
+              : 'hover:bg-accent'
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }

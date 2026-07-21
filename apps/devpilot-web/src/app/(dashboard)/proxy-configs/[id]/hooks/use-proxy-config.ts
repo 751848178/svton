@@ -5,11 +5,14 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { ProxyConfig } from '../types';
 
 export function useProxyConfig(configId: string) {
+  const t = useTranslations('proxyConfigs');
   const [config, setConfig] = useState<ProxyConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -33,10 +36,11 @@ export function useProxyConfig(configId: string) {
     try {
       await apiRequest(`POST:/proxy-configs/${configId}/sync`);
       await load();
-      alert('同步成功');
+      feedback.success(t('syncSuccess'));
     } catch (error) {
-      console.error('Sync failed:', error);
-      alert('同步失败');
+      feedback.error(t('syncFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setSyncing(false);
     }

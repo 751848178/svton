@@ -3,7 +3,7 @@
 import { Suspense as ReactSuspense, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { LoadingState } from '@svton/ui';
+import { LoadingState, Tabs } from '@svton/ui';
 import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useMonitoring } from './hooks/use-monitoring';
 import { RulesPanel } from './components/rules-panel';
@@ -27,6 +27,29 @@ function MonitoringContent() {
 
   if (m.loading) return <LoadingState text={tc('loading')} />;
 
+  const tabs = [
+    {
+      key: 'events',
+      label: t('alertEvents'),
+      children: <EventsPanel m={m} />,
+    },
+    {
+      key: 'rules',
+      label: t('alertRules'),
+      children: <RulesPanel m={m} />,
+    },
+    {
+      key: 'silences',
+      label: t('silencesTitle'),
+      children: <SilencesPanel m={m} />,
+    },
+    {
+      key: 'channels',
+      label: t('notificationChannels'),
+      children: <ChannelsPanel m={m} />,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -35,10 +58,10 @@ function MonitoringContent() {
       />
       {m.error ? <ErrorBanner message={m.error} /> : null}
       <DashboardPanels m={m} />
-      <RulesPanel m={m} />
-      <EventsPanel m={m} />
-      <SilencesPanel m={m} />
-      <ChannelsPanel m={m} />
+      <Tabs
+        items={tabs}
+        defaultActiveKey="events"
+      />
     </div>
   );
 }

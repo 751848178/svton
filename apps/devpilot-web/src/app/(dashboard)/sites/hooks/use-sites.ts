@@ -6,8 +6,11 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
+import { usePollingList } from '@/hooks/use-polling-list';
 import type {
   Site,
   Server,
@@ -27,6 +30,7 @@ export function useSites(
   siteId: string,
   openCreateOnMount: boolean,
 ) {
+  const t = useTranslations('sites');
   const [sites, setSites] = useState<Site[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -35,6 +39,8 @@ export function useSites(
   const [plans, setPlans] = useState<Record<string, SiteSyncPlan>>({});
   const [syncRuns, setSyncRuns] = useState<Record<string, SiteSyncRun[]>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Site | null>(null);
   const [showModal, setShowModal] = useState(openCreateOnMount);
   const [queueSiteRuns, setQueueSiteRuns] = useState(false);
 
@@ -45,6 +51,7 @@ export function useSites(
 
   const loadData = usePersistFn(async () => {
     setLoading(true);
+    setError('');
     try {
       const siteParams = {
         ...(projectId ? { projectId } : {}),
@@ -74,8 +81,8 @@ export function useSites(
         );
         setSyncRuns(Object.fromEntries(entries));
       }
-    } catch (error) {
-      console.error('Failed to load sites:', error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -85,8 +92,50 @@ export function useSites(
     loadData();
   }, [loadData, siteId]);
 
-  const handleDelete = usePersistFn(async (id: string) => {
-    if (!confirm('确定要删除这个站点吗？')) return;
+  // sync-runs 轮询：存在 queued/running 状态的运行时，每 5s 刷新对应站点的运行记录。
+  // 复用共享 usePollingList（SWR 包装）：数据内有 active 项才保持轮询，全部终态后自动停止。
+  const activeSyncRunSiteIds = Object.entries(syncRuns)
+    .filter(([, runs]) =>
+      runs.some((run) => run.status === 'queued' || run.status === 'running'),
+    )
+    .map(([id]) => id)
+    .sort();
+
+  const activeRunsSWR = usePollingList<readonly [string, SiteSyncRun[]]>(
+    activeSyncRunSiteIds.length > 0
+      ? `sites-sync-runs-active:${activeSyncRunSiteIds.join(',')}`
+      : null,
+    () =>
+      Promise.all(
+        activeSyncRunSiteIds.map(
+          async (id) =>
+            [id, await apiRequest<SiteSyncRun[]>(`GET:/sites/${id}/sync-runs`)] as const,
+        ),
+      ),
+    {
+      isActive: ([, runs]) =>
+        runs.some((run) => run.status === 'queued' || run.status === 'running'),
+      interval: 5000,
+    },
+  );
+
+  useEffect(() => {
+    const entries = activeRunsSWR.data;
+    if (!entries) return;
+    setSyncRuns((cur) => ({ ...cur, ...Object.fromEntries(entries) }));
+  }, [activeRunsSWR.data]);
+
+  const handleDelete = usePersistFn((id: string) => {
+    setDeleteTarget(sites.find((s) => s.id === id) ?? null);
+  });
+
+  const cancelDelete = usePersistFn(() => {
+    setDeleteTarget(null);
+  });
+
+  const confirmDelete = usePersistFn(async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
     try {
       await apiRequest(`DELETE:/sites/${id}`);
       setSites((cur) => cur.filter((s) => s.id !== id));
@@ -100,9 +149,12 @@ export function useSites(
         delete n[id];
         return n;
       });
+      setDeleteTarget(null);
+      feedback.success(t('deleteSuccess'));
     } catch (error) {
-      console.error('Failed to delete site:', error);
-      alert(error instanceof Error ? error.message : '删除站点失败');
+      feedback.error(t('deleteFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   });
 
@@ -126,11 +178,15 @@ export function useSites(
     plans,
     syncRuns,
     loading,
+    error,
+    deleteTarget,
     showModal,
     setShowModal,
     queueSiteRuns,
     setQueueSiteRuns,
     handleDelete,
+    cancelDelete,
+    confirmDelete,
     ...takeover,
     ...actions,
     reload: loadData,

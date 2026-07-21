@@ -7,6 +7,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import {
   type ColumnDef,
@@ -19,7 +20,7 @@ import {
 import { StatusTag } from '@/components/ui';
 import type { AuditEvent } from '../types';
 import { categoryLabels, statusLabels, riskLabels } from '../constants';
-import { formatTarget, formatRunRef, formatDateTime } from '../utils';
+import { formatTarget, getTargetHref, formatRunRef, formatDateTime } from '../utils';
 
 interface EventTableProps {
   events: AuditEvent[];
@@ -71,9 +72,17 @@ export function EventTable({ events }: EventTableProps) {
         header: t('target'),
         cell: ({ row }) => {
           const event = row.original;
+          const href = getTargetHref(event);
+          const targetName = formatTarget(event);
           return (
             <>
-              <div className="font-medium">{formatTarget(event)}</div>
+              {href ? (
+                <Link href={href} className="font-medium text-primary hover:underline">
+                  {targetName}
+                </Link>
+              ) : (
+                <div className="font-medium">{targetName}</div>
+              )}
               <div className="mt-1 font-mono text-xs text-muted-foreground">
                 {event.targetType}
                 {event.targetId ? ` · ${event.targetId}` : ''}
@@ -108,7 +117,7 @@ export function EventTable({ events }: EventTableProps) {
       },
       {
         id: 'status',
-        header: t('statusLabel'),
+        header: t('status'),
         cell: ({ row }) => {
           const event = row.original;
           return (

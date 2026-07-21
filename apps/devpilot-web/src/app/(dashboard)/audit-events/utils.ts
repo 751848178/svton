@@ -20,6 +20,55 @@ export function formatTarget(event: AuditEvent): string {
   );
 }
 
+/**
+ * 将审计事件 targetType/targetId 映射到站内路由。
+ * 返回 null 表示无法映射（渲染纯文本）。
+ * 映射口径以后端实际写入的 targetType 为准（apps/devpilot-api 审计埋点）。
+ */
+export function getTargetHref(event: AuditEvent): string | null {
+  const id = event.targetId || undefined;
+  switch (event.targetType) {
+    case 'project':
+      return id ? `/projects/${id}` : '/projects';
+    case 'server':
+      return id ? `/servers/${id}` : '/servers';
+    case 'site':
+      return '/sites';
+    case 'application':
+    case 'application_service':
+      return '/applications';
+    case 'domain':
+    case 'domain_config_artifact':
+      return '/domain';
+    case 'backup_run':
+    case 'backup_plan':
+      return '/backups';
+    case 'managed_resource':
+      return '/resources';
+    case 'resource_instance':
+      return '/resource-instances';
+    case 'resource_request':
+      return '/resource-requests';
+    case 'operation_approval':
+      return '/operation-approvals';
+    case 'cdn_config':
+    case 'cdn_artifact':
+      return '/cdn-configs';
+    case 'proxy_config':
+      return '/proxy-configs';
+    case 'git_connection':
+      return '/git';
+    case 'preset':
+      return '/presets';
+    case 'alert_event':
+      return '/monitoring';
+    case 'secret_key':
+      return '/keys';
+    default:
+      return null;
+  }
+}
+
 /** 格式化事件关联的运行记录引用（部署/资源动作/备份等）。 */
 export function formatRunRef(event: AuditEvent): string {
   if (event.deploymentRun) {

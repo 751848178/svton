@@ -2,6 +2,17 @@
 
 import type { TargetType } from './types';
 
+export const targetTypeOptions: Array<{ value: TargetType; label: string }> = [
+  { value: 'service', label: '应用服务' },
+  { value: 'server', label: '服务器' },
+  { value: 'site', label: '站点' },
+  { value: 'resource', label: '资源' },
+  { value: 'backup', label: '备份' },
+  { value: 'deployment', label: '部署' },
+  { value: 'alert', label: '告警' },
+  { value: 'manual', label: '项目' },
+];
+
 export const sourceLabels: Record<string, string> = {
   manual: '手动',
   server_executor: 'Server executor',

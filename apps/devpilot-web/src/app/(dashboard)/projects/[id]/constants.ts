@@ -43,4 +43,4 @@ export const serverRoleOptions = [
   { value: 'mixed', label: '混合用途' },
 ] as const;
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3101';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3121';

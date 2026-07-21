@@ -43,7 +43,7 @@ export function PoolFormModal({
         className="space-y-4"
       >
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{tc('type')}</span>
+          <span className="mb-1 block font-medium">{tc('type')}</span>
           <select
             value={form.type}
             onChange={(e) => onChange({ type: e.target.value })}
@@ -61,7 +61,7 @@ export function PoolFormModal({
           </select>
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{tc('name')}</span>
+          <span className="mb-1 block font-medium">{tc('name')}</span>
           <input
             type="text"
             value={form.name}
@@ -71,7 +71,7 @@ export function PoolFormModal({
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{t('endpoint')}</span>
+          <span className="mb-1 block font-medium">{t('endpoint')}</span>
           <input
             type="text"
             value={form.endpoint}
@@ -82,7 +82,7 @@ export function PoolFormModal({
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{t('capacity')}</span>
+          <span className="mb-1 block font-medium">{t('capacity')}</span>
           <input
             type="number"
             min={1}
@@ -96,13 +96,13 @@ export function PoolFormModal({
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-100"
+            className="rounded-lg px-4 py-2 text-muted-foreground hover:bg-accent"
           >
             {tc('cancel')}
           </button>
           <button
             type="submit"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            className="rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
           >
             {tc('save')}
           </button>

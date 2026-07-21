@@ -1,5 +1,7 @@
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { LogsState } from './use-logs-state';
 import type { LogsTailState } from './use-logs-tail-state';
 import type { LogStream } from '../types-stream';
@@ -16,10 +18,11 @@ interface UseLogsActionsArgs {
 
 export function useLogsActions(args: UseLogsActionsArgs) {
   const { s, t, selectedStream, isSelectedSlsStream, loadData } = args;
+  const tl = useTranslations('logs');
 
   const createStream = usePersistFn(async () => {
     if (s.targetType !== 'manual' && !s.targetId) {
-      alert('请选择日志目标');
+      feedback.error(tl('selectTarget'));
       return;
     }
     s.setSaving(true);
@@ -31,7 +34,7 @@ export function useLogsActions(args: UseLogsActionsArgs) {
       s.setSelectedStreamId(stream.id);
       await loadData();
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '创建日志流失败');
+      s.setError(err instanceof Error ? err.message : tl('createStreamFailed'));
     } finally {
       s.setSaving(false);
     }
@@ -39,11 +42,11 @@ export function useLogsActions(args: UseLogsActionsArgs) {
 
   const appendEntry = usePersistFn(async () => {
     if (!s.selectedStreamId) {
-      alert('请选择日志流');
+      feedback.error(tl('selectStream'));
       return;
     }
     if (!s.entryMessage.trim()) {
-      alert('请输入日志内容');
+      feedback.error(tl('entryMessageRequired'));
       return;
     }
     s.setAppending(true);
@@ -57,7 +60,7 @@ export function useLogsActions(args: UseLogsActionsArgs) {
       s.setEntryMessage('');
       await loadData();
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '追加日志失败');
+      s.setError(err instanceof Error ? err.message : tl('appendEntryFailed'));
     } finally {
       s.setAppending(false);
     }
@@ -65,7 +68,7 @@ export function useLogsActions(args: UseLogsActionsArgs) {
 
   const collectSelectedStream = usePersistFn(async () => {
     if (!s.selectedStreamId) {
-      alert('请选择日志流');
+      feedback.error(tl('selectStream'));
       return;
     }
     s.setCollecting(true);
@@ -77,7 +80,7 @@ export function useLogsActions(args: UseLogsActionsArgs) {
       );
       await loadData();
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '生成采集计划失败');
+      s.setError(err instanceof Error ? err.message : tl('collectFailed'));
     } finally {
       s.setCollecting(false);
     }
@@ -85,7 +88,7 @@ export function useLogsActions(args: UseLogsActionsArgs) {
 
   const cleanupSelectedRetention = usePersistFn(async (dryRun: boolean) => {
     if (!s.selectedStreamId) {
-      alert('请选择日志流');
+      feedback.error(tl('selectStream'));
       return;
     }
     t.setCleaningRetention(dryRun ? 'dry-run' : 'live');
@@ -96,7 +99,7 @@ export function useLogsActions(args: UseLogsActionsArgs) {
       });
       await loadData();
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '日志保留清理失败');
+      s.setError(err instanceof Error ? err.message : tl('retentionCleanupFailed'));
     } finally {
       t.setCleaningRetention('');
     }

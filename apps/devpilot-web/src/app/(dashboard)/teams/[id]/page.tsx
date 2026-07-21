@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState, Tabs } from '@svton/ui';
-import { ErrorBanner } from '@/components/ui';
-import { useTeamStore, MemberRole } from '@/store/hooks';
+import { ErrorBanner, Modal } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { feedback } from '@/components/ui/feedback/feedback';
+import { useAuthStore, useTeamStore, MemberRole } from '@/store/hooks';
 import { MemberRow } from './components/member-row';
 import { AddMemberModal } from './components/add-member-modal';
 
@@ -22,13 +24,18 @@ export default function TeamDetailPage() {
     error,
     fetchTeamDetail,
     updateTeam,
+    deleteTeam,
     addMember,
     removeMember,
     updateMemberRole,
     clearError,
   } = useTeamStore();
+  const { user } = useAuthStore();
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [saving, setSaving] = useState(false);
@@ -47,9 +54,14 @@ export default function TeamDetailPage() {
   const handleAddMember = usePersistFn(async (email: string, role: MemberRole) => {
     await addMember(teamId, email, role);
   });
-  const handleRemoveMember = usePersistFn(async (memberId: string) => {
-    if (!confirm(t('removeMemberConfirm'))) return;
-    await removeMember(teamId, memberId);
+  const handleRemoveMember = usePersistFn((memberId: string) => {
+    setRemoveTarget(memberId);
+  });
+  const handleConfirmRemoveMember = usePersistFn(async () => {
+    if (!removeTarget) return;
+    // 失败时 removeMember 会 throw：弹窗保持打开，store.error 由页面 ErrorBanner 展示
+    await removeMember(teamId, removeTarget);
+    feedback.success(t('removeMemberSuccess'));
   });
   const handleUpdateRole = usePersistFn(async (memberId: string, role: MemberRole) => {
     await updateMemberRole(teamId, memberId, role);
@@ -68,9 +80,23 @@ export default function TeamDetailPage() {
     }
   });
 
-  const myRole = currentTeamDetail?.members.find(
-    (m) => m.role === 'owner' || m.role === 'admin',
-  )?.role;
+  const handleDeleteTeam = usePersistFn(async () => {
+    setDeleting(true);
+    try {
+      await deleteTeam(teamId);
+      setDeleteOpen(false);
+      router.push('/teams');
+    } catch {
+      // 失败：store.error 已由 deleteTeam 写入，页面内 ErrorBanner 展示，不跳转
+      setDeleteOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  });
+
+  // 当前登录用户在该团队中的角色；不在成员列表中则为 null（无管理权限）
+  const myRole =
+    currentTeamDetail?.members.find((m) => m.userId === user?.id)?.role ?? null;
   const canManageMembers = myRole === 'owner' || myRole === 'admin';
   const canEditSettings = myRole === 'owner';
 
@@ -168,9 +194,7 @@ export default function TeamDetailPage() {
                 {t('deleteTeamWarning')}
               </p>
               <button
-                onClick={() => {
-                  if (confirm(t('deleteTeamConfirm'))) router.push('/teams');
-                }}
+                onClick={() => setDeleteOpen(true)}
                 className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
               >
                 {t('deleteTeam')}
@@ -210,6 +234,45 @@ export default function TeamDetailPage() {
         onClose={() => setModalOpen(false)}
         onAdd={handleAddMember}
       />
+
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null);
+        }}
+        tone="danger"
+        title={t('removeMemberTitle')}
+        description={t('removeMemberConfirm')}
+        confirmLabel={t('removeMember')}
+        cancelLabel={tc('cancel')}
+        onConfirm={handleConfirmRemoveMember}
+      />
+
+      <Modal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title={t('confirmDelete')}
+        width={400}
+      >
+        <p className="text-muted-foreground">
+          {t('deleteTeamModalText')}
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            onClick={() => setDeleteOpen(false)}
+            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+          >
+            {tc('cancel')}
+          </button>
+          <button
+            onClick={handleDeleteTeam}
+            disabled={deleting}
+            className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+          >
+            {tc('delete')}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

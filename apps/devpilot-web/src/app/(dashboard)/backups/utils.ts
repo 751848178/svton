@@ -26,6 +26,11 @@ export function canQueueBackupRun(plan: BackupPlan): boolean {
   return plan.resource?.sourceType === 'server';
 }
 
+/** 判断备份运行记录是否可发起恢复（仅 completed/success 终态）。 */
+export function canRestoreBackupRun(status: string): boolean {
+  return status === 'completed' || status === 'success';
+}
+
 /** 格式化资源展示名。 */
 export function formatResource(resource?: ManagedResource | null): string {
   if (!resource) return '未知资源';

@@ -6,8 +6,10 @@
  */
 
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { Site, SiteSyncPlan, SiteTakeoverForm } from '../types';
 import { buildSiteTakeoverTls, createSiteTakeoverForm } from '../utils-takeover';
 
@@ -22,6 +24,7 @@ interface UseSiteTakeoverArgs {
 
 export function useSiteTakeover(args: UseSiteTakeoverArgs) {
   const { sites, siteId, queueSiteRuns, setSites, setPlans, refreshSyncRuns } = args;
+  const t = useTranslations('sites');
   const [focusedSiteId, setFocusedSiteId] = useState(siteId);
   const [takeoverForms, setTakeoverForms] = useState<Record<string, SiteTakeoverForm>>({});
   const [savingTakeoverId, setSavingTakeoverId] = useState<string | null>(null);
@@ -63,10 +66,12 @@ export function useSiteTakeover(args: UseSiteTakeoverArgs) {
       });
       setSites((cur) => cur.map((i) => (i.id === updated.id ? updated : i)));
       setTakeoverForms((cur) => ({ ...cur, [updated.id]: createSiteTakeoverForm(updated) }));
-      alert('已保存站点接管绑定');
+      feedback.success(t('takeoverSaved'));
     } catch (error) {
       console.error('Failed to save site takeover binding:', error);
-      alert(error instanceof Error ? error.message : '保存站点接管绑定失败');
+      feedback.error(t('takeoverSaveFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setSavingTakeoverId(null);
     }
@@ -75,11 +80,11 @@ export function useSiteTakeover(args: UseSiteTakeoverArgs) {
   const handleActivatePreviewSite = usePersistFn(async (site: Site) => {
     const form = takeoverForms[site.id] || createSiteTakeoverForm(site);
     if (!form.serverId) {
-      alert('请先选择目标服务器');
+      feedback.error(t('takeoverSelectServer'));
       return;
     }
     if (!form.upstreamUrl.trim()) {
-      alert('请填写预览上游地址');
+      feedback.error(t('takeoverUpstreamRequired'));
       return;
     }
     setActivatingPreviewId(site.id);
@@ -104,7 +109,9 @@ export function useSiteTakeover(args: UseSiteTakeoverArgs) {
       await refreshSyncRuns(site.id);
     } catch (error) {
       console.error('Failed to activate preview site takeover:', error);
-      alert(error instanceof Error ? error.message : '接管预览站点失败');
+      feedback.error(t('takeoverActivateFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setActivatingPreviewId(null);
     }

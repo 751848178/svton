@@ -4,10 +4,13 @@ import { usePersistFn } from '@svton/hooks';
 import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, StatusTag } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useResourceTypes } from '../hooks/use-resource-types';
 import { ResourceTypeFormModal } from './resource-type-form-modal';
 import { getSchemaFieldCount } from '../utils';
 import type { ResourceType } from '../types';
+import { ResourceTypeActions } from './resource-type-actions.component';
+import { ResourceTypeCard } from './resource-type-card.component';
 
 /**
  * 资源类型客户端视图。
@@ -26,14 +29,17 @@ export function ResourceTypesContent({
     loading,
     creating,
     editingType,
+    disableTarget,
     openCreate,
     openEdit,
     closeModal,
-    disableType,
+    requestDisable,
+    cancelDisable,
+    confirmDisable,
     reload,
   } = useResourceTypes(initialResourceTypes);
 
-  const handleDisable = usePersistFn((id: string) => disableType(id));
+  const handleDisable = usePersistFn((id: string) => requestDisable(id));
   const handleSuccess = usePersistFn(() => {
     closeModal();
     reload();
@@ -62,30 +68,42 @@ export function ResourceTypesContent({
           description={t('noTypesHint')}
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr>
-                <Th>{tc('type')}</Th>
-                <Th>{t('colCategory')}</Th>
-                <Th>{t('colApprovalDelivery')}</Th>
-                <Th>Schema</Th>
-                <Th>{tc('status')}</Th>
-                <Th align="right">{tc('actions')}</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {resourceTypes.map((type) => (
-                <ResourceTypeRow
-                  key={type.id}
-                  type={type}
-                  onEdit={openEdit}
-                  onDisable={handleDisable}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="grid gap-3 md:hidden">
+            {resourceTypes.map((type) => (
+              <ResourceTypeCard
+                key={type.id}
+                type={type}
+                onEdit={openEdit}
+                onDisable={handleDisable}
+              />
+            ))}
+          </div>
+          <div className="hidden overflow-hidden rounded-lg border md:block">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr>
+                  <Th>{tc('type')}</Th>
+                  <Th>{t('colCategory')}</Th>
+                  <Th>{t('colApprovalDelivery')}</Th>
+                  <Th>{t('colSchema')}</Th>
+                  <Th>{tc('status')}</Th>
+                  <Th align="right">{tc('actions')}</Th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {resourceTypes.map((type) => (
+                  <ResourceTypeRow
+                    key={type.id}
+                    type={type}
+                    onEdit={openEdit}
+                    onDisable={handleDisable}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <ResourceTypeFormModal
@@ -93,6 +111,23 @@ export function ResourceTypesContent({
         resourceType={editingType}
         onClose={closeModal}
         onSuccess={handleSuccess}
+      />
+
+      <ConfirmDialog
+        open={Boolean(disableTarget)}
+        onOpenChange={(open) => {
+          if (!open) cancelDisable();
+        }}
+        tone="warning"
+        title={t('disableTypeConfirmTitle')}
+        description={
+          disableTarget
+            ? t('disableTypeConfirmDescription', { name: disableTarget.name })
+            : undefined
+        }
+        confirmLabel={tc('confirm')}
+        cancelLabel={tc('cancel')}
+        onConfirm={confirmDisable}
       />
     </div>
   );
@@ -146,22 +181,11 @@ function ResourceTypeRow({
         />
       </td>
       <td className="px-4 py-3">
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={() => onEdit(type)}
-            className="rounded px-2 py-1 text-xs text-primary hover:bg-primary/10"
-          >
-            {tc('edit')}
-          </button>
-          {type.enabled ? (
-            <button
-              onClick={() => onDisable(type.id)}
-              className="rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
-            >
-              {t('disable')}
-            </button>
-          ) : null}
-        </div>
+        <ResourceTypeActions
+          type={type}
+          onEdit={onEdit}
+          onDisable={onDisable}
+        />
       </td>
     </tr>
   );

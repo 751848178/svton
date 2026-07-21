@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { ErrorBanner } from '@/components/ui';
 import { useProjectConfigStore } from '@/store/hooks';
+import { validatePackageNameKey } from './package-name';
 
 interface StepProps {
   onNext: () => void;
@@ -16,21 +17,10 @@ export function StepBasicInfo({ onNext }: StepProps) {
   const { config, setBasicInfo } = useProjectConfigStore();
   const [nameError, setNameError] = useState<string>();
 
-  const validatePackageName = usePersistFn((name: string): { valid: boolean; error?: string } => {
-    if (!name) return { valid: false, error: t('errNameEmpty') };
-    if (name.length > 214) return { valid: false, error: t('errNameTooLong') };
-    if (name.startsWith('.') || name.startsWith('_'))
-      return { valid: false, error: t('errNameStartChar') };
-    if (name !== name.toLowerCase()) return { valid: false, error: t('errNameLowercase') };
-    if (/[~'!()*]/.test(name)) return { valid: false, error: t('errNameInvalidChar') };
-    if (!/^[a-z0-9]/.test(name)) return { valid: false, error: t('errNameAlphaNumStart') };
-    if (!/^[a-z0-9-_.]+$/.test(name)) return { valid: false, error: t('errNameAllowedChars') };
-    return { valid: true };
-  });
-
   const handleNameChange = usePersistFn((name: string) => {
     setBasicInfo({ name });
-    setNameError(validatePackageName(name).error);
+    const errorKey = validatePackageNameKey(name);
+    setNameError(errorKey ? t(errorKey) : undefined);
   });
   const handleOrgChange = usePersistFn((orgName: string) => {
     setBasicInfo({ orgName: orgName || config.basicInfo.name });

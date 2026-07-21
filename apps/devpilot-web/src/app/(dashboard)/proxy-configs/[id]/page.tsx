@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { StatusTag, Modal } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useProxyConfig } from './hooks/use-proxy-config';
 import { ProxyConfigView } from './components/proxy-config-view';
 
@@ -18,6 +19,7 @@ export default function ProxyConfigDetailPage() {
   const { config, loading, syncing, sync, preview, remove } = useProxyConfig(configId);
   const [previewConfig, setPreviewConfig] = useState('');
   const [previewOpen, { setTrue: openPreview, setFalse: closePreview }] = useBoolean(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const statusLabels: Record<string, string> = {
     active: t('statusActive'),
@@ -27,7 +29,6 @@ export default function ProxyConfigDetailPage() {
 
   const handleSync = usePersistFn(() => sync());
   const handleDelete = usePersistFn(async () => {
-    if (!confirm(t('deleteConfirm'))) return;
     await remove();
     router.push('/proxy-configs');
   });
@@ -87,12 +88,23 @@ export default function ProxyConfigDetailPage() {
       <div className="rounded-lg border border-destructive/50 p-6">
         <h2 className="mb-4 font-semibold text-destructive">{t('dangerZone')}</h2>
         <button
-          onClick={handleDelete}
+          onClick={() => setDeleteOpen(true)}
           className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
         >
           {t('deleteConfig')}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        tone="danger"
+        title={t('deleteConfigTitle')}
+        description={t('deleteConfirm')}
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={handleDelete}
+      />
 
       <Modal
         open={previewOpen}

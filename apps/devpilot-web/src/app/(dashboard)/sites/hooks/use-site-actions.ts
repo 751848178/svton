@@ -6,8 +6,10 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { Site, SiteSyncPlan } from '../types';
 import { useSiteLiveActions } from './use-site-live-actions.hooks';
 
@@ -20,6 +22,7 @@ interface UseSiteActionsArgs {
 
 export function useSiteActions(args: UseSiteActionsArgs) {
   const { queueSiteRuns, setPlans, refreshSyncRuns, loadData } = args;
+  const t = useTranslations('sites');
   const [planningId, setPlanningId] = useState<string | null>(null);
   const [diagnosingId, setDiagnosingId] = useState<string | null>(null);
   const [checkingModuleBaselineId, setCheckingModuleBaselineId] = useState<string | null>(null);
@@ -46,7 +49,9 @@ export function useSiteActions(args: UseSiteActionsArgs) {
         else await refreshSyncRuns(site.id);
       } catch (error) {
         console.error(errorMsg, error);
-        alert(error instanceof Error ? error.message : errorMsg);
+        feedback.error(errorMsg, {
+          description: error instanceof Error ? error.message : undefined,
+        });
       } finally {
         setState(null);
       }
@@ -59,7 +64,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
       'sync-plan',
       { dryRun: true, queue: queueSiteRuns },
       setPlanningId,
-      '生成站点同步计划失败',
+      t('createPlanFailed'),
     ),
   );
   const handleDiagnostics = usePersistFn((site: Site) =>
@@ -68,7 +73,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
       'diagnostics',
       { dryRun: false, queue: queueSiteRuns, tailLines: 200 },
       setDiagnosingId,
-      '执行站点诊断失败',
+      t('diagnosticsFailed'),
     ),
   );
   const handleOpenRestyStatus = usePersistFn((site: Site, dryRun = false) =>
@@ -77,7 +82,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
       'openresty-status',
       { dryRun, queue: queueSiteRuns },
       setProbingRuntimeId,
-      '探测 OpenResty/Nginx 运行态失败',
+      t('openrestyStatusFailed'),
     ),
   );
   const handleOpenRestyModules = usePersistFn((site: Site, dryRun = false) =>
@@ -86,7 +91,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
       'openresty-modules',
       { dryRun, queue: queueSiteRuns },
       setProbingModulesId,
-      '盘点 OpenResty/Nginx 模块失败',
+      t('openrestyModulesFailed'),
     ),
   );
   const handleOpenRestyModuleBaseline = usePersistFn((site: Site, dryRun = false) =>
@@ -95,7 +100,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
       'openresty-module-baseline',
       { dryRun, queue: queueSiteRuns },
       setCheckingModuleBaselineId,
-      '检查 OpenResty/Nginx 模块基线失败',
+      t('moduleBaselineFailed'),
     ),
   );
   const handleSmokeCheck = usePersistFn((site: Site, dryRun = false) =>
@@ -104,7 +109,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
       'smoke-check',
       { dryRun, queue: queueSiteRuns },
       setSmokingId,
-      '执行站点 Smoke 检查失败',
+      t('smokeCheckFailed'),
     ),
   );
   const handleTlsProbe = usePersistFn((site: Site) =>
@@ -113,7 +118,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
       'tls-probe',
       { dryRun: false, queue: queueSiteRuns },
       setProbingTlsId,
-      '探测站点 TLS 证书失败',
+      t('tlsProbeFailed'),
       true,
     ),
   );
@@ -123,7 +128,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
       'tls-probe',
       { dryRun: true, queue: queueSiteRuns },
       setProbingTlsId,
-      '生成站点 TLS 探测计划失败',
+      t('tlsProbePlanFailed'),
     ),
   );
 
@@ -138,6 +143,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
     probingTlsId,
     renewingTlsId: liveActions.renewingTlsId,
     rollingBackId: liveActions.rollingBackId,
+    pendingLiveAction: liveActions.pendingLiveAction,
     handleCreatePlan,
     handleSyncLive: liveActions.handleSyncLive,
     handleDiagnostics,
@@ -149,5 +155,7 @@ export function useSiteActions(args: UseSiteActionsArgs) {
     handleTlsProbePlan,
     handleTlsRenew: liveActions.handleTlsRenew,
     handleRollback: liveActions.handleRollback,
+    cancelPendingLiveAction: liveActions.cancelPendingLiveAction,
+    confirmPendingLiveAction: liveActions.confirmPendingLiveAction,
   };
 }

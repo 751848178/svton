@@ -7,6 +7,7 @@
 
 'use client';
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
 import { Modal, ErrorBanner } from '@/components/ui';
@@ -15,6 +16,8 @@ import type { Server, ProxyConfigInput } from '../types';
 interface AddProxyConfigModalProps {
   open: boolean;
   servers: Server[];
+  /** 从 query 参数（?serverId=...）传入时预填目标服务器 */
+  initialServerId?: string;
   onClose: () => void;
   onCreate: (input: ProxyConfigInput) => Promise<void>;
 }
@@ -22,6 +25,7 @@ interface AddProxyConfigModalProps {
 export function AddProxyConfigModal({
   open,
   servers,
+  initialServerId,
   onClose,
   onCreate,
 }: AddProxyConfigModalProps) {
@@ -31,6 +35,7 @@ export function AddProxyConfigModal({
     register,
     handleSubmit,
     watch,
+    setValue,
     setError,
     formState,
   } = useForm<ProxyConfigInput>({
@@ -42,9 +47,16 @@ export function AddProxyConfigModal({
       sslEnabled: false,
       sslType: 'letsencrypt',
       websocket: false,
-      serverId: '',
+      serverId: initialServerId || '',
     },
   });
+
+  // defaultValues 仅在挂载时生效；弹窗每次打开时同步 query 预填值
+  useEffect(() => {
+    if (open && initialServerId) {
+      setValue('serverId', initialServerId);
+    }
+  }, [open, initialServerId, setValue]);
 
   const sslEnabled = watch('sslEnabled');
 
@@ -80,7 +92,7 @@ export function AddProxyConfigModal({
           <input
             {...register('name', { required: true })}
             required
-            className="w-full rounded-md border px-3 py-2"
+            className="min-h-11 w-full rounded-md border px-3"
             placeholder={t('configNamePlaceholder')}
           />
         </label>
@@ -89,7 +101,7 @@ export function AddProxyConfigModal({
           <input
             {...register('domain', { required: true })}
             required
-            className="w-full rounded-md border px-3 py-2"
+            className="min-h-11 w-full rounded-md border px-3"
             placeholder="example.com"
           />
         </label>
@@ -99,7 +111,7 @@ export function AddProxyConfigModal({
             <input
               {...register('upstreamHost', { required: true })}
               required
-              className="w-full rounded-md border px-3 py-2"
+              className="min-h-11 w-full rounded-md border px-3"
               placeholder="127.0.0.1"
             />
           </label>
@@ -108,7 +120,7 @@ export function AddProxyConfigModal({
             <input
               type="number"
               {...register('upstreamPort', { valueAsNumber: true })}
-              className="w-full rounded-md border px-3 py-2"
+              className="min-h-11 w-full rounded-md border px-3"
             />
           </label>
         </div>
@@ -116,7 +128,7 @@ export function AddProxyConfigModal({
           <span className="mb-1 block font-medium">{t('targetServer')}</span>
           <select
             {...register('serverId')}
-            className="w-full rounded-md border px-3 py-2"
+            className="min-h-11 w-full rounded-md border px-3"
           >
             <option value="">{t('noServer')}</option>
             {servers.map((s) => (
@@ -130,28 +142,28 @@ export function AddProxyConfigModal({
           </select>
         </label>
         <div className="space-y-2">
-          <label className="flex items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2">
             <input
               type="checkbox"
               {...register('sslEnabled')}
-              className="rounded"
+              className="h-5 w-5 rounded"
             />
             <span className="text-sm">{t('enableSsl')}</span>
           </label>
           {sslEnabled ? (
             <select
               {...register('sslType')}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="min-h-11 w-full rounded-md border px-3 text-sm"
             >
               <option value="letsencrypt">{t('sslLetsencrypt')}</option>
               <option value="custom">{t('sslCustom')}</option>
             </select>
           ) : null}
-          <label className="flex items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2">
             <input
               type="checkbox"
               {...register('websocket')}
-              className="rounded"
+              className="h-5 w-5 rounded"
             />
             <span className="text-sm">{t('enableWebsocket')}</span>
           </label>
@@ -160,14 +172,14 @@ export function AddProxyConfigModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+            className="min-h-11 rounded-md border px-4 text-sm font-medium hover:bg-accent"
           >
             {tc('cancel')}
           </button>
           <button
             type="submit"
             disabled={formState.isSubmitting}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="min-h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {formState.isSubmitting ? t('adding') : tc('add')}
           </button>

@@ -44,12 +44,24 @@ export function TeamSwitcher() {
     }
   });
 
+  // 加载期渲染与最终控件等宽等高(h-11 / w-[150px])的骨架占位,消除布局跳动
+  if (isLoading) {
+    return (
+      <div className="relative shrink-0">
+        <div
+          aria-hidden="true"
+          className="h-11 w-[150px] animate-pulse rounded-md border bg-muted"
+        />
+      </div>
+    );
+  }
+
   if (!isLoading && teams.length === 0) {
     return (
       <div className="relative shrink-0">
         <button
           onClick={openModal}
-          className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          className="flex min-h-11 items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           {t('createTeam')}
         </button>
@@ -69,7 +81,7 @@ export function TeamSwitcher() {
     <div className="relative shrink-0">
       <button
         onClick={() => (isOpen ? closeDropdown() : openDropdown())}
-        className="flex max-w-[150px] items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+        className="flex min-h-11 max-w-[150px] items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"
       >
         <span className="max-w-[120px] truncate">{currentTeam?.name || t('selectTeam')}</span>
         <span className="text-xs">{isOpen ? '▲' : '▼'}</span>
@@ -89,7 +101,7 @@ export function TeamSwitcher() {
                 <button
                   key={team.id}
                   onClick={() => handleSelectTeam(team)}
-                  className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent ${currentTeam?.id === team.id ? 'bg-accent' : ''}`}
+                  className={`flex min-h-11 w-full items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent ${currentTeam?.id === team.id ? 'bg-accent' : ''}`}
                 >
                   <span className="flex-1 truncate text-left">{team.name}</span>
                   {currentTeam?.id === team.id ? <Tag color="green">{t('current')}</Tag> : null}
@@ -101,7 +113,7 @@ export function TeamSwitcher() {
                   closeDropdown();
                   openModal();
                 }}
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                className="flex min-h-11 w-full items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent"
               >
                 {t('createNewTeam')}
               </button>
@@ -110,7 +122,7 @@ export function TeamSwitcher() {
                   closeDropdown();
                   router.push('/teams');
                 }}
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                className="flex min-h-11 w-full items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent"
               >
                 {t('manageTeam')}
               </button>
@@ -164,7 +176,7 @@ function CreateTeamModal({
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
             placeholder={t('teamNamePlaceholder')}
-            className="w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="min-h-11 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             autoFocus
           />
         </label>
@@ -172,14 +184,14 @@ function CreateTeamModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+            className="min-h-11 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
             {tc('cancel')}
           </button>
           <button
             type="submit"
             disabled={creating || !teamName.trim()}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {creating ? t('creating') : tc('create')}
           </button>

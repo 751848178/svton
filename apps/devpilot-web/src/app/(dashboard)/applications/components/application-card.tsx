@@ -6,8 +6,8 @@
 
 'use client';
 
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Tag } from '@svton/ui';
 import type { ApplicationItem, ServiceAction, ServiceSloRow } from '../types';
 import { ServiceRow } from './service-row';
 
@@ -45,7 +45,12 @@ export function ApplicationCard(props: ApplicationCardProps) {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-medium">{application.name}</h3>
-            <Tag color="default">{application.project?.name || application.projectId}</Tag>
+            <Link
+              href={`/projects/${application.projectId}`}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              {application.project?.name || application.projectId}
+            </Link>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {application.repositoryUrl || t('noRepo')}

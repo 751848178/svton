@@ -19,10 +19,11 @@ const EMPTY_RESOURCES: Resource[] = [];
 const EMPTY_RESOURCE_TYPES: ResourceType[] = [];
 
 export function useResources(initialResources?: Resource[], initialResourceTypes?: ResourceType[]) {
-  const { data: resourcesData, isLoading: resourcesLoading } = useQueryLoose<Resource[]>(
-    RESOURCES_KEY,
-    { fallback: initialResources },
-  );
+  const {
+    data: resourcesData,
+    error: resourcesError,
+    isLoading: resourcesLoading,
+  } = useQueryLoose<Resource[]>(RESOURCES_KEY, { fallback: initialResources });
   const { data: resourceTypesData } = useQueryLoose<ResourceType[]>(RESOURCE_TYPES_KEY, {
     fallback: initialResourceTypes,
   });
@@ -46,5 +47,5 @@ export function useResources(initialResources?: Resource[], initialResourceTypes
     await mutate(RESOURCES_KEY);
   });
 
-  return { resources, resourceTypes, resourceTypeMap, isLoading, create, remove };
+  return { resources, resourceTypes, resourceTypeMap, isLoading, loadError: resourcesError, create, remove };
 }

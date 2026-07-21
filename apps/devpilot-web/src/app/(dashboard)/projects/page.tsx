@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { EmptyState, Tag } from '@svton/ui';
-import { PageHeader } from '@/components/ui';
+import { ErrorBanner, PageHeader } from '@/components/ui';
 import { serverRequest } from '@/lib/api-client/server';
 import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
@@ -28,12 +28,15 @@ interface Project {
 
 export default async function ProjectsPage() {
   const t = await getTranslations('projects');
+  const tc = await getTranslations('common');
   let projects: Project[] = [];
+  let loadFailed = false;
   try {
     projects = await serverRequest<Project[]>('GET:/projects');
   } catch (error) {
     redirectOnUnauthorized(error, '/projects');
     console.error('Failed to load projects:', error);
+    loadFailed = true;
   }
 
   return (
@@ -59,7 +62,18 @@ export default async function ProjectsPage() {
         }
       />
 
-      {projects.length === 0 ? (
+      {loadFailed ? (
+        <div className="space-y-3">
+          {/* Server Component 中无法传 onRetry 回调，用同页 Link 触发重新加载 */}
+          <ErrorBanner message={t('loadFailed')} />
+          <Link
+            href="/projects"
+            className="inline-block text-sm text-primary hover:underline"
+          >
+            {tc('retry')}
+          </Link>
+        </div>
+      ) : projects.length === 0 ? (
         <EmptyState
           text={t('noProjects')}
           description={t('noProjectsDescription')}

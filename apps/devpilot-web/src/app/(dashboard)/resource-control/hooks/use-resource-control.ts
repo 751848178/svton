@@ -1,7 +1,7 @@
 /**
  * 资源管控数据 Hook
  *
- * 单一职责：加载受管资源/服务器/凭证/环境/指标/操作运行。
+ * 单一职责：加载受管资源/服务器/操作定义与运行记录、连接/查询运行。
  */
 
 import { useEffect, useState } from 'react';
@@ -10,9 +10,8 @@ import { apiRequest } from '@/lib/api-client';
 import type {
   Server,
   ManagedResource,
-  ProjectEnvironment,
-  TeamCredential,
   ExecuteResourceActionRequest,
+  ResourceActionDefinition,
   ResourceActionRunInput,
   ResourceActionRunOptions,
   ResourceActionRun,
@@ -61,8 +60,7 @@ function buildResourceSyncRequest(resource: ManagedResource) {
 export function useResourceControl() {
   const [servers, setServers] = useState<Server[]>([]);
   const [resources, setResources] = useState<ManagedResource[]>([]);
-  const [environments, setEnvironments] = useState<ProjectEnvironment[]>([]);
-  const [credentials, setCredentials] = useState<TeamCredential[]>([]);
+  const [actions, setActions] = useState<ResourceActionDefinition[]>([]);
   const [actionRuns, setActionRuns] = useState<ResourceActionRun[]>([]);
   const [connectionRuns, setConnectionRuns] = useState<ResourceConnectionRun[]>([]);
   const [queryRuns, setQueryRuns] = useState<ResourceQueryRun[]>([]);
@@ -76,20 +74,18 @@ export function useResourceControl() {
   const loadData = usePersistFn(async () => {
     setError('');
     try {
-      const [res, srv, env, cred, actions, conns, queries] = await Promise.all([
+      const [res, actionDefs, srv, actionRuns, conns, queries] = await Promise.all([
         apiRequest<ManagedResource[]>('GET:/resource-control/resources'),
+        apiRequest<ResourceActionDefinition[]>('GET:/resource-control/actions'),
         apiRequest<Server[]>('GET:/servers'),
-        apiRequest<ProjectEnvironment[]>('GET:/project-environments'),
-        apiRequest<TeamCredential[]>('GET:/team-credentials'),
         apiRequest<ResourceActionRun[]>('GET:/resource-control/action-runs'),
         apiRequest<ResourceConnectionRun[]>('GET:/resource-control/connection-runs'),
         apiRequest<ResourceQueryRun[]>('GET:/resource-control/query-runs'),
       ]);
       setResources(res);
+      setActions(actionDefs);
       setServers(srv);
-      setEnvironments(env);
-      setCredentials(cred);
-      setActionRuns(actions);
+      setActionRuns(actionRuns);
       setConnectionRuns(conns);
       setQueryRuns(queries);
     } catch (err) {
@@ -152,8 +148,7 @@ export function useResourceControl() {
   return {
     servers,
     resources,
-    environments,
-    credentials,
+    actions,
     actionRuns,
     connectionRuns,
     queryRuns,

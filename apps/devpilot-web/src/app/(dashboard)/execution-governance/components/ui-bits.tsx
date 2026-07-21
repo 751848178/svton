@@ -1,20 +1,12 @@
 /**
  * 执行治理域 - 小型展示组件
  *
- * 单一职责：指标、Supervisor 字段、状态徽章。
+ * 单一职责：Supervisor 字段、状态徽章。
+ * 指标卡统一使用全局 MetricCard(@/components/ui),本地不再重复实现。
  */
 
 import { StatusTag } from '@/components/ui';
 import { statusLabels, statusClasses } from '../constants';
-
-export function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
-    </div>
-  );
-}
 
 export function SupervisorField({ label, value }: { label: string; value: string }) {
   return (

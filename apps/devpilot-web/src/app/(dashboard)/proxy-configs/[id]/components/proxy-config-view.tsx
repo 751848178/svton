@@ -130,8 +130,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function StatusBadge({ status }: { status: string }) {
   const tc = useTranslations('common');
   return (
-    <div className="rounded-lg border border-destructive/50 p-6">
-      <h2 className="mb-4 font-semibold text-destructive">{tc('status')}</h2>
+    <div className="rounded-lg border p-6">
+      <h2 className="mb-4 font-semibold">{tc('status')}</h2>
       <StatusTag status={status} />
     </div>
   );

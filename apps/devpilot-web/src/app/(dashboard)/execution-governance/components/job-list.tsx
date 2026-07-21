@@ -8,7 +8,8 @@
 
 import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { Metric } from './ui-bits';
+import { MetricCard } from '@/components/ui';
+import { CollapsibleGroup } from './collapsible-group';
 import { JobTableRow } from './job-table-row.component';
 import type { ServerExecutionJob } from '../types';
 import type { JobStats } from '../hooks/use-execution-governance';
@@ -41,14 +42,14 @@ export function JobList({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold">{t('jobListTitle')}</h2>
-          <p className="text-sm text-muted-foreground">Server executor job history</p>
+          <p className="text-sm text-muted-foreground">{t('jobListSubtitle')}</p>
         </div>
         <label className="block w-44 text-sm">
           <span className="mb-1 block font-medium">{tc('status')}</span>
           <select
             value={jobStatus}
             onChange={(e) => onJobStatusChange(e.target.value)}
-            className="w-full rounded-md border px-3 py-2"
+            className="min-h-11 w-full rounded-md border px-3"
           >
             <option value="all">{tc('all')}</option>
             <option value="queued">{t('statusQueued')}</option>
@@ -61,32 +62,37 @@ export function JobList({
         </label>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-6">
-        <Metric
-          label={t('metricJobs')}
-          value={stats.total}
-        />
-        <Metric
-          label={t('statusQueued')}
-          value={stats.queued}
-        />
-        <Metric
-          label={t('statusRunning')}
-          value={stats.running}
-        />
-        <Metric
-          label={t('metricStale')}
-          value={stats.stale}
-        />
-        <Metric
-          label={t('statusBlocked')}
-          value={stats.blocked}
-        />
-        <Metric
-          label={tc('failed')}
-          value={stats.failed}
-        />
-      </div>
+      <CollapsibleGroup
+        title={t('groupJobs')}
+        issueCount={stats.stale + stats.blocked + stats.failed}
+      >
+        <div className="grid gap-4 md:grid-cols-6">
+          <MetricCard
+            label={t('metricJobs')}
+            value={stats.total}
+          />
+          <MetricCard
+            label={t('statusQueued')}
+            value={stats.queued}
+          />
+          <MetricCard
+            label={t('statusRunning')}
+            value={stats.running}
+          />
+          <MetricCard
+            label={t('metricStale')}
+            value={stats.stale}
+          />
+          <MetricCard
+            label={t('statusBlocked')}
+            value={stats.blocked}
+          />
+          <MetricCard
+            label={tc('failed')}
+            value={stats.failed}
+          />
+        </div>
+      </CollapsibleGroup>
 
       {loading ? (
         <LoadingState text={tc('loading')} />
@@ -96,8 +102,8 @@ export function JobList({
           description={t('noJobsHint')}
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="min-w-[1040px] w-full text-sm">
             <thead className="bg-muted/50 text-left">
               <tr>
                 <th className="px-4 py-3 font-medium">{tc('status')}</th>

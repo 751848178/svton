@@ -11,11 +11,11 @@
 
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
 import { useSetState } from '@svton/hooks';
-import { Modal } from '@/components/ui';
+import { Modal, ErrorBanner } from '@/components/ui';
 import type { ResourceType, ResourceInput } from '../types';
 
 interface AddResourceModalProps {
@@ -54,6 +54,7 @@ export function AddResourceModal({
 
   // 动态字段：key 随所选 resourceType 变化，无法静态 register；用单一受控 map 管理。
   const [config, setConfig] = useSetState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState('');
 
   const type = watch('type');
   const selectedType = useMemo(
@@ -66,6 +67,7 @@ export function AddResourceModal({
   }, [resourceTypes, type, setValue]);
 
   const submit = handleSubmit(async (data) => {
+    setSubmitError('');
     try {
       await onCreate({ type: data.type, name: data.name, config });
       onClose();
@@ -73,7 +75,7 @@ export function AddResourceModal({
       setConfig({});
     } catch (error) {
       console.error('Failed to create resource:', error);
-      alert(t('createFailed'));
+      setSubmitError(error instanceof Error ? error.message : t('createFailed'));
     }
   });
 
@@ -95,6 +97,10 @@ export function AddResourceModal({
           onSubmit={submit}
           className="space-y-4"
         >
+          <ErrorBanner
+            message={submitError}
+            variant="inline"
+          />
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('resourceType')}</span>
             <select

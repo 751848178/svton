@@ -3,7 +3,8 @@
 import { useTranslations } from 'next-intl';
 import { useBoolean } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, ErrorBanner } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useServers } from './hooks/use-servers';
 import { ServerCard } from './components/server-card';
 import { AddServerModal } from './components/add-server-modal';
@@ -11,7 +12,19 @@ import { AddServerModal } from './components/add-server-modal';
 export default function ServersPage() {
   const t = useTranslations('servers');
   const tc = useTranslations('common');
-  const { servers, loading, testingId, create, testConnection, remove } = useServers();
+  const {
+    servers,
+    loading,
+    testingId,
+    error,
+    deleteTarget,
+    create,
+    testConnection,
+    remove,
+    cancelDelete,
+    confirmDelete,
+    reload,
+  } = useServers();
   const [modalOpen, { setTrue: openModal, setFalse: closeModal }] = useBoolean(false);
 
   return (
@@ -28,6 +41,14 @@ export default function ServersPage() {
           </button>
         }
       />
+
+      {error ? (
+        <ErrorBanner
+          message={error}
+          onRetry={reload}
+          retryLabel={tc('retry')}
+        />
+      ) : null}
 
       {loading ? (
         <LoadingState text={tc('loading')} />
@@ -54,6 +75,20 @@ export default function ServersPage() {
         open={modalOpen}
         onClose={closeModal}
         onCreate={create}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) cancelDelete();
+        }}
+        tone="danger"
+        title={t('deleteServerTitle')}
+        description={t('deleteServerDescription')}
+        resourceName={deleteTarget?.name}
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={confirmDelete}
       />
     </div>
   );

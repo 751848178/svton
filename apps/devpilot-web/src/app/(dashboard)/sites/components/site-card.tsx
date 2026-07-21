@@ -1,6 +1,7 @@
 /** 站点卡片 - 单个站点的状态/操作/计划/运行记录。 */
 'use client';
 import { useTranslations } from 'next-intl';
+import { StatusTag } from '@/components/ui';
 import type { Site } from '../types';
 import type { useSites } from '../hooks/use-sites';
 import { readRecord, readStringArray, readBoolean, readString } from '../utils';
@@ -10,7 +11,6 @@ import { SiteCardActions } from './site-card-actions.component';
 import {
   describeRuntime,
   getStatusLabel,
-  getStatusClass,
   getRunModeLabel,
   formatRunLogPreview,
   readLogMessages,
@@ -42,18 +42,18 @@ export function SiteCard({ site, sites }: { site: Site; sites: SitesHook }) {
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold">{site.name}</h2>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusClass(site.status)}`}
-            >
-              {getStatusLabel(site.status)}
-            </span>
+            <StatusTag
+              status={site.status}
+              label={getStatusLabel(site.status)}
+            />
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
               {runtimeTypeLabels[site.runtimeType] || site.runtimeType}
             </span>
             {hasTls && (
-              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                TLS
-              </span>
+              <StatusTag
+                status="active"
+                label="TLS"
+              />
             )}
           </div>
           <div className="font-mono text-sm">{site.primaryDomain}</div>

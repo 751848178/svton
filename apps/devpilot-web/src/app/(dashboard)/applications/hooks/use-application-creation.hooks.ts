@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import type { ApplicationItem, AppForm, ServiceForm } from '../types';
@@ -24,9 +25,12 @@ export function useApplicationCreation({
   setError,
   reload,
 }: UseApplicationCreationArgs) {
+  const t = useTranslations('applications');
+
   const createApplication = usePersistFn(async () => {
     if (!appForm.projectId || !appForm.name.trim()) {
-      alert('请选择项目并填写应用名称');
+      // 校验失败走页内 ErrorBanner（setError），不再 alert
+      setError(t('createAppValidation'));
       return;
     }
     setSaving(true);
@@ -51,7 +55,7 @@ export function useApplicationCreation({
 
   const createService = usePersistFn(async () => {
     if (!serviceForm.applicationId || !serviceForm.environmentId || !serviceForm.name.trim()) {
-      alert('请选择应用、环境并填写服务名称');
+      setError(t('createServiceValidation'));
       return;
     }
     setSaving(true);

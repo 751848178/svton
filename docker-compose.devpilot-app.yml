@@ -1,0 +1,61 @@
+name: devpilot-app
+
+networks:
+  staging:
+    external: true
+    name: devpilot-g003-staging_default
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/devpilot-api/Dockerfile
+      target: api
+    image: devpilot-app-api:local
+    container_name: devpilot-app-api
+    restart: unless-stopped
+    networks:
+      - staging
+    ports:
+      - "3121:3121"
+    environment:
+      NODE_ENV: production
+      PORT: "3121"
+      # Reach the staging MySQL/Redis containers by name on the shared network
+      DATABASE_URL: mysql://root:password@devpilot-g003-api-mysql:3306/devpilot_g003_staging
+      REDIS_HOST: devpilot-g003-api-redis
+      REDIS_PORT: "6379"
+      CORS_ORIGIN: http://localhost:3120
+    volumes:
+      # Other secrets (JWT, OAuth...) come from the local .env; env above wins
+      - ./apps/devpilot-api/.env:/app/apps/devpilot-api/.env:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3121/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/devpilot-web/Dockerfile
+      target: web
+    image: devpilot-app-web:local
+    container_name: devpilot-app-web
+    restart: unless-stopped
+    networks:
+      - staging
+    ports:
+      - "3120:3120"
+    environment:
+      # Browser hits the API via the host-published port
+      NEXT_PUBLIC_API_URL: http://localhost:3121
+      # SSR inside the container network hits the API container directly
+      INTERNAL_API_URL: http://devpilot-app-api:3121
+      NEXTAUTH_URL: http://localhost:3120
+      NEXTAUTH_SECRET: devpilot-local-docker-secret
+    volumes:
+      - ./apps/devpilot-web/.env.local:/app/apps/devpilot-web/.env.local:ro
+    depends_on:
+      - api

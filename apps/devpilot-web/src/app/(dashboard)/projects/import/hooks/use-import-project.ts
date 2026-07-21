@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import type { FormEvent } from 'react';
 import { apiRequest } from '@/lib/api-client';
@@ -13,6 +14,7 @@ import { INITIAL_FORM } from '../types';
 import { buildProjectConfig, trimmed } from '../utils';
 
 export function useImportProject() {
+  const t = useTranslations('projects');
   const [form, setForm] = useSetState<ImportProjectForm>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -35,13 +37,13 @@ export function useImportProject() {
     setError('');
     const name = form.name.trim();
     if (!name) {
-      setError('请填写项目名称');
+      setError(t('importNameRequired'));
       return null;
     }
     setSubmitting(true);
     try {
       const config = buildProjectConfig(form, name);
-      const project = await apiRequest<CreatedProject>('/projects', {
+      const project = await apiRequest<CreatedProject>('POST:/projects', {
         name,
         description: trimmed(form.description),
         gitRepo: trimmed(form.gitRepo),
@@ -51,7 +53,7 @@ export function useImportProject() {
       return project.id;
     } catch (submitError) {
       console.error('Failed to import project:', submitError);
-      setError(submitError instanceof Error ? submitError.message : '接入项目失败');
+      setError(submitError instanceof Error ? submitError.message : t('importFailed'));
       return null;
     } finally {
       setSubmitting(false);

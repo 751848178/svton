@@ -5,6 +5,7 @@
  */
 
 import { usePersistFn } from '@svton/hooks';
+import { useTranslations } from 'next-intl';
 import { Copyable } from '@svton/ui';
 import type { SecretKey } from '../types';
 import { getKeyTypeInfo } from '../constants';
@@ -17,6 +18,8 @@ interface KeyCardProps {
 }
 
 export function KeyCard({ secretKey, revealedValue, onReveal, onDelete }: KeyCardProps) {
+  const t = useTranslations('keys');
+  const tc = useTranslations('common');
   const typeInfo = getKeyTypeInfo(secretKey.type);
   const isRevealed = Boolean(revealedValue);
 
@@ -24,49 +27,49 @@ export function KeyCard({ secretKey, revealedValue, onReveal, onDelete }: KeyCar
   const handleDelete = usePersistFn(() => onDelete(secretKey.id));
 
   return (
-    <div className="rounded-lg border bg-white p-4">
+    <div className="rounded-lg border bg-card p-4">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <span className="text-2xl">{typeInfo.icon}</span>
           <div>
-            <h3 className="font-medium text-gray-900">{secretKey.name}</h3>
-            <p className="text-sm text-gray-500">{typeInfo.label}</p>
+            <h3 className="font-medium">{secretKey.name}</h3>
+            <p className="text-sm text-muted-foreground">{typeInfo.label}</p>
           </div>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleReveal}
-            className="rounded px-3 py-1 text-sm text-blue-600 hover:bg-blue-50"
+            className="rounded px-3 py-1 text-sm text-primary hover:bg-primary/10"
           >
-            {isRevealed ? '隐藏' : '查看'}
+            {isRevealed ? t('hide') : t('reveal')}
           </button>
           <button
             onClick={handleDelete}
-            className="rounded px-3 py-1 text-sm text-red-600 hover:bg-red-50"
+            className="rounded px-3 py-1 text-sm text-destructive hover:bg-destructive/10"
           >
-            删除
+            {tc('delete')}
           </button>
         </div>
       </div>
 
       {secretKey.description ? (
-        <p className="mt-2 text-sm text-gray-500">{secretKey.description}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{secretKey.description}</p>
       ) : null}
 
       {isRevealed ? (
-        <div className="mt-3 rounded-lg bg-gray-50 p-3">
+        <div className="mt-3 rounded-lg bg-muted/50 p-3">
           <Copyable
             text={revealedValue}
-            copyText="复制"
-            copiedText="已复制"
+            copyText={t('copy')}
+            copiedText={t('copied')}
           >
-            <code className="block break-all text-sm text-gray-800">{revealedValue}</code>
+            <code className="block break-all text-sm">{revealedValue}</code>
           </Copyable>
         </div>
       ) : null}
 
-      <p className="mt-2 text-xs text-gray-400">
-        创建于 {new Date(secretKey.createdAt).toLocaleString()}
+      <p className="mt-2 text-xs text-muted-foreground">
+        {t('createdAt', { date: new Date(secretKey.createdAt).toLocaleString() })}
       </p>
     </div>
   );

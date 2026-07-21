@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { SupervisorField, StatusBadge } from './ui-bits';
 import {
   formatAgentLifecycleAction,
@@ -11,43 +14,46 @@ import type { ServerExecutionSupervisorSnapshot } from '../supervisor';
 type AgentTaskPullReadiness = ServerExecutionSupervisorSnapshot['agent']['taskPullReadiness'];
 
 export function SupervisorAgentTaskPullSection({ taskPull }: { taskPull: AgentTaskPullReadiness }) {
+  const t = useTranslations('executionGovernance');
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-xs font-medium text-foreground">Task pull readiness</h4>
+        <h4 className="text-xs font-medium text-foreground">{t('secTaskPullReadiness')}</h4>
         <StatusBadge status={readAgentLifecycleStatus(taskPull.state)} />
       </div>
       <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
         <SupervisorField
-          label="readiness"
+          label={t('fieldReadiness')}
           value={`${formatAgentLifecycleState(taskPull.state)} · ${formatAgentLifecycleReason(taskPull.reason)}`}
         />
         <SupervisorField
-          label="runtime"
+          label={t('fieldRuntime')}
           value={`${taskPull.gates.runtime.readyServers}/${taskPull.gates.runtime.capableServers} · ${formatAgentLifecycleReason(taskPull.gates.runtime.reason)}`}
         />
         <SupervisorField
-          label="queue"
+          label={t('fieldQueue')}
           value={`${taskPull.gates.queue.readyJobs}/${taskPull.gates.queue.scheduledJobs}/${taskPull.gates.queue.runningJobs} · ${formatAgentLifecycleReason(taskPull.gates.queue.reason)}`}
         />
         <SupervisorField
-          label="contract"
+          label={t('fieldContract')}
           value={formatAgentLifecycleReason(taskPull.gates.pullContract.reason)}
         />
         <SupervisorField
-          label="audit"
+          label={t('fieldAudit')}
           value={`${taskPull.gates.audit.totalRecent}/${taskPull.gates.audit.failedRecent + taskPull.gates.audit.blockedRecent + taskPull.gates.audit.highRiskRecent} · ${formatAgentLifecycleReason(taskPull.gates.audit.reason)}`}
         />
         <SupervisorField
-          label="pressure"
+          label={t('fieldPressure')}
           value={`${taskPull.pressure.readyJobs}/${taskPull.pressure.runningJobs}/${taskPull.pressure.blockedJobs}/${taskPull.pressure.failedJobs}`}
         />
       </div>
 
       {taskPull.samples.nextQueuedJob ? (
         <div className="mt-3 text-xs text-muted-foreground">
-          next {shortId(taskPull.samples.nextQueuedJob.id)} ·{' '}
-          {taskPull.samples.nextQueuedJob.operationKey}
+          {t('taskPullNextJob', {
+            id: shortId(taskPull.samples.nextQueuedJob.id),
+            operationKey: taskPull.samples.nextQueuedJob.operationKey,
+          })}
           {taskPull.samples.nextQueuedJob.server
             ? ` · ${taskPull.samples.nextQueuedJob.server.name}`
             : ''}

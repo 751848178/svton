@@ -1,5 +1,6 @@
 /** 项目应用面板。 */
 'use client';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
@@ -21,7 +22,12 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
             className="rounded-md border p-3"
           >
             <div className="flex items-center justify-between">
-              <h3 className="font-medium">{app.name}</h3>
+              <Link
+                href={`/applications?projectId=${p.id}`}
+                className="font-medium text-primary hover:underline"
+              >
+                {app.name}
+              </Link>
               <span className="text-xs text-muted-foreground">
                 {t('serviceCount', { count: app._count?.services || 0 })}
               </span>

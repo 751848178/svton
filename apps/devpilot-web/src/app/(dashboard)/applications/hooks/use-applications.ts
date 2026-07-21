@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { usePollingList } from '@/hooks/use-polling-list';
 import type {
   ApplicationItem,
   Project,
@@ -46,7 +47,20 @@ const INITIAL_SERVICE_FORM: ServiceForm = {
 };
 
 export function useApplications(queryProjectId: string, queryEnvironmentId: string) {
-  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  // 应用列表内嵌各服务 operationRuns（GET:/applications），存在 queued/running 操作运行时
+  // 由 usePollingList 数据驱动保持 5s 轮询，全部终态后自动停止。
+  const applicationsSWR = usePollingList<ApplicationItem>(
+    'GET:/applications',
+    () => apiRequest<ApplicationItem[]>('GET:/applications'),
+    {
+      isActive: (app) =>
+        app.services?.some((s) =>
+          s.operationRuns?.some((r) => r.status === 'queued' || r.status === 'running'),
+        ) ?? false,
+      interval: 5000,
+    },
+  );
+  const applications = useMemo(() => applicationsSWR.data ?? [], [applicationsSWR.data]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [environments, setEnvironments] = useState<ProjectEnvironment[]>([]);
   const [servers, setServers] = useState<Server[]>([]);
@@ -65,9 +79,10 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
   const load = usePersistFn(async () => {
     setError('');
     try {
+      // mutate() 复用 SWR 缓存与去重：手动 reload 与轮询不会双份请求。
       const [appData, projectData, envData, serverData, siteData, resourceData] = await Promise.all(
         [
-          apiRequest<ApplicationItem[]>('GET:/applications'),
+          applicationsSWR.mutate(),
           apiRequest<Project[]>('GET:/projects'),
           apiRequest<ProjectEnvironment[]>('GET:/project-environments', { status: 'active' }),
           apiRequest<Server[]>('GET:/servers'),
@@ -75,7 +90,7 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
           apiRequest<ManagedResource[]>('GET:/resource-control/resources'),
         ],
       );
-      setApplications(appData);
+      const appList = appData ?? applicationsSWR.data ?? [];
       setProjects(projectData);
       setEnvironments(envData);
       setServers(serverData);
@@ -83,8 +98,8 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
       setResources(resourceData);
 
       const preferredApp =
-        (queryProjectId ? appData.filter((a) => a.projectId === queryProjectId) : appData)[0] ||
-        appData[0];
+        (queryProjectId ? appList.filter((a) => a.projectId === queryProjectId) : appList)[0] ||
+        appList[0];
       const preferredEnv =
         queryEnvironmentId ||
         preferredApp?.services[0]?.environment.id ||
@@ -93,7 +108,7 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
       setAppForm({ projectId: queryProjectId || projectData[0]?.id || '' });
       setServiceForm({
         applicationId: queryProjectId
-          ? appData.some(
+          ? appList.some(
               (a) => a.id === serviceForm.applicationId && a.projectId === queryProjectId,
             )
             ? serviceForm.applicationId
@@ -161,6 +176,9 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
     reload: load,
   });
 
+  // 手动 load 的错误与轮询期间的 SWR 错误合并为一个 string，保持原有 error 导出语义。
+  const errorMessage = error || (applicationsSWR.error ? applicationsSWR.error.message : '');
+
   return {
     applications,
     projects,
@@ -176,7 +194,7 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
     queueServiceOperations,
     setQueueServiceOperations,
     runningOperation,
-    error,
+    error: errorMessage,
     appForm,
     setAppForm,
     serviceForm,

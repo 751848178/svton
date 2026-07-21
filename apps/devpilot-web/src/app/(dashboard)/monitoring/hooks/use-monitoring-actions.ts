@@ -115,44 +115,53 @@ export function useMonitoringActions(args: UseMonitoringActionsArgs) {
     }
   });
 
-  const createRule = usePersistFn(async (body: Record<string, unknown>) => {
+  // 返回是否成功，供弹窗决定关闭 + 成功反馈；失败时错误写入 error 由弹窗就地展示
+  const createRule = usePersistFn(async (body: Record<string, unknown>): Promise<boolean> => {
     setCreatingRule(true);
     setError('');
     try {
       await apiRequest('POST:/monitoring/alert-rules', body);
       await loadData();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建规则失败');
+      return false;
     } finally {
       setCreatingRule(false);
     }
   });
 
-  const createSilence = usePersistFn(async (body: Record<string, unknown>) => {
+  const createSilence = usePersistFn(async (body: Record<string, unknown>): Promise<boolean> => {
     setCreatingSilence(true);
     setError('');
     try {
       await apiRequest('POST:/monitoring/silences', body);
       await loadData();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建静默失败');
+      return false;
     } finally {
       setCreatingSilence(false);
     }
   });
 
-  const createNotificationChannel = usePersistFn(async (body: Record<string, unknown>) => {
-    setCreatingChannel(true);
-    setError('');
-    try {
-      await apiRequest('POST:/monitoring/notification-channels', body);
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '创建通道失败');
-    } finally {
-      setCreatingChannel(false);
-    }
-  });
+  const createNotificationChannel = usePersistFn(
+    async (body: Record<string, unknown>): Promise<boolean> => {
+      setCreatingChannel(true);
+      setError('');
+      try {
+        await apiRequest('POST:/monitoring/notification-channels', body);
+        await loadData();
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '创建通道失败');
+        return false;
+      } finally {
+        setCreatingChannel(false);
+      }
+    },
+  );
 
   return {
     evaluateRule,

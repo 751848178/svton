@@ -6,6 +6,7 @@
  */
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import type {
@@ -18,6 +19,7 @@ import type {
 import { EMPTY_FORM, parseCsv, parseLines, readStringArray, templateToForm } from '../utils';
 
 export function usePolicies() {
+  const t = useTranslations('executionPolicies');
   const [templates, setTemplates] = useState<PolicyTemplate[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [environments, setEnvironments] = useState<ProjectEnvironment[]>([]);
@@ -27,6 +29,7 @@ export function usePolicies() {
   const [saving, setSaving] = useState(false);
   const [actingId, setActingId] = useState('');
   const [error, setError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<PolicyTemplate | null>(null);
 
   const load = usePersistFn(async () => {
     setError('');
@@ -94,7 +97,7 @@ export function usePolicies() {
         allowedPatterns: parseLines(form.allowedPatterns),
         blockedPatterns: parseLines(form.blockedPatterns),
       };
-      if (!payload.name) throw new Error('请填写策略模板名称');
+      if (!payload.name) throw new Error(t('nameRequired'));
       if (editingId) {
         await apiRequest(`PATCH:/server-command-policy-templates/${editingId}`, {
           ...payload,
@@ -140,13 +143,22 @@ export function usePolicies() {
     }
   });
 
-  const remove = usePersistFn(async (template: PolicyTemplate) => {
-    if (!window.confirm(`删除执行策略模板「${template.name}」？`)) return;
-    setActingId(`${template.id}:delete`);
+  const remove = usePersistFn((template: PolicyTemplate) => {
+    setDeleteTarget(template);
+  });
+
+  const cancelRemove = usePersistFn(() => {
+    setDeleteTarget(null);
+  });
+
+  const confirmRemove = usePersistFn(async () => {
+    if (!deleteTarget) return;
+    setActingId(`${deleteTarget.id}:delete`);
     setError('');
     try {
-      await apiRequest(`DELETE:/server-command-policy-templates/${template.id}`);
-      if (editingId === template.id) reset();
+      await apiRequest(`DELETE:/server-command-policy-templates/${deleteTarget.id}`);
+      if (editingId === deleteTarget.id) reset();
+      setDeleteTarget(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : '删除执行策略失败');
@@ -167,6 +179,7 @@ export function usePolicies() {
     saving,
     actingId,
     error,
+    deleteTarget,
     stats,
     selectProject,
     save,
@@ -174,6 +187,8 @@ export function usePolicies() {
     reset,
     toggle,
     remove,
+    cancelRemove,
+    confirmRemove,
     reload: load,
   };
 }

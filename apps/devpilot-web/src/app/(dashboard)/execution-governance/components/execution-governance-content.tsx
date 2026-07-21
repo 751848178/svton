@@ -6,7 +6,9 @@ import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState } from '@svton/ui';
 import { PageHeader, ErrorBanner } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useExecutionGovernance } from '../hooks/use-execution-governance';
+import { GovernanceOverview } from './overview-cards';
 import { SupervisorPanel } from './supervisor-panel';
 import { JobList } from './job-list';
 import { LeaseList } from './lease-list';
@@ -54,9 +56,12 @@ function ExecutionGovernanceInner() {
     error,
     jobStats,
     leaseStats,
+    pendingJobAction,
     expireStale,
     cancelJob,
     retryJob,
+    cancelJobAction,
+    confirmJobAction,
     processNextQueuedJob,
     recoverStaleJobs,
     reload,
@@ -69,31 +74,31 @@ function ExecutionGovernanceInner() {
         title={t('pageTitle')}
         description={t('pageDescription')}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={processNextQueuedJob}
               disabled={processingQueue}
-              className="rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+              className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent disabled:opacity-50"
             >
               {processingQueue ? t('processing') : t('processQueue')}
             </button>
             <button
               onClick={recoverStaleJobs}
               disabled={recoveringStale}
-              className="rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+              className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent disabled:opacity-50"
             >
               {recoveringStale ? t('recovering') : t('recoverZombie')}
             </button>
             <button
               onClick={expireStale}
               disabled={actingLease}
-              className="rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+              className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent disabled:opacity-50"
             >
               {actingLease ? t('processing') : t('releaseExpired')}
             </button>
             <button
               onClick={handleRetry}
-              className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
+              className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent"
             >
               {tc('refresh')}
             </button>
@@ -117,15 +122,22 @@ function ExecutionGovernanceInner() {
         </div>
       ) : null}
 
+      <GovernanceOverview
+        supervisor={supervisor}
+        jobStats={jobStats}
+        leaseStats={leaseStats}
+      />
+
       <section className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold">Supervisor</h2>
-          <p className="text-sm text-muted-foreground">Server executor queue worker</p>
+          <p className="text-sm text-muted-foreground">{t('supervisorSubtitle')}</p>
         </div>
         <SupervisorPanel
           supervisor={supervisor}
           loading={supervisorLoading}
           error={supervisorError}
+          onRetry={handleRetry}
         />
       </section>
 
@@ -146,6 +158,27 @@ function ExecutionGovernanceInner() {
         leaseStatus={leaseStatus}
         onLeaseStatusChange={setLeaseStatus}
         stats={leaseStats}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingJobAction)}
+        onOpenChange={(open) => {
+          if (!open) cancelJobAction();
+        }}
+        tone="warning"
+        title={
+          pendingJobAction?.kind === 'cancel' ? t('cancelJobTitle') : t('retryJobTitle')
+        }
+        description={
+          pendingJobAction
+            ? pendingJobAction.kind === 'cancel'
+              ? t('cancelJobDescription', { operationKey: pendingJobAction.job.operationKey })
+              : t('retryJobDescription', { operationKey: pendingJobAction.job.operationKey })
+            : undefined
+        }
+        confirmLabel={tc('confirm')}
+        cancelLabel={tc('cancel')}
+        onConfirm={confirmJobAction}
       />
     </div>
   );

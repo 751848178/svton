@@ -1,14 +1,16 @@
 /** 聚焦站点接管面板 - 展示聚焦站点的接管绑定/探测/计划/运行记录。 */
 'use client';
 import { useTranslations } from 'next-intl';
+import { StatusTag } from '@/components/ui';
+import { ActionMenu } from '@/components/ui/action-menu';
 import type { useSites } from '../hooks/use-sites';
+import { buildSiteActionGroups } from '../utils-actions';
 import { runtimeTypeLabels } from '../constants';
-import { readRecord, readString, readRecordArray } from '../utils';
+import { readRecord, readString, readRecordArray, readBoolean } from '../utils';
 import { createSiteTakeoverForm, isPreviewSitePlaceholder } from '../utils-takeover';
 import {
   describeRuntime,
   getStatusLabel,
-  getStatusClass,
   formatTlsCertificateSummary,
 } from '../utils-format';
 import { FocusedSitePlanRunSummary } from './focused-site-plan-run-summary.component';
@@ -16,6 +18,7 @@ import { TakeoverBindingForm } from './takeover-binding-form';
 type SitesHook = ReturnType<typeof useSites>;
 export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
   const t = useTranslations('sites');
+  const tc = useTranslations('common');
   const focusedSite = sites.focusedSite;
   if (!focusedSite) return null;
   const focusedPlan = sites.plans[focusedSite.id] || null;
@@ -30,17 +33,27 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
   const updateFocusedTakeoverForm = sites.updateFocusedTakeoverForm;
   const handleSaveTakeoverBinding = sites.handleSaveTakeoverBinding;
   const handleActivatePreviewSite = sites.handleActivatePreviewSite;
+  // 与站点卡共用同一份 action 定义（单一数据源）；面板不暴露删除，另保留 TLS 探测计划入口。
+  const focusedCanRenewTls =
+    readBoolean(focusedTls.enabled) && readString(focusedTls.type) === 'letsencrypt';
+  const actions = buildSiteActionGroups({
+    t,
+    tc,
+    site: focusedSite,
+    sites,
+    canRenewTls: focusedCanRenewTls,
+    includeDelete: false,
+  });
   return (
     <section className="rounded-lg border border-primary/40 bg-primary/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold">{t('takeoverSiteTitle', { name: focusedSite.name })}</h2>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusClass(focusedSite.status)}`}
-            >
-              {getStatusLabel(focusedSite.status)}
-            </span>
+            <StatusTag
+              status={focusedSite.status}
+              label={getStatusLabel(focusedSite.status)}
+            />
             <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">
               {runtimeTypeLabels[focusedSite.runtimeType] || focusedSite.runtimeType}
             </span>
@@ -72,11 +85,19 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => sites.handleCreatePlan(focusedSite.id)}
-            disabled={sites.planningId === focusedSite.id}
+            onClick={actions.primary.onSelect}
+            disabled={actions.primary.disabled}
+            className="rounded-md border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {actions.primary.label}
+          </button>
+          <button
+            type="button"
+            onClick={actions.secondary.onSelect}
+            disabled={actions.secondary.disabled}
             className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {sites.planningId === focusedSite.id ? t('generating') : t('nginxOpenrestyPlan')}
+            {actions.secondary.label}
           </button>
           <button
             type="button"
@@ -86,62 +107,7 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
           >
             {sites.probingTlsId === focusedSite.id ? t('generating') : t('tlsProbePlan')}
           </button>
-          <button
-            type="button"
-            onClick={() => sites.handleOpenRestyStatus(focusedSite)}
-            disabled={sites.probingRuntimeId === focusedSite.id}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {sites.probingRuntimeId === focusedSite.id
-              ? sites.queueSiteRuns
-                ? t('statusEnqueuing')
-                : t('probing')
-              : sites.queueSiteRuns
-                ? t('runtimeEnqueue')
-                : t('runtimeProbe')}
-          </button>
-          <button
-            type="button"
-            onClick={() => sites.handleOpenRestyModules(focusedSite)}
-            disabled={sites.probingModulesId === focusedSite.id}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {sites.probingModulesId === focusedSite.id
-              ? sites.queueSiteRuns
-                ? t('modulesEnqueuing')
-                : t('inventorying')
-              : sites.queueSiteRuns
-                ? t('modulesEnqueue')
-                : t('moduleInventory')}
-          </button>
-          <button
-            type="button"
-            onClick={() => sites.handleOpenRestyModuleBaseline(focusedSite)}
-            disabled={sites.checkingModuleBaselineId === focusedSite.id}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {sites.checkingModuleBaselineId === focusedSite.id
-              ? sites.queueSiteRuns
-                ? t('baselineEnqueuing')
-                : t('checking')
-              : sites.queueSiteRuns
-                ? t('baselineEnqueue')
-                : t('baselineCheck')}
-          </button>
-          <button
-            type="button"
-            onClick={() => sites.handleSmokeCheck(focusedSite)}
-            disabled={sites.smokingId === focusedSite.id}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {sites.smokingId === focusedSite.id
-              ? sites.queueSiteRuns
-                ? t('checkEnqueuing')
-                : t('checking')
-              : sites.queueSiteRuns
-                ? t('smokeEnqueue')
-                : t('smokeCheck')}
-          </button>
+          <ActionMenu groups={actions.menuGroups} triggerLabel={t('moreActions')} />
           <button
             type="button"
             onClick={() => sites.setFocusedSiteId('')}

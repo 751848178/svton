@@ -24,15 +24,15 @@ export function formatCleanupReason(reason: string) {
   const labels: Record<string, string> = {
     cancel: '取消',
     timeout: '超时',
-    stale_recovery: 'stale recovery',
+    stale_recovery: '陈旧恢复',
   };
   return labels[reason] || reason;
 }
 
 export function formatAgentSource(source: string) {
   const labels: Record<string, string> = {
-    server_services: 'services',
-    server_tags: 'tags',
+    server_services: '服务',
+    server_tags: '标签',
   };
   return labels[source] || source;
 }
@@ -50,11 +50,21 @@ export function formatAgentDispatchMode(mode: string) {
 
 export function formatAgentRuntimeState(state: string) {
   const labels: Record<string, string> = {
-    online: 'online',
-    stale: 'stale',
-    unknown: 'unknown',
+    online: '在线',
+    stale: '陈旧',
+    unknown: '未知',
   };
   return labels[state] || state;
+}
+
+/** JSON 详情展示:空值返回 '-',序列化失败退化为字符串。 */
+export function formatJsonDetail(value: unknown) {
+  if (value === undefined || value === null) return '-';
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 export function formatEnabled(value?: boolean) {

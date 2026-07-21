@@ -6,6 +6,7 @@ import { usePersistFn } from '@svton/hooks';
 import { LoadingState, Tag } from '@svton/ui';
 import { useProjectConfigStore } from '@/store/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { ErrorBanner } from '@/components/ui';
 
 interface StepProps {
   onNext: () => void;
@@ -28,20 +29,34 @@ interface Category {
 
 export function StepFeatures({ onNext, onPrev }: StepProps) {
   const t = useTranslations('projectWizard');
+  const tc = useTranslations('common');
   const { config, toggleFeature } = useProjectConfigStore();
   const [features, setFeatures] = useState<Feature[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = usePersistFn(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [featureData, categoryData] = await Promise.all([
+        apiRequest<Feature[]>('GET:/registry/features'),
+        apiRequest<Category[]>('GET:/registry/categories'),
+      ]);
+      setFeatures(featureData);
+      setCategories([...categoryData].sort((a, b) => a.order - b.order));
+    } catch (e) {
+      console.error(e);
+      setError(t('loadFeaturesFailed'));
+    } finally {
+      setLoading(false);
+    }
+  });
 
   useEffect(() => {
-    apiRequest<Feature[]>('GET:/registry/features')
-      .then(setFeatures)
-      .catch((e) => console.error(e));
-    apiRequest<Category[]>('GET:/registry/categories')
-      .then((d) => setCategories(d.sort((a, b) => a.order - b.order)))
-      .catch((e) => console.error(e));
-    setLoading(false);
-  }, []);
+    loadData();
+  }, [loadData]);
 
   const selectedSubProjects = Object.entries(config.subProjects)
     .filter(([, v]) => v)
@@ -57,6 +72,21 @@ export function StepFeatures({ onNext, onPrev }: StepProps) {
   const handlePrev = usePersistFn(() => onPrev());
 
   if (loading) return <LoadingState text="" />;
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="mb-2 text-lg font-medium">{t('selectFeatures')}</h3>
+          <p className="mb-4 text-sm text-muted-foreground">{t('selectFeaturesHint')}</p>
+        </div>
+        <ErrorBanner
+          message={error}
+          onRetry={loadData}
+          retryLabel={tc('retry')}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

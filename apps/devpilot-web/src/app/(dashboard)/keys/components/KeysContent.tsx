@@ -5,6 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn, useSetState } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { useKeys } from '../hooks/use-keys';
 import { KeyCard } from './key-card';
 import { GenerateKeyModal } from './generate-key-modal';
@@ -19,11 +21,13 @@ import type { SecretKey, KeyInput } from '../types';
  */
 export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
   const t = useTranslations('keys');
+  const tc = useTranslations('common');
   const { keys, loading, generate, store, revealValue, remove } = useKeys(initialKeys);
   const [revealed, setRevealed] = useSetState<Record<string, string>>({});
   const [storeInitial, setStoreInitial] = useState<Partial<KeyInput>>({});
   const [genOpen, { setTrue: openGen, setFalse: closeGen }] = useBoolean(false);
   const [storeOpen, { setTrue: openStore, setFalse: closeStore }] = useBoolean(false);
+  const [deleteTarget, setDeleteTarget] = useState<SecretKey | null>(null);
 
   const handleReveal = usePersistFn(async (id: string) => {
     if (revealed[id]) {
@@ -38,9 +42,21 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
     }
   });
 
-  const handleDelete = usePersistFn(async (id: string) => {
-    if (!confirm(t('deleteConfirm'))) return;
-    await remove(id);
+  const handleDelete = usePersistFn((id: string) => {
+    setDeleteTarget(keys.find((key) => key.id === id) ?? null);
+  });
+
+  const handleConfirmDelete = usePersistFn(async () => {
+    if (!deleteTarget) return;
+    try {
+      await remove(deleteTarget.id);
+      feedback.success(t('deleteSuccess'));
+    } catch (error) {
+      feedback.error(t('deleteFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+      throw error;
+    }
   });
 
   const handleStorePrefill = usePersistFn((input: Partial<KeyInput>) => {
@@ -61,13 +77,13 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
           <div className="flex gap-2">
             <button
               onClick={openGen}
-              className="rounded-lg border border-blue-600 px-4 py-2 text-blue-600 hover:bg-blue-50"
+              className="rounded-lg border border-primary px-4 py-2 text-primary hover:bg-primary/10"
             >
               {t('generate')}
             </button>
             <button
               onClick={openStore}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+              className="rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
             >
               {t('store')}
             </button>
@@ -102,6 +118,19 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
         initial={storeInitial}
         onClose={closeStore}
         onStore={store}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        tone="danger"
+        title={t('deleteTitle')}
+        description={t('deleteConfirm')}
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

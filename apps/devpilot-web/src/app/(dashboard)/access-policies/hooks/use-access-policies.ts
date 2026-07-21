@@ -5,6 +5,7 @@
  */
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import type {
@@ -18,6 +19,7 @@ import { EMPTY_FORM } from '../types';
 import { parseCsv, policyToForm } from '../utils';
 
 export function useAccessPolicies() {
+  const t = useTranslations('accessPolicies');
   const [policies, setPolicies] = useState<AccessPolicy[]>([]);
   const [projects, setProjects] = useState<ProjectRef[]>([]);
   const [environments, setEnvironments] = useState<ProjectEnvironmentRef[]>([]);
@@ -27,6 +29,7 @@ export function useAccessPolicies() {
   const [saving, setSaving] = useState(false);
   const [actingId, setActingId] = useState('');
   const [error, setError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<AccessPolicy | null>(null);
 
   const load = usePersistFn(async () => {
     setError('');
@@ -93,9 +96,9 @@ export function useAccessPolicies() {
         riskLevels: parseCsv(form.riskLevels),
         priority: Number.parseInt(form.priority || '0', 10) || 0,
       };
-      if (!payload.name) throw new Error('请填写策略名称');
+      if (!payload.name) throw new Error(t('nameRequired'));
       if (payload.principalType === 'user' && !payload.principalUserId)
-        throw new Error('用户级策略需要填写用户 ID');
+        throw new Error(t('userIdRequired'));
       if (editingId) {
         await apiRequest(`PATCH:/control-access-policies/${editingId}`, {
           ...payload,
@@ -141,13 +144,22 @@ export function useAccessPolicies() {
     }
   });
 
-  const remove = usePersistFn(async (policy: AccessPolicy) => {
-    if (!window.confirm(`删除访问策略「${policy.name}」？`)) return;
-    setActingId(`${policy.id}:delete`);
+  const remove = usePersistFn((policy: AccessPolicy) => {
+    setDeleteTarget(policy);
+  });
+
+  const cancelRemove = usePersistFn(() => {
+    setDeleteTarget(null);
+  });
+
+  const confirmRemove = usePersistFn(async () => {
+    if (!deleteTarget) return;
+    setActingId(`${deleteTarget.id}:delete`);
     setError('');
     try {
-      await apiRequest(`DELETE:/control-access-policies/${policy.id}`);
-      if (editingId === policy.id) reset();
+      await apiRequest(`DELETE:/control-access-policies/${deleteTarget.id}`);
+      if (editingId === deleteTarget.id) reset();
+      setDeleteTarget(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : '删除访问策略失败');
@@ -168,6 +180,7 @@ export function useAccessPolicies() {
     saving,
     actingId,
     error,
+    deleteTarget,
     stats,
     selectProject,
     save,
@@ -175,6 +188,8 @@ export function useAccessPolicies() {
     reset,
     toggle,
     remove,
+    cancelRemove,
+    confirmRemove,
     reload: load,
   };
 }

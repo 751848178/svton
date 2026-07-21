@@ -86,6 +86,7 @@ export function useMonitoring(options: UseMonitoringOptions = {}) {
         siteData,
         resData,
         bkData,
+        resourceMetricData,
         serviceSloData,
       ] = await Promise.all([
         apiRequest<AlertRule[]>('GET:/monitoring/alert-rules'),
@@ -98,6 +99,10 @@ export function useMonitoring(options: UseMonitoringOptions = {}) {
         apiRequest<Site[]>('GET:/sites'),
         apiRequest<ManagedResource[]>('GET:/resource-control/resources'),
         apiRequest<BackupPlan[]>('GET:/backups/plans'),
+        apiRequest<ResourceMetricDashboard>('GET:/monitoring/resource-metrics/dashboard', {
+          windowMinutes: resourceMetricDashboardWindow,
+          limit: 20,
+        }),
         apiRequest<ServiceSloDashboard>(
           'GET:/monitoring/service-slo/dashboard',
           buildServiceSloDashboardQuery(applicationServiceId, serviceSloDashboardWindow),
@@ -113,8 +118,10 @@ export function useMonitoring(options: UseMonitoringOptions = {}) {
       setSites(siteData);
       setResources(resData);
       setBackupPlans(bkData);
+      setResourceMetricDashboard(resourceMetricData);
       setServiceSloDashboard(serviceSloData);
     } catch (err) {
+      setResourceMetricDashboard(null);
       setServiceSloDashboard(null);
       setError(err instanceof Error ? err.message : '加载监控数据失败');
     } finally {
@@ -124,7 +131,18 @@ export function useMonitoring(options: UseMonitoringOptions = {}) {
 
   useEffect(() => {
     loadData();
-  }, [applicationServiceId, loadData, serviceSloDashboardWindow]);
+  }, [applicationServiceId, loadData, resourceMetricDashboardWindow, serviceSloDashboardWindow]);
+
+  // 轮询（P0）：src/hooks/use-polling-list.ts 尚不存在（并行任务时序），
+  // 在本 hook 内以定时器实现同等语义：存在 firing 事件时 15s 刷新，否则 60s 兜底。
+  const hasFiringEvents = events.some((event) => event.status === 'firing');
+  useEffect(() => {
+    const intervalMs = hasFiringEvents ? 15000 : 60000;
+    const timer = setInterval(() => {
+      void loadData();
+    }, intervalMs);
+    return () => clearInterval(timer);
+  }, [hasFiringEvents, loadData]);
 
   const actions = useMonitoringActions({
     rules,

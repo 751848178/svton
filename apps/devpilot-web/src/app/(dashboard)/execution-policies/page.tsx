@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { usePolicies } from './hooks/use-policies';
 import { PolicyFormView } from './components/policy-form';
 import { PolicyCard } from './components/policy-card';
@@ -23,6 +24,7 @@ export default function ExecutionPoliciesPage() {
     saving,
     actingId,
     error,
+    deleteTarget,
     stats,
     selectProject,
     save,
@@ -30,6 +32,8 @@ export default function ExecutionPoliciesPage() {
     reset,
     toggle,
     remove,
+    cancelRemove,
+    confirmRemove,
     reload,
   } = usePolicies();
   const handleRetry = usePersistFn(() => reload());
@@ -46,7 +50,7 @@ export default function ExecutionPoliciesPage() {
         actions={
           <button
             onClick={handleRetry}
-            className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
+            className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent"
           >
             {tc('refresh')}
           </button>
@@ -117,6 +121,21 @@ export default function ExecutionPoliciesPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) cancelRemove();
+        }}
+        tone="danger"
+        title={t('deleteTemplateTitle')}
+        description={
+          deleteTarget ? t('deleteTemplateDescription', { name: deleteTarget.name }) : undefined
+        }
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={confirmRemove}
+      />
     </div>
   );
 }

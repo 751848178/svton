@@ -4,7 +4,8 @@ import { Suspense as ReactSuspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, ErrorBanner } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useSites } from './hooks/use-sites';
 import { AddSiteModal } from './components/add-site-modal';
 import { FocusedSitePanel } from './components/focused-site-panel';
@@ -33,17 +34,18 @@ function SitesContent() {
         description={t('pageManageDescription')}
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <label className="flex min-h-11 items-center gap-2 text-sm text-muted-foreground">
               <input
                 type="checkbox"
                 checked={sites.queueSiteRuns}
                 onChange={(e) => sites.setQueueSiteRuns(e.target.checked)}
+                className="h-5 w-5"
               />
               {t('queueSiteOps')}
             </label>
             <button
               onClick={() => sites.setShowModal(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               {t('addSitePrefixed')}
             </button>
@@ -55,6 +57,14 @@ function SitesContent() {
         <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
           {t('filterHint')}
         </div>
+      ) : null}
+
+      {sites.error ? (
+        <ErrorBanner
+          message={sites.error}
+          onRetry={() => sites.reload()}
+          retryLabel={tc('retry')}
+        />
       ) : null}
 
       {!sites.loading && siteId && !sites.focusedSite && sites.sites.length > 0 ? (
@@ -91,6 +101,50 @@ function SitesContent() {
           }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(sites.deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) sites.cancelDelete();
+        }}
+        tone="danger"
+        title={t('deleteSiteTitle')}
+        description={
+          sites.deleteTarget
+            ? t('deleteSiteDescription', { name: sites.deleteTarget.name })
+            : undefined
+        }
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={sites.confirmDelete}
+      />
+
+      <ConfirmDialog
+        open={Boolean(sites.pendingLiveAction)}
+        onOpenChange={(open) => {
+          if (!open) sites.cancelPendingLiveAction();
+        }}
+        tone="warning"
+        title={
+          sites.pendingLiveAction?.kind === 'tlsRenew'
+            ? t('confirmTlsRenewTitle')
+            : sites.pendingLiveAction?.kind === 'rollback'
+              ? t('confirmRollbackTitle')
+              : t('confirmSyncTitle')
+        }
+        description={
+          sites.pendingLiveAction
+            ? sites.pendingLiveAction.kind === 'tlsRenew'
+              ? t('confirmTlsRenewDescription', { name: sites.pendingLiveAction.site.name })
+              : sites.pendingLiveAction.kind === 'rollback'
+                ? t('confirmRollbackDescription', { name: sites.pendingLiveAction.site.name })
+                : t('confirmSyncDescription', { name: sites.pendingLiveAction.site.name })
+            : undefined
+        }
+        confirmLabel={tc('confirm')}
+        cancelLabel={tc('cancel')}
+        onConfirm={sites.confirmPendingLiveAction}
+      />
     </div>
   );
 }

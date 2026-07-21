@@ -2,8 +2,9 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { StatusTag } from '@/components/ui';
 import type { SiteSyncPlan, SiteSyncRun } from '../types';
-import { formatDateTime, getRunModeLabel, getStatusClass, getStatusLabel } from '../utils-format';
+import { formatDateTime, getRunModeLabel, getStatusLabel } from '../utils-format';
 
 interface FocusedSitePlanRunSummaryProps {
   plan: SiteSyncPlan | null;
@@ -22,11 +23,10 @@ export function FocusedSitePlanRunSummary({ plan, recentRuns }: FocusedSitePlanR
             <span className="font-medium">
               {plan.executorKey} · {plan.adapterKey} · {plan.mode}
             </span>
-            <span
-              className={`rounded-full px-2 py-0.5 font-medium ${getStatusClass(plan.status || (plan.executable ? 'active' : 'pending'))}`}
-            >
-              {getStatusLabel(plan.status || (plan.executable ? 'active' : 'pending'))}
-            </span>
+            <StatusTag
+              status={plan.status || (plan.executable ? 'active' : 'pending')}
+              label={getStatusLabel(plan.status || (plan.executable ? 'active' : 'pending'))}
+            />
           </div>
           {plan.warnings.length > 0 && (
             <div className="mt-2 space-y-1 text-xs text-yellow-800">
@@ -60,15 +60,15 @@ export function FocusedSitePlanRunSummary({ plan, recentRuns }: FocusedSitePlanR
                 className="flex flex-wrap items-center gap-2 text-xs"
               >
                 <span className="font-medium">{getRunModeLabel(run.mode)}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 font-medium ${getStatusClass(run.status)}`}
-                >
-                  {getStatusLabel(run.status)}
-                </span>
+                <StatusTag
+                  status={run.status}
+                  label={getStatusLabel(run.status)}
+                />
                 {run.dryRun && (
-                  <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
-                    dry-run
-                  </span>
+                  <StatusTag
+                    status="info"
+                    label="dry-run"
+                  />
                 )}
                 <span className="text-muted-foreground">{formatDateTime(run.startedAt)}</span>
               </div>

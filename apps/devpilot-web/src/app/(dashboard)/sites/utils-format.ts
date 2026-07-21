@@ -82,13 +82,3 @@ export function readLogMessages(value: unknown): string[] {
     })
     .filter(Boolean);
 }
-
-export function getStatusClass(status: string) {
-  if (status === 'queued') return 'bg-indigo-100 text-indigo-700';
-  if (status === 'active' || status === 'completed' || status === 'approved')
-    return 'bg-green-100 text-green-700';
-  if (status === 'error' || status === 'failed' || status === 'rejected')
-    return 'bg-red-100 text-red-700';
-  if (status === 'pending' || status === 'blocked') return 'bg-yellow-100 text-yellow-700';
-  return 'bg-muted text-muted-foreground';
-}

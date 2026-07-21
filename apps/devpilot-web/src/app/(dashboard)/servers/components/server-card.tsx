@@ -10,9 +10,9 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
+import { StatusTag } from '@/components/ui';
 import type { Server } from '../types';
 
-const STATUS_DOT: Record<string, string> = { online: 'bg-green-500', offline: 'bg-red-500' };
 const STATUS_KEY: Record<string, string> = { online: 'online', offline: 'offline', unknown: 'unknown' };
 
 interface ServerCardProps {
@@ -35,11 +35,11 @@ export function ServerCard({ server, testing, onTest, onDelete }: ServerCardProp
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <div
-              className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT[server.status] || 'bg-gray-400'}`}
-            />
             <h3 className="font-medium">{server.name}</h3>
-            <span className="text-xs text-muted-foreground">{t(STATUS_KEY[server.status] || 'unknown')}</span>
+            <StatusTag
+              status={server.status}
+              label={t(STATUS_KEY[server.status] || 'unknown')}
+            />
           </div>
           <div className="mt-2 text-sm text-muted-foreground">
             <span>

@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { SupervisorField, StatusBadge } from './ui-bits';
 import {
   formatAgentLifecycleAction,
@@ -14,35 +17,36 @@ export function SupervisorAgentLifecycleSection({
 }: {
   preflight: AgentLifecyclePreflight;
 }) {
+  const t = useTranslations('executionGovernance');
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-xs font-medium text-foreground">Runtime lifecycle</h4>
+        <h4 className="text-xs font-medium text-foreground">{t('secRuntimeLifecycle')}</h4>
         <StatusBadge status={readAgentLifecycleStatus(preflight.state)} />
       </div>
       <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
         <SupervisorField
-          label="preflight"
+          label={t('fieldPreflight')}
           value={`${formatAgentLifecycleState(preflight.state)} · ${formatAgentLifecycleReason(preflight.reason)}`}
         />
         <SupervisorField
-          label="target"
+          label={t('fieldTarget')}
           value={`${preflight.gates.targetSelection.capableServers}/${preflight.gates.targetSelection.onlineCapableServers} · ${formatAgentLifecycleReason(preflight.gates.targetSelection.reason)}`}
         />
         <SupervisorField
-          label="heartbeat"
+          label={t('fieldHeartbeat')}
           value={`${preflight.gates.heartbeat.readyServers}/${preflight.gates.heartbeat.heartbeatServers} · ${formatAgentLifecycleReason(preflight.gates.heartbeat.reason)}`}
         />
         <SupervisorField
-          label="dispatcher"
-          value={`${preflight.gates.dispatcher.liveDispatchReadyServers} live · ${formatAgentLifecycleReason(preflight.gates.dispatcher.reason)}`}
+          label={t('fieldDispatcher')}
+          value={`${preflight.gates.dispatcher.liveDispatchReadyServers} 实时 · ${formatAgentLifecycleReason(preflight.gates.dispatcher.reason)}`}
         />
         <SupervisorField
-          label="queue"
+          label={t('fieldQueue')}
           value={`${preflight.gates.queueWorker.queuedJobs}/${preflight.gates.queueWorker.runningJobs}/${preflight.gates.queueWorker.blockedJobs} · ${formatAgentLifecycleReason(preflight.gates.queueWorker.reason)}`}
         />
         <SupervisorField
-          label="pressure"
+          label={t('fieldPressure')}
           value={`${preflight.pressure.servers}/${preflight.pressure.scannedJobs}`}
         />
       </div>

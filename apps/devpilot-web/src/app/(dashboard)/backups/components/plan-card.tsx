@@ -9,9 +9,9 @@
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { StatusTag } from '@/components/ui';
-import type { BackupPlan } from '../types';
+import type { BackupPlan, BackupPlanRun, BackupRestoreTarget } from '../types';
 import { backupTypeLabels, statusLabels } from '../constants';
-import { formatResource, formatDate, canQueueBackupRun } from '../utils';
+import { formatResource, formatDate, canQueueBackupRun, canRestoreBackupRun } from '../utils';
 
 interface PlanCardProps {
   plan: BackupPlan;
@@ -20,10 +20,12 @@ interface PlanCardProps {
   queueBackupRuns: boolean;
   onRun: (plan: BackupPlan) => void;
   onToggleStatus: (plan: BackupPlan) => void;
+  onRestore: (target: BackupRestoreTarget) => void;
 }
 
 export function PlanCard(props: PlanCardProps) {
-  const { plan, runningPlanId, updatingPlanId, queueBackupRuns, onRun, onToggleStatus } = props;
+  const { plan, runningPlanId, updatingPlanId, queueBackupRuns, onRun, onToggleStatus, onRestore } =
+    props;
   const t = useTranslations('backups');
   const queueThisRun = queueBackupRuns && canQueueBackupRun(plan);
   const isRunningThis = runningPlanId === plan.id;
@@ -61,13 +63,12 @@ export function PlanCard(props: PlanCardProps) {
           {plan.runs && plan.runs.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
               {plan.runs.map((run) => (
-                <span
+                <PlanRunChip
                   key={run.id}
-                  className="rounded-md bg-muted px-2 py-1"
-                >
-                  {statusLabels[run.status] || run.status} · {formatDate(run.startedAt)}
-                  {run.serverExecutionJob ? ` · Job ${run.serverExecutionJob.id.slice(0, 8)}` : ''}
-                </span>
+                  run={run}
+                  planName={plan.name}
+                  onRestore={onRestore}
+                />
               ))}
             </div>
           ) : null}
@@ -76,7 +77,7 @@ export function PlanCard(props: PlanCardProps) {
           <button
             onClick={handleRun}
             disabled={Boolean(runningPlanId) || plan.status !== 'active'}
-            className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+            className="min-h-11 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
           >
             {isRunningThis
               ? queueThisRun
@@ -89,12 +90,40 @@ export function PlanCard(props: PlanCardProps) {
           <button
             onClick={handleToggle}
             disabled={Boolean(updatingPlanId) || plan.status === 'archived'}
-            className="rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+            className="min-h-11 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
           >
             {updatingPlanId === plan.id ? t('updating') : plan.status === 'active' ? t('pause') : t('enable')}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+/** 单个备份运行 chip：状态 + 时间 +（completed/success 时）恢复入口。 */
+function PlanRunChip({
+  run,
+  planName,
+  onRestore,
+}: {
+  run: BackupPlanRun;
+  planName: string;
+  onRestore: (target: BackupRestoreTarget) => void;
+}) {
+  const t = useTranslations('backups');
+  const handleRestore = usePersistFn(() => onRestore({ id: run.id, name: planName }));
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1">
+      {statusLabels[run.status] || run.status} · {formatDate(run.startedAt)}
+      {run.serverExecutionJob ? ` · Job ${run.serverExecutionJob.id.slice(0, 8)}` : ''}
+      {canRestoreBackupRun(run.status) ? (
+        <button
+          onClick={handleRestore}
+          className="text-primary hover:underline"
+        >
+          {t('restore')}
+        </button>
+      ) : null}
+    </span>
   );
 }

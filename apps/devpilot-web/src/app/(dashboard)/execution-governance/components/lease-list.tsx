@@ -8,7 +8,9 @@
 
 import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { Metric, StatusBadge } from './ui-bits';
+import { MetricCard } from '@/components/ui';
+import { CollapsibleGroup } from './collapsible-group';
+import { StatusBadge } from './ui-bits';
 import type { ServerExecutionLease } from '../types';
 import type { LeaseStats } from '../hooks/use-execution-governance';
 import { readBlockedBy, formatDate } from '../utils';
@@ -35,14 +37,14 @@ export function LeaseList({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold">{t('leaseListTitle')}</h2>
-          <p className="text-sm text-muted-foreground">ServerExecutionLease</p>
+          <p className="text-sm text-muted-foreground">{t('leaseListSubtitle')}</p>
         </div>
         <label className="block w-44 text-sm">
           <span className="mb-1 block font-medium">{tc('status')}</span>
           <select
             value={leaseStatus}
             onChange={(e) => onLeaseStatusChange(e.target.value)}
-            className="w-full rounded-md border px-3 py-2"
+            className="min-h-11 w-full rounded-md border px-3"
           >
             <option value="running">{t('statusRunning')}</option>
             <option value="blocked">{t('statusBlocked')}</option>
@@ -54,28 +56,33 @@ export function LeaseList({
         </label>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-5">
-        <Metric
-          label={t('metricCurrentList')}
-          value={stats.total}
-        />
-        <Metric
-          label={t('statusRunning')}
-          value={stats.running}
-        />
-        <Metric
-          label={t('statusBlocked')}
-          value={stats.blocked}
-        />
-        <Metric
-          label={t('statusExpired')}
-          value={stats.expired}
-        />
-        <Metric
-          label={tc('failed')}
-          value={stats.failed}
-        />
-      </div>
+      <CollapsibleGroup
+        title={t('groupLeases')}
+        issueCount={stats.expired + stats.failed}
+      >
+        <div className="grid gap-4 md:grid-cols-5">
+          <MetricCard
+            label={t('metricCurrentList')}
+            value={stats.total}
+          />
+          <MetricCard
+            label={t('statusRunning')}
+            value={stats.running}
+          />
+          <MetricCard
+            label={t('statusBlocked')}
+            value={stats.blocked}
+          />
+          <MetricCard
+            label={t('statusExpired')}
+            value={stats.expired}
+          />
+          <MetricCard
+            label={tc('failed')}
+            value={stats.failed}
+          />
+        </div>
+      </CollapsibleGroup>
 
       {loading ? (
         <LoadingState text={tc('loading')} />
@@ -85,8 +92,8 @@ export function LeaseList({
           description={t('noLeasesHint')}
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="min-w-[920px] w-full text-sm">
             <thead className="bg-muted/50 text-left">
               <tr>
                 <th className="px-4 py-3 font-medium">{tc('status')}</th>

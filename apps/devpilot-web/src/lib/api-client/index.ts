@@ -18,7 +18,7 @@ import { createFetchAdapter } from './fetch-adapter';
 import { createInterceptors } from './interceptors';
 import './registry';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3101';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3121';
 
 const { api, apiAsync, runGenerator } = createApiClient(createFetchAdapter(), {
   baseURL: `${API_BASE_URL}/api`,

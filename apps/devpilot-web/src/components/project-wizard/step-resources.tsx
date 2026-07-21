@@ -6,7 +6,7 @@ import { usePersistFn } from '@svton/hooks';
 import { LoadingState } from '@svton/ui';
 import { apiRequest } from '@/lib/api-client';
 import { useProjectConfigStore } from '@/store/hooks';
-import type { DatabaseEngine, ResourceConfigMode } from '@/store/hooks';
+import type { DatabaseEngine, ProjectResourceConfig, ResourceConfigMode } from '@/store/hooks';
 import type {
   StepProps,
   RegistryResourceType,
@@ -14,13 +14,7 @@ import type {
   ResourceInstance,
   ResourcePool,
 } from './step-resources-types';
-import { collectSelections, filterDatabaseResourceMap } from './step-resources-types';
-import {
-  DatabaseEngineSelector,
-  ResourceConfigCard,
-  SelectField,
-  WizardActions,
-} from './step-resources-sub';
+import { DatabaseEngineSelector, ResourceConfigCard, WizardActions } from './step-resources-sub';
 
 const databaseResourceIds = ['mysql', 'postgresql'];
 const databaseResourceByEngine: Partial<Record<DatabaseEngine, string>> = {
@@ -38,11 +32,41 @@ export function StepResources({ onNext, onPrev }: StepProps) {
   const [instances, setInstances] = useState<ResourceInstance[]>([]);
   const [pools, setPools] = useState<ResourcePool[]>([]);
   const [loading, setLoading] = useState(true);
-  const [manualConfigs, setManualConfigs] = useState<Record<string, Record<string, string>>>({});
-  const [selectedCredentials, setSelectedCredentials] = useState<Record<string, string>>({});
-  const [selectedInstances, setSelectedInstances] = useState<Record<string, string>>({});
-  const [selectedPools, setSelectedPools] = useState<Record<string, string[]>>({});
-  const [poolResourceNames, setPoolResourceNames] = useState<Record<string, string>>({});
+  const [manualConfigs, setManualConfigs] = useState<Record<string, Record<string, string>>>(() => {
+    const init: Record<string, Record<string, string>> = {};
+    for (const [type, rc] of Object.entries(config.resources || {})) {
+      if (rc.config) init[type] = rc.config;
+    }
+    return init;
+  });
+  const [selectedCredentials, setSelectedCredentials] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const [type, rc] of Object.entries(config.resources || {})) {
+      if (rc.credentialId) init[type] = rc.credentialId;
+    }
+    return init;
+  });
+  const [selectedInstances, setSelectedInstances] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const [type, rc] of Object.entries(config.resources || {})) {
+      if (rc.instanceId) init[type] = rc.instanceId;
+    }
+    return init;
+  });
+  const [selectedPools, setSelectedPools] = useState<Record<string, string[]>>(() => {
+    const init: Record<string, string[]> = {};
+    for (const [type, rc] of Object.entries(config.resources || {})) {
+      if (rc.poolId) init[type] = [rc.poolId];
+    }
+    return init;
+  });
+  const [poolResourceNames, setPoolResourceNames] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const [type, rc] of Object.entries(config.resources || {})) {
+      if (rc.poolId && rc.resourceName) init[type] = rc.resourceName;
+    }
+    return init;
+  });
   const [databaseEngine, setDatabaseEngine] = useState<DatabaseEngine>(config.database.engine);
 
   useEffect(() => {
@@ -82,20 +106,50 @@ export function StepResources({ onNext, onPrev }: StepProps) {
 
   const requiredResources = registryResources.filter((r) => requiredResourceIds.includes(r.id));
 
+  const updateResourceEntry = usePersistFn(
+    (resourceType: string, partial: Partial<Omit<ProjectResourceConfig, 'type'>>) => {
+      const current = { ...(config.resources || {}) };
+      const existing: ProjectResourceConfig = current[resourceType] || {
+        type: resourceType,
+        mode: 'manual',
+      };
+      current[resourceType] = { ...existing, ...partial };
+      setResources(current);
+    },
+  );
   const handleFieldChange = usePersistFn((resourceType: string, field: string, value: string) => {
+    const nextFields = { ...(manualConfigs[resourceType] || {}), [field]: value };
     setManualConfigs((current) => ({
       ...current,
-      [resourceType]: { ...current[resourceType], [field]: value },
+      [resourceType]: nextFields,
     }));
+    updateResourceEntry(resourceType, { config: nextFields });
+  });
+  const handleCredentialChange = usePersistFn((resourceType: string, credentialId: string) => {
+    setSelectedCredentials((current) => ({ ...current, [resourceType]: credentialId }));
+    const name = storedResources.find((s) => s.id === credentialId)?.name;
+    updateResourceEntry(resourceType, { credentialId, resourceName: name });
+  });
+  const handleInstanceChange = usePersistFn((resourceType: string, instanceId: string) => {
+    setSelectedInstances((current) => ({ ...current, [resourceType]: instanceId }));
+    const name = instances.find((i) => i.id === instanceId)?.name;
+    updateResourceEntry(resourceType, { instanceId, resourceName: name });
+  });
+  const handlePoolChange = usePersistFn((resourceType: string, poolId: string) => {
+    setSelectedPools((current) => ({ ...current, [resourceType]: poolId ? [poolId] : [] }));
+    const pool = pools.find((p) => p.id === poolId);
+    setPoolResourceNames((current) => ({ ...current, [resourceType]: pool?.name || '' }));
+    updateResourceEntry(resourceType, { poolId, resourceName: pool?.name });
   });
   const handleModeChange = usePersistFn((resourceType: string, mode: ResourceConfigMode) => {
     const current = { ...(config.resources || {}) };
-    if (mode === 'skipped' || mode === 'manual') {
+    if (mode === 'skipped') {
       delete current[resourceType];
+    } else {
+      // 切换模式时保留该资源已填写的字段，避免误删另一模式已存配置。
+      current[resourceType] = { ...current[resourceType], type: resourceType, mode };
     }
-    setResources(
-      Object.fromEntries(Object.entries(current).filter(([type]) => type !== resourceType)),
-    );
+    setResources(current);
   });
   const handleDatabaseEngineChange = usePersistFn((engine: DatabaseEngine) => {
     setDatabaseEngine(engine);
@@ -124,7 +178,15 @@ export function StepResources({ onNext, onPrev }: StepProps) {
             storedResources={storedResources}
             instances={instances}
             pools={pools}
+            manualValues={manualConfigs[resource.id] || {}}
+            credentialId={selectedCredentials[resource.id] || ''}
+            instanceId={selectedInstances[resource.id] || ''}
+            poolId={selectedPools[resource.id]?.[0] || ''}
             onModeChange={(mode) => handleModeChange(resource.id, mode)}
+            onFieldChange={(field, value) => handleFieldChange(resource.id, field, value)}
+            onCredentialChange={(id) => handleCredentialChange(resource.id, id)}
+            onInstanceChange={(id) => handleInstanceChange(resource.id, id)}
+            onPoolChange={(id) => handlePoolChange(resource.id, id)}
           />
         ))
       )}

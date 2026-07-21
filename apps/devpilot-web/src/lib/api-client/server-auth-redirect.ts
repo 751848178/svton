@@ -6,7 +6,7 @@ export function isUnauthorizedApiError(error: unknown): boolean {
   return error instanceof ApiError && (error.code === 401 || error.code === '401');
 }
 
-export function redirectOnUnauthorized(error: unknown, redirectPath = '/teams'): void {
+export function redirectOnUnauthorized(error: unknown, redirectPath = '/dashboard'): void {
   if (isUnauthorizedApiError(error)) {
     redirect(buildLoginRedirectPath(redirectPath));
   }

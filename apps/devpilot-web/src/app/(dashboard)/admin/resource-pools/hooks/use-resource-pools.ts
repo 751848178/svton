@@ -8,17 +8,22 @@
  * 写操作后调用 mutate 刷新缓存。
  */
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import { useQueryLoose, mutate } from '@/hooks/api/use-api';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { ResourcePool, PoolForm } from '../types';
 import { EMPTY_FORM } from '../types';
+import { usePoolDeleteConfirmChannel } from './pool-delete-confirm';
 
 /** SWR 缓存 key（与 useQueryLoose 的 apiName 一致）。 */
 const POOLS_KEY = 'GET:/resource-pools';
 
 export function useResourcePools(initialPools?: ResourcePool[] | undefined) {
+  const t = useTranslations('admin');
+  const confirmChannel = usePoolDeleteConfirmChannel();
   const { data, isLoading } = useQueryLoose<ResourcePool[]>(POOLS_KEY, {
     fallback: initialPools,
   });
@@ -27,6 +32,8 @@ export function useResourcePools(initialPools?: ResourcePool[] | undefined) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPool, setEditingPool] = useState<ResourcePool | null>(null);
   const [form, setForm] = useSetState<PoolForm>(EMPTY_FORM);
+  // 删除确认：remove 只记录目标并打开弹窗（由 page.tsx 渲染的 ConfirmDialog 确认后执行）
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const openCreate = usePersistFn(() => {
     setEditingPool(null);
@@ -63,18 +70,41 @@ export function useResourcePools(initialPools?: ResourcePool[] | undefined) {
       await mutate(POOLS_KEY);
     } catch (error) {
       console.error('Failed to save pool:', error);
+      feedback.error(t('poolSaveFailed'));
     }
   });
 
-  const remove = usePersistFn(async (id: string) => {
-    if (!confirm('确定要删除这个资源池吗？')) return;
+  const remove = usePersistFn((id: string) => {
+    setPendingDeleteId(id);
+  });
+
+  const cancelRemove = usePersistFn(() => {
+    setPendingDeleteId(null);
+  });
+
+  const confirmRemove = usePersistFn(async () => {
+    if (!pendingDeleteId) return;
     try {
-      await apiRequest(`DELETE:/resource-pools/${id}`);
+      await apiRequest(`DELETE:/resource-pools/${pendingDeleteId}`);
       await mutate(POOLS_KEY);
+      setPendingDeleteId(null);
+      feedback.success(t('poolDeleteSuccess'));
     } catch (error) {
       console.error('Failed to delete pool:', error);
+      feedback.error(t('poolDeleteFailed'));
     }
   });
+
+  // 把确认状态发布给 page.tsx 渲染的 ResourcePoolsDeleteConfirmDialog
+  const pendingDeletePool = useMemo(
+    () => pools.find((pool) => pool.id === pendingDeleteId) ?? null,
+    [pools, pendingDeleteId],
+  );
+  useEffect(() => {
+    if (!confirmChannel) return;
+    confirmChannel.setHandle({ pendingPool: pendingDeletePool, confirmRemove, cancelRemove });
+    return () => confirmChannel.setHandle(null);
+  }, [confirmChannel, pendingDeletePool, confirmRemove, cancelRemove]);
 
   return {
     pools,

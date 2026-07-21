@@ -1,9 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, ErrorBanner } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { useResources } from '../hooks/use-resources';
 import { AddResourceModal } from './add-resource-modal';
 import type { Resource, ResourceType } from '../types';
@@ -23,15 +26,22 @@ export function ResourcesContent({
 }) {
   const t = useTranslations('resources');
   const tc = useTranslations('common');
-  const { resources, resourceTypes, resourceTypeMap, isLoading, create, remove } = useResources(
-    initialResources,
-    initialResourceTypes,
-  );
+  const { resources, resourceTypes, resourceTypeMap, isLoading, loadError, create, remove } =
+    useResources(initialResources, initialResourceTypes);
   const [modalOpen, { setTrue: openModal, setFalse: closeModal }] = useBoolean(false);
+  // 删除确认弹窗状态（一个操作一个确认实例）
+  const [deleteTarget, setDeleteTarget] = useState<Resource | null>(null);
 
-  const handleDelete = usePersistFn(async (id: string) => {
-    if (!confirm(t('deleteConfirm'))) return;
-    await remove(id);
+  const handleConfirmDelete = usePersistFn(async () => {
+    if (!deleteTarget) return;
+    try {
+      await remove(deleteTarget.id);
+      setDeleteTarget(null);
+      feedback.success(t('deleteSuccess'));
+    } catch (error) {
+      console.error('Failed to delete resource:', error);
+      feedback.error(t('deleteFailed'));
+    }
   });
 
   return (
@@ -50,6 +60,13 @@ export function ResourcesContent({
           }
         />
       </div>
+
+      {loadError ? (
+        <ErrorBanner
+          message={t('loadFailed')}
+          className="mb-4"
+        />
+      ) : null}
 
       {isLoading ? (
         <LoadingState text={tc('loading')} />
@@ -76,7 +93,7 @@ export function ResourcesContent({
                 </p>
               </div>
               <button
-                onClick={() => handleDelete(resource.id)}
+                onClick={() => setDeleteTarget(resource)}
                 className="rounded px-3 py-1 text-sm text-destructive transition-colors hover:bg-destructive/10"
               >
                 {tc('delete')}
@@ -91,6 +108,19 @@ export function ResourcesContent({
         resourceTypes={resourceTypes}
         onClose={closeModal}
         onCreate={create}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        tone="danger"
+        title={t('deleteConfirmTitle')}
+        description={t('deleteConfirm')}
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

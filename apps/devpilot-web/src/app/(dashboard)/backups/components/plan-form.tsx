@@ -9,6 +9,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { ManagedResource, BackupPlanInput } from '../types';
 import { providerLabels, kindLabels } from '../constants';
 
@@ -46,7 +47,7 @@ export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
 
   const onSubmit = handleSubmit((data) => {
     if (!data.resourceId || !selected) {
-      alert(t('selectResourceAlert'));
+      feedback.error(t('selectResourceAlert'));
       return;
     }
     onCreate({
@@ -65,7 +66,7 @@ export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
         <Field label={t('resource')}>
           <select
             {...register('resourceId')}
-            className="w-full rounded-md border px-3 py-2"
+            className="min-h-11 w-full rounded-md border px-3 py-2"
           >
             <option value="">{t('selectResource')}</option>
             {resources.map((r) => (
@@ -83,13 +84,13 @@ export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
           <input
             {...register('name')}
             placeholder={selected ? t('defaultPlanName', { name: selected.name }) : t('planName')}
-            className="w-full rounded-md border px-3 py-2"
+            className="min-h-11 w-full rounded-md border px-3 py-2"
           />
         </Field>
         <Field label={tc('type')}>
           <select
             {...register('backupType')}
-            className="w-full rounded-md border px-3 py-2"
+            className="min-h-11 w-full rounded-md border px-3 py-2"
           >
             <option value="auto">{t('backupTypeAuto')}</option>
             <option value="logical">{t('backupTypeLogical')}</option>
@@ -102,14 +103,14 @@ export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
             type="number"
             min={1}
             {...register('retentionDays', { valueAsNumber: true })}
-            className="w-full rounded-md border px-3 py-2"
+            className="min-h-11 w-full rounded-md border px-3 py-2"
           />
         </Field>
         <div className="flex items-end">
           <button
             onClick={onSubmit}
             disabled={creating || !resourceId}
-            className="w-full rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
+            className="min-h-11 w-full rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
           >
             {creating ? t('creating') : t('createPlan')}
           </button>

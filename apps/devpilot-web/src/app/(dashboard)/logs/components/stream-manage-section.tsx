@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import type { useLogs } from '../hooks/use-logs';
-import { sourceLabels } from '../constants';
+import { targetTypeOptions } from '../constants';
 import { sourceKeyPlaceholder, formatTargetType } from '../utils';
 type LogsHook = ReturnType<typeof useLogs>;
 
@@ -20,15 +20,18 @@ export function StreamManageSection({ logs }: { logs: LogsHook }) {
           <span className="mb-1 block font-medium">{t('targetType')}</span>
           <select
             value={s.targetType}
-            onChange={(e) => s.setTargetType(e.target.value as never)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            onChange={(e) => {
+              s.setTargetType(e.target.value as never);
+              s.setTargetId('');
+            }}
+            className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
-            {Object.entries(sourceLabels).map(([key, label]) => (
+            {targetTypeOptions.map((option) => (
               <option
-                key={key}
-                value={key}
+                key={option.value}
+                value={option.value}
               >
-                {label}
+                {option.label}
               </option>
             ))}
           </select>
@@ -38,7 +41,7 @@ export function StreamManageSection({ logs }: { logs: LogsHook }) {
           <select
             value={s.targetId}
             onChange={(e) => s.setTargetId(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
             <option value="">{t('selectTarget')}</option>
             {logs.targetOptions.map((opt: { id: string; label: string }) => (
@@ -57,23 +60,23 @@ export function StreamManageSection({ logs }: { logs: LogsHook }) {
             value={s.streamName}
             onChange={(e) => s.setStreamName(e.target.value)}
             placeholder={t('streamNamePlaceholder', { type: formatTargetType(s.targetType) })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Source Key</span>
+          <span className="mb-1 block font-medium">{t('sourceKeyLabel')}</span>
           <input
             value={s.sourceKey}
             onChange={(e) => s.setSourceKey(e.target.value)}
             placeholder={sourceKeyPlaceholder(s.targetType)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </label>
         <div className="flex items-end">
           <button
             onClick={handleCreate}
             disabled={s.saving}
-            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="min-h-11 w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {s.saving ? t('creating') : tc('create')}
           </button>

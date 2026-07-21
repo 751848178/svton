@@ -41,7 +41,7 @@ export function ResourcePoolsContent({ initialPools }: { initialPools?: Resource
         actions={
           <button
             onClick={openCreate}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            className="rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
           >
             {t('addPool')}
           </button>

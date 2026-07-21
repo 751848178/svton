@@ -1,4 +1,7 @@
-import { Metric } from './ui-bits';
+'use client';
+
+import { useTranslations } from 'next-intl';
+import { MetricCard } from '@/components/ui';
 import type { ServerExecutionSupervisorSnapshot } from '../supervisor';
 
 export function SupervisorSummary({
@@ -6,54 +9,55 @@ export function SupervisorSummary({
 }: {
   supervisor: ServerExecutionSupervisorSnapshot;
 }) {
+  const t = useTranslations('executionGovernance');
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-12">
-      <Metric
-        label="Ready"
+      <MetricCard
+        label={t('sumReady')}
         value={supervisor.queue.ready}
       />
-      <Metric
-        label="Scheduled"
+      <MetricCard
+        label={t('sumScheduled')}
         value={supervisor.queue.scheduled}
       />
-      <Metric
-        label="Running"
+      <MetricCard
+        label={t('sumRunning')}
         value={supervisor.queue.running}
       />
-      <Metric
-        label="Stale"
+      <MetricCard
+        label={t('sumStale')}
         value={supervisor.queue.staleRunning}
       />
-      <Metric
-        label="Active lease"
+      <MetricCard
+        label={t('sumActiveLease')}
         value={supervisor.leases.running}
       />
-      <Metric
-        label="Workers"
+      <MetricCard
+        label={t('sumWorkers')}
         value={supervisor.workers.length}
       />
-      <Metric
-        label="Worker owner"
+      <MetricCard
+        label={t('sumWorkerOwners')}
         value={supervisor.workerInventory.owners.total}
       />
-      <Metric
-        label="Owner stale"
+      <MetricCard
+        label={t('sumOwnerStale')}
         value={supervisor.workerInventory.owners.stale}
       />
-      <Metric
-        label="Agent targets"
+      <MetricCard
+        label={t('sumAgentTargets')}
         value={supervisor.agent.capableServers}
       />
-      <Metric
-        label="Agent runtime"
+      <MetricCard
+        label={t('sumAgentRuntime')}
         value={supervisor.agent.runtime.onlineServers}
       />
-      <Metric
-        label="Agent stale"
+      <MetricCard
+        label={t('sumAgentStale')}
         value={supervisor.agent.runtime.staleServers}
       />
-      <Metric
-        label="Agent ready"
+      <MetricCard
+        label={t('sumAgentReady')}
         value={supervisor.agent.jobs.ready}
       />
     </div>

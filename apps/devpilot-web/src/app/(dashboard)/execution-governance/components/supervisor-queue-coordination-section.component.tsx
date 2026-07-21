@@ -22,32 +22,32 @@ export function SupervisorQueueCoordinationSection({
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-xs font-medium text-foreground">Queue coordination</h4>
+        <h4 className="text-xs font-medium text-foreground">{t('secQueueCoordination')}</h4>
         <StatusBadge status={readQueueCoordinationStatus(coordination.state)} />
       </div>
       <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
         <SupervisorField
-          label="preflight"
+          label={t('fieldPreflight')}
           value={`${formatQueueCoordinationState(coordination.state)} · ${formatQueueCoordinationReason(coordination.reason)}`}
         />
         <SupervisorField
-          label="worker"
+          label={t('fieldWorker')}
           value={`${coordination.gates.worker.enabled ? tc('enabled') : tc('disabled')} · ${formatQueueCoordinationReason(coordination.gates.worker.reason)}`}
         />
         <SupervisorField
-          label="queue"
+          label={t('fieldQueue')}
           value={`${coordination.gates.queue.readyJobs}/${coordination.gates.queue.scheduledJobs}/${coordination.gates.queue.blockedJobs} · ${formatQueueCoordinationReason(coordination.gates.queue.reason)}`}
         />
         <SupervisorField
-          label="owners"
+          label={t('fieldOwners')}
           value={`${coordination.gates.owners.activeOwners}/${coordination.gates.owners.totalOwners} · ${formatQueueCoordinationReason(coordination.gates.owners.reason)}`}
         />
         <SupervisorField
-          label="recovery"
+          label={t('fieldRecovery')}
           value={`${coordination.gates.recovery.staleRunningJobs}/${coordination.gates.recovery.recoveryBatchSize} · ${formatQueueCoordinationReason(coordination.gates.recovery.reason)}`}
         />
         <SupervisorField
-          label="pressure"
+          label={t('fieldPressure')}
           value={`${coordination.pressure.backlogJobs}/${coordination.pressure.runningJobs}/${coordination.pressure.blockedJobs}`}
         />
       </div>

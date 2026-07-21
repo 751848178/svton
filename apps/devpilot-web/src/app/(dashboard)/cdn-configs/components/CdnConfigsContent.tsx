@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useBoolean } from '@svton/hooks';
 import { LoadingState, EmptyState, Tabs } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useCdnConfigs } from '../hooks/use-cdn-configs';
 import { CdnConfigCard } from './cdn-config-card';
 import { CredentialTable } from './credential-table';
@@ -31,11 +32,17 @@ export function CdnConfigsContent({
     credentials,
     loading,
     purgingId,
+    configTarget,
+    credentialTarget,
     createConfig,
     createCredential,
     purge,
     removeConfig,
+    cancelRemoveConfig,
+    confirmRemoveConfig,
     removeCredential,
+    cancelRemoveCredential,
+    confirmRemoveCredential,
   } = useCdnConfigs(initialConfigs, initialCredentials);
   const [configModal, { setTrue: openConfig, setFalse: closeConfig }] = useBoolean(false);
   const [credModal, { setTrue: openCred, setFalse: closeCred }] = useBoolean(false);
@@ -90,16 +97,16 @@ export function CdnConfigsContent({
         title={t('pageTitle')}
         description={t('pageDescription')}
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={openCred}
-              className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+              className="inline-flex min-h-11 items-center gap-2 rounded-md border px-4 text-sm font-medium hover:bg-accent"
             >
               {t('addCredential')}
             </button>
             <button
               onClick={openConfig}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               {t('addConfigPrefix')}
             </button>
@@ -119,6 +126,38 @@ export function CdnConfigsContent({
         open={credModal}
         onClose={closeCred}
         onCreate={createCredential}
+      />
+
+      <ConfirmDialog
+        open={Boolean(configTarget)}
+        onOpenChange={(open) => {
+          if (!open) cancelRemoveConfig();
+        }}
+        tone="danger"
+        title={t('deleteConfigTitle')}
+        description={
+          configTarget ? t('deleteConfigDescription', { name: configTarget.name }) : undefined
+        }
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={confirmRemoveConfig}
+      />
+
+      <ConfirmDialog
+        open={Boolean(credentialTarget)}
+        onOpenChange={(open) => {
+          if (!open) cancelRemoveCredential();
+        }}
+        tone="danger"
+        title={t('deleteCredentialTitle')}
+        description={
+          credentialTarget
+            ? t('deleteCredentialDescription', { name: credentialTarget.name })
+            : undefined
+        }
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={confirmRemoveCredential}
       />
     </div>
   );

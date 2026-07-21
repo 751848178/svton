@@ -8,8 +8,10 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { useQueryLoose, mutate } from '@/hooks/api/use-api';
 import type { ResourceType } from '../types';
 
@@ -17,6 +19,7 @@ import type { ResourceType } from '../types';
 const RESOURCE_TYPES_KEY = 'GET:/resource-types?includeDisabled=true';
 
 export function useResourceTypes(initialResourceTypes?: ResourceType[] | undefined) {
+  const t = useTranslations('admin');
   const {
     data,
     isLoading,
@@ -36,10 +39,24 @@ export function useResourceTypes(initialResourceTypes?: ResourceType[] | undefin
     setEditingType(null);
   });
 
-  const disableType = usePersistFn(async (id: string) => {
-    if (!confirm('确定要停用这个资源类型吗？')) return;
-    await apiRequest(`DELETE:/resource-types/${id}`);
-    await mutate(RESOURCE_TYPES_KEY);
+  // 停用确认：状态提升到组件层 ConfirmDialog（参照 servers 删除确认范式）
+  const [disableTargetId, setDisableTargetId] = useState<string | null>(null);
+  const disableTarget = resourceTypes.find((type) => type.id === disableTargetId) ?? null;
+
+  const requestDisable = usePersistFn((id: string) => setDisableTargetId(id));
+  const cancelDisable = usePersistFn(() => setDisableTargetId(null));
+  const confirmDisable = usePersistFn(async () => {
+    if (!disableTarget) return;
+    try {
+      await apiRequest(`DELETE:/resource-types/${disableTarget.id}`);
+      await mutate(RESOURCE_TYPES_KEY);
+      feedback.success(t('disableTypeSuccess'));
+    } catch (error) {
+      feedback.error(t('disableTypeFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+      throw error;
+    }
   });
 
   return {
@@ -47,10 +64,13 @@ export function useResourceTypes(initialResourceTypes?: ResourceType[] | undefin
     loading: isLoading,
     creating,
     editingType,
+    disableTarget,
     openCreate,
     openEdit,
     closeModal,
-    disableType,
+    requestDisable,
+    cancelDisable,
+    confirmDisable,
     reload: refresh,
   };
 }

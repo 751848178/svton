@@ -5,8 +5,10 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { LogStream } from '../types-stream';
 import { mergeAgentFollowMetadata, readAgentFollowMetadata } from '../utils-metadata';
 
@@ -18,6 +20,7 @@ type UseAgentFollowPolicyArgs = {
 
 export function useAgentFollowPolicy(args: UseAgentFollowPolicyArgs) {
   const { selectedStream, setError, loadData } = args;
+  const tl = useTranslations('logs');
   const [enabled, setEnabled] = useState(false);
   const [live, setLive] = useState(false);
   const [confirmLiveRead, setConfirmLiveRead] = useState(false);
@@ -40,7 +43,7 @@ export function useAgentFollowPolicy(args: UseAgentFollowPolicyArgs) {
 
   const saveAgentFollowPolicy = usePersistFn(async () => {
     if (!selectedStream) {
-      alert('请选择日志流');
+      feedback.error(tl('selectStream'));
       return;
     }
     setSaving(true);
@@ -59,7 +62,7 @@ export function useAgentFollowPolicy(args: UseAgentFollowPolicyArgs) {
       });
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存 Agent follow 失败');
+      setError(err instanceof Error ? err.message : tl('saveAgentFollowFailed'));
     } finally {
       setSaving(false);
     }

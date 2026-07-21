@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense as ReactSuspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Card } from '@svton/ui';
 import { ErrorBanner } from '@/components/ui';
@@ -18,6 +19,7 @@ const Suspense = ReactSuspense as unknown as (props: {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations('auth');
   const { login, isLoading, isAuthenticated } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,15 +37,15 @@ function LoginForm() {
       await login({ email, password });
       router.push(redirect);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '登录失败');
+      setError(err instanceof Error ? err.message : t('loginFailed'));
     }
   });
 
   return (
     <Card className="w-full max-w-md p-8">
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-bold">登录</h1>
-        <p className="mt-2 text-muted-foreground">登录到 Devpilot</p>
+        <h1 className="text-2xl font-bold">{t('loginTitle')}</h1>
+        <p className="mt-2 text-muted-foreground">{t('loginSubtitle')}</p>
       </div>
       <form
         onSubmit={handleSubmit}
@@ -56,18 +58,18 @@ function LoginForm() {
           />
         ) : null}
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">邮箱</span>
+          <span className="mb-1 block font-medium">{t('email')}</span>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             className="w-full rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="your@email.com"
+            placeholder={t('emailPlaceholder')}
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">密码</span>
+          <span className="mb-1 block font-medium">{t('password')}</span>
           <input
             type="password"
             value={password}
@@ -82,47 +84,17 @@ function LoginForm() {
           disabled={isLoading}
           className="w-full rounded-md bg-primary py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
         >
-          {isLoading ? '登录中...' : '登录'}
+          {isLoading ? t('loginLoading') : t('loginSubmit')}
         </button>
       </form>
       <div className="mt-6 text-center text-sm">
-        <span className="text-muted-foreground">还没有账号？</span>{' '}
+        <span className="text-muted-foreground">{t('noAccount')}</span>{' '}
         <Link
           href="/register"
           className="text-primary hover:underline"
         >
-          注册
+          {t('registerLink')}
         </Link>
-      </div>
-      <div className="mt-6">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">或使用第三方登录</span>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-3 gap-3">
-          <button
-            type="button"
-            className="flex items-center justify-center rounded-md border px-4 py-2 transition-colors hover:bg-accent"
-          >
-            GitHub
-          </button>
-          <button
-            type="button"
-            className="flex items-center justify-center rounded-md border px-4 py-2 transition-colors hover:bg-accent"
-          >
-            GitLab
-          </button>
-          <button
-            type="button"
-            className="flex items-center justify-center rounded-md border px-4 py-2 transition-colors hover:bg-accent"
-          >
-            Gitee
-          </button>
-        </div>
       </div>
     </Card>
   );

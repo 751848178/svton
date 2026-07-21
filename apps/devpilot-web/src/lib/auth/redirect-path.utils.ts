@@ -1,4 +1,4 @@
-const DEFAULT_AUTH_REDIRECT = '/teams';
+const DEFAULT_AUTH_REDIRECT = '/dashboard';
 
 export function toSafeRedirectPath(value: string | null | undefined): string {
   if (!value) return DEFAULT_AUTH_REDIRECT;

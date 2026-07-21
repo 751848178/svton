@@ -6,8 +6,10 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { DEFAULT_DOMAIN_CONFIG, type DomainConfig } from '../types';
 
 interface ValidationState {
@@ -15,6 +17,7 @@ interface ValidationState {
 }
 
 export function useDomainConfig() {
+  const t = useTranslations('domain');
   const [config, setConfig] = useSetState<DomainConfig>(DEFAULT_DOMAIN_CONFIG);
   const [generatedConfig, setGeneratedConfig] = useState('');
   const [certbotScript, setCertbotScript] = useState('');
@@ -41,7 +44,7 @@ export function useDomainConfig() {
 
   const generateCertbotScript = usePersistFn(async () => {
     if (!email) {
-      alert('请输入邮箱地址');
+      feedback.error(t('emailRequired'));
       return;
     }
     try {

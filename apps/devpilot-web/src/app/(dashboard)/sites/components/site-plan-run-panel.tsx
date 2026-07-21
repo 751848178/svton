@@ -2,11 +2,11 @@
 'use client';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { StatusTag } from '@/components/ui';
 import type { Site, SiteSyncPlan, SiteSyncRun } from '../types';
 import type { useSites } from '../hooks/use-sites';
 import {
   getStatusLabel,
-  getStatusClass,
   getRunModeLabel,
   formatRunLogPreview,
   readLogMessages,
@@ -44,20 +44,21 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{getRunModeLabel(run.mode)}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 font-medium ${getStatusClass(run.status)}`}
-                      >
-                        {getStatusLabel(run.status)}
-                      </span>
+                      <StatusTag
+                        status={run.status}
+                        label={getStatusLabel(run.status)}
+                      />
                       {run.dryRun && (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
-                          dry-run
-                        </span>
+                        <StatusTag
+                          status="info"
+                          label="dry-run"
+                        />
                       )}
                       {run.operationApproval && (
-                        <span className="rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-700">
-                          {t('approvalPrefix')}{getStatusLabel(run.operationApproval.status)}
-                        </span>
+                        <StatusTag
+                          status={run.operationApproval.status}
+                          label={`${t('approvalPrefix')}${getStatusLabel(run.operationApproval.status)}`}
+                        />
                       )}
                       {run.serverExecutionJob && (
                         <Link
@@ -76,7 +77,7 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
                     {run.configDiff?.summary && (
                       <div className="text-muted-foreground">{run.configDiff.summary}</div>
                     )}
-                    {run.error && <div className="text-red-700">{run.error}</div>}
+                    {run.error && <div className="text-destructive">{run.error}</div>}
                     {formatRunLogPreview(run.logs) && (
                       <pre className="mt-2 max-h-28 overflow-auto rounded bg-background p-2 text-muted-foreground">
                         {formatRunLogPreview(run.logs)}
@@ -111,15 +112,14 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
             <div className="text-sm font-medium">
               {plan.executorKey} · {plan.adapterKey} · {plan.mode}
             </div>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${getStatusClass(plan.status || (plan.executable ? 'active' : 'pending'))}`}
-            >
-              {getStatusLabel(plan.status || (plan.executable ? 'active' : 'pending'))}
-            </span>
+            <StatusTag
+              status={plan.status || (plan.executable ? 'active' : 'pending')}
+              label={getStatusLabel(plan.status || (plan.executable ? 'active' : 'pending'))}
+            />
           </div>
 
           {plan.error && (
-            <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+            <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
               {plan.error}
             </div>
           )}
@@ -131,7 +131,7 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
           )}
 
           {plan.approval && (
-            <div className="mt-3 rounded-md border border-purple-200 bg-purple-50 p-3 text-xs text-purple-800">
+            <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-primary">
               {t('approvalGenerated', { id: plan.approval.id, status: getStatusLabel(plan.approval.status) })}
             </div>
           )}

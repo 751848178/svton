@@ -19,7 +19,7 @@ export function SupervisorAgentFleetSection({ agent }: { agent: SupervisorAgent 
   return (
     <>
       <div className="mt-4 border-t pt-3">
-        <h4 className="text-xs font-medium text-foreground">Agent fleet</h4>
+        <h4 className="text-xs font-medium text-foreground">{t('secAgentFleet')}</h4>
         {agent.fleet.items.length === 0 ? (
           <div className="mt-2 text-xs text-muted-foreground">{t('noAgentServer')}</div>
         ) : (
@@ -40,46 +40,64 @@ export function SupervisorAgentFleetSection({ agent }: { agent: SupervisorAgent 
                 </div>
                 <div className="mt-2 grid gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
                   <span>
-                    jobs {server.jobs.ready}/{server.jobs.running}/{server.jobs.blocked}
+                    {t('fleetJobs', {
+                      value: `${server.jobs.ready}/${server.jobs.running}/${server.jobs.blocked}`,
+                    })}
                   </span>
-                  <span>pressure {server.jobs.pressure}</span>
+                  <span>{t('fleetPressure', { value: server.jobs.pressure })}</span>
                   <span>
                     {server.runtime
-                      ? `runtime ${formatAgentRuntimeState(server.runtime.state)}`
-                      : 'runtime -'}
+                      ? t('fleetRuntime', { value: formatAgentRuntimeState(server.runtime.state) })
+                      : t('fleetRuntimeNone')}
                   </span>
-                  <span>health {formatAgentRuntimeHealthState(server.runtimeHealth.state)}</span>
+                  <span>
+                    {t('fleetHealth', {
+                      value: formatAgentRuntimeHealthState(server.runtimeHealth.state),
+                    })}
+                  </span>
                   <span>{formatAgentRuntimeHealthReason(server.runtimeHealth.reason)}</span>
-                  <span>seen {formatRuntimeSeconds(server.runtimeHealth.lastSeenAgeSeconds)}</span>
-                  <span>expires {formatRuntimeSeconds(server.runtimeHealth.expiresInSeconds)}</span>
+                  <span>
+                    {t('fleetSeen', {
+                      value: formatRuntimeSeconds(server.runtimeHealth.lastSeenAgeSeconds),
+                    })}
+                  </span>
+                  <span>
+                    {t('fleetExpires', {
+                      value: formatRuntimeSeconds(server.runtimeHealth.expiresInSeconds),
+                    })}
+                  </span>
                   <span>
                     {server.readiness.blockingReasons.length
                       ? formatAgentBlockingReasons(server.readiness.blockingReasons)
-                      : 'ready'}
+                      : t('fleetReady')}
                   </span>
                 </div>
                 {server.jobs.nextQueuedJob ? (
                   <div className="mt-2 text-xs text-muted-foreground">
-                    next {server.jobs.nextQueuedJob.operationKey} · p
-                    {server.jobs.nextQueuedJob.priority}
+                    {t('fleetNext', {
+                      operationKey: server.jobs.nextQueuedJob.operationKey,
+                      priority: server.jobs.nextQueuedJob.priority,
+                    })}
                   </div>
                 ) : null}
                 {server.jobs.runningProgress?.taskPullProgress ? (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    progress {server.jobs.runningProgress.operationKey} ·{' '}
-                    {formatTaskPullProgress(server.jobs.runningProgress.taskPullProgress)}
+                    {t('fleetProgress', {
+                      value: `${server.jobs.runningProgress.operationKey} · ${formatTaskPullProgress(server.jobs.runningProgress.taskPullProgress)}`,
+                    })}
                   </div>
                 ) : null}
                 {server.jobs.blockedSample ? (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    blocked {server.jobs.blockedSample.operationKey} ·{' '}
-                    {server.jobs.blockedSample.reason}
+                    {t('fleetBlocked', {
+                      value: `${server.jobs.blockedSample.operationKey} · ${server.jobs.blockedSample.reason}`,
+                    })}
                   </div>
                 ) : null}
               </div>
             ))}
             {agent.fleet.truncated ? (
-              <div className="text-xs text-muted-foreground">fleet truncated</div>
+              <div className="text-xs text-muted-foreground">{t('fleetTruncated')}</div>
             ) : null}
           </div>
         )}
@@ -105,11 +123,11 @@ export function SupervisorAgentFleetSection({ agent }: { agent: SupervisorAgent 
               </div>
               {server.runtime ? (
                 <div className="mt-1">
-                  runtime {formatAgentRuntimeState(server.runtime.state)}
+                  {t('fleetRuntime', { value: formatAgentRuntimeState(server.runtime.state) })}
                   {server.runtime.agentId ? ` · ${shortId(server.runtime.agentId)}` : ''}
                   {server.runtime.version ? ` · ${server.runtime.version}` : ''}
                   {server.runtime.lastSeenAt
-                    ? ` · seen ${formatDate(server.runtime.lastSeenAt)}`
+                    ? ` · ${t('agentSeenAt', { value: formatDate(server.runtime.lastSeenAt) })}`
                     : ''}
                 </div>
               ) : null}

@@ -85,6 +85,12 @@ export interface BackupPlanInput {
   destinationType: string;
 }
 
+/** 恢复确认弹窗的最小目标信息（RunList 与 PlanCard run chips 共用）。 */
+export interface BackupRestoreTarget {
+  id: string;
+  name: string;
+}
+
 export interface BackupStats {
   total: number;
   active: number;

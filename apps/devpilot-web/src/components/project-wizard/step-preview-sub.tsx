@@ -13,16 +13,19 @@ export function formatResourceValue(
     return t('modeSkipped');
   }
   if (resource.mode === 'credential') {
-    return resource.credentialId ? t('credentialSelected') : t('credentialNotSelected');
+    if (!resource.credentialId) return t('credentialNotSelected');
+    return resource.resourceName || t('credentialSelected');
   }
   if (resource.mode === 'instance') {
-    return resource.instanceId ? t('instanceSelected') : t('instanceNotSelected');
+    if (!resource.instanceId) return t('instanceNotSelected');
+    return resource.resourceName || t('instanceSelected');
   }
   if (resource.mode === 'pool') {
-    return resource.poolId ? t('poolWillAllocate') : t('poolNotSelected');
+    if (!resource.poolId) return t('poolNotSelected');
+    return resource.resourceName || t('poolWillAllocate');
   }
-  const configuredCount = Object.values(resource.config || {}).filter(Boolean).length;
-  return configuredCount > 0 ? t('filledCount', { count: configuredCount }) : t('notFilled');
+  const filledValues = Object.values(resource.config || {}).filter(Boolean);
+  return filledValues.length > 0 ? filledValues.join(' / ') : t('notFilled');
 }
 export function PreviewSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (

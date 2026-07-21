@@ -16,10 +16,12 @@ import type { ResourceInstance } from '../types';
 const RESOURCE_INSTANCES_KEY = 'GET:/resource-instances';
 
 export function useResourceInstances(initialInstances?: ResourceInstance[] | undefined) {
-  const { data, isLoading, mutate: refresh } = useQueryLoose<ResourceInstance[]>(
-    RESOURCE_INSTANCES_KEY,
-    { fallback: initialInstances },
-  );
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useQueryLoose<ResourceInstance[]>(RESOURCE_INSTANCES_KEY, { fallback: initialInstances });
   const instances = data ?? [];
 
   const release = usePersistFn(async (id: string) => {
@@ -27,5 +29,5 @@ export function useResourceInstances(initialInstances?: ResourceInstance[] | und
     await mutate(RESOURCE_INSTANCES_KEY);
   });
 
-  return { instances, loading: isLoading, release, refresh };
+  return { instances, loading: isLoading, loadError: error, release, refresh };
 }

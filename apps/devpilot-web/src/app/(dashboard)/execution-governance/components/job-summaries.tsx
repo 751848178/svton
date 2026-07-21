@@ -29,7 +29,7 @@ export function ExecutionTargetSummary({ job }: { job: ServerExecutionJob }) {
       </span>
       {target.agentRef ? (
         <span className="min-w-0 text-muted-foreground">
-          agent: <span className="text-foreground">{target.agentRef.displayName}</span>
+          {t('agentRefLabel')} <span className="text-foreground">{target.agentRef.displayName}</span>
           {target.agentRef.displayName !== target.agentRef.capabilityKey ? (
             <span>
               {' '}

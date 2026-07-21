@@ -8,8 +8,10 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { useQueryLoose, mutate } from '@/hooks/api/use-api';
 import type { ProxyConfig, Server, ProxyConfigInput } from '../types';
 
@@ -18,6 +20,7 @@ const CONFIGS_KEY = 'GET:/proxy-configs';
 const SERVERS_KEY = 'GET:/servers';
 
 export function useProxyConfigs(openCreateOnMount: boolean, initialConfigs?: ProxyConfig[]) {
+  const t = useTranslations('proxyConfigs');
   const {
     data: configsData,
     isLoading: configsLoading,
@@ -27,6 +30,7 @@ export function useProxyConfigs(openCreateOnMount: boolean, initialConfigs?: Pro
   const servers = serversData ?? [];
   const loading = configsLoading || serversLoading;
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProxyConfig | null>(null);
 
   const create = usePersistFn(async (input: ProxyConfigInput) => {
     await apiRequest('POST:/proxy-configs', {
@@ -45,17 +49,36 @@ export function useProxyConfigs(openCreateOnMount: boolean, initialConfigs?: Pro
     try {
       await apiRequest(`POST:/proxy-configs/${id}/sync`);
       await mutate(CONFIGS_KEY);
+      feedback.success(t('syncSuccess'));
     } catch (error) {
-      console.error('Sync failed:', error);
+      feedback.error(t('syncFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setSyncingId(null);
     }
   });
 
-  const remove = usePersistFn(async (id: string) => {
-    if (!confirm('确定要删除这个代理配置吗？')) return;
-    await apiRequest(`DELETE:/proxy-configs/${id}`);
-    await mutate(CONFIGS_KEY);
+  const remove = usePersistFn((id: string) => {
+    setDeleteTarget(configs.find((c) => c.id === id) ?? null);
+  });
+
+  const cancelDelete = usePersistFn(() => {
+    setDeleteTarget(null);
+  });
+
+  const confirmDelete = usePersistFn(async () => {
+    if (!deleteTarget) return;
+    try {
+      await apiRequest(`DELETE:/proxy-configs/${deleteTarget.id}`);
+      await mutate(CONFIGS_KEY);
+      setDeleteTarget(null);
+      feedback.success(t('deleteSuccess'));
+    } catch (error) {
+      feedback.error(t('deleteFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
   });
 
   const reload = usePersistFn(async () => {
@@ -67,10 +90,13 @@ export function useProxyConfigs(openCreateOnMount: boolean, initialConfigs?: Pro
     servers,
     loading,
     syncingId,
+    deleteTarget,
     openCreateOnMount,
     create,
     sync,
     remove,
+    cancelDelete,
+    confirmDelete,
     reload,
   };
 }

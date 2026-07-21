@@ -2,7 +2,6 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Tag } from '@svton/ui';
 
 import type { DatabaseEngine, ResourceConfigMode } from '@/store/hooks';
 import type {
@@ -67,14 +66,30 @@ function ResourceConfigCard({
   storedResources,
   instances,
   pools,
+  manualValues,
+  credentialId,
+  instanceId,
+  poolId,
   onModeChange,
+  onFieldChange,
+  onCredentialChange,
+  onInstanceChange,
+  onPoolChange,
 }: {
   resource: RegistryResourceType;
   mode: ResourceConfigMode;
   storedResources: StoredResource[];
   instances: ResourceInstance[];
   pools: ResourcePool[];
+  manualValues: Record<string, string>;
+  credentialId: string;
+  instanceId: string;
+  poolId: string;
   onModeChange: (mode: ResourceConfigMode) => void;
+  onFieldChange: (field: string, value: string) => void;
+  onCredentialChange: (id: string) => void;
+  onInstanceChange: (id: string) => void;
+  onPoolChange: (id: string) => void;
 }) {
   const t = useTranslations('projectWizard');
   return (
@@ -105,6 +120,8 @@ function ResourceConfigCard({
               <label className="text-xs text-muted-foreground">{field.label}</label>
               <input
                 type={field.type || 'text'}
+                value={manualValues[field.key] ?? ''}
+                onChange={(e) => onFieldChange(field.key, e.target.value)}
                 placeholder={field.default?.toString()}
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm"
               />
@@ -115,7 +132,11 @@ function ResourceConfigCard({
       {mode === 'credential' && (
         <div className="mt-3">
           <label className="text-xs text-muted-foreground">{t('selectCredential')}</label>
-          <select className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+          <select
+            value={credentialId}
+            onChange={(e) => onCredentialChange(e.target.value)}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+          >
             <option value="">{t('pleaseSelect')}</option>
             {storedResources.map((s) => (
               <option
@@ -131,7 +152,11 @@ function ResourceConfigCard({
       {mode === 'instance' && (
         <div className="mt-3">
           <label className="text-xs text-muted-foreground">{t('selectInstance')}</label>
-          <select className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+          <select
+            value={instanceId}
+            onChange={(e) => onInstanceChange(e.target.value)}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+          >
             <option value="">{t('pleaseSelect')}</option>
             {instances.map((i) => (
               <option
@@ -147,7 +172,11 @@ function ResourceConfigCard({
       {mode === 'pool' && (
         <div className="mt-3">
           <label className="text-xs text-muted-foreground">{t('selectPool')}</label>
-          <select className="w-full rounded-md border bg-background px-3 py-2 text-sm">
+          <select
+            value={poolId}
+            onChange={(e) => onPoolChange(e.target.value)}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+          >
             <option value="">{t('pleaseSelect')}</option>
             {pools.map((p) => (
               <option

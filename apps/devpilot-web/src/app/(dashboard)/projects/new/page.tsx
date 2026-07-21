@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useProjectConfigStore } from '@/store/hooks';
 import { download } from '@/lib/api-client/stream';
 import { StepBasicInfo } from '@/components/project-wizard/step-basic-info';
@@ -11,20 +13,23 @@ import { StepSubProjects } from '@/components/project-wizard/step-sub-projects';
 import { StepFeatures } from '@/components/project-wizard/step-features';
 import { StepResources } from '@/components/project-wizard/step-resources';
 import { StepPreview } from '@/components/project-wizard/step-preview';
+import { isValidPackageName } from '@/components/project-wizard/package-name';
 import { cn } from '@/lib/utils';
 
 const STEPS = [
-  { id: 'basic', title: '基础信息', component: StepBasicInfo },
-  { id: 'subprojects', title: '子项目', component: StepSubProjects },
-  { id: 'features', title: '功能选择', component: StepFeatures },
-  { id: 'resources', title: '资源配置', component: StepResources },
-  { id: 'preview', title: '预览确认', component: StepPreview },
-];
+  { id: 'basic', titleKey: 'stepBasicInfo', component: StepBasicInfo },
+  { id: 'subprojects', titleKey: 'stepSubProjects', component: StepSubProjects },
+  { id: 'features', titleKey: 'stepFeatures', component: StepFeatures },
+  { id: 'resources', titleKey: 'stepResources', component: StepResources },
+  { id: 'preview', titleKey: 'stepPreview', component: StepPreview },
+] as const;
 
 export default function NewProjectPage() {
   const router = useRouter();
+  const t = useTranslations('projects');
   const { currentStep, setCurrentStep, config, reset } = useProjectConfigStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const handleNext = usePersistFn(() => {
     if (currentStep < STEPS.length - 1) setCurrentStep(currentStep + 1);
@@ -33,8 +38,19 @@ export default function NewProjectPage() {
     if (currentStep > 0) setCurrentStep(currentStep - 1);
   });
 
+  // 跳步门：只允许回退到已完成步骤，或前进到当前步骤的下一步；
+  // 基础信息（包名/项目名）校验通过前不允许进入第 2-5 步。
+  const basicInfoValid = isValidPackageName(config.basicInfo.name);
+  const maxSelectableStep = basicInfoValid
+    ? Math.min(currentStep + 1, STEPS.length - 1)
+    : currentStep;
+  const handleSelectStep = usePersistFn((index: number) => {
+    if (index <= maxSelectableStep) setCurrentStep(index);
+  });
+
   const handleSubmit = usePersistFn(async () => {
     setIsSubmitting(true);
+    setSubmitError('');
     try {
       // generate 返回二进制 ZIP，已由后端 excludePaths 排除信封，用 download 直连
       const response = await download('/projects/generate', {
@@ -56,7 +72,7 @@ export default function NewProjectPage() {
       router.push(projectId ? `/projects/${projectId}` : '/projects');
     } catch (error) {
       console.error('Error generating project:', error);
-      alert('生成项目时发生错误');
+      setSubmitError(t('generateFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -67,15 +83,31 @@ export default function NewProjectPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title="创建新项目"
-        description="通过向导配置你的项目，选择需要的功能和资源"
+        title={t('createNew')}
+        description={t('createNewDescription')}
+        actions={
+          <Link
+            href="/projects"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            {t('backToProjects')}
+          </Link>
+        }
       />
 
       <StepIndicator
-        steps={STEPS}
+        steps={STEPS.map(({ id, titleKey }) => ({ id, title: t(titleKey) }))}
         current={currentStep}
-        onSelect={setCurrentStep}
+        maxSelectable={maxSelectableStep}
+        onSelect={handleSelectStep}
       />
+
+      {submitError ? (
+        <ErrorBanner
+          message={submitError}
+          className="mb-4"
+        />
+      ) : null}
 
       <div className="rounded-lg border bg-card p-6">
         <StepContent
@@ -92,10 +124,12 @@ export default function NewProjectPage() {
 function StepIndicator({
   steps,
   current,
+  maxSelectable,
   onSelect,
 }: {
   steps: Array<{ id: string; title: string }>;
   current: number;
+  maxSelectable: number;
   onSelect: (index: number) => void;
 }) {
   return (
@@ -108,8 +142,10 @@ function StepIndicator({
           >
             <button
               onClick={() => onSelect(index)}
+              disabled={index > maxSelectable}
               className={cn(
                 'flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors',
+                'disabled:cursor-not-allowed disabled:opacity-50',
                 index === current
                   ? 'bg-primary text-primary-foreground'
                   : index < current

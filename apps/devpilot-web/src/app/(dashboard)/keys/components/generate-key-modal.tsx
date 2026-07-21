@@ -59,7 +59,7 @@ export function GenerateKeyModal({
     >
       <form onSubmit={handleSubmit(handleGenerate)} className="space-y-4">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{t('keyType')}</span>
+          <span className="mb-1 block font-medium">{t('keyType')}</span>
           <select
             {...register('type')}
             className="w-full rounded-lg border px-3 py-2"
@@ -76,7 +76,7 @@ export function GenerateKeyModal({
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{t('length')}</span>
+          <span className="mb-1 block font-medium">{t('length')}</span>
           <input
             type="number"
             min={16}
@@ -88,25 +88,25 @@ export function GenerateKeyModal({
 
         <button
           type="submit"
-          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          className="w-full rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
         >
           {t('generateButton')}
         </button>
 
         {generatedKey ? (
-          <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-            <p className="mb-2 text-sm text-green-800">{t('generateSuccess')}</p>
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+            <p className="mb-2 text-sm text-primary">{t('generateSuccess')}</p>
             <Copyable
               text={generatedKey}
               copyText={t('copy')}
               copiedText={t('copied')}
             >
-              <code className="block break-all rounded bg-white p-2 text-sm">{generatedKey}</code>
+              <code className="block break-all rounded bg-card p-2 text-sm">{generatedKey}</code>
             </Copyable>
             <button
               type="button"
               onClick={handleStorePrefill}
-              className="mt-2 text-sm text-blue-600 hover:underline"
+              className="mt-2 text-sm text-primary hover:underline"
             >
               {t('saveToKeyCenter')}
             </button>
@@ -116,7 +116,7 @@ export function GenerateKeyModal({
         <button
           type="button"
           onClick={handleClose}
-          className="w-full rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-100"
+          className="w-full rounded-lg px-4 py-2 text-muted-foreground hover:bg-accent"
         >
           {t('close')}
         </button>

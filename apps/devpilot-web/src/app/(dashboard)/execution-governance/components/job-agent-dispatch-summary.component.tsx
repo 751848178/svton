@@ -21,14 +21,21 @@ export function AgentDispatchSummary({ result }: { result?: unknown }) {
   return (
     <div className="mt-2 space-y-1 border-l-2 border-violet-200 pl-2 text-xs">
       <div className={statusClass}>
-        <span className="font-medium text-foreground">Agent dispatch</span>
+        <span className="font-medium text-foreground">{t('agentDispatchTitle')}</span>
         <span> · {formatAgentDispatchMode(dispatch.mode)}</span>
         {dispatch.responseStatus ? <span> · {dispatch.responseStatus}</span> : null}
-        {dispatch.agentRunId ? <span> · run {shortId(dispatch.agentRunId)}</span> : null}
+        {dispatch.agentRunId ? (
+          <span> · {t('dispatchRunId', { id: shortId(dispatch.agentRunId) })}</span>
+        ) : null}
       </div>
       <div className="text-muted-foreground">
-        <span>executor {formatEnabled(dispatch.agentExecutorEnabled)}</span>
-        <span> · dispatcher {formatConfigured(dispatch.dispatcherConfigured)}</span>
+        <span>
+          {t('fieldExecutor')} {formatEnabled(dispatch.agentExecutorEnabled)}
+        </span>
+        <span>
+          {' '}
+          · {t('fieldDispatcher')} {formatConfigured(dispatch.dispatcherConfigured)}
+        </span>
         {dispatch.dispatcher ? (
           <span>
             {' '}
@@ -40,13 +47,14 @@ export function AgentDispatchSummary({ result }: { result?: unknown }) {
         <div className="text-muted-foreground">
           {dispatch.dispatchId ? (
             <span>
-              dispatch <span className="font-mono text-foreground">{dispatch.dispatchId}</span>
+              {t('dispatchIdLabel')}{' '}
+              <span className="font-mono text-foreground">{dispatch.dispatchId}</span>
             </span>
           ) : null}
           {dispatch.serverExecutionJobId ? (
             <span>
               {' '}
-              · job{' '}
+              · {t('dispatchJobLabel')}{' '}
               <span className="font-mono text-foreground">
                 {shortId(dispatch.serverExecutionJobId)}
               </span>
@@ -55,7 +63,7 @@ export function AgentDispatchSummary({ result }: { result?: unknown }) {
           {dispatch.serverExecutionLeaseId ? (
             <span>
               {' '}
-              · lease{' '}
+              · {t('dispatchLeaseLabel')}{' '}
               <span className="font-mono text-foreground">
                 {shortId(dispatch.serverExecutionLeaseId)}
               </span>
@@ -64,15 +72,16 @@ export function AgentDispatchSummary({ result }: { result?: unknown }) {
           {dispatch.retryAttempt ? (
             <span>
               {' '}
-              · attempt {dispatch.retryAttempt}
+              · {t('dispatchAttemptLabel')} {dispatch.retryAttempt}
               {dispatch.maxAttempts ? `/${dispatch.maxAttempts}` : ''}
             </span>
           ) : null}
         </div>
       ) : null}
       {dispatch.idempotencyKey ? (
-        <div className="max-w-xs truncate text-muted-foreground">
-          idempotency: <span className="font-mono text-foreground">{dispatch.idempotencyKey}</span>
+        <div className="max-w-xs break-all text-muted-foreground">
+          {t('idempotencyLabel')}:{' '}
+          <span className="font-mono text-foreground">{dispatch.idempotencyKey}</span>
         </div>
       ) : null}
       {dispatch.nextExecutorBoundary ? (

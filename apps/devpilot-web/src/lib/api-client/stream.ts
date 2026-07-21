@@ -10,7 +10,7 @@
 
 import { readPersistedAuth, readTeamId } from '@/lib/auth/token-storage';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3101';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3121';
 
 export interface StreamOptions {
   method?: string;

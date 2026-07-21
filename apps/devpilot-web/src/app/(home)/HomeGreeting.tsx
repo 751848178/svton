@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useAuthStore } from '@/store/hooks';
 
 /**
@@ -11,6 +12,8 @@ import { useAuthStore } from '@/store/hooks';
  */
 export function HomeGreeting() {
   const { isAuthenticated, user } = useAuthStore();
+  const t = useTranslations('home');
+  const td = useTranslations('dashboard');
 
   if (!isAuthenticated) return null;
 
@@ -18,12 +21,13 @@ export function HomeGreeting() {
     <section className="px-4 py-16">
       <div className="mx-auto max-w-3xl">
         <h2 className="mb-8 text-center text-2xl font-bold">
-          欢迎回来，{user?.name || user?.email}
+          {t('welcomeBack', { name: user?.name || user?.email || '' })}
         </h2>
-        <div className="grid gap-4 md:grid-cols-3">
-          <QuickLink href="/projects/new" title="创建项目" description="开始新项目配置" />
-          <QuickLink href="/resources" title="资源管理" description="管理资源凭证" />
-          <QuickLink href="/presets" title="配置预设" description="查看保存的预设" />
+        <div className="grid gap-4 md:grid-cols-4">
+          <QuickLink href="/dashboard" title={td('enterConsole')} description={td('enterConsoleDescription')} />
+          <QuickLink href="/projects/new" title={t('quickCreateProject')} description={t('quickCreateProjectDesc')} />
+          <QuickLink href="/resources" title={t('quickResources')} description={t('quickResourcesDesc')} />
+          <QuickLink href="/presets" title={t('quickPresets')} description={t('quickPresetsDesc')} />
         </div>
       </div>
     </section>

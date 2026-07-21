@@ -21,24 +21,24 @@ export function SupervisorExecutionAuditSection({
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-xs font-medium text-foreground">Execution audit visibility</h4>
+        <h4 className="text-xs font-medium text-foreground">{t('secExecutionAudit')}</h4>
         <StatusBadge status={readExecutionAuditStatus(auditVisibility)} />
       </div>
       <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
         <SupervisorField
-          label="recent"
-          value={`${auditVisibility.totalRecent} events`}
+          label={t('fieldRecent')}
+          value={t('auditEvents', { count: auditVisibility.totalRecent })}
         />
         <SupervisorField
-          label="failed/blocked"
+          label={t('fieldFailedBlocked')}
           value={`${auditVisibility.failedRecent}/${auditVisibility.blockedRecent}`}
         />
         <SupervisorField
-          label="high risk"
+          label={t('fieldHighRisk')}
           value={String(auditVisibility.highRiskRecent)}
         />
         <SupervisorField
-          label="statuses"
+          label={t('fieldStatuses')}
           value={
             auditVisibility.statuses
               .slice(0, 3)
@@ -47,7 +47,7 @@ export function SupervisorExecutionAuditSection({
           }
         />
         <SupervisorField
-          label="risks"
+          label={t('fieldRisks')}
           value={
             auditVisibility.risks
               .slice(0, 3)
@@ -56,7 +56,7 @@ export function SupervisorExecutionAuditSection({
           }
         />
         <SupervisorField
-          label="top action"
+          label={t('fieldTopAction')}
           value={
             auditVisibility.actions[0]
               ? `${formatExecutionAuditAction(auditVisibility.actions[0].action)} · ${auditVisibility.actions[0].count}`
@@ -81,7 +81,7 @@ export function SupervisorExecutionAuditSection({
                 </span>
               </div>
               <div className="mt-1">
-                {event.metadata?.operationKey || event.summary || 'execution audit'} ·{' '}
+                {event.metadata?.operationKey || event.summary || t('executionAuditFallback')} ·{' '}
                 {event.server?.name || t('noServer')} · {formatDate(event.occurredAt)}
               </div>
             </div>

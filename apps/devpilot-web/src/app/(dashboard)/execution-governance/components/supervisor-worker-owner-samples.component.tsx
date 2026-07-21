@@ -3,7 +3,6 @@
 import { useTranslations } from 'next-intl';
 import { formatNullableRuntimeSeconds } from '../supervisor-orphan-audit-format.utils';
 import { formatWorkerInventoryState } from '../supervisor-worker-format.utils';
-import { shortId } from '../utils';
 import type { ServerExecutionSupervisorSnapshot } from '../supervisor';
 
 type WorkerInventory = ServerExecutionSupervisorSnapshot['workerInventory'];
@@ -24,16 +23,18 @@ export function SupervisorWorkerOwnerSamples({ inventory }: { inventory: WorkerI
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="break-all font-mono text-xs">{worker.lockOwner}</div>
             <div className="text-xs text-muted-foreground">
-              {worker.activeJobs} active · {worker.staleJobs} stale
+              {t('ownerJobsSummary', { active: worker.activeJobs, stale: worker.staleJobs })}
             </div>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {worker.sampleJob.operationKey} · {worker.sampleJob.server?.name || t('noServer')}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {formatWorkerInventoryState(worker.status)} · seen{' '}
-            {formatNullableRuntimeSeconds(worker.lastHeartbeatAgeSeconds)} ago · expires{' '}
-            {formatNullableRuntimeSeconds(worker.lockExpiresInSeconds)}
+            {formatWorkerInventoryState(worker.status)} ·{' '}
+            {t('ownerHeartbeatSummary', {
+              seen: formatNullableRuntimeSeconds(worker.lastHeartbeatAgeSeconds),
+              expires: formatNullableRuntimeSeconds(worker.lockExpiresInSeconds),
+            })}
           </div>
         </div>
       ))}

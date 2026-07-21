@@ -4,8 +4,10 @@
  * 单一职责：脱敏策略、SLS 回填策略、Server follow 策略的保存。
  */
 
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { LogsState } from './use-logs-state';
 import type { LogsTailState } from './use-logs-tail-state';
 import type { LogStream } from '../types-stream';
@@ -25,10 +27,11 @@ interface UseLogsPoliciesArgs {
 
 export function useLogsPolicies(args: UseLogsPoliciesArgs) {
   const { s, t, selectedStream, loadData } = args;
+  const tl = useTranslations('logs');
 
   const saveRedactionPolicy = usePersistFn(async () => {
     if (!selectedStream) {
-      alert('请选择日志流');
+      feedback.error(tl('selectStream'));
       return;
     }
     t.setSavingRedaction(true);
@@ -43,7 +46,7 @@ export function useLogsPolicies(args: UseLogsPoliciesArgs) {
       });
       await loadData();
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '保存脱敏策略失败');
+      s.setError(err instanceof Error ? err.message : tl('saveRedactionFailed'));
     } finally {
       t.setSavingRedaction(false);
     }
@@ -51,7 +54,7 @@ export function useLogsPolicies(args: UseLogsPoliciesArgs) {
 
   const saveSlsBackfillPolicy = usePersistFn(async () => {
     if (!selectedStream) {
-      alert('请选择日志流');
+      feedback.error(tl('selectStream'));
       return;
     }
     t.setSavingSlsBackfill(true);
@@ -70,7 +73,7 @@ export function useLogsPolicies(args: UseLogsPoliciesArgs) {
       });
       await loadData();
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '保存 SLS 回填失败');
+      s.setError(err instanceof Error ? err.message : tl('saveSlsBackfillFailed'));
     } finally {
       t.setSavingSlsBackfill(false);
     }
@@ -78,7 +81,7 @@ export function useLogsPolicies(args: UseLogsPoliciesArgs) {
 
   const saveServerFollowPolicy = usePersistFn(async () => {
     if (!selectedStream) {
-      alert('请选择日志流');
+      feedback.error(tl('selectStream'));
       return;
     }
     t.setSavingServerFollow(true);
@@ -97,7 +100,7 @@ export function useLogsPolicies(args: UseLogsPoliciesArgs) {
       });
       await loadData();
     } catch (err) {
-      s.setError(err instanceof Error ? err.message : '保存 Server follow 失败');
+      s.setError(err instanceof Error ? err.message : tl('saveServerFollowFailed'));
     } finally {
       t.setSavingServerFollow(false);
     }

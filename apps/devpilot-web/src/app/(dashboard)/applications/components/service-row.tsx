@@ -17,8 +17,9 @@ import type {
   ServiceAction,
   ServiceSloRow,
 } from '../types';
-import { kindLabels, operationLabels, SERVICE_ACTIONS } from '../constants';
+import { kindLabels, operationLabels } from '../constants';
 import { ServiceSloSummary } from './service-slo-summary.component';
+import { ServiceActionMenu } from './service-action-menu';
 import { getOperationStatusLabel, formatDate } from '../utils';
 
 interface ServiceRowProps {
@@ -85,44 +86,12 @@ export function ServiceRow(props: ServiceRowProps) {
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-2 lg:justify-end">
-          {SERVICE_ACTIONS.map((action) => {
-            const isRunning = runningOperation === `${service.id}:${action}`;
-            const isRequestingLive = runningOperation === `${service.id}:${action}:live`;
-            const canRequestLive = action === 'restart' || action === 'rollback';
-            const actionLabel = operationLabels[action] || action;
-            const planLabel = queueServiceOperations
-              ? t('operationEnqueue', { label: actionLabel })
-              : actionLabel;
-            const liveLabel = queueServiceOperations ? t('requestEnqueue') : t('requestLive');
-            return (
-              <div
-                key={action}
-                className="flex gap-1"
-              >
-                <button
-                  onClick={() => handleRun(action)}
-                  disabled={isRunning}
-                  className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
-                >
-                  {isRunning ? t('generating') : planLabel}
-                </button>
-                {canRequestLive ? (
-                  <button
-                    onClick={() => handleLive(action)}
-                    disabled={isRequestingLive}
-                    className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
-                  >
-                    {isRequestingLive ? t('requesting') : liveLabel}
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          {/* L1：部署（唯一 primary 实心按钮，视觉强调） */}
           <button
             onClick={handleDeploy}
             disabled={deployingServiceId === service.id}
-            className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {deployingServiceId === service.id
               ? queueDeploymentRuns
@@ -132,6 +101,26 @@ export function ServiceRow(props: ServiceRowProps) {
                 ? t('joinDeployQueue')
                 : t('generateDeployPlan')}
           </button>
+          {/* L2：状态查询（高频只读操作，outline 外露） */}
+          <button
+            onClick={() => handleRun('status')}
+            disabled={runningOperation === `${service.id}:status`}
+            className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
+          >
+            {runningOperation === `${service.id}:status`
+              ? t('generating')
+              : queueServiceOperations
+                ? t('operationEnqueue', { label: operationLabels.status })
+                : operationLabels.status}
+          </button>
+          {/* 其余操作收敛进菜单：日志/重启/回滚 × 计划环境 + 重启/回滚 × 申请 Live */}
+          <ServiceActionMenu
+            serviceId={service.id}
+            runningOperation={runningOperation}
+            queueServiceOperations={queueServiceOperations}
+            onRun={handleRun}
+            onRequestLive={handleLive}
+          />
         </div>
       </div>
 

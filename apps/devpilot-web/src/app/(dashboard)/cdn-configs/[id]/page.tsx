@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { Modal } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { useCdnConfig } from './hooks/use-cdn-config';
 import { CdnConfigView } from './components/cdn-config-view';
 
@@ -29,6 +31,7 @@ export default function CDNConfigDetailPage() {
   } = useCdnConfig(configId);
   const [purgePaths, setPurgePaths] = useState('');
   const [purgeModal, { setTrue: openPurge, setFalse: closePurge }] = useBoolean(false);
+  const [deleteOpen, { setTrue: openDelete, setFalse: closeDelete }] = useBoolean(false);
 
   const handlePurgeAll = usePersistFn(() => purge());
   const handlePurgePaths = usePersistFn(() => {
@@ -37,9 +40,16 @@ export default function CDNConfigDetailPage() {
     setPurgePaths('');
   });
   const handleDelete = usePersistFn(async () => {
-    if (!confirm(t('deleteConfirm'))) return;
-    await remove();
-    router.push('/cdn-configs');
+    try {
+      await remove();
+      feedback.success(t('deleteSuccess'));
+      router.push('/cdn-configs');
+    } catch (error) {
+      feedback.error(t('deleteFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+      throw error;
+    }
   });
 
   if (loading) return <LoadingState text={tc('loading')} />;
@@ -105,7 +115,7 @@ export default function CDNConfigDetailPage() {
           <div className="rounded-lg border border-destructive/50 p-6">
             <h2 className="mb-4 font-semibold text-destructive">{t('dangerZone')}</h2>
             <button
-              onClick={handleDelete}
+              onClick={openDelete}
               className="w-full rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
             >
               {t('deleteConfig')}
@@ -113,6 +123,19 @@ export default function CDNConfigDetailPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDelete();
+        }}
+        tone="danger"
+        title={t('deleteConfigTitle')}
+        description={t('deleteConfigDescription')}
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={handleDelete}
+      />
 
       <Modal
         open={purgeModal}

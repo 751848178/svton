@@ -7,9 +7,10 @@
 
 'use client';
 
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal } from '@/components/ui';
+import { Modal, ErrorBanner } from '@/components/ui';
 
 interface SavePresetModalProps {
   open: boolean;
@@ -30,28 +31,39 @@ export function SavePresetModal({ open, config, onClose, onSave }: SavePresetMod
   });
   const name = watch('name');
   const isSubmitting = formState.isSubmitting;
+  const [saveError, setSaveError] = useState('');
+
+  const handleClose = () => {
+    setSaveError('');
+    onClose();
+  };
 
   const onSubmit = async (data: SavePresetFormData) => {
+    setSaveError('');
     try {
       await onSave(data.name);
-      onClose();
+      handleClose();
       reset({ name: '' });
     } catch (error) {
       console.error('Failed to save preset:', error);
-      alert(t('saveFailed'));
+      setSaveError(error instanceof Error ? error.message : t('saveFailed'));
     }
   };
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={t('savePreset')}
     >
       <form
         onSubmit={handleSubmit(onSubmit)}
         className="space-y-4"
       >
+        <ErrorBanner
+          message={saveError}
+          variant="inline"
+        />
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('presetName')}</span>
           <input
@@ -65,7 +77,7 @@ export function SavePresetModal({ open, config, onClose, onSave }: SavePresetMod
         <div className="flex justify-end gap-2 pt-4">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-md border px-4 py-2 transition-colors hover:bg-accent"
           >
             {tc('cancel')}

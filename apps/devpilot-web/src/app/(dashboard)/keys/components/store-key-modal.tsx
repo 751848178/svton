@@ -47,7 +47,7 @@ export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModal
         className="space-y-4"
       >
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{t('storeNameLabel')}</span>
+          <span className="mb-1 block font-medium">{t('storeNameLabel')}</span>
           <input
             type="text"
             {...register('name')}
@@ -58,7 +58,7 @@ export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModal
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{t('storeTypeLabel')}</span>
+          <span className="mb-1 block font-medium">{t('storeTypeLabel')}</span>
           <select
             {...register('type')}
             className="w-full rounded-lg border px-3 py-2"
@@ -75,7 +75,7 @@ export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModal
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{t('storeValueLabel')}</span>
+          <span className="mb-1 block font-medium">{t('storeValueLabel')}</span>
           <textarea
             {...register('value')}
             className="w-full rounded-lg border px-3 py-2 font-mono text-sm"
@@ -85,7 +85,7 @@ export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModal
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-gray-700">{t('storeDescriptionLabel')}</span>
+          <span className="mb-1 block font-medium">{t('storeDescriptionLabel')}</span>
           <input
             type="text"
             {...register('description')}
@@ -98,14 +98,14 @@ export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModal
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-100"
+            className="rounded-lg px-4 py-2 text-muted-foreground hover:bg-accent"
           >
             {tc('cancel')}
           </button>
           <button
             type="submit"
             disabled={formState.isSubmitting}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            className="rounded-lg bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
           >
             {tc('save')}
           </button>

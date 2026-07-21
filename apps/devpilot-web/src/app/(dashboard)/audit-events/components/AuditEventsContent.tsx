@@ -7,6 +7,7 @@ import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
 import { useAuditEvents } from '../hooks/use-audit-events';
 import { FilterSelect } from './filter-select';
 import { EventTable } from './event-table';
+import { CategoryDistribution } from './category-distribution';
 import { CATEGORY_OPTIONS, STATUS_OPTIONS, RISK_OPTIONS } from '../constants';
 import type { AuditEvent } from '../types';
 
@@ -44,44 +45,27 @@ export function AuditEventsContent({ initialEvents }: { initialEvents?: AuditEve
         />
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-4 xl:grid-cols-9">
+      {/* 聚合卡：总量 / 失败（含阻塞） / 高危 / 告警；分类明细见下方分布区块 */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label={t('metricTotal')}
           value={stats.total}
         />
         <MetricCard
-          label={t('metricDeployments')}
-          value={stats.deployments}
-        />
-        <MetricCard
-          label={t('metricResourceActions')}
-          value={stats.resourceActions}
-        />
-        <MetricCard
-          label={t('metricServiceOperations')}
-          value={stats.serviceOperations}
-        />
-        <MetricCard
-          label={t('metricBackups')}
-          value={stats.backups}
-        />
-        <MetricCard
-          label={t('metricAlerts')}
-          value={stats.alerts}
-        />
-        <MetricCard
-          label={t('metricLogs')}
-          value={stats.logs}
+          label={t('metricFailed')}
+          value={stats.failed}
         />
         <MetricCard
           label={t('metricHighRisk')}
           value={stats.highRisk}
         />
         <MetricCard
-          label={t('metricFailed')}
-          value={stats.failed}
+          label={t('metricAlerts')}
+          value={stats.alerts}
         />
       </div>
+
+      <CategoryDistribution stats={stats} />
 
       <div className="flex flex-wrap gap-3 rounded-lg border p-4">
         <FilterSelect

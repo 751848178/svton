@@ -1,8 +1,8 @@
 /**
  * 项目详情数据 Hook
  *
- * 单一职责：加载项目详情/服务器/凭证/部署运行/Webhook/环境同步建议，
- * 提供部署/Webhook/环境同步/资源复制等操作。
+ * 单一职责：加载项目详情、部署运行与 Webhook 列表，
+ * 暴露加载错误状态供页面渲染 ErrorBanner 重试。
  */
 
 import { useEffect, useState } from 'react';
@@ -10,13 +10,7 @@ import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import { getProjectDescription } from '@/lib/project-display';
 import type { Project } from '../types';
-import type {
-  ProjectServerOption,
-  TeamCredentialOption,
-  DeploymentRun,
-  ProjectWebhook,
-} from '../types/operations';
-import type { EnvironmentSyncSuggestions } from '../types/environment-sync';
+import type { DeploymentRun, ProjectWebhook } from '../types/operations';
 import type { EnvironmentResourceBulkBindSelection } from '../types/environment-copy';
 import {
   createEmptyResourceBulkBindSelection,
@@ -29,12 +23,8 @@ export function useProjectDetail(projectId: string) {
   const [editing, setEditing] = useState(false);
   const [downloadingArtifact, setDownloadingArtifact] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
-  const [servers, setServers] = useState<ProjectServerOption[]>([]);
-  const [teamCredentials, setTeamCredentials] = useState<TeamCredentialOption[]>([]);
   const [deploymentRuns, setDeploymentRuns] = useState<DeploymentRun[]>([]);
   const [webhooks, setWebhooks] = useState<ProjectWebhook[]>([]);
-  const [environmentSyncSuggestions, setEnvironmentSyncSuggestions] =
-    useState<EnvironmentSyncSuggestions | null>(null);
   const [error, setError] = useState('');
   const [resourceBulkBindSelection, setResourceBulkBindSelection] =
     useState<EnvironmentResourceBulkBindSelection>(createEmptyResourceBulkBindSelection);
@@ -44,6 +34,7 @@ export function useProjectDetail(projectId: string) {
     try {
       const data = await apiRequest<Project>(`GET:/projects/${projectId}`);
       setProject(data);
+      setError('');
       setEditForm({
         name: data.name,
         description: getProjectDescription(data.config, data.description ?? ''),
@@ -56,46 +47,34 @@ export function useProjectDetail(projectId: string) {
       );
     } catch (err) {
       console.error('Failed to load project:', err);
+      setProject(null);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
   });
 
-  const loadServers = usePersistFn(async () => {
+  const loadDeploymentRuns = usePersistFn(async () => {
     try {
-      setServers(await apiRequest<ProjectServerOption[]>('GET:/servers'));
+      setDeploymentRuns(await apiRequest<DeploymentRun[]>('GET:/deployments/runs', { projectId }));
     } catch (err) {
-      console.error('Failed to load servers:', err);
+      console.error('Failed to load deployment runs:', err);
     }
   });
 
-  const loadTeamCredentials = usePersistFn(async () => {
+  const loadWebhooks = usePersistFn(async () => {
     try {
-      setTeamCredentials(await apiRequest<TeamCredentialOption[]>('GET:/team-credentials'));
+      setWebhooks(await apiRequest<ProjectWebhook[]>('GET:/project-webhooks', { projectId }));
     } catch (err) {
-      console.error('Failed to load credentials:', err);
-    }
-  });
-
-  const loadEnvironmentSyncSuggestions = usePersistFn(async () => {
-    try {
-      setEnvironmentSyncSuggestions(
-        await apiRequest<EnvironmentSyncSuggestions>('GET:/project-environments/sync-suggestions', {
-          projectId,
-        }),
-      );
-    } catch (err) {
-      console.error('Failed to load sync suggestions:', err);
-      setEnvironmentSyncSuggestions(null);
+      console.error('Failed to load webhooks:', err);
     }
   });
 
   useEffect(() => {
     loadProject();
-    loadServers();
-    loadTeamCredentials();
-    loadEnvironmentSyncSuggestions();
-  }, [loadEnvironmentSyncSuggestions, loadProject, loadServers, loadTeamCredentials, projectId]);
+    loadDeploymentRuns();
+    loadWebhooks();
+  }, [loadDeploymentRuns, loadProject, loadWebhooks, projectId]);
 
   return {
     project,
@@ -106,20 +85,15 @@ export function useProjectDetail(projectId: string) {
     setDownloadingArtifact,
     editForm,
     setEditForm,
-    servers,
-    teamCredentials,
     deploymentRuns,
     webhooks,
-    environmentSyncSuggestions,
     error,
-    setError,
     resourceBulkBindSelection,
     setResourceBulkBindSelection,
     selectedEnvironmentId,
     setSelectedEnvironmentId,
     loadProject,
-    loadServers,
-    loadTeamCredentials,
-    loadEnvironmentSyncSuggestions,
+    loadDeploymentRuns,
+    loadWebhooks,
   };
 }

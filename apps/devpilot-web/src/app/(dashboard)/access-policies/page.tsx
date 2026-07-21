@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useAccessPolicies } from './hooks/use-access-policies';
 import { PolicyFormView } from './components/policy-form';
 import { PolicyCard } from './components/policy-card';
@@ -23,6 +24,7 @@ export default function AccessPoliciesPage() {
     saving,
     actingId,
     error,
+    deleteTarget,
     stats,
     selectProject,
     save,
@@ -30,6 +32,8 @@ export default function AccessPoliciesPage() {
     reset,
     toggle,
     remove,
+    cancelRemove,
+    confirmRemove,
     reload,
   } = useAccessPolicies();
   const handleRetry = usePersistFn(() => reload());
@@ -114,6 +118,21 @@ export default function AccessPoliciesPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) cancelRemove();
+        }}
+        tone="danger"
+        title={t('deletePolicyTitle')}
+        description={
+          deleteTarget ? t('deletePolicyDescription', { name: deleteTarget.name }) : undefined
+        }
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={confirmRemove}
+      />
     </div>
   );
 }

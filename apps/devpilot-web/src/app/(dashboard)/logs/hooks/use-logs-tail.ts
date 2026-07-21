@@ -4,8 +4,10 @@
  * 单一职责：Tail 轮询、SSE 实时流式（含重连）、会话关闭。
  */
 
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { LogsState } from './use-logs-state';
 import type { LogsTailState } from './use-logs-tail-state';
 import { useLogsTailMetadataEffects } from './use-logs-tail-metadata-effects';
@@ -23,6 +25,7 @@ interface UseLogsTailArgs {
 
 export function useLogsTail(args: UseLogsTailArgs) {
   const { s, t, selectedStream } = args;
+  const tl = useTranslations('logs');
   const { selectedStreamId, setStreamSessions, tailCursorRef, tailStreamSessionIdRef } = s;
   const {
     tailCursor,
@@ -54,7 +57,7 @@ export function useLogsTail(args: UseLogsTailArgs) {
 
   const refreshTailEntries = usePersistFn(async (reset: boolean) => {
     if (!selectedStreamId) {
-      alert('请选择日志流');
+      feedback.error(tl('selectStream'));
       return;
     }
     setTailLoading(true);
@@ -64,7 +67,7 @@ export function useLogsTail(args: UseLogsTailArgs) {
       setTailCursor(response.cursor || null);
       setTailEntries((cur: LogEntry[]) => mergeTimeline(reset ? [] : cur, response.entries));
     } catch (err) {
-      setTailError(err instanceof Error ? err.message : 'Tail 刷新失败');
+      setTailError(err instanceof Error ? err.message : tl('tailRefreshFailed'));
     } finally {
       setTailLoading(false);
     }
@@ -83,7 +86,7 @@ export function useLogsTail(args: UseLogsTailArgs) {
       }
       await refreshStreamSessions();
     } catch (err) {
-      setTailError(err instanceof Error ? err.message : '关闭日志流会话失败');
+      setTailError(err instanceof Error ? err.message : tl('closeStreamSessionFailed'));
     } finally {
       setClosingStreamSessionId(null);
     }

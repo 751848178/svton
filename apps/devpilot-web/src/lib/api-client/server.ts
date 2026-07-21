@@ -23,7 +23,7 @@ import {
   type RequestInterceptor,
 } from '@svton/api-client';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3101';
+const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3121';
 
 const TOKEN_COOKIE = 'token';
 const TEAM_COOKIE = 'teamId';

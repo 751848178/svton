@@ -24,32 +24,32 @@ export function SupervisorRemoteOrphanSection({
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-xs font-medium text-foreground">Remote orphan governance</h4>
+        <h4 className="text-xs font-medium text-foreground">{t('secRemoteOrphan')}</h4>
         <StatusBadge status={readRemoteOrphanStatus(orphanGovernance.state)} />
       </div>
       <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
         <SupervisorField
-          label="preflight"
+          label={t('fieldPreflight')}
           value={`${formatRemoteOrphanState(orphanGovernance.state)} · ${formatRemoteOrphanReason(orphanGovernance.reason)}`}
         />
         <SupervisorField
-          label="remote session"
+          label={t('fieldRemoteSession')}
           value={`${orphanGovernance.gates.remoteSession.recoverableRemoteSessions}/${orphanGovernance.gates.remoteSession.scannedJobs} · ${formatRemoteOrphanReason(orphanGovernance.gates.remoteSession.reason)}`}
         />
         <SupervisorField
-          label="cleanup"
+          label={t('fieldCleanup')}
           value={`${orphanGovernance.gates.cleanup.enabled ? tc('enabled') : tc('disabled')} · ${orphanGovernance.gates.cleanup.cleanupAttempted}/${orphanGovernance.gates.cleanup.cleanupSucceeded}/${orphanGovernance.gates.cleanup.cleanupFailed}`}
         />
         <SupervisorField
-          label="owners"
+          label={t('fieldOwners')}
           value={`${orphanGovernance.gates.owners.activeOwners}/${orphanGovernance.gates.owners.staleOwners}/${orphanGovernance.gates.owners.expiredOwners} · ${formatRemoteOrphanReason(orphanGovernance.gates.owners.reason)}`}
         />
         <SupervisorField
-          label="recovery"
+          label={t('fieldRecovery')}
           value={`${orphanGovernance.gates.recovery.staleRunningJobs}/${orphanGovernance.gates.recovery.scannedJobs}/${orphanGovernance.gates.recovery.unscannedStaleJobs} · ${formatRemoteOrphanReason(orphanGovernance.gates.recovery.reason)}`}
         />
         <SupervisorField
-          label="risk"
+          label={t('fieldRisk')}
           value={`${orphanGovernance.risk.missingRemoteSessions}/${orphanGovernance.risk.invalidRemoteSessions}/${orphanGovernance.risk.cleanupFailed}`}
         />
       </div>
@@ -91,9 +91,11 @@ export function SupervisorRemoteOrphanSection({
                 <span className="font-mono">{shortId(sample.id)}</span>
               </div>
               <div className="mt-1">
-                pid {sample.remoteSession?.pid || '-'} · owner{' '}
-                {sample.lockOwner ? shortId(sample.lockOwner) : 'none'} · expires{' '}
-                {sample.lockExpiresAt ? formatDate(sample.lockExpiresAt) : '-'}
+                {t('orphanSampleMeta', {
+                  pid: sample.remoteSession?.pid || '-',
+                  owner: sample.lockOwner ? shortId(sample.lockOwner) : t('noOwner'),
+                  expires: sample.lockExpiresAt ? formatDate(sample.lockExpiresAt) : '-',
+                })}
               </div>
             </div>
           ))}

@@ -5,8 +5,10 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { Server } from '../types';
 
 interface EditForm {
@@ -15,6 +17,7 @@ interface EditForm {
 }
 
 export function useServerDetail(serverId: string) {
+  const t = useTranslations('servers');
   const [server, setServer] = useState<Server | null>(null);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
@@ -48,9 +51,17 @@ export function useServerDetail(serverId: string) {
         message: string;
       }>(`POST:/servers/${serverId}/test`);
       setServer((prev) => (prev ? { ...prev, status: result.status as Server['status'] } : null));
-      alert(result.message + (result.success ? ` (${result.latency}ms)` : ''));
+      if (result.success) {
+        feedback.success(result.message, {
+          description: t('latencyMs', { latency: result.latency }),
+        });
+      } else {
+        feedback.error(result.message);
+      }
     } catch (error) {
-      console.error('Test failed:', error);
+      feedback.error(t('testFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setTesting(false);
     }
@@ -63,9 +74,11 @@ export function useServerDetail(serverId: string) {
         `POST:/servers/${serverId}/detect`,
       );
       setServer((prev) => (prev ? { ...prev, services: result.services } : null));
-      alert(result.message);
+      feedback.success(result.message);
     } catch (error) {
-      console.error('Detection failed:', error);
+      feedback.error(t('detectFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
     } finally {
       setDetecting(false);
     }

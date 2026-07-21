@@ -17,7 +17,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
-      <h3 className="font-medium text-sm">Agent Follow</h3>
+      <h3 className="font-medium text-sm">{t('agentFollowPolicy')}</h3>
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
@@ -85,7 +85,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
       <button
         onClick={policy.saveAgentFollowPolicy}
         disabled={policy.saving}
-        className="w-full rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        className="min-h-11 w-full rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
       >
         {policy.saving ? t('saving') : t('saveAgentFollow')}
       </button>

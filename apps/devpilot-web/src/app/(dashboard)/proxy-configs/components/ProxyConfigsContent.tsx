@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useBoolean } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useProxyConfigs } from '../hooks/use-proxy-configs';
 import { ProxyConfigTable } from './proxy-config-table';
 import { AddProxyConfigModal } from './add-proxy-config-modal';
@@ -37,7 +38,8 @@ function ProxyConfigsInner({ initialConfigs }: { initialConfigs?: ProxyConfig[] 
   const tc = useTranslations('common');
   const searchParams = useSearchParams();
   const openCreateOnMount = searchParams.get('new') === 'true';
-  const { configs, servers, loading, syncingId, create, sync, remove } =
+  const initialServerId = searchParams.get('serverId') || undefined;
+  const { configs, servers, loading, syncingId, deleteTarget, create, sync, remove, cancelDelete, confirmDelete } =
     useProxyConfigs(openCreateOnMount, initialConfigs);
   const [modalOpen, setModalOpen] = useState(openCreateOnMount);
 
@@ -49,7 +51,7 @@ function ProxyConfigsInner({ initialConfigs }: { initialConfigs?: ProxyConfig[] 
         actions={
           <button
             onClick={() => setModalOpen(true)}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             {t('addConfig')}
           </button>
@@ -75,8 +77,24 @@ function ProxyConfigsInner({ initialConfigs }: { initialConfigs?: ProxyConfig[] 
       <AddProxyConfigModal
         open={modalOpen}
         servers={servers}
+        initialServerId={initialServerId}
         onClose={() => setModalOpen(false)}
         onCreate={create}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) cancelDelete();
+        }}
+        tone="danger"
+        title={t('deleteConfigTitle')}
+        description={
+          deleteTarget ? t('deleteConfigDescription', { name: deleteTarget.name }) : undefined
+        }
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={confirmDelete}
       />
     </div>
   );
