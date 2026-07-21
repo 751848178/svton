@@ -8,10 +8,14 @@ const ADMIN_DISPLAY_NAME = 'System Administrator';
 const BCRYPT_SALT_ROUNDS = 10;
 
 /**
- * Startup-only bootstrap that upserts a system-level admin (role='admin')
- * from env vars. Idempotent by email. Silent no-op when env vars are absent,
- * so it is safe to enable in every environment (including production where no
- * bootstrap admin is desired).
+ * Startup-only bootstrap that provisions a system-level admin (role='admin')
+ * from env vars. Safe at every boot:
+ *  - env unset → silent no-op (safe in prod where no bootstrap admin exists);
+ *  - email free → create a new admin row;
+ *  - email already admin → refresh the password hash only (idempotent
+ *    re-bootstrap with rotated password);
+ *  - email owned by a NON-admin → refuse and log an error (no silent
+ *    privilege escalation on an existing row).
  *
  * Password is hashed with the same bcrypt cost as AuthService.register; the
  * plaintext is never logged.
@@ -44,10 +48,10 @@ export class AdminBootstrapService implements OnModuleInit {
   }
 
   private async upsertAdmin(email: string, password: string): Promise<void> {
-    const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
     const existing = await this.prisma.user.findUnique({ where: { email } });
 
     if (!existing) {
+      const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
       await this.prisma.user.create({
         data: {
           email,
@@ -56,18 +60,28 @@ export class AdminBootstrapService implements OnModuleInit {
           name: ADMIN_DISPLAY_NAME,
         },
       });
-      this.logger.log(`Bootstrapped admin user: ${email}`);
+      this.logger.log(`Created bootstrap admin: ${email}`);
       return;
     }
 
     if (existing.role !== ADMIN_ROLE) {
-      this.logger.warn(`Promoting existing user ${email} to admin`);
+      // Refuse to silently promote a pre-existing non-admin user. The email
+      // is already owned by a normal account; escalating it here would be a
+      // silent privilege change on an existing row. Operator must resolve
+      // manually (drop the user or pick a different bootstrap email).
+      this.logger.error(
+        `Bootstrap email ${email} is already in use by a non-admin user (role=${existing.role}); refusing to bootstrap. Resolve manually (drop the user or pick a different email).`,
+      );
+      return;
     }
 
+    // Existing row is already admin: refresh the password hash only (idempotent
+    // re-bootstrap with a rotated password). Role and id are left untouched.
+    const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
     await this.prisma.user.update({
       where: { email },
-      data: { role: ADMIN_ROLE, passwordHash },
+      data: { passwordHash },
     });
-    this.logger.log(`Updated bootstrap admin: ${email}`);
+    this.logger.log(`Refreshed bootstrap admin password: ${email}`);
   }
 }
