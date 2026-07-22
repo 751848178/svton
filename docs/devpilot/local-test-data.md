@@ -917,3 +917,175 @@ curl -s "http://127.0.0.1:3121/api/deployments/runs?applicationServiceId=cmrvcg9
 ```
 
 Outputs saved under `/tmp/codex-tool-runs/svton/dataplane/` (`step5-*`, `step6-*`).
+
+## Site real deployment (site-sync) — picshare via devpilot-managed nginx
+
+The Picshare Site `cmrvggawz000cf8apch6eup02` (primaryDomain
+`picshare.localtest.me`, runtimeType `reverse_proxy`) went from `draft`,
+0 SiteSyncRuns, to `active`, served by an nginx vhost that the devpilot
+site-sync pipeline wrote and reloaded itself over SSH — replacing the manual
+`picshare-proxy` stopgap as the real path for `picshare.localtest.me`.
+
+### Flow recap (from code)
+`POST /api/sites/:id/sync-plan {dryRun:true}` (or `:false`) is the entry point.
+`buildSyncPlan` (`site-sync-plan.utils.ts`) generates an nginx server block via
+`generateNginxConfig` and a 4-step command plan:
+1. `write_nginx_config` — `cat > /etc/nginx/conf.d/<domain>.conf <<'EOF' ...`
+2. `issue_certificate` — certbot (skipped, TLS disabled)
+3. `validate_nginx` — `nginx -t`
+4. `reload_nginx` — `systemctl reload nginx || nginx -s reload`
+
+Non-dryRun sync requires (a) an **OperationApproval** (`category: site_sync`,
+`action: site.sync`) approved via `POST /api/operation-approvals/:id/review
+{decision:"approved"}` (field is `decision`, NOT `status`), then re-called with
+`approvalId`, and (b) `confirmationText` == the Site `name` (`Picshare Site`).
+Without the approval the run is created `blocked` + a pending approval. The
+reviewer needs the `team_admin` role (bootstrap admin qualifies).
+
+### Step 2 — Site repointed to the deploy-target
+`PUT /api/sites/cmrvggawz000cf8apch6eup02 {serverId:"cmrvnialj000ak80j1el9gfey"}`
+moved the Site off the old `Picshare Docker Host` onto `Picshare Deploy Target`
+(the one with nginx + sshd + host socket). `runtimeConfig.upstreamUrl` =
+`http://picshare-admin:3001` (the Next.js admin UI; chosen over backend:3000
+because its `/` returns 200 HTML, which makes the smoke-check's
+`curl -fsS http://picshare.localtest.me` succeed). Site `status` went
+`draft -> pending` after the PUT.
+
+### Step 3 — dryRun sync-plan
+`POST /api/sites/:id/sync-plan {dryRun:true}` → SiteSyncRun
+`cmrvqa4qe001ml5zor78qs08y`, status `completed`, no warnings. The generated
+nginx config (the WOULD-BE-written block) was correct:
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name picshare.localtest.me;
+    location / {
+        proxy_pass http://picshare-admin:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Step 4 — real (non-dryRun) sync-plan
+First attempt `cmrvqb77u0021l5zor52q3whd` **failed**: `SSH live Server executor
+exit code 1` — `/etc/nginx/conf.d/picshare.localtest.me.conf: Permission denied`.
+Two infra mismatches had to be fixed on the deploy-target first (see "Infra
+fixes" below). After the fixes, the blocked→approve→approvalId flow produced
+final SiteSyncRun **`cmrvqwua7000zxf32etf59dc9`**, status **`completed`**,
+`result.mode=executed`, `transport=ssh`, exitCode 0. The config was REALLY
+written by the API:
+```
+$ docker exec devpilot-deploy-target ls /etc/nginx/conf.d/
+picshare.localtest.me.conf   # owner deploy, 395 bytes, content == dryRun block
+$ docker exec devpilot-deploy-target nginx -t   # syntax ok
+```
+Site auto-updated to `status: active`, `lastSyncAt: 2026-07-22T07:13:07Z`.
+
+### Infra fixes required on the deploy-target (the real blockers)
+The site-sync code assumes a Debian-style server where: (1) nginx loads
+`/etc/nginx/conf.d/*.conf` **inside the http block**, and (2) the SSH user can
+run `nginx -t` / reload nginx. The `linuxserver/openssh-server` deploy-target
+violated both. Fixes (baked into `scripts/deploy-target-init.sh` so they survive
+recreates):
+1. **Alpine nginx includes `conf.d/*.conf` at the ROOT context** (nginx.conf
+   line ~18, outside `http {}`), so a generated `server {}` block there is a
+   syntax error: `"server" directive is not allowed here`. Fix: delete that
+   root-context include and add `include /etc/nginx/conf.d/*.conf;` inside the
+   `http {}` block, right after the `http.d` include.
+2. **The SSH user `deploy` is non-root with no sudo escalation in the
+   ssh-live adapter** (`SUDO_ACCESS:"false"` only governs the sshd container,
+   not the adapter). It could not write `/etc/nginx/conf.d/`, and `nginx -t` /
+   `nginx -s reload` failed (can't read `/run/nginx/nginx.pid`, can't
+   `kill(root_master)`). Fix: chown conf.d + nginx log/pid dirs to the deploy
+   user, grant passwordless sudo for `/usr/sbin/nginx` only
+   (`/etc/sudoers.d/devpilot-nginx`), and install a PATH-shadowing wrapper at
+   `/usr/local/bin/nginx` that does `exec sudo /usr/sbin/nginx "$@"` for
+   non-root callers — so the plan's verbatim `nginx -t` / `nginx -s reload`
+   execute as root. (nginx master must bind privileged :80, so it stays root;
+   only the management invocations are escalated.)
+3. **nginx wasn't running on boot** and the reload step
+   (`systemctl reload nginx || nginx -s reload`) needs the master alive
+   (`systemctl` is absent on Alpine, so it falls through to `nginx -s reload`).
+   Fix: `nginx` is started at the end of the init script.
+
+### Step 5 — smoke-check (and a real code bug found + fixed)
+First `POST /api/sites/:id/smoke-check` returned `status: blocked`,
+`mode: blocked_live_execution` with log:
+`Server executor 命令策略阻断: 命令未匹配 Server executor 白名单:
+nginx-site-plan/site.smoke_check/upstream_smoke`.
+`buildSmokeCheckPlan` (`site-ops-plan.utils.ts`) emits a third `upstream_smoke`
+step (`curl -fsS <upstream>`), but the command-policy whitelist
+(`server-command-policy-site-rules.constants.ts`) had rules only for
+`public_domain_smoke` and `nginx_local_host_smoke` — **no rule for
+`upstream_smoke`**. Since `ServerCommandPolicyService.evaluate` blocks the
+whole plan if ANY step is unmatched, smoke-check could never pass. This is a
+devpilot code gap, not an infra issue.
+
+**Fixed** by adding `site-upstream-smoke-check` to `SITE_COMMAND_RULES`
+(pattern `^curl -fsS https?://[host][:port][/path]`, scoped to
+`site.smoke_check`; rejects `;`, `$()`, whitespace so no injection), plus a spec
+assertion in `server-command-policy.service.spec.ts`. `pnpm --filter
+@svton/devpilot-api build` + recreate the api container, then smoke-check
+passed: SiteSyncRun **`cmrvqx5iu0017xf32861zx3jy`**, status `completed`,
+exitCode 0. All three steps now `allowed` (`site-public-smoke-check`,
+`site-local-host-smoke-check`, `site-upstream-smoke-check`). stdout captured the
+admin HTML page returned through the managed nginx.
+
+### Step 6 — diagnostics
+`POST /api/sites/:id/diagnostics {dryRun:false}` → SiteSyncRun
+**`cmrvqx5rq001fxf32kth7oqz0`**, status `completed`, exitCode 0. Runs
+`nginx -t` (rule `nginx-test`) + `tail /var/log/nginx/access.log` +
+`tail /var/log/nginx/error.log` (rule `tail-nginx-log-optional`). Confirmed
+config OK and the access log showed the smoke-check curl hits
+(`"GET / HTTP/1.1" 200 9137`).
+
+### Reachability
+The deploy-target now publishes `127.0.0.1:80:80` (added to
+`docker-compose.deploy-target.yml`), so `picshare.localtest.me` (→ 127.0.0.1 in
+host `/etc/hosts`) is served by the **devpilot-managed nginx** on the host's
+port 80 — not the stopgap `picshare-proxy` (still on :8080, now redundant):
+```
+$ curl -fsS http://picshare.localtest.me/ -o /dev/null -w '%{http_code}\n'
+200
+# access log on deploy-target shows the host-origin request:
+172.24.0.1 - - "... GET / HTTP/1.1" 200 9137 "-" "curl/8.7.1"
+```
+Inside-container smoke curls (run by the API) all returned 200.
+
+### Bugs found & fixed during this run
+1. **Missing `upstream_smoke` command-policy rule (FIXED, in master).**
+   `buildSmokeCheckPlan` emits an `upstream_smoke` step but no whitelist rule
+   allowed it, so every smoke-check was policy-blocked. Added
+   `site-upstream-smoke-check` to `SITE_COMMAND_RULES` + a spec case.
+2. **Alpine nginx `conf.d` root-context include (infra, not code).** Documented
+   above; devpilot's hardcoded `/etc/nginx/conf.d/` target only works where
+   that path is loaded inside `http {}`.
+3. **Non-root SSH user can't manage nginx (infra).** The ssh-live adapter runs
+   commands verbatim as the SSH user with no sudo; a non-root deploy user can't
+   write `/etc/nginx/conf.d/` or reload nginx. Solved with a scoped sudoers
+   rule + PATH wrapper on the deploy-target.
+
+### How to reproduce / verify
+```sh
+TOKEN=$(curl -s -X POST http://127.0.0.1:3121/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"admin@devpilot.local","password":"DemoPass123!"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["accessToken"])')
+H=(-H "Authorization: Bearer $TOKEN" -H "X-Team-Id: cmrusn8mw0009fp5bnu9kuiin")
+
+# Site is active, served by devpilot-managed nginx
+curl -s "http://127.0.0.1:3121/api/sites/cmrvggawz000cf8apch6eup02" "${H[@]}" \
+  | python3 -c 'import sys,json;d=json.load(sys.stdin)["data"];print(d["status"],d["lastSyncAt"])'
+
+# The config the pipeline wrote + reloaded
+docker exec devpilot-deploy-target cat /etc/nginx/conf.d/picshare.localtest.me.conf
+
+# Reach the site on host port 80 (devpilot-managed nginx, not the :8080 stopgap)
+curl -fsS http://picshare.localtest.me/ -o /dev/null -w '%{http_code}\n'   # 200
+```
+Outputs saved under `/tmp/codex-tool-runs/svton/site-sync/` (`step3-*`…
+`step7-*`).

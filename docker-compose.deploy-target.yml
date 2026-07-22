@@ -31,6 +31,11 @@ services:
       - picshare
     ports:
       - "127.0.0.1:2224:2222"
+      # Publish the devpilot-managed nginx (port 80) so the site's primary
+      # domain (picshare.localtest.me -> 127.0.0.1 on the host) is reachable
+      # from the host through the site-sync-managed vhost, not just the stopgap
+      # picshare-proxy on :8080.
+      - "127.0.0.1:80:80"
     environment:
       # Key auth only — the ssh-live adapter only supports key auth.
       PASSWORD_AUTH: "false"

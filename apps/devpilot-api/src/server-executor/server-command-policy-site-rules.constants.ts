@@ -18,6 +18,14 @@ export const SITE_COMMAND_RULES: CommandRule[] = [
       /^curl -fsS -H 'Host: [a-zA-Z0-9.-]+' http:\/\/127\.0\.0\.1(?::\d{1,5})?\/?$/,
   },
   {
+    key: "site-upstream-smoke-check",
+    description: "Site upstream service smoke check",
+    adapters: ["nginx-site-plan"],
+    operations: ["site.smoke_check"],
+    pattern:
+      /^curl -fsS https?:\/\/[a-zA-Z0-9.-]+(?::\d{1,5})?(?:\/[a-zA-Z0-9._~:/?#[\]@!$&'()*+,;=%-]*)?$/,
+  },
+  {
     key: "nginx-config-heredoc",
     description: "Write generated Nginx site config",
     adapters: ["nginx-site-plan"],

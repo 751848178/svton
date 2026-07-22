@@ -196,6 +196,13 @@ describe("ServerCommandPolicyService built-in rules", () => {
         required: false,
         risk: "low" as const,
       },
+      {
+        key: "upstream_smoke",
+        label: "upstream smoke",
+        command: "curl -fsS http://upstream-svc:3000",
+        required: false,
+        risk: "low" as const,
+      },
     ];
 
     const result = await service.evaluate({
@@ -219,6 +226,12 @@ describe("ServerCommandPolicyService built-in rules", () => {
       expect.objectContaining({
         status: "allowed",
         ruleKey: "site-local-host-smoke-check",
+      }),
+    );
+    expect(result.decisions[2]).toEqual(
+      expect.objectContaining({
+        status: "allowed",
+        ruleKey: "site-upstream-smoke-check",
       }),
     );
 
