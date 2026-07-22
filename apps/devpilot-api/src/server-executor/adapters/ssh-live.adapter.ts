@@ -36,10 +36,16 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
   ) {}
 
   supports(input: ServerExecutionInput) {
+    // Tolerant of both string ("true"/"false") and boolean (true/false) because
+    // the env schema (`booleanString` in env.schema.ts) transforms the value
+    // into a real boolean before ConfigService serves it, so a strict
+    // `=== "true"` check would always fail and silently fall back to the
+    // script-plan adapter — blocking every live deploy.
+    const value = this.configService.get("SERVER_EXECUTOR_LIVE_ENABLED", "false");
     return (
       input.target.transport === "ssh" &&
       input.dryRun === false &&
-      this.configService.get("SERVER_EXECUTOR_LIVE_ENABLED", "false") === "true"
+      (value === true || value === "true")
     );
   }
 

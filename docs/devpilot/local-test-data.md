@@ -718,3 +718,202 @@ rm docker-compose.picshare-proxy.yml nginx/devpilot-proxy.conf
 To make any of these real requires the Phase 2 changes in the investigation
 (dockerode port fix, `SERVER_EXECUTOR_LIVE_ENABLED=true`, real SSH/docker
 target, ProxyConfig.sync implementation, SMTP env).
+
+---
+
+## 2026-07-22 — Real data plane E2E (Phase 1+2+3, LIVE)
+
+This section documents the **real** data-plane activation: real pool
+provisioning (a MySQL database actually created) and a real non-dryRun
+deployment (containers actually started over SSH). All previous runs in this
+doc were dry-run / virtual.
+
+### Artifacts created
+
+| Artifact | Path / id |
+|---|---|
+| deploy-target compose | `/Users/zhaoxingbo/Workspace/ai-driven/svton/docker-compose.deploy-target.yml` |
+| deploy-target init script | `/Users/zhaoxingbo/Workspace/ai-driven/svton/scripts/deploy-target-init.sh` |
+| SSH keypair | `/tmp/codex-tool-runs/svton/dataplane/deploy-target-key` (+`.pub`) |
+| deploy-target container | `devpilot-deploy-target` (linuxserver/openssh-server, port `127.0.0.1:2224:2222`) |
+| devpilot Server record | `cmrvnialj000ak80j1el9gfey` (`Picshare Deploy Target`, host `deploy-target:2222`, key auth) |
+| ResourceRequest (picshare MySQL) | `cmrvnqtfx000uk80jhrit9h0y` (status `completed`) |
+| ResourceInstance (db_picshare) | `cmrvnr6l80013k80jam8opfi7` |
+| ResourcePoolAllocation | `cmrvnr6l50011k80jl7ssufh8` |
+| DeploymentRun (LIVE backend deploy) | `cmrvov5qx0018l5zotajt04vw` (status `completed`, `result.mode=executed`, `exitCode=0`) |
+
+### deploy-target container
+
+A real SSH + docker-CLI target the ssh-live adapter connects to. Built on
+`lscr.io/linuxserver/openssh-server:latest` (same image as the existing
+`devpilot-g003-ssh-server`). The linuxserver s6 init auto-runs
+`/custom-cont-init.d/99-install-tools.sh`, which installs
+`docker-cli`, `docker-cli-compose`, `git`, `nginx`, `curl` before sshd starts.
+
+Three mounts are load-bearing:
+1. `/tmp/codex-tool-runs/svton/dataplane/deploy-target-key.pub:/keys/deploy-target-key.pub:ro`
+   — injected into the `deploy` user's authorized_keys by `PUBLIC_KEY_FILE`.
+2. `/var/run/docker.sock:/var/run/docker.sock` — so `docker compose up -d`
+   run over SSH drives the HOST docker daemon (picshare containers land on
+   the same host). `chmod 666` on the socket in-container so the non-root
+   `deploy` user can reach it.
+3. `/Users/zhaoxingbo/Workspace/ai-driven/picshare:/Users/zhaoxingbo/Workspace/ai-driven/picshare`
+   (rw) — bind-mounted at the SAME absolute path the ApplicationService
+   `deployConfig.workingDirectory` points at, so `docker compose -f
+   docker-compose.devpilot.yml ...` (run client-side inside deploy-target)
+   can read the compose file + build context. Must be rw so the `git fetch`
+   checkout step can write `.git/FETCH_HEAD`.
+
+Two external networks joined: `devpilot-g003-staging_default` (so the API
+container resolves `deploy-target`) and `picshare-network` (so the
+`curl http://picshare-backend:3000/api` health-check step resolves).
+
+SSH check from host:
+```sh
+ssh -i /tmp/codex-tool-runs/svton/dataplane/deploy-target-key \
+    -p 2224 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+    deploy@127.0.0.1 'docker ps; git --version'
+```
+
+### API rebuild + env flags
+
+The API container's `dist/` is compiled on the host (`pnpm --filter
+@svton/devpilot-api build`) and copied into the image at build time — the
+running container had the OLD dist, so it was rebuilt and the container
+force-recreated:
+```sh
+pnpm --filter @svton/devpilot-api build
+docker compose -f docker-compose.devpilot-app.yml up -d --force-recreate --build api
+```
+Verified new code landed in the container:
+`docker exec devpilot-app-api grep -c "provisionMysqlDatabase\|RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED" /app/apps/devpilot-api/dist/resource-pool/resource-pool-provisioning.service.js` → `2`.
+
+Env flags added to `docker-compose.devpilot-app.yml` (api service):
+```yaml
+SERVER_EXECUTOR_LIVE_ENABLED: "true"            # enables ssh-live adapter
+SERVER_EXECUTOR_QUEUE_WORKER_ENABLED: "true"     # consumes live-exec queue
+RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED: "true"  # real pool provisioning
+```
+
+### Server registration + connection test
+
+`POST /api/servers` (X-Team-Id) created `cmrvnialj000ak80j1el9gfey` with
+`authType: key` and the private key in `credentials`. `POST /api/servers/:id/test`
+returned `{success:true, status:"online", latency:0, message:"连接成功"}` —
+this exercises the real SSH path end-to-end.
+
+### Real resource provisioning (Step 5) — DB ACTUALLY created
+
+Created a ResourceRequest against `LT MySQL Pool`
+(`cmrusvrrv000r945d2y8n5wb3`, type `lt-mysql-pool` `cmrusuqgu000g945d1um7kykh`)
+for picshare, approved it, and the real pool-provisioning code ran.
+
+**Resource-name safety rule (gotcha):** `resourceName` (from `spec.database`)
+MUST match `^(db|redis|res)_[a-z0-9]+$` (see `SAFE_RESOURCE_NAME_PATTERN` in
+`resource-pool-mysql-provisioning.utils.ts`). A first attempt with
+`database: picshare_db` was rejected with `Unsafe resource name rejected...
+Must match ^(?:db|redis|res)_[a-z0-9]+$`. Use names like `db_picshare`.
+
+Result — the database + user were REALLY created on `devpilot-g003-mysql`:
+```
+mysql> SHOW DATABASES LIKE 'db_%';
+-> db_picshare
+
+mysql> SELECT user,host FROM mysql.user WHERE user LIKE 'user_db_%';
+-> user_db_picshare  %
+
+mysql> SHOW GRANTS FOR 'user_db_picshare'@'%';
+-> GRANT USAGE ON *.* TO `user_db_picshare`@`%`
+-> GRANT ALL PRIVILEGES ON `db_picshare`.* TO `user_db_picshare`@`%`
+```
+
+Credentials verified by connecting with them (password decrypted from the
+`ResourceAllocation.credentials` blob using the API's own `CryptoService`
+with the env-file `ENCRYPTION_KEY`):
+```
+$ mysql -uuser_db_picshare -p<password> -e 'SELECT 1; SELECT CURRENT_USER(); SELECT DATABASE();' db_picshare
+alive: 1
+CURRENT_USER(): user_db_picshare@%
+DATABASE(): db_picshare
+```
+Privilege isolation confirmed — the user sees only `db_picshare`,
+`information_schema`, `performance_schema` (NOT other tenants' DBs).
+
+### Real non-dryRun deployment (Step 6) — containers ACTUALLY started
+
+`POST /api/deployments/projects/:projectId/runs` with `dryRun:false`. The
+non-dryRun flow requires:
+1. **OperationApproval** — created as pending (or pass `approvalId` of an
+   already-approved one), then `POST /api/operation-approvals/:id/review`
+   with `{"decision":"approved"}` (field is `decision`, NOT `status`; the
+   reviewer must satisfy the `team_admin` role guard — the bootstrap admin
+   does).
+2. **confirmationText** — must equal the project name (`Picshare`), set via
+   `requiredConfirmationText: project.name` in `deployment.service.ts`.
+
+Final run `cmrvov5qx0018l5zotajt04vw`: `status=completed`,
+`result.mode=executed`, `exitCode=0`, `transport=ssh`. The build, deploy,
+and health-check steps all ran over SSH on the deploy-target, driving the
+host docker daemon via the socket mount. After the run:
+```
+picshare-backend   Up (healthy)   picshare-backend:devpilot
+picshare-mysql     Up (healthy)
+picshare-redis     Up (healthy)
+picshare-admin     Up (healthy)
+```
+Health check from deploy-target (in-network):
+`curl http://picshare-backend:3000/api` → `{"status":"ok"}`.
+
+### Bugs found & fixed during this run
+
+1. **`ssh-live.adapter.ts` strict string check (FIXED, in master).**
+   `supports()` did `configService.get("SERVER_EXECUTOR_LIVE_ENABLED","false") === "true"`.
+   But the env schema's `booleanString` (`env.schema.ts:13`) `.transform()`s
+   the value into a real boolean before ConfigService serves it, so the
+   strict `=== "true"` always failed and every live deploy silently fell
+   back to the `script-plan` adapter (which hardcodes
+   `blocked_live_execution` for non-dryRun). Fixed to
+   `value === true || value === "true"`, matching every other boolean-flag
+   read in the codebase. This was THE blocker — without it, live deploys
+   can never run regardless of env flags.
+
+2. **`git fetch --all` against private remotes (operational, not code).**
+   The deploy `checkout` step is `git fetch --all --prune && git checkout <branch> && git pull`.
+   The picshare repo had a private `gitee` remote that made `--all` fail
+   (auth prompt). Fixed operationally by `git remote remove gitee` so only
+   the public `origin` (github) is fetched. Note: clearing `Project.gitRepo`
+   instead does NOT work — `collectWarnings` then emits a warning that makes
+   the ssh-live adapter treat the plan as non-executable.
+
+3. **`api-mysql` OOM-killed (exit 137)** mid-build when Docker Desktop came
+    under memory pressure. Unrelated to the code change; `docker compose -f
+    docker-compose.devpilot-staging.yml start api-mysql` recovered it.
+
+### How to reproduce / verify
+
+```sh
+# deploy-target up
+docker compose -f docker-compose.deploy-target.yml up -d
+ssh -i /tmp/codex-tool-runs/svton/dataplane/deploy-target-key -p 2224 deploy@127.0.0.1 'docker ps'
+
+# API healthy + new code + flags
+curl -s http://127.0.0.1:3121/api/health
+docker exec devpilot-app-api printenv SERVER_EXECUTOR_LIVE_ENABLED RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED
+
+# Server online
+TOKEN=$(curl -s -X POST http://127.0.0.1:3121/api/auth/login -H 'Content-Type: application/json' \
+  -d '{"email":"admin@devpilot.local","password":"DemoPass123!"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["accessToken"])')
+curl -s -X POST http://127.0.0.1:3121/api/servers/cmrvnialj000ak80j1el9gfey/test \
+  -H "Authorization: Bearer $TOKEN" -H "X-Team-Id: cmrusn8mw0009fp5bnu9kuiin"
+
+# Real DB exists
+docker exec devpilot-g003-mysql mysql -uroot -ppassword -e 'SHOW DATABASES' | grep db_picshare
+
+# DeploymentRun completed
+curl -s "http://127.0.0.1:3121/api/deployments/runs?applicationServiceId=cmrvcg9r3000sdq6bcdzqtl96" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Team-Id: cmrusn8mw0009fp5bnu9kuiin" \
+  | python3 -c 'import sys,json;[print(r["id"],r["status"],r["dryRun"]) for r in json.load(sys.stdin)["data"][:3]]'
+```
+
+Outputs saved under `/tmp/codex-tool-runs/svton/dataplane/` (`step5-*`, `step6-*`).

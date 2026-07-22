@@ -31,6 +31,17 @@ services:
       # be set; absent = silent no-op.
       DEVPILOT_BOOTSTRAP_ADMIN_EMAIL: admin@devpilot.local
       DEVPILOT_BOOTSTRAP_ADMIN_PASSWORD: "DemoPass123!"
+      # ----- Real data-plane feature flags (master, post-pool-merge) -----
+      # Enable the ssh-live adapter so non-dryRun ServerExecutor / deploy
+      # commands actually SSH into targets. See
+      # apps/devpilot-api/src/server-executor/adapters/ssh-live.adapter.ts.
+      SERVER_EXECUTOR_LIVE_ENABLED: "true"
+      # Keep the queue worker consuming the live-execution queue.
+      SERVER_EXECUTOR_QUEUE_WORKER_ENABLED: "true"
+      # Enable the real HTTP-based resource-pool provisioning path (the one
+      # that actually creates MySQL/Redis DBs + users). See
+      # apps/devpilot-api/src/resource-request/resource-request-provisioning.service.ts.
+      RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED: "true"
     volumes:
       # Other secrets (JWT, OAuth...) come from the local .env; env above wins
       - ./apps/devpilot-api/.env:/app/apps/devpilot-api/.env:ro

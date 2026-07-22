@@ -1,0 +1,68 @@
+name: devpilot-deploy-target
+
+# Real SSH + docker-CLI target for devpilot's live server-executor / ssh-live
+# adapter. Joins the staging network so the API container can reach it at
+# `deploy-target:2222`, and mounts the host docker socket so `docker compose`
+# deploy commands run here actually drive the host daemon (the picshare stack
+# lives on the same docker host).
+#
+# Bring up:
+#   docker compose -f docker-compose.deploy-target.yml up -d
+# SSH check from host:
+#   ssh -i /tmp/codex-tool-runs/svton/dataplane/deploy-target-key \
+#       -p 2224 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+#       deploy@127.0.0.1 'docker ps'
+
+networks:
+  staging:
+    external: true
+    name: devpilot-g003-staging_default
+  picshare:
+    external: true
+    name: picshare-network
+
+services:
+  deploy-target:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: devpilot-deploy-target
+    restart: unless-stopped
+    networks:
+      - staging
+      - picshare
+    ports:
+      - "127.0.0.1:2224:2222"
+    environment:
+      # Key auth only — the ssh-live adapter only supports key auth.
+      PASSWORD_AUTH: "false"
+      PUBLIC_KEY_FILE: "/keys/deploy-target-key.pub"
+      USER_NAME: deploy
+      SUDO_ACCESS: "false"
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      # SSH public key injected into the container's authorized_keys.
+      - /tmp/codex-tool-runs/svton/dataplane/deploy-target-key.pub:/keys/deploy-target-key.pub:ro
+      # Host docker socket so `docker compose ... up -d` run over SSH actually
+      # starts containers on the host daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Bind-mount the picshare source at the SAME absolute path the
+      # ApplicationService deployConfig.workingDirectory points at
+      # (/Users/zhaoxingbo/Workspace/ai-driven/picshare). `docker compose`
+      # runs client-side here, reads the compose file + build context, then
+      # ships the context to the daemon over the socket above. Must be rw so
+      # the `git fetch` checkout step can write .git/FETCH_HEAD.
+      - /Users/zhaoxingbo/Workspace/ai-driven/picshare:/Users/zhaoxingbo/Workspace/ai-driven/picshare
+      # linuxserver/openssh-server's s6 init auto-runs any executable in
+      # /custom-cont-init.d during container boot — we use that to install
+      # docker CLI + git + nginx + curl before sshd accepts connections.
+      - ./scripts/deploy-target-init.sh:/custom-cont-init.d/99-install-tools.sh:ro
+      - devpilot-deploy-target-data:/config
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 2222 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  devpilot-deploy-target-data:
