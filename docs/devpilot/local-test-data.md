@@ -268,3 +268,189 @@ fictional** rather than reflections of real staging state. Status after cleanup:
 These are properties of the current devpilot codebase (pre-production), not
 data-entry errors. To make them real, the provisioning service and
 server-executor transport would need to be implemented (separate slice).
+
+## Picshare deployment (2026-07-22) — hybrid onboarding
+
+Spec + evidence: `docs/todos/2026-07-22-picshare-deployment-plan.md` +
+`docs/todos/2026-07-22-picshare-deployment-investigation.md`. Raw request /
+response captures for every call below are in
+`/tmp/codex-tool-runs/svton/picshare-deploy/` (filename prefixes match the
+plan's section numbers, e.g. `01-project.json`, `07-deployment-run.json`).
+
+Scope: **hybrid / reflective onboarding**. picshare is started by its own
+`docker-compose.devpilot.yml` (real, reachable containers on the shared
+staging network); devpilot holds the Project/Application/Services/Server
+records + two real (dry-run) DeploymentRuns whose `commandPlan` records the
+exact build/deploy/health-check commands and whose `healthCheckUrl` points at
+the live container. Devpilot did NOT start the containers — its live
+server-executor transport is still disabled (see "Virtualness audit" above).
+
+### Containers (started by picshare's own compose)
+
+Compose file: `/Users/zhaoxingbo/Workspace/ai-driven/picshare/docker-compose.devpilot.yml`
+(all 4 services join `devpilot-g003-staging_default` as an external network
+so devpilot's API container can reach them by DNS name).
+
+| Container         | Image                   | Host port → container port | Health | Purpose                          |
+|-------------------|-------------------------|----------------------------|--------|----------------------------------|
+| `picshare-mysql`  | mysql:8.0               | 3311 → 3306                | healthy | Dedicated picshare DB (db `picshare`, user `picshare` / pw `picshare_pw`, root pw `picshare_root`) |
+| `picshare-redis`  | redis:7-alpine          | 6386 → 6379                | healthy | Dedicated picshare Redis         |
+| `picshare-backend`| picshare-backend:devpilot | 4100 → 3000              | healthy | NestJS API. Auto-runs `prisma migrate deploy` on boot |
+| `picshare-admin`  | picshare-admin:devpilot | 4101 → 3001                | healthy | Next.js admin UI (standalone)    |
+
+Build-time artefacts: backend + admin Dockerfiles are self-contained
+multi-stage builds (build inside the image; no host `dist/` needed). Admin
+bakes `NEXT_PUBLIC_API_URL=http://localhost:4100/api` in at build time.
+
+Host endpoints (verified HTTP 200):
+- Backend API: `curl http://127.0.0.1:4100/api` →
+  `{"code":0,"message":"success","data":{"status":"ok",...}}`
+- Admin UI: `curl http://127.0.0.1:4101/` → Next.js HTML
+- From inside devpilot API container (proves staging-net DNS):
+  `docker exec devpilot-app-api node -e 'fetch("http://picshare-backend:3000/api").then(r=>r.text()).then(console.log)'`
+  → same JSON health response
+
+Prisma migrations: 25 tables present in `picshare` DB after first boot
+(incl. `users`, `workspaces`, `photos`, `albums`, `comments`, `audit_logs`,
+`_prisma_migrations`, …).
+
+Healthcheck gotcha (corrected in the compose file): BusyBox `wget` in the
+admin container resolves `localhost` to `::1` first, but Next.js standalone
+bind only IPv4 (`0.0.0.0:3001`) → `wget http://localhost:3001` returns
+"Connection refused" inside the container even though the port is reachable
+from off-host. Fix: use `http://127.0.0.1:3001` in the healthcheck `test`.
+The backend container binds `:::3000` (dual stack) so `localhost` works
+there, but the same IPv4-only form is used for consistency.
+
+### devpilot records (all under team `Test Org` = `cmrusn8mw0009fp5bnu9kuiin`)
+
+| Entity              | Name                     | id                          |
+|---------------------|--------------------------|-----------------------------|
+| Project             | Picshare                 | `cmrvcfd5t000cdq6b01jka11s` |
+| Project env (dev)   | Picshare / dev           | `cmrvcfd6e000edq6bm9xulgvq` |
+| (test / staging / prod envs also auto-created) | | `cmrvcfd6i000gdq6bng2k4hlx` / `cmrvcfd6k000idq6b54m7js6u` / `cmrvcfd6n000kdq6b62pjjprp` |
+| Server              | Picshare Docker Host     | `cmrvcfrj5000mdq6b5pdfqn6e` |
+| Application         | Picshare Application     | `cmrvcg4dy000odq6bvn5ojggn` |
+| ApplicationService  | backend                  | `cmrvcg9r3000sdq6bcdzqtl96` |
+| ApplicationService  | admin                    | `cmrvcge1f000wdq6b995vmef2` |
+| ServerCommandPolicyTemplate | Picshare docker-compose-file deployment | `cmrvcmd78001edq6bdhadofkq` |
+| DeploymentRun (backend, dry-run, completed) | — | `cmrvcmhw0001gdq6bxfv9c0pk` |
+| DeploymentRun (admin,   dry-run, completed) | — | `cmrvcmn22001mdq6b9l78cawx` |
+
+Server record: `host=picshare-backend`, `port=3000`, `authType=password`,
+`username=picshare`, `credentials=picshare` (fictional — server-executor
+never runs against it). `POST /api/servers/:id/test` returns
+`{success:true, status:online, latency:1ms}` (TCP-ping path) because
+`picshare-backend:3000` is reachable from the API container over the
+staging network.
+
+### DeploymentRun commandPlan (both runs identical in shape)
+
+For `backend` (`cmrvcmhw0001gdq6bxfv9c0pk`), `status: completed`,
+`mode: deploy`, `dryRun: true`, `adapterKey: script-plan`,
+`result.executable: true`, `commandPlan.steps`:
+
+| step_key    | command                                                              |
+|-------------|----------------------------------------------------------------------|
+| checkout    | `git fetch --all --prune && git checkout master && git pull`         |
+| build       | `docker compose -f docker-compose.devpilot.yml build backend`        |
+| deploy      | `docker compose -f docker-compose.devpilot.yml up -d backend`        |
+| health_check| `curl -fsS http://picshare-backend:3000/api`                         |
+
+For `admin` (`cmrvcmn22001mdq6b9l78cawx`), same shape with
+`build admin` / `up -d admin` / `curl -fsS http://picshare-admin:3001`.
+
+### Key gotcha: devpilot's built-in command policy does NOT allow `docker compose -f <file>`
+
+The first deployment-run attempts all returned
+`illegal deployment run transition: running -> blocked` (HTTP 500). Root
+cause: `server-command-policy-deployment-rules.constants.ts` only allows
+`docker compose build` / `docker compose up -d` / `docker compose restart`
+WITHOUT a `-f <file>` flag (patterns
+`/^docker (?:build|compose build)(?: [a-zA-Z0-9_./:@=+-]+)*$/` and
+`/^docker compose (?:pull|up -d(?: --build)?|restart)(?: ...)*$/`).
+picshare's compose-file path `docker compose -f docker-compose.devpilot.yml
+...` therefore falls through to `ruleKey: "no-allowlist-match"` and the
+step is `blocked`.
+
+Two compounding bugs surface once a step is blocked:
+1. `script-plan.adapter.ts` returns `status: 'blocked'` (because
+   `blockOnWarnings !== false` and warnings > 0). So far so good.
+2. But `deployment.service.ts:482` then calls
+   `assertDeploymentRunTransition('running', 'blocked')` — and the state
+   machine in `deployment-run-status.ts` does NOT list `blocked` as a legal
+   transition from `running` (only `completed | failed | cancelled`). The
+   assertion throws, leaving the DeploymentRun row stuck in `running` with
+   no `result` / `commandPlan` / `error`. The retry endpoint then refuses
+   ("只能重试失败的部署运行") because the row is not `failed`.
+
+Workaround applied (without code changes): created a project-scoped
+`ServerCommandPolicyTemplate` (`cmrvcmd78001edq6bdhadofkq`) with
+`allowedPatterns` matching picshare's exact commands:
+`regex:^docker compose -f \S+ build( \S+)*$`,
+`regex:^docker compose -f \S+ up -d( \S+)*$`,
+`regex:^docker compose -f \S+ restart( \S+)*$`,
+`regex:^docker compose -f \S+ up -d --build( \S+)*$`,
+`regex:^curl -fsS https?://\S+$`,
+`regex:^git fetch --all --prune && git checkout \S+ && git pull$`.
+After this, both dry-runs returned `completed` synchronously.
+
+Recovery for the 4 stuck `running` rows left by the failed first attempts:
+direct DB `UPDATE DeploymentRun SET status='failed', finishedAt=NOW() WHERE
+projectId='<picshare>' AND status='running';` (no API path can move them).
+
+### Second gotcha: transient api-mysql OOM during onboarding
+
+When picshare's stack first came up alongside the existing devpilot/twgg
+MySQL containers, `devpilot-g003-api-mysql` was OOM-killed (exit 137) for
+~2 minutes. The first project-create and deployment-run POSTs hit
+`Database operation failed` / left runs stuck. Fix: `docker start
+devpilot-g003-api-mysql` (recovered in ~4s, no data loss). Memory pressure
+returned to normal afterwards — picshare-mysql is capped at ~173 MiB.
+
+### All 12 acceptance criteria (V1–V12) PASS
+
+V1 backend `healthy`, V2 admin `healthy`, V3 25 tables in picshare DB
+(≥10 required, includes `users`), V4 backend HTTP 200 from host, V5 admin
+HTTP 200 from host, V6 devpilot API container reaches `picshare-backend:3000`
+via DNS, V7 Picshare project exists, V8 application has 2 services
+(`backend` + `admin`), V9 server tests `online`, V10 two DeploymentRuns
+`completed` with `adapterKey: script-plan`, V11 backend run's
+`health_check` step command is exactly `curl -fsS
+http://picshare-backend:3000/api`, V12 DB confirms 1 project + 2 services
++ 2 completed runs.
+
+### Cleanup (in reverse dependency order)
+
+```sh
+TOKEN=$(curl -s -X POST http://127.0.0.1:3121/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@devpilot.local","password":"DemoPass123!"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["accessToken"])')
+TEAM_ID=cmrusn8mw0009fp5bnu9kuiin
+H=(-H "Authorization: Bearer $TOKEN" -H "X-Team-Id: $TEAM_ID")
+
+# 1. devpilot records (no DELETE for DeploymentRun — cascade with project)
+curl -s -X DELETE http://127.0.0.1:3121/api/server-command-policy-templates/cmrvcmmd78001edq6bdhadofkq "${H[@]}"  # policy template
+curl -s -X DELETE http://127.0.0.1:3121/api/applications/cmrvcg4dy000odq6bvn5ojggn/services/cmrvcg9r3000sdq6bcdzqtl96 "${H[@]}"  # backend svc
+curl -s -X DELETE http://127.0.0.1:3121/api/applications/cmrvcg4dy000odq6bvn5ojggn/services/cmrvcge1f000wdq6b995vmef2 "${H[@]}"  # admin svc
+curl -s -X DELETE http://127.0.0.1:3121/api/applications/cmrvcg4dy000odq6bvn5ojggn "${H[@]}"                       # application
+curl -s -X DELETE http://127.0.0.1:3121/api/servers/cmrvcfrj5000mdq6b5pdfqn6e "${H[@]}"                            # server
+curl -s -X DELETE http://127.0.0.1:3121/api/projects/cmrvcfd5t000cdq6b01jka11s "${H[@]}"                           # project (cascades runs + envs)
+
+# 2. picshare containers + volumes
+cd /Users/zhaoxingbo/Workspace/ai-driven/picshare
+docker compose -f docker-compose.devpilot.yml down -v
+
+# 3. generated images (optional)
+docker rmi picshare-backend:devpilot picshare-admin:devpilot 2>/dev/null || true
+
+# 4. compose file (optional — it is a deployment artefact, not source)
+rm /Users/zhaoxingbo/Workspace/ai-driven/picshare/docker-compose.devpilot.yml
+```
+
+> DeploymentRun rows have no public DELETE endpoint; they cascade-delete
+> with the Project. If any `running`/`failed` rows linger after project
+> delete: `docker exec devpilot-g003-api-mysql mysql -uroot -ppassword
+> devpilot_g003_staging -e "DELETE FROM DeploymentRun WHERE
+> projectId='cmrvcfd5t000cdq6b01jka11s';"`.
