@@ -47,7 +47,7 @@ export default function ServerDetailPage() {
         action={
           <button
             onClick={() => router.push('/servers')}
-            className="text-primary hover:underline"
+            className="link"
           >
             {t('backToList')}
           </button>
@@ -61,7 +61,8 @@ export default function ServerDetailPage() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => router.push('/servers')}
-          className="text-muted-foreground hover:text-foreground"
+          aria-label={t('backToList')}
+          className="link"
         >
           ←
         </button>

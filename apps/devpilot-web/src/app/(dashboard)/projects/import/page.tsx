@@ -31,10 +31,7 @@ export default function ImportProjectPage() {
         title={t('importProjectTitle')}
         description={t('importProjectDescription')}
         actions={
-          <Link
-            href="/projects"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
+          <Link href="/projects" className="link text-sm">
             {t('backToProjects')}
           </Link>
         }

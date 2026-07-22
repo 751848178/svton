@@ -33,7 +33,7 @@ export function RecentDeployments({ runs }: { runs: DashboardDeploymentRun[] }) 
             <li key={run.id}>
               <Link
                 href={run.project ? `/projects/${run.project.id}` : '/projects'}
-                className="flex items-center justify-between gap-3 py-2.5 transition-colors hover:bg-accent/50"
+                className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">
