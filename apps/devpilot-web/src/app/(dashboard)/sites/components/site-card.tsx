@@ -56,7 +56,14 @@ export function SiteCard({ site, sites }: { site: Site; sites: SitesHook }) {
               />
             )}
           </div>
-          <div className="font-mono text-sm">{site.primaryDomain}</div>
+          <a
+            href={`https://${site.primaryDomain}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-sm text-foreground underline-offset-2 hover:underline"
+          >
+            {site.primaryDomain}
+          </a>
           {aliases.length > 0 && (
             <div className="text-xs text-muted-foreground">{t('aliasesLabel', { aliases: aliases.join(', ') })}</div>
           )}
