@@ -9,6 +9,9 @@ import { AllocateResourceDto, PoolStatus } from "./dto/resource-pool.dto";
 import { ResourcePoolProvisioningService } from "./resource-pool-provisioning.service";
 import { ResourcePoolRepository } from "./resource-pool.repository";
 
+/** Sentinel thrown by the repository when the atomic capacity check fails. */
+const RESOURCE_POOL_FULL = "RESOURCE_POOL_FULL";
+
 @Injectable()
 export class ResourcePoolAllocationLifecycleService {
   private readonly logger = new Logger(
@@ -50,17 +53,37 @@ export class ResourcePoolAllocationLifecycleService {
 
     const nextPoolStatus =
       pool.allocated + 1 >= pool.capacity ? PoolStatus.FULL : pool.status;
-    const allocation = await this.repository.createAllocationAndIncrementPool({
-      pool,
-      projectId: dto.projectId,
-      teamId,
-      userId,
-      resourceName,
-      encryptedCredentials: this.cryptoService.encryptCbc(
-        JSON.stringify(credentials),
-      ),
-      nextPoolStatus,
-    });
+    let allocation;
+    try {
+      allocation = await this.repository.createAllocationAndIncrementPool({
+        pool,
+        projectId: dto.projectId,
+        teamId,
+        userId,
+        resourceName,
+        encryptedCredentials: this.cryptoService.encryptCbc(
+          JSON.stringify(credentials),
+        ),
+        nextPoolStatus,
+      });
+    } catch (error) {
+      // M1: if the allocation record can't be persisted, roll back the
+      // already-created real DB/user (or Redis marker) so it isn't orphaned.
+      // Pass the in-memory credentials so a redis slot is deprovisioned against
+      // the correct `db` (it was never persisted, so we can't read it back).
+      await this.compensateProvisionFailure(
+        pool,
+        resourceName,
+        credentials,
+        error,
+      );
+      // M2: the transaction rejects over-allocation with a sentinel; surface it
+      // as a 400 instead of letting a concurrent request 500.
+      if (isPoolFullRace(error)) {
+        throw new BadRequestException("Resource pool is full");
+      }
+      throw error;
+    }
 
     this.logger.log(
       `Allocated resource ${resourceName} from pool ${pool.name}`,
@@ -91,6 +114,9 @@ export class ResourcePoolAllocationLifecycleService {
     await this.provisioningService.deprovisionResource(
       allocation.pool,
       allocation.resourceName,
+      // H1: decrypt the allocation credentials so deprovision targets the
+      // originally-allocated Redis DB (1..15) instead of defaulting to DB 0.
+      this.readAllocationCredentials(allocation.credentials),
     );
 
     const nextPoolStatus =
@@ -105,4 +131,56 @@ export class ResourcePoolAllocationLifecycleService {
     this.logger.log(`Released resource ${allocation.resourceName}`);
     return { success: true };
   }
+
+  /**
+   * Best-effort compensating deprovision when persisting the allocation fails
+   * after the real resource was created. Logs but never swallows the original
+   * error; a deprovision failure is logged alongside it rather than masked.
+   */
+  private async compensateProvisionFailure(
+    pool: { type: string; endpoint?: string; adminConfig: string },
+    resourceName: string,
+    credentials: Record<string, unknown>,
+    originalError: unknown,
+  ): Promise<void> {
+    try {
+      await this.provisioningService.deprovisionResource(
+        pool,
+        resourceName,
+        credentials,
+      );
+    } catch (deprovisionError) {
+      this.logger.error(
+        `Compensating deprovision failed for ${resourceName} after allocation ` +
+          `write failure; the resource may be orphaned. Original error follows.`,
+        deprovisionError instanceof Error ? deprovisionError.stack : String(deprovisionError),
+      );
+      this.logger.error(
+        `Original allocation write error for ${resourceName}.`,
+        originalError instanceof Error ? originalError.stack : String(originalError),
+      );
+    }
+  }
+
+  private readAllocationCredentials(
+    encrypted: string | undefined | null,
+  ): Record<string, unknown> | undefined {
+    if (!encrypted) return undefined;
+    try {
+      return JSON.parse(
+        this.cryptoService.decryptCbc(encrypted),
+      ) as Record<string, unknown>;
+    } catch {
+      this.logger.warn(
+        "Could not decrypt allocation credentials for deprovision; redis DB index will be unavailable.",
+      );
+      return undefined;
+    }
+  }
+}
+
+function isPoolFullRace(error: unknown): boolean {
+  return (
+    error instanceof Error && error.message.includes(RESOURCE_POOL_FULL)
+  );
 }

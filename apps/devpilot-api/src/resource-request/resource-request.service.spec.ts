@@ -2320,7 +2320,7 @@ function createService(options: { httpEnabled?: boolean; configValues?: Record<s
       if (Object.prototype.hasOwnProperty.call(options.configValues || {}, key)) {
         return options.configValues?.[key];
       }
-      return key === 'RESOURCE_PROVISIONING_HTTP_ENABLED'
+      return key === 'RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED'
         ? options.httpEnabled ?? fallback
         : fallback;
     }),

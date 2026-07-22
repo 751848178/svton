@@ -73,13 +73,20 @@ export class ResourcePoolRepository {
     nextPoolStatus: string;
   }) {
     return (this.prisma as any).$transaction(async (tx: any) => {
-      await tx.resourcePool.update({
-        where: { id: input.pool.id },
+      // M2: atomically re-check capacity inside the transaction. `updateMany`
+      // only touches the row while `allocated < capacity`, so two concurrent
+      // allocations cannot both pass and over-allocate. If `count === 0` the
+      // pool filled between the read and the write — roll back and reject.
+      const increment = await tx.resourcePool.updateMany({
+        where: { id: input.pool.id, allocated: { lt: input.pool.capacity } },
         data: {
           allocated: { increment: 1 },
           status: input.nextPoolStatus,
         },
       });
+      if (increment.count !== 1) {
+        throw new Error("RESOURCE_POOL_FULL");
+      }
 
       return tx.resourceAllocation.create({
         data: {

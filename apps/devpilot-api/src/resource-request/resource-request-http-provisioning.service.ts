@@ -60,7 +60,7 @@ export class ResourceRequestHttpProvisioningService {
   ) {}
 
   private httpProvisioningEnabled() {
-    return readBoolean(this.configService.get('RESOURCE_PROVISIONING_HTTP_ENABLED', false), false);
+    return readBoolean(this.configService.get('RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED', false), false);
   }
 
   private httpProvisioningQueueEnabled() {

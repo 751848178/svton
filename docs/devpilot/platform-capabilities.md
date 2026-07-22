@@ -223,7 +223,7 @@ flowchart TD
     SCRIPT --> SCRIPTPLANNED[生成 script plan<br/>但无真实执行入口]
     SCRIPTPLANNED --> INSTANCE2[或 status=blocked]
 
-    HTTP --> HTTPCHECK{RESOURCE_PROVISIONING_HTTP_ENABLED?}
+    HTTP --> HTTPCHECK{RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED?}
     HTTPCHECK --"默认 false"--> PLANNED[status=planned<br/>requiresManualCompletion=true<br/>等人手 complete]
     HTTPCHECK --"true"--> DISPATCH[创建 ResourceProvisioningRun<br/>fetch 真实 HTTP]
     DISPATCH --> INSTANCE3[完成后写 ResourceInstance]
@@ -250,7 +250,7 @@ flowchart TD
 | 5 种 mode 路由 | `apps/devpilot-api/src/resource-request/resource-request-provisioning.service.ts:57-79` |
 | Pool provisioning（**虚拟**） | `apps/devpilot-api/src/resource-pool/resource-pool-provisioning.service.ts:29-72`（只 `crypto.randomBytes(16).toString('hex')` 当密码，不连真实 mysql/redis） |
 | Deprovision stub | `apps/devpilot-api/src/resource-pool/resource-pool-provisioning.service.ts:74-79`（仅 `this.logger.log`） |
-| HTTP 默认禁用 | `apps/devpilot-api/src/resource-request/resource-request-http-provisioning.service.ts:62-64`（`RESOURCE_PROVISIONING_HTTP_ENABLED` 默认 `false`） |
+| HTTP 默认禁用 | `apps/devpilot-api/src/resource-request/resource-request-http-provisioning.service.ts:62-64`（`RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED` 默认 `false`） |
 | HTTP 禁用时返回 `planned` | `apps/devpilot-api/src/resource-request/resource-request-http-provisioning.service.ts:125-131` |
 | 15 默认 resource types | `apps/devpilot-api/src/resource-request/resource-type-defaults.constants.ts`（含 `mysql/postgresql/redis/server/domain/port/git-account/cloud-account/lt-*` 等，已通过 staging API 验证） |
 | 种子执行入口 | `apps/devpilot-api/src/resource-request/resource-request.service.ts:61-63`（`onModuleInit` 调 `ensureDefaults`） |
@@ -699,10 +699,10 @@ Admin 角色过滤：`navigation-items.ts:154-167` —— 非 admin 用户隐藏
 | 项 | 内容 |
 |---|---|
 | 严重度 | **major（P1）** |
-| 现象 | 默认环境变量 `RESOURCE_PROVISIONING_HTTP_ENABLED=false` 时，所有 `provisioningMode='api'` 或 `'webhook'` 的资源申请（如 `lt-fake-provider-api`）最终 `ResourceProvisioningRun.status='planned'`、`requiresManualCompletion=true`，**不会真的发 HTTP 请求**。 |
+| 现象 | 默认环境变量 `RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED=false` 时，所有 `provisioningMode='api'` 或 `'webhook'` 的资源申请（如 `lt-fake-provider-api`）最终 `ResourceProvisioningRun.status='planned'`、`requiresManualCompletion=true`，**不会真的发 HTTP 请求**。 |
 | 根因 | `apps/devpilot-api/src/resource-request/resource-request-http-provisioning.service.ts:62-64`、`:125-131`。代码注释 `http_dispatch_disabled`。 |
 | 影响 | 自动化交付流（用户期望 webhook 调 Provisoner 服务）需要先改 env 才能跑通。 |
-| 推荐修复 | 在 staging / 生产 docker-compose 显式声明 `RESOURCE_PROVISIONING_HTTP_ENABLED=true` 并配 `RESOURCE_REQUEST_PROVISIONING_HTTP_QUEUE_ENABLED=true`；或在前端资源类型管理页标注"HTTP 交付未启用"。 |
+| 推荐修复 | 在 staging / 生产 docker-compose 显式声明 `RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED=true` 并配 `RESOURCE_REQUEST_PROVISIONING_HTTP_QUEUE_ENABLED=true`；或在前端资源类型管理页标注"HTTP 交付未启用"。 |
 
 ### 7.6 Server executor 默认禁用 live — **MAJOR**
 
@@ -800,7 +800,7 @@ Admin 角色过滤：`navigation-items.ts:154-167` —— 非 admin 用户隐藏
    - `/resource-requests` 与 `/resource-instances` 页加按钮。
 
 6. **HTTP provisioning env 显式声明**（[Part 7.5](#75-资源申请-http-provisioning-默认禁用--major)）
-   - 在 `docker-compose.devpilot-staging.yml` 加 `RESOURCE_PROVISIONING_HTTP_ENABLED=true` 等开关；或在 UI 资源类型管理页标注。
+   - 在 `docker-compose.devpilot-staging.yml` 加 `RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED=true` 等开关；或在 UI 资源类型管理页标注。
 
 7. **Sites / Deployment 详情操作按钮补齐**（[Part 7.8](#78-后端有-api-但前端无页面)）
    - `/sites` 加 sync-plan / diagnostics / tls-probe / tls-renew；`/projects/[id]` 的 deployment panel 加 retry / smoke-check / rollback。
