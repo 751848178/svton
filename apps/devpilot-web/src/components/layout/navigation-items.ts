@@ -100,8 +100,8 @@ export const navigationSections: NavigationSection[] = [
       { href: '/sites', labelKey: 'sites', icon: 'globe' },
       { href: '/proxy-configs', labelKey: 'proxyConfigs', icon: 'network' },
       { href: '/cdn-configs', labelKey: 'cdnConfigs', icon: 'zap' },
-      { href: '/domain', labelKey: 'domainConfigGenerator', icon: 'at-sign' },
-      { href: '/cdn', labelKey: 'cdnConfigGenerator', icon: 'cloud' },
+      { href: '/domain', labelKey: 'domainConfigGenerator', icon: 'at-sign', secondary: true },
+      { href: '/cdn', labelKey: 'cdnConfigGenerator', icon: 'cloud', secondary: true },
     ],
   },
   {
@@ -135,11 +135,11 @@ export const navigationSections: NavigationSection[] = [
   {
     titleKey: 'sectionConfig',
     items: [
-      { href: '/presets', labelKey: 'presets', icon: 'bookmark' },
-      { href: '/git', labelKey: 'git', icon: 'git-branch' },
+      { href: '/presets', labelKey: 'presets', icon: 'bookmark', secondary: true },
+      { href: '/git', labelKey: 'git', icon: 'git-branch', secondary: true },
       { href: '/teams', labelKey: 'teamManagement', icon: 'users' },
-      { href: '/admin/resource-pools', labelKey: 'resourcePools', icon: 'layers' },
-      { href: '/admin/resource-types', labelKey: 'resourceTypes', icon: 'tags' },
+      { href: '/admin/resource-pools', labelKey: 'resourcePools', icon: 'layers', secondary: true },
+      { href: '/admin/resource-types', labelKey: 'resourceTypes', icon: 'tags', secondary: true },
     ],
   },
 ];

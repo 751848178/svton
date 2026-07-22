@@ -4,9 +4,9 @@ import { Sidebar } from '@/components/layout/sidebar';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-screen flex-col overflow-hidden">
       <Header />
-      <div className="flex min-w-0 flex-1">
+      <div className="flex h-full min-h-0 min-w-0 flex-1">
         <Sidebar />
         <main className="min-w-0 flex-1 overflow-auto p-4 md:p-6">
           <Breadcrumbs />

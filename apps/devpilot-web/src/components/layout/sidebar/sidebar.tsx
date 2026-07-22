@@ -37,7 +37,7 @@ export function Sidebar() {
   }, [roleFiltered, normalizedQuery, t]);
 
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar md:flex md:flex-col">
+    <aside className="hidden h-full w-64 shrink-0 border-r border-sidebar-border bg-sidebar md:flex md:flex-col">
       <div className="px-6 pb-4 pt-7">
         <p className="text-lg font-bold text-foreground">Devpilot</p>
         <p className="text-xs font-medium text-muted-foreground">{t('sidebarSubtitle')}</p>
