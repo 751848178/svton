@@ -58,7 +58,14 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
               {runtimeTypeLabels[focusedSite.runtimeType] || focusedSite.runtimeType}
             </span>
           </div>
-          <div className="font-mono text-sm">{focusedSite.primaryDomain}</div>
+          <a
+            href={`https://${focusedSite.primaryDomain}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-sm text-foreground underline-offset-2 hover:underline"
+          >
+            {focusedSite.primaryDomain}
+          </a>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span>{t('projectLabel', { name: focusedSite.project?.name || t('notLinked') })}</span>
             <span>{t('environmentLabel', { name: focusedSite.environment?.name || t('notBound') })}</span>
