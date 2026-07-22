@@ -63,6 +63,91 @@ describe('DockerInventoryExecutorFactory routing', () => {
       expect(factory.usesDockerApi({ services: {}, tags: { dockerApiSocket: '/sock' } })).toBe(true);
     });
   });
+
+  /**
+   * host 字段的端口解析（回归 P0-3：曾硬编码 2376，忽略 URL 端口）。
+   * 通过 cast 访问私有 extractDockerOptions/extractPort/extractHostname。
+   */
+  describe('host port parsing', () => {
+    type FactoryInternals = {
+      extractDockerOptions(meta: { tags?: unknown; services?: unknown }): unknown;
+      extractPort(host: string): number | undefined;
+      extractHostname(host: string): string | undefined;
+    };
+    const internals = factory as unknown as FactoryInternals;
+
+    it('parses port from tcp:// URL', () => {
+      expect(internals.extractPort('tcp://devpilot-g003-docker-socket-proxy:2375')).toBe(2375);
+    });
+
+    it('parses port from bare host:port', () => {
+      expect(internals.extractPort('devpilot-g003-docker-socket-proxy:2375')).toBe(2375);
+    });
+
+    it('returns undefined when URL has no port', () => {
+      expect(internals.extractPort('tcp://docker-proxy')).toBeUndefined();
+      expect(internals.extractPort('docker-proxy')).toBeUndefined();
+    });
+
+    it('extracts hostname without scheme/port', () => {
+      expect(internals.extractHostname('tcp://devpilot-g003-docker-socket-proxy:2375')).toBe(
+        'devpilot-g003-docker-socket-proxy',
+      );
+      expect(internals.extractHostname('host:2375')).toBe('host');
+    });
+
+    it('returns undefined for empty hostname (unix:// misrouted to host field)', () => {
+      // unix:///var/run/docker.sock belongs in dockerApiSocket; if misrouted,
+      // new URL().hostname yields "" — must return undefined so caller falls
+      // back to the raw host instead of an empty string.
+      expect(internals.extractHostname('unix:///var/run/docker.sock')).toBeUndefined();
+    });
+
+    it('strips IPv6 brackets from hostname', () => {
+      expect(internals.extractHostname('[::1]:2375')).toBe('::1');
+      expect(internals.extractHostname('tcp://[::1]:2375')).toBe('::1');
+    });
+
+    it('extractDockerOptions falls back to raw host when hostname is empty', () => {
+      const opts = internals.extractDockerOptions({
+        services: { dockerApiHost: 'unix:///var/run/docker.sock' },
+      }) as { host: string; port: number };
+      expect(opts.host).toBe('unix:///var/run/docker.sock');
+      expect(opts.port).toBe(2376);
+    });
+
+    it('extractDockerOptions returns unbracketed IPv6 host', () => {
+      const opts = internals.extractDockerOptions({
+        services: { dockerApiHost: 'tcp://[::1]:2375' },
+      }) as { host: string; port: number };
+      expect(opts.host).toBe('::1');
+      expect(opts.port).toBe(2375);
+    });
+
+    it('uses URL port when host carries one', () => {
+      const opts = internals.extractDockerOptions({
+        services: { dockerApiHost: 'tcp://devpilot-g003-docker-socket-proxy:2375' },
+      }) as { host: string; port: number };
+      expect(opts.host).toBe('devpilot-g003-docker-socket-proxy');
+      expect(opts.port).toBe(2375);
+    });
+
+    it('falls back to default 2376 when host has no port', () => {
+      const opts = internals.extractDockerOptions({
+        services: { dockerApiHost: 'tcp://docker-proxy' },
+      }) as { host: string; port: number };
+      expect(opts.host).toBe('docker-proxy');
+      expect(opts.port).toBe(2376);
+    });
+
+    it('falls back to default 2376 for bare hostname without port', () => {
+      const opts = internals.extractDockerOptions({
+        services: { dockerApiHost: 'docker-proxy' },
+      }) as { host: string; port: number };
+      expect(opts.host).toBe('docker-proxy');
+      expect(opts.port).toBe(2376);
+    });
+  });
 });
 
 describe('DockerApiInventoryExecutor record normalization', () => {

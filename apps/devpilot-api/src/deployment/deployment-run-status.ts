@@ -36,12 +36,14 @@ export function isTerminalDeploymentRunStatus(status: string): boolean {
  *
  * `created` 是 smoke 子流程的状态（不参与主 run 转换）；主 run 的生命周期：
  * `queued → running → completed | failed`，外加 `→ blocked`（待审批）与
- * `→ cancelled`（取消）。`running` 在审批通过后可从 `blocked` 进入。
+ * `→ cancelled`（取消）。`running` 在审批通过后可从 `blocked` 进入，
+ * 反之 `running` 亦可转为 `blocked`：`queue:false` 下审批未通过（createRun/rollbackRun
+ * 审批分支）或 script-plan adapter 返回 blocked（execute 分支）时均会触发。
  */
 const DEPLOYMENT_RUN_TRANSITIONS: ReadonlyMap<string, readonly string[]> = new Map([
   [DeploymentRunStatus.QUEUED, [DeploymentRunStatus.BLOCKED, DeploymentRunStatus.RUNNING, DeploymentRunStatus.CANCELLED, DeploymentRunStatus.FAILED]],
   [DeploymentRunStatus.BLOCKED, [DeploymentRunStatus.RUNNING, DeploymentRunStatus.CANCELLED, DeploymentRunStatus.FAILED]],
-  [DeploymentRunStatus.RUNNING, [DeploymentRunStatus.COMPLETED, DeploymentRunStatus.FAILED, DeploymentRunStatus.CANCELLED]],
+  [DeploymentRunStatus.RUNNING, [DeploymentRunStatus.BLOCKED, DeploymentRunStatus.COMPLETED, DeploymentRunStatus.FAILED, DeploymentRunStatus.CANCELLED]],
 ]);
 
 /**

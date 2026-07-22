@@ -9,6 +9,9 @@ const DOCKER_API_HOST_FIELD = 'dockerApiHost';
 const DOCKER_API_SOCKET_FIELD = 'dockerApiSocket';
 const DOCKER_API_TLS_FIELD = 'dockerApiTls';
 
+/** host 字段未携带端口时的默认端口（Docker TLS 默认 2376）。 */
+const DEFAULT_DOCKER_API_PORT = 2376;
+
 /**
  * Docker inventory executor 工厂。
  *
@@ -57,12 +60,44 @@ export class DockerInventoryExecutorFactory {
     const tls = this.readBool(tags, DOCKER_API_TLS_FIELD) ?? this.readBool(services, DOCKER_API_TLS_FIELD);
 
     if (host) {
-      return { host, port: 2376, ...(tls !== undefined ? { ...(tls ? {} : {}) } : {}) };
+      const port = this.extractPort(host) ?? DEFAULT_DOCKER_API_PORT;
+      const hostname = this.extractHostname(host) ?? host;
+      return { host: hostname, port, ...(tls !== undefined ? { ...(tls ? {} : {}) } : {}) };
     }
     if (socket) {
       return { socketPath: socket };
     }
     return null;
+  }
+
+  /**
+   * 从 host 字段解析端口。host 可能是完整 URL（`tcp://host:2375`）或裸 `host:port`。
+   * 无端口时返回 undefined（由调用方决定默认值）。
+   */
+  private extractPort(host: string): number | undefined {
+    const parsed = this.parseHostUrl(host);
+    return parsed?.port ? Number(parsed.port) : undefined;
+  }
+
+  /**
+   * 从 host 字段解析 hostname（不含 scheme/port）。解析失败或 hostname 为空
+   * （如 `unix:///var/run/docker.sock` 误填到 host 字段，`new URL().hostname` 返回 ""）
+   * 时返回 undefined，由调用方回退到原始 host。IPv6 的方括号形式 `[::1]` 一并剥离。
+   */
+  private extractHostname(host: string): string | undefined {
+    const hostname = this.parseHostUrl(host)?.hostname;
+    if (!hostname) return undefined;
+    // `new URL().hostname` 对 IPv6 返回带方括号的 `[::1]`，dockerode 不接受括号形式。
+    return hostname.replace(/^\[|\]$/g, '');
+  }
+
+  private parseHostUrl(host: string): URL | undefined {
+    try {
+      const normalized = host.includes('://') ? host : `tcp://${host}`;
+      return new URL(normalized);
+    } catch {
+      return undefined;
+    }
   }
 
   private asRecord(value: unknown): Record<string, unknown> | null {
