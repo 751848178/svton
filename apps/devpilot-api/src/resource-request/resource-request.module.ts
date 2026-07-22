@@ -64,6 +64,10 @@ import { ResourceProvisioningRunReadService } from './resource-provisioning-run-
     ResourceProvisioningRunSupervisorService,
     ResourceProvisioningRunReadService,
   ],
-  exports: [ResourceRequestService, ResourceRequestProvisioningRetrySchedulerService],
+  exports: [
+    ResourceRequestService,
+    ResourceRequestProvisioningRetrySchedulerService,
+    ResourceRequestStatusWriterService,
+  ],
 })
 export class ResourceRequestModule {}

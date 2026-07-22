@@ -5,6 +5,10 @@
  */
 
 import { ServerCommandStep } from '../server-executor';
+import {
+  buildEnvCleanupStep,
+  buildEnvWriteStep,
+} from './deployment-env-injection.utils';
 
 export type DeploymentConfig = {
   targetType: string;
@@ -27,24 +31,60 @@ export function safePositiveInt(value: unknown, fallback: number, max: number): 
   return Math.max(1, Math.min(Math.floor(numberValue), max));
 }
 
-export function buildCommandSteps(deployment: DeploymentConfig, gitRepo?: string, branch?: string): ServerCommandStep[] {
-  return [
+export function buildCommandSteps(
+  deployment: DeploymentConfig,
+  gitRepo?: string,
+  branch?: string,
+  envVars?: Record<string, string>,
+): ServerCommandStep[] {
+  const base: ServerCommandStep[] = [
     { key: 'checkout', label: '拉取代码', command: gitRepo ? `git fetch --all --prune && git checkout ${branch || 'main'} && git pull` : '', cwd: deployment.workingDirectory || '', required: Boolean(gitRepo), risk: 'low', timeoutSeconds: 120 },
     { key: 'build', label: '构建', command: deployment.buildCommand || '', cwd: deployment.workingDirectory || '', required: Boolean(deployment.buildCommand), risk: 'medium', timeoutSeconds: 600 },
+  ];
+
+  if (envVars && Object.keys(envVars).length > 0) {
+    base.push(buildEnvWriteStep(deployment.workingDirectory, envVars));
+  }
+
+  base.push(
     { key: 'deploy', label: '部署', command: deployment.deployCommand || '', cwd: deployment.workingDirectory || '', required: true, risk: 'medium', timeoutSeconds: 600 },
     { key: 'health_check', label: '健康检查', command: deployment.healthCheckUrl ? `curl -fsS ${deployment.healthCheckUrl}` : '', cwd: '', required: Boolean(deployment.healthCheckUrl), risk: 'low', timeoutSeconds: 30 },
-  ];
+  );
+
+  if (envVars && Object.keys(envVars).length > 0) {
+    base.push(buildEnvCleanupStep(deployment.workingDirectory));
+  }
+
+  return base;
 }
 
-export function buildRollbackCommandSteps(deployment: DeploymentConfig, gitRepo?: string, commitSha?: string | null): ServerCommandStep[] {
+export function buildRollbackCommandSteps(
+  deployment: DeploymentConfig,
+  gitRepo?: string,
+  commitSha?: string | null,
+  envVars?: Record<string, string>,
+): ServerCommandStep[] {
   const safeCommitSha = safeGitCommitSha(commitSha);
   const deployCommand = deployment.rollbackCommand || deployment.deployCommand || '';
-  return [
+  const base: ServerCommandStep[] = [
     { key: 'checkout_rollback', label: '切换到回滚版本', command: gitRepo && safeCommitSha ? `git fetch --all --prune && git checkout ${safeCommitSha}` : '', cwd: deployment.workingDirectory || '', required: Boolean(gitRepo && safeCommitSha), risk: 'low', timeoutSeconds: 120 },
     { key: 'build_rollback', label: '构建回滚版本', command: deployment.buildCommand || '', cwd: deployment.workingDirectory || '', required: Boolean(deployment.buildCommand), risk: 'medium', timeoutSeconds: 600 },
+  ];
+
+  if (envVars && Object.keys(envVars).length > 0) {
+    base.push(buildEnvWriteStep(deployment.workingDirectory, envVars));
+  }
+
+  base.push(
     { key: 'deploy_rollback', label: deployment.rollbackCommand ? '执行回滚命令' : '重新部署回滚版本', command: deployCommand, cwd: deployment.workingDirectory || '', required: true, risk: 'high', timeoutSeconds: 600 },
     { key: 'health_check', label: '回滚后健康检查', command: deployment.healthCheckUrl ? `curl -fsS ${deployment.healthCheckUrl}` : '', cwd: '', required: Boolean(deployment.healthCheckUrl), risk: 'low', timeoutSeconds: 30 },
-  ];
+  );
+
+  if (envVars && Object.keys(envVars).length > 0) {
+    base.push(buildEnvCleanupStep(deployment.workingDirectory));
+  }
+
+  return base;
 }
 
 export function buildSmokeCheckCommandSteps(healthCheckUrl: string): ServerCommandStep[] {

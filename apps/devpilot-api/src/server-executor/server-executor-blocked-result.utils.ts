@@ -1,3 +1,4 @@
+import { stripSecretEnv } from "../deployment/deployment-secret-strip.utils";
 import {
   ServerCommandPolicyResult,
   ServerExecutionInput,
@@ -24,6 +25,8 @@ export function buildServerExecutorPolicyBlockedResult(
     : "blocked_live_execution";
   const warnings = [...(input.warnings || []), ...policy.warnings];
   const error = `Server executor 命令策略阻断: ${policy.blockedReasons.join("；")}`;
+  // F1: never persist `secretEnv` (plaintext credentials).
+  const persistedSteps = stripSecretEnv(input.steps);
 
   return {
     status: "blocked",
@@ -32,8 +35,8 @@ export function buildServerExecutorPolicyBlockedResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings,
-    commandSteps: input.steps,
-    commandPlan: buildPolicyCommandPlan(input, policy, warnings),
+    commandSteps: persistedSteps,
+    commandPlan: buildPolicyCommandPlan(input, policy, warnings, persistedSteps),
     logs: toJsonValue([{ level: "warn", message: error }]),
     result: toJsonValue({
       mode,
@@ -56,6 +59,8 @@ export function buildServerExecutorConcurrencyBlockedResult(
     ? `目标服务器已有 live 执行正在运行：${blockingLease.operationKey}，请等待释放后重试`
     : "目标服务器已有 live 执行正在运行，请等待释放后重试";
   const warnings = [...(input.warnings || []), warning];
+  // F1: never persist `secretEnv` (plaintext credentials).
+  const persistedSteps = stripSecretEnv(input.steps);
 
   return {
     status: "blocked",
@@ -64,12 +69,13 @@ export function buildServerExecutorConcurrencyBlockedResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings,
-    commandSteps: input.steps,
+    commandSteps: persistedSteps,
     commandPlan: buildConcurrencyCommandPlan(
       input,
       blockingLease,
       blockedLeaseId,
       warnings,
+      persistedSteps,
     ),
     logs: toJsonValue([{ level: "warn", message: warning }]),
     result: toJsonValue({
@@ -89,6 +95,7 @@ function buildPolicyCommandPlan(
   input: ServerExecutionInput,
   policy: ServerCommandPolicyResult,
   warnings: string[],
+  steps: ReturnType<typeof stripSecretEnv>,
 ) {
   return toJsonValue({
     executorKey: "server-executor",
@@ -115,7 +122,7 @@ function buildPolicyCommandPlan(
     warnings,
     metadata: input.metadata || {},
     commandPolicy: policy,
-    steps: input.steps,
+    steps,
   });
 }
 
@@ -124,6 +131,7 @@ function buildConcurrencyCommandPlan(
   blockingLease: ServerExecutorBlockingLeaseSnapshot | null,
   blockedLeaseId: string,
   warnings: string[],
+  steps: ReturnType<typeof stripSecretEnv>,
 ) {
   return toJsonValue({
     executorKey: "server-executor",
@@ -144,6 +152,6 @@ function buildConcurrencyCommandPlan(
     },
     warnings,
     metadata: input.metadata || {},
-    steps: input.steps,
+    steps,
   });
 }

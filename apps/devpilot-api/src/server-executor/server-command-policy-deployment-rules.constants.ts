@@ -48,4 +48,22 @@ export const DEPLOYMENT_COMMAND_RULES: CommandRule[] = [
     pattern:
       /^docker compose (?:pull|up -d(?: --build)?|restart)(?: [a-zA-Z0-9_./:@=+-]+)*$/,
   },
+  {
+    key: "write-env-file",
+    description:
+      "Write redacted .env file (secrets injected at execution time via secretEnv)",
+    adapters: ["deployment-script-plan"],
+    operations: ["deployment.run", "deployment.rollback"],
+    // Anchors the REDACTED form only; real values never reach the policy
+    // because they live in the step's `secretEnv`, not `command`.
+    pattern:
+      /^cat > \.env <<'DEVPLOT_ENV_EOF'\n(?:[A-Z_][A-Z0-9_]*=\*\*\*REDACTED\*\*\*\n)+DEVPLOT_ENV_EOF$/,
+  },
+  {
+    key: "remove-env-file",
+    description: "Remove .env file after deployment (best-effort cleanup)",
+    adapters: ["deployment-script-plan"],
+    operations: ["deployment.run", "deployment.rollback"],
+    pattern: /^rm -f \.env$/,
+  },
 ];

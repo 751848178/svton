@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { stripSecretEnv } from "../../deployment/deployment-secret-strip.utils";
 import {
   ServerExecutionInput,
   ServerExecutionResult,
@@ -11,6 +12,9 @@ export function buildSshLivePlan(
   warnings: string[],
   executable: boolean,
 ): Prisma.InputJsonValue {
+  // F1: never persist `secretEnv` (plaintext credentials). The live executor
+  // reads `secretEnv` directly from `input.steps` at execution time
+  // (`buildSshLiveScript`); the persisted plan only needs the redacted mirror.
   return toJsonValue({
     executorKey: "server-executor",
     adapterKey: input.adapterKey,
@@ -39,7 +43,7 @@ export function buildSshLivePlan(
     },
     warnings,
     metadata: input.metadata || {},
-    steps: input.steps,
+    steps: stripSecretEnv(input.steps),
   });
 }
 
@@ -56,7 +60,7 @@ export function buildSshLiveBlockedResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings,
-    commandSteps: input.steps,
+    commandSteps: stripSecretEnv(input.steps),
     commandPlan,
     logs: toJsonValue([{ level: "warn", message: error }]),
     result: toJsonValue({
@@ -83,8 +87,11 @@ export function buildSshLiveCancelledResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings,
-    commandSteps: input.steps,
+    commandSteps: stripSecretEnv(input.steps),
     commandPlan,
+    // TODO(F8): stdout/stderr are truncated but NOT scrubbed of known secret
+    // values. A later step that prints the env (or runs `set -x`) could echo a
+    // secret into `logs`. A broader output-masking pipeline is deferred.
     logs: toJsonValue([
       { level: "warn", message: "SSH live Server executor 执行已取消" },
       {

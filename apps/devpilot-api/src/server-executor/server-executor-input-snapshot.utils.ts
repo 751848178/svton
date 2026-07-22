@@ -1,5 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { stripSecretEnv } from "../deployment/deployment-secret-strip.utils";
 import {
   isRecord,
   readBoolean,
@@ -29,12 +30,15 @@ export type RehydrateServerExecutionInputOptions = {
 export function buildServerExecutionInputSnapshot(
   input: ServerExecutionInput,
 ): Prisma.InputJsonValue {
+  // F2: `inputSnapshot` is persisted on `serverExecutionJob` and exposed via
+  // the job-detail API. Strip `secretEnv` (plaintext credentials) so secrets
+  // never reach the column or the API response.
   return toJsonValue({
     operationKey: input.operationKey,
     adapterKey: input.adapterKey,
     dryRun: input.dryRun,
     target: input.target,
-    steps: input.steps,
+    steps: stripSecretEnv(input.steps),
     warnings: input.warnings || [],
     metadata: input.metadata || {},
     blockOnWarnings: input.blockOnWarnings,

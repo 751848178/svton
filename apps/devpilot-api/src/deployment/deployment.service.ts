@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AuditEventService } from '../audit-event';
 import { CreateOperationApprovalInput, OperationApprovalService } from '../operation-approval';
 import { PrismaService } from '../prisma/prisma.service';
+import { ResourceRequestStatusWriterService } from '../resource-request/resource-request-status-writer.service';
 import { DeploymentRunStatus, assertDeploymentRunTransition } from './deployment-run-status';
 import { ServerCommandStep, ServerExecutorService } from '../server-executor';
 import {
@@ -22,6 +23,11 @@ import {
   safePositiveInt,
   type DeploymentConfig,
 } from './deployment-command-builders.utils';
+import {
+  listEnvVarKeys,
+  resolveDeploymentEnvVars,
+} from './deployment-env-injection.utils';
+import { stripSecretEnv } from './deployment-secret-strip.utils';
 
 type ProjectConfigRecord = Record<string, unknown>;
 
@@ -116,6 +122,7 @@ export class DeploymentService {
     private readonly serverExecutor: ServerExecutorService,
     private readonly auditEventService: AuditEventService,
     private readonly operationApprovalService: OperationApprovalService,
+    private readonly credentialCrypto: ResourceRequestStatusWriterService,
   ) {}
 
   async listRuns(teamId: string, query: ListDeploymentRunsQueryDto) {
@@ -266,7 +273,12 @@ export class DeploymentService {
     const target = await this.serverExecutor.resolveTarget(teamId, serverId);
     const applicationId = applicationServiceRef?.applicationId || applicationRef?.id;
     const queue = dto.queue === true;
-    const steps = buildCommandSteps(deployment, gitRepo, branch);
+    const envVars = await this.resolveEnvVarsSafe(
+      teamId,
+      project.id,
+      environmentRef?.id,
+    );
+    const steps = buildCommandSteps(deployment, gitRepo, branch, envVars);
     const requiresApproval = this.requiresDeploymentOperationApproval(dryRun);
     const approvalContext = this.buildDeploymentApprovalContext({
       teamId,
@@ -344,7 +356,7 @@ export class DeploymentService {
         data: {
           status: DeploymentRunStatus.BLOCKED,
           operationApprovalId: approval.id,
-          commandPlan: this.toJsonValue(steps),
+          commandPlan: this.toJsonValue(stripSecretEnv(steps)),
           logs: this.toJsonValue([
             {
               level: 'info',
@@ -521,6 +533,8 @@ export class DeploymentService {
         applicationServiceName: applicationServiceRef?.name,
         operationApprovalId: approvedApproval?.id,
         error: completedRun.error,
+        // Redacted summary only — never the real values (investigation doc §E).
+        envVarsInjected: listEnvVarKeys(envVars),
       },
     });
 
@@ -589,7 +603,12 @@ export class DeploymentService {
     const target = await this.serverExecutor.resolveTarget(teamId, serverId);
     const applicationId = sourceRun.applicationService?.applicationId || sourceRun.applicationId || sourceRun.application?.id;
     const warnings = collectRollbackWarnings(deployment, gitRepo, sourceRun.commitSha);
-    const steps = buildRollbackCommandSteps(deployment, gitRepo, sourceRun.commitSha);
+    const envVars = await this.resolveEnvVarsSafe(
+      teamId,
+      sourceRun.projectId,
+      sourceRun.environmentId ?? undefined,
+    );
+    const steps = buildRollbackCommandSteps(deployment, gitRepo, sourceRun.commitSha, envVars);
     const requiresApproval = this.requiresDeploymentOperationApproval(dryRun);
     const approvalContext = this.buildDeploymentApprovalContext({
       teamId,
@@ -677,7 +696,7 @@ export class DeploymentService {
         data: {
           status: DeploymentRunStatus.BLOCKED,
           operationApprovalId: approval.id,
-          commandPlan: this.toJsonValue(steps),
+          commandPlan: this.toJsonValue(stripSecretEnv(steps)),
           logs: this.toJsonValue([
             {
               level: 'info',
@@ -1921,6 +1940,31 @@ export class DeploymentService {
 
   private requiresDeploymentOperationApproval(dryRun: boolean) {
     return !dryRun;
+  }
+
+  /**
+   * Resolve platform-provisioned env vars for the (project, environment).
+   * Best-effort: a failure here MUST NOT break a deploy — return `{}` and let
+   * the deploy proceed without credential injection (the audit will note the
+   * absence). Real values stay out of all persisted columns; only the redacted
+   * key list is suitable for logging/audit.
+   */
+  private async resolveEnvVarsSafe(
+    teamId: string,
+    projectId: string | undefined | null,
+    environmentId: string | undefined | null,
+  ): Promise<Record<string, string>> {
+    try {
+      return await resolveDeploymentEnvVars(
+        this.prisma as unknown as Parameters<typeof resolveDeploymentEnvVars>[0],
+        this.credentialCrypto,
+        teamId,
+        projectId,
+        environmentId,
+      );
+    } catch {
+      return {};
+    }
   }
 
   private deploymentOperationRisk(action: 'deployment.run' | 'deployment.rollback') {

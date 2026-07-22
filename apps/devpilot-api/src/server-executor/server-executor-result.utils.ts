@@ -1,3 +1,4 @@
+import { stripSecretEnv } from "../deployment/deployment-secret-strip.utils";
 import { toJsonValue } from "./server-executor-json.utils";
 import {
   ServerExecutionInput,
@@ -15,6 +16,8 @@ export function buildServerExecutorCancelledResult(
   input: ServerExecutionInput,
 ): ServerExecutionResult {
   const warning = "Server executor 执行已取消";
+  // F1: never persist `secretEnv` (plaintext credentials).
+  const persistedSteps = stripSecretEnv(input.steps);
 
   return {
     status: "cancelled",
@@ -23,7 +26,7 @@ export function buildServerExecutorCancelledResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings: [...(input.warnings || []), warning],
-    commandSteps: input.steps,
+    commandSteps: persistedSteps,
     commandPlan: toJsonValue({
       executorKey: "server-executor",
       adapterKey: input.adapterKey,
@@ -36,7 +39,7 @@ export function buildServerExecutorCancelledResult(
         cancellationRequested: true,
         cancellationSignal: "serverExecutionJob.cancelRequestedAt",
       },
-      steps: input.steps,
+      steps: persistedSteps,
     }),
     logs: toJsonValue([{ level: "warn", message: warning }]),
     result: toJsonValue({
@@ -56,6 +59,8 @@ export function buildServerExecutorQueuedResult(
   job: QueuedServerExecutionJobSnapshot,
 ): ServerQueuedExecutionResult {
   const warning = "Server executor 执行已加入队列";
+  // F1: never persist `secretEnv` (plaintext credentials).
+  const persistedSteps = stripSecretEnv(input.steps);
 
   return {
     status: "queued",
@@ -64,7 +69,7 @@ export function buildServerExecutorQueuedResult(
     adapterKey: input.adapterKey,
     executable: true,
     warnings: [...(input.warnings || []), warning],
-    commandSteps: input.steps,
+    commandSteps: persistedSteps,
     commandPlan: toJsonValue({
       executorKey: "server-executor",
       adapterKey: input.adapterKey,
@@ -86,7 +91,7 @@ export function buildServerExecutorQueuedResult(
       },
       warnings: [...(input.warnings || []), warning],
       metadata: input.metadata || {},
-      steps: input.steps,
+      steps: persistedSteps,
     }),
     logs: toJsonValue([{ level: "info", message: warning }]),
     result: toJsonValue({

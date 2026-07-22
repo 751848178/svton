@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { stripSecretEnv } from '../../deployment/deployment-secret-strip.utils';
 import {
   ServerExecutionInput,
   ServerExecutionResult,
@@ -19,7 +20,9 @@ export class ScriptPlanServerExecutorAdapter implements ServerExecutorAdapter {
   async execute(input: ServerExecutionInput): Promise<ServerExecutionResult> {
     const warnings = [...(input.warnings || [])];
     const executable = warnings.length === 0 && input.steps.every((step) => !step.required || step.command);
-    const commandPlan = this.buildPlan(input, warnings, executable);
+    // F1: strip `secretEnv` (plaintext credentials) from the persisted plan.
+    const persistedSteps = stripSecretEnv(input.steps);
+    const commandPlan = this.buildPlan(input, warnings, executable, persistedSteps);
 
     if (input.cancellationToken?.isCancellationRequested()) {
       return {
@@ -29,7 +32,7 @@ export class ScriptPlanServerExecutorAdapter implements ServerExecutorAdapter {
         adapterKey: input.adapterKey,
         executable: false,
         warnings,
-        commandSteps: input.steps,
+        commandSteps: persistedSteps,
         commandPlan,
         logs: this.toJsonValue([
           {
@@ -59,7 +62,7 @@ export class ScriptPlanServerExecutorAdapter implements ServerExecutorAdapter {
           ...warnings,
           '真实 Server executor transport 尚未启用，当前只生成受控脚本计划。',
         ],
-        commandSteps: input.steps,
+        commandSteps: persistedSteps,
         commandPlan,
         logs: [
           {
@@ -89,7 +92,7 @@ export class ScriptPlanServerExecutorAdapter implements ServerExecutorAdapter {
       adapterKey: input.adapterKey,
       executable,
       warnings,
-      commandSteps: input.steps,
+      commandSteps: persistedSteps,
       commandPlan,
       logs: [
         {
@@ -119,6 +122,7 @@ export class ScriptPlanServerExecutorAdapter implements ServerExecutorAdapter {
     input: ServerExecutionInput,
     warnings: string[],
     executable: boolean,
+    steps: ReturnType<typeof stripSecretEnv>,
   ): Prisma.InputJsonValue {
     return this.toJsonValue({
       executorKey: 'server-executor',
@@ -146,7 +150,7 @@ export class ScriptPlanServerExecutorAdapter implements ServerExecutorAdapter {
       },
       warnings,
       metadata: input.metadata || {},
-      steps: input.steps,
+      steps,
     });
   }
 

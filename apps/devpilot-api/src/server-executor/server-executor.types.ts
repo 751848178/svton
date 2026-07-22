@@ -64,6 +64,12 @@ export type ServerCommandStep = {
   risk?: "low" | "medium" | "high";
   timeoutSeconds?: number;
   preview?: string;
+  /**
+   * Real env values rendered into the heredoc body at execution time only.
+   * The persisted `command` carries a redacted mirror; this field is never
+   * serialized into `commandPlan`/`logs`/audit `metadata` by the adapters.
+   */
+  secretEnv?: Record<string, string>;
 };
 
 export type ServerExecutorTarget = {

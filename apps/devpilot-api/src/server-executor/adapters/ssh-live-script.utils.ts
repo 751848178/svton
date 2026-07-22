@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ServerExecutionInput } from "../server-executor.types";
+import { renderEnvWriteCommandReal } from "../../deployment/deployment-env-injection.utils";
 
 export function buildSshLiveScript(input: ServerExecutionInput) {
   const lines = ["set -euo pipefail"];
@@ -9,6 +10,13 @@ export function buildSshLiveScript(input: ServerExecutionInput) {
     lines.push("", `# ${step.label}`);
     if (step.cwd) {
       lines.push(`cd ${shellQuote(step.cwd)}`);
+    }
+    // Steps that carry `secretEnv` ship a redacted `command` (safe to persist
+    // in commandPlan); the executor rebuilds the real heredoc here, at the
+    // last moment, so secret values never enter the persisted plan.
+    if (step.secretEnv && Object.keys(step.secretEnv).length > 0) {
+      lines.push(renderEnvWriteCommandReal(step.secretEnv));
+      continue;
     }
     lines.push(step.command);
   }
