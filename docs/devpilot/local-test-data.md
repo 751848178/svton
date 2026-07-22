@@ -454,3 +454,267 @@ rm /Users/zhaoxingbo/Workspace/ai-driven/picshare/docker-compose.devpilot.yml
 > delete: `docker exec devpilot-g003-api-mysql mysql -uroot -ppassword
 > devpilot_g003_staging -e "DELETE FROM DeploymentRun WHERE
 > projectId='cmrvcfd5t000cdq6b01jka11s';"`.
+
+
+## Picshare full integration (2026-07-22) — Phase 1 data-only wiring
+
+Spec + investigation: `docs/todos/2026-07-22-picshare-full-integration-investigation.md`.
+Raw request/response captures for every call below are in
+`/tmp/codex-tool-runs/svton/picshare-integration/` (filename prefixes match the
+step numbers, e.g. `01a-mr-mysql-insert.log`, `02-site.json`, `06b-backup-run.json`).
+
+Scope: wire picshare fully into devpilot's resource model **with zero production
+code changes** — only DB inserts, devpilot API record creation, and one extra
+nginx container. This closes every "NOT WIRED" gap the investigation identified
+for ManagedResource, Site, ProxyConfig, AlertRule/Channel, and BackupPlan.
+
+### Important IDs (corrected)
+
+| Entity | id |
+|---|---|
+| Team Test Org | `cmrusn8mw0009fp5bnu9kuiin` |
+| Project Picshare | `cmrvcfd5t000cdq6b01jka11s` |
+| Project env `staging` | `cmrvcfd6k000idq6b54m7js6u` (used for all new records) |
+| (env `dev` = `cmrvcfd6e000edq6bm9xulgvq`, `test` = `cmrvcfd6i000gdq6bng2k4hlx`, `prod` = `cmrvcfd6n000kdq6b62pjjprp`) | |
+| Server `Picshare Docker Host` | **`cmrvcfrj5000mdq6b5pdfqn6e`** |
+| Application Picshare | `cmrvcg4dy000odq6bvn5ojggn` |
+| ApplicationService backend | `cmrvcg9r3000sdq6bcdzqtl96` |
+| ApplicationService admin | `cmrvcge1f000wdq6b995vmef2` |
+
+> Gotcha: an earlier doc draft carried a **wrong picshare Server id**
+> (`cmrvcfrj5000mdq6b01jka11s`). The real id is
+> `cmrvcfrj5000mdq6b5pdfqn6e` (verified via
+> `SELECT id FROM Server WHERE name='Picshare Docker Host'`). All records below
+> use the correct id.
+
+### New records created in this slice
+
+| Entity | Name | id | Notes |
+|---|---|---|---|
+| ManagedResource | Picshare Docker Host / picshare-mysql | `cmrvgeyg31rw7xwr4fhue8kom` | kind=mysql, endpoint=picshare-mysql:3306, status=running |
+| ManagedResource | Picshare Docker Host / picshare-redis | `cmrvgeyg31c7tngah6jwntbsw` | kind=redis, endpoint=picshare-redis:6379 |
+| ManagedResource | Picshare Docker Host / picshare-backend | `cmrvgeyg3112djjs0nzbzxw3e` | kind=docker_container, endpoint=picshare-backend:3000 |
+| ManagedResource | Picshare Docker Host / picshare-admin | `cmrvgeyg3be4ixcs52kboq0r` | kind=docker_container, endpoint=picshare-admin:3001 |
+| ProxyConfig | Picshare Proxy | `cmrvgg542000af8apg32exmn4` | domain=picshare.localtest.me, upstreams=admin+backend |
+| Site | Picshare Site | `cmrvggawz000cf8apch6eup02` | primaryDomain=picshare.localtest.me, env=staging, status=draft |
+| AlertNotificationChannel | Picshare Alerts | `cmrvgigxp000ef8apts32w0e1` | type=email, recipients=[alerts@devpilot.local], liveEnabled=false |
+| AlertRule | Picshare backend down | `cmrvgioxk000gf8apjord5z8l` | category=resource, metric=health_status, severity=critical, evaluationMode=manual, managedResourceId=picshare-backend |
+| BackupPlan | Picshare MySQL daily | `cmrvgiwr7000if8apgbib81np` | backupType=logical, schedule=`0 2 * * *`, retentionDays=7, destinationType=local, resourceId=picshare-mysql |
+| BackupRun | (dry-run) | `cmrvgj28q000kf8ap27m47dsj` | dryRun=true, status=completed, adapterKey=backup-script-plan |
+
+All records are scoped to Team `Test Org`, Project `Picshare`, env `staging`,
+server `Picshare Docker Host`. The two picshare ApplicationServices remain
+un-linked to ManagedResources (the brief scoped this slice to MR/Site/Proxy/
+Monitoring/Backup only; linking `ApplicationService.managedResourceId` is a
+one-line follow-up if desired).
+
+### Step 1 — ManagedResources (direct DB INSERT, no API path exists)
+
+`ManagedResource` has no `POST` endpoint (only inventory-sync creates them, and
+that path is blocked by the dockerode port bug — see investigation §3.1).
+Inserted 4 rows directly into `devpilot_g003_staging.ManagedResource`,
+mirroring the LT-Docker Host pattern (`local-test-data.md:110-113`) but using
+**typed `kind` values** (`mysql`, `redis`) instead of generic `docker_container`,
+because `BackupPlan` requires `kind: mysql` (`backup.service.ts getBackupableResource`).
+
+```sql
+-- pattern (one of four)
+INSERT INTO ManagedResource
+  (id, teamId, serverId, projectId, environmentId, sourceType, provider,
+   kind, name, externalId, status, endpoint, metadata, config, lastSyncAt, createdAt, updatedAt)
+VALUES ('cmrvgeyg31rw7xwr4fhue8kom', 'cmrusn8mw0009fp5bnu9kuiin',
+  'cmrvcfrj5000mdq6b5pdfqn6e', 'cmrvcfd5t000cdq6b01jka11s',
+  'cmrvcfd6k000idq6b54m7js6u', 'server', 'docker', 'mysql',
+  'Picshare Docker Host / picshare-mysql',
+  'cmrvcfrj5000mdq6b5pdfqn6e:docker:mysql:picshare-mysql',
+  'running', 'picshare-mysql:3306',
+  JSON_OBJECT('syncMode','manual_seed','engine','mysql','hostPort',3311),
+  JSON_OBJECT('containerName','picshare-mysql','port',3306,'database','picshare'),
+  NOW(3), NOW(3), NOW(3));
+```
+
+IDs were generated locally to match Prisma's cuid v1 format (`c` + base36
+timestamp + counter + 12 random chars) using a Python helper, since the
+`cuid2` module is not resolvable from a `node -e` eval inside the API container.
+
+Verification: `GET /api/resource-control/resources?projectId=<picshare>` returns
+all 4 (the per-server path `GET /api/resource-control/servers/:id/resources`
+does not exist; the flat `/resources` list with `projectId` query is the
+correct endpoint).
+
+### Step 2 & 3 — Site + ProxyConfig
+
+`POST /api/proxy-configs` then `POST /api/sites`. The Site DTO field is
+**`primaryDomain`** (not `domain`); the brief's `domain` field name is wrong.
+Both records reference `serverId: Picshare Docker Host` per the brief's literal
+instruction (an alternative would be a separate `Picshare Proxy Host` server
+record pointing at the proxy container — investigation §4.4 — but that was not
+required here).
+
+ProxyConfig carries two upstreams (admin + backend) plus a `customConfig`
+string that documents the exact nginx location blocks, so the record is a
+self-describing artefact of the proxy setup. Status defaults to `pending` /
+`draft` (sync is a no-op in this build per investigation §3.4).
+
+### Step 4 — picshare-proxy nginx container
+
+Compose file: `/Users/zhaoxingbo/Workspace/ai-driven/picshare/docker-compose.picshare-proxy.yml`
+nginx config: `/Users/zhaoxingbo/Workspace/ai-driven/picshare/nginx/devpilot-proxy.conf`
+
+```yaml
+services:
+  picshare-proxy:
+    image: nginx:alpine
+    container_name: picshare-proxy
+    restart: unless-stopped
+    networks: [devpilot-g003-staging_default]
+    ports: ["8080:80"]
+    volumes:
+      - ./nginx/devpilot-proxy.conf:/etc/nginx/conf.d/picshare.localtest.me.conf:ro
+networks:
+  devpilot-g003-staging_default: { external: true }
+```
+
+```nginx
+server {
+    listen 80;
+    server_name picshare.localtest.me;
+    location /api { proxy_pass http://picshare-backend:3000; ... }
+    location /   { proxy_pass http://picshare-admin:3001;   ... }
+}
+```
+
+Bring up: `cd /Users/zhaoxingbo/Workspace/ai-driven/picshare && docker compose -f docker-compose.picshare-proxy.yml up -d`.
+Host port: **8080** (was free at seeding time). The compose's `default` network
+block was removed after `up` accidentally created an orphan `picshare_default`
+network; `docker network disconnect picshare_default picshare-proxy && docker network rm picshare_default` cleaned it up.
+
+### How to access picshare by domain
+
+```sh
+# Host-header form (works on any machine, no DNS dependence):
+curl -H "Host: picshare.localtest.me" http://127.0.0.1:8080/       # -> admin HTML (9137 bytes, title 管理后台)
+curl -H "Host: picshare.localtest.me" http://127.0.0.1:8080/api    # -> {"code":0,"message":"success","data":{"status":"ok",...}}
+
+# Pretty-URL form (browser-friendly):
+curl http://picshare.localtest.me:8080/
+```
+
+**DNS gotcha on this Mac:** `localtest.me` is a public DNS wildcard that
+normally resolves any subdomain to `127.0.0.1` (confirmed against `1.1.1.1`),
+but this machine's local resolver (`198.18.0.2`, a VPN/proxy such as Clash/
+Surge) rewrites `picshare.localtest.me` to `198.18.10.142`, breaking the
+pretty-URL form. Fix: add `127.0.0.1 picshare.localtest.me` to `/etc/hosts`,
+or disable the proxy, or just use the Host-header form above.
+
+Cross-container verification (proves staging-network DNS both ways):
+
+```sh
+docker exec devpilot-app-api curl -s -H "Host: picshare.localtest.me" \
+  http://picshare-proxy/ -o /dev/null -w "admin: HTTP %{http_code} %{size_download}B\n"
+# -> admin: HTTP 200 9137B
+docker exec devpilot-app-api curl -s -H "Host: picshare.localtest.me" \
+  http://picshare-proxy/api -o /dev/null -w "api: HTTP %{http_code} %{size_download}B\n"
+# -> api: HTTP 200 207B
+```
+
+### Step 5 — AlertNotificationChannel + AlertRule
+
+- Channel: `type=email`, `emailRecipients=[alerts@devpilot.local]`,
+  `severityFilter=[warning,critical]`. Returned `config.liveEnabled=false`
+  (same gotcha as LT Email Alerts — SMTP transport not wired in this build;
+  deliveries persist as rows but aren't sent).
+- Rule: `category=resource`, `metric=health_status`, `severity=critical`,
+  `evaluationMode=manual`, `managedResourceId=<picshare-backend MR>`,
+  `condition={operator:'==',threshold:'down'}`. `serverId` was auto-populated
+  from the managedResource's server. Manual eval is available via
+  `POST /api/monitoring/alert-rules/:id/evaluate` (no scheduler fires it
+  automatically in this build).
+
+### Step 6 — BackupPlan + dryRun BackupRun
+
+- Plan: `backupType=logical`, `schedule=0 2 * * *`, `retentionDays=7`,
+  `destinationType=local`,
+  `destination={path:/var/backups/devpilot/picshare, container:devpilot-g003-backup-target}`.
+  Requires `resourceId` to reference a `kind=mysql` ManagedResource — which is
+  why Step 1 used `kind=mysql` for picshare-mysql (not `docker_container`).
+- Dry-run run: `POST /api/backups/plans/:id/runs {dryRun:true}` returned
+  `status=completed`, `adapterKey=backup-script-plan`, with a 3-step
+  commandPlan that targets the real container:
+  1. `mkdir -p /var/backups/devpilot/mysql`
+  2. `docker exec picshare-mysql sh -lc 'mysqldump --single-transaction --all-databases > /tmp/devpilot-backup.sql'`
+  3. `docker cp picshare-mysql:/tmp/devpilot-backup.sql /var/backups/devpilot/mysql/devpilot-backup.sql`
+  All steps `status=allowed` by the built-in command-policy baseline. Non-dryRun
+  is blocked by `backup.service.ts blockLiveRun` (Phase 2).
+
+### Verification summary (all PASS)
+
+| Check | Result |
+|---|---|
+| `GET /api/resource-control/resources?projectId=<picshare>` | 4 MRs returned |
+| `GET /api/sites/<id>` | 200 |
+| `GET /api/proxy-configs/<id>` | 200 |
+| `GET /api/monitoring/alert-rules?projectId=<picshare>` | 1 rule (Picshare backend down) |
+| `GET /api/monitoring/notification-channels?projectId=<picshare>` | 1 channel (Picshare Alerts) |
+| `GET /api/backups/plans?projectId=<picshare>` | 1 plan (Picshare MySQL daily) |
+| `GET /api/backups/runs?planId=<id>` | 1 run (dryRun=completed) |
+| `picshare-proxy` container running | Up, port 8080:80 |
+| Host-header curl admin root | HTTP 200, 9137B HTML (title 管理后台) |
+| Host-header curl /api | HTTP 200, 207B JSON `{status:ok}` |
+| Cross-container curl from `devpilot-app-api` | HTTP 200 admin + api |
+
+Note: alert-rules / notification-channels / backup-plans have **no GET-by-id
+endpoint** — only list endpoints. A 404 on `GET .../:id` is expected, not an
+error; use the `?projectId=` list form instead.
+
+### Cleanup
+
+To remove just the Phase 1 wirings (leaving the Picshare project, app,
+services, server, and dry-run DeploymentRuns intact):
+
+```sh
+TOKEN=$(curl -s -X POST http://127.0.0.1:3121/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@devpilot.local","password":"DemoPass123!"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["accessToken"])')
+TEAM_ID=cmrusn8mw0009fp5bnu9kuiin
+H=(-H "Authorization: Bearer $TOKEN" -H "X-Team-Id: $TEAM_ID")
+
+# 1. devpilot records (no DELETE for backup-runs/alert-rules/channels — cascade or DB)
+curl -s -X DELETE http://127.0.0.1:3121/api/backups/plans/cmrvgiwr7000if8apgbib81np "${H[@]}"
+curl -s -X DELETE http://127.0.0.1:3121/api/monitoring/alert-rules/cmrvgioxk000gf8apjord5z8l "${H[@]}"
+curl -s -X DELETE http://127.0.0.1:3121/api/monitoring/notification-channels/cmrvgigxp000ef8apts32w0e1 "${H[@]}"
+curl -s -X DELETE http://127.0.0.1:3121/api/sites/cmrvggawz000cf8apch6eup02 "${H[@]}"
+curl -s -X DELETE http://127.0.0.1:3121/api/proxy-configs/cmrvgg542000af8apg32exmn4 "${H[@]}"
+
+# 2. ManagedResources (no DELETE endpoint — direct DB)
+docker exec -i devpilot-g003-api-mysql mysql -uroot -ppassword devpilot_g003_staging <<SQL
+DELETE FROM ManagedResource WHERE projectId='cmrvcfd5t000cdq6b01jka11s'
+  AND id IN ('cmrvgeyg31rw7xwr4fhue8kom','cmrvgeyg31c7tngah6jwntbsw',
+             'cmrvgeyg3112djjs0nzbzxw3e','cmrvgeyg3be4ixcs52kboq0r');
+DELETE FROM BackupRun WHERE planId NOT IN (SELECT id FROM BackupPlan) AND resourceId IS NOT NULL;
+SQL
+
+# 3. picshare-proxy container
+cd /Users/zhaoxingbo/Workspace/ai-driven/picshare
+docker compose -f docker-compose.picshare-proxy.yml down
+# 4. (optional) compose + nginx conf artefacts
+rm docker-compose.picshare-proxy.yml nginx/devpilot-proxy.conf
+```
+
+### Virtualness (still virtual by design in this build)
+
+- The new ManagedResources are **manually seeded** (not produced by a real
+  `sync-docker`); re-running sync would regenerate fictional names. Marked via
+  `metadata.syncMode: 'manual_seed'` so the provenance is explicit.
+- Site `status: draft`, ProxyConfig `status: pending` — sync is a config-text
+  generator only in this build (never writes to disk).
+- AlertRule `evaluationMode: manual` — no scheduler fires it; rules are
+  evaluable on demand but not auto-triggered.
+- BackupRun `dryRun: true` — generates the command plan; non-dryRun is blocked.
+- AlertNotificationChannel email `liveEnabled: false` — deliveries persist as
+  rows but SMTP is not wired.
+
+To make any of these real requires the Phase 2 changes in the investigation
+(dockerode port fix, `SERVER_EXECUTOR_LIVE_ENABLED=true`, real SSH/docker
+target, ProxyConfig.sync implementation, SMTP env).
