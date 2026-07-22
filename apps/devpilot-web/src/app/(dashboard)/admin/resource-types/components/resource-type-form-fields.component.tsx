@@ -40,7 +40,7 @@ export function ResourceTypeFormFields({
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Key</span>
+          <span className="mb-1 block font-medium">{t('keyLabel')}</span>
           <input
             value={formData.key}
             onChange={(event) => onFormDataChange({ key: event.target.value })}
@@ -78,9 +78,9 @@ export function ResourceTypeFormFields({
             onChange={(event) => onFormDataChange({ approvalMode: event.target.value })}
             className="w-full rounded-md border bg-background px-3 py-2"
           >
-            <option value="manual">manual</option>
-            <option value="auto">auto</option>
-            <option value="none">none</option>
+            <option value="manual">{t('approvalModeManual')}</option>
+            <option value="auto">{t('approvalModeAuto')}</option>
+            <option value="none">{t('approvalModeNone')}</option>
           </select>
         </label>
         <label className="block text-sm">
@@ -90,13 +90,13 @@ export function ResourceTypeFormFields({
             onChange={(event) => onFormDataChange({ provisioningMode: event.target.value })}
             className="w-full rounded-md border bg-background px-3 py-2"
           >
-            <option value="manual">manual</option>
-            <option value="pool">pool</option>
-            <option value="webhook">webhook</option>
-            <option value="api">api</option>
-            <option value="script">script</option>
-            <option value="credential_only">credential_only</option>
-            <option value="provider">provider</option>
+            <option value="manual">{t('provisioningModeManual')}</option>
+            <option value="pool">{t('provisioningModePool')}</option>
+            <option value="webhook">{t('provisioningModeWebhook')}</option>
+            <option value="api">{t('provisioningModeApi')}</option>
+            <option value="script">{t('provisioningModeScript')}</option>
+            <option value="credential_only">{t('provisioningModeCredentialOnly')}</option>
+            <option value="provider">{t('provisioningModeProvider')}</option>
           </select>
         </label>
       </div>

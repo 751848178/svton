@@ -130,7 +130,7 @@ function ExecutionGovernanceInner() {
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">Supervisor</h2>
+          <h2 className="text-lg font-semibold">{t('supervisorTitle')}</h2>
           <p className="text-sm text-muted-foreground">{t('supervisorSubtitle')}</p>
         </div>
         <SupervisorPanel

@@ -6,6 +6,14 @@ import { StatusTag } from '@/components/ui';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
+/** 环境状态值 → 本地化标签 key（避免 StatusTag 回退显示英文原值）。 */
+function getEnvStatusLabelKey(status: string): string {
+  const s = status.toLowerCase();
+  if (s === 'active') return 'envStatusActive';
+  if (s === 'inactive') return 'envStatusInactive';
+  return 'envStatusUnknown';
+}
+
 export function EnvironmentPanel({ detail }: { detail: DetailHook }) {
   const t = useTranslations('projects');
   const p = detail.project;
@@ -13,7 +21,10 @@ export function EnvironmentPanel({ detail }: { detail: DetailHook }) {
     return <EmptyState text={t('noEnvironments')} />;
   return (
     <div className="rounded-lg border p-4">
-      <h2 className="mb-3 font-semibold">{t('environments')}</h2>
+      <div className="mb-3">
+        <h3 className="font-semibold">{t('environments')}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{t('environmentPanelDescription')}</p>
+      </div>
       <div className="space-y-2">
         {p.environments.map((env) => (
           <div
@@ -22,8 +33,10 @@ export function EnvironmentPanel({ detail }: { detail: DetailHook }) {
           >
             <span className="font-medium">{env.name}</span>
             <div className="flex items-center gap-2">
-              <Tag color="default">{env.key}</Tag>
-              <StatusTag status={env.status} />
+              <Tag color="default">
+                {t('environmentKeyLabel')}: {env.key}
+              </Tag>
+              <StatusTag status={env.status} label={t(getEnvStatusLabelKey(env.status))} />
             </div>
           </div>
         ))}

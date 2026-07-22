@@ -11,6 +11,7 @@ import { EnvironmentPanel } from './components/environment-panel';
 import { DeploymentPanel } from './components/deployment-panel';
 import { WebhookPanel } from './components/webhook-panel';
 import { ApplicationsPanel } from './components/applications-panel';
+import { PanelSection } from './components/panel-section';
 
 export default function ProjectDetailPage() {
   const t = useTranslations('projects');
@@ -57,10 +58,20 @@ export default function ProjectDetailPage() {
         actions={<BackToProjectsLink label={t('backToProjects')} />}
       />
       <ProjectOverviewPanel detail={detail} />
-      <EnvironmentPanel detail={detail} />
-      <ApplicationsPanel detail={detail} />
-      <DeploymentPanel detail={detail} />
-      <WebhookPanel detail={detail} />
+      <PanelSection
+        title={t('deploymentSectionTitle')}
+        description={t('deploymentSectionDescription')}
+      >
+        <ApplicationsPanel detail={detail} />
+        <DeploymentPanel detail={detail} />
+      </PanelSection>
+      <PanelSection
+        title={t('integrationSectionTitle')}
+        description={t('integrationSectionDescription')}
+      >
+        <EnvironmentPanel detail={detail} />
+        <WebhookPanel detail={detail} />
+      </PanelSection>
     </div>
   );
 }

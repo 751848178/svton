@@ -7,6 +7,16 @@ import { StatusTag } from '@/components/ui';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
+/** 服务状态值 → 本地化标签 key（避免 StatusTag 回退显示英文原值）。 */
+function getServiceStatusLabelKey(status: string): string {
+  const s = status.toLowerCase();
+  if (s === 'active') return 'serviceStatusActive';
+  if (s === 'inactive') return 'serviceStatusInactive';
+  if (s === 'online') return 'serviceStatusOnline';
+  if (s === 'offline') return 'serviceStatusOffline';
+  return 'serviceStatusUnknown';
+}
+
 export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
   const t = useTranslations('projects');
   const p = detail.project;
@@ -14,7 +24,10 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
     return <EmptyState text={t('noLinkedApps')} />;
   return (
     <div className="rounded-lg border p-4">
-      <h2 className="mb-3 font-semibold">{t('linkedApps')}</h2>
+      <div className="mb-3">
+        <h3 className="font-semibold">{t('linkedApps')}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{t('applicationsPanelDescription')}</p>
+      </div>
       <div className="space-y-3">
         {p.applications.map((app) => (
           <div
@@ -40,7 +53,7 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
                     className="flex items-center justify-between py-2 text-sm"
                   >
                     <span>{svc.name}</span>
-                    <StatusTag status={svc.status} />
+                    <StatusTag status={svc.status} label={t(getServiceStatusLabelKey(svc.status))} />
                   </div>
                 ))}
               </div>
