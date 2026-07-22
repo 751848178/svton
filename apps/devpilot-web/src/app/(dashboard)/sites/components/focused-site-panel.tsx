@@ -62,7 +62,7 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
             href={`https://${focusedSite.primaryDomain}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-sm text-foreground underline-offset-2 hover:underline"
+            className="link font-mono text-sm"
           >
             {focusedSite.primaryDomain}
           </a>

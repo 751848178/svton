@@ -86,10 +86,7 @@ export default function NewProjectPage() {
         title={t('createNew')}
         description={t('createNewDescription')}
         actions={
-          <Link
-            href="/projects"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
+          <Link href="/projects" className="link text-sm">
             {t('backToProjects')}
           </Link>
         }

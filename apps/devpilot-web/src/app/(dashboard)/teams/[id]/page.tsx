@@ -109,7 +109,7 @@ export default function TeamDetailPage() {
         action={
           <button
             onClick={() => router.push('/teams')}
-            className="text-primary hover:underline"
+            className="link"
           >
             {t('backToTeams')}
           </button>
@@ -211,7 +211,8 @@ export default function TeamDetailPage() {
       <div className="mb-6 flex items-center gap-2">
         <button
           onClick={() => router.push('/teams')}
-          className="text-muted-foreground hover:text-foreground"
+          aria-label={t('backToTeams')}
+          className="link"
         >
           ←
         </button>

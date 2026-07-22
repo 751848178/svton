@@ -60,7 +60,7 @@ export function SiteCard({ site, sites }: { site: Site; sites: SitesHook }) {
             href={`https://${site.primaryDomain}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-sm text-foreground underline-offset-2 hover:underline"
+            className="link font-mono text-sm"
           >
             {site.primaryDomain}
           </a>

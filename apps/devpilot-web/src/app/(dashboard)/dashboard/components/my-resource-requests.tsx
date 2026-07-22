@@ -32,7 +32,7 @@ export function MyResourceRequests({ requests }: { requests: DashboardResourceRe
             <li key={request.id}>
               <Link
                 href="/resource-requests"
-                className="flex items-center justify-between gap-3 py-2.5 transition-colors hover:bg-accent/50"
+                className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{request.title}</p>

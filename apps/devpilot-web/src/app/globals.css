@@ -82,4 +82,8 @@ body {
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+  /* 统一内联文本链接样式:主色 + 悬停下划线。复用全站既有约定(text-primary hover:underline)。 */
+  .link {
+    @apply text-primary underline-offset-2 hover:underline;
+  }
 }

@@ -52,7 +52,7 @@ export default function ProxyConfigDetailPage() {
         action={
           <button
             onClick={() => router.push('/proxy-configs')}
-            className="text-primary hover:underline"
+            className="link"
           >
             {t('backToList')}
           </button>
@@ -66,7 +66,8 @@ export default function ProxyConfigDetailPage() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => router.push('/proxy-configs')}
-          className="text-muted-foreground hover:text-foreground"
+          aria-label={t('backToList')}
+          className="link"
         >
           ←
         </button>

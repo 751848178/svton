@@ -67,10 +67,7 @@ export default function ProjectDetailPage() {
 
 function BackToProjectsLink({ label }: { label: string }) {
   return (
-    <Link
-      href="/projects"
-      className="text-sm text-muted-foreground hover:text-foreground"
-    >
+    <Link href="/projects" className="link text-sm">
       {label}
     </Link>
   );

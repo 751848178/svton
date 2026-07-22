@@ -68,7 +68,7 @@ export function Breadcrumbs() {
                 <Link
                   href={entry.href}
                   title={entry.title}
-                  className="transition-colors hover:text-foreground"
+                  className="link transition-colors"
                 >
                   {entry.label}
                 </Link>
