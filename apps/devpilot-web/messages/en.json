@@ -109,10 +109,10 @@
     "teamName": "Team Name",
     "teamNamePlaceholder": "Enter team name",
     "searchMenu": "Search menu",
-    "sidebarSubtitle": "Project init & resource control",
     "more": "More",
     "moreLabel": "Show more items",
-    "noResults": "No matches"
+    "noResults": "No matches",
+    "noTeamHint": "No team yet — create one to switch"
   },
   "keys": {
     "pageTitle": "Key Center",
@@ -1687,7 +1687,13 @@
     "loadSuccess": "Preset config loaded",
     "exportFailed": "Failed to export preset. Please try again later.",
     "deleteConfirmTitle": "Delete Preset",
-    "deleteFailed": "Failed to delete preset. Please try again later."
+    "deleteFailed": "Failed to delete preset. Please try again later.",
+    "loadConfirmTitle": "Load preset",
+    "loadConfirm": "This will load the preset \"{name}\" and take you to the new-project wizard. Continue?",
+    "loadFailed": "Failed to load preset",
+    "importInvalidJson": "The file is not valid JSON",
+    "importMissingName": "Missing preset name (name) field",
+    "importMissingConfig": "Missing preset config (config) field"
   },
   "resources": {
     "pageTitle": "Resources",
@@ -1935,17 +1941,19 @@
     "quickAddCredentialDescription": "Manage resource credentials and keys",
     "loadFailed": "Failed to load dashboard data",
     "enterConsole": "Enter Console",
-    "enterConsoleDescription": "View action items and global status"
+    "enterConsoleDescription": "View action items and global status",
+    "loadFailedWithMessage": "Failed to load: {message}",
+    "partialFailure": "Some sections failed to load ({count}). The rest is shown normally."
   },
   "auth": {
     "loginTitle": "Log In",
-    "loginSubtitle": "Log in to Devpilot",
+    "loginSubtitle": "Log in to {brand}",
     "loginSubmit": "Log In",
     "loginLoading": "Logging in...",
     "loginFailed": "Login failed",
     "loginLink": "Log In",
     "registerTitle": "Sign Up",
-    "registerSubtitle": "Create your Devpilot account",
+    "registerSubtitle": "Create your {brand} account",
     "registerSubmit": "Sign Up",
     "registerLoading": "Signing up...",
     "registerFailed": "Registration failed",
@@ -1961,11 +1969,13 @@
     "passwordMismatch": "Passwords do not match",
     "passwordTooShort": "Password must be at least 6 characters",
     "noAccount": "Don't have an account?",
-    "hasAccount": "Already have an account?"
+    "hasAccount": "Already have an account?",
+    "backToHome": "Back to home",
+    "forgotPassword": "Forgot password?",
+    "passwordStrengthHint": "At least 6 characters; mixing letters and numbers is recommended"
   },
   "home": {
     "heroSubtitle": "The control plane for full-stack projects: project creation and onboarding, resource requests and approvals, sites and CDN, monitoring and alerts, logs, and execution governance",
-    "ctaCreate": "Create New Project",
     "ctaConsole": "Enter Console",
     "featuresTitle": "Core Features",
     "features": {
@@ -2000,6 +2010,11 @@
     "quickResources": "Resources",
     "quickResourcesDesc": "Manage resource credentials",
     "quickPresets": "Config Presets",
-    "quickPresetsDesc": "View saved presets"
+    "quickPresetsDesc": "View saved presets",
+    "heroTitle": "Ship your full-stack project, all in one place",
+    "ctaGetStarted": "Get Started",
+    "footerCopyright": "© {year} Devpilot. All rights reserved.",
+    "footerLogin": "Log In",
+    "footerDashboard": "Go to Console"
   }
 }

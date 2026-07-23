@@ -93,7 +93,14 @@ export function useDashboard() {
   // 首屏加载：任一源处于首次加载即视为加载中；部分失败时保留已成功分区渲染。
   const loading = sources.some((source) => source.isLoading);
   const hasAnyData = sources.some((source) => source.data !== undefined);
-  const error = sources.find((source) => source.error)?.error ?? null;
+
+  // 错误聚合：收集所有失败源，不只暴露第一个。
+  // 无数据时返回首个错误（驱动 ErrorBanner 全屏态）；有数据时返回部分失败摘要。
+  const failedErrors = sources
+    .map((source) => source.error)
+    .filter((err): err is NonNullable<typeof err> => Boolean(err));
+  const error = failedErrors[0] ?? null;
+  const partialFailureCount = hasAnyData ? failedErrors.length : 0;
 
   const retry = usePersistFn(() => {
     for (const source of sources) {
@@ -108,6 +115,7 @@ export function useDashboard() {
     loading,
     hasAnyData,
     error,
+    partialFailureCount,
     retry,
   };
 }

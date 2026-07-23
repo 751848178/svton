@@ -109,10 +109,10 @@
     "teamName": "团队名称",
     "teamNamePlaceholder": "输入团队名称",
     "searchMenu": "搜索菜单",
-    "sidebarSubtitle": "项目初始化与资源管控",
     "more": "更多",
     "moreLabel": "展开更多项",
-    "noResults": "无匹配项"
+    "noResults": "无匹配项",
+    "noTeamHint": "暂无团队，创建后可切换"
   },
   "keys": {
     "pageTitle": "密钥中心",
@@ -1687,7 +1687,13 @@
     "loadSuccess": "已加载预设配置",
     "exportFailed": "导出预设失败，请稍后重试",
     "deleteConfirmTitle": "删除预设",
-    "deleteFailed": "删除预设失败，请稍后重试"
+    "deleteFailed": "删除预设失败，请稍后重试",
+    "loadConfirmTitle": "加载预设",
+    "loadConfirm": "将加载预设「{name}」并跳转到新建项目向导，确认继续吗？",
+    "loadFailed": "加载预设失败",
+    "importInvalidJson": "文件不是有效的 JSON",
+    "importMissingName": "缺少预设名称（name）字段",
+    "importMissingConfig": "缺少预设配置（config）字段"
   },
   "resources": {
     "pageTitle": "资源管理",
@@ -1935,17 +1941,19 @@
     "quickAddCredentialDescription": "管理资源凭证与密钥",
     "loadFailed": "加载仪表盘数据失败",
     "enterConsole": "进入控制台",
-    "enterConsoleDescription": "查看待办与全局状态"
+    "enterConsoleDescription": "查看待办与全局状态",
+    "loadFailedWithMessage": "加载失败：{message}",
+    "partialFailure": "部分分区加载失败（{count} 个），其余内容已正常展示。"
   },
   "auth": {
     "loginTitle": "登录",
-    "loginSubtitle": "登录到 Devpilot",
+    "loginSubtitle": "登录到 {brand}",
     "loginSubmit": "登录",
     "loginLoading": "登录中...",
     "loginFailed": "登录失败",
     "loginLink": "登录",
     "registerTitle": "注册",
-    "registerSubtitle": "创建你的 Devpilot 账号",
+    "registerSubtitle": "创建你的 {brand} 账号",
     "registerSubmit": "注册",
     "registerLoading": "注册中...",
     "registerFailed": "注册失败",
@@ -1961,11 +1969,13 @@
     "passwordMismatch": "两次输入的密码不一致",
     "passwordTooShort": "密码至少 6 个字符",
     "noAccount": "还没有账号？",
-    "hasAccount": "已有账号？"
+    "hasAccount": "已有账号？",
+    "backToHome": "返回首页",
+    "forgotPassword": "忘记密码?",
+    "passwordStrengthHint": "至少 6 个字符，建议混合字母与数字"
   },
   "home": {
     "heroSubtitle": "全栈项目的控制面：项目创建与接入、资源申请与审批、站点与 CDN、监控告警、日志与执行治理",
-    "ctaCreate": "创建新项目",
     "ctaConsole": "进入控制台",
     "featuresTitle": "核心功能",
     "features": {
@@ -2000,6 +2010,11 @@
     "quickResources": "资源管理",
     "quickResourcesDesc": "管理资源凭证",
     "quickPresets": "配置预设",
-    "quickPresetsDesc": "查看保存的预设"
+    "quickPresetsDesc": "查看保存的预设",
+    "heroTitle": "一站式交付你的全栈项目",
+    "ctaGetStarted": "免费开始",
+    "footerCopyright": "© {year} Devpilot. 保留所有权利。",
+    "footerLogin": "登录",
+    "footerDashboard": "进入控制台"
   }
 }

@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { buildLoginRedirectPath } from '@/lib/auth/redirect-path.utils';
 
 const TOKEN_COOKIE = 'token';
+// 路由保护采用「deny-list」语义:仅 PROTECTED_PREFIXES 内的路径要求登录,
+// 其余路径(含首页 `/`)默认公开。首页 `(home)` 为公共营销落地页:
+// 未登录用户可浏览,Header / HomeHeroCta / Footer 的「登录」入口对未登录态有效。
+// 因此无需将 `/` 加入任何公开列表——它本就公开。
 const PROTECTED_PREFIXES = [
   '/access-policies',
   '/admin',

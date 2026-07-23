@@ -33,7 +33,7 @@ export function QuickActions() {
   return (
     <section aria-label={t('quickActionsTitle')}>
       <h2 className="mb-3 text-lg font-semibold">{t('quickActionsTitle')}</h2>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {actions.map((action) => (
           <Link
             key={action.href + action.title}

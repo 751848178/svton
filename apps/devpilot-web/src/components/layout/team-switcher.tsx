@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
-import { Tag } from '@svton/ui';
-import { Modal } from '@/components/ui';
+import { StatusTag } from '@/components/ui';
 import { useTeamStore, Team } from '@/store/hooks';
+import { CreateTeamModal } from './create-team-modal';
 
 export function TeamSwitcher() {
   const t = useTranslations('nav');
@@ -59,12 +59,15 @@ export function TeamSwitcher() {
   if (!isLoading && teams.length === 0) {
     return (
       <div className="relative shrink-0">
-        <button
-          onClick={openModal}
-          className="flex min-h-11 items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          {t('createTeam')}
-        </button>
+        <div className="flex max-w-[150px] min-h-11 items-center gap-2 rounded-md border px-3 py-2">
+          <span className="text-xs text-muted-foreground">{t('noTeamHint')}</span>
+          <button
+            onClick={openModal}
+            className="ml-auto shrink-0 text-xs font-medium text-primary hover:underline"
+          >
+            {t('createTeam')}
+          </button>
+        </div>
         <CreateTeamModal
           open={modalOpen}
           onClose={closeModal}
@@ -84,7 +87,18 @@ export function TeamSwitcher() {
         className="flex min-h-11 max-w-[150px] items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"
       >
         <span className="max-w-[120px] truncate">{currentTeam?.name || t('selectTeam')}</span>
-        <span className="text-xs">{isOpen ? '▲' : '▼'}</span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className={`h-4 w-4 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </button>
       {isOpen ? (
         <>
@@ -104,7 +118,9 @@ export function TeamSwitcher() {
                   className={`flex min-h-11 w-full items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent ${currentTeam?.id === team.id ? 'bg-accent' : ''}`}
                 >
                   <span className="flex-1 truncate text-left">{team.name}</span>
-                  {currentTeam?.id === team.id ? <Tag color="green">{t('current')}</Tag> : null}
+                  {currentTeam?.id === team.id ? (
+                    <StatusTag status="active" label={t('current')} />
+                  ) : null}
                 </button>
               ))}
               <div className="my-1 border-t" />
@@ -139,64 +155,5 @@ export function TeamSwitcher() {
         creating={creating}
       />
     </div>
-  );
-}
-
-function CreateTeamModal({
-  open,
-  onClose,
-  onSubmit,
-  teamName,
-  setTeamName,
-  creating,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (e: React.FormEvent) => void;
-  teamName: string;
-  setTeamName: (name: string) => void;
-  creating: boolean;
-}) {
-  const t = useTranslations('nav');
-  const tc = useTranslations('common');
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={t('createNewTeam')}
-    >
-      <form
-        onSubmit={onSubmit}
-        className="space-y-4"
-      >
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('teamName')}</span>
-          <input
-            type="text"
-            value={teamName}
-            onChange={(e) => setTeamName(e.target.value)}
-            placeholder={t('teamNamePlaceholder')}
-            className="min-h-11 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-            autoFocus
-          />
-        </label>
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-11 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
-          >
-            {tc('cancel')}
-          </button>
-          <button
-            type="submit"
-            disabled={creating || !teamName.trim()}
-            className="min-h-11 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {creating ? t('creating') : tc('create')}
-          </button>
-        </div>
-      </form>
-    </Modal>
   );
 }

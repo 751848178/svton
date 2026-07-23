@@ -86,9 +86,9 @@ export const navigationSections: NavigationSection[] = [
     items: [{ href: '/dashboard', labelKey: 'dashboard', icon: 'home' }],
   },
   {
+    // createProject 由 Header 主导航(primaryHeaderLinks)承载,避免与 sidebar 同名重复
     titleKey: 'sectionProjects',
     items: [
-      { href: '/projects/new', labelKey: 'createProject', icon: 'folder-plus' },
       { href: '/projects', labelKey: 'myProjects', icon: 'folder-git' },
       { href: '/applications', labelKey: 'applications', icon: 'boxes' },
     ],
@@ -133,11 +133,22 @@ export const navigationSections: NavigationSection[] = [
     ],
   },
   {
+    // 配置区只保留通用配置项(presets/git),团队与管理拆分为独立分区
     titleKey: 'sectionConfig',
     items: [
       { href: '/presets', labelKey: 'presets', icon: 'bookmark', secondary: true },
       { href: '/git', labelKey: 'git', icon: 'git-branch', secondary: true },
-      { href: '/teams', labelKey: 'teamManagement', icon: 'users' },
+    ],
+  },
+  {
+    // 团队区:使用既有 sectionTeam 文案键(此前定义但未用)
+    titleKey: 'sectionTeam',
+    items: [{ href: '/teams', labelKey: 'teamManagement', icon: 'users' }],
+  },
+  {
+    // 管理区:使用既有 sectionAdmin 文案键(此前定义但未用),仅 admin 可见
+    titleKey: 'sectionAdmin',
+    items: [
       { href: '/admin/resource-pools', labelKey: 'resourcePools', icon: 'layers', secondary: true },
       { href: '/admin/resource-types', labelKey: 'resourceTypes', icon: 'tags', secondary: true },
     ],

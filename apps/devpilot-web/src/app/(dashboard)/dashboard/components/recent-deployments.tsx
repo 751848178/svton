@@ -21,7 +21,7 @@ export function RecentDeployments({ runs }: { runs: DashboardDeploymentRun[] }) 
     <section aria-label={t('recentDeploymentsTitle')} className="rounded-lg border bg-card p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">{t('recentDeploymentsTitle')}</h2>
-        <Link href="/logs" className="text-sm text-primary hover:underline">
+        <Link href="/applications" className="text-sm text-primary hover:underline">
           {t('viewAll')}
         </Link>
       </div>

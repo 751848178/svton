@@ -5,6 +5,9 @@
  *
  * 信息层级：先处理（待办行动区）→ 看状态（指标卡 + 双栏近况）→ 给入口（快捷操作）。
  * 客户端渲染：部署运行 / 告警需数据驱动轮询（usePollingList），与 resource-requests 页同范式。
+ *
+ * 错误处理：无数据时全屏 ErrorBanner；有数据但部分源失败时在顶部展示部分失败提示
+ * （含失败分区数），其余分区正常渲染。错误分隔符由 i18n 消息承载，避免硬编码 CJK 标点。
  */
 
 import { useTranslations } from 'next-intl';
@@ -20,25 +23,24 @@ import { QuickActions } from './components/quick-actions';
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
-  const { stats, recentRuns, recentRequests, loading, hasAnyData, error, retry } = useDashboard();
+  const { stats, recentRuns, recentRequests, loading, hasAnyData, error, partialFailureCount, retry } =
+    useDashboard();
+
+  const fullErrorMessage = error ? t('loadFailedWithMessage', { message: error.message }) : '';
 
   return (
     <div className="space-y-6">
       <PageHeader title={t('pageTitle')} description={t('pageDescription')} />
 
       {error && !hasAnyData ? (
-        <ErrorBanner
-          message={`${t('loadFailed')}：${error.message}`}
-          onRetry={retry}
-          retryLabel={tc('retry')}
-        />
+        <ErrorBanner message={fullErrorMessage} onRetry={retry} retryLabel={tc('retry')} />
       ) : loading && !hasAnyData ? (
         <LoadingState text={tc('loading')} />
       ) : (
         <>
-          {error ? (
+          {partialFailureCount > 0 ? (
             <ErrorBanner
-              message={`${t('loadFailed')}：${error.message}`}
+              message={t('partialFailure', { count: partialFailureCount })}
               onRetry={retry}
               retryLabel={tc('retry')}
             />

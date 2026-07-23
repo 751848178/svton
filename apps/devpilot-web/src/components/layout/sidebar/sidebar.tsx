@@ -9,8 +9,9 @@ import { SidebarGroup } from './sidebar-group';
 import { SidebarUserCard } from './sidebar-user-card';
 
 /**
- * Sidebar 容器:品牌头 + 搜索 + 分组列表 + 底部用户卡。
- * 借鉴 twgg admin 视觉骨架,数据源仍走 devpilot-web 的 navigationSections + i18n。
+ * Sidebar 容器:搜索 + 分组列表 + 底部用户卡。
+ * 品牌头由 Header 的 logo 统一承载(交互式,链接 /dashboard),此处不再重复,
+ * 避免 desktop 左上角「Devpilot」品牌上下叠放两次。仅在 md+ 渲染(移动端用 header 折叠菜单)。
  */
 export function Sidebar() {
   const t = useTranslations('nav');
@@ -38,12 +39,7 @@ export function Sidebar() {
 
   return (
     <aside className="hidden h-full w-64 shrink-0 border-r border-sidebar-border bg-sidebar md:flex md:flex-col">
-      <div className="px-6 pb-4 pt-7">
-        <p className="text-lg font-bold text-foreground">Devpilot</p>
-        <p className="text-xs font-medium text-muted-foreground">{t('sidebarSubtitle')}</p>
-      </div>
-
-      <div className="px-4 pb-2">
+      <div className="px-4 pb-2 pt-5">
         <input
           type="search"
           value={query}

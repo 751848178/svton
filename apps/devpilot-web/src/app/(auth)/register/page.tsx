@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Card } from '@svton/ui';
-import { ErrorBanner } from '@/components/ui';
+import { Button, ErrorBanner, Input } from '@/components/ui';
 import { useAuthStore } from '@/store/hooks';
 
 export default function RegisterPage() {
@@ -44,85 +44,63 @@ export default function RegisterPage() {
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <Card className="w-full max-w-md p-8">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold">{t('registerTitle')}</h1>
-          <p className="mt-2 text-muted-foreground">{t('registerSubtitle')}</p>
-        </div>
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4"
-        >
-          {error ? (
-            <ErrorBanner
-              message={error}
-              variant="inline"
-            />
-          ) : null}
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">
-              {t('nickname')} <span className="text-muted-foreground">({tc('optional')})</span>
-            </span>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder={t('nicknamePlaceholder')}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">{t('email')}</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder={t('emailPlaceholder')}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">{t('password')}</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder={t('passwordPlaceholder')}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">{t('confirmPassword')}</span>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              className="w-full rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder={t('confirmPasswordPlaceholder')}
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full rounded-md bg-primary py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            {isLoading ? t('registerLoading') : t('registerSubmit')}
-          </button>
-        </form>
-        <div className="mt-6 text-center text-sm">
-          <span className="text-muted-foreground">{t('hasAccount')}</span>{' '}
-          <Link
-            href="/login"
-            className="text-primary hover:underline"
-          >
-            {t('loginLink')}
-          </Link>
-        </div>
-      </Card>
-    </div>
+    <Card className="w-full max-w-md p-8">
+      <div className="mb-8 text-center">
+        <h1 className="text-2xl font-bold">{t('registerTitle')}</h1>
+        <p className="mt-2 text-muted-foreground">{t('registerSubtitle', { brand: 'Devpilot' })}</p>
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error ? <ErrorBanner message={error} variant="inline" /> : null}
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">{t('nickname')}</span>
+          <Input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={`${t('nicknamePlaceholder')} (${tc('optional')})`}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">{t('email')}</span>
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            placeholder={t('emailPlaceholder')}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">{t('password')}</span>
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            placeholder={t('passwordPlaceholder')}
+          />
+          <span className="mt-1 block text-xs text-muted-foreground">{t('passwordStrengthHint')}</span>
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">{t('confirmPassword')}</span>
+          <Input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            placeholder={t('confirmPasswordPlaceholder')}
+          />
+        </label>
+        <Button type="submit" block loading={isLoading}>
+          {isLoading ? t('registerLoading') : t('registerSubmit')}
+        </Button>
+      </form>
+      <div className="mt-6 text-center text-sm">
+        <span className="text-muted-foreground">{t('hasAccount')}</span>{' '}
+        <Link href="/login" className="text-primary hover:underline">
+          {t('loginLink')}
+        </Link>
+      </div>
+    </Card>
   );
 }

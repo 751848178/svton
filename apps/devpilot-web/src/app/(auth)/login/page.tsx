@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Card } from '@svton/ui';
-import { ErrorBanner } from '@/components/ui';
+import { Button, ErrorBanner, Input } from '@/components/ui';
 import { useAuthStore } from '@/store/hooks';
 import { toSafeRedirectPath } from '@/lib/auth/redirect-path.utils';
 
@@ -45,54 +45,43 @@ function LoginForm() {
     <Card className="w-full max-w-md p-8">
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-bold">{t('loginTitle')}</h1>
-        <p className="mt-2 text-muted-foreground">{t('loginSubtitle')}</p>
+        <p className="mt-2 text-muted-foreground">{t('loginSubtitle', { brand: 'Devpilot' })}</p>
       </div>
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-4"
-      >
-        {error ? (
-          <ErrorBanner
-            message={error}
-            variant="inline"
-          />
-        ) : null}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error ? <ErrorBanner message={error} variant="inline" /> : null}
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('email')}</span>
-          <input
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             placeholder={t('emailPlaceholder')}
           />
         </label>
+        <div className="flex items-center justify-end">
+          {/* TODO: 接入「重置密码」流程后替换 href；当前为占位链接，无状态副作用。 */}
+          <Link href="#" className="text-sm text-muted-foreground hover:text-primary hover:underline">
+            {t('forgotPassword')}
+          </Link>
+        </div>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('password')}</span>
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             placeholder="••••••••"
           />
         </label>
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full rounded-md bg-primary py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-        >
+        <Button type="submit" block loading={isLoading}>
           {isLoading ? t('loginLoading') : t('loginSubmit')}
-        </button>
+        </Button>
       </form>
       <div className="mt-6 text-center text-sm">
         <span className="text-muted-foreground">{t('noAccount')}</span>{' '}
-        <Link
-          href="/register"
-          className="text-primary hover:underline"
-        >
+        <Link href="/register" className="text-primary hover:underline">
           {t('registerLink')}
         </Link>
       </div>
@@ -102,10 +91,8 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <Suspense fallback={null}>
-        <LoginForm />
-      </Suspense>
-    </div>
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
