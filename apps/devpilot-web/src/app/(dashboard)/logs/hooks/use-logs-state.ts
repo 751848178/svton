@@ -50,6 +50,16 @@ export function useLogsState() {
   const [entryLevel, setEntryLevel] = useState<'info' | 'warn' | 'error'>('info');
   const [entryMessage, setEntryMessage] = useState('');
   const [query, setQuery] = useState('');
+  const [activeQuery, setActiveQuery] = useState('');
+  const [activeLevel, setActiveLevel] = useState<'all' | 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'>(
+    'all',
+  );
+  const [timeRangeMinutes, setTimeRangeMinutes] = useState<number>(60);
+  const [viewerMode, setViewerMode] = useState<'history' | 'live'>('history');
+  const [entriesLoading, setEntriesLoading] = useState(false);
+  const [entryPageLimit, setEntryPageLimit] = useState(50);
+  const [detailStreamId, setDetailStreamId] = useState('');
+  const [newStreamOpen, setNewStreamOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [appending, setAppending] = useState(false);
@@ -104,6 +114,22 @@ export function useLogsState() {
     setEntryMessage,
     query,
     setQuery,
+    activeQuery,
+    setActiveQuery,
+    activeLevel,
+    setActiveLevel,
+    timeRangeMinutes,
+    setTimeRangeMinutes,
+    viewerMode,
+    setViewerMode,
+    entriesLoading,
+    setEntriesLoading,
+    entryPageLimit,
+    setEntryPageLimit,
+    detailStreamId,
+    setDetailStreamId,
+    newStreamOpen,
+    setNewStreamOpen,
     loading,
     setLoading,
     saving,

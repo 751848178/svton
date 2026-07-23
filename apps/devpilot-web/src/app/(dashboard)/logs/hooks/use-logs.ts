@@ -13,6 +13,7 @@ import { useLogsTailState } from './use-logs-tail-state';
 import { useLogsTail } from './use-logs-tail';
 import { useLogsPolicies } from './use-logs-policies';
 import { useLogsActions } from './use-logs-actions.hooks';
+import { fetchEntries, fetchStats } from './entries-query';
 import type { LogStream } from '../types-stream';
 
 export function useLogs() {
@@ -71,30 +72,24 @@ export function useLogs() {
   const loadData = usePersistFn(async () => {
     s.setError('');
     try {
-      const [st, en, cr, rr, ss, stats, proj, app, srv, site, res, bk, al, dep] = await Promise.all(
-        [
-          apiRequest<LogStream[]>('GET:/logs/streams'),
-          apiRequest('GET:/logs/entries'),
-          apiRequest('GET:/logs/collection-runs'),
-          apiRequest('GET:/logs/retention-runs'),
-          apiRequest('GET:/logs/stream-sessions'),
-          apiRequest('GET:/logs/stats'),
-          apiRequest('GET:/projects'),
-          apiRequest('GET:/applications'),
-          apiRequest('GET:/servers'),
-          apiRequest('GET:/sites'),
-          apiRequest('GET:/resource-control/resources'),
-          apiRequest('GET:/backups/plans'),
-          apiRequest('GET:/monitoring/alert-events'),
-          apiRequest('GET:/deployments/runs'),
-        ],
-      );
+      const [st, cr, rr, ss, proj, app, srv, site, res, bk, al, dep] = await Promise.all([
+        apiRequest<LogStream[]>('GET:/logs/streams'),
+        apiRequest('GET:/logs/collection-runs'),
+        apiRequest('GET:/logs/retention-runs'),
+        apiRequest('GET:/logs/stream-sessions'),
+        apiRequest('GET:/projects'),
+        apiRequest('GET:/applications'),
+        apiRequest('GET:/servers'),
+        apiRequest('GET:/sites'),
+        apiRequest('GET:/resource-control/resources'),
+        apiRequest('GET:/backups/plans'),
+        apiRequest('GET:/monitoring/alert-events'),
+        apiRequest('GET:/deployments/runs'),
+      ]);
       s.setStreams(st as LogStream[]);
-      s.setEntries(en as never[]);
       s.setCollectionRuns(cr as never[]);
       s.setRetentionRuns(rr as never[]);
       s.setStreamSessions(ss as never[]);
-      s.setLogStats(stats as never);
       s.setProjects(proj as never[]);
       s.setApplications(app as never[]);
       s.setServers(srv as never[]);
@@ -108,12 +103,37 @@ export function useLogs() {
         (cur: string) =>
           cur || (app as { services?: { id: string }[] }[])?.[0]?.services?.[0]?.id || '',
       );
+      // 首次加载后按当前 explorer 过滤器拉取条目/统计。
+      s.setEntries(await fetchEntries(s));
+      s.setLogStats(await fetchStats(s));
     } catch (err) {
       s.setError(err instanceof Error ? err.message : '加载日志中心数据失败');
     } finally {
       s.setLoading(false);
     }
   });
+
+  /** 按 explorer 过滤器（stream/level/query/timeRange）重新拉取条目与统计。 */
+  const reloadExplorer = usePersistFn(async () => {
+    s.setEntriesLoading(true);
+    try {
+      s.setEntries(await fetchEntries(s));
+      s.setLogStats(await fetchStats(s));
+    } catch (err) {
+      s.setError(err instanceof Error ? err.message : '加载日志条目失败');
+    } finally {
+      s.setEntriesLoading(false);
+    }
+  });
+
+  // 过滤器变化时防抖重新查询（search/level/timeRange/streamId）。
+  useEffect(() => {
+    if (s.loading) return;
+    const handle = window.setTimeout(reloadExplorer, 350);
+    return () => window.clearTimeout(handle);
+    // 仅依赖过滤器，避免重复全量加载。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.selectedStreamId, s.activeLevel, s.activeQuery, s.timeRangeMinutes]);
 
   useEffect(() => {
     loadData();
@@ -131,6 +151,7 @@ export function useLogs() {
     selectedStream,
     isSelectedSlsStream,
     loadData,
+    reloadExplorer,
     ...actions,
     ...tail,
     ...policies,

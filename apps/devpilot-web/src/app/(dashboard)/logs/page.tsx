@@ -1,44 +1,37 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
+import { LoadingState } from '@svton/ui';
+import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useLogs } from './hooks/use-logs';
-import { LogsStatsSection } from './components/logs-stats-section';
-import { StreamManageSection } from './components/stream-manage-section';
-import { LogEntriesSection } from './components/log-entries-section';
-import { TailPanel } from './components/tail-panel';
-import { PolicyPanels } from './components/policy-panels';
-import { LogsRunsSection } from './components/logs-runs-section';
+import { LogsToolbar } from './components/logs-toolbar';
+import { LogsViewer } from './components/logs-viewer';
+import { StreamsSidebar } from './components/streams-sidebar';
+import { NewStreamModal } from './components/new-stream-modal';
+import { StreamDetailDrawer } from './components/stream-detail-drawer';
 
 export default function LogsPage() {
   const tl = useTranslations('logs');
   const tc = useTranslations('common');
   const logs = useLogs();
-  const { s, t, selectedStream, targetOptions, services } = logs;
 
-  if (s.loading) return <LoadingState text={tc('loading')} />;
+  if (logs.s.loading) return <LoadingState text={tc('loading')} />;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={tl('pageTitle')}
-        description={tl('pageDescription')}
-      />
+    <div className="flex h-full flex-col space-y-4">
+      <PageHeader title={tl('pageTitle')} description={tl('pageDescription')} />
 
-      {s.error ? <ErrorBanner message={s.error} /> : null}
+      {logs.s.error ? <ErrorBanner message={logs.s.error} /> : null}
 
-      <LogsStatsSection logs={logs} />
+      <LogsToolbar logs={logs} />
 
-      <StreamManageSection logs={logs} />
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <StreamsSidebar logs={logs} />
+        <LogsViewer logs={logs} />
+      </div>
 
-      <LogEntriesSection logs={logs} />
-
-      <TailPanel logs={logs} />
-
-      <PolicyPanels logs={logs} />
-
-      <LogsRunsSection logs={logs} />
+      <NewStreamModal logs={logs} />
+      <StreamDetailDrawer logs={logs} />
     </div>
   );
 }
