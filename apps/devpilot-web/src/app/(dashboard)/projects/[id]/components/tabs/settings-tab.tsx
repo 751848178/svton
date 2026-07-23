@@ -1,17 +1,27 @@
-/** 项目概览面板 - 基本信息 + 编辑 + 下载。 */
+/**
+ * 设置 Tab
+ *
+ * 单一职责：渲染项目基本信息编辑表单（名称 / 描述）+ git 仓库展示。
+ * 由原 ProjectOverviewPanel 的编辑能力迁入 —— 编辑属于"配置"，归设置，
+ * 不应挤在概览里分散注意。
+ *
+ * 保存逻辑沿用原内联 apiRequest（PUT:/projects/:id），保持现有行为不变。
+ */
+
 'use client';
+
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { Tag } from '@svton/ui';
 import { Button, Input, Textarea } from '@/components/ui';
-import { formatDateTime } from '@/lib/format-date';
-import type { useProjectDetail } from '../hooks/use-project-detail';
+import type { useProjectDetail } from '../../hooks/use-project-detail';
+
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
-export function ProjectOverviewPanel({ detail }: { detail: DetailHook }) {
+export function SettingsTab({ detail }: { detail: DetailHook }) {
   const t = useTranslations('projects');
   const tc = useTranslations('common');
   const p = detail.project;
+
   const handleSave = usePersistFn(async () => {
     if (!p) return;
     const { apiRequest } = await import('@/lib/api-client');
@@ -19,38 +29,35 @@ export function ProjectOverviewPanel({ detail }: { detail: DetailHook }) {
     detail.setEditing(false);
     detail.loadProject();
   });
+
+  const handleCancel = usePersistFn(() => {
+    if (!p) return;
+    detail.setEditForm({ name: p.name, description: p.description ?? '' });
+    detail.setEditing(false);
+  });
+
   if (!p) return null;
+
   return (
-    <div className="rounded-lg border p-4 space-y-3">
+    <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold">{t('basicInfo')}</h2>
+        <h2 className="text-lg font-semibold">{t('basicInfo')}</h2>
         {!detail.editing ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => detail.setEditing(true)}
-          >
+          <Button variant="ghost" size="sm" onClick={() => detail.setEditing(true)}>
             {t('edit')}
           </Button>
         ) : (
           <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => detail.setEditing(false)}
-            >
+            <Button variant="ghost" size="sm" onClick={handleCancel}>
               {tc('cancel')}
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleSave}
-            >
+            <Button variant="primary" size="sm" onClick={handleSave}>
               {tc('save')}
             </Button>
           </div>
         )}
       </div>
+
       {detail.editing ? (
         <div className="space-y-3">
           <label className="block text-sm">
@@ -82,23 +89,7 @@ export function ProjectOverviewPanel({ detail }: { detail: DetailHook }) {
             <dt className="text-muted-foreground">{t('gitRepoLabel')}</dt>
             <dd className="break-all font-mono text-xs">{p.gitRepo || t('notLinked')}</dd>
           </div>
-          <div>
-            <dt className="text-muted-foreground">{t('createdAtLabel')}</dt>
-            <dd>{formatDateTime(p.createdAt)}</dd>
-          </div>
         </dl>
-      )}
-      {p.environments && p.environments.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-2 border-t">
-          {p.environments.map((env) => (
-            <Tag
-              key={env.id}
-              color="default"
-            >
-              {env.name}
-            </Tag>
-          ))}
-        </div>
       )}
     </div>
   );
