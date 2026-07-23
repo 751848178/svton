@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { ErrorBanner, PageHeader } from '@/components/ui';
 import { useCdn } from './hooks/use-cdn';
@@ -16,6 +17,14 @@ export default function CDNConfigPage() {
       <PageHeader
         title={t('pageTitle')}
         description={t('pageDescription')}
+        actions={
+          <Link
+            href="/cdn-configs"
+            className="text-sm text-primary underline-offset-2 hover:underline"
+          >
+            {t('manageCdnConfigs')} →
+          </Link>
+        }
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

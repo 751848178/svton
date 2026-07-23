@@ -1419,6 +1419,7 @@
   "cdn": {
     "pageTitle": "CDN 配置",
     "pageDescription": "CDN 接入与刷新",
+    "manageCdnConfigs": "管理 CDN 配置台账",
     "configTitle": "CDN 配置生成",
     "providerLabel": "CDN 提供商",
     "cdnDomain": "CDN 域名",
@@ -1783,6 +1784,7 @@
   "domain": {
     "pageTitle": "域名配置",
     "pageDescription": "生成 Nginx 反向代理配置和 SSL 证书脚本",
+    "manageProxyConfigs": "管理代理配置台账",
     "nginxConfig": "Nginx 配置",
     "certbotScript": "Certbot 脚本",
     "configOptions": "配置选项",

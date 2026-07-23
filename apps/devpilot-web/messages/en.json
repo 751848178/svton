@@ -1419,6 +1419,7 @@
   "cdn": {
     "pageTitle": "CDN Configuration",
     "pageDescription": "CDN onboarding and refresh",
+    "manageCdnConfigs": "Manage CDN config registry",
     "configTitle": "CDN Config Generator",
     "providerLabel": "CDN Provider",
     "cdnDomain": "CDN Domain",
@@ -1783,6 +1784,7 @@
   "domain": {
     "pageTitle": "Domain Configuration",
     "pageDescription": "Generate Nginx reverse proxy configs and SSL certificate scripts",
+    "manageProxyConfigs": "Manage proxy config registry",
     "nginxConfig": "Nginx Config",
     "certbotScript": "Certbot Script",
     "configOptions": "Config Options",
