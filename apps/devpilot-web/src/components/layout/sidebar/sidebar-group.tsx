@@ -85,11 +85,18 @@ export function SidebarGroup({ section, pathname, query }: SidebarGroupProps) {
               aria-haspopup="menu"
               aria-expanded={moreOpen}
               className={cn(
-                'flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                'relative flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground',
                 moreOpen && 'bg-sidebar-accent text-sidebar-foreground',
               )}
             >
               <MoreIcon className="h-4 w-4" />
+              {/* 当前页面位于「更多」内时,三点按钮上以主色圆点提示有选中项。 */}
+              {hasActiveSecondary ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-sidebar-primary"
+                />
+              ) : null}
             </button>
           </Popover>
         ) : null}
@@ -105,13 +112,6 @@ export function SidebarGroup({ section, pathname, query }: SidebarGroupProps) {
             active={activeItem?.href === item.href}
           />
         ))}
-        {/* 活跃 secondary 项不在主列表渲染;仅在标题旁的三点指示器上以主色圆点暗示有选中项。 */}
-        {hasActiveSecondary ? (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute"
-          />
-        ) : null}
       </nav>
     </div>
   );
