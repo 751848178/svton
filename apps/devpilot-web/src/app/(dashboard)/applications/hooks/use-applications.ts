@@ -1,12 +1,13 @@
 /**
  * 应用服务数据 Hook
  *
- * 单一职责：加载应用/项目/环境/服务器/站点/资源，计算统计。
- * 创建与操作分别委托 use-application-creation / use-application-operations。
+ * 单一职责：加载应用/项目/环境/服务器/站点/资源，计算统计与过滤视图，并提供
+ * 创建应用/创建服务（参数化）与操作回调。
+ * 表单状态不再在此持有（迁移至弹窗）；URL 查询参数仅用于过滤列表与默认值建议。
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSetState, usePersistFn } from '@svton/hooks';
+import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import { usePollingList } from '@/hooks/use-polling-list';
 import type {
@@ -16,35 +17,11 @@ import type {
   Server,
   Site,
   ManagedResource,
-  AppForm,
-  ServiceForm,
   AppStats,
 } from '../types';
 import { useApplicationOperations } from './use-application-operations';
 import { useApplicationCreation } from './use-application-creation.hooks';
 import { useApplicationServiceSlos } from './use-application-service-slos';
-
-const INITIAL_APP_FORM: AppForm = {
-  projectId: '',
-  name: '',
-  repositoryUrl: '',
-  defaultBranch: 'main',
-  repoPath: '',
-};
-const INITIAL_SERVICE_FORM: ServiceForm = {
-  applicationId: '',
-  environmentId: '',
-  name: '',
-  kind: 'docker-compose',
-  runtime: '',
-  serverId: '',
-  siteId: '',
-  managedResourceId: '',
-  workingDirectory: '',
-  buildCommand: '',
-  deployCommand: '',
-  healthCheckUrl: '',
-};
 
 export function useApplications(queryProjectId: string, queryEnvironmentId: string) {
   // 应用列表内嵌各服务 operationRuns（GET:/applications），存在 queued/running 操作运行时
@@ -73,8 +50,6 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
   const [queueServiceOperations, setQueueServiceOperations] = useState(false);
   const [runningOperation, setRunningOperation] = useState('');
   const [error, setError] = useState('');
-  const [appForm, setAppForm] = useSetState<AppForm>(INITIAL_APP_FORM);
-  const [serviceForm, setServiceForm] = useSetState<ServiceForm>(INITIAL_SERVICE_FORM);
 
   const load = usePersistFn(async () => {
     setError('');
@@ -90,32 +65,11 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
           apiRequest<ManagedResource[]>('GET:/resource-control/resources'),
         ],
       );
-      const appList = appData ?? applicationsSWR.data ?? [];
       setProjects(projectData);
       setEnvironments(envData);
       setServers(serverData);
       setSites(siteData);
       setResources(resourceData);
-
-      const preferredApp =
-        (queryProjectId ? appList.filter((a) => a.projectId === queryProjectId) : appList)[0] ||
-        appList[0];
-      const preferredEnv =
-        queryEnvironmentId ||
-        preferredApp?.services[0]?.environment.id ||
-        envData.find((e) => e.project?.id === queryProjectId)?.id ||
-        '';
-      setAppForm({ projectId: queryProjectId || projectData[0]?.id || '' });
-      setServiceForm({
-        applicationId: queryProjectId
-          ? appList.some(
-              (a) => a.id === serviceForm.applicationId && a.projectId === queryProjectId,
-            )
-            ? serviceForm.applicationId
-            : preferredApp?.id || ''
-          : serviceForm.applicationId || preferredApp?.id || '',
-        environmentId: queryEnvironmentId || serviceForm.environmentId || preferredEnv,
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载应用服务数据失败');
     } finally {
@@ -157,15 +111,7 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
   const { serviceSloRows, serviceSloLoading, serviceSloError } =
     useApplicationServiceSlos(visibleServiceIds);
 
-  const { createApplication, createService } = useApplicationCreation({
-    appForm,
-    serviceForm,
-    setAppForm,
-    setServiceForm,
-    setSaving,
-    setError,
-    reload: load,
-  });
+  const { createApplication, createService } = useApplicationCreation({ reload: load });
 
   const operations = useApplicationOperations({
     queueDeploymentRuns,
@@ -188,6 +134,7 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
     resources,
     loading,
     saving,
+    setSaving,
     deployingServiceId,
     queueDeploymentRuns,
     setQueueDeploymentRuns,
@@ -195,10 +142,7 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
     setQueueServiceOperations,
     runningOperation,
     error: errorMessage,
-    appForm,
-    setAppForm,
-    serviceForm,
-    setServiceForm,
+    defaultProjectId: queryProjectId || projects[0]?.id || '',
     visibleApplications,
     stats,
     serviceSloRows,

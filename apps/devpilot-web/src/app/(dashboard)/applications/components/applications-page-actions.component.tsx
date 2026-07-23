@@ -10,6 +10,8 @@ type ApplicationsPageActionsProps = {
   onQueueDeploymentRunsChange: (value: boolean) => void;
   onQueueServiceOperationsChange: (value: boolean) => void;
   onRefresh: () => void;
+  /** 打开新建应用弹窗（页面主操作）。 */
+  onCreateApp: () => void;
 };
 
 /** 三点(更多)图标。 */
@@ -40,6 +42,7 @@ export function ApplicationsPageActions({
   onQueueDeploymentRunsChange,
   onQueueServiceOperationsChange,
   onRefresh,
+  onCreateApp,
 }: ApplicationsPageActionsProps) {
   const t = useTranslations('applications');
   const tc = useTranslations('common');
@@ -51,6 +54,12 @@ export function ApplicationsPageActions({
         onClick={onRefresh}
       >
         {tc('refresh')}
+      </Button>
+      <Button
+        size="sm"
+        onClick={onCreateApp}
+      >
+        + {t('newApp')}
       </Button>
       <Popover
         placement="bottom"

@@ -1,15 +1,33 @@
 /**
  * 应用卡片
  *
- * 单一职责：渲染单个应用 + 服务列表（委托 ServiceRow）。
+ * 单一职责：渲染单个应用 + 服务列表（委托 ServiceRow）+ 卡片底部的「添加服务」入口。
  */
 
 'use client';
 
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui';
 import type { ApplicationItem, ServiceAction, ServiceSloRow } from '../types';
 import { ServiceRow } from './service-row';
+
+/** 加号图标（内联，避免引入 icon 依赖）。 */
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
 
 interface ApplicationCardProps {
   application: ApplicationItem;
@@ -34,10 +52,12 @@ interface ApplicationCardProps {
     application: ApplicationItem,
     service: ApplicationItem['services'][number],
   ) => void;
+  /** 卡片底部「添加服务」按钮：打开预绑定到该应用的添加服务弹窗。 */
+  onAddService: (application: ApplicationItem) => void;
 }
 
 export function ApplicationCard(props: ApplicationCardProps) {
-  const { application, queryEnvironmentId } = props;
+  const { application, queryEnvironmentId, onAddService } = props;
   const t = useTranslations('applications');
   return (
     <div className="rounded-md border p-4">
@@ -89,6 +109,17 @@ export function ApplicationCard(props: ApplicationCardProps) {
           ))}
         </div>
       )}
+
+      <div className="mt-4 flex justify-end border-t pt-3">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onAddService(application)}
+        >
+          <PlusIcon className="h-4 w-4" />
+          {t('addService')}
+        </Button>
+      </div>
     </div>
   );
 }

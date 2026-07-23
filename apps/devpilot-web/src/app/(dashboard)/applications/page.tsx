@@ -1,16 +1,18 @@
 'use client';
 
+import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { usePersistFn } from '@svton/hooks';
+import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
+import { Button, PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
 import { useApplications } from './hooks/use-applications';
-import { CreateAppForm } from './components/create-app-form';
-import { CreateServiceForm } from './components/create-service-form';
 import { ApplicationCard } from './components/application-card';
+import { CreateAppModal } from './components/create-app-modal';
+import { AddServiceModal } from './components/add-service-modal';
 import { ApplicationsPageActions } from './components/applications-page-actions.component';
 import { TypedSuspense as Suspense } from './components/suspense';
+import type { ApplicationItem } from './types';
 
 function ApplicationsContent() {
   const t = useTranslations('applications');
@@ -26,23 +28,19 @@ function ApplicationsContent() {
     sites,
     resources,
     loading,
-    saving,
+    defaultProjectId,
+    visibleApplications,
+    stats,
+    serviceSloRows,
+    serviceSloLoading,
+    serviceSloError,
+    error,
     deployingServiceId,
     queueDeploymentRuns,
     setQueueDeploymentRuns,
     queueServiceOperations,
     setQueueServiceOperations,
     runningOperation,
-    error,
-    appForm,
-    setAppForm,
-    serviceForm,
-    setServiceForm,
-    visibleApplications,
-    stats,
-    serviceSloRows,
-    serviceSloLoading,
-    serviceSloError,
     createApplication,
     createService,
     createDeploymentPlan,
@@ -51,26 +49,22 @@ function ApplicationsContent() {
     reload,
   } = useApplications(queryProjectId, queryEnvironmentId);
 
+  const [appModalOpen, { setTrue: openAppModal, setFalse: closeAppModal }] = useBoolean(false);
+  const [serviceAppId, setServiceAppId] = useState('');
+  const serviceModalOpen = Boolean(serviceAppId);
+
   const handleRetry = usePersistFn(() => reload());
-  const selectedApp = applications.find((a) => a.id === serviceForm.applicationId);
-  const serviceProjectId = selectedApp?.projectId || appForm.projectId;
-  const applicationOptions = queryProjectId
-    ? applications.filter((a) => a.projectId === queryProjectId)
-    : applications;
+  const handleAddService = usePersistFn((app: ApplicationItem) => setServiceAppId(app.id));
+  const handleCloseServiceModal = usePersistFn(() => setServiceAppId(''));
+
+  // 添加服务弹窗预绑定应用 + 按其所属项目过滤的绑定选项。
+  const serviceApplication =
+    applications.find((a) => a.id === serviceAppId) || null;
+  const serviceProjectId = serviceApplication?.projectId || '';
   const serviceEnvironments = environments.filter((e) => e.project?.id === serviceProjectId);
-  const serviceSites = sites.filter(
-    (s) =>
-      (!s.projectId || s.projectId === serviceProjectId) &&
-      (!s.environmentId ||
-        !serviceForm.environmentId ||
-        s.environmentId === serviceForm.environmentId),
-  );
+  const serviceSites = sites.filter((s) => !s.projectId || s.projectId === serviceProjectId);
   const serviceResources = resources.filter(
-    (r) =>
-      (!r.project?.id || r.project.id === serviceProjectId) &&
-      (!r.environment?.id ||
-        !serviceForm.environmentId ||
-        r.environment.id === serviceForm.environmentId),
+    (r) => !r.project?.id || r.project.id === serviceProjectId,
   );
 
   if (loading) return <LoadingState text={tc('loading')} />;
@@ -86,6 +80,7 @@ function ApplicationsContent() {
     onRunOperation: runServiceOperation,
     onRequestLive: requestServiceOperationApproval,
     onCreateDeployment: createDeploymentPlan,
+    onAddService: handleAddService,
   };
 
   return (
@@ -100,6 +95,7 @@ function ApplicationsContent() {
             onQueueDeploymentRunsChange={setQueueDeploymentRuns}
             onQueueServiceOperationsChange={setQueueServiceOperations}
             onRefresh={handleRetry}
+            onCreateApp={openAppModal}
           />
         }
       />
@@ -124,70 +120,55 @@ function ApplicationsContent() {
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-5">
-        <MetricCard
-          label={t('metricApps')}
-          value={stats.applications}
-        />
-        <MetricCard
-          label={t('metricServices')}
-          value={stats.services}
-        />
-        <MetricCard
-          label={t('metricEnvironments')}
-          value={stats.environments}
-        />
-        <MetricCard
-          label={t('metricDeployments')}
-          value={stats.deployments}
-        />
-        <MetricCard
-          label={t('metricOperations')}
-          value={stats.operations}
-        />
+        <MetricCard label={t('metricApps')} value={stats.applications} />
+        <MetricCard label={t('metricServices')} value={stats.services} />
+        <MetricCard label={t('metricEnvironments')} value={stats.environments} />
+        <MetricCard label={t('metricDeployments')} value={stats.deployments} />
+        <MetricCard label={t('metricOperations')} value={stats.operations} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
+      {visibleApplications.length === 0 ? (
+        <EmptyState
+          text={t('emptyAppsTitle')}
+          description={t('emptyAppsHint')}
+          action={
+            <Button
+              size="sm"
+              onClick={openAppModal}
+            >
+              + {t('newApp')}
+            </Button>
+          }
+        />
+      ) : (
         <div className="space-y-4">
-          <CreateAppForm
-            form={appForm}
-            onChange={setAppForm}
-            projects={projects}
-            saving={saving}
-            onCreate={createApplication}
-          />
-          <CreateServiceForm
-            form={serviceForm}
-            onChange={setServiceForm}
-            applications={applicationOptions}
-            environments={serviceEnvironments}
-            servers={servers}
-            sites={serviceSites}
-            resources={serviceResources}
-            saving={saving}
-            onCreate={createService}
-          />
-        </div>
-
-        <section className="rounded-lg border p-4">
-          <h2 className="font-semibold">{t('serviceWorkspace')}</h2>
-          {visibleApplications.length === 0 ? (
-            <EmptyState
-              text={t('noContextApps')}
-              description={t('noContextAppsHint')}
+          {visibleApplications.map((application) => (
+            <ApplicationCard
+              key={application.id}
+              application={application}
+              {...cardProps}
             />
-          ) : (
-            <div className="mt-4 space-y-4">
-              {visibleApplications.map((application) => (
-                <ApplicationCard
-                  key={application.id}
-                  application={application}
-                  {...cardProps}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+          ))}
+        </div>
+      )}
+
+      <CreateAppModal
+        open={appModalOpen}
+        onClose={closeAppModal}
+        onCreate={createApplication}
+        projects={projects}
+        defaultProjectId={defaultProjectId}
+      />
+      <AddServiceModal
+        open={serviceModalOpen}
+        onClose={handleCloseServiceModal}
+        application={serviceApplication}
+        environments={serviceEnvironments}
+        servers={servers}
+        sites={serviceSites}
+        resources={serviceResources}
+        onCreate={createService}
+      />
     </div>
   );
 }
