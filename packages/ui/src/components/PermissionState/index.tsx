@@ -39,8 +39,8 @@ export function PermissionState(props: PermissionStateProps) {
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
       </div>
-      <div className="text-base font-medium text-black/85">{title}</div>
-      {message && <div className="text-sm text-black/50 max-w-[300px]">{message}</div>}
+      <div className="text-base font-medium text-foreground">{title}</div>
+      {message && <div className="text-sm text-muted-foreground max-w-[300px]">{message}</div>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );

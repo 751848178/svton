@@ -26,9 +26,9 @@ export function LoadingState(props: LoadingStateProps) {
       )}
     >
       {spinner && (
-        <div className="size-6 rounded-full border-[3px] border-black/10 border-t-black/60 animate-spin" />
+        <div className="size-6 rounded-full border-[3px] border-muted-foreground/20 border-t-primary animate-spin" />
       )}
-      {text && <div className="text-sm text-black/60">{text}</div>}
+      {text && <div className="text-sm text-muted-foreground">{text}</div>}
     </div>
   );
 }

@@ -28,7 +28,7 @@ export function Spin(props: SpinProps) {
   const spinner = (
     <div className="flex flex-col items-center gap-2">
       <div className={spinnerVariants({ size })} />
-      {tip && <div className="text-sm text-black/60">{tip}</div>}
+      {tip && <div className="text-sm text-muted-foreground">{tip}</div>}
     </div>
   );
 
@@ -38,7 +38,7 @@ export function Spin(props: SpinProps) {
     <div className={cn('relative', className)}>
       {children}
       {spinning && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-background/70 z-10">
           {spinner}
         </div>
       )}

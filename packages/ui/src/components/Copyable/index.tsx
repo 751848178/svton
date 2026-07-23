@@ -36,8 +36,8 @@ export function Copyable(props: CopyableProps) {
         className={cn(
           'inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded border transition-colors',
           copied
-            ? 'text-green-500 border-green-500'
-            : 'text-black/60 border-black/15 hover:border-black/30'
+            ? 'text-success border-success'
+            : 'text-muted-foreground border-border hover:border-foreground/40'
         )}
       >
         {copied ? (

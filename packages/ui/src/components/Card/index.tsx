@@ -19,8 +19,8 @@ export function Card(props: CardProps) {
   return (
     <div
       className={cn(
-        'bg-white rounded-lg overflow-hidden',
-        bordered && 'border border-black/5',
+        'bg-card text-card-foreground rounded-lg overflow-hidden',
+        bordered && 'border border-border',
         hoverable && 'cursor-pointer transition-shadow hover:shadow-md',
         !hoverable && 'shadow-sm',
         className
@@ -28,20 +28,20 @@ export function Card(props: CardProps) {
     >
       {cover}
       {(title || extra) && (
-        <div className="px-4 py-3 border-b border-black/5 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
           {title && <div className="text-base font-medium">{title}</div>}
           {extra}
         </div>
       )}
       <div className={cn('p-4', bodyClassName)}>{children}</div>
       {actions && actions.length > 0 && (
-        <div className="border-t border-black/5 flex">
+        <div className="border-t border-border flex">
           {actions.map((action, index) => (
             <div
               key={index}
               className={cn(
-                'flex-1 py-3 text-center cursor-pointer text-black/45 hover:text-black/70',
-                index < actions.length - 1 && 'border-r border-black/5'
+                'flex-1 py-3 text-center cursor-pointer text-muted-foreground hover:text-foreground',
+                index < actions.length - 1 && 'border-r border-border'
               )}
             >
               {action}

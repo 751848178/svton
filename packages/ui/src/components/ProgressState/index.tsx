@@ -15,9 +15,9 @@ export function ProgressState(props: ProgressStateProps) {
   const clampedPercent = Math.min(100, Math.max(0, percent));
 
   const statusColors = {
-    active: 'bg-blue-500',
-    success: 'bg-green-500',
-    error: 'bg-red-500',
+    active: 'bg-info',
+    success: 'bg-success',
+    error: 'bg-destructive',
   };
 
   return (
@@ -31,7 +31,7 @@ export function ProgressState(props: ProgressStateProps) {
       )}
     >
       <div className="w-full max-w-[300px]">
-        <div className="w-full h-2 bg-black/5 rounded-full overflow-hidden">
+        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
           <div
             className={cn('h-full rounded-full transition-all duration-300', statusColors[status])}
             style={{ width: `${clampedPercent}%` }}
@@ -50,8 +50,8 @@ export function ProgressState(props: ProgressStateProps) {
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         )}
-        {showPercent && <span className="text-sm text-black/60">{clampedPercent}%</span>}
-        {text && <span className="text-sm text-black/60">{text}</span>}
+        {showPercent && <span className="text-sm text-muted-foreground">{clampedPercent}%</span>}
+        {text && <span className="text-sm text-muted-foreground">{text}</span>}
       </div>
     </div>
   );

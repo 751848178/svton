@@ -65,7 +65,7 @@ export const Popover = React.forwardRef<HTMLSpanElement, PopoverProps>(function 
         <Portal>
           <div
             ref={floatingRef}
-            className={cn('absolute p-3 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-[1000]', className)}
+            className={cn('absolute p-3 bg-popover text-popover-foreground rounded-lg shadow-lg z-[1000]', className)}
             style={{ top: position.top, left: position.left }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}

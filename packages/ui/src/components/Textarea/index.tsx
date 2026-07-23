@@ -11,7 +11,7 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
 }
 
 const baseClass =
-  'min-h-[80px] w-full rounded-md border px-3 py-2 text-sm outline-none transition-colors placeholder:text-black/40 focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60';
+  'min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60';
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   function Textarea(props, ref) {

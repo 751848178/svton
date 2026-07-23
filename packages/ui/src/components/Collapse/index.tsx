@@ -52,7 +52,7 @@ export function CollapseItem(props: CollapseItemProps) {
   }, [open]);
 
   return (
-    <div className={cn('border-b border-black/5', className)}>
+    <div className={cn('border-b border-border', className)}>
       <div
         role="button"
         tabIndex={disabled ? -1 : 0}
@@ -110,7 +110,7 @@ export function Collapse(props: CollapseProps) {
   const { children, bordered = true, className } = props;
 
   return (
-    <div className={cn(bordered && 'border border-black/5 rounded-lg overflow-hidden', className)}>
+    <div className={cn(bordered && 'border border-border rounded-lg overflow-hidden', className)}>
       {children}
     </div>
   );

@@ -82,11 +82,11 @@ export function Tabs(props: TabsProps) {
                 item.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
                 type === 'line' && [
                   '-mb-px',
-                  isActive ? 'text-blue-500 border-b-2 border-blue-500 font-medium' : 'text-black/65 border-b-2 border-transparent hover:text-black/85',
+                  isActive ? 'text-primary border-b-2 border-primary font-medium' : 'text-muted-foreground border-b-2 border-transparent hover:text-foreground',
                 ],
                 type === 'card' && [
-                  'border border-black/5 rounded-t-lg',
-                  isActive ? 'bg-white border-b-white font-medium' : 'bg-black/[0.02] hover:bg-black/[0.04]',
+                  'border border-border rounded-t-lg',
+                  isActive ? 'bg-card border-b-card font-medium' : 'bg-muted/50 hover:bg-muted',
                 ]
               )}
             >

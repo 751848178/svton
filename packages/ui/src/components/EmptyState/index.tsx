@@ -26,8 +26,8 @@ export function EmptyState(props: EmptyStateProps) {
         className
       )}
     >
-      <div className="text-base text-black/70">{text}</div>
-      {description && <div className="text-sm text-black/50">{description}</div>}
+      <div className="text-base text-foreground/80">{text}</div>
+      {description && <div className="text-sm text-muted-foreground">{description}</div>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );

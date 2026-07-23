@@ -94,6 +94,8 @@ export const navigationSections: NavigationSection[] = [
     ],
   },
   {
+    // 基础设施区:servers/sites + 代理/CDN 配置台账 + 代码生成器(次要)。
+    // 「代码生成器」是无状态工具(下载 .conf/.sh),与台账是互补关系,故收纳到「更多」。
     titleKey: 'sectionInfrastructure',
     items: [
       { href: '/servers', labelKey: 'servers', icon: 'server' },
@@ -105,39 +107,45 @@ export const navigationSections: NavigationSection[] = [
     ],
   },
   {
+    // 资源区:纳管视图(管控)在前,生命周期 申请→实例 居中,连接库与密钥中心在尾。
+    // 「资源凭证」实为预置的连接配置库(代码生成时消费),更名为「资源连接」更贴合用途。
     titleKey: 'sectionResources',
     items: [
       { href: '/resource-control', labelKey: 'resourceControl', icon: 'gauge' },
-      { href: '/resources', labelKey: 'resourceCredentials', icon: 'key-round' },
       { href: '/resource-requests', labelKey: 'resourceRequests', icon: 'file-plus' },
       { href: '/resource-instances', labelKey: 'resourceInstances', icon: 'database' },
+      { href: '/resources', labelKey: 'resourceConnections', icon: 'key-round' },
       { href: '/keys', labelKey: 'keys', icon: 'lock' },
     ],
   },
   {
+    // 运维区:日常可观测/备份,与治理区分离。
     titleKey: 'sectionOperations',
     items: [
-      { href: '/backups', labelKey: 'backups', icon: 'archive' },
       { href: '/monitoring', labelKey: 'monitoring', icon: 'activity' },
       { href: '/logs', labelKey: 'logs', icon: 'scroll-text' },
-      { href: '/execution-governance', labelKey: 'executionGovernance', icon: 'list-checks' },
-      { href: '/execution-policies', labelKey: 'executionPolicies', icon: 'shield-check' },
+      { href: '/backups', labelKey: 'backups', icon: 'archive' },
     ],
   },
   {
+    // 治理区:按治理生命周期 Define→Gate→Runtime→Observe 聚合,
+    // 此前散落在 sectionOperations(execution-*)与 sectionGovernance,合并为单分区避免来回寻找。
     titleKey: 'sectionGovernance',
     items: [
-      { href: '/operation-approvals', labelKey: 'operationApprovals', icon: 'check-square' },
-      { href: '/audit-events', labelKey: 'auditEvents', icon: 'file-search' },
+      { href: '/execution-policies', labelKey: 'executionPolicies', icon: 'shield-check' },
       { href: '/access-policies', labelKey: 'accessPolicies', icon: 'shield-alert' },
+      { href: '/operation-approvals', labelKey: 'operationApprovals', icon: 'check-square' },
+      { href: '/execution-governance', labelKey: 'executionGovernance', icon: 'list-checks' },
+      { href: '/audit-events', labelKey: 'auditEvents', icon: 'file-search' },
     ],
   },
   {
-    // 配置区只保留通用配置项(presets/git),团队与管理拆分为独立分区
+    // 配置区只保留通用配置项(presets/git),团队与管理拆分为独立分区。
+    // 该分组只有 2 项,直接全部展开,无需收纳到「更多」。
     titleKey: 'sectionConfig',
     items: [
-      { href: '/presets', labelKey: 'presets', icon: 'bookmark', secondary: true },
-      { href: '/git', labelKey: 'git', icon: 'git-branch', secondary: true },
+      { href: '/presets', labelKey: 'presets', icon: 'bookmark' },
+      { href: '/git', labelKey: 'git', icon: 'git-branch' },
     ],
   },
   {
@@ -149,8 +157,8 @@ export const navigationSections: NavigationSection[] = [
     // 管理区:使用既有 sectionAdmin 文案键(此前定义但未用),仅 admin 可见
     titleKey: 'sectionAdmin',
     items: [
-      { href: '/admin/resource-pools', labelKey: 'resourcePools', icon: 'layers', secondary: true },
-      { href: '/admin/resource-types', labelKey: 'resourceTypes', icon: 'tags', secondary: true },
+      { href: '/admin/resource-pools', labelKey: 'resourcePools', icon: 'layers' },
+      { href: '/admin/resource-types', labelKey: 'resourceTypes', icon: 'tags' },
     ],
   },
 ];

@@ -107,21 +107,21 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
           ref={setPanelRef}
           tabIndex={-1}
           className={cn(
-            'max-w-[calc(100vw-32px)] max-h-[calc(100vh-64px)] bg-white dark:bg-gray-800 rounded-lg shadow-lg flex flex-col pointer-events-auto outline-none',
+            'max-w-[calc(100vw-32px)] max-h-[calc(100vh-64px)] bg-popover text-popover-foreground rounded-lg shadow-lg flex flex-col pointer-events-auto outline-none',
             panelAnim,
             className
           )}
           style={{ width }}
         >
           {title && (
-            <div className="px-6 py-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between">
-              <div className="text-base font-medium dark:text-gray-100">{title}</div>
-              <button onClick={onClose} className="p-1 text-xl text-black/45 hover:text-black/70 dark:text-gray-400 dark:hover:text-gray-200 leading-none" aria-label="Close">×</button>
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <div className="text-base font-medium">{title}</div>
+              <button onClick={onClose} className="p-1 text-xl text-muted-foreground hover:text-foreground leading-none" aria-label="Close">×</button>
             </div>
           )}
           <div className="flex-1 p-6 overflow-auto">{children}</div>
           {footer !== undefined && (
-            <div className="px-6 py-3 border-t border-black/5 flex justify-end gap-2">{footer}</div>
+            <div className="px-6 py-3 border-t border-border flex justify-end gap-2">{footer}</div>
           )}
         </div>
       </div>

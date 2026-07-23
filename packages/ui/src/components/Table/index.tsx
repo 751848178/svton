@@ -41,7 +41,7 @@ export function TableRow(props: HTMLAttributes<HTMLTableRowElement>) {
   const { className, ...rest } = props;
   return (
     <tr
-      className={cn('transition-colors hover:bg-black/[0.02]', className)}
+      className={cn('transition-colors hover:bg-accent/50', className)}
       {...rest}
     />
   );
@@ -52,7 +52,7 @@ export function TableHead(props: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
       className={cn(
-        'px-3 py-2 text-left text-xs font-semibold text-black/55',
+        'px-3 py-2 text-left text-xs font-semibold text-muted-foreground',
         className,
       )}
       {...rest}

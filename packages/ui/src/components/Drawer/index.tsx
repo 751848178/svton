@@ -80,7 +80,7 @@ export const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(function Dra
       )}
       <div
         className={cn(
-          'fixed bg-white dark:bg-gray-800 shadow-xl flex flex-col z-[1001]',
+          'fixed bg-popover text-popover-foreground shadow-xl flex flex-col z-[1001]',
           placement === 'left' && 'top-0 bottom-0 left-0',
           placement === 'right' && 'top-0 bottom-0 right-0',
           placement === 'top' && 'top-0 left-0 right-0',
@@ -96,9 +96,9 @@ export const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(function Dra
         aria-label={typeof title === 'string' ? title : undefined}
       >
         {title && (
-          <div className="px-6 py-4 border-b border-black/5 dark:border-white/10 flex items-center justify-between">
-            <div className="text-base font-medium dark:text-gray-100">{title}</div>
-            <button onClick={onClose} className="p-1 text-lg text-black/45 hover:text-black/70 dark:text-gray-400 dark:hover:text-gray-200" aria-label="Close">×</button>
+          <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+            <div className="text-base font-medium">{title}</div>
+            <button onClick={onClose} className="p-1 text-lg text-muted-foreground hover:text-foreground" aria-label="Close">×</button>
           </div>
         )}
         <div className="flex-1 p-6 overflow-auto">{children}</div>

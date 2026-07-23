@@ -60,15 +60,15 @@ function NotificationItemInternal(props: NotificationProps) {
     <div
       role="status"
       aria-live="polite"
-      className={cn('flex gap-3 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg w-80', anim, className)}
+      className={cn('flex gap-3 p-4 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg w-80', anim, className)}
     >
       {icon ?? defaultIcon}
       <div className="flex-1">
         <div className={cn('font-medium', description && 'mb-1')}>{title}</div>
-        {description && <div className="text-sm text-black/60">{description}</div>}
+        {description && <div className="text-sm text-muted-foreground">{description}</div>}
       </div>
       {closable && (
-        <button onClick={handleClose} className="text-black/45 hover:text-black/70">×</button>
+        <button onClick={handleClose} className="text-muted-foreground hover:text-foreground">×</button>
       )}
     </div>
   );

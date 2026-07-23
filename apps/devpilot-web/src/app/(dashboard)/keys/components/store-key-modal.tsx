@@ -5,6 +5,7 @@
  * react-hook-form 样板：取代手写 useSetState + 受控 onChange。
  */
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/ui';
@@ -18,22 +19,37 @@ interface StoreKeyModalProps {
   onStore: (input: KeyInput) => Promise<void>;
 }
 
+const EMPTY_FORM: KeyInput = {
+  name: '',
+  type: 'jwt_secret',
+  value: '',
+  description: '',
+};
+
 export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModalProps) {
   const t = useTranslations('keys');
   const tc = useTranslations('common');
   const { register, handleSubmit, reset, formState } = useForm<KeyInput>({
-    defaultValues: {
+    defaultValues: EMPTY_FORM,
+  });
+
+  // react-hook-form 的 defaultValues 仅在 mount 时生效;
+  // 生成密钥后通过「保存到密钥中心」注入的 value/type 不会同步到表单字段。
+  // 这里在弹窗打开(initial 变化)时主动 reset,把 value/type 预填进去 —— 修复 issue #13 反直觉问题。
+  useEffect(() => {
+    if (!open) return;
+    reset({
       name: '',
       type: initial?.type || 'jwt_secret',
       value: initial?.value || '',
       description: '',
-    },
-  });
+    });
+  }, [open, initial, reset]);
 
   const onSubmit = async (data: KeyInput) => {
     await onStore(data);
     onClose();
-    reset({ name: '', type: 'jwt_secret', value: '', description: '' });
+    reset(EMPTY_FORM);
   };
 
   return (

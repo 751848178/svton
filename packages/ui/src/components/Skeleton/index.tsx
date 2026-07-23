@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '../../lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 
-const skeletonVariants = cva('bg-black/5', {
+const skeletonVariants = cva('bg-muted', {
   variants: {
     variant: {
       text: 'rounded',
@@ -12,7 +12,7 @@ const skeletonVariants = cva('bg-black/5', {
     },
     animation: {
       pulse: 'animate-pulse',
-      wave: 'animate-[shimmer_1.5s_ease-in-out_infinite] bg-gradient-to-r from-black/5 via-black/10 to-black/5 bg-[length:200%_100%]',
+      wave: 'animate-[shimmer_1.5s_ease-in-out_infinite] bg-gradient-to-r from-muted via-muted-foreground/20 to-muted bg-[length:200%_100%]',
       none: '',
     },
   },

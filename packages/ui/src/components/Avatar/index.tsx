@@ -2,7 +2,7 @@ import React, { useState, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 
-const avatarVariants = cva('flex items-center justify-center overflow-hidden shrink-0 bg-black/5 text-black/65', {
+const avatarVariants = cva('flex items-center justify-center overflow-hidden shrink-0 bg-muted text-muted-foreground', {
   variants: {
     size: {
       small: 'size-6 text-xs',

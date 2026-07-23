@@ -40,7 +40,7 @@ export function Dropdown(props: DropdownProps) {
         <Portal>
           <div
             className={cn(
-              'absolute z-50 mt-1 min-w-[8rem] rounded-md border border-black/10 bg-white py-1 shadow-lg',
+              'absolute z-50 mt-1 min-w-[8rem] rounded-md border border-border bg-popover text-popover-foreground py-1 shadow-lg',
               align === 'end' ? 'right-0' : 'left-0',
             )}
             onClick={() => setOpen(false)}
@@ -67,7 +67,7 @@ export function DropdownItem(props: DropdownItemProps) {
       className={cn(
         'cursor-pointer px-3 py-1.5 text-sm',
         disabled && 'pointer-events-none opacity-50',
-        danger ? 'text-red-600 hover:bg-red-50' : 'text-black/80 hover:bg-black/5',
+        danger ? 'text-destructive hover:bg-destructive/10' : 'text-popover-foreground hover:bg-accent',
         className,
       )}
       {...rest}

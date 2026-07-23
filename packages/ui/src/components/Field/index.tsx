@@ -33,9 +33,9 @@ export function Field(props: FieldProps) {
       ) : null}
       {children}
       {error ? (
-        <span className="mt-1 block text-xs text-red-500">{error}</span>
+        <span className="mt-1 block text-xs text-destructive">{error}</span>
       ) : hint ? (
-        <span className="mt-1 block text-xs text-black/45">{hint}</span>
+        <span className="mt-1 block text-xs text-muted-foreground">{hint}</span>
       ) : null}
     </label>
   );
