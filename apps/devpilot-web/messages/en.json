@@ -80,7 +80,6 @@
     "presets": "Config Presets",
     "proxyConfigs": "Proxy Configs",
     "cdnConfigs": "CDN Config Management",
-    "resourceCredentials": "Resource Credentials",
     "resourceConnections": "Resource Connections",
     "resourceInstances": "Resource Instances",
     "operationApprovals": "Operation Approvals",
@@ -1780,8 +1779,8 @@
     "importMissingConfig": "Missing preset config (config) field"
   },
   "resources": {
-    "pageTitle": "Resources",
-    "pageDescription": "Manage credentials for databases, caches, storage, and other resources",
+    "pageTitle": "Resource Connections",
+    "pageDescription": "Manage connection configs for databases, caches, storage and other resources (used by project code generation and deployment injection)",
     "addResource": "Add Resource",
     "noResources": "No resources added yet",
     "addFirst": "Add your first resource",

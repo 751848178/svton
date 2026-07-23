@@ -80,7 +80,6 @@
     "presets": "配置预设",
     "proxyConfigs": "代理配置",
     "cdnConfigs": "CDN 配置管理",
-    "resourceCredentials": "资源凭证",
     "resourceConnections": "资源连接",
     "resourceInstances": "资源实例",
     "operationApprovals": "操作审批",
@@ -1780,8 +1779,8 @@
     "importMissingConfig": "缺少预设配置（config）字段"
   },
   "resources": {
-    "pageTitle": "资源管理",
-    "pageDescription": "管理你的数据库、缓存、存储等资源凭证",
+    "pageTitle": "资源连接",
+    "pageDescription": "管理数据库、缓存、存储等资源的连接配置(供项目代码生成与部署注入使用)",
     "addResource": "添加资源",
     "noResources": "还没有添加任何资源",
     "addFirst": "添加第一个资源",
