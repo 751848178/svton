@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { EmptyState, Tag } from '@svton/ui';
-import { ErrorBanner, PageHeader } from '@/components/ui';
+import { ErrorBanner, LinkButton, PageHeader } from '@/components/ui';
 import { serverRequest } from '@/lib/api-client/server';
 import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
+import { formatDate } from '@/lib/format-date';
 
 import {
   getProjectDescription,
@@ -46,18 +47,18 @@ export default async function ProjectsPage() {
         description={t('pageDescription')}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link
+            <LinkButton
               href="/projects/import"
-              className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+              variant="outline"
             >
               {t('importExisting')}
-            </Link>
-            <Link
+            </LinkButton>
+            <LinkButton
               href="/projects/new"
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              variant="primary"
             >
               {t('createNew')}
-            </Link>
+            </LinkButton>
           </div>
         }
       />
@@ -79,18 +80,18 @@ export default async function ProjectsPage() {
           description={t('noProjectsDescription')}
           action={
             <div className="flex gap-3">
-              <Link
+              <LinkButton
                 href="/projects/import"
-                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+                variant="outline"
               >
                 {t('importExisting')}
-              </Link>
-              <Link
+              </LinkButton>
+              <LinkButton
                 href="/projects/new"
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                variant="primary"
               >
                 {t('createNew')}
-              </Link>
+              </LinkButton>
             </div>
           }
         />
@@ -126,14 +127,14 @@ function ProjectCard({ project, hasGitRepoLabel }: { project: Project; hasGitRep
         <h3 className="text-lg font-semibold">{project.name}</h3>
         <Tag color="default">{getProjectOriginLabel(project.config)}</Tag>
       </div>
-      <div className="mt-2">
+      <div className="mt-3">
         <Tag color="cyan">{getProjectManagementScopeLabel(project.config)}</Tag>
       </div>
       {description ? (
-        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{description}</p>
+        <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{description}</p>
       ) : null}
       {tags.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {tags.map((tag) => (
             <Tag
               key={tag}
@@ -144,8 +145,8 @@ function ProjectCard({ project, hasGitRepoLabel }: { project: Project; hasGitRep
           ))}
         </div>
       ) : null}
-      <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-        <span>{new Date(project.createdAt).toLocaleDateString('zh-CN')}</span>
+      <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+        <span>{formatDate(project.createdAt)}</span>
         {repository ? <span className="text-primary">{hasGitRepoLabel}</span> : null}
       </div>
     </Link>

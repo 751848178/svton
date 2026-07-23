@@ -1,9 +1,10 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { Card, Tag } from '@svton/ui';
-import { ErrorBanner } from '@/components/ui';
+import { Tag } from '@svton/ui';
+import { Button, ErrorBanner } from '@/components/ui';
 import { useProjectConfigStore } from '@/store/hooks';
 
 interface StepProps {
@@ -13,11 +14,58 @@ interface StepProps {
 
 const SUB_PROJECT_IDS = ['backend', 'admin', 'mobile'] as const;
 type SubProjectId = (typeof SUB_PROJECT_IDS)[number];
-const SUB_PROJECT_ICONS: Record<SubProjectId, string> = {
-  backend: '🚀',
-  admin: '🖥️',
-  mobile: '📱',
+
+/** 子项目类型 lucide 风格（stroke 制 24x24）内联图标，替代 emoji。 */
+const SUB_PROJECT_ICONS: Record<SubProjectId, ReactNode> = {
+  // rocket — 后端服务
+  backend: (
+    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09Z" />
+  ),
+  // monitor — 管理端
+  admin: (
+    <>
+      <rect
+        x="2"
+        y="3"
+        width="20"
+        height="14"
+        rx="2"
+      />
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+    </>
+  ),
+  // smartphone — 移动端
+  mobile: (
+    <>
+      <rect
+        x="5"
+        y="2"
+        width="14"
+        height="20"
+        rx="2"
+      />
+      <path d="M12 18h.01" />
+    </>
+  ),
 };
+
+function SubProjectIcon({ id, className }: { id: SubProjectId; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      {SUB_PROJECT_ICONS[id]}
+    </svg>
+  );
+}
 
 export function StepSubProjects({ onNext, onPrev }: StepProps) {
   const t = useTranslations('projectWizard');
@@ -43,7 +91,10 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
               onClick={() => handleToggle(id)}
               className={`flex cursor-pointer items-start gap-4 rounded-lg border p-4 transition-colors ${config.subProjects[id] ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'}`}
             >
-              <div className="text-2xl">{SUB_PROJECT_ICONS[id]}</div>
+              <SubProjectIcon
+                id={id}
+                className="h-7 w-7 shrink-0 text-primary"
+              />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h4 className="font-medium">{t(`sub_${id}_title`)}</h4>
@@ -116,19 +167,19 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
         />
       ) : null}
       <div className="flex justify-between pt-4">
-        <button
+        <Button
+          variant="outline"
           onClick={handlePrev}
-          className="rounded-md border px-6 py-2 font-medium transition-colors hover:bg-accent"
         >
           {t('prev')}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="primary"
           onClick={handleNext}
           disabled={!hasAnySelected}
-          className="rounded-md bg-primary px-6 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t('next')}
-        </button>
+        </Button>
       </div>
     </div>
   );

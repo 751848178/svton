@@ -11,7 +11,7 @@
 import { useTranslations } from 'next-intl';
 import { ActionMenu } from '@/components/ui/action-menu';
 import type { ServiceAction } from '../types';
-import { operationLabels } from '../constants';
+import { getOperationLabel } from '../utils';
 
 interface ServiceActionMenuProps {
   serviceId: string;
@@ -33,8 +33,8 @@ export function ServiceActionMenu(props: ServiceActionMenuProps) {
   const planItems = PLAN_MENU_ACTIONS.map((action) => ({
     key: `plan:${action}`,
     label: queueServiceOperations
-      ? t('operationEnqueue', { label: operationLabels[action] || action })
-      : operationLabels[action] || action,
+      ? t('operationEnqueue', { label: getOperationLabel(t, action) })
+      : getOperationLabel(t, action),
     danger: action === 'rollback',
     disabled: runningOperation === `${serviceId}:${action}`,
     onSelect: () => onRun(action),
@@ -42,7 +42,7 @@ export function ServiceActionMenu(props: ServiceActionMenuProps) {
 
   const liveItems = LIVE_MENU_ACTIONS.map((action) => ({
     key: `live:${action}`,
-    label: `${operationLabels[action] || action} · ${
+    label: `${getOperationLabel(t, action)} · ${
       queueServiceOperations ? t('requestEnqueue') : t('requestLive')
     }`,
     danger: action === 'rollback',

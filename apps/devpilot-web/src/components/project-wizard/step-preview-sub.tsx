@@ -1,6 +1,5 @@
 /** 项目向导预览步骤子组件。 */
 import { useTranslations } from 'next-intl';
-import { Tag } from '@svton/ui';
 import type { ProjectConfig, ProjectResourceConfig } from '@/store/hooks';
 
 type WizardTranslator = ReturnType<typeof useTranslations<'projectWizard'>>;
@@ -45,25 +44,6 @@ export function PreviewItem({ label, value }: { label: string; value: string }) 
     </div>
   );
 }
-export function Badge({
-  children,
-  variant = 'default',
-}: {
-  children: React.ReactNode;
-  variant?: 'default' | 'secondary' | 'outline';
-}) {
-  const variants = {
-    default: 'bg-primary text-primary-foreground',
-    secondary: 'bg-secondary text-secondary-foreground',
-    outline: 'border bg-background',
-  };
-
-  return (
-    <span className={`px-2 py-1 rounded-md text-xs font-medium ${variants[variant]}`}>
-      {children}
-    </span>
-  );
-}
 export function ProjectStructurePreview({ config }: { config: ProjectConfig }) {
   const lines: string[] = [];
 
@@ -74,32 +54,53 @@ export function ProjectStructurePreview({ config }: { config: ProjectConfig }) {
   lines.push('├── .env.example');
   lines.push('├── docker-compose.yml');
 
+  // 子项目统一挂到单个 apps/ 父目录下，避免每个子项目都重复输出 apps/。
+  // 多个子项目时：最后一个用 └──（末子），其余用 ├──，避免全部显示成末子。
+  const selected: Array<{ entry: string[] }> = [];
   if (config.subProjects.backend) {
-    lines.push('├── apps/');
-    lines.push('│   └── backend/');
-    lines.push('│       ├── src/');
-    lines.push('│       │   ├── app.module.ts');
-    lines.push('│       │   └── main.ts');
-    lines.push('│       ├── package.json');
-    lines.push('│       └── tsconfig.json');
+    selected.push({
+      entry: [
+        '{branch}backend/',
+        '│       ├── src/',
+        '│       │   ├── app.module.ts',
+        '│       │   └── main.ts',
+        '│       ├── package.json',
+        '│       └── tsconfig.json',
+      ],
+    });
   }
-
   if (config.subProjects.admin) {
-    lines.push('├── apps/');
-    lines.push('│   └── admin/');
-    lines.push('│       ├── src/');
-    lines.push('│       │   └── app/');
-    lines.push('│       ├── package.json');
-    lines.push('│       └── next.config.js');
+    selected.push({
+      entry: [
+        '{branch}admin/',
+        '│       ├── src/',
+        '│       │   └── app/',
+        '│       ├── package.json',
+        '│       └── next.config.js',
+      ],
+    });
   }
-
   if (config.subProjects.mobile) {
+    selected.push({
+      entry: [
+        '{branch}mobile/',
+        '│       ├── src/',
+        '│       │   └── pages/',
+        '│       ├── package.json',
+        '│       └── config/',
+      ],
+    });
+  }
+  if (selected.length > 0) {
     lines.push('├── apps/');
-    lines.push('│   └── mobile/');
-    lines.push('│       ├── src/');
-    lines.push('│       │   └── pages/');
-    lines.push('│       ├── package.json');
-    lines.push('│       └── config/');
+    selected.forEach((item, index) => {
+      const isLast = index === selected.length - 1;
+      // 末子用 └──，其余用 ├──；内部缩进行保持 │ 不变。
+      const connector = isLast ? '│   └── ' : '│   ├── ';
+      item.entry.forEach((line, lineIndex) => {
+        lines.push(lineIndex === 0 ? line.replace('{branch}', connector) : line);
+      });
+    });
   }
 
   lines.push('└── README.md');

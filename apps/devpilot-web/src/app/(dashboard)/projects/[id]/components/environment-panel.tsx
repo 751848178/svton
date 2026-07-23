@@ -1,7 +1,7 @@
 /** 项目环境面板。 */
 'use client';
 import { useTranslations } from 'next-intl';
-import { EmptyState, Tag } from '@svton/ui';
+import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 type DetailHook = ReturnType<typeof useProjectDetail>;
@@ -22,7 +22,7 @@ export function EnvironmentPanel({ detail }: { detail: DetailHook }) {
   return (
     <div className="rounded-lg border p-4">
       <div className="mb-3">
-        <h3 className="font-semibold">{t('environments')}</h3>
+        <h3 className="text-base font-semibold">{t('environments')}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{t('environmentPanelDescription')}</p>
       </div>
       <div className="space-y-2">
@@ -31,13 +31,12 @@ export function EnvironmentPanel({ detail }: { detail: DetailHook }) {
             key={env.id}
             className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
           >
-            <span className="font-medium">{env.name}</span>
-            <div className="flex items-center gap-2">
-              <Tag color="default">
-                {t('environmentKeyLabel')}: {env.key}
-              </Tag>
-              <StatusTag status={env.status} label={t(getEnvStatusLabelKey(env.status))} />
+            <div className="flex items-baseline gap-2">
+              <span className="font-medium">{env.name}</span>
+              {/* 内部 key 仅作调试辅助，弱化展示，不作为主标签。 */}
+              <span className="font-mono text-xs text-muted-foreground">{env.key}</span>
             </div>
+            <StatusTag status={env.status} label={t(getEnvStatusLabelKey(env.status))} />
           </div>
         ))}
       </div>

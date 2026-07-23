@@ -3,6 +3,7 @@
 
 import { useTranslations } from 'next-intl';
 
+import { Button, Input, Select } from '@/components/ui';
 import type { DatabaseEngine, ResourceConfigMode } from '@/store/hooks';
 import type {
   RegistryResourceType,
@@ -101,29 +102,28 @@ function ResourceConfigCard({
             <p className="text-sm text-muted-foreground">{resource.description}</p>
           )}
         </div>
-        <select
+        <Select
           value={mode}
           onChange={(e) => onModeChange(e.target.value as ResourceConfigMode)}
-          className="rounded-md border bg-background px-3 py-1.5 text-sm"
+          className="w-auto py-1.5 text-sm"
         >
           <option value="skipped">{t('modeSkipped')}</option>
           <option value="manual">{t('modeManual')}</option>
           <option value="credential">{t('modeCredential')}</option>
           <option value="instance">{t('modeInstance')}</option>
           <option value="pool">{t('modePool')}</option>
-        </select>
+        </Select>
       </div>
       {mode === 'manual' && (
         <div className="mt-3 space-y-2">
           {resource.fields.map((field) => (
             <div key={field.key}>
               <label className="text-xs text-muted-foreground">{field.label}</label>
-              <input
+              <Input
                 type={field.type || 'text'}
                 value={manualValues[field.key] ?? ''}
                 onChange={(e) => onFieldChange(field.key, e.target.value)}
                 placeholder={field.default?.toString()}
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
               />
             </div>
           ))}
@@ -132,10 +132,9 @@ function ResourceConfigCard({
       {mode === 'credential' && (
         <div className="mt-3">
           <label className="text-xs text-muted-foreground">{t('selectCredential')}</label>
-          <select
+          <Select
             value={credentialId}
             onChange={(e) => onCredentialChange(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
             <option value="">{t('pleaseSelect')}</option>
             {storedResources.map((s) => (
@@ -146,16 +145,15 @@ function ResourceConfigCard({
                 {s.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
       {mode === 'instance' && (
         <div className="mt-3">
           <label className="text-xs text-muted-foreground">{t('selectInstance')}</label>
-          <select
+          <Select
             value={instanceId}
             onChange={(e) => onInstanceChange(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
             <option value="">{t('pleaseSelect')}</option>
             {instances.map((i) => (
@@ -166,16 +164,15 @@ function ResourceConfigCard({
                 {i.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
       {mode === 'pool' && (
         <div className="mt-3">
           <label className="text-xs text-muted-foreground">{t('selectPool')}</label>
-          <select
+          <Select
             value={poolId}
             onChange={(e) => onPoolChange(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
             <option value="">{t('pleaseSelect')}</option>
             {pools.map((p) => (
@@ -186,7 +183,7 @@ function ResourceConfigCard({
                 {t('poolOption', { name: p.name, available: p.available })}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
     </div>
@@ -207,10 +204,9 @@ function SelectField({
   return (
     <label className="block text-sm">
       <span className="mb-1 block font-medium">{label}</span>
-      <select
+      <Select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
       >
         {options.map((o) => (
           <option
@@ -220,7 +216,7 @@ function SelectField({
             {o.label}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
 }
@@ -237,21 +233,21 @@ function WizardActions({
   const t = useTranslations('projectWizard');
   return (
     <div className="flex justify-between pt-4">
-      <button
+      <Button
         type="button"
+        variant="outline"
         onClick={onPrev}
-        className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
       >
         {t('prev')}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="primary"
         onClick={onNext}
         disabled={nextDisabled}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
       >
         {t('next')}
-      </button>
+      </Button>
     </div>
   );
 }

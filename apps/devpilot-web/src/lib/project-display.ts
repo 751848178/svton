@@ -21,6 +21,9 @@ const subProjectLabels: Record<string, string> = {
   mobile: 'Mobile',
 };
 
+/** 子项目 key 无法识别时的中性兜底文案，避免把内部原始 key 作为标签直接暴露。 */
+const UNKNOWN_SUBPROJECT_LABEL = '其他子项目';
+
 function isRecord(value: unknown): value is ProjectConfigRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -40,7 +43,7 @@ function readEnabledKeys(value: unknown): string[] {
 
   return Object.entries(value)
     .filter(([, enabled]) => enabled === true)
-    .map(([key]) => subProjectLabels[key] ?? key);
+    .map(([key]) => subProjectLabels[key] ?? UNKNOWN_SUBPROJECT_LABEL);
 }
 
 export function toProjectConfigRecord(config: unknown): ProjectConfigRecord {
@@ -126,7 +129,7 @@ export function getProjectSubProjectLabels(config: unknown): string[] {
   const subProjects = record.subProjects;
 
   if (Array.isArray(subProjects)) {
-    return readStringArray(subProjects).map((key) => subProjectLabels[key] ?? key);
+    return readStringArray(subProjects).map((key) => subProjectLabels[key] ?? UNKNOWN_SUBPROJECT_LABEL);
   }
 
   return readEnabledKeys(subProjects);

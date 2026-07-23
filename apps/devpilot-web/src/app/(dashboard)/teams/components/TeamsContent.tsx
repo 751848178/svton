@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, ErrorBanner, Modal } from '@/components/ui';
+import { Button, PageHeader, ErrorBanner, Modal } from '@/components/ui';
 import { useTeams } from '../hooks/use-teams';
 import { CreateTeamModal } from './create-team-modal';
 import { TeamCard } from './team-card';
@@ -54,14 +54,7 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
         <PageHeader
           title={t('pageTitle')}
           description={t('pageDescription')}
-          actions={
-            <button
-              onClick={openCreate}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              + {t('createTeam')}
-            </button>
-          }
+          actions={<Button onClick={openCreate}>{t('createTeam')}</Button>}
         />
       </div>
 
@@ -80,17 +73,10 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
         <EmptyState
           text={t('noTeams')}
           description={t('createTeamHint')}
-          action={
-            <button
-              onClick={openCreate}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              {t('createFirstTeam')}
-            </button>
-          }
+          action={<Button onClick={openCreate}>{t('createFirstTeam')}</Button>}
         />
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2">
           {teams.map((team) => (
             <TeamCard
               key={team.id}
@@ -114,22 +100,20 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
         title={t('confirmDelete')}
         width={400}
       >
-        <p className="text-muted-foreground">
-          {t('deleteTeamModalText')}
-        </p>
+        <p className="text-muted-foreground">{t('deleteTeamModalText')}</p>
         <div className="mt-6 flex justify-end gap-2">
-          <button
+          <Button
+            variant="outline"
             onClick={() => setDeleteTarget(null)}
-            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
             {tc('cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="destructive"
             onClick={handleDelete}
-            className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
           >
             {tc('delete')}
-          </button>
+          </Button>
         </div>
       </Modal>
     </div>

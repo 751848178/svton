@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
-import { PageHeader } from '@/components/ui';
+import { Button, Input, Textarea } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 type DetailHook = ReturnType<typeof useProjectDetail>;
@@ -25,26 +25,29 @@ export function ProjectOverviewPanel({ detail }: { detail: DetailHook }) {
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">{t('basicInfo')}</h2>
         {!detail.editing ? (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => detail.setEditing(true)}
-            className="text-sm text-primary hover:underline"
           >
             {t('edit')}
-          </button>
+          </Button>
         ) : (
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => detail.setEditing(false)}
-              className="text-sm text-muted-foreground hover:underline"
             >
               {tc('cancel')}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={handleSave}
-              className="text-sm text-primary hover:underline"
             >
               {tc('save')}
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -52,18 +55,16 @@ export function ProjectOverviewPanel({ detail }: { detail: DetailHook }) {
         <div className="space-y-3">
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('nameLabel')}</span>
-            <input
+            <Input
               value={detail.editForm.name}
               onChange={(e) => detail.setEditForm({ name: e.target.value } as never)}
-              className="w-full rounded-md border px-3 py-2"
             />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('descriptionLabel')}</span>
-            <textarea
+            <Textarea
               value={detail.editForm.description}
               onChange={(e) => detail.setEditForm({ description: e.target.value } as never)}
-              className="w-full rounded-md border px-3 py-2"
             />
           </label>
         </div>
@@ -79,7 +80,7 @@ export function ProjectOverviewPanel({ detail }: { detail: DetailHook }) {
           </div>
           <div>
             <dt className="text-muted-foreground">{t('gitRepoLabel')}</dt>
-            <dd className="font-mono text-xs">{p.gitRepo || t('notLinked')}</dd>
+            <dd className="break-all font-mono text-xs">{p.gitRepo || t('notLinked')}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">{t('createdAtLabel')}</dt>

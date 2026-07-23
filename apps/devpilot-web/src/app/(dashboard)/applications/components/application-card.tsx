@@ -47,9 +47,13 @@ export function ApplicationCard(props: ApplicationCardProps) {
             <h3 className="font-medium">{application.name}</h3>
             <Link
               href={`/projects/${application.projectId}`}
-              className="text-xs font-medium text-primary hover:underline"
+              className={
+                application.project?.name
+                  ? 'text-xs font-medium text-primary hover:underline'
+                  : 'text-xs text-muted-foreground hover:underline'
+              }
             >
-              {application.project?.name || application.projectId}
+              {application.project?.name || t('unnamedProject')}
             </Link>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
@@ -62,7 +66,8 @@ export function ApplicationCard(props: ApplicationCardProps) {
           <div>
             {t('runCount', {
               count:
-                (application._count?.deploymentRuns || 0) + (application._count?.operationRuns || 0),
+                (application._count?.deploymentRuns || 0) +
+                (application._count?.operationRuns || 0),
             })}
           </div>
         </div>

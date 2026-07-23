@@ -1,7 +1,9 @@
 'use client';
 import { useTranslations } from 'next-intl';
+import { Tag } from '@svton/ui';
+import { Button } from '@/components/ui';
 import { useProjectConfigStore } from '@/store/hooks';
-import type { ProjectConfig, ProjectResourceConfig } from '@/store/hooks';
+import type { ProjectConfig } from '@/store/hooks';
 interface StepProps {
   onPrev: () => void;
   onSubmit: () => void;
@@ -18,20 +20,6 @@ const featureNameKeys: Record<string, string> = {
   payment: 'featurePayment',
   authz: 'featureAuthz',
 };
-// 功能到包的映射
-const featurePackages: Record<string, string[]> = {
-  cache: ['@svton/nestjs-cache', '@svton/nestjs-redis'],
-  'rate-limit': ['@svton/nestjs-rate-limit', '@svton/nestjs-redis'],
-  queue: ['@svton/nestjs-queue', '@svton/nestjs-redis'],
-  'object-storage-qiniu': [
-    '@svton/nestjs-object-storage',
-    '@svton/nestjs-object-storage-qiniu-kodo',
-  ],
-  sms: ['@svton/nestjs-sms'],
-  oauth: ['@svton/nestjs-oauth'],
-  payment: ['@svton/nestjs-payment'],
-  authz: ['@svton/nestjs-authz'],
-};
 const databaseEngineNames: Record<string, string> = {
   mysql: 'MySQL',
   postgresql: 'PostgreSQL',
@@ -41,40 +29,13 @@ import {
   formatResourceValue,
   PreviewSection,
   PreviewItem,
-  Badge,
   ProjectStructurePreview,
 } from './step-preview-sub';
+import { PackagesPreview } from './step-preview-packages';
 export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
   const t = useTranslations('projectWizard');
   const { config } = useProjectConfigStore();
   const databaseEngine = config.database?.engine || 'mysql';
-  // 计算所有需要的包
-  const allPackages = new Set<string>();
-
-  // 基础包
-  if (config.subProjects.backend) {
-    allPackages.add('@svton/nestjs-logger');
-    allPackages.add('@svton/nestjs-config-schema');
-    allPackages.add('@svton/nestjs-http');
-  }
-
-  if (config.subProjects.admin) {
-    allPackages.add('@svton/ui');
-    if (config.uiLibrary.admin) allPackages.add('@svton/ui');
-  }
-
-  if (config.subProjects.mobile) {
-    if (config.uiLibrary.mobile) allPackages.add('@svton/taro-ui');
-  }
-
-  if (config.hooks) {
-    allPackages.add('@svton/hooks');
-  }
-  // 功能相关包
-  config.features.forEach((featureId) => {
-    const packages = featurePackages[featureId] || [];
-    packages.forEach((pkg) => allPackages.add(pkg));
-  });
   return (
     <div className="space-y-6">
       <div>
@@ -103,9 +64,9 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
       {/* 子项目 */}
       <PreviewSection title={t('subProjects')}>
         <div className="flex flex-wrap gap-2">
-          {config.subProjects.backend && <Badge>Backend (NestJS)</Badge>}
-          {config.subProjects.admin && <Badge>Admin (Next.js)</Badge>}
-          {config.subProjects.mobile && <Badge>Mobile (Taro)</Badge>}
+          {config.subProjects.backend && <Tag color="blue">Backend (NestJS)</Tag>}
+          {config.subProjects.admin && <Tag color="blue">Admin (Next.js)</Tag>}
+          {config.subProjects.mobile && <Tag color="blue">Mobile (Taro)</Tag>}
           {!config.subProjects.backend &&
             !config.subProjects.admin &&
             !config.subProjects.mobile && (
@@ -124,9 +85,9 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
       {/* UI 库和 Hooks */}
       <PreviewSection title={t('frontendLibs')}>
         <div className="flex flex-wrap gap-2">
-          {config.uiLibrary.admin && <Badge variant="secondary">@svton/ui (Admin)</Badge>}
-          {config.uiLibrary.mobile && <Badge variant="secondary">@svton/taro-ui (Mobile)</Badge>}
-          {config.hooks && <Badge variant="secondary">@svton/hooks</Badge>}
+          {config.uiLibrary.admin && <Tag color="default">@svton/ui (Admin)</Tag>}
+          {config.uiLibrary.mobile && <Tag color="default">@svton/taro-ui (Mobile)</Tag>}
+          {config.hooks && <Tag color="default">@svton/hooks</Tag>}
           {!config.uiLibrary.admin && !config.uiLibrary.mobile && !config.hooks && (
             <span className="text-muted-foreground text-sm">{t('noFrontendLibsSelected')}</span>
           )}
@@ -136,38 +97,31 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
       <PreviewSection title={t('businessFeatures')}>
         {config.features.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {config.features.map((featureId) => (
-              <Badge
-                key={featureId}
-                variant="outline"
-              >
-                {(featureNameKeys[featureId] && t(featureNameKeys[featureId])) || featureId}
-              </Badge>
-            ))}
+            {config.features.map((featureId) => {
+              const labelKey = featureNameKeys[featureId];
+              return labelKey ? (
+                <Tag
+                  key={featureId}
+                  color="orange"
+                >
+                  {t(labelKey)}
+                </Tag>
+              ) : (
+                <span
+                  key={featureId}
+                  className="text-xs text-muted-foreground"
+                >
+                  {featureId}
+                </span>
+              );
+            })}
           </div>
         ) : (
           <span className="text-muted-foreground text-sm">{t('noFeaturesSelected')}</span>
         )}
       </PreviewSection>
       {/* 依赖包 */}
-      <PreviewSection title={t('packagesToInstall')}>
-        {allPackages.size > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {Array.from(allPackages)
-              .sort()
-              .map((pkg) => (
-                <code
-                  key={pkg}
-                  className="px-2 py-1 bg-muted rounded text-xs"
-                >
-                  {pkg}
-                </code>
-              ))}
-          </div>
-        ) : (
-          <span className="text-muted-foreground text-sm">{t('noExtraDeps')}</span>
-        )}
-      </PreviewSection>
+      <PackagesPreview config={config} />
       {/* 资源配置 */}
       <PreviewSection title={t('resourceConfig')}>
         {Object.keys(config.resources).length > 0 ? (
@@ -189,20 +143,20 @@ export function StepPreview({ onPrev, onSubmit, isSubmitting }: StepProps) {
         <ProjectStructurePreview config={config} />
       </PreviewSection>
       <div className="flex justify-between pt-4">
-        <button
+        <Button
+          variant="outline"
           onClick={onPrev}
           disabled={isSubmitting}
-          className="px-6 py-2 border rounded-md font-medium hover:bg-accent transition-colors disabled:opacity-50"
         >
           {t('prev')}
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="primary"
           onClick={onSubmit}
-          disabled={isSubmitting}
-          className="px-6 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          loading={isSubmitting}
         >
           {isSubmitting ? t('generating') : t('generateProject')}
-        </button>
+        </Button>
       </div>
     </div>
   );

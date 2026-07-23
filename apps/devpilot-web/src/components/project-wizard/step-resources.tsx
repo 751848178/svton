@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { LoadingState } from '@svton/ui';
+import { EmptyState, LoadingState } from '@svton/ui';
+import { ErrorBanner } from '@/components/ui';
 import { apiRequest } from '@/lib/api-client';
 import { useProjectConfigStore } from '@/store/hooks';
 import type { DatabaseEngine, ProjectResourceConfig, ResourceConfigMode } from '@/store/hooks';
@@ -24,6 +25,7 @@ const databaseResourceByEngine: Partial<Record<DatabaseEngine, string>> = {
 
 export function StepResources({ onNext, onPrev }: StepProps) {
   const t = useTranslations('projectWizard');
+  const tp = useTranslations('projects');
   const tc = useTranslations('common');
   const { config, setResources, setDatabase } = useProjectConfigStore();
   const [registryResources, setRegistryResources] = useState<RegistryResourceType[]>([]);
@@ -32,6 +34,7 @@ export function StepResources({ onNext, onPrev }: StepProps) {
   const [instances, setInstances] = useState<ResourceInstance[]>([]);
   const [pools, setPools] = useState<ResourcePool[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [manualConfigs, setManualConfigs] = useState<Record<string, Record<string, string>>>(() => {
     const init: Record<string, Record<string, string>> = {};
     for (const [type, rc] of Object.entries(config.resources || {})) {
@@ -69,40 +72,41 @@ export function StepResources({ onNext, onPrev }: StepProps) {
   });
   const [databaseEngine, setDatabaseEngine] = useState<DatabaseEngine>(config.database.engine);
 
-  useEffect(() => {
-    let canceled = false;
-    const loadData = async () => {
-      try {
-        const [regData, storedData, instData, poolData] = await Promise.all([
-          apiRequest<RegistryResourceType[]>('GET:/registry/resource-types'),
-          apiRequest<StoredResource[]>('GET:/resources'),
-          apiRequest<ResourceInstance[]>('GET:/resource-instances'),
-          apiRequest<ResourcePool[]>('GET:/resource-pools'),
-        ]);
-        if (canceled) return;
-        setRegistryResources(regData);
-        setStoredResources(storedData);
-        setInstances(instData);
-        setPools(poolData);
-        const dbResourceIds = regData
-          .filter((r) => databaseResourceIds.includes(r.id))
-          .map((r) => r.id);
-        const featureResourceIds = (config.features || []).map((f) => f.replace(/-/g, '_'));
-        const required = regData.filter(
-          (r) => dbResourceIds.includes(r.id) || featureResourceIds.includes(r.id),
-        );
-        setRequiredResourceIds(required.map((r) => r.id));
-      } catch (error) {
-        console.error('Failed to load resources:', error);
-      } finally {
-        if (!canceled) setLoading(false);
-      }
-    };
-    loadData();
-    return () => {
-      canceled = true;
-    };
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [regData, storedData, instData, poolData] = await Promise.all([
+        apiRequest<RegistryResourceType[]>('GET:/registry/resource-types'),
+        apiRequest<StoredResource[]>('GET:/resources'),
+        apiRequest<ResourceInstance[]>('GET:/resource-instances'),
+        apiRequest<ResourcePool[]>('GET:/resource-pools'),
+      ]);
+      setRegistryResources(regData);
+      setStoredResources(storedData);
+      setInstances(instData);
+      setPools(poolData);
+      const dbResourceIds = regData
+        .filter((r) => databaseResourceIds.includes(r.id))
+        .map((r) => r.id);
+      const featureResourceIds = (config.features || []).map((f) => f.replace(/-/g, '_'));
+      const required = regData.filter(
+        (r) => dbResourceIds.includes(r.id) || featureResourceIds.includes(r.id),
+      );
+      setRequiredResourceIds(required.map((r) => r.id));
+      setLoadError('');
+    } catch (error) {
+      console.error('Failed to load resources:', error);
+      setLoadError(tp('resourceLoadError'));
+    } finally {
+      setLoading(false);
+    }
   }, [config.subProjects.backend, config.features]);
+
+  useEffect(() => {
+    loadData().catch(() => {
+      // 错误已在 loadData 内捕获并写入 loadError，此处仅吞掉 rejection。
+    });
+  }, [loadData]);
 
   const requiredResources = registryResources.filter((r) => requiredResourceIds.includes(r.id));
 
@@ -161,14 +165,21 @@ export function StepResources({ onNext, onPrev }: StepProps) {
 
   return (
     <div className="space-y-6">
-      {config.subProjects.backend && (
+      {loadError ? (
+        <ErrorBanner
+          message={loadError}
+          onRetry={() => loadData()}
+          retryLabel={tc('retry')}
+        />
+      ) : null}
+      {config.subProjects.backend && !loadError && (
         <DatabaseEngineSelector
           value={databaseEngine}
           onChange={handleDatabaseEngineChange}
         />
       )}
-      {requiredResources.length === 0 ? (
-        <div className="py-8 text-center text-muted-foreground">{t('noResourcesRequired')}</div>
+      {loadError ? null : requiredResources.length === 0 ? (
+        <EmptyState text={t('noResourcesRequired')} />
       ) : (
         requiredResources.map((resource) => (
           <ResourceConfigCard
@@ -193,6 +204,7 @@ export function StepResources({ onNext, onPrev }: StepProps) {
       <WizardActions
         onPrev={onPrev}
         onNext={handleNext}
+        nextDisabled={Boolean(loadError)}
       />
     </div>
   );

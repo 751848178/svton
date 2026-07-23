@@ -26,6 +26,8 @@ export function useProjectDetail(projectId: string) {
   const [deploymentRuns, setDeploymentRuns] = useState<DeploymentRun[]>([]);
   const [webhooks, setWebhooks] = useState<ProjectWebhook[]>([]);
   const [error, setError] = useState('');
+  const [deploymentError, setDeploymentError] = useState('');
+  const [webhookError, setWebhookError] = useState('');
   const [resourceBulkBindSelection, setResourceBulkBindSelection] =
     useState<EnvironmentResourceBulkBindSelection>(createEmptyResourceBulkBindSelection);
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState('');
@@ -57,16 +59,20 @@ export function useProjectDetail(projectId: string) {
   const loadDeploymentRuns = usePersistFn(async () => {
     try {
       setDeploymentRuns(await apiRequest<DeploymentRun[]>('GET:/deployments/runs', { projectId }));
+      setDeploymentError('');
     } catch (err) {
       console.error('Failed to load deployment runs:', err);
+      setDeploymentError(err instanceof Error ? err.message : String(err));
     }
   });
 
   const loadWebhooks = usePersistFn(async () => {
     try {
       setWebhooks(await apiRequest<ProjectWebhook[]>('GET:/project-webhooks', { projectId }));
+      setWebhookError('');
     } catch (err) {
       console.error('Failed to load webhooks:', err);
+      setWebhookError(err instanceof Error ? err.message : String(err));
     }
   });
 
@@ -88,6 +94,8 @@ export function useProjectDetail(projectId: string) {
     deploymentRuns,
     webhooks,
     error,
+    deploymentError,
+    webhookError,
     resourceBulkBindSelection,
     setResourceBulkBindSelection,
     selectedEnvironmentId,

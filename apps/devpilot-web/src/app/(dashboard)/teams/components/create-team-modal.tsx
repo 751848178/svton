@@ -9,7 +9,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal } from '@/components/ui';
+import { Button, Input, Modal, Textarea } from '@/components/ui';
 
 interface CreateTeamModalProps {
   open: boolean;
@@ -52,38 +52,35 @@ export function CreateTeamModal({ open, onClose, onCreate }: CreateTeamModalProp
           <span className="mb-1 block font-medium">
             {t('teamName')} <span className="text-destructive">*</span>
           </span>
-          <input
-            type="text"
+          <Input
             {...register('name')}
             placeholder={t('teamNamePlaceholder')}
-            className="w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             autoFocus
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{tc('description')}</span>
-          <textarea
+          <Textarea
             {...register('description')}
             placeholder={t('teamDescriptionPlaceholder')}
             rows={3}
-            className="w-full resize-none rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+            className="resize-none"
           />
         </label>
         <div className="flex justify-end gap-2">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={onClose}
-            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
             {tc('cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={creating || !name.trim()}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {creating ? t('creating') : tc('create')}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

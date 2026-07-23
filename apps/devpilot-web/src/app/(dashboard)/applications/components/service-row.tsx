@@ -10,17 +10,16 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
+import { Button, StatusTag } from '@/components/ui';
 import type {
   ApplicationItem,
   ApplicationServiceItem,
   ServiceAction,
   ServiceSloRow,
 } from '../types';
-import { kindLabels, operationLabels } from '../constants';
 import { ServiceSloSummary } from './service-slo-summary.component';
 import { ServiceActionMenu } from './service-action-menu';
-import { getOperationStatusLabel, formatDate } from '../utils';
+import { getKindLabel, getOperationLabel, getOperationStatusLabel, formatDate } from '../utils';
 
 interface ServiceRowProps {
   application: ApplicationItem;
@@ -73,7 +72,7 @@ export function ServiceRow(props: ServiceRowProps) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{service.name}</span>
             <StatusTag status={service.status} />
-            <Tag color="default">{kindLabels[service.kind] || service.kind}</Tag>
+            <Tag color="default">{getKindLabel(t, service.kind)}</Tag>
             <Tag color="default">{service.environment?.name || t('noEnv')}</Tag>
           </div>
           <div className="mt-1 text-sm text-muted-foreground">
@@ -88,10 +87,10 @@ export function ServiceRow(props: ServiceRowProps) {
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           {/* L1：部署（唯一 primary 实心按钮，视觉强调） */}
-          <button
+          <Button
+            size="sm"
             onClick={handleDeploy}
             disabled={deployingServiceId === service.id}
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {deployingServiceId === service.id
               ? queueDeploymentRuns
@@ -100,19 +99,20 @@ export function ServiceRow(props: ServiceRowProps) {
               : queueDeploymentRuns
                 ? t('joinDeployQueue')
                 : t('generateDeployPlan')}
-          </button>
+          </Button>
           {/* L2：状态查询（高频只读操作，outline 外露） */}
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => handleRun('status')}
             disabled={runningOperation === `${service.id}:status`}
-            className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
           >
             {runningOperation === `${service.id}:status`
               ? t('generating')
               : queueServiceOperations
-                ? t('operationEnqueue', { label: operationLabels.status })
-                : operationLabels.status}
-          </button>
+                ? t('operationEnqueue', { label: getOperationLabel(t, 'status') })
+                : getOperationLabel(t, 'status')}
+          </Button>
           {/* 其余操作收敛进菜单：日志/重启/回滚 × 计划环境 + 重启/回滚 × 申请 Live */}
           <ServiceActionMenu
             serviceId={service.id}
@@ -140,22 +140,31 @@ export function ServiceRow(props: ServiceRowProps) {
                 className="flex flex-wrap items-center justify-between gap-2 text-xs"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{operationLabels[run.action] || run.action}</span>
+                  <span className="font-medium">{getOperationLabel(t, run.action)}</span>
                   <StatusTag
                     status={run.status}
-                    label={getOperationStatusLabel(run.status)}
+                    label={getOperationStatusLabel(t, run.status)}
                   />
-                  <span className="text-muted-foreground">{run.dryRun ? 'Dry-run' : 'Live'}</span>
+                  <span className="text-muted-foreground">
+                    {run.dryRun ? t('modeDryRun') : t('modeLive')}
+                  </span>
                   {run.serverExecutionJob ? (
                     <Link
                       href="/execution-governance"
                       className="text-primary hover:underline"
                     >
-                      Job {run.serverExecutionJob.id.slice(0, 8)} ·{' '}
-                      {getOperationStatusLabel(run.serverExecutionJob.status)}
+                      {t('jobLabel')} #{run.serverExecutionJob.id.slice(0, 8)} ·{' '}
+                      {getOperationStatusLabel(t, run.serverExecutionJob.status)}
                     </Link>
                   ) : null}
-                  {run.error ? <span className="text-destructive">{run.error}</span> : null}
+                  {run.error ? (
+                    <span
+                      className="max-w-[16rem] truncate text-destructive"
+                      title={run.error}
+                    >
+                      {run.error}
+                    </span>
+                  ) : null}
                 </div>
                 <span className="text-muted-foreground">{formatDate(run.startedAt)}</span>
               </div>

@@ -135,13 +135,13 @@ function StepIndicator({
         {steps.map((step, index) => (
           <div
             key={step.id}
-            className="flex items-center"
+            className="flex min-w-0 flex-1 items-center last:flex-none"
           >
             <button
               onClick={() => onSelect(index)}
               disabled={index > maxSelectable}
               className={cn(
-                'flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium transition-colors',
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium transition-colors',
                 'disabled:cursor-not-allowed disabled:opacity-50',
                 index === current
                   ? 'bg-primary text-primary-foreground'
@@ -154,14 +154,20 @@ function StepIndicator({
             </button>
             <span
               className={cn(
-                'ml-2 text-sm font-medium',
+                'ml-2 truncate text-sm font-medium',
                 index === current ? 'text-foreground' : 'text-muted-foreground',
               )}
+              title={step.title}
             >
               {step.title}
             </span>
             {index < steps.length - 1 ? (
-              <div className={cn('mx-4 h-0.5 w-12', index < current ? 'bg-primary' : 'bg-muted')} />
+              <div
+                className={cn(
+                  'mx-3 h-0.5 min-w-4 flex-1',
+                  index < current ? 'bg-primary' : 'bg-muted',
+                )}
+              />
             ) : null}
           </div>
         ))}

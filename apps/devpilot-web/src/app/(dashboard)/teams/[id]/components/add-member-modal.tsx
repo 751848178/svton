@@ -9,7 +9,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal } from '@/components/ui';
+import { Button, Input, Modal, Select } from '@/components/ui';
 import type { MemberRole } from '@/store/hooks';
 
 interface AddMemberModalProps {
@@ -53,39 +53,34 @@ export function AddMemberModal({ open, onClose, onAdd }: AddMemberModalProps) {
           <span className="mb-1 block font-medium">
             {t('memberEmail')} <span className="text-destructive">*</span>
           </span>
-          <input
+          <Input
             type="email"
             {...register('email')}
             placeholder={t('memberEmailPlaceholder')}
-            className="w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             autoFocus
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('role')}</span>
-          <select
-            {...register('role')}
-            className="w-full rounded-md border px-3 py-2"
-          >
+          <Select {...register('role')}>
             <option value="member">{t('member')}</option>
             <option value="admin">{t('admin')}</option>
-          </select>
+          </Select>
         </label>
         <div className="mt-6 flex justify-end gap-2">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={onClose}
-            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
           >
             {tc('cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={adding || !email.trim()}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {adding ? t('adding') : tc('add')}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

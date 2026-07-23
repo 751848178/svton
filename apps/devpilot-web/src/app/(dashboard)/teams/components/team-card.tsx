@@ -9,6 +9,8 @@
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
+import { Button } from '@/components/ui';
+import { formatDate } from '@/lib/format-date';
 import type { Team } from '@/store/hooks';
 
 interface TeamCardProps {
@@ -37,23 +39,26 @@ export function TeamCard({ team, onManage, onDelete }: TeamCardProps) {
           ) : null}
           <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
             <span>{t('memberCount', { count: team.memberCount || 1 })}</span>
-            <span>{t('createdAtPrefix', { date: new Date(team.createdAt).toLocaleDateString() })}</span>
+            <span>{t('createdAtPrefix', { date: formatDate(team.createdAt) })}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleManage}
-            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
           >
             {t('manage')}
-          </button>
+          </Button>
           {team.myRole === 'owner' ? (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleDelete}
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10"
+              className="text-destructive hover:bg-destructive/10"
             >
               {tc('delete')}
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>

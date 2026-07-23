@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { ErrorBanner } from '@/components/ui';
+import { Button, ErrorBanner, Input, Textarea } from '@/components/ui';
 import { useProjectConfigStore } from '@/store/hooks';
 import { validatePackageNameKey } from './package-name';
 
@@ -33,12 +33,11 @@ export function StepBasicInfo({ onNext }: StepProps) {
         <label className="mb-2 block text-sm font-medium">
           {t('projectName')} <span className="text-destructive">*</span>
         </label>
-        <input
+        <Input
           type="text"
           value={config.basicInfo.name}
           onChange={(e) => handleNameChange(e.target.value)}
           placeholder="my-awesome-project"
-          className="w-full rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
         />
         {nameError ? (
           <ErrorBanner
@@ -50,23 +49,22 @@ export function StepBasicInfo({ onNext }: StepProps) {
       </div>
       <div>
         <label className="mb-2 block text-sm font-medium">{t('orgName')}</label>
-        <input
+        <Input
           type="text"
           value={config.basicInfo.orgName}
           onChange={(e) => handleOrgChange(e.target.value)}
           placeholder={config.basicInfo.name || 'my-org'}
-          className="w-full rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
         />
         <p className="mt-1 text-sm text-muted-foreground">{t('orgNameHint')}</p>
       </div>
       <div>
         <label className="mb-2 block text-sm font-medium">{t('projectDescription')}</label>
-        <textarea
+        <Textarea
           value={config.basicInfo.description}
           onChange={(e) => setBasicInfo({ description: e.target.value })}
           placeholder={t('projectDescriptionPlaceholder')}
           rows={3}
-          className="w-full resize-none rounded-md border bg-background px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+          className="resize-none"
         />
       </div>
       <div>
@@ -91,13 +89,12 @@ export function StepBasicInfo({ onNext }: StepProps) {
         </div>
       </div>
       <div className="flex justify-end pt-4">
-        <button
+        <Button
           onClick={handleNext}
           disabled={!config.basicInfo.name || !!nameError}
-          className="rounded-md bg-primary px-6 py-2 font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t('next')}
-        </button>
+        </Button>
       </div>
     </div>
   );

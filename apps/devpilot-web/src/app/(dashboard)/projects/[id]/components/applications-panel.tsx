@@ -25,7 +25,7 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
   return (
     <div className="rounded-lg border p-4">
       <div className="mb-3">
-        <h3 className="font-semibold">{t('linkedApps')}</h3>
+        <h3 className="text-base font-semibold">{t('linkedApps')}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{t('applicationsPanelDescription')}</p>
       </div>
       <div className="space-y-3">

@@ -1,6 +1,5 @@
 'use client';
 
-import { Suspense as ReactSuspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
@@ -11,12 +10,7 @@ import { CreateAppForm } from './components/create-app-form';
 import { CreateServiceForm } from './components/create-service-form';
 import { ApplicationCard } from './components/application-card';
 import { ApplicationsPageActions } from './components/applications-page-actions.component';
-
-// React 19 类型下 Suspense 跨包 JSX 校验差异，用类型断言绕过（TS2786）
-const Suspense = ReactSuspense as unknown as (props: {
-  fallback: React.ReactNode;
-  children: React.ReactNode;
-}) => JSX.Element;
+import { TypedSuspense as Suspense } from './components/suspense';
 
 function ApplicationsContent() {
   const t = useTranslations('applications');
@@ -117,13 +111,19 @@ function ApplicationsContent() {
         />
       ) : null}
       {serviceSloError ? (
-        <ErrorBanner
-          message={serviceSloError}
-          onRetry={handleRetry}
-        />
+        <p className="text-xs text-muted-foreground">
+          {t('sloSummary')}: {serviceSloError}
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="text-primary hover:underline ml-2"
+          >
+            {tc('retry')}
+          </button>
+        </p>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <MetricCard
           label={t('metricApps')}
           value={stats.applications}
@@ -137,8 +137,12 @@ function ApplicationsContent() {
           value={stats.environments}
         />
         <MetricCard
-          label={t('metricDeploymentsOps')}
-          value={stats.deployments + stats.operations}
+          label={t('metricDeployments')}
+          value={stats.deployments}
+        />
+        <MetricCard
+          label={t('metricOperations')}
+          value={stats.operations}
         />
       </div>
 
