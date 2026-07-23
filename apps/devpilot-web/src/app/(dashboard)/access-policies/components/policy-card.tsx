@@ -9,6 +9,7 @@
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
+import { Button } from '@/components/ui';
 import type { AccessPolicy } from '../types';
 import { formatPrincipal, formatScope, formatList } from '../utils';
 
@@ -47,8 +48,8 @@ export function PolicyCard({ policy, actingId, onEdit, onToggle, onDelete }: Pol
             <span>{formatPrincipal(policy)}</span>
             <span>{formatScope(policy)}</span>
             <span>{t('category', { value: formatList(policy.categories) })}</span>
-            <span>Action {formatList(policy.actions)}</span>
-            <span>Risk {formatList(policy.riskLevels)}</span>
+            <span>{t('action')} {formatList(policy.actions)}</span>
+            <span>{t('risk')} {formatList(policy.riskLevels)}</span>
             <span>{t('priorityValue', { value: policy.priority })}</span>
           </div>
         </div>
@@ -66,13 +67,14 @@ export function PolicyCard({ policy, actingId, onEdit, onToggle, onDelete }: Pol
           >
             {policy.enabled ? t('disable') : t('enable')}
           </button>
-          <button
+          <Button
+            variant="destructive"
+            size="sm"
             onClick={handleDelete}
             disabled={actingId === `${policy.id}:delete`}
-            className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
           >
             {tc('delete')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -81,7 +81,8 @@ function OverviewCard({
   hint?: string;
   tone?: OverviewTone;
 }) {
-  const valueClass = tone === 'danger' ? 'text-red-600' : tone === 'warning' ? 'text-yellow-700' : '';
+  const valueClass =
+    tone === 'danger' ? 'text-destructive' : tone === 'warning' ? 'text-warning' : '';
   return (
     <div className="rounded-lg border p-4">
       <div className="text-sm text-muted-foreground">{label}</div>

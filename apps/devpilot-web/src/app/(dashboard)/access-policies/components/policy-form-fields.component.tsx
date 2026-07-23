@@ -132,15 +132,15 @@ export function PolicyFormFields({
           value={form.categories}
           onChange={(e) => onChange({ categories: e.target.value })}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder="deployment, site, resource_action"
+          placeholder={t('categoriesPlaceholder')}
         />
       </Field>
-      <Field label="Action">
+      <Field label={t('action')}>
         <input
           value={form.actions}
           onChange={(e) => onChange({ actions: e.target.value })}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder="deployment.run, site.*, *"
+          placeholder={t('actionPlaceholder')}
         />
       </Field>
       <Field label={t('riskLevels')}>
@@ -148,7 +148,7 @@ export function PolicyFormFields({
           value={form.riskLevels}
           onChange={(e) => onChange({ riskLevels: e.target.value })}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder="medium, high"
+          placeholder={t('riskLevelsPlaceholder')}
         />
       </Field>
       <label className="flex items-center gap-2 pt-7 text-sm">

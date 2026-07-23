@@ -23,7 +23,7 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
           <input
             value={t.redactionExtraKeys}
             onChange={(e) => t.setRedactionExtraKeys(e.target.value)}
-            placeholder="password, token"
+            placeholder={tl('extraKeysPlaceholder')}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </label>

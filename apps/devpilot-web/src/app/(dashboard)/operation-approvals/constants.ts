@@ -11,6 +11,23 @@ export const categoryLabels: Record<string, string> = {
   site_sync: '站点同步',
 };
 
+/**
+ * 机器动作键（如 resource.start、deployment.run）的可读映射。
+ * 命中失败时由 humanizeAction 兜底（去前缀 + 首字母大写）。
+ */
+export const actionLabels: Record<string, string> = {
+  'deployment.run': '执行部署',
+  'deployment.rollback': '回滚部署',
+  'site.sync': '同步站点',
+  'site.rollback': '回滚站点',
+  'resource.start': '启动资源',
+  'resource.stop': '停止资源',
+  'resource.restart': '重启资源',
+  'application-service.start': '启动服务',
+  'application-service.stop': '停止服务',
+  'application-service.restart': '重启服务',
+};
+
 export const statusLabels: Record<string, string> = {
   pending: '待审批',
   approved: '已批准',
@@ -23,10 +40,3 @@ export const riskLabels: Record<string, string> = {
   medium: '中风险',
   high: '高风险',
 };
-
-export const STATUS_OPTIONS = [
-  { value: 'pending', label: '待审批' },
-  { value: 'approved', label: '已批准' },
-  { value: 'rejected', label: '已拒绝' },
-  { value: 'all', label: '全部' },
-];

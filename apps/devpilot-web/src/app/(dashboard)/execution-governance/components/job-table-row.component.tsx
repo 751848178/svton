@@ -3,7 +3,12 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { ServerExecutionJob } from '../types';
-import { canCancel, canRetry, formatDate, formatJsonDetail, isStaleRunning, shortId } from '../utils';
+import { canRetry, canCancel, formatDate, formatJsonDetail, isStaleRunning, shortId } from '../utils';
+import {
+  humanizeOperationKey,
+  humanizeAdapterKey,
+  humanizeEnumValue,
+} from '../utils-labels';
 import {
   AgentDispatchSummary,
   ExecutionTargetSummary,
@@ -24,6 +29,15 @@ export function JobTableRow({ job, actingJobId, onRetry, onCancel }: JobTableRow
   const [expanded, setExpanded] = useState(false);
   const retryable = canRetry(job);
   const cancellable = canCancel(job);
+  const operation = humanizeOperationKey(job.operationKey);
+  const adapter = humanizeAdapterKey(job.adapterKey);
+  const queueMode = humanizeEnumValue(job.queueMode);
+  const extraTimes = [
+    { label: t('timeAvailable'), value: formatDate(job.availableAt) },
+    { label: t('timeHeartbeat'), value: formatDate(job.lastHeartbeatAt) },
+    { label: t('timeLockExpires'), value: formatDate(job.lockExpiresAt) },
+  ].filter((item) => item.value && item.value !== '-');
+  const extraCount = extraTimes.length;
 
   return (
     <>
@@ -36,9 +50,9 @@ export function JobTableRow({ job, actingJobId, onRetry, onCancel }: JobTableRow
           <div className="font-mono text-xs text-muted-foreground">{job.server?.host || '-'}</div>
         </td>
         <td className="px-4 py-3">
-          <div className="font-medium">{job.operationKey}</div>
+          <div className="font-medium">{operation}</div>
           <div className="font-mono text-xs text-muted-foreground">
-            {job.adapterKey} · {job.queueMode}
+            {adapter} · {queueMode}
           </div>
           <ExecutionTargetSummary job={job} />
           <AgentDispatchSummary result={job.result} />
@@ -46,16 +60,16 @@ export function JobTableRow({ job, actingJobId, onRetry, onCancel }: JobTableRow
             <button
               type="button"
               onClick={() => setExpanded(true)}
-              className="mt-1 block max-w-xs truncate text-left text-xs text-red-600 underline-offset-2 hover:underline"
+              className="mt-1 block max-w-xs truncate text-left text-xs text-destructive underline-offset-2 hover:underline"
             >
               {job.error}
             </button>
           ) : null}
           {job.cancelRequestedAt ? (
-            <div className="mt-1 text-xs text-yellow-700">{t('cancelRequested')}</div>
+            <div className="mt-1 text-xs text-warning">{t('cancelRequested')}</div>
           ) : null}
           {isStaleRunning(job) ? (
-            <div className="mt-1 text-xs text-red-600">{t('leaseExpired')}</div>
+            <div className="mt-1 text-xs text-destructive">{t('leaseExpired')}</div>
           ) : null}
           {job.recoveryCount > 0 ? (
             <div className="mt-1 text-xs text-muted-foreground">
@@ -65,9 +79,7 @@ export function JobTableRow({ job, actingJobId, onRetry, onCancel }: JobTableRow
           <RemoteExecutionSummary metadata={job.metadata} />
         </td>
         <td className="px-4 py-3">
-          <div>
-            {job.attempt}/{job.maxAttempts}
-          </div>
+          <div>{t('jobAttemptLegend', { attempt: job.attempt, max: job.maxAttempts })}</div>
           <div className="text-xs text-muted-foreground">
             {job.retryOf ? t('retryOfId', { id: shortId(job.retryOf.id) }) : t('originalJob')}
           </div>
@@ -75,11 +87,19 @@ export function JobTableRow({ job, actingJobId, onRetry, onCancel }: JobTableRow
         <td className="px-4 py-3">{job.actor?.name || job.actor?.email || '-'}</td>
         <td className="px-4 py-3 text-xs text-muted-foreground">
           <div>{t('timeQueued', { value: formatDate(job.queuedAt) })}</div>
-          <div>{t('timeAvailable', { value: formatDate(job.availableAt) })}</div>
-          <div>{t('timeHeartbeat', { value: formatDate(job.lastHeartbeatAt) })}</div>
-          <div>{t('timeLockExpires', { value: formatDate(job.lockExpiresAt) })}</div>
           <div>{t('timeStarted', { value: formatDate(job.startedAt) })}</div>
-          <div>{t('timeFinished', { value: formatDate(job.finishedAt) })}</div>
+          {/* 结束时间对 completed/failed 任务很重要，与 startedAt 一并可见而非折叠进 tooltip。 */}
+          {job.finishedAt ? (
+            <div>{t('timeFinished', { value: formatDate(job.finishedAt) })}</div>
+          ) : null}
+          {extraCount > 0 ? (
+            <div
+              className="mt-0.5 cursor-help"
+              title={extraTimes.map((item) => `${item.label} ${item.value}`).join('\n')}
+            >
+              {t('jobMoreTimes', { count: extraCount })}
+            </div>
+          ) : null}
         </td>
         <td className="px-4 py-3">
           <div className="flex flex-wrap gap-2">
@@ -121,7 +141,7 @@ export function JobTableRow({ job, actingJobId, onRetry, onCancel }: JobTableRow
               {job.error ? (
                 <div>
                   <div className="font-medium text-foreground">{t('detailError')}</div>
-                  <pre className="mt-1 whitespace-pre-wrap break-all rounded-md border border-red-200 bg-red-50 p-3 text-red-700">
+                  <pre className="mt-1 whitespace-pre-wrap break-all rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive">
                     {job.error}
                   </pre>
                 </div>

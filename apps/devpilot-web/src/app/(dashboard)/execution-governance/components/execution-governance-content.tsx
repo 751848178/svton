@@ -5,7 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState } from '@svton/ui';
-import { PageHeader, ErrorBanner } from '@/components/ui';
+import { PageHeader, ErrorBanner, Button } from '@/components/ui';
+import { ActionMenu } from '@/components/ui/action-menu';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useExecutionGovernance } from '../hooks/use-execution-governance';
 import { GovernanceOverview } from './overview-cards';
@@ -74,34 +75,42 @@ function ExecutionGovernanceInner() {
         title={t('pageTitle')}
         description={t('pageDescription')}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <button
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
               onClick={processNextQueuedJob}
               disabled={processingQueue}
-              className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent disabled:opacity-50"
+              loading={processingQueue}
             >
-              {processingQueue ? t('processing') : t('processQueue')}
-            </button>
-            <button
-              onClick={recoverStaleJobs}
-              disabled={recoveringStale}
-              className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent disabled:opacity-50"
-            >
-              {recoveringStale ? t('recovering') : t('recoverZombie')}
-            </button>
-            <button
-              onClick={expireStale}
-              disabled={actingLease}
-              className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent disabled:opacity-50"
-            >
-              {actingLease ? t('processing') : t('releaseExpired')}
-            </button>
-            <button
-              onClick={handleRetry}
-              className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent"
-            >
-              {tc('refresh')}
-            </button>
+              {t('processQueue')}
+            </Button>
+            <ActionMenu
+              triggerLabel={t('moreActions')}
+              groups={[
+                {
+                  items: [
+                    {
+                      key: 'recoverZombie',
+                      label: recoveringStale ? t('recovering') : t('recoverZombie'),
+                      disabled: recoveringStale,
+                      onSelect: recoverStaleJobs,
+                    },
+                    {
+                      key: 'releaseExpired',
+                      label: actingLease ? t('processing') : t('releaseExpired'),
+                      disabled: actingLease,
+                      onSelect: expireStale,
+                    },
+                    {
+                      key: 'refresh',
+                      label: tc('refresh'),
+                      onSelect: handleRetry,
+                    },
+                  ],
+                },
+              ]}
+            />
           </div>
         }
       />

@@ -57,14 +57,16 @@ export function useBackups() {
     load();
   }, [load]);
 
-  const createPlan = usePersistFn(async (input: BackupPlanInput) => {
+  const createPlan = usePersistFn(async (input: BackupPlanInput): Promise<boolean> => {
     setCreating(true);
     setError('');
     try {
       await apiRequest('POST:/backups/plans', input);
       await load({ keepLoading: false });
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建备份计划失败');
+      return false;
     } finally {
       setCreating(false);
     }

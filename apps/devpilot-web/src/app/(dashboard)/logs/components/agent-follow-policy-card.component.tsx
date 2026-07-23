@@ -33,7 +33,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
             checked={policy.live}
             onChange={(e) => policy.setLive(e.target.checked)}
           />
-          Live
+          {t('live')}
         </label>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -55,7 +55,7 @@ export function AgentFollowPolicyCard({ logs }: { logs: LogsHook }) {
       </label>
       <div className="grid grid-cols-3 gap-2">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">Tail</span>
+          <span className="mb-1 block font-medium">{t('tailLabel')}</span>
           <input
             type="number"
             value={policy.tail}

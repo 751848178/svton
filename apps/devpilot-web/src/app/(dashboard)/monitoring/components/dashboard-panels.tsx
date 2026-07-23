@@ -2,11 +2,13 @@
 'use client';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { EmptyState } from '@svton/ui';
+import { EmptyState, LoadingState, Skeleton } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useMonitoring } from '../hooks/use-monitoring';
+import { resourceKindLabels, metricSourceLabels, statusLabels } from '../constants';
+import { formatMetricWindow, humanizeKey } from '../utils-format';
+import { ServiceSloRow } from './service-slo-row';
 import type { ServiceSloDashboardRow } from '../types-dashboard';
-import { formatMetricNumber, formatMetricWindow, formatPercent } from '../utils-format';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
 
 export function DashboardPanels({ m }: { m: MonitoringHook }) {
@@ -24,8 +26,11 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
             onChange={m.setResourceMetricDashboardWindow}
           />
         </div>
-        {!m.resourceMetricDashboard ? (
-          <EmptyState text={t('noResourceMetrics')} />
+        {/* 初次加载（loading）走骨架；切窗期间数据为 null 走轻量 LoadingState。 */}
+        {m.loading ? (
+          <SkeletonGroup />
+        ) : !m.resourceMetricDashboard ? (
+          <LoadingState text={t('noResourceMetrics')} spinner={false} />
         ) : (
           <div className="space-y-2">
             {m.resourceMetricDashboard.rows.slice(0, 10).map((row) => (
@@ -34,10 +39,19 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
                 className="flex flex-wrap items-center justify-between gap-2 text-sm"
               >
                 <span className="min-w-0 break-words">
-                  {row.kind} ({row.metricSource})
+                  {resourceKindLabels[row.kind] || humanizeKey(row.kind)}{' '}
+                  <span className="text-muted-foreground">
+                    ({metricSourceLabels[row.metricSource] || humanizeKey(row.metricSource)})
+                  </span>
                 </span>
-                <span className="shrink-0 text-muted-foreground">
-                  {row.status} · {t('samples', { count: row.sampleCount })}
+                <span className="flex shrink-0 items-center gap-2">
+                  <StatusTag
+                    status={row.status}
+                    label={statusLabels[row.status] || row.status}
+                  />
+                  <span className="text-muted-foreground">
+                    {t('samples', { count: row.sampleCount })}
+                  </span>
                 </span>
               </div>
             ))}
@@ -73,8 +87,10 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
             ) : null}
           </div>
         </div>
-        {!m.serviceSloDashboard ? (
-          <EmptyState text={t('noSloData')} />
+        {m.loading ? (
+          <SkeletonGroup />
+        ) : !m.serviceSloDashboard ? (
+          <LoadingState text={t('noSloData')} spinner={false} />
         ) : serviceRows.length === 0 ? (
           <EmptyState
             text={m.applicationServiceId ? t('noTargetServiceSloData') : t('noSloData')}
@@ -82,65 +98,28 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
         ) : (
           <div className="space-y-3">
             {serviceRows.slice(0, m.applicationServiceId ? 5 : 10).map((row) => (
-              <div
+              <ServiceSloRow
                 key={row.id}
-                className="rounded-md bg-muted/40 p-3"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="break-words font-medium">
-                      {row.service.application?.name ? `${row.service.application.name} / ` : ''}
-                      {row.service.name}
-                    </div>
-                    <div className="mt-1 break-words text-xs text-muted-foreground">
-                      {row.service.project?.name || row.projectId} ·{' '}
-                      {row.service.environment?.name || row.environmentId}
-                    </div>
-                  </div>
-                  <StatusTag
-                    status={row.status}
-                    label={row.status === 'no_data' ? t('noData') : row.status}
-                  />
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  <ServiceSloMetric
-                    label="SLO"
-                    value={formatPercent(row.sloPercent)}
-                  />
-                  <ServiceSloMetric
-                    label={t('target')}
-                    value={formatPercent(row.targetPercent)}
-                  />
-                  <ServiceSloMetric
-                    label={t('errorBudget')}
-                    value={formatPercent(row.errorBudgetRemainingPercent)}
-                  />
-                  <ServiceSloMetric
-                    label={t('burnRate')}
-                    value={formatMetricNumber(row.burnRate)}
-                  />
-                  <ServiceSloMetric
-                    label={t('deployFailure')}
-                    value={`${row.deploymentFailureCount}/${row.deploymentCount}`}
-                  />
-                  <ServiceSloMetric
-                    label={t('operationFailure')}
-                    value={`${row.operationFailureCount}/${row.operationCount}`}
-                  />
-                  <ServiceSloMetric
-                    label={t('alertImpact')}
-                    value={String(row.alertImpactCount)}
-                  />
-                  <ServiceSloMetric
-                    label={t('statusReason')}
-                    value={row.statusReason}
-                  />
-                </div>
-              </div>
+                row={row}
+              />
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** 资源指标面板的加载骨架（4 行占位）。 */
+function SkeletonGroup() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton
+          key={i}
+          height={24}
+        />
+      ))}
     </div>
   );
 }
@@ -161,15 +140,6 @@ function readFocusedServiceLabel(
       : row.service.name;
   }
   return m.applicationServiceId;
-}
-
-function ServiceSloMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className="truncate text-xs font-medium">{value}</div>
-    </div>
-  );
 }
 
 const WINDOW_OPTIONS: Array<{ minutes: number; label: string }> = [

@@ -18,7 +18,7 @@ export function ExecutionTargetSummary({ job }: { job: ServerExecutionJob }) {
   const target = readExecutionTarget(job);
   const isAgentTarget = target.transport === 'server_agent';
   const transportClass = isAgentTarget
-    ? 'bg-indigo-50 text-indigo-700 ring-indigo-200'
+    ? 'bg-info/10 text-info ring-info/30'
     : 'bg-muted text-muted-foreground ring-border';
 
   return (
@@ -40,7 +40,7 @@ export function ExecutionTargetSummary({ job }: { job: ServerExecutionJob }) {
           {target.agentRef.status ? <span> · {target.agentRef.status}</span> : null}
         </span>
       ) : isAgentTarget ? (
-        <span className="text-yellow-700">{t('agentRefMissing')}</span>
+        <span className="text-warning">{t('agentRefMissing')}</span>
       ) : null}
     </div>
   );
@@ -56,7 +56,7 @@ export function RemoteExecutionSummary({
   if (!remoteExecution) return null;
 
   return (
-    <div className="mt-2 space-y-1 border-l-2 border-indigo-200 pl-2 text-xs">
+    <div className="mt-2 space-y-1 border-l-2 border-info/30 pl-2 text-xs">
       {remoteExecution.session ? (
         <div className="text-muted-foreground">
           <span className="font-medium text-foreground">
@@ -96,7 +96,11 @@ function RemoteCleanupLine({ label, cleanup }: { label: string; cleanup: RemoteE
   const t = useTranslations('executionGovernance');
   const succeeded = cleanup.succeeded === true;
   const failed = cleanup.succeeded === false;
-  const statusClass = succeeded ? 'text-green-700' : failed ? 'text-red-600' : 'text-yellow-700';
+  const statusClass = succeeded
+    ? 'text-success'
+    : failed
+      ? 'text-destructive'
+      : 'text-warning';
   const statusText = !cleanup.attempted
     ? t('cleanupNotAttempted')
     : succeeded
@@ -110,7 +114,7 @@ function RemoteCleanupLine({ label, cleanup }: { label: string; cleanup: RemoteE
       {label}：{statusText}
       {cleanup.pid ? <span> · PID {cleanup.pid}</span> : null}
       {cleanup.reason ? <span> · {formatCleanupReason(cleanup.reason)}</span> : null}
-      {cleanup.error ? <span className="text-red-600"> · {cleanup.error}</span> : null}
+      {cleanup.error ? <span className="text-destructive"> · {cleanup.error}</span> : null}
     </div>
   );
 }

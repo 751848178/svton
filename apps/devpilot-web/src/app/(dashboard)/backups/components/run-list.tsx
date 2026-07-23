@@ -13,7 +13,7 @@ import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { BackupRestoreTarget, BackupRun } from '../types';
 import { statusLabels } from '../constants';
-import { formatResource, formatDate, canRestoreBackupRun } from '../utils';
+import { formatResource, formatDate, canRestoreBackupRun, humanizeKey, shortId } from '../utils';
 
 interface RunListProps {
   runs: BackupRun[];
@@ -60,7 +60,12 @@ function RunRow({
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{runName}</div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {run.executorKey} · {run.adapterKey} · {run.dryRun ? t('dryRun') : t('live')}
+            <span className="text-muted-foreground/80">
+              {t('executorLabel', { value: humanizeKey(run.executorKey) })} ·{' '}
+              {t('adapterLabel', { value: humanizeKey(run.adapterKey) })}
+            </span>
+            {' · '}
+            {run.dryRun ? t('dryRun') : t('live')}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -87,7 +92,7 @@ function RunRow({
             href="/execution-governance"
             className="text-primary hover:underline"
           >
-            Job {run.serverExecutionJob.id.slice(0, 8)} ·{' '}
+            {t('jobLabel', { value: shortId(run.serverExecutionJob.id) })} ·{' '}
             {statusLabels[run.serverExecutionJob.status] || run.serverExecutionJob.status}
           </Link>
         </div>

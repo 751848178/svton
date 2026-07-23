@@ -14,15 +14,16 @@ interface PatternPreviewProps {
 }
 
 export function PatternPreview({ allowed, blocked }: PatternPreviewProps) {
+  const t = useTranslations('executionPolicies');
   if (allowed.length === 0 && blocked.length === 0) return null;
   return (
     <div className="mt-4 grid gap-3 md:grid-cols-2">
       <PatternList
-        title="Allow"
+        title={t('allowLabel')}
         items={allowed}
       />
       <PatternList
-        title="Block"
+        title={t('blockLabel')}
         items={blocked}
       />
     </div>

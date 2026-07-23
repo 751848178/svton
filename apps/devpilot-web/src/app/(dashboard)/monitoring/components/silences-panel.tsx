@@ -5,6 +5,8 @@ import { useBoolean } from '@svton/hooks';
 import { EmptyState, Tag } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { CreateSilenceModal } from './create-silence-modal';
+import { severityLabels } from '../constants';
+import { shortId } from '../utils-format';
 import type { useMonitoring } from '../hooks/use-monitoring';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
 
@@ -32,15 +34,24 @@ export function SilencesPanel({ m }: { m: MonitoringHook }) {
               className="px-4 py-3"
             >
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-medium">{silence.name || silence.id.slice(0, 8)}</h3>
+                <div className="min-w-0">
+                  {silence.name ? (
+                    <h3 className="font-medium">{silence.name}</h3>
+                  ) : (
+                    <h3 className="font-medium">
+                      {t('unnamedSilence')}{' '}
+                      <span className="font-normal text-muted-foreground">
+                        #{shortId(silence.id)}
+                      </span>
+                    </h3>
+                  )}
                   <div className="mt-1 flex gap-1">
                     {(silence.severityFilter ?? []).map((sev: string) => (
                       <Tag
                         key={sev}
                         color="default"
                       >
-                        {sev}
+                        {severityLabels[sev] || sev}
                       </Tag>
                     ))}
                   </div>

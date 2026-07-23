@@ -8,10 +8,15 @@
 
 import { usePersistFn } from '@svton/hooks';
 import { useTranslations } from 'next-intl';
-import { StatusTag } from '@/components/ui';
+import { StatusTag, CodeBlock } from '@/components/ui';
 import type { OperationApproval, ApprovalDecision } from '../types';
-import { categoryLabels, statusLabels, riskLabels } from '../constants';
-import { formatTarget, formatDateTime, readMetadataString } from '../utils';
+import { categoryLabels, statusLabels, riskLabels, actionLabels } from '../constants';
+import {
+  formatTarget,
+  formatDateTime,
+  readMetadataString,
+  humanizeAction,
+} from '../utils';
 
 interface ApprovalCardProps {
   approval: OperationApproval;
@@ -27,13 +32,14 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
   const handleExecute = usePersistFn(() => onExecute(approval));
 
   const diffSummary = readMetadataString(approval.metadata, 'diffSummary');
+  const actionLabel = humanizeAction(approval.action, actionLabels);
 
   return (
     <div className="rounded-lg border p-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-medium">{approval.summary || approval.action}</h3>
+            <h3 className="font-medium">{approval.summary || actionLabel}</h3>
             <StatusTag
               status={approval.status}
               label={statusLabels[approval.status] || approval.status}
@@ -45,7 +51,7 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
             />
           </div>
           <div className="mt-2 text-sm text-muted-foreground">
-            {categoryLabels[approval.category] || approval.category} · {approval.action}
+            {categoryLabels[approval.category] || approval.category} · {actionLabel}
           </div>
           <div className="mt-1 text-sm text-muted-foreground">{t('target', { target: formatTarget(approval) })}</div>
           <div className="mt-1 text-xs text-muted-foreground">
@@ -58,7 +64,11 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
             <div className="mt-2 rounded-md bg-muted/50 p-2 text-sm">{approval.reason}</div>
           ) : null}
           {diffSummary ? (
-            <div className="mt-2 rounded-md bg-muted/50 p-2 font-mono text-xs">{diffSummary}</div>
+            <CodeBlock
+              tone="muted"
+              content={diffSummary}
+              className="mt-2"
+            />
           ) : null}
           <div className="mt-2 text-xs text-muted-foreground">
             {t('requester', { name: approval.requester?.name || approval.requester?.email || '-' })}{' '}

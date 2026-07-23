@@ -10,12 +10,14 @@ import { useTranslations } from 'next-intl';
 import { ErrorBanner, Modal } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { categoryLabels, metricLabels, severityLabels } from '../constants';
+import { FieldLabel, ModalFormFooter } from './modal-form-fields';
 
 interface CreateRuleFormValues {
   name: string;
   category: string;
   metric: string;
   severity: string;
+  thresholdDays: string;
   condition: string;
   enabled: boolean;
 }
@@ -31,16 +33,21 @@ interface CreateRuleModalProps {
 export function CreateRuleModal({ open, creating, error, onClose, onCreate }: CreateRuleModalProps) {
   const t = useTranslations('monitoring');
   const tc = useTranslations('common');
-  const { register, handleSubmit, setError, formState, reset } = useForm<CreateRuleFormValues>({
+  const { register, handleSubmit, setError, watch, formState, reset } = useForm<CreateRuleFormValues>({
     defaultValues: {
       name: '',
       category: 'service',
       metric: 'service_status',
       severity: 'warning',
+      thresholdDays: '',
       condition: '',
       enabled: true,
     },
   });
+
+  // 仅 certificate_expiry 提供结构化 thresholdDays 字段；其余指标 thresholdDays 无意义。
+  const metric = watch('metric');
+  const showThresholdDays = metric === 'certificate_expiry';
 
   const submit = handleSubmit(async (data) => {
     const body: Record<string, unknown> = {
@@ -50,15 +57,27 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
       enabled: data.enabled,
     };
     if (data.metric) body.metric = data.metric;
+    // 组装 condition：以结构化 thresholdDays 为准（若有），叠加高级 JSON 编辑。
+    let condition: Record<string, unknown> | undefined;
     const conditionText = data.condition.trim();
     if (conditionText) {
       try {
-        body.condition = JSON.parse(conditionText) as Record<string, unknown>;
+        condition = JSON.parse(conditionText) as Record<string, unknown>;
       } catch {
         setError('root', { message: t('formConditionInvalid') });
         return;
       }
     }
+    const thresholdRaw = data.thresholdDays.trim();
+    if (thresholdRaw !== '') {
+      const thresholdDays = Number(thresholdRaw);
+      if (!Number.isFinite(thresholdDays) || thresholdDays <= 0) {
+        setError('root', { message: t('formThresholdDaysInvalid') });
+        return;
+      }
+      condition = { ...(condition ?? {}), thresholdDays };
+    }
+    if (condition) body.condition = condition;
     const ok = await onCreate(body);
     if (ok) {
       feedback.success(t('ruleCreated'));
@@ -87,16 +106,14 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
             variant="inline"
           />
         ) : null}
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{tc('name')}</span>
+        <FieldLabel label={tc('name')}>
           <input
             {...register('name', { required: true })}
             required
             className="min-h-11 w-full rounded-md border px-3"
           />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('formCategory')}</span>
+        </FieldLabel>
+        <FieldLabel label={t('formCategory')}>
           <select
             {...register('category')}
             className="min-h-11 w-full rounded-md border px-3"
@@ -110,9 +127,8 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
               </option>
             ))}
           </select>
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('formMetric')}</span>
+        </FieldLabel>
+        <FieldLabel label={t('formMetric')}>
           <select
             {...register('metric')}
             className="min-h-11 w-full rounded-md border px-3"
@@ -126,9 +142,8 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
               </option>
             ))}
           </select>
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('formSeverity')}</span>
+        </FieldLabel>
+        <FieldLabel label={t('formSeverity')}>
           <select
             {...register('severity')}
             className="min-h-11 w-full rounded-md border px-3"
@@ -142,16 +157,29 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
               </option>
             ))}
           </select>
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('formCondition')}</span>
+        </FieldLabel>
+        {showThresholdDays ? (
+          <FieldLabel label={t('formThresholdDays')}>
+            <input
+              type="number"
+              min={1}
+              {...register('thresholdDays')}
+              className="min-h-11 w-full rounded-md border px-3"
+              placeholder="14"
+            />
+          </FieldLabel>
+        ) : null}
+        <FieldLabel
+          label={t('formConditionAdvanced')}
+          hint={t('formConditionHint')}
+        >
           <textarea
             {...register('condition')}
             rows={3}
             className="w-full rounded-md border px-3 py-2 font-mono text-xs"
             placeholder='{"thresholdDays": 14}'
           />
-        </label>
+        </FieldLabel>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -159,22 +187,11 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
           />
           <span className="font-medium">{t('formEnabled')}</span>
         </label>
-        <div className="flex justify-end gap-2 pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-11 rounded-md border px-4 text-sm font-medium hover:bg-accent"
-          >
-            {tc('cancel')}
-          </button>
-          <button
-            type="submit"
-            disabled={creating || formState.isSubmitting}
-            className="min-h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {creating || formState.isSubmitting ? t('creating') : tc('create')}
-          </button>
-        </div>
+        <ModalFormFooter
+          creating={creating}
+          submitting={formState.isSubmitting}
+          onClose={onClose}
+        />
       </form>
     </Modal>
   );

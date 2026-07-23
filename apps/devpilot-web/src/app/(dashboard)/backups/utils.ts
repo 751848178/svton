@@ -9,6 +9,27 @@ import dayjs from 'dayjs';
 import { providerLabels, kindLabels } from './constants';
 import type { ManagedResource, BackupPlan } from './types';
 
+/**
+ * 把下划线/连字符分隔的标识符转为「首字母大写的词」。
+ *
+ * executorKey/adapterKey 是开放枚举（随资源类型增长），无法穷举映射；
+ * 与 sites/utils-plan.ts 的 humanizeKey 同语义，做最稳健的人性化。
+ */
+export function humanizeKey(value: string): string {
+  return value
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) =>
+      word.length <= 2 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1),
+    )
+    .join(' ');
+}
+
+/** 取 UUID/长串前 8 位作为短标识（仅用于展示，配合 # 前缀）。 */
+export function shortId(id: string): string {
+  return id.slice(0, 8);
+}
+
 /** 判断资源是否可备份（Docker mysql/redis/database 或 阿里云 RDS 数据库）。 */
 export function isBackupableResource(resource: ManagedResource): boolean {
   if (resource.sourceType === 'server' && resource.provider === 'docker') {

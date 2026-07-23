@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { formatNullableRuntimeSeconds } from '../supervisor-orphan-audit-format.utils';
 import { formatWorkerInventoryState } from '../supervisor-worker-format.utils';
+import { humanizeOperationKey } from '../utils-labels';
 import type { ServerExecutionSupervisorSnapshot } from '../supervisor';
 
 type WorkerInventory = ServerExecutionSupervisorSnapshot['workerInventory'];
@@ -21,13 +22,16 @@ export function SupervisorWorkerOwnerSamples({ inventory }: { inventory: WorkerI
           className="border-b pb-3 last:border-b-0 last:pb-0"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="break-all font-mono text-xs">{worker.lockOwner}</div>
+            <div className="font-medium text-foreground">
+              {humanizeOperationKey(worker.sampleJob.operationKey)}
+            </div>
             <div className="text-xs text-muted-foreground">
               {t('ownerJobsSummary', { active: worker.activeJobs, stale: worker.staleJobs })}
             </div>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {worker.sampleJob.operationKey} · {worker.sampleJob.server?.name || t('noServer')}
+            {worker.sampleJob.server?.name || t('noServer')} ·{' '}
+            <span className="font-mono">{worker.lockOwner}</span>
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {formatWorkerInventoryState(worker.status)} ·{' '}

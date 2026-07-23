@@ -16,7 +16,7 @@ import { providerLabels, kindLabels } from '../constants';
 interface PlanFormProps {
   resources: ManagedResource[];
   creating: boolean;
-  onCreate: (input: BackupPlanInput) => void;
+  onCreate: (input: BackupPlanInput) => Promise<boolean>;
 }
 
 interface PlanFormValues {
@@ -45,19 +45,21 @@ export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
   const resourceId = watch('resourceId');
   const selected = resources.find((r) => r.id === resourceId);
 
-  const onSubmit = handleSubmit((data) => {
+  const onSubmit = handleSubmit(async (data) => {
     if (!data.resourceId || !selected) {
       feedback.error(t('selectResourceAlert'));
       return;
     }
-    onCreate({
+    // 仅在创建成功时 reset，失败时保留用户已填值以便修正后重试（createPlan 在底层吞错，
+    // 故由 handleCreate 返回 boolean 明确表达结果，对齐 monitoring create-rule-modal 模式）。
+    const ok = await onCreate({
       resourceId: data.resourceId,
       name: data.name.trim() || t('defaultPlanName', { name: selected.name }),
       backupType: data.backupType === 'auto' ? undefined : data.backupType,
       retentionDays: data.retentionDays,
       destinationType: data.destinationType,
     });
-    reset(DEFAULT_VALUES);
+    if (ok) reset(DEFAULT_VALUES);
   });
 
   return (

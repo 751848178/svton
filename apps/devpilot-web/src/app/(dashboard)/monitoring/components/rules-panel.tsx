@@ -5,8 +5,14 @@ import { useBoolean } from '@svton/hooks';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { CreateRuleModal } from './create-rule-modal';
+import { metricLabels, severityLabels } from '../constants';
+import { humanizeKey } from '../utils-format';
 import type { useMonitoring } from '../hooks/use-monitoring';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
+
+function metricLabel(metric: string): string {
+  return metricLabels[metric] || humanizeKey(metric);
+}
 
 export function RulesPanel({ m }: { m: MonitoringHook }) {
   const t = useTranslations('monitoring');
@@ -35,7 +41,7 @@ export function RulesPanel({ m }: { m: MonitoringHook }) {
                 <div>
                   <h3 className="font-medium">{rule.name}</h3>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {rule.metric} · {rule.severity}
+                    {metricLabel(rule.metric)} · {severityLabels[rule.severity] || rule.severity}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

@@ -15,6 +15,7 @@ import {
   notificationChannelTypeLabels,
   statusLabels,
 } from '../constants';
+import { FieldLabel, ModalFormFooter } from './modal-form-fields';
 
 const EVENT_STATUS_OPTIONS = ['firing', 'error', 'insufficient_data', 'resolved', 'acknowledged'];
 
@@ -103,16 +104,14 @@ export function CreateChannelModal({
           message={error}
           variant="inline"
         />
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{tc('name')}</span>
+        <FieldLabel label={tc('name')}>
           <input
             {...register('name', { required: true })}
             required
             className="min-h-11 w-full rounded-md border px-3"
           />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{tc('type')}</span>
+        </FieldLabel>
+        <FieldLabel label={tc('type')}>
           <select
             {...register('type')}
             className="min-h-11 w-full rounded-md border px-3"
@@ -126,36 +125,33 @@ export function CreateChannelModal({
               </option>
             ))}
           </select>
-        </label>
+        </FieldLabel>
         {isEmail ? (
           <>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">{t('formEmailRecipients')}</span>
+            <FieldLabel label={t('formEmailRecipients')}>
               <input
                 {...register('emailRecipients', { required: isEmail })}
                 required={isEmail}
                 className="min-h-11 w-full rounded-md border px-3"
                 placeholder={notificationChannelTargetPlaceholders.email}
               />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">{t('formEmailSubjectPrefix')}</span>
+            </FieldLabel>
+            <FieldLabel label={t('formEmailSubjectPrefix')}>
               <input
                 {...register('emailSubjectPrefix')}
                 className="min-h-11 w-full rounded-md border px-3"
               />
-            </label>
+            </FieldLabel>
           </>
         ) : (
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">{t('formWebhookUrl')}</span>
+          <FieldLabel label={t('formWebhookUrl')}>
             <input
               {...register('webhookUrl', { required: !isEmail })}
               required={!isEmail}
               className="min-h-11 w-full rounded-md border px-3"
               placeholder={notificationChannelTargetPlaceholders[channelType] || ''}
             />
-          </label>
+          </FieldLabel>
         )}
         <fieldset className="text-sm">
           <span className="mb-1 block font-medium">{t('formEventStatuses')}</span>
@@ -175,30 +171,18 @@ export function CreateChannelModal({
             ))}
           </div>
         </fieldset>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('formSeverityFilter')}</span>
+        <FieldLabel label={t('formSeverityFilter')}>
           <input
             {...register('severityFilter')}
             className="min-h-11 w-full rounded-md border px-3"
             placeholder="warning, critical"
           />
-        </label>
-        <div className="flex justify-end gap-2 pt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-11 rounded-md border px-4 text-sm font-medium hover:bg-accent"
-          >
-            {tc('cancel')}
-          </button>
-          <button
-            type="submit"
-            disabled={creating || formState.isSubmitting}
-            className="min-h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {creating || formState.isSubmitting ? t('creating') : tc('create')}
-          </button>
-        </div>
+        </FieldLabel>
+        <ModalFormFooter
+          creating={creating}
+          submitting={formState.isSubmitting}
+          onClose={onClose}
+        />
       </form>
     </Modal>
   );

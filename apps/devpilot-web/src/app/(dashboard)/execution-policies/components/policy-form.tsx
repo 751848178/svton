@@ -120,20 +120,20 @@ export function PolicyFormView(props: PolicyFormProps) {
             ))}
           </select>
         </Field>
-        <Field label="Adapter keys">
+        <Field label={t('adapterKeys')}>
           <input
             value={form.adapterKeys}
             onChange={(e) => onChange({ adapterKeys: e.target.value })}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            placeholder="deployment-script-plan, nginx-site-plan"
+            placeholder={t('adapterKeysPlaceholder')}
           />
         </Field>
-        <Field label="Operation keys">
+        <Field label={t('operationKeys')}>
           <input
             value={form.operationKeys}
             onChange={(e) => onChange({ operationKeys: e.target.value })}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            placeholder="deploy, sync-site"
+            placeholder={t('operationKeysPlaceholder')}
           />
         </Field>
         <Field
@@ -147,20 +147,20 @@ export function PolicyFormView(props: PolicyFormProps) {
             placeholder={t('descriptionPlaceholder')}
           />
         </Field>
-        <Field label="Allow patterns">
+        <Field label={t('allowPatterns')}>
           <textarea
             value={form.allowedPatterns}
             onChange={(e) => onChange({ allowedPatterns: e.target.value })}
             className="min-h-32 w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
-            placeholder="^docker ps .*"
+            placeholder={t('allowPatternsPlaceholder')}
           />
         </Field>
-        <Field label="Block patterns">
+        <Field label={t('blockPatterns')}>
           <textarea
             value={form.blockedPatterns}
             onChange={(e) => onChange({ blockedPatterns: e.target.value })}
             className="min-h-32 w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
-            placeholder="^docker exec .* sh"
+            placeholder={t('blockPatternsPlaceholder')}
           />
         </Field>
       </div>

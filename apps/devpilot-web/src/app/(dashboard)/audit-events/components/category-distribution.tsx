@@ -1,14 +1,13 @@
 /**
- * 审计事件分类分布
+ * 审计事件分类分布（紧凑标签行）
  *
- * 单一职责：把原 6 张分类 MetricCard 收敛为一个紧凑区块——
- * 每个分类一行（标签 + 迷你条形 + 计数），不引入图表库。
- * 数字与聚合卡来自同一个 stats 数据源，口径不变。
+ * 单一职责：把原 6 张分类 MetricCard / 分布区块收敛为一行紧凑的「标签 + 计数」。
+ * 与聚合卡共用同一个 stats 数据源，口径不变；不再占独立大块，节省纵向空间。
  */
 
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { Tag } from '@svton/ui';
 import type { AuditStats } from '../types';
 import { categoryLabels } from '../constants';
 
@@ -17,8 +16,6 @@ interface CategoryDistributionProps {
 }
 
 export function CategoryDistribution({ stats }: CategoryDistributionProps) {
-  const t = useTranslations('auditEvents');
-
   const rows: { key: string; value: number }[] = [
     { key: 'deployment', value: stats.deployments },
     { key: 'resource_action', value: stats.resourceActions },
@@ -27,27 +24,15 @@ export function CategoryDistribution({ stats }: CategoryDistributionProps) {
     { key: 'alert', value: stats.alerts },
     { key: 'log', value: stats.logs },
   ];
-  const max = Math.max(...rows.map((r) => r.value), 1);
 
   return (
-    <div className="rounded-lg border p-4">
-      <div className="text-sm font-medium text-muted-foreground">{t('categoryDistribution')}</div>
-      <div className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
-        {rows.map((row) => (
-          <div key={row.key} className="flex items-center gap-2 text-xs">
-            <span className="w-16 shrink-0 text-muted-foreground">
-              {categoryLabels[row.key] || row.key}
-            </span>
-            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-              <span
-                className="block h-full rounded-full bg-primary/60"
-                style={{ width: `${Math.round((row.value / max) * 100)}%` }}
-              />
-            </span>
-            <span className="w-8 shrink-0 text-right font-medium tabular-nums">{row.value}</span>
-          </div>
-        ))}
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      {rows.map((row) => (
+        <Tag key={row.key} color={row.value > 0 ? 'blue' : 'default'}>
+          {categoryLabels[row.key] || row.key}
+          <span className="ml-1 tabular-nums">{row.value}</span>
+        </Tag>
+      ))}
     </div>
   );
 }

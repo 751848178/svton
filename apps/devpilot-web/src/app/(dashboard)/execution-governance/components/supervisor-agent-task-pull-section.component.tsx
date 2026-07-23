@@ -1,7 +1,8 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { SupervisorField, StatusBadge } from './ui-bits';
+import { LabeledTupleField, ReasonField, StatusBadge } from './ui-bits';
+import { BlockerList, NextStepList } from './supervisor-section-parts.component';
 import {
   formatAgentLifecycleAction,
   formatAgentLifecycleReason,
@@ -9,12 +10,15 @@ import {
   readAgentLifecycleStatus,
 } from '../supervisor-agent-format.utils';
 import { shortId } from '../utils';
+import { humanizeOperationKey } from '../utils-labels';
 import type { ServerExecutionSupervisorSnapshot } from '../supervisor';
 
 type AgentTaskPullReadiness = ServerExecutionSupervisorSnapshot['agent']['taskPullReadiness'];
 
 export function SupervisorAgentTaskPullSection({ taskPull }: { taskPull: AgentTaskPullReadiness }) {
   const t = useTranslations('executionGovernance');
+  const failedBlocked =
+    taskPull.gates.audit.failedRecent + taskPull.gates.audit.blockedRecent + taskPull.gates.audit.highRiskRecent;
   return (
     <div className="mt-4 border-t pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -22,29 +26,48 @@ export function SupervisorAgentTaskPullSection({ taskPull }: { taskPull: AgentTa
         <StatusBadge status={readAgentLifecycleStatus(taskPull.state)} />
       </div>
       <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
-        <SupervisorField
+        <ReasonField
           label={t('fieldReadiness')}
-          value={`${formatAgentLifecycleState(taskPull.state)} · ${formatAgentLifecycleReason(taskPull.reason)}`}
+          value={formatAgentLifecycleState(taskPull.state)}
+          reason={formatAgentLifecycleReason(taskPull.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldRuntime')}
-          value={`${taskPull.gates.runtime.readyServers}/${taskPull.gates.runtime.capableServers} · ${formatAgentLifecycleReason(taskPull.gates.runtime.reason)}`}
+          items={[
+            { label: t('legendReady'), value: taskPull.gates.runtime.readyServers },
+            { label: t('legendCapable'), value: taskPull.gates.runtime.capableServers },
+          ]}
+          reason={formatAgentLifecycleReason(taskPull.gates.runtime.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldQueue')}
-          value={`${taskPull.gates.queue.readyJobs}/${taskPull.gates.queue.scheduledJobs}/${taskPull.gates.queue.runningJobs} · ${formatAgentLifecycleReason(taskPull.gates.queue.reason)}`}
+          items={[
+            { label: t('legendReady'), value: taskPull.gates.queue.readyJobs },
+            { label: t('legendScheduled'), value: taskPull.gates.queue.scheduledJobs },
+            { label: t('legendRunning'), value: taskPull.gates.queue.runningJobs },
+          ]}
+          reason={formatAgentLifecycleReason(taskPull.gates.queue.reason)}
         />
-        <SupervisorField
+        <ReasonField
           label={t('fieldContract')}
           value={formatAgentLifecycleReason(taskPull.gates.pullContract.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldAudit')}
-          value={`${taskPull.gates.audit.totalRecent}/${taskPull.gates.audit.failedRecent + taskPull.gates.audit.blockedRecent + taskPull.gates.audit.highRiskRecent} · ${formatAgentLifecycleReason(taskPull.gates.audit.reason)}`}
+          items={[
+            { label: t('legendRecent'), value: taskPull.gates.audit.totalRecent },
+            { label: t('legendFailed'), value: failedBlocked },
+          ]}
+          reason={formatAgentLifecycleReason(taskPull.gates.audit.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldPressure')}
-          value={`${taskPull.pressure.readyJobs}/${taskPull.pressure.runningJobs}/${taskPull.pressure.blockedJobs}/${taskPull.pressure.failedJobs}`}
+          items={[
+            { label: t('legendReady'), value: taskPull.pressure.readyJobs },
+            { label: t('legendRunning'), value: taskPull.pressure.runningJobs },
+            { label: t('legendBlocked'), value: taskPull.pressure.blockedJobs },
+            { label: t('legendFailed'), value: taskPull.pressure.failedJobs },
+          ]}
         />
       </div>
 
@@ -52,7 +75,7 @@ export function SupervisorAgentTaskPullSection({ taskPull }: { taskPull: AgentTa
         <div className="mt-3 text-xs text-muted-foreground">
           {t('taskPullNextJob', {
             id: shortId(taskPull.samples.nextQueuedJob.id),
-            operationKey: taskPull.samples.nextQueuedJob.operationKey,
+            operationKey: humanizeOperationKey(taskPull.samples.nextQueuedJob.operationKey),
           })}
           {taskPull.samples.nextQueuedJob.server
             ? ` · ${taskPull.samples.nextQueuedJob.server.name}`
@@ -60,31 +83,12 @@ export function SupervisorAgentTaskPullSection({ taskPull }: { taskPull: AgentTa
         </div>
       ) : null}
 
-      {taskPull.blockers.length > 0 ? (
-        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-          {taskPull.blockers.slice(0, 4).map((blocker) => (
-            <div
-              key={`${blocker.severity}-${blocker.reason}`}
-              className="flex flex-wrap justify-between gap-2"
-            >
-              <span>{formatAgentLifecycleReason(blocker.reason)}</span>
-              <span>
-                {blocker.severity} · {blocker.count}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {taskPull.nextSteps.length > 0 ? (
-        <div className="mt-3 border-t pt-2 text-xs text-muted-foreground">
-          {taskPull.nextSteps.slice(0, 3).map((step) => (
-            <div key={step.action}>
-              {formatAgentLifecycleAction(step.action)} · {formatAgentLifecycleReason(step.reason)}
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <BlockerList blockers={taskPull.blockers} formatReason={formatAgentLifecycleReason} />
+      <NextStepList
+        steps={taskPull.nextSteps}
+        formatAction={formatAgentLifecycleAction}
+        formatReason={formatAgentLifecycleReason}
+      />
     </div>
   );
 }

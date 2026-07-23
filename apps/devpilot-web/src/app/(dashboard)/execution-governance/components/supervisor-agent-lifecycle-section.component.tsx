@@ -1,7 +1,8 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { SupervisorField, StatusBadge } from './ui-bits';
+import { LabeledTupleField, ReasonField, StatusBadge } from './ui-bits';
+import { BlockerList, NextStepList } from './supervisor-section-parts.component';
 import {
   formatAgentLifecycleAction,
   formatAgentLifecycleReason,
@@ -25,57 +26,61 @@ export function SupervisorAgentLifecycleSection({
         <StatusBadge status={readAgentLifecycleStatus(preflight.state)} />
       </div>
       <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
-        <SupervisorField
+        <ReasonField
           label={t('fieldPreflight')}
-          value={`${formatAgentLifecycleState(preflight.state)} · ${formatAgentLifecycleReason(preflight.reason)}`}
+          value={formatAgentLifecycleState(preflight.state)}
+          reason={formatAgentLifecycleReason(preflight.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldTarget')}
-          value={`${preflight.gates.targetSelection.capableServers}/${preflight.gates.targetSelection.onlineCapableServers} · ${formatAgentLifecycleReason(preflight.gates.targetSelection.reason)}`}
+          items={[
+            { label: t('legendCapable'), value: preflight.gates.targetSelection.capableServers },
+            {
+              label: t('legendOnlineCapable'),
+              value: preflight.gates.targetSelection.onlineCapableServers,
+            },
+          ]}
+          reason={formatAgentLifecycleReason(preflight.gates.targetSelection.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldHeartbeat')}
-          value={`${preflight.gates.heartbeat.readyServers}/${preflight.gates.heartbeat.heartbeatServers} · ${formatAgentLifecycleReason(preflight.gates.heartbeat.reason)}`}
+          items={[
+            { label: t('legendReady'), value: preflight.gates.heartbeat.readyServers },
+            { label: t('legendTotal'), value: preflight.gates.heartbeat.heartbeatServers },
+          ]}
+          reason={formatAgentLifecycleReason(preflight.gates.heartbeat.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldDispatcher')}
-          value={`${preflight.gates.dispatcher.liveDispatchReadyServers} 实时 · ${formatAgentLifecycleReason(preflight.gates.dispatcher.reason)}`}
+          items={[
+            { label: t('liveInline'), value: preflight.gates.dispatcher.liveDispatchReadyServers },
+          ]}
+          reason={formatAgentLifecycleReason(preflight.gates.dispatcher.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldQueue')}
-          value={`${preflight.gates.queueWorker.queuedJobs}/${preflight.gates.queueWorker.runningJobs}/${preflight.gates.queueWorker.blockedJobs} · ${formatAgentLifecycleReason(preflight.gates.queueWorker.reason)}`}
+          items={[
+            { label: t('legendQueued'), value: preflight.gates.queueWorker.queuedJobs },
+            { label: t('legendRunning'), value: preflight.gates.queueWorker.runningJobs },
+            { label: t('legendBlocked'), value: preflight.gates.queueWorker.blockedJobs },
+          ]}
+          reason={formatAgentLifecycleReason(preflight.gates.queueWorker.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldPressure')}
-          value={`${preflight.pressure.servers}/${preflight.pressure.scannedJobs}`}
+          items={[
+            { label: t('legendPressure'), value: preflight.pressure.servers },
+            { label: t('legendScanned'), value: preflight.pressure.scannedJobs },
+          ]}
         />
       </div>
 
-      {preflight.blockers.length > 0 ? (
-        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-          {preflight.blockers.slice(0, 4).map((blocker) => (
-            <div
-              key={`${blocker.severity}-${blocker.reason}`}
-              className="flex flex-wrap justify-between gap-2"
-            >
-              <span>{formatAgentLifecycleReason(blocker.reason)}</span>
-              <span>
-                {blocker.severity} · {blocker.count}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {preflight.nextSteps.length > 0 ? (
-        <div className="mt-3 border-t pt-2 text-xs text-muted-foreground">
-          {preflight.nextSteps.slice(0, 3).map((step) => (
-            <div key={step.action}>
-              {formatAgentLifecycleAction(step.action)} · {formatAgentLifecycleReason(step.reason)}
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <BlockerList blockers={preflight.blockers} formatReason={formatAgentLifecycleReason} />
+      <NextStepList
+        steps={preflight.nextSteps}
+        formatAction={formatAgentLifecycleAction}
+        formatReason={formatAgentLifecycleReason}
+      />
     </div>
   );
 }

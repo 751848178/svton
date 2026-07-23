@@ -11,7 +11,7 @@ import { usePersistFn } from '@svton/hooks';
 import { StatusTag } from '@/components/ui';
 import type { BackupPlan, BackupPlanRun, BackupRestoreTarget } from '../types';
 import { backupTypeLabels, statusLabels } from '../constants';
-import { formatResource, formatDate, canQueueBackupRun, canRestoreBackupRun } from '../utils';
+import { formatResource, formatDate, canQueueBackupRun, canRestoreBackupRun, shortId } from '../utils';
 
 interface PlanCardProps {
   plan: BackupPlan;
@@ -115,7 +115,7 @@ function PlanRunChip({
   return (
     <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1">
       {statusLabels[run.status] || run.status} · {formatDate(run.startedAt)}
-      {run.serverExecutionJob ? ` · Job ${run.serverExecutionJob.id.slice(0, 8)}` : ''}
+      {run.serverExecutionJob ? ` · ${t('jobLabel', { value: shortId(run.serverExecutionJob.id) })}` : ''}
       {canRestoreBackupRun(run.status) ? (
         <button
           onClick={handleRestore}

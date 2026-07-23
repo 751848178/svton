@@ -14,6 +14,7 @@ import { StatusBadge } from './ui-bits';
 import type { ServerExecutionLease } from '../types';
 import type { LeaseStats } from '../hooks/use-execution-governance';
 import { readBlockedBy, formatDate } from '../utils';
+import { humanizeOperationKey, humanizeAdapterKey, humanizeEnumValue } from '../utils-labels';
 
 interface LeaseListProps {
   leases: ServerExecutionLease[];
@@ -117,14 +118,16 @@ export function LeaseList({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-medium">{lease.operationKey}</div>
+                    <div className="font-medium">{humanizeOperationKey(lease.operationKey)}</div>
                     <div className="font-mono text-xs text-muted-foreground">
                       {readBlockedBy(lease.metadata)}
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div>{lease.adapterKey}</div>
-                    <div className="text-xs text-muted-foreground">{lease.transport}</div>
+                    <div>{humanizeAdapterKey(lease.adapterKey)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {humanizeEnumValue(lease.transport)}
+                    </div>
                   </td>
                   <td className="px-4 py-3">{lease.actor?.name || lease.actor?.email || '-'}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">

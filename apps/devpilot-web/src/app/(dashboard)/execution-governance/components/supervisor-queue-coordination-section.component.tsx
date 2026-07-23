@@ -1,7 +1,8 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { SupervisorField, StatusBadge } from './ui-bits';
+import { LabeledTupleField, ReasonField, StatusBadge } from './ui-bits';
+import { BlockerList, NextStepList } from './supervisor-section-parts.component';
 import {
   formatQueueCoordinationAction,
   formatQueueCoordinationReason,
@@ -26,58 +27,57 @@ export function SupervisorQueueCoordinationSection({
         <StatusBadge status={readQueueCoordinationStatus(coordination.state)} />
       </div>
       <div className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
-        <SupervisorField
+        <ReasonField
           label={t('fieldPreflight')}
-          value={`${formatQueueCoordinationState(coordination.state)} · ${formatQueueCoordinationReason(coordination.reason)}`}
+          value={formatQueueCoordinationState(coordination.state)}
+          reason={formatQueueCoordinationReason(coordination.reason)}
         />
-        <SupervisorField
+        <ReasonField
           label={t('fieldWorker')}
-          value={`${coordination.gates.worker.enabled ? tc('enabled') : tc('disabled')} · ${formatQueueCoordinationReason(coordination.gates.worker.reason)}`}
+          value={coordination.gates.worker.enabled ? tc('enabled') : tc('disabled')}
+          reason={formatQueueCoordinationReason(coordination.gates.worker.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldQueue')}
-          value={`${coordination.gates.queue.readyJobs}/${coordination.gates.queue.scheduledJobs}/${coordination.gates.queue.blockedJobs} · ${formatQueueCoordinationReason(coordination.gates.queue.reason)}`}
+          items={[
+            { label: t('legendReady'), value: coordination.gates.queue.readyJobs },
+            { label: t('legendScheduled'), value: coordination.gates.queue.scheduledJobs },
+            { label: t('legendBlocked'), value: coordination.gates.queue.blockedJobs },
+          ]}
+          reason={formatQueueCoordinationReason(coordination.gates.queue.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldOwners')}
-          value={`${coordination.gates.owners.activeOwners}/${coordination.gates.owners.totalOwners} · ${formatQueueCoordinationReason(coordination.gates.owners.reason)}`}
+          items={[
+            { label: t('legendActive'), value: coordination.gates.owners.activeOwners },
+            { label: t('legendTotal'), value: coordination.gates.owners.totalOwners },
+          ]}
+          reason={formatQueueCoordinationReason(coordination.gates.owners.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldRecovery')}
-          value={`${coordination.gates.recovery.staleRunningJobs}/${coordination.gates.recovery.recoveryBatchSize} · ${formatQueueCoordinationReason(coordination.gates.recovery.reason)}`}
+          items={[
+            { label: t('legendStale'), value: coordination.gates.recovery.staleRunningJobs },
+            { label: t('legendBatchSize'), value: coordination.gates.recovery.recoveryBatchSize },
+          ]}
+          reason={formatQueueCoordinationReason(coordination.gates.recovery.reason)}
         />
-        <SupervisorField
+        <LabeledTupleField
           label={t('fieldPressure')}
-          value={`${coordination.pressure.backlogJobs}/${coordination.pressure.runningJobs}/${coordination.pressure.blockedJobs}`}
+          items={[
+            { label: t('legendBacklog'), value: coordination.pressure.backlogJobs },
+            { label: t('legendRunning'), value: coordination.pressure.runningJobs },
+            { label: t('legendBlocked'), value: coordination.pressure.blockedJobs },
+          ]}
         />
       </div>
 
-      {coordination.blockers.length > 0 ? (
-        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-          {coordination.blockers.slice(0, 4).map((blocker) => (
-            <div
-              key={`${blocker.severity}-${blocker.reason}`}
-              className="flex flex-wrap justify-between gap-2"
-            >
-              <span>{formatQueueCoordinationReason(blocker.reason)}</span>
-              <span>
-                {blocker.severity} · {blocker.count}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {coordination.nextSteps.length > 0 ? (
-        <div className="mt-3 border-t pt-2 text-xs text-muted-foreground">
-          {coordination.nextSteps.slice(0, 3).map((step) => (
-            <div key={`${step.action}-${step.reason}`}>
-              {formatQueueCoordinationAction(step.action)} ·{' '}
-              {formatQueueCoordinationReason(step.reason)}
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <BlockerList blockers={coordination.blockers} formatReason={formatQueueCoordinationReason} />
+      <NextStepList
+        steps={coordination.nextSteps}
+        formatAction={formatQueueCoordinationAction}
+        formatReason={formatQueueCoordinationReason}
+      />
     </div>
   );
 }

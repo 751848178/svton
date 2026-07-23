@@ -9,6 +9,27 @@ import {
   severityLabels,
 } from './constants';
 
+/**
+ * 把下划线/连字符分隔的标识符转为「首字母大写的词」。
+ *
+ * 与 sites/utils-plan.ts、backups/utils.ts 的 humanizeKey 同语义：
+ * 用于开放枚举（如资源 kind / metricSource）的人性化兜底。
+ */
+export function humanizeKey(value: string): string {
+  return value
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) =>
+      word.length <= 2 ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1),
+    )
+    .join(' ');
+}
+
+/** 取 UUID/长串前 8 位作为短标识（用于展示）。 */
+export function shortId(id: string): string {
+  return id.slice(0, 8);
+}
+
 export function formatCertificateExpiryCondition(value?: Record<string, unknown> | null) {
   if (!value) return '默认 14 天';
   const thresholdDays = typeof value.thresholdDays === 'number' ? value.thresholdDays : 14;

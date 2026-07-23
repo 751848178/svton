@@ -6,9 +6,15 @@ import { usePersistFn } from '@svton/hooks';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { sourceLabels } from '../constants';
 import type { useLogs } from '../hooks/use-logs';
 import { formatDateTimeMinute } from '@/lib/format-date';
 type LogsHook = ReturnType<typeof useLogs>;
+
+/** 来源类型人性化：命中 sourceLabels 则翻译，否则回退原值。 */
+function sourceTypeLabel(sourceType: string): string {
+  return sourceLabels[sourceType] || sourceType;
+}
 
 export function LogsRunsSection({ logs }: { logs: LogsHook }) {
   const tl = useTranslations('logs');
@@ -61,14 +67,14 @@ export function LogsRunsSection({ logs }: { logs: LogsHook }) {
                 className="rounded-md border px-3 py-2 text-xs"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono">{run.sourceType}</span>
+                  <span className="font-mono">{sourceTypeLabel(run.sourceType)}</span>
                   <StatusTag status={run.status} />
                 </div>
                 <div className="mt-1 text-muted-foreground">
                   {formatDateTimeMinute(run.startedAt)}
                   {run.finishedAt ? ` → ${formatDateTimeMinute(run.finishedAt)}` : ''}
                 </div>
-                {run.error && <div className="mt-1 text-red-600">{run.error}</div>}
+                {run.error && <div className="mt-1 text-destructive">{run.error}</div>}
               </div>
             ))}
           </div>

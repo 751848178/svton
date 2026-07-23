@@ -11,6 +11,21 @@ export const categoryLabels: Record<string, string> = {
   log: '日志',
 };
 
+/** 资源指标仪表盘行 kind 标签（开放枚举，未知回退人性化由 humanizeKey 处理）。 */
+export const resourceKindLabels: Record<string, string> = {
+  mysql: 'MySQL',
+  redis: 'Redis',
+  database: '数据库',
+};
+
+/** 资源指标来源（metricSource）标签。 */
+export const metricSourceLabels: Record<string, string> = {
+  cpu: 'CPU',
+  memory: '内存',
+  disk: '磁盘',
+  network: '网络',
+};
+
 export const metricLabels: Record<string, string> = {
   service_status: '服务状态',
   service_slo_breach: '服务 SLO 违约',

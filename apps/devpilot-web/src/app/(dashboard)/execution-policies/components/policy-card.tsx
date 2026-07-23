@@ -9,6 +9,7 @@
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
+import { Button } from '@/components/ui';
 import type { PolicyTemplate } from '../types';
 import { readStringArray, listLabel, scopeLabel } from '../utils';
 import { formatDateTime } from '@/lib/format-date';
@@ -45,10 +46,10 @@ export function PolicyCard({ template, actingId, onEdit, onToggle, onDelete }: P
             <p className="text-sm text-muted-foreground">{template.description}</p>
           ) : null}
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span>Adapter: {listLabel(readStringArray(template.adapterKeys))}</span>
-            <span>Operation: {listLabel(readStringArray(template.operationKeys))}</span>
-            <span>Allow {readStringArray(template.allowedPatterns).length}</span>
-            <span>Block {readStringArray(template.blockedPatterns).length}</span>
+            <span>{t('adapterLabel')}: {listLabel(readStringArray(template.adapterKeys))}</span>
+            <span>{t('operationLabel')}: {listLabel(readStringArray(template.operationKeys))}</span>
+            <span>{t('allowLabel')} {readStringArray(template.allowedPatterns).length}</span>
+            <span>{t('blockLabel')} {readStringArray(template.blockedPatterns).length}</span>
             <span>{t('updatedAt', { value: formatDateTime(template.updatedAt) })}</span>
           </div>
         </div>
@@ -66,13 +67,14 @@ export function PolicyCard({ template, actingId, onEdit, onToggle, onDelete }: P
           >
             {template.enabled ? t('disable') : t('enable')}
           </button>
-          <button
+          <Button
+            variant="destructive"
+            size="sm"
             onClick={handleDelete}
             disabled={actingId === `${template.id}:delete`}
-            className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-60"
           >
             {tc('delete')}
-          </button>
+          </Button>
         </div>
       </div>
       <PatternPreview

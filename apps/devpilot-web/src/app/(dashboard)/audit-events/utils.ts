@@ -15,9 +15,36 @@ export function formatTarget(event: AuditEvent): string {
     event.server?.name ||
     event.application?.name ||
     event.project?.name ||
-    event.targetId ||
-    '-'
+    // 无具名关联实体时仅展示截断的 targetId（避免裸 UUID 占满单元格），保留完整值不可见；
+    // 调用点 event-columns 中 targetId 同时作为 targetType 行的细节展示。
+    (event.targetId ? `${event.targetId.slice(0, 8)}…` : '-')
   );
+}
+
+/** 已知动作键前缀（对齐后端真实埋点），用于 humanizeAction 的兜底处理。 */
+const ACTION_PREFIXES = [
+  'deployment.',
+  'resource.',
+  'application-service.',
+  'site.',
+  'backup.',
+  'alert.',
+  'log.',
+];
+
+/**
+ * 把机器动作键转为可读文本：先查 labelMap，命中失败则去前缀并将首字母大写。
+ */
+export function humanizeAction(action: string, labelMap: Record<string, string> = {}): string {
+  if (!action) return '';
+  const mapped = labelMap[action];
+  if (mapped) return mapped;
+  const stripped = ACTION_PREFIXES.reduce(
+    (acc, prefix) => (acc.startsWith(prefix) ? acc.slice(prefix.length) : acc),
+    action,
+  );
+  if (!stripped) return action;
+  return stripped.charAt(0).toUpperCase() + stripped.slice(1);
 }
 
 /**

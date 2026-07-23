@@ -52,7 +52,7 @@ export function TailPanel({ logs }: { logs: LogsHook }) {
         />
       )}
       {t.tailStreamReconnects > 0 && (
-        <div className="text-xs text-yellow-700">{tl('reconnectCount', { count: t.tailStreamReconnects })}</div>
+        <div className="text-xs text-warning">{tl('reconnectCount', { count: t.tailStreamReconnects })}</div>
       )}
       <div className="max-h-80 overflow-auto rounded-md border">
         {t.tailEntries.length === 0 ? (

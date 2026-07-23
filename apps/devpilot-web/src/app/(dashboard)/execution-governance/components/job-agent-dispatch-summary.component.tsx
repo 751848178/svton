@@ -12,14 +12,14 @@ export function AgentDispatchSummary({ result }: { result?: unknown }) {
   const statusClass =
     dispatch.mode === 'agent_dispatch'
       ? dispatch.executed
-        ? 'text-green-700'
-        : 'text-yellow-700'
+        ? 'text-success'
+        : 'text-warning'
       : dispatch.mode === 'agent_dispatch_failed'
-        ? 'text-red-600'
-        : 'text-yellow-700';
+        ? 'text-destructive'
+        : 'text-warning';
 
   return (
-    <div className="mt-2 space-y-1 border-l-2 border-violet-200 pl-2 text-xs">
+    <div className="mt-2 space-y-1 border-l-2 border-info/30 pl-2 text-xs">
       <div className={statusClass}>
         <span className="font-medium text-foreground">{t('agentDispatchTitle')}</span>
         <span> · {formatAgentDispatchMode(dispatch.mode)}</span>
@@ -85,12 +85,12 @@ export function AgentDispatchSummary({ result }: { result?: unknown }) {
         </div>
       ) : null}
       {dispatch.nextExecutorBoundary ? (
-        <div className="text-yellow-700">
+        <div className="text-warning">
           {t('dispatchBoundary', { value: dispatch.nextExecutorBoundary })}
         </div>
       ) : null}
       {dispatch.responseError ? (
-        <div className="max-w-xs truncate text-red-600">
+        <div className="max-w-xs truncate text-destructive">
           {t('responseError', { value: dispatch.responseError })}
         </div>
       ) : null}

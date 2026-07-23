@@ -1,9 +1,10 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { usePersistFn } from '@svton/hooks';
+import { usePersistFn, useBoolean } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
+import { PageHeader, ErrorBanner, MetricCard, Button, Modal } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useAccessPolicies } from './hooks/use-access-policies';
 import { PolicyFormView } from './components/policy-form';
@@ -15,7 +16,6 @@ export default function AccessPoliciesPage() {
   const {
     policies,
     projects,
-    environments,
     environmentOptions,
     form,
     setForm,
@@ -37,6 +37,34 @@ export default function AccessPoliciesPage() {
     reload,
   } = useAccessPolicies();
   const handleRetry = usePersistFn(() => reload());
+  const [formOpen, { setTrue: openForm, setFalse: closeForm }] = useBoolean(false);
+  const wasSaving = useRef(false);
+
+  // 编辑入口（来自卡片）会写入 editingId；同步打开弹窗。
+  useEffect(() => {
+    if (editingId) openForm();
+  }, [editingId, openForm]);
+
+  // 删除当前正在编辑的记录时，confirmRemove 内部 reset() 会清空 editingId，
+  // 但表单弹窗仍开着，会停留在空「新建」态。这里包一层：若删除目标即编辑目标则关闭弹窗。
+  const handleConfirmRemove = usePersistFn(async () => {
+    const deletingEditing = Boolean(editingId) && deleteTarget?.id === editingId;
+    await confirmRemove();
+    if (deletingEditing) closeForm();
+  });
+
+  // 保存结束（saving true→false）且无错误时关闭弹窗。
+  useEffect(() => {
+    if (wasSaving.current && !saving && !error) {
+      closeForm();
+    }
+    wasSaving.current = saving;
+  }, [saving, error, closeForm]);
+
+  const handleCloseForm = usePersistFn(() => {
+    closeForm();
+    reset();
+  });
 
   if (loading) return <LoadingState text={tc('loading')} />;
 
@@ -46,12 +74,17 @@ export default function AccessPoliciesPage() {
         title={t('pageTitle')}
         description={t('pageDescription')}
         actions={
-          <button
-            onClick={handleRetry}
-            className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
-          >
-            {tc('refresh')}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRetry}
+            >
+              {tc('refresh')}
+            </Button>
+            <Button onClick={() => { reset(); openForm(); }}>
+              {t('newPolicy')}
+            </Button>
+          </div>
         }
       />
 
@@ -85,18 +118,6 @@ export default function AccessPoliciesPage() {
         />
       </div>
 
-      <PolicyFormView
-        form={form}
-        onChange={setForm}
-        editingId={editingId}
-        saving={saving}
-        projects={projects}
-        environmentOptions={environmentOptions}
-        onSubmit={save}
-        onReset={reset}
-        onSelectProject={selectProject}
-      />
-
       <div className="rounded-lg border bg-card">
         <div className="border-b px-5 py-4">
           <h2 className="text-lg font-semibold">{t('policyListTitle')}</h2>
@@ -119,6 +140,25 @@ export default function AccessPoliciesPage() {
         )}
       </div>
 
+      <Modal
+        open={formOpen}
+        onClose={handleCloseForm}
+        title={editingId ? t('editPolicy') : t('newPolicy')}
+        width={1024}
+      >
+        <PolicyFormView
+          form={form}
+          onChange={setForm}
+          editingId={editingId}
+          saving={saving}
+          projects={projects}
+          environmentOptions={environmentOptions}
+          onSubmit={save}
+          onReset={handleCloseForm}
+          onSelectProject={selectProject}
+        />
+      </Modal>
+
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
@@ -131,7 +171,7 @@ export default function AccessPoliciesPage() {
         }
         confirmLabel={tc('delete')}
         cancelLabel={tc('cancel')}
-        onConfirm={confirmRemove}
+        onConfirm={handleConfirmRemove}
       />
     </div>
   );

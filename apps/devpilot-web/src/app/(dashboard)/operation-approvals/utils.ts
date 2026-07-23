@@ -25,6 +25,25 @@ export function stripPrefix(value: string, prefix: string): string {
   return value.startsWith(prefix) ? value.slice(prefix.length) : value;
 }
 
+/** 已知动作键前缀，用于 humanizeAction 的兜底处理。 */
+const ACTION_PREFIXES = ['resource.', 'application-service.', 'site.', 'deployment.'];
+
+/**
+ * 把机器动作键转为可读文本：先查 labelMap，命中失败则去前缀并将首字母大写。
+ * labelMap 由调用方传入（沿用现有 categoryLabels/statusLabels 的纯映射风格）。
+ */
+export function humanizeAction(action: string, labelMap: Record<string, string> = {}): string {
+  if (!action) return '';
+  const mapped = labelMap[action];
+  if (mapped) return mapped;
+  const stripped = ACTION_PREFIXES.reduce(
+    (acc, prefix) => (acc.startsWith(prefix) ? acc.slice(prefix.length) : acc),
+    action,
+  );
+  if (!stripped) return action;
+  return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+}
+
 export function readMetadataString(
   metadata: Record<string, unknown> | null | undefined,
   key: string,

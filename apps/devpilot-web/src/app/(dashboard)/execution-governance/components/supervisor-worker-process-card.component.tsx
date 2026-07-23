@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { SupervisorField, StatusBadge } from './ui-bits';
+import { humanizeOperationKey, humanizeAdapterKey } from '../utils-labels';
 import type { ServerExecutionSupervisorSnapshot } from '../supervisor';
 
 export function SupervisorWorkerProcessCard({
@@ -59,8 +60,8 @@ export function SupervisorWorkerProcessCard({
       {supervisor.queue.nextQueuedJob ? (
         <div className="mt-4 border-t pt-3 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{t('nextJob')}</span>
-          <span> · {supervisor.queue.nextQueuedJob.operationKey}</span>
-          <span> · {supervisor.queue.nextQueuedJob.adapterKey}</span>
+          <span> · {humanizeOperationKey(supervisor.queue.nextQueuedJob.operationKey)}</span>
+          <span> · {humanizeAdapterKey(supervisor.queue.nextQueuedJob.adapterKey)}</span>
           <span> · {supervisor.queue.nextQueuedJob.server?.name || t('noServer')}</span>
         </div>
       ) : null}
