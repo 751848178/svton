@@ -14,6 +14,23 @@ function metricLabel(metric: string): string {
   return metricLabels[metric] || humanizeKey(metric);
 }
 
+/**
+ * 根据规则类别,从监控 hook 的已加载资源里取目标资源选项(仅含 id+name)。
+ * 让用户能把告警规则绑定到具体服务器/站点/项目,而非宽松作用域。
+ */
+function targetsForCategory(m: MonitoringHook, category: string) {
+  switch (category) {
+    case 'server':
+      return m.servers.map((s) => ({ id: s.id, name: s.name || s.host || s.id }));
+    case 'site':
+      return m.sites.map((s) => ({ id: s.id, name: s.name || s.primaryDomain || s.id }));
+    case 'service':
+      return m.projects.map((p) => ({ id: p.id, name: p.name || p.id }));
+    default:
+      return [];
+  }
+}
+
 export function RulesPanel({ m }: { m: MonitoringHook }) {
   const t = useTranslations('monitoring');
   const [createOpen, { setTrue: openCreate, setFalse: closeCreate }] = useBoolean(false);
@@ -65,6 +82,11 @@ export function RulesPanel({ m }: { m: MonitoringHook }) {
         error={m.error}
         onClose={closeCreate}
         onCreate={m.createRule}
+        targetsByCategory={{
+          server: targetsForCategory(m, 'server'),
+          site: targetsForCategory(m, 'site'),
+          service: targetsForCategory(m, 'service'),
+        }}
       />
     </div>
   );

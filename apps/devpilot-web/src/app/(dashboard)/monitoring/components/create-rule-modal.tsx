@@ -2,7 +2,8 @@
  * 创建告警规则弹窗
  *
  * 单一职责：收集规则字段并提交 useMonitoring.createRule。
- * 字段对齐后端 CreateAlertRuleDto：name/category/metric/severity/condition/enabled。
+ * 字段对齐后端 CreateAlertRuleDto：name/category/metric/severity/condition/enabled
+ * + 目标资源(server/site/project)+ 评估模式(schedule 自动 / manual 手动)。
  */
 
 import { useForm } from 'react-hook-form';
@@ -12,6 +13,11 @@ import { feedback } from '@/components/ui/feedback/feedback';
 import { categoryLabels, metricLabels, severityLabels } from '../constants';
 import { FieldLabel, ModalFormFooter } from './modal-form-fields';
 
+interface TargetOption {
+  id: string;
+  name: string;
+}
+
 interface CreateRuleFormValues {
   name: string;
   category: string;
@@ -20,6 +26,9 @@ interface CreateRuleFormValues {
   thresholdDays: string;
   condition: string;
   enabled: boolean;
+  evaluationMode: 'manual' | 'schedule';
+  intervalSeconds: string;
+  targetId: string;
 }
 
 interface CreateRuleModalProps {
@@ -28,9 +37,27 @@ interface CreateRuleModalProps {
   error: string;
   onClose: () => void;
   onCreate: (body: Record<string, unknown>) => Promise<boolean>;
+  /** 按 category 预分组的目标资源选项;仅相应类别会渲染目标选择器。 */
+  targetsByCategory?: Record<string, TargetOption[]>;
 }
 
-export function CreateRuleModal({ open, creating, error, onClose, onCreate }: CreateRuleModalProps) {
+/** category → 后端目标资源字段名的映射。无映射的类别(如 log/deployment)不渲染目标选择器。 */
+const CATEGORY_TARGET_FIELD: Record<string, string> = {
+  server: 'serverId',
+  site: 'siteId',
+  service: 'projectId',
+  resource: 'managedResourceId',
+  backup: 'backupPlanId',
+};
+
+export function CreateRuleModal({
+  open,
+  creating,
+  error,
+  onClose,
+  onCreate,
+  targetsByCategory = {},
+}: CreateRuleModalProps) {
   const t = useTranslations('monitoring');
   const tc = useTranslations('common');
   const { register, handleSubmit, setError, watch, formState, reset } = useForm<CreateRuleFormValues>({
@@ -42,12 +69,21 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
       thresholdDays: '',
       condition: '',
       enabled: true,
+      evaluationMode: 'schedule',
+      intervalSeconds: '',
+      targetId: '',
     },
   });
 
   // 仅 certificate_expiry 提供结构化 thresholdDays 字段；其余指标 thresholdDays 无意义。
   const metric = watch('metric');
   const showThresholdDays = metric === 'certificate_expiry';
+  const category = watch('category');
+  const evaluationMode = watch('evaluationMode');
+  const targetField = CATEGORY_TARGET_FIELD[category];
+  const categoryTargets = targetsByCategory[category] ?? [];
+  const showTarget = Boolean(targetField) && categoryTargets.length > 0;
+  const showInterval = evaluationMode === 'schedule';
 
   const submit = handleSubmit(async (data) => {
     const body: Record<string, unknown> = {
@@ -55,8 +91,20 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
       category: data.category,
       severity: data.severity,
       enabled: data.enabled,
+      evaluationMode: data.evaluationMode,
     };
     if (data.metric) body.metric = data.metric;
+    // 评估间隔:仅 schedule 模式有效,后端最小 30s。
+    if (data.evaluationMode === 'schedule' && data.intervalSeconds.trim() !== '') {
+      const intervalSeconds = Number(data.intervalSeconds);
+      if (Number.isFinite(intervalSeconds) && intervalSeconds >= 30) {
+        body.intervalSeconds = Math.floor(intervalSeconds);
+      }
+    }
+    // 目标资源绑定(按 category 映射到对应字段)。
+    if (targetField && data.targetId) {
+      body[targetField] = data.targetId;
+    }
     // 组装 condition：以结构化 thresholdDays 为准（若有），叠加高级 JSON 编辑。
     let condition: Record<string, unknown> | undefined;
     const conditionText = data.condition.trim();
@@ -128,6 +176,27 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
             ))}
           </select>
         </FieldLabel>
+        {showTarget ? (
+          <FieldLabel
+            label={t('formTarget')}
+            hint={t('formTargetHint')}
+          >
+            <select
+              {...register('targetId')}
+              className="min-h-11 w-full rounded-md border px-3"
+            >
+              <option value="">{t('formTargetAll')}</option>
+              {categoryTargets.map((opt) => (
+                <option
+                  key={opt.id}
+                  value={opt.id}
+                >
+                  {opt.name}
+                </option>
+              ))}
+            </select>
+          </FieldLabel>
+        ) : null}
         <FieldLabel label={t('formMetric')}>
           <select
             {...register('metric')}
@@ -166,6 +235,33 @@ export function CreateRuleModal({ open, creating, error, onClose, onCreate }: Cr
               {...register('thresholdDays')}
               className="min-h-11 w-full rounded-md border px-3"
               placeholder="14"
+            />
+          </FieldLabel>
+        ) : null}
+        <FieldLabel
+          label={t('formEvaluationMode')}
+          hint={t('formEvaluationModeHint')}
+        >
+          <select
+            {...register('evaluationMode')}
+            className="min-h-11 w-full rounded-md border px-3"
+          >
+            <option value="schedule">{t('formEvaluationModeSchedule')}</option>
+            <option value="manual">{t('formEvaluationModeManual')}</option>
+          </select>
+        </FieldLabel>
+        {showInterval ? (
+          <FieldLabel
+            label={t('formIntervalSeconds')}
+            hint={t('formIntervalSecondsHint')}
+          >
+            <input
+              type="number"
+              min={30}
+              step={30}
+              {...register('intervalSeconds')}
+              className="min-h-11 w-full rounded-md border px-3"
+              placeholder="60"
             />
           </FieldLabel>
         ) : null}
