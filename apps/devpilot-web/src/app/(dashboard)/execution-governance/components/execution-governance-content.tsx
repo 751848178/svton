@@ -10,9 +10,7 @@ import { ActionMenu } from '@/components/ui/action-menu';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useExecutionGovernance } from '../hooks/use-execution-governance';
 import { GovernanceOverview } from './overview-cards';
-import { SupervisorPanel } from './supervisor-panel';
-import { JobList } from './job-list';
-import { LeaseList } from './lease-list';
+import { GovernanceTabs } from './governance-tabs';
 import {
   formatExecutionJobScope,
   readExecutionGovernanceScope,
@@ -38,36 +36,8 @@ function ExecutionGovernanceInner() {
   const searchParams = useSearchParams();
   const scope = useMemo(() => readExecutionGovernanceScope(searchParams), [searchParams]);
   const scopeSummary = useMemo(() => formatExecutionJobScope(scope), [scope]);
-  const {
-    jobs,
-    leases,
-    supervisor,
-    jobStatus,
-    setJobStatus,
-    leaseStatus,
-    setLeaseStatus,
-    jobLoading,
-    leaseLoading,
-    supervisorLoading,
-    supervisorError,
-    actingJobId,
-    processingQueue,
-    recoveringStale,
-    actingLease,
-    error,
-    jobStats,
-    leaseStats,
-    pendingJobAction,
-    expireStale,
-    cancelJob,
-    retryJob,
-    cancelJobAction,
-    confirmJobAction,
-    processNextQueuedJob,
-    recoverStaleJobs,
-    reload,
-  } = useExecutionGovernance(scope);
-  const handleRetry = usePersistFn(() => reload());
+  const gov = useExecutionGovernance(scope);
+  const handleRetry = usePersistFn(() => gov.reload());
 
   return (
     <div className="space-y-6">
@@ -79,9 +49,9 @@ function ExecutionGovernanceInner() {
             <Button
               variant="outline"
               size="sm"
-              onClick={processNextQueuedJob}
-              disabled={processingQueue}
-              loading={processingQueue}
+              onClick={gov.processNextQueuedJob}
+              disabled={gov.processingQueue}
+              loading={gov.processingQueue}
             >
               {t('processQueue')}
             </Button>
@@ -92,15 +62,15 @@ function ExecutionGovernanceInner() {
                   items: [
                     {
                       key: 'recoverZombie',
-                      label: recoveringStale ? t('recovering') : t('recoverZombie'),
-                      disabled: recoveringStale,
-                      onSelect: recoverStaleJobs,
+                      label: gov.recoveringStale ? t('recovering') : t('recoverZombie'),
+                      disabled: gov.recoveringStale,
+                      onSelect: gov.recoverStaleJobs,
                     },
                     {
                       key: 'releaseExpired',
-                      label: actingLease ? t('processing') : t('releaseExpired'),
-                      disabled: actingLease,
-                      onSelect: expireStale,
+                      label: gov.actingLease ? t('processing') : t('releaseExpired'),
+                      disabled: gov.actingLease,
+                      onSelect: gov.expireStale,
                     },
                     {
                       key: 'refresh',
@@ -115,9 +85,9 @@ function ExecutionGovernanceInner() {
         }
       />
 
-      {error ? (
+      {gov.error ? (
         <ErrorBanner
-          message={error}
+          message={gov.error}
           onRetry={handleRetry}
         />
       ) : null}
@@ -131,63 +101,32 @@ function ExecutionGovernanceInner() {
         </div>
       ) : null}
 
+      {/* 概览卡作为页面视觉焦点常驻;主管/作业/租约收纳到下方 Tabs,避免平铺。 */}
       <GovernanceOverview
-        supervisor={supervisor}
-        jobStats={jobStats}
-        leaseStats={leaseStats}
+        supervisor={gov.supervisor}
+        jobStats={gov.jobStats}
+        leaseStats={gov.leaseStats}
       />
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold">{t('supervisorTitle')}</h2>
-          <p className="text-sm text-muted-foreground">{t('supervisorSubtitle')}</p>
-        </div>
-        <SupervisorPanel
-          supervisor={supervisor}
-          loading={supervisorLoading}
-          error={supervisorError}
-          onRetry={handleRetry}
-        />
-      </section>
-
-      <JobList
-        jobs={jobs}
-        loading={jobLoading}
-        jobStatus={jobStatus}
-        onJobStatusChange={setJobStatus}
-        stats={jobStats}
-        actingJobId={actingJobId}
-        onRetry={retryJob}
-        onCancel={cancelJob}
-      />
-
-      <LeaseList
-        leases={leases}
-        loading={leaseLoading}
-        leaseStatus={leaseStatus}
-        onLeaseStatusChange={setLeaseStatus}
-        stats={leaseStats}
-      />
+      <GovernanceTabs gov={gov} />
 
       <ConfirmDialog
-        open={Boolean(pendingJobAction)}
+        open={Boolean(gov.pendingJobAction)}
         onOpenChange={(open) => {
-          if (!open) cancelJobAction();
+          if (!open) gov.cancelJobAction();
         }}
         tone="warning"
-        title={
-          pendingJobAction?.kind === 'cancel' ? t('cancelJobTitle') : t('retryJobTitle')
-        }
+        title={gov.pendingJobAction?.kind === 'cancel' ? t('cancelJobTitle') : t('retryJobTitle')}
         description={
-          pendingJobAction
-            ? pendingJobAction.kind === 'cancel'
-              ? t('cancelJobDescription', { operationKey: pendingJobAction.job.operationKey })
-              : t('retryJobDescription', { operationKey: pendingJobAction.job.operationKey })
+          gov.pendingJobAction
+            ? gov.pendingJobAction.kind === 'cancel'
+              ? t('cancelJobDescription', { operationKey: gov.pendingJobAction.job.operationKey })
+              : t('retryJobDescription', { operationKey: gov.pendingJobAction.job.operationKey })
             : undefined
         }
         confirmLabel={tc('confirm')}
         cancelLabel={tc('cancel')}
-        onConfirm={confirmJobAction}
+        onConfirm={gov.confirmJobAction}
       />
     </div>
   );
