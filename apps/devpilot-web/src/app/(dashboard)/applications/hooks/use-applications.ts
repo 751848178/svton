@@ -44,7 +44,6 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
   const [sites, setSites] = useState<Site[]>([]);
   const [resources, setResources] = useState<ManagedResource[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [deployingServiceId, setDeployingServiceId] = useState('');
   const [queueDeploymentRuns, setQueueDeploymentRuns] = useState(false);
   const [queueServiceOperations, setQueueServiceOperations] = useState(false);
@@ -133,8 +132,6 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
     sites,
     resources,
     loading,
-    saving,
-    setSaving,
     deployingServiceId,
     queueDeploymentRuns,
     setQueueDeploymentRuns,
