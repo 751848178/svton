@@ -98,14 +98,18 @@ export function useLogs() {
       s.setBackupPlans(bk as never[]);
       s.setAlertEvents(al as never[]);
       s.setDeploymentRuns(dep as never[]);
-      s.setSelectedStreamId((cur: string) => cur || (st as LogStream[])[0]?.id || '');
+      // 先在本地解析出新的 streamId,再同步给 state ——
+      // fetchEntries(s) 读的是稳定快照 s.selectedStreamId,setSelectedStreamId 的更新尚未反映进来,
+      // 直接用 s 会导致首拉拿到空/旧 streamId(m3)。用解析后的本地值参与查询构造。
+      const resolvedStreamId = s.selectedStreamId || (st as LogStream[])[0]?.id || '';
+      s.setSelectedStreamId(resolvedStreamId);
       s.setTargetId(
         (cur: string) =>
           cur || (app as { services?: { id: string }[] }[])?.[0]?.services?.[0]?.id || '',
       );
-      // 首次加载后按当前 explorer 过滤器拉取条目/统计。
-      s.setEntries(await fetchEntries(s));
-      s.setLogStats(await fetchStats(s));
+      // 首次加载后按当前 explorer 过滤器(用本地解析的 streamId)拉取条目/统计。
+      s.setEntries(await fetchEntries({ ...s, selectedStreamId: resolvedStreamId }));
+      s.setLogStats(await fetchStats({ ...s, selectedStreamId: resolvedStreamId }));
     } catch (err) {
       s.setError(err instanceof Error ? err.message : '加载日志中心数据失败');
     } finally {

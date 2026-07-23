@@ -49,7 +49,6 @@ export function useLogsState() {
   const [sourceKey, setSourceKey] = useState('');
   const [entryLevel, setEntryLevel] = useState<'info' | 'warn' | 'error'>('info');
   const [entryMessage, setEntryMessage] = useState('');
-  const [query, setQuery] = useState('');
   const [activeQuery, setActiveQuery] = useState('');
   const [activeLevel, setActiveLevel] = useState<'all' | 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'>(
     'all',
@@ -112,8 +111,6 @@ export function useLogsState() {
     setEntryLevel,
     entryMessage,
     setEntryMessage,
-    query,
-    setQuery,
     activeQuery,
     setActiveQuery,
     activeLevel,

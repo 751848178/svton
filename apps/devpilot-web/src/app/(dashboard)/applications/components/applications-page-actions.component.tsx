@@ -1,7 +1,8 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Button, Popover } from '@svton/ui';
+import { Popover } from '@svton/ui';
+import { Button } from '@/components/ui';
 
 type ApplicationsPageActionsProps = {
   queueDeploymentRuns: boolean;
