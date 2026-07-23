@@ -2,56 +2,43 @@
 
 import type { ResourceRequest, ResourceProvisioningRun, ProvisioningResult } from './types';
 import { statusLabels } from './constants';
+import { StatusTag } from '@/components/ui';
+
+/** provisioning.status → 展示文案。 */
+const provisioningStatusLabels: Record<string, string> = {
+  completed: '处理完成',
+  planned: '已生成计划',
+  blocked: '处理阻断',
+  queued: '已入队',
+};
+
+/** run.status → 展示文案。 */
+const runStatusLabels: Record<string, string> = {
+  queued: '已入队',
+  running: '运行中',
+  planned: '已计划',
+  blocked: '已阻断',
+  completed: '已完成',
+  failed: '失败',
+};
 
 export function getStatusBadge(status: ResourceRequest['status']) {
-  const classes: Record<ResourceRequest['status'], string> = {
-    pending: 'bg-yellow-100 text-yellow-700',
-    approved: 'bg-blue-100 text-blue-700',
-    rejected: 'bg-red-100 text-red-700',
-    completed: 'bg-green-100 text-green-700',
-    canceled: 'bg-gray-100 text-gray-700',
-  };
-
-  return (
-    <span className={`px-2 py-0.5 text-xs rounded-full ${classes[status]}`}>
-      {statusLabels[status]}
-    </span>
-  );
+  return <StatusTag status={status} label={statusLabels[status]} />;
 }
 
+// TODO(ui-overhaul): StatusTag has no title prop; provisioning reason/boundary no longer surfaces on hover — add title passthrough to StatusTag in a follow-up.
 export function getProvisioningBadge(provisioning?: ProvisioningResult) {
   if (!provisioning?.status) {
     return null;
   }
 
-  const classes: Record<string, string> = {
-    completed: 'bg-green-100 text-green-700',
-    planned: 'bg-blue-100 text-blue-700',
-    blocked: 'bg-red-100 text-red-700',
-    queued: 'bg-purple-100 text-purple-700',
-  };
-  const label =
-    provisioning.status === 'completed'
-      ? '处理完成'
-      : provisioning.status === 'planned'
-        ? '已生成计划'
-        : provisioning.status === 'blocked'
-          ? '处理阻断'
-          : provisioning.status === 'queued'
-            ? '已入队'
-            : provisioning.status;
-
+  const label = provisioningStatusLabels[provisioning.status] || provisioning.status;
   return (
-    <div
-      className={`inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-xs ${
-        classes[provisioning.status] || 'bg-muted text-muted-foreground'
-      }`}
-      title={provisioning.reason || provisioning.boundary || provisioning.mode}
-    >
-      <span className="truncate">
-        {provisioning.mode ? `${provisioning.mode} · ${label}` : label}
-      </span>
-    </div>
+    <StatusTag
+      status={provisioning.status}
+      label={provisioning.mode ? `${provisioning.mode} · ${label}` : label}
+      className="max-w-full"
+    />
   );
 }
 
@@ -86,31 +73,8 @@ export function canReconcileProviderProvisioningRun(
 }
 
 export function getRunStatusBadge(status?: string) {
-  const classes: Record<string, string> = {
-    queued: 'bg-purple-100 text-purple-700',
-    running: 'bg-blue-100 text-blue-700',
-    planned: 'bg-sky-100 text-sky-700',
-    blocked: 'bg-red-100 text-red-700',
-    completed: 'bg-green-100 text-green-700',
-    failed: 'bg-red-100 text-red-700',
-  };
-  const labels: Record<string, string> = {
-    queued: '已入队',
-    running: '运行中',
-    planned: '已计划',
-    blocked: '已阻断',
-    completed: '已完成',
-    failed: '失败',
-  };
   const value = status || 'unknown';
-
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs ${classes[value] || 'bg-muted text-muted-foreground'}`}
-    >
-      {labels[value] || value}
-    </span>
-  );
+  return <StatusTag status={value} label={runStatusLabels[value] || value} />;
 }
 
 export function getRunTriggerLabel(trigger?: string) {

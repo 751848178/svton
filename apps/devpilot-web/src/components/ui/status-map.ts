@@ -31,6 +31,10 @@ export const STATUS_TONE_MAP: Record<string, StatusTone> = {
   online: 'success',
   available: 'success',
   ok: 'success',
+  sent: 'success',
+  synced: 'success',
+  accepted: 'success',
+  delivered: 'success',
 
   // 失败 / 告警
   rejected: 'danger',
@@ -41,23 +45,41 @@ export const STATUS_TONE_MAP: Record<string, StatusTone> = {
   offline: 'danger',
   unhealthy: 'danger',
   stopped: 'danger',
+  breached: 'danger',
+  fatal: 'danger',
+  revoked: 'danger',
 
   // 等待 / 需注意
   pending: 'warning',
   paused: 'warning',
   warning: 'warning',
+  blocked: 'warning',
+  insufficient_data: 'warning',
+  stale: 'warning',
 
   // 信息
   info: 'info',
+  acknowledged: 'info',
   pending_review: 'info',
+  planned: 'info',
+  received: 'info',
 
   // 中性 / 终态
   canceled: 'neutral',
+  cancelled: 'neutral',
   inactive: 'neutral',
   disabled: 'neutral',
   unknown: 'neutral',
   draft: 'neutral',
   archived: 'neutral',
+  suppressed: 'neutral',
+  skipped: 'neutral',
+  expired: 'neutral',
+  no_data: 'neutral',
+  released: 'neutral',
+  ignored: 'neutral',
+  trace: 'neutral',
+  debug: 'neutral',
 };
 
 /** 取状态的语义色调，大小写不敏感，未知值兜底 'neutral'。 */

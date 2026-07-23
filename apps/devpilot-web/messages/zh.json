@@ -1183,7 +1183,15 @@
     "connectFirst": "先连接 Git 账号",
     "noConnections": "暂无 Git 连接",
     "pleaseLogin": "请先登录",
-    "tokenPlaceholder": "输入访问令牌"
+    "tokenPlaceholder": "输入访问令牌",
+    "providerRepos": "{provider} 的仓库列表",
+    "viewRepos": "查看仓库",
+    "disconnect": "断开连接",
+    "noRepos": "暂无仓库",
+    "noDescription": "暂无描述",
+    "private": "私有",
+    "connectFailed": "连接失败",
+    "connecting": "连接中..."
   },
   "cdn": {
     "pageTitle": "CDN 配置",

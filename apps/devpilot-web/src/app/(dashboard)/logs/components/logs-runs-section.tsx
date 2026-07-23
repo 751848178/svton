@@ -6,7 +6,6 @@ import { usePersistFn } from '@svton/hooks';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { runStatusClasses } from '../constants';
 import type { useLogs } from '../hooks/use-logs';
 import { formatDateTimeMinute } from '@/lib/format-date';
 type LogsHook = ReturnType<typeof useLogs>;

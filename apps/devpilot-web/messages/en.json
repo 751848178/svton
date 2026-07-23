@@ -1183,7 +1183,15 @@
     "connectFirst": "Connect a Git account first",
     "noConnections": "No Git connections",
     "pleaseLogin": "Please log in first",
-    "tokenPlaceholder": "Enter access token"
+    "tokenPlaceholder": "Enter access token",
+    "providerRepos": "{provider} repositories",
+    "viewRepos": "View repositories",
+    "disconnect": "Disconnect",
+    "noRepos": "No repositories",
+    "noDescription": "No description",
+    "private": "Private",
+    "connectFailed": "Connection failed",
+    "connecting": "Connecting..."
   },
   "cdn": {
     "pageTitle": "CDN Configuration",

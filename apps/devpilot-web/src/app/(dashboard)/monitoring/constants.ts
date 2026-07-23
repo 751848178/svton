@@ -101,31 +101,3 @@ export const statusLabels: Record<string, string> = {
   stale: '样本过期',
   no_data: '暂无数据',
 };
-
-export const statusClasses: Record<string, string> = {
-  ok: 'bg-green-100 text-green-700',
-  resolved: 'bg-green-100 text-green-700',
-  active: 'bg-green-100 text-green-700',
-  sent: 'bg-green-100 text-green-700',
-  firing: 'bg-red-100 text-red-700',
-  critical: 'bg-red-100 text-red-700',
-  warning: 'bg-yellow-100 text-yellow-700',
-  insufficient_data: 'bg-yellow-100 text-yellow-700',
-  acknowledged: 'bg-blue-100 text-blue-700',
-  suppressed: 'bg-purple-100 text-purple-700',
-  paused: 'bg-blue-100 text-blue-700',
-  planned: 'bg-blue-100 text-blue-700',
-  archived: 'bg-gray-100 text-gray-700',
-  expired: 'bg-gray-100 text-gray-700',
-  skipped: 'bg-gray-100 text-gray-700',
-  stale: 'bg-yellow-100 text-yellow-700',
-  no_data: 'bg-gray-100 text-gray-700',
-  error: 'bg-red-100 text-red-700',
-  failed: 'bg-red-100 text-red-700',
-};
-
-export const severityClasses: Record<string, string> = {
-  info: 'bg-gray-100 text-gray-700',
-  warning: 'bg-yellow-100 text-yellow-700',
-  critical: 'bg-red-100 text-red-700',
-};

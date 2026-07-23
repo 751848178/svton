@@ -6,7 +6,7 @@
  */
 
 import { StatusTag } from '@/components/ui';
-import { statusLabels, statusClasses } from '../constants';
+import { statusLabels } from '../constants';
 
 export function SupervisorField({ label, value }: { label: string; value: string }) {
   return (
@@ -25,5 +25,3 @@ export function StatusBadge({ status }: { status: string }) {
     />
   );
 }
-
-export { statusClasses };

@@ -5,7 +5,6 @@ import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { ErrorBanner, StatusTag } from '@/components/ui';
 import type { useLogs } from '../hooks/use-logs';
-import { levelClasses } from '../constants';
 import { formatDateTime } from '@/lib/format-date';
 type LogsHook = ReturnType<typeof useLogs>;
 
@@ -71,11 +70,7 @@ export function TailPanel({ logs }: { logs: LogsHook }) {
               {t.tailEntries.slice(-100).map((entry) => (
                 <tr key={entry.id}>
                   <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs ${levelClasses[entry.level] || 'bg-muted'}`}
-                    >
-                      {entry.level}
-                    </span>
+                    <StatusTag status={entry.level} />
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{entry.message}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">
