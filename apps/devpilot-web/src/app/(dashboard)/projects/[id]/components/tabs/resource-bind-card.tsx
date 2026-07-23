@@ -18,9 +18,11 @@ import { feedback } from '@/components/ui/feedback/feedback';
 import {
   countResourceBulkBindSelection,
   toggleResourceBulkBindSelection,
-  type EnvironmentResourceBulkBindSelection,
-  type EnvironmentResourceBulkBindSelectionKey,
 } from '../../utils/resource-bulk-bind';
+import type {
+  EnvironmentResourceBulkBindSelection,
+  EnvironmentResourceBulkBindSelectionKey,
+} from '../../types/environment-copy';
 import type { Project } from '../../types';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 
@@ -141,5 +143,3 @@ export function ResourceBindCard({ detail }: { detail: DetailHook }) {
     </section>
   );
 }
-
-export type { EnvironmentResourceBulkBindSelection };

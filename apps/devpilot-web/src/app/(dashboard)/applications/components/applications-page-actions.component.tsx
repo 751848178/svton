@@ -53,7 +53,7 @@ export function ApplicationsPageActions({
         {tc('refresh')}
       </Button>
       <Popover
-        placement="bottom-end"
+        placement="bottom"
         content={
           <div className="w-64 space-y-3">
             <p className="text-xs font-medium text-muted-foreground">
