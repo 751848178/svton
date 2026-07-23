@@ -91,7 +91,15 @@ export interface ProjectResourceInstance {
   expiresAt?: string | null;
   createdAt: string;
   projectEnvironment?: { id: string; key: string; name: string; status: string } | null;
-  resourceType?: { id: string; key: string; name: string; category: string } | null;
+  resourceType?: {
+    id: string;
+    key: string;
+    name: string;
+    category: string;
+    /** 是否拥有 envTemplate（决定该实例绑定环境后是否会被部署注入）。
+     *  后端 resource-type.service 默认返回该字段；前端此前类型漏了，这里补上。 */
+    envTemplate?: string | null;
+  } | null;
   request?: { id: string; title: string; status: string } | null;
 }
 

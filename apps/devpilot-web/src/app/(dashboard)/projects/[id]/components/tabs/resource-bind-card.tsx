@@ -1,14 +1,17 @@
 /**
  * 资源绑定卡片 — 把项目下未绑定的资源关联到指定环境。
  *
- * 回答 issue #11:资源能否在项目侧关联,使部署时直接注入?
- * 后端 POST /project-environments/resources/bulk-bind 已实现(鉴权+dryRun),
- * 前端此前只有选择状态而无调用点。本卡片补上该调用点。
+ * 单一职责：渲染可选资源（按「是否会被部署注入」分两组）+ 环境选择 + 触发绑定。
  *
- * 注:当前部署 env 注入只读 ResourceInstance;ManagedResource/SecretKey 的
- * 自动注入是后续后端任务,故不在此夸大承诺(见文案 hint)。
+ * 关键事实（见 research/r2-issue234 §1.2，直接回答用户的困惑
+ * 「关联资源到环境是干什么的?我没太看懂」）：
+ * - 后端 POST /project-environments/resources/bulk-bind 只是把资源的 environmentId 字段
+ *   从 null 改成目标环境 id；
+ * - 部署 env 注入（resolveDeploymentEnvVars）只查 resourceInstance，
+ *   且仅当 resourceType.envTemplate 非空才生成 KEY=value 写入 .env；
+ * - managedResource / secretKey / site / cdnConfig 绑定后对部署变量零影响，仅作归类归属。
  *
- * 单一职责:渲染可选资源 + 环境选择 + 触发绑定。
+ * 因此本卡片把「会注入的资源实例」与「仅归类的资源」明确分两组渲染，文案诚实区分。
  */
 'use client';
 
@@ -19,38 +22,12 @@ import {
   countResourceBulkBindSelection,
   toggleResourceBulkBindSelection,
 } from '../../utils/resource-bulk-bind';
-import type {
-  EnvironmentResourceBulkBindSelection,
-  EnvironmentResourceBulkBindSelectionKey,
-} from '../../types/environment-copy';
-import type { Project } from '../../types';
+import { buildBindableRows, type BindableRow, type BindableRowGroup } from './resource-bind-rows';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
+import type { EnvironmentResourceBulkBindSelection } from '../../types/environment-copy';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
-
-interface BindableRow {
-  id: string;
-  name: string;
-  selectionKey: EnvironmentResourceBulkBindSelectionKey;
-}
-
-/** 从 Project 构造「未绑定到任何环境」的可勾选资源行。 */
-function buildBindableRows(p: Project): BindableRow[] {
-  const rows: BindableRow[] = [];
-  (p.managedResources || []).forEach((r) =>
-    rows.push({ id: r.id, name: r.name || r.id, selectionKey: 'managedResourceIds' }),
-  );
-  (p.resourceInstances || []).forEach((i) =>
-    rows.push({ id: i.id, name: i.name || i.id, selectionKey: 'resourceInstanceIds' }),
-  );
-  (p.sites || []).forEach((s) =>
-    rows.push({ id: s.id, name: s.name || s.primaryDomain || s.id, selectionKey: 'siteIds' }),
-  );
-  (p.secretKeys || []).forEach((s) =>
-    rows.push({ id: s.id, name: s.name || s.id, selectionKey: 'secretKeyIds' }),
-  );
-  return rows;
-}
+type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
 
 export function ResourceBindCard({ detail }: { detail: DetailHook }) {
   const t = useTranslations('projects');
@@ -58,9 +35,13 @@ export function ResourceBindCard({ detail }: { detail: DetailHook }) {
   if (!p) return null;
 
   const rows = buildBindableRows(p);
+  const injectRows = rows.filter((r) => r.group === 'inject');
+  const categoricalRows = rows.filter((r) => r.group === 'categorical');
   const selection = detail.resourceBulkBindSelection;
   const selectedCount = countResourceBulkBindSelection(selection);
   const environments = p.environments ?? [];
+
+  if (rows.length === 0) return null;
 
   const onToggle = (row: BindableRow, checked: boolean) => {
     detail.setResourceBulkBindSelection(
@@ -78,20 +59,13 @@ export function ResourceBindCard({ detail }: { detail: DetailHook }) {
     }
   };
 
-  if (rows.length === 0) return null;
-
   return (
     <section className="space-y-3 rounded-lg border p-4">
-      <div>
+      <header>
         <h3 className="text-sm font-medium">{t('bindResourcesTitle')}</h3>
-        <p className="mt-1 text-xs text-muted-foreground">{t('bindResourcesHint')}</p>
-      </div>
-      {detail.bindError ? (
-        <ErrorBanner
-          message={detail.bindError}
-          variant="inline"
-        />
-      ) : null}
+        <p className="mt-1 text-xs text-muted-foreground">{t('bindResourcesHintV2')}</p>
+      </header>
+      {detail.bindError ? <ErrorBanner message={detail.bindError} variant="inline" /> : null}
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('bindTargetEnvironment')}</span>
         <select
@@ -101,32 +75,30 @@ export function ResourceBindCard({ detail }: { detail: DetailHook }) {
         >
           <option value="">{t('selectEnvironment')}</option>
           {environments.map((env) => (
-            <option
-              key={env.id}
-              value={env.id}
-            >
+            <option key={env.id} value={env.id}>
               {env.name}
             </option>
           ))}
         </select>
       </label>
-      <ul className="max-h-64 space-y-1 overflow-auto">
-        {rows.map((row) => {
-          const checked = (selection[row.selectionKey] as string[]).includes(row.id);
-          return (
-            <li key={`${row.selectionKey}:${row.id}`}>
-              <label className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={(e) => onToggle(row, e.target.checked)}
-                />
-                <span className="truncate">{row.name}</span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
+      <ResourceGroup
+        group="inject"
+        title={t('bindGroupInjectable')}
+        hint={t('bindGroupInjectableHint')}
+        rows={injectRows}
+        selection={selection}
+        onToggle={onToggle}
+        t={t}
+      />
+      <ResourceGroup
+        group="categorical"
+        title={t('bindGroupCategorical')}
+        hint={t('bindGroupCategoricalHint')}
+        rows={categoricalRows}
+        selection={selection}
+        onToggle={onToggle}
+        t={t}
+      />
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
           {t('selectedCount', { count: selectedCount })}
@@ -141,5 +113,55 @@ export function ResourceBindCard({ detail }: { detail: DetailHook }) {
         </Button>
       </div>
     </section>
+  );
+}
+
+interface ResourceGroupProps {
+  group: BindableRowGroup;
+  title: string;
+  hint: string;
+  rows: BindableRow[];
+  selection: EnvironmentResourceBulkBindSelection;
+  onToggle: (row: BindableRow, checked: boolean) => void;
+  t: ProjectsTranslator;
+}
+
+function ResourceGroup({ group, title, hint, rows, selection, onToggle, t }: ResourceGroupProps) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
+          {title}
+        </span>
+        <span className="text-xs text-muted-foreground">{hint}</span>
+      </div>
+      <ul className="max-h-56 space-y-1 overflow-auto">
+        {rows.map((row) => {
+          const checked = (selection[row.selectionKey] as string[]).includes(row.id);
+          return (
+            <li key={`${row.selectionKey}:${row.id}`}>
+              <label className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => onToggle(row, e.target.checked)}
+                />
+                <span className="truncate font-medium">{row.name}</span>
+                <span className="text-xs text-muted-foreground">{row.typeName}</span>
+                {group === 'inject' && row.injectKeysPreview ? (
+                  <span className="ml-auto shrink-0 font-mono text-xs text-primary">
+                    → {row.injectKeysPreview}
+                  </span>
+                ) : null}
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+      {group === 'inject' && rows.length === 0 ? (
+        <p className="text-xs text-muted-foreground">{t('bindGroupInjectableEmpty')}</p>
+      ) : null}
+    </div>
   );
 }
