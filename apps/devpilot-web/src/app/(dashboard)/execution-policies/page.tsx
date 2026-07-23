@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { usePolicies } from './hooks/use-policies';
 import { PolicyFormView } from './components/policy-form';
 import { PolicyCard } from './components/policy-card';
+import { PolicyHelp } from './components/policy-help';
 
 export default function ExecutionPoliciesPage() {
   const t = useTranslations('executionPolicies');
@@ -78,6 +79,7 @@ export default function ExecutionPoliciesPage() {
         description={t('pageDescription')}
         actions={
           <div className="flex flex-wrap gap-2">
+            <PolicyHelp />
             <Button
               variant="outline"
               onClick={handleRetry}
@@ -126,7 +128,7 @@ export default function ExecutionPoliciesPage() {
           <h2 className="font-semibold">{t('templateListTitle')}</h2>
         </div>
         {templates.length === 0 ? (
-          <EmptyState text={t('noTemplates')} />
+          <EmptyState text={t('noTemplates')} action={<PolicyHelp trigger="link" />} />
         ) : (
           <div className="divide-y">
             {templates.map((template) => (

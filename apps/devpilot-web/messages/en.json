@@ -113,7 +113,9 @@
     "more": "More",
     "moreLabel": "Show more items",
     "noResults": "No matches",
-    "noTeamHint": "No team yet — create one to switch"
+    "noTeamHint": "No team yet — create one to switch",
+    "platformDocs": "Docs",
+    "sectionHelp": "Help"
   },
   "keys": {
     "pageTitle": "Key Center",
@@ -712,7 +714,32 @@
     "agentFollowPolicy": "Agent Follow",
     "sourceKeyLabel": "Source Key",
     "dryRun": "Dry-run",
-    "live": "Live"
+    "live": "Live",
+    "allStreams": "All log streams",
+    "search": "Search",
+    "searchPlaceholder": "Search log content, e.g. error db",
+    "all": "All",
+    "trace": "trace",
+    "debug": "debug",
+    "info": "info",
+    "warn": "warn",
+    "error": "error",
+    "fatal": "fatal",
+    "timeRange": "Time range",
+    "last5m": "Last 5 minutes",
+    "last15m": "Last 15 minutes",
+    "last1h": "Last 1 hour",
+    "last6h": "Last 6 hours",
+    "last24h": "Last 24 hours",
+    "liveTail": "Live tail",
+    "pauseTail": "Pause tail",
+    "newStream": "New stream",
+    "streamSettings": "Stream settings",
+    "injectEntry": "Inject test entry",
+    "loadMore": "Load more",
+    "statsEntries": "entries",
+    "minutesShort": "{n} min",
+    "hoursShort": "{n} h"
   },
   "sites": {
     "pageTitle": "Sites",
@@ -1393,7 +1420,10 @@
     "adapterKeysPlaceholder": "deployment-script-plan, nginx-site-plan",
     "operationKeysPlaceholder": "deploy, sync-site",
     "allowPatternsPlaceholder": "^docker ps .*",
-    "blockPatternsPlaceholder": "^docker exec .* sh"
+    "blockPatternsPlaceholder": "^docker exec .* sh",
+    "docsButton": "Help",
+    "learnMore": "Learn about execution policies",
+    "quickHelpSummary": "Execution policies = allow/block regex templates for server commands. They decide whether a command may run, not when it runs."
   },
   "git": {
     "pageTitle": "Git Integration",
@@ -2033,5 +2063,18 @@
     "footerCopyright": "© {year} Devpilot. All rights reserved.",
     "footerLogin": "Log In",
     "footerDashboard": "Go to Console"
+  },
+  "docs": {
+    "centerTitle": "Documentation",
+    "centerDescription": "Feature guides and best practices",
+    "sidebarLabel": "Docs navigation",
+    "notFound": "Document not found.",
+    "pending": "This document is being written. Stay tuned.",
+    "sectionGettingStarted": "Getting started",
+    "sectionServerExecution": "Server execution",
+    "titles": {
+      "overview": "Platform overview",
+      "executionPolicies": "Execution policies"
+    }
   }
 }

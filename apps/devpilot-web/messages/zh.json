@@ -113,7 +113,9 @@
     "more": "更多",
     "moreLabel": "展开更多项",
     "noResults": "无匹配项",
-    "noTeamHint": "暂无团队，创建后可切换"
+    "noTeamHint": "暂无团队，创建后可切换",
+    "platformDocs": "平台文档",
+    "sectionHelp": "帮助"
   },
   "keys": {
     "pageTitle": "密钥中心",
@@ -712,7 +714,32 @@
     "agentFollowPolicy": "Agent Follow",
     "sourceKeyLabel": "来源 Key",
     "dryRun": "Dry-run",
-    "live": "Live"
+    "live": "Live",
+    "allStreams": "全部日志流",
+    "search": "搜索",
+    "searchPlaceholder": "搜索日志内容，如 error db",
+    "all": "全部",
+    "trace": "trace",
+    "debug": "debug",
+    "info": "info",
+    "warn": "warn",
+    "error": "error",
+    "fatal": "fatal",
+    "timeRange": "时间范围",
+    "last5m": "近 5 分钟",
+    "last15m": "近 15 分钟",
+    "last1h": "近 1 小时",
+    "last6h": "近 6 小时",
+    "last24h": "近 24 小时",
+    "liveTail": "实时跟踪",
+    "pauseTail": "暂停跟踪",
+    "newStream": "新建日志流",
+    "streamSettings": "流设置",
+    "injectEntry": "注入测试条目",
+    "loadMore": "加载更多",
+    "statsEntries": "条条目",
+    "minutesShort": "{n} 分钟",
+    "hoursShort": "{n} 小时"
   },
   "sites": {
     "pageTitle": "站点",
@@ -1393,7 +1420,10 @@
     "adapterKeysPlaceholder": "deployment-script-plan, nginx-site-plan",
     "operationKeysPlaceholder": "deploy, sync-site",
     "allowPatternsPlaceholder": "^docker ps .*",
-    "blockPatternsPlaceholder": "^docker exec .* sh"
+    "blockPatternsPlaceholder": "^docker exec .* sh",
+    "docsButton": "使用说明",
+    "learnMore": "了解执行策略",
+    "quickHelpSummary": "执行策略 = 服务器命令的白名单 / 黑名单模板。它决定命令能不能被执行，不决定任务是否排队。"
   },
   "git": {
     "pageTitle": "Git 集成",
@@ -2033,5 +2063,18 @@
     "footerCopyright": "© {year} Devpilot. 保留所有权利。",
     "footerLogin": "登录",
     "footerDashboard": "进入控制台"
+  },
+  "docs": {
+    "centerTitle": "平台文档",
+    "centerDescription": "功能说明与最佳实践",
+    "sidebarLabel": "文档目录",
+    "notFound": "未找到该文档。",
+    "pending": "该文档正在编写中，敬请期待。",
+    "sectionGettingStarted": "快速开始",
+    "sectionServerExecution": "服务器执行",
+    "titles": {
+      "overview": "平台总览",
+      "executionPolicies": "执行策略"
+    }
   }
 }

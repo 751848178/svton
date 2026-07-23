@@ -26,7 +26,8 @@ export type NavIconName =
   | 'layers'
   | 'tags'
   | 'at-sign'
-  | 'cloud';
+  | 'cloud'
+  | 'book-open';
 
 export interface NavigationItem {
   href: string;
@@ -160,6 +161,11 @@ export const navigationSections: NavigationSection[] = [
       { href: '/admin/resource-pools', labelKey: 'resourcePools', icon: 'layers' },
       { href: '/admin/resource-types', labelKey: 'resourceTypes', icon: 'tags' },
     ],
+  },
+  {
+    // 文档区:平台级文档中心,所有用户可见。
+    titleKey: 'sectionHelp',
+    items: [{ href: '/docs', labelKey: 'platformDocs', icon: 'book-open' }],
   },
 ];
 
