@@ -3,6 +3,11 @@
 import { useTranslations } from 'next-intl';
 import { StatusTag } from '@/components/ui';
 import { getSchemaFieldCount } from '../utils';
+import {
+  resolveApprovalModeLabel,
+  resolveCategoryLabel,
+  resolveProvisioningModeLabel,
+} from '../label-resolvers';
 import type { ResourceType } from '../types';
 import { ResourceTypeActions } from './resource-type-actions.component';
 
@@ -29,7 +34,7 @@ export function ResourceTypeCard({
         </div>
         <StatusTag
           status={type.enabled ? 'active' : 'inactive'}
-          label={type.enabled ? tc('enabled') : t('disabled')}
+          label={type.enabled ? tc('enabled') : tc('disabled')}
         />
       </div>
 
@@ -40,11 +45,11 @@ export function ResourceTypeCard({
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <Detail
           label={t('colCategory')}
-          value={type.category || '-'}
+          value={resolveCategoryLabel(type.category, t)}
         />
         <Detail
           label={t('colApprovalDelivery')}
-          value={`${type.approvalMode} / ${type.provisioningMode}`}
+          value={`${resolveApprovalModeLabel(type.approvalMode, t)} / ${resolveProvisioningModeLabel(type.provisioningMode, t)}`}
         />
         <Detail
           label={t('colSchema')}

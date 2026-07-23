@@ -7,13 +7,15 @@ import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, MetricCard } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useResourceRequests } from './hooks/use-resource-requests';
-import { statusLabels } from './constants';
+import { statusLabelKeys } from './constants';
 import type { ResourceRequest } from './types';
 import { ProvisioningRunSupervisorPanel as SupervisorPanel } from './components/supervisor-panel';
 import { RequestTable } from './components/request-table';
 import { CreateRequestModal } from './components/create-request-modal';
 import { CompleteRequestModal } from './components/complete-request-modal';
 import { ProvisioningRunsModal } from './components/provisioning-runs-modal';
+import { ProviderStateModal } from './components/provider-state-modal.component';
+import { PendingRunActionDialog } from './components/pending-run-action-dialog.component';
 
 const STATUS_KEYS = ['pending', 'approved', 'completed', 'rejected', 'canceled'] as const;
 
@@ -39,6 +41,9 @@ export default function ResourceRequestsPage() {
     recoveringStaleRuns,
     processingQueuedRun,
     pendingRunAction,
+    reconcileInputTarget,
+    submitReconcileInput,
+    cancelReconcileInput,
     cancelRequest,
     reviewRequest,
     retryProvisioning,
@@ -89,7 +94,7 @@ export default function ResourceRequestsPage() {
         {STATUS_KEYS.map((status) => (
           <MetricCard
             key={status}
-            label={statusLabels[status]}
+            label={t(statusLabelKeys[status])}
             value={counts[status] || 0}
           />
         ))}
@@ -169,6 +174,12 @@ export default function ResourceRequestsPage() {
         />
       ) : null}
 
+      <ProviderStateModal
+        open={Boolean(reconcileInputTarget)}
+        onSubmit={submitReconcileInput}
+        onCancel={cancelReconcileInput}
+      />
+
       <ConfirmDialog
         open={Boolean(cancelTarget)}
         onOpenChange={(open) => {
@@ -194,34 +205,12 @@ export default function ResourceRequestsPage() {
         onConfirm={handleConfirmRetry}
       />
 
-      <ConfirmDialog
-        open={Boolean(pendingRunAction)}
+      <PendingRunActionDialog
+        action={pendingRunAction}
+        requestTitle={runsTarget?.title ?? ''}
         onOpenChange={(open) => {
           if (!open) cancelPendingRunAction();
         }}
-        tone="warning"
-        title={
-          pendingRunAction?.kind === 'reconcile'
-            ? t('reconcileConfirmTitle')
-            : pendingRunAction?.kind === 'recoverStale'
-              ? t('recoverStaleConfirmTitle')
-              : pendingRunAction?.kind === 'processNext'
-                ? t('processNextConfirmTitle')
-                : t('replayConfirmTitle')
-        }
-        description={
-          pendingRunAction
-            ? pendingRunAction.kind === 'reconcile'
-              ? t('reconcileConfirmDescription', { title: runsTarget?.title ?? '' })
-              : pendingRunAction.kind === 'recoverStale'
-                ? t('recoverStaleConfirmDescription')
-                : pendingRunAction.kind === 'processNext'
-                  ? t('processNextConfirmDescription')
-                  : t('replayConfirmDescription', { title: runsTarget?.title ?? '' })
-            : undefined
-        }
-        confirmLabel={tc('confirm')}
-        cancelLabel={tc('cancel')}
         onConfirm={confirmPendingRunAction}
       />
     </div>

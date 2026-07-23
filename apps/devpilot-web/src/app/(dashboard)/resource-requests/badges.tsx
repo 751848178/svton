@@ -1,7 +1,7 @@
 /** 资源申请域 - 展示判定与徽章文案（纯函数 + JSX 徽章）。 */
 
 import type { ResourceRequest, ResourceProvisioningRun, ProvisioningResult } from './types';
-import { statusLabels } from './constants';
+import { statusLabelKeys } from './constants';
 import { StatusTag } from '@/components/ui';
 
 /** provisioning.status → 展示文案。 */
@@ -22,8 +22,14 @@ const runStatusLabels: Record<string, string> = {
   failed: '失败',
 };
 
-export function getStatusBadge(status: ResourceRequest['status']) {
-  return <StatusTag status={status} label={statusLabels[status]} />;
+/** status → resourceRequests 命名空间下的 i18n key（供调用方解析文案）。 */
+export function getStatusLabelKey(status: ResourceRequest['status']): string {
+  return statusLabelKeys[status];
+}
+
+/** 已解析文案的状态徽章；label 由调用方通过 t(getStatusLabelKey(status)) 提供。 */
+export function getStatusBadge(status: ResourceRequest['status'], label: string) {
+  return <StatusTag status={status} label={label} />;
 }
 
 // TODO(ui-overhaul): StatusTag has no title prop; provisioning reason/boundary no longer surfaces on hover — add title passthrough to StatusTag in a follow-up.

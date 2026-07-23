@@ -55,7 +55,7 @@ export function PoolFormModal({
                 key={option.value}
                 value={option.value}
               >
-                {option.label}
+                {t(option.labelKey)}
               </option>
             ))}
           </select>

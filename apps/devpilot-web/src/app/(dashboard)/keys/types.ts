@@ -13,10 +13,13 @@ export interface SecretKey {
   createdAt: string;
 }
 
+/** 密钥类型图标名（与 key-type-icons 的 ICON_PATHS 一一对应）。 */
+export type KeyTypeIconName = 'shield' | 'key' | 'ticket' | 'lock' | 'database' | 'cog';
+
 export interface KeyTypeOption {
   value: string;
-  label: string;
-  icon: string;
+  labelKey: string;
+  icon: KeyTypeIconName;
 }
 
 export interface KeyInput {

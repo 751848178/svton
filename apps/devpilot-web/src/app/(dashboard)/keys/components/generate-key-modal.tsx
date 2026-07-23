@@ -69,7 +69,7 @@ export function GenerateKeyModal({
                 key={kt.value}
                 value={kt.value}
               >
-                {kt.icon} {kt.label}
+                {t(kt.labelKey)}
               </option>
             ))}
           </select>

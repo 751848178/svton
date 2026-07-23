@@ -8,7 +8,8 @@ import type {
   ResourceProvisioningRunSupervisor,
   ResourceRequest,
 } from '../types';
-import { parseJsonObject } from '../utils';
+import { useReconcileInput } from './use-reconcile-input.hooks';
+import { useSupervisorActions } from './use-supervisor-actions.hooks';
 
 /** 供给运行是否处于"运行中"：存在任意 active 运行时保持 5s 轮询。 */
 const isActiveProvisioningRun = (run: ResourceProvisioningRun) =>
@@ -53,18 +54,21 @@ export function useProvisioningRunActions({ refreshRequests }: ProvisioningRunAc
   const provisioningRuns = useMemo(() => runsSWR.data ?? [], [runsSWR.data]);
   const runSupervisor = supervisorSWR.data?.[0] ?? null;
   const [runsActionError, setRunsActionError] = useState('');
-  const [supervisorActionError, setSupervisorActionError] = useState('');
   const [replayingRunId, setReplayingRunId] = useState<string | null>(null);
   const [reconcilingRunId, setReconcilingRunId] = useState<string | null>(null);
-  const [recoveringStaleRuns, setRecoveringStaleRuns] = useState(false);
-  const [processingQueuedRun, setProcessingQueuedRun] = useState(false);
   const [pendingRunAction, setPendingRunAction] = useState<PendingProvisioningAction | null>(null);
+  // provider 对账输入：用独立弹窗收集 providerState JSON（取代原生 window.prompt）。
+  const { reconcileInputTarget, openReconcileInput, submitReconcileInput, cancelReconcileInput } =
+    useReconcileInput(
+      usePersistFn((run: ResourceProvisioningRun, providerState: Record<string, unknown>) => {
+        setPendingRunAction({ kind: 'reconcile', run, providerState });
+      }),
+    );
 
-  // GET 失败由 SWR error 暴露；这里吞掉异常仅保证动作流程不中断，成功后清掉动作错误。
+  // GET 失败由 SWR error 暴露；这里吞掉异常仅保证动作流程不中断。
   const refreshRunSupervisor = usePersistFn(async () => {
     try {
       await supervisorSWR.mutate();
-      setSupervisorActionError('');
     } catch {
       /* supervisorSWR.error 已携带原因 */
     }
@@ -77,6 +81,16 @@ export function useProvisioningRunActions({ refreshRequests }: ProvisioningRunAc
       /* runsSWR.error 已携带原因 */
     }
   });
+
+  // supervisor 域写动作（恢复超时 / 处理队列）拆到独立 hook；其错误态与此处合并后导出。
+  const { recoveringStaleRuns, processingQueuedRun, supervisorActionError, runRecoverStale, runProcessNext } =
+    useSupervisorActions({
+      runSupervisor,
+      runsTargetId: runsTarget?.id ?? null,
+      refreshRequests,
+      refreshRunSupervisor,
+      refreshProvisioningRuns,
+    });
 
   const openProvisioningRuns = usePersistFn(async (request: ResourceRequest) => {
     setRunsActionError('');
@@ -118,61 +132,17 @@ export function useProvisioningRunActions({ refreshRequests }: ProvisioningRunAc
     },
   );
 
-  const runRecoverStale = usePersistFn(async () => {
-    setRecoveringStaleRuns(true);
-    setSupervisorActionError('');
-    try {
-      await apiRequest('POST:/resource-requests/provisioning-runs/recover-stale', {
-        limit: 20,
-        staleAfterSeconds: String(runSupervisor?.staleAfterSeconds || 1800),
-      });
-      await Promise.all([
-        refreshRequests(),
-        refreshRunSupervisor(),
-        runsTarget ? refreshProvisioningRuns() : Promise.resolve(),
-      ]);
-    } catch (err) {
-      setSupervisorActionError(err instanceof Error ? err.message : t('recoverStaleFailed'));
-    } finally {
-      setRecoveringStaleRuns(false);
-    }
-  });
-
-  const runProcessNext = usePersistFn(async () => {
-    setProcessingQueuedRun(true);
-    setSupervisorActionError('');
-    try {
-      await apiRequest('POST:/resource-requests/provisioning-runs/process-next', {});
-      await Promise.all([
-        refreshRequests(),
-        refreshRunSupervisor(),
-        runsTarget ? refreshProvisioningRuns() : Promise.resolve(),
-      ]);
-    } catch (err) {
-      setSupervisorActionError(err instanceof Error ? err.message : t('processNextFailed'));
-    } finally {
-      setProcessingQueuedRun(false);
-    }
-  });
-
   // 以下四个入口只负责"收集参数 + 发起确认"，实际执行统一走 confirmPendingRunAction
   const replayProvisioningRun = usePersistFn((run: ResourceProvisioningRun) => {
     if (!runsTarget) return;
     setPendingRunAction({ kind: 'replay', run });
   });
 
+  // 打开 provider 对账输入弹窗；校验/提交/取消由 useReconcileInput 承担。
   const reconcileProviderProvisioningRun = usePersistFn((run: ResourceProvisioningRun) => {
     if (!runsTarget) return;
-    const raw = window.prompt('粘贴 providerState JSON 对象');
-    if (!raw) return;
-    let providerState: Record<string, unknown>;
-    try {
-      providerState = parseJsonObject(raw, 'providerState');
-    } catch (err) {
-      setRunsActionError(err instanceof Error ? err.message : t('providerStateInvalid'));
-      return;
-    }
-    setPendingRunAction({ kind: 'reconcile', run, providerState });
+    setRunsActionError('');
+    openReconcileInput(run);
   });
 
   const recoverStaleProvisioningRuns = usePersistFn(() => {
@@ -214,9 +184,12 @@ export function useProvisioningRunActions({ refreshRequests }: ProvisioningRunAc
     recoveringStaleRuns,
     processingQueuedRun,
     pendingRunAction,
+    reconcileInputTarget,
     openProvisioningRuns,
     replayProvisioningRun,
     reconcileProviderProvisioningRun,
+    submitReconcileInput,
+    cancelReconcileInput,
     recoverStaleProvisioningRuns,
     processNextQueuedProvisioningRun,
     cancelPendingRunAction,

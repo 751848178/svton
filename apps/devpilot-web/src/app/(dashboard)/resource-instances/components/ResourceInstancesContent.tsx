@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState, Tag } from '@svton/ui';
-import { PageHeader, StatusTag, ErrorBanner } from '@/components/ui';
+import { PageHeader, StatusTag, ErrorBanner, CodeBlock } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { useResourceInstances } from '../hooks/use-resource-instances';
-import { STATUS_LABELS, type ResourceInstance } from '../types';
+import { STATUS_LABEL_KEYS, type ResourceInstance } from '../types';
 
 /**
  * 资源实例客户端视图。
@@ -68,7 +68,7 @@ export function ResourceInstancesContent({
                     <h3 className="font-medium">{instance.name}</h3>
                     <StatusTag
                       status={instance.status}
-                      label={STATUS_LABELS[instance.status]}
+                      label={t(STATUS_LABEL_KEYS[instance.status])}
                     />
                     {instance.hasCredentials ? <Tag color="default">{t('hasCredentials')}</Tag> : null}
                   </div>
@@ -96,14 +96,16 @@ export function ResourceInstancesContent({
                 ) : null}
               </div>
               {instance.delivery && Object.keys(instance.delivery).length > 0 ? (
-                <dl className="mt-3 space-y-1 overflow-x-auto rounded-md bg-muted p-3 text-xs">
+                <dl className="mt-3 space-y-2 overflow-x-auto rounded-md bg-muted p-3 text-xs">
                   {Object.entries(instance.delivery).map(([key, value]) => (
                     <div
                       key={key}
-                      className="flex gap-2"
+                      className="flex flex-col gap-1 sm:flex-row sm:gap-2"
                     >
                       <dt className="shrink-0 font-medium text-muted-foreground">{key}:</dt>
-                      <dd className="break-all font-mono">{formatDeliveryValue(value)}</dd>
+                      <dd className="min-w-0 flex-1">
+                        <DeliveryValue value={value} />
+                      </dd>
                     </div>
                   ))}
                 </dl>
@@ -129,9 +131,24 @@ export function ResourceInstancesContent({
   );
 }
 
-/** 交付字段值格式化：对象/数组 JSON 序列化该行，其余转字符串，保证整行可选中复制。 */
-function formatDeliveryValue(value: unknown): string {
-  if (value === null || value === undefined) return '-';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+/**
+ * 交付字段值展示：
+ *  - 对象/数组：用 CodeBlock 以结构化（缩进）JSON 展示，可横向滚动；
+ *  - 其余：转字符串纯文本。
+ * 取代原先把对象塞进 `font-mono` 行内 `JSON.stringify` 的不可读写法。
+ */
+function DeliveryValue({ value }: { value: unknown }) {
+  if (value === null || value === undefined) {
+    return <span className="font-mono">-</span>;
+  }
+  if (typeof value === 'object') {
+    return (
+      <CodeBlock
+        content={JSON.stringify(value, null, 2)}
+        tone="muted"
+        className="text-xs"
+      />
+    );
+  }
+  return <span className="break-all font-mono">{String(value)}</span>;
 }

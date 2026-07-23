@@ -2,8 +2,12 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { StatusTag } from '@/components/ui';
 import type { useResourceControl } from '../hooks/use-resource-control';
-import { buildResourceActionKey, formatActionRisk } from '../resource-action-ui.utils';
+import {
+  buildResourceActionKey,
+  actionRiskLabelKey,
+} from '../resource-action-ui.utils';
 import type { ManagedResource, ResourceActionDefinition } from '../types';
 
 type RCHook = ReturnType<typeof useResourceControl>;
@@ -21,7 +25,7 @@ export function ResourceActionButtons({
   const [confirmationText, setConfirmationText] = useState<Record<string, string>>({});
 
   return (
-    <div className="mt-3 space-y-3 border-t pt-3">
+    <div className="mt-3 space-y-2 border-t pt-3">
       <button
         onClick={() => rc.syncResource(resource)}
         disabled={rc.actingResourceId === `${resource.id}:sync`}
@@ -38,11 +42,15 @@ export function ResourceActionButtons({
         return (
           <div
             key={action.key}
-            className="space-y-2"
+            className="space-y-1.5"
           >
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="font-medium">{action.name}</span>
-              <span className="text-muted-foreground">{formatActionRisk(action.risk)}</span>
+              <StatusTag
+                variant="risk"
+                status={action.risk}
+                label={t(actionRiskLabelKey(action.risk))}
+              />
             </div>
             <div className="flex flex-wrap gap-2">
               <button

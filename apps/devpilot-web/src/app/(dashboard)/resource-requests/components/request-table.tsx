@@ -16,16 +16,13 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { usePersistFn } from '@svton/hooks';
-import { Tag } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
 import type { ResourceRequest } from '../types';
 import {
   getStatusBadge,
+  getStatusLabelKey,
   getProvisioningBadge,
-  canViewProvisioningRuns,
-  canRetryProvisioning,
 } from '../badges';
+import { RequestActions } from './request-actions.component';
 
 interface RequestTableProps {
   requests: ResourceRequest[];
@@ -105,7 +102,7 @@ export function RequestTable(props: RequestTableProps) {
           const request = row.original;
           return (
             <div className="space-y-1">
-              {getStatusBadge(request.status)}
+              {getStatusBadge(request.status, t(getStatusLabelKey(request.status)))}
               {getProvisioningBadge(request.result?.provisioning)}
             </div>
           );
@@ -140,8 +137,8 @@ export function RequestTable(props: RequestTableProps) {
   });
 
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <table className="w-full">
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full min-w-[860px]">
         <thead className="bg-muted/50">
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
@@ -189,88 +186,6 @@ export function RequestTable(props: RequestTableProps) {
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function RequestActions({
-  request,
-  retryingId,
-  onReview,
-  onCancel,
-  onRetryProvisioning,
-  onComplete,
-  onViewRuns,
-}: {
-  request: ResourceRequest;
-  retryingId: string | null;
-  onReview: (id: string, status: 'approved' | 'rejected') => void;
-  onCancel: (id: string) => void;
-  onRetryProvisioning: (request: ResourceRequest) => void;
-  onComplete: (request: ResourceRequest) => void;
-  onViewRuns: (request: ResourceRequest) => void;
-}) {
-  const t = useTranslations('resourceRequests');
-  const tc = useTranslations('common');
-  const handleApprove = usePersistFn(() => onReview(request.id, 'approved'));
-  const handleReject = usePersistFn(() => onReview(request.id, 'rejected'));
-  const handleCancel = usePersistFn(() => onCancel(request.id));
-  const handleRetry = usePersistFn(() => onRetryProvisioning(request));
-  const handleComplete = usePersistFn(() => onComplete(request));
-  const handleViewRuns = usePersistFn(() => onViewRuns(request));
-
-  return (
-    <div className="flex justify-end gap-2">
-      {canViewProvisioningRuns(request) ? (
-        <button
-          onClick={handleViewRuns}
-          className="rounded border px-2 py-1 text-xs hover:bg-accent"
-        >
-          {t('runRecords')}
-        </button>
-      ) : null}
-      {request.status === 'pending' ? (
-        <>
-          <button
-            onClick={handleApprove}
-            className="rounded border px-2 py-1 text-xs hover:bg-accent"
-          >
-            {t('approve')}
-          </button>
-          <button
-            onClick={handleReject}
-            className="rounded border px-2 py-1 text-xs hover:bg-accent"
-          >
-            {t('reject')}
-          </button>
-          <button
-            onClick={handleCancel}
-            className="rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
-          >
-            {tc('cancel')}
-          </button>
-        </>
-      ) : null}
-      {request.status === 'approved' ? (
-        <>
-          {canRetryProvisioning(request.result?.provisioning) ? (
-            <button
-              onClick={handleRetry}
-              disabled={retryingId === request.id}
-              className="rounded border px-2 py-1 text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {retryingId === request.id ? t('retrying') : t('retryDelivery')}
-            </button>
-          ) : null}
-          <button
-            onClick={handleComplete}
-            className="rounded border px-2 py-1 text-xs hover:bg-accent"
-          >
-            {t('deliver')}
-          </button>
-        </>
-      ) : null}
-      {request.instance ? <Tag color="default">{t('instanceName', { name: request.instance.name })}</Tag> : null}
     </div>
   );
 }

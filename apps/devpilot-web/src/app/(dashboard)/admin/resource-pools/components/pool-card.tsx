@@ -11,6 +11,8 @@ import { useTranslations } from 'next-intl';
 import { ProgressState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { ResourcePool } from '../types';
+import { getPoolTypeInfo, resolvePoolTypeLabel } from '../constants';
+import { PoolTypeIcon } from './pool-type-icons';
 
 interface PoolCardProps {
   pool: ResourcePool;
@@ -24,17 +26,26 @@ export function PoolCard({ pool, onEdit, onDelete }: PoolCardProps) {
   const handleEdit = usePersistFn(() => onEdit(pool));
   const handleDelete = usePersistFn(() => onDelete(pool.id));
   const percent = pool.capacity > 0 ? (pool.allocated / pool.capacity) * 100 : 0;
+  const typeInfo = getPoolTypeInfo(pool.type);
 
   return (
     <div className="rounded-lg border bg-card p-6">
       <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-            <span className="font-bold text-primary">{pool.type.charAt(0).toUpperCase()}</span>
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <PoolTypeIcon
+              name={typeInfo.icon}
+              className="h-6 w-6"
+            />
           </div>
-          <div>
+          <div className="min-w-0">
             <h3 className="font-semibold">{pool.name}</h3>
-            <p className="text-sm text-muted-foreground">{pool.endpoint}</p>
+            <p
+              className="truncate text-sm text-muted-foreground"
+              title={pool.endpoint}
+            >
+              {pool.endpoint}
+            </p>
           </div>
         </div>
         <StatusTag status={pool.status} />
@@ -43,7 +54,7 @@ export function PoolCard({ pool, onEdit, onDelete }: PoolCardProps) {
       <div className="mt-4 grid grid-cols-3 gap-4">
         <div>
           <p className="text-sm text-muted-foreground">{tc('type')}</p>
-          <p className="font-medium">{pool.type.toUpperCase()}</p>
+          <p className="font-medium">{resolvePoolTypeLabel(pool.type, t)}</p>
         </div>
         <div>
           <p className="text-sm text-muted-foreground">{t('capacity')}</p>

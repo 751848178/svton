@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn, useSetState } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, ErrorBanner } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { useKeys } from '../hooks/use-keys';
@@ -22,7 +22,7 @@ import type { SecretKey, KeyInput } from '../types';
 export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
   const t = useTranslations('keys');
   const tc = useTranslations('common');
-  const { keys, loading, generate, store, revealValue, remove } = useKeys(initialKeys);
+  const { keys, loading, error, generate, store, revealValue, remove, refresh } = useKeys(initialKeys);
   const [revealed, setRevealed] = useSetState<Record<string, string>>({});
   const [storeInitial, setStoreInitial] = useState<Partial<KeyInput>>({});
   const [genOpen, { setTrue: openGen, setFalse: closeGen }] = useBoolean(false);
@@ -65,7 +65,7 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
   });
 
   if (loading) {
-    return <LoadingState text="" />;
+    return <LoadingState text={tc('loading')} />;
   }
 
   return (
@@ -91,7 +91,15 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
         }
       />
 
-      <div className="grid gap-4">
+      {error ? (
+        <ErrorBanner
+          message={t('loadFailed')}
+          onRetry={refresh}
+          retryLabel={tc('retry')}
+        />
+      ) : null}
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {keys.length === 0 ? (
           <EmptyState text={t('noKeys')} />
         ) : (

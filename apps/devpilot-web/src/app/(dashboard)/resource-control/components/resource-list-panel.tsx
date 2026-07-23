@@ -1,11 +1,10 @@
 /** 资源列表面板 - 受管资源卡片网格 + 筛选 + 同步/操作。 */
 'use client';
-import { usePersistFn } from '@svton/hooks';
 import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useResourceControl } from '../hooks/use-resource-control';
-import { kindLabels, providerLabels } from '../constants';
+import { KIND_KEYS, PROVIDER_KEYS, resolveKindLabel, resolveProviderLabel } from '../constants';
 import { listActionsForResource } from '../resource-action-ui.utils';
 import { ResourceActionButtons } from './resource-action-buttons.component';
 type RCHook = ReturnType<typeof useResourceControl>;
@@ -34,12 +33,12 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
           className="min-h-11 rounded-md border bg-background px-3 py-2 text-sm"
         >
           <option value="">{t('allProviders')}</option>
-          {Object.keys(providerLabels).map((p) => (
+          {PROVIDER_KEYS.map((p) => (
             <option
               key={p}
               value={p}
             >
-              {providerLabels[p]}
+              {resolveProviderLabel(p, t)}
             </option>
           ))}
         </select>
@@ -49,12 +48,12 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
           className="min-h-11 rounded-md border bg-background px-3 py-2 text-sm"
         >
           <option value="">{t('allKinds')}</option>
-          {Object.keys(kindLabels).map((k) => (
+          {KIND_KEYS.map((k) => (
             <option
               key={k}
               value={k}
             >
-              {kindLabels[k]}
+              {resolveKindLabel(k, t)}
             </option>
           ))}
         </select>
@@ -83,6 +82,7 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
 }
 
 function ResourceCard({ rc, resource }: { rc: RCHook; resource: RCHook['resources'][number] }) {
+  const t = useTranslations('resourceControl');
   const actions = listActionsForResource(rc.actions, resource);
   return (
     <div className="rounded-lg border p-4">
@@ -90,8 +90,8 @@ function ResourceCard({ rc, resource }: { rc: RCHook; resource: RCHook['resource
         <div>
           <h3 className="font-medium">{resource.name}</h3>
           <div className="mt-1 text-xs text-muted-foreground">
-            {providerLabels[resource.provider] || resource.provider}/
-            {kindLabels[resource.kind] || resource.kind}
+            {resolveProviderLabel(resource.provider, t)}/
+            {resolveKindLabel(resource.kind, t)}
           </div>
         </div>
         <StatusTag status={resource.status} />

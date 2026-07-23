@@ -60,6 +60,8 @@ export interface ResourceTypeFormData {
 }
 
 export interface EditableResourceField {
+  /** 前端稳定的 React key（编辑期间不随内容变化）。 */
+  id: string;
   key: string;
   label: string;
   type: ResourceFieldType;

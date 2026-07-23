@@ -24,7 +24,7 @@ const POOLS_KEY = 'GET:/resource-pools';
 export function useResourcePools(initialPools?: ResourcePool[] | undefined) {
   const t = useTranslations('admin');
   const confirmChannel = usePoolDeleteConfirmChannel();
-  const { data, isLoading } = useQueryLoose<ResourcePool[]>(POOLS_KEY, {
+  const { data, isLoading, error, mutate: refresh } = useQueryLoose<ResourcePool[]>(POOLS_KEY, {
     fallback: initialPools,
   });
   const pools = data ?? [];
@@ -109,6 +109,8 @@ export function useResourcePools(initialPools?: ResourcePool[] | undefined) {
   return {
     pools,
     loading: isLoading,
+    loadError: error,
+    refresh,
     modalOpen,
     editingPool,
     form,

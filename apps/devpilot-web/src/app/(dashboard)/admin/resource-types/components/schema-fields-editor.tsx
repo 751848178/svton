@@ -8,8 +8,10 @@
 
 import { usePersistFn } from '@svton/hooks';
 import { useTranslations } from 'next-intl';
+import { CodeBlock } from '@/components/ui';
 import type { EditableResourceField } from '../types';
 import { createEmptyEditableField, normalizeEditableField } from '../utils';
+import { SchemaEditorIcon } from './schema-editor-icons';
 import { SchemaFieldEditorRow } from './schema-field-editor-row.component';
 
 interface SchemaFieldsEditorProps {
@@ -20,25 +22,26 @@ interface SchemaFieldsEditorProps {
 
 export function SchemaFieldsEditor({ title, fields, onChange }: SchemaFieldsEditorProps) {
   const t = useTranslations('admin');
-  const updateField = usePersistFn((index: number, patch: Partial<EditableResourceField>) => {
+  const updateField = usePersistFn((id: string, patch: Partial<EditableResourceField>) => {
     onChange(
-      fields.map((field, fieldIndex) =>
-        fieldIndex === index ? normalizeEditableField({ ...field, ...patch }) : field,
+      fields.map((field) =>
+        field.id === id ? normalizeEditableField({ ...field, ...patch }) : field,
       ),
     );
   });
 
-  const moveField = usePersistFn((index: number, offset: number) => {
+  const moveField = usePersistFn((id: string, offset: number) => {
+    const index = fields.findIndex((field) => field.id === id);
     const nextIndex = index + offset;
-    if (nextIndex < 0 || nextIndex >= fields.length) return;
+    if (index < 0 || nextIndex < 0 || nextIndex >= fields.length) return;
     const nextFields = [...fields];
     const [field] = nextFields.splice(index, 1);
     nextFields.splice(nextIndex, 0, field);
     onChange(nextFields);
   });
 
-  const removeField = usePersistFn((index: number) => {
-    onChange(fields.filter((_, fieldIndex) => fieldIndex !== index));
+  const removeField = usePersistFn((id: string) => {
+    onChange(fields.filter((field) => field.id !== id));
   });
 
   const addField = usePersistFn(() => {
@@ -56,9 +59,12 @@ export function SchemaFieldsEditor({ title, fields, onChange }: SchemaFieldsEdit
           type="button"
           onClick={addField}
           title={t('addFieldTitle', { title })}
-          className="h-8 w-8 rounded-md border text-lg leading-none hover:bg-muted"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border hover:bg-muted"
         >
-          +
+          <SchemaEditorIcon
+            name="plus"
+            className="h-4 w-4"
+          />
         </button>
       </div>
 
@@ -70,7 +76,7 @@ export function SchemaFieldsEditor({ title, fields, onChange }: SchemaFieldsEdit
         <div className="space-y-3">
           {fields.map((field, index) => (
             <SchemaFieldEditorRow
-              key={index}
+              key={field.id}
               index={index}
               field={field}
               total={fields.length}
@@ -95,9 +101,10 @@ export function SchemaPreview({
   return (
     <div>
       <label className="mb-1 block text-sm font-medium">{title}</label>
-      <pre className="max-h-56 min-h-28 overflow-auto rounded-md border bg-muted/30 px-3 py-2 text-xs">
-        {JSON.stringify(schema, null, 2)}
-      </pre>
+      <CodeBlock
+        content={JSON.stringify(schema, null, 2)}
+        tone="muted"
+      />
     </div>
   );
 }

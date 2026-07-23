@@ -3,14 +3,13 @@
 import { usePersistFn } from '@svton/hooks';
 import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, StatusTag } from '@/components/ui';
+import { PageHeader } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useResourceTypes } from '../hooks/use-resource-types';
 import { ResourceTypeFormModal } from './resource-type-form-modal';
-import { getSchemaFieldCount } from '../utils';
 import type { ResourceType } from '../types';
-import { ResourceTypeActions } from './resource-type-actions.component';
 import { ResourceTypeCard } from './resource-type-card.component';
+import { ResourceTypeRow } from './resource-type-table-row.component';
 
 /**
  * 资源类型客户端视图。
@@ -140,53 +139,5 @@ function Th({ children, align = 'left' }: { children: React.ReactNode; align?: '
     >
       {children}
     </th>
-  );
-}
-
-function ResourceTypeRow({
-  type,
-  onEdit,
-  onDisable,
-}: {
-  type: ResourceType;
-  onEdit: (type: ResourceType) => void;
-  onDisable: (id: string) => void;
-}) {
-  const t = useTranslations('admin');
-  const tc = useTranslations('common');
-  return (
-    <tr className="hover:bg-muted/30">
-      <td className="px-4 py-3">
-        <div className="font-medium">{type.name}</div>
-        <code className="text-xs text-muted-foreground">{type.key}</code>
-        {type.description ? (
-          <div className="mt-1 text-xs text-muted-foreground">{type.description}</div>
-        ) : null}
-      </td>
-      <td className="px-4 py-3 text-sm">{type.category || '-'}</td>
-      <td className="px-4 py-3 text-sm">
-        <div>{type.approvalMode}</div>
-        <div className="text-xs text-muted-foreground">{type.provisioningMode}</div>
-      </td>
-      <td className="px-4 py-3 text-sm">
-        <div>{t('requestFields', { count: getSchemaFieldCount(type.requestSchema) })}</div>
-        <div className="text-xs text-muted-foreground">
-          {t('deliveryFields', { count: getSchemaFieldCount(type.deliverySchema) })}
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <StatusTag
-          status={type.enabled ? 'active' : 'inactive'}
-          label={type.enabled ? tc('enabled') : t('disabled')}
-        />
-      </td>
-      <td className="px-4 py-3">
-        <ResourceTypeActions
-          type={type}
-          onEdit={onEdit}
-          onDisable={onDisable}
-        />
-      </td>
-    </tr>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useResourcePools } from '../hooks/use-resource-pools';
 import { PoolCard } from './pool-card';
 import { PoolFormModal } from './pool-form-modal';
@@ -15,9 +15,12 @@ import type { ResourcePool } from '../types';
  */
 export function ResourcePoolsContent({ initialPools }: { initialPools?: ResourcePool[] }) {
   const t = useTranslations('admin');
+  const tc = useTranslations('common');
   const {
     pools,
     loading,
+    loadError,
+    refresh,
     modalOpen,
     editingPool,
     form,
@@ -30,7 +33,7 @@ export function ResourcePoolsContent({ initialPools }: { initialPools?: Resource
   } = useResourcePools(initialPools);
 
   if (loading) {
-    return <LoadingState text="" />;
+    return <LoadingState text={tc('loading')} />;
   }
 
   return (
@@ -47,6 +50,14 @@ export function ResourcePoolsContent({ initialPools }: { initialPools?: Resource
           </button>
         }
       />
+
+      {loadError ? (
+        <ErrorBanner
+          message={t('poolsLoadFailed')}
+          onRetry={refresh}
+          retryLabel={tc('retry')}
+        />
+      ) : null}
 
       {pools.length === 0 ? (
         <EmptyState text={t('noPools')} />

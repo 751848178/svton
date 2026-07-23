@@ -34,40 +34,48 @@ export function ProvisioningRunRow({
   return (
     <tr className="align-top">
       <td className="px-3 py-3">
-        {getRunStatusBadge(run.status)}
-        {run.autoRetry && <div className="mt-1 text-xs text-muted-foreground">{t('autoRetry')}</div>}
-        {run.recoveredAt && <div className="mt-1 text-xs text-red-700">{t('recovered')}</div>}
-        {run.queueMode === 'queued' && (
-          <div className="mt-1 text-xs text-muted-foreground">{t('queueRun')}</div>
-        )}
+        <div className="flex flex-wrap items-center gap-1">
+          {getRunStatusBadge(run.status)}
+          {run.queueMode === 'queued' ? (
+            <span className="text-xs text-muted-foreground">{t('queueRun')}</span>
+          ) : null}
+        </div>
+        {run.recoveredAt ? (
+          <div className="mt-1 text-xs text-red-700">{t('recovered')}</div>
+        ) : null}
       </td>
       <td className="px-3 py-3">
         <div>{getRunTriggerLabel(run.trigger)}</div>
         <div className="text-xs text-muted-foreground">
-          {run.mode || '-'} · {run.boundary || '-'}
+          {[run.mode, run.boundary].filter(Boolean).join(' · ') || '-'}
+          {run.autoRetry ? ` · ${t('autoRetry')}` : ''}
         </div>
-        {run.replayOfRunId && (
+        {run.replayOfRunId ? (
           <div className="text-xs text-muted-foreground">{t('source', { id: shortId(run.replayOfRunId) })}</div>
-        )}
+        ) : null}
       </td>
       <td className="px-3 py-3">
-        <div>{run.executorKey || '-'}</div>
-        <div className="text-xs text-muted-foreground">{run.adapterKey || '-'}</div>
-        {run.authAdapterKey && (
-          <div className="text-xs text-muted-foreground">{run.authAdapterKey}</div>
-        )}
+        <div className="text-xs text-muted-foreground">{t('executorLabel')}</div>
+        <div
+          className="max-w-[180px] truncate font-medium"
+          title={run.executorKey || undefined}
+        >
+          {run.executorKey || '-'}
+        </div>
       </td>
       <td className="px-3 py-3">
         <div>
           {run.attempt ?? 0} / {run.maxAttempts ?? 1}
         </div>
-        <div className="text-xs text-muted-foreground">{run.retryable ? t('retryable') : t('notRetryable')}</div>
-        {Boolean(run.replayAttemptsCount) && (
-          <div className="text-xs text-muted-foreground">{t('replayedTimes', { count: run.replayAttemptsCount || 0 })}</div>
-        )}
-        {Boolean(run.recoveryCount) && (
-          <div className="text-xs text-muted-foreground">{t('recoveredTimes', { count: run.recoveryCount || 0 })}</div>
-        )}
+        <div className="text-xs text-muted-foreground">
+          {run.retryable ? t('retryable') : t('notRetryable')}
+          {Boolean(run.replayAttemptsCount)
+            ? ` · ${t('replayedTimes', { count: run.replayAttemptsCount || 0 })}`
+            : ''}
+          {Boolean(run.recoveryCount)
+            ? ` · ${t('recoveredTimes', { count: run.recoveryCount || 0 })}`
+            : ''}
+        </div>
       </td>
       <td className="px-3 py-3">
         <div
@@ -76,29 +84,16 @@ export function ProvisioningRunRow({
         >
           {run.providerRunId || '-'}
         </div>
-        <code
-          className="block max-w-[220px] truncate text-xs text-muted-foreground"
-          title={run.idempotencyKey || undefined}
-        >
-          {run.idempotencyKey || '-'}
-        </code>
       </td>
       <td className="px-3 py-3">
         <div>{formatDateTime(run.startedAt)}</div>
         <div className="text-xs text-muted-foreground">{formatDateTime(run.finishedAt)}</div>
-        {run.queuedAt && (
+        {run.queuedAt ? (
           <div className="text-xs text-muted-foreground">{t('enqueuedAt', { time: formatDateTime(run.queuedAt) })}</div>
-        )}
-        {run.availableAt && (
-          <div className="text-xs text-muted-foreground">
-            {t('availableAt', { time: formatDateTime(run.availableAt) })}
-          </div>
-        )}
-        {run.recoveredAt && (
-          <div className="text-xs text-muted-foreground">
-            {t('recoveredAt', { time: formatDateTime(run.recoveredAt) })}
-          </div>
-        )}
+        ) : null}
+        {run.recoveredAt ? (
+          <div className="text-xs text-muted-foreground">{t('recoveredAt', { time: formatDateTime(run.recoveredAt) })}</div>
+        ) : null}
       </td>
       <td className="px-3 py-3">
         <ProvisioningRunSummary run={run} />
@@ -132,7 +127,13 @@ export function ProvisioningRunRow({
   );
 }
 
+/**
+ * 运行摘要：优先展示 error / recoveryReason（运维最关心）。
+ * 否则用友好标签（参数/结果）+ 字段名列表（muted 次要）替代原先的 `params: <keys>` 原始拼接。
+ */
 function ProvisioningRunSummary({ run }: { run: ResourceProvisioningRun }) {
+  const t = useTranslations('resourceRequests');
+
   if (run.recoveryReason) {
     return (
       <div
@@ -155,11 +156,18 @@ function ProvisioningRunSummary({ run }: { run: ResourceProvisioningRun }) {
     );
   }
 
+  const paramsKeys = summarizeRecord(run.params);
+  const resultKeys = summarizeRecord(run.result);
   return (
-    <div className="text-muted-foreground">
-      params: {summarizeRecord(run.params)}
-      <br />
-      result: {summarizeRecord(run.result)}
+    <div className="max-w-[220px] space-y-0.5 text-xs">
+      <div>
+        <span className="font-medium text-foreground">{t('paramsLabel')}: </span>
+        <span className="text-muted-foreground">{paramsKeys}</span>
+      </div>
+      <div>
+        <span className="font-medium text-foreground">{t('resultLabel')}: </span>
+        <span className="text-muted-foreground">{resultKeys}</span>
+      </div>
     </div>
   );
 }

@@ -13,14 +13,15 @@ import {
   type ResourceFieldType,
   type EditableResourceField,
 } from '../types';
+import { SchemaEditorIcon } from './schema-editor-icons';
 
 interface SchemaFieldEditorRowProps {
   index: number;
   field: EditableResourceField;
   total: number;
-  onUpdate: (index: number, patch: Partial<EditableResourceField>) => void;
-  onMove: (index: number, offset: number) => void;
-  onRemove: (index: number) => void;
+  onUpdate: (id: string, patch: Partial<EditableResourceField>) => void;
+  onMove: (id: string, offset: number) => void;
+  onRemove: (id: string) => void;
 }
 
 export function SchemaFieldEditorRow({
@@ -40,29 +41,38 @@ export function SchemaFieldEditorRow({
         <div className="flex gap-1">
           <button
             type="button"
-            onClick={() => onMove(index, -1)}
+            onClick={() => onMove(field.id, -1)}
             disabled={index === 0}
             title={t('moveUp')}
-            className="h-7 w-7 rounded-md border text-sm disabled:opacity-40 hover:bg-muted"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border disabled:opacity-40 hover:bg-muted"
           >
-            ↑
+            <SchemaEditorIcon
+              name="chevron-up"
+              className="h-4 w-4"
+            />
           </button>
           <button
             type="button"
-            onClick={() => onMove(index, 1)}
+            onClick={() => onMove(field.id, 1)}
             disabled={index === total - 1}
             title={t('moveDown')}
-            className="h-7 w-7 rounded-md border text-sm disabled:opacity-40 hover:bg-muted"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border disabled:opacity-40 hover:bg-muted"
           >
-            ↓
+            <SchemaEditorIcon
+              name="chevron-down"
+              className="h-4 w-4"
+            />
           </button>
           <button
             type="button"
-            onClick={() => onRemove(index)}
+            onClick={() => onRemove(field.id)}
             title={tc('delete')}
-            className="h-7 w-7 rounded-md border text-sm text-destructive hover:bg-destructive/10"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border text-destructive hover:bg-destructive/10"
           >
-            ×
+            <SchemaEditorIcon
+              name="x"
+              className="h-4 w-4"
+            />
           </button>
         </div>
       </div>
@@ -72,7 +82,7 @@ export function SchemaFieldEditorRow({
           <span className="mb-1 block font-medium">Key</span>
           <input
             value={field.key}
-            onChange={(e) => onUpdate(index, { key: e.target.value })}
+            onChange={(e) => onUpdate(field.id, { key: e.target.value })}
             className="w-full rounded-md border px-3 py-2"
             placeholder="database"
           />
@@ -81,7 +91,7 @@ export function SchemaFieldEditorRow({
           <span className="mb-1 block font-medium">{tc('name')}</span>
           <input
             value={field.label}
-            onChange={(e) => onUpdate(index, { label: e.target.value })}
+            onChange={(e) => onUpdate(field.id, { label: e.target.value })}
             className="w-full rounded-md border px-3 py-2"
             placeholder={t('fieldLabelPlaceholder')}
           />
@@ -90,7 +100,7 @@ export function SchemaFieldEditorRow({
           <span className="mb-1 block font-medium">{tc('type')}</span>
           <select
             value={field.type}
-            onChange={(e) => onUpdate(index, { type: e.target.value as ResourceFieldType })}
+            onChange={(e) => onUpdate(field.id, { type: e.target.value as ResourceFieldType })}
             className="w-full rounded-md border bg-background px-3 py-2"
           >
             {resourceFieldTypes.map((type) => (
@@ -113,7 +123,7 @@ export function SchemaFieldEditorRow({
               <input
                 type="checkbox"
                 checked={field.defaultValue === 'true'}
-                onChange={(e) => onUpdate(index, { defaultValue: e.target.checked ? 'true' : '' })}
+                onChange={(e) => onUpdate(field.id, { defaultValue: e.target.checked ? 'true' : '' })}
                 className="h-4 w-4"
               />
               <span className="text-sm text-muted-foreground">{t('defaultChecked')}</span>
@@ -121,7 +131,7 @@ export function SchemaFieldEditorRow({
           ) : (
             <input
               value={field.defaultValue}
-              onChange={(e) => onUpdate(index, { defaultValue: e.target.value })}
+              onChange={(e) => onUpdate(field.id, { defaultValue: e.target.value })}
               className="w-full rounded-md border px-3 py-2"
             />
           )}
@@ -130,7 +140,7 @@ export function SchemaFieldEditorRow({
           <span className="mb-1 block font-medium">{t('placeholder')}</span>
           <input
             value={field.placeholder}
-            onChange={(e) => onUpdate(index, { placeholder: e.target.value })}
+            onChange={(e) => onUpdate(field.id, { placeholder: e.target.value })}
             className="w-full rounded-md border px-3 py-2"
           />
         </label>
@@ -141,7 +151,7 @@ export function SchemaFieldEditorRow({
           <span className="mb-1 block font-medium">{t('options')}</span>
           <textarea
             value={field.optionsText}
-            onChange={(e) => onUpdate(index, { optionsText: e.target.value })}
+            onChange={(e) => onUpdate(field.id, { optionsText: e.target.value })}
             rows={3}
             className="w-full resize-none rounded-md border px-3 py-2 font-mono text-sm"
             placeholder={t('optionsPlaceholder')}
@@ -154,7 +164,7 @@ export function SchemaFieldEditorRow({
           <input
             type="checkbox"
             checked={field.required}
-            onChange={(e) => onUpdate(index, { required: e.target.checked })}
+            onChange={(e) => onUpdate(field.id, { required: e.target.checked })}
             className="h-4 w-4"
           />
           {tc('required')}
@@ -163,7 +173,7 @@ export function SchemaFieldEditorRow({
           <input
             type="checkbox"
             checked={field.sensitive}
-            onChange={(e) => onUpdate(index, { sensitive: e.target.checked })}
+            onChange={(e) => onUpdate(field.id, { sensitive: e.target.checked })}
             className="h-4 w-4"
           />
           {t('sensitive')}

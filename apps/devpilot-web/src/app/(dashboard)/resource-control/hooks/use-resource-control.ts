@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import type {
@@ -31,7 +32,8 @@ function buildResourceSyncRequest(resource: ManagedResource) {
 
   if (resource.sourceType === 'server') {
     if (!resource.serverId) {
-      throw new Error('服务器资源缺少 serverId，无法同步 Docker 资源');
+      // 抛 i18n key，由调用处 catch 用 t 解析
+      throw new Error('syncMissingServerId');
     }
     return {
       endpoint: `POST:/resource-control/servers/${resource.serverId}/sync-docker`,
@@ -54,10 +56,11 @@ function buildResourceSyncRequest(resource: ManagedResource) {
     };
   }
 
-  throw new Error('当前资源类型暂不支持同步');
+  throw new Error('syncUnsupportedType');
 }
 
 export function useResourceControl() {
+  const t = useTranslations('resourceControl');
   const [servers, setServers] = useState<Server[]>([]);
   const [resources, setResources] = useState<ManagedResource[]>([]);
   const [actions, setActions] = useState<ResourceActionDefinition[]>([]);
@@ -70,6 +73,13 @@ export function useResourceControl() {
   const [filterProvider, setFilterProvider] = useState('');
   const [filterKind, setFilterKind] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+  /** 解析错误：命中的 i18n key 翻译，否则回退动态 err.message，再否则用默认 key。 */
+  const resolveError = usePersistFn((err: unknown, fallbackKey: string): string => {
+    if (err instanceof Error && err.message && t.has(err.message)) return t(err.message);
+    if (err instanceof Error && err.message) return err.message;
+    return t(fallbackKey);
+  });
 
   const loadData = usePersistFn(async () => {
     setError('');
@@ -89,7 +99,7 @@ export function useResourceControl() {
       setConnectionRuns(conns);
       setQueryRuns(queries);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载资源管控数据失败');
+      setError(resolveError(err, 'loadDataFailed'));
     } finally {
       setLoading(false);
     }
@@ -124,7 +134,7 @@ export function useResourceControl() {
         });
         await loadData();
       } catch (err) {
-        setError(err instanceof Error ? err.message : '执行资源动作失败');
+        setError(resolveError(err, 'runActionFailed'));
       } finally {
         setActingResourceId('');
       }
@@ -139,7 +149,7 @@ export function useResourceControl() {
       await apiRequest(request.endpoint, request.body);
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '同步资源失败');
+      setError(resolveError(err, 'syncFailed'));
     } finally {
       setActingResourceId('');
     }

@@ -20,9 +20,13 @@ export interface ResourceInstance {
   request?: { id: string; title: string };
 }
 
-export const STATUS_LABELS: Record<ResourceInstanceStatus, string> = {
-  active: '使用中',
-  released: '已释放',
-  expired: '已过期',
-  revoked: '已回收',
+/**
+ * status → resourceInstances 命名空间下的 i18n key。
+ * 调用方用 useTranslations('resourceInstances')(key) 解析为本地化文案。
+ */
+export const STATUS_LABEL_KEYS: Record<ResourceInstanceStatus, string> = {
+  active: 'statusActive',
+  released: 'statusReleased',
+  expired: 'statusExpired',
+  revoked: 'statusRevoked',
 };

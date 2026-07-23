@@ -4,6 +4,9 @@
  * 单一职责：仅声明接口。
  */
 
+/** 资源池类型图标名（与 pool-type-icons 的 ICON_PATHS 一一对应）。 */
+export type PoolTypeIconName = 'database' | 'server' | 'globe' | 'cloud';
+
 export interface ResourcePool {
   id: string;
   type: string;

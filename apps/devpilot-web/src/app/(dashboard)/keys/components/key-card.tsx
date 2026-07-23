@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 import { Copyable } from '@svton/ui';
 import type { SecretKey } from '../types';
 import { getKeyTypeInfo } from '../constants';
+import { KeyTypeIcon } from './key-type-icons';
 
 interface KeyCardProps {
   secretKey: SecretKey;
@@ -30,10 +31,15 @@ export function KeyCard({ secretKey, revealedValue, onReveal, onDelete }: KeyCar
     <div className="rounded-lg border bg-card p-4">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{typeInfo.icon}</span>
+          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <KeyTypeIcon
+              name={typeInfo.icon}
+              className="h-5 w-5"
+            />
+          </span>
           <div>
             <h3 className="font-medium">{secretKey.name}</h3>
-            <p className="text-sm text-muted-foreground">{typeInfo.label}</p>
+            <p className="text-sm text-muted-foreground">{t(typeInfo.labelKey)}</p>
           </div>
         </div>
         <div className="flex gap-2">

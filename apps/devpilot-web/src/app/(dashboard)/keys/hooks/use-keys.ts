@@ -16,7 +16,7 @@ import type { SecretKey, KeyInput, GenerateKeyInput } from '../types';
 const KEYS_KEY = 'GET:/keys';
 
 export function useKeys(initialKeys?: SecretKey[] | undefined) {
-  const { data, isLoading, mutate: refresh } = useQueryLoose<SecretKey[]>(KEYS_KEY, {
+  const { data, isLoading, error, mutate: refresh } = useQueryLoose<SecretKey[]>(KEYS_KEY, {
     fallback: initialKeys,
   });
   const keys = data ?? [];
@@ -40,5 +40,5 @@ export function useKeys(initialKeys?: SecretKey[] | undefined) {
     await mutate(KEYS_KEY);
   });
 
-  return { keys, loading: isLoading, generate, store, revealValue, remove, refresh };
+  return { keys, loading: isLoading, error, generate, store, revealValue, remove, refresh };
 }

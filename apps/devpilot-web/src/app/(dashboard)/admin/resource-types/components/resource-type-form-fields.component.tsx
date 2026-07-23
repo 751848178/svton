@@ -8,6 +8,7 @@
 
 import { useTranslations } from 'next-intl';
 import type { EditableResourceField, ResourceTypeFormData } from '../types';
+import { APPROVAL_MODE_OPTIONS, PROVISIONING_MODE_OPTIONS } from '../constants';
 import { buildPreviewSchema } from '../utils';
 import { SchemaFieldsEditor, SchemaPreview } from './schema-fields-editor';
 
@@ -38,6 +39,7 @@ export function ResourceTypeFormFields({
   const tc = useTranslations('common');
   return (
     <>
+      <FormSectionHeading>{t('sectionBasic')}</FormSectionHeading>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('keyLabel')}</span>
@@ -78,9 +80,11 @@ export function ResourceTypeFormFields({
             onChange={(event) => onFormDataChange({ approvalMode: event.target.value })}
             className="w-full rounded-md border bg-background px-3 py-2"
           >
-            <option value="manual">{t('approvalModeManual')}</option>
-            <option value="auto">{t('approvalModeAuto')}</option>
-            <option value="none">{t('approvalModeNone')}</option>
+            {APPROVAL_MODE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {t(option.labelKey)}
+              </option>
+            ))}
           </select>
         </label>
         <label className="block text-sm">
@@ -90,13 +94,11 @@ export function ResourceTypeFormFields({
             onChange={(event) => onFormDataChange({ provisioningMode: event.target.value })}
             className="w-full rounded-md border bg-background px-3 py-2"
           >
-            <option value="manual">{t('provisioningModeManual')}</option>
-            <option value="pool">{t('provisioningModePool')}</option>
-            <option value="webhook">{t('provisioningModeWebhook')}</option>
-            <option value="api">{t('provisioningModeApi')}</option>
-            <option value="script">{t('provisioningModeScript')}</option>
-            <option value="credential_only">{t('provisioningModeCredentialOnly')}</option>
-            <option value="provider">{t('provisioningModeProvider')}</option>
+            {PROVISIONING_MODE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {t(option.labelKey)}
+              </option>
+            ))}
           </select>
         </label>
       </div>
@@ -111,6 +113,7 @@ export function ResourceTypeFormFields({
         />
       </label>
 
+      <FormSectionHeading>{t('sectionSchema')}</FormSectionHeading>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <SchemaFieldsEditor
           title={t('requestForm')}
@@ -124,17 +127,19 @@ export function ResourceTypeFormFields({
         />
       </div>
 
+      <FormSectionHeading>{t('sectionEnvTemplate')}</FormSectionHeading>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('envTemplate')}</span>
         <textarea
           value={formData.envTemplate}
           onChange={(event) => onFormDataChange({ envTemplate: event.target.value })}
           rows={3}
-          className="w-full rounded-md border px-3 py-2 font-mono text-sm"
+          className="w-full resize-none rounded-md border px-3 py-2 font-mono text-sm"
           placeholder="DATABASE_URL=mysql://${username}:${password}@${host}:${port}/${database}"
         />
       </label>
 
+      <FormSectionHeading>{t('sectionPreview')}</FormSectionHeading>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <SchemaPreview
           title={t('requestJson')}
@@ -163,5 +168,14 @@ export function ResourceTypeFormFields({
         </button>
       </div>
     </>
+  );
+}
+
+/** 表单分组标题：分隔不同逻辑区段，提升长表单可扫读性。 */
+function FormSectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 border-t pt-4 text-sm font-semibold text-muted-foreground">
+      {children}
+    </div>
   );
 }

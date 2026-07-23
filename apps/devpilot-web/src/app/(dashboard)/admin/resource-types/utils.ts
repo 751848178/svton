@@ -31,8 +31,16 @@ export function getSchemaFieldCount(schema?: ResourceSchema): number {
   return getSchemaFields(schema).length;
 }
 
+/** 生成可编辑字段的稳定 id（用于 React key，与字段内容解耦）。 */
+let editableFieldSeq = 0;
+function nextEditableFieldId(): string {
+  editableFieldSeq += 1;
+  return `ef-${editableFieldSeq}`;
+}
+
 export function createEmptyEditableField(): EditableResourceField {
   return {
+    id: nextEditableFieldId(),
     key: '',
     label: '',
     type: 'text',
@@ -53,6 +61,7 @@ export function normalizeEditableField(field: EditableResourceField): EditableRe
 
 export function toEditableFields(schema?: ResourceSchema): EditableResourceField[] {
   return getSchemaFields(schema).map((field) => ({
+    id: nextEditableFieldId(),
     key: field.key,
     label: field.label,
     type: field.type,
