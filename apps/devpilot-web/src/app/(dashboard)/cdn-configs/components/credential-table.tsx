@@ -1,8 +1,7 @@
 /**
  * 凭证列表表格（@tanstack/react-table）
  *
- * 单一职责：渲染 CDN 凭证列表 + 删除操作。
- * 头部采用 headless table 提供按名称/类型/创建时间排序。
+ * 单一职责：渲染 CDN 凭证列表 + 删除操作；按名称/类型/创建时间排序。
  */
 'use client';
 
@@ -17,7 +16,11 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { usePersistFn } from '@svton/hooks';
+import { formatDateTime } from '@/lib/format-date';
+import { Button } from '@/components/ui';
 import type { TeamCredential } from '../types';
+import { getCredentialTypeLabel } from '../utils';
+import { SortIcon } from './sort-icon';
 
 interface CredentialTableProps {
   credentials: TeamCredential[];
@@ -41,9 +44,9 @@ export function CredentialTable({ credentials, onDelete }: CredentialTableProps)
       {
         id: 'type',
         header: tc('type'),
-        accessorFn: (row) => row.type.replace('cdn_', '').toUpperCase(),
+        accessorFn: (row) => getCredentialTypeLabel(row.type),
         cell: ({ row }) => (
-          <span className="text-sm">{row.original.type.replace('cdn_', '').toUpperCase()}</span>
+          <span className="text-sm">{getCredentialTypeLabel(row.original.type)}</span>
         ),
       },
       {
@@ -52,7 +55,7 @@ export function CredentialTable({ credentials, onDelete }: CredentialTableProps)
         accessorFn: (row) => row.createdAt,
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
-            {new Date(row.original.createdAt).toLocaleDateString()}
+            {formatDateTime(row.original.createdAt)}
           </span>
         ),
       },
@@ -75,7 +78,7 @@ export function CredentialTable({ credentials, onDelete }: CredentialTableProps)
   });
 
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50">
           {table.getHeaderGroups().map((headerGroup) => (
@@ -97,9 +100,7 @@ export function CredentialTable({ credentials, onDelete }: CredentialTableProps)
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {canSort ? (
-                          <span className="text-xs text-muted-foreground">
-                            {{ asc: '▲', desc: '▼' }[header.column.getIsSorted() as string] || '↕'}
-                          </span>
+                          <SortIcon state={header.column.getIsSorted() as false | 'asc' | 'desc'} />
                         ) : null}
                       </button>
                     )}
@@ -138,11 +139,13 @@ function DeleteAction({
   const tc = useTranslations('common');
   const handleDelete = usePersistFn(() => onDelete(id));
   return (
-    <button
+    <Button
+      variant="destructive"
+      size="sm"
       onClick={handleDelete}
-      className="rounded px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
     >
       {tc('delete')}
-    </button>
+    </Button>
   );
 }
+

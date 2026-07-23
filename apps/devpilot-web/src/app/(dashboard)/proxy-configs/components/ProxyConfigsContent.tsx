@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useBoolean } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, ErrorBanner, Button } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useProxyConfigs } from '../hooks/use-proxy-configs';
 import { ProxyConfigTable } from './proxy-config-table';
@@ -24,23 +24,35 @@ const Suspense = ReactSuspense as unknown as (props: {
  * 接收首屏 server 数据 initialConfigs（SWR fallback），交互（新增/同步/删除）在此完成。
  * useSearchParams 必须包裹在 Suspense 边界内，故拆出 ProxyConfigsInner 由 Suspense 包住。
  */
-export function ProxyConfigsContent({ initialConfigs }: { initialConfigs?: ProxyConfig[] }) {
+export function ProxyConfigsContent({
+  initialConfigs,
+  initialError,
+}: {
+  initialConfigs?: ProxyConfig[];
+  initialError?: string;
+}) {
   const tc = useTranslations('common');
   return (
     <Suspense fallback={<LoadingState text={tc('loading')} />}>
-      <ProxyConfigsInner initialConfigs={initialConfigs} />
+      <ProxyConfigsInner initialConfigs={initialConfigs} initialError={initialError} />
     </Suspense>
   );
 }
 
-function ProxyConfigsInner({ initialConfigs }: { initialConfigs?: ProxyConfig[] }) {
+function ProxyConfigsInner({
+  initialConfigs,
+  initialError,
+}: {
+  initialConfigs?: ProxyConfig[];
+  initialError?: string;
+}) {
   const t = useTranslations('proxyConfigs');
   const tc = useTranslations('common');
   const searchParams = useSearchParams();
   const openCreateOnMount = searchParams.get('new') === 'true';
   const initialServerId = searchParams.get('serverId') || undefined;
-  const { configs, servers, loading, syncingId, deleteTarget, create, sync, remove, cancelDelete, confirmDelete } =
-    useProxyConfigs(openCreateOnMount, initialConfigs);
+  const { configs, servers, loading, error, syncingId, deleteTarget, create, sync, remove, cancelDelete, confirmDelete, reload } =
+    useProxyConfigs(openCreateOnMount, initialConfigs, initialError);
   const [modalOpen, setModalOpen] = useState(openCreateOnMount);
 
   return (
@@ -49,14 +61,19 @@ function ProxyConfigsInner({ initialConfigs }: { initialConfigs?: ProxyConfig[] 
         title={t('pageTitle')}
         description={t('pageDescription')}
         actions={
-          <button
-            onClick={() => setModalOpen(true)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
+          <Button onClick={() => setModalOpen(true)}>
             {t('addConfig')}
-          </button>
+          </Button>
         }
       />
+
+      {error ? (
+        <ErrorBanner
+          message={error}
+          onRetry={reload}
+          retryLabel={tc('retry')}
+        />
+      ) : null}
 
       {loading ? (
         <LoadingState text={tc('loading')} />

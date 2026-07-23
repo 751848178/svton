@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
+import { Button, StatusTag } from '@/components/ui';
 import type { Server } from '../types';
 
 const STATUS_KEY: Record<string, string> = { online: 'online', offline: 'offline', unknown: 'unknown' };
@@ -67,25 +67,20 @@ export function ServerCard({ server, testing, onTest, onDelete }: ServerCardProp
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleTest}
-            disabled={testing}
-            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+            loading={testing}
           >
             {testing ? t('testing') : t('testConnection')}
-          </button>
-          <button
-            onClick={handleDetail}
-            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-          >
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleDetail}>
             {t('detail')}
-          </button>
-          <button
-            onClick={handleDelete}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10"
-          >
+          </Button>
+          <Button variant="destructive" size="sm" onClick={handleDelete}>
             {tc('delete')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -19,16 +19,27 @@ import type { ProxyConfig, Server, ProxyConfigInput } from '../types';
 const CONFIGS_KEY = 'GET:/proxy-configs';
 const SERVERS_KEY = 'GET:/servers';
 
-export function useProxyConfigs(openCreateOnMount: boolean, initialConfigs?: ProxyConfig[]) {
+export function useProxyConfigs(
+  openCreateOnMount: boolean,
+  initialConfigs?: ProxyConfig[],
+  initialError?: string,
+) {
   const t = useTranslations('proxyConfigs');
   const {
     data: configsData,
     isLoading: configsLoading,
+    error: configsError,
   } = useQueryLoose<ProxyConfig[]>(CONFIGS_KEY, { fallback: initialConfigs });
-  const { data: serversData, isLoading: serversLoading } = useQueryLoose<Server[]>(SERVERS_KEY);
+  const { data: serversData, isLoading: serversLoading, error: serversError } = useQueryLoose<Server[]>(SERVERS_KEY);
   const configs = configsData ?? [];
   const servers = serversData ?? [];
   const loading = configsLoading || serversLoading;
+  const swrError = configsError || serversError;
+  const error = swrError
+    ? swrError instanceof Error
+      ? swrError.message
+      : t('loadFailed')
+    : initialError ?? '';
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProxyConfig | null>(null);
 
@@ -89,6 +100,7 @@ export function useProxyConfigs(openCreateOnMount: boolean, initialConfigs?: Pro
     configs,
     servers,
     loading,
+    error,
     syncingId,
     deleteTarget,
     openCreateOnMount,

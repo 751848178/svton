@@ -10,17 +10,15 @@ import { SitePlanRunPanel } from './site-plan-run-panel';
 import { SiteCardActions } from './site-card-actions.component';
 import {
   describeRuntime,
-  getStatusLabel,
-  getRunModeLabel,
-  formatRunLogPreview,
-  readLogMessages,
+  resolveRuntimeDescription,
   formatDateTime,
   formatTlsCertificateSummary,
   formatTlsRenewalSummary,
-  getTlsRenewalStatusLabel,
-  getTlsFollowUpProbeStatusLabel,
 } from '../utils-format';
+import { resolveStatusLabel } from '../utils-labels';
+
 type SitesHook = ReturnType<typeof useSites>;
+
 export function SiteCard({ site, sites }: { site: Site; sites: SitesHook }) {
   const t = useTranslations('sites');
   const plan = sites.plans[site.id];
@@ -33,26 +31,27 @@ export function SiteCard({ site, sites }: { site: Site; sites: SitesHook }) {
   const hasTls = readBoolean(tls.enabled) || Boolean(tlsSummary);
   const canRenewTls = readBoolean(tls.enabled) && readString(tls.type) === 'letsencrypt';
   const isFocused = sites.focusedSiteId === site.id;
+  const hasPlanRun = Boolean(plan) || recentRuns.length > 0;
   return (
     <div
       key={site.id}
       className={`rounded-lg border p-4 ${isFocused ? 'border-primary/50 bg-primary/5 shadow-sm' : ''}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
+        <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold">{site.name}</h2>
             <StatusTag
               status={site.status}
-              label={getStatusLabel(site.status)}
+              label={resolveStatusLabel(t, site.status)}
             />
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-              {runtimeTypeLabels[site.runtimeType] || site.runtimeType}
+              {t(runtimeTypeLabels[site.runtimeType] || site.runtimeType) || site.runtimeType}
             </span>
             {hasTls && (
               <StatusTag
                 status="active"
-                label="TLS"
+                label={t('tlsLabel')}
               />
             )}
           </div>
@@ -70,22 +69,20 @@ export function SiteCard({ site, sites }: { site: Site; sites: SitesHook }) {
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span>{t('projectLabel', { name: site.project?.name || t('notLinked') })}</span>
             <span>{t('environmentLabel', { name: site.environment?.name || t('notBound') })}</span>
-            <span>
-              {t('serverLabel', {
-                name: site.server ? `${site.server.name} (${site.server.host})` : t('notLinked'),
-              })}
-            </span>
-            <span>{t('upstreamLabel', { name: describeRuntime(site.runtimeType, runtimeConfig) })}</span>
+            <span>{t('serverLabel', {
+              name: site.server ? `${site.server.name} (${site.server.host})` : t('notLinked'),
+            })}</span>
+            <span>{t('upstreamLabel', {
+              name: resolveRuntimeDescription(describeRuntime(site.runtimeType, runtimeConfig), t),
+            })}</span>
           </div>
-          {tlsSummary && <div className="text-xs text-muted-foreground">{t('certLabel', { name: tlsSummary })}</div>}
-          {tlsRenewalSummary && (
-            <div className="text-xs text-muted-foreground">{t('renewalLabel', { name: tlsRenewalSummary })}</div>
-          )}
-          {site.proxyConfig && (
-            <div className="text-xs text-muted-foreground">
-              {t('proxyConfigLabel', { name: site.proxyConfig.name, domain: site.proxyConfig.domain })}
-            </div>
-          )}
+          <div className="space-y-0.5 text-xs text-muted-foreground">
+            {tlsSummary && <div>{t('certLabel', { name: tlsSummary })}</div>}
+            {tlsRenewalSummary && <div>{t('renewalLabel', { name: tlsRenewalSummary })}</div>}
+            {site.proxyConfig && (
+              <div>{t('proxyConfigLabel', { name: site.proxyConfig.name, domain: site.proxyConfig.domain })}</div>
+            )}
+          </div>
         </div>
         <SiteCardActions
           site={site}
@@ -93,12 +90,19 @@ export function SiteCard({ site, sites }: { site: Site; sites: SitesHook }) {
           canRenewTls={canRenewTls}
         />
       </div>
-      <SitePlanRunPanel
-        site={site}
-        sites={sites}
-        plan={plan}
-        recentRuns={recentRuns}
-      />
+      {hasPlanRun && (
+        <details className="group mt-4 border-t pt-4">
+          <summary className="cursor-pointer select-none text-sm font-medium text-muted-foreground hover:text-foreground">
+            {t('planRunSummary')} <span className="ml-1 text-xs">({recentRuns.length})</span>
+          </summary>
+          <SitePlanRunPanel
+            site={site}
+            sites={sites}
+            plan={plan}
+            recentRuns={recentRuns}
+          />
+        </details>
+      )}
     </div>
   );
 }

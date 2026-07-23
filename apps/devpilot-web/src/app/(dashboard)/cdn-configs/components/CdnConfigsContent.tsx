@@ -3,7 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useBoolean } from '@svton/hooks';
 import { LoadingState, EmptyState, Tabs } from '@svton/ui';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, ErrorBanner, Button } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useCdnConfigs } from '../hooks/use-cdn-configs';
 import { CdnConfigCard } from './cdn-config-card';
@@ -21,9 +21,11 @@ import type { CDNConfig, TeamCredential } from '../types';
 export function CdnConfigsContent({
   initialConfigs,
   initialCredentials,
+  initialError,
 }: {
   initialConfigs?: CDNConfig[];
   initialCredentials?: TeamCredential[];
+  initialError?: string;
 }) {
   const t = useTranslations('cdnConfigs');
   const tc = useTranslations('common');
@@ -31,6 +33,7 @@ export function CdnConfigsContent({
     configs,
     credentials,
     loading,
+    error,
     purgingId,
     configTarget,
     credentialTarget,
@@ -43,7 +46,8 @@ export function CdnConfigsContent({
     removeCredential,
     cancelRemoveCredential,
     confirmRemoveCredential,
-  } = useCdnConfigs(initialConfigs, initialCredentials);
+    reload,
+  } = useCdnConfigs(initialConfigs, initialCredentials, initialError);
   const [configModal, { setTrue: openConfig, setFalse: closeConfig }] = useBoolean(false);
   const [credModal, { setTrue: openCred, setFalse: closeCred }] = useBoolean(false);
 
@@ -98,21 +102,26 @@ export function CdnConfigsContent({
         description={t('pageDescription')}
         actions={
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
+              variant="outline"
               onClick={openCred}
-              className="inline-flex min-h-11 items-center gap-2 rounded-md border px-4 text-sm font-medium hover:bg-accent"
             >
               {t('addCredential')}
-            </button>
-            <button
-              onClick={openConfig}
-              className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
+            </Button>
+            <Button onClick={openConfig}>
               {t('addConfigPrefix')}
-            </button>
+            </Button>
           </div>
         }
       />
+
+      {error ? (
+        <ErrorBanner
+          message={error}
+          onRetry={reload}
+          retryLabel={tc('retry')}
+        />
+      ) : null}
 
       <Tabs items={tabs} />
 

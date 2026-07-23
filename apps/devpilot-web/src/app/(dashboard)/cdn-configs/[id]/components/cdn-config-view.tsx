@@ -8,13 +8,10 @@
 
 import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
+import { formatDateTime } from '@/lib/format-date';
 import type { CDNConfig } from '../types';
-
-const PROVIDERS: Record<string, { label: string; icon: string }> = {
-  qiniu: { label: '七牛云', icon: '🌐' },
-  aliyun: { label: '阿里云', icon: '☁️' },
-  cloudflare: { label: 'Cloudflare', icon: '🛡️' },
-};
+import { getProviderLabel } from '../../constants';
+import { formatTtlBreakdown } from '../../utils';
 
 interface CdnConfigViewProps {
   config: CDNConfig;
@@ -37,7 +34,7 @@ export function CdnConfigView({
 }: CdnConfigViewProps) {
   const t = useTranslations('cdnConfigs');
   const tc = useTranslations('common');
-  const provider = PROVIDERS[config.provider] || { label: config.provider, icon: '🌐' };
+  const providerLabel = getProviderLabel(config.provider);
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -98,7 +95,7 @@ export function CdnConfigView({
                 <dd className="font-mono">{config.origin}</dd>
               </Field>
               <Field label={t('provider')}>
-                <dd>{provider.label}</dd>
+                <dd>{providerLabel}</dd>
               </Field>
               <Field label={t('credential')}>
                 <dd>{config.credential?.name || t('unknown')}</dd>
@@ -109,7 +106,7 @@ export function CdnConfigView({
                 </Field>
               ) : null}
               <Field label={tc('createdAt')}>
-                <dd>{new Date(config.createdAt).toLocaleString()}</dd>
+                <dd>{formatDateTime(config.createdAt)}</dd>
               </Field>
             </dl>
           )}
@@ -125,7 +122,7 @@ export function CdnConfigView({
                   className="flex items-center justify-between rounded-md bg-muted/50 p-3"
                 >
                   <span className="font-mono text-sm">{rule.path}</span>
-                  <Tag color="default">TTL: {rule.ttl}s</Tag>
+                  <Tag color="default">{renderTtl(t, rule.ttl)}</Tag>
                 </div>
               ))}
             </div>
@@ -146,3 +143,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+/** 把秒级 TTL 人性化为带单位文案（TTL 前缀来自 i18n：ttlPrefix）。 */
+function renderTtl(
+  t: ReturnType<typeof useTranslations>,
+  seconds: number,
+): string {
+  const { value, unit } = formatTtlBreakdown(seconds);
+  return `${t('ttlPrefix')} ${t(`ttlUnit_${unit}`, { value })}`;
+}
+
+

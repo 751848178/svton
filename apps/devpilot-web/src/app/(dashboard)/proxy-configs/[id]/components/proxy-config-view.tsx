@@ -7,7 +7,8 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { StatusTag } from '@/components/ui';
+import { Button, CodeBlock } from '@/components/ui';
+import { formatDateTime } from '@/lib/format-date';
 import type { ProxyConfig } from '../types';
 
 interface ProxyConfigViewProps {
@@ -36,10 +37,10 @@ export function ProxyConfigView({
             <Field label={t('domain')}>
               <dd className="font-mono">{config.domain}</dd>
             </Field>
-            <Field label="SSL">
+            <Field label={t('sslLabel')}>
               <dd>{config.ssl.enabled ? t('sslEnabledWith', { type: config.ssl.type ?? '' }) : t('notEnabled')}</dd>
             </Field>
-            <Field label="WebSocket">
+            <Field label={t('websocketLabel')}>
               <dd>{config.websocket ? t('enabled') : t('notEnabled')}</dd>
             </Field>
             <Field label={t('associatedServer')}>
@@ -51,7 +52,7 @@ export function ProxyConfigView({
               </Field>
             ) : null}
             <Field label={tc('createdAt')}>
-              <dd>{new Date(config.createdAt).toLocaleString()}</dd>
+              <dd>{formatDateTime(config.createdAt)}</dd>
             </Field>
           </dl>
         </div>
@@ -65,7 +66,12 @@ export function ProxyConfigView({
                 className="flex items-center justify-between rounded-md bg-muted/50 p-3"
               >
                 <span className="font-mono text-sm">
-                  {upstream.host}:{upstream.port || 80}
+                  {upstream.host}
+                  {upstream.port ? (
+                    `:${upstream.port}`
+                  ) : (
+                    <span className="text-muted-foreground/60">:{t('portNotSet')}</span>
+                  )}
                 </span>
                 {upstream.weight ? (
                   <span className="text-xs text-muted-foreground">{t('weight', { weight: upstream.weight })}</span>
@@ -76,11 +82,9 @@ export function ProxyConfigView({
         </div>
 
         {config.generatedConfig ? (
-          <div className="rounded-lg border p-6">
-            <h2 className="mb-4 font-semibold">{t('nginxConfig')}</h2>
-            <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
-              {config.generatedConfig}
-            </pre>
+          <div className="space-y-2">
+            <h2 className="font-semibold">{t('nginxConfig')}</h2>
+            <CodeBlock content={config.generatedConfig} tone="dark" />
           </div>
         ) : null}
       </div>
@@ -89,30 +93,31 @@ export function ProxyConfigView({
         <div className="rounded-lg border p-6">
           <h2 className="mb-4 font-semibold">{tc('actions')}</h2>
           <div className="space-y-2">
-            <button
+            <Button
               onClick={onSync}
               disabled={syncing || !config.server}
-              className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              block
             >
               {syncing ? t('syncing') : t('syncToServer')}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
               onClick={onPreview}
-              className="w-full rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+              block
             >
               {t('previewNginx')}
-            </button>
+            </Button>
             {config.server ? (
-              <button
+              <Button
+                variant="outline"
                 onClick={onOpenServer}
-                className="w-full rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+                block
               >
                 {t('viewServer')}
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
-        <StatusBadge status={config.status} />
       </div>
     </div>
   );
@@ -123,16 +128,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <dt className="text-muted-foreground">{label}</dt>
       {children}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const tc = useTranslations('common');
-  return (
-    <div className="rounded-lg border p-6">
-      <h2 className="mb-4 font-semibold">{tc('status')}</h2>
-      <StatusTag status={status} />
     </div>
   );
 }

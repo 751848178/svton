@@ -68,7 +68,7 @@ function SitesContent() {
       ) : null}
 
       {!sites.loading && siteId && !sites.focusedSite && sites.sites.length > 0 ? (
-        <div className="rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-900">
+        <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
           {t('siteNotInFilter')}
         </div>
       ) : null}

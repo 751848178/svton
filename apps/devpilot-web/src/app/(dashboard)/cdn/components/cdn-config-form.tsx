@@ -2,11 +2,14 @@
  * CDN 配置表单
  *
  * 单一职责：收集 CDN 配置（提供商/域名/源站/开关）并触发生成。
+ * 视觉走 token（bg-background / text-foreground / border-input），不硬编码调色板。
  */
 
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Tag } from '@svton/ui';
+import { Button, Input } from '@/components/ui';
 import type { CDNConfig } from '../types';
 import { PROVIDERS } from '../constants';
 
@@ -14,61 +17,61 @@ interface CdnConfigFormProps {
   config: CDNConfig;
   onChange: (patch: Partial<CDNConfig>) => void;
   onGenerate: () => void;
+  generating?: boolean;
 }
 
-export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormProps) {
+export function CdnConfigForm({ config, onChange, onGenerate, generating }: CdnConfigFormProps) {
   const t = useTranslations('cdn');
   return (
-    <div className="space-y-4 rounded-lg border bg-white p-6">
-      <h2 className="font-semibold text-gray-900">{t('configTitle')}</h2>
+    <div className="space-y-4 rounded-lg border bg-background p-6">
+      <h2 className="font-semibold text-foreground">{t('configTitle')}</h2>
 
       <div>
-        <label className="mb-2 block text-sm font-medium text-gray-700">{t('providerLabel')}</label>
+        <label className="mb-2 block text-sm font-medium text-muted-foreground">{t('providerLabel')}</label>
         <div className="grid grid-cols-2 gap-2">
-          {PROVIDERS.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => onChange({ provider: p.value })}
-              className={`rounded-lg border p-3 text-left ${
-                config.provider === p.value ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
-              }`}
-            >
-              <span className="mr-2 text-xl">{p.icon}</span>
-              <span className="text-sm font-medium">{p.label}</span>
-            </button>
-          ))}
+          {PROVIDERS.map((p) => {
+            const selected = config.provider === p.value;
+            return (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => onChange({ provider: p.value })}
+                className={`flex items-center gap-2 rounded-lg border p-3 text-left transition-colors ${
+                  selected
+                    ? 'border-primary bg-primary/5'
+                    : 'border-input hover:bg-muted'
+                }`}
+              >
+                {selected ? <Tag color="blue">{p.label}</Tag> : <span className="text-sm font-medium text-foreground">{p.label}</span>}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-medium text-gray-700">{t('cdnDomain')}</span>
-        <input
-          type="text"
+        <span className="mb-1 block font-medium text-muted-foreground">{t('cdnDomain')}</span>
+        <Input
           value={config.domain}
           onChange={(e) => onChange({ domain: e.target.value })}
-          className="w-full rounded-lg border px-3 py-2"
           placeholder="cdn.example.com"
         />
       </label>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-medium text-gray-700">{t('originDomainLabel')}</span>
-        <input
-          type="text"
+        <span className="mb-1 block font-medium text-muted-foreground">{t('originDomainLabel')}</span>
+        <Input
           value={config.originDomain}
           onChange={(e) => onChange({ originDomain: e.target.value })}
-          className="w-full rounded-lg border px-3 py-2"
           placeholder="origin.example.com"
         />
       </label>
 
       <label className="block text-sm">
-        <span className="mb-1 block font-medium text-gray-700">{t('originPath')}</span>
-        <input
-          type="text"
+        <span className="mb-1 block font-medium text-muted-foreground">{t('originPath')}</span>
+        <Input
           value={config.originPath}
           onChange={(e) => onChange({ originPath: e.target.value })}
-          className="w-full rounded-lg border px-3 py-2"
           placeholder="/"
         />
       </label>
@@ -81,7 +84,7 @@ export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormPro
             onChange={(e) => onChange({ enableHttps: e.target.checked })}
             className="rounded"
           />
-          <span className="text-sm text-gray-700">{t('enableHttps')}</span>
+          <span className="text-sm text-muted-foreground">{t('enableHttps')}</span>
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -90,17 +93,18 @@ export function CdnConfigForm({ config, onChange, onGenerate }: CdnConfigFormPro
             onChange={(e) => onChange({ enableCompression: e.target.checked })}
             className="rounded"
           />
-          <span className="text-sm text-gray-700">{t('enableCompression')}</span>
+          <span className="text-sm text-muted-foreground">{t('enableCompression')}</span>
         </label>
       </div>
 
-      <button
+      <Button
         onClick={onGenerate}
+        loading={generating}
         disabled={!config.domain || !config.originDomain}
-        className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+        block
       >
         {t('generateConfig')}
-      </button>
+      </Button>
     </div>
   );
 }

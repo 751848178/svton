@@ -18,13 +18,16 @@ export const dynamic = 'force-dynamic';
  */
 export default async function ProxyConfigsPage() {
   let initialConfigs: ProxyConfig[] | undefined;
+  let initialError = '';
   try {
     const data = await serverRequest<ProxyConfig[]>('GET:/proxy-configs');
     initialConfigs = data.length > 0 ? data : undefined;
   } catch (error) {
     redirectOnUnauthorized(error, '/proxy-configs');
-    console.error('Failed to load proxy configs:', error);
+    initialError = error instanceof Error ? error.message : 'loadFailed';
   }
 
-  return <ProxyConfigsContent initialConfigs={initialConfigs} />;
+  return (
+    <ProxyConfigsContent initialConfigs={initialConfigs} initialError={initialError} />
+  );
 }

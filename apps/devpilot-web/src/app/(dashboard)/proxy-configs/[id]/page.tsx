@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { StatusTag, Modal } from '@/components/ui';
+import { StatusTag, Modal, CodeBlock } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useProxyConfig } from './hooks/use-proxy-config';
 import { ProxyConfigView } from './components/proxy-config-view';
@@ -113,9 +113,7 @@ export default function ProxyConfigDetailPage() {
         title={t('nginxConfigPreview')}
         width={768}
       >
-        <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
-          {previewConfig}
-        </pre>
+        <CodeBlock content={previewConfig} tone="dark" />
       </Modal>
     </div>
   );

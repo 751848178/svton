@@ -10,9 +10,10 @@ import { readRecord, readString, readRecordArray, readBoolean } from '../utils';
 import { createSiteTakeoverForm, isPreviewSitePlaceholder } from '../utils-takeover';
 import {
   describeRuntime,
-  getStatusLabel,
+  resolveRuntimeDescription,
   formatTlsCertificateSummary,
 } from '../utils-format';
+import { resolveStatusLabel } from '../utils-labels';
 import { FocusedSitePlanRunSummary } from './focused-site-plan-run-summary.component';
 import { TakeoverBindingForm } from './takeover-binding-form';
 type SitesHook = ReturnType<typeof useSites>;
@@ -33,7 +34,7 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
   const updateFocusedTakeoverForm = sites.updateFocusedTakeoverForm;
   const handleSaveTakeoverBinding = sites.handleSaveTakeoverBinding;
   const handleActivatePreviewSite = sites.handleActivatePreviewSite;
-  // 与站点卡共用同一份 action 定义（单一数据源）；面板不暴露删除，另保留 TLS 探测计划入口。
+  // 与站点卡共用同一份 action 定义（单一数据源）；面板不暴露删除。
   const focusedCanRenewTls =
     readBoolean(focusedTls.enabled) && readString(focusedTls.type) === 'letsencrypt';
   const actions = buildSiteActionGroups({
@@ -43,19 +44,20 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
     sites,
     canRenewTls: focusedCanRenewTls,
     includeDelete: false,
+    includeTlsProbePlan: true,
   });
   return (
     <section className="rounded-lg border border-primary/40 bg-primary/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
+        <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold">{t('takeoverSiteTitle', { name: focusedSite.name })}</h2>
             <StatusTag
               status={focusedSite.status}
-              label={getStatusLabel(focusedSite.status)}
+              label={resolveStatusLabel(t, focusedSite.status)}
             />
             <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">
-              {runtimeTypeLabels[focusedSite.runtimeType] || focusedSite.runtimeType}
+              {t(runtimeTypeLabels[focusedSite.runtimeType] || focusedSite.runtimeType) || focusedSite.runtimeType}
             </span>
           </div>
           <a
@@ -69,13 +71,14 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span>{t('projectLabel', { name: focusedSite.project?.name || t('notLinked') })}</span>
             <span>{t('environmentLabel', { name: focusedSite.environment?.name || t('notBound') })}</span>
-            <span>
-              {t('serverLabelColon')}
-              {focusedSite.server
+            <span>{t('serverLabel', {
+              name: focusedSite.server
                 ? `${focusedSite.server.name} (${focusedSite.server.host})`
-                : t('notLinked')}
-            </span>
-            <span>{t('upstreamLabel', { name: describeRuntime(focusedSite.runtimeType, focusedRuntimeConfig) })}</span>
+                : t('notLinked'),
+            })}</span>
+            <span>{t('upstreamLabel', {
+              name: resolveRuntimeDescription(describeRuntime(focusedSite.runtimeType, focusedRuntimeConfig), t),
+            })}</span>
           </div>
           {focusedTlsSummary && (
             <div className="text-xs text-muted-foreground">{t('certLabel', { name: focusedTlsSummary })}</div>
@@ -84,7 +87,7 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
             {t('focusedPanelHint')}
           </div>
           {focusedIsPreviewPlaceholder && (
-            <div className="rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-900">
+            <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
               {t('previewPlaceholderWarning')}
             </div>
           )}
@@ -105,14 +108,6 @@ export function FocusedSitePanel({ sites }: { sites: SitesHook }) {
             className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
           >
             {actions.secondary.label}
-          </button>
-          <button
-            type="button"
-            onClick={() => sites.handleTlsProbePlan(focusedSite)}
-            disabled={sites.probingTlsId === focusedSite.id}
-            className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {sites.probingTlsId === focusedSite.id ? t('generating') : t('tlsProbePlan')}
           </button>
           <ActionMenu groups={actions.menuGroups} triggerLabel={t('moreActions')} />
           <button

@@ -26,5 +26,4 @@ export interface CDNResults {
 export interface ProviderOption {
   value: CDNProvider;
   label: string;
-  icon: string;
 }

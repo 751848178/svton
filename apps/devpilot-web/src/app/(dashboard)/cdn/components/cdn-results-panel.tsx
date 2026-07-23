@@ -1,22 +1,25 @@
 /**
  * CDN 生成结果面板
  *
- * 单一职责：用 @svton/ui Tabs 展示 5 类生成结果，支持代码下载。
+ * 单一职责：用 @svton/ui Tabs 展示 5 类生成结果（URL/前端/刷新/Next.js/环境变量），
+ * 代码块统一走 CodeBlock token 原语，URL 配置用结构化 <dl> 展示，支持下载。
  */
 
 'use client';
 
 import { useTranslations } from 'next-intl';
 import { Tabs } from '@svton/ui';
+import { CodeBlock } from '@/components/ui';
 import type { CDNResults, CDNProvider } from '../types';
-import { downloadTextFile } from '../../domain/utils';
+import { downloadTextFile } from '@/lib/download';
 
 interface CdnResultsPanelProps {
   results: CDNResults;
   provider: CDNProvider;
+  error?: string;
 }
 
-export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
+export function CdnResultsPanel({ results, provider, error }: CdnResultsPanelProps) {
   const t = useTranslations('cdn');
   const hasResults = Boolean(results.urlConfig || results.frontendConfig);
 
@@ -25,17 +28,7 @@ export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
       key: 'url',
       label: t('tabUrlConfig'),
       children: results.urlConfig ? (
-        <div className="space-y-2">
-          {Object.entries(results.urlConfig).map(([key, value]) => (
-            <div
-              key={key}
-              className="flex items-center justify-between rounded bg-gray-50 p-2"
-            >
-              <code className="text-sm text-gray-600">{key}</code>
-              <code className="text-sm text-blue-600">{value}</code>
-            </div>
-          ))}
-        </div>
+        <UrlConfigList urlConfig={results.urlConfig} />
       ) : null,
     },
     {
@@ -45,7 +38,9 @@ export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
         <CodeBlock
           content={results.frontendConfig}
           filename="cdn.config.ts"
-          provider={provider}
+          tone="dark"
+          onDownload={() => downloadTextFile(results.frontendConfig!, 'cdn.config.ts')}
+          downloadLabel={t('download')}
         />
       ) : null,
     },
@@ -56,18 +51,22 @@ export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
         <CodeBlock
           content={results.refreshScript}
           filename={`cdn-refresh-${provider}.sh`}
-          provider={provider}
+          tone="dark"
+          onDownload={() => downloadTextFile(results.refreshScript!, `cdn-refresh-${provider}.sh`)}
+          downloadLabel={t('download')}
         />
       ) : null,
     },
     {
       key: 'nextjs',
-      label: 'Next.js',
+      label: t('tabNextjs'),
       children: results.nextjsConfig ? (
         <CodeBlock
           content={results.nextjsConfig}
           filename="next.config.cdn.js"
-          provider={provider}
+          tone="dark"
+          onDownload={() => downloadTextFile(results.nextjsConfig!, 'next.config.cdn.js')}
+          downloadLabel={t('download')}
         />
       ) : null,
     },
@@ -78,7 +77,9 @@ export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
         <CodeBlock
           content={results.envConfig}
           filename=".env.cdn"
-          provider={provider}
+          tone="dark"
+          onDownload={() => downloadTextFile(results.envConfig!, '.env.cdn')}
+          downloadLabel={t('download')}
         />
       ) : null,
     },
@@ -86,41 +87,34 @@ export function CdnResultsPanel({ results, provider }: CdnResultsPanelProps) {
 
   if (!hasResults) {
     return (
-      <div className="rounded-lg border bg-white p-6">
-        <div className="py-12 text-center text-gray-500">{t('emptyHint')}</div>
+      <div className="rounded-lg border bg-background p-6">
+        {error ? (
+          <div className="py-12 text-center text-sm text-destructive">{error}</div>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground">{t('emptyHint')}</div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-white">
+    <div className="overflow-hidden rounded-lg border bg-background">
       <Tabs items={items} />
     </div>
   );
 }
 
-function CodeBlock({
-  content,
-  filename,
-}: {
-  content: string;
-  filename: string;
-  provider: CDNProvider;
-}) {
-  const t = useTranslations('cdn');
+/** URL 配置结构化展示：键为标签、值为等宽值，逐行成对。 */
+function UrlConfigList({ urlConfig }: { urlConfig: Record<string, string> }) {
+  const entries = Object.entries(urlConfig);
   return (
-    <div>
-      <div className="mb-2 flex justify-end">
-        <button
-          onClick={() => downloadTextFile(content, filename)}
-          className="rounded px-3 py-1 text-sm text-blue-600 hover:bg-blue-50"
-        >
-          {t('download')}
-        </button>
-      </div>
-      <pre className="overflow-x-auto rounded-lg bg-gray-900 p-4 text-sm text-gray-100">
-        {content}
-      </pre>
-    </div>
+    <dl className="divide-y rounded-md border">
+      {entries.map(([key, value]) => (
+        <div key={key} className="flex items-center justify-between gap-4 px-3 py-2">
+          <dt className="font-mono text-sm text-muted-foreground">{key}</dt>
+          <dd className="truncate text-right font-mono text-sm text-foreground">{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

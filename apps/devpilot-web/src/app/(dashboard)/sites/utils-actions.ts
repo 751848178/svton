@@ -4,12 +4,14 @@
  * L1 主操作：同步计划；L2 次操作：请求同步；
  * L3 菜单分组：同步（冒烟）、证书（探测/演练/续期）、诊断（诊断/OpenResty 状态/模块/模块基线）；
  * L4 危险组：删除（仅站点卡，触发既有 ConfirmDialog 流程）。
+ * 分组项的装配见 utils-action-items.ts。
  * 文案随 queueSiteRuns 开关变化，与原平铺按钮逻辑一致。
  */
 
 import type { ActionMenuGroup, ActionMenuItem } from '@/components/ui/action-menu';
 import type { useSites } from './hooks/use-sites';
 import type { Site } from './types';
+import { buildSyncItems, buildCertItems, buildDiagnosticsItems } from './utils-action-items';
 
 type SitesHook = ReturnType<typeof useSites>;
 type Translate = (key: string) => string;
@@ -37,9 +39,12 @@ export function buildSiteActionGroups(args: {
   sites: SitesHook;
   canRenewTls: boolean;
   includeDelete?: boolean;
+  /** 是否在证书分组里追加「TLS 探测计划」入口（聚焦面板用）。 */
+  includeTlsProbePlan?: boolean;
 }): SiteActionGroups {
-  const { t, tc, site, sites, canRenewTls, includeDelete = false } = args;
+  const { t, tc, site, sites, canRenewTls, includeDelete = false, includeTlsProbePlan = false } = args;
   const queued = sites.queueSiteRuns;
+  const itemsArgs = { t, site, sites, queued, canRenewTls, includeTlsProbePlan };
 
   const primary: SiteActionButton = {
     key: 'sync-plan',
@@ -69,141 +74,33 @@ export function buildSiteActionGroups(args: {
     onSelect: () => sites.handleSyncLive(site),
   };
 
-  const syncItems: ActionMenuItem[] = [
-    {
-      key: 'smoke-check',
-      label:
-        sites.smokingId === site.id
-          ? queued
-            ? t('checkEnqueuing')
-            : t('checking')
-          : queued
-            ? t('smokeEnqueue')
-            : t('smokeCheck'),
-      disabled: sites.smokingId === site.id,
-      onSelect: () => sites.handleSmokeCheck(site),
-    },
-  ];
-
-  const certItems: ActionMenuItem[] = [
-    {
-      key: 'tls-probe',
-      label:
-        sites.probingTlsId === site.id
-          ? queued
-            ? t('probeEnqueuing')
-            : t('probing')
-          : queued
-            ? t('certProbeEnqueue')
-            : t('certProbe'),
-      disabled: sites.probingTlsId === site.id,
-      onSelect: () => sites.handleTlsProbe(site),
-    },
-  ];
-  if (canRenewTls) {
-    certItems.push(
-      {
-        key: 'tls-renew-drill',
-        label:
-          sites.renewingTlsId === site.id
-            ? queued
-              ? t('drillEnqueuing')
-              : t('drilling')
-            : queued
-              ? t('renewDrillEnqueue')
-              : t('renewDrill'),
-        disabled: sites.renewingTlsId === site.id,
-        onSelect: () => sites.handleTlsRenew(site, true),
-      },
-      {
-        key: 'tls-renew-request',
-        label:
-          sites.renewingTlsId === site.id
-            ? queued
-              ? t('requestEnqueuing')
-              : t('requesting')
-            : queued
-              ? t('requestRenewEnqueue')
-              : t('requestRenew'),
-        disabled: sites.renewingTlsId === site.id,
-        onSelect: () => sites.handleTlsRenew(site, false),
-      },
-    );
-  }
-
-  const diagnosticsItems: ActionMenuItem[] = [
-    {
-      key: 'diagnostics',
-      label:
-        sites.diagnosingId === site.id
-          ? queued
-            ? t('diagEnqueuing')
-            : t('diagnosing')
-          : queued
-            ? t('diagEnqueue')
-            : t('diagnose'),
-      disabled: sites.diagnosingId === site.id,
-      onSelect: () => sites.handleDiagnostics(site),
-    },
-    {
-      key: 'openresty-status',
-      label:
-        sites.probingRuntimeId === site.id
-          ? queued
-            ? t('statusEnqueuing')
-            : t('probing')
-          : queued
-            ? t('statusEnqueue')
-            : t('openrestyStatus'),
-      disabled: sites.probingRuntimeId === site.id,
-      onSelect: () => sites.handleOpenRestyStatus(site),
-    },
-    {
-      key: 'openresty-modules',
-      label:
-        sites.probingModulesId === site.id
-          ? queued
-            ? t('modulesEnqueuing')
-            : t('inventorying')
-          : queued
-            ? t('modulesEnqueue')
-            : t('openrestyModules'),
-      disabled: sites.probingModulesId === site.id,
-      onSelect: () => sites.handleOpenRestyModules(site),
-    },
-    {
-      key: 'openresty-module-baseline',
-      label:
-        sites.checkingModuleBaselineId === site.id
-          ? queued
-            ? t('baselineEnqueuing')
-            : t('checking')
-          : queued
-            ? t('baselineEnqueue')
-            : t('moduleBaseline'),
-      disabled: sites.checkingModuleBaselineId === site.id,
-      onSelect: () => sites.handleOpenRestyModuleBaseline(site),
-    },
-  ];
-
   const menuGroups: ActionMenuGroup[] = [
-    { label: t('groupSync'), items: syncItems },
-    { label: t('groupCert'), items: certItems },
-    { label: t('groupDiagnostics'), items: diagnosticsItems },
+    { label: t('groupSync'), items: buildSyncItems(itemsArgs) },
+    { label: t('groupCert'), items: buildCertItems(itemsArgs) },
+    { label: t('groupDiagnostics'), items: buildDiagnosticsItems(itemsArgs) },
   ];
 
   if (includeDelete) {
-    menuGroups.push({
-      items: [
-        {
-          key: 'delete',
-          label: tc('delete'),
-          danger: true,
-          onSelect: () => sites.handleDelete(site.id),
-        },
-      ],
-    });
+    menuGroups.push(buildDeleteGroup(tc, site, sites));
   }
 
   return { primary, secondary, menuGroups };
+}
+
+/** L4 危险组：删除（仅站点卡）。 */
+function buildDeleteGroup(
+  tc: Translate,
+  site: Site,
+  sites: SitesHook,
+): ActionMenuGroup {
+  return {
+    items: [
+      {
+        key: 'delete',
+        label: tc('delete'),
+        danger: true,
+        onSelect: () => sites.handleDelete(site.id),
+      },
+    ],
+  };
 }

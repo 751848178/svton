@@ -19,6 +19,7 @@ export const dynamic = 'force-dynamic';
 export default async function CDNConfigsPage() {
   let initialConfigs: CDNConfig[] | undefined;
   let initialCredentials: TeamCredential[] | undefined;
+  let initialError = '';
   try {
     const [configs, credentials] = await Promise.all([
       serverRequest<CDNConfig[]>('GET:/cdn-configs'),
@@ -28,13 +29,14 @@ export default async function CDNConfigsPage() {
     initialCredentials = credentials.length > 0 ? credentials : undefined;
   } catch (error) {
     redirectOnUnauthorized(error, '/cdn-configs');
-    console.error('Failed to load CDN configs:', error);
+    initialError = error instanceof Error ? error.message : 'loadFailed';
   }
 
   return (
     <CdnConfigsContent
       initialConfigs={initialConfigs}
       initialCredentials={initialCredentials}
+      initialError={initialError}
     />
   );
 }

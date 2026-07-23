@@ -5,13 +5,9 @@ import { useTranslations } from 'next-intl';
 import { StatusTag } from '@/components/ui';
 import type { Site, SiteSyncPlan, SiteSyncRun } from '../types';
 import type { useSites } from '../hooks/use-sites';
-import {
-  getStatusLabel,
-  getRunModeLabel,
-  formatRunLogPreview,
-  readLogMessages,
-  formatDateTime,
-} from '../utils-format';
+import { formatRunLogPreview, formatDateTime } from '../utils-format';
+import { resolveStatusLabel, resolveRunModeLabel } from '../utils-labels';
+import { describePlanHeader } from '../utils-plan';
 
 type SitesHook = ReturnType<typeof useSites>;
 
@@ -43,30 +39,31 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{getRunModeLabel(run.mode)}</span>
+                      <span className="font-medium">{resolveRunModeLabel(t, run.mode)}</span>
                       <StatusTag
                         status={run.status}
-                        label={getStatusLabel(run.status)}
+                        label={resolveStatusLabel(t, run.status)}
                       />
                       {run.dryRun && (
                         <StatusTag
                           status="info"
-                          label="dry-run"
+                          label={t('dryRunLabel')}
                         />
                       )}
                       {run.operationApproval && (
                         <StatusTag
                           status={run.operationApproval.status}
-                          label={`${t('approvalPrefix')}${getStatusLabel(run.operationApproval.status)}`}
+                          label={`${t('approvalPrefix')}${resolveStatusLabel(t, run.operationApproval.status)}`}
                         />
                       )}
                       {run.serverExecutionJob && (
                         <Link
                           href="/execution-governance"
-                          className="text-primary hover:underline"
+                          className="text-muted-foreground hover:underline"
                         >
-                          Job {run.serverExecutionJob.id.slice(0, 8)} ·{' '}
-                          {getStatusLabel(run.serverExecutionJob.status)}
+                          {t('jobRef', { id: run.serverExecutionJob.id.slice(0, 8) })}
+                          <span className="mx-1">·</span>
+                          {resolveStatusLabel(t, run.serverExecutionJob.status)}
                         </Link>
                       )}
                       <span className="text-muted-foreground">{formatDateTime(run.startedAt)}</span>
@@ -110,11 +107,11 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
         <div className="mt-4 border-t pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-medium">
-              {plan.executorKey} · {plan.adapterKey} · {plan.mode}
+              {describePlanHeader(t, plan)}
             </div>
             <StatusTag
               status={plan.status || (plan.executable ? 'active' : 'pending')}
-              label={getStatusLabel(plan.status || (plan.executable ? 'active' : 'pending'))}
+              label={resolveStatusLabel(t, plan.status || (plan.executable ? 'active' : 'pending'))}
             />
           </div>
 
@@ -132,7 +129,7 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
 
           {plan.approval && (
             <div className="mt-3 rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-primary">
-              {t('approvalGenerated', { id: plan.approval.id, status: getStatusLabel(plan.approval.status) })}
+              {t('approvalReady', { status: resolveStatusLabel(t, plan.approval.status) })}
             </div>
           )}
 
@@ -141,8 +138,11 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="font-medium">{t('configDiff')}</span>
                 <span className="text-muted-foreground">
-                  +{plan.configDiff.added} / -{plan.configDiff.removed} / =
-                  {plan.configDiff.unchanged}
+                  {t('diffLegend', {
+                    added: plan.configDiff.added,
+                    removed: plan.configDiff.removed,
+                    unchanged: plan.configDiff.unchanged,
+                  })}
                 </span>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">{plan.configDiff.summary}</div>
@@ -153,7 +153,7 @@ export function SitePlanRunPanel({ site, sites, plan, recentRuns }: SitePlanRunP
           )}
 
           {plan.warnings.length > 0 && (
-            <div className="mt-3 space-y-1 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800">
+            <div className="mt-3 space-y-1 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning-foreground">
               {plan.warnings.map((warning) => (
                 <div key={warning}>{warning}</div>
               ))}

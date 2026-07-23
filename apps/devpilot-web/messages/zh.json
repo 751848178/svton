@@ -341,7 +341,10 @@
     "deleteSuccess": "服务器已删除",
     "deleteFailed": "删除服务器失败",
     "deleteServerTitle": "删除服务器",
-    "deleteServerDescription": "删除后将无法向该服务器部署，关联的代理配置可能受影响。此操作不可撤销。"
+    "deleteServerDescription": "删除后将无法向该服务器部署，关联的代理配置可能受影响。此操作不可撤销。",
+    "detailLoadFailed": "加载服务器详情失败",
+    "serviceInstalled": "已安装",
+    "serviceMissing": "未安装"
   },
   "resourceRequests": {
     "pageTitle": "资源申请",
@@ -701,7 +704,7 @@
     "aliasesLabel": "别名",
     "projectLabel": "项目",
     "environmentLabel": "环境",
-    "serverLabel": "服务器",
+    "serverLabel": "服务器：{name}",
     "notLinked": "未关联",
     "notBound": "未绑定",
     "upstreamLabel": "上游",
@@ -760,13 +763,11 @@
     "noConfigPathRecorded": "未记录配置路径",
     "requestRollbackEnqueue": "请求回滚入队",
     "requestRollback": "请求回滚",
-    "approvalGenerated": "已生成审批",
     "configDiff": "配置差异",
     "required": "必填",
     "optional": "可选",
     "noNginxConfig": "无 Nginx 配置",
     "takeoverSiteTitle": "接管站点",
-    "serverLabelColon": "服务器：",
     "focusedPanelHint": "聚焦的面板会高亮显示",
     "previewPlaceholderWarning": "预览数据为示例，实际以生成结果为准",
     "nginxOpenrestyPlan": "Nginx OpenResty 计划",
@@ -821,7 +822,34 @@
     "moreActions": "更多操作",
     "groupSync": "同步",
     "groupCert": "证书",
-    "groupDiagnostics": "诊断"
+    "groupDiagnostics": "诊断",
+    "tlsLabel": "TLS",
+    "dryRunLabel": "演练运行",
+    "jobRef": "任务 #{id}",
+    "approvalReady": "已生成审批（{status}）",
+    "diffLegend": "新增 {added} · 删除 {removed} · 不变 {unchanged}",
+    "planRunSummary": "计划与运行记录",
+    "runtimeNoStaticDir": "未配置静态目录",
+    "runtimeNoUpstream": "未配置上游",
+    "statusActive": "已生效",
+    "statusQueued": "排队中",
+    "statusPending": "待同步",
+    "statusError": "错误",
+    "statusDraft": "草稿",
+    "statusCompleted": "完成",
+    "statusBlocked": "已阻止",
+    "statusFailed": "失败",
+    "statusApproved": "已批准",
+    "statusRejected": "已拒绝",
+    "modeTlsRenew": "TLS 续期",
+    "modeTlsProbe": "TLS 探测",
+    "modeSmokeCheck": "Smoke 检查",
+    "modeModuleBaseline": "模块基线",
+    "modeOpenrestyModules": "OpenResty 模块",
+    "modeOpenrestyStatus": "OpenResty 状态",
+    "modeDiagnostics": "诊断",
+    "modeRollback": "回滚",
+    "modeSync": "同步"
   },
   "auditEvents": {
     "pageTitle": "审计事件",
@@ -1258,7 +1286,10 @@
     "tabUrlConfig": "URL 配置",
     "tabFrontendConfig": "前端配置",
     "tabRefreshScript": "刷新脚本",
-    "tabEnvVars": "环境变量"
+    "tabEnvVars": "环境变量",
+    "tabNextjs": "Next.js",
+    "generateFailed": "生成 CDN 配置失败",
+    "download": "下载"
   },
   "cdnConfigs": {
     "pageTitle": "CDN 配置管理",
@@ -1315,7 +1346,13 @@
     "deleteConfigDescription": "确定要删除 CDN 配置「{name}」吗？此操作不可撤销。",
     "deleteCredentialTitle": "删除凭证",
     "deleteCredentialDescription": "确定要删除凭证「{name}」吗？关联的 CDN 配置可能会受影响。",
-    "saveFailed": "保存配置失败"
+    "saveFailed": "保存配置失败",
+    "loadFailed": "加载 CDN 配置失败",
+    "ttlPrefix": "TTL",
+    "ttlUnit_second": "{value} 秒",
+    "ttlUnit_minute": "{value} 分钟",
+    "ttlUnit_hour": "{value} 小时",
+    "ttlUnit_day": "{value} 天"
   },
   "resourceControl": {
     "pageTitle": "资源管控",
@@ -1464,7 +1501,11 @@
     "deleteSuccess": "代理配置已删除",
     "deleteFailed": "删除代理配置失败",
     "deleteConfigTitle": "删除代理配置",
-    "deleteConfigDescription": "确定要删除代理配置「{name}」吗？关联站点可能受影响。"
+    "deleteConfigDescription": "确定要删除代理配置「{name}」吗？关联站点可能受影响。",
+    "sslLabel": "SSL",
+    "websocketLabel": "WebSocket",
+    "portNotSet": "未设置",
+    "loadFailed": "加载代理配置失败"
   },
   "presets": {
     "pageTitle": "配置预设",
@@ -1566,7 +1607,10 @@
     "letsencryptEmail": "Let's Encrypt 邮箱",
     "generateCertbot": "生成证书申请脚本",
     "download": "下载",
-    "emailRequired": "请输入邮箱地址"
+    "emailRequired": "请输入邮箱地址",
+    "validateFailed": "校验失败",
+    "generateNginxFailed": "生成 Nginx 配置失败",
+    "generateCertbotFailed": "生成证书脚本失败"
   },
   "projectWizard": {
     "projectName": "项目名称",

@@ -14,6 +14,7 @@ import { DEFAULT_DOMAIN_CONFIG, type DomainConfig } from '../types';
 
 interface ValidationState {
   isValid: boolean;
+  reason?: string;
 }
 
 export function useDomainConfig() {
@@ -23,22 +24,29 @@ export function useDomainConfig() {
   const [certbotScript, setCertbotScript] = useState('');
   const [email, setEmail] = useState('');
   const [validation, setValidation] = useState<ValidationState | null>(null);
+  const [generatingNginx, setGeneratingNginx] = useState(false);
+  const [generatingCertbot, setGeneratingCertbot] = useState(false);
+  const [error, setError] = useState('');
 
   const validateDomain = usePersistFn(async () => {
     if (!config.domain) return;
     try {
       setValidation(await apiRequest<ValidationState>(`GET:/domain/validate?domain=${config.domain}`));
     } catch {
-      setValidation({ isValid: false });
+      setValidation({ isValid: false, reason: t('validateFailed') });
     }
   });
 
   const generateNginxConfig = usePersistFn(async () => {
+    setGeneratingNginx(true);
+    setError('');
     try {
       const result = await apiRequest<{ configContent: string }>('POST:/domain/nginx-config', config);
       setGeneratedConfig(result.configContent);
-    } catch (error) {
-      console.error('Failed to generate config:', error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('generateNginxFailed'));
+    } finally {
+      setGeneratingNginx(false);
     }
   });
 
@@ -47,16 +55,22 @@ export function useDomainConfig() {
       feedback.error(t('emailRequired'));
       return;
     }
+    setGeneratingCertbot(true);
+    setError('');
     try {
       const result = await apiRequest<{ script: string }>('/domain/certbot-script', {
         domain: config.domain,
         email,
       });
       setCertbotScript(result.script);
-    } catch (error) {
-      console.error('Failed to generate script:', error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('generateCertbotFailed'));
+    } finally {
+      setGeneratingCertbot(false);
     }
   });
+
+  const clearError = usePersistFn(() => setError(''));
 
   return {
     config,
@@ -69,5 +83,10 @@ export function useDomainConfig() {
     validateDomain,
     generateNginxConfig,
     generateCertbotScript,
+    generatingNginx,
+    generatingCertbot,
+    error,
+    clearError,
   };
 }
+

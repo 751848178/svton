@@ -341,7 +341,10 @@
     "deleteSuccess": "Server deleted",
     "deleteFailed": "Failed to delete server",
     "deleteServerTitle": "Delete Server",
-    "deleteServerDescription": "After deletion you can no longer deploy to this server, and associated proxy configs may be affected. This action cannot be undone."
+    "deleteServerDescription": "After deletion you can no longer deploy to this server, and associated proxy configs may be affected. This action cannot be undone.",
+    "detailLoadFailed": "Failed to load server detail",
+    "serviceInstalled": "Installed",
+    "serviceMissing": "Missing"
   },
   "resourceRequests": {
     "pageTitle": "Resource Requests",
@@ -701,7 +704,7 @@
     "aliasesLabel": "Aliases",
     "projectLabel": "Project",
     "environmentLabel": "Environment",
-    "serverLabel": "Server",
+    "serverLabel": "Server: {name}",
     "notLinked": "Not linked",
     "notBound": "Not bound",
     "upstreamLabel": "Upstream",
@@ -760,13 +763,11 @@
     "noConfigPathRecorded": "No config path recorded",
     "requestRollbackEnqueue": "Enqueue Rollback Request",
     "requestRollback": "Request Rollback",
-    "approvalGenerated": "Approval generated",
     "configDiff": "Config Diff",
     "required": "Required",
     "optional": "Optional",
     "noNginxConfig": "No Nginx config",
     "takeoverSiteTitle": "Take Over Site",
-    "serverLabelColon": "Server: ",
     "focusedPanelHint": "The focused panel is highlighted",
     "previewPlaceholderWarning": "Preview data is sample data; actual results may vary",
     "nginxOpenrestyPlan": "Nginx OpenResty Plan",
@@ -821,7 +822,34 @@
     "moreActions": "More Actions",
     "groupSync": "Sync",
     "groupCert": "Certificates",
-    "groupDiagnostics": "Diagnostics"
+    "groupDiagnostics": "Diagnostics",
+    "tlsLabel": "TLS",
+    "dryRunLabel": "Dry run",
+    "jobRef": "Job #{id}",
+    "approvalReady": "Approval ready ({status})",
+    "diffLegend": "Added {added} · Removed {removed} · Unchanged {unchanged}",
+    "planRunSummary": "Plan & runs",
+    "runtimeNoStaticDir": "Static dir not configured",
+    "runtimeNoUpstream": "Upstream not configured",
+    "statusActive": "Active",
+    "statusQueued": "Queued",
+    "statusPending": "Pending",
+    "statusError": "Error",
+    "statusDraft": "Draft",
+    "statusCompleted": "Completed",
+    "statusBlocked": "Blocked",
+    "statusFailed": "Failed",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected",
+    "modeTlsRenew": "TLS Renew",
+    "modeTlsProbe": "TLS Probe",
+    "modeSmokeCheck": "Smoke Check",
+    "modeModuleBaseline": "Module Baseline",
+    "modeOpenrestyModules": "OpenResty Modules",
+    "modeOpenrestyStatus": "OpenResty Status",
+    "modeDiagnostics": "Diagnostics",
+    "modeRollback": "Rollback",
+    "modeSync": "Sync"
   },
   "auditEvents": {
     "pageTitle": "Audit Events",
@@ -1258,7 +1286,10 @@
     "tabUrlConfig": "URL Config",
     "tabFrontendConfig": "Frontend Config",
     "tabRefreshScript": "Refresh Script",
-    "tabEnvVars": "Environment Variables"
+    "tabEnvVars": "Environment Variables",
+    "tabNextjs": "Next.js",
+    "generateFailed": "Failed to generate CDN config",
+    "download": "Download"
   },
   "cdnConfigs": {
     "pageTitle": "CDN Config Management",
@@ -1315,7 +1346,13 @@
     "deleteConfigDescription": "Delete CDN config \"{name}\"? This action cannot be undone.",
     "deleteCredentialTitle": "Delete Credential",
     "deleteCredentialDescription": "Delete credential \"{name}\"? Associated CDN configs may be affected.",
-    "saveFailed": "Failed to save config"
+    "saveFailed": "Failed to save config",
+    "loadFailed": "Failed to load CDN configs",
+    "ttlPrefix": "TTL",
+    "ttlUnit_second": "{value} second(s)",
+    "ttlUnit_minute": "{value} minute(s)",
+    "ttlUnit_hour": "{value} hour(s)",
+    "ttlUnit_day": "{value} day(s)"
   },
   "resourceControl": {
     "pageTitle": "Resource Control",
@@ -1464,7 +1501,11 @@
     "deleteSuccess": "Proxy config deleted",
     "deleteFailed": "Failed to delete proxy config",
     "deleteConfigTitle": "Delete Proxy Config",
-    "deleteConfigDescription": "Delete proxy config \"{name}\"? Associated sites may be affected."
+    "deleteConfigDescription": "Delete proxy config \"{name}\"? Associated sites may be affected.",
+    "sslLabel": "SSL",
+    "websocketLabel": "WebSocket",
+    "portNotSet": "not set",
+    "loadFailed": "Failed to load proxy configs"
   },
   "presets": {
     "pageTitle": "Config Presets",
@@ -1566,7 +1607,10 @@
     "letsencryptEmail": "Let's Encrypt Email",
     "generateCertbot": "Generate Certificate Request Script",
     "download": "Download",
-    "emailRequired": "Please enter an email address"
+    "emailRequired": "Please enter an email address",
+    "validateFailed": "Validation failed",
+    "generateNginxFailed": "Failed to generate Nginx config",
+    "generateCertbotFailed": "Failed to generate certificate script"
   },
   "projectWizard": {
     "projectName": "Project Name",

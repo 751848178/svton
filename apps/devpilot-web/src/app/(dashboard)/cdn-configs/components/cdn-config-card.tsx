@@ -10,8 +10,9 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
+import { Button } from '@/components/ui';
 import type { CDNConfig } from '../types';
-import { getProviderLabel, getProviderIcon } from '../constants';
+import { getProviderLabel } from '../constants';
 
 interface CdnConfigCardProps {
   config: CDNConfig;
@@ -33,13 +34,12 @@ export function CdnConfigCard({ config, purging, onPurge, onDelete }: CdnConfigC
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <span className="text-xl">{getProviderIcon(config.provider)}</span>
             <h3 className="font-medium">{config.name}</h3>
-            <Tag color="default">{getProviderLabel(config.provider)}</Tag>
+            <Tag color="blue">{getProviderLabel(config.provider)}</Tag>
           </div>
           <div className="mt-2 text-sm text-muted-foreground">
             <span className="font-mono">{config.domain}</span>
-            <span className="mx-2">→</span>
+            <span className="mx-2 text-muted-foreground/50">/</span>
             <span className="font-mono">{config.origin}</span>
           </div>
           {config.project ? (
@@ -66,25 +66,28 @@ export function CdnConfigCard({ config, purging, onPurge, onDelete }: CdnConfigC
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handlePurge}
             disabled={purging}
-            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
           >
             {purging ? t('purging') : t('purgeCache')}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleDetail}
-            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
           >
             {t('detail')}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
             onClick={handleDelete}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10"
           >
             {tc('delete')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

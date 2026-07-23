@@ -20,6 +20,7 @@ export function useServerDetail(serverId: string) {
   const t = useTranslations('servers');
   const [server, setServer] = useState<Server | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -30,8 +31,10 @@ export function useServerDetail(serverId: string) {
       const data = await apiRequest<Server>(`GET:/servers/${serverId}`);
       setServer(data);
       setEditForm({ name: data.name, tags: data.tags?.join(', ') || '' });
+      setError(null);
     } catch (error) {
       console.error('Failed to load server:', error);
+      setError(t('detailLoadFailed'));
     } finally {
       setLoading(false);
     }
@@ -104,6 +107,8 @@ export function useServerDetail(serverId: string) {
   return {
     server,
     loading,
+    error,
+    reload: load,
     testing,
     detecting,
     editing,

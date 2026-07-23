@@ -4,7 +4,9 @@
 import { useTranslations } from 'next-intl';
 import { StatusTag } from '@/components/ui';
 import type { SiteSyncPlan, SiteSyncRun } from '../types';
-import { formatDateTime, getRunModeLabel, getStatusLabel } from '../utils-format';
+import { formatDateTime } from '../utils-format';
+import { resolveStatusLabel, resolveRunModeLabel } from '../utils-labels';
+import { describePlanHeader } from '../utils-plan';
 
 interface FocusedSitePlanRunSummaryProps {
   plan: SiteSyncPlan | null;
@@ -21,15 +23,15 @@ export function FocusedSitePlanRunSummary({ plan, recentRuns }: FocusedSitePlanR
         <div className="rounded-md border bg-background p-3">
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span className="font-medium">
-              {plan.executorKey} · {plan.adapterKey} · {plan.mode}
+              {describePlanHeader(t, plan)}
             </span>
             <StatusTag
               status={plan.status || (plan.executable ? 'active' : 'pending')}
-              label={getStatusLabel(plan.status || (plan.executable ? 'active' : 'pending'))}
+              label={resolveStatusLabel(t, plan.status || (plan.executable ? 'active' : 'pending'))}
             />
           </div>
           {plan.warnings.length > 0 && (
-            <div className="mt-2 space-y-1 text-xs text-yellow-800">
+            <div className="mt-2 space-y-1 rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning-foreground">
               {plan.warnings.slice(0, 3).map((warning) => (
                 <div key={warning}>{warning}</div>
               ))}
@@ -59,15 +61,15 @@ export function FocusedSitePlanRunSummary({ plan, recentRuns }: FocusedSitePlanR
                 key={run.id}
                 className="flex flex-wrap items-center gap-2 text-xs"
               >
-                <span className="font-medium">{getRunModeLabel(run.mode)}</span>
+                <span className="font-medium">{resolveRunModeLabel(t, run.mode)}</span>
                 <StatusTag
                   status={run.status}
-                  label={getStatusLabel(run.status)}
+                  label={resolveStatusLabel(t, run.status)}
                 />
                 {run.dryRun && (
                   <StatusTag
                     status="info"
-                    label="dry-run"
+                    label={t('dryRunLabel')}
                   />
                 )}
                 <span className="text-muted-foreground">{formatDateTime(run.startedAt)}</span>

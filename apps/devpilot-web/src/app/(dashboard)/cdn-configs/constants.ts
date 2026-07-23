@@ -5,9 +5,9 @@
  */
 
 export const PROVIDERS = [
-  { value: 'qiniu', label: '七牛云', icon: '🌐' },
-  { value: 'aliyun', label: '阿里云', icon: '☁️' },
-  { value: 'cloudflare', label: 'Cloudflare', icon: '🛡️' },
+  { value: 'qiniu', label: '七牛云' },
+  { value: 'aliyun', label: '阿里云' },
+  { value: 'cloudflare', label: 'Cloudflare' },
 ];
 
 export const CREDENTIAL_TYPES = [
@@ -18,8 +18,4 @@ export const CREDENTIAL_TYPES = [
 
 export function getProviderLabel(provider: string): string {
   return PROVIDERS.find((p) => p.value === provider)?.label || provider;
-}
-
-export function getProviderIcon(provider: string): string {
-  return PROVIDERS.find((p) => p.value === provider)?.icon || '🌐';
 }

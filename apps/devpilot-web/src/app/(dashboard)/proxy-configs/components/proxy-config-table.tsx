@@ -1,9 +1,4 @@
-/**
- * 代理配置表格（@tanstack/react-table）
- *
- * 单一职责：渲染代理配置列表 + 同步/详情/删除操作。
- * 头部采用 headless table 提供按域名/创建时间排序。
- */
+/** 代理配置表格（@tanstack/react-table）：渲染列表 + 表头排序；行操作在 ProxyConfigActions。 */
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -15,11 +10,14 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { usePersistFn } from '@svton/hooks';
+import { Tag } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { ProxyConfig } from '../types';
+import { ProxyConfigActions } from './proxy-config-actions';
+import { SortIcon } from './sort-icon';
+
+
 
 interface ProxyConfigTableProps {
   configs: ProxyConfig[];
@@ -53,9 +51,9 @@ export function ProxyConfigTable({ configs, syncingId, onSync, onDelete }: Proxy
           return (
             <>
               <div className="font-medium">{config.name}</div>
-              <div className="flex gap-2 text-xs text-muted-foreground">
-                {config.ssl.enabled ? <span>🔒 SSL</span> : null}
-                {config.websocket ? <span>🔌 WS</span> : null}
+              <div className="flex gap-2 text-xs">
+                {config.ssl.enabled ? <Tag color="blue">{t('sslLabel')}</Tag> : null}
+                {config.websocket ? <Tag>{t('websocketLabel')}</Tag> : null}
               </div>
             </>
           );
@@ -75,7 +73,12 @@ export function ProxyConfigTable({ configs, syncingId, onSync, onDelete }: Proxy
         cell: ({ row }) =>
           row.original.upstreams.map((u, i) => (
             <div key={i} className="font-mono text-xs">
-              {u.host}:{u.port || 80}
+              {u.host}
+              {u.port ? (
+                `:${u.port}`
+              ) : (
+                <span className="text-muted-foreground/60">:{t('portNotSet')}</span>
+              )}
             </div>
           )),
       },
@@ -106,7 +109,7 @@ export function ProxyConfigTable({ configs, syncingId, onSync, onDelete }: Proxy
         id: 'actions',
         header: tc('actions'),
         cell: ({ row }) => (
-          <ProxyActions
+          <ProxyConfigActions
             config={row.original}
             syncing={syncingId === row.original.id}
             onSync={onSync}
@@ -128,7 +131,7 @@ export function ProxyConfigTable({ configs, syncingId, onSync, onDelete }: Proxy
   });
 
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="overflow-x-auto rounded-lg border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50">
           {table.getHeaderGroups().map((headerGroup) => (
@@ -150,9 +153,7 @@ export function ProxyConfigTable({ configs, syncingId, onSync, onDelete }: Proxy
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {canSort ? (
-                          <span className="text-xs text-muted-foreground">
-                            {{ asc: '▲', desc: '▼' }[header.column.getIsSorted() as string] || '↕'}
-                          </span>
+                          <SortIcon state={header.column.getIsSorted() as false | 'asc' | 'desc'} />
                         ) : null}
                       </button>
                     )}
@@ -177,49 +178,6 @@ export function ProxyConfigTable({ configs, syncingId, onSync, onDelete }: Proxy
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-function ProxyActions({
-  config,
-  syncing,
-  onSync,
-  onDelete,
-}: {
-  config: ProxyConfig;
-  syncing: boolean;
-  onSync: (id: string) => void;
-  onDelete: (id: string) => void;
-}) {
-  const t = useTranslations('proxyConfigs');
-  const tc = useTranslations('common');
-  const router = useRouter();
-  const handleSync = usePersistFn(() => onSync(config.id));
-  const handleDetail = usePersistFn(() => router.push(`/proxy-configs/${config.id}`));
-  const handleDelete = usePersistFn(() => onDelete(config.id));
-
-  return (
-    <div className="flex justify-end gap-2">
-      <button
-        onClick={handleSync}
-        disabled={syncing || !config.server}
-        className="rounded border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
-      >
-        {syncing ? t('syncing') : t('sync')}
-      </button>
-      <button
-        onClick={handleDetail}
-        className="rounded border px-2 py-1 text-xs font-medium hover:bg-accent"
-      >
-        {t('detail')}
-      </button>
-      <button
-        onClick={handleDelete}
-        className="rounded px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
-      >
-        {tc('delete')}
-      </button>
     </div>
   );
 }

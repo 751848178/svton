@@ -19,19 +19,31 @@ import type { CDNConfig, TeamCredential, CDNConfigInput, CredentialInput } from 
 const CONFIGS_KEY = 'GET:/cdn-configs';
 const CREDENTIALS_KEY = 'GET:/team-credentials';
 
-export function useCdnConfigs(initialConfigs?: CDNConfig[], initialCredentials?: TeamCredential[]) {
+export function useCdnConfigs(
+  initialConfigs?: CDNConfig[],
+  initialCredentials?: TeamCredential[],
+  initialError?: string,
+) {
   const t = useTranslations('cdnConfigs');
   const {
     data: configsData,
     isLoading: configsLoading,
+    error: configsError,
   } = useQueryLoose<CDNConfig[]>(CONFIGS_KEY, { fallback: initialConfigs });
   const {
     data: credentialsData,
     isLoading: credentialsLoading,
+    error: credentialsError,
   } = useQueryLoose<TeamCredential[]>(CREDENTIALS_KEY, { fallback: initialCredentials });
   const configs = configsData ?? [];
   const credentials = credentialsData ?? [];
   const loading = configsLoading || credentialsLoading;
+  const swrError = configsError || credentialsError;
+  const error = swrError
+    ? swrError instanceof Error
+      ? swrError.message
+      : t('loadFailed')
+    : initialError ?? '';
   const [purgingId, setPurgingId] = useState<string | null>(null);
   const [configTarget, setConfigTarget] = useState<CDNConfig | null>(null);
   const [credentialTarget, setCredentialTarget] = useState<TeamCredential | null>(null);
@@ -116,6 +128,7 @@ export function useCdnConfigs(initialConfigs?: CDNConfig[], initialCredentials?:
     configs,
     credentials,
     loading,
+    error,
     purgingId,
     configTarget,
     credentialTarget,

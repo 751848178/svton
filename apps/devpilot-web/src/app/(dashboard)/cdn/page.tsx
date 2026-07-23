@@ -1,14 +1,15 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { PageHeader } from '@/components/ui';
+import { ErrorBanner, PageHeader } from '@/components/ui';
 import { useCdn } from './hooks/use-cdn';
 import { CdnConfigForm } from './components/cdn-config-form';
 import { CdnResultsPanel } from './components/cdn-results-panel';
 
 export default function CDNConfigPage() {
   const t = useTranslations('cdn');
-  const { config, setConfig, results, generate } = useCdn();
+  const tc = useTranslations('common');
+  const { config, setConfig, results, generate, generating, error, clearError } = useCdn();
 
   return (
     <div className="space-y-6">
@@ -22,13 +23,24 @@ export default function CDNConfigPage() {
           config={config}
           onChange={setConfig}
           onGenerate={generate}
+          generating={generating}
         />
-        <CdnResultsPanel
-          results={results}
-          provider={config.provider}
-        />
+        <div className="space-y-4">
+          {error ? (
+            <ErrorBanner
+              message={error}
+              variant="inline"
+              onRetry={clearError}
+              retryLabel={tc('close')}
+            />
+          ) : null}
+          <CdnResultsPanel
+            results={results}
+            provider={config.provider}
+            error={error}
+          />
+        </div>
       </div>
     </div>
   );
 }
-import type { Tabs } from '@svton/ui'; // @svton/ui type reference
