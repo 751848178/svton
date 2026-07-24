@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditEventService } from '../audit-event';
+import { CryptoService } from '../common/crypto/crypto.service';
 import { CreateOperationApprovalInput, OperationApprovalService } from '../operation-approval';
 import { PrismaService } from '../prisma/prisma.service';
 import { ResourceRequestStatusWriterService } from '../resource-request/resource-request-status-writer.service';
@@ -123,6 +124,10 @@ export class DeploymentService {
     private readonly auditEventService: AuditEventService,
     private readonly operationApprovalService: OperationApprovalService,
     private readonly credentialCrypto: ResourceRequestStatusWriterService,
+    // @Global — injected for AES-256-CBC decryption of SecretKey values in
+    // resolveDeploymentEnvVars. credentialCrypto above is GCM-only and CANNOT
+    // decrypt SecretKey (research r3 §crypto-mismatch).
+    private readonly cryptoService: CryptoService,
   ) {}
 
   async listRuns(teamId: string, query: ListDeploymentRunsQueryDto) {
@@ -1957,7 +1962,12 @@ export class DeploymentService {
     try {
       return await resolveDeploymentEnvVars(
         this.prisma as unknown as Parameters<typeof resolveDeploymentEnvVars>[0],
-        this.credentialCrypto,
+        {
+          decrypt: (t) => this.credentialCrypto.decrypt(t),
+          // SecretKey values are AES-256-CBC (key-center.service.ts encryptCbc);
+          // credentialCrypto.decrypt is GCM-only and cannot decrypt them.
+          decryptCbc: (t) => this.cryptoService.decryptCbc(t),
+        },
         teamId,
         projectId,
         environmentId,

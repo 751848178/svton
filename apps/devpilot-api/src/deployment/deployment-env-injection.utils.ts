@@ -22,6 +22,12 @@ export type EnvInjectionPrisma = {
   resourceInstance: {
     findMany: (args: Record<string, unknown>) => Promise<EnvInjectionInstanceRow[]>;
   };
+  secretKey: {
+    findMany: (args: Record<string, unknown>) => Promise<EnvInjectionSecretKeyRow[]>;
+  };
+  projectEnvironment: {
+    findFirst: (args: Record<string, unknown>) => Promise<EnvInjectionEnvironmentRow | null>;
+  };
 };
 
 /** A `resourceInstance` row + its joined `resourceType`. */
@@ -33,9 +39,26 @@ export type EnvInjectionInstanceRow = {
   resourceType: { id: string; key: string; envTemplate?: string | null };
 };
 
-/** Minimal crypto surface this utility needs. */
+/** A `secretKey` row from the 密钥中心. `value` is AES-256-CBC encrypted. */
+export type EnvInjectionSecretKeyRow = {
+  id: string;
+  name: string;
+  value: string;
+};
+
+/** A `projectEnvironment` row with its `config Json?`. */
+export type EnvInjectionEnvironmentRow = {
+  config: unknown;
+};
+
+/** Minimal crypto surface this utility needs.
+ * `decrypt` = AES-256-GCM (resource credentials, wire `ivHex:authTagHex:ctHex`).
+ * `decryptCbc` = AES-256-CBC (SecretKey values, wire `ivHex:ctHex`). They are
+ * NOT interchangeable — SecretKey values were encrypted by `CryptoService.encryptCbc`
+ * and MUST be decrypted with `decryptCbc` (research r3 §crypto-mismatch). */
 export type EnvInjectionCrypto = {
   decrypt(encryptedText: string): string;
+  decryptCbc?(encryptedText: string): string;
 };
 
 const REDACTED_MARKER = '***REDACTED***';
@@ -43,10 +66,26 @@ const REDACTED_MARKER = '***REDACTED***';
 // live in `deployment-env-heredoc.utils.ts`; re-exported below for callers.
 
 /**
- * Resolve the env-var map for a deployment target by reading active
- * `ResourceInstance` rows, decrypting their credentials, and interpolating
- * each `ResourceType.envTemplate`. Returns `{}` when nothing to inject;
- * best-effort: a single bad instance is dropped.
+ * Resolve the env-var map for a deployment target. Three sources are merged,
+ * in this precedence order (last-write-wins, deterministic):
+ *
+ *   1. `ResourceInstance` — active rows, credentials decrypted (GCM) and
+ *      interpolated into `ResourceType.envTemplate`.
+ *   2. Plain env vars — `ProjectEnvironment.config.envVars` (a plaintext
+ *      `Record<string,string>`, e.g. `NODE_ENV=production`). These override
+ *      resource vars because they are explicit per-environment intent.
+ *   3. SecretKey (密钥中心) — each secret scoped to (project, environment);
+ *      value decrypted with CBC and merged LAST so secrets always win over a
+ *      stale plaintext value.
+ *
+ * Best-effort: each source is wrapped independently so a single bad row never
+ * breaks a deploy. Keys must pass `^[A-Z_][A-Z0-9_]*$` (the write-env-file
+ * policy rule, see :127) or they are silently dropped.
+ *
+ * Security: real values (resource credentials AND decrypted secret values)
+ * flow through `merged` into `buildEnvWriteStep` → `redactEnvFile` (value-
+ * source-agnostic) → `secretEnv`, and are stripped by `stripSecretEnv` before
+ * any persistence. No new secret-exposure surface is added.
  *
  * TODO(F7): merge is `orderBy: createdAt desc` with last-write-wins per key,
  * so for two instances of the same type the OLDER row wins
@@ -75,6 +114,51 @@ export async function resolveDeploymentEnvVars(
     const config = buildInstanceConfig(instance, cryptoService);
     for (const [key, value] of Object.entries(interpolateEnvTemplate(envTemplate, config))) merged[key] = value;
   }
+
+  // (2) Plain (non-secret) env vars stored on ProjectEnvironment.config.envVars.
+  // Plaintext by design (sensitive values belong in SecretKey). Best-effort.
+  try {
+    const env = await prisma.projectEnvironment.findFirst({
+      where: { teamId, projectId, id: environmentId },
+      select: { config: true },
+    });
+    const envVars = (env?.config as Record<string, unknown> | null | undefined)?.envVars;
+    if (envVars && typeof envVars === 'object' && !Array.isArray(envVars)) {
+      for (const [k, v] of Object.entries(envVars as Record<string, unknown>)) {
+        if (/^[A-Z_][A-Z0-9_]*$/.test(k)) merged[k] = String(v ?? '');
+      }
+    }
+  } catch {
+    /* best-effort: drop, like the resourceInstance path */
+  }
+
+  // (3) SecretKey (密钥中心) → deploy env vars. Each secret scoped to
+  // (project, environment) becomes KEY=value. CBC-decrypt the value (NOT GCM —
+  // SecretKey was encrypted by CryptoService.encryptCbc). KEY derived from the
+  // human `name` mirrors exportAsEnv (key-center.service.ts:289). Applied LAST
+  // so a secret always overrides a stale plaintext value. Best-effort.
+  if (cryptoService.decryptCbc) {
+    try {
+      const secretKeys = await prisma.secretKey.findMany({
+        where: { teamId, projectId, environmentId },
+        select: { id: true, name: true, value: true },
+      });
+      for (const sk of secretKeys) {
+        const envKey = sk.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        if (!/^[A-Z_][A-Z0-9_]*$/.test(envKey)) continue; // same filter as :127
+        let plain = '';
+        try {
+          plain = cryptoService.decryptCbc(sk.value);
+        } catch {
+          continue; // skip a single undecryptable key
+        }
+        merged[envKey] = plain;
+      }
+    } catch {
+      /* best-effort: drop */
+    }
+  }
+
   return merged;
 }
 

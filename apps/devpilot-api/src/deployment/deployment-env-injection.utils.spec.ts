@@ -18,12 +18,21 @@ const { DEPLOYMENT_COMMAND_RULES } = require(DEPLOYMENT_RULES_PATH);
 
 function makeCrypto(plain: Record<string, Record<string, unknown>>): EnvInjectionCrypto & {
   store: Record<string, Record<string, unknown>>;
+  cbcStore: Record<string, string>;
 } {
   return {
     store: plain,
+    cbcStore: {},
     decrypt(encryptedText: string) {
       // For tests the "encrypted" string is just the instance id.
       return JSON.stringify(plain[encryptedText] ?? {});
+    },
+    decryptCbc(encryptedText: string) {
+      // SecretKey "encryption" is a lookup key into cbcStore; throws if unknown
+      // so a test can model an undecryptable key.
+      const v = this.cbcStore[encryptedText];
+      if (v === undefined) throw new Error('cbc decrypt failed');
+      return v;
     },
   };
 }
@@ -156,10 +165,24 @@ describe('renderEnvWriteCommandReal', () => {
 });
 
 describe('resolveDeploymentEnvVars', () => {
-  function makePrisma(rows: unknown[]): EnvInjectionPrisma {
+  function makePrisma(
+    rows: unknown[],
+    opts: {
+      secretKeys?: unknown[];
+      environmentConfig?: unknown;
+    } = {},
+  ): EnvInjectionPrisma {
     return {
       resourceInstance: {
         findMany: jest.fn().mockResolvedValue(rows),
+      },
+      secretKey: {
+        findMany: jest.fn().mockResolvedValue(opts.secretKeys ?? []),
+      },
+      projectEnvironment: {
+        findFirst: jest.fn().mockResolvedValue(
+          opts.environmentConfig === undefined ? null : { config: opts.environmentConfig },
+        ),
       },
     };
   }
@@ -309,6 +332,137 @@ describe('resolveDeploymentEnvVars', () => {
     expect(out).toEqual({
       DATABASE_URL: 'mysql://u:@mysql-h:3306/d',
     });
+  });
+
+  it('injects plain (non-secret) env vars from ProjectEnvironment.config.envVars over resource vars', async () => {
+    const crypto = makeCrypto({ 'inst-mysql': { password: 'pw' } });
+    const prisma = makePrisma(
+      [
+        {
+          id: 'inst-mysql',
+          status: 'active',
+          delivery: { host: 'h', port: 3306, username: 'u', database: 'd' },
+          credentials: 'inst-mysql',
+          resourceType: {
+            id: 'rt-mysql',
+            key: 'mysql',
+            envTemplate: 'DATABASE_URL="${host}"',
+          },
+        },
+      ],
+      { environmentConfig: { envVars: { NODE_ENV: 'production', LOG_LEVEL: 'debug' } } },
+    );
+
+    const out = await resolveDeploymentEnvVars(prisma, crypto, 'team-1', 'proj-1', 'env-1');
+
+    expect(out).toEqual({
+      DATABASE_URL: 'h',
+      NODE_ENV: 'production',
+      LOG_LEVEL: 'debug',
+    });
+    expect(prisma.projectEnvironment.findFirst).toHaveBeenCalledWith({
+      where: { teamId: 'team-1', projectId: 'proj-1', id: 'env-1' },
+      select: { config: true },
+    });
+  });
+
+  it('drops plain config keys that are not valid uppercase env names', async () => {
+    // Plain config keys are NOT transformed (only SecretKey `name` is); the KEY
+    // must already satisfy ^[A-Z_][A-Z0-9_]*$.
+    const prisma = makePrisma([], {
+      environmentConfig: {
+        envVars: { GOOD_KEY: '1', lower: '2', 'hyphen-key': '3', '1LEADDIGIT': '4' },
+      },
+    });
+    const out = await resolveDeploymentEnvVars(prisma, makeCrypto({}), 'team-1', 'proj-1', 'env-1');
+    expect(out).toEqual({ GOOD_KEY: '1' });
+  });
+
+  it('injects SecretKey values via decryptCbc (CBC, not GCM) and derives KEY from name', async () => {
+    const crypto = makeCrypto({});
+    crypto.cbcStore['sk-jwt'] = 'super-secret-plaintext';
+    const prisma = makePrisma([], {
+      secretKeys: [
+        { id: 'sk-jwt', name: 'picshare_JWT_SECRET', value: 'sk-jwt' },
+        { id: 'sk-api', name: 'API_TOKEN', value: 'sk-api' }, // model undecryptable -> dropped
+      ],
+    });
+
+    const out = await resolveDeploymentEnvVars(prisma, crypto, 'team-1', 'proj-1', 'env-1');
+
+    // name `picshare_JWT_SECRET` -> uppercase + non-alnum to `_` = `PICSHARE_JWT_SECRET`
+    expect(out).toEqual({ PICSHARE_JWT_SECRET: 'super-secret-plaintext' });
+    expect(prisma.secretKey.findMany).toHaveBeenCalledWith({
+      where: { teamId: 'team-1', projectId: 'proj-1', environmentId: 'env-1' },
+      select: { id: true, name: true, value: true },
+    });
+  });
+
+  it('derives SecretKey KEY via uppercase + non-alnum-to-underscore, drops only invalid results', async () => {
+    const crypto = makeCrypto({});
+    crypto.cbcStore['sk-1'] = 'v1';
+    crypto.cbcStore['sk-2'] = 'v2';
+    const prisma = makePrisma([], {
+      secretKeys: [
+        { id: 'sk-1', name: 'picshare JWT-SECRET', value: 'sk-1' }, // -> PICSHARE_JWT_SECRET
+        { id: 'sk-2', name: 'valid_name', value: 'sk-2' }, // -> VALID_NAME
+      ],
+    });
+    const out = await resolveDeploymentEnvVars(prisma, crypto, 'team-1', 'proj-1', 'env-1');
+    expect(Object.keys(out).sort()).toEqual(['PICSHARE_JWT_SECRET', 'VALID_NAME']);
+  });
+
+  it('precedence: secret vars win over resource vars; plain vars win over resource vars', async () => {
+    const crypto = makeCrypto({ 'inst-mysql': { password: 'pw' } });
+    crypto.cbcStore['sk-db'] = 'secret-overrides-everything';
+    const prisma = makePrisma(
+      [
+        {
+          id: 'inst-mysql',
+          status: 'active',
+          delivery: { host: 'h', port: 3306, username: 'u', database: 'd' },
+          credentials: 'inst-mysql',
+          resourceType: {
+            id: 'rt-mysql',
+            key: 'mysql',
+            envTemplate: 'DATABASE_URL="${host}"',
+          },
+        },
+      ],
+      {
+        // plain var also targets DATABASE_URL; secret must beat BOTH.
+        environmentConfig: { envVars: { DATABASE_URL: 'plain-wins-over-resource' } },
+        secretKeys: [{ id: 'sk-db', name: 'DATABASE_URL', value: 'sk-db' }],
+      },
+    );
+
+    const out = await resolveDeploymentEnvVars(prisma, crypto, 'team-1', 'proj-1', 'env-1');
+    // resource -> plain -> secret: secret wins.
+    expect(out.DATABASE_URL).toBe('secret-overrides-everything');
+  });
+
+  it('is best-effort: a throwing decryptCbc for one key drops only that key', async () => {
+    const crypto = makeCrypto({});
+    crypto.cbcStore['sk-good'] = 'good-val';
+    const prisma = makePrisma([], {
+      secretKeys: [
+        { id: 'sk-good', name: 'GOOD', value: 'sk-good' },
+        { id: 'sk-bad', name: 'BAD', value: 'unknown-token' }, // not in cbcStore -> throws -> dropped
+      ],
+    });
+    const out = await resolveDeploymentEnvVars(prisma, crypto, 'team-1', 'proj-1', 'env-1');
+    expect(out).toEqual({ GOOD: 'good-val' });
+  });
+
+  it('skips SecretKey entirely when decryptCbc is absent (graceful no-op)', async () => {
+    // crypto without decryptCbc (legacy adapter shape)
+    const crypto: EnvInjectionCrypto = { decrypt: () => '{}' };
+    const prisma = makePrisma([], {
+      secretKeys: [{ id: 'sk', name: 'X', value: 'whatever' }],
+    });
+    const out = await resolveDeploymentEnvVars(prisma, crypto, 'team-1', 'proj-1', 'env-1');
+    expect(out).toEqual({});
+    expect(prisma.secretKey.findMany).not.toHaveBeenCalled();
   });
 });
 

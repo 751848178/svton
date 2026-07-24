@@ -53,6 +53,7 @@ describe('DeploymentService retryRun', () => {
       auditEventService as unknown as AuditEventService,
       operationApprovalService as unknown as OperationApprovalService,
       { decrypt: jest.fn() } as unknown as import('../resource-request/resource-request-status-writer.service').ResourceRequestStatusWriterService,
+      { decryptCbc: jest.fn() } as unknown as import('../common/crypto/crypto.service').CryptoService,
     );
   });
 
