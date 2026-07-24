@@ -8,6 +8,7 @@ import { PageHeader, ErrorBanner } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useSites } from './hooks/use-sites';
 import { AddSiteModal } from './components/add-site-modal';
+import { EditSiteModal } from './components/edit-site-modal';
 import { FocusedSitePanel } from './components/focused-site-panel';
 import { SiteListSection } from './components/site-list-section';
 
@@ -97,6 +98,21 @@ function SitesContent() {
           onClose={() => sites.setShowModal(false)}
           onSuccess={() => {
             sites.setShowModal(false);
+            sites.reload();
+          }}
+        />
+      ) : null}
+
+      {sites.editTarget ? (
+        <EditSiteModal
+          site={sites.editTarget}
+          servers={sites.servers}
+          projects={sites.projects}
+          projectEnvironments={sites.projectEnvironments}
+          proxyConfigs={sites.proxyConfigs}
+          onClose={() => sites.setEditTarget(null)}
+          onSuccess={() => {
+            sites.setEditTarget(null);
             sites.reload();
           }}
         />

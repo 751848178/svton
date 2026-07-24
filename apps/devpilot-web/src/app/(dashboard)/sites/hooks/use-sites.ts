@@ -43,6 +43,7 @@ export function useSites(
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null);
   const [showModal, setShowModal] = useState(openCreateOnMount);
   const [queueSiteRuns, setQueueSiteRuns] = useState(false);
+  const [editTarget, setEditTarget] = useState<Site | null>(null);
 
   const refreshSyncRuns = usePersistFn(async (id: string) => {
     const runs = await apiRequest<SiteSyncRun[]>(`GET:/sites/${id}/sync-runs`);
@@ -182,6 +183,8 @@ export function useSites(
     deleteTarget,
     showModal,
     setShowModal,
+    editTarget,
+    setEditTarget,
     queueSiteRuns,
     setQueueSiteRuns,
     handleDelete,

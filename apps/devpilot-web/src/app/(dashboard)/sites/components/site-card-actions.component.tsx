@@ -29,6 +29,12 @@ export function SiteCardActions({ site, sites, canRenewTls }: SiteCardActionsPro
         {actions.primary.label}
       </button>
       <button
+        onClick={() => sites.setEditTarget(site)}
+        className="min-h-11 rounded-md border px-3 text-sm font-medium hover:bg-accent"
+      >
+        {t('editSite')}
+      </button>
+      <button
         onClick={actions.secondary.onSelect}
         disabled={actions.secondary.disabled}
         className="min-h-11 rounded-md border px-3 text-sm font-medium hover:bg-accent disabled:opacity-50"
