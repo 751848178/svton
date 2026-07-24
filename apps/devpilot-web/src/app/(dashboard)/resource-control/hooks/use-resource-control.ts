@@ -69,6 +69,7 @@ export function useResourceControl() {
   const [queryRuns, setQueryRuns] = useState<ResourceQueryRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [actingResourceId, setActingResourceId] = useState('');
+  const [syncingServerId, setSyncingServerId] = useState('');
   const [error, setError] = useState('');
   const [filterProvider, setFilterProvider] = useState('');
   const [filterKind, setFilterKind] = useState('');
@@ -155,6 +156,27 @@ export function useResourceControl() {
     }
   });
 
+  /**
+   * 对一台服务器触发 Docker 同步(首次纳管入口)。
+   * 后端 syncServerDocker 是 upsert:会列出该 server 上所有容器并纳管为 ManagedResource。
+   * 与 syncResource(需要已有 resource)不同,这是 per-server 的首次发现入口。
+   */
+  const syncServerDocker = usePersistFn(async (serverId: string) => {
+    setSyncingServerId(serverId);
+    setError('');
+    try {
+      await apiRequest(`POST:/resource-control/servers/${serverId}/sync-docker`, {
+        includeContainers: true,
+        includeMiddleware: true,
+      });
+      await loadData();
+    } catch (err) {
+      setError(resolveError(err, 'syncFailed'));
+    } finally {
+      setSyncingServerId('');
+    }
+  });
+
   return {
     servers,
     resources,
@@ -164,6 +186,7 @@ export function useResourceControl() {
     queryRuns,
     loading,
     actingResourceId,
+    syncingServerId,
     error,
     filterProvider,
     setFilterProvider,
@@ -174,5 +197,6 @@ export function useResourceControl() {
     loadData,
     runAction,
     syncResource,
+    syncServerDocker,
   };
 }

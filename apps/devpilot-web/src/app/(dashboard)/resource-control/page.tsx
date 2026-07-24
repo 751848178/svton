@@ -6,6 +6,7 @@ import { LoadingState } from '@svton/ui';
 import { PageHeader, ErrorBanner } from '@/components/ui';
 import { useResourceControl } from './hooks/use-resource-control';
 import { ResourceListPanel } from './components/resource-list-panel';
+import { ServerSyncBar } from './components/server-sync-bar';
 import { ActionRunsPanel } from './components/action-runs-panel';
 import { ConnectionQueryPanel } from './components/connection-query-panel';
 
@@ -29,6 +30,7 @@ function ResourceControlContent() {
         description={t('pageDescription')}
       />
       {rc.error ? <ErrorBanner message={rc.error} /> : null}
+      <ServerSyncBar rc={rc} />
       <ResourceListPanel rc={rc} />
       <ActionRunsPanel rc={rc} />
       <ConnectionQueryPanel rc={rc} />
