@@ -17,7 +17,9 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useEnvironmentEnvVars } from '../hooks/use-environment-env-vars';
 import { EnvironmentPlainVarsEditor } from './environment-plain-vars-editor';
-import type { Project, ProjectEnvironment, ProjectSecretKey } from '../types';
+import { isResourceTypeInjectable } from '../utils/injectable-resource-types';
+import { extractInjectedEnvKeys } from '../utils/command-plan-env-parser';
+import type { Project, ProjectEnvironment, ProjectSecretKey, ProjectResourceInstance } from '../types';
 
 type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
 
@@ -45,6 +47,12 @@ export function EnvironmentEnvVarsSection({
   const secretKeys = useMemo<ProjectSecretKey[]>(
     () => (project.secretKeys ?? []).filter((k) => k.environment?.id === environment.id),
     [project.secretKeys, environment.id],
+  );
+
+  // 绑定到该环境的资源交付实例(部署注入的第一源)。
+  const resourceInstances = useMemo<ProjectResourceInstance[]>(
+    () => (project.resourceInstances ?? []).filter((i) => i.projectEnvironment?.id === environment.id),
+    [project.resourceInstances, environment.id],
   );
 
   const rows = Object.entries(draft);
@@ -89,6 +97,8 @@ export function EnvironmentEnvVarsSection({
         t={t}
       />
 
+      <ResourceInstanceList instances={resourceInstances} t={t} />
+
       <SecretVarsList secretKeys={secretKeys} keysManageHref={keysManageHref} t={t} />
     </section>
   );
@@ -130,4 +140,59 @@ function SecretVarsList({ secretKeys, keysManageHref, t }: SecretVarsListProps) 
 /** 与后端 exportAsEnv 同源的 KEY 名派生（name.toUpperCase().replace(/[^A-Z0-9]/g, '_')）。 */
 function deriveEnvKey(name: string): string {
   return name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+}
+
+/** 从 envTemplate 文本提取会注入的 KEY 名(每行 KEY=... 的左侧)。 */
+function deriveTemplateKeys(envTemplate: string | null | undefined): string[] {
+  if (!envTemplate) return [];
+  const keys = new Set<string>();
+  for (const raw of envTemplate.split('\n')) {
+    const line = raw.trim();
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    if (/^[A-Z_][A-Z0-9_]*$/.test(key)) keys.add(key);
+  }
+  return Array.from(keys).sort();
+}
+
+interface ResourceInstanceListProps {
+  instances: ProjectResourceInstance[];
+  t: ProjectsTranslator;
+}
+
+/** 资源交付实例列表(部署注入的第一源):展示实例名、类型、注入的 KEY 名。 */
+function ResourceInstanceList({ instances, t }: ResourceInstanceListProps) {
+  return (
+    <div className="space-y-1">
+      <h5 className="text-xs font-medium text-muted-foreground">{t('envVarsInstanceTitle')}</h5>
+      <p className="text-xs text-muted-foreground">{t('envVarsInstanceHint')}</p>
+      {instances.length === 0 ? (
+        <p className="text-xs text-muted-foreground">{t('envVarsInstanceEmpty')}</p>
+      ) : (
+        <ul className="space-y-1 text-sm">
+          {instances.map((inst) => {
+            const injectable = isResourceTypeInjectable(inst.resourceType?.key);
+            const keys = deriveTemplateKeys(inst.resourceType?.envTemplate);
+            return (
+              <li
+                key={inst.id}
+                className="flex flex-wrap items-center gap-2"
+              >
+                <span className="text-xs font-medium">{inst.name}</span>
+                <span className="text-xs text-muted-foreground">{inst.resourceType?.name || inst.resourceType?.key}</span>
+                {injectable && keys.length > 0 ? (
+                  <span className="font-mono text-xs text-primary">→ {keys.join(', ')}</span>
+                ) : injectable ? (
+                  <span className="text-xs text-muted-foreground">→ (按模板注入)</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">(无 envTemplate,不注入)</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
