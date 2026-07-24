@@ -59,6 +59,9 @@ export function ResourcesContent({
             </button>
           }
         />
+        <div className="mt-3 rounded-lg border border-info/30 bg-info/5 px-4 py-2 text-xs text-muted-foreground">
+          {t('roleHint')}
+        </div>
       </div>
 
       {loadError ? (

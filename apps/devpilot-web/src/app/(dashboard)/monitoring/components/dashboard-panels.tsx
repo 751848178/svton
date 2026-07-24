@@ -30,7 +30,15 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
         {m.loading ? (
           <SkeletonGroup />
         ) : !m.resourceMetricDashboard ? (
-          <LoadingState text={t('noResourceMetrics')} spinner={false} />
+          <div className="space-y-2 py-4 text-center">
+            <p className="text-sm text-muted-foreground">{t('noResourceMetrics')}</p>
+            <p className="text-xs text-muted-foreground">
+              {t('noResourceMetricsHint')}{' '}
+              <Link href="/resource-control" className="font-medium text-primary hover:underline">
+                {t('goToResourceControl')} →
+              </Link>
+            </p>
+          </div>
         ) : (
           <div className="space-y-2">
             {m.resourceMetricDashboard.rows.slice(0, 10).map((row) => (

@@ -47,7 +47,15 @@ export function StreamsSidebar({ logs }: { logs: LogsHook }) {
       </div>
       <div className="min-h-0 flex-1 overflow-auto p-2">
         {s.streams.length === 0 ? (
-          <EmptyState text={tl('noStreams')} />
+          <div className="space-y-1 p-2 text-center">
+            <p className="text-sm text-muted-foreground">{tl('noStreams')}</p>
+            <p className="text-xs text-muted-foreground">
+              {tl('noStreamsHint')}{' '}
+              <a href="/resource-control" className="font-medium text-primary hover:underline">
+                {tl('goToResourceControl')} →
+              </a>
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
             {groups.map((group) => (
