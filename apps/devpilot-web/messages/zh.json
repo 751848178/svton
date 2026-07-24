@@ -153,8 +153,8 @@
       "custom": "自定义"
     },
     "loadFailed": "加载密钥失败，请稍后重试",
-    "scopedBanner": "当前作用域：项目 {projectId} · 环境 {environmentId} 的密钥",
-    "storeScopedHint": "该密钥将绑定到 项目 {projectId} · 环境 {environmentId}（来自当前作用域）"
+    "scopedBanner": "当前作用域：项目 {project} · 环境 {environment} 的密钥",
+    "storeScopedHint": "该密钥将绑定到 项目 {project} · 环境 {environment}（来自当前作用域）"
   },
   "projects": {
     "pageTitle": "我的项目",

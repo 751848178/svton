@@ -17,16 +17,18 @@ interface KeysContentProps {
   initialKeys?: SecretKey[];
   /** 作用域过滤（来自 URL ?projectId=&environmentId=）。无值即全局视图。 */
   scope?: KeyScopeFilter;
+  /** 可读的作用域标签(项目名/环境名),由 server 端解析,避免横幅显示原始 ID。 */
+  scopeLabel?: { projectName?: string; environmentName?: string };
 }
 
 /**
  * 密钥中心客户端视图。
  *
  * 接收首屏 server 数据 initialKeys（SWR fallback），交互（生成/存储/删除/查看明文）在此完成。
- * 当 scope 带有 projectId/environmentId 时：顶部展示上下文横幅，列表仅展示该作用域密钥，
- * 新增密钥会自动绑定到该作用域（store 写入透传 scope）。
+ * 当 scope 带有 projectId/environmentId 时：顶部展示上下文横幅（用 scopeLabel 的可读名），
+ * 列表仅展示该作用域密钥，新增密钥会自动绑定到该作用域（store 写入透传 scope）。
  */
-export function KeysContent({ initialKeys, scope }: KeysContentProps) {
+export function KeysContent({ initialKeys, scope, scopeLabel }: KeysContentProps) {
   const t = useTranslations('keys');
   const tc = useTranslations('common');
   const { keys, loading, error, generate, store, revealValue, remove, refresh } = useKeys(
@@ -111,8 +113,8 @@ export function KeysContent({ initialKeys, scope }: KeysContentProps) {
       {hasScope ? (
         <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm text-primary">
           {t('scopedBanner', {
-            projectId: scope?.projectId ?? '',
-            environmentId: scope?.environmentId ?? '',
+            project: scopeLabel?.projectName || scope?.projectId || '',
+            environment: scopeLabel?.environmentName || scope?.environmentId || '',
           })}
         </div>
       ) : null}
@@ -151,6 +153,7 @@ export function KeysContent({ initialKeys, scope }: KeysContentProps) {
         open={storeOpen}
         initial={storeInitial}
         scope={scope}
+        scopeLabel={scopeLabel}
         onClose={closeStore}
         onStore={handleStore}
       />

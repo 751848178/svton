@@ -17,6 +17,8 @@ interface StoreKeyModalProps {
   initial?: Partial<KeyInput>;
   /** 作用域（来自 URL）。存在时展示绑定提示，作用域由父级在提交时注入。 */
   scope?: KeyScopeFilter;
+  /** 可读的作用域标签(项目名/环境名),回退到 ID。 */
+  scopeLabel?: { projectName?: string; environmentName?: string };
   onClose: () => void;
   onStore: (input: KeyInput) => Promise<void>;
 }
@@ -28,7 +30,7 @@ const EMPTY_FORM: KeyInput = {
   description: '',
 };
 
-export function StoreKeyModal({ open, initial, scope, onClose, onStore }: StoreKeyModalProps) {
+export function StoreKeyModal({ open, initial, scope, scopeLabel, onClose, onStore }: StoreKeyModalProps) {
   const t = useTranslations('keys');
   const tc = useTranslations('common');
   const hasScope = Boolean(scope?.projectId || scope?.environmentId);
@@ -68,8 +70,8 @@ export function StoreKeyModal({ open, initial, scope, onClose, onStore }: StoreK
         {hasScope ? (
           <p className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
             {t('storeScopedHint', {
-              projectId: scope?.projectId ?? '',
-              environmentId: scope?.environmentId ?? '',
+              project: scopeLabel?.projectName || scope?.projectId || '',
+              environment: scopeLabel?.environmentName || scope?.environmentId || '',
             })}
           </p>
         ) : null}

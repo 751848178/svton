@@ -153,8 +153,8 @@
       "custom": "Custom"
     },
     "loadFailed": "Failed to load keys, please try again later",
-    "scopedBanner": "Scope: keys for project {projectId} · environment {environmentId}",
-    "storeScopedHint": "This key will be bound to project {projectId} · environment {environmentId} (from current scope)"
+    "scopedBanner": "Scope: keys for project {project} · environment {environment}",
+    "storeScopedHint": "This key will be bound to project {project} · environment {environment} (from current scope)"
   },
   "projects": {
     "pageTitle": "My Projects",
