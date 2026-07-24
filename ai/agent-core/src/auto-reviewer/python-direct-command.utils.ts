@@ -15,10 +15,9 @@ import {
 } from './python-static-argv.utils';
 import {
   pythonStaticStringAssignments,
-  readPythonStaticStringReference,
+  readPythonStaticStringArgument,
   type PythonStaticStringAssignment,
 } from './python-static-string.utils';
-import { readPythonStringLiteral } from './python-string-literal.utils';
 import {
   pythonSubprocessShellArgumentValueIndex,
   pythonSubprocessShellTargets,
@@ -133,11 +132,10 @@ function readPythonExecutableKeywordLiteral(
   staticStringAssignments: PythonStaticStringAssignment[],
 ): string | null {
   const valueStart = pythonKeywordValueIndex(source, callStart, callEnd, 'executable');
-  const literal = valueStart >= 0 ? readPythonStringLiteral(source, valueStart) : null;
-  const reference = valueStart >= 0
-    ? readPythonStaticStringReference(source, valueStart, staticStringAssignments)
+  const executable = valueStart >= 0
+    ? readPythonStaticStringArgument(source, valueStart, staticStringAssignments)
     : null;
-  return literal?.value ?? reference?.value ?? null;
+  return executable?.value ?? null;
 }
 
 function pythonExecutableCommandTokens(tokens: string[], executable: string | null): string[] {

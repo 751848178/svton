@@ -1,6 +1,13 @@
 import { readQuotedLiteral } from './interpreter-script-token.utils';
-import { readJsConcatMethodChain } from './javascript-static-concat-method.utils';
+import { readJsStaticArrayJoinExpression } from './javascript-static-array-join.utils';
+import { readJsStaticConditionalExpression } from './javascript-static-conditional.utils';
+import { readJsStringFromCharCodeCall } from './javascript-static-from-char-code.utils';
+import { readJsStaticLogicalExpression } from './javascript-static-logical.utils';
+import { readJsStaticNullishExpression } from './javascript-static-nullish.utils';
+import { readJsStaticStringMethodChain } from './javascript-static-string-method-chain.utils';
+import { readJsStringPrototypeConcatCall } from './javascript-string-prototype-concat.utils';
 import { readJsStringRawTemplateLiteral } from './javascript-string-raw-template.utils';
+import { readJsStaticTemplateLiteral } from './javascript-template-literal.utils';
 
 export const JS_NAME_PATTERN = '[A-Za-z_$][A-Za-z0-9_$]*';
 
@@ -8,7 +15,6 @@ export type JsStaticValue = {
   value: string;
   endIndex: number;
 };
-
 export function readJsStaticStringExpression(
   source: string,
   startIndex: number,
@@ -20,7 +26,7 @@ export function readJsStaticStringExpression(
   let endIndex = startIndex - 1;
 
   while (cursor < source.length) {
-    const operand = readJsStaticStringOperand(source, cursor, valueForName);
+    const operand = readJsStaticStringOperand(source, cursor, valueForName, boundary);
     if (!operand) return null;
     value += operand.value;
     endIndex = operand.endIndex;
@@ -33,7 +39,6 @@ export function readJsStaticStringExpression(
 
   return boundary(source, cursor) ? { value, endIndex } : null;
 }
-
 export function readJsStaticStringLiteral(source: string, startIndex: number): JsStaticValue | null {
   const quoted = readQuotedLiteral(source, startIndex);
   if (quoted) return quoted;
@@ -57,15 +62,21 @@ export function readJsStaticStringLiteral(source: string, startIndex: number): J
 
   return null;
 }
-
 function readJsStaticStringOperand(
   source: string,
   startIndex: number,
   valueForName: (name: string) => string | undefined,
+  boundary: (source: string, index: number) => boolean,
 ): JsStaticValue | null {
-  const primary = readJsStaticStringPrimaryOperand(source, startIndex, valueForName);
+  const primary = readJsStaticStringPrimaryOperand(source, startIndex, valueForName, boundary);
   return primary
-    ? readJsConcatMethodChain(source, primary, valueForName, readJsStaticStringExpression, closingParenOrCommaBoundary)
+    ? readJsStaticStringMethodChain(
+      source,
+      primary,
+      valueForName,
+      readJsStaticStringExpression,
+      closingParenOrCommaBoundary,
+    )
     : null;
 }
 
@@ -73,12 +84,57 @@ function readJsStaticStringPrimaryOperand(
   source: string,
   startIndex: number,
   valueForName: (name: string) => string | undefined,
+  boundary: (source: string, index: number) => boolean,
 ): JsStaticValue | null {
+  const conditional = readJsStaticConditionalExpression(
+    source,
+    startIndex,
+    valueForName,
+    readJsStaticStringExpression,
+    boundary,
+  );
+  if (conditional) return conditional;
+
+  const logical = readJsStaticLogicalExpression(
+    source,
+    startIndex,
+    valueForName,
+    readJsStaticStringExpression,
+    boundary,
+  );
+  if (logical) return logical;
+
+  const nullish = readJsStaticNullishExpression(
+    source,
+    startIndex,
+    valueForName,
+    readJsStaticStringExpression,
+    boundary,
+  );
+  if (nullish) return nullish;
+
+  const arrayJoin = readJsStaticArrayJoinExpression(
+    source,
+    startIndex,
+    valueForName,
+    readJsStaticStringExpression,
+    boundary,
+  );
+  if (arrayJoin) return arrayJoin;
+
+  const fromCharCode = readJsStringFromCharCodeCall(source, startIndex);
+  if (fromCharCode) return fromCharCode;
+  const prototypeConcat = readJsStringPrototypeConcatCall(source, startIndex, valueForName, readJsStaticStringExpression);
+  if (prototypeConcat) return prototypeConcat;
+
   const parenthesized = readParenthesizedJsStaticStringExpression(source, startIndex, valueForName);
   if (parenthesized) return parenthesized;
 
-  const rawTemplate = readJsStringRawTemplateLiteral(source, startIndex);
+  const rawTemplate = readJsStringRawTemplateLiteral(source, startIndex, readJsStaticStringExpression);
   if (rawTemplate) return rawTemplate;
+
+  const template = readJsStaticTemplateLiteral(source, startIndex, readJsStaticStringExpression);
+  if (template) return template;
 
   const literal = readJsStaticStringLiteral(source, startIndex);
   if (literal) return literal;

@@ -10,7 +10,7 @@ export function hostedShellCommandStrings(tokens: string[]): string[] {
     ...osascriptShellCommandStrings(tokens),
     ...interpreterShellCommandStrings(tokens),
     ...interpreterDirectShellCommandStrings(tokens),
-  ];
+  ].map(normalizeShellCommandLineContinuations);
 }
 
 export function hostedExecutableCommandTokenGroups(tokens: string[]): string[][] {
@@ -25,4 +25,10 @@ function interpreterDirectShellCommandStrings(tokens: string[]): string[] {
 
 function tokenResolvesToShell(token: string): boolean {
   return SHELL_COMMANDS.has(getShellTokenBasename(token));
+}
+
+function normalizeShellCommandLineContinuations(command: string): string {
+  return command
+    .replace(/\\\r\n/g, '')
+    .replace(/\\\n/g, '');
 }

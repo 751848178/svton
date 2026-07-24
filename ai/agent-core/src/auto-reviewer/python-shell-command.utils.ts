@@ -15,11 +15,11 @@ import {
   type PythonStaticArgvAssignment,
 } from './python-static-argv.utils';
 import {
+  pythonSimpleArgumentBoundary,
   pythonStaticStringAssignments,
-  readPythonStaticStringReference,
+  readPythonStaticStringArgument,
   type PythonStaticStringAssignment,
 } from './python-static-string.utils';
-import { readPythonStringLiteral } from './python-string-literal.utils';
 import {
   pythonSubprocessShellArgumentValueIndex,
   pythonSubprocessShellTargets,
@@ -116,6 +116,7 @@ function pythonShellCommandValueFromStart(
 ): string | null {
   const scalar = pythonLiteralCallArgumentFromStart(code, valueStart, staticStringAssignments);
   if (scalar) return scalar;
+  if (pythonRejectedParenthesizedScalarArgument(code, valueStart, staticStringAssignments)) return null;
 
   const list = readPythonArgvListLiteral(code, valueStart, staticStringAssignments)?.tokens ??
     readPythonStaticArgvReference(code, valueStart, staticArgvAssignments);
@@ -127,10 +128,33 @@ function pythonLiteralCallArgumentFromStart(
   callStart: number,
   staticStringAssignments: PythonStaticStringAssignment[],
 ): string | null {
-  const command = readPythonStringLiteral(code, callStart) ??
-    readPythonStaticStringReference(code, callStart, staticStringAssignments);
+  const command = readPythonStaticStringArgument(code, callStart, staticStringAssignments);
   if (command) return command.value;
+  if (pythonArgumentStartsWithParenthesis(code, callStart)) return null;
 
   const literal = readQuotedLiteral(code, callStart);
   return literal && literal.endIndex < callEndIndex(code, callStart) ? literal.value : null;
+}
+
+function pythonArgumentStartsWithParenthesis(source: string, startIndex: number): boolean {
+  let cursor = startIndex;
+  while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+  return source[cursor] === '(';
+}
+
+function pythonRejectedParenthesizedScalarArgument(
+  source: string,
+  startIndex: number,
+  staticStringAssignments: PythonStaticStringAssignment[],
+): boolean {
+  let cursor = startIndex;
+  while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+  if (source[cursor] !== '(') return false;
+
+  const inner = readPythonStaticStringArgument(source, cursor + 1, staticStringAssignments);
+  if (!inner) return false;
+
+  cursor = inner.endIndex + 1;
+  while (/\s/.test(source[cursor] ?? '')) cursor += 1;
+  return source[cursor] === ')' && !pythonSimpleArgumentBoundary(source, cursor + 1);
 }

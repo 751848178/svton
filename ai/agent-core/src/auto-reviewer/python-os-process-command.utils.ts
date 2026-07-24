@@ -11,15 +11,15 @@ import {
 } from './python-static-argv.utils';
 import {
   pythonStaticStringAssignments,
-  readPythonStaticStringReference,
+  readPythonStaticStringArgument,
   type PythonStaticStringAssignment,
 } from './python-static-string.utils';
-import { readPythonStringLiteral } from './python-string-literal.utils';
 
 const EXEC_LIST_FUNCTIONS = ['execv', 'execve', 'execvp', 'execvpe'];
 const EXEC_MULTI_FUNCTIONS = ['execl', 'execle', 'execlp', 'execlpe'];
 const SPAWN_LIST_FUNCTIONS = ['spawnv', 'spawnve', 'spawnvp', 'spawnvpe'];
 const SPAWN_MULTI_FUNCTIONS = ['spawnl', 'spawnle', 'spawnlp', 'spawnlpe'];
+const POSIX_SPAWN_FUNCTIONS = ['posix_spawn', 'posix_spawnp'];
 
 export function pythonOsProcessCommandTokenGroups(code: string): string[][] {
   const staticStringAssignments = pythonStaticStringAssignments(code);
@@ -45,6 +45,14 @@ export function pythonOsProcessCommandTokenGroups(code: string): string[][] {
       )),
     ...pythonOsProcessCallNames(code, SPAWN_MULTI_FUNCTIONS)
       .map((functionName) => literalCommandAndMultiArgCallArguments(code, functionName, 1, staticStringAssignments)),
+    ...pythonOsProcessCallNames(code, POSIX_SPAWN_FUNCTIONS)
+      .map((functionName) => literalCommandAndArgvCallArguments(
+        code,
+        functionName,
+        0,
+        staticStringAssignments,
+        staticArgvAssignments,
+      )),
   ].flat().filter((tokens) => tokens.length > 1);
 }
 
@@ -106,7 +114,7 @@ function readCommandCallArgument(
     if (comma < 0) return null;
     cursor = comma + 1;
   }
-  return readPythonStringLiteral(code, cursor) ?? readPythonStaticStringReference(code, cursor, staticStringAssignments);
+  return readPythonStaticStringArgument(code, cursor, staticStringAssignments);
 }
 
 function readStaticStringCallArguments(
@@ -118,8 +126,7 @@ function readStaticStringCallArguments(
   let cursor = startIndex;
 
   while (cursor < code.length) {
-    const argument = readPythonStringLiteral(code, cursor) ??
-      readPythonStaticStringReference(code, cursor, staticStringAssignments);
+    const argument = readPythonStaticStringArgument(code, cursor, staticStringAssignments);
     if (!argument) break;
     values.push(argument.value);
     const comma = nextCommaIndex(code, argument.endIndex + 1);

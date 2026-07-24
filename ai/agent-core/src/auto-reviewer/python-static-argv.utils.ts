@@ -1,11 +1,11 @@
-import { readPythonStringLiteral } from './python-string-literal.utils';
+import { PYTHON_NAME_PATTERN, pythonSimpleAssignmentPattern } from './python-assignment-pattern.utils';
 import {
+  pythonSimpleArgumentBoundary,
   pythonStaticStringAssignments,
+  readPythonStaticStringArgument,
   readPythonStaticStringReference,
   type PythonStaticStringAssignment,
 } from './python-static-string.utils';
-
-const PYTHON_NAME_PATTERN = '[A-Za-z_][A-Za-z0-9_]*';
 
 export type PythonStaticArgvAssignment = {
   name: string;
@@ -23,7 +23,7 @@ export function pythonStaticArgvAssignments(
   staticStringAssignments = pythonStaticStringAssignments(code),
 ): PythonStaticArgvAssignment[] {
   const assignments: PythonStaticArgvAssignment[] = [];
-  const pattern = new RegExp(`(?:^|[;\\n])\\s*(${PYTHON_NAME_PATTERN})\\s*=\\s*`, 'g');
+  const pattern = pythonSimpleAssignmentPattern();
 
   for (const match of code.matchAll(pattern)) {
     const valueStart = Number(match.index) + match[0].length;
@@ -75,7 +75,7 @@ export function readPythonArgvListLiteral(
     while (/\s/.test(source[cursor] ?? '')) cursor += 1;
     if (source[cursor] === closer) break;
 
-    const value = readPythonArgvElement(source, cursor, staticStringAssignments);
+    const value = readPythonStaticStringArgument(source, cursor, staticStringAssignments);
     if (!value) return null;
     tokens.push(value.value);
     cursor = value.endIndex + 1;
@@ -91,20 +91,4 @@ export function readPythonArgvListLiteral(
 
   if (source[cursor] !== closer || tokens.length === 0) return null;
   return { tokens, endIndex: cursor + 1 };
-}
-
-function readPythonArgvElement(
-  source: string,
-  startIndex: number,
-  staticStringAssignments: PythonStaticStringAssignment[],
-): { value: string; endIndex: number } | null {
-  const literal = readPythonStringLiteral(source, startIndex);
-  if (literal) return literal;
-  return readPythonStaticStringReference(source, startIndex, staticStringAssignments);
-}
-
-function pythonSimpleArgumentBoundary(source: string, index: number): boolean {
-  let cursor = index;
-  while (/\s/.test(source[cursor] ?? '')) cursor += 1;
-  return source[cursor] === ')' || source[cursor] === ',';
 }

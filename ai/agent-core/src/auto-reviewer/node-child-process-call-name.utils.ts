@@ -97,7 +97,7 @@ function namedImportAliases(code: string, allowedNames: Set<string>): string[] {
 
 function directRequireBracketCallStartIndexes(code: string, allowedNames: Set<string>): number[] {
   const pattern = new RegExp(
-    `${CHILD_PROCESS_REQUIRE_PATTERN}\\s*\\[\\s*[\\'"](${functionAlternation(allowedNames)})[\\'"]\\s*\\]\\s*\\(`,
+    `${CHILD_PROCESS_REQUIRE_PATTERN}\\s*\\[\\s*[\\'"](${functionAlternation(allowedNames)})[\\'"]\\s*\\]\\s*(?:\\?\\.\\s*)?\\(`,
     'g',
   );
   return callEndIndexes(code, pattern);
@@ -105,7 +105,7 @@ function directRequireBracketCallStartIndexes(code: string, allowedNames: Set<st
 
 function moduleAliasBracketCallStartIndexes(code: string, moduleName: string, allowedNames: Set<string>): number[] {
   const pattern = new RegExp(
-    `(?:^|[^A-Za-z0-9_$])${escapePattern(moduleName)}\\s*\\[\\s*[\\'"](${functionAlternation(allowedNames)})[\\'"]\\s*\\]\\s*\\(`,
+    `(?:^|[^A-Za-z0-9_$])${escapePattern(moduleName)}\\s*\\[\\s*[\\'"](${functionAlternation(allowedNames)})[\\'"]\\s*\\]\\s*(?:\\?\\.\\s*)?\\(`,
     'g',
   );
   return callEndIndexes(code, pattern);

@@ -1,5 +1,5 @@
-import { posix as pathPosix } from 'node:path';
 import { commandSubstitutionOutputToken } from './command-substitution-token.utils';
+import { joinPosixPath } from './posix-path.utils';
 import { braceExpandedShellTokens } from './shell-brace-expansion.utils';
 import { hasUnquotedShellGlob } from './shell-glob-token.utils';
 import { shellParameterOperatorWordToken } from './shell-parameter-word.utils';
@@ -114,7 +114,7 @@ function commandSubstitutionTargetToken(token: string): string {
 function normalizeCwdRelativeRootPath(path: string, workingDir: string): string {
   if (path.startsWith('/') || !workingDir.startsWith('/')) return normalizeAbsoluteRootPath(path);
 
-  return normalizeAbsoluteRootPath(pathPosix.join(workingDir, path));
+  return normalizeAbsoluteRootPath(joinPosixPath(workingDir, path));
 }
 
 function isRootContentsTarget(path: string): boolean {

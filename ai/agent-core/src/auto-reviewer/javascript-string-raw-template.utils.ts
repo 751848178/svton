@@ -1,6 +1,13 @@
 import type { JsStaticValue } from './javascript-static-string.utils';
+import { readJsStaticTemplateLiteral } from './javascript-template-literal.utils';
 
-export function readJsStringRawTemplateLiteral(source: string, startIndex: number): JsStaticValue | null {
+type JsStaticExpressionReader = Parameters<typeof readJsStaticTemplateLiteral>[2];
+
+export function readJsStringRawTemplateLiteral(
+  source: string,
+  startIndex: number,
+  readExpression?: JsStaticExpressionReader,
+): JsStaticValue | null {
   let cursor = startIndex;
   while (/\s/.test(source[cursor] ?? '')) cursor += 1;
 
@@ -17,22 +24,7 @@ export function readJsStringRawTemplateLiteral(source: string, startIndex: numbe
   }
   cursor += 'raw'.length;
   while (/\s/.test(source[cursor] ?? '')) cursor += 1;
-  if (source[cursor] !== '`') return null;
-
-  let value = '';
-  for (let index = cursor + 1; index < source.length; index += 1) {
-    const char = source[index];
-    if (char === '$' && source[index + 1] === '{') return null;
-    if (char === '`' && source[index - 1] !== '\\') return { value, endIndex: index };
-    if (char === '\\' && source[index + 1]) {
-      value += char + source[index + 1];
-      index += 1;
-      continue;
-    }
-    value += char;
-  }
-
-  return null;
+  return readExpression ? readJsStaticTemplateLiteral(source, cursor, readExpression, { rawEscapes: true }) : null;
 }
 
 function isJsIdentifierChar(value: string | undefined): boolean {

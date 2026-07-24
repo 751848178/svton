@@ -5,7 +5,6 @@ import {
   escapedFunctionPattern,
   inlineScriptOption,
   isPythonCommand,
-  readQuotedLiteral,
 } from './interpreter-script-token.utils';
 import {
   jsStaticStateBefore,
@@ -15,10 +14,21 @@ import {
   nodeChildProcessBracketCallStartIndexes,
   nodeChildProcessCallNames,
 } from './node-child-process-call-name.utils';
+import {
+  nodeChildProcessApplyShellCommandStrings,
+  nodeChildProcessApplyShellOptionCommandStrings,
+} from './node-child-process-apply-shell-command.utils';
+import {
+  nodeChildProcessBindImmediateArgumentStartIndexes,
+  nodeChildProcessReceiverBindCallArgumentStartIndexes,
+} from './node-child-process-bind-wrapper.utils';
+import { nodeChildProcessBindPartialShellOptionCommands } from './node-child-process-bind-shell-option.utils';
+import { nodeChildProcessCallWrapperArgumentStartIndexes } from './node-child-process-call-wrapper.utils';
+import { nodeChildProcessOptionalCallStartIndexes } from './node-child-process-optional-call.utils';
 import { nodeCallUsesShellOption } from './node-shell-option.utils';
 import { pythonShellCommandStrings } from './python-shell-command.utils';
+import { rubyPerlShellCommandStrings } from './interpreter-ruby-perl-shell-command.utils';
 
-const RUBY_PERL_SHELL_FUNCTIONS = ['system', 'exec'];
 const NODE_EXEC_FUNCTIONS = ['exec', 'execSync'];
 const NODE_SHELL_OPTION_FUNCTIONS = ['spawn', 'spawnSync', 'execFile', 'execFileSync'];
 
@@ -27,24 +37,56 @@ export function interpreterShellCommandStrings(tokens: string[]): string[] {
   const name = getShellTokenBasename(commandTokens[0] ?? '');
 
   if (isPythonCommand(name)) return pythonShellCommandStrings(commandTokens);
-  if (name === 'ruby' || name === 'perl') return rubyPerlShellCommandStrings(commandTokens);
+  if (name === 'ruby' || name === 'perl') return rubyPerlShellCommandStrings(commandTokens, name);
   if (name === 'node') return nodeShellCommandStrings(commandTokens);
   return [];
-}
-
-function rubyPerlShellCommandStrings(tokens: string[]): string[] {
-  const code = inlineScriptOption(tokens, '-e', true);
-  return code ? literalCallArguments(code, RUBY_PERL_SHELL_FUNCTIONS) : [];
 }
 
 function nodeShellCommandStrings(tokens: string[]): string[] {
   const code = inlineScriptOption(tokens, '-e', false);
   if (!code) return [];
+  const execCallNames = nodeChildProcessCallNames(code, NODE_EXEC_FUNCTIONS);
+  const shellOptionCallNames = nodeChildProcessCallNames(code, NODE_SHELL_OPTION_FUNCTIONS);
 
   return [
-    ...nodeShellCommandCallArguments(code, nodeChildProcessCallNames(code, NODE_EXEC_FUNCTIONS)),
+    ...nodeShellCommandCallArguments(code, execCallNames),
+    ...nodeChildProcessApplyShellCommandStrings(code, execCallNames),
+    ...nodeShellCommandCallArgumentsFromStarts(
+      code,
+      nodeChildProcessBindImmediateArgumentStartIndexes(code, execCallNames),
+    ),
+    ...nodeShellCommandCallArgumentsFromStarts(
+      code,
+      nodeChildProcessReceiverBindCallArgumentStartIndexes(code, execCallNames),
+    ),
+    ...nodeShellCommandCallArgumentsFromStarts(
+      code,
+      nodeChildProcessCallWrapperArgumentStartIndexes(code, execCallNames),
+    ),
+    ...nodeShellCommandCallArgumentsFromStarts(
+      code,
+      nodeChildProcessOptionalCallStartIndexes(code, execCallNames),
+    ),
     ...nodeShellCommandCallArgumentsFromStarts(code, nodeChildProcessBracketCallStartIndexes(code, NODE_EXEC_FUNCTIONS)),
-    ...nodeShellOptionLiteralCallArguments(code, nodeChildProcessCallNames(code, NODE_SHELL_OPTION_FUNCTIONS)),
+    ...nodeShellOptionLiteralCallArguments(code, shellOptionCallNames),
+    ...nodeChildProcessApplyShellOptionCommandStrings(code, shellOptionCallNames),
+    ...nodeChildProcessBindPartialShellOptionCommands(code, shellOptionCallNames),
+    ...nodeShellOptionLiteralCallArgumentsFromStarts(
+      code,
+      nodeChildProcessBindImmediateArgumentStartIndexes(code, shellOptionCallNames),
+    ),
+    ...nodeShellOptionLiteralCallArgumentsFromStarts(
+      code,
+      nodeChildProcessReceiverBindCallArgumentStartIndexes(code, shellOptionCallNames),
+    ),
+    ...nodeShellOptionLiteralCallArgumentsFromStarts(
+      code,
+      nodeChildProcessCallWrapperArgumentStartIndexes(code, shellOptionCallNames),
+    ),
+    ...nodeShellOptionLiteralCallArgumentsFromStarts(
+      code,
+      nodeChildProcessOptionalCallStartIndexes(code, shellOptionCallNames),
+    ),
     ...nodeShellOptionLiteralCallArgumentsFromStarts(
       code,
       nodeChildProcessBracketCallStartIndexes(code, NODE_SHELL_OPTION_FUNCTIONS),
@@ -70,24 +112,6 @@ function nodeShellCommandCallArgumentsFromStarts(code: string, callStarts: numbe
     .filter((command): command is string => Boolean(command));
 }
 
-function literalCallArguments(code: string, functionNames: string[], requiredPattern?: RegExp): string[] {
-  const commands: string[] = [];
-  for (const functionName of functionNames) {
-    for (const match of code.matchAll(new RegExp(`(?:^|[^A-Za-z0-9_$])${escapedFunctionPattern(functionName)}\\s*\\(`, 'g'))) {
-      const callStart = Number(match.index) + match[0].length;
-      const command = literalCallArgumentFromStart(code, callStart, requiredPattern);
-      if (command) commands.push(command);
-    }
-  }
-  return commands;
-}
-
-function literalCallArgumentsFromStarts(code: string, callStarts: number[], requiredPattern?: RegExp): string[] {
-  return callStarts
-    .map((callStart) => literalCallArgumentFromStart(code, callStart, requiredPattern))
-    .filter((command): command is string => Boolean(command));
-}
-
 function nodeShellOptionLiteralCallArguments(code: string, functionNames: string[]): string[] {
   const commands: string[] = [];
   for (const functionName of functionNames) {
@@ -104,15 +128,6 @@ function nodeShellOptionLiteralCallArgumentsFromStarts(code: string, callStarts:
   return callStarts
     .map((callStart) => nodeShellOptionLiteralCallArgumentFromStart(code, callStart))
     .filter((command): command is string => Boolean(command));
-}
-
-function literalCallArgumentFromStart(code: string, callStart: number, requiredPattern?: RegExp): string | null {
-  const literal = readQuotedLiteral(code, callStart);
-  if (!literal) return null;
-
-  return !requiredPattern || requiredPattern.test(code.slice(callStart, callEndIndex(code, callStart)))
-    ? literal.value
-    : null;
 }
 
 function nodeShellCommandCallArgumentFromStart(code: string, callStart: number): string | null {

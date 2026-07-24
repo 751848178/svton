@@ -1,7 +1,7 @@
-import { posix as pathPosix } from 'node:path';
 import { embeddedCommandSubstitutionOutputToken } from './command-substitution-embedded-token.utils';
 import { staticCommandSubstitutionOutputToken } from './command-substitution-command-output.utils';
 import { commandSubstitutionOutputToken } from './command-substitution-token.utils';
+import { joinPosixPath, resolvePosixPath } from './posix-path.utils';
 import { getShellTokenBasename, normalizeShellWordToken, unquoteShellToken } from './shell-command.utils';
 import { splitUnquotedIfsExpansionTokens } from './shell-ifs-word-splitting.utils';
 
@@ -28,11 +28,11 @@ function nextStaticWorkingDir(tokens: string[], workingDir: string, previousWork
   if (target === '-') return previousWorkingDir || workingDir;
 
   const cwdExpansion = currentWorkingDirExpansionTarget(target, workingDir);
-  if (cwdExpansion) return pathPosix.resolve(cwdExpansion);
+  if (cwdExpansion) return resolvePosixPath(cwdExpansion);
   const previousExpansion = previousWorkingDirExpansionTarget(target, previousWorkingDir);
-  if (previousExpansion) return pathPosix.resolve(previousExpansion);
+  if (previousExpansion) return resolvePosixPath(previousExpansion);
   const directoryVariable = directoryVariableTarget(target, workingDir, previousWorkingDir);
-  if (directoryVariable) return pathPosix.resolve(directoryVariable);
+  if (directoryVariable) return resolvePosixPath(directoryVariable);
 
   if (!target || target.startsWith('~') || target.startsWith('`')) {
     return workingDir;
@@ -41,8 +41,8 @@ function nextStaticWorkingDir(tokens: string[], workingDir: string, previousWork
     return workingDir;
   }
 
-  if (target.startsWith('/')) return pathPosix.resolve(target);
-  return workingDir.startsWith('/') ? pathPosix.resolve(workingDir, target) : workingDir;
+  if (target.startsWith('/')) return resolvePosixPath(target);
+  return workingDir.startsWith('/') ? resolvePosixPath(workingDir, target) : workingDir;
 }
 
 function staticWorkingDirTargetToken(tokens: string[]): string | undefined {
@@ -109,7 +109,7 @@ export function targetWithWorkingDir(target: string, workingDir: string, previou
     return resolvedTarget ? normalized : target;
   }
 
-  return pathPosix.join(workingDir, normalized);
+  return joinPosixPath(workingDir, normalized);
 }
 
 function targetCommandSubstitutionOutputToken(token: string, workingDir: string): string {
@@ -122,14 +122,14 @@ function targetCommandSubstitutionOutputToken(token: string, workingDir: string)
 function currentWorkingDirExpansionTarget(target: string, workingDir: string): string {
   if (!workingDir.startsWith('/')) return '';
   if (target === '~+') return workingDir;
-  if (target.startsWith('~+/')) return pathPosix.join(workingDir, target.slice(3));
+  if (target.startsWith('~+/')) return joinPosixPath(workingDir, target.slice(3));
   return '';
 }
 
 function previousWorkingDirExpansionTarget(target: string, previousWorkingDir: string): string {
   if (!previousWorkingDir.startsWith('/')) return '';
   if (target === '~-') return previousWorkingDir;
-  if (target.startsWith('~-/')) return pathPosix.join(previousWorkingDir, target.slice(3));
+  if (target.startsWith('~-/')) return joinPosixPath(previousWorkingDir, target.slice(3));
   return '';
 }
 
@@ -148,8 +148,8 @@ function shellDirectoryVariableTarget(
   const operatorTarget = shellDirectoryVariableOperatorTarget(target, bracedVariable, directory);
   if (operatorTarget) return operatorTarget;
   if (target === plainVariable || target === bracedVariable) return directory;
-  if (target.startsWith(`${plainVariable}/`)) return pathPosix.join(directory, target.slice(plainVariable.length + 1));
-  if (target.startsWith(`${bracedVariable}/`)) return pathPosix.join(directory, target.slice(bracedVariable.length + 1));
+  if (target.startsWith(`${plainVariable}/`)) return joinPosixPath(directory, target.slice(plainVariable.length + 1));
+  if (target.startsWith(`${bracedVariable}/`)) return joinPosixPath(directory, target.slice(bracedVariable.length + 1));
   return '';
 }
 
@@ -157,5 +157,5 @@ function shellDirectoryVariableOperatorTarget(target: string, bracedVariable: st
   const name = bracedVariable.slice(2, -1);
   const match = target.match(new RegExp(`^\\$\\{${name}(?::?[-=?][^}]*)\\}(/.*)?$`));
   if (!match) return '';
-  return match[1] ? pathPosix.join(directory, match[1].slice(1)) : directory;
+  return match[1] ? joinPosixPath(directory, match[1].slice(1)) : directory;
 }

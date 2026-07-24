@@ -50,10 +50,19 @@ export function readJsStaticArrayValue(
   startIndex: number,
   state: JsStaticState,
 ): string[] | null {
-  const literal = readJsStaticArrayLiteral(source, startIndex, state, simpleValueBoundary);
+  return readJsStaticArrayValueWithBoundary(source, startIndex, state, simpleValueBoundary);
+}
+
+export function readJsStaticArrayValueWithBoundary(
+  source: string,
+  startIndex: number,
+  state: JsStaticState,
+  boundary: (source: string, index: number) => boolean,
+): string[] | null {
+  const literal = readJsStaticArrayLiteral(source, startIndex, state, boundary);
   if (literal) return literal.values;
 
-  const reference = readIdentifierReference(source, startIndex, simpleValueBoundary);
+  const reference = readIdentifierReference(source, startIndex, boundary);
   return reference ? state.arrays.get(reference.value) ?? null : null;
 }
 

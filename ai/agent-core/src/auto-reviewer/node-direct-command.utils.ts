@@ -10,13 +10,31 @@ import {
   nodeChildProcessBracketCallStartIndexes,
   nodeChildProcessCallNames,
 } from './node-child-process-call-name.utils';
+import { nodeChildProcessApplyDirectTokenGroups } from './node-child-process-apply-direct-command.utils';
+import { nodeChildProcessBindPartialDirectTokenGroups } from './node-child-process-bind-direct-command.utils';
+import {
+  nodeChildProcessBindImmediateArgumentStartIndexes,
+  nodeChildProcessReceiverBindCallArgumentStartIndexes,
+} from './node-child-process-bind-wrapper.utils';
+import { nodeChildProcessCallWrapperArgumentStartIndexes } from './node-child-process-call-wrapper.utils';
+import { nodeChildProcessOptionalCallStartIndexes } from './node-child-process-optional-call.utils';
 
 const DIRECT_NODE_FUNCTIONS = ['execFile', 'execFileSync', 'spawn', 'spawnSync'];
 
 export function nodeDirectCommandTokenGroups(code: string): string[][] {
+  const callNames = nodeChildProcessCallNames(code, DIRECT_NODE_FUNCTIONS);
   return [
-    ...nodeChildProcessCallNames(code, DIRECT_NODE_FUNCTIONS)
-      .flatMap((functionName) => commandAndArrayCallArguments(code, functionName)),
+    ...callNames.flatMap((functionName) => commandAndArrayCallArguments(code, functionName)),
+    ...nodeChildProcessApplyDirectTokenGroups(code, callNames),
+    ...nodeChildProcessBindPartialDirectTokenGroups(code, callNames),
+    ...nodeChildProcessBindImmediateArgumentStartIndexes(code, callNames)
+      .map((callStart) => commandAndArrayCallArgumentsFromStart(code, callStart)),
+    ...nodeChildProcessReceiverBindCallArgumentStartIndexes(code, callNames)
+      .map((callStart) => commandAndArrayCallArgumentsFromStart(code, callStart)),
+    ...nodeChildProcessCallWrapperArgumentStartIndexes(code, callNames)
+      .map((callStart) => commandAndArrayCallArgumentsFromStart(code, callStart)),
+    ...nodeChildProcessOptionalCallStartIndexes(code, callNames)
+      .map((callStart) => commandAndArrayCallArgumentsFromStart(code, callStart)),
     ...nodeChildProcessBracketCallStartIndexes(code, DIRECT_NODE_FUNCTIONS)
       .map((callStart) => commandAndArrayCallArgumentsFromStart(code, callStart)),
   ].filter((tokens) => tokens.length > 1);
