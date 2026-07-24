@@ -9,7 +9,7 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui';
-import type { ApplicationItem, ServiceAction, ServiceSloRow } from '../types';
+import type { ApplicationItem, CreatedDeploymentRun, ServiceAction, ServiceSloRow } from '../types';
 import { ServiceRow } from './service-row';
 
 /** 加号图标（内联，避免引入 icon 依赖）。 */
@@ -38,6 +38,8 @@ interface ApplicationCardProps {
   queueServiceOperations: boolean;
   serviceSloRows: Record<string, ServiceSloRow | null>;
   serviceSloLoading: boolean;
+  /** 各服务最近一次部署运行（serviceId → run），用于服务行内联状态展示。 */
+  latestDeployRuns?: Record<string, CreatedDeploymentRun | null>;
   onRunOperation: (
     application: ApplicationItem,
     service: ApplicationItem['services'][number],
@@ -48,7 +50,8 @@ interface ApplicationCardProps {
     service: ApplicationItem['services'][number],
     action: ServiceAction,
   ) => void;
-  onCreateDeployment: (
+  /** 打开部署向导（取代原 fire-and-forget 的 onCreateDeployment）。 */
+  onOpenDeploy: (
     application: ApplicationItem,
     service: ApplicationItem['services'][number],
   ) => void;
@@ -102,9 +105,17 @@ export function ApplicationCard(props: ApplicationCardProps) {
           {application.services.map((service) => (
             <ServiceRow
               key={service.id}
-              {...props}
               application={application}
               service={service}
+              runningOperation={props.runningOperation}
+              deployingServiceId={props.deployingServiceId}
+              queueServiceOperations={props.queueServiceOperations}
+              serviceSloRows={props.serviceSloRows}
+              serviceSloLoading={props.serviceSloLoading}
+              latestDeployRun={props.latestDeployRuns?.[service.id] ?? null}
+              onRunOperation={props.onRunOperation}
+              onRequestLive={props.onRequestLive}
+              onOpenDeploy={props.onOpenDeploy}
             />
           ))}
         </div>

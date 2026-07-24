@@ -1,7 +1,7 @@
 /**
  * 应用服务行
  *
- * 单一职责：渲染单个服务 + 状态/类型/环境徽章 + 操作（状态/日志/重启/回滚/部署）+ 最近操作。
+ * 单一职责：渲染单个服务 + 状态/类型/环境徽章 + 操作（状态/日志/重启/回滚/部署）+ 最近部署/操作。
  */
 
 'use client';
@@ -14,11 +14,13 @@ import { Button, StatusTag } from '@/components/ui';
 import type {
   ApplicationItem,
   ApplicationServiceItem,
+  CreatedDeploymentRun,
   ServiceAction,
   ServiceSloRow,
 } from '../types';
 import { ServiceSloSummary } from './service-slo-summary.component';
 import { ServiceActionMenu } from './service-action-menu';
+import { DeployRunStatusBadge } from './deploy-run-status-badge';
 import { getKindLabel, getOperationLabel, getOperationStatusLabel, formatDate } from '../utils';
 
 interface ServiceRowProps {
@@ -26,10 +28,11 @@ interface ServiceRowProps {
   service: ApplicationServiceItem;
   runningOperation: string;
   deployingServiceId: string;
-  queueDeploymentRuns: boolean;
   queueServiceOperations: boolean;
   serviceSloRows: Record<string, ServiceSloRow | null>;
   serviceSloLoading: boolean;
+  /** 最近一次部署运行（来自向导创建结果 / 列表回填），用于内联状态展示。 */
+  latestDeployRun?: CreatedDeploymentRun | null;
   onRunOperation: (
     application: ApplicationItem,
     service: ApplicationServiceItem,
@@ -40,7 +43,8 @@ interface ServiceRowProps {
     service: ApplicationServiceItem,
     action: ServiceAction,
   ) => void;
-  onCreateDeployment: (application: ApplicationItem, service: ApplicationServiceItem) => void;
+  /** 打开部署向导（取代原 fire-and-forget 的 onCreateDeployment）。 */
+  onOpenDeploy: (application: ApplicationItem, service: ApplicationServiceItem) => void;
 }
 
 export function ServiceRow(props: ServiceRowProps) {
@@ -49,12 +53,12 @@ export function ServiceRow(props: ServiceRowProps) {
     service,
     runningOperation,
     deployingServiceId,
-    queueDeploymentRuns,
     queueServiceOperations,
     serviceSloRows,
     serviceSloLoading,
+    latestDeployRun,
   } = props;
-  const { onRunOperation, onRequestLive, onCreateDeployment } = props;
+  const { onRunOperation, onRequestLive, onOpenDeploy } = props;
   const t = useTranslations('applications');
 
   const handleRun = usePersistFn((action: ServiceAction) =>
@@ -63,7 +67,7 @@ export function ServiceRow(props: ServiceRowProps) {
   const handleLive = usePersistFn((action: ServiceAction) =>
     onRequestLive(application, service, action),
   );
-  const handleDeploy = usePersistFn(() => onCreateDeployment(application, service));
+  const handleDeploy = usePersistFn(() => onOpenDeploy(application, service));
 
   return (
     <div className="py-3 first:pt-0 last:pb-0">
@@ -83,22 +87,30 @@ export function ServiceRow(props: ServiceRowProps) {
           {service.runtime ? (
             <div className="mt-1 text-xs text-muted-foreground">runtime: {service.runtime}</div>
           ) : null}
+          {latestDeployRun ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">{t('latestDeploy')}</span>
+              <DeployRunStatusBadge run={latestDeployRun} />
+              {latestDeployRun.operationApproval ? (
+                <Link
+                  href="/operation-approvals"
+                  className="text-primary hover:underline"
+                >
+                  {t('goApprovals')} #{latestDeployRun.operationApproval.id.slice(0, 8)}
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          {/* L1：部署（唯一 primary 实心按钮，视觉强调） */}
+          {/* L1：部署向导（唯一 primary 实心按钮，点击打开多步弹窗） */}
           <Button
             size="sm"
             onClick={handleDeploy}
             disabled={deployingServiceId === service.id}
           >
-            {deployingServiceId === service.id
-              ? queueDeploymentRuns
-                ? t('enqueuing')
-                : t('generating')
-              : queueDeploymentRuns
-                ? t('joinDeployQueue')
-                : t('generateDeployPlan')}
+            {deployingServiceId === service.id ? t('generating') : t('deploy')}
           </Button>
           {/* L2：状态查询（高频只读操作，outline 外露） */}
           <Button

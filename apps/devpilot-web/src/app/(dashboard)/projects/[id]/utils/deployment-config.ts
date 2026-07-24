@@ -19,32 +19,13 @@ export {
   previewList,
 } from './deployment-config-differences.utils';
 
-export function isDeploymentCommandStep(
-  value: unknown,
-): value is { key: string; label: string; command?: string; cwd?: string; required?: boolean } {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false;
-  }
-  const step = value as Record<string, unknown>;
-  return typeof step.key === 'string' && typeof step.label === 'string';
-}
-
-export function readDeploymentCommandSteps(commandPlan: unknown) {
-  const steps = Array.isArray(commandPlan)
-    ? commandPlan
-    : typeof commandPlan === 'object' &&
-        commandPlan !== null &&
-        Array.isArray((commandPlan as { steps?: unknown }).steps)
-      ? (commandPlan as { steps: unknown[] }).steps
-      : [];
-  return steps.filter(isDeploymentCommandStep).map((step) => ({
-    key: step.key,
-    label: step.label,
-    command: typeof step.command === 'string' ? step.command : '',
-    cwd: typeof step.cwd === 'string' ? step.cwd : '',
-    required: step.required === true,
-  }));
-}
+// readDeploymentCommandSteps / isDeploymentCommandStep 已抽取到共享 lib
+// （applications/ 域需复用，避免跨路由导入）。保持原导出签名以兼容现有调用方。
+export {
+  isDeploymentCommandStep,
+  readDeploymentCommandSteps,
+  type DeploymentCommandStep,
+} from '@/lib/deployment-command-parser';
 
 export function matchesProjectEnvironment(
   environment: { id?: string | null; key?: string | null; name?: string | null } | null | undefined,

@@ -11,6 +11,7 @@ import { ApplicationCard } from './components/application-card';
 import { CreateAppModal } from './components/create-app-modal';
 import { AddServiceModal } from './components/add-service-modal';
 import { ApplicationsPageActions } from './components/applications-page-actions.component';
+import { useDeployWizardHost, DeployWizardHost } from './components/deploy-wizard/deploy-wizard-host';
 import { TypedSuspense as Suspense } from './components/suspense';
 import type { ApplicationItem } from './types';
 
@@ -44,6 +45,7 @@ function ApplicationsContent() {
     createApplication,
     createService,
     createDeploymentPlan,
+    requestDeploymentApproval,
     runServiceOperation,
     requestServiceOperationApproval,
     reload,
@@ -52,14 +54,17 @@ function ApplicationsContent() {
   const [appModalOpen, { setTrue: openAppModal, setFalse: closeAppModal }] = useBoolean(false);
   const [serviceAppId, setServiceAppId] = useState('');
   const serviceModalOpen = Boolean(serviceAppId);
+  const deployHost = useDeployWizardHost({
+    environments,
+    operations: { createPlan: createDeploymentPlan, requestApproval: requestDeploymentApproval },
+  });
 
   const handleRetry = usePersistFn(() => reload());
   const handleAddService = usePersistFn((app: ApplicationItem) => setServiceAppId(app.id));
   const handleCloseServiceModal = usePersistFn(() => setServiceAppId(''));
 
   // 添加服务弹窗预绑定应用 + 按其所属项目过滤的绑定选项。
-  const serviceApplication =
-    applications.find((a) => a.id === serviceAppId) || null;
+  const serviceApplication = applications.find((a) => a.id === serviceAppId) || null;
   const serviceProjectId = serviceApplication?.projectId || '';
   const serviceEnvironments = environments.filter((e) => e.project?.id === serviceProjectId);
   const serviceSites = sites.filter((s) => !s.projectId || s.projectId === serviceProjectId);
@@ -77,9 +82,10 @@ function ApplicationsContent() {
     queueServiceOperations,
     serviceSloRows,
     serviceSloLoading,
+    latestDeployRuns: deployHost.latestDeployRuns,
     onRunOperation: runServiceOperation,
     onRequestLive: requestServiceOperationApproval,
-    onCreateDeployment: createDeploymentPlan,
+    onOpenDeploy: deployHost.onOpenDeploy,
     onAddService: handleAddService,
   };
 
@@ -169,6 +175,7 @@ function ApplicationsContent() {
         resources={serviceResources}
         onCreate={createService}
       />
+      <DeployWizardHost host={deployHost} />
     </div>
   );
 }

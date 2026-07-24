@@ -137,6 +137,40 @@ export interface AppStats {
   operations: number;
 }
 
+/**
+ * 部署运行（applications 域精简视图）。
+ *
+ * 来自 POST /deployments/projects/:projectId/runs 的创建响应 / GET /deployments/runs 的列表项。
+ * commandPlan 是后端 Json? 标量（含 checkout/build/write_env/deploy/health_check 步骤，
+ * .env 真值已脱敏为 ***REDACTED***），用 unknown 承载，由 deployment-command-parser 解析。
+ */
+export interface CreatedDeploymentRun {
+  id: string;
+  status: string;
+  dryRun: boolean;
+  mode?: string | null;
+  branch?: string | null;
+  commitSha?: string | null;
+  environment?: string | null;
+  commandPlan?: unknown;
+  error?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  operationApproval?: {
+    id: string;
+    status: string;
+    risk: string;
+    reviewedAt?: string | null;
+    consumedAt?: string | null;
+  } | null;
+  serverExecutionJob?: {
+    id: string;
+    status: string;
+    queueMode: string;
+  } | null;
+  projectEnvironment?: { id: string; key: string; name: string; status: string } | null;
+}
+
 export type ServiceSloRow = ServiceSloDashboardRow & {
   generatedAt: string;
   windowMinutes: number;
