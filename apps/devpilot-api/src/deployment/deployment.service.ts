@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditEventService } from '../audit-event';
 import { CryptoService } from '../common/crypto/crypto.service';
@@ -6,6 +6,7 @@ import { CreateOperationApprovalInput, OperationApprovalService } from '../opera
 import { PrismaService } from '../prisma/prisma.service';
 import { ResourceRequestStatusWriterService } from '../resource-request/resource-request-status-writer.service';
 import { DeploymentRunStatus, assertDeploymentRunTransition } from './deployment-run-status';
+import { DeploymentLogStreamBootstrapService } from './deployment-log-stream-bootstrap.service';
 import { ServerCommandStep, ServerExecutorService } from '../server-executor';
 import {
   CreateDeploymentRunDto,
@@ -118,6 +119,8 @@ function readStringArray(value: unknown): string[] {
 
 @Injectable()
 export class DeploymentService {
+  private readonly logger = new Logger(DeploymentService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly serverExecutor: ServerExecutorService,
@@ -128,6 +131,10 @@ export class DeploymentService {
     // resolveDeploymentEnvVars. credentialCrypto above is GCM-only and CANNOT
     // decrypt SecretKey (research r3 §crypto-mismatch).
     private readonly cryptoService: CryptoService,
+    // Optional so the deployment service stays usable in contexts where the
+    // log-center module isn't wired (e.g. unit tests). Best-effort only.
+    @Optional()
+    private readonly logStreamBootstrap?: DeploymentLogStreamBootstrapService,
   ) {}
 
   async listRuns(teamId: string, query: ListDeploymentRunsQueryDto) {
@@ -547,7 +554,59 @@ export class DeploymentService {
       await this.operationApprovalService.consume(teamId, approvedApproval.id);
     }
 
+    // Best-effort: after a successful live (non-dry-run) deployment, auto-create
+    // a docker log stream so container logs are immediately viewable. Failures
+    // here must never break the deployment (see ensureDeploymentLogStream).
+    if (
+      !dryRun &&
+      completedRun.status === DeploymentRunStatus.COMPLETED &&
+      applicationServiceRef
+    ) {
+      await this.ensureDeploymentLogStream({
+        teamId,
+        actorId: userId,
+        projectId: project.id,
+        environmentId: environmentRef?.id,
+        applicationId,
+        applicationServiceId: applicationServiceRef.id,
+        applicationServiceName: applicationServiceRef.name,
+        serverId,
+        deployConfig: applicationServiceRef.deployConfig,
+      });
+    }
+
     return completedRun;
+  }
+
+  /**
+   * Wraps docker log-stream auto-creation so any failure (missing module,
+   * query error, unique-constraint race) only logs a warning and never fails
+   * the deployment that triggered it.
+   */
+  private async ensureDeploymentLogStream(context: {
+    teamId: string;
+    actorId?: string | null;
+    projectId: string;
+    environmentId?: string | null;
+    applicationId?: string | null;
+    applicationServiceId: string;
+    applicationServiceName: string;
+    serverId?: string | null;
+    deployConfig: Prisma.JsonValue | null;
+  }) {
+    if (!this.logStreamBootstrap) return;
+    try {
+      await this.logStreamBootstrap.ensureDockerLogStream(context);
+    } catch (error) {
+      this.logger.warn(
+        `部署完成后自动创建 docker 日志流失败（不影响部署结果）: ${this.describeLogStreamError(error)}`,
+      );
+    }
+  }
+
+  private describeLogStreamError(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    return String(error);
   }
 
   async rollbackRun(

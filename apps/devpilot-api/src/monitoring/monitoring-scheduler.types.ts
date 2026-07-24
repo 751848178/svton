@@ -29,3 +29,12 @@ export type ScheduledAlertEvaluationSummary = {
   notificationRetries: ScheduledAlertNotificationRetrySummary;
   alertEscalations: ScheduledAlertEscalationSummary;
 };
+
+export type ScheduledMetricCollectionSummary = {
+  skipped: boolean;
+  enabled: boolean;
+  scanned: number;
+  attempted: number;
+  completed: number;
+  failed: number;
+};

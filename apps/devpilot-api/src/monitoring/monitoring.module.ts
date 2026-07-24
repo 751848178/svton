@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { AuditEventModule } from "../audit-event";
 import { ControlAccessPolicyModule } from "../control-access-policy";
 import { PrismaModule } from "../prisma/prisma.module";
+import { ResourceControlModule } from "../resource-control/resource-control.module";
 import { MonitoringAccessService } from "./monitoring-access.service";
 import { MonitoringAlertBackupStatusEvaluationService } from "./monitoring-alert-backup-status-evaluation.service";
 import { MonitoringAlertCloudProviderSyncEvaluationService } from "./monitoring-alert-cloud-provider-sync-evaluation.service";
@@ -38,6 +39,7 @@ import { MonitoringAlertSilenceService } from "./monitoring-alert-silence.servic
 import { MonitoringAlertSmokeCheckEvaluationService } from "./monitoring-alert-smoke-check-evaluation.service";
 import { MonitoringAlertStatusEvaluationService } from "./monitoring-alert-status-evaluation.service";
 import { MonitoringDashboardController } from "./monitoring-dashboard.controller";
+import { MonitoringMetricCollectionSchedulerService } from "./monitoring-metric-collection-scheduler.service";
 import { MonitoringNotificationChannelSettingsService } from "./monitoring-notification-channel-settings.service";
 import { MonitoringNotificationChannelService } from "./monitoring-notification-channel.service";
 import { MonitoringNotificationDeliveryConfigService } from "./monitoring-notification-delivery-config.service";
@@ -65,7 +67,12 @@ import { MonitoringSchedulerService } from "./monitoring-scheduler.service";
 import { MonitoringService } from "./monitoring.service";
 
 @Module({
-  imports: [PrismaModule, AuditEventModule, ControlAccessPolicyModule],
+  imports: [
+    PrismaModule,
+    AuditEventModule,
+    ControlAccessPolicyModule,
+    ResourceControlModule,
+  ],
   controllers: [
     MonitoringController,
     MonitoringDashboardController,
@@ -130,6 +137,7 @@ import { MonitoringService } from "./monitoring.service";
     MonitoringServiceSloRuleTemplateService,
     MonitoringSchedulerConfigService,
     MonitoringSchedulerService,
+    MonitoringMetricCollectionSchedulerService,
   ],
   exports: [MonitoringService],
 })
