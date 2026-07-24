@@ -1,0 +1,29 @@
+# Version control
+.git
+
+# Dependencies & build outputs
+# (dist / .next are NOT ignored: apps are compiled on the host and copied in)
+**/node_modules
+**/.next/cache
+**/.turbo
+.turbo
+out
+coverage
+
+# Local secrets & env files (mounted at runtime instead)
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
+
+# Repo-only tooling / heavy dirs
+.codegraph
+.skills
+apps/agent-web/public/skills
+
+# Logs & OS noise
+**/*.log
+**/.DS_Store
+
+# Compose files are not needed inside images
+docker-compose*.yml
