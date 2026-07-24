@@ -144,12 +144,14 @@
     "deleteTitle": "Delete Key",
     "deleteSuccess": "Key deleted",
     "deleteFailed": "Failed to delete key",
-    "typeLabel.jwt_secret": "JWT Secret",
-    "typeLabel.encryption_key": "Encryption Key",
-    "typeLabel.api_key": "API Key",
-    "typeLabel.oauth_secret": "OAuth Secret",
-    "typeLabel.database_password": "Database Password",
-    "typeLabel.custom": "Custom",
+    "typeLabel": {
+      "jwt_secret": "JWT Secret",
+      "encryption_key": "Encryption Key",
+      "api_key": "API Key",
+      "oauth_secret": "OAuth Secret",
+      "database_password": "Database Password",
+      "custom": "Custom"
+    },
     "loadFailed": "Failed to load keys, please try again later",
     "scopedBanner": "Scope: keys for project {projectId} · environment {environmentId}",
     "storeScopedHint": "This key will be bound to project {projectId} · environment {environmentId} (from current scope)"
@@ -259,6 +261,7 @@
     "tabResources": "Resources",
     "tabSettings": "Settings",
     "deployAction": "Deploy",
+    "deployHistoryAction": "Deploy History",
     "healthHealthy": "Healthy",
     "healthDeploying": "Deploying",
     "healthDegraded": "Degraded",
@@ -327,6 +330,9 @@
     "envVarsRemove": "Remove",
     "envVarsSave": "Save",
     "envVarsSaving": "Saving…",
+    "envVarsSaveSuccess": "Environment variables saved",
+    "envVarsSaveFailed": "Failed to save environment variables",
+    "envVarsInvalidKeyHint": "Some variable names are invalid (must be uppercase letters/underscores/digits, e.g. NODE_ENV). Fix them before saving.",
     "envVarsSecretTitle": "Secret variables",
     "envVarsSecretHint": "Injected from Key Center at deploy; values are never shown here.",
     "envVarsSecretEmpty": "No secrets for this environment; manage via the link.",
@@ -1668,27 +1674,33 @@
     "dryRun": "Dry Run",
     "confirmExecute": "Confirm Execution",
     "execute": "Execute",
-    "kind.docker_container": "Docker Container",
-    "kind.mysql": "MySQL",
-    "kind.redis": "Redis",
-    "kind.database": "Database",
-    "kind.log_service": "Log Service",
-    "kind.object_storage": "Object Storage",
-    "provider.docker": "Docker",
-    "provider.aliyun-rds": "Aliyun RDS",
-    "provider.aliyun-sls": "Aliyun SLS",
-    "provider.tencent-cos": "Tencent COS",
-    "provider.all": "All Cloud Resources",
-    "risk.high": "High Risk",
-    "risk.medium": "Medium Risk",
-    "risk.low": "Low Risk",
     "loadDataFailed": "Failed to load resource control data",
     "runActionFailed": "Failed to execute resource action",
     "syncFailed": "Failed to sync resource",
     "syncMissingServerId": "Server resource is missing serverId; cannot sync Docker resources",
     "syncUnsupportedType": "Syncing is not supported for this resource type",
     "showingPartial": "Showing first {shown} of {total}",
-    "unnamedResource": "Unnamed Resource"
+    "unnamedResource": "Unnamed Resource",
+    "kind": {
+      "docker_container": "Docker Container",
+      "mysql": "MySQL",
+      "redis": "Redis",
+      "database": "Database",
+      "log_service": "Log Service",
+      "object_storage": "Object Storage"
+    },
+    "provider": {
+      "docker": "Docker",
+      "aliyun-rds": "Aliyun RDS",
+      "aliyun-sls": "Aliyun SLS",
+      "tencent-cos": "Tencent COS",
+      "all": "All Cloud Resources"
+    },
+    "risk": {
+      "high": "High Risk",
+      "medium": "Medium Risk",
+      "low": "Low Risk"
+    }
   },
   "admin": {
     "resourceTypes": "Resource Types",
@@ -1760,15 +1772,19 @@
     "disableTypeConfirmDescription": "Disable resource type {name}?",
     "disableTypeSuccess": "Resource type disabled",
     "disableTypeFailed": "Failed to disable resource type",
-    "poolType.mysql": "MySQL",
-    "poolType.redis": "Redis",
-    "poolType.nginx": "Nginx",
-    "poolType.cdn": "CDN",
-    "category.infrastructure": "Infrastructure",
     "sectionBasic": "Basic Information",
     "sectionSchema": "Form Schema",
     "sectionEnvTemplate": "Environment Template",
-    "sectionPreview": "Schema Preview"
+    "sectionPreview": "Schema Preview",
+    "poolType": {
+      "mysql": "MySQL",
+      "redis": "Redis",
+      "nginx": "Nginx",
+      "cdn": "CDN"
+    },
+    "category": {
+      "infrastructure": "Infrastructure"
+    }
   },
   "proxyConfigs": {
     "pageTitle": "Proxy Configs",

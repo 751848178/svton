@@ -8,6 +8,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { isValidEnvKey } from '../hooks/use-environment-env-vars';
 
 type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
@@ -31,11 +32,17 @@ export function EnvironmentPlainVarsEditor({
   onSave,
   t,
 }: EnvironmentPlainVarsEditorProps) {
+  // 是否存在无效 KEY —— 有则禁用保存并提示,避免静默丢弃(架构师 B1)。
+  const hasInvalidKey = rows.some(([k]) => !isValidEnvKey(k));
+
   const handleSave = async () => {
     try {
       await onSave();
-    } catch {
-      /* 错误已由调用方处理；此处静默 */
+      feedback.success(t('envVarsSaveSuccess'));
+    } catch (err) {
+      feedback.error(t('envVarsSaveFailed'), {
+        description: err instanceof Error ? err.message : undefined,
+      });
     }
   };
   return (
@@ -50,7 +57,7 @@ export function EnvironmentPlainVarsEditor({
             return (
               <li key={idx} className="flex items-center gap-2">
                 <input
-                  className="w-2/5 rounded-md border px-2 py-1 font-mono text-xs"
+                  className="w-2/5 rounded-md border px-2 py-1 font-mono text-xs aria-[invalid=true]:border-destructive"
                   value={key}
                   aria-invalid={!keyValid}
                   onChange={(e) => onUpdate(key, 'key', e.target.value)}
@@ -86,12 +93,16 @@ export function EnvironmentPlainVarsEditor({
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || hasInvalidKey}
+          title={hasInvalidKey ? t('envVarsInvalidKeyHint') : undefined}
           className="rounded-md bg-primary px-3 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {saving ? t('envVarsSaving') : t('envVarsSave')}
         </button>
       </div>
+      {hasInvalidKey ? (
+        <p className="text-xs text-destructive">{t('envVarsInvalidKeyHint')}</p>
+      ) : null}
     </div>
   );
 }

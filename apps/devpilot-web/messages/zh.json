@@ -144,12 +144,14 @@
     "deleteTitle": "删除密钥",
     "deleteSuccess": "已删除密钥",
     "deleteFailed": "删除密钥失败",
-    "typeLabel.jwt_secret": "JWT 密钥",
-    "typeLabel.encryption_key": "加密密钥",
-    "typeLabel.api_key": "API 密钥",
-    "typeLabel.oauth_secret": "OAuth 密钥",
-    "typeLabel.database_password": "数据库密码",
-    "typeLabel.custom": "自定义",
+    "typeLabel": {
+      "jwt_secret": "JWT 密钥",
+      "encryption_key": "加密密钥",
+      "api_key": "API 密钥",
+      "oauth_secret": "OAuth 密钥",
+      "database_password": "数据库密码",
+      "custom": "自定义"
+    },
     "loadFailed": "加载密钥失败，请稍后重试",
     "scopedBanner": "当前作用域：项目 {projectId} · 环境 {environmentId} 的密钥",
     "storeScopedHint": "该密钥将绑定到 项目 {projectId} · 环境 {environmentId}（来自当前作用域）"
@@ -258,7 +260,8 @@
     "tabWebhooks": "Webhook",
     "tabResources": "资源",
     "tabSettings": "设置",
-    "deployAction": "部署",
+    "deployAction": "部署应用",
+    "deployHistoryAction": "部署历史",
     "healthHealthy": "健康",
     "healthDeploying": "部署中",
     "healthDegraded": "异常",
@@ -327,6 +330,9 @@
     "envVarsRemove": "删除",
     "envVarsSave": "保存",
     "envVarsSaving": "保存中…",
+    "envVarsSaveSuccess": "环境变量已保存",
+    "envVarsSaveFailed": "保存环境变量失败",
+    "envVarsInvalidKeyHint": "存在无效的变量名(需为大写字母/下划线/数字,如 NODE_ENV),请修正后再保存",
     "envVarsSecretTitle": "密钥变量",
     "envVarsSecretHint": "部署时从密钥中心注入，值不会在此展示。",
     "envVarsSecretEmpty": "该环境暂无密钥，点击右侧管理。",
@@ -1668,27 +1674,33 @@
     "dryRun": "演练",
     "confirmExecute": "确认执行",
     "execute": "执行",
-    "kind.docker_container": "Docker 容器",
-    "kind.mysql": "MySQL",
-    "kind.redis": "Redis",
-    "kind.database": "数据库",
-    "kind.log_service": "日志服务",
-    "kind.object_storage": "对象存储",
-    "provider.docker": "Docker",
-    "provider.aliyun-rds": "阿里云 RDS",
-    "provider.aliyun-sls": "阿里云 SLS",
-    "provider.tencent-cos": "腾讯云 COS",
-    "provider.all": "全部云资源",
-    "risk.high": "高风险",
-    "risk.medium": "中风险",
-    "risk.low": "低风险",
     "loadDataFailed": "加载资源管控数据失败",
     "runActionFailed": "执行资源动作失败",
     "syncFailed": "同步资源失败",
     "syncMissingServerId": "服务器资源缺少 serverId，无法同步 Docker 资源",
     "syncUnsupportedType": "当前资源类型暂不支持同步",
     "showingPartial": "显示前 {shown} 条，共 {total} 条",
-    "unnamedResource": "未命名资源"
+    "unnamedResource": "未命名资源",
+    "kind": {
+      "docker_container": "Docker 容器",
+      "mysql": "MySQL",
+      "redis": "Redis",
+      "database": "数据库",
+      "log_service": "日志服务",
+      "object_storage": "对象存储"
+    },
+    "provider": {
+      "docker": "Docker",
+      "aliyun-rds": "阿里云 RDS",
+      "aliyun-sls": "阿里云 SLS",
+      "tencent-cos": "腾讯云 COS",
+      "all": "全部云资源"
+    },
+    "risk": {
+      "high": "高风险",
+      "medium": "中风险",
+      "low": "低风险"
+    }
   },
   "admin": {
     "resourceTypes": "资源类型",
@@ -1760,15 +1772,19 @@
     "disableTypeConfirmDescription": "确定要停用资源类型 {name} 吗？",
     "disableTypeSuccess": "已停用资源类型",
     "disableTypeFailed": "停用资源类型失败",
-    "poolType.mysql": "MySQL",
-    "poolType.redis": "Redis",
-    "poolType.nginx": "Nginx",
-    "poolType.cdn": "CDN",
-    "category.infrastructure": "基础设施",
     "sectionBasic": "基本信息",
     "sectionSchema": "表单 Schema",
     "sectionEnvTemplate": "环境变量模板",
-    "sectionPreview": "Schema 预览"
+    "sectionPreview": "Schema 预览",
+    "poolType": {
+      "mysql": "MySQL",
+      "redis": "Redis",
+      "nginx": "Nginx",
+      "cdn": "CDN"
+    },
+    "category": {
+      "infrastructure": "基础设施"
+    }
   },
   "proxyConfigs": {
     "pageTitle": "代理配置",

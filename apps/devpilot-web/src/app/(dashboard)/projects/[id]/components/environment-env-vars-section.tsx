@@ -36,9 +36,11 @@ export function EnvironmentEnvVarsSection({
   const { draft, setDraft, saving, save, reset } = useEnvironmentEnvVars(environment, onSaved);
 
   // environment 切换时，把本地 draft 重置为新环境的落库值。
+  // 只依赖 environment.id：reset 内部已读取最新 environment，避免每次渲染重置覆盖编辑。
   useEffect(() => {
     reset();
-  }, [environment.id, reset]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [environment.id]);
 
   const secretKeys = useMemo<ProjectSecretKey[]>(
     () => (project.secretKeys ?? []).filter((k) => k.environment?.id === environment.id),

@@ -57,7 +57,13 @@ export function useEnvironmentEnvVars(
     [],
   );
 
-  const reset = useCallback(() => setDraftState(vars), [vars]);
+  // 注意：reset 只依赖 environment?.id，不能依赖 vars（vars 每次渲染都是新对象引用，
+  // 会导致 section 的 useEffect 每次渲染都触发 reset，把用户的新增/编辑覆盖掉）。
+  const envId = environment?.id;
+  const reset = useCallback(() => {
+    setDraftState(readEnvVars(environment));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [envId]);
 
   const save = useCallback(async () => {
     if (!environment) return;

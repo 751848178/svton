@@ -11,6 +11,7 @@
 
 'use client';
 
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
 import { Button, StatusTag } from '@/components/ui';
@@ -26,7 +27,7 @@ type DetailHook = ReturnType<typeof useProjectDetail>;
 
 interface ProjectDetailHeaderProps {
   detail: DetailHook;
-  /** 点击「部署」主按钮时的回调（由 page 传入，负责切换到部署 tab）。 */
+  /** 切换到部署历史 tab（次要操作）。 */
   onDeployClick?: () => void;
 }
 
@@ -38,6 +39,9 @@ export function ProjectDetailHeader({ detail, onDeployClick }: ProjectDetailHead
   const health = getProjectHealth({ runs: detail.deploymentRuns, project: p });
   const appCount = p.applications?.length ?? 0;
   const envCount = p.environments?.length ?? 0;
+  // 主「部署」按钮跳转到该项目的应用服务页（带 projectId 过滤），
+  // 那里有完整的部署向导（选环境→预览→dryRun/live）。原实现仅切换 tab、不触发部署。
+  const deployHref = `/applications?projectId=${p.id}`;
 
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -78,9 +82,20 @@ export function ProjectDetailHeader({ detail, onDeployClick }: ProjectDetailHead
           </Tag>
         </div>
       </div>
-      <Button variant="primary" onClick={onDeployClick}>
-        {t('deployAction')}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Link href={deployHref}>
+          <Button variant="primary">{t('deployAction')}</Button>
+        </Link>
+        {onDeployClick ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onDeployClick}
+          >
+            {t('deployHistoryAction')}
+          </Button>
+        ) : null}
+      </div>
     </div>
   );
 }
