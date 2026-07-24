@@ -61,6 +61,12 @@ export function useEnvironmentEnvVars(
 
   const save = useCallback(async () => {
     if (!environment) return;
+    // 校验：仅保留符合后端注入规则 ^[A-Z_][A-Z0-9_]*$ 的 KEY,
+    // 避免无效 KEY 落库后在部署时被静默丢弃(架构师 L2)。
+    const cleaned: Record<string, string> = {};
+    for (const [k, v] of Object.entries(draft)) {
+      if (isValidEnvKey(k)) cleaned[k] = v;
+    }
     setSaving(true);
     try {
       // 合并：保留 config 中其它键，仅替换 envVars。
@@ -68,7 +74,7 @@ export function useEnvironmentEnvVars(
         environment.config && typeof environment.config === 'object'
           ? { ...environment.config }
           : {};
-      const config = { ...existingConfig, envVars: draft };
+      const config = { ...existingConfig, envVars: cleaned };
       const updated = await apiRequest<ProjectEnvironment>(
         `PUT:/project-environments/${environment.id}`,
         { config },

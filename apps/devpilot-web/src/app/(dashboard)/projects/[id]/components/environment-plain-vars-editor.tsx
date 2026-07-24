@@ -45,10 +45,10 @@ export function EnvironmentPlainVarsEditor({
         <p className="text-xs text-muted-foreground">{t('envVarsPlainEmpty')}</p>
       ) : (
         <ul className="space-y-1">
-          {rows.map(([key, value]) => {
+          {rows.map(([key, value], idx) => {
             const keyValid = isValidEnvKey(key);
             return (
-              <li key={key} className="flex items-center gap-2">
+              <li key={idx} className="flex items-center gap-2">
                 <input
                   className="w-2/5 rounded-md border px-2 py-1 font-mono text-xs"
                   value={key}
