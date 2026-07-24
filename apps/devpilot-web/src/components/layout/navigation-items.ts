@@ -95,16 +95,16 @@ export const navigationSections: NavigationSection[] = [
     ],
   },
   {
-    // 基础设施区:servers/sites + 代理/CDN 配置台账 + 代码生成器(次要)。
-    // 「代码生成器」是无状态工具(下载 .conf/.sh),与台账是互补关系,故收纳到「更多」。
+    // 基础设施区:servers/sites + CDN 配置台账。
+    // 已下线的重叠模块(后端表/服务全保留,零迁移风险,仅从用户入口移除):
+    //   - proxy-configs:与站点重叠且 sync 是假实现,站点才是真正生效的反向代理;
+    //   - domain(Nginx 生成器)与 cdn(CDN 生成器):无状态下载工具,与 sites/cdn-configs 台账
+    //     是"生成器 vs 管理列表"的同型重复,已降级为对应台账页内的导出入口/废弃提示。
     titleKey: 'sectionInfrastructure',
     items: [
       { href: '/servers', labelKey: 'servers', icon: 'server' },
       { href: '/sites', labelKey: 'sites', icon: 'globe' },
-      { href: '/proxy-configs', labelKey: 'proxyConfigs', icon: 'network' },
       { href: '/cdn-configs', labelKey: 'cdnConfigs', icon: 'zap' },
-      { href: '/domain', labelKey: 'domainConfigGenerator', icon: 'at-sign', secondary: true },
-      { href: '/cdn', labelKey: 'cdnConfigGenerator', icon: 'cloud', secondary: true },
     ],
   },
   {

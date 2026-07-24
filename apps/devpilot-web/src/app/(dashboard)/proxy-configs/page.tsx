@@ -28,6 +28,12 @@ export default async function ProxyConfigsPage() {
   }
 
   return (
-    <ProxyConfigsContent initialConfigs={initialConfigs} initialError={initialError} />
+    <div className="space-y-6">
+      <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+        代理配置已并入「站点」——站点自带完整的反向代理 + TLS + 同步能力,且本页的同步为模拟实现。此页仅保留只读台账,新增与管理请前往{' '}
+        <a href="/sites" className="font-medium text-primary hover:underline">站点</a>。
+      </div>
+      <ProxyConfigsContent initialConfigs={initialConfigs} initialError={initialError} />
+    </div>
   );
 }

@@ -43,13 +43,23 @@ export default function DomainConfigPage() {
         description={t('pageDescription')}
         actions={
           <Link
-            href="/proxy-configs"
+            href="/sites"
             className="text-sm text-primary underline-offset-2 hover:underline"
           >
-            {t('manageProxyConfigs')} →
+            {t('goToSites')} →
           </Link>
         }
       />
+
+      <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+        {t('deprecatedHint')}{' '}
+        <Link
+          href="/sites"
+          className="font-medium text-primary hover:underline"
+        >
+          {t('goToSites')} →
+        </Link>
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ConfigForm

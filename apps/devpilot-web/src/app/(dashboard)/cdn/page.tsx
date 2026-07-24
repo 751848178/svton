@@ -27,6 +27,16 @@ export default function CDNConfigPage() {
         }
       />
 
+      <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+        {t('deprecatedHint')}{' '}
+        <Link
+          href="/cdn-configs"
+          className="font-medium text-primary hover:underline"
+        >
+          {t('manageCdnConfigs')} →
+        </Link>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <CdnConfigForm
           config={config}
