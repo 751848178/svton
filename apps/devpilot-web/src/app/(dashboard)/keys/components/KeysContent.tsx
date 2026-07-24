@@ -11,23 +11,35 @@ import { useKeys } from '../hooks/use-keys';
 import { KeyCard } from './key-card';
 import { GenerateKeyModal } from './generate-key-modal';
 import { StoreKeyModal } from './store-key-modal';
-import type { SecretKey, KeyInput } from '../types';
+import type { SecretKey, KeyInput, KeyScopeFilter } from '../types';
+
+interface KeysContentProps {
+  initialKeys?: SecretKey[];
+  /** 作用域过滤（来自 URL ?projectId=&environmentId=）。无值即全局视图。 */
+  scope?: KeyScopeFilter;
+}
 
 /**
  * 密钥中心客户端视图。
  *
  * 接收首屏 server 数据 initialKeys（SWR fallback），交互（生成/存储/删除/查看明文）在此完成。
- * 所有可见文案通过 next-intl 的 useTranslations('keys') 读取，便于多语言。
+ * 当 scope 带有 projectId/environmentId 时：顶部展示上下文横幅，列表仅展示该作用域密钥，
+ * 新增密钥会自动绑定到该作用域（store 写入透传 scope）。
  */
-export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
+export function KeysContent({ initialKeys, scope }: KeysContentProps) {
   const t = useTranslations('keys');
   const tc = useTranslations('common');
-  const { keys, loading, error, generate, store, revealValue, remove, refresh } = useKeys(initialKeys);
+  const { keys, loading, error, generate, store, revealValue, remove, refresh } = useKeys(
+    scope,
+    initialKeys,
+  );
   const [revealed, setRevealed] = useSetState<Record<string, string>>({});
   const [storeInitial, setStoreInitial] = useState<Partial<KeyInput>>({});
   const [genOpen, { setTrue: openGen, setFalse: closeGen }] = useBoolean(false);
   const [storeOpen, { setTrue: openStore, setFalse: closeStore }] = useBoolean(false);
   const [deleteTarget, setDeleteTarget] = useState<SecretKey | null>(null);
+
+  const hasScope = Boolean(scope?.projectId || scope?.environmentId);
 
   const handleReveal = usePersistFn(async (id: string) => {
     if (revealed[id]) {
@@ -64,6 +76,11 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
     openStore();
   });
 
+  // 存储时把作用域注入输入，使新密钥绑定到当前 project/environment。
+  const handleStore = usePersistFn(async (input: KeyInput) => {
+    await store({ ...input, projectId: scope?.projectId, environmentId: scope?.environmentId });
+  });
+
   if (loading) {
     return <LoadingState text={tc('loading')} />;
   }
@@ -90,6 +107,15 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
           </div>
         }
       />
+
+      {hasScope ? (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm text-primary">
+          {t('scopedBanner', {
+            projectId: scope?.projectId ?? '',
+            environmentId: scope?.environmentId ?? '',
+          })}
+        </div>
+      ) : null}
 
       {error ? (
         <ErrorBanner
@@ -124,8 +150,9 @@ export function KeysContent({ initialKeys }: { initialKeys?: SecretKey[] }) {
       <StoreKeyModal
         open={storeOpen}
         initial={storeInitial}
+        scope={scope}
         onClose={closeStore}
-        onStore={store}
+        onStore={handleStore}
       />
 
       <ConfirmDialog

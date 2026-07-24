@@ -10,11 +10,13 @@ import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@/components/ui';
 import { KEY_TYPES } from '../constants';
-import type { KeyInput } from '../types';
+import type { KeyInput, KeyScopeFilter } from '../types';
 
 interface StoreKeyModalProps {
   open: boolean;
   initial?: Partial<KeyInput>;
+  /** 作用域（来自 URL）。存在时展示绑定提示，作用域由父级在提交时注入。 */
+  scope?: KeyScopeFilter;
   onClose: () => void;
   onStore: (input: KeyInput) => Promise<void>;
 }
@@ -26,9 +28,10 @@ const EMPTY_FORM: KeyInput = {
   description: '',
 };
 
-export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModalProps) {
+export function StoreKeyModal({ open, initial, scope, onClose, onStore }: StoreKeyModalProps) {
   const t = useTranslations('keys');
   const tc = useTranslations('common');
+  const hasScope = Boolean(scope?.projectId || scope?.environmentId);
   const { register, handleSubmit, reset, formState } = useForm<KeyInput>({
     defaultValues: EMPTY_FORM,
   });
@@ -62,6 +65,15 @@ export function StoreKeyModal({ open, initial, onClose, onStore }: StoreKeyModal
         onSubmit={handleSubmit(onSubmit)}
         className="space-y-4"
       >
+        {hasScope ? (
+          <p className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+            {t('storeScopedHint', {
+              projectId: scope?.projectId ?? '',
+              environmentId: scope?.environmentId ?? '',
+            })}
+          </p>
+        ) : null}
+
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('storeNameLabel')}</span>
           <input

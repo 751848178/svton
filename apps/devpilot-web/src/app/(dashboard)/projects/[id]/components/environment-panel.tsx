@@ -48,6 +48,7 @@ export function EnvironmentPanel({ detail }: { detail: DetailHook }) {
         project={p}
         deploymentRuns={detail.deploymentRuns}
         onClose={() => setActiveEnvId(null)}
+        onEnvironmentSaved={detail.loadProject}
       />
     </Card>
   );

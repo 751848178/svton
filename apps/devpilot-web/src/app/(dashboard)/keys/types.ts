@@ -9,7 +9,8 @@ export interface SecretKey {
   name: string;
   type: string;
   description?: string;
-  projectId?: string;
+  projectId?: string | null;
+  environmentId?: string | null;
   createdAt: string;
 }
 
@@ -22,11 +23,19 @@ export interface KeyTypeOption {
   icon: KeyTypeIconName;
 }
 
+/** 密钥作用域过滤（GET /keys?projectId=&environmentId=）。 */
+export interface KeyScopeFilter {
+  projectId?: string;
+  environmentId?: string;
+}
+
 export interface KeyInput {
   name: string;
   type: string;
   value: string;
   description: string;
+  projectId?: string;
+  environmentId?: string;
 }
 
 export interface GenerateKeyInput {

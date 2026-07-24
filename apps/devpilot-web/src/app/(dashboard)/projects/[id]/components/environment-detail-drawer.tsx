@@ -18,6 +18,7 @@ import { StatusTag } from '@/components/ui';
 import { getEnvStatusLabelKey } from '../utils/run-labels';
 import { buildEnvironmentConfigProfiles } from '../utils/deployment-config';
 import { ConfigProfile, LastDeployment } from './environment-detail-derived';
+import { EnvironmentEnvVarsSection } from './environment-env-vars-section';
 import type { DeploymentRun } from '../types/operations';
 import type { Project, ProjectEnvironment } from '../types';
 
@@ -28,6 +29,8 @@ interface EnvironmentDetailDrawerProps {
   project: Project;
   deploymentRuns: DeploymentRun[];
   onClose: () => void;
+  /** 普通变量保存成功后回调，供父级刷新项目数据（避免抽屉重开时丢失最新值）。 */
+  onEnvironmentSaved?: () => void;
 }
 
 export function EnvironmentDetailDrawer({
@@ -35,6 +38,7 @@ export function EnvironmentDetailDrawer({
   project,
   deploymentRuns,
   onClose,
+  onEnvironmentSaved,
 }: EnvironmentDetailDrawerProps) {
   const t = useTranslations('projects');
   // 保留上一次非 null 的环境，使抽屉关闭时仍能播放退出动画（Drawer 内部按 open 控制过渡）。
@@ -42,6 +46,12 @@ export function EnvironmentDetailDrawer({
   useEffect(() => {
     if (environment) setRendered(environment);
   }, [environment]);
+
+  // 普通变量保存成功：先更新本地 rendered（立即反馈），再通知父级重载项目。
+  const handleEnvSaved = (updated: ProjectEnvironment) => {
+    setRendered((prev) => (prev && prev.id === updated.id ? updated : prev));
+    onEnvironmentSaved?.();
+  };
 
   const profile = useMemo(
     () =>
@@ -74,6 +84,11 @@ export function EnvironmentDetailDrawer({
         <EnvBasics environment={rendered} t={t} />
         <BoundServers environment={rendered} t={t} />
         <ResourceCounts environment={rendered} t={t} />
+        <EnvironmentEnvVarsSection
+          environment={rendered}
+          project={project}
+          onSaved={handleEnvSaved}
+        />
         {profile ? <ConfigProfile profile={profile} t={t} /> : null}
         <LastDeployment run={lastRun} t={t} />
       </div>
