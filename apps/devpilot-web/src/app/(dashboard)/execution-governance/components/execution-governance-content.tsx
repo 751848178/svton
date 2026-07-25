@@ -1,11 +1,12 @@
 'use client';
 
 import { Suspense as ReactSuspense, useMemo } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState } from '@svton/ui';
-import { PageHeader, ErrorBanner, Button } from '@/components/ui';
+import { PageHeader, ErrorBanner, Alert, Button } from '@/components/ui';
 import { ActionMenu } from '@/components/ui/action-menu';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useExecutionGovernance } from '../hooks/use-execution-governance';
@@ -84,6 +85,14 @@ function ExecutionGovernanceInner() {
           </div>
         }
       />
+
+      <Alert tone="info" action={
+        <Link href="/operation-approvals" className="underline underline-offset-2 hover:opacity-80">
+          {t('infoAlertCta')}
+        </Link>
+      }>
+        {t('infoAlertText')}
+      </Alert>
 
       {gov.error ? (
         <ErrorBanner

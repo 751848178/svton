@@ -22,6 +22,8 @@ export interface HttpRequestConfig {
   data?: any;
   params?: any;
   headers?: Record<string, string>;
+  /** 可选的中止信号，透传到底层 fetch/adapter，用于取消在途请求。 */
+  signal?: AbortSignal;
 }
 
 /**
@@ -29,6 +31,14 @@ export interface HttpRequestConfig {
  */
 export interface HttpAdapter {
   request<T = any>(config: HttpRequestConfig): Promise<T>;
+}
+
+/**
+ * 单次请求的可选项（如超时中止信号）。
+ */
+export interface RequestOptions {
+  /** 中止信号，透传到底层 adapter（fetch）以真正取消在途请求。 */
+  signal?: AbortSignal;
 }
 
 /**
@@ -69,10 +79,13 @@ export function createApiClient(
   
   /**
    * 核心请求函数
+   *
+   * 可选 options.signal 透传到底层 adapter（如 fetch），用于真正中止在途请求。
    */
   async function executeRequest<K extends ApiName>(
     apiName: K,
-    params: ApiParams<K>
+    params: ApiParams<K>,
+    options?: { signal?: AbortSignal },
   ): Promise<ApiResponse<K>> {
     // 修复：只在第一个冒号处分割，保留路径中的参数占位符
     const colonIndex = (apiName as string).indexOf(':');
@@ -145,10 +158,11 @@ export function createApiClient(
         url,
         data: bodyData,
         params: queryParams,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          ...config?.headers 
+          ...config?.headers
         },
+        signal: options?.signal,
       };
 
       // 执行请求拦截器
@@ -165,6 +179,10 @@ export function createApiClient(
 
       return response.data as ApiResponse<K>;
     } catch (error: any) {
+      // 被上层 AbortController 显式中止（如 server.ts 超时）：保留 AbortError 原貌，
+      // 交由调用方翻译为 TimeoutError，不归一化为 NETWORK_ERROR 以免丢失超时语义。
+      if (error?.name === 'AbortError') throw error;
+
       // 转换为 ApiError
       const apiError =
         error instanceof ApiError
@@ -223,18 +241,32 @@ export function createApiClient(
   /**
    * Promise API 调用（别名）
    *
+   * 可选末位 options.signal 透传到底层 adapter（fetch），用于真正中止在途请求。
+   *
    * @example
    * ```ts
    * const user = await apiAsync('GET:/auth/me')
    * const contents = await apiAsync('GET:/contents', { page: 1 })
+   * // 带超时中止：
+   * await apiAsync('GET:/auth/me', undefined, { signal: ctrl.signal })
    * ```
    */
   async function apiAsync<K extends ApiName>(
     apiName: K,
-    ...args: ApiParams<K> extends void ? [] : [ApiParams<K>]
+    ...args: ApiParams<K> extends void
+      ? [RequestOptions?]
+      : [ApiParams<K>, RequestOptions?]
   ): Promise<ApiResponse<K>> {
-    const params = args[0] as ApiParams<K>;
-    return executeRequest(apiName, params);
+    // 末位若是 RequestOptions（仅含 signal），则提取出来；其余视作 params。
+    // 仅当上层显式传入 { signal } 时才命中，业务 params 不会仅有 signal 字段。
+    const last = args[args.length - 1] as RequestOptions | undefined;
+    const isOptions =
+      !!args.length && typeof last === 'object' && last !== null && 'signal' in last;
+    const options = isOptions ? last : undefined;
+    const params = (
+      args.length === 0 || (args.length === 1 && isOptions) ? undefined : args[0]
+    ) as ApiParams<K>;
+    return executeRequest(apiName, params, options);
   }
 
   /**

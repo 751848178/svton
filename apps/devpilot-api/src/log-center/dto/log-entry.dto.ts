@@ -49,6 +49,11 @@ export class ListLogEntriesQueryDto {
   @IsOptional()
   @IsString()
   managedResourceId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  windowMinutes?: number;
 }
 
 export class TailLogEntriesQueryDto {

@@ -25,6 +25,13 @@ export class LogEntryQueryService {
   async list(teamId: string, query: ListLogEntriesQueryDto) {
     const where = buildLogEntryWhere(teamId, query);
 
+    if (query.windowMinutes) {
+      const windowMinutes = normalizeLogStatsWindowMinutes(query.windowMinutes);
+      const to = new Date();
+      const from = new Date(to.getTime() - windowMinutes * 60 * 1000);
+      where.timestamp = { gte: from, lte: to };
+    }
+
     return this.prisma.logEntry.findMany({
       where,
       orderBy: { timestamp: "desc" },

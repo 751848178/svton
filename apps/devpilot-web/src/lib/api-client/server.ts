@@ -28,6 +28,42 @@ const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API
 const TOKEN_COOKIE = 'token';
 const TEAM_COOKIE = 'teamId';
 
+/** 单次 server 请求的超时阈值（毫秒）。超过即中止底层 fetch 并抛 TimeoutError。 */
+const SERVER_REQUEST_TIMEOUT_MS = 15_000;
+
+/**
+ * Server 请求超时错误（A21：消灭永久 spinner）。
+ * 与普通 ApiError 区分，便于上层 DataBoundary 在 UI 上标注 timeout。
+ */
+export class TimeoutError extends Error {
+  constructor(message = `Request timed out after ${SERVER_REQUEST_TIMEOUT_MS}ms`) {
+    super(message);
+    this.name = 'TimeoutError';
+  }
+}
+
+/**
+ * 给 server 请求加超时兜底：创建 AbortController，到点 abort() 真正取消在途 fetch；
+ * fetch 抛出的 AbortError 在此翻译为 TimeoutError。请求正常返回/失败时清理 timer。
+ */
+async function withTimeout<T>(
+  task: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SERVER_REQUEST_TIMEOUT_MS);
+  try {
+    return await task(controller.signal);
+  } catch (error) {
+    // 仅当是我们自己的 controller 触发的中止才视为超时（外部 signal 透传不在此处发生）。
+    if (controller.signal.aborted && (error as Error)?.name === 'AbortError') {
+      throw new TimeoutError();
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Server 端 token 注入拦截器：从 cookies() 读 token cookie 注入 Authorization。
  * 注意：cookies() 在 Next 15 返回 Promise，需 await。
@@ -85,7 +121,17 @@ export function serverApiAsync<K extends ApiName>(
   apiName: K,
   ...args: ApiParams<K> extends void ? [] : [ApiParams<K>]
 ): Promise<ApiResponse<K>> {
-  return serverApiAsyncRaw(apiName, ...args);
+  const params = args[0] as ApiParams<K> | undefined;
+  // 注入超时中止信号：底层 apiAsync 末位接收 RequestOptions，把 signal 透传到 fetch。
+  // 这里以宽松签名调用（条件元组无法在运行时分支上静态收敛），对外类型由本函数签名保证。
+  return withTimeout((signal) => {
+    const call = serverApiAsyncRaw as unknown as (
+      name: K,
+      p: ApiParams<K> | undefined,
+      opts: { signal: AbortSignal },
+    ) => Promise<ApiResponse<K>>;
+    return call(apiName, params, { signal });
+  });
 }
 
 /**
@@ -95,8 +141,11 @@ export function serverApiAsync<K extends ApiName>(
  * Server Component / Route Handler 专用——不得在 client 组件中 import。
  */
 export async function serverRequest<T = unknown>(apiName: string, params?: unknown): Promise<T> {
-  return (serverApiAsyncRaw as unknown as (name: string, p?: unknown) => Promise<T>)(
-    apiName,
-    params,
+  return withTimeout((signal) =>
+    (serverApiAsyncRaw as unknown as (
+      name: string,
+      p: unknown | undefined,
+      opts: { signal: AbortSignal },
+    ) => Promise<T>)(apiName, params, { signal }),
   );
 }

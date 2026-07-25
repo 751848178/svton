@@ -47,8 +47,13 @@ export function createFetchAdapter(): HttpAdapter {
           headers: { 'Content-Type': 'application/json', ...config.headers },
           body: config.data ? JSON.stringify(config.data) : undefined,
           credentials: 'include',
+          // 透传上层（如 server.ts 的 AbortController）的中止信号，超时即真正取消在途 fetch。
+          signal: config.signal,
         });
       } catch (err) {
+        // 被显式中止（超时）时，保留 AbortError 原貌交由上层翻译为 TimeoutError；
+        // 其余网络异常归一化为 NETWORK_ERROR。
+        if ((err as Error)?.name === 'AbortError') throw err;
         throw new ApiError('NETWORK_ERROR', (err as Error)?.message || 'Network request failed');
       }
 

@@ -14,6 +14,8 @@ export interface RequestConfig {
   data?: any;
   params?: any;
   headers: Record<string, string>;
+  /** 可选的中止信号，透传到底层 fetch/adapter，用于取消在途请求。 */
+  signal?: AbortSignal;
 }
 
 /**
