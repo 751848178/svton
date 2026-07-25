@@ -19,6 +19,8 @@ interface EnvironmentPlainVarsEditorProps {
   onAdd: () => void;
   onRemove: (key: string) => void;
   onUpdate: (oldKey: string, field: 'key' | 'value', val: string) => void;
+  /** 打开「从 .env 导入」弹窗。 */
+  onImportEnv: () => void;
   onSave: () => Promise<void>;
   t: ProjectsTranslator;
 }
@@ -29,6 +31,7 @@ export function EnvironmentPlainVarsEditor({
   onAdd,
   onRemove,
   onUpdate,
+  onImportEnv,
   onSave,
   t,
 }: EnvironmentPlainVarsEditorProps) {
@@ -82,13 +85,20 @@ export function EnvironmentPlainVarsEditor({
           })}
         </ul>
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={onAdd}
           className="rounded-md border px-2 py-1 text-xs hover:bg-accent"
         >
           {t('envVarsAdd')}
+        </button>
+        <button
+          type="button"
+          onClick={onImportEnv}
+          className="rounded-md border px-2 py-1 text-xs hover:bg-accent"
+        >
+          {t('importFromEnv')}
         </button>
         <button
           type="button"

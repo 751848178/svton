@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
-import { metricLabels } from '../constants';
+import { metricLabels, severityLabels } from '../constants';
 import { humanizeKey } from '../utils-format';
 import type { useMonitoring } from '../hooks/use-monitoring';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
@@ -45,6 +45,7 @@ export function EventsPanel({ m }: { m: MonitoringHook }) {
                 <StatusTag
                   status={event.severity}
                   variant="risk"
+                  label={severityLabels[event.severity] || event.severity}
                 />
                 {event.status === 'firing' && (
                   <button

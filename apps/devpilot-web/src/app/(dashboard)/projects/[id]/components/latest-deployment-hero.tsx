@@ -17,6 +17,7 @@ import { Button, StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import { getProjectEnvironmentLabels } from '@/lib/project-display';
 import { getRunStatusLabelKey, getRunSourceLabelKey, shortSha } from '../utils/run-labels';
+import { BranchIcon, SourceIcon } from './panel-icons';
 import type { DeploymentRun } from '../types/operations';
 
 interface LatestDeploymentHeroProps {
@@ -61,10 +62,12 @@ export function LatestDeploymentHero({ run, onDeployClick }: LatestDeploymentHer
             />
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span>
+            <span className="inline-flex items-center gap-1">
+              <SourceIcon className="h-3.5 w-3.5" />
               {t('sourceLabel')}: {sourceKey ? t(sourceKey) : run.source || '-'}
             </span>
-            <span>
+            <span className="inline-flex items-center gap-1">
+              <BranchIcon className="h-3.5 w-3.5" />
               {t('branchLabel')}: <span className="font-mono">{run.branch || '-'}</span>
             </span>
             {run.environment ? (

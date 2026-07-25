@@ -7,11 +7,15 @@
  * 遵循 teams/[id] 的头部骨架（图标返回按钮 + 标题），并叠加
  * 健康度徽章与主 CTA，给出页面的第一焦点（"项目状态如何"）。
  * 不承载任何业务逻辑 —— 所有数据来自传入的 detail，派生通过纯函数。
+ *
+ * 主「部署」按钮（A10 修复）：不再跳转 /applications?projectId=X，
+ * 改为 onClick —— 由 page 层决定是直接打开内联 DeployWizardModal（单服务）
+ * 还是滚动到部署 tab 提示用户选服务（多服务）。
  */
 
 'use client';
 
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
 import { Button, StatusTag } from '@/components/ui';
@@ -27,21 +31,25 @@ type DetailHook = ReturnType<typeof useProjectDetail>;
 
 interface ProjectDetailHeaderProps {
   detail: DetailHook;
-  /** 切换到部署历史 tab（次要操作）。 */
+  /** 主「部署」按钮：单服务时直接打开向导，多服务时切到部署 tab + toast。 */
   onDeployClick?: () => void;
+  /** 次要「部署历史」按钮：切到部署 tab 查看运行历史。 */
+  onDeployHistoryClick?: () => void;
 }
 
-export function ProjectDetailHeader({ detail, onDeployClick }: ProjectDetailHeaderProps) {
+export function ProjectDetailHeader({
+  detail,
+  onDeployClick,
+  onDeployHistoryClick,
+}: ProjectDetailHeaderProps) {
   const t = useTranslations('projects');
+  const router = useRouter();
   const p = detail.project;
   if (!p) return null;
 
   const health = getProjectHealth({ runs: detail.deploymentRuns, project: p });
   const appCount = p.applications?.length ?? 0;
   const envCount = p.environments?.length ?? 0;
-  // 主「部署」按钮跳转到该项目的应用服务页（带 projectId 过滤），
-  // 那里有完整的部署向导（选环境→预览→dryRun/live）。原实现仅切换 tab、不触发部署。
-  const deployHref = `/applications?projectId=${p.id}`;
 
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
@@ -51,9 +59,7 @@ export function ProjectDetailHeader({ detail, onDeployClick }: ProjectDetailHead
             variant="ghost"
             size="icon"
             aria-label={t('backToProjects')}
-            onClick={() => {
-              if (typeof window !== 'undefined') window.history.back();
-            }}
+            onClick={() => router.push('/projects')}
           >
             <BackArrowIcon />
           </Button>
@@ -83,14 +89,16 @@ export function ProjectDetailHeader({ detail, onDeployClick }: ProjectDetailHead
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Link href={deployHref}>
-          <Button variant="primary">{t('deployAction')}</Button>
-        </Link>
         {onDeployClick ? (
+          <Button variant="primary" onClick={onDeployClick}>
+            {t('deployAction')}
+          </Button>
+        ) : null}
+        {onDeployHistoryClick ? (
           <Button
             variant="outline"
             size="sm"
-            onClick={onDeployClick}
+            onClick={onDeployHistoryClick}
           >
             {t('deployHistoryAction')}
           </Button>

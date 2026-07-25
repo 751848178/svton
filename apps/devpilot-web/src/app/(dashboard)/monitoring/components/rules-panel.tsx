@@ -1,13 +1,15 @@
 /** 监控告警规则面板。 */
 'use client';
+import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useBoolean } from '@svton/hooks';
 import { EmptyState } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
+import { ConfirmDialog, StatusTag } from '@/components/ui';
 import { CreateRuleModal } from './create-rule-modal';
 import { metricLabels, severityLabels } from '../constants';
 import { humanizeKey } from '../utils-format';
 import type { useMonitoring } from '../hooks/use-monitoring';
+import type { AlertRule } from '../types';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
 
 function metricLabel(metric: string): string {
@@ -33,7 +35,16 @@ function targetsForCategory(m: MonitoringHook, category: string) {
 
 export function RulesPanel({ m }: { m: MonitoringHook }) {
   const t = useTranslations('monitoring');
+  const tc = useTranslations('common');
   const [createOpen, { setTrue: openCreate, setFalse: closeCreate }] = useBoolean(false);
+  const [deleteTarget, setDeleteTarget] = useState<AlertRule | null>(null);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const ok = await m.deleteRule(deleteTarget);
+    if (ok) setDeleteTarget(null);
+  };
+
   return (
     <div className="overflow-hidden rounded-lg border">
       <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
@@ -62,13 +73,23 @@ export function RulesPanel({ m }: { m: MonitoringHook }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusTag status={rule.enabled ? 'active' : 'inactive'} />
+                  <StatusTag
+                    status={rule.enabled ? 'active' : 'inactive'}
+                    label={rule.enabled ? tc('enabled') : tc('disabled')}
+                  />
                   <button
                     onClick={() => m.evaluateRule(rule)}
                     disabled={m.actingId === `rule:${rule.id}:evaluate`}
                     className="inline-flex min-h-10 items-center rounded border px-3 text-xs hover:bg-accent disabled:opacity-50"
                   >
                     {t('evaluate')}
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(rule)}
+                    disabled={m.actingId === `rule:${rule.id}:delete`}
+                    className="inline-flex min-h-10 items-center rounded border border-red-300 px-3 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {t('deleteRule')}
                   </button>
                 </div>
               </div>
@@ -87,6 +108,15 @@ export function RulesPanel({ m }: { m: MonitoringHook }) {
           site: targetsForCategory(m, 'site'),
           service: targetsForCategory(m, 'service'),
         }}
+      />
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        tone="danger"
+        title={t('deleteRuleTitle')}
+        description={t('deleteRuleConfirm')}
+        confirmLabel={t('deleteRule')}
+        onConfirm={confirmDelete}
       />
     </div>
   );

@@ -1,24 +1,30 @@
 /**
- * 环境变量区块（普通变量可编辑 + 密钥变量只读）
+ * 环境变量区块（普通变量可编辑 + 密钥变量只读 + staged changes）
  *
  * 单一职责：在 environment-detail-drawer 内编排「部署时会注入该环境的变量」展示与编辑。
  *   - 普通变量：来自 environment.config.envVars，编辑委托给 EnvironmentPlainVarsEditor，
  *     落库走 use-environment-env-vars（PUT /project-environments/:id）。
- *   - 密钥变量：来自 project.secretKeys 中 environment.id === environment.id 的项，
- *     只展示 KEY 名与类型（密钥值永不展示），提供「管理密钥」深链到
- *     /keys?projectId=&environmentId=（已支持过滤，见 keys/page.tsx）。
+ *   - 批量导入：EnvironmentEnvImportModal 解析粘贴的 .env，mergeDraft 合并进暂存区。
+ *   - staged changes：draft 与已落库 vars 不一致时顶栏提示「N 项待部署」，
+ *     Review 弹窗显示 diff（新增/修改/删除），Deploy 一次性落库。
+ *   - 密钥变量：只展示 KEY 名与类型（密钥值永不展示），深链到 /keys 过滤页。
+ *   - 资源实例：只展示绑定的资源实例注入的 KEY 名。
  *
  * 安全：密钥值绝不在此展示；普通变量按设计为非敏感，但 UI 仍提示用户勿放敏感值。
  */
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { useEnvironmentEnvVars } from '../hooks/use-environment-env-vars';
 import { EnvironmentPlainVarsEditor } from './environment-plain-vars-editor';
-import { isResourceTypeInjectable } from '../utils/injectable-resource-types';
-import { extractInjectedEnvKeys } from '../utils/command-plan-env-parser';
+import { EnvironmentEnvImportModal } from './environment-env-import-modal';
+import { EnvironmentEnvReviewModal } from './environment-env-review-modal';
+import { EnvironmentStagedBanner } from './environment-staged-banner';
+import { EnvironmentSecretVarsList } from './environment-secret-vars-list';
+import { EnvironmentResourceInstanceList } from './environment-resource-instance-list';
+import { diffEnvVars } from '../utils/env-var-diff.utils';
 import type { Project, ProjectEnvironment, ProjectSecretKey, ProjectResourceInstance } from '../types';
 
 type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
@@ -35,7 +41,14 @@ export function EnvironmentEnvVarsSection({
   onSaved,
 }: EnvironmentEnvVarsSectionProps) {
   const t = useTranslations('projects');
-  const { draft, setDraft, saving, save, reset } = useEnvironmentEnvVars(environment, onSaved);
+  const { vars, draft, setDraft, mergeDraft, saving, save, reset } = useEnvironmentEnvVars(
+    environment,
+    onSaved,
+  );
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [deploying, setDeploying] = useState(false);
 
   // environment 切换时，把本地 draft 重置为新环境的落库值。
   // 只依赖 environment.id：reset 内部已读取最新 environment，避免每次渲染重置覆盖编辑。
@@ -49,11 +62,12 @@ export function EnvironmentEnvVarsSection({
     [project.secretKeys, environment.id],
   );
 
-  // 绑定到该环境的资源交付实例(部署注入的第一源)。
   const resourceInstances = useMemo<ProjectResourceInstance[]>(
     () => (project.resourceInstances ?? []).filter((i) => i.projectEnvironment?.id === environment.id),
     [project.resourceInstances, environment.id],
   );
+
+  const diff = useMemo(() => diffEnvVars(vars, draft), [vars, draft]);
 
   const rows = Object.entries(draft);
 
@@ -79,6 +93,31 @@ export function EnvironmentEnvVarsSection({
     setDraft(next);
   };
 
+  const handleImport = (incoming: Record<string, string>) => {
+    mergeDraft(incoming);
+    feedback.success(t('envImportApplied', { count: Object.keys(incoming).length }));
+  };
+
+  const handleDeploy = async () => {
+    setDeploying(true);
+    try {
+      await save();
+      feedback.success(t('envVarsSaveSuccess'));
+      setReviewOpen(false);
+    } catch (err) {
+      feedback.error(t('envVarsSaveFailed'), {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setDeploying(false);
+    }
+  };
+
+  const handleDiscard = () => {
+    reset();
+    feedback.success(t('stagedDiscarded'));
+  };
+
   const keysManageHref = `/keys?projectId=${project.id}&environmentId=${environment.id}`;
 
   return (
@@ -87,112 +126,44 @@ export function EnvironmentEnvVarsSection({
         {t('envVarsTitle')}
       </h4>
 
+      <EnvironmentStagedBanner
+        pendingCount={diff.total}
+        onReview={() => setReviewOpen(true)}
+        onDiscard={handleDiscard}
+        t={t}
+      />
+
       <EnvironmentPlainVarsEditor
         rows={rows}
-        saving={saving}
+        saving={saving || deploying}
         onAdd={addRow}
         onRemove={removeRow}
         onUpdate={updateRow}
+        onImportEnv={() => setImportOpen(true)}
         onSave={save}
         t={t}
       />
 
-      <ResourceInstanceList instances={resourceInstances} t={t} />
+      <EnvironmentResourceInstanceList instances={resourceInstances} t={t} />
 
-      <SecretVarsList secretKeys={secretKeys} keysManageHref={keysManageHref} t={t} />
+      <EnvironmentSecretVarsList secretKeys={secretKeys} keysManageHref={keysManageHref} t={t} />
+
+      <EnvironmentEnvImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        existingKeys={new Set(Object.keys(draft))}
+        onImport={handleImport}
+        t={t}
+      />
+
+      <EnvironmentEnvReviewModal
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        changes={diff.changes}
+        deploying={deploying}
+        onDeploy={handleDeploy}
+        t={t}
+      />
     </section>
-  );
-}
-
-interface SecretVarsListProps {
-  secretKeys: ProjectSecretKey[];
-  keysManageHref: string;
-  t: ProjectsTranslator;
-}
-
-function SecretVarsList({ secretKeys, keysManageHref, t }: SecretVarsListProps) {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <h5 className="text-xs font-medium text-muted-foreground">{t('envVarsSecretTitle')}</h5>
-        <Link href={keysManageHref} className="text-xs text-primary hover:underline">
-          {t('envVarsManageKeys')}
-        </Link>
-      </div>
-      <p className="text-xs text-muted-foreground">{t('envVarsSecretHint')}</p>
-      {secretKeys.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t('envVarsSecretEmpty')}</p>
-      ) : (
-        <ul className="space-y-1 text-sm">
-          {secretKeys.map((sk) => (
-            <li key={sk.id} className="flex items-center gap-2">
-              <span className="font-mono text-xs">{deriveEnvKey(sk.name)}</span>
-              <span className="text-xs text-muted-foreground">{sk.type}</span>
-              <span className="font-mono text-xs text-muted-foreground">••••••••</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/** 与后端 exportAsEnv 同源的 KEY 名派生（name.toUpperCase().replace(/[^A-Z0-9]/g, '_')）。 */
-function deriveEnvKey(name: string): string {
-  return name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-}
-
-/** 从 envTemplate 文本提取会注入的 KEY 名(每行 KEY=... 的左侧)。 */
-function deriveTemplateKeys(envTemplate: string | null | undefined): string[] {
-  if (!envTemplate) return [];
-  const keys = new Set<string>();
-  for (const raw of envTemplate.split('\n')) {
-    const line = raw.trim();
-    const eq = line.indexOf('=');
-    if (eq <= 0) continue;
-    const key = line.slice(0, eq).trim();
-    if (/^[A-Z_][A-Z0-9_]*$/.test(key)) keys.add(key);
-  }
-  return Array.from(keys).sort();
-}
-
-interface ResourceInstanceListProps {
-  instances: ProjectResourceInstance[];
-  t: ProjectsTranslator;
-}
-
-/** 资源交付实例列表(部署注入的第一源):展示实例名、类型、注入的 KEY 名。 */
-function ResourceInstanceList({ instances, t }: ResourceInstanceListProps) {
-  return (
-    <div className="space-y-1">
-      <h5 className="text-xs font-medium text-muted-foreground">{t('envVarsInstanceTitle')}</h5>
-      <p className="text-xs text-muted-foreground">{t('envVarsInstanceHint')}</p>
-      {instances.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t('envVarsInstanceEmpty')}</p>
-      ) : (
-        <ul className="space-y-1 text-sm">
-          {instances.map((inst) => {
-            const injectable = isResourceTypeInjectable(inst.resourceType?.key);
-            const keys = deriveTemplateKeys(inst.resourceType?.envTemplate);
-            return (
-              <li
-                key={inst.id}
-                className="flex flex-wrap items-center gap-2"
-              >
-                <span className="text-xs font-medium">{inst.name}</span>
-                <span className="text-xs text-muted-foreground">{inst.resourceType?.name || inst.resourceType?.key}</span>
-                {injectable && keys.length > 0 ? (
-                  <span className="font-mono text-xs text-primary">→ {keys.join(', ')}</span>
-                ) : injectable ? (
-                  <span className="text-xs text-muted-foreground">→ (按模板注入)</span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">(无 envTemplate,不注入)</span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
   );
 }

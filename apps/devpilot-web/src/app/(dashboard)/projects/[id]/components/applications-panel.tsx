@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
+import { PanelGroup } from './panel-group';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -23,11 +24,7 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
   if (!p || !p.applications || p.applications.length === 0)
     return <EmptyState text={t('noLinkedApps')} />;
   return (
-    <div className="rounded-lg border p-4">
-      <div className="mb-3">
-        <h3 className="text-base font-semibold">{t('linkedApps')}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{t('applicationsPanelDescription')}</p>
-      </div>
+    <PanelGroup title={t('linkedApps')} subtitle={t('applicationsPanelDescription')}>
       <div className="space-y-3">
         {p.applications.map((app) => (
           <div
@@ -61,6 +58,6 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
           </div>
         ))}
       </div>
-    </div>
+    </PanelGroup>
   );
 }

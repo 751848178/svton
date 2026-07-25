@@ -1,13 +1,15 @@
 /** 监控仪表盘面板。 */
 'use client';
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { EmptyState, LoadingState, Skeleton } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
 import type { useMonitoring } from '../hooks/use-monitoring';
-import { resourceKindLabels, metricSourceLabels, statusLabels } from '../constants';
-import { formatMetricWindow, humanizeKey } from '../utils-format';
+import { useRecentDeploymentEvents } from '../hooks/use-recent-deployment-events';
+import type { SparklineTimeWindow } from '../deployment-window.utils';
+import { formatMetricWindow } from '../utils-format';
 import { ServiceSloRow } from './service-slo-row';
+import { ResourceMetricRow } from './resource-metric-row';
 import type { ServiceSloDashboardRow } from '../types-dashboard';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
 
@@ -15,6 +17,8 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
   const t = useTranslations('monitoring');
   const serviceRows = m.serviceSloDashboard?.rows ?? [];
   const serviceLabel = readFocusedServiceLabel(m, serviceRows[0]);
+  const deployments = useRecentDeploymentEvents();
+  const resourceTimeWindow = useResourceTimeWindow(m);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -42,26 +46,12 @@ export function DashboardPanels({ m }: { m: MonitoringHook }) {
         ) : (
           <div className="space-y-2">
             {m.resourceMetricDashboard.rows.slice(0, 10).map((row) => (
-              <div
+              <ResourceMetricRow
                 key={row.id}
-                className="flex flex-wrap items-center justify-between gap-2 text-sm"
-              >
-                <span className="min-w-0 break-words">
-                  {resourceKindLabels[row.kind] || humanizeKey(row.kind)}{' '}
-                  <span className="text-muted-foreground">
-                    ({metricSourceLabels[row.metricSource] || humanizeKey(row.metricSource)})
-                  </span>
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <StatusTag
-                    status={row.status}
-                    label={statusLabels[row.status] || row.status}
-                  />
-                  <span className="text-muted-foreground">
-                    {t('samples', { count: row.sampleCount })}
-                  </span>
-                </span>
-              </div>
+                row={row}
+                deployments={deployments}
+                timeWindow={resourceTimeWindow ?? undefined}
+              />
             ))}
           </div>
         )}
@@ -148,6 +138,23 @@ function readFocusedServiceLabel(
       : row.service.name;
   }
   return m.applicationServiceId;
+}
+
+/**
+ * 把资源指标仪表盘的时间窗口换算为 sparkline 部署虚线所需的窗口(N4)。
+ * 窗口右端取 generatedAt(后端汇总时刻),缺省回退 Date.now()。
+ * 仅当 dashboard 与 windowMinutes 都存在时返回;否则返回 null(不叠加虚线)。
+ */
+function useResourceTimeWindow(m: MonitoringHook): SparklineTimeWindow | null {
+  return useMemo(() => {
+    const dashboard = m.resourceMetricDashboard;
+    if (!dashboard) return null;
+    const endMs = dashboard.generatedAt
+      ? new Date(dashboard.generatedAt).getTime()
+      : Date.now();
+    if (!Number.isFinite(endMs)) return null;
+    return { windowEndMs: endMs, windowMinutes: dashboard.windowMinutes };
+  }, [m.resourceMetricDashboard]);
 }
 
 const WINDOW_OPTIONS: Array<{ minutes: number; label: string }> = [

@@ -54,21 +54,23 @@ export function useApprovals(initialApprovals?: OperationApproval[]) {
     [approvals],
   );
 
-  const review = usePersistFn(async (approval: OperationApproval, decision: ApprovalDecision) => {
-    setActingId(`${approval.id}:${decision}`);
-    setError('');
-    try {
-      await apiRequest(`POST:/operation-approvals/${approval.id}/review`, {
-        decision,
-        reviewComment: decision === 'approved' ? '同意执行' : '拒绝执行',
-      });
-      await mutate(approvalsKey(status));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '审批操作失败');
-    } finally {
-      setActingId('');
-    }
-  });
+  const review = usePersistFn(
+    async (approval: OperationApproval, decision: ApprovalDecision, comment?: string) => {
+      setActingId(`${approval.id}:${decision}`);
+      setError('');
+      try {
+        await apiRequest(`POST:/operation-approvals/${approval.id}/review`, {
+          decision,
+          reviewComment: comment?.trim() || (decision === 'approved' ? '同意执行' : '拒绝执行'),
+        });
+        await mutate(approvalsKey(status));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '审批操作失败');
+      } finally {
+        setActingId('');
+      }
+    },
+  );
 
   const execute = usePersistFn(async (approval: OperationApproval) => {
     setActingId(`${approval.id}:execute`);

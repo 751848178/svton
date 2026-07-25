@@ -5,7 +5,7 @@ import { useBoolean } from '@svton/hooks';
 import { EmptyState, Tag } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { CreateSilenceModal } from './create-silence-modal';
-import { severityLabels } from '../constants';
+import { severityLabels, statusLabels } from '../constants';
 import { shortId } from '../utils-format';
 import type { useMonitoring } from '../hooks/use-monitoring';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
@@ -57,7 +57,10 @@ export function SilencesPanel({ m }: { m: MonitoringHook }) {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <StatusTag status={silence.status === 'active' ? 'active' : 'inactive'} />
+                  <StatusTag
+                    status={silence.status}
+                    label={statusLabels[silence.status] || silence.status}
+                  />
                   <button
                     onClick={() =>
                       m.updateSilenceStatus(

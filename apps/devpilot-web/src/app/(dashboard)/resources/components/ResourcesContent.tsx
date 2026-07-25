@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
-import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, ErrorBanner } from '@/components/ui';
+import { EmptyState } from '@svton/ui';
+import { PageHeader, DataBoundary } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { useResources } from '../hooks/use-resources';
@@ -26,7 +26,7 @@ export function ResourcesContent({
 }) {
   const t = useTranslations('resources');
   const tc = useTranslations('common');
-  const { resources, resourceTypes, resourceTypeMap, isLoading, loadError, create, remove } =
+  const { resources, resourceTypes, resourceTypeMap, isLoading, loadError, create, remove, refresh } =
     useResources(initialResources, initialResourceTypes);
   const [modalOpen, { setTrue: openModal, setFalse: closeModal }] = useBoolean(false);
   // 删除确认弹窗状态（一个操作一个确认实例）
@@ -64,47 +64,40 @@ export function ResourcesContent({
         </div>
       </div>
 
-      {loadError ? (
-        <ErrorBanner
-          message={t('loadFailed')}
-          className="mb-4"
-        />
-      ) : null}
-
-      {isLoading ? (
-        <LoadingState text={tc('loading')} />
-      ) : resources.length === 0 ? (
-        <EmptyState
-          text={t('noResources')}
-          action={
-            <button onClick={openModal} className="text-primary hover:underline">
-              {t('addFirst')}
-            </button>
-          }
-        />
-      ) : (
-        <div className="space-y-4">
-          {resources.map((resource) => (
-            <div
-              key={resource.id}
-              className="flex items-center justify-between rounded-lg border p-4"
-            >
-              <div>
-                <h3 className="font-medium">{resource.name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {resourceTypeMap[resource.type]?.name || resource.type}
-                </p>
-              </div>
-              <button
-                onClick={() => setDeleteTarget(resource)}
-                className="rounded px-3 py-1 text-sm text-destructive transition-colors hover:bg-destructive/10"
-              >
-                {tc('delete')}
+      <DataBoundary loading={isLoading} error={loadError} onRetry={refresh} className="mb-4">
+        {resources.length === 0 ? (
+          <EmptyState
+            text={t('noResources')}
+            action={
+              <button onClick={openModal} className="text-primary hover:underline">
+                {t('addFirst')}
               </button>
-            </div>
-          ))}
-        </div>
-      )}
+            }
+          />
+        ) : (
+          <div className="space-y-4">
+            {resources.map((resource) => (
+              <div
+                key={resource.id}
+                className="flex items-center justify-between rounded-lg border p-4"
+              >
+                <div>
+                  <h3 className="font-medium">{resource.name}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {resourceTypeMap[resource.type]?.name || resource.type}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDeleteTarget(resource)}
+                  className="rounded px-3 py-1 text-sm text-destructive transition-colors hover:bg-destructive/10"
+                >
+                  {tc('delete')}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </DataBoundary>
 
       <AddResourceModal
         open={modalOpen}

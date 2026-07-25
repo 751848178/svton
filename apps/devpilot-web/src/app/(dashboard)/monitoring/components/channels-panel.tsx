@@ -6,7 +6,7 @@ import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { CreateChannelModal } from './create-channel-modal';
 import { NotificationDeliveriesPanel } from './notification-deliveries-panel';
-import { notificationChannelTypeLabels } from '../constants';
+import { notificationChannelTypeLabels, statusLabels } from '../constants';
 import type { useMonitoring } from '../hooks/use-monitoring';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
 
@@ -42,7 +42,10 @@ export function ChannelsPanel({ m }: { m: MonitoringHook }) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <StatusTag status={channel.status === 'active' ? 'active' : 'inactive'} />
+                    <StatusTag
+                      status={channel.status}
+                      label={statusLabels[channel.status] || channel.status}
+                    />
                     <button
                       onClick={() =>
                         m.updateNotificationChannelStatus(

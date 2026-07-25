@@ -19,6 +19,9 @@ import { getEnvStatusLabelKey } from '../utils/run-labels';
 import { buildEnvironmentConfigProfiles } from '../utils/deployment-config';
 import { ConfigProfile, LastDeployment } from './environment-detail-derived';
 import { EnvironmentEnvVarsSection } from './environment-env-vars-section';
+import { EnvironmentWriteActions } from './environment-write-actions';
+import { EnvironmentCopyPanel } from './environment-copy-panel';
+import { EnvironmentSyncPanel } from './environment-sync-panel';
 import type { DeploymentRun } from '../types/operations';
 import type { Project, ProjectEnvironment } from '../types';
 
@@ -52,6 +55,8 @@ export function EnvironmentDetailDrawer({
     setRendered((prev) => (prev && prev.id === updated.id ? updated : prev));
     onEnvironmentSaved?.();
   };
+  // 复制/同步/新建成功后通知父级重载(onEnvironmentSaved 可选,补默认避免类型 optional)。
+  const reload = onEnvironmentSaved ?? (() => {});
 
   const profile = useMemo(
     () =>
@@ -83,6 +88,13 @@ export function EnvironmentDetailDrawer({
       <div className="space-y-5">
         <EnvBasics environment={rendered} t={t} />
         <BoundServers environment={rendered} t={t} />
+        <EnvironmentWriteActions environment={rendered} onSaved={handleEnvSaved} />
+        {rendered.status !== 'archived' ? (
+          <>
+            <EnvironmentCopyPanel environment={rendered} project={project} onChanged={reload} />
+            <EnvironmentSyncPanel environment={rendered} project={project} onChanged={reload} />
+          </>
+        ) : null}
         <ResourceCounts environment={rendered} t={t} />
         <EnvironmentEnvVarsSection
           environment={rendered}

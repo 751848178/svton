@@ -61,6 +61,21 @@ export function useMonitoringActions(args: UseMonitoringActionsArgs) {
     }
   });
 
+  const deleteRule = usePersistFn(async (rule: AlertRule): Promise<boolean> => {
+    setActingId(`rule:${rule.id}:delete`);
+    setError('');
+    try {
+      await apiRequest(`DELETE:/monitoring/alert-rules/${rule.id}`);
+      await loadData();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除规则失败');
+      return false;
+    } finally {
+      setActingId('');
+    }
+  });
+
   const acknowledgeEvent = usePersistFn(async (event: AlertEvent) => {
     setActingId(`event:${event.id}:ack`);
     setError('');
@@ -165,6 +180,7 @@ export function useMonitoringActions(args: UseMonitoringActionsArgs) {
 
   return {
     evaluateRule,
+    deleteRule,
     acknowledgeEvent,
     updateSilenceStatus,
     updateNotificationChannelStatus,

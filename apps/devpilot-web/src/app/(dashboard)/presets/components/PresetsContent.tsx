@@ -108,6 +108,7 @@ export function PresetsContent({ initialPresets }: { initialPresets?: Preset[] }
 
   const handleSave = usePersistFn(async (name: string) => {
     await create({ name, config });
+    feedback.success(t('presetSaved'));
   });
 
   return (

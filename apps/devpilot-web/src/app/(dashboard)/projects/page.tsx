@@ -1,154 +1,49 @@
-import Link from 'next/link';
-import { getTranslations } from 'next-intl/server';
-import { EmptyState, Tag } from '@svton/ui';
-import { ErrorBanner, LinkButton, PageHeader } from '@/components/ui';
 import { serverRequest } from '@/lib/api-client/server';
 import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
-import { formatDate } from '@/lib/format-date';
-
-import {
-  getProjectDescription,
-  getProjectManagementScopeLabel,
-  getProjectOriginLabel,
-  getProjectRepository,
-  getProjectStackTags,
-  getProjectSubProjectLabels,
-} from '@/lib/project-display';
+import { ProjectsContent } from './components/ProjectsContent';
+import type { Project, ProjectDeploymentRun } from './types';
 
 /** 该页在请求时读取 cookies() 鉴权，必须动态渲染。 */
 export const dynamic = 'force-dynamic';
 
-interface Project {
-  id: string;
-  name: string;
-  description: string | null;
-  gitRepo: string | null;
-  createdAt: string;
-  config: unknown;
-}
-
+/**
+ * 项目列表 — Server Component。
+ *
+ * 首屏并行取数（项目列表 + 全局最近部署运行），下发 initialProjects/initialRuns 给
+ * 客户端 ProjectsContent（SWR fallback）。检索、最近部署聚合、卡片增强在客户端完成。
+ *
+ * runs 取数失败不阻断列表（latestRun 状态点退化为「暂无部署」），故独立 try/catch。
+ */
 export default async function ProjectsPage() {
-  const t = await getTranslations('projects');
-  const tc = await getTranslations('common');
-  let projects: Project[] = [];
+  let initialProjects: Project[] | undefined;
+  let initialRuns: ProjectDeploymentRun[] | undefined;
   let loadFailed = false;
+
   try {
-    projects = await serverRequest<Project[]>('GET:/projects');
+    const projects = await serverRequest<Project[]>('GET:/projects');
+    initialProjects = projects.length > 0 ? projects : undefined;
   } catch (error) {
     redirectOnUnauthorized(error, '/projects');
     console.error('Failed to load projects:', error);
     loadFailed = true;
   }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t('pageTitle')}
-        description={t('pageDescription')}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <LinkButton
-              href="/projects/import"
-              variant="outline"
-            >
-              {t('importExisting')}
-            </LinkButton>
-            <LinkButton
-              href="/projects/new"
-              variant="primary"
-            >
-              {t('createNew')}
-            </LinkButton>
-          </div>
-        }
-      />
-
-      {loadFailed ? (
-        <div className="space-y-3">
-          {/* Server Component 中无法传 onRetry 回调，用同页 Link 触发重新加载 */}
-          <ErrorBanner message={t('loadFailed')} />
-          <Link
-            href="/projects"
-            className="inline-block text-sm text-primary hover:underline"
-          >
-            {tc('retry')}
-          </Link>
-        </div>
-      ) : projects.length === 0 ? (
-        <EmptyState
-          text={t('noProjects')}
-          description={t('noProjectsDescription')}
-          action={
-            <div className="flex gap-3">
-              <LinkButton
-                href="/projects/import"
-                variant="outline"
-              >
-                {t('importExisting')}
-              </LinkButton>
-              <LinkButton
-                href="/projects/new"
-                variant="primary"
-              >
-                {t('createNew')}
-              </LinkButton>
-            </div>
-          }
-        />
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              hasGitRepoLabel={t('hasGitRepo')}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ProjectCard({ project, hasGitRepoLabel }: { project: Project; hasGitRepoLabel: string }) {
-  const description = getProjectDescription(project.config, project.description);
-  const tags = [
-    ...getProjectSubProjectLabels(project.config),
-    ...getProjectStackTags(project.config),
-  ];
-  const repository = getProjectRepository(project.config, project.gitRepo);
+  // runs 失败不阻断列表；列表已失败时也不必再取 runs。
+  if (!loadFailed) {
+    try {
+      const runs = await serverRequest<ProjectDeploymentRun[]>('GET:/deployments/runs');
+      initialRuns = runs.length > 0 ? runs : undefined;
+    } catch (error) {
+      redirectOnUnauthorized(error, '/projects');
+      console.error('Failed to load deployment runs for projects:', error);
+    }
+  }
 
   return (
-    <Link
-      href={`/projects/${project.id}`}
-      className="rounded-lg border bg-card p-6 transition-shadow hover:shadow-md"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-lg font-semibold">{project.name}</h3>
-        <Tag color="default">{getProjectOriginLabel(project.config)}</Tag>
-      </div>
-      <div className="mt-3">
-        <Tag color="cyan">{getProjectManagementScopeLabel(project.config)}</Tag>
-      </div>
-      {description ? (
-        <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{description}</p>
-      ) : null}
-      {tags.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {tags.map((tag) => (
-            <Tag
-              key={tag}
-              color="default"
-            >
-              {tag}
-            </Tag>
-          ))}
-        </div>
-      ) : null}
-      <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
-        <span>{formatDate(project.createdAt)}</span>
-        {repository ? <span className="text-primary">{hasGitRepoLabel}</span> : null}
-      </div>
-    </Link>
+    <ProjectsContent
+      initialProjects={initialProjects}
+      initialRuns={initialRuns}
+      loadFailed={loadFailed}
+    />
   );
 }

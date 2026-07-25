@@ -9,6 +9,7 @@
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { Server, Project, ProjectEnvironment, ProxyConfig } from '../types';
 import { buildRuntimeConfig, splitCsv } from '../utils';
 import { AddSiteBasicFields } from './add-site-basic-fields.component';
@@ -89,6 +90,7 @@ export function AddSiteModal({
         proxyConfigId: data.proxyConfigId || undefined,
       });
       onSuccess();
+      feedback.success(t('addSiteSuccess'));
     } catch (err) {
       setError('root', { message: err instanceof Error ? err.message : t('addSiteFailed') });
     }

@@ -35,11 +35,15 @@ export function readEnvVars(environment: ProjectEnvironment | null): Record<stri
 
 export interface UseEnvironmentEnvVarsResult {
   vars: Record<string, string>;
-  /** 本地编辑缓冲（add/edit/delete 命中缓冲；save 落库 + 回调通知父级）。 */
+  /** 本地编辑缓冲（add/edit/delete/import 命中缓冲；落库前形成 staged diff）。 */
   draft: Record<string, string>;
   setDraft: (next: Record<string, string>) => void;
   saving: boolean;
+  /** 一次性把 draft 落库（PUT envVars）。也作为 staged changes 的 deploy 入口。 */
   save: () => Promise<void>;
+  /** 把 draft 合并到现有 vars（导入 .env 时增量更新，保留已有行）。 */
+  mergeDraft: (incoming: Record<string, string>) => void;
+  /** 丢弃 draft，回到已落库 vars（reset 的语义别名，供暂存区「放弃变更」按钮使用）。 */
   reset: () => void;
 }
 
@@ -54,6 +58,14 @@ export function useEnvironmentEnvVars(
   // environment 切换时重置 draft 为该环境的落库值。
   const setDraft = useCallback(
     (next: Record<string, string>) => setDraftState(next),
+    [],
+  );
+
+  // 合并导入：保留 draft 中已有行，incoming 覆盖同名 KEY（与 .env 后者覆盖前者语义一致）。
+  const mergeDraft = useCallback(
+    (incoming: Record<string, string>) => {
+      setDraftState((prev) => ({ ...prev, ...incoming }));
+    },
     [],
   );
 
@@ -93,5 +105,5 @@ export function useEnvironmentEnvVars(
     }
   }, [environment, draft, onSaved]);
 
-  return { vars, draft, setDraft, saving, save, reset };
+  return { vars, draft, setDraft, mergeDraft, saving, save, reset };
 }

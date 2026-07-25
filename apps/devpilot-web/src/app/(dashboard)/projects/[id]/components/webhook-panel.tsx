@@ -1,24 +1,71 @@
-/** 项目 Webhook 面板。 */
+/**
+ * 项目 Webhook 面板。
+ *
+ * 单一职责:渲染 webhook 列表 + 编排「新建/编辑/轮换密钥/投递记录」弹窗。
+ * 行级渲染与脱敏 reveal 抽到 WebhookRow;本组件只持有弹窗开关与变更回调。
+ */
 'use client';
+import { useCallback, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Copyable, EmptyState, Tag } from '@svton/ui';
-import { ErrorBanner, StatusTag } from '@/components/ui';
-import { formatDateTimeMinute } from '@/lib/format-date';
+import { EmptyState } from '@svton/ui';
+import { ConfirmDialog, ErrorBanner } from '@/components/ui';
+import { feedback } from '@/components/ui/feedback/feedback';
+import { PanelGroup } from './panel-group';
+import { useProjectWebhooks } from '../hooks/use-project-webhooks';
 import type { useProjectDetail } from '../hooks/use-project-detail';
-import type { ProjectWebhook } from '../types/operations';
+import type { ProjectWebhook, WebhookDelivery } from '../types/operations';
+import { WebhookFormModal } from './webhook-form-modal';
+import { WebhookDeliveriesModal } from './webhook-deliveries-modal';
+import { WebhookSecretRevealModal } from './webhook-secret-reveal-modal';
+import { WebhookRow } from './webhook-row';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
-type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
-
-/** URL Token 脱敏展示：首 4 + 末 4，中间用圆点替代，完整值仍可复制。 */
-function maskToken(token: string): string {
-  if (!token) return '';
-  if (token.length <= 8) return '••••';
-  return `${token.slice(0, 4)}••••${token.slice(-4)}`;
-}
 
 export function WebhookPanel({ detail }: { detail: DetailHook }) {
   const t = useTranslations('projects');
+  const hooks = useProjectWebhooks(detail.loadWebhooks);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<ProjectWebhook | null>(null);
+  const [rotateTarget, setRotateTarget] = useState<ProjectWebhook | null>(null);
+  const [rotatedSecret, setRotatedSecret] = useState('');
+  const [deliveriesOpen, setDeliveriesOpen] = useState(false);
+  const [deliveriesHook, setDeliveriesHook] = useState<ProjectWebhook | null>(null);
+  const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
+
+  const openCreate = useCallback(() => {
+    setEditing(null);
+    setFormOpen(true);
+  }, []);
+
+  const openEdit = useCallback((hook: ProjectWebhook) => {
+    setEditing(hook);
+    setFormOpen(true);
+  }, []);
+
+  const openDeliveries = useCallback((hook: ProjectWebhook) => {
+    setDeliveriesHook(hook);
+    setDeliveries([]);
+    setDeliveriesOpen(true);
+  }, []);
+
+  const loadDeliveriesFor = useCallback(
+    async (webhookId: string) => {
+      const list = await hooks.loadDeliveries(webhookId);
+      setDeliveries(list);
+    },
+    [hooks],
+  );
+
+  const handleRotate = useCallback(async () => {
+    if (!rotateTarget) return;
+    const secret = await hooks.rotateSecret(rotateTarget.id);
+    if (secret) {
+      feedback.success(t('webhookRotated'));
+      setRotatedSecret(secret);
+    }
+  }, [hooks, rotateTarget, t]);
+
   if (detail.webhookError) {
     return (
       <ErrorBanner
@@ -27,55 +74,74 @@ export function WebhookPanel({ detail }: { detail: DetailHook }) {
       />
     );
   }
-  if (detail.webhooks.length === 0) return <EmptyState text={t('noWebhooks')} />;
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="mb-3">
-        <h3 className="text-base font-semibold">{t('webhookTitle')}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{t('webhookPanelDescription')}</p>
-      </div>
-      <div className="space-y-2">
-        {detail.webhooks.map((hook) => (
-          <WebhookRow key={hook.id} hook={hook} t={t} />
-        ))}
-      </div>
-    </div>
-  );
-}
 
-function WebhookRow({ hook, t }: { hook: ProjectWebhook; t: ProjectsTranslator }) {
-  const eventTypes = Array.isArray(hook.eventTypes) ? (hook.eventTypes as string[]) : [];
   return (
-    <div className="rounded-md border px-3 py-2 text-sm">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{hook.name}</span>
-        <div className="flex items-center gap-2">
-          <Tag color="cyan">
-            {t('providerLabel')}: {hook.provider}
-          </Tag>
-          <StatusTag
-            status={hook.enabled ? 'active' : 'inactive'}
-            label={hook.enabled ? t('envStatusActive') : t('envStatusInactive')}
-          />
-        </div>
-      </div>
-      <div className="mt-1 flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">{t('urlTokenLabel')}:</span>
-        <Copyable
-          text={hook.urlToken}
-          copyText={t('copyUrlToken')}
-          copiedText={t('copied')}
+    <PanelGroup
+      title={t('webhookTitle')}
+      subtitle={t('webhookPanelDescription')}
+      actions={
+        <button
+          type="button"
+          onClick={openCreate}
+          className="min-h-11 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          <span className="font-mono text-xs text-muted-foreground">{maskToken(hook.urlToken)}</span>
-        </Copyable>
-      </div>
-      <div className="mt-1 text-xs text-muted-foreground">
-        {t('webhookEvents')}: {eventTypes.length > 0 ? eventTypes.join(', ') : '-'}
-      </div>
-      <div className="mt-1 text-xs text-muted-foreground">
-        {t('webhookLastDelivery')}:{' '}
-        {hook.lastDeliveryAt ? formatDateTimeMinute(hook.lastDeliveryAt) : t('webhookNoDelivery')}
-      </div>
-    </div>
+          {t('createWebhook')}
+        </button>
+      }
+    >
+      {detail.webhooks.length === 0 ? (
+        <EmptyState text={t('noWebhooks')} />
+      ) : (
+        <div className="space-y-2">
+          {detail.webhooks.map((hook) => (
+            <WebhookRow
+              key={hook.id}
+              hook={hook}
+              onEdit={openEdit}
+              onRotate={setRotateTarget}
+              onShowDeliveries={openDeliveries}
+            />
+          ))}
+        </div>
+      )}
+
+      <WebhookFormModal
+        open={formOpen}
+        projectId={detail.project?.id ?? ''}
+        editing={editing}
+        creating={hooks.creating}
+        updating={hooks.updating}
+        error={hooks.createError || hooks.updateError}
+        onClose={() => setFormOpen(false)}
+        onCreate={hooks.createWebhook}
+        onUpdate={hooks.updateWebhook}
+        onClearError={hooks.clearCreateError}
+      />
+
+      <ConfirmDialog
+        open={Boolean(rotateTarget)}
+        onOpenChange={(o) => !o && setRotateTarget(null)}
+        tone="warning"
+        title={t('rotateSecret')}
+        description={t('rotateSecretConfirm')}
+        confirmLabel={t('rotateSecret')}
+        onConfirm={handleRotate}
+      />
+
+      <WebhookDeliveriesModal
+        open={deliveriesOpen}
+        webhook={deliveriesHook}
+        loading={hooks.loadingDeliveries}
+        deliveries={deliveries}
+        onClose={() => setDeliveriesOpen(false)}
+        onOpen={loadDeliveriesFor}
+      />
+
+      <WebhookSecretRevealModal
+        open={Boolean(rotatedSecret)}
+        secret={rotatedSecret}
+        onClose={() => setRotatedSecret('')}
+      />
+    </PanelGroup>
   );
 }

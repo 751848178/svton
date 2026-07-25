@@ -2,10 +2,12 @@
  * 审批卡片
  *
  * 单一职责：渲染单个审批 + 状态/风险徽章 + 决策/执行操作。
+ * 驳回理由收集委托 RejectReasonModal（必填,合规留痕）；approved 保持快捷通过。
  */
 
 'use client';
 
+import { useState } from 'react';
 import { usePersistFn } from '@svton/hooks';
 import { useTranslations } from 'next-intl';
 import { StatusTag, CodeBlock } from '@/components/ui';
@@ -17,19 +19,26 @@ import {
   readMetadataString,
   humanizeAction,
 } from '../utils';
+import { RejectReasonModal } from './reject-reason-modal';
 
 interface ApprovalCardProps {
   approval: OperationApproval;
   actingId: string;
-  onReview: (approval: OperationApproval, decision: ApprovalDecision) => void;
+  onReview: (approval: OperationApproval, decision: ApprovalDecision, comment?: string) => void;
   onExecute: (approval: OperationApproval) => void;
 }
 
 export function ApprovalCard({ approval, actingId, onReview, onExecute }: ApprovalCardProps) {
   const t = useTranslations('operationApprovals');
+  const [rejectOpen, setRejectOpen] = useState(false);
   const handleApprove = usePersistFn(() => onReview(approval, 'approved'));
-  const handleReject = usePersistFn(() => onReview(approval, 'rejected'));
+  const handleReject = usePersistFn(() => setRejectOpen(true));
   const handleExecute = usePersistFn(() => onExecute(approval));
+  const handleCloseReject = usePersistFn(() => setRejectOpen(false));
+  const handleConfirmReject = usePersistFn((comment: string) => {
+    onReview(approval, 'rejected', comment);
+    setRejectOpen(false);
+  });
 
   const diffSummary = readMetadataString(approval.metadata, 'diffSummary');
   const actionLabel = humanizeAction(approval.action, actionLabels);
@@ -61,7 +70,16 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
             })}
           </div>
           {approval.reason ? (
-            <div className="mt-2 rounded-md bg-muted/50 p-2 text-sm">{approval.reason}</div>
+            <div className="mt-2 rounded-md bg-muted/50 p-2 text-sm">
+              <span className="text-xs text-muted-foreground">{t('requesterReason')}</span>
+              <div className="mt-0.5">{approval.reason}</div>
+            </div>
+          ) : null}
+          {approval.reviewComment ? (
+            <div className="mt-2 rounded-md bg-muted/30 p-2 text-sm">
+              <span className="text-xs text-muted-foreground">{t('reviewerComment')}</span>
+              <div className="mt-0.5">{approval.reviewComment}</div>
+            </div>
           ) : null}
           {diffSummary ? (
             <CodeBlock
@@ -112,6 +130,13 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
           ) : null}
         </div>
       </div>
+      <RejectReasonModal
+        open={rejectOpen}
+        variant="rejected"
+        onClose={handleCloseReject}
+        onConfirm={handleConfirmReject}
+        submitting={actingId === `${approval.id}:rejected`}
+      />
     </div>
   );
 }

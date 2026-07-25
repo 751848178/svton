@@ -1,18 +1,25 @@
 /**
  * 设置 Tab
  *
- * 单一职责：渲染项目基本信息编辑表单（名称 / 描述）+ git 仓库展示。
+ * 单一职责：渲染项目基本信息编辑表单（名称 / 描述）+ git 仓库展示 + 危险区删除。
  * 由原 ProjectOverviewPanel 的编辑能力迁入 —— 编辑属于"配置"，归设置，
  * 不应挤在概览里分散注意。
  *
  * 保存逻辑沿用原内联 apiRequest（PUT:/projects/:id），保持现有行为不变。
+ * 删除走既有 project.delete 策略（risk high，审批走后端 access-policy），
+ * 配 type-to-confirm（输入项目名）防误删 —— 参照 servers 删除模式。
  */
 
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
+import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import { Button, Input, Textarea } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
@@ -20,11 +27,12 @@ type DetailHook = ReturnType<typeof useProjectDetail>;
 export function SettingsTab({ detail }: { detail: DetailHook }) {
   const t = useTranslations('projects');
   const tc = useTranslations('common');
+  const router = useRouter();
   const p = detail.project;
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const handleSave = usePersistFn(async () => {
     if (!p) return;
-    const { apiRequest } = await import('@/lib/api-client');
     await apiRequest(`PUT:/projects/${p.id}`, detail.editForm);
     detail.setEditing(false);
     detail.loadProject();
@@ -34,6 +42,13 @@ export function SettingsTab({ detail }: { detail: DetailHook }) {
     if (!p) return;
     detail.setEditForm({ name: p.name, description: p.description ?? '' });
     detail.setEditing(false);
+  });
+
+  const handleDelete = usePersistFn(async () => {
+    if (!p) return;
+    await apiRequest(`DELETE:/projects/${p.id}`);
+    feedback.success(t('deleteSuccess'));
+    router.push('/projects');
   });
 
   if (!p) return null;
@@ -91,6 +106,26 @@ export function SettingsTab({ detail }: { detail: DetailHook }) {
           </div>
         </dl>
       )}
+
+      <div className="rounded-lg border border-destructive/50 p-6">
+        <h2 className="mb-2 font-semibold text-destructive">{t('dangerZone')}</h2>
+        <p className="mb-4 text-sm text-muted-foreground">{t('deleteProjectDescription')}</p>
+        <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
+          {t('deleteProject')}
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        tone="danger"
+        title={t('deleteProjectTitle')}
+        description={t('deleteProjectConfirm')}
+        resourceName={p.name}
+        confirmLabel={tc('delete')}
+        cancelLabel={tc('cancel')}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

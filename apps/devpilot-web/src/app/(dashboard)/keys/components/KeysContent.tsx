@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn, useSetState } from '@svton/hooks';
-import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, ErrorBanner } from '@/components/ui';
+import { EmptyState } from '@svton/ui';
+import { PageHeader, DataBoundary } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { useKeys } from '../hooks/use-keys';
@@ -83,10 +83,6 @@ export function KeysContent({ initialKeys, scope, scopeLabel }: KeysContentProps
     await store({ ...input, projectId: scope?.projectId, environmentId: scope?.environmentId });
   });
 
-  if (loading) {
-    return <LoadingState text={tc('loading')} />;
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -119,29 +115,23 @@ export function KeysContent({ initialKeys, scope, scopeLabel }: KeysContentProps
         </div>
       ) : null}
 
-      {error ? (
-        <ErrorBanner
-          message={t('loadFailed')}
-          onRetry={refresh}
-          retryLabel={tc('retry')}
-        />
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {keys.length === 0 ? (
-          <EmptyState text={t('noKeys')} />
-        ) : (
-          keys.map((key) => (
-            <KeyCard
-              key={key.id}
-              secretKey={key}
-              revealedValue={revealed[key.id] || ''}
-              onReveal={handleReveal}
-              onDelete={handleDelete}
-            />
-          ))
-        )}
-      </div>
+      <DataBoundary loading={loading} error={error} onRetry={refresh}>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {keys.length === 0 ? (
+            <EmptyState text={t('noKeys')} />
+          ) : (
+            keys.map((key) => (
+              <KeyCard
+                key={key.id}
+                secretKey={key}
+                revealedValue={revealed[key.id] || ''}
+                onReveal={handleReveal}
+                onDelete={handleDelete}
+              />
+            ))
+          )}
+        </div>
+      </DataBoundary>
 
       <GenerateKeyModal
         open={genOpen}

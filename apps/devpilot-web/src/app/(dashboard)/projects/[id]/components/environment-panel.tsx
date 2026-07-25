@@ -11,10 +11,12 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Card, EmptyState } from '@svton/ui';
+import { Button, Card, EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { getEnvStatusLabelKey } from '../utils/run-labels';
+import { EnvKeyIcon } from './panel-icons';
 import { EnvironmentDetailDrawer } from './environment-detail-drawer';
+import { EnvironmentCreateModal } from './environment-create-modal';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 import type { ProjectEnvironment } from '../types';
 type DetailHook = ReturnType<typeof useProjectDetail>;
@@ -22,16 +24,36 @@ type DetailHook = ReturnType<typeof useProjectDetail>;
 export function EnvironmentPanel({ detail }: { detail: DetailHook }) {
   const t = useTranslations('projects');
   const [activeEnvId, setActiveEnvId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const p = detail.project;
-  if (!p || !p.environments || p.environments.length === 0)
-    return <EmptyState text={t('noEnvironments')} />;
+  if (!p || !p.environments || p.environments.length === 0) {
+    return (
+      <div className="space-y-2">
+        <EmptyState text={t('noEnvironments')} />
+        <CreateEnvButton onClick={() => setCreateOpen(true)} t={t} />
+        {p ? (
+          <EnvironmentCreateModal
+            open={createOpen}
+            projectId={p.id}
+            onClose={() => setCreateOpen(false)}
+            onChanged={detail.loadProject}
+          />
+        ) : null}
+      </div>
+    );
+  }
 
   const activeEnv = p.environments.find((e) => e.id === activeEnvId) ?? null;
 
   return (
     <Card
       title={t('environments')}
-      extra={<span className="text-xs text-muted-foreground">{t('environmentPanelDescription')}</span>}
+      extra={
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t('environmentPanelDescription')}</span>
+          <Button variant="ghost" size="sm" onClick={() => setCreateOpen(true)}>+ {t('envCreateAction')}</Button>
+        </div>
+      }
     >
       <div className="space-y-2">
         {p.environments.map((env) => (
@@ -50,7 +72,21 @@ export function EnvironmentPanel({ detail }: { detail: DetailHook }) {
         onClose={() => setActiveEnvId(null)}
         onEnvironmentSaved={detail.loadProject}
       />
+      <EnvironmentCreateModal
+        open={createOpen}
+        projectId={p.id}
+        onClose={() => setCreateOpen(false)}
+        onChanged={detail.loadProject}
+      />
     </Card>
+  );
+}
+
+function CreateEnvButton({ onClick, t }: { onClick: () => void; t: ProjectsTranslator }) {
+  return (
+    <div className="text-center">
+      <Button variant="ghost" size="sm" onClick={onClick}>+ {t('envCreateAction')}</Button>
+    </div>
   );
 }
 
@@ -76,7 +112,11 @@ function EnvironmentRow({
     >
       <div className="flex min-w-0 flex-wrap items-baseline gap-2">
         <span className="font-medium">{env.name}</span>
-        <span className="font-mono text-xs text-muted-foreground">{env.key}</span>
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+          <EnvKeyIcon className="h-3 w-3" />
+          {t('environmentKeyLabel')}:
+          <span className="font-mono">{env.key}</span>
+        </span>
         {counts ? (
           <span className="text-xs text-muted-foreground">
             {t('envCountSummaryV2', {

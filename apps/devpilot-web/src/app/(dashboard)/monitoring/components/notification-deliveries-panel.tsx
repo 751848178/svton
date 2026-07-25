@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
-import { notificationChannelTypeLabels } from '../constants';
+import { notificationChannelTypeLabels, statusLabels } from '../constants';
 import type { useMonitoring } from '../hooks/use-monitoring';
 type MonitoringHook = ReturnType<typeof useMonitoring>;
 
@@ -56,7 +56,10 @@ export function NotificationDeliveriesPanel({ m }: { m: MonitoringHook }) {
                     ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <StatusTag status={delivery.status} />
+                    <StatusTag
+                      status={delivery.status}
+                      label={statusLabels[delivery.status] || delivery.status}
+                    />
                     {delivery.status === 'failed' && (
                       <button
                         onClick={() => m.retryNotificationDelivery(delivery)}
