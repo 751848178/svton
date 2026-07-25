@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/hooks';
 import { filterNavSectionsByRole, findActiveNavItem, navigationSections, primaryHeaderLinks } from './navigation-items';
 import { NavIcon } from './nav-icons';
+import { NavOrderBadge } from './nav-order-badge';
 import { TeamSwitcher } from './team-switcher';
 
 export function Header() {
@@ -129,10 +130,14 @@ export function Header() {
                               : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                           )}
                         >
-                          <NavIcon
-                            name={item.icon}
-                            className="h-4 w-4 shrink-0"
-                          />
+                          {item.order !== undefined ? (
+                            <NavOrderBadge order={item.order} active={activeItem?.href === item.href} />
+                          ) : (
+                            <NavIcon
+                              name={item.icon}
+                              className="h-4 w-4 shrink-0"
+                            />
+                          )}
                           <span className="truncate">{t(item.labelKey)}</span>
                         </Link>
                       ))}

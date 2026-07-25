@@ -10,6 +10,13 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useServerDetail } from './hooks/use-server-detail';
 import { ServerDetailView } from './components/server-detail-view';
 
+/** 服务器状态值 → servers 命名空间 i18n key。 */
+const SERVER_STATUS_KEY: Record<string, string> = {
+  online: 'online',
+  offline: 'offline',
+  unknown: 'unknown',
+};
+
 export default function ServerDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -77,7 +84,10 @@ export default function ServerDetailPage() {
           ←
         </Button>
         <h1 className="text-2xl font-bold">{server.name}</h1>
-        <StatusTag status={server.status} />
+        <StatusTag
+          status={server.status}
+          label={t(SERVER_STATUS_KEY[server.status] || 'unknown')}
+        />
       </div>
 
       {error ? (

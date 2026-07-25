@@ -35,6 +35,12 @@ export interface NavigationItem {
   icon: NavIconName;
   /** 次要项:默认收纳到分组「更多」浮层,仅当活跃或搜索时直接展开。Phase 1 默认不标,Phase 2 按业务逐项标记。 */
   secondary?: boolean;
+  /**
+   * 旅程序号(A19):仅在「资源」分区使用,暗示用户应按 1→2→3… 顺序操作。
+   * 渲染为 label 前的弱视觉序号徽标(不改路由、不改 labelKey 文案),渐进式降低 5 入口的学习成本。
+   * 仅作展示;为 undefined 时不渲染徽标。
+   */
+  order?: number;
 }
 
 export interface NavigationSection {
@@ -108,15 +114,17 @@ export const navigationSections: NavigationSection[] = [
     ],
   },
   {
-    // 资源区:纳管视图(管控)在前,生命周期 申请→实例 居中,连接库与密钥中心在尾。
+    // 资源区:按「用户旅程」排序(A19,IA 审计 §3.2)。
+    // 1. 申请资源 → 2. 我的资源实例 → 3. 资源操作(启停/连接) → 4. 资源连接(高级) → 5. 密钥中心
+    // order 字段仅作序号暗示(渲染层弱徽标),不改路由、不改 labelKey,渐进式引导新手。
     // 「资源凭证」实为预置的连接配置库(代码生成时消费),更名为「资源连接」更贴合用途。
     titleKey: 'sectionResources',
     items: [
-      { href: '/resource-control', labelKey: 'resourceControl', icon: 'gauge' },
-      { href: '/resource-requests', labelKey: 'resourceRequests', icon: 'file-plus' },
-      { href: '/resource-instances', labelKey: 'resourceInstances', icon: 'database' },
-      { href: '/resources', labelKey: 'resourceConnections', icon: 'key-round' },
-      { href: '/keys', labelKey: 'keys', icon: 'lock' },
+      { href: '/resource-requests', labelKey: 'resourceRequests', icon: 'file-plus', order: 1 },
+      { href: '/resource-instances', labelKey: 'resourceInstances', icon: 'database', order: 2 },
+      { href: '/resource-control', labelKey: 'resourceControl', icon: 'gauge', order: 3 },
+      { href: '/resources', labelKey: 'resourceConnections', icon: 'key-round', order: 4 },
+      { href: '/keys', labelKey: 'keys', icon: 'lock', order: 5 },
     ],
   },
   {

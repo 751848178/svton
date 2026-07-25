@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, MetricCard } from '@/components/ui';
+import { EmptyState } from '@svton/ui';
+import { PageHeader, MetricCard, DataBoundary } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useResourceRequests } from './hooks/use-resource-requests';
 import { statusLabelKeys } from './constants';
@@ -100,33 +100,24 @@ export default function ResourceRequestsPage() {
         ))}
       </div>
 
-      {dataError ? (
-        <div
-          role="alert"
-          className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
-        >
-          {dataError}
-        </div>
-      ) : null}
-
-      {loading ? (
-        <LoadingState text={tc('loading')} />
-      ) : requests.length === 0 ? (
-        <EmptyState
-          text={t('noRequests')}
-          description={t('noRequestsDescription')}
-        />
-      ) : (
-        <RequestTable
-          requests={requests}
-          retryingId={retryingId}
-          onReview={reviewRequest}
-          onCancel={setCancelTarget}
-          onRetryProvisioning={setRetryTarget}
-          onComplete={setCompleteTarget}
-          onViewRuns={openProvisioningRuns}
-        />
-      )}
+      <DataBoundary loading={loading} error={dataError} onRetry={reload}>
+        {requests.length === 0 ? (
+          <EmptyState
+            text={t('noRequests')}
+            description={t('noRequestsDescription')}
+          />
+        ) : (
+          <RequestTable
+            requests={requests}
+            retryingId={retryingId}
+            onReview={reviewRequest}
+            onCancel={setCancelTarget}
+            onRetryProvisioning={setRetryTarget}
+            onComplete={setCompleteTarget}
+            onViewRuns={openProvisioningRuns}
+          />
+        )}
+      </DataBoundary>
 
       <SupervisorPanel
         supervisor={runSupervisor}

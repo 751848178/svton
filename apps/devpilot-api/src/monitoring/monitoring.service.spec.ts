@@ -340,7 +340,9 @@ describe("MonitoringService cloud provider sync alerts", () => {
       projectEnvironmentScopeService,
     );
     notificationDeliveryPayloadService =
-      new MonitoringNotificationDeliveryPayloadService();
+      new MonitoringNotificationDeliveryPayloadService(
+        notificationDeliveryConfigService,
+      );
     const notificationDeliveryWriterService =
       new MonitoringNotificationDeliveryWriterService(
         prisma as unknown as PrismaService,

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Optional,
   Param,
@@ -94,6 +95,26 @@ export class LogCenterController {
       scope.environmentId,
     );
     return this.logCenterService.updateStream(req.teamId, streamId, dto);
+  }
+
+  @Delete("streams/:streamId")
+  async deleteStream(
+    @Request() req: AuthRequest,
+    @Param("streamId") streamId: string,
+  ) {
+    const scope = await this.logCenterService.getStreamAccessScope(
+      req.teamId,
+      streamId,
+    );
+    await this.access.assertCanWriteLog(
+      req,
+      "log.stream.delete",
+      streamId,
+      scope.projectId,
+      scope.environmentId,
+      "high",
+    );
+    return this.logCenterService.deleteStream(req.teamId, streamId);
   }
 
   @Get("collection-runs")

@@ -33,6 +33,16 @@ export class MonitoringNotificationDeliveryConfigService {
     return value === true || value === "true" || value === "1";
   }
 
+  /**
+   * N5:平台前端 base URL,用于渲染告警通知中的可点击深链(告警→日志/部署详情)。
+   * 未配置或非法时返回空串,深链构建器据此跳过渲染(零回归)。
+   */
+  webBaseUrl() {
+    const raw = this.configService.get<string>("DEVPILOT_WEB_BASE_URL", "");
+    if (typeof raw !== "string") return "";
+    return raw.trim().replace(/\/+$/, "");
+  }
+
   smtpConfig(): AlertNotificationSmtpConfig {
     const host =
       this.readString(

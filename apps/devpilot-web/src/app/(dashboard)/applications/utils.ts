@@ -4,7 +4,7 @@
  * 单一职责：对象压缩、日期格式化、标签解析（纯函数）。
  */
 
-import { kindLabelKeys, operationLabelKeys, operationStatusLabelKeys } from './constants';
+import { kindLabelKeys, operationLabelKeys, operationStatusLabelKeys, serviceStatusLabelKeys } from './constants';
 import type { ServiceAction } from './types';
 
 /** next-intl useTranslations 返回值的极小子集（避免耦合具体类型）。 */
@@ -32,6 +32,12 @@ export function getOperationLabel(t: Translator, action: ServiceAction): string 
 /** operation run status → 展示文案（未知 status 原样返回）。 */
 export function getOperationStatusLabel(t: Translator, status: string): string {
   const key = operationStatusLabelKeys[status];
+  return key ? t(key) : status;
+}
+
+/** service.status → 展示文案（未知 status 原样返回）。 */
+export function getServiceStatusLabel(t: Translator, status: string): string {
+  const key = serviceStatusLabelKeys[status];
   return key ? t(key) : status;
 }
 

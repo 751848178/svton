@@ -28,6 +28,8 @@ export class MonitoringNotificationDeliveryEmailSenderService {
         to: payload.to,
         subject: payload.subject,
         text: payload.text,
+        // N5:仅在有深链时附带 html 正文(可点击的「查看详情」),否则维持纯文本。
+        ...(payload.html ? { html: payload.html } : {}),
       });
       return {
         sent: true,

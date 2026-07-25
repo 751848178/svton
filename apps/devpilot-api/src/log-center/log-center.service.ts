@@ -145,6 +145,10 @@ export class LogCenterService {
     );
   }
 
+  async deleteStream(teamId: string, streamId: string) {
+    return this.deps.logStreamWriteOrchestrationService.delete(teamId, streamId);
+  }
+
   async appendEntries(
     teamId: string,
     userId: string,

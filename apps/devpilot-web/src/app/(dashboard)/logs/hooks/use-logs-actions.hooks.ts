@@ -33,10 +33,28 @@ export function useLogsActions(args: UseLogsActionsArgs) {
       s.setSourceKey('');
       s.setSelectedStreamId(stream.id);
       await loadData();
+      feedback.success(tl('streamCreated'));
     } catch (err) {
       s.setError(err instanceof Error ? err.message : tl('createStreamFailed'));
     } finally {
       s.setSaving(false);
+    }
+  });
+
+  const deleteStream = usePersistFn(async (streamId: string): Promise<boolean> => {
+    s.setError('');
+    try {
+      await apiRequest(`DELETE:/logs/streams/${streamId}`);
+      if (s.selectedStreamId === streamId) s.setSelectedStreamId('');
+      if (s.detailStreamId === streamId) s.setDetailStreamId('');
+      await loadData();
+      feedback.success(tl('streamDeleted'));
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : tl('deleteStreamFailed');
+      s.setError(message);
+      feedback.error(message);
+      return false;
     }
   });
 
@@ -105,7 +123,7 @@ export function useLogsActions(args: UseLogsActionsArgs) {
     }
   });
 
-  return { createStream, appendEntry, collectSelectedStream, cleanupSelectedRetention };
+  return { createStream, deleteStream, appendEntry, collectSelectedStream, cleanupSelectedRetention };
 }
 
 function buildStreamBody(s: LogsState) {

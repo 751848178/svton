@@ -7,12 +7,13 @@
  */
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
+import { ConfirmDialog, StatusTag } from '@/components/ui';
 import type { useLogs } from '../hooks/use-logs';
 import type { LogStream } from '../types-stream';
+import { streamStatusLabels } from '../constants';
 
 type LogsHook = ReturnType<typeof useLogs>;
 
@@ -31,8 +32,15 @@ const SOURCE_GROUP_LABEL: Record<string, string> = {
 export function StreamsSidebar({ logs }: { logs: LogsHook }) {
   const tl = useTranslations('logs');
   const s = logs.s;
+  const [deleteTarget, setDeleteTarget] = useState<LogStream | null>(null);
 
   const groups = useMemo(() => groupBySource(s.streams), [s.streams]);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const ok = await logs.deleteStream(deleteTarget.id);
+    if (ok) setDeleteTarget(null);
+  };
 
   return (
     <div className="flex h-full flex-col rounded-lg border">
@@ -65,7 +73,7 @@ export function StreamsSidebar({ logs }: { logs: LogsHook }) {
                 </div>
                 <div className="space-y-1">
                   {group.streams.map((stream) => (
-                    <div key={stream.id}>{renderStreamRow(logs, stream)}</div>
+                    <div key={stream.id}>{renderStreamRow(logs, stream, setDeleteTarget)}</div>
                   ))}
                 </div>
               </div>
@@ -73,16 +81,37 @@ export function StreamsSidebar({ logs }: { logs: LogsHook }) {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        tone="danger"
+        title={tl('deleteStreamTitle')}
+        description={tl('deleteStreamConfirm')}
+        confirmLabel={tl('deleteStream')}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
 
-/** 渲染单条日志流卡片（选择 + 设置入口）。作为函数调用以避开 key 推断。 */
-function renderStreamRow(logs: LogsHook, stream: LogStream) {
-  return <StreamRow logs={logs} stream={stream} />;
+/** 渲染单条日志流卡片（选择 + 设置 + 删除入口）。作为函数调用以避开 key 推断。 */
+function renderStreamRow(
+  logs: LogsHook,
+  stream: LogStream,
+  onDelete: (stream: LogStream) => void,
+) {
+  return <StreamRow logs={logs} stream={stream} onDelete={onDelete} />;
 }
 
-function StreamRow({ logs, stream }: { logs: LogsHook; stream: LogStream }) {
+function StreamRow({
+  logs,
+  stream,
+  onDelete,
+}: {
+  logs: LogsHook;
+  stream: LogStream;
+  onDelete: (stream: LogStream) => void;
+}) {
   const tl = useTranslations('logs');
   const s = logs.s;
   const active = s.selectedStreamId === stream.id;
@@ -95,19 +124,30 @@ function StreamRow({ logs, stream }: { logs: LogsHook; stream: LogStream }) {
       <button onClick={() => s.setSelectedStreamId(stream.id)} className="block w-full text-left">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate font-medium">{stream.name}</span>
-          <StatusTag status={stream.status} />
+          <StatusTag
+            status={stream.status}
+            label={streamStatusLabels[stream.status] || stream.status}
+          />
         </div>
         <div className="mt-0.5 truncate text-xs text-muted-foreground">{stream.sourceType}</div>
       </button>
-      <button
-        onClick={() => {
-          s.setSelectedStreamId(stream.id);
-          s.setDetailStreamId(stream.id);
-        }}
-        className="mt-1 hidden text-xs text-muted-foreground hover:text-foreground group-hover:block"
-      >
-        {tl('streamSettings')}
-      </button>
+      <div className="mt-1 flex items-center gap-3">
+        <button
+          onClick={() => {
+            s.setSelectedStreamId(stream.id);
+            s.setDetailStreamId(stream.id);
+          }}
+          className="hidden text-xs text-muted-foreground hover:text-foreground group-hover:block"
+        >
+          {tl('streamSettings')}
+        </button>
+        <button
+          onClick={() => onDelete(stream)}
+          className="hidden text-xs text-red-600 hover:text-red-700 group-hover:block"
+        >
+          {tl('deleteStream')}
+        </button>
+      </div>
     </div>
   );
 }

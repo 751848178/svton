@@ -5,6 +5,9 @@ import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import type { useResourceControl } from '../hooks/use-resource-control';
+import type { ResourceConnectionRun, ResourceQueryRun } from '../types-query';
+import { resolveStatusLabel } from '../constants';
+import { QueryResultTable } from './query-result-table';
 type RCHook = ReturnType<typeof useResourceControl>;
 
 /** 连接 / 查询运行列表显示上限。 */
@@ -23,19 +26,32 @@ export function ConnectionQueryPanel({ rc }: { rc: RCHook }) {
         title={t('queryRuns')}
         emptyText={t('noQueryRuns')}
         runs={rc.queryRuns}
+        renderPreview={(run) =>
+          run.result?.preview ? (
+            <QueryResultTable
+              preview={run.result.preview}
+              runId={run.id}
+            />
+          ) : null
+        }
       />
     </div>
   );
 }
 
-function RunListCard({
+type AnyRun = ResourceConnectionRun | ResourceQueryRun;
+
+function RunListCard<T extends AnyRun>({
   title,
   emptyText,
   runs,
+  renderPreview,
 }: {
   title: string;
   emptyText: string;
-  runs: RCHook['connectionRuns'];
+  runs: T[];
+  /** 可选：run 已完成时在行下方渲染的扩展内容（queryRuns 用来回显 preview）。 */
+  renderPreview?: (run: T) => React.ReactNode;
 }) {
   const t = useTranslations('resourceControl');
   const visible = runs.slice(0, RUNS_LIMIT);
@@ -57,11 +73,21 @@ function RunListCard({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{run.resource?.name || t('unnamedResource')}</span>
-                  <StatusTag status={run.status} />
+                  <StatusTag
+                    status={run.status}
+                    label={resolveStatusLabel(run.status, t)}
+                  />
                 </div>
+                {run.resource?.endpoint ? (
+                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                    <span className="text-muted-foreground/80">{t('connectionEndpoint')}: </span>
+                    {run.resource.endpoint}
+                  </div>
+                ) : null}
                 <div className="mt-1 text-xs text-muted-foreground">
                   {formatDateTimeMinute(run.startedAt)}
                 </div>
+                {renderPreview && run.status === 'completed' ? renderPreview(run) : null}
               </div>
             ))}
           </div>

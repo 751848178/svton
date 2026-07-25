@@ -21,7 +21,7 @@ import type {
 import { ServiceSloSummary } from './service-slo-summary.component';
 import { ServiceActionMenu } from './service-action-menu';
 import { DeployRunStatusBadge } from './deploy-run-status-badge';
-import { getKindLabel, getOperationLabel, getOperationStatusLabel, formatDate } from '../utils';
+import { getKindLabel, getOperationLabel, getOperationStatusLabel, getServiceStatusLabel, formatDate } from '../utils';
 
 interface ServiceRowProps {
   application: ApplicationItem;
@@ -75,7 +75,10 @@ export function ServiceRow(props: ServiceRowProps) {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{service.name}</span>
-            <StatusTag status={service.status} />
+            <StatusTag
+              status={service.status}
+              label={getServiceStatusLabel(t, service.status)}
+            />
             <Tag color="default">{getKindLabel(t, service.kind)}</Tag>
             <Tag color="default">{service.environment?.name || t('noEnv')}</Tag>
           </div>

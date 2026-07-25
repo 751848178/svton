@@ -11,13 +11,14 @@ import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
 import { Button, StatusTag } from '@/components/ui';
 import type { Server } from '../types';
+import { ServerEditForm, type ServerEditFormValue } from './server-edit-form';
 
 interface ServerDetailViewProps {
   server: Server;
   editing: boolean;
-  editForm: { name: string; tags: string };
+  editForm: ServerEditFormValue;
   detecting: boolean;
-  onEditFormChange: (patch: Partial<{ name: string; tags: string }>) => void;
+  onEditFormChange: (patch: Partial<ServerEditFormValue>) => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSave: () => void;
@@ -59,24 +60,7 @@ export function ServerDetailView({
         </div>
 
         {editing ? (
-          <div className="space-y-4">
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">{tc('name')}</span>
-              <input
-                value={editForm.name}
-                onChange={(e) => onEditFormChange({ name: e.target.value })}
-                className="w-full rounded-md border px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">{t('tagsCommaSeparated')}</span>
-              <input
-                value={editForm.tags}
-                onChange={(e) => onEditFormChange({ tags: e.target.value })}
-                className="w-full rounded-md border px-3 py-2"
-              />
-            </label>
-          </div>
+          <ServerEditForm editForm={editForm} onEditFormChange={onEditFormChange} />
         ) : (
           <dl className="grid grid-cols-2 gap-4 text-sm">
             <Field label={t('host')}>

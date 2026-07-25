@@ -2,7 +2,7 @@
  * 资源申请列表表格（@tanstack/react-table）
  *
  * 单一职责：渲染申请列表 + 状态徽章 + 审批/取消/重试/交付/运行记录操作。
- * 头部采用 headless table 提供按创建时间/状态排序。
+ * 头部采用 headless table 提供按创建时间/状态排序；客户端分页，避免一次性渲染全量。
  */
 'use client';
 
@@ -13,9 +13,11 @@ import {
   type SortingState,
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
+import { Button } from '@/components/ui';
 import type { ResourceRequest } from '../types';
 import {
   getStatusBadge,
@@ -23,6 +25,8 @@ import {
   getProvisioningBadge,
 } from '../badges';
 import { RequestActions } from './request-actions.component';
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 interface RequestTableProps {
   requests: ResourceRequest[];
@@ -132,60 +136,108 @@ export function RequestTable(props: RequestTableProps) {
     columns,
     state: { sorting },
     onSortingChange: setSorting,
+    initialState: { pagination: { pageSize: 10 } },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
+  const { pageSize, pageIndex } = table.getState().pagination;
+  const pageCount = table.getPageCount();
+
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full min-w-[860px]">
-        <thead className="bg-muted/50">
-          {table.getHeaderGroups().map((headerGroup) => (
-            <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                const canSort = header.column.getCanSort();
-                const isLast = header.column.id === 'actions';
-                return (
-                  <th
-                    key={header.id}
-                    className={`px-4 py-3 text-sm font-medium ${isLast ? 'text-right' : 'text-left'}`}
+    <div className="overflow-hidden rounded-lg border">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[860px]">
+          <thead className="bg-muted/50">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  const canSort = header.column.getCanSort();
+                  const isLast = header.column.id === 'actions';
+                  return (
+                    <th
+                      key={header.id}
+                      className={`px-4 py-3 text-sm font-medium ${isLast ? 'text-right' : 'text-left'}`}
+                    >
+                      {header.isPlaceholder ? null : (
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className={`flex items-center gap-1 ${isLast ? 'ml-auto justify-end' : ''}`}
+                          disabled={!canSort}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {canSort ? (
+                            <span className="text-xs text-muted-foreground">
+                              {{ asc: '▲', desc: '▼' }[header.column.getIsSorted() as string] || '↕'}
+                            </span>
+                          ) : null}
+                        </button>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            ))}
+          </thead>
+          <tbody className="divide-y">
+            {table.getRowModel().rows.map((row) => (
+              <tr key={row.id} className="hover:bg-muted/30">
+                {row.getVisibleCells().map((cell) => (
+                  <td
+                    key={cell.id}
+                    className={`px-4 py-3 ${cell.column.id === 'actions' ? 'text-right' : ''}`}
                   >
-                    {header.isPlaceholder ? null : (
-                      <button
-                        type="button"
-                        onClick={header.column.getToggleSortingHandler()}
-                        className={`flex items-center gap-1 ${isLast ? 'ml-auto justify-end' : ''}`}
-                        disabled={!canSort}
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {canSort ? (
-                          <span className="text-xs text-muted-foreground">
-                            {{ asc: '▲', desc: '▼' }[header.column.getIsSorted() as string] || '↕'}
-                          </span>
-                        ) : null}
-                      </button>
-                    )}
-                  </th>
-                );
-              })}
-            </tr>
-          ))}
-        </thead>
-        <tbody className="divide-y">
-          {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className="hover:bg-muted/30">
-              {row.getVisibleCells().map((cell) => (
-                <td
-                  key={cell.id}
-                  className={`px-4 py-3 ${cell.column.id === 'actions' ? 'text-right' : ''}`}
-                >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span>{t('rowCount', { count: requests.length })}</span>
+          <span className="text-muted-foreground/60">·</span>
+          <label className="flex items-center gap-1">
+            {t('rowsPerPage')}
+            <select
+              value={pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className="rounded-md border bg-background px-2 py-1"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </select>
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>
+            {t('pageOf', { page: pageCount > 0 ? pageIndex + 1 : 0, total: pageCount })}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            {t('pagePrevious')}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            {t('pageNext')}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

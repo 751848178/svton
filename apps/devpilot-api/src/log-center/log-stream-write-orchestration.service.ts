@@ -42,6 +42,11 @@ export class LogStreamWriteOrchestrationService {
     return this.logStreamMutationService.update(stream, dto);
   }
 
+  async delete(teamId: string, streamId: string) {
+    const stream = await this.logStreamQueryService.get(teamId, streamId);
+    return this.logStreamMutationService.delete(stream);
+  }
+
   async append(
     teamId: string,
     userId: string,

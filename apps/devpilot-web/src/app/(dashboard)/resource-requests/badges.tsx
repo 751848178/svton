@@ -10,6 +10,8 @@ const provisioningStatusLabels: Record<string, string> = {
   planned: '已生成计划',
   blocked: '处理阻断',
   queued: '已入队',
+  running: '处理中',
+  failed: '处理失败',
 };
 
 /** run.status → 展示文案。 */

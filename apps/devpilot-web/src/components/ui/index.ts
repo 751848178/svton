@@ -12,12 +12,19 @@
 export { StatusTag, type StatusTagProps, type StatusTone } from './status-tag';
 export { PageHeader, type PageHeaderProps } from './page-header';
 export { ErrorBanner, type ErrorBannerProps } from './error-banner';
+export { DataBoundary, type DataBoundaryProps } from './data-boundary';
+export { Alert, type AlertProps, type AlertTone } from './alert';
 export { MetricCard } from './metric-card';
 export { CodeBlock, type CodeBlockProps } from './code-block';
 
 // 反馈 / 弹窗
 export { Modal, type ModalProps } from './modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './confirm-dialog';
+export {
+  ActionMenu,
+  type ActionMenuItem,
+  type ActionMenuGroup,
+} from './action-menu';
 
 // 表单原语
 export { Button, buttonVariants, type ButtonProps } from './button';

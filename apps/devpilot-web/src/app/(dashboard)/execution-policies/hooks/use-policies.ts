@@ -9,6 +9,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type {
   PolicyTemplate,
   Project,
@@ -104,8 +105,10 @@ export function usePolicies() {
           projectId: form.projectId || null,
           environmentId: form.environmentId || null,
         });
+        feedback.success(t('policyUpdated'));
       } else {
         await apiRequest('POST:/server-command-policy-templates', payload);
+        feedback.success(t('policyCreated'));
       }
       setEditingId('');
       setForm(EMPTY_FORM);

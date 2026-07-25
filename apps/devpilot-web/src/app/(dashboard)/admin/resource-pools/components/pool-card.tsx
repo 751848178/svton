@@ -14,6 +14,13 @@ import type { ResourcePool } from '../types';
 import { getPoolTypeInfo, resolvePoolTypeLabel } from '../constants';
 import { PoolTypeIcon } from './pool-type-icons';
 
+/** 资源池状态值 → admin 命名空间 i18n key。 */
+const POOL_STATUS_KEY: Record<string, string> = {
+  active: 'poolStatusActive',
+  maintenance: 'poolStatusMaintenance',
+  full: 'poolStatusFull',
+};
+
 interface PoolCardProps {
   pool: ResourcePool;
   onEdit: (pool: ResourcePool) => void;
@@ -48,7 +55,10 @@ export function PoolCard({ pool, onEdit, onDelete }: PoolCardProps) {
             </p>
           </div>
         </div>
-        <StatusTag status={pool.status} />
+        <StatusTag
+          status={pool.status}
+          label={POOL_STATUS_KEY[pool.status] ? t(POOL_STATUS_KEY[pool.status]) : pool.status}
+        />
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-4">

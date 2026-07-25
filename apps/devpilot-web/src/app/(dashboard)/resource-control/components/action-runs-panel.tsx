@@ -5,6 +5,7 @@ import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import { resolveActionName } from '../resource-action-ui.utils';
+import { resolveStatusLabel } from '../constants';
 import type { useResourceControl } from '../hooks/use-resource-control';
 type RCHook = ReturnType<typeof useResourceControl>;
 
@@ -29,7 +30,10 @@ export function ActionRunsPanel({ rc }: { rc: RCHook }) {
           >
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium">{resolveActionName(run.action, rc.actions)}</span>
-              <StatusTag status={run.status} />
+              <StatusTag
+                status={run.status}
+                label={resolveStatusLabel(run.status, t)}
+              />
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {formatDateTimeMinute(run.startedAt)}

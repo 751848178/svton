@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 import type { NavigationItem } from '../navigation-items';
 import { NavIcon } from '../nav-icons';
+import { NavOrderBadge } from '../nav-order-badge';
 
 interface SidebarItemProps {
   item: NavigationItem;
@@ -31,10 +32,14 @@ export function SidebarItem({ item, active }: SidebarItemProps) {
           className="absolute bottom-2 left-3 top-2 w-0.5 rounded-sm bg-sidebar-primary"
         />
       )}
-      <NavIcon
-        name={item.icon}
-        className="h-4 w-4 shrink-0"
-      />
+      {item.order !== undefined ? (
+        <NavOrderBadge order={item.order} active={active} />
+      ) : (
+        <NavIcon
+          name={item.icon}
+          className="h-4 w-4 shrink-0"
+        />
+      )}
       <span className="truncate">{t(item.labelKey)}</span>
     </Link>
   );

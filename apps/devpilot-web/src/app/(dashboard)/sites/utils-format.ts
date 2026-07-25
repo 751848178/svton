@@ -49,12 +49,15 @@ export function getStatusLabel(status: string): string {
 const STATUS_LABEL_KEYS: Record<string, string> = {
   active: 'statusActive',
   queued: 'statusQueued',
+  running: 'statusRunning',
   pending: 'statusPending',
   error: 'statusError',
   draft: 'statusDraft',
   completed: 'statusCompleted',
   blocked: 'statusBlocked',
   failed: 'statusFailed',
+  cancelled: 'statusCancelled',
+  canceled: 'statusCancelled',
   approved: 'statusApproved',
   rejected: 'statusRejected',
 };

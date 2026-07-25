@@ -60,10 +60,9 @@ function LoginForm() {
           />
         </label>
         <div className="flex items-center justify-end">
-          {/* TODO: 接入「重置密码」流程后替换 href；当前为占位链接，无状态副作用。 */}
-          <Link href="#" className="text-sm text-muted-foreground hover:text-primary hover:underline">
-            {t('forgotPassword')}
-          </Link>
+          {/* 暂未提供自助重置流程，改为纯文本明示现状，避免 href="#" 死链承诺不存在的功能。
+              TODO: 接入「重置密码」流程后，再恢复为可点击的 <Link>。 */}
+          <span className="text-sm text-muted-foreground">{t('forgotPasswordUnsupported')}</span>
         </div>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('password')}</span>

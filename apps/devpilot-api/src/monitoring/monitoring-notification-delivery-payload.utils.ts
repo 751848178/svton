@@ -9,6 +9,8 @@ export function buildGenericAlertNotificationPayload(
   channel: AlertNotificationChannelDispatchRecord,
   event: AlertNotificationPayloadEvent,
   context: AlertNotificationDeliveryContext = {},
+  /** N5 深链;由调用方(持有 webBaseUrl 配置的 payload service)计算后传入。 */
+  actionUrl: string | null = null,
 ): GenericAlertNotificationPayload {
   return {
     type:
@@ -87,5 +89,6 @@ export function buildGenericAlertNotificationPayload(
         ? { id: event.backupPlan.id, name: event.backupPlan.name }
         : null,
     },
+    actionUrl: actionUrl || null,
   };
 }

@@ -14,6 +14,11 @@ import type { Server } from '../types';
 interface EditForm {
   name: string;
   tags: string;
+  host: string;
+  port: string;
+  username: string;
+  authType: 'password' | 'key';
+  credentials: string;
 }
 
 export function useServerDetail(serverId: string) {
@@ -24,13 +29,29 @@ export function useServerDetail(serverId: string) {
   const [testing, setTesting] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useSetState<EditForm>({ name: '', tags: '' });
+  const [editForm, setEditForm] = useSetState<EditForm>({
+    name: '',
+    tags: '',
+    host: '',
+    port: '',
+    username: '',
+    authType: 'password',
+    credentials: '',
+  });
 
   const load = usePersistFn(async () => {
     try {
       const data = await apiRequest<Server>(`GET:/servers/${serverId}`);
       setServer(data);
-      setEditForm({ name: data.name, tags: data.tags?.join(', ') || '' });
+      setEditForm({
+        name: data.name,
+        tags: data.tags?.join(', ') || '',
+        host: data.host,
+        port: String(data.port ?? ''),
+        username: data.username,
+        authType: (data.authType === 'key' ? 'key' : 'password'),
+        credentials: '',
+      });
       setError(null);
     } catch (error) {
       console.error('Failed to load server:', error);
@@ -89,14 +110,24 @@ export function useServerDetail(serverId: string) {
 
   const save = usePersistFn(async () => {
     try {
-      await apiRequest(`PUT:/servers/${serverId}`, {
+      const body: Record<string, unknown> = {
         name: editForm.name,
-        tags: editForm.tags ? editForm.tags.split(',').map((t) => t.trim()) : [],
-      });
+        host: editForm.host,
+        port: Number(editForm.port) || 0,
+        username: editForm.username,
+        authType: editForm.authType,
+        tags: editForm.tags ? editForm.tags.split(',').map((tag) => tag.trim()) : [],
+      };
+      // credentials 为只写字段:留空=不变,非空=替换重加密
+      if (editForm.credentials.trim()) body.credentials = editForm.credentials;
+      await apiRequest(`PUT:/servers/${serverId}`, body);
       setEditing(false);
+      feedback.success(t('saved'));
       await load();
     } catch (error) {
-      console.error('Save failed:', error);
+      feedback.error(t('saveFailed'), {
+        description: error instanceof Error ? error.message : undefined,
+      });
     }
   });
 

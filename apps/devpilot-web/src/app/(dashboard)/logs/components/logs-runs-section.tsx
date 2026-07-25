@@ -6,7 +6,7 @@ import { usePersistFn } from '@svton/hooks';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { sourceLabels } from '../constants';
+import { sourceLabels, runStatusLabels } from '../constants';
 import type { useLogs } from '../hooks/use-logs';
 import { formatDateTimeMinute } from '@/lib/format-date';
 type LogsHook = ReturnType<typeof useLogs>;
@@ -68,7 +68,10 @@ export function LogsRunsSection({ logs }: { logs: LogsHook }) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono">{sourceTypeLabel(run.sourceType)}</span>
-                  <StatusTag status={run.status} />
+                  <StatusTag
+                    status={run.status}
+                    label={runStatusLabels[run.status] || run.status}
+                  />
                 </div>
                 <div className="mt-1 text-muted-foreground">
                   {formatDateTimeMinute(run.startedAt)}
@@ -111,7 +114,10 @@ export function LogsRunsSection({ logs }: { logs: LogsHook }) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-mono">{run.dryRun ? tl('dryRun') : tl('live')}</span>
-                  <StatusTag status={run.status} />
+                  <StatusTag
+                    status={run.status}
+                    label={runStatusLabels[run.status] || run.status}
+                  />
                 </div>
                 <div className="mt-1 text-muted-foreground">
                   {tl('retentionDeleted', { deleted: run.deletedEntryCount, matched: run.matchedEntryCount })}

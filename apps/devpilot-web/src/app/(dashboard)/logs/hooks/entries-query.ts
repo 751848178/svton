@@ -5,8 +5,8 @@
  * GET /logs/entries 与 GET /logs/stats 支持的 query 参数。
  * 后端 DTO（ListLogEntriesQueryDto / ListLogStatsQueryDto）字段：
  *   streamId / level / source / q / projectId / serverId / siteId /
- *   managedResourceId / applicationServiceId / environmentId；
- *   stats 另支持 windowMinutes / sourceType / status。
+ *   managedResourceId / applicationServiceId / environmentId / windowMinutes；
+ *   stats 另支持 sourceType / status。
  */
 
 import { apiRequest } from '@/lib/api-client';
@@ -44,7 +44,7 @@ export function buildStatsParams(s: LogsState): Record<string, string | number> 
   return params;
 }
 
-/** 按 explorer 过滤器拉取历史条目（windowMinutes 仅 stats 原生支持，entries 预留）。 */
+/** 按 explorer 过滤器拉取历史条目（windowMinutes 原生生效，与 stats 契约一致）。 */
 export async function fetchEntries(s: LogsState): Promise<LogEntry[]> {
   return apiRequest<LogEntry[]>('GET:/logs/entries', buildEntriesParams(s));
 }

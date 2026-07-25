@@ -8,6 +8,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type {
   AccessPolicy,
   ProjectRef,
@@ -107,8 +108,10 @@ export function useAccessPolicies() {
           projectId: form.projectId || null,
           environmentId: form.environmentId || null,
         });
+        feedback.success(t('policyUpdated'));
       } else {
         await apiRequest('POST:/control-access-policies', payload);
+        feedback.success(t('policyCreated'));
       }
       setEditingId('');
       setForm(EMPTY_FORM);

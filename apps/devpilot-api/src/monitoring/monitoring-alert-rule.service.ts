@@ -86,6 +86,11 @@ export class MonitoringAlertRuleService {
     });
   }
 
+  async deleteRule(teamId: string, ruleId: string) {
+    const rule = await this.getRule(teamId, ruleId);
+    return this.prisma.alertRule.delete({ where: { id: rule.id } });
+  }
+
   async updateRule(teamId: string, ruleId: string, dto: UpdateAlertRuleDto) {
     const rule = await this.getRule(teamId, ruleId);
     const data: Prisma.AlertRuleUpdateInput = {};

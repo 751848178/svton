@@ -13,6 +13,16 @@ import { StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import type { DashboardResourceRequest } from '../types';
 
+/** 资源申请状态值 → dashboard 命名空间 i18n key。 */
+const REQUEST_STATUS_KEY: Record<string, string> = {
+  pending: 'requestStatusPending',
+  approved: 'requestStatusApproved',
+  rejected: 'requestStatusRejected',
+  completed: 'requestStatusCompleted',
+  canceled: 'requestStatusCanceled',
+  cancelled: 'requestStatusCanceled',
+};
+
 export function MyResourceRequests({ requests }: { requests: DashboardResourceRequest[] }) {
   const t = useTranslations('dashboard');
 
@@ -40,7 +50,10 @@ export function MyResourceRequests({ requests }: { requests: DashboardResourceRe
                     {formatDateTimeMinute(request.createdAt)}
                   </p>
                 </div>
-                <StatusTag status={request.status} />
+                <StatusTag
+                  status={request.status}
+                  label={REQUEST_STATUS_KEY[request.status] ? t(REQUEST_STATUS_KEY[request.status]) : request.status}
+                />
               </Link>
             </li>
           ))}

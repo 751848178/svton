@@ -66,4 +66,11 @@ export class LogStreamMutationService {
       include: logStreamInclude,
     });
   }
+
+  async delete(stream: LogStreamMutationRecord) {
+    return this.prisma.logStream.delete({
+      where: { id: stream.id },
+      include: logStreamInclude,
+    });
+  }
 }

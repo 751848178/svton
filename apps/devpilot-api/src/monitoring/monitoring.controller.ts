@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -100,6 +101,26 @@ export class MonitoringController {
       "medium",
     );
     return this.alertRuleService.updateRule(req.teamId, ruleId, dto);
+  }
+
+  @Delete("alert-rules/:ruleId")
+  async deleteRule(
+    @Request() req: MonitoringAuthRequest,
+    @Param("ruleId") ruleId: string,
+  ) {
+    const scope = await this.alertRuleService.getAccessScope(
+      req.teamId,
+      ruleId,
+    );
+    await this.monitoringAccess.assertCanWriteMonitoring(
+      req,
+      "monitoring.rule.delete",
+      ruleId,
+      scope.projectId,
+      scope.environmentId,
+      "high",
+    );
+    return this.alertRuleService.deleteRule(req.teamId, ruleId);
   }
 
   @Post("alert-rules/:ruleId/evaluate")

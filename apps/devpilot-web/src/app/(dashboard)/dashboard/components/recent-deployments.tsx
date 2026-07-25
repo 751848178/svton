@@ -14,6 +14,17 @@ import { StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import type { DashboardDeploymentRun } from '../types';
 
+/** 部署运行状态值 → dashboard 命名空间 i18n key。 */
+const DEPLOY_STATUS_KEY: Record<string, string> = {
+  queued: 'deployStatusQueued',
+  running: 'deployStatusRunning',
+  completed: 'deployStatusCompleted',
+  failed: 'deployStatusFailed',
+  blocked: 'deployStatusBlocked',
+  cancelled: 'deployStatusCancelled',
+  canceled: 'deployStatusCancelled',
+};
+
 export function RecentDeployments({ runs }: { runs: DashboardDeploymentRun[] }) {
   const t = useTranslations('dashboard');
 
@@ -47,7 +58,10 @@ export function RecentDeployments({ runs }: { runs: DashboardDeploymentRun[] }) 
                     {run.branch ? <span className="ml-2">{run.branch}</span> : null}
                   </p>
                 </div>
-                <StatusTag status={run.status} />
+                <StatusTag
+                  status={run.status}
+                  label={DEPLOY_STATUS_KEY[run.status] ? t(DEPLOY_STATUS_KEY[run.status]) : run.status}
+                />
               </Link>
             </li>
           ))}

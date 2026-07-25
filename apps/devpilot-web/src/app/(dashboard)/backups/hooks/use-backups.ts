@@ -63,6 +63,7 @@ export function useBackups() {
     try {
       await apiRequest('POST:/backups/plans', input);
       await load({ keepLoading: false });
+      feedback.success(t('planCreated'));
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建备份计划失败');

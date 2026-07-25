@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useResourceControl } from '../hooks/use-resource-control';
-import { KIND_KEYS, PROVIDER_KEYS, resolveKindLabel, resolveProviderLabel } from '../constants';
+import { KIND_KEYS, PROVIDER_KEYS, resolveKindLabel, resolveProviderLabel, resolveStatusLabel } from '../constants';
 import { listActionsForResource } from '../resource-action-ui.utils';
 import { ResourceActionButtons } from './resource-action-buttons.component';
 type RCHook = ReturnType<typeof useResourceControl>;
@@ -94,7 +94,10 @@ function ResourceCard({ rc, resource }: { rc: RCHook; resource: RCHook['resource
             {resolveKindLabel(resource.kind, t)}
           </div>
         </div>
-        <StatusTag status={resource.status} />
+        <StatusTag
+          status={resource.status}
+          label={resolveStatusLabel(resource.status, t)}
+        />
       </div>
       {resource.endpoint && (
         <div className="mt-2 truncate font-mono text-xs text-muted-foreground">

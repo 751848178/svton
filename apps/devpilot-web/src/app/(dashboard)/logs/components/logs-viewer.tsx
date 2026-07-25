@@ -13,6 +13,7 @@ import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { useLogs } from '../hooks/use-logs';
 import type { LogEntry } from '../types-stream';
+import { levelLabels } from '../constants';
 import { formatDateTime } from '@/lib/format-date';
 
 type LogsHook = ReturnType<typeof useLogs>;
@@ -53,7 +54,10 @@ export function LogsViewer({ logs }: { logs: LogsHook }) {
               {visible.map((entry) => (
                 <tr key={entry.id} className="hover:bg-accent/50">
                   <td className="px-3 py-2">
-                    <StatusTag status={entry.level} />
+                    <StatusTag
+                      status={entry.level}
+                      label={levelLabels[entry.level] || entry.level}
+                    />
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{entry.message}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">

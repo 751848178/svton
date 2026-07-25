@@ -24,5 +24,31 @@ export const sourceLabels: Record<string, string> = {
   alert: '告警',
 };
 
+/** 日志级别 → 中文标签（供 StatusTag label）。 */
+export const levelLabels: Record<string, string> = {
+  trace: '跟踪',
+  debug: '调试',
+  info: '信息',
+  warning: '警告',
+  error: '错误',
+  fatal: '致命',
+};
+
+/** 日志流状态 → 中文标签（active/archived）。 */
+export const streamStatusLabels: Record<string, string> = {
+  active: '启用',
+  archived: '已归档',
+};
+
+/** 采集/保留运行状态 → 中文标签（与部署运行状态枚举一致）。 */
+export const runStatusLabels: Record<string, string> = {
+  queued: '排队中',
+  running: '运行中',
+  completed: '已完成',
+  failed: '失败',
+  blocked: '已阻塞',
+  cancelled: '已取消',
+};
+
 export const streamReconnectDelaysMs = [1000, 2000, 5000, 10000, 30000];
 export const streamSessionMaxMs = 300000;

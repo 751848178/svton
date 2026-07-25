@@ -32,6 +32,13 @@ export const operationStatusLabelKeys: Record<string, string> = {
   blocked: 'runStatusBlocked',
 };
 
+/** service.status → applications namespace 下的 i18n key。 */
+export const serviceStatusLabelKeys: Record<string, string> = {
+  active: 'serviceStatusActive',
+  inactive: 'serviceStatusInactive',
+  archived: 'serviceStatusArchived',
+};
+
 export const SERVICE_ACTIONS: ServiceAction[] = ['status', 'logs', 'restart', 'rollback'];
 
 /** 创建服务表单中可选的 kind 列表（value 即 kindLabelKeys 的键）。 */

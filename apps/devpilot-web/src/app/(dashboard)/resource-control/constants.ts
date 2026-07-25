@@ -39,3 +39,23 @@ export function resolveProviderLabel(provider: string, t: LabelTFunc): string {
   const key = `provider.${provider}`;
   return t.has(key) ? t(key) : provider;
 }
+
+/** 受管资源/操作运行状态值 → resourceControl 命名空间 i18n key。 */
+const RESOURCE_STATUS_KEY: Record<string, string> = {
+  running: 'statusRunning',
+  stopped: 'statusStopped',
+  active: 'statusActive',
+  inactive: 'statusInactive',
+  unknown: 'statusUnknown',
+  error: 'statusError',
+  completed: 'statusCompleted',
+  failed: 'statusFailed',
+  blocked: 'statusBlocked',
+  queued: 'statusQueued',
+};
+
+/** 解析资源/运行状态标签：命中 i18n 则返回翻译，否则回退原始值。 */
+export function resolveStatusLabel(status: string, t: LabelTFunc): string {
+  const key = RESOURCE_STATUS_KEY[status];
+  return key && t.has(key) ? t(key) : status;
+}
