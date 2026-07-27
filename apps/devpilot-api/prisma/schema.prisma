@@ -68,9 +68,10 @@ model User {
   reviewedResourceRequests ResourceRequest[] @relation("ResourceReviewer")
   resourceAuditLogs    ResourceAuditLog[] @relation("ResourceAuditActor")
   resourceProvisioningRuns ResourceProvisioningRun[] @relation("ResourceProvisioningRunActor")
+  createdReleasePlans  ReleasePlan[] @relation("ReleasePlanCreatedBy")
 
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  updatedAt     DateTime @updatedAt
 }
 
 // 团队
@@ -128,6 +129,10 @@ model Team {
   resourceInstances ResourceInstance[]
   resourceAuditLogs ResourceAuditLog[]
   resourceProvisioningRuns ResourceProvisioningRun[]
+  releasePlans ReleasePlan[]
+  releaseStages ReleaseStage[]
+  releaseStageAttempts ReleaseStageAttempt[]
+  releaseEvents ReleaseEvent[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -321,6 +326,7 @@ model ServerExecutionJob {
   applicationServiceOperationRuns ApplicationServiceOperationRun[]
   backupRuns BackupRun[]
   logCollectionRuns LogCollectionRun[]
+  releaseStageAttempts ReleaseStageAttempt[]
 
   @@index([teamId])
   @@index([actorId])
@@ -661,6 +667,7 @@ model Project {
   environmentServers ProjectEnvironmentServer[]
   serverCommandPolicyTemplates ServerCommandPolicyTemplate[]
   controlAccessPolicies ControlAccessPolicy[]
+  releasePlans ReleasePlan[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -711,6 +718,8 @@ model ProjectEnvironment {
   serverCommandPolicyTemplates ServerCommandPolicyTemplate[]
   controlAccessPolicies ControlAccessPolicy[]
   projectWebhooks ProjectWebhook[]
+  releasePlans ReleasePlan[]
+  releaseStages ReleaseStage[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -817,6 +826,7 @@ model Application {
   logStreams    LogStream[]
   logEntries    LogEntry[]
   logCollectionRuns LogCollectionRun[]
+  releaseStages ReleaseStage[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -865,6 +875,7 @@ model ApplicationService {
   logStreams        LogStream[]
   logEntries        LogEntry[]
   logCollectionRuns LogCollectionRun[]
+  releaseStages     ReleaseStage[]
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -1013,6 +1024,7 @@ model DeploymentRun {
   logStreams       LogStream[]
   logEntries       LogEntry[]
   logCollectionRuns LogCollectionRun[]
+  releaseStageAttempts ReleaseStageAttempt[]
 
   @@index([teamId])
   @@index([projectId])
@@ -2276,6 +2288,7 @@ model OperationApproval {
   summary              String?  @db.Text
   reason               String?  @db.Text
   reviewComment        String?  @db.Text
+  inputHash            String?  // 审批绑定的输入快照哈希；配置变化后旧审批失效
   metadata             Json?
   requestedAt          DateTime @default(now())
   reviewedAt           DateTime?
@@ -2299,6 +2312,7 @@ model OperationApproval {
   applicationServiceOperationRuns ApplicationServiceOperationRun[]
   deploymentRuns       DeploymentRun[]
   auditEvents          AuditEvent[]
+  releaseStageAttempts ReleaseStageAttempt[] @relation("OperationApprovalReleaseAttempt")
 
   @@index([teamId])
   @@index([requesterId])
@@ -2319,9 +2333,8 @@ model OperationApproval {
   @@index([requestedAt])
   @@index([reviewedAt])
   @@index([consumedAt])
+  @@index([inputHash])
 }
-
-// 统一审计事件
 model AuditEvent {
   id                                String   @id @default(cuid())
   teamId                            String
@@ -2409,4 +2422,182 @@ model AuditEvent {
   @@index([risk])
   @@index([status])
   @@index([occurredAt])
+}
+
+// 项目级发布计划（F383）：一次项目+环境+版本的发布不可变快照
+model ReleasePlan {
+  id              String   @id @default(cuid())
+  teamId          String
+  projectId       String
+  environmentId   String
+  name            String
+  branch          String?
+  commitSha       String?
+  source          String   @default("manual") // manual | api | webhook
+  trigger         String   @default("manual") // manual | api | git_push
+  mode            String   @default("live") // preview | live
+  status          String   @default("draft") // draft | awaiting_approval | ready | running | succeeded | failed | blocked | canceled
+  blockedReason   String?  @db.Text
+  planHash        String?
+  inputSnapshot   Json?
+  createdByUserId String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  canceledAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment     ProjectEnvironment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  createdBy       User?    @relation("ReleasePlanCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  stages          ReleaseStage[]
+  events          ReleaseEvent[]
+
+  @@index([teamId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([createdByUserId])
+  @@index([status])
+  @@index([planHash])
+  @@index([mode])
+  @@index([startedAt])
+}
+
+// 发布计划中的不可变阶段节点（F383）
+model ReleaseStage {
+  id                  String   @id @default(cuid())
+  releasePlanId       String
+  teamId              String
+  key                 String
+  name                String
+  type                String // precheck | schema_migration | bootstrap | data_backfill | application_deploy | health_check | manual_gate | custom_command
+  applicationId       String?
+  applicationServiceId String?
+  environmentId       String?
+  serverId            String?
+  executorKind        String // server_command | deployment_run | manual_gate | shell
+  configSnapshot      Json?
+  configHash          String?
+  outputSchema        Json?
+  idempotencyKey      String?
+  concurrencyKey      String?
+  riskLevel           String   @default("low") // low | medium | high
+  required            Boolean  @default(true)
+  status              String   @default("pending") // pending | blocked | awaiting_approval | ready | queued | running | succeeded | failed | skipped | canceled
+  blockedReason       String?  @db.Text
+  currentAttempt      Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  releasePlan         ReleasePlan @relation(fields: [releasePlanId], references: [id], onDelete: Cascade)
+  team                Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  application         Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  applicationService  ApplicationService? @relation(fields: [applicationServiceId], references: [id], onDelete: SetNull)
+  environment         ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  attempts            ReleaseStageAttempt[]
+  dependencies        ReleaseStageDependency[] @relation("ReleaseStageDependent")
+  dependents          ReleaseStageDependency[] @relation("ReleaseStageDependsOn")
+  events              ReleaseEvent[]
+
+  @@unique([releasePlanId, key], map: "release_stage_plan_key")
+  @@index([teamId])
+  @@index([releasePlanId])
+  @@index([applicationId])
+  @@index([applicationServiceId])
+  @@index([environmentId])
+  @@index([serverId])
+  @@index([type])
+  @@index([executorKind])
+  @@index([status])
+  @@index([idempotencyKey])
+  @@index([concurrencyKey])
+}
+
+// 阶段依赖边（F383）
+model ReleaseStageDependency {
+  id               String   @id @default(cuid())
+  stageId          String
+  dependsOnStageId String
+  conditionType    String   // succeeded | completed | output_match | approved
+  conditionSnapshot Json?
+  createdAt        DateTime @default(now())
+
+  stage            ReleaseStage @relation("ReleaseStageDependent", fields: [stageId], references: [id], onDelete: Cascade)
+  dependsOnStage   ReleaseStage @relation("ReleaseStageDependsOn", fields: [dependsOnStageId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, dependsOnStageId], map: "release_stage_dependency_pair")
+  @@index([stageId])
+  @@index([dependsOnStageId])
+  @@index([conditionType])
+}
+
+// 阶段每次执行尝试的不可变证据（F383）
+model ReleaseStageAttempt {
+  id                   String   @id @default(cuid())
+  releaseStageId       String
+  teamId               String
+  attemptNo            Int
+  status               String   @default("queued") // queued | running | succeeded | failed | skipped | canceled
+  deploymentRunId      String?
+  serverExecutionJobId String?
+  operationApprovalId  String?
+  inputSnapshot        Json?
+  output               Json?
+  logSummary           Json?
+  error                String?  @db.Text
+  leaseOwner           String?
+  leaseExpiresAt       DateTime?
+  heartbeatAt          DateTime?
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  releaseStage         ReleaseStage @relation(fields: [releaseStageId], references: [id], onDelete: Cascade)
+  team                 Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  deploymentRun        DeploymentRun? @relation(fields: [deploymentRunId], references: [id], onDelete: SetNull)
+  serverExecutionJob   ServerExecutionJob? @relation(fields: [serverExecutionJobId], references: [id], onDelete: SetNull)
+  operationApproval    OperationApproval? @relation("OperationApprovalReleaseAttempt", fields: [operationApprovalId], references: [id], onDelete: SetNull)
+  events               ReleaseEvent[]
+
+  @@unique([releaseStageId, attemptNo], map: "release_stage_attempt_no")
+  @@index([teamId])
+  @@index([releaseStageId])
+  @@index([deploymentRunId])
+  @@index([serverExecutionJobId])
+  @@index([operationApprovalId])
+  @@index([status])
+  @@index([leaseOwner])
+  @@index([leaseExpiresAt])
+}
+
+// 发布级统一时间线（只追加，F383）
+model ReleaseEvent {
+  id               String   @id @default(cuid())
+  releasePlanId    String
+  releaseStageId   String?
+  stageAttemptId   String?
+  teamId           String
+  eventType        String
+  actorType        String   @default("system") // system | user | scheduler
+  actorId          String?
+  correlationId    String?
+  summary          String?  @db.Text
+  metadata         Json?
+  createdAt        DateTime @default(now())
+
+  releasePlan      ReleasePlan @relation(fields: [releasePlanId], references: [id], onDelete: Cascade)
+  team             Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  releaseStage     ReleaseStage? @relation(fields: [releaseStageId], references: [id], onDelete: Cascade)
+  stageAttempt     ReleaseStageAttempt? @relation(fields: [stageAttemptId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([releasePlanId])
+  @@index([releaseStageId])
+  @@index([stageAttemptId])
+  @@index([eventType])
+  @@index([actorId])
+  @@index([correlationId])
+  @@index([createdAt])
 }

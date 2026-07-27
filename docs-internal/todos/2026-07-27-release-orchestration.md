@@ -157,6 +157,59 @@ Devpilot 验证夹具必须能表达以下发布图，但 Devpilot 任务不得�
 其中历史照片回填只有在目标环境存在待回填数据时进入 ready；没有数据时应以带
 结构化输出的 `skipped` 结束，而不是失败或伪成功。
 
+## Implementation Fact Map (Slice 1 — confirmed by source read)
+
+权威架构文档保持不变。以下为实现层确认事实与必要微调，已据源码逐条核实：
+
+### 复用入口（已确认 file:line）
+
+- 命令阶段适配器调用 `ServerExecutorService.queueExecution(input, opts)`，
+  返回 `serverExecutionJobId`（`apps/devpilot-api/src/server-executor/server-executor.service.ts:124-129`）。
+  关联写回不引入新 DB 列，沿用 `metadata.businessRunSync + sourceMetadata` 通道，
+  新增 `release_stage` sync 类型与轻量 run-sync service（参照
+  `server-executor-deployment-run-sync.service.ts`）。
+- 应用部署阶段适配器调用 `DeploymentService.createRun(teamId, userId?, projectId, dto)`
+  （`deployment.service.ts:243`）。前置阶段由
+  `buildDeploymentLifecycleSteps`（`deployment-lifecycle-step-builders.utils.ts:54`）
+  生成，**当前没有整组跳过开关**。F383 在 `DeploymentConfig`/`buildCommandSteps`
+  上新增最小 opt-out 入口，仅由内部 `release_application_only` 通道使用，**不进入公共 DTO**。
+- 审批复用 `OperationApprovalService.createPending / review / resolveApproved / consume`。
+  当前无 `inputHash`/`correlationId` 字段；F383 给 `OperationApproval` 加 `inputHash`
+  并贯穿 `CreateOperationApprovalInput`/`ValidateOperationApprovalInput`/`assertMatches`。
+- 审计复用 `AuditEventService.create`（`audit-event.service.ts:78`），
+  通过 `metadata.releasePlanId/releaseStageId/stageAttemptId/correlationId` 关联，
+  无需新列。
+- 权限复用 `ControlAccessPolicyService.assertCanRead/assertCanWrite`
+  （phase `control_read`/`control_write`），新增 category `release_plan`。
+
+### schema 微调（基于约定）
+
+- 沿用无 enum、无 `@@map`、`cuid()` id、`@db.Text`、String+注释状态字段。
+- 新增 5 个 model：`ReleasePlan`、`ReleaseStage`、`ReleaseStageDependency`、
+  `ReleaseStageAttempt`、`ReleaseEvent`，参照 `ApplicationServiceInitialization`
+  的租约/唯一键/索引风格。
+- `OperationApproval` 增 `inputHash String?`（配置变更后旧审批失效的判定字段）。
+- 迁移文件名：`20260727100000_release_orchestration`、
+  `20260727110000_operation_approval_input_hash`。
+
+### 实现切片路径（Slice 2-10 落点）
+
+- 新模块根：`apps/devpilot-api/src/release-orchestration/`
+  - 子目录：`dto/`、`repository/`、`types/`、`utils/`（纯函数 DAG/状态机/输出解析/脱敏）、
+    `stage-adapters/`、`controller.ts`、`release-plan.service.ts`、
+    `release-coordinator.service.ts`、`release-orchestration.module.ts`。
+- feature flag：`DEVPILOT_RELEASE_ORCHESTRATION_ENABLED=false`（`ConfigService` 读取，
+  关闭时 controller 直接 503/404，旧入口不变）。
+- 前端新增 `projects/[id]/components/tabs/releases-tab.tsx` 与
+  `projects/[id]/components/release-*/` 子组件；`PROJECT_TABS` 加入 `'releases'`。
+
+### 已确认的兼容边界
+
+- 旧 `POST /deployments/projects/:projectId/runs` 行为不变；`legacy_inline` 模式仍跑
+  F382 串行前置阶段。`release_application_only` 仅由 release 模块内部调用。
+- `script-plan` adapter 把 `dryRun` plan 视为 `completed`，不等于应用健康；
+  release 的 health stage 必须独立验证，不依赖该状态。
+
 ## Stop Condition For This Codex Turn
 
 本轮只产出架构、任务台账、验收和 GLM Goal 提示词。到达本节后停止，不写
