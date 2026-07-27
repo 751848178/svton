@@ -58,6 +58,24 @@ export function redactSecretsInObject<T>(input: T): T {
   if (Array.isArray(input)) {
     return input.map((item) => redactSecretsInObject(item)) as unknown as T;
   }
+  // Date 必须先于通用 object 分支：Date 也有 toJSON，且 Object.entries(date)===[]
+  // 会把所有 DateTime 字段破坏成 {}（UI 得到 NaN 时间）。
+  if (input instanceof Date) {
+    return input.toISOString() as unknown as T;
+  }
+  if (Buffer.isBuffer(input)) {
+    return input.toString("hex") as unknown as T;
+  }
+  // Decimal/BigInt-as-object/Prisma.Decimal 类对象的防御性归一化
+  // （release 模型不用 Decimal，但本 util 复用于任意 JSON blob 脱敏）。
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "toJSON" in input &&
+    typeof (input as { toJSON: unknown }).toJSON === "function"
+  ) {
+    return String(input) as unknown as T;
+  }
   if (typeof input === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(input as Record<string, unknown>)) {

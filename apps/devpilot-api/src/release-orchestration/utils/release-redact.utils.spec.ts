@@ -62,6 +62,38 @@ describe("release-redact redactSecretsInObject", () => {
       list: [{ token: "[REDACTED]" }, { name: "ok" }],
     });
   });
+
+  // F383 D10/invest-3 §D.1: Date 修复——之前落入 object 分支被破坏成 {}。
+  it("serializes Date to ISO 8601 string", () => {
+    const iso = "2026-07-27T08:13:21.000Z";
+    expect(redactSecretsInObject(new Date(iso))).toBe(iso);
+  });
+
+  it("serializes Buffer to hex string", () => {
+    expect(redactSecretsInObject(Buffer.from("abc"))).toBe("616263");
+  });
+
+  it("preserves Date inside nested object while redacting secrets", () => {
+    const iso = "2026-07-27T08:13:21.000Z";
+    const out = redactSecretsInObject({
+      createdAt: new Date(iso),
+      password: "x",
+      nested: { finishedAt: new Date(iso), token: "t" },
+    });
+    expect(out).toEqual({
+      createdAt: iso,
+      password: "[REDACTED]",
+      nested: { finishedAt: iso, token: "[REDACTED]" },
+    });
+  });
+
+  it("array containing Date preserves ISO and still redacts secret keys", () => {
+    const iso = "2026-07-27T08:13:21.000Z";
+    const out = redactSecretsInObject([
+      { startedAt: new Date(iso), apiKey: "k" },
+    ]);
+    expect(out).toEqual([{ startedAt: iso, apiKey: "[REDACTED]" }]);
+  });
 });
 
 describe("release-redact stripSecretEnvFromSteps", () => {
