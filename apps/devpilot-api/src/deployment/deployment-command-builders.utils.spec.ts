@@ -109,6 +109,27 @@ describe("buildCommandSteps with envVars", () => {
     );
     expect(keysAbsent).toEqual(["checkout", "build", "deploy", "health_check"]);
   });
+
+  it("releaseApplicationOnly omits precheck/migration/initialization (F383 release bridge)", () => {
+    const steps = buildCommandSteps(
+      {
+        ...config,
+        preStartCheckCommand: "docker compose config --quiet",
+        migrationCommand: "prisma migrate deploy",
+        initializationCommand: "node dist/bootstrap.js",
+      },
+      "git@example.com:repo/app.git",
+      "main",
+      undefined,
+      { status: "planned" },
+      { releaseApplicationOnly: true },
+    );
+    const keys = steps.map((s) => s.key);
+    expect(keys).toEqual(["checkout", "build", "deploy", "health_check"]);
+    expect(keys).not.toContain("pre_start_check");
+    expect(keys).not.toContain("migration");
+    expect(keys).not.toContain("initialization");
+  });
 });
 
 describe("buildRollbackCommandSteps with envVars", () => {

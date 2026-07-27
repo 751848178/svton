@@ -326,6 +326,7 @@ export class DeploymentService {
       branch,
       envVars,
       initialization,
+      { releaseApplicationOnly: dto.releaseApplicationOnly === true },
     );
     const requiresApproval = this.requiresDeploymentOperationApproval(dryRun);
     const approvalContext = this.buildDeploymentApprovalContext({
@@ -474,6 +475,7 @@ export class DeploymentService {
         branch,
         envVars,
         initialization,
+        { releaseApplicationOnly: dto.releaseApplicationOnly === true },
       );
     }
 

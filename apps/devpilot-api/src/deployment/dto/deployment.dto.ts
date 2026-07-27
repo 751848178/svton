@@ -87,6 +87,15 @@ export class CreateDeploymentRunDto {
   @IsOptional()
   @IsString()
   approvalReason?: string;
+
+  /**
+   * 内部字段：发布编排（F383）已把 precheck/migration/initialization 拆为
+   * 独立阶段，应用部署运行不再重复执行它们。
+   * 公共入口会在 controller 处剥离本字段，普通用户无法绕过前置门禁。
+   */
+  @IsOptional()
+  @IsBoolean()
+  releaseApplicationOnly?: boolean;
 }
 
 export class RollbackDeploymentRunDto {

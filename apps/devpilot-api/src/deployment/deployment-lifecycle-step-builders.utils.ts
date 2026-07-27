@@ -54,7 +54,13 @@ function initializationStep(
 export function buildDeploymentLifecycleSteps(
   deployment: DeploymentConfig,
   initialization: DeploymentInitializationDecision,
+  options?: { releaseApplicationOnly?: boolean },
 ): ServerCommandStep[] {
+  // 发布编排（F383）已把 precheck/migration/initialization 拆为独立阶段；
+  // 此时内部部署运行不得重复执行它们。仅由 release 模块内部使用。
+  if (options?.releaseApplicationOnly) {
+    return [];
+  }
   return [
     lifecycleStep(
       "pre_start_check",

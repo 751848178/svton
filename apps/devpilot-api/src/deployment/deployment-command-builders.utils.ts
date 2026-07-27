@@ -51,6 +51,7 @@ export function buildCommandSteps(
   initialization: DeploymentInitializationDecision = plannedInitializationDecision(
     deployment.initializationCommand,
   ),
+  options?: { releaseApplicationOnly?: boolean },
 ): ServerCommandStep[] {
   const base: ServerCommandStep[] = [
     {
@@ -93,7 +94,7 @@ export function buildCommandSteps(
     });
   }
 
-  base.push(...buildDeploymentLifecycleSteps(deployment, initialization));
+  base.push(...buildDeploymentLifecycleSteps(deployment, initialization, options));
   base.push(
     {
       key: "deploy",

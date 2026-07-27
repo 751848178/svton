@@ -27,6 +27,7 @@ import { KeyCenterModule } from './key-center/key-center.module';
 import { ResourceRequestModule } from './resource-request/resource-request.module';
 import { ResourceControlModule } from './resource-control/resource-control.module';
 import { DeploymentModule } from './deployment/deployment.module';
+import { ReleaseOrchestrationModule } from './release-orchestration/release-orchestration.module';
 import { ProjectWebhookModule } from './project-webhook/project-webhook.module';
 import { SiteModule } from './site/site.module';
 import { ProjectEnvironmentModule } from './project-environment/project-environment.module';
@@ -186,6 +187,9 @@ import { useAuthzConfig } from './authz.config';
 
     // 项目构建部署模块
     DeploymentModule,
+
+    // 项目级发布编排模块（F383，默认关闭）
+    ReleaseOrchestrationModule,
 
     // 项目 Webhook 模块
     ProjectWebhookModule,

@@ -8,9 +8,15 @@ import type { Prisma } from "@prisma/client";
 export const releasePlanDetailInclude = {
   stages: {
     include: {
+      releasePlan: { select: { id: true, projectId: true, environmentId: true, teamId: true } },
       dependencies: true,
       dependents: true,
-      attempts: { orderBy: { attemptNo: "desc" } },
+      attempts: {
+        orderBy: { attemptNo: "desc" },
+        include: {
+          operationApproval: { select: { id: true, status: true, consumedAt: true } },
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
   },

@@ -1,0 +1,49 @@
+/**
+ * 发布编排模块（F383）。独立模块，不把逻辑塞进 DeploymentService。
+ */
+import { Module } from "@nestjs/common";
+import { DeploymentModule } from "../deployment/deployment.module";
+import { ServerExecutorModule } from "../server-executor/server-executor.module";
+import { ControlAccessPolicyModule } from "../control-access-policy";
+import { AuditEventModule } from "../audit-event";
+import { OperationApprovalModule } from "../operation-approval";
+import { PrismaModule } from "../prisma/prisma.module";
+import { ReleasePlanController } from "./release-plan.controller";
+import { ReleasePlanService } from "./release-plan.service";
+import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { ReleaseReadinessService } from "./release-readiness.service";
+import { ReleasePlanRepository } from "./repository/release-plan.repository";
+import { ReleaseStageRepository } from "./repository/release-stage.repository";
+import { ReleaseStageAttemptRepository } from "./repository/release-stage-attempt.repository";
+import { ReleaseEventRepository } from "./repository/release-event.repository";
+import { ServerCommandStageAdapter } from "./stage-adapters/server-command.adapter";
+import { DeploymentRunStageAdapter } from "./stage-adapters/deployment-run.adapter";
+import { HealthCheckStageAdapter } from "./stage-adapters/health-check.adapter";
+import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
+
+@Module({
+  imports: [
+    PrismaModule,
+    DeploymentModule,
+    ServerExecutorModule,
+    ControlAccessPolicyModule,
+    AuditEventModule,
+    OperationApprovalModule,
+  ],
+  controllers: [ReleasePlanController],
+  providers: [
+    ReleasePlanService,
+    ReleaseCoordinatorService,
+    ReleaseReadinessService,
+    ReleasePlanRepository,
+    ReleaseStageRepository,
+    ReleaseStageAttemptRepository,
+    ReleaseEventRepository,
+    ServerCommandStageAdapter,
+    DeploymentRunStageAdapter,
+    HealthCheckStageAdapter,
+    ManualGateStageAdapter,
+  ],
+  exports: [ReleasePlanService, ReleaseCoordinatorService],
+})
+export class ReleaseOrchestrationModule {}
