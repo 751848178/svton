@@ -1,34 +1,26 @@
 /**
  * 单服务阶段工厂（纯函数）：把一个 ReleaseServiceInput 翻译成阶段节点 + 依赖边 +
  * 副作用/风险摘要。由 release-plan-builder 跨服务编排调用。
+ *
+ * 低层节点/边构造见 release-plan-stage-helpers.utils。本文件只负责阶段编排。
  */
-import { computeIdempotencyKey, computeStageConfigHash } from "./release-hash.utils";
-import type {
-  ReleaseDependencyConditionType,
-  ReleaseRiskLevel,
-  ReleaseStageDefinition,
-  ReleaseStageExecutorKind,
-  ReleaseStageType,
-} from "../types/release-orchestration.types";
+import type { ReleaseDependencyConditionType } from "../types/release-orchestration.types";
 import type { ReleaseDependency, ReleaseServiceInput } from "./release-plan-builder.utils";
+import {
+  APP_DEPLOY_RISK,
+  BACKFILL_RISK,
+  BOOTSTRAP_RISK,
+  SCHEMA_MIGRATION_RISK,
+  edge,
+  makeStage,
+  type StageCtx,
+} from "./release-plan-stage-helpers.utils";
 
 export interface ServiceStageResult {
-  stages: Array<ReleaseStageDefinition & { idempotencyKey: string }>;
+  stages: Array<ReturnType<typeof makeStage>>;
   dependencies: ReleaseDependency[];
   sideEffects: string[];
   approvalRequired: Array<{ stageKey: string; reason: string }>;
-}
-
-const SCHEMA_MIGRATION_RISK: ReleaseRiskLevel = "high";
-const BOOTSTRAP_RISK: ReleaseRiskLevel = "medium";
-const BACKFILL_RISK: ReleaseRiskLevel = "high";
-const APP_DEPLOY_RISK: ReleaseRiskLevel = "medium";
-
-export interface StageCtx {
-  applicationId: string;
-  applicationServiceId: string;
-  environmentId: string;
-  serverId?: string | null;
 }
 
 export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult {
@@ -43,6 +35,8 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
     serverId: svc.serverId ?? null,
   };
   let prevKey: string | null = null;
+  // 紧邻上一阶段是否为可选 backfill；决定其出向边用 completed 还是 succeeded。
+  let prevKeyWasOptionalBackfill = false;
 
   if (svc.preStartCheckCommand) {
     const key = `precheck:${svc.applicationServiceId}`;
@@ -59,6 +53,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
       }),
     );
     prevKey = key;
+    prevKeyWasOptionalBackfill = false;
   }
 
   if (svc.migrationCommand) {
@@ -77,6 +72,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
     );
     if (prevKey) dependencies.push(edge(key, prevKey, "succeeded", true));
     prevKey = key;
+    prevKeyWasOptionalBackfill = false;
     sideEffects.push(`${key}: 修改数据库结构（不可自动回滚）`);
     approvalRequired.push({ stageKey: key, reason: "数据库结构迁移为高风险" });
   }
@@ -101,6 +97,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
     );
     if (prevKey) dependencies.push(edge(key, prevKey, "succeeded", true));
     prevKey = key;
+    prevKeyWasOptionalBackfill = false;
     sideEffects.push(`${key}: 创建/更新生产初始化数据`);
     approvalRequired.push({ stageKey: key, reason: "生产 bootstrap 修改数据" });
   }
@@ -123,12 +120,28 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
     const cond: ReleaseDependencyConditionType = isRequired ? "succeeded" : "completed";
     if (prevKey) dependencies.push(edge(key, prevKey, cond, !isRequired));
     prevKey = key;
+    // 标记：紧邻上一阶段是可选 backfill → 其出向 deploy 边改用 completed（允许跳过）。
+    prevKeyWasOptionalBackfill = !isRequired;
     sideEffects.push(`${key}: 批量更新历史数据`);
     approvalRequired.push({ stageKey: key, reason: "历史数据回填高风险" });
   }
 
   if (svc.deployCommand) {
     const key = `application_deploy:${svc.applicationServiceId}`;
+    // 可选 backfill 紧邻时，deploy 入边用 completed（允许 backfill 跳过后继续）。
+    const incomingCond: ReleaseDependencyConditionType = prevKeyWasOptionalBackfill
+      ? "completed"
+      : "succeeded";
+    const deployConfig: Record<string, unknown> = {
+      deployCommand: svc.deployCommand,
+      targetType: "server",
+      releaseApplicationOnly: true,
+      concurrencyKey: `service:${svc.environmentId}:${svc.applicationServiceId}`,
+    };
+    // VCS 透传：branch/commitSha/gitRepo 注入 deploy 配置快照（供 DeploymentRun 适配器读取）。
+    if (svc.branch) deployConfig.branch = svc.branch;
+    if (svc.commitSha) deployConfig.commitSha = svc.commitSha;
+    if (svc.gitRepo) deployConfig.gitRepo = svc.gitRepo;
     stages.push(
       makeStage({
         key,
@@ -138,16 +151,14 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: true,
         risk: APP_DEPLOY_RISK,
         ctx,
-        config: {
-          deployCommand: svc.deployCommand,
-          targetType: "server",
-          releaseApplicationOnly: true,
-          concurrencyKey: `service:${svc.environmentId}:${svc.applicationServiceId}`,
-        },
+        config: deployConfig,
       }),
     );
-    if (prevKey) dependencies.push(edge(key, prevKey, "succeeded", true));
+    if (prevKey)
+      dependencies.push(edge(key, prevKey, incomingCond, prevKeyWasOptionalBackfill));
     prevKey = key;
+    // 部署边已按可选 backfill 决策完毕，重置标记避免后续 health_check 继承。
+    prevKeyWasOptionalBackfill = false;
     sideEffects.push(`${key}: 重启应用进程`);
     approvalRequired.push({ stageKey: key, reason: "应用部署为正式变更" });
 
@@ -176,47 +187,5 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
   return { stages, dependencies, sideEffects, approvalRequired };
 }
 
-export function makeStage(args: {
-  key: string;
-  name: string;
-  type: ReleaseStageType;
-  executorKind: ReleaseStageExecutorKind;
-  required: boolean;
-  risk: ReleaseRiskLevel;
-  ctx: StageCtx;
-  config: Record<string, unknown>;
-}): ReleaseStageDefinition & { idempotencyKey: string } {
-  const configHash = computeStageConfigHash({
-    type: args.type,
-    ctx: args.ctx,
-    config: args.config,
-  });
-  return {
-    key: args.key,
-    name: args.name,
-    type: args.type,
-    executorKind: args.executorKind,
-    required: args.required,
-    riskLevel: args.risk,
-    applicationId: args.ctx.applicationId,
-    applicationServiceId: args.ctx.applicationServiceId,
-    environmentId: args.ctx.environmentId,
-    serverId: args.ctx.serverId ?? null,
-    configHash,
-    configSnapshot: { ...args.config },
-    idempotencyKey: computeIdempotencyKey("__plan__", args.key, configHash),
-    concurrencyKey:
-      typeof args.config.concurrencyKey === "string"
-        ? (args.config.concurrencyKey as string)
-        : null,
-  };
-}
-
-export function edge(
-  stageKey: string,
-  dependsOnStageKey: string,
-  conditionType: ReleaseDependencyConditionType,
-  optional: boolean,
-): ReleaseDependency {
-  return { stageKey, dependsOnStageKey, conditionType, required: !optional };
-}
+// 重新导出低层助手，便于现有引用（release-plan-builder）保持导入路径稳定。
+export { makeStage, edge } from "./release-plan-stage-helpers.utils";

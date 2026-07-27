@@ -56,7 +56,9 @@ export class ReleasePlanController {
       name: dto.name,
       branch: dto.branch,
       commitSha: dto.commitSha,
+      gitRepo: dto.gitRepo,
       services: dto.services,
+      serviceDependencies: dto.serviceDependencies as never,
     });
   }
 
@@ -75,7 +77,9 @@ export class ReleasePlanController {
       name: dto.name,
       branch: dto.branch,
       commitSha: dto.commitSha,
+      gitRepo: dto.gitRepo,
       services: dto.services,
+      serviceDependencies: dto.serviceDependencies as never,
       createdByUserId: req.user.id,
     });
   }

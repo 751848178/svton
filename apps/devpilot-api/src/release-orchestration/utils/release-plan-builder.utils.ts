@@ -10,6 +10,10 @@ import {
   makeStage as _unusedMakeStage,
 } from "./release-plan-stage-factory.utils";
 import type {
+  ServiceDependencyEdge,
+} from "./release-cross-service-edges.utils";
+import { resolveCrossServiceEdges } from "./release-cross-service-edges.utils";
+import type {
   ReleaseRiskLevel,
   ReleaseStageDefinition,
 } from "../types/release-orchestration.types";
@@ -30,6 +34,10 @@ export interface ReleaseServiceInput {
   healthCheckUrl?: string;
   backfillCommand?: string;
   backfillRequired?: boolean;
+  // VCS 透传到 application_deploy 阶段 configSnapshot；plan-level 输入覆盖 per-service 值。
+  branch?: string;
+  commitSha?: string;
+  gitRepo?: string;
 }
 
 export interface ReleasePlanBuildInput {
@@ -38,7 +46,10 @@ export interface ReleasePlanBuildInput {
   name: string;
   branch?: string;
   commitSha?: string;
+  gitRepo?: string;
   services: ReleaseServiceInput[];
+  // 跨服务依赖边（显式声明，Devpilot 不推断）。Picshare 的 backend-readiness → admin-deploy 在此声明。
+  serviceDependencies?: ServiceDependencyEdge[];
 }
 
 export interface ReleaseStageNode extends ReleaseStageDefinition {
@@ -73,11 +84,32 @@ export function buildReleasePlan(
   const approvalRequired: ReleasePlanPreview["approvalRequired"] = [];
 
   for (const svc of input.services) {
-    const result = buildServiceStages(svc);
+    // plan-level 分支/commit/仓库覆盖 per-service 值（发布计划目标是权威）。
+    const svcWithVcs: ReleaseServiceInput = {
+      ...svc,
+      branch: input.branch ?? svc.branch,
+      commitSha: input.commitSha ?? svc.commitSha,
+      gitRepo: input.gitRepo ?? svc.gitRepo,
+    };
+    const result = buildServiceStages(svcWithVcs);
     stages.push(...result.stages);
     dependencies.push(...result.dependencies);
     sideEffects.push(...result.sideEffects);
     approvalRequired.push(...result.approvalRequired);
+  }
+
+  // 跨服务依赖边：在所有 per-service 阶段收集完毕后叠加。
+  // 引用不存在的 service/stageType → missing_reference（preview/create 抛 RELEASE_PLAN_INVALID）。
+  if (input.serviceDependencies && input.serviceDependencies.length > 0) {
+    const knownStageKeys = new Set(stages.map((s) => s.key));
+    const resolved = resolveCrossServiceEdges(input.serviceDependencies, knownStageKeys);
+    if (!resolved.ok) {
+      return {
+        ok: false,
+        error: { kind: resolved.kind, message: resolved.message },
+      };
+    }
+    dependencies.push(...resolved.edges);
   }
 
   const inputSnapshot: Record<string, unknown> = {
@@ -86,6 +118,7 @@ export function buildReleasePlan(
     name: input.name,
     branch: input.branch ?? null,
     commitSha: input.commitSha ?? null,
+    gitRepo: input.gitRepo ?? null,
     services: input.services,
     generatedAt: new Date().toISOString(),
   };
