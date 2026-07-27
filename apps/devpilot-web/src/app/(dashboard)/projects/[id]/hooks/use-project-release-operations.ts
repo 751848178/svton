@@ -9,8 +9,10 @@
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import type {
+  ReleaseCapability,
   ReleasePlan,
   ReleasePlanPreview,
+  ReleaseServiceDependencyInput,
   ReleaseServiceInputItem,
 } from '../types/releases';
 
@@ -19,7 +21,12 @@ export interface ReleasePlanBuildInput {
   name: string;
   branch?: string;
   commitSha?: string;
+  gitRepo?: string;
+  /** 预览↔创建强绑定（invest-3 §C）：回传上一次 preview 的 planHash，不一致则 409。 */
+  expectedPlanHash?: string;
   services: ReleaseServiceInputItem[];
+  /** 跨服务依赖边（invest-3 §D6）。 */
+  serviceDependencies?: ReleaseServiceDependencyInput[];
 }
 
 export interface ProjectReleaseOperations {
@@ -35,6 +42,13 @@ export interface ProjectReleaseOperations {
     stageId: string,
     body: { reason: string; confirmationText: string },
   ) => Promise<{ planId: string; stageId: string; status: string }>;
+  /** 重新请求审批（D5）：被拒绝/过期阶段重新生成待审批。 */
+  reRequestApproval: (
+    planId: string,
+    stageId: string,
+  ) => Promise<{ planId: string; stageId: string; status: string }>;
+  /** 能力查询（D9）：GET /release-plans/capability，flag + 项目写权限。 */
+  capability: (projectId?: string) => Promise<ReleaseCapability>;
 }
 
 interface UseProjectReleaseOperationsArgs {
@@ -54,9 +68,14 @@ export function useProjectReleaseOperations({
   });
 
   const create = usePersistFn(async (input: ReleasePlanBuildInput) => {
+    const payload = {
+      ...input,
+      // 恒发送 expectedPlanHash（即使 undefined 也由 DTO @IsOptional 容忍）。
+      expectedPlanHash: input.expectedPlanHash,
+    };
     const result = await apiRequest<{ id: string; planHash: string }>(
       `POST:/release-plans/projects/${projectId}`,
-      input,
+      payload,
     );
     await reload();
     return result;
@@ -109,5 +128,29 @@ export function useProjectReleaseOperations({
     },
   );
 
-  return { preview, create, list, get, execute, cancel, retryStage, skipStage };
+  const reRequestApproval = usePersistFn(async (planId: string, stageId: string) => {
+    const result = await apiRequest<{ planId: string; stageId: string; status: string }>(
+      `POST:/release-plans/${planId}/stages/${stageId}/re-request-approval`,
+    );
+    await reload();
+    return result;
+  });
+
+  const capability = usePersistFn(async (targetProjectId?: string) => {
+    const query = targetProjectId ? { projectId: targetProjectId } : undefined;
+    return apiRequest<ReleaseCapability>('GET:/release-plans/capability', query);
+  });
+
+  return {
+    preview,
+    create,
+    list,
+    get,
+    execute,
+    cancel,
+    retryStage,
+    skipStage,
+    reRequestApproval,
+    capability,
+  };
 }
