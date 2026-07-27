@@ -112,6 +112,8 @@ export class ReleasePlanController {
   @Post(":planId/cancel")
   @HttpCode(200)
   async cancel(@Request() req: AuthRequest, @Param("planId") planId: string) {
+    // cancel 是逃生通道，flag 关闭时仍可用，对应 capability.canCancel===true（architect D9）。
+    // 故此处有意不调用 requireEnabled()，其余写操作（preview/create/execute/retry/skip/re-request-approval）均加 flag 守卫。
     const plan = await this.releasePlanService.get(req.teamId, planId);
     await this.assertProjectAccess(req, plan.projectId, plan.environmentId, "write");
     await this.releasePlanService.cancel(req.teamId, planId, req.user.id);

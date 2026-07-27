@@ -10,6 +10,7 @@
  *
  * 未设置 DATABASE_URL=...3399 或 RUN_RELEASE_INTEGRATION=1 时整体跳过（默认 CI 行为）。
  */
+import { ConflictException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
 import { ReleaseStageRepository } from "./repository/release-stage.repository";
@@ -22,6 +23,7 @@ import { ReleaseRecoveryService } from "./release-recovery.service";
 import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
 import { ReleaseRecoverySchedulerService } from "./release-recovery-scheduler.service";
+import { ReleasePlanService } from "./release-plan.service";
 import { ServerExecutorReleaseStageRunSyncService } from "../server-executor/server-executor-release-stage-run-sync.service";
 import type { ServerExecutionResult } from "../server-executor/server-executor.types";
 import type {
@@ -29,6 +31,7 @@ import type {
   ReleaseStageExecutionContext,
   ReleaseStageExecutionResult,
 } from "./stage-adapters/release-stage-adapter.types";
+import { RELEASE_ORCHESTRATION_FLAG } from "./types/release-orchestration.types";
 
 const DB_URL = process.env.DATABASE_URL ?? "";
 const isIntegration = DB_URL.includes("3399") || process.env.RUN_RELEASE_INTEGRATION === "1";
@@ -36,8 +39,10 @@ const describeIntegration = isIntegration ? describe : (describe.skip as jest.De
 
 // 测试专用 ServerExecutorService 替身：queueExecution 写一行真实 ServerExecutionJob；
 // cancelJob 把作业置 cancelled；completeJob 模拟回调完成。
+// cancelJob 调用记录到 cancelledJobIds 数组，供取消场景断言。
 class FakeServerExecutorService {
   readonly kind = "server_command";
+  readonly cancelledJobIds: string[] = [];
   constructor(private readonly prisma: PrismaService) {}
   async queueExecution(
     input: { teamId: string; operationKey?: string; adapterKey?: string; metadata?: unknown },
@@ -56,6 +61,7 @@ class FakeServerExecutorService {
     return { serverExecutionJobId: job.id, queuedAt: job.queuedAt };
   }
   async cancelJob(_teamId: string, _userId: string, id: string): Promise<void> {
+    this.cancelledJobIds.push(id);
     await this.prisma.serverExecutionJob.update({
       where: { id },
       data: { status: "cancelled", cancelledAt: new Date(), finishedAt: new Date() },
@@ -123,6 +129,7 @@ interface Harness {
   coordinator: ReleaseCoordinatorService;
   executor: FakeServerExecutorService;
   releaseStageSync: ServerExecutorReleaseStageRunSyncService;
+  releasePlanService: ReleasePlanService;
   schedulerFor: (enabled: boolean) => ReleaseRecoverySchedulerService;
 }
 
@@ -170,13 +177,29 @@ async function buildHarness(): Promise<Harness> {
     prisma,
     coordinator,
   );
+  // 真实的 ReleasePlanService：feature flag 恒开，serverExecutor 用 fake
+  const configOn = {
+    get: (key: string, fallback?: string) =>
+      key === RELEASE_ORCHESTRATION_FLAG ? "true" : (fallback ?? ""),
+  } as never;
+  const releasePlanService = new ReleasePlanService(
+    configOn,
+    prisma,
+    planRepo,
+    stageRepo,
+    attemptRepo,
+    eventRepo,
+    coordinator,
+    approvalLifecycle,
+    executor as never,
+  );
   const schedulerFor = (enabled: boolean) =>
     new ReleaseRecoverySchedulerService(
       coordinator,
       planRepo,
       { get: (_k: string, fallback?: string) => (enabled ? "true" : (fallback ?? "false")) } as never,
     );
-  return { prisma, coordinator, executor, releaseStageSync, schedulerFor };
+  return { prisma, coordinator, executor, releaseStageSync, releasePlanService, schedulerFor };
 }
 
 async function seedBaseline(prisma: PrismaService) {
@@ -634,5 +657,233 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
     // 没有任何计划被改动
     const afterPlans = await h.prisma.releasePlan.count();
     expect(afterPlans).toBe(beforePlans);
+  });
+
+  // === Slice 6: transactional retry + cancel (P0-7, P0-8) ===
+
+  it("retry reopens failed plan + stage, creates attempt 2, appends stage_retried event", async () => {
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id,
+        projectId: "proj-rel-int",
+        environmentId: env.id,
+        name: "retry-reopen",
+        status: "failed",
+        planHash: "h-retry",
+        finishedAt: new Date(),
+        blockedReason: "存在失败阶段",
+      },
+    });
+    const stage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id,
+        teamId: team.id,
+        key: "precheck:retry",
+        name: "retry",
+        type: "precheck",
+        executorKind: "server_command",
+        riskLevel: "low",
+        required: true,
+        status: "failed",
+        currentAttempt: 1,
+        configSnapshot: { command: "echo retry" },
+      },
+    });
+    // 已存在的失败 attempt（attemptNo=1）
+    await h.prisma.releaseStageAttempt.create({
+      data: {
+        releaseStageId: stage.id,
+        teamId: team.id,
+        attemptNo: 1,
+        status: "failed",
+        finishedAt: new Date(),
+        error: "boom",
+      },
+    });
+
+    await h.releasePlanService.retryStage(team.id, plan.id, stage.id, "user-rel-int");
+
+    // 计划重开：failed→running，finishedAt 清空
+    const planAfter = await h.prisma.releasePlan.findUnique({ where: { id: plan.id } });
+    expect(planAfter?.status).toBe("running");
+    expect(planAfter?.finishedAt).toBeNull();
+
+    // 阶段从 failed 转入 ready/queued/running；并创建新 attempt（attemptNo=2）
+    const stageAfter = await h.prisma.releaseStage.findUnique({ where: { id: stage.id } });
+    expect(["ready", "queued", "running"]).toContain(stageAfter?.status);
+    const attempts = await h.prisma.releaseStageAttempt.findMany({
+      where: { releaseStageId: stage.id },
+      orderBy: { attemptNo: "asc" },
+    });
+    expect(attempts.length).toBe(2);
+    expect(attempts[1]?.attemptNo).toBe(2);
+
+    // stage_retried 事件已追加
+    const retriedEvents = await h.prisma.releaseEvent.findMany({
+      where: { releaseStageId: stage.id, eventType: "release_stage.retried" },
+    });
+    expect(retriedEvents.length).toBe(1);
+  });
+
+  it("concurrent retryStage on same failed stage → second loses cleanly (ConflictException)", async () => {
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id,
+        projectId: "proj-rel-int",
+        environmentId: env.id,
+        name: "retry-concurrent",
+        status: "failed",
+        planHash: "h-retry-c",
+        finishedAt: new Date(),
+      },
+    });
+    const stage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id,
+        teamId: team.id,
+        key: "precheck:retry-c",
+        name: "retry-c",
+        type: "precheck",
+        executorKind: "server_command",
+        riskLevel: "low",
+        required: true,
+        status: "failed",
+        currentAttempt: 1,
+        configSnapshot: { command: "echo rc" },
+      },
+    });
+
+    // 串行调用第二次：第一次已把 stage 翻转为 ready，第二次 CAS count===0 → ConflictException
+    await h.releasePlanService.retryStage(team.id, plan.id, stage.id, "user-rel-int");
+    await expect(
+      h.releasePlanService.retryStage(team.id, plan.id, stage.id, "user-rel-int"),
+    ).rejects.toThrow(ConflictException);
+
+    // 仍只有一个新 attempt（attemptNo=2），没有第三次
+    const attempts = await h.prisma.releaseStageAttempt.findMany({
+      where: { releaseStageId: stage.id },
+    });
+    expect(attempts.filter((a) => a.attemptNo >= 2).length).toBe(1);
+  });
+
+  it("cancel mid-run invokes cancelJob, flips all rows, releases leases, appends plan_canceled event", async () => {
+    const ck = "cancel-lease-test";
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id,
+        projectId: "proj-rel-int",
+        environmentId: env.id,
+        name: "cancel-mid-run",
+        status: "running",
+        planHash: "h-cancel",
+      },
+    });
+    const stage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id,
+        teamId: team.id,
+        key: "precheck:cancel",
+        name: "cancel",
+        type: "precheck",
+        executorKind: "server_command",
+        riskLevel: "low",
+        required: true,
+        status: "ready",
+        currentAttempt: 0,
+        concurrencyKey: ck,
+        configSnapshot: { command: "echo cancel" },
+      },
+    });
+
+    // 1. advancePlan 认领阶段 → 创建 attempt + 真实 SEJ + 租约
+    await h.coordinator.advancePlan(plan.id);
+    const attempt = await h.prisma.releaseStageAttempt.findFirstOrThrow({
+      where: { releaseStageId: stage.id },
+    });
+    const jobId = attempt.serverExecutionJobId as string;
+    expect(jobId).toBeTruthy();
+    const leasesBefore = await h.prisma.releaseConcurrencyLease.findMany({ where: { concurrencyKey: ck } });
+    expect(leasesBefore.length).toBe(1);
+    h.executor.cancelledJobIds.length = 0;
+
+    // 2. cancel
+    await h.releasePlanService.cancel(team.id, plan.id, "user-rel-int");
+
+    // 真实 SEJ 被 cancelJob 调用
+    expect(h.executor.cancelledJobIds).toContain(jobId);
+    // 计划终态
+    const planAfter = await h.prisma.releasePlan.findUnique({ where: { id: plan.id } });
+    expect(planAfter?.status).toBe("canceled");
+    expect(planAfter?.canceledAt).toBeTruthy();
+    // 阶段全部 canceled
+    const stages = await h.prisma.releaseStage.findMany({ where: { releasePlanId: plan.id } });
+    expect(stages.every((s) => s.status === "canceled")).toBe(true);
+    // attempt 全部 canceled，租约清空
+    const attempts = await h.prisma.releaseStageAttempt.findMany({ where: { releaseStageId: stage.id } });
+    expect(attempts.every((a) => a.status === "canceled" && a.leaseOwner === null)).toBe(true);
+    const leasesAfter = await h.prisma.releaseConcurrencyLease.findMany({ where: { releaseStage: { releasePlanId: plan.id } } });
+    expect(leasesAfter.length).toBe(0);
+    // plan_canceled 事件已追加
+    const cancelEvents = await h.prisma.releaseEvent.findMany({
+      where: { releasePlanId: plan.id, eventType: "release_plan.canceled" },
+    });
+    expect(cancelEvents.length).toBe(1);
+  });
+
+  it("cancel is atomic: second cancel after terminal → ConflictException, no partial state", async () => {
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id,
+        projectId: "proj-rel-int",
+        environmentId: env.id,
+        name: "cancel-atomic",
+        status: "running",
+        planHash: "h-cancel-a",
+      },
+    });
+    await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id,
+        teamId: team.id,
+        key: "precheck:cancel-a",
+        name: "cancel-a",
+        type: "precheck",
+        executorKind: "server_command",
+        riskLevel: "low",
+        required: true,
+        status: "ready",
+        currentAttempt: 0,
+        configSnapshot: { command: "echo ca" },
+      },
+    });
+    await h.coordinator.advancePlan(plan.id);
+
+    // 第一次取消成功
+    await h.releasePlanService.cancel(team.id, plan.id, "user-rel-int");
+    const planAfter1 = await h.prisma.releasePlan.findUnique({ where: { id: plan.id } });
+    expect(planAfter1?.status).toBe("canceled");
+
+    // 第二次取消：计划已终态 → ConflictException（原子性后验：无中间态可被二次取消消费）
+    await expect(
+      h.releasePlanService.cancel(team.id, plan.id, "user-rel-int"),
+    ).rejects.toThrow(ConflictException);
+
+    // 后验原子不变式：成功取消后非终态阶段/attempt/租约为零
+    const nonTerminalStages = await h.prisma.releaseStage.findMany({
+      where: { releasePlanId: plan.id, status: { in: ["pending", "blocked", "awaiting_approval", "ready", "queued", "running"] } },
+    });
+    expect(nonTerminalStages.length).toBe(0);
+    const nonTerminalAttempts = await h.prisma.releaseStageAttempt.findMany({
+      where: { releaseStage: { releasePlanId: plan.id }, status: { in: ["queued", "running"] } },
+    });
+    expect(nonTerminalAttempts.length).toBe(0);
+    const leases = await h.prisma.releaseConcurrencyLease.findMany({
+      where: { releaseStage: { releasePlanId: plan.id } },
+    });
+    expect(leases.length).toBe(0);
   });
 });
