@@ -15,6 +15,9 @@ export type CreateOperationApprovalInput = {
   targetType: string;
   targetId?: string | null;
   risk: string;
+  // 审批绑定的输入快照哈希；发布阶段绑定 configHash，配置变更后旧审批失效。
+  // 非发布路径（部署/资源动作/站点同步）可不传，落库为 null。
+  inputHash?: string | null;
   summary?: string | null;
   reason?: string | null;
   metadata?: Record<string, unknown> | Prisma.InputJsonValue | null;
@@ -80,6 +83,7 @@ export type OperationApprovalMatchRecord = {
   serverId: string | null;
   siteId: string | null;
   managedResourceId: string | null;
+  inputHash: string | null;
 };
 
 export type OperationApprovalAuditRecord = OperationApprovalMatchRecord & {

@@ -209,6 +209,8 @@ export const RELEASE_AUDIT_ACTIONS = {
   stage_finished: "release_stage.finished",
   stage_retried: "release_stage.retried",
   stage_skipped: "release_stage.skipped",
+  stage_blocked: "release_stage.blocked",
+  stage_approval_re_requested: "release_stage.approval_re_requested",
 } as const;
 
 // 审批 category/action（绑发布阶段）

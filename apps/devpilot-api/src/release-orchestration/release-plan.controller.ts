@@ -153,6 +153,25 @@ export class ReleasePlanController {
     return { planId, stageId, status: "skipped" };
   }
 
+  @Post(":planId/stages/:stageId/re-request-approval")
+  @HttpCode(200)
+  async reRequestApproval(
+    @Request() req: AuthRequest,
+    @Param("planId") planId: string,
+    @Param("stageId") stageId: string,
+  ) {
+    this.requireEnabled();
+    const plan = await this.releasePlanService.get(req.teamId, planId);
+    await this.assertProjectAccess(req, plan.projectId, plan.environmentId, "write");
+    await this.releasePlanService.reRequestApproval(
+      req.teamId,
+      planId,
+      stageId,
+      req.user.id,
+    );
+    return { planId, stageId, status: "awaiting_approval" };
+  }
+
   private requireEnabled(): void {
     if (!this.releasePlanService.isEnabled()) {
       throw new ForbiddenException("发布编排未启用");

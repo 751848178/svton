@@ -16,6 +16,12 @@ import {
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
 import { ReleaseEventRepository } from "./repository/release-event.repository";
 import { ReleaseReadinessService, type ReadinessStageView } from "./release-readiness.service";
+import {
+  ReleaseApprovalLifecycleService,
+  type EnsureApprovalResult,
+  type LifecyclePlanView,
+  type LifecycleStageView,
+} from "./release-approval-lifecycle.service";
 import { ReleaseRecoveryService, type AttemptLinkedView } from "./release-recovery.service";
 import { ServerCommandStageAdapter } from "./stage-adapters/server-command.adapter";
 import { DeploymentRunStageAdapter } from "./stage-adapters/deployment-run.adapter";
@@ -43,6 +49,7 @@ export class ReleaseCoordinatorService {
     private readonly eventRepo: ReleaseEventRepository,
     private readonly readiness: ReleaseReadinessService,
     private readonly recovery: ReleaseRecoveryService,
+    private readonly approvalLifecycle: ReleaseApprovalLifecycleService,
     private readonly serverCommandAdapter: ServerCommandStageAdapter,
     private readonly deploymentRunAdapter: DeploymentRunStageAdapter,
     private readonly manualGateAdapter: ManualGateStageAdapter,
@@ -58,14 +65,41 @@ export class ReleaseCoordinatorService {
     // 1. 先回收过期租约并回读关联运行终态
     await this.recoverStaleAttempts(plan.id, plan.teamId);
 
-    // 2. 对每个非终态阶段重算 readiness，认领 ready 阶段
+    const lifecyclePlan: LifecyclePlanView = {
+      id: plan.id,
+      teamId: plan.teamId,
+      projectId: plan.projectId,
+      environmentId: plan.environmentId,
+      name: plan.name,
+      createdByUserId: plan.createdByUserId ?? null,
+    };
+
+    // 2. 对每个非终态阶段：先确保阶段绑定审批存在，再重算 readiness 并认领
     for (const stage of plan.stages) {
       if (["succeeded", "skipped", "canceled"].includes(stage.status)) continue;
-      await this.tryClaimAndStart(stage as ReadinessStageView, plan.teamId, actorId);
+      const view = stage as ReadinessStageView;
+      const ensured = await this.approvalLifecycle.ensureStageApproval(
+        view as LifecycleStageView,
+        lifecyclePlan,
+      );
+      view.stageApproval = ensured.approval;
+      if (ensured.blocked) continue; // 审批被拒绝 → 已置 blocked，跳过认领
+      const approvalId = this.usableApprovalId(ensured.approval);
+      await this.tryClaimAndStart(view, plan.teamId, actorId, approvalId);
     }
 
     // 3. 重新派生计划状态
     await this.recomputePlanStatus(plan.id);
+  }
+
+  // 仅当审批处于 approved 且未消费时才绑定到 attempt（pending 不绑定，避免误消费）
+  private usableApprovalId(
+    approval: EnsureApprovalResult["approval"],
+  ): string | null {
+    if (!approval || approval.status !== "approved" || approval.consumedAt) {
+      return null;
+    }
+    return approval.id ?? null;
   }
 
   // 尝试认领并启动一个阶段；幂等。
@@ -73,6 +107,7 @@ export class ReleaseCoordinatorService {
     stage: ReadinessStageView,
     teamId: string,
     actorId?: string,
+    approvalId?: string | null,
   ): Promise<void> {
     const facts = await this.readiness.assembleFacts(stage);
     const result = this.readiness.compute({ ...facts, releaseExecutable: true });
@@ -88,6 +123,7 @@ export class ReleaseCoordinatorService {
       team: { connect: { id: teamId } },
       attemptNo,
       status: "queued",
+      operationApproval: approvalId ? { connect: { id: approvalId } } : undefined,
       inputSnapshot: { configHash: stage.configHash } as never,
     });
     await this.stageRepo.updateStatusIf(
@@ -207,6 +243,11 @@ export class ReleaseCoordinatorService {
       finishedAt: new Date(),
     });
     if (updated === 0) return; // 已被他人收尾
+
+    // 成功收尾：消费阶段绑定审批（失败不阻塞 finish）
+    if (result.status === "succeeded" && attempt.operationApprovalId) {
+      await this.approvalLifecycle.consume(teamId, attempt.operationApprovalId);
+    }
 
     const nextStageStatus: ReleaseStageStatus =
       result.status === "succeeded"

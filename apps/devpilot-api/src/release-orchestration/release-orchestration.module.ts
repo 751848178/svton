@@ -13,6 +13,7 @@ import { ReleasePlanService } from "./release-plan.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
 import { ReleaseRecoveryService } from "./release-recovery.service";
 import { ReleaseReadinessService } from "./release-readiness.service";
+import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.service";
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
 import { ReleaseStageRepository } from "./repository/release-stage.repository";
 import { ReleaseStageAttemptRepository } from "./repository/release-stage-attempt.repository";
@@ -37,6 +38,7 @@ import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
     ReleaseCoordinatorService,
     ReleaseRecoveryService,
     ReleaseReadinessService,
+    ReleaseApprovalLifecycleService,
     ReleasePlanRepository,
     ReleaseStageRepository,
     ReleaseStageAttemptRepository,

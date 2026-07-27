@@ -17,6 +17,7 @@ import { ReleaseStageRepository } from "./repository/release-stage.repository";
 import { ReleaseStageAttemptRepository } from "./repository/release-stage-attempt.repository";
 import { ReleaseEventRepository } from "./repository/release-event.repository";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.service";
 import {
   buildReleasePlan,
   type ReleasePlanBuildInput,
@@ -44,6 +45,7 @@ export class ReleasePlanService {
     private readonly attemptRepo: ReleaseStageAttemptRepository,
     private readonly eventRepo: ReleaseEventRepository,
     private readonly coordinator: ReleaseCoordinatorService,
+    private readonly approvalLifecycle: ReleaseApprovalLifecycleService,
   ) {}
 
   isEnabled(): boolean {
@@ -202,7 +204,42 @@ export class ReleasePlanService {
     await this.coordinator.advancePlan(planId, actorId);
   }
 
-  // 受控跳过：仅 optional 阶段；必需阶段永远禁止
+  // 重新申请审批：仅 blocked（因审批被拒绝）的阶段可调用。
+  // 作废最新的已拒绝阶段审批，使下次 advancePlan 重建 pending。
+  async reRequestApproval(
+    teamId: string,
+    planId: string,
+    stageId: string,
+    actorId: string,
+  ): Promise<void> {
+    this.assertEnabled();
+    const stage = await this.stageRepo.findById(stageId);
+    if (!stage || stage.releasePlanId !== planId || stage.teamId !== teamId) {
+      throw new NotFoundException("阶段不存在");
+    }
+    if (stage.status !== "blocked") {
+      throw new ConflictException(`仅被阻塞的阶段可重新申请审批，当前 ${stage.status}`);
+    }
+    assertLegalStageTransition("blocked", "awaiting_approval");
+    const updated = await this.stageRepo.updateStatusIf(
+      stageId,
+      ["blocked"],
+      { status: "awaiting_approval", blockedReason: null },
+    );
+    if (updated === 0) {
+      throw new ConflictException("阶段已被并发修改");
+    }
+    await this.approvalLifecycle.voidLatestRejected(teamId, stageId);
+    await this.eventRepo.append({
+      releasePlanId: planId,
+      releaseStageId: stageId,
+      teamId,
+      eventType: RELEASE_AUDIT_ACTIONS.stage_approval_re_requested,
+      actorId,
+      summary: `阶段 ${stage.key} 重新申请审批`,
+    });
+    await this.coordinator.advancePlan(planId, actorId);
+  }
   async skipStage(
     teamId: string,
     planId: string,
