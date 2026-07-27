@@ -356,3 +356,19 @@ MVP 验收标准：
 - 验证：API/CLI 定向与回归 Jest、API/Web/CLI type-check、API/Web build、
   Web focused lint、Prisma validate/generate 通过；临时 MySQL 8 中迁移成功，
   checkpoint 可完成且重复 scope 被唯一约束拒绝。
+
+## 10. F383 项目级发布编排设计与 GLM 交接（2026-07-27）
+
+- 状态：架构、任务台账、兼容边界、验收矩阵和全新对话可执行的 GLM Goal
+  提示词已完成；本轮按约定停止在实现前。
+- 核心决策：数据库结构迁移、生产 bootstrap、存量数据回填和应用部署独立
+  执行，通过项目/环境范围的持久化 DAG 编排，不再依赖单条部署命令拼接。
+- 复用边界：命令阶段继续使用 `ServerExecutorJob`，应用部署继续使用
+  `DeploymentRun`，审批和审计继续使用现有模块；不得另建 SSH/Agent 旁路。
+- 兼容边界：现有直接部署保持 F382 串行语义；新编排默认关闭，发布内部适配
+  模式避免 migration/bootstrap 重复执行。
+- UI 目标：用户只需看到当前结论、一个推荐动作、阻塞原因、阶段输入/依赖/
+  尝试/输出/日志/错误和关联运行；所有按钮必须有真实后端效果。
+- 详细架构见 `docs-internal/devpilot/release-orchestration-architecture.md`，
+  长任务入口见
+  `docs-internal/devpilot/glm-goals/devpilot-release-orchestration-goal.md`。
