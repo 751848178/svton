@@ -53,7 +53,17 @@ export class ReleaseRecoveryService {
         attempt.leaseExpiresAt &&
         attempt.leaseExpiresAt < now;
       if (!expired && attempt.status !== "queued") continue;
-      const result = await this.readLinkedRunTerminal(attempt);
+      // P1-5（invest-2 §E.2）：单阶段解析异常不得中断整个恢复扫描。
+      // OutputParseError（哨兵解码失败等）被隔离成本阶段 failed，其它阶段继续。
+      let result;
+      try {
+        result = await this.readLinkedRunTerminal(attempt);
+      } catch (err) {
+        result = {
+          status: "failed" as const,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
       if (!result || result.status === "queued") continue;
       await onFinish(stage as ReadinessStageView, attempt as AttemptLinkedView, result);
     }

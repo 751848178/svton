@@ -75,6 +75,7 @@ function buildHarness() {
   };
   const serverCommandAdapter = { execute: jest.fn() };
   const deploymentRunAdapter = { execute: jest.fn() };
+  const healthCheckAdapter = { execute: jest.fn() };
   const manualGateAdapter = { execute: jest.fn() };
   const prisma = { releaseConcurrencyLease: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) } };
   const coordinator = new ReleaseCoordinatorService(
@@ -90,11 +91,13 @@ function buildHarness() {
     approvalLifecycle as any,
     serverCommandAdapter as any,
     deploymentRunAdapter as any,
+    healthCheckAdapter as any,
     manualGateAdapter as any,
   );
   return {
     coordinator, planRepo, stageRepo, attemptRepo, leaseRepo, eventRepo,
     claimService, readiness, recovery, approvalLifecycle, serverCommandAdapter,
+    healthCheckAdapter,
   };
 }
 
@@ -252,6 +255,68 @@ describe("ReleaseCoordinatorService approval chain", () => {
     );
     expect(h.approvalLifecycle.consume).not.toHaveBeenCalled();
   });
+
+  // F383 D10（Slice 7）：logSummary 在 finishAttempt 单一 choke point 脱敏。
+  // 与 Slice 1 的 Date guard 组合：password 命中敏感词 → [REDACTED]，
+  // createdAt 的 Date 实例 → ISO 字符串（不被破坏成 {}）。
+  it("finishAttempt: logSummary redacted via redactSecretsInObject (Date → ISO, secret → [REDACTED])", async () => {
+    const h = buildHarness();
+    const stage = mkStage({ status: "running" });
+    h.stageRepo.findById.mockResolvedValue({ status: "running" });
+    const createdAt = new Date("2026-07-27T10:00:00.000Z");
+    await h.coordinator.finishAttempt(
+      stage,
+      { id: "att-1", attemptNo: 1, status: "running", operationApprovalId: null } as any,
+      {
+        status: "succeeded",
+        logSummary: { password: "supersecret", createdAt },
+      } as any,
+      "team-1",
+      "u-1",
+    );
+    expect(h.attemptRepo.finish).toHaveBeenCalled();
+    const finishCall = h.attemptRepo.finish.mock.calls[0];
+    const persisted = finishCall[1].logSummary;
+    expect(persisted).toEqual({
+      password: "[REDACTED]",
+      createdAt: "2026-07-27T10:00:00.000Z",
+    });
+    // 原始明文不得落库
+    expect(JSON.stringify(persisted)).not.toContain("supersecret");
+  });
+
+  // F383 D7（Slice 7）：health_check 阶段按 type-first 路由到 HealthCheckStageAdapter，
+  // 不再落到 ServerCommandStageAdapter 把 URL 当 shell 命令执行。
+  it("advancePlan: health_check stage routes to HealthCheckStageAdapter (not ServerCommand)", async () => {
+    const h = buildHarness();
+    const stage = mkStage({
+      type: "health_check",
+      executorKind: "server_command",
+      riskLevel: "low",
+      status: "ready",
+    });
+    h.planRepo.findById.mockResolvedValue({
+      id: "plan-1", teamId: "team-1", projectId: "proj-1", environmentId: "env-1",
+      name: "P", createdById: "u-1", status: "running", stages: [stage],
+    });
+    h.approvalLifecycle.ensureStageApproval.mockResolvedValue({ approval: null, blocked: false });
+    h.readiness.assembleFacts.mockResolvedValue({
+      stageId: stage.id, status: "ready", required: true, currentAttempt: 0,
+      hasActiveAttempt: false, dependencies: [], dependencyStates: [],
+      approvalSatisfied: true, releaseExecutable: true, concurrencyAvailable: true,
+    });
+    h.readiness.compute.mockReturnValue({ ready: true, blocked: false, awaitingApproval: false });
+    h.claimService.claimAtomically.mockResolvedValue({ kind: "won", attemptId: "att-new" });
+    h.attemptRepo.findById.mockResolvedValue({
+      id: "att-new", attemptNo: 1, status: "queued", operationApprovalId: null,
+    });
+    h.healthCheckAdapter.execute.mockResolvedValue({ status: "queued" });
+
+    await h.coordinator.advancePlan("plan-1", "u-1");
+
+    expect(h.healthCheckAdapter.execute).toHaveBeenCalled();
+    expect(h.serverCommandAdapter.execute).not.toHaveBeenCalled();
+  });
 });
 
 describe("ReleaseCoordinatorService.finalizeAndAdvance", () => {
@@ -305,6 +370,7 @@ describe("ReleaseCoordinatorService.finalizeAndAdvance", () => {
     };
     const serverCommandAdapter = { execute: jest.fn() };
     const deploymentRunAdapter = { execute: jest.fn() };
+    const healthCheckAdapter = { execute: jest.fn() };
     const manualGateAdapter = { execute: jest.fn() };
     const prisma = { releaseConcurrencyLease: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) } };
     const coordinator = new ReleaseCoordinatorService(
@@ -320,6 +386,7 @@ describe("ReleaseCoordinatorService.finalizeAndAdvance", () => {
       approvalLifecycle as any,
       serverCommandAdapter as any,
       deploymentRunAdapter as any,
+      healthCheckAdapter as any,
       manualGateAdapter as any,
     );
     return {

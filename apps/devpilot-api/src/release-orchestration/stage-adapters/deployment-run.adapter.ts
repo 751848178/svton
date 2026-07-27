@@ -5,7 +5,6 @@
 import { Injectable } from "@nestjs/common";
 import { DeploymentService } from "../../deployment/deployment.service";
 import type { CreateDeploymentRunDto } from "../../deployment/dto/deployment.dto";
-import { redactSecretsInObject } from "../utils/release-redact.utils";
 import { interpretDeploymentRunResult } from "./release-adapter-interpret.utils";
 import type {
   ReleaseStageAdapter,
@@ -58,7 +57,8 @@ export class DeploymentRunStageAdapter implements ReleaseStageAdapter {
       status: run.status === "completed" ? "succeeded" : "queued",
       deploymentRunId: run.id,
       operationApprovalId: run.operationApprovalId ?? null,
-      logSummary: redactSecretsInObject({ deploymentRunStatus: run.status }),
+      // logSummary redaction centralized in coordinator.finishAttempt (D10)
+      logSummary: { deploymentRunStatus: run.status },
     };
   }
 }

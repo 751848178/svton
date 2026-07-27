@@ -24,6 +24,8 @@ import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.se
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
 import { ReleaseRecoverySchedulerService } from "./release-recovery-scheduler.service";
 import { ReleasePlanService } from "./release-plan.service";
+import { HealthCheckStageAdapter } from "./stage-adapters/health-check.adapter";
+import { ServerCommandStageAdapter } from "./stage-adapters/server-command.adapter";
 import { ServerExecutorReleaseStageRunSyncService } from "../server-executor/server-executor-release-stage-run-sync.service";
 import type { ServerExecutionResult } from "../server-executor/server-executor.types";
 import type {
@@ -45,7 +47,13 @@ class FakeServerExecutorService {
   readonly cancelledJobIds: string[] = [];
   constructor(private readonly prisma: PrismaService) {}
   async queueExecution(
-    input: { teamId: string; operationKey?: string; adapterKey?: string; metadata?: unknown },
+    input: {
+      teamId: string;
+      operationKey?: string;
+      adapterKey?: string;
+      metadata?: unknown;
+      steps?: Array<{ command?: string }>;
+    },
   ): Promise<{ serverExecutionJobId: string; queuedAt: Date }> {
     const job = await this.prisma.serverExecutionJob.create({
       data: {
@@ -54,7 +62,8 @@ class FakeServerExecutorService {
         adapterKey: input.adapterKey ?? "ssh-live",
         transport: "ssh",
         status: "queued",
-        inputSnapshot: { steps: [] },
+        // 透传 steps（含 command）以便 health 路由测试断言 curl 命令被排队
+        inputSnapshot: { steps: input.steps ?? [] },
         metadata: input.metadata as never,
       },
     });
@@ -80,10 +89,12 @@ class FakeServerCommandStageAdapter implements ReleaseStageAdapter {
   readonly kind = "server_command";
   constructor(private readonly executor: FakeServerExecutorService) {}
   async execute(ctx: ReleaseStageExecutionContext): Promise<ReleaseStageExecutionResult> {
+    const cfg = (ctx.configSnapshot ?? {}) as { __stageType?: string; command?: string };
     const r = await this.executor.queueExecution({
       teamId: ctx.teamId,
-      operationKey: `release_stage.${(ctx.configSnapshot as { __stageType?: string } | null)?.__stageType ?? "test"}`,
+      operationKey: `release_stage.${cfg.__stageType ?? "test"}`,
       adapterKey: "ssh-live",
+      steps: [{ command: cfg.command }],
       metadata: {
         businessRunSync: "release_stage",
         releasePlanId: ctx.releasePlanId,
@@ -92,6 +103,9 @@ class FakeServerCommandStageAdapter implements ReleaseStageAdapter {
       },
     });
     return { status: "queued", serverExecutionJobId: r.serverExecutionJobId, logSummary: { queuedAt: r.queuedAt } };
+  }
+  async queue(ctx: ReleaseStageExecutionContext): Promise<ReleaseStageExecutionResult> {
+    return this.execute(ctx);
   }
 }
 
@@ -152,6 +166,11 @@ async function buildHarness(): Promise<Harness> {
   );
   const executor = new FakeServerExecutorService(prisma);
   const serverCommandAdapter = new FakeServerCommandStageAdapter(executor);
+  // 真实 HealthCheckStageAdapter 包裹 fake ServerCommandStageAdapter：
+  // health_check 阶段会构造 sanitized curl 命令并委托给它排队（生产路径同构）。
+  const healthCheckAdapter = new HealthCheckStageAdapter(
+    serverCommandAdapter as unknown as ServerCommandStageAdapter,
+  );
   const deploymentRunAdapter = {
     kind: "deployment_run",
     execute: async () => ({ status: "queued" as const }),
@@ -170,6 +189,7 @@ async function buildHarness(): Promise<Harness> {
     approvalLifecycle,
     serverCommandAdapter as never,
     deploymentRunAdapter,
+    healthCheckAdapter,
     manualGateAdapter,
   );
   // 真实的 release-stage 完成同步服务：把 coordinator 作为 port 注入（生产路径同构）
@@ -657,6 +677,156 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
     // 没有任何计划被改动
     const afterPlans = await h.prisma.releasePlan.count();
     expect(afterPlans).toBe(beforePlans);
+  });
+
+  // === Slice 7: health_check routing + sanitized curl (P0-6, P1-5) ===
+
+  it("health_check stage routes to HealthCheckStageAdapter (SEJ command is curl loop, not raw URL)", async () => {
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id,
+        projectId: "proj-rel-int",
+        environmentId: env.id,
+        name: "health-route",
+        status: "running",
+        planHash: "h-health-route",
+      },
+    });
+    await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id,
+        teamId: team.id,
+        key: "health_check:svc",
+        name: "health",
+        type: "health_check",
+        executorKind: "server_command", // 注意：executorKind 仍为 server_command，路由靠 type
+        riskLevel: "low",
+        required: true,
+        status: "ready",
+        currentAttempt: 0,
+        configSnapshot: {
+          healthCheckUrl: "http://127.0.0.1:4100/api/health/readiness",
+          timeoutMs: 10_000,
+          intervalMs: 5_000,
+          maxAttempts: 6,
+        },
+      },
+    });
+
+    await h.coordinator.advancePlan(plan.id);
+
+    const stage = await h.prisma.releaseStage.findFirstOrThrow({
+      where: { releasePlanId: plan.id },
+    });
+    const attempt = await h.prisma.releaseStageAttempt.findFirstOrThrow({
+      where: { releaseStageId: stage.id },
+    });
+    expect(attempt.serverExecutionJobId).toBeTruthy();
+    const job = await h.prisma.serverExecutionJob.findFirstOrThrow({
+      where: { id: attempt.serverExecutionJobId ?? undefined },
+    });
+    // SEJ 的 inputSnapshot.steps[0].command 必须是 curl 循环（而不是裸 URL）。
+    const steps = (job.inputSnapshot as { steps?: Array<{ command?: string }> }).steps ?? [];
+    const cmd = steps[0]?.command ?? "";
+    expect(cmd).toContain("for i in $(seq 1 6)");
+    expect(cmd).toContain("curl ");
+    expect(cmd).toContain("'http://127.0.0.1:4100/api/health/readiness'");
+    // 关键反断言：URL 没有被当成裸 shell 命令（旧 bug 会直接把 http://... 排队执行）
+    expect(cmd.trim()).not.toMatch(/^https?:\/\//);
+  });
+
+  it("health_check stage completes succeeded on 2xx + @@DEVPILOT_OUTPUT@@ ready:true sentinel", async () => {
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id,
+        projectId: "proj-rel-int",
+        environmentId: env.id,
+        name: "health-complete",
+        status: "running",
+        planHash: "h-health-complete",
+      },
+    });
+    const stage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id,
+        teamId: team.id,
+        key: "health_check:complete",
+        name: "health-c",
+        type: "health_check",
+        executorKind: "server_command",
+        riskLevel: "low",
+        required: true,
+        status: "ready",
+        currentAttempt: 0,
+        configSnapshot: {
+          healthCheckUrl: "http://127.0.0.1:4100/api/health/readiness",
+        },
+      },
+    });
+
+    await h.coordinator.advancePlan(plan.id);
+    const attempt = await h.prisma.releaseStageAttempt.findFirstOrThrow({
+      where: { releaseStageId: stage.id },
+    });
+    const jobId = attempt.serverExecutionJobId as string;
+
+    // 构造 ready:true + httpStatus:200 哨兵载荷，模拟 curl 在目标主机成功探针
+    const payloadObj = {
+      schemaVersion: 1,
+      summary: "ready",
+      values: { ready: true, httpStatus: 200 },
+      metrics: { attempts: 1 },
+    };
+    const b64 = Buffer.from(JSON.stringify(payloadObj), "utf8").toString("base64");
+    const b64url = b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const result: ServerExecutionResult = {
+      status: "completed",
+      mode: "executed",
+      executorKey: "server-executor",
+      adapterKey: "ssh-live",
+      executable: true,
+      warnings: [],
+      commandSteps: [],
+      commandPlan: { steps: [] },
+      logs: [
+        { stream: "stdout", message: "probe start" },
+        { stream: "stdout", message: `@@DEVPILOT_OUTPUT@@ ${b64url}` },
+      ],
+      result: { exitCode: 0 },
+    };
+    await h.releaseStageSync.syncAfterExecution(
+      {
+        teamId: team.id,
+        operationKey: "release_stage.health_check",
+        adapterKey: "ssh-live",
+        dryRun: false,
+        target: { transport: "ssh", serverId: null },
+        steps: [],
+      } as never,
+      jobId,
+      result,
+      {
+        businessRunSync: "release_stage",
+        releasePlanId: plan.id,
+        releaseStageId: stage.id,
+        stageAttemptId: attempt.id,
+      },
+    );
+
+    const stageAfter = await h.prisma.releaseStage.findUnique({ where: { id: stage.id } });
+    expect(stageAfter?.status).toBe("succeeded");
+    const attemptAfter = await h.prisma.releaseStageAttempt.findFirstOrThrow({
+      where: { id: attempt.id },
+    });
+    expect(attemptAfter.status).toBe("succeeded");
+    // 哨兵解析出的结构化输出落到 attempt.output（ready:true, httpStatus:200）
+    const out = attemptAfter.output as { values?: { ready?: boolean; httpStatus?: number } } | null;
+    expect(out?.values?.ready).toBe(true);
+    expect(out?.values?.httpStatus).toBe(200);
+    // 终态 logSummary（interpret 层 cleanedLogsPreview）经 D10 脱敏后不含完整 URL/path
+    expect(JSON.stringify(attemptAfter.logSummary)).not.toContain("/api/health");
   });
 
   // === Slice 6: transactional retry + cancel (P0-7, P0-8) ===

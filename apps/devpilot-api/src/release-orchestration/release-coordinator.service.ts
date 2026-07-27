@@ -27,13 +27,14 @@ import {
 import { ReleaseRecoveryService, type AttemptLinkedView } from "./release-recovery.service";
 import { ServerCommandStageAdapter } from "./stage-adapters/server-command.adapter";
 import { DeploymentRunStageAdapter } from "./stage-adapters/deployment-run.adapter";
+import { HealthCheckStageAdapter } from "./stage-adapters/health-check.adapter";
 import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
 import {
   interpretServerCommandResult,
   interpretDeploymentRunResult,
 } from "./stage-adapters/release-adapter-interpret.utils";
 import { sanitizeOutputForPersistence } from "./utils/release-output.utils";
-import { redactSecretsInText } from "./utils/release-redact.utils";
+import { redactSecretsInObject, redactSecretsInText } from "./utils/release-redact.utils";
 import {
   assertLegalStageTransition,
   derivePlanStatusFromStages,
@@ -66,6 +67,7 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
     private readonly approvalLifecycle: ReleaseApprovalLifecycleService,
     private readonly serverCommandAdapter: ServerCommandStageAdapter,
     private readonly deploymentRunAdapter: DeploymentRunStageAdapter,
+    private readonly healthCheckAdapter: HealthCheckStageAdapter,
     private readonly manualGateAdapter: ManualGateStageAdapter,
   ) {}
 
@@ -221,7 +223,7 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
       operationApprovalId: attempt.operationApprovalId ?? null,
     };
 
-    const adapter = this.selectAdapter(stage.executorKind);
+    const adapter = this.selectAdapter(stage);
     try {
       const result = await adapter.execute(ctx);
       await this.handleAdapterResult(stage, attempt, result, teamId, actorId);
@@ -234,8 +236,11 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
     }
   }
 
-  private selectAdapter(executorKind: string) {
-    switch (executorKind) {
+  // 类型优先路由（D7）：health_check 必须走 HealthCheckStageAdapter（构造 sanitized
+  // curl），不能落到 ServerCommandStageAdapter 把 URL 当 shell 命令执行。
+  private selectAdapter(stage: { type: string; executorKind: string }) {
+    if (stage.type === "health_check") return this.healthCheckAdapter;
+    switch (stage.executorKind) {
       case "deployment_run":
         return this.deploymentRunAdapter;
       case "manual_gate":
@@ -279,7 +284,10 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
     const updated = await this.attemptRepo.finish(attempt.id, {
       status: result.status,
       output: sanitizeOutputForPersistence(result.output ?? null) as never,
-      logSummary: result.logSummary as never,
+      // D10：logSummary 在 finishAttempt 单一 choke point 脱敏（适配器返回原始领域形状，
+      // coordinator 统一清洗）。Slice 1 的 Date guard 保证 logSummary 内的 Date 字段
+      // 被归一为 ISO 字符串而非破坏成 {}。
+      logSummary: redactSecretsInObject(result.logSummary ?? null) as never,
       error: result.error ? redactSecretsInText(result.error) : null,
       finishedAt: new Date(),
     });
