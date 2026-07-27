@@ -26,6 +26,7 @@ import {
   type ReleasePlanPreview,
 } from "./utils/release-plan-builder.utils";
 import { redactSecretsInObject } from "./utils/release-redact.utils";
+import { resolveGitRef } from "./utils/release-git-ref.utils";
 import {
   assertLegalPlanTransition,
   assertLegalStageTransition,
@@ -62,8 +63,9 @@ export class ReleasePlanService {
     }
   }
 
-  // 预览：纯解析，不写 DB
-  preview(input: ReleasePlanBuildInput): ReleasePlanPreview {
+  // 预览：纯解析，不写 DB；提交前解析 git ref（branch → commitSha）。
+  async preview(input: ReleasePlanBuildInput): Promise<ReleasePlanPreview> {
+    await this.resolveGitRefInto(input);
     const result = buildReleasePlan(input);
     if (!result.ok) {
       throw new BadRequestException({
@@ -77,10 +79,31 @@ export class ReleasePlanService {
 
   // 正式创建计划（冻结快照）
   async create(
-    input: ReleasePlanBuildInput & { teamId: string; createdByUserId?: string },
+    input: ReleasePlanBuildInput & {
+      teamId: string;
+      createdByUserId?: string;
+      expectedPlanHash?: string;
+    },
   ): Promise<{ id: string; planHash: string }> {
     this.assertEnabled();
-    const preview = this.preview(input);
+    const preview = await this.preview(input);
+    // preview ↔ create 强绑定（invest-3 §C）：客户端回传 expectedPlanHash，
+    // 与本次重新计算的 preview.planHash 不一致即 409。
+    // 暂时可选——若未提供仅记 deprecation 警告（向后兼容现有 fixture/UI）。
+    if (input.expectedPlanHash !== undefined) {
+      if (preview.planHash !== input.expectedPlanHash) {
+        throw new ConflictException({
+          code: "RELEASE_PLAN_STALE",
+          message: "预览已过期，请重新生成",
+          expected: preview.planHash,
+          received: input.expectedPlanHash,
+        });
+      }
+    } else {
+      this.logger.warn(
+        "create 未传 expectedPlanHash；后续 Slice 8b 将强制要求（invest-3 §C.2）",
+      );
+    }
     const plan = await this.planRepo.persistPlanWithStages({
       teamId: input.teamId,
       projectId: input.projectId,
@@ -371,6 +394,24 @@ export class ReleasePlanService {
   // 心跳续约（执行中的 attempt）
   async heartbeat(attemptId: string, owner: string): Promise<number> {
     return this.attemptRepo.heartbeat(attemptId, owner, new Date(Date.now() + LEASE_MS));
+  }
+
+  // 解析 git ref（invest-3 §B.2）：分支 → commit SHA。
+  // 若 input.gitRepo + input.branch 提供但 commitSha 缺失，则尝试 git ls-remote。
+  // 解析失败（不可达/超时/畸形）抛 BadRequest RELEASE_GIT_UNRESOLVABLE，
+  // 拦截 preview/create；成功则回填 input.commitSha，由 builder 冻结到
+  // 阶段 configSnapshot + planHash。
+  private async resolveGitRefInto(input: ReleasePlanBuildInput): Promise<void> {
+    if (!input.gitRepo || !input.branch) return;
+    if (input.commitSha) return;
+    const resolved = await resolveGitRef(input.gitRepo, input.branch);
+    if (!resolved) {
+      throw new BadRequestException({
+        code: "RELEASE_GIT_UNRESOLVABLE",
+        message: `无法解析分支 ${input.branch} 的提交，请检查仓库地址与分支`,
+      });
+    }
+    input.commitSha = resolved.commitSha;
   }
 }
 

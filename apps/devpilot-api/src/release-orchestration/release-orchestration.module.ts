@@ -10,6 +10,7 @@ import { OperationApprovalModule } from "../operation-approval";
 import { PrismaModule } from "../prisma/prisma.module";
 import { ReleasePlanController } from "./release-plan.controller";
 import { ReleasePlanService } from "./release-plan.service";
+import { ReleasePlanAccessService } from "./release-plan-access.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
 import { RELEASE_COORDINATOR_PORT } from "./release-coordinator.port";
 import { ReleaseStageClaimService } from "./release-stage-claim.service";
@@ -39,6 +40,7 @@ import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
   controllers: [ReleasePlanController],
   providers: [
     ReleasePlanService,
+    ReleasePlanAccessService,
     ReleaseCoordinatorService,
     // 把 port token 绑定到 ReleaseCoordinatorService（useExisting，对齐 JOB_QUEUE_PORT 模式）。
     // ServerExecutorModule @Optional() 注入此 token；flag 关闭时为 undefined。

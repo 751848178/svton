@@ -1,0 +1,12 @@
+# F383 发布编排本地验证 override（invest-3 §F.1）
+#
+# 用法（在主 compose 之上叠加）：
+#   docker compose -f docker-compose.devpilot-app.yml -f docker-compose.devpilot-app.release.yml up -d
+#
+# 主 compose 默认 DEVPILOT_RELEASE_ORCHESTRATION_ENABLED=false（匹配 runbook §1），
+# 本文件仅把 API 服务的 flag 显式翻为 true，用于本地端到端验证发布编排。
+# 服务名 "api" 来自 docker-compose.devpilot-app.yml services 块。
+services:
+  api:
+    environment:
+      DEVPILOT_RELEASE_ORCHESTRATION_ENABLED: "true"

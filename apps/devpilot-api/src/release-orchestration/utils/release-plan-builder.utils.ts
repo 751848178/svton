@@ -5,6 +5,7 @@
 import { computePlanHash } from "./release-hash.utils";
 import { validateReleaseDag } from "./release-dag.utils";
 import type { ReleaseDagResult } from "./release-dag.utils";
+import { validateServiceOwnership } from "./release-env-validation.utils";
 import {
   buildServiceStages,
   makeStage as _unusedMakeStage,
@@ -84,6 +85,16 @@ export function buildReleasePlan(
   const approvalRequired: ReleasePlanPreview["approvalRequired"] = [];
 
   for (const svc of input.services) {
+    // 防御性环境一致性（invest-3 §A.2 第二道闸）：控制器已做 DB 级校验，
+    // 但 builder 作为纯函数层再断言一次——任何 environmentId 漂移立即拦截，
+    // 返回 missing_reference（preview/create → RELEASE_PLAN_INVALID）。
+    const ownership = validateServiceOwnership(svc, input.environmentId);
+    if (!ownership.ok) {
+      return {
+        ok: false,
+        error: { kind: "missing_reference", message: ownership.message },
+      };
+    }
     // plan-level 分支/commit/仓库覆盖 per-service 值（发布计划目标是权威）。
     const svcWithVcs: ReleaseServiceInput = {
       ...svc,

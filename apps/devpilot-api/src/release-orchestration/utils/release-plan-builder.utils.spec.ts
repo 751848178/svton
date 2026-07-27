@@ -122,13 +122,13 @@ describe("release-plan-builder buildReleasePlan", () => {
   it("computes stable planHash for same input", () => {
     const a = buildReleasePlan({
       projectId: "p1",
-      environmentId: "e1",
+      environmentId: "env-prod",
       name: "r",
       services: picshareServices(),
     });
     const b = buildReleasePlan({
       projectId: "p1",
-      environmentId: "e1",
+      environmentId: "env-prod",
       name: "r",
       services: picshareServices(),
     });
@@ -203,6 +203,28 @@ describe("release-plan-builder buildReleasePlan", () => {
       ],
     });
     expect(r.ok).toBe(false);
+  });
+
+  // --- Slice 8a: builder-level env consistency (invest-3 §A.2) ---
+  it("rejects service whose environmentId differs from plan target (defensive)", () => {
+    const r = buildReleasePlan({
+      projectId: "p1",
+      environmentId: "env-prod",
+      name: "r",
+      services: [
+        {
+          applicationId: "a",
+          applicationServiceId: "svc-dev",
+          environmentId: "env-dev",
+          serviceName: "svc",
+          deployCommand: "make deploy",
+        },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.kind).toBe("missing_reference");
+    expect(r.error.message).toContain("svc-dev");
   });
 
   // --- Slice 2: cross-service DAG ---

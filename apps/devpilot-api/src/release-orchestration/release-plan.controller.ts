@@ -19,6 +19,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { ControlAccessPolicyService } from "../control-access-policy";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReleasePlanService } from "./release-plan.service";
+import { ReleasePlanAccessService } from "./release-plan-access.service";
 import {
   CreateReleasePlanDto,
   ListReleasePlansQueryDto,
@@ -39,6 +40,7 @@ export class ReleasePlanController {
     private readonly releasePlanService: ReleasePlanService,
     private readonly accessPolicy: ControlAccessPolicyService,
     private readonly prisma: PrismaService,
+    private readonly access: ReleasePlanAccessService,
   ) {}
 
   @Post("projects/:projectId/preview")
@@ -50,6 +52,13 @@ export class ReleasePlanController {
   ) {
     this.requireEnabled();
     await this.assertProjectAccess(req, projectId, dto.environmentId, "read");
+    // 服务端从 ApplicationService.deployConfig 读取命令字段，DTO 不再承载原始 shell 命令（invest-3 §A.5）。
+    const services = await this.access.assertAndResolve(
+      req.teamId,
+      projectId,
+      dto.environmentId,
+      dto.services,
+    );
     return this.releasePlanService.preview({
       projectId,
       environmentId: dto.environmentId,
@@ -57,7 +66,7 @@ export class ReleasePlanController {
       branch: dto.branch,
       commitSha: dto.commitSha,
       gitRepo: dto.gitRepo,
-      services: dto.services,
+      services,
       serviceDependencies: dto.serviceDependencies as never,
     });
   }
@@ -70,6 +79,12 @@ export class ReleasePlanController {
   ) {
     this.requireEnabled();
     await this.assertProjectAccess(req, projectId, dto.environmentId, "write");
+    const services = await this.access.assertAndResolve(
+      req.teamId,
+      projectId,
+      dto.environmentId,
+      dto.services,
+    );
     return this.releasePlanService.create({
       teamId: req.teamId,
       projectId,
@@ -78,10 +93,38 @@ export class ReleasePlanController {
       branch: dto.branch,
       commitSha: dto.commitSha,
       gitRepo: dto.gitRepo,
-      services: dto.services,
+      services,
       serviceDependencies: dto.serviceDependencies as never,
       createdByUserId: req.user.id,
+      expectedPlanHash: dto.expectedPlanHash,
     });
+  }
+
+  // capability API（architect D9）：不调用 requireEnabled()，
+  // 返回 {enabled, canCancel:true, canWrite?, reason?}。canCancel 恒真
+  // （cancel 是逃生通道，flag 关闭时仍可用，对应 controller.cancel 有意不守 flag）。
+  // 必须放在 @Get(":planId") 之前，否则 "capability" 会被 :planId 捕获。
+  @Get("capability")
+  async capability(
+    @Request() req: AuthRequest,
+    @Query("projectId") projectId?: string,
+  ) {
+    const enabled = this.releasePlanService.isEnabled();
+    let canWrite: boolean | undefined;
+    if (projectId) {
+      try {
+        await this.assertProjectAccess(req, projectId, undefined, "write");
+        canWrite = true;
+      } catch {
+        canWrite = false;
+      }
+    }
+    return {
+      enabled,
+      canCancel: true,
+      canWrite,
+      reason: enabled ? null : "flag_off",
+    };
   }
 
   @Get()

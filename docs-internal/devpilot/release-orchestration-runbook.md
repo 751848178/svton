@@ -17,13 +17,24 @@
 
 ## 2. 启用步骤（本地）
 
+主 `docker-compose.devpilot-app.yml` 默认 `DEVPILOT_RELEASE_ORCHESTRATION_ENABLED=false`
+（匹配本表第 1 行）。本地端到端验证时通过显式 override 文件开启：
+
 ```bash
-# 1) 在 devpilot-api/.env 显式开启
+# 1) 用 override 文件叠加开启（flag 翻 true，其余 compose 配置不变）
+docker compose -f docker-compose.devpilot-app.yml \
+  -f docker-compose.devpilot-app.release.yml up -d
+
+# 或者在 devpilot-api/.env 显式开启后重启 API（compose environment 段优先级高于 .env，
+# 故需同时把主 compose 内该行删/注释，或改用 override 文件）
 DEVPILOT_RELEASE_ORCHESTRATION_ENABLED=true
 
 # 2) 重启 API（3121）与 Web（3120）
 # 3) 在项目详情的「发布」Tab 新建发布 → 预览（dry-run）→ 创建 → 执行
 ```
+
+`docker-compose.devpilot-app.release.yml` 只覆盖 API 服务的 flag 字段，便于一次性
+本地验证而不污染默认（默认关闭）。
 
 ## 3. 在途任务处理（关闭开关时）
 
