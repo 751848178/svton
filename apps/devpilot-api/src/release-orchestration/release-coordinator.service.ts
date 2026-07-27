@@ -35,8 +35,8 @@ import {
 } from "./stage-adapters/release-adapter-interpret.utils";
 import { sanitizeOutputForPersistence } from "./utils/release-output.utils";
 import { redactSecretsInObject, redactSecretsInText } from "./utils/release-redact.utils";
+import { expectedStageInputHash } from "./utils/release-approval-predicate.utils";
 import {
-  assertLegalStageTransition,
   derivePlanStatusFromStages,
 } from "./utils/release-state-machine.utils";
 import { RELEASE_AUDIT_ACTIONS } from "./types/release-orchestration.types";
@@ -91,16 +91,23 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
     };
 
     // 2. 对每个非终态阶段：先确保阶段绑定审批存在，再重算 readiness 并认领
+    // 注意：plan.stages 是 advancePlan 入口处读取的快照；recoverStaleAttempts 可能在
+    // 循环前把某阶段收尾为 succeeded（stage.status 视图已陈旧）。每个阶段处理前
+    // 重读当前状态：若已转终态（被恢复链路或并发取消终态化），跳过 ensureStageApproval，
+    // 避免对已消费审批再 mint 第二个 pending / 对已终态阶段重复认领。
     for (const stage of plan.stages) {
-      if (["succeeded", "skipped", "canceled"].includes(stage.status)) continue;
       const view = stage as ReadinessStageView;
+      const fresh = await this.stageRepo.findById(stage.id);
+      const freshStatus = (fresh?.status ?? stage.status) as string;
+      if (["succeeded", "skipped", "canceled"].includes(freshStatus)) continue;
+      if (fresh?.attempts?.some((a) => a.status === "succeeded")) continue;
       const ensured = await this.approvalLifecycle.ensureStageApproval(
         view as LifecycleStageView,
         lifecyclePlan,
       );
       view.stageApproval = ensured.approval;
       if (ensured.blocked) continue; // 审批被拒绝 → 已置 blocked，跳过认领
-      const approvalId = this.usableApprovalId(ensured.approval);
+      const approvalId = this.usableApprovalId(ensured.approval, view);
       await this.tryClaimAndStart(view, plan.teamId, actorId, approvalId);
     }
 
@@ -150,10 +157,22 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
   }
 
   // 仅当审批处于 approved 且未消费时才绑定到 attempt（pending 不绑定，避免误消费）
+  // CR-2-P2：额外断言 approval.inputHash === 当前阶段期望 configHash 派生值；
+  // 不匹配（配置变更后旧 approved 审批）→ 返回 null，留待 ensureStageApproval 重建。
   private usableApprovalId(
     approval: EnsureApprovalResult["approval"],
+    stage: ReadinessStageView,
   ): string | null {
     if (!approval || approval.status !== "approved" || approval.consumedAt) {
+      return null;
+    }
+    const expected = expectedStageInputHash({
+      releasePlanId: stage.releasePlanId,
+      key: stage.key,
+      environmentId: stage.environmentId ?? stage.releasePlan.environmentId,
+      configHash: stage.configHash,
+    });
+    if ((approval.inputHash ?? "") !== expected) {
       return null;
     }
     return approval.id ?? null;
@@ -261,11 +280,18 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
     actorId?: string,
   ): Promise<void> {
     if (result.serverExecutionJobId || result.deploymentRunId || result.operationApprovalId) {
-      await this.attemptRepo.linkRun(attempt.id, {
-        deploymentRunId: result.deploymentRunId ?? null,
-        serverExecutionJobId: result.serverExecutionJobId ?? null,
-        operationApprovalId: result.operationApprovalId ?? null,
-      });
+      // 仅回填适配器实际返回的关联 id；未返回的字段不传，避免覆盖 claim 阶段已绑定的
+      // operationApprovalId（server_command 适配器返回 serverExecutionJobId 但无 approvalId，
+      // 旧实现用 null 覆盖 → 审批消费链路断裂）。
+      const linkData: {
+        deploymentRunId?: string | null;
+        serverExecutionJobId?: string | null;
+        operationApprovalId?: string | null;
+      } = {};
+      if (result.deploymentRunId !== undefined) linkData.deploymentRunId = result.deploymentRunId;
+      if (result.serverExecutionJobId !== undefined) linkData.serverExecutionJobId = result.serverExecutionJobId;
+      if (result.operationApprovalId !== undefined) linkData.operationApprovalId = result.operationApprovalId;
+      await this.attemptRepo.linkRun(attempt.id, linkData);
     }
     if (result.status === "succeeded" || result.status === "failed" || result.status === "skipped") {
       await this.finishAttempt(stage, attempt, result, teamId, actorId);
@@ -294,8 +320,11 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
     if (updated === 0) return; // 已被他人收尾
 
     // 终态收尾时释放并发租约（事务外尽力而为；过期租约也会被 acquire 清扫）
+    // CR-1-F8：按 owner 范围删除（attempt.leaseOwner），避免误删同一 concurrencyKey
+    // 上其他 owner（时钟漂移下）持有的有效租约。
     if (stage.concurrencyKey) {
-      await this.releaseLeaseOutsideTx(stage.concurrencyKey).catch(() => undefined);
+      const leaseOwner = (attempt as { leaseOwner?: string | null }).leaseOwner ?? null;
+      await this.releaseLeaseOutsideTx(stage.concurrencyKey, leaseOwner).catch(() => undefined);
     }
 
     // 成功收尾：消费阶段绑定审批（失败不阻塞 finish）
@@ -309,22 +338,24 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
         : result.status === "skipped"
           ? "skipped"
           : "failed";
-    // 重读阶段当前状态再断言转换合法性：恢复链路可能从 pending/queued 直接收尾，
-    // 此时 stage.status 视图已陈旧；先 CAS 到 running 再断言 running→terminal。
-    const fresh = await this.stageRepo.findById(stage.id);
-    const currentStatus = (fresh?.status ?? stage.status) as ReleaseStageStatus;
-    if (currentStatus !== "running" && currentStatus !== nextStageStatus) {
-      await this.stageRepo.updateStatusIf(stage.id, ["pending", "queued", "blocked"], {
-        status: "running",
-        blockedReason: null,
-      });
-    }
-    const finalFrom = ((await this.stageRepo.findById(stage.id))?.status ?? "running") as ReleaseStageStatus;
-    assertLegalStageTransition(finalFrom, nextStageStatus);
-    await this.stageRepo.update(stage.id, {
+    // CR-1-F2 根因修复：stage 终态转换改为 CAS。旧实现先 updateStatusIf 强翻 running，
+    // 再 assertLegalStageTransition + 无条件 update——一旦并发 cancel 已把 stage → canceled，
+    // assert 抛错并被 finalizeAndAdvance 的 catch 吞掉 → attempt=succeeded / stage=canceled 不一致。
+    //
+    // 两步 CAS（谓词本身就是合法性检查，无需 assert）：
+    // 1. 把 pre-running 非终态（pending/queued/blocked/awaiting_approval）best-effort 翻到 running。
+    //    覆盖恢复链路：pending/queued 状态下 SEJ 已完成的 attempt 也需收尾。
+    // 2. CAS running→terminal。count===0 表示 stage 已被并发终态化（cancel/skip）→ 直接返回，不写事件。
+    await this.stageRepo.updateStatusIf(
+      stage.id,
+      ["pending", "queued", "blocked", "awaiting_approval"],
+      { status: "running", blockedReason: null },
+    );
+    const transition = await this.stageRepo.updateStatusIf(stage.id, ["running"], {
       status: nextStageStatus,
       blockedReason: result.status === "failed" ? result.error ?? null : null,
     });
+    if (transition === 0) return;
     await this.eventRepo.append({
       releasePlanId: stage.releasePlanId,
       releaseStageId: stage.id,
@@ -345,14 +376,18 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
   }
 
   // 终态收尾后释放并发租约（事务外尽力而为；过期租约也会被 acquire 清扫）
-  // 阶段终态后此 concurrencyKey 不应再被该阶段占用，故按 key 直接删除。
-  private async releaseLeaseOutsideTx(concurrencyKey: string): Promise<void> {
+  // CR-1-F8：按 owner 范围删除——仅释放当前 attempt.leaseOwner 持有的行，
+  // 避免误删同一 concurrencyKey 上其他 owner（时钟漂移场景）的有效租约。
+  private async releaseLeaseOutsideTx(concurrencyKey: string, owner: string | null): Promise<void> {
     await this.prisma.releaseConcurrencyLease.deleteMany({
-      where: { concurrencyKey },
+      where: owner ? { concurrencyKey, owner } : { concurrencyKey },
     });
   }
 
   // 重算计划状态（基于全部阶段状态）
+  // CR-1-F3 根因修复：状态转换改为 CAS（updateStatusIf），排除 succeeded/canceled 终态，
+  // 避免非原子 read-modify-write 在并发 advancePlan 下 last-writer-wins 丢失更新。
+  // failed 保留在谓词内，使 retry 重开（failed→running）后 recompute 仍能更新。
   private async recomputePlanStatus(releasePlanId: string): Promise<void> {
     const stages = await this.stageRepo.listByPlan(releasePlanId);
     const derived = derivePlanStatusFromStages(
@@ -360,7 +395,7 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
     );
     const plan = await this.planRepo.findById(releasePlanId);
     if (!plan) return;
-    if (["succeeded", "failed", "canceled"].includes(plan.status)) return;
+    if (["succeeded", "canceled"].includes(plan.status)) return;
     const patch: { status: string; blockedReason?: string | null; startedAt?: Date; finishedAt?: Date } = {
       status: derived.status,
     };
@@ -369,7 +404,11 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
     if (["succeeded", "failed", "canceled"].includes(derived.status) && !plan.finishedAt) {
       patch.finishedAt = new Date();
     }
-    await this.planRepo.update(releasePlanId, patch);
+    await this.planRepo.updateStatusIf(
+      releasePlanId,
+      ["draft", "awaiting_approval", "ready", "running", "blocked", "failed"],
+      patch,
+    );
   }
 }
 

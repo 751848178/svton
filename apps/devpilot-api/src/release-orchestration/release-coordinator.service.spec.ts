@@ -9,6 +9,7 @@
  */
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
 import type { ReadinessStageView } from "./release-readiness.service";
+import { expectedStageInputHash } from "./utils/release-approval-predicate.utils";
 
 function mkStage(over: Partial<ReadinessStageView> = {}): ReadinessStageView {
   return {
@@ -42,6 +43,7 @@ function buildHarness() {
   const planRepo = {
     findById: jest.fn().mockResolvedValue(null),
     update: jest.fn().mockResolvedValue({}),
+    updateStatusIf: jest.fn().mockResolvedValue(1),
   };
   const stageRepo = {
     listByPlan: jest.fn().mockResolvedValue([]),
@@ -178,11 +180,19 @@ describe("ReleaseCoordinatorService approval chain", () => {
       status: "running",
       stages: [stage],
     });
+    // CR-2-P2：usableApprovalId 现在断言 approval.inputHash === expectedStageInputHash(stage)。
+    // 构造与阶段 configHash 派生值一致的 inputHash，使审批通过校验并绑定到 attempt。
+    const matchingHash = expectedStageInputHash({
+      releasePlanId: stage.releasePlanId,
+      key: stage.key,
+      environmentId: stage.environmentId,
+      configHash: stage.configHash,
+    });
     h.approvalLifecycle.ensureStageApproval.mockResolvedValue({
       approval: {
         id: "appr-9",
         status: "approved",
-        inputHash: "h",
+        inputHash: matchingHash,
         expiresAt: null,
         consumedAt: null,
       },
@@ -340,6 +350,7 @@ describe("ReleaseCoordinatorService.finalizeAndAdvance", () => {
     const planRepo = {
       findById: jest.fn().mockResolvedValue(null),
       update: jest.fn().mockResolvedValue({}),
+      updateStatusIf: jest.fn().mockResolvedValue(1),
     };
     const stageRepo = {
       listByPlan: jest.fn().mockResolvedValue([]),
@@ -475,5 +486,35 @@ describe("ReleaseCoordinatorService.finalizeAndAdvance", () => {
     expect(h.attemptRepo.finish).toHaveBeenCalled();
     const finishCall = h.attemptRepo.finish.mock.calls[0];
     expect(finishCall[1].status).toBe("succeeded");
+  });
+
+  // CR-1-F2 回归：finishAttempt 的 stage CAS 谓词 status==="running" 不匹配
+  // （并发 cancel 已把 stage → canceled）→ updateStatusIf 返回 0 → 不写 stage_finished 事件、不抛错。
+  it("(cr-1-f2) concurrent cancel race → stage CAS count 0 → no stage_finished event, no throw", async () => {
+    const h = buildHarness();
+    const stage = mkStage({ status: "running", concurrencyKey: null });
+    h.attemptRepo.findById.mockResolvedValue(mkAttempt({ status: "running" }));
+    h.stageRepo.findById.mockResolvedValue({ ...stage, status: "canceled" });
+    // stage CAS 谓词 ["running"] 不匹配 canceled → count 0
+    h.stageRepo.updateStatusIf.mockResolvedValue(0);
+    h.planRepo.findById.mockResolvedValue(null);
+
+    await expect(
+      h.coordinator.finalizeAndAdvance("plan-1", "att-1", {
+        kind: "serverExecutionJob",
+        id: "sej-1",
+        result: { status: "completed", result: { exitCode: 0 } },
+      }),
+    ).resolves.toBeUndefined();
+
+    // attempt 已被 attemptRepo.finish 收尾（attempt 表谓词不含 canceled 互斥）
+    expect(h.attemptRepo.finish).toHaveBeenCalled();
+    // stage CAS 谓词为 ["running"]
+    expect(h.stageRepo.updateStatusIf).toHaveBeenCalledWith(
+      stage.id, ["running"],
+      expect.objectContaining({ status: "succeeded" }),
+    );
+    // 关键：没有为已 canceled 的 stage 追加 stage_finished 事件
+    expect(h.eventRepo.append).not.toHaveBeenCalled();
   });
 });

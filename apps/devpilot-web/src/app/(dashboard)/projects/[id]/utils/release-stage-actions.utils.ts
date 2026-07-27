@@ -17,7 +17,9 @@ export interface ReleaseStageActionView {
 }
 
 const NON_SKIPABLE = ['succeeded', 'skipped', 'canceled', 'running', 'queued', 'ready'];
-const SKIPTABLE = ['pending', 'blocked', 'failed', 'awaiting_approval'];
+// CR-3-F4：移除 'failed'——状态机禁止 failed→skipped（release-state-machine.utils.ts），
+// 旧实现把 failed 列入 SKIPTABLE 会让 skip 按钮亮起，点击后端总是 409。failed 只能 retry。
+const SKIPTABLE = ['pending', 'blocked', 'awaiting_approval'];
 
 /** 推导单个阶段的可执行动作 + 不可用原因。 */
 export function deriveStageActions(

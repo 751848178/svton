@@ -138,13 +138,92 @@ class FakeOperationApprovalRepository {
   async cancel(): Promise<number> { return 0; }
 }
 
+// 真实 DB 支持的 OperationApprovalService/Repository 替身（CR-2-1 真实审批流回归）：
+// createPending 写一行 pending operationApproval；review 直接 updateMany 翻 approved；
+// consume CAS 标记 consumedAt。findLatestForTarget 读真实最新行。这样 ensureStageApproval
+// 的 approved-usable 分支、stage→awaiting_approval→ready/queued 转换都在真实 DB 上验证。
+class RealDbOperationApprovalService {
+  constructor(private readonly prisma: PrismaService) {}
+  async createPending(input: {
+    teamId: string;
+    requesterId?: string | null;
+    projectId?: string | null;
+    environmentId?: string | null;
+    applicationId?: string | null;
+    applicationServiceId?: string | null;
+    serverId?: string | null;
+    category: string;
+    action: string;
+    targetType: string;
+    targetId?: string | null;
+    risk: string;
+    inputHash?: string | null;
+    summary?: string | null;
+    reason?: string | null;
+  }) {
+    return this.prisma.operationApproval.create({
+      data: {
+        teamId: input.teamId,
+        requesterId: input.requesterId ?? null,
+        projectId: input.projectId ?? null,
+        environmentId: input.environmentId ?? null,
+        applicationId: input.applicationId ?? null,
+        applicationServiceId: input.applicationServiceId ?? null,
+        serverId: input.serverId ?? null,
+        category: input.category,
+        action: input.action,
+        targetType: input.targetType,
+        targetId: input.targetId ?? null,
+        risk: input.risk,
+        inputHash: input.inputHash ?? null,
+        summary: input.summary ?? null,
+        reason: input.reason ?? null,
+        status: "pending",
+      },
+    });
+  }
+  async consume(teamId: string, approvalId: string) {
+    return this.prisma.operationApproval.updateMany({
+      where: { id: approvalId, teamId, status: "approved", consumedAt: null },
+      data: { consumedAt: new Date() },
+    });
+  }
+  // 真实 review：仅当仍 pending 时翻为 approved
+  async review(teamId: string, reviewerId: string, approvalId: string, decision: "approved" | "rejected") {
+    await this.prisma.operationApproval.updateMany({
+      where: { id: approvalId, teamId, status: "pending" },
+      data: { status: decision, reviewerId, reviewedAt: new Date() },
+    });
+    return this.prisma.operationApproval.findFirstOrThrow({ where: { id: approvalId } });
+  }
+}
+class RealDbOperationApprovalRepository {
+  constructor(private readonly prisma: PrismaService) {}
+  async findLatestForTarget(teamId: string, targetType: string, targetId: string) {
+    return this.prisma.operationApproval.findFirst({
+      where: { teamId, targetType, targetId },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+  async cancel(approvalId: string, currentStatus: string) {
+    const r = await this.prisma.operationApproval.updateMany({
+      where: { id: approvalId, status: currentStatus },
+      data: { status: "cancelled" },
+    });
+    return r.count;
+  }
+}
+
 interface Harness {
   prisma: PrismaService;
   coordinator: ReleaseCoordinatorService;
   executor: FakeServerExecutorService;
   releaseStageSync: ServerExecutorReleaseStageRunSyncService;
   releasePlanService: ReleasePlanService;
+  leaseRepo: ReleaseConcurrencyLeaseRepository;
   schedulerFor: (enabled: boolean) => ReleaseRecoverySchedulerService;
+  // 真实 DB 支持的审批服务/仓储（仅 CR-2-1 真实审批流场景使用；其余场景为 null）
+  realApproval: RealDbOperationApprovalService | null;
 }
 
 async function buildHarness(): Promise<Harness> {
@@ -213,13 +292,15 @@ async function buildHarness(): Promise<Harness> {
     approvalLifecycle,
     executor as never,
   );
+  // schedulerFor 注入 leaseRepo（CR-1-F1：runOnce 顶部 best-effort sweepExpired）
   const schedulerFor = (enabled: boolean) =>
     new ReleaseRecoverySchedulerService(
       coordinator,
       planRepo,
+      leaseRepo,
       { get: (_k: string, fallback?: string) => (enabled ? "true" : (fallback ?? "false")) } as never,
     );
-  return { prisma, coordinator, executor, releaseStageSync, releasePlanService, schedulerFor };
+  return { prisma, coordinator, executor, releaseStageSync, releasePlanService, leaseRepo, schedulerFor, realApproval: null };
 }
 
 async function seedBaseline(prisma: PrismaService) {
@@ -1055,5 +1136,306 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
       where: { releaseStage: { releasePlanId: plan.id } },
     });
     expect(leases.length).toBe(0);
+  });
+
+  // === CR fixes ===
+
+  // CR-2-1: 真实 DB 审批流——pending→approved→claimed→succeeded+consumed，无第二个 pending。
+  // 用真实 DB 支持的 OperationApprovalService/Repository（写真实 operationApproval 行），
+  // 验证 ensureStageApproval 的 approved-usable 分支不再 mint 第二个 pending。
+  it("CR-2-1: real-DB approve flow — pending→approved→claimed→succeeded+consumed, no second pending", async () => {
+    // 独立 harness：approvalLifecycle 注入真实 DB 支持的 approval service/repository
+    const prisma = h.prisma;
+    const planRepo = new ReleasePlanRepository(prisma);
+    const stageRepo = new ReleaseStageRepository(prisma);
+    const attemptRepo = new ReleaseStageAttemptRepository(prisma);
+    const leaseRepo = new ReleaseConcurrencyLeaseRepository(prisma);
+    const eventRepo = new ReleaseEventRepository(prisma);
+    const realApproval = new RealDbOperationApprovalService(prisma);
+    const realApprovalRepo = new RealDbOperationApprovalRepository(prisma);
+    const claimService = new ReleaseStageClaimService(prisma, leaseRepo);
+    const readiness = new ReleaseReadinessService(stageRepo);
+    const recovery = new ReleaseRecoveryService(prisma, planRepo);
+    const approvalLifecycle = new ReleaseApprovalLifecycleService(
+      realApproval as never,
+      realApprovalRepo as never,
+      stageRepo,
+      eventRepo,
+    );
+    const executor = new FakeServerExecutorService(prisma);
+    const serverCommandAdapter = new FakeServerCommandStageAdapter(executor);
+    const coordinator = new ReleaseCoordinatorService(
+      prisma, stageRepo, attemptRepo, leaseRepo, planRepo, eventRepo,
+      claimService, readiness, recovery, approvalLifecycle,
+      serverCommandAdapter as never,
+      { kind: "deployment_run", execute: async () => ({ status: "queued" as const }) } as never,
+      { kind: "health_check", execute: async () => ({ status: "queued" as const }) } as never,
+      { kind: "manual_gate", execute: async () => ({ status: "queued" as const }) } as never,
+    );
+
+    const { team, env } = await seedBaseline(prisma);
+    await prisma.operationApproval.deleteMany();
+    const plan = await prisma.releasePlan.create({
+      data: {
+        teamId: team.id, projectId: "proj-rel-int", environmentId: env.id,
+        name: "cr-approval-flow", status: "running", planHash: "h-cr-approval",
+      },
+    });
+    // 中风险 server_command 阶段：触发审批绑定。
+    // environmentId 必须设置——readiness.isStageApprovalUsable 用 stage.environmentId
+    // 派生期望 inputHash（与 lifecycle 用 plan.environmentId 派生一致需同源）。
+    const stage = await prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id, teamId: team.id,
+        key: "precheck:approval", name: "approval", type: "precheck",
+        executorKind: "server_command", riskLevel: "medium", required: true,
+        status: "ready", currentAttempt: 0, configHash: "cfg-approval",
+        environmentId: env.id,
+        configSnapshot: { command: "echo ok" },
+      },
+    });
+
+    // 1. advancePlan：阶段 readiness 因审批未满足 → ensureStageApproval 建 pending 行
+    //    （stage 不会 queued；stageApproval.status==='pending' → isApprovalUsable=false → 不 ready）
+    await coordinator.advancePlan(plan.id);
+    const pendingAfterInit = await prisma.operationApproval.findMany({
+      where: { targetType: "release_stage", targetId: stage.id },
+    });
+    expect(pendingAfterInit.length).toBe(1);
+    expect(pendingAfterInit[0].status).toBe("pending");
+    const stageAfterInit = await prisma.releaseStage.findUnique({ where: { id: stage.id } });
+    expect(["ready", "pending", "awaiting_approval"]).toContain(stageAfterInit?.status);
+    const attemptsBefore = await prisma.releaseStageAttempt.count({ where: { releaseStageId: stage.id } });
+    expect(attemptsBefore).toBe(0);
+
+    // 2. 人工审批通过：直接翻 pending→approved（真实 DB updateMany）
+    await realApproval.review(team.id, "user-rel-int", pendingAfterInit[0].id, "approved");
+
+    // 3. 再次 advancePlan：approved-usable 分支复用审批，不再 mint 第二个 pending；
+    //    readiness satisfied → claim → attempt created + stage queued/running
+    await coordinator.advancePlan(plan.id);
+    const approvalsAfterClaim = await prisma.operationApproval.findMany({
+      where: { targetType: "release_stage", targetId: stage.id },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(approvalsAfterClaim.length).toBe(1); // 关键：仍只有 1 行，无第二个 pending
+    expect(approvalsAfterClaim[0].status).toBe("approved");
+    const stageAfterClaim = await prisma.releaseStage.findUnique({ where: { id: stage.id } });
+    expect(["queued", "running"]).toContain(stageAfterClaim?.status);
+    const attempts = await prisma.releaseStageAttempt.findMany({ where: { releaseStageId: stage.id } });
+    expect(attempts.length).toBe(1);
+    expect(attempts[0].operationApprovalId).toBe(approvalsAfterClaim[0].id);
+
+    // 4. SEJ 完成 → 收尾：attempt succeeded + 审批 consumed + 阶段 succeeded + 计划 succeeded
+    const jobId = attempts[0].serverExecutionJobId as string;
+    await executor.completeJob(jobId, "completed", { exitCode: 0 });
+    await coordinator.advancePlan(plan.id);
+
+    const attemptFinal = await prisma.releaseStageAttempt.findFirstOrThrow({ where: { id: attempts[0].id } });
+    expect(attemptFinal.status).toBe("succeeded");
+    const approvalFinal = await prisma.operationApproval.findFirstOrThrow({ where: { id: approvalsAfterClaim[0].id } });
+    expect(approvalFinal.consumedAt).toBeTruthy(); // 已消费
+    const stageFinal = await prisma.releaseStage.findUnique({ where: { id: stage.id } });
+    expect(stageFinal?.status).toBe("succeeded");
+    // 全程仅 1 个审批行（无第二个 pending）
+    const allApprovals = await prisma.operationApproval.findMany({
+      where: { targetType: "release_stage", targetId: stage.id },
+    });
+    expect(allApprovals.length).toBe(1);
+  });
+
+  // CR-1-F1: 过期租约 CAS 抢占——同一 concurrencyKey 上一个 owner 的租约已过期，
+  // 新 owner 通过 updateMany CAS-steal 成功。
+  it("CR-1-F1: stale lease → CAS steal succeeds (new owner wins, single row)", async () => {
+    const ck = "cr-lease-steal";
+    const { team } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id, projectId: "proj-rel-int", environmentId: "env-rel-int",
+        name: "lease-steal", status: "running", planHash: "h-steal",
+      },
+    });
+    const stage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id, teamId: team.id,
+        key: "precheck:steal", name: "steal", type: "precheck",
+        executorKind: "server_command", riskLevel: "low", required: true,
+        status: "pending", currentAttempt: 0, concurrencyKey: ck,
+        configSnapshot: { command: "echo s" },
+      },
+    });
+    // 预置一个已过期的租约行（旧 owner）
+    await h.prisma.releaseConcurrencyLease.create({
+      data: {
+        concurrencyKey: ck, releaseStageId: stage.id, attemptId: "old-att",
+        owner: "old-owner", acquiredAt: new Date(Date.now() - 60_000),
+        expiresAt: new Date(Date.now() - 30_000), // 已过期
+      },
+    });
+
+    // 通过 acquireWithinTx 直接验证：新 owner 应能 CAS-steal
+    const won = await h.prisma.$transaction(async (tx) =>
+      h.leaseRepo.acquireWithinTx(tx, {
+        concurrencyKey: ck, releaseStageId: stage.id, attemptId: "new-att",
+        owner: "new-owner", expiresAt: new Date(Date.now() + 60_000),
+      }),
+    );
+    expect(won).toBe(true);
+    const leases = await h.prisma.releaseConcurrencyLease.findMany({ where: { concurrencyKey: ck } });
+    expect(leases.length).toBe(1); // 仍只一行，owner 已被抢占
+    expect(leases[0].owner).toBe("new-owner");
+    expect(leases[0].attemptId).toBe("new-att");
+  });
+
+  // CR-1-F1: 活跃租约——同一 concurrencyKey 上现租约未过期，新 owner CAS-steal count===0 → 干净落败
+  it("CR-1-F1: active lease → CAS steal loses cleanly (count 0, no takeover)", async () => {
+    const ck = "cr-lease-active";
+    const { team } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id, projectId: "proj-rel-int", environmentId: "env-rel-int",
+        name: "lease-active", status: "running", planHash: "h-active",
+      },
+    });
+    const stage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id, teamId: team.id,
+        key: "precheck:active", name: "active", type: "precheck",
+        executorKind: "server_command", riskLevel: "low", required: true,
+        status: "pending", currentAttempt: 0, concurrencyKey: ck,
+        configSnapshot: { command: "echo a" },
+      },
+    });
+    // 预置一个未过期的活跃租约
+    await h.prisma.releaseConcurrencyLease.create({
+      data: {
+        concurrencyKey: ck, releaseStageId: stage.id, attemptId: "live-att",
+        owner: "live-owner", acquiredAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000), // 仍有效
+      },
+    });
+
+    const won = await h.prisma.$transaction(async (tx) =>
+      h.leaseRepo.acquireWithinTx(tx, {
+        concurrencyKey: ck, releaseStageId: stage.id, attemptId: "challenger-att",
+        owner: "challenger", expiresAt: new Date(Date.now() + 60_000),
+      }),
+    );
+    expect(won).toBe(false);
+    const leases = await h.prisma.releaseConcurrencyLease.findMany({ where: { concurrencyKey: ck } });
+    expect(leases.length).toBe(1);
+    expect(leases[0].owner).toBe("live-owner"); // 原持有者不变
+  });
+
+  // CR-1-F1 集成路径：concurrent claim 时一个 owner 持过期租约，另一个 owner 抢占成功
+  it("CR-1-F1 integration: concurrent claim with stale lease → exactly one winner via CAS-steal", async () => {
+    const ck = "cr-conc-stale";
+    const { plan, stage } = await seedReadyStage(h.prisma, {
+      planName: "conc-stale", stageKey: "migration:stale", concurrencyKey: ck,
+    });
+    // 预置过期租约（模拟前一个崩溃 owner 遗留）
+    await h.prisma.releaseConcurrencyLease.create({
+      data: {
+        concurrencyKey: ck, releaseStageId: stage.id, attemptId: "dead-att",
+        owner: "dead-owner", acquiredAt: new Date(Date.now() - 60_000),
+        expiresAt: new Date(Date.now() - 30_000),
+      },
+    });
+    await Promise.all([h.coordinator.advancePlan(plan.id), h.coordinator.advancePlan(plan.id)]);
+    const leases = await h.prisma.releaseConcurrencyLease.findMany({ where: { concurrencyKey: ck } });
+    expect(leases.length).toBe(1);
+    expect(leases[0].owner).not.toBe("dead-owner");
+    const attempts = await h.prisma.releaseStageAttempt.findMany({ where: { releaseStageId: stage.id } });
+    expect(attempts.length).toBe(1);
+  });
+
+  // CR-1-F2 / CR-1-F3: finalize 与并发 cancel 竞态——不抛错、stage 保持 canceled、无 stage_finished 事件。
+  // cancel 先把 plan/stage/attempt → canceled；finalize 后到，attemptRepo.finish 幂等短路（已终态），
+  // 即便进入 finishAttempt，stage CAS 谓词 ["running"] 不匹配 canceled → count===0 → 不写事件。
+  it("CR-1-F2/F3: finalize vs concurrent cancel — no throw, stage stays canceled, no finish event", async () => {
+    const { plan, stage } = await seedReadyStage(h.prisma, {
+      planName: "finalize-vs-cancel", stageKey: "precheck:fvc",
+    });
+    await h.coordinator.advancePlan(plan.id);
+    const attempt = await h.prisma.releaseStageAttempt.findFirstOrThrow({ where: { releaseStageId: stage.id } });
+    const jobId = attempt.serverExecutionJobId as string;
+
+    // 并发 cancel 先把 plan/stage/attempt → canceled
+    await h.releasePlanService.cancel("team-rel-int", plan.id, "user-rel-int");
+    const attemptAfterCancel = await h.prisma.releaseStageAttempt.findFirstOrThrow({ where: { id: attempt.id } });
+    expect(attemptAfterCancel.status).toBe("canceled"); // cancel 已终态化 attempt
+
+    // finalize 后到：不抛错（finalizeAndAdvance catch 兜底 + finishAttempt CAS count===0）
+    await expect(
+      h.coordinator.finalizeAndAdvance(plan.id, attempt.id, {
+        kind: "serverExecutionJob", id: jobId, result: { status: "completed", result: { exitCode: 0 }, logs: [] },
+      }),
+    ).resolves.toBeUndefined();
+
+    // attempt 保持 cancel 设置的 canceled（finalize 没有把它翻成 succeeded——关键不变式）
+    const attemptFinal = await h.prisma.releaseStageAttempt.findFirstOrThrow({ where: { id: attempt.id } });
+    expect(attemptFinal.status).toBe("canceled");
+    const stageFinal = await h.prisma.releaseStage.findUnique({ where: { id: stage.id } });
+    expect(stageFinal?.status).toBe("canceled");
+    // 没有为已 canceled 的 stage 追加 stage_finished 事件
+    const finishEvents = await h.prisma.releaseEvent.findMany({
+      where: { releaseStageId: stage.id, eventType: "release_stage.finished" },
+    });
+    expect(finishEvents.length).toBe(0);
+  });
+
+  // CR-1-F7: retry 与并发 cancel 竞态——retry 事务提交后 re-check plan.status，
+  // 若已并发取消则把重开的 stage 翻回 canceled，不留下 ready 阶段困在 canceled 计划下
+  it("CR-1-F7: retry vs concurrent cancel — reopened stage reconciled to canceled, no stranded ready", async () => {
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id, projectId: "proj-rel-int", environmentId: env.id,
+        name: "retry-vs-cancel", status: "failed", planHash: "h-rvc",
+        finishedAt: new Date(), blockedReason: "存在失败阶段",
+      },
+    });
+    const stage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id, teamId: team.id,
+        key: "precheck:rvc", name: "rvc", type: "precheck",
+        executorKind: "server_command", riskLevel: "low", required: true,
+        status: "failed", currentAttempt: 1, configSnapshot: { command: "echo rvc" },
+      },
+    });
+    await h.prisma.releaseStageAttempt.create({
+      data: {
+        releaseStageId: stage.id, teamId: team.id, attemptNo: 1,
+        status: "failed", finishedAt: new Date(), error: "boom",
+      },
+    });
+
+    // 模拟竞态：retryStage 内部事务提交后、advancePlan 之前，并发 cancel 把 plan → canceled。
+    // 这里用 monkey-patch coordinator.advancePlan 在 retry 流程中先触发 cancel。
+    const origAdvance = h.coordinator.advancePlan.bind(h.coordinator);
+    let cancelInjected = false;
+    h.coordinator.advancePlan = (async (planId: string, actorId?: string) => {
+      if (!cancelInjected) {
+        cancelInjected = true;
+        // 在 retry 的 post-commit advancePlan 调用中先注入 cancel
+        await h.releasePlanService.cancel(team.id, planId, "user-rel-int");
+      }
+      return origAdvance(planId, actorId);
+    }) as never;
+
+    await h.releasePlanService.retryStage(team.id, plan.id, stage.id, "user-rel-int");
+    h.coordinator.advancePlan = origAdvance as never;
+
+    // plan 应保持 canceled（cancel 在 retry 之后注入）
+    const planFinal = await h.prisma.releasePlan.findUnique({ where: { id: plan.id } });
+    expect(planFinal?.status).toBe("canceled");
+    // 重开的 stage 不应停留在 ready（被 Fix 8 re-check 翻回 canceled）
+    const stageFinal = await h.prisma.releaseStage.findUnique({ where: { id: stage.id } });
+    expect(stageFinal?.status).toBe("canceled");
+    // 没有额外的 ready 阶段困在 canceled 计划下
+    const readyStranded = await h.prisma.releaseStage.findMany({
+      where: { releasePlanId: plan.id, status: "ready" },
+    });
+    expect(readyStranded.length).toBe(0);
   });
 });

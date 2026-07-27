@@ -21,11 +21,20 @@ describe("resolveGitRef (git ls-remote parser)", () => {
       execFile as never,
     );
     expect(r).toEqual({ commitSha: "abc123def456789012345678901234567890abcd" });
+    // CR-3-F6：argv 必须含 `--` 分隔符（gitRepo/branch 作为位置参数，不可被解释为选项）
     expect(execFile).toHaveBeenCalledWith(
       "git",
-      ["ls-remote", "git@example.com:repo.git", "main"],
+      ["ls-remote", "--", "git@example.com:repo.git", "main"],
       expect.objectContaining({ timeout: expect.any(Number) }),
     );
+  });
+
+  // CR-3-F6 回归：以 `-` 开头的 gitRepo/branch 直接拒绝（不调用 execFile）
+  it("CR-3-F6: rejects leading-dash gitRepo / branch → null, no execFile call", async () => {
+    const execFile = jest.fn();
+    expect(await resolveGitRef("--upload-pack=/usr/bin/id", "main", execFile as never)).toBeNull();
+    expect(await resolveGitRef("git@example.com:repo.git", "--upload-pack=x", execFile as never)).toBeNull();
+    expect(execFile).not.toHaveBeenCalled();
   });
 
   it("returns null on non-zero exit / unreachable repo", async () => {

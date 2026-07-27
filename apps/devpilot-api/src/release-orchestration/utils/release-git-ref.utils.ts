@@ -32,10 +32,15 @@ export async function resolveGitRef(
   execFile: GitExecFile = execFileP,
 ): Promise<{ commitSha: string } | null> {
   if (!gitRepo || !branch) return null;
+  // CR-3-F6 防御：拒绝以 `-` 开头的 gitRepo/branch，避免被解释为 git 选项
+  // （`--` 分隔符是第二道闸；DTO @Matches 是第一道）。
+  if (gitRepo.startsWith("-") || branch.startsWith("-")) return null;
   try {
+    // CR-3-F6：argv 插入 `--` 分隔符，确保 gitRepo/branch 永远被当作位置参数
+    // 而非选项（即使绕过 DTO 校验，也无法注入 --upload-pack=... 等）。
     const { stdout } = await execFile(
       "git",
-      ["ls-remote", gitRepo, branch],
+      ["ls-remote", "--", gitRepo, branch],
       { timeout: GIT_LS_REMOTE_TIMEOUT_MS, maxBuffer: 1 * 1024 * 1024 },
     );
     // 输出格式：<sha>\t<ref>\n 多行；取第一个非空行首 token。

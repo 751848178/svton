@@ -3,7 +3,10 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  IsNotEmpty,
   IsArray,
+  ArrayMinSize,
+  Matches,
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
@@ -86,8 +89,13 @@ export class PreviewReleasePlanDto {
   @IsString()
   commitSha?: string;
 
+  // CR-3-F6：gitRepo 格式 allow-list（拒绝 --upload-pack=... 等 arg-injection 载荷）。
+  // 允许 https:// / git:// / ssh:// / git@host:path/ / host:path/ 形式。
   @IsOptional()
   @IsString()
+  @Matches(/^(?:https?:\/\/|git:\/\/|ssh:\/\/|git@[\w.-]+:[\w./-]+\/|[\w.-]+:[\w./-]+\/)/, {
+    message: "gitRepo 格式无效",
+  })
   gitRepo?: string;
 
   @IsOptional()
@@ -96,7 +104,10 @@ export class PreviewReleasePlanDto {
   @Type(() => ServiceDependencyDto)
   serviceDependencies?: ServiceDependencyDto[];
 
+  // CR-3-F1：services 必须非空（@ArrayMinSize(1)）——空数组会创建一个"无阶段"计划，
+  // 被执行后"成功"为 no-op。DTO 层 + builder 双重校验。
   @IsArray()
+  @ArrayMinSize(1, { message: "至少选择一个应用服务" })
   @ValidateNested({ each: true })
   @Type(() => ReleaseServiceInputDto)
   services!: ReleaseServiceInputDto[];
@@ -105,10 +116,10 @@ export class PreviewReleasePlanDto {
 export class CreateReleasePlanDto extends PreviewReleasePlanDto {
   // preview ↔ create 强绑定（invest-3 §C）：客户端把上一次 preview 返回的 planHash
   // 回传；service.create 重新计算 preview 并比对，不一致则 409 RELEASE_PLAN_STALE。
-  // 暂时可选，向后兼容现有 fixture；UI（Slice 8b）将恒发送。
-  @IsOptional()
+  // CR-3-F2：expectedPlanHash 改为必填——可选时省略会静默绕过 hash 校验。
   @IsString()
-  expectedPlanHash?: string;
+  @IsNotEmpty({ message: "expectedPlanHash 必填" })
+  expectedPlanHash!: string;
 }
 
 export class SkipReleaseStageDto {

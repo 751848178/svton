@@ -13,7 +13,7 @@ import { ReleaseConcurrencyLeaseRepository } from "./repository/release-concurre
 import { RELEASE_AUDIT_ACTIONS } from "./types/release-orchestration.types";
 
 const LEASE_MS = 15 * 60 * 1000;
-const CLAIMABLE_FROM = ["pending", "blocked", "failed", "ready"] as const;
+const CLAIMABLE_FROM = ["pending", "blocked", "failed", "ready", "awaiting_approval"] as const;
 const ACTIVE_ATTEMPT_STATUSES = ["queued", "running"] as const;
 
 export type ClaimOutcome =

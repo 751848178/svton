@@ -89,20 +89,15 @@ export class ReleasePlanService {
     const preview = await this.preview(input);
     // preview ↔ create 强绑定（invest-3 §C）：客户端回传 expectedPlanHash，
     // 与本次重新计算的 preview.planHash 不一致即 409。
-    // 暂时可选——若未提供仅记 deprecation 警告（向后兼容现有 fixture/UI）。
-    if (input.expectedPlanHash !== undefined) {
-      if (preview.planHash !== input.expectedPlanHash) {
-        throw new ConflictException({
-          code: "RELEASE_PLAN_STALE",
-          message: "预览已过期，请重新生成",
-          expected: preview.planHash,
-          received: input.expectedPlanHash,
-        });
-      }
-    } else {
-      this.logger.warn(
-        "create 未传 expectedPlanHash；后续 Slice 8b 将强制要求（invest-3 §C.2）",
-      );
+    // CR-3-F2：expectedPlanHash 现为必填（DTO @IsNotEmpty）。删除可选时的静默绕过分支——
+    // 缺失/不一致一律 RELEASE_PLAN_STALE，关闭 hash 校验绕过。
+    if (preview.planHash !== input.expectedPlanHash) {
+      throw new ConflictException({
+        code: "RELEASE_PLAN_STALE",
+        message: "预览已过期，请重新生成",
+        expected: preview.planHash,
+        received: input.expectedPlanHash,
+      });
     }
     const plan = await this.planRepo.persistPlanWithStages({
       teamId: input.teamId,
@@ -316,6 +311,18 @@ export class ReleasePlanService {
         },
       });
     });
+    // CR-1-F7：事务提交后、advancePlan 前重读 plan——若并发 cancel 已把 plan → canceled，
+    // 则把刚重开的 stage 翻回 canceled，避免 ready 阶段困在 canceled 计划下。
+    // 失败仅 best-effort 吞掉（cancel 的 plan-level CAS 已是终态，recheck 不一致的概率极低）。
+    const postCommitPlan = await this.planRepo.findById(planId);
+    if (!postCommitPlan || postCommitPlan.status === "canceled") {
+      await this.stageRepo.updateStatusIf(
+        stageId,
+        ["ready", "queued", "running"],
+        { status: "canceled", blockedReason: "计划已被并发取消" },
+      ).catch(() => undefined);
+      return;
+    }
     // 事务提交后再推进：advancePlan 自身有自己的 per-stage 事务
     await this.coordinator.advancePlan(planId, actorId);
   }

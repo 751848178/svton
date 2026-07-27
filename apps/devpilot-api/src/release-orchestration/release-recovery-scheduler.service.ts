@@ -16,6 +16,7 @@ import { SchedulerRegistry } from "@nestjs/schedule";
 import { BaseIntervalScheduler } from "../common/scheduler/base-interval-scheduler";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
+import { ReleaseConcurrencyLeaseRepository } from "./repository/release-concurrency-lease.repository";
 
 export type ReleaseRecoverySummary = {
   skipped: boolean;
@@ -29,6 +30,7 @@ export class ReleaseRecoverySchedulerService extends BaseIntervalScheduler {
   constructor(
     private readonly coordinator: ReleaseCoordinatorService,
     private readonly planRepo: ReleasePlanRepository,
+    private readonly leaseRepo: ReleaseConcurrencyLeaseRepository,
     private readonly configService: ConfigService,
     @Optional() schedulerRegistry?: SchedulerRegistry,
   ) {
@@ -59,6 +61,14 @@ export class ReleaseRecoverySchedulerService extends BaseIntervalScheduler {
       return { skipped: true };
     }
     try {
+      // CR-1-F1：扫描前 best-effort 清扫已过期租约，避免崩溃 owner 长期阻塞 concurrencyKey。
+      // 失败仅记 warn，不阻断恢复扫描。
+      try {
+        await this.leaseRepo.sweepExpired();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`sweepExpired failed: ${msg}`);
+      }
       const plans = await this.planRepo.listNonTerminal();
       for (const plan of plans) {
         try {

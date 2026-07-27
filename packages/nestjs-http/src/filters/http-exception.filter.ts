@@ -22,7 +22,9 @@ interface HttpOptions {
 }
 
 interface ApiResponseType<T = unknown> {
-  code: number;
+  // CR-3-F3：code 允许 string —— 业务异常（如 RELEASE_PLAN_STALE）通过 HttpException
+  // 传入字符串 code，filter 需原样透传给前端 classifyReleaseError 读取。
+  code: number | string;
   message: string;
   data: T;
   traceId?: string;
@@ -59,13 +61,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
-    let code = status;
+    let code: number | string = status;
 
     // 处理 HttpException
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      
+
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
       } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
@@ -74,8 +76,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         if (Array.isArray(resp.message)) {
           message = resp.message.join(', ');
         }
+        // CR-3-F3：保留业务字符串 code（如 RELEASE_PLAN_STALE）。
+        // 旧实现只读 resp.message，code 恒为 HTTP status 数字 → 前端
+        // classifyReleaseError 永远拿不到字符串 code → autoRepreview 不触发。
+        if (typeof resp.code === 'string' && resp.code.length > 0) {
+          code = resp.code;
+        }
       }
-      code = status;
+      if (typeof code !== 'string') code = status;
     }
     // 处理 Prisma 错误
     else if (isPrismaError(exception)) {

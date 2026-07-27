@@ -166,6 +166,48 @@ describe("ReleaseApprovalLifecycleService.ensureStageApproval", () => {
     expect(approvalService.createPending.mock.calls[0][0].inputHash).not.toBe("stale-hash");
   });
 
+  // CR-2-1 回归：approved + matching hash → 不再 mint 第二个 pending（旧实现死锁根因）
+  it("(c2) approved + matching inputHash + not consumed + not expired → no createPending", async () => {
+    const hash = expectedStageInputHash({
+      releasePlanId: PLAN_BASE.id,
+      key: STAGE_BASE.key,
+      environmentId: PLAN_BASE.environmentId,
+      configHash: STAGE_BASE.configHash,
+    });
+    const { service, approvalService } = buildService({
+      findLatestForTarget: jest.fn().mockResolvedValue({
+        id: "appr-approved",
+        status: "approved",
+        inputHash: hash,
+        expiresAt: null,
+        consumedAt: null,
+        reviewComment: "ok",
+      }),
+    });
+    const res = await service.ensureStageApproval(STAGE_BASE, PLAN_BASE);
+    expect(res.blocked).toBe(false);
+    expect(res.approval?.status).toBe("approved");
+    expect(approvalService.createPending).not.toHaveBeenCalled();
+  });
+
+  // CR-2-1 回归：approved 但 inputHash stale（配置变更）→ 必须重新 createPending
+  it("(c3) approved + stale inputHash (config changed) → fresh createPending", async () => {
+    const { service, approvalService } = buildService({
+      findLatestForTarget: jest.fn().mockResolvedValue({
+        id: "appr-approved-stale",
+        status: "approved",
+        inputHash: "stale-approved-hash",
+        expiresAt: null,
+        consumedAt: null,
+        reviewComment: null,
+      }),
+    });
+    const res = await service.ensureStageApproval(STAGE_BASE, PLAN_BASE);
+    expect(res.blocked).toBe(false);
+    expect(approvalService.createPending).toHaveBeenCalledTimes(1);
+    expect(approvalService.createPending.mock.calls[0][0].inputHash).not.toBe("stale-approved-hash");
+  });
+
   it("(f) expired pending → fresh createPending", async () => {
     const hash = expectedStageInputHash({
       releasePlanId: PLAN_BASE.id,

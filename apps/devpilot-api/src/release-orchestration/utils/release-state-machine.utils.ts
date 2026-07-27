@@ -23,7 +23,8 @@ const STAGE_TRANSITIONS: Record<ReleaseStageStatus, ReleaseStageStatus[]> = {
   // pending/blocked 可被 coordinator 直接 CAS 到 queued（绕过 ready）
   pending: ["blocked", "awaiting_approval", "ready", "queued", "skipped", "canceled"],
   blocked: ["awaiting_approval", "ready", "queued", "skipped", "canceled"],
-  awaiting_approval: ["ready", "canceled"],
+  // awaiting_approval 可直接 CAS 到 queued（claim 绕过 ready；CR-2-2 真实性反映）
+  awaiting_approval: ["ready", "queued", "canceled"],
   ready: ["queued", "running", "canceled"],
   queued: ["running", "failed", "skipped", "canceled"],
   // running 可被健康探针（0 候选可选阶段）自动跳过为 skipped

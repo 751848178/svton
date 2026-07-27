@@ -78,10 +78,18 @@ describe("ReleasePlanService preview↔create hash binding (invest-3 §C)", () =
     });
   });
 
-  it("create without expectedPlanHash still succeeds (backward compat)", async () => {
+  // CR-3-F2：expectedPlanHash 现为必填——缺失不再静默绕过，而是抛 RELEASE_PLAN_STALE。
+  // （DTO @IsNotEmpty 是第一道闸；这里覆盖 service 层即使被绕过 DTO 也拒绝。）
+  it("create without expectedPlanHash → 409 RELEASE_PLAN_STALE (no silent bypass)", async () => {
     const { svc } = makeService();
-    const created = await svc.create(validInput);
-    expect(created.planHash).toBeTruthy();
+    await expect(svc.create(validInput)).rejects.toMatchObject({
+      response: {
+        code: "RELEASE_PLAN_STALE",
+        message: "预览已过期，请重新生成",
+        expected: expect.any(String),
+        received: undefined,
+      },
+    });
   });
 
   it("create fails fast when flag disabled (assertEnabled)", async () => {

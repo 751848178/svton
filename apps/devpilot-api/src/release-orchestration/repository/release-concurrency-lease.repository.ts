@@ -26,15 +26,18 @@ export class ReleaseConcurrencyLeaseRepository {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  // 事务内获取租约：先清理已过期租约（避免崩溃 owner 长期阻塞），
-  // 再尝试 create。唯一键冲突返回 false，由调用方决定是否回滚业务。
+  // 事务内获取租约（CR-1-F1 根因修复）：
+  // 旧实现先 deleteMany expiresAt<now 再 create —— 在 READ COMMITTED + 时钟漂移/慢心跳下
+  // 可能删掉一个仍有效的租约 → 同一 concurrencyKey 出现两个并发赢家。新实现：
+  //   1. 先尝试 create（happy path，没有竞争时最快）；
+  //   2. 唯一键冲突（P2002）→ 尝试 CAS-steal：仅当现租约 expiresAt<now 时原子 updateMany
+  //      改写 owner/releaseStageId/attemptId/expiresAt。count>0 → 抢占成功；count===0 → 干净落败；
+  //   3. 非 P2002 错误向上抛。
+  // 这样任何时刻一个 concurrencyKey 至多一个有效持有者；过期租约由恢复调度器 sweepExpired 清扫。
   async acquireWithinTx(
     tx: Prisma.TransactionClient,
     input: AcquireLeaseInput,
   ): Promise<boolean> {
-    await tx.releaseConcurrencyLease.deleteMany({
-      where: { expiresAt: { lt: new Date() } },
-    });
     try {
       await tx.releaseConcurrencyLease.create({
         data: {
@@ -48,11 +51,21 @@ export class ReleaseConcurrencyLeaseRepository {
       return true;
     } catch (err) {
       const code = (err as { code?: string } | null)?.code;
-      if (code === UNIQUE_CONSTRAINT_VIOLATION) {
-        return false;
-      }
-      throw err;
+      if (code !== UNIQUE_CONSTRAINT_VIOLATION) throw err;
     }
+    // 唯一键冲突：尝试 CAS 抢占已过期租约
+    const stolen = await tx.releaseConcurrencyLease.updateMany({
+      where: { concurrencyKey: input.concurrencyKey, expiresAt: { lt: new Date() } },
+      data: {
+        releaseStageId: input.releaseStageId,
+        attemptId: input.attemptId,
+        owner: input.owner,
+        expiresAt: input.expiresAt,
+        acquiredAt: new Date(),
+        heartbeatAt: null,
+      },
+    });
+    return stolen.count > 0;
   }
 
   // 事务内释放租约：仅删除当前 owner 持有的行（安全：他者租约不受影响）

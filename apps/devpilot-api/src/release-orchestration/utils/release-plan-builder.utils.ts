@@ -79,6 +79,14 @@ import type { ReleaseDependencyConditionType } from "../types/release-orchestrat
 export function buildReleasePlan(
   input: ReleasePlanBuildInput,
 ): ReleaseDagResult<ReleasePlanPreview> {
+  // CR-3-F1：空 services 防御——DTO 层已 @ArrayMinSize(1)，但 builder 作为纯函数层
+  // 再断言一次（preview/create 直接调用时也拦截）。空计划被执行会"成功"为 no-op。
+  if (!input.services || input.services.length === 0) {
+    return {
+      ok: false,
+      error: { kind: "missing_reference", message: "至少选择一个应用服务" },
+    };
+  }
   const stages: ReleaseStageNode[] = [];
   const dependencies: ReleaseDependency[] = [];
   const sideEffects: string[] = [];

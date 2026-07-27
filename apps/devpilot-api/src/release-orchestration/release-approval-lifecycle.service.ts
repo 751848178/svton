@@ -115,7 +115,19 @@ export class ReleaseApprovalLifecycleService {
       return { approval: this.toView(latest), blocked: false };
     }
 
-    // pending 但过期 / inputHash 不匹配（配置变更） / 无审批 → 创建新的 pending
+    // approved 且未消费 + 未过期 + inputHash 与当前期望一致 → 复用，不再 mint 第二个 pending
+    // （CR-2-1 根因修复：原实现缺失此分支，每次 ensureStageApproval 在人工批准后
+    //   都会落回 createPending fallthrough → 第二个 pending → readiness 永不满足 → 死锁）
+    const isApprovedUsable =
+      latest?.status === "approved" &&
+      !latest.consumedAt &&
+      (!latest.expiresAt || latest.expiresAt.getTime() >= now.getTime()) &&
+      (latest.inputHash ?? "") === expectedHash;
+    if (isApprovedUsable) {
+      return { approval: this.toView(latest), blocked: false };
+    }
+
+    // pending 过期 / inputHash 不匹配 / approved 已消费或过期或 stale / 无审批 → 创建新的 pending
     const created = await this.approvalService.createPending(
       buildStageApprovalCreateInput(
         stage, plan, RELEASE_APPROVAL_CATEGORY, RELEASE_APPROVAL_ACTION_PREFIX,

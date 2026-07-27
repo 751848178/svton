@@ -398,4 +398,18 @@ describe("release-plan-builder buildReleasePlan", () => {
       computeIdempotencyKey("__plan__", stage.key, stage.configHash ?? ""),
     );
   });
+
+  // CR-3-F1 回归：空 services → ok:false（DTO @ArrayMinSize(1) 的纯函数第二道闸）
+  it("CR-3-F1: empty services → !ok (missing_reference)", () => {
+    const r = buildReleasePlan({
+      projectId: "p1",
+      environmentId: "env-prod",
+      name: "empty-plan",
+      services: [],
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error.kind).toBe("missing_reference");
+    expect(r.error.message).toContain("至少选择一个应用服务");
+  });
 });
