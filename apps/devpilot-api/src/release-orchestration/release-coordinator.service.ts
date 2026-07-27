@@ -13,8 +13,10 @@ import { ReleaseStageRepository } from "./repository/release-stage.repository";
 import {
   ReleaseStageAttemptRepository,
 } from "./repository/release-stage-attempt.repository";
+import { ReleaseConcurrencyLeaseRepository } from "./repository/release-concurrency-lease.repository";
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
 import { ReleaseEventRepository } from "./repository/release-event.repository";
+import { ReleaseStageClaimService } from "./release-stage-claim.service";
 import { ReleaseReadinessService, type ReadinessStageView } from "./release-readiness.service";
 import {
   ReleaseApprovalLifecycleService,
@@ -45,8 +47,10 @@ export class ReleaseCoordinatorService {
     private readonly prisma: PrismaService,
     private readonly stageRepo: ReleaseStageRepository,
     private readonly attemptRepo: ReleaseStageAttemptRepository,
+    private readonly leaseRepo: ReleaseConcurrencyLeaseRepository,
     private readonly planRepo: ReleasePlanRepository,
     private readonly eventRepo: ReleaseEventRepository,
+    private readonly claimService: ReleaseStageClaimService,
     private readonly readiness: ReleaseReadinessService,
     private readonly recovery: ReleaseRecoveryService,
     private readonly approvalLifecycle: ReleaseApprovalLifecycleService,
@@ -102,7 +106,8 @@ export class ReleaseCoordinatorService {
     return approval.id ?? null;
   }
 
-  // 尝试认领并启动一个阶段；幂等。
+  // 尝试认领并启动一个阶段；幂等。原子认领委托 ReleaseStageClaimService：
+  // 读阶段→幂等/活跃检查→并发租约→CAS→创建 attempt→事件 全在一个 $transaction。
   private async tryClaimAndStart(
     stage: ReadinessStageView,
     teamId: string,
@@ -113,51 +118,36 @@ export class ReleaseCoordinatorService {
     const result = this.readiness.compute({ ...facts, releaseExecutable: true });
     if (!result.ready) return;
 
-    // 已有 active attempt 则不重复认领
-    const active = await this.attemptRepo.findActiveByStage(stage.id);
-    if (active) return;
-
-    const attemptNo = stage.currentAttempt + 1;
-    const attempt = await this.attemptRepo.create({
-      releaseStage: { connect: { id: stage.id } },
-      team: { connect: { id: teamId } },
-      attemptNo,
-      status: "queued",
-      operationApproval: approvalId ? { connect: { id: approvalId } } : undefined,
-      inputSnapshot: { configHash: stage.configHash } as never,
-    });
-    await this.stageRepo.updateStatusIf(
-      stage.id,
-      ["ready", "failed", "blocked"],
-      { status: "queued", blockedReason: null, currentAttempt: attemptNo },
-    );
-    await this.eventRepo.append({
-      releasePlanId: stage.releasePlanId,
-      releaseStageId: stage.id,
-      stageAttemptId: attempt.id,
+    const outcome = await this.claimService.claimAtomically({
+      stageId: stage.id,
       teamId,
-      eventType: RELEASE_AUDIT_ACTIONS.stage_claimed,
       actorId: actorId ?? null,
-      summary: `阶段 ${stage.key} 排队（attempt ${attemptNo}）`,
+      approvalId: approvalId ?? null,
     });
-
+    // 未赢得认领：不创建任何作业/事件，杜绝孤儿（P0-1/P1-4）
+    if (outcome.kind !== "won") {
+      if (outcome.kind === "concurrency-busy") {
+        await this.stageRepo.updateStatusIf(stage.id, ["ready"], {
+          status: "blocked",
+          blockedReason: "等待并发键释放",
+        }).catch(() => undefined);
+      }
+      return;
+    }
+    const attempt = await this.attemptRepo.findById(outcome.attemptId);
+    if (!attempt) return;
     await this.startAttempt(stage, attempt, teamId, actorId);
   }
 
-  // 认领 attempt 并调用适配器
+  // 认领 attempt 并调用适配器。
+  // 注意：原子 claim（claimAtomically）已在事务内把 attempt 置 queued 并写租约；
+  // 这里只需把阶段 queued→running 并执行 adapter，不再重复 claim。
   private async startAttempt(
     stage: ReadinessStageView,
     attempt: AttemptLinkedView,
     teamId: string,
     actorId?: string,
   ): Promise<void> {
-    const leaseExpiresAt = new Date(Date.now() + LEASE_MS);
-    const owner = `release-coordinator:${process.pid}:${attempt.id}`;
-    const claimed = await this.attemptRepo.claim(attempt.id, owner, leaseExpiresAt);
-    if (claimed === 0) {
-      // 已被他人认领或已终态
-      return;
-    }
     await this.stageRepo.updateStatusIf(stage.id, ["queued"], {
       status: "running",
       blockedReason: null,
@@ -244,6 +234,11 @@ export class ReleaseCoordinatorService {
     });
     if (updated === 0) return; // 已被他人收尾
 
+    // 终态收尾时释放并发租约（事务外尽力而为；过期租约也会被 acquire 清扫）
+    if (stage.concurrencyKey) {
+      await this.releaseLeaseOutsideTx(stage.concurrencyKey).catch(() => undefined);
+    }
+
     // 成功收尾：消费阶段绑定审批（失败不阻塞 finish）
     if (result.status === "succeeded" && attempt.operationApprovalId) {
       await this.approvalLifecycle.consume(teamId, attempt.operationApprovalId);
@@ -255,7 +250,18 @@ export class ReleaseCoordinatorService {
         : result.status === "skipped"
           ? "skipped"
           : "failed";
-    assertLegalStageTransition(stage.status as ReleaseStageStatus, nextStageStatus);
+    // 重读阶段当前状态再断言转换合法性：恢复链路可能从 pending/queued 直接收尾，
+    // 此时 stage.status 视图已陈旧；先 CAS 到 running 再断言 running→terminal。
+    const fresh = await this.stageRepo.findById(stage.id);
+    const currentStatus = (fresh?.status ?? stage.status) as ReleaseStageStatus;
+    if (currentStatus !== "running" && currentStatus !== nextStageStatus) {
+      await this.stageRepo.updateStatusIf(stage.id, ["pending", "queued", "blocked"], {
+        status: "running",
+        blockedReason: null,
+      });
+    }
+    const finalFrom = ((await this.stageRepo.findById(stage.id))?.status ?? "running") as ReleaseStageStatus;
+    assertLegalStageTransition(finalFrom, nextStageStatus);
     await this.stageRepo.update(stage.id, {
       status: nextStageStatus,
       blockedReason: result.status === "failed" ? result.error ?? null : null,
@@ -276,6 +282,14 @@ export class ReleaseCoordinatorService {
   async recoverStaleAttempts(releasePlanId: string, teamId: string): Promise<void> {
     await this.recovery.scanAndRecover(releasePlanId, async (stage, attempt, result) => {
       await this.finishAttempt(stage, attempt, result, teamId);
+    });
+  }
+
+  // 终态收尾后释放并发租约（事务外尽力而为；过期租约也会被 acquire 清扫）
+  // 阶段终态后此 concurrencyKey 不应再被该阶段占用，故按 key 直接删除。
+  private async releaseLeaseOutsideTx(concurrencyKey: string): Promise<void> {
+    await this.prisma.releaseConcurrencyLease.deleteMany({
+      where: { concurrencyKey },
     });
   }
 

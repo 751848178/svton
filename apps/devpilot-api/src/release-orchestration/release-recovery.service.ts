@@ -43,7 +43,9 @@ export class ReleaseRecoveryService {
     if (!plan) return;
     const now = new Date();
     for (const stage of plan.stages) {
-      if (!["running", "queued"].includes(stage.status)) continue;
+      // P0-1 修复：扫描覆盖 pending-with-active-attempt（孤儿 attempt + 活作业）。
+      // 仅跳过阶段终态；非终态阶段若存在 active attempt，就回读关联运行终态。
+      if (["succeeded", "skipped", "canceled"].includes(stage.status)) continue;
       const attempt = stage.attempts[0];
       if (!attempt) continue;
       const expired =

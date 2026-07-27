@@ -2499,6 +2499,7 @@ model ReleaseStage {
   dependencies        ReleaseStageDependency[] @relation("ReleaseStageDependent")
   dependents          ReleaseStageDependency[] @relation("ReleaseStageDependsOn")
   events              ReleaseEvent[]
+  concurrencyLeases   ReleaseConcurrencyLease[]
 
   @@unique([releasePlanId, key], map: "release_stage_plan_key")
   @@index([teamId])
@@ -2570,6 +2571,24 @@ model ReleaseStageAttempt {
   @@index([status])
   @@index([leaseOwner])
   @@index([leaseExpiresAt])
+}
+
+// 并发键租约：用唯一键原子保证同一 concurrencyKey 同时只能有一个活跃阶段（F383 D2）
+model ReleaseConcurrencyLease {
+  id             String   @id @default(cuid())
+  concurrencyKey String
+  releaseStageId String
+  attemptId      String
+  owner          String
+  acquiredAt     DateTime @default(now())
+  expiresAt      DateTime
+  heartbeatAt    DateTime?
+  releaseStage   ReleaseStage @relation(fields: [releaseStageId], references: [id], onDelete: Cascade)
+
+  @@unique([concurrencyKey], map: "release_concurrency_lease_key")
+  @@index([releaseStageId])
+  @@index([expiresAt])
+  @@index([owner])
 }
 
 // 发布级统一时间线（只追加，F383）

@@ -11,12 +11,14 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { ReleasePlanController } from "./release-plan.controller";
 import { ReleasePlanService } from "./release-plan.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { ReleaseStageClaimService } from "./release-stage-claim.service";
 import { ReleaseRecoveryService } from "./release-recovery.service";
 import { ReleaseReadinessService } from "./release-readiness.service";
 import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.service";
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
 import { ReleaseStageRepository } from "./repository/release-stage.repository";
 import { ReleaseStageAttemptRepository } from "./repository/release-stage-attempt.repository";
+import { ReleaseConcurrencyLeaseRepository } from "./repository/release-concurrency-lease.repository";
 import { ReleaseEventRepository } from "./repository/release-event.repository";
 import { ServerCommandStageAdapter } from "./stage-adapters/server-command.adapter";
 import { DeploymentRunStageAdapter } from "./stage-adapters/deployment-run.adapter";
@@ -36,12 +38,14 @@ import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
   providers: [
     ReleasePlanService,
     ReleaseCoordinatorService,
+    ReleaseStageClaimService,
     ReleaseRecoveryService,
     ReleaseReadinessService,
     ReleaseApprovalLifecycleService,
     ReleasePlanRepository,
     ReleaseStageRepository,
     ReleaseStageAttemptRepository,
+    ReleaseConcurrencyLeaseRepository,
     ReleaseEventRepository,
     ServerCommandStageAdapter,
     DeploymentRunStageAdapter,
