@@ -28,6 +28,10 @@ import { ReleaseRecoveryService, type AttemptLinkedView } from "./release-recove
 import { ServerCommandStageAdapter } from "./stage-adapters/server-command.adapter";
 import { DeploymentRunStageAdapter } from "./stage-adapters/deployment-run.adapter";
 import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
+import {
+  interpretServerCommandResult,
+  interpretDeploymentRunResult,
+} from "./stage-adapters/release-adapter-interpret.utils";
 import { sanitizeOutputForPersistence } from "./utils/release-output.utils";
 import { redactSecretsInText } from "./utils/release-redact.utils";
 import {
@@ -37,11 +41,17 @@ import {
 import { RELEASE_AUDIT_ACTIONS } from "./types/release-orchestration.types";
 import type { ReleaseStageExecutionContext, ReleaseStageExecutionResult } from "./stage-adapters/release-stage-adapter.types";
 import type { ReleaseStageStatus } from "./types/release-orchestration.types";
+import type {
+  ReleaseCoordinatorPort,
+  ReleaseCoordinatorTerminal,
+} from "./release-coordinator.port";
+
+const ATTEMPT_TERMINAL_STATUSES = new Set(["succeeded", "failed", "canceled", "skipped"]);
 
 const LEASE_MS = 15 * 60 * 1000;
 
 @Injectable()
-export class ReleaseCoordinatorService {
+export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
   private readonly logger = new Logger(ReleaseCoordinatorService.name);
   constructor(
     private readonly prisma: PrismaService,
@@ -94,6 +104,47 @@ export class ReleaseCoordinatorService {
 
     // 3. 重新派生计划状态
     await this.recomputePlanStatus(plan.id);
+  }
+
+  // SEJ/DeploymentRun 完成回调入口（RELEASE_COORDINATOR_PORT）。幂等：
+  // 重新读 attempt → 已终态直接返回 → 解释 terminal → finishAttempt + advancePlan。
+  // 任何异常只记 warn，绝不向 SEJ 完成路径抛错（P0-2）。
+  async finalizeAndAdvance(
+    releasePlanId: string,
+    stageAttemptId: string,
+    terminal: ReleaseCoordinatorTerminal,
+  ): Promise<void> {
+    try {
+      const attempt = await this.attemptRepo.findById(stageAttemptId);
+      if (!attempt) return;
+      if (ATTEMPT_TERMINAL_STATUSES.has(attempt.status)) return; // 幂等：重复完成回调
+
+      const stage = await this.stageRepo.findById(attempt.releaseStageId);
+      if (!stage) return;
+      const interpreted = this.interpretTerminal(terminal);
+      const teamId = stage.teamId;
+      await this.finishAttempt(
+        stage as ReadinessStageView,
+        attempt as AttemptLinkedView,
+        interpreted,
+        teamId,
+      );
+      await this.advancePlan(releasePlanId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `finalizeAndAdvance failed for attempt ${stageAttemptId}: ${msg}`,
+      );
+    }
+  }
+
+  // terminal.result 形状镜像 ServerExecutionJob/DeploymentRun 终态；沿用现有解释器
+  private interpretTerminal(
+    terminal: ReleaseCoordinatorTerminal,
+  ): ReleaseStageExecutionResult {
+    return terminal.kind === "deploymentRun"
+      ? interpretDeploymentRunResult(terminal.result)
+      : interpretServerCommandResult(terminal.result);
   }
 
   // 仅当审批处于 approved 且未消费时才绑定到 attempt（pending 不绑定，避免误消费）

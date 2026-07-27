@@ -34,6 +34,12 @@ import { ServerAgentCapabilityService } from "./server-agent-capability.service"
 import { ServerExecutorRemoteExecutionMetadataService } from "./server-executor-remote-execution-metadata.service";
 import { ServerExecutorRuntimeConfigService } from "./server-executor-runtime-config.service";
 import { ServerExecutorSupervisorService } from "./server-executor-supervisor.service";
+import type {
+  ReleaseCoordinatorPort,
+} from "../release-orchestration/release-coordinator.port";
+import {
+  RELEASE_COORDINATOR_PORT,
+} from "../release-orchestration/release-coordinator.port";
 import {
   ServerExecutorWiringFactoryService,
   ServerExecutorWiringServices,
@@ -63,6 +69,11 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @Inject(JOB_QUEUE_PORT)
     private readonly jobQueue?: JobQueuePort,
+    // 发布编排完成回调端口（F383 D3）：flag 关闭或未引入 ReleaseOrchestrationModule
+    // 时为 undefined，SEJ 完成路径不依赖它。Symbol+interface 仅类型导入，无运行时循环。
+    @Optional()
+    @Inject(RELEASE_COORDINATOR_PORT)
+    private readonly releaseCoordinator?: ReleaseCoordinatorPort,
     @Optional()
     @Inject(DISTRIBUTED_LOCK)
     private readonly distributedLock: DistributedLock = new NoopDistributedLock(),
@@ -81,6 +92,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       workerId: this.workerId,
       distributedLock: this.distributedLock,
       jobQueue: this.jobQueue,
+      releaseCoordinator: this.releaseCoordinator,
       sshLiveAdapter: this.sshLiveAdapter,
       serverAgentAdapter: this.serverAgentAdapter,
       scriptPlanAdapter: this.scriptPlanAdapter,

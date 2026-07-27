@@ -21,6 +21,9 @@ import { ReleaseReadinessService } from "./release-readiness.service";
 import { ReleaseRecoveryService } from "./release-recovery.service";
 import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { ReleaseRecoverySchedulerService } from "./release-recovery-scheduler.service";
+import { ServerExecutorReleaseStageRunSyncService } from "../server-executor/server-executor-release-stage-run-sync.service";
+import type { ServerExecutionResult } from "../server-executor/server-executor.types";
 import type {
   ReleaseStageAdapter,
   ReleaseStageExecutionContext,
@@ -119,6 +122,8 @@ interface Harness {
   prisma: PrismaService;
   coordinator: ReleaseCoordinatorService;
   executor: FakeServerExecutorService;
+  releaseStageSync: ServerExecutorReleaseStageRunSyncService;
+  schedulerFor: (enabled: boolean) => ReleaseRecoverySchedulerService;
 }
 
 async function buildHarness(): Promise<Harness> {
@@ -160,7 +165,18 @@ async function buildHarness(): Promise<Harness> {
     deploymentRunAdapter,
     manualGateAdapter,
   );
-  return { prisma, coordinator, executor };
+  // 真实的 release-stage 完成同步服务：把 coordinator 作为 port 注入（生产路径同构）
+  const releaseStageSync = new ServerExecutorReleaseStageRunSyncService(
+    prisma,
+    coordinator,
+  );
+  const schedulerFor = (enabled: boolean) =>
+    new ReleaseRecoverySchedulerService(
+      coordinator,
+      planRepo,
+      { get: (_k: string, fallback?: string) => (enabled ? "true" : (fallback ?? "false")) } as never,
+    );
+  return { prisma, coordinator, executor, releaseStageSync, schedulerFor };
 }
 
 async function seedBaseline(prisma: PrismaService) {
@@ -446,5 +462,177 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
     expect(finalStage?.status).toBe("succeeded");
     const leaseAfterFinish = await h.prisma.releaseConcurrencyLease.findMany({ where: { concurrencyKey: ck } });
     expect(leaseAfterFinish.length).toBe(0);
+  });
+
+  it("SEJ completion → attempt succeeded → successor stage becomes claimable (full chain)", async () => {
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id,
+        projectId: "proj-rel-int",
+        environmentId: env.id,
+        name: "completion-chain",
+        status: "running",
+        planHash: "h-chain",
+      },
+    });
+    // 前置阶段（server_command，低风险，ready）
+    const predStage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id,
+        teamId: team.id,
+        key: "precheck:pred",
+        name: "pred",
+        type: "precheck",
+        executorKind: "server_command",
+        riskLevel: "low",
+        required: true,
+        status: "ready",
+        currentAttempt: 0,
+        configSnapshot: { command: "echo pred" },
+      },
+    });
+    // 后继阶段（依赖前置成功）
+    const succStage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id,
+        teamId: team.id,
+        key: "bootstrap:succ",
+        name: "succ",
+        type: "bootstrap",
+        executorKind: "server_command",
+        riskLevel: "low",
+        required: true,
+        status: "pending",
+        currentAttempt: 0,
+        configSnapshot: { command: "echo succ" },
+      },
+    });
+    await h.prisma.releaseStageDependency.create({
+      data: {
+        stageId: succStage.id,
+        dependsOnStageId: predStage.id,
+        conditionType: "succeeded",
+        conditionSnapshot: { required: true },
+      },
+    });
+
+    // 1. advancePlan 认领前置阶段 → 创建 attempt + 真实 SEJ
+    await h.coordinator.advancePlan(plan.id);
+    const predAttempt = await h.prisma.releaseStageAttempt.findFirstOrThrow({
+      where: { releaseStageId: predStage.id },
+    });
+    expect(predAttempt.serverExecutionJobId).toBeTruthy();
+    const jobId = predAttempt.serverExecutionJobId as string;
+
+    // 后继阶段此时还不可认领（依赖未满足）
+    const succBefore = await h.prisma.releaseStage.findUnique({ where: { id: succStage.id } });
+    expect(succBefore?.status).toBe("pending");
+    const succAttemptBefore = await h.prisma.releaseStageAttempt.findMany({ where: { releaseStageId: succStage.id } });
+    expect(succAttemptBefore.length).toBe(0);
+
+    // 2. 模拟 SEJ 完成回调：调用 releaseStageSync.syncAfterExecution（生产路径同构）
+    const result: ServerExecutionResult = {
+      status: "completed",
+      mode: "executed",
+      executorKey: "server-executor",
+      adapterKey: "ssh-live",
+      executable: true,
+      warnings: [],
+      commandSteps: [],
+      commandPlan: { steps: [] },
+      logs: [{ stream: "stdout", message: "ok" }],
+      result: { exitCode: 0 },
+    };
+    await h.releaseStageSync.syncAfterExecution(
+      {
+        teamId: team.id,
+        operationKey: "release_stage.precheck",
+        adapterKey: "ssh-live",
+        dryRun: false,
+        target: { transport: "ssh", serverId: null },
+        steps: [],
+      } as never,
+      jobId,
+      result,
+      {
+        businessRunSync: "release_stage",
+        releasePlanId: plan.id,
+        releaseStageId: predStage.id,
+        stageAttemptId: predAttempt.id,
+      },
+    );
+
+    // 3. 断言：前置 attempt succeeded、前置阶段 succeeded
+    const predFinal = await h.prisma.releaseStage.findUnique({ where: { id: predStage.id } });
+    expect(predFinal?.status).toBe("succeeded");
+    const predAttemptFinal = await h.prisma.releaseStageAttempt.findFirstOrThrow({
+      where: { id: predAttempt.id },
+    });
+    expect(predAttemptFinal.status).toBe("succeeded");
+
+    // 4. 断言：后继阶段已被解锁并认领（completion→advance 全链路验证）
+    const succAfter = await h.prisma.releaseStage.findUnique({ where: { id: succStage.id } });
+    expect(["queued", "running", "succeeded"]).toContain(succAfter?.status);
+    const succAttemptAfter = await h.prisma.releaseStageAttempt.findMany({ where: { releaseStageId: succStage.id } });
+    expect(succAttemptAfter.length).toBe(1);
+  });
+  it("finalizeAndAdvance is idempotent: repeated completion callbacks do not double-finish", async () => {
+    const { plan, stage } = await seedReadyStage(h.prisma, {
+      planName: "finalize-idem",
+      stageKey: "precheck:fidem",
+    });
+    await h.coordinator.advancePlan(plan.id);
+    const attempt = await h.prisma.releaseStageAttempt.findFirstOrThrow({ where: { releaseStageId: stage.id } });
+    const jobId = attempt.serverExecutionJobId as string;
+
+    // 第一次完成回调
+    await h.coordinator.finalizeAndAdvance(plan.id, attempt.id, {
+      kind: "serverExecutionJob", id: jobId, result: { status: "completed", result: { exitCode: 0 }, logs: [] },
+    });
+    const attemptAfter1 = await h.prisma.releaseStageAttempt.findFirstOrThrow({ where: { id: attempt.id } });
+    expect(attemptAfter1.status).toBe("succeeded");
+
+    // 第二次重复回调：幂等，不应抛错、不应改动
+    await expect(
+      h.coordinator.finalizeAndAdvance(plan.id, attempt.id, {
+        kind: "serverExecutionJob", id: jobId, result: { status: "completed" },
+      }),
+    ).resolves.toBeUndefined();
+    const attemptAfter2 = await h.prisma.releaseStageAttempt.findFirstOrThrow({ where: { id: attempt.id } });
+    expect(attemptAfter2.status).toBe("succeeded");
+    // 仍只有一个 attempt（没有重复创建）
+    const allAttempts = await h.prisma.releaseStageAttempt.findMany({ where: { releaseStageId: stage.id } });
+    expect(allAttempts.length).toBe(1);
+  });
+
+  it("scheduler runOnce advances a non-terminal plan with a ready stage", async () => {
+    const { plan, stage } = await seedReadyStage(h.prisma, {
+      planName: "sched-advance",
+      stageKey: "precheck:sched",
+    });
+    const scheduler = h.schedulerFor(true);
+
+    const summary = await scheduler.runOnce();
+
+    expect(summary.skipped).toBe(false);
+    expect(summary.scanned).toBeGreaterThanOrEqual(1);
+    // 计划内 ready 阶段应被认领（attempt + SEJ）
+    const attempt = await h.prisma.releaseStageAttempt.findFirst({ where: { releaseStageId: stage.id } });
+    expect(attempt).toBeTruthy();
+    const finalStage = await h.prisma.releaseStage.findUnique({ where: { id: stage.id } });
+    expect(["queued", "running", "succeeded"]).toContain(finalStage?.status);
+  });
+
+  it("scheduler runOnce skipped when disabled — touches nothing", async () => {
+    const beforePlans = await h.prisma.releasePlan.count();
+    const scheduler = h.schedulerFor(false);
+
+    const summary = await scheduler.runOnce();
+
+    expect(summary.skipped).toBe(true);
+    // 没有任何计划被改动
+    const afterPlans = await h.prisma.releasePlan.count();
+    expect(afterPlans).toBe(beforePlans);
   });
 });

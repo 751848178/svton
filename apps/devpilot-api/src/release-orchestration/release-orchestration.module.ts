@@ -11,8 +11,10 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { ReleasePlanController } from "./release-plan.controller";
 import { ReleasePlanService } from "./release-plan.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { RELEASE_COORDINATOR_PORT } from "./release-coordinator.port";
 import { ReleaseStageClaimService } from "./release-stage-claim.service";
 import { ReleaseRecoveryService } from "./release-recovery.service";
+import { ReleaseRecoverySchedulerService } from "./release-recovery-scheduler.service";
 import { ReleaseReadinessService } from "./release-readiness.service";
 import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.service";
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
@@ -38,8 +40,12 @@ import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
   providers: [
     ReleasePlanService,
     ReleaseCoordinatorService,
+    // 把 port token 绑定到 ReleaseCoordinatorService（useExisting，对齐 JOB_QUEUE_PORT 模式）。
+    // ServerExecutorModule @Optional() 注入此 token；flag 关闭时为 undefined。
+    { provide: RELEASE_COORDINATOR_PORT, useExisting: ReleaseCoordinatorService },
     ReleaseStageClaimService,
     ReleaseRecoveryService,
+    ReleaseRecoverySchedulerService,
     ReleaseReadinessService,
     ReleaseApprovalLifecycleService,
     ReleasePlanRepository,
@@ -52,6 +58,6 @@ import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
     HealthCheckStageAdapter,
     ManualGateStageAdapter,
   ],
-  exports: [ReleasePlanService, ReleaseCoordinatorService],
+  exports: [ReleasePlanService, ReleaseCoordinatorService, RELEASE_COORDINATOR_PORT],
 })
 export class ReleaseOrchestrationModule {}

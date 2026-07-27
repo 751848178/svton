@@ -253,3 +253,160 @@ describe("ReleaseCoordinatorService approval chain", () => {
     expect(h.approvalLifecycle.consume).not.toHaveBeenCalled();
   });
 });
+
+describe("ReleaseCoordinatorService.finalizeAndAdvance", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  function mkAttempt(over: Partial<{ id: string; status: string; releaseStageId: string }> = {}) {
+    return {
+      id: "att-1",
+      status: "running",
+      releaseStageId: "stage-1",
+      attemptNo: 1,
+      operationApprovalId: null,
+      deploymentRunId: null,
+      serverExecutionJobId: "sej-1",
+      leaseExpiresAt: null,
+      ...over,
+    };
+  }
+
+  function buildHarness() {
+    const planRepo = {
+      findById: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({}),
+    };
+    const stageRepo = {
+      listByPlan: jest.fn().mockResolvedValue([]),
+      findById: jest.fn().mockResolvedValue(null),
+      updateStatusIf: jest.fn().mockResolvedValue(1),
+      update: jest.fn().mockResolvedValue({}),
+    };
+    const attemptRepo = {
+      findById: jest.fn().mockResolvedValue(null),
+      findActiveByStage: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+      claim: jest.fn(),
+      finish: jest.fn().mockResolvedValue(1),
+      linkRun: jest.fn(),
+    };
+    const leaseRepo = {
+      acquireWithinTx: jest.fn(),
+      releaseWithinTx: jest.fn(),
+      renewWithinTx: jest.fn(),
+    };
+    const eventRepo = { append: jest.fn().mockResolvedValue({}) };
+    const claimService = { claimAtomically: jest.fn().mockResolvedValue({ kind: "cas-lost" }) };
+    const readiness = { assembleFacts: jest.fn(), compute: jest.fn() };
+    const recovery = { scanAndRecover: jest.fn().mockResolvedValue(undefined) };
+    const approvalLifecycle = {
+      ensureStageApproval: jest.fn(),
+      consume: jest.fn().mockResolvedValue(undefined),
+    };
+    const serverCommandAdapter = { execute: jest.fn() };
+    const deploymentRunAdapter = { execute: jest.fn() };
+    const manualGateAdapter = { execute: jest.fn() };
+    const prisma = { releaseConcurrencyLease: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) } };
+    const coordinator = new ReleaseCoordinatorService(
+      prisma as any,
+      stageRepo as any,
+      attemptRepo as any,
+      leaseRepo as any,
+      planRepo as any,
+      eventRepo as any,
+      claimService as any,
+      readiness as any,
+      recovery as any,
+      approvalLifecycle as any,
+      serverCommandAdapter as any,
+      deploymentRunAdapter as any,
+      manualGateAdapter as any,
+    );
+    return {
+      coordinator, planRepo, stageRepo, attemptRepo, leaseRepo, eventRepo,
+      claimService, readiness, recovery, approvalLifecycle,
+    };
+  }
+
+  it("(a) attempt already terminal → finishAttempt not called (idempotent)", async () => {
+    const h = buildHarness();
+    h.attemptRepo.findById.mockResolvedValue(mkAttempt({ status: "succeeded" }));
+    await h.coordinator.finalizeAndAdvance("plan-1", "att-1", {
+      kind: "serverExecutionJob",
+      id: "sej-1",
+      result: { status: "completed" },
+    });
+    expect(h.attemptRepo.finish).not.toHaveBeenCalled();
+  });
+
+  it("(b) running attempt + serverExecutionJob completed → finishAttempt with succeeded", async () => {
+    const h = buildHarness();
+    const stage = mkStage({ status: "running" });
+    h.attemptRepo.findById.mockResolvedValue(mkAttempt({ status: "running" }));
+    // finishAttempt 内会重读阶段当前状态
+    h.stageRepo.findById.mockResolvedValue({ ...stage, status: "running" });
+    // advancePlan 内 planRepo.findById 返回 null → 提前返回，不影响断言
+    h.planRepo.findById.mockResolvedValue(null);
+
+    await h.coordinator.finalizeAndAdvance("plan-1", "att-1", {
+      kind: "serverExecutionJob",
+      id: "sej-1",
+      result: { status: "completed", result: { exitCode: 0 }, logs: ["ok"] },
+    });
+
+    expect(h.attemptRepo.finish).toHaveBeenCalled();
+    const finishCall = h.attemptRepo.finish.mock.calls[0];
+    expect(finishCall[1].status).toBe("succeeded");
+  });
+
+  it("(c) serverExecutionJob result.status failed → finishAttempt with failed + error", async () => {
+    const h = buildHarness();
+    const stage = mkStage({ status: "running" });
+    h.attemptRepo.findById.mockResolvedValue(mkAttempt({ status: "running" }));
+    h.stageRepo.findById.mockResolvedValue({ ...stage, status: "running" });
+    h.planRepo.findById.mockResolvedValue(null);
+
+    await h.coordinator.finalizeAndAdvance("plan-1", "att-1", {
+      kind: "serverExecutionJob",
+      id: "sej-1",
+      result: { status: "failed", error: "exit 1" },
+    });
+
+    expect(h.attemptRepo.finish).toHaveBeenCalled();
+    const finishCall = h.attemptRepo.finish.mock.calls[0];
+    expect(finishCall[1].status).toBe("failed");
+    expect(finishCall[1].error).toContain("exit 1");
+  });
+
+  it("(d) interpreter throws → caught, logged, no rethrow", async () => {
+    const h = buildHarness();
+    // attemptRepo.findById 抛错模拟解释/读取链路异常
+    h.attemptRepo.findById.mockRejectedValue(new Error("db down"));
+    await expect(
+      h.coordinator.finalizeAndAdvance("plan-1", "att-1", {
+        kind: "serverExecutionJob",
+        id: "sej-1",
+        result: { status: "completed" },
+      }),
+    ).resolves.toBeUndefined();
+    expect(h.attemptRepo.finish).not.toHaveBeenCalled();
+  });
+
+  it("deploymentRun terminal → interpreted via deploymentRun interpreter", async () => {
+    const h = buildHarness();
+    const stage = mkStage({ status: "running" });
+    h.attemptRepo.findById.mockResolvedValue(mkAttempt({ status: "running" }));
+    h.stageRepo.findById.mockResolvedValue({ ...stage, status: "running" });
+    h.planRepo.findById.mockResolvedValue(null);
+
+    await h.coordinator.finalizeAndAdvance("plan-1", "att-1", {
+      kind: "deploymentRun",
+      id: "dr-1",
+      result: { status: "completed" },
+    });
+
+    expect(h.attemptRepo.finish).toHaveBeenCalled();
+    const finishCall = h.attemptRepo.finish.mock.calls[0];
+    expect(finishCall[1].status).toBe("succeeded");
+  });
+});

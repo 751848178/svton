@@ -2,6 +2,7 @@ import type { Logger } from "@nestjs/common";
 import type { AuditEventService } from "../audit-event";
 import { LogCollectionIngestionService } from "../log-center/log-collection-ingestion.service";
 import { PrismaService } from "../prisma/prisma.service";
+import type { ReleaseCoordinatorPort } from "../release-orchestration/release-coordinator.port";
 import type { DistributedLock } from "../common/lock/distributed-lock";
 import { ServerAgentServerExecutorAdapter } from "./adapters/server-agent.adapter";
 import { ScriptPlanServerExecutorAdapter } from "./adapters/script-plan.adapter";
@@ -37,6 +38,8 @@ type ServerExecutorWiringFactoryOptions = {
   workerId: string;
   distributedLock: DistributedLock;
   jobQueue?: JobQueuePort;
+  // 发布编排完成回调端口（F383 D3）；可选——flag 关闭时为 undefined。
+  releaseCoordinator?: ReleaseCoordinatorPort;
   sshLiveAdapter: SshLiveServerExecutorAdapter;
   serverAgentAdapter?: ServerAgentServerExecutorAdapter;
   scriptPlanAdapter: ScriptPlanServerExecutorAdapter;
@@ -75,6 +78,7 @@ export class ServerExecutorWiringFactoryService {
         this.options.logCollectionIngestionService,
         this.options.logger,
         this.options.queueExecution,
+        this.options.releaseCoordinator,
       ).create();
     const auditService = new ServerExecutorAuditService(
       this.options.auditEventService,
