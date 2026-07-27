@@ -424,6 +424,7 @@
     "keepAtLeastOneEnvironment": "Keep at least 1 environment",
     "tabOverview": "Overview",
     "tabDeployments": "Deployments",
+    "tabReleases": "Releases",
     "tabEnvironments": "Environments",
     "tabWebhooks": "Webhooks",
     "tabResources": "Resources",

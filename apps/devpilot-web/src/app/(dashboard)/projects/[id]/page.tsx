@@ -14,6 +14,7 @@ import {
 } from './components/deploy-wizard-host';
 import { OverviewTab } from './components/tabs/overview-tab';
 import { DeploymentsTab } from './components/tabs/deployments-tab';
+import { ReleasesTab } from './components/tabs/releases-tab';
 import { EnvironmentsTab } from './components/tabs/environments-tab';
 import { WebhooksTab } from './components/tabs/webhooks-tab';
 import { ResourcesTab } from './components/tabs/resources-tab';
@@ -129,6 +130,11 @@ export default function ProjectDetailPage() {
           onOpenDeploy={deployHost.onOpenDeploy}
         />
       ),
+    },
+    {
+      key: 'releases',
+      label: t('tabReleases'),
+      children: <ReleasesTab detail={detail} />,
     },
     {
       key: 'environments',

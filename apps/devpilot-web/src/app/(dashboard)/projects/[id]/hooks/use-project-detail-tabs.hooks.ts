@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 const PROJECT_TABS = new Set([
   'overview',
   'deployments',
+  'releases',
   'environments',
   'webhooks',
   'resources',

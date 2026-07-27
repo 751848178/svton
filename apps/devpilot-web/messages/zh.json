@@ -424,6 +424,7 @@
     "keepAtLeastOneEnvironment": "至少保留 1 个环境",
     "tabOverview": "概览",
     "tabDeployments": "部署",
+    "tabReleases": "发布",
     "tabEnvironments": "环境",
     "tabWebhooks": "Webhook",
     "tabResources": "资源",
