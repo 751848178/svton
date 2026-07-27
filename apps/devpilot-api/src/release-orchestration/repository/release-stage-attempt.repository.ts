@@ -2,7 +2,8 @@
  * ReleaseStageAttempt 仓储：创建、原子认领、租约续约、终态写入。
  * 并发安全全部依赖 updateMany 的条件 WHERE 子句。
  */
-import type { PrismaService } from "../../prisma/prisma.service";
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../../prisma/prisma.service";
 import type { Prisma } from "@prisma/client";
 
 export const releaseStageAttemptInclude = {
@@ -16,6 +17,7 @@ export type ReleaseStageAttemptDetail = Prisma.ReleaseStageAttemptGetPayload<{
   include: typeof releaseStageAttemptInclude;
 }>;
 
+@Injectable()
 export class ReleaseStageAttemptRepository {
   constructor(private readonly prisma: PrismaService) {}
 

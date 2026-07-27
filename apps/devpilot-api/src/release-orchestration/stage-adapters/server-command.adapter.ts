@@ -5,14 +5,16 @@
  */
 import { Injectable } from "@nestjs/common";
 import { ServerExecutorService } from "../../server-executor/server-executor.service";
-import { parseOutputSentinel } from "../utils/release-output.utils";
 import { redactSecretsInObject } from "../utils/release-redact.utils";
+import { interpretServerCommandResult } from "./release-adapter-interpret.utils";
 import type { ServerCommandStep } from "../../server-executor/server-executor.types";
 import type {
   ReleaseStageAdapter,
   ReleaseStageExecutionContext,
   ReleaseStageExecutionResult,
 } from "./release-stage-adapter.types";
+
+export { interpretServerCommandResult };
 
 const STAGE_PHASE: Record<string, ServerCommandStep["phase"]> = {
   precheck: "pre_start_check",
@@ -107,26 +109,6 @@ export class ServerCommandStageAdapter implements ReleaseStageAdapter {
       logSummary: { queuedAt: result.queuedAt },
     };
   }
-}
-
-// 从结构化输出哨兵解析终态（恢复回读时调用，非排队时）
-export function interpretServerCommandResult(
-  jobResult: { status: string; result?: unknown; logs?: unknown; error?: string | null },
-): ReleaseStageExecutionResult {
-  const logsText = JSON.stringify(jobResult.logs ?? "");
-  const parsed = parseOutputSentinel(logsText);
-  const status: ReleaseStageExecutionResult["status"] =
-    jobResult.status === "completed"
-      ? "succeeded"
-      : jobResult.status === "cancelled"
-        ? "skipped"
-        : "failed";
-  return {
-    status,
-    output: parsed.output,
-    logSummary: { cleanedLogsPreview: parsed.cleanedText.slice(-2000) },
-    error: jobResult.error ?? undefined,
-  };
 }
 
 function readString(v: unknown): string | undefined {

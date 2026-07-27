@@ -22,7 +22,6 @@ import {
   type ReleasePlanBuildInput,
   type ReleasePlanPreview,
 } from "./utils/release-plan-builder.utils";
-import { computeIdempotencyKey } from "./utils/release-hash.utils";
 import { redactSecretsInObject } from "./utils/release-redact.utils";
 import {
   assertLegalPlanTransition,
@@ -76,74 +75,32 @@ export class ReleasePlanService {
   ): Promise<{ id: string; planHash: string }> {
     this.assertEnabled();
     const preview = this.preview(input);
-    const plan = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.releasePlan.create({
-        data: {
-          teamId: input.teamId,
-          projectId: input.projectId,
-          environmentId: input.environmentId,
-          name: input.name,
-          branch: input.branch ?? null,
-          commitSha: input.commitSha ?? null,
-          source: "manual",
-          trigger: "manual",
-          mode: "live",
-          status: "ready",
-          planHash: preview.planHash,
-          inputSnapshot: redactSecretsInObject(preview.inputSnapshot) as never,
-          createdByUserId: input.createdByUserId ?? null,
-        },
-      });
-      for (const stage of preview.stages) {
-        const idempotencyKey = computeIdempotencyKey(
-          created.id,
-          stage.key,
-          stage.configHash ?? "",
-        );
-        await tx.releaseStage.create({
-          data: {
-            releasePlanId: created.id,
-            teamId: input.teamId,
-            key: stage.key,
-            name: stage.name,
-            type: stage.type,
-            applicationId: stage.applicationId ?? null,
-            applicationServiceId: stage.applicationServiceId ?? null,
-            environmentId: stage.environmentId ?? null,
-            serverId: stage.serverId ?? null,
-            executorKind: stage.executorKind,
-            configSnapshot: redactSecretsInObject(stage.configSnapshot ?? {}) as never,
-            configHash: stage.configHash ?? null,
-            outputSchema: (stage.outputSchema ?? null) as never,
-            idempotencyKey,
-            concurrencyKey: stage.concurrencyKey ?? null,
-            riskLevel: stage.riskLevel,
-            required: stage.required,
-            status: "pending",
-            currentAttempt: 0,
-          },
-        });
-      }
-      // 依赖边（依赖 keys 解析为 stageId）
-      const stages = await tx.releaseStage.findMany({
-        where: { releasePlanId: created.id },
-        select: { id: true, key: true },
-      });
-      const keyToId = new Map(stages.map((s) => [s.key, s.id]));
-      for (const dep of preview.dependencies) {
-        const stageId = keyToId.get(dep.stageKey);
-        const dependsOnStageId = keyToId.get(dep.dependsOnStageKey);
-        if (!stageId || !dependsOnStageId) continue;
-        await tx.releaseStageDependency.create({
-          data: {
-            stageId,
-            dependsOnStageId,
-            conditionType: dep.conditionType,
-            conditionSnapshot: { required: dep.required } as never,
-          },
-        });
-      }
-      return created;
+    const plan = await this.planRepo.persistPlanWithStages({
+      teamId: input.teamId,
+      projectId: input.projectId,
+      environmentId: input.environmentId,
+      name: input.name,
+      branch: input.branch ?? null,
+      commitSha: input.commitSha ?? null,
+      planHash: preview.planHash,
+      inputSnapshot: redactSecretsInObject(preview.inputSnapshot),
+      createdByUserId: input.createdByUserId ?? null,
+      stages: preview.stages.map((stage) => ({
+        key: stage.key,
+        name: stage.name,
+        type: stage.type,
+        executorKind: stage.executorKind,
+        applicationId: stage.applicationId ?? null,
+        applicationServiceId: stage.applicationServiceId ?? null,
+        environmentId: stage.environmentId ?? null,
+        serverId: stage.serverId ?? null,
+        configSnapshot: redactSecretsInObject(stage.configSnapshot ?? {}),
+        configHash: stage.configHash ?? null,
+        concurrencyKey: stage.concurrencyKey ?? null,
+        riskLevel: stage.riskLevel,
+        required: stage.required,
+      })),
+      dependencies: preview.dependencies,
     });
     await this.eventRepo.append({
       releasePlanId: plan.id,

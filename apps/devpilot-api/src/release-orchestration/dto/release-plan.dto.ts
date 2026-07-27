@@ -18,6 +18,7 @@ export class ReleaseServiceInputDto {
   @IsString()
   environmentId!: string;
 
+  @IsOptional()
   @IsString()
   serverId?: string;
 

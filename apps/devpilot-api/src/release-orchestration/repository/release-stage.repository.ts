@@ -1,7 +1,8 @@
 /**
  * ReleaseStage 仓储：阶段定义读取、状态与派生字段更新。
  */
-import type { PrismaService } from "../../prisma/prisma.service";
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../../prisma/prisma.service";
 import type { Prisma } from "@prisma/client";
 
 export const releaseStageDetailInclude = {
@@ -18,6 +19,7 @@ export type ReleaseStageDetail = Prisma.ReleaseStageGetPayload<{
   include: typeof releaseStageDetailInclude;
 }>;
 
+@Injectable()
 export class ReleaseStageRepository {
   constructor(private readonly prisma: PrismaService) {}
 

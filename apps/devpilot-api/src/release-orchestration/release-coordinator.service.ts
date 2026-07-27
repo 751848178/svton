@@ -16,6 +16,7 @@ import {
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
 import { ReleaseEventRepository } from "./repository/release-event.repository";
 import { ReleaseReadinessService, type ReadinessStageView } from "./release-readiness.service";
+import { ReleaseRecoveryService, type AttemptLinkedView } from "./release-recovery.service";
 import { ServerCommandStageAdapter } from "./stage-adapters/server-command.adapter";
 import { DeploymentRunStageAdapter } from "./stage-adapters/deployment-run.adapter";
 import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
@@ -31,17 +32,6 @@ import type { ReleaseStageStatus } from "./types/release-orchestration.types";
 
 const LEASE_MS = 15 * 60 * 1000;
 
-// 结构化 attempt 视图：兼容 plan repo 嵌套 attempt 与 attempt repo detail
-interface AttemptLinkedView {
-  id: string;
-  attemptNo: number;
-  status: string;
-  operationApprovalId?: string | null;
-  deploymentRunId?: string | null;
-  serverExecutionJobId?: string | null;
-  leaseExpiresAt?: Date | null;
-}
-
 @Injectable()
 export class ReleaseCoordinatorService {
   private readonly logger = new Logger(ReleaseCoordinatorService.name);
@@ -52,6 +42,7 @@ export class ReleaseCoordinatorService {
     private readonly planRepo: ReleasePlanRepository,
     private readonly eventRepo: ReleaseEventRepository,
     private readonly readiness: ReleaseReadinessService,
+    private readonly recovery: ReleaseRecoveryService,
     private readonly serverCommandAdapter: ServerCommandStageAdapter,
     private readonly deploymentRunAdapter: DeploymentRunStageAdapter,
     private readonly manualGateAdapter: ManualGateStageAdapter,
@@ -240,53 +231,11 @@ export class ReleaseCoordinatorService {
     });
   }
 
-  // 回收过期租约：从关联 DeploymentRun/ServerExecutionJob 回读终态
+  // 回收过期租约：委托 ReleaseRecoveryService 从关联运行回读终态后收尾
   async recoverStaleAttempts(releasePlanId: string, teamId: string): Promise<void> {
-    const plan = await this.planRepo.findById(releasePlanId);
-    if (!plan) return;
-    const now = new Date();
-    for (const stage of plan.stages) {
-      if (!["running", "queued"].includes(stage.status)) continue;
-      const attempt = stage.attempts[0];
-      if (!attempt) continue;
-      const expired =
-        attempt.status === "running" &&
-        attempt.leaseExpiresAt &&
-        attempt.leaseExpiresAt < now;
-      if (!expired && attempt.status !== "queued") continue;
-      await this.syncAttemptFromLinkedRun(stage as ReadinessStageView, attempt, teamId);
-    }
-  }
-
-  // 从关联 DeploymentRun / ServerExecutionJob 回读真实终态
-  private async syncAttemptFromLinkedRun(
-    stage: ReadinessStageView,
-    attempt: AttemptLinkedView,
-    teamId: string,
-  ): Promise<void> {
-    let result: ReleaseStageExecutionResult | null = null;
-    if (attempt.serverExecutionJobId) {
-      const job = await this.prisma.serverExecutionJob.findUnique({
-        where: { id: attempt.serverExecutionJobId },
-        select: { status: true, result: true, logs: true, error: true },
-      });
-      if (job && ["completed", "failed", "cancelled", "blocked"].includes(job.status)) {
-        const { interpretServerCommandResult } = await import("./stage-adapters/server-command.adapter");
-        result = interpretServerCommandResult(job);
-      }
-    } else if (attempt.deploymentRunId) {
-      const run = await this.prisma.deploymentRun.findUnique({
-        where: { id: attempt.deploymentRunId },
-        select: { status: true, result: true, logs: true, error: true },
-      });
-      if (run && ["completed", "failed", "cancelled", "blocked"].includes(run.status)) {
-        const { interpretDeploymentRunResult } = await import("./stage-adapters/deployment-run.adapter");
-        result = interpretDeploymentRunResult(run);
-      }
-    }
-    if (!result) return;
-    if (result.status === "queued") return; // 仍在进行
-    await this.finishAttempt(stage, attempt, result, teamId);
+    await this.recovery.scanAndRecover(releasePlanId, async (stage, attempt, result) => {
+      await this.finishAttempt(stage, attempt, result, teamId);
+    });
   }
 
   // 重算计划状态（基于全部阶段状态）

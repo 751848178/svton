@@ -6,11 +6,14 @@ import { Injectable } from "@nestjs/common";
 import { DeploymentService } from "../../deployment/deployment.service";
 import type { CreateDeploymentRunDto } from "../../deployment/dto/deployment.dto";
 import { redactSecretsInObject } from "../utils/release-redact.utils";
+import { interpretDeploymentRunResult } from "./release-adapter-interpret.utils";
 import type {
   ReleaseStageAdapter,
   ReleaseStageExecutionContext,
   ReleaseStageExecutionResult,
 } from "./release-stage-adapter.types";
+
+export { interpretDeploymentRunResult };
 
 @Injectable()
 export class DeploymentRunStageAdapter implements ReleaseStageAdapter {
@@ -58,28 +61,6 @@ export class DeploymentRunStageAdapter implements ReleaseStageAdapter {
       logSummary: redactSecretsInObject({ deploymentRunStatus: run.status }),
     };
   }
-}
-
-// 从关联 DeploymentRun 回读终态（恢复链路使用）
-export function interpretDeploymentRunResult(run: {
-  status: string;
-  result?: unknown;
-  logs?: unknown;
-  error?: string | null;
-}): ReleaseStageExecutionResult {
-  const status: ReleaseStageExecutionResult["status"] =
-    run.status === "completed"
-      ? "succeeded"
-      : run.status === "failed"
-        ? "failed"
-        : run.status === "cancelled"
-          ? "skipped"
-          : "queued";
-  return {
-    status,
-    logSummary: { deploymentRunStatus: run.status },
-    error: run.error ?? undefined,
-  };
 }
 
 function readString(v: unknown): string | undefined {

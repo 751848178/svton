@@ -1,7 +1,8 @@
 /**
  * ReleaseEvent 仓储：只追加时间线。metadata 在写入前由调用方脱敏。
  */
-import type { PrismaService } from "../../prisma/prisma.service";
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../../prisma/prisma.service";
 
 export interface AppendReleaseEventInput {
   releasePlanId: string;
@@ -16,6 +17,7 @@ export interface AppendReleaseEventInput {
   metadata?: Record<string, unknown> | null;
 }
 
+@Injectable()
 export class ReleaseEventRepository {
   constructor(private readonly prisma: PrismaService) {}
 

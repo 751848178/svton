@@ -11,6 +11,7 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { ReleasePlanController } from "./release-plan.controller";
 import { ReleasePlanService } from "./release-plan.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { ReleaseRecoveryService } from "./release-recovery.service";
 import { ReleaseReadinessService } from "./release-readiness.service";
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
 import { ReleaseStageRepository } from "./repository/release-stage.repository";
@@ -34,6 +35,7 @@ import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
   providers: [
     ReleasePlanService,
     ReleaseCoordinatorService,
+    ReleaseRecoveryService,
     ReleaseReadinessService,
     ReleasePlanRepository,
     ReleaseStageRepository,
