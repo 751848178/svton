@@ -1,6 +1,12 @@
 import { useTranslations } from 'next-intl';
 import type { CreateRequestFormData } from '../hooks/use-create-request-form.hooks';
-import type { Project, ResourceField, ResourceFieldValue, ResourceType } from '../types';
+import type {
+  Project,
+  ProjectEnvironment,
+  ResourceField,
+  ResourceFieldValue,
+  ResourceType,
+} from '../types';
 import { getFieldDefaultValue } from '../utils';
 import { DynamicResourceField } from './dynamic-resource-field';
 
@@ -8,8 +14,8 @@ interface CreateRequestFormFieldsProps {
   fields: ResourceField[];
   fieldValues: Record<string, ResourceFieldValue>;
   formData: CreateRequestFormData;
-  hasEnvironmentField: boolean;
   projects: Project[];
+  environments: ProjectEnvironment[];
   resourceTypes: ResourceType[];
   saving: boolean;
   onCancel: () => void;
@@ -21,8 +27,8 @@ export function CreateRequestFormFields({
   fields,
   fieldValues,
   formData,
-  hasEnvironmentField,
   projects,
+  environments,
   resourceTypes,
   saving,
   onCancel,
@@ -31,6 +37,9 @@ export function CreateRequestFormFields({
 }: CreateRequestFormFieldsProps) {
   const t = useTranslations('resourceRequests');
   const tc = useTranslations('common');
+  const projectEnvironments = environments.filter(
+    (environment) => environment.project?.id === formData.projectId,
+  );
   return (
     <>
       <div>
@@ -67,14 +76,14 @@ export function CreateRequestFormFields({
           placeholder={t('requestTitlePlaceholder')}
         />
       </div>
-      <div
-        className={`grid gap-3 ${hasEnvironmentField ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}
-      >
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="block text-sm font-medium mb-1">{t('project')}</label>
           <select
             value={formData.projectId}
-            onChange={(event) => onFormDataChange({ projectId: event.target.value })}
+            onChange={(event) =>
+              onFormDataChange({ projectId: event.target.value, environmentId: '' })
+            }
             className="w-full px-3 py-2 border rounded-md bg-background"
           >
             <option value="">{t('noProject')}</option>
@@ -88,17 +97,29 @@ export function CreateRequestFormFields({
             ))}
           </select>
         </div>
-        {!hasEnvironmentField && (
-          <div>
-            <label className="block text-sm font-medium mb-1">{t('environment')}</label>
-            <input
-              value={formData.environment}
-              onChange={(event) => onFormDataChange({ environment: event.target.value })}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder={t('environmentPlaceholder')}
-            />
-          </div>
-        )}
+        <div>
+          <label className="block text-sm font-medium mb-1">{t('environment')}</label>
+          <select
+            value={formData.environmentId}
+            onChange={(event) => onFormDataChange({ environmentId: event.target.value })}
+            disabled={!formData.projectId}
+            required={Boolean(formData.projectId)}
+            className="w-full px-3 py-2 border rounded-md bg-background disabled:opacity-60"
+          >
+            <option value="">
+              {formData.projectId ? t('selectProjectEnvironment') : t('selectProjectFirst')}
+            </option>
+            {projectEnvironments.map((environment) => (
+              <option
+                key={environment.id}
+                value={environment.id}
+              >
+                {environment.name} ({environment.key})
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">{t('environmentAssociationHint')}</p>
+        </div>
       </div>
       <div>
         <label className="block text-sm font-medium mb-1">{t('purpose')}</label>

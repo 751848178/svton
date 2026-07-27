@@ -50,6 +50,9 @@ export function useApplicationCreation({ reload }: UseApplicationCreationArgs) {
         targetType: input.kind === 'external' ? 'external-ci' : 'server',
         workingDirectory: input.workingDirectory,
         buildCommand: input.buildCommand,
+        preStartCheckCommand: input.preStartCheckCommand,
+        migrationCommand: input.migrationCommand,
+        initializationCommand: input.initializationCommand,
         deployCommand: input.deployCommand,
         healthCheckUrl: input.healthCheckUrl,
       });

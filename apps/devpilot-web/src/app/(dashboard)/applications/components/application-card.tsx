@@ -57,6 +57,10 @@ interface ApplicationCardProps {
   ) => void;
   /** 卡片底部「添加服务」按钮：打开预绑定到该应用的添加服务弹窗。 */
   onAddService: (application: ApplicationItem) => void;
+  onEditServiceDeployment: (
+    application: ApplicationItem,
+    service: ApplicationItem['services'][number],
+  ) => void;
 }
 
 export function ApplicationCard(props: ApplicationCardProps) {
@@ -116,6 +120,7 @@ export function ApplicationCard(props: ApplicationCardProps) {
               onRunOperation={props.onRunOperation}
               onRequestLive={props.onRequestLive}
               onOpenDeploy={props.onOpenDeploy}
+              onEditDeployment={props.onEditServiceDeployment}
             />
           ))}
         </div>

@@ -22,6 +22,7 @@ import type {
 import { useApplicationOperations } from './use-application-operations';
 import { useApplicationCreation } from './use-application-creation.hooks';
 import { useApplicationServiceSlos } from './use-application-service-slos';
+import { useApplicationServiceConfig } from './use-application-service-config.hooks';
 
 export function useApplications(queryProjectId: string, queryEnvironmentId: string) {
   // 应用列表内嵌各服务 operationRuns（GET:/applications），存在 queued/running 操作运行时
@@ -111,6 +112,7 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
     useApplicationServiceSlos(visibleServiceIds);
 
   const { createApplication, createService } = useApplicationCreation({ reload: load });
+  const { updateServiceDeployment } = useApplicationServiceConfig(load);
 
   const operations = useApplicationOperations({
     queueDeploymentRuns,
@@ -147,6 +149,7 @@ export function useApplications(queryProjectId: string, queryEnvironmentId: stri
     serviceSloError,
     createApplication,
     createService,
+    updateServiceDeployment,
     ...operations,
     reload: load,
   };

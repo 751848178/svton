@@ -45,6 +45,10 @@ interface ServiceRowProps {
   ) => void;
   /** 打开部署向导（取代原 fire-and-forget 的 onCreateDeployment）。 */
   onOpenDeploy: (application: ApplicationItem, service: ApplicationServiceItem) => void;
+  onEditDeployment: (
+    application: ApplicationItem,
+    service: ApplicationServiceItem,
+  ) => void;
 }
 
 export function ServiceRow(props: ServiceRowProps) {
@@ -58,7 +62,7 @@ export function ServiceRow(props: ServiceRowProps) {
     serviceSloLoading,
     latestDeployRun,
   } = props;
-  const { onRunOperation, onRequestLive, onOpenDeploy } = props;
+  const { onRunOperation, onRequestLive, onOpenDeploy, onEditDeployment } = props;
   const t = useTranslations('applications');
 
   const handleRun = usePersistFn((action: ServiceAction) =>
@@ -68,6 +72,9 @@ export function ServiceRow(props: ServiceRowProps) {
     onRequestLive(application, service, action),
   );
   const handleDeploy = usePersistFn(() => onOpenDeploy(application, service));
+  const handleEditDeployment = usePersistFn(() =>
+    onEditDeployment(application, service),
+  );
 
   return (
     <div className="py-3 first:pt-0 last:pb-0">
@@ -135,6 +142,7 @@ export function ServiceRow(props: ServiceRowProps) {
             queueServiceOperations={queueServiceOperations}
             onRun={handleRun}
             onRequestLive={handleLive}
+            onEditDeployment={handleEditDeployment}
           />
         </div>
       </div>

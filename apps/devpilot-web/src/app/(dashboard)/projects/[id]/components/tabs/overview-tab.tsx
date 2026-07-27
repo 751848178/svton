@@ -20,26 +20,36 @@ import { getLatestDeploymentRun } from '../../utils/project-health';
 import { LatestDeploymentHero } from '../latest-deployment-hero';
 import { ApplicationsPanel } from '../applications-panel';
 import { EnvironmentPanel } from '../environment-panel';
+import { ProjectDeliveryGuide } from '../project-delivery-guide.component';
+import type { DeliveryAction } from '../../utils/project-delivery-readiness.utils';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
 interface OverviewTabProps {
   detail: DetailHook;
-  /** 点击英雄卡内「部署/查看日志」的回调（切到部署 tab）。 */
+  /** 点击英雄卡内「部署/查看部署记录」的回调（切到部署 tab）。 */
   onDeployClick?: () => void;
+  onDeliveryAction: (action: DeliveryAction, environmentId?: string) => void;
 }
 
-export function OverviewTab({ detail, onDeployClick }: OverviewTabProps) {
+export function OverviewTab({ detail, onDeployClick, onDeliveryAction }: OverviewTabProps) {
   const t = useTranslations('projects');
   const latestRun = getLatestDeploymentRun(detail.deploymentRuns);
   return (
     <div className="space-y-6">
+      <ProjectDeliveryGuide
+        detail={detail}
+        onAction={onDeliveryAction}
+      />
       {/* ① 状态快照：项目当前最近一次部署的结果如何。 */}
       <OverviewSection
         title={t('overviewStatusSection')}
         description={t('overviewStatusSectionDesc')}
       >
-        <LatestDeploymentHero run={latestRun} onDeployClick={onDeployClick} />
+        <LatestDeploymentHero
+          run={latestRun}
+          onDeployClick={onDeployClick}
+        />
       </OverviewSection>
       {/* ② 运行资源：项目下部署了哪些应用、有哪些环境。 */}
       <OverviewSection

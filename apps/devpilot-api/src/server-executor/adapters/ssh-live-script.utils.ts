@@ -7,18 +7,7 @@ export function buildSshLiveScript(input: ServerExecutionInput) {
 
   for (const step of input.steps) {
     if (!step.command) continue;
-    lines.push("", `# ${step.label}`);
-    if (step.cwd) {
-      lines.push(`cd ${shellQuote(step.cwd)}`);
-    }
-    // Steps that carry `secretEnv` ship a redacted `command` (safe to persist
-    // in commandPlan); the executor rebuilds the real heredoc here, at the
-    // last moment, so secret values never enter the persisted plan.
-    if (step.secretEnv && Object.keys(step.secretEnv).length > 0) {
-      lines.push(renderEnvWriteCommandReal(step.secretEnv));
-      continue;
-    }
-    lines.push(step.command);
+    lines.push("", ...renderStepExecution(step));
   }
 
   return `${lines.join("\n")}\n`;
@@ -92,4 +81,38 @@ function shellQuote(value: string) {
     return value;
   }
   return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function renderStepExecution(step: ServerExecutionInput["steps"][number]) {
+  const key = step.key.replace(/[^a-zA-Z0-9_.:-]/g, "_");
+  const command =
+    step.secretEnv && Object.keys(step.secretEnv).length > 0
+      ? renderEnvWriteCommandReal(step.secretEnv)
+      : step.command;
+  const body = [
+    `# ${step.label}`,
+    `__devpilot_step_key=${shellQuote(key)}`,
+    '__devpilot_step_started="$(date +%s)"',
+    'printf "__DEVPILOT_STEP_START__|%s|%s\\n" "$__devpilot_step_key" "$__devpilot_step_started" >&2',
+    "set +e",
+    "(",
+    ...(step.cwd ? [`  cd ${shellQuote(step.cwd)}`] : []),
+    indent(command),
+    ")",
+    '__devpilot_step_status="$?"',
+    "set -e",
+    '__devpilot_step_finished="$(date +%s)"',
+    'printf "__DEVPILOT_STEP_END__|%s|%s|%s\\n" "$__devpilot_step_key" "$__devpilot_step_status" "$__devpilot_step_finished" >&2',
+    'if [ "$__devpilot_step_status" -ne 0 ]; then',
+    '  exit "$__devpilot_step_status"',
+    "fi",
+  ];
+  return body;
+}
+
+function indent(value: string) {
+  return value
+    .split("\n")
+    .map((line) => `  ${line}`)
+    .join("\n");
 }

@@ -4,7 +4,6 @@
  * 单一职责：资源批量绑定选择状态的构建、切换、计数、请求构造（纯函数）。
  */
 
-import type { Project } from '../types';
 import type {
   EnvironmentResourceBulkBindSelection,
   EnvironmentResourceBulkBindSelectionKey,
@@ -29,22 +28,6 @@ export function createEmptyResourceBulkBindSelection(): EnvironmentResourceBulkB
     siteIds: [],
     cdnConfigIds: [],
     secretKeyIds: [],
-  };
-}
-
-export function createResourceBulkBindSelection(
-  project: Project,
-): EnvironmentResourceBulkBindSelection {
-  return {
-    managedResourceIds: (project.managedResources || [])
-      .filter((r) => !r.environment?.id)
-      .map((r) => r.id),
-    resourceInstanceIds: (project.resourceInstances || [])
-      .filter((i) => !i.projectEnvironment?.id)
-      .map((i) => i.id),
-    siteIds: (project.sites || []).filter((s) => !s.environment?.id).map((s) => s.id),
-    cdnConfigIds: (project.cdnConfigs || []).filter((c) => !c.environment?.id).map((c) => c.id),
-    secretKeyIds: (project.secretKeys || []).filter((s) => !s.environment?.id).map((s) => s.id),
   };
 }
 

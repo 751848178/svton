@@ -19,6 +19,7 @@ interface ServiceActionMenuProps {
   queueServiceOperations: boolean;
   onRun: (action: ServiceAction) => void;
   onRequestLive: (action: ServiceAction) => void;
+  onEditDeployment: () => void;
 }
 
 /** 计划环境组内展示的操作（status 高频外露为 outline 按钮，不入菜单）。 */
@@ -27,7 +28,14 @@ const PLAN_MENU_ACTIONS: ServiceAction[] = ['logs', 'restart', 'rollback'];
 const LIVE_MENU_ACTIONS: ServiceAction[] = ['restart', 'rollback'];
 
 export function ServiceActionMenu(props: ServiceActionMenuProps) {
-  const { serviceId, runningOperation, queueServiceOperations, onRun, onRequestLive } = props;
+  const {
+    serviceId,
+    runningOperation,
+    queueServiceOperations,
+    onRun,
+    onRequestLive,
+    onEditDeployment,
+  } = props;
   const t = useTranslations('applications');
 
   const planItems = PLAN_MENU_ACTIONS.map((action) => ({
@@ -54,6 +62,16 @@ export function ServiceActionMenu(props: ServiceActionMenuProps) {
     <ActionMenu
       triggerLabel={t('moreActions')}
       groups={[
+        {
+          label: t('menuConfigGroup'),
+          items: [
+            {
+              key: 'edit-deployment',
+              label: t('editDeploymentConfig'),
+              onSelect: onEditDeployment,
+            },
+          ],
+        },
         { label: t('menuPlanGroup'), items: planItems },
         { label: t('menuLiveGroup'), items: liveItems },
       ]}

@@ -24,7 +24,8 @@ export function ResourceInstancesContent({
 }) {
   const t = useTranslations('resourceInstances');
   const tc = useTranslations('common');
-  const { instances, loading, loadError, release, refresh } = useResourceInstances(initialInstances);
+  const { instances, loading, loadError, release, refresh } =
+    useResourceInstances(initialInstances);
   // 释放确认弹窗状态（一个操作一个确认实例）
   const [releaseTarget, setReleaseTarget] = useState<ResourceInstance | null>(null);
   // 敏感字段脱敏开关：复合键 `${instanceId}:${fieldKey}` → 已揭示。对齐 /keys 页 reveal 模式。
@@ -49,7 +50,11 @@ export function ResourceInstancesContent({
         description={t('pageDescription')}
       />
 
-      <DataBoundary loading={loading} error={loadError} onRetry={refresh}>
+      <DataBoundary
+        loading={loading}
+        error={loadError}
+        onRetry={refresh}
+      >
         {instances.length === 0 ? (
           <EmptyState
             text={t('noInstances')}
@@ -70,11 +75,20 @@ export function ResourceInstancesContent({
                         status={instance.status}
                         label={t(STATUS_LABEL_KEYS[instance.status])}
                       />
-                      {instance.hasCredentials ? <Tag color="default">{t('hasCredentials')}</Tag> : null}
+                      {instance.hasCredentials ? (
+                        <Tag color="default">{t('hasCredentials')}</Tag>
+                      ) : null}
                     </div>
                     <div className="mt-1 text-sm text-muted-foreground">
-                      {instance.resourceType?.name || '-'} · {instance.project?.name || t('notAssociatedProject')}
+                      {instance.resourceType?.name || '-'} ·{' '}
+                      {instance.project?.name || t('notAssociatedProject')} →{' '}
+                      {instance.projectEnvironment?.name || t('notAssociatedEnvironment')}
                     </div>
+                    {instance.project && !instance.projectEnvironment ? (
+                      <div className="mt-1 text-xs text-amber-600">
+                        {t('environmentAssociationMissing')}
+                      </div>
+                    ) : null}
                     {instance.request ? (
                       <div className="mt-1 text-xs">
                         <Link

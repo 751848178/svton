@@ -5347,8 +5347,65 @@ Final F380 review evidence: current identifiable source-backed Devpilot backlog
 is closed, all executed gates passed, and Devpilot is deliverable with the
 documented residual deployment/operator risks.
 
+### F381. Guided project delivery control flow
+
+Status: done
+
+Purpose: reorganize the existing real project, environment, resource, and
+deployment capabilities into a novice-friendly control flow. F381 must not
+invent repository analysis, live execution, provider, or logging capabilities;
+unsupported or misleading actions are renamed, explained, disabled, or routed
+to the actual implementation.
+
+Detailed plan: `docs-internal/todos/2026-07-26-guided-project-delivery.md`.
+
+| ID     | Status      | Atomic TODO                                             | Context Boundary                                            | Evidence |
+| ------ | ----------- | ------------------------------------------------------- | ----------------------------------------------------------- | -------- |
+| F381.1 | done | Build the source/API/UX graph and truth inventory. | Project/import/deploy/resource surfaces; read-only research. | CodeGraph and ARCH-001/TRUTH-001/UX-001 results under `/tmp/codex-tool-runs/svton/devpilot-guided-delivery-20260726/agent-board/results/`. |
+| F381.2 | done | Add the guided project control center and readiness model. | Project detail overview + focused pure model/components. | Six-stage guide, real evidence counts, blocker/next-action routing, and URL-restorable tabs verified in browser. |
+| F381.3 | done | Replace the import long form with an explicit guided flow. | Existing import fields and `POST /projects`; no fake parser. | Five-step manual configuration flow explicitly marks repository information as unverified. |
+| F381.4 | done | Link resource request and environment association paths. | Project CTAs + resource request query/prefill. | Real `environmentId` is selected and submitted; bulk association now previews, requires typed confirmation, applies with `dryRun:false`, and reads the result back. |
+| F381.5 | done | Make deployment planning and evidence truthful. | Existing deploy wizard/run data; no live behavior expansion. | Dry-run says it will not connect or execute; formal run details expose target, commands, variables, approval, job, logs, result, and error evidence. |
+| F381.6 | done | Run focused Web checks and real browser verification. | Type-check/build/tests + localhost flow screenshots. | Web type-check/build and Docker refresh passed; localhost flow verified non-destructively with zero browser console warnings/errors. |
+
+### F382. Explicit deployment preflight and initialization stages
+
+Status: in_progress
+
+Purpose: extend the F381 deployment path with a framework-neutral, explicit
+contract for ordered migration, one-time initialization, and startup
+verification stages. Existing services without preflight configuration must
+retain their current behavior. Configured stages must fail fast and preserve
+complete deployment evidence; Devpilot must not guess whether a repository
+needs Prisma seed, Rails data setup, or another project-specific initializer.
+
+Detailed plan: `docs-internal/todos/2026-07-26-guided-project-delivery.md`.
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F382.1 | done | Map config-to-execution and UI evidence boundaries. | CodeGraph + read-only agent research. | ARCH-002/TRUTH-002/UX-002 completed. |
+| F382.2 | done | Add compatible API/config and ordered fail-fast command planning. | Application/deployment modules. | Fixed stage order, initialization checkpoint, SSH/agent evidence, and queue secret gate implemented; API tests/type-check/build passed. |
+| F382.3 | done | Add service configuration and run-stage evidence UI. | Applications/project deployment surfaces. | Config, preview, and run timeline implemented; Web type-check/build/focused lint passed. |
+| F382.4 | done | Write the Picshare integration/remediation document. | Picshare docs only. | `picshare/docs/devpilot-deployment-initialization.md`. |
+| F382.5 | done | Complete verification and progress synchronization. | Touched paths only. | API/CLI tests, API/Web/CLI type-check, API/Web build, disposable MySQL proof, line ceilings, and diff checks passed; authenticated browser flow remains an explicit follow-up. |
+
 ## Change Log
 
+- 2026-07-27: Started F382 explicit deployment preflight stages after a real
+  Picshare run showed that project migrations, business initialization, and
+  startup verification were not modeled separately and a failed migration
+  could be hidden behind a healthy application process.
+- 2026-07-26: Started F381 guided project delivery control flow after the
+  evidence-backed UX audit found that project intake, environment/resource
+  association, deployment planning, and run evidence were individually present
+  but not organized into an understandable or trustworthy user journey.
+- 2026-07-26: Completed F381. The platform now presents a single novice-facing
+  project delivery path, sends resource requests to a real project environment,
+  replaces the fake bulk resource association success with preview and
+  confirmed live application, separates plan-only runs from formal deployment
+  health, and exposes deployment evidence. Automatic repository scanning,
+  normalized activity timelines, provider-side resource reclaim, and true
+  external production execution remain outside this slice.
 - 2026-07-12: Completed F380/S009 post-S008 final deliverability gate; API/CLI
   runtime/product gates passed, API/CLI/Web prerequisite logs are green, current
   source-backed backlog is closed, and Devpilot is judged deliverable with

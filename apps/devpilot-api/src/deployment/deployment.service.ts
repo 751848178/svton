@@ -1,20 +1,32 @@
-import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { AuditEventService } from '../audit-event';
-import { CryptoService } from '../common/crypto/crypto.service';
-import { CreateOperationApprovalInput, OperationApprovalService } from '../operation-approval';
-import { PrismaService } from '../prisma/prisma.service';
-import { ResourceRequestStatusWriterService } from '../resource-request/resource-request-status-writer.service';
-import { DeploymentRunStatus, assertDeploymentRunTransition } from './deployment-run-status';
-import { DeploymentLogStreamBootstrapService } from './deployment-log-stream-bootstrap.service';
-import { ServerCommandStep, ServerExecutorService } from '../server-executor';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { AuditEventService } from "../audit-event";
+import { CryptoService } from "../common/crypto/crypto.service";
+import {
+  CreateOperationApprovalInput,
+  OperationApprovalService,
+} from "../operation-approval";
+import { PrismaService } from "../prisma/prisma.service";
+import { ResourceRequestStatusWriterService } from "../resource-request/resource-request-status-writer.service";
+import {
+  DeploymentRunStatus,
+  assertDeploymentRunTransition,
+} from "./deployment-run-status";
+import { DeploymentLogStreamBootstrapService } from "./deployment-log-stream-bootstrap.service";
+import { ServerCommandStep, ServerExecutorService } from "../server-executor";
 import {
   CreateDeploymentRunDto,
   ListDeploymentRunsQueryDto,
   RollbackDeploymentRunDto,
   RetryDeploymentRunDto,
   SmokeDeploymentRunDto,
-} from './dto/deployment.dto';
+} from "./dto/deployment.dto";
 import {
   buildCommandSteps,
   buildRollbackCommandSteps,
@@ -24,14 +36,21 @@ import {
   safeGitCommitSha,
   safePositiveInt,
   type DeploymentConfig,
-} from './deployment-command-builders.utils';
+} from "./deployment-command-builders.utils";
 import {
   listEnvVarKeys,
   resolveDeploymentEnvVars,
-} from './deployment-env-injection.utils';
-import { stripSecretEnv } from './deployment-secret-strip.utils';
-
-type ProjectConfigRecord = Record<string, unknown>;
+} from "./deployment-env-injection.utils";
+import { stripSecretEnv } from "./deployment-secret-strip.utils";
+import {
+  isRecord,
+  readString,
+  readStringArray,
+  resolveDeploymentConfig,
+  type ProjectConfigRecord,
+} from "./deployment-config-resolution.utils";
+import { DeploymentInitializationCheckpointService } from "./deployment-initialization-checkpoint.service";
+import { plannedInitializationDecision } from "./deployment-initialization.types";
 
 type SmokeFailureAutoRollbackPolicy = {
   enabled: boolean;
@@ -55,7 +74,7 @@ type SmokeFailureAutoRollbackCandidate = {
 };
 
 type SmokeFailureAutoRollbackResult = {
-  status: 'created' | 'skipped' | 'failed';
+  status: "created" | "skipped" | "failed";
   smokeRunId: string;
   rollbackRunId?: string;
   reason?: string;
@@ -83,7 +102,7 @@ type PostRollbackSmokeCheckCandidate = {
 };
 
 type PostRollbackSmokeCheckResult = {
-  status: 'created' | 'skipped' | 'failed';
+  status: "created" | "skipped" | "failed";
   rollbackRunId: string;
   smokeRunId?: string;
   reason?: string;
@@ -104,19 +123,6 @@ type ApplicationServiceRef = {
   application: ApplicationRef;
 };
 
-function isRecord(value: unknown): value is ProjectConfigRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value : undefined;
-}
-
-function readStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
-}
-
 @Injectable()
 export class DeploymentService {
   private readonly logger = new Logger(DeploymentService.name);
@@ -135,6 +141,8 @@ export class DeploymentService {
     // log-center module isn't wired (e.g. unit tests). Best-effort only.
     @Optional()
     private readonly logStreamBootstrap?: DeploymentLogStreamBootstrapService,
+    @Optional()
+    private readonly initializationCheckpoint?: DeploymentInitializationCheckpointService,
   ) {}
 
   async listRuns(teamId: string, query: ListDeploymentRunsQueryDto) {
@@ -158,7 +166,7 @@ export class DeploymentService {
 
     return this.prisma.deploymentRun.findMany({
       where,
-      orderBy: { startedAt: 'desc' },
+      orderBy: { startedAt: "desc" },
       take: 30,
       include: this.runInclude(),
     });
@@ -175,7 +183,7 @@ export class DeploymentService {
     });
 
     if (!project) {
-      throw new NotFoundException('项目不存在');
+      throw new NotFoundException("项目不存在");
     }
 
     let environmentId: string | null = null;
@@ -186,7 +194,7 @@ export class DeploymentService {
       });
 
       if (!service) {
-        throw new BadRequestException('应用服务不存在或不属于当前项目');
+        throw new BadRequestException("应用服务不存在或不属于当前项目");
       }
 
       environmentId = service.environmentId;
@@ -198,13 +206,13 @@ export class DeploymentService {
           id: dto.environmentId,
           teamId,
           projectId,
-          status: 'active',
+          status: "active",
         },
         select: { id: true },
       });
 
       if (!environment) {
-        throw new BadRequestException('部署环境不存在或不属于当前项目');
+        throw new BadRequestException("部署环境不存在或不属于当前项目");
       }
 
       environmentId = environment.id;
@@ -223,7 +231,7 @@ export class DeploymentService {
     });
 
     if (!run) {
-      throw new NotFoundException('部署运行不存在');
+      throw new NotFoundException("部署运行不存在");
     }
 
     return {
@@ -250,23 +258,27 @@ export class DeploymentService {
     });
 
     if (!project) {
-      throw new NotFoundException('项目不存在');
+      throw new NotFoundException("项目不存在");
     }
 
     const config = isRecord(project.config) ? project.config : {};
     const managementScope = this.readManagementScope(config);
-    if (managementScope === 'resources') {
-      throw new BadRequestException('当前项目未启用构建部署能力');
+    if (managementScope === "resources") {
+      throw new BadRequestException("当前项目未启用构建部署能力");
     }
 
-    const applicationRef = await this.resolveApplication(teamId, project.id, dto.applicationId);
+    const applicationRef = await this.resolveApplication(
+      teamId,
+      project.id,
+      dto.applicationId,
+    );
     const applicationServiceRef = await this.resolveApplicationService(
       teamId,
       project.id,
       dto.applicationServiceId,
       applicationRef?.id,
     );
-    const deployment = this.resolveDeploymentConfig(
+    const deployment = resolveDeploymentConfig(
       config,
       applicationServiceRef?.deployConfig,
       dto.overrides,
@@ -278,19 +290,43 @@ export class DeploymentService {
       project.id,
       dto.environmentId || applicationServiceRef?.environmentId,
     );
-    const environment = dto.environment || environmentRef?.key || this.readDefaultEnvironment(config);
+    const environment =
+      dto.environment ||
+      environmentRef?.key ||
+      this.readDefaultEnvironment(config);
     const dryRun = dto.dryRun !== false;
-    const warnings = collectWarnings(deployment, gitRepo, branch);
-    const serverId = dto.serverId || applicationServiceRef?.serverId || undefined;
+    let initialization =
+      (await this.initializationCheckpoint?.inspect({
+        teamId,
+        projectId: project.id,
+        applicationServiceId: applicationServiceRef?.id,
+        environmentId: environmentRef?.id,
+        command: deployment.initializationCommand,
+      })) ?? plannedInitializationDecision(deployment.initializationCommand);
+    let warnings = collectWarnings(deployment, gitRepo, branch, initialization);
+    const serverId =
+      dto.serverId || applicationServiceRef?.serverId || undefined;
     const target = await this.serverExecutor.resolveTarget(teamId, serverId);
-    const applicationId = applicationServiceRef?.applicationId || applicationRef?.id;
+    const applicationId =
+      applicationServiceRef?.applicationId || applicationRef?.id;
     const queue = dto.queue === true;
     const envVars = await this.resolveEnvVarsSafe(
       teamId,
       project.id,
       environmentRef?.id,
     );
-    const steps = buildCommandSteps(deployment, gitRepo, branch, envVars);
+    if (queue && Object.keys(envVars).length > 0) {
+      warnings.push(
+        "队列部署暂不支持安全恢复环境密钥，请关闭队列并使用即时执行",
+      );
+    }
+    let steps = buildCommandSteps(
+      deployment,
+      gitRepo,
+      branch,
+      envVars,
+      initialization,
+    );
     const requiresApproval = this.requiresDeploymentOperationApproval(dryRun);
     const approvalContext = this.buildDeploymentApprovalContext({
       teamId,
@@ -299,12 +335,13 @@ export class DeploymentService {
       environmentId: environmentRef?.id,
       environment,
       applicationId,
-      applicationName: applicationServiceRef?.application.name || applicationRef?.name,
+      applicationName:
+        applicationServiceRef?.application.name || applicationRef?.name,
       applicationServiceId: applicationServiceRef?.id,
       applicationServiceName: applicationServiceRef?.name,
       serverId,
-      action: 'deployment.run',
-      mode: 'deploy',
+      action: "deployment.run",
+      mode: "deploy",
       dryRun,
       queue,
       maxAttempts: dto.maxAttempts,
@@ -334,14 +371,14 @@ export class DeploymentService {
         applicationServiceId: applicationServiceRef?.id,
         operationApprovalId: approvedApproval?.id,
         environment,
-        mode: 'deploy',
-        source: dto.source || 'manual',
-        trigger: dto.trigger || 'manual',
+        mode: "deploy",
+        source: dto.source || "manual",
+        trigger: dto.trigger || "manual",
         targetType: deployment.targetType,
-        executorKey: 'server-executor',
-        adapterKey: 'script-plan',
+        executorKey: "server-executor",
+        adapterKey: "script-plan",
         dryRun,
-        status: queue ? 'queued' : 'running',
+        status: queue ? "queued" : "running",
         gitRepo,
         branch,
         commitSha: dto.commitSha,
@@ -371,16 +408,16 @@ export class DeploymentService {
           commandPlan: this.toJsonValue(stripSecretEnv(steps)),
           logs: this.toJsonValue([
             {
-              level: 'info',
-              message: '非 dry-run 的部署执行需要审批，已创建操作审批单',
+              level: "info",
+              message: "非 dry-run 的部署执行需要审批，已创建操作审批单",
             },
           ]),
           result: this.toJsonValue({
-            mode: 'blocked_operation_approval',
+            mode: "blocked_operation_approval",
             approvalId: approval.id,
             approvalStatus: approval.status,
           }),
-          error: '非 dry-run 的部署执行需要审批',
+          error: "非 dry-run 的部署执行需要审批",
           finishedAt: new Date(),
         },
         include: this.runInclude(),
@@ -396,13 +433,13 @@ export class DeploymentService {
         serverId,
         deploymentRunId: blockedRun.id,
         operationApprovalId: approval.id,
-        category: 'deployment',
-        action: 'deployment.run',
-        targetType: 'deployment_run',
+        category: "deployment",
+        action: "deployment.run",
+        targetType: "deployment_run",
         targetId: blockedRun.id,
-        risk: 'medium',
+        risk: "medium",
         status: DeploymentRunStatus.BLOCKED,
-        summary: '部署 live 执行等待审批',
+        summary: "部署 live 执行等待审批",
         metadata: {
           dryRun,
           source: blockedRun.source,
@@ -417,11 +454,34 @@ export class DeploymentService {
       return blockedRun;
     }
 
+    if (
+      !dryRun &&
+      deployment.initializationCommand &&
+      this.initializationCheckpoint
+    ) {
+      initialization = await this.initializationCheckpoint.reserve({
+        teamId,
+        projectId: project.id,
+        applicationServiceId: applicationServiceRef?.id,
+        environmentId: environmentRef?.id,
+        command: deployment.initializationCommand,
+        deploymentRunId: run.id,
+      });
+      warnings = collectWarnings(deployment, gitRepo, branch, initialization);
+      steps = buildCommandSteps(
+        deployment,
+        gitRepo,
+        branch,
+        envVars,
+        initialization,
+      );
+    }
+
     const executionInput = {
       teamId,
       userId,
-      operationKey: 'deployment.run',
-      adapterKey: 'deployment-script-plan',
+      operationKey: "deployment.run",
+      adapterKey: "deployment-script-plan",
       dryRun,
       target,
       steps,
@@ -431,7 +491,8 @@ export class DeploymentService {
         projectId: project.id,
         projectName: project.name,
         applicationId,
-        applicationName: applicationServiceRef?.application.name || applicationRef?.name,
+        applicationName:
+          applicationServiceRef?.application.name || applicationRef?.name,
         applicationServiceId: applicationServiceRef?.id,
         applicationServiceName: applicationServiceRef?.name,
         gitRepo,
@@ -440,7 +501,9 @@ export class DeploymentService {
         environmentId: environmentRef?.id,
         targetType: deployment.targetType,
         operationApprovalId: approvedApproval?.id,
-        businessRunSync: queue ? 'deployment' : undefined,
+        initializationCheckpointId: initialization.checkpointId,
+        initializationFingerprint: initialization.commandFingerprint,
+        businessRunSync: queue ? "deployment" : undefined,
       },
       blockOnWarnings: true,
       requiredConfirmationText: project.name,
@@ -448,9 +511,23 @@ export class DeploymentService {
     };
 
     if (queue) {
-      const queuedExecution = await this.serverExecutor.queueExecution(executionInput, {
-        maxAttempts: dto.maxAttempts,
-      });
+      let queuedExecution: Awaited<
+        ReturnType<ServerExecutorService["queueExecution"]>
+      >;
+      try {
+        queuedExecution = await this.serverExecutor.queueExecution(
+          executionInput,
+          {
+            maxAttempts: dto.maxAttempts,
+          },
+        );
+      } catch (error) {
+        await this.initializationCheckpoint?.fail(
+          initialization.checkpointId,
+          error,
+        );
+        throw error;
+      }
       assertDeploymentRunTransition(run.status, queuedExecution.status);
       const queuedRun = await this.prisma.deploymentRun.update({
         where: { id: run.id },
@@ -474,11 +551,11 @@ export class DeploymentService {
         applicationServiceId: applicationServiceRef?.id,
         serverId,
         deploymentRunId: queuedRun.id,
-        category: 'deployment',
-        action: 'deployment.queue',
-        targetType: 'deployment_run',
+        category: "deployment",
+        action: "deployment.queue",
+        targetType: "deployment_run",
         targetId: queuedRun.id,
-        risk: dryRun ? 'low' : 'medium',
+        risk: dryRun ? "low" : "medium",
         status: queuedRun.status,
         summary: `部署运行已加入队列`,
         metadata: {
@@ -488,31 +565,55 @@ export class DeploymentService {
           branch: queuedRun.branch,
           commitSha: queuedRun.commitSha,
           targetType: queuedRun.targetType,
-          applicationName: applicationServiceRef?.application.name || applicationRef?.name,
+          applicationName:
+            applicationServiceRef?.application.name || applicationRef?.name,
           applicationServiceName: applicationServiceRef?.name,
           serverExecutionJobId: queuedExecution.serverExecutionJobId,
           operationApprovalId: approvedApproval?.id,
         },
       });
 
-      if (approvedApproval && queuedRun.status !== DeploymentRunStatus.BLOCKED) {
-        await this.operationApprovalService.consume(teamId, approvedApproval.id);
+      if (
+        approvedApproval &&
+        queuedRun.status !== DeploymentRunStatus.BLOCKED
+      ) {
+        await this.operationApprovalService.consume(
+          teamId,
+          approvedApproval.id,
+        );
       }
 
       return queuedRun;
     }
 
-    const execution = await this.serverExecutor.execute(executionInput);
-    assertDeploymentRunTransition(run.status, execution.status);
+    let execution: Awaited<ReturnType<ServerExecutorService["execute"]>>;
+    try {
+      execution = await this.serverExecutor.execute(executionInput);
+    } catch (error) {
+      await this.initializationCheckpoint?.fail(
+        initialization.checkpointId,
+        error,
+      );
+      throw error;
+    }
+    const initializationError = await this.initializationCheckpoint?.finish(
+      initialization.checkpointId,
+      execution,
+    );
+    const executionStatus =
+      initializationError && execution.status === DeploymentRunStatus.COMPLETED
+        ? DeploymentRunStatus.FAILED
+        : execution.status;
+    assertDeploymentRunTransition(run.status, executionStatus);
 
     const completedRun = await this.prisma.deploymentRun.update({
       where: { id: run.id },
       data: {
-        status: execution.status,
+        status: executionStatus,
         commandPlan: execution.commandPlan,
         logs: execution.logs,
         result: execution.result,
-        error: execution.error,
+        error: initializationError || execution.error,
         finishedAt: new Date(),
       },
       include: this.runInclude(),
@@ -527,11 +628,11 @@ export class DeploymentService {
       applicationServiceId: applicationServiceRef?.id,
       serverId,
       deploymentRunId: completedRun.id,
-      category: 'deployment',
-      action: 'deployment.run',
-      targetType: 'deployment_run',
+      category: "deployment",
+      action: "deployment.run",
+      targetType: "deployment_run",
       targetId: completedRun.id,
-      risk: dryRun ? 'low' : 'medium',
+      risk: dryRun ? "low" : "medium",
       status: completedRun.status,
       summary: `部署运行 ${completedRun.status}`,
       metadata: {
@@ -541,7 +642,8 @@ export class DeploymentService {
         branch: completedRun.branch,
         commitSha: completedRun.commitSha,
         targetType: completedRun.targetType,
-        applicationName: applicationServiceRef?.application.name || applicationRef?.name,
+        applicationName:
+          applicationServiceRef?.application.name || applicationRef?.name,
         applicationServiceName: applicationServiceRef?.name,
         operationApprovalId: approvedApproval?.id,
         error: completedRun.error,
@@ -550,7 +652,10 @@ export class DeploymentService {
       },
     });
 
-    if (approvedApproval && completedRun.status !== DeploymentRunStatus.BLOCKED) {
+    if (
+      approvedApproval &&
+      completedRun.status !== DeploymentRunStatus.BLOCKED
+    ) {
       await this.operationApprovalService.consume(teamId, approvedApproval.id);
     }
 
@@ -618,8 +723,12 @@ export class DeploymentService {
     const sourceRun = await this.prisma.deploymentRun.findFirst({
       where: { id: sourceRunId, teamId },
       include: {
-        project: { select: { id: true, name: true, gitRepo: true, config: true } },
-        projectEnvironment: { select: { id: true, key: true, name: true, status: true } },
+        project: {
+          select: { id: true, name: true, gitRepo: true, config: true },
+        },
+        projectEnvironment: {
+          select: { id: true, key: true, name: true, status: true },
+        },
         application: { select: { id: true, name: true, status: true } },
         applicationService: {
           select: {
@@ -636,43 +745,60 @@ export class DeploymentService {
     });
 
     if (!sourceRun) {
-      throw new NotFoundException('部署运行不存在');
+      throw new NotFoundException("部署运行不存在");
     }
-    if (sourceRun.mode === 'rollback') {
-      throw new BadRequestException('不能基于回滚运行再次发起回滚');
+    if (sourceRun.mode === "rollback") {
+      throw new BadRequestException("不能基于回滚运行再次发起回滚");
     }
     if (sourceRun.status !== DeploymentRunStatus.COMPLETED) {
-      throw new BadRequestException('只能基于已完成的部署运行发起回滚');
+      throw new BadRequestException("只能基于已完成的部署运行发起回滚");
     }
 
     const project = sourceRun.project;
     const config = isRecord(project.config) ? project.config : {};
     const managementScope = this.readManagementScope(config);
-    if (managementScope === 'resources') {
-      throw new BadRequestException('当前项目未启用构建部署能力');
+    if (managementScope === "resources") {
+      throw new BadRequestException("当前项目未启用构建部署能力");
     }
 
-    const deployment = this.resolveDeploymentConfig(
+    const deployment = resolveDeploymentConfig(
       config,
       sourceRun.applicationService?.deployConfig,
       dto.overrides,
     );
-    const gitRepo = sourceRun.gitRepo || this.readRepository(config, project.gitRepo);
+    const gitRepo =
+      sourceRun.gitRepo || this.readRepository(config, project.gitRepo);
     const branch = sourceRun.branch || this.readBranch(config);
-    const environment = sourceRun.environment || sourceRun.projectEnvironment?.key || this.readDefaultEnvironment(config);
+    const environment =
+      sourceRun.environment ||
+      sourceRun.projectEnvironment?.key ||
+      this.readDefaultEnvironment(config);
     const dryRun = dto.dryRun !== false;
     const queue = dto.queue === true;
     const postRollbackSmokePolicy = this.buildPostRollbackSmokeCheckPolicy(dto);
-    const serverId = sourceRun.serverId || sourceRun.applicationService?.serverId || undefined;
+    const serverId =
+      sourceRun.serverId || sourceRun.applicationService?.serverId || undefined;
     const target = await this.serverExecutor.resolveTarget(teamId, serverId);
-    const applicationId = sourceRun.applicationService?.applicationId || sourceRun.applicationId || sourceRun.application?.id;
-    const warnings = collectRollbackWarnings(deployment, gitRepo, sourceRun.commitSha);
+    const applicationId =
+      sourceRun.applicationService?.applicationId ||
+      sourceRun.applicationId ||
+      sourceRun.application?.id;
+    const warnings = collectRollbackWarnings(
+      deployment,
+      gitRepo,
+      sourceRun.commitSha,
+    );
     const envVars = await this.resolveEnvVarsSafe(
       teamId,
       sourceRun.projectId,
       sourceRun.environmentId ?? undefined,
     );
-    const steps = buildRollbackCommandSteps(deployment, gitRepo, sourceRun.commitSha, envVars);
+    const steps = buildRollbackCommandSteps(
+      deployment,
+      gitRepo,
+      sourceRun.commitSha,
+      envVars,
+    );
     const requiresApproval = this.requiresDeploymentOperationApproval(dryRun);
     const approvalContext = this.buildDeploymentApprovalContext({
       teamId,
@@ -681,12 +807,14 @@ export class DeploymentService {
       environmentId: sourceRun.environmentId,
       environment,
       applicationId,
-      applicationName: sourceRun.applicationService?.application.name || sourceRun.application?.name,
+      applicationName:
+        sourceRun.applicationService?.application.name ||
+        sourceRun.application?.name,
       applicationServiceId: sourceRun.applicationServiceId,
       applicationServiceName: sourceRun.applicationService?.name,
       serverId,
-      action: 'deployment.rollback',
-      mode: 'rollback',
+      action: "deployment.rollback",
+      mode: "rollback",
       dryRun,
       queue,
       maxAttempts: dto.maxAttempts,
@@ -719,14 +847,14 @@ export class DeploymentService {
         operationApprovalId: approvedApproval?.id,
         sourceRunId: sourceRun.id,
         environment,
-        mode: 'rollback',
-        source: 'manual',
-        trigger: 'manual_rollback',
+        mode: "rollback",
+        source: "manual",
+        trigger: "manual_rollback",
         targetType: deployment.targetType,
-        executorKey: 'server-executor',
-        adapterKey: 'script-plan',
+        executorKey: "server-executor",
+        adapterKey: "script-plan",
         dryRun,
-        status: queue ? 'queued' : 'running',
+        status: queue ? "queued" : "running",
         gitRepo,
         branch,
         commitSha: sourceRun.commitSha,
@@ -763,17 +891,17 @@ export class DeploymentService {
           commandPlan: this.toJsonValue(stripSecretEnv(steps)),
           logs: this.toJsonValue([
             {
-              level: 'info',
-              message: '非 dry-run 的部署回滚需要审批，已创建操作审批单',
+              level: "info",
+              message: "非 dry-run 的部署回滚需要审批，已创建操作审批单",
             },
           ]),
           result: this.toJsonValue({
-            mode: 'blocked_operation_approval',
+            mode: "blocked_operation_approval",
             approvalId: approval.id,
             approvalStatus: approval.status,
             sourceRunId: sourceRun.id,
           }),
-          error: '非 dry-run 的部署回滚需要审批',
+          error: "非 dry-run 的部署回滚需要审批",
           finishedAt: new Date(),
         },
         include: this.runInclude(),
@@ -789,13 +917,13 @@ export class DeploymentService {
         serverId,
         deploymentRunId: blockedRun.id,
         operationApprovalId: approval.id,
-        category: 'deployment',
-        action: 'deployment.rollback',
-        targetType: 'deployment_run',
+        category: "deployment",
+        action: "deployment.rollback",
+        targetType: "deployment_run",
         targetId: blockedRun.id,
-        risk: 'high',
+        risk: "high",
         status: DeploymentRunStatus.BLOCKED,
-        summary: '部署 live 回滚等待审批',
+        summary: "部署 live 回滚等待审批",
         metadata: {
           dryRun,
           sourceRunId: sourceRun.id,
@@ -812,8 +940,8 @@ export class DeploymentService {
     const executionInput = {
       teamId,
       userId,
-      operationKey: 'deployment.rollback',
-      adapterKey: 'deployment-script-plan',
+      operationKey: "deployment.rollback",
+      adapterKey: "deployment-script-plan",
       dryRun,
       target,
       steps,
@@ -824,7 +952,9 @@ export class DeploymentService {
         projectId: project.id,
         projectName: project.name,
         applicationId,
-        applicationName: sourceRun.applicationService?.application.name || sourceRun.application?.name,
+        applicationName:
+          sourceRun.applicationService?.application.name ||
+          sourceRun.application?.name,
         applicationServiceId: sourceRun.applicationServiceId,
         applicationServiceName: sourceRun.applicationService?.name,
         gitRepo,
@@ -834,7 +964,7 @@ export class DeploymentService {
         environmentId: sourceRun.environmentId,
         targetType: deployment.targetType,
         operationApprovalId: approvedApproval?.id,
-        businessRunSync: queue ? 'deployment' : undefined,
+        businessRunSync: queue ? "deployment" : undefined,
       },
       blockOnWarnings: true,
       requiredConfirmationText: project.name,
@@ -842,9 +972,12 @@ export class DeploymentService {
     };
 
     if (queue) {
-      const queuedExecution = await this.serverExecutor.queueExecution(executionInput, {
-        maxAttempts: dto.maxAttempts,
-      });
+      const queuedExecution = await this.serverExecutor.queueExecution(
+        executionInput,
+        {
+          maxAttempts: dto.maxAttempts,
+        },
+      );
       assertDeploymentRunTransition(run.status, queuedExecution.status);
       const queuedRun = await this.prisma.deploymentRun.update({
         where: { id: run.id },
@@ -868,11 +1001,11 @@ export class DeploymentService {
         applicationServiceId: sourceRun.applicationServiceId,
         serverId,
         deploymentRunId: queuedRun.id,
-        category: 'deployment',
-        action: 'deployment.rollback.queue',
-        targetType: 'deployment_run',
+        category: "deployment",
+        action: "deployment.rollback.queue",
+        targetType: "deployment_run",
         targetId: queuedRun.id,
-        risk: dryRun ? 'low' : 'high',
+        risk: dryRun ? "low" : "high",
         status: queuedRun.status,
         summary: `部署回滚已加入队列`,
         metadata: {
@@ -886,8 +1019,14 @@ export class DeploymentService {
         },
       });
 
-      if (approvedApproval && queuedRun.status !== DeploymentRunStatus.BLOCKED) {
-        await this.operationApprovalService.consume(teamId, approvedApproval.id);
+      if (
+        approvedApproval &&
+        queuedRun.status !== DeploymentRunStatus.BLOCKED
+      ) {
+        await this.operationApprovalService.consume(
+          teamId,
+          approvedApproval.id,
+        );
       }
 
       return queuedRun;
@@ -916,11 +1055,11 @@ export class DeploymentService {
       applicationServiceId: sourceRun.applicationServiceId,
       serverId,
       deploymentRunId: completedRun.id,
-      category: 'deployment',
-      action: 'deployment.rollback',
-      targetType: 'deployment_run',
+      category: "deployment",
+      action: "deployment.rollback",
+      targetType: "deployment_run",
       targetId: completedRun.id,
-      risk: dryRun ? 'low' : 'high',
+      risk: dryRun ? "low" : "high",
       status: completedRun.status,
       summary: `部署回滚 ${completedRun.status}`,
       metadata: {
@@ -934,11 +1073,17 @@ export class DeploymentService {
       },
     });
 
-    if (approvedApproval && completedRun.status !== DeploymentRunStatus.BLOCKED) {
+    if (
+      approvedApproval &&
+      completedRun.status !== DeploymentRunStatus.BLOCKED
+    ) {
       await this.operationApprovalService.consume(teamId, approvedApproval.id);
     }
 
-    if (!completedRun.dryRun && completedRun.status === DeploymentRunStatus.COMPLETED) {
+    if (
+      !completedRun.dryRun &&
+      completedRun.status === DeploymentRunStatus.COMPLETED
+    ) {
       await this.createPostRollbackSmokeCheckIfEligible({
         id: completedRun.id,
         teamId,
@@ -979,23 +1124,23 @@ export class DeploymentService {
     });
 
     if (!failedRun) {
-      throw new NotFoundException('部署运行不存在');
+      throw new NotFoundException("部署运行不存在");
     }
-    if (failedRun.mode === 'rollback') {
-      throw new BadRequestException('不能基于回滚运行申请失败回滚');
+    if (failedRun.mode === "rollback") {
+      throw new BadRequestException("不能基于回滚运行申请失败回滚");
     }
     if (failedRun.dryRun) {
-      throw new BadRequestException('只有 live 部署失败后才能申请失败回滚');
+      throw new BadRequestException("只有 live 部署失败后才能申请失败回滚");
     }
     if (failedRun.status !== DeploymentRunStatus.FAILED) {
-      throw new BadRequestException('只有失败的部署运行才能申请失败回滚');
+      throw new BadRequestException("只有失败的部署运行才能申请失败回滚");
     }
 
     const sourceRun = await this.prisma.deploymentRun.findFirst({
       where: {
         teamId,
         projectId: failedRun.projectId,
-        mode: 'deploy',
+        mode: "deploy",
         status: DeploymentRunStatus.COMPLETED,
         dryRun: false,
         id: { not: failedRun.id },
@@ -1005,12 +1150,12 @@ export class DeploymentService {
         applicationServiceId: failedRun.applicationServiceId,
         serverId: failedRun.serverId,
       },
-      orderBy: { startedAt: 'desc' },
+      orderBy: { startedAt: "desc" },
       select: { id: true },
     });
 
     if (!sourceRun) {
-      throw new BadRequestException('没有可用于失败回滚的最近成功 live 部署');
+      throw new BadRequestException("没有可用于失败回滚的最近成功 live 部署");
     }
 
     return this.rollbackRun(teamId, userId, sourceRun.id, {
@@ -1064,34 +1209,42 @@ export class DeploymentService {
     });
 
     if (!smokeRun) {
-      throw new NotFoundException('部署运行不存在');
+      throw new NotFoundException("部署运行不存在");
     }
-    if (smokeRun.mode !== 'smoke_check') {
-      throw new BadRequestException('只能基于部署 Smoke 检查运行申请失败回滚');
+    if (smokeRun.mode !== "smoke_check") {
+      throw new BadRequestException("只能基于部署 Smoke 检查运行申请失败回滚");
     }
     if (smokeRun.status !== DeploymentRunStatus.FAILED) {
-      throw new BadRequestException('只有失败的部署 Smoke 检查才能申请失败回滚');
+      throw new BadRequestException(
+        "只有失败的部署 Smoke 检查才能申请失败回滚",
+      );
     }
 
     const sourceRun = smokeRun.sourceRun;
     if (!sourceRun) {
-      throw new BadRequestException('部署 Smoke 检查缺少来源部署运行');
+      throw new BadRequestException("部署 Smoke 检查缺少来源部署运行");
     }
-    if (sourceRun.mode !== 'deploy') {
-      throw new BadRequestException('当前只支持部署 Smoke 失败后回滚到上一成功部署');
+    if (sourceRun.mode !== "deploy") {
+      throw new BadRequestException(
+        "当前只支持部署 Smoke 失败后回滚到上一成功部署",
+      );
     }
     if (sourceRun.status !== DeploymentRunStatus.COMPLETED) {
-      throw new BadRequestException('部署 Smoke 来源运行尚未完成，不能申请失败回滚');
+      throw new BadRequestException(
+        "部署 Smoke 来源运行尚未完成，不能申请失败回滚",
+      );
     }
     if (dto.dryRun === false && (smokeRun.dryRun || sourceRun.dryRun)) {
-      throw new BadRequestException('不能基于 dry-run Smoke 或 dry-run 部署直接申请 live 回滚');
+      throw new BadRequestException(
+        "不能基于 dry-run Smoke 或 dry-run 部署直接申请 live 回滚",
+      );
     }
 
     const rollbackSource = await this.prisma.deploymentRun.findFirst({
       where: {
         teamId,
         projectId: sourceRun.projectId,
-        mode: 'deploy',
+        mode: "deploy",
         status: DeploymentRunStatus.COMPLETED,
         dryRun: false,
         id: { not: sourceRun.id },
@@ -1101,12 +1254,14 @@ export class DeploymentService {
         applicationServiceId: sourceRun.applicationServiceId,
         serverId: sourceRun.serverId,
       },
-      orderBy: { startedAt: 'desc' },
+      orderBy: { startedAt: "desc" },
       select: { id: true },
     });
 
     if (!rollbackSource) {
-      throw new BadRequestException('没有可用于 Smoke 失败回滚的上一成功 live 部署');
+      throw new BadRequestException(
+        "没有可用于 Smoke 失败回滚的上一成功 live 部署",
+      );
     }
 
     return this.rollbackRun(teamId, userId, rollbackSource.id, {
@@ -1124,19 +1279,21 @@ export class DeploymentService {
     });
   }
 
-  async processSmokeFailureAutoRollbacks(input: {
-    teamId?: string;
-    userId?: string | null;
-    limit?: number;
-  } = {}) {
+  async processSmokeFailureAutoRollbacks(
+    input: {
+      teamId?: string;
+      userId?: string | null;
+      limit?: number;
+    } = {},
+  ) {
     const candidates = await this.prisma.deploymentRun.findMany({
       where: {
         ...(input.teamId ? { teamId: input.teamId } : {}),
-        mode: 'smoke_check',
+        mode: "smoke_check",
         status: DeploymentRunStatus.FAILED,
         dryRun: false,
       },
-      orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
+      orderBy: [{ finishedAt: "desc" }, { startedAt: "desc" }],
       take: safePositiveInt(input.limit, 20, 100),
       select: {
         id: true,
@@ -1165,9 +1322,9 @@ export class DeploymentService {
       if (!policy.enabled) {
         summary.skipped += 1;
         summary.results.push({
-          status: 'skipped',
+          status: "skipped",
           smokeRunId: candidate.id,
-          reason: 'auto rollback policy disabled',
+          reason: "auto rollback policy disabled",
         });
         continue;
       }
@@ -1179,7 +1336,7 @@ export class DeploymentService {
         input.userId ?? candidate.actorId ?? undefined,
       );
       summary.results.push(result);
-      if (result.status === 'created') {
+      if (result.status === "created") {
         summary.created += 1;
       } else if (result.status === DeploymentRunStatus.FAILED) {
         summary.failed += 1;
@@ -1191,19 +1348,21 @@ export class DeploymentService {
     return summary;
   }
 
-  async processPostRollbackSmokeChecks(input: {
-    teamId?: string;
-    userId?: string | null;
-    limit?: number;
-  } = {}) {
+  async processPostRollbackSmokeChecks(
+    input: {
+      teamId?: string;
+      userId?: string | null;
+      limit?: number;
+    } = {},
+  ) {
     const candidates = await this.prisma.deploymentRun.findMany({
       where: {
         ...(input.teamId ? { teamId: input.teamId } : {}),
-        mode: 'rollback',
+        mode: "rollback",
         status: DeploymentRunStatus.COMPLETED,
         dryRun: false,
       },
-      orderBy: [{ finishedAt: 'desc' }, { startedAt: 'desc' }],
+      orderBy: [{ finishedAt: "desc" }, { startedAt: "desc" }],
       take: safePositiveInt(input.limit, 20, 100),
       select: {
         id: true,
@@ -1233,9 +1392,9 @@ export class DeploymentService {
       if (!policy.enabled) {
         summary.skipped += 1;
         summary.results.push({
-          status: 'skipped',
+          status: "skipped",
           rollbackRunId: candidate.id,
-          reason: 'post-rollback smoke policy disabled',
+          reason: "post-rollback smoke policy disabled",
         });
         continue;
       }
@@ -1247,7 +1406,7 @@ export class DeploymentService {
         input.userId ?? candidate.actorId ?? undefined,
       );
       summary.results.push(result);
-      if (result.status === 'created') {
+      if (result.status === "created") {
         summary.created += 1;
       } else if (result.status === DeploymentRunStatus.FAILED) {
         summary.failed += 1;
@@ -1293,16 +1452,18 @@ export class DeploymentService {
     });
 
     if (!sourceRun) {
-      throw new NotFoundException('部署运行不存在');
+      throw new NotFoundException("部署运行不存在");
     }
-    if ((sourceRun.mode || 'deploy') !== 'deploy') {
-      throw new BadRequestException('当前只支持重试部署运行，回滚运行请重新发起回滚');
+    if ((sourceRun.mode || "deploy") !== "deploy") {
+      throw new BadRequestException(
+        "当前只支持重试部署运行，回滚运行请重新发起回滚",
+      );
     }
     if (sourceRun.status !== DeploymentRunStatus.FAILED) {
-      throw new BadRequestException('只能重试失败的部署运行');
+      throw new BadRequestException("只能重试失败的部署运行");
     }
     if (sourceRun.dryRun && dto.dryRun === false) {
-      throw new BadRequestException('不能基于 dry-run 失败直接申请 live 重试');
+      throw new BadRequestException("不能基于 dry-run 失败直接申请 live 重试");
     }
 
     const sourceParams = isRecord(sourceRun.params) ? sourceRun.params : {};
@@ -1337,8 +1498,8 @@ export class DeploymentService {
       serverId: sourceRun.serverId || undefined,
       branch: sourceRun.branch || undefined,
       commitSha: sourceRun.commitSha || undefined,
-      source: 'manual',
-      trigger: 'manual_retry',
+      source: "manual",
+      trigger: "manual_retry",
       dryRun: dto.dryRun !== false,
       queue: dto.queue,
       maxAttempts: dto.maxAttempts,
@@ -1346,8 +1507,7 @@ export class DeploymentService {
       confirmationText: dto.confirmationText,
       approvalId: dto.approvalId,
       approvalReason:
-        dto.approvalReason ||
-        `重试失败部署 ${sourceRun.id.slice(0, 8)}`,
+        dto.approvalReason || `重试失败部署 ${sourceRun.id.slice(0, 8)}`,
     });
   }
 
@@ -1382,23 +1542,32 @@ export class DeploymentService {
     });
 
     if (!sourceRun) {
-      throw new NotFoundException('部署运行不存在');
+      throw new NotFoundException("部署运行不存在");
     }
-    if (sourceRun.mode === 'smoke_check') {
-      throw new BadRequestException('不能基于 Smoke 检查运行再次发起 Smoke 检查');
+    if (sourceRun.mode === "smoke_check") {
+      throw new BadRequestException(
+        "不能基于 Smoke 检查运行再次发起 Smoke 检查",
+      );
     }
     if (sourceRun.status !== DeploymentRunStatus.COMPLETED) {
-      throw new BadRequestException('只能基于已完成的部署运行发起 Smoke 检查');
+      throw new BadRequestException("只能基于已完成的部署运行发起 Smoke 检查");
     }
 
-    const healthCheckUrl = this.readHealthCheckUrl(dto.healthCheckUrl || sourceRun.healthCheckUrl);
+    const healthCheckUrl = this.readHealthCheckUrl(
+      dto.healthCheckUrl || sourceRun.healthCheckUrl,
+    );
     if (!healthCheckUrl) {
-      throw new BadRequestException('当前部署运行缺少健康检查 URL，无法生成 Smoke 检查');
+      throw new BadRequestException(
+        "当前部署运行缺少健康检查 URL，无法生成 Smoke 检查",
+      );
     }
 
     const dryRun = dto.dryRun !== false;
     const queue = dto.queue === true;
-    const target = await this.serverExecutor.resolveTarget(teamId, sourceRun.serverId);
+    const target = await this.serverExecutor.resolveTarget(
+      teamId,
+      sourceRun.serverId,
+    );
     const steps = buildSmokeCheckCommandSteps(healthCheckUrl);
     const autoRollbackPolicy = this.buildSmokeFailureAutoRollbackPolicy(dto);
     const run = await this.prisma.deploymentRun.create({
@@ -1412,14 +1581,14 @@ export class DeploymentService {
         applicationServiceId: sourceRun.applicationServiceId,
         sourceRunId: sourceRun.id,
         environment: sourceRun.environment,
-        mode: 'smoke_check',
-        source: 'manual',
-        trigger: 'manual_smoke_check',
+        mode: "smoke_check",
+        source: "manual",
+        trigger: "manual_smoke_check",
         targetType: sourceRun.targetType,
-        executorKey: 'server-executor',
-        adapterKey: 'script-plan',
+        executorKey: "server-executor",
+        adapterKey: "script-plan",
         dryRun,
-        status: queue ? 'queued' : 'running',
+        status: queue ? "queued" : "running",
         gitRepo: sourceRun.gitRepo,
         branch: sourceRun.branch,
         commitSha: sourceRun.commitSha,
@@ -1438,8 +1607,8 @@ export class DeploymentService {
     const executionInput = {
       teamId,
       userId,
-      operationKey: 'deployment.smoke_check',
-      adapterKey: 'deployment-script-plan',
+      operationKey: "deployment.smoke_check",
+      adapterKey: "deployment-script-plan",
       dryRun,
       target,
       steps,
@@ -1454,15 +1623,18 @@ export class DeploymentService {
         environmentId: sourceRun.environmentId,
         targetType: sourceRun.targetType,
         healthCheckUrl,
-        businessRunSync: queue ? 'deployment' : undefined,
+        businessRunSync: queue ? "deployment" : undefined,
       },
       blockOnWarnings: true,
     };
 
     if (queue) {
-      const queuedExecution = await this.serverExecutor.queueExecution(executionInput, {
-        maxAttempts: dto.maxAttempts,
-      });
+      const queuedExecution = await this.serverExecutor.queueExecution(
+        executionInput,
+        {
+          maxAttempts: dto.maxAttempts,
+        },
+      );
       assertDeploymentRunTransition(run.status, queuedExecution.status);
       const queuedRun = await this.prisma.deploymentRun.update({
         where: { id: run.id },
@@ -1486,13 +1658,13 @@ export class DeploymentService {
         applicationServiceId: sourceRun.applicationServiceId,
         serverId: sourceRun.serverId,
         deploymentRunId: queuedRun.id,
-        category: 'deployment',
-        action: 'deployment.smoke_check.queue',
-        targetType: 'deployment_run',
+        category: "deployment",
+        action: "deployment.smoke_check.queue",
+        targetType: "deployment_run",
         targetId: queuedRun.id,
-        risk: 'low',
+        risk: "low",
         status: queuedRun.status,
-        summary: '部署 Smoke 检查已加入队列',
+        summary: "部署 Smoke 检查已加入队列",
         metadata: {
           dryRun,
           sourceRunId: sourceRun.id,
@@ -1527,11 +1699,11 @@ export class DeploymentService {
       applicationServiceId: sourceRun.applicationServiceId,
       serverId: sourceRun.serverId,
       deploymentRunId: completedRun.id,
-      category: 'deployment',
-      action: 'deployment.smoke_check',
-      targetType: 'deployment_run',
+      category: "deployment",
+      action: "deployment.smoke_check",
+      targetType: "deployment_run",
       targetId: completedRun.id,
-      risk: 'low',
+      risk: "low",
       status: completedRun.status,
       summary: `部署 Smoke 检查 ${completedRun.status}`,
       metadata: {
@@ -1566,9 +1738,9 @@ export class DeploymentService {
   ): Promise<SmokeFailureAutoRollbackResult> {
     if (!policy.enabled) {
       return {
-        status: 'skipped',
+        status: "skipped",
         smokeRunId: candidate.id,
-        reason: 'auto rollback policy disabled',
+        reason: "auto rollback policy disabled",
       };
     }
 
@@ -1578,10 +1750,10 @@ export class DeploymentService {
     );
     if (existingRun) {
       return {
-        status: 'skipped',
+        status: "skipped",
         smokeRunId: candidate.id,
         rollbackRunId: existingRun.id,
-        reason: 'auto rollback already created',
+        reason: "auto rollback already created",
       };
     }
 
@@ -1603,10 +1775,14 @@ export class DeploymentService {
             dryRun: policy.dryRun,
             queue: policy.queue,
             maxAttempts: policy.maxAttempts,
-            ...(preauthorizedLiveRollback ? {
-              approvalId: policy.approvalId,
-              ...(policy.confirmationText ? { confirmationText: policy.confirmationText } : {}),
-            } : {}),
+            ...(preauthorizedLiveRollback
+              ? {
+                  approvalId: policy.approvalId,
+                  ...(policy.confirmationText
+                    ? { confirmationText: policy.confirmationText }
+                    : {}),
+                }
+              : {}),
           },
         },
       };
@@ -1617,12 +1793,12 @@ export class DeploymentService {
         }
       }
 
-      const rollbackRun = await this.requestSmokeFailureRollback(
+      const rollbackRun = (await this.requestSmokeFailureRollback(
         candidate.teamId,
         userId,
         candidate.id,
         rollbackDto,
-      ) as { id?: string; status?: string };
+      )) as { id?: string; status?: string };
 
       await this.auditEventService.create({
         teamId: candidate.teamId,
@@ -1633,38 +1809,41 @@ export class DeploymentService {
         applicationServiceId: candidate.applicationServiceId,
         serverId: candidate.serverId,
         deploymentRunId: candidate.id,
-        category: 'deployment',
-        action: 'deployment.smoke_failure_auto_rollback',
-        targetType: 'deployment_run',
+        category: "deployment",
+        action: "deployment.smoke_failure_auto_rollback",
+        targetType: "deployment_run",
         targetId: candidate.id,
-        risk: policy.dryRun ? 'medium' : 'high',
-        status: rollbackRun.status || 'created',
+        risk: policy.dryRun ? "medium" : "high",
+        status: rollbackRun.status || "created",
         summary: policy.dryRun
-          ? '部署 Smoke 失败后已自动生成回滚计划'
+          ? "部署 Smoke 失败后已自动生成回滚计划"
           : preauthorizedLiveRollback
-            ? '部署 Smoke 失败后已按预授权提交 live 回滚'
-            : '部署 Smoke 失败后已自动提交 live 回滚申请',
+            ? "部署 Smoke 失败后已按预授权提交 live 回滚"
+            : "部署 Smoke 失败后已自动提交 live 回滚申请",
         metadata: {
           rollbackRunId: rollbackRun.id,
           dryRun: policy.dryRun,
           queue: policy.queue,
           maxAttempts: policy.maxAttempts,
-          ...(preauthorizedLiveRollback ? {
-            preauthorized: true,
-            approvalId: policy.approvalId,
-          } : {
-            preauthorized: false,
-          }),
+          ...(preauthorizedLiveRollback
+            ? {
+                preauthorized: true,
+                approvalId: policy.approvalId,
+              }
+            : {
+                preauthorized: false,
+              }),
         },
       });
 
       return {
-        status: 'created',
+        status: "created",
         smokeRunId: candidate.id,
         rollbackRunId: rollbackRun.id,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : '自动回滚处理失败';
+      const message =
+        error instanceof Error ? error.message : "自动回滚处理失败";
       await this.auditEventService.create({
         teamId: candidate.teamId,
         actorId: userId,
@@ -1674,13 +1853,13 @@ export class DeploymentService {
         applicationServiceId: candidate.applicationServiceId,
         serverId: candidate.serverId,
         deploymentRunId: candidate.id,
-        category: 'deployment',
-        action: 'deployment.smoke_failure_auto_rollback',
-        targetType: 'deployment_run',
+        category: "deployment",
+        action: "deployment.smoke_failure_auto_rollback",
+        targetType: "deployment_run",
         targetId: candidate.id,
-        risk: policy.dryRun ? 'medium' : 'high',
+        risk: policy.dryRun ? "medium" : "high",
         status: DeploymentRunStatus.FAILED,
-        summary: '部署 Smoke 失败自动回滚处理失败',
+        summary: "部署 Smoke 失败自动回滚处理失败",
         metadata: {
           dryRun: policy.dryRun,
           queue: policy.queue,
@@ -1697,13 +1876,16 @@ export class DeploymentService {
     }
   }
 
-  private async findExistingSmokeFailureAutoRollbackRun(teamId: string, smokeRunId: string) {
+  private async findExistingSmokeFailureAutoRollbackRun(
+    teamId: string,
+    smokeRunId: string,
+  ) {
     const rollbackRuns = await this.prisma.deploymentRun.findMany({
       where: {
         teamId,
-        mode: 'rollback',
+        mode: "rollback",
       },
-      orderBy: { startedAt: 'desc' },
+      orderBy: { startedAt: "desc" },
       take: 100,
       select: {
         id: true,
@@ -1732,13 +1914,17 @@ export class DeploymentService {
     };
 
     const approvalId = readString(dto.autoRollbackApprovalId)?.trim();
-    const confirmationText = readString(dto.autoRollbackConfirmationText)?.trim();
+    const confirmationText = readString(
+      dto.autoRollbackConfirmationText,
+    )?.trim();
     if (approvalId) policy.approvalId = approvalId;
     if (confirmationText) policy.confirmationText = confirmationText;
     return policy;
   }
 
-  private readSmokeFailureAutoRollbackPolicy(params?: Prisma.JsonValue | null): SmokeFailureAutoRollbackPolicy {
+  private readSmokeFailureAutoRollbackPolicy(
+    params?: Prisma.JsonValue | null,
+  ): SmokeFailureAutoRollbackPolicy {
     const record = isRecord(params) ? params : {};
     const raw = isRecord(record.autoRollback) ? record.autoRollback : {};
     const policy: SmokeFailureAutoRollbackPolicy = {
@@ -1762,9 +1948,9 @@ export class DeploymentService {
   ): Promise<PostRollbackSmokeCheckResult> {
     if (!policy.enabled) {
       return {
-        status: 'skipped',
+        status: "skipped",
         rollbackRunId: candidate.id,
-        reason: 'post-rollback smoke policy disabled',
+        reason: "post-rollback smoke policy disabled",
       };
     }
 
@@ -1774,20 +1960,26 @@ export class DeploymentService {
     );
     if (existingRun) {
       return {
-        status: 'skipped',
+        status: "skipped",
         rollbackRunId: candidate.id,
         smokeRunId: existingRun.id,
-        reason: 'post-rollback smoke already created',
+        reason: "post-rollback smoke already created",
       };
     }
 
     try {
-      const smokeRun = await this.smokeCheckRun(candidate.teamId, userId, candidate.id, {
-        dryRun: policy.dryRun,
-        queue: policy.queue,
-        maxAttempts: policy.maxAttempts,
-        healthCheckUrl: policy.healthCheckUrl || candidate.healthCheckUrl || undefined,
-      }) as { id?: string; status?: string };
+      const smokeRun = (await this.smokeCheckRun(
+        candidate.teamId,
+        userId,
+        candidate.id,
+        {
+          dryRun: policy.dryRun,
+          queue: policy.queue,
+          maxAttempts: policy.maxAttempts,
+          healthCheckUrl:
+            policy.healthCheckUrl || candidate.healthCheckUrl || undefined,
+        },
+      )) as { id?: string; status?: string };
 
       await this.auditEventService.create({
         teamId: candidate.teamId,
@@ -1798,13 +1990,13 @@ export class DeploymentService {
         applicationServiceId: candidate.applicationServiceId,
         serverId: candidate.serverId,
         deploymentRunId: candidate.id,
-        category: 'deployment',
-        action: 'deployment.post_rollback_smoke_check',
-        targetType: 'deployment_run',
+        category: "deployment",
+        action: "deployment.post_rollback_smoke_check",
+        targetType: "deployment_run",
         targetId: candidate.id,
-        risk: 'low',
-        status: smokeRun.status || 'created',
-        summary: '部署回滚完成后已自动生成 Smoke 检查',
+        risk: "low",
+        status: smokeRun.status || "created",
+        summary: "部署回滚完成后已自动生成 Smoke 检查",
         metadata: {
           smokeRunId: smokeRun.id,
           dryRun: policy.dryRun,
@@ -1815,12 +2007,13 @@ export class DeploymentService {
       });
 
       return {
-        status: 'created',
+        status: "created",
         rollbackRunId: candidate.id,
         smokeRunId: smokeRun.id,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : '回滚后 Smoke 检查处理失败';
+      const message =
+        error instanceof Error ? error.message : "回滚后 Smoke 检查处理失败";
       await this.auditEventService.create({
         teamId: candidate.teamId,
         actorId: userId,
@@ -1830,13 +2023,13 @@ export class DeploymentService {
         applicationServiceId: candidate.applicationServiceId,
         serverId: candidate.serverId,
         deploymentRunId: candidate.id,
-        category: 'deployment',
-        action: 'deployment.post_rollback_smoke_check',
-        targetType: 'deployment_run',
+        category: "deployment",
+        action: "deployment.post_rollback_smoke_check",
+        targetType: "deployment_run",
         targetId: candidate.id,
-        risk: 'low',
+        risk: "low",
         status: DeploymentRunStatus.FAILED,
-        summary: '部署回滚完成后自动 Smoke 检查处理失败',
+        summary: "部署回滚完成后自动 Smoke 检查处理失败",
         metadata: {
           dryRun: policy.dryRun,
           queue: policy.queue,
@@ -1854,14 +2047,17 @@ export class DeploymentService {
     }
   }
 
-  private async findExistingPostRollbackSmokeCheckRun(teamId: string, rollbackRunId: string) {
+  private async findExistingPostRollbackSmokeCheckRun(
+    teamId: string,
+    rollbackRunId: string,
+  ) {
     return this.prisma.deploymentRun.findFirst({
       where: {
         teamId,
-        mode: 'smoke_check',
+        mode: "smoke_check",
         sourceRunId: rollbackRunId,
       },
-      orderBy: { startedAt: 'desc' },
+      orderBy: { startedAt: "desc" },
       select: { id: true },
     });
   }
@@ -1873,7 +2069,9 @@ export class DeploymentService {
       return undefined;
     }
 
-    const healthCheckUrl = this.readHealthCheckUrl(dto.postRollbackSmokeHealthCheckUrl);
+    const healthCheckUrl = this.readHealthCheckUrl(
+      dto.postRollbackSmokeHealthCheckUrl,
+    );
 
     return {
       enabled: true,
@@ -1884,10 +2082,16 @@ export class DeploymentService {
     };
   }
 
-  private readPostRollbackSmokeCheckPolicy(params?: Prisma.JsonValue | null): PostRollbackSmokeCheckPolicy {
+  private readPostRollbackSmokeCheckPolicy(
+    params?: Prisma.JsonValue | null,
+  ): PostRollbackSmokeCheckPolicy {
     const record = isRecord(params) ? params : {};
-    const raw = isRecord(record.postRollbackSmokeCheck) ? record.postRollbackSmokeCheck : {};
-    const healthCheckUrl = this.readHealthCheckUrl(readString(raw.healthCheckUrl));
+    const raw = isRecord(record.postRollbackSmokeCheck)
+      ? record.postRollbackSmokeCheck
+      : {};
+    const healthCheckUrl = this.readHealthCheckUrl(
+      readString(raw.healthCheckUrl),
+    );
 
     return {
       enabled: raw.enabled === true,
@@ -1901,7 +2105,9 @@ export class DeploymentService {
   private runInclude() {
     return {
       project: { select: { id: true, name: true } },
-      projectEnvironment: { select: { id: true, key: true, name: true, status: true } },
+      projectEnvironment: {
+        select: { id: true, key: true, name: true, status: true },
+      },
       application: { select: { id: true, name: true, status: true } },
       applicationService: {
         select: {
@@ -1910,13 +2116,32 @@ export class DeploymentService {
           kind: true,
           runtime: true,
           status: true,
-          environment: { select: { id: true, key: true, name: true, status: true } },
+          environment: {
+            select: { id: true, key: true, name: true, status: true },
+          },
         },
       },
       actor: { select: { id: true, name: true, email: true } },
       server: { select: { id: true, name: true, host: true } },
-      operationApproval: { select: { id: true, status: true, risk: true, reviewedAt: true, consumedAt: true } },
-      sourceRun: { select: { id: true, mode: true, status: true, branch: true, commitSha: true, startedAt: true } },
+      operationApproval: {
+        select: {
+          id: true,
+          status: true,
+          risk: true,
+          reviewedAt: true,
+          consumedAt: true,
+        },
+      },
+      sourceRun: {
+        select: {
+          id: true,
+          mode: true,
+          status: true,
+          branch: true,
+          commitSha: true,
+          startedAt: true,
+        },
+      },
       serverExecutionJob: {
         select: {
           id: true,
@@ -1943,8 +2168,8 @@ export class DeploymentService {
     applicationServiceId?: string | null;
     applicationServiceName?: string | null;
     serverId?: string | null;
-    action: 'deployment.run' | 'deployment.rollback';
-    mode: 'deploy' | 'rollback';
+    action: "deployment.run" | "deployment.rollback";
+    mode: "deploy" | "rollback";
     dryRun: boolean;
     queue: boolean;
     maxAttempts?: number;
@@ -1957,7 +2182,8 @@ export class DeploymentService {
     deployment: DeploymentConfig;
     warnings: string[];
   }): CreateOperationApprovalInput {
-    const label = input.action === 'deployment.rollback' ? '部署回滚' : '部署执行';
+    const label =
+      input.action === "deployment.rollback" ? "部署回滚" : "部署执行";
 
     return {
       teamId: input.teamId,
@@ -1967,9 +2193,9 @@ export class DeploymentService {
       applicationId: input.applicationId,
       applicationServiceId: input.applicationServiceId,
       serverId: input.serverId,
-      category: 'deployment',
+      category: "deployment",
       action: input.action,
-      targetType: 'project',
+      targetType: "project",
       targetId: input.project.id,
       risk: this.deploymentOperationRisk(input.action),
       summary: `申请执行${label} ${input.project.name}`,
@@ -2020,7 +2246,9 @@ export class DeploymentService {
   ): Promise<Record<string, string>> {
     try {
       return await resolveDeploymentEnvVars(
-        this.prisma as unknown as Parameters<typeof resolveDeploymentEnvVars>[0],
+        this.prisma as unknown as Parameters<
+          typeof resolveDeploymentEnvVars
+        >[0],
         {
           decrypt: (t) => this.credentialCrypto.decrypt(t),
           // SecretKey values are AES-256-CBC (key-center.service.ts encryptCbc);
@@ -2036,19 +2264,27 @@ export class DeploymentService {
     }
   }
 
-  private deploymentOperationRisk(action: 'deployment.run' | 'deployment.rollback') {
-    return action === 'deployment.rollback' ? 'high' : 'medium';
+  private deploymentOperationRisk(
+    action: "deployment.run" | "deployment.rollback",
+  ) {
+    return action === "deployment.rollback" ? "high" : "medium";
   }
 
   private readManagementScope(config: ProjectConfigRecord) {
-    const onboarding = isRecord(config.onboarding) ? config.onboarding : undefined;
+    const onboarding = isRecord(config.onboarding)
+      ? config.onboarding
+      : undefined;
     const rawScope = config.managementScope ?? onboarding?.scope;
 
-    if (rawScope === 'full' || rawScope === 'deployment' || rawScope === 'resources') {
+    if (
+      rawScope === "full" ||
+      rawScope === "deployment" ||
+      rawScope === "resources"
+    ) {
       return rawScope;
     }
 
-    return config.origin === 'external' ? 'resources' : 'full';
+    return config.origin === "external" ? "resources" : "full";
   }
 
   private async resolveProjectEnvironment(
@@ -2065,13 +2301,13 @@ export class DeploymentService {
         id: environmentId,
         teamId,
         projectId,
-        status: 'active',
+        status: "active",
       },
       select: { id: true, key: true, name: true },
     });
 
     if (!environment) {
-      throw new BadRequestException('项目环境不存在或不属于当前项目');
+      throw new BadRequestException("项目环境不存在或不属于当前项目");
     }
 
     return environment;
@@ -2087,12 +2323,17 @@ export class DeploymentService {
     }
 
     const application = await this.prisma.application.findFirst({
-      where: { id: applicationId, teamId, projectId, status: { not: 'archived' } },
+      where: {
+        id: applicationId,
+        teamId,
+        projectId,
+        status: { not: "archived" },
+      },
       select: { id: true, name: true },
     });
 
     if (!application) {
-      throw new BadRequestException('应用不存在或不属于当前项目');
+      throw new BadRequestException("应用不存在或不属于当前项目");
     }
 
     return application;
@@ -2113,7 +2354,7 @@ export class DeploymentService {
         id: serviceId,
         teamId,
         projectId,
-        status: { not: 'archived' },
+        status: { not: "archived" },
       },
       select: {
         id: true,
@@ -2127,59 +2368,20 @@ export class DeploymentService {
     });
 
     if (!service) {
-      throw new BadRequestException('应用服务不存在或不属于当前项目');
+      throw new BadRequestException("应用服务不存在或不属于当前项目");
     }
 
     if (applicationId && service.applicationId !== applicationId) {
-      throw new BadRequestException('应用服务不属于所选应用');
+      throw new BadRequestException("应用服务不属于所选应用");
     }
 
     return service;
   }
 
-  private resolveDeploymentConfig(
+  private readRepository(
     config: ProjectConfigRecord,
-    serviceConfigValue?: unknown,
-    overrides?: Record<string, unknown>,
-  ): DeploymentConfig {
-    const deployment = isRecord(config.deployment) ? config.deployment : {};
-    const serviceConfig = isRecord(serviceConfigValue) ? serviceConfigValue : {};
-    const stackProfile = isRecord(config.stackProfile) ? config.stackProfile : {};
-    const next = isRecord(overrides) ? overrides : {};
-
-    return {
-      targetType:
-        readString(next.targetType) ??
-        readString(serviceConfig.targetType) ??
-        readString(deployment.targetType) ??
-        'server',
-      workingDirectory:
-        readString(next.workingDirectory) ??
-        readString(serviceConfig.workingDirectory) ??
-        readString(deployment.workingDirectory),
-      buildCommand:
-        readString(next.buildCommand) ??
-        readString(serviceConfig.buildCommand) ??
-        readString(deployment.buildCommand) ??
-        readString(stackProfile.buildCommand),
-      deployCommand:
-        readString(next.deployCommand) ??
-        readString(serviceConfig.deployCommand) ??
-        readString(deployment.deployCommand) ??
-        readString(stackProfile.deployCommand),
-      rollbackCommand:
-        readString(next.rollbackCommand) ??
-        readString(serviceConfig.rollbackCommand) ??
-        readString(deployment.rollbackCommand) ??
-        readString(stackProfile.rollbackCommand),
-      healthCheckUrl:
-        readString(next.healthCheckUrl) ??
-        readString(serviceConfig.healthCheckUrl) ??
-        readString(deployment.healthCheckUrl),
-    };
-  }
-
-  private readRepository(config: ProjectConfigRecord, fallback?: string | null) {
+    fallback?: string | null,
+  ) {
     const source = isRecord(config.source) ? config.source : undefined;
     return readString(fallback) ?? readString(source?.repository);
   }
@@ -2201,12 +2403,12 @@ export class DeploymentService {
 
     try {
       const url = new URL(raw);
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-        throw new Error('invalid protocol');
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new Error("invalid protocol");
       }
       return url.toString();
     } catch {
-      throw new BadRequestException('健康检查 URL 必须是 http(s) 地址');
+      throw new BadRequestException("健康检查 URL 必须是 http(s) 地址");
     }
   }
 

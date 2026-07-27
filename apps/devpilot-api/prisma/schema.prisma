@@ -881,6 +881,30 @@ model ApplicationService {
   @@index([status])
 }
 
+// 每个服务/环境/初始化命令指纹的成功一次检查点
+model ApplicationServiceInitialization {
+  id                   String   @id @default(cuid())
+  teamId               String
+  projectId            String
+  environmentId        String
+  applicationServiceId String
+  commandFingerprint   String
+  status               String   @default("reserved") // reserved | completed | failed
+  deploymentRunId      String?
+  attempt              Int      @default(1)
+  error                String?  @db.Text
+  leaseExpiresAt       DateTime?
+  startedAt            DateTime @default(now())
+  finishedAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([applicationServiceId, environmentId, commandFingerprint], map: "app_service_init_scope_command_key")
+  @@index([teamId, status])
+  @@index([projectId])
+  @@index([deploymentRunId])
+}
+
 // 应用服务运行态操作记录
 model ApplicationServiceOperationRun {
   id                   String   @id @default(cuid())

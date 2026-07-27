@@ -11,11 +11,13 @@ import { apiRequest } from '@/lib/api-client';
 import { getProjectDescription } from '@/lib/project-display';
 import type { Project } from '../types';
 import type { DeploymentRun, ProjectWebhook } from '../types/operations';
-import type { EnvironmentResourceBulkBindSelection } from '../types/environment-copy';
+import type {
+  EnvironmentResourceBulkBindResult,
+  EnvironmentResourceBulkBindSelection,
+} from '../types/environment-copy';
 import {
   buildResourceBulkBindRequest,
   createEmptyResourceBulkBindSelection,
-  createResourceBulkBindSelection,
 } from '../utils/resource-bulk-bind';
 
 export function useProjectDetail(projectId: string) {
@@ -33,6 +35,10 @@ export function useProjectDetail(projectId: string) {
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState('');
   const [bindingResources, setBindingResources] = useState(false);
   const [bindError, setBindError] = useState('');
+  const [resourceBulkBindPreview, setResourceBulkBindPreview] =
+    useState<EnvironmentResourceBulkBindResult | null>(null);
+  const [resourceBulkBindResult, setResourceBulkBindResult] =
+    useState<EnvironmentResourceBulkBindResult | null>(null);
 
   const loadProject = usePersistFn(async () => {
     try {
@@ -43,7 +49,8 @@ export function useProjectDetail(projectId: string) {
         name: data.name,
         description: getProjectDescription(data.config, data.description ?? ''),
       });
-      setResourceBulkBindSelection(createResourceBulkBindSelection(data));
+      setResourceBulkBindSelection(createEmptyResourceBulkBindSelection());
+      setResourceBulkBindPreview(null);
       setSelectedEnvironmentId(
         data.environments?.find((e: { status: string; id: string }) => e.status === 'active')?.id ||
           data.environments?.[0]?.id ||
@@ -84,32 +91,50 @@ export function useProjectDetail(projectId: string) {
     loadWebhooks();
   }, [loadDeploymentRuns, loadProject, loadWebhooks, projectId]);
 
-  /**
-   * 把当前选中的资源绑定到目标环境(POST /project-environments/resources/bulk-bind)。
-   * 后端已实现:鉴权 + dryRun + 确认文案守卫;此前前端只有选择状态、无调用点(dead code)。
-   * 成功后重载项目,使资源面板反映新的绑定关系 —— 回答 issue #11「资源能否关联项目供部署直接配置」。
-   */
-  const bindResourcesToEnvironment = usePersistFn(async (environmentId: string) => {
-    if (!projectId || !environmentId) return;
-    setBindingResources(true);
-    setBindError('');
-    try {
-      const { resourceTypes, resourceIds } = buildResourceBulkBindRequest(resourceBulkBindSelection);
-      if (resourceTypes.length === 0) return;
-      await apiRequest('POST:/project-environments/resources/bulk-bind', {
-        projectId,
-        environmentId,
-        resourceTypes,
-        resourceIds,
-      });
-      await loadProject();
-    } catch (err) {
-      setBindError(err instanceof Error ? err.message : String(err));
-      throw err;
-    } finally {
-      setBindingResources(false);
-    }
-  });
+  const callResourceBulkBind = usePersistFn(
+    async (environmentId: string, dryRun: boolean, confirmationText?: string) => {
+      if (!projectId || !environmentId) return;
+      setBindingResources(true);
+      setBindError('');
+      try {
+        const { resourceTypes, resourceIds } =
+          buildResourceBulkBindRequest(resourceBulkBindSelection);
+        if (resourceTypes.length === 0) return;
+        const result = await apiRequest<EnvironmentResourceBulkBindResult>(
+          'POST:/project-environments/resources/bulk-bind',
+          {
+            projectId,
+            environmentId,
+            resourceTypes,
+            resourceIds,
+            dryRun,
+            confirmationText,
+          },
+        );
+        if (dryRun) setResourceBulkBindPreview(result);
+        else {
+          await loadProject();
+          setResourceBulkBindResult(result);
+          setResourceBulkBindPreview(null);
+        }
+        return result;
+      } catch (err) {
+        setBindError(err instanceof Error ? err.message : String(err));
+        throw err;
+      } finally {
+        setBindingResources(false);
+      }
+    },
+  );
+
+  const previewResourcesToEnvironment = usePersistFn((environmentId: string) =>
+    callResourceBulkBind(environmentId, true),
+  );
+
+  const applyResourcesToEnvironment = usePersistFn(
+    (environmentId: string, confirmationText: string) =>
+      callResourceBulkBind(environmentId, false, confirmationText),
+  );
 
   return {
     project,
@@ -129,7 +154,11 @@ export function useProjectDetail(projectId: string) {
     setSelectedEnvironmentId,
     bindingResources,
     bindError,
-    bindResourcesToEnvironment,
+    resourceBulkBindPreview,
+    resourceBulkBindResult,
+    setResourceBulkBindPreview,
+    previewResourcesToEnvironment,
+    applyResourcesToEnvironment,
     loadProject,
     loadDeploymentRuns,
     loadWebhooks,

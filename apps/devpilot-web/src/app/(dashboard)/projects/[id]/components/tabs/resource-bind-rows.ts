@@ -32,61 +32,71 @@ export interface BindableRow {
 
 /** 项目级（未按环境过滤）的 resource_instance，凡资源类型拥有 envTemplate 即视为可注入。 */
 function buildInstanceRows(p: Project): BindableRow[] {
-  return (p.resourceInstances || []).map((i) => {
-    const typeKey = i.resourceType?.key ?? null;
-    const injectable = isResourceTypeInjectable(typeKey);
-    return {
-      id: i.id,
-      name: i.name || i.id,
-      typeName: i.resourceType?.name || typeKey || 'resource_instance',
-      group: injectable ? 'inject' : 'categorical',
-      injectKeysPreview: injectable
-        ? parseEnvTemplateKeys(i.resourceType?.envTemplate)
-        : undefined,
-      selectionKey: 'resourceInstanceIds',
-    };
-  });
+  return (p.resourceInstances || [])
+    .filter((i) => !i.projectEnvironment?.id)
+    .map((i) => {
+      const typeKey = i.resourceType?.key ?? null;
+      const injectable = isResourceTypeInjectable(typeKey);
+      return {
+        id: i.id,
+        name: i.name || i.id,
+        typeName: i.resourceType?.name || typeKey || 'resource_instance',
+        group: injectable ? 'inject' : 'categorical',
+        injectKeysPreview: injectable
+          ? parseEnvTemplateKeys(i.resourceType?.envTemplate)
+          : undefined,
+        selectionKey: 'resourceInstanceIds',
+      };
+    });
 }
 
 /** 其余 4 类资源（托管/站点/密钥/CDN）——绑定后仅归类、不注入。 */
 function buildCategoricalRows(p: Project): BindableRow[] {
   const rows: BindableRow[] = [];
-  (p.managedResources || []).forEach((r) =>
-    rows.push({
-      id: r.id,
-      name: r.name || r.id,
-      typeName: r.provider ? `${r.provider}/${r.kind}` : r.kind,
-      group: 'categorical',
-      selectionKey: 'managedResourceIds',
-    }),
-  );
-  (p.sites || []).forEach((s) =>
-    rows.push({
-      id: s.id,
-      name: s.name || s.primaryDomain || s.id,
-      typeName: 'site',
-      group: 'categorical',
-      selectionKey: 'siteIds',
-    }),
-  );
-  (p.secretKeys || []).forEach((s) =>
-    rows.push({
-      id: s.id,
-      name: s.name || s.id,
-      typeName: s.type ? `secret/${s.type}` : 'secret_key',
-      group: 'categorical',
-      selectionKey: 'secretKeyIds',
-    }),
-  );
-  (p.cdnConfigs || []).forEach((c) =>
-    rows.push({
-      id: c.id,
-      name: c.name || c.domain || c.id,
-      typeName: 'cdn_config',
-      group: 'categorical',
-      selectionKey: 'cdnConfigIds',
-    }),
-  );
+  (p.managedResources || [])
+    .filter((r) => !r.environment?.id)
+    .forEach((r) =>
+      rows.push({
+        id: r.id,
+        name: r.name || r.id,
+        typeName: r.provider ? `${r.provider}/${r.kind}` : r.kind,
+        group: 'categorical',
+        selectionKey: 'managedResourceIds',
+      }),
+    );
+  (p.sites || [])
+    .filter((s) => !s.environment?.id)
+    .forEach((s) =>
+      rows.push({
+        id: s.id,
+        name: s.name || s.primaryDomain || s.id,
+        typeName: 'site',
+        group: 'categorical',
+        selectionKey: 'siteIds',
+      }),
+    );
+  (p.secretKeys || [])
+    .filter((s) => !s.environment?.id)
+    .forEach((s) =>
+      rows.push({
+        id: s.id,
+        name: s.name || s.id,
+        typeName: s.type ? `secret/${s.type}` : 'secret_key',
+        group: 'categorical',
+        selectionKey: 'secretKeyIds',
+      }),
+    );
+  (p.cdnConfigs || [])
+    .filter((c) => !c.environment?.id)
+    .forEach((c) =>
+      rows.push({
+        id: c.id,
+        name: c.name || c.domain || c.id,
+        typeName: 'cdn_config',
+        group: 'categorical',
+        selectionKey: 'cdnConfigIds',
+      }),
+    );
   return rows;
 }
 

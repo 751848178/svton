@@ -23,12 +23,18 @@ export interface DeploymentCommandStep {
   command: string;
   cwd: string;
   required: boolean;
+  phase?: string;
+  runPolicy?: string;
+  failurePolicy?: string;
+  decision?: string;
+  skipReason?: string;
 }
 
 /** 判断未知值是否为合法命令步骤。 */
-export function isDeploymentCommandStep(
-  value: unknown,
-): value is { key: string; label: string; command?: string; cwd?: string; required?: boolean } {
+export function isDeploymentCommandStep(value: unknown): value is Record<string, unknown> & {
+  key: string;
+  label: string;
+} {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return false;
   }
@@ -55,7 +61,16 @@ export function readDeploymentCommandSteps(commandPlan: unknown): DeploymentComm
     command: typeof step.command === 'string' ? step.command : '',
     cwd: typeof step.cwd === 'string' ? step.cwd : '',
     required: step.required === true,
+    phase: readOptionalString(step.phase),
+    runPolicy: readOptionalString(step.runPolicy),
+    failurePolicy: readOptionalString(step.failurePolicy),
+    decision: readOptionalString(step.decision),
+    skipReason: readOptionalString(step.skipReason),
   }));
+}
+
+function readOptionalString(value: unknown) {
+  return typeof value === 'string' && value ? value : undefined;
 }
 
 /** write_env 步骤的 key 可能的取值（后端 buildEnvWriteStep 用 'write_env'，容错 'write-env'）。 */
@@ -92,7 +107,5 @@ export function extractInjectedEnvKeys(commandPlan: unknown): string[] {
 
 /** 该 commandPlan 是否存在 write_env 步骤（用于判断注入是否被跳过）。 */
 export function hasWriteEnvStep(commandPlan: unknown): boolean {
-  return readDeploymentCommandSteps(commandPlan).some((step) =>
-    WRITE_ENV_STEP_KEYS.has(step.key),
-  );
+  return readDeploymentCommandSteps(commandPlan).some((step) => WRITE_ENV_STEP_KEYS.has(step.key));
 }

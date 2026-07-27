@@ -50,6 +50,9 @@ const DEFAULTS: ServiceForm = {
   managedResourceId: '',
   workingDirectory: '',
   buildCommand: '',
+  preStartCheckCommand: '',
+  migrationCommand: '',
+  initializationCommand: '',
   deployCommand: '',
   healthCheckUrl: '',
 };

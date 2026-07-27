@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { EmptyState } from '@svton/ui';
 import { PageHeader, MetricCard, DataBoundary } from '@/components/ui';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useResourceRequests } from './hooks/use-resource-requests';
 import { statusLabelKeys } from './constants';
 import type { ResourceRequest } from './types';
@@ -15,17 +14,18 @@ import { CreateRequestModal } from './components/create-request-modal';
 import { CompleteRequestModal } from './components/complete-request-modal';
 import { ProvisioningRunsModal } from './components/provisioning-runs-modal';
 import { ProviderStateModal } from './components/provider-state-modal.component';
-import { PendingRunActionDialog } from './components/pending-run-action-dialog.component';
+import { RequestConfirmationDialogs } from './components/request-confirmation-dialogs.component';
+import { useResourceRequestEntry } from './hooks/use-resource-request-entry.hooks';
 
 const STATUS_KEYS = ['pending', 'approved', 'completed', 'rejected', 'canceled'] as const;
 
 export default function ResourceRequestsPage() {
   const t = useTranslations('resourceRequests');
-  const tc = useTranslations('common');
   const {
     requests,
     resourceTypes,
     projects,
+    environments,
     loading,
     dataError,
     counts,
@@ -57,9 +57,8 @@ export default function ResourceRequestsPage() {
     closeRuns,
     reload,
   } = useResourceRequests();
-  const [showModal, setShowModal] = useState(false);
+  const createEntry = useResourceRequestEntry();
   const [completeTarget, setCompleteTarget] = useState<(typeof requests)[number] | null>(null);
-  // 取消/重试交付的确认弹窗状态（参照 teams 的 Modal 确认范式，一个操作一个实例）
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const [retryTarget, setRetryTarget] = useState<ResourceRequest | null>(null);
 
@@ -82,7 +81,7 @@ export default function ResourceRequestsPage() {
         description={t('pageDescription')}
         actions={
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => createEntry.setShowModal(true)}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             {t('createRequest')}
@@ -100,7 +99,11 @@ export default function ResourceRequestsPage() {
         ))}
       </div>
 
-      <DataBoundary loading={loading} error={dataError} onRetry={reload}>
+      <DataBoundary
+        loading={loading}
+        error={dataError}
+        onRetry={reload}
+      >
         {requests.length === 0 ? (
           <EmptyState
             text={t('noRequests')}
@@ -128,14 +131,17 @@ export default function ResourceRequestsPage() {
         onProcessNext={processNextQueuedProvisioningRun}
       />
 
-      {showModal ? (
+      {createEntry.showModal ? (
         <CreateRequestModal
           resourceTypes={resourceTypes}
           projects={projects}
-          onClose={() => setShowModal(false)}
+          environments={environments}
+          defaultProjectId={createEntry.entry.projectId}
+          defaultEnvironmentId={createEntry.entry.environmentId}
+          onClose={() => createEntry.setShowModal(false)}
           onSuccess={() => {
-            setShowModal(false);
             reload();
+            createEntry.finishCreate();
           }}
         />
       ) : null}
@@ -171,38 +177,17 @@ export default function ResourceRequestsPage() {
         onCancel={cancelReconcileInput}
       />
 
-      <ConfirmDialog
-        open={Boolean(cancelTarget)}
-        onOpenChange={(open) => {
-          if (!open) setCancelTarget(null);
-        }}
-        tone="danger"
-        title={t('cancelConfirmTitle')}
-        description={t('cancelConfirmDescription')}
-        confirmLabel={t('cancel')}
-        cancelLabel={tc('cancel')}
-        onConfirm={handleConfirmCancel}
-      />
-
-      <ConfirmDialog
-        open={Boolean(retryTarget)}
-        onOpenChange={(open) => {
-          if (!open) setRetryTarget(null);
-        }}
-        title={t('retryConfirmTitle')}
-        description={retryTarget ? t('retryConfirmDescription', { title: retryTarget.title }) : undefined}
-        confirmLabel={t('retryDelivery')}
-        cancelLabel={tc('cancel')}
-        onConfirm={handleConfirmRetry}
-      />
-
-      <PendingRunActionDialog
-        action={pendingRunAction}
+      <RequestConfirmationDialogs
+        cancelTarget={cancelTarget}
+        retryTarget={retryTarget}
+        pendingRunAction={pendingRunAction}
         requestTitle={runsTarget?.title ?? ''}
-        onOpenChange={(open) => {
-          if (!open) cancelPendingRunAction();
-        }}
-        onConfirm={confirmPendingRunAction}
+        onCancelTargetChange={setCancelTarget}
+        onRetryTargetChange={setRetryTarget}
+        onConfirmCancel={handleConfirmCancel}
+        onConfirmRetry={handleConfirmRetry}
+        onCancelPendingRunAction={cancelPendingRunAction}
+        onConfirmPendingRunAction={confirmPendingRunAction}
       />
     </div>
   );

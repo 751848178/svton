@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Card } from '@svton/ui';
+import { Card, Tag } from '@svton/ui';
 import { Button, StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import { getProjectEnvironmentLabels } from '@/lib/project-display';
@@ -23,7 +23,7 @@ import type { DeploymentRun } from '../types/operations';
 interface LatestDeploymentHeroProps {
   /** 最新部署运行；为空表示项目还没有任何部署。 */
   run: DeploymentRun | null;
-  /** 点击「立即部署」/「查看部署历史」的回调（由 page 传入，切到部署 tab）。 */
+  /** 点击「立即部署」/「查看部署记录」的回调（由 page 传入，切到部署 tab）。 */
   onDeployClick?: () => void;
 }
 
@@ -38,7 +38,10 @@ export function LatestDeploymentHero({ run, onDeployClick }: LatestDeploymentHer
             <h2 className="text-base font-semibold">{t('latestDeployTitle')}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{t('noDeploymentsCta')}</p>
           </div>
-          <Button variant="primary" onClick={onDeployClick}>
+          <Button
+            variant="primary"
+            onClick={onDeployClick}
+          >
             {t('deployAction')}
           </Button>
         </div>
@@ -60,6 +63,7 @@ export function LatestDeploymentHero({ run, onDeployClick }: LatestDeploymentHer
               status={run.status}
               label={statusKey ? t(statusKey) : run.status}
             />
+            {run.dryRun ? <Tag color="default">{t('runModePlanOnly')}</Tag> : null}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1">
@@ -82,10 +86,19 @@ export function LatestDeploymentHero({ run, onDeployClick }: LatestDeploymentHer
             ) : null}
             <span>{formatDateTimeMinute(run.startedAt)}</span>
           </div>
-          {failed && run.error ? <RunError error={run.error} t={t} /> : null}
+          {failed && run.error ? (
+            <RunError
+              error={run.error}
+              t={t}
+            />
+          ) : null}
         </div>
-        <Button variant="outline" size="sm" onClick={onDeployClick}>
-          {t('viewLogs')}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onDeployClick}
+        >
+          {t('viewDeploymentRecords')}
         </Button>
       </div>
     </Card>
@@ -93,7 +106,13 @@ export function LatestDeploymentHero({ run, onDeployClick }: LatestDeploymentHer
 }
 
 /** 失败部署的错误展示（可折叠）。 */
-function RunError({ error, t }: { error: string; t: ReturnType<typeof useTranslations<'projects'>> }) {
+function RunError({
+  error,
+  t,
+}: {
+  error: string;
+  t: ReturnType<typeof useTranslations<'projects'>>;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2">

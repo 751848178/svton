@@ -40,6 +40,11 @@ export function buildAgentTaskPullCommandPlan(task: AgentTaskPullTask) {
       label: step.label,
       required: step.required !== false,
       timeoutSeconds: step.timeoutSeconds,
+      phase: step.phase,
+      runPolicy: step.runPolicy,
+      failurePolicy: step.failurePolicy,
+      decision: step.decision,
+      skipReason: step.skipReason,
     })),
   };
 }

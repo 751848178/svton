@@ -19,12 +19,13 @@ import { useQueryLoose, mutate } from '@/hooks/api/use-api';
 import { getProjectDescription, getProjectOrigin } from '@/lib/project-display';
 import type { Project, ProjectDeploymentRun, ProjectOriginFilter } from '../types';
 
-/** 聚合每个项目的最新部署运行（runs 已按 startedAt desc 返回，取首条即最新）。 */
+/** 聚合每个项目的最新正式运行；dry-run 计划不能代表线上健康度。 */
 function aggregateLatestRunByProject(
   runs: ProjectDeploymentRun[],
 ): Record<string, ProjectDeploymentRun> {
   const map: Record<string, ProjectDeploymentRun> = {};
   for (const run of runs) {
+    if (run.dryRun) continue;
     const projectId = run.project?.id;
     if (!projectId || map[projectId]) continue;
     map[projectId] = run;

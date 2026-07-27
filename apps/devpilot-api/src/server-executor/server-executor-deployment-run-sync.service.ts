@@ -1,5 +1,9 @@
 import { PrismaService } from "../prisma/prisma.service";
 import {
+  failDeploymentInitializationCheckpoint,
+  finishDeploymentInitializationCheckpoint,
+} from "../deployment/deployment-initialization-checkpoint.repository";
+import {
   buildServerExecutorFailureLogs,
   buildServerExecutorFailureResult,
   readServerExecutorFailureMessage,
@@ -24,15 +28,23 @@ export class ServerExecutorDeploymentRunSyncService {
       return false;
     }
 
+    const initializationError = await finishDeploymentInitializationCheckpoint(
+      this.prisma,
+      readOptionalString(metadata.initializationCheckpointId),
+      result,
+    );
     const updated = await this.prisma.deploymentRun.updateMany({
       where: { id: deploymentRunId, teamId: input.teamId },
       data: {
         serverExecutionJobId: jobId,
-        status: result.status,
+        status:
+          initializationError && result.status === "completed"
+            ? "failed"
+            : result.status,
         commandPlan: result.commandPlan,
         logs: result.logs,
         result: result.result,
-        error: result.error,
+        error: initializationError || result.error,
         finishedAt: new Date(),
       },
     });
@@ -52,6 +64,11 @@ export class ServerExecutorDeploymentRunSyncService {
     }
 
     const message = readServerExecutorFailureMessage(error);
+    await failDeploymentInitializationCheckpoint(
+      this.prisma,
+      readOptionalString(metadata.initializationCheckpointId),
+      message,
+    );
     const updated = await this.prisma.deploymentRun.updateMany({
       where: { id: deploymentRunId, teamId: input.teamId },
       data: {

@@ -6,7 +6,7 @@ import { EmptyState } from '@svton/ui';
 import { Button, ErrorBanner, StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import { getProjectEnvironmentLabels } from '@/lib/project-display';
-import { DeployVarPreview } from './deploy-var-preview';
+import { DeploymentRunDetails } from './deployment-run-details.component';
 import { DeployServiceSection } from './deploy-service-section';
 import { PanelGroup } from './panel-group';
 import { BranchIcon, SourceIcon } from './panel-icons';
@@ -31,7 +31,10 @@ export function DeploymentPanel({ detail, onOpenDeploy }: DeploymentPanelProps) 
   const showDeploySection = Boolean(onOpenDeploy && detail.project?.applications?.length);
 
   const runsPanel = (
-    <PanelGroup title={t('deploymentRuns')} subtitle={t('deploymentPanelDescription')}>
+    <PanelGroup
+      title={t('deploymentRuns')}
+      subtitle={t('deploymentPanelDescription')}
+    >
       {detail.deploymentError ? (
         <ErrorBanner
           message={detail.deploymentError}
@@ -82,7 +85,11 @@ function DeploymentRunList({
     <>
       <div className="space-y-2">
         {visible.map((run) => (
-          <DeploymentRunRow key={run.id} run={run} t={t} />
+          <DeploymentRunRow
+            key={run.id}
+            run={run}
+            t={t}
+          />
         ))}
       </div>
       {runs.length > visibleCount ? (
@@ -121,7 +128,8 @@ function DeploymentRunRow({ run, t }: { run: DeploymentRun; t: ProjectsTranslato
           </span>
           {run.environment ? (
             <span className="ml-2 text-xs text-muted-foreground">
-              {getProjectEnvironmentLabels({ environments: [run.environment] })[0] ?? run.environment}
+              {getProjectEnvironmentLabels({ environments: [run.environment] })[0] ??
+                run.environment}
             </span>
           ) : null}
           {run.actor?.name ? (
@@ -134,20 +142,25 @@ function DeploymentRunRow({ run, t }: { run: DeploymentRun; t: ProjectsTranslato
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <StatusTag status={run.status} label={statusLabel} />
-          <span className="text-xs text-muted-foreground">{formatDateTimeMinute(run.startedAt)}</span>
+          <StatusTag
+            status={run.status}
+            label={statusLabel}
+          />
+          <span className="text-xs text-muted-foreground">
+            {formatDateTimeMinute(run.startedAt)}
+          </span>
           <button
             type="button"
             className="rounded px-1 text-xs text-muted-foreground hover:bg-accent"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            aria-label={t('runToggleVars')}
+            aria-label={t('runToggleEvidence')}
           >
-            {open ? '▾' : '▸'} {t('runToggleVars')}
+            {open ? '▾' : '▸'} {t('runToggleEvidence')}
           </button>
         </div>
       </div>
-      {open ? <DeployVarPreview run={run} t={t} /> : null}
+      {open ? <DeploymentRunDetails run={run} /> : null}
     </div>
   );
 }

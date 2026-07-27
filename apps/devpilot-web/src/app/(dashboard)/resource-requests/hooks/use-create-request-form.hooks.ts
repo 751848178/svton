@@ -11,34 +11,44 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { apiRequest } from '@/lib/api-client';
-import type { ResourceFieldValue, ResourceType } from '../types';
+import type { ProjectEnvironment, ResourceFieldValue, ResourceType } from '../types';
 import { buildInitialFieldValues, buildSpecFromFields, getResourceFields } from '../utils';
 
 export interface CreateRequestFormData {
   resourceTypeId: string;
   projectId: string;
+  environmentId: string;
   title: string;
-  environment: string;
   purpose: string;
   spec: string;
 }
 
 interface UseCreateRequestFormOptions {
   resourceTypes: ResourceType[];
+  environments: ProjectEnvironment[];
+  defaultProjectId?: string;
+  defaultEnvironmentId?: string;
   onSuccess: () => void;
 }
 
-export function useCreateRequestForm({ resourceTypes, onSuccess }: UseCreateRequestFormOptions) {
-  const { register, handleSubmit, watch, setValue, setError, formState } = useForm<CreateRequestFormData>({
-    defaultValues: {
-      resourceTypeId: resourceTypes[0]?.id || '',
-      projectId: '',
-      title: '',
-      environment: 'dev',
-      purpose: '',
-      spec: '{}',
-    },
-  });
+export function useCreateRequestForm({
+  resourceTypes,
+  environments,
+  defaultProjectId,
+  defaultEnvironmentId,
+  onSuccess,
+}: UseCreateRequestFormOptions) {
+  const { register, handleSubmit, watch, setValue, setError, formState } =
+    useForm<CreateRequestFormData>({
+      defaultValues: {
+        resourceTypeId: resourceTypes[0]?.id || '',
+        projectId: defaultProjectId ?? '',
+        environmentId: defaultEnvironmentId ?? '',
+        title: '',
+        purpose: '',
+        spec: '{}',
+      },
+    });
 
   // 动态字段：key 随所选 resourceType 变化，无法静态 register；用单一受控 map 管理。
   const [fieldValues, setFieldValues] = useState<Record<string, ResourceFieldValue>>(() =>
@@ -51,16 +61,20 @@ export function useCreateRequestForm({ resourceTypes, onSuccess }: UseCreateRequ
     [resourceTypeId, resourceTypes],
   );
   const fields = useMemo(() => getResourceFields(selectedResourceType), [selectedResourceType]);
-  const hasEnvironmentField = fields.some((field) => field.key === 'environment');
-
   // resourceType 切换时重置动态字段默认值
   useEffect(() => {
     const initialValues = buildInitialFieldValues(selectedResourceType);
     setFieldValues(initialValues);
-    if (typeof initialValues.environment === 'string' && initialValues.environment) {
-      setValue('environment', initialValues.environment);
-    }
   }, [selectedResourceType, setValue]);
+
+  useEffect(() => {
+    if (!resourceTypeId && resourceTypes[0]?.id) setValue('resourceTypeId', resourceTypes[0].id);
+  }, [resourceTypeId, resourceTypes, setValue]);
+
+  useEffect(() => {
+    if (defaultProjectId) setValue('projectId', defaultProjectId);
+    if (defaultEnvironmentId) setValue('environmentId', defaultEnvironmentId);
+  }, [defaultEnvironmentId, defaultProjectId, setValue]);
 
   const formData = watch();
 
@@ -72,9 +86,6 @@ export function useCreateRequestForm({ resourceTypes, onSuccess }: UseCreateRequ
 
   const updateFieldValue = (key: string, value: ResourceFieldValue) => {
     setFieldValues((current) => ({ ...current, [key]: value }));
-    if (key === 'environment' && typeof value === 'string') {
-      setValue('environment', value);
-    }
   };
 
   const submit = handleSubmit(async (data) => {
@@ -83,17 +94,25 @@ export function useCreateRequestForm({ resourceTypes, onSuccess }: UseCreateRequ
         fields.length > 0
           ? buildSpecFromFields(fields, fieldValues)
           : JSON.parse(data.spec || '{}');
+      const projectEnvironment = environments.find((item) => item.id === data.environmentId);
+      if (data.projectId && !projectEnvironment) {
+        setError('environmentId', { message: '请选择所选项目下的环境' });
+        return;
+      }
       await apiRequest('POST:/resource-requests', {
         resourceTypeId: data.resourceTypeId,
         projectId: data.projectId || undefined,
+        environmentId: projectEnvironment?.id,
         title: data.title,
-        environment: data.environment || undefined,
+        environment: projectEnvironment?.key,
         purpose: data.purpose || undefined,
         spec,
       });
       onSuccess();
     } catch (err) {
-      setError('root', { message: err instanceof Error ? err.message : '创建申请失败，请检查 JSON 格式' });
+      setError('root', {
+        message: err instanceof Error ? err.message : '创建申请失败，请检查 JSON 格式',
+      });
     }
   });
 
@@ -103,7 +122,6 @@ export function useCreateRequestForm({ resourceTypes, onSuccess }: UseCreateRequ
     fieldValues,
     formData,
     handleSubmit: submit,
-    hasEnvironmentField,
     register,
     saving: formState.isSubmitting,
     updateFieldValue,

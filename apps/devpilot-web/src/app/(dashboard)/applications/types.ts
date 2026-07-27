@@ -114,7 +114,17 @@ export interface AppForm {
   repoPath: string;
 }
 
-export interface ServiceForm {
+export interface ServiceDeploymentForm {
+  workingDirectory: string;
+  buildCommand: string;
+  preStartCheckCommand: string;
+  migrationCommand: string;
+  initializationCommand: string;
+  deployCommand: string;
+  healthCheckUrl: string;
+}
+
+export interface ServiceForm extends ServiceDeploymentForm {
   applicationId: string;
   environmentId: string;
   name: string;
@@ -123,10 +133,6 @@ export interface ServiceForm {
   serverId: string;
   siteId: string;
   managedResourceId: string;
-  workingDirectory: string;
-  buildCommand: string;
-  deployCommand: string;
-  healthCheckUrl: string;
 }
 
 export interface AppStats {
@@ -153,6 +159,8 @@ export interface CreatedDeploymentRun {
   commitSha?: string | null;
   environment?: string | null;
   commandPlan?: unknown;
+  logs?: unknown;
+  result?: unknown;
   error?: string | null;
   startedAt?: string | null;
   finishedAt?: string | null;

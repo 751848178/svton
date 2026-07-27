@@ -22,6 +22,11 @@ export type AgentTaskPullCommandStep = {
   cwd?: string;
   required?: boolean;
   timeoutSeconds?: number;
+  phase?: string;
+  runPolicy?: string;
+  failurePolicy?: string;
+  decision?: string;
+  skipReason?: string;
 };
 
 export type AgentTaskPullStepResult = {

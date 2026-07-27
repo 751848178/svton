@@ -8,13 +8,14 @@
  * 健康度判定优先级（从高到低）：
  *   1. deploying — 最新运行处于排队/运行中/待处理等过渡态；
  *   2. degraded  — 最新运行失败/阻塞，或任一服务离线/未活跃；
- *   3. healthy   — 其余情况。
+ *   3. not_ready — 尚无应用服务或部署记录；
+ *   4. healthy   — 已有成功运行证据且无异常。
  */
 
 import type { DeploymentRun } from '../types/operations';
 import type { Project } from '../types';
 
-export type ProjectHealth = 'healthy' | 'deploying' | 'degraded';
+export type ProjectHealth = 'healthy' | 'deploying' | 'degraded' | 'not_ready';
 
 /** 最新一次部署运行（`deploymentRuns` 按最新在前返回）。 */
 export function getLatestDeploymentRun(runs?: DeploymentRun[]): DeploymentRun | null {
@@ -54,11 +55,15 @@ export function getProjectHealth(args: {
   runs?: DeploymentRun[];
   project?: Project | null;
 }): ProjectHealth {
-  const latest = getLatestDeploymentRun(args.runs);
+  // 计划态 dry-run 不代表线上健康；只用最近一次正式运行判断运行健康度。
+  const latest = args.runs?.find((run) => !run.dryRun) ?? null;
   if (latest && isRunInProgress(latest.status)) return 'deploying';
   if ((latest && isRunDegraded(latest.status)) || hasOfflineService(args.project)) {
     return 'degraded';
   }
+  const serviceCount =
+    args.project?.applications?.reduce((count, app) => count + (app.services?.length ?? 0), 0) ?? 0;
+  if (!latest || serviceCount === 0) return 'not_ready';
   return 'healthy';
 }
 
@@ -66,6 +71,7 @@ export function getProjectHealth(args: {
 export function getHealthLabelKey(health: ProjectHealth): string {
   if (health === 'deploying') return 'healthDeploying';
   if (health === 'degraded') return 'healthDegraded';
+  if (health === 'not_ready') return 'healthNotReady';
   return 'healthHealthy';
 }
 
@@ -77,5 +83,6 @@ export function getHealthLabelKey(health: ProjectHealth): string {
 export function getHealthStatusValue(health: ProjectHealth): string {
   if (health === 'deploying') return 'deploying';
   if (health === 'degraded') return 'failed';
+  if (health === 'not_ready') return 'pending';
   return 'healthy';
 }

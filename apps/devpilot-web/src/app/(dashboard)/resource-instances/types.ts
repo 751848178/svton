@@ -17,6 +17,7 @@ export interface ResourceInstance {
   createdAt: string;
   resourceType?: { id: string; key: string; name: string };
   project?: { id: string; name: string };
+  projectEnvironment?: { id: string; key: string; name: string; status: string } | null;
   request?: { id: string; title: string };
 }
 

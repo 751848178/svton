@@ -8,11 +8,12 @@
 
 import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui';
-import type { ServiceForm } from '../types';
+import type { ServiceDeploymentForm } from '../types';
+import { ServiceLifecycleFields } from './service-lifecycle-fields.component';
 
 interface ServiceBuildFieldsProps {
-  form: ServiceForm;
-  onChange: (patch: Partial<ServiceForm>) => void;
+  form: ServiceDeploymentForm;
+  onChange: (patch: Partial<ServiceDeploymentForm>) => void;
 }
 
 export function ServiceBuildFields({ form, onChange }: ServiceBuildFieldsProps) {
@@ -40,6 +41,10 @@ export function ServiceBuildFields({ form, onChange }: ServiceBuildFieldsProps) 
           placeholder={t('deployCommandPlaceholder')}
         />
       </div>
+      <ServiceLifecycleFields
+        form={form}
+        onChange={onChange}
+      />
       <Input
         value={form.healthCheckUrl}
         onChange={(e) => onChange({ healthCheckUrl: e.target.value })}

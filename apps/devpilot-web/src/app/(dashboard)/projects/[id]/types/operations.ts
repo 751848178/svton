@@ -52,6 +52,9 @@ export interface DeploymentRun {
     startedAt?: string | null;
     finishedAt?: string | null;
   } | null;
+  server?: { id: string; name: string; host: string } | null;
+  application?: { id: string; name: string; status: string } | null;
+  applicationService?: { id: string; name: string; status: string } | null;
   operationApproval?: {
     id: string;
     status: string;
@@ -68,6 +71,8 @@ export interface DeploymentRun {
   commitSha: string | null;
   healthCheckUrl?: string | null;
   commandPlan: unknown;
+  logs?: unknown;
+  result?: unknown;
   error: string | null;
   startedAt: string;
   finishedAt: string | null;

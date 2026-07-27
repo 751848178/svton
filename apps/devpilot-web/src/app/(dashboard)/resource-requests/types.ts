@@ -51,6 +51,14 @@ export interface Project {
   name: string;
 }
 
+export interface ProjectEnvironment {
+  id: string;
+  key: string;
+  name: string;
+  status: string;
+  project?: Project | null;
+}
+
 export interface ResourceRequest {
   id: string;
   title: string;
@@ -59,6 +67,7 @@ export interface ResourceRequest {
   createdAt: string;
   resourceType?: ResourceType;
   project?: Project;
+  projectEnvironment?: ProjectEnvironment | null;
   requester?: { id: string; name: string | null; email: string };
   instance?: { id: string; name: string; status: string };
   result?: { provisioning?: ProvisioningResult };

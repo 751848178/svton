@@ -1,19 +1,17 @@
 'use client';
 
-import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useBoolean, usePersistFn } from '@svton/hooks';
+import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { Button, PageHeader, ErrorBanner, MetricCard } from '@/components/ui';
 import { useApplications } from './hooks/use-applications';
 import { ApplicationCard } from './components/application-card';
-import { CreateAppModal } from './components/create-app-modal';
-import { AddServiceModal } from './components/add-service-modal';
 import { ApplicationsPageActions } from './components/applications-page-actions.component';
-import { useDeployWizardHost, DeployWizardHost } from './components/deploy-wizard/deploy-wizard-host';
+import { useDeployWizardHost } from './components/deploy-wizard/deploy-wizard-host';
 import { TypedSuspense as Suspense } from './components/suspense';
-import type { ApplicationItem } from './types';
+import { useApplicationsPageState } from './hooks/use-applications-page-state.hooks';
+import { ApplicationsDialogs } from './components/applications-dialogs.component';
 
 function ApplicationsContent() {
   const t = useTranslations('applications');
@@ -21,15 +19,13 @@ function ApplicationsContent() {
   const searchParams = useSearchParams();
   const queryProjectId = searchParams.get('projectId') || '';
   const queryEnvironmentId = searchParams.get('environmentId') || '';
+  const data = useApplications(queryProjectId, queryEnvironmentId);
   const {
     applications,
-    projects,
     environments,
-    servers,
     sites,
     resources,
     loading,
-    defaultProjectId,
     visibleApplications,
     stats,
     serviceSloRows,
@@ -42,36 +38,26 @@ function ApplicationsContent() {
     queueServiceOperations,
     setQueueServiceOperations,
     runningOperation,
-    createApplication,
-    createService,
     createDeploymentPlan,
     requestDeploymentApproval,
     runServiceOperation,
     requestServiceOperationApproval,
     reload,
-  } = useApplications(queryProjectId, queryEnvironmentId);
+  } = data;
 
-  const [appModalOpen, { setTrue: openAppModal, setFalse: closeAppModal }] = useBoolean(false);
-  const [serviceAppId, setServiceAppId] = useState('');
-  const serviceModalOpen = Boolean(serviceAppId);
+  const pageState = useApplicationsPageState({
+    shouldCreate: searchParams.get('create') === '1',
+    applications,
+    environments,
+    sites,
+    resources,
+  });
   const deployHost = useDeployWizardHost({
     environments,
     operations: { createPlan: createDeploymentPlan, requestApproval: requestDeploymentApproval },
   });
 
   const handleRetry = usePersistFn(() => reload());
-  const handleAddService = usePersistFn((app: ApplicationItem) => setServiceAppId(app.id));
-  const handleCloseServiceModal = usePersistFn(() => setServiceAppId(''));
-
-  // 添加服务弹窗预绑定应用 + 按其所属项目过滤的绑定选项。
-  const serviceApplication = applications.find((a) => a.id === serviceAppId) || null;
-  const serviceProjectId = serviceApplication?.projectId || '';
-  const serviceEnvironments = environments.filter((e) => e.project?.id === serviceProjectId);
-  const serviceSites = sites.filter((s) => !s.projectId || s.projectId === serviceProjectId);
-  const serviceResources = resources.filter(
-    (r) => !r.project?.id || r.project.id === serviceProjectId,
-  );
-
   if (loading) return <LoadingState text={tc('loading')} />;
 
   const cardProps = {
@@ -86,7 +72,8 @@ function ApplicationsContent() {
     onRunOperation: runServiceOperation,
     onRequestLive: requestServiceOperationApproval,
     onOpenDeploy: deployHost.onOpenDeploy,
-    onAddService: handleAddService,
+    onAddService: pageState.handleAddService,
+    onEditServiceDeployment: pageState.handleEditServiceDeployment,
   };
 
   return (
@@ -101,7 +88,7 @@ function ApplicationsContent() {
             onQueueDeploymentRunsChange={setQueueDeploymentRuns}
             onQueueServiceOperationsChange={setQueueServiceOperations}
             onRefresh={handleRetry}
-            onCreateApp={openAppModal}
+            onCreateApp={pageState.openAppModal}
           />
         }
       />
@@ -126,11 +113,26 @@ function ApplicationsContent() {
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-5">
-        <MetricCard label={t('metricApps')} value={stats.applications} />
-        <MetricCard label={t('metricServices')} value={stats.services} />
-        <MetricCard label={t('metricEnvironments')} value={stats.environments} />
-        <MetricCard label={t('metricDeployments')} value={stats.deployments} />
-        <MetricCard label={t('metricOperations')} value={stats.operations} />
+        <MetricCard
+          label={t('metricApps')}
+          value={stats.applications}
+        />
+        <MetricCard
+          label={t('metricServices')}
+          value={stats.services}
+        />
+        <MetricCard
+          label={t('metricEnvironments')}
+          value={stats.environments}
+        />
+        <MetricCard
+          label={t('metricDeployments')}
+          value={stats.deployments}
+        />
+        <MetricCard
+          label={t('metricOperations')}
+          value={stats.operations}
+        />
       </div>
 
       {visibleApplications.length === 0 ? (
@@ -140,7 +142,7 @@ function ApplicationsContent() {
           action={
             <Button
               size="sm"
-              onClick={openAppModal}
+              onClick={pageState.openAppModal}
             >
               + {t('newApp')}
             </Button>
@@ -158,24 +160,7 @@ function ApplicationsContent() {
         </div>
       )}
 
-      <CreateAppModal
-        open={appModalOpen}
-        onClose={closeAppModal}
-        onCreate={createApplication}
-        projects={projects}
-        defaultProjectId={defaultProjectId}
-      />
-      <AddServiceModal
-        open={serviceModalOpen}
-        onClose={handleCloseServiceModal}
-        application={serviceApplication}
-        environments={serviceEnvironments}
-        servers={servers}
-        sites={serviceSites}
-        resources={serviceResources}
-        onCreate={createService}
-      />
-      <DeployWizardHost host={deployHost} />
+      <ApplicationsDialogs data={data} pageState={pageState} deployHost={deployHost} />
     </div>
   );
 }

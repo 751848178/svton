@@ -1,7 +1,7 @@
 /**
  * 部署向导 - Step 2：计划预览（dry-run 结果）
  *
- * 单一职责：解析 previewRun.commandPlan，展示命令步骤标签 + 将注入的 .env KEY（脱敏）
+ * 单一职责：解析 previewRun.commandPlan，展示目标命令步骤 + 将注入的 .env KEY（脱敏）
  * + 明确标注"这是 dry-run 预览"。
  *
  * 复用共享纯函数 readDeploymentCommandSteps / extractInjectedEnvKeys / hasWriteEnvStep。
@@ -41,7 +41,33 @@ export function DeployWizardPlanPreview({ run }: DeployWizardPlanPreviewProps) {
                 className="flex items-start gap-2 text-sm"
               >
                 <span className="mt-0.5 text-xs text-muted-foreground">{idx + 1}.</span>
-                <span className="font-medium">{step.label}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{step.label}</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {step.cwd || t('wizardDefaultDirectory')}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {step.runPolicy === 'once_per_environment_command'
+                      ? t('wizardRunOnce')
+                      : t('wizardRunEveryTime')}
+                    {' · '}
+                    {step.failurePolicy === 'continue'
+                      ? t('wizardFailureContinue')
+                      : t('wizardFailureStop')}
+                  </p>
+                  {step.skipReason ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t('wizardSkipReason', { value: step.skipReason })}
+                    </p>
+                  ) : null}
+                  {step.command ? (
+                    <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded bg-background p-2 font-mono text-xs">
+                      {step.command}
+                    </pre>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ol>
@@ -66,9 +92,7 @@ export function DeployWizardPlanPreview({ run }: DeployWizardPlanPreviewProps) {
         ) : hasEnvStep ? (
           <p className="text-xs text-muted-foreground">{t('wizardInjectedKeysEmpty')}</p>
         ) : (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
-            {t('wizardInjectSkipped')}
-          </p>
+          <p className="text-xs text-amber-600 dark:text-amber-400">{t('wizardInjectSkipped')}</p>
         )}
       </div>
     </div>

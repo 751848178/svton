@@ -47,6 +47,11 @@ export function buildServerAgentTaskPullCommandStepPayload(
     risk: step.risk,
     timeoutSeconds: step.timeoutSeconds,
     preview: step.preview,
+    phase: step.phase,
+    runPolicy: step.runPolicy,
+    failurePolicy: step.failurePolicy,
+    decision: step.decision,
+    skipReason: step.skipReason,
   };
 }
 

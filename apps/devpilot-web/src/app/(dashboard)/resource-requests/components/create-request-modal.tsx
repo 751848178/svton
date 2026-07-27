@@ -1,23 +1,35 @@
 /** 创建资源申请弹窗 - 动态表单 + JSON spec。 */
 'use client';
 import { useTranslations } from 'next-intl';
-import type { Project, ResourceType } from '../types';
+import type { Project, ProjectEnvironment, ResourceType } from '../types';
 import { useCreateRequestForm } from '../hooks/use-create-request-form.hooks';
 import { CreateRequestFormFields } from './create-request-form-fields.component';
 
 export function CreateRequestModal({
   resourceTypes,
   projects,
+  environments,
+  defaultProjectId,
+  defaultEnvironmentId,
   onClose,
   onSuccess,
 }: {
   resourceTypes: ResourceType[];
   projects: Project[];
+  environments: ProjectEnvironment[];
+  defaultProjectId?: string;
+  defaultEnvironmentId?: string;
   onClose: () => void;
   onSuccess: () => void;
 }) {
   const t = useTranslations('resourceRequests');
-  const form = useCreateRequestForm({ resourceTypes, onSuccess });
+  const form = useCreateRequestForm({
+    resourceTypes,
+    environments,
+    defaultProjectId,
+    defaultEnvironmentId,
+    onSuccess,
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -40,7 +52,7 @@ export function CreateRequestModal({
             fields={form.fields}
             fieldValues={form.fieldValues}
             formData={form.formData}
-            hasEnvironmentField={form.hasEnvironmentField}
+            environments={environments}
             projects={projects}
             resourceTypes={resourceTypes}
             saving={form.saving}

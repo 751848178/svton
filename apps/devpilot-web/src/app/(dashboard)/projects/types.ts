@@ -30,6 +30,7 @@ export interface Project {
 export interface ProjectDeploymentRun {
   id: string;
   status: string;
+  dryRun: boolean;
   startedAt: string;
   project?: { id: string; name: string } | null;
 }

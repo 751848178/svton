@@ -62,10 +62,12 @@ export function buildProjectConfig(form: ImportProjectForm, name: string): Recor
       branch: trimmed(form.branch),
     },
     onboarding: {
-      status: 'connected',
+      status: 'configured',
       initializer: 'skipped',
       scope: form.managementScope,
-      connectedAt: new Date().toISOString(),
+      repositoryVerification: 'not_run',
+      repositoryAnalysis: 'not_available',
+      configuredAt: new Date().toISOString(),
     },
   };
   if (Object.keys(stackProfile).length > 0) config.stackProfile = stackProfile;

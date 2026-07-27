@@ -64,6 +64,20 @@ export type ServerCommandStep = {
   risk?: "low" | "medium" | "high";
   timeoutSeconds?: number;
   preview?: string;
+  phase?:
+    | "checkout"
+    | "build"
+    | "environment"
+    | "pre_start_check"
+    | "migration"
+    | "initialization"
+    | "deploy"
+    | "health_check"
+    | "cleanup";
+  runPolicy?: "every_deploy" | "once_per_environment_command";
+  failurePolicy?: "block" | "best_effort";
+  decision?: "execute" | "skip";
+  skipReason?: string;
   /**
    * Real env values rendered into the heredoc body at execution time only.
    * The persisted `command` carries a redacted mirror; this field is never

@@ -10,7 +10,7 @@ import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import { usePollingList } from '@/hooks/use-polling-list';
 import { feedback } from '@/components/ui/feedback/feedback';
-import type { ResourceRequest, ResourceType, Project } from '../types';
+import type { ResourceRequest, ResourceType, Project, ProjectEnvironment } from '../types';
 import { useProvisioningRunActions } from './use-provisioning-run-actions';
 
 export function useResourceRequests() {
@@ -29,16 +29,18 @@ export function useResourceRequests() {
   const requests = useMemo(() => requestsSWR.data ?? [], [requestsSWR.data]);
   const [resourceTypes, setResourceTypes] = useState<ResourceType[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [environments, setEnvironments] = useState<ProjectEnvironment[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState('');
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const loadData = usePersistFn(async () => {
     // requests 走 SWR mutate：手动 reload 与轮询共享缓存，不会双份请求。
-    const [requestResult, typeResult, projectResult] = await Promise.allSettled([
+    const [requestResult, typeResult, projectResult, environmentResult] = await Promise.allSettled([
       requestsSWR.mutate(),
       apiRequest<ResourceType[]>('GET:/resource-types'),
       apiRequest<Project[]>('GET:/projects'),
+      apiRequest<ProjectEnvironment[]>('GET:/project-environments', { status: 'active' }),
     ]);
     const failures: string[] = [];
 
@@ -51,6 +53,12 @@ export function useResourceRequests() {
 
     if (projectResult.status === 'fulfilled') setProjects(projectResult.value);
     else failures.push(t('loadProjectsFailed', { reason: toErrorMessage(projectResult.reason) }));
+
+    if (environmentResult.status === 'fulfilled') setEnvironments(environmentResult.value);
+    else
+      failures.push(
+        t('loadEnvironmentsFailed', { reason: toErrorMessage(environmentResult.reason) }),
+      );
 
     setDataError(failures.join('；'));
     setLoading(false);
@@ -87,7 +95,9 @@ export function useResourceRequests() {
     try {
       await apiRequest(`POST:/resource-requests/${id}/review`, { status });
       await loadData();
-      feedback.success(status === 'approved' ? t('reviewSuccessApproved') : t('reviewSuccessRejected'));
+      feedback.success(
+        status === 'approved' ? t('reviewSuccessApproved') : t('reviewSuccessRejected'),
+      );
     } catch (error) {
       console.error('Failed to review resource request:', error);
       feedback.error(t('reviewFailed'));
@@ -112,13 +122,12 @@ export function useResourceRequests() {
     requests,
     resourceTypes,
     projects,
+    environments,
     loading,
     // 手动 loadData 的失败汇总与轮询期间的 SWR 错误合并，保持原有 dataError 导出语义。
     dataError:
       dataError ||
-      (requestsSWR.error
-        ? t('loadRequestsFailed', { reason: requestsSWR.error.message })
-        : ''),
+      (requestsSWR.error ? t('loadRequestsFailed', { reason: requestsSWR.error.message }) : ''),
     counts,
     retryingId,
     ...provisioningRunActions,

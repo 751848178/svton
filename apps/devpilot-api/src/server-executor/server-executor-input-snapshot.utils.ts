@@ -11,8 +11,8 @@ import {
   readStringArray,
   toJsonValue,
 } from "./server-executor-json.utils";
+import { readCommandStepsSnapshot } from "./server-command-step-snapshot.utils";
 import {
-  ServerCommandStep,
   ServerExecutionInput,
   ServerExecutorTarget,
 } from "./server-executor.types";
@@ -149,44 +149,4 @@ function readCredentialRefSnapshot(
     displayName,
     redacted: true,
   };
-}
-
-function readCommandStepsSnapshot(value: unknown): ServerCommandStep[] {
-  if (!Array.isArray(value)) {
-    throw new BadRequestException("Server executor steps 快照无效");
-  }
-
-  return value.map((item, index) => {
-    if (!isRecord(item)) {
-      throw new BadRequestException(
-        `Server executor step ${index + 1} 快照无效`,
-      );
-    }
-
-    const risk = readOptionalString(item.risk);
-
-    return {
-      key: readRequiredString(item.key, `steps.${index}.key`),
-      label: readRequiredString(item.label, `steps.${index}.label`),
-      command: readCommandStringSnapshot(
-        item.command,
-        `steps.${index}.command`,
-      ),
-      cwd: readOptionalString(item.cwd),
-      required: typeof item.required === "boolean" ? item.required : true,
-      risk:
-        risk === "low" || risk === "medium" || risk === "high"
-          ? risk
-          : undefined,
-      timeoutSeconds: readOptionalNumber(item.timeoutSeconds),
-      preview: readOptionalString(item.preview),
-    };
-  });
-}
-
-function readCommandStringSnapshot(value: unknown, field: string) {
-  if (typeof value !== "string") {
-    throw new BadRequestException(`Server executor 快照缺少 ${field}`);
-  }
-  return value;
 }

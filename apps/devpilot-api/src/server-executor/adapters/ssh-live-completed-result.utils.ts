@@ -5,6 +5,7 @@ import {
   ServerExecutionResult,
 } from "../server-executor.types";
 import { toJsonValue, truncateSshOutput } from "./ssh-live-json.utils";
+import { extractSshLiveStepEvidence } from "./ssh-live-step-evidence.utils";
 import { SshCommandResult } from "./ssh-live.types";
 
 export function buildSshLiveExecutedResult(
@@ -15,6 +16,7 @@ export function buildSshLiveExecutedResult(
   result: SshCommandResult,
 ): ServerExecutionResult {
   const failed = result.timedOut || result.exitCode !== 0;
+  const evidence = extractSshLiveStepEvidence(result.stderr, input.steps);
 
   return {
     status: failed ? "failed" : "completed",
@@ -41,9 +43,9 @@ export function buildSshLiveExecutedResult(
         message: truncateSshOutput(result.stdout),
       },
       {
-        level: result.stderr ? "warn" : "info",
+        level: evidence.stderr ? "warn" : "info",
         stream: "stderr",
-        message: truncateSshOutput(result.stderr),
+        message: truncateSshOutput(evidence.stderr),
       },
     ]),
     result: toJsonValue({
@@ -58,7 +60,8 @@ export function buildSshLiveExecutedResult(
       remoteProcessPid: result.remoteProcessPid,
       remoteKill: result.remoteKill,
       stdoutPreview: truncateSshOutput(result.stdout),
-      stderrPreview: truncateSshOutput(result.stderr),
+      stderrPreview: truncateSshOutput(evidence.stderr),
+      stepResults: evidence.stepResults,
     }),
     error: failed
       ? result.timedOut
