@@ -2,10 +2,10 @@
  * 跨服务依赖 → 人能理解的中文描述（P0-1 §7）。
  *
  * 单一职责：把 preview.dependencies 的 stageKey 边翻译成「上游阶段 → 下游阶段」的
- * 自然语言，例如 backend 的 health_check 成功后才部署 admin：
- *   「Backend 就绪检查成功后，才会部署 Admin（应用部署）」
+ * 自然语言，例如 backend 的 health_check 成功后才执行 admin 的应用部署：
+ *   「就绪检查 - Backend 成功后，才会执行应用部署 - Admin」
  *
- * 纯函数，无副作用；依赖调用方提供 stageKey → {name,type,serviceName} 映射。
+ * 纯函数，无副作用；依赖调用方提供 stageKey → {name,type,applicationServiceId} 映射。
  */
 import { DEPENDENCY_CONDITION_LABEL } from './release-labels';
 
@@ -13,7 +13,7 @@ export interface DependencyStageView {
   key: string;
   name: string;
   type: string;
-  applicationServiceName?: string | null;
+  applicationServiceId?: string | null;
 }
 
 export interface DependencyEdgeView {
@@ -36,8 +36,9 @@ export function describeDependency(
   const upstream = stageByKey.get(edge.dependsOnStageKey);
   const downstream = stageByKey.get(edge.stageKey);
   const cond = DEPENDENCY_CONDITION_LABEL[edge.conditionType] ?? edge.conditionType;
-  const upLabel = upstream ? upstream.name : edge.dependsOnStageKey;
-  const downLabel = downstream ? downstream.name : edge.stageKey;
+  // 端点缺失时不向用户暴露原始 cuid 阶段键（如 application_deploy:cmr_abc），渲染占位。
+  const upLabel = upstream ? upstream.name : '（未知上游阶段）';
+  const downLabel = downstream ? downstream.name : '（未知下游阶段）';
   const optional = edge.required ? '' : '（可选：跳过该上游后仍会继续）';
   return `${upLabel}${cond}，才会执行${downLabel}${optional}`;
 }
@@ -53,7 +54,7 @@ export function describeCrossServiceDependencies(
   const stageByKey = new Map(stages.map((s) => [s.key, s]));
   const serviceOf = (key: string): string | undefined => {
     const s = stageByKey.get(key);
-    return s?.applicationServiceName ?? undefined;
+    return s?.applicationServiceId ?? undefined;
   };
   const cross = edges.filter((e) => {
     const a = serviceOf(e.dependsOnStageKey);

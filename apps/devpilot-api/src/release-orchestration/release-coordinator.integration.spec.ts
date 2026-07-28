@@ -1621,4 +1621,39 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
       canceledEventCount: 1,
     });
   });
+
+  // CR-P1: failed 计划也必须可取消（cancel 是逃生通道）。旧实现 assertLegalPlanTransition
+  // (failed→canceled) 非法 → 抛裸 Error → 500。transition table 现允许 failed→canceled，
+  // CAS 守卫真实状态变更。本用例验证 failed 计划可被一致取消（plan→canceled，写 1 事件，
+  // 旧 failed 阶段保持 failed 终态——cancel 的 stage 翻转集合不含 failed，这是正确的：
+  // failed 阶段已是终态，无需再翻；计划级终态以 plan.status 为准）。
+  it("P0-3 CR: a failed plan can be canceled (escape hatch), no 500", async () => {
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id, projectId: "proj-rel-int", environmentId: env.id,
+        name: "failed-cancel", status: "failed", planHash: "h-failed",
+        finishedAt: new Date(), blockedReason: "存在失败阶段",
+      },
+    });
+    await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id, teamId: team.id, key: "precheck:failed",
+        name: "failed-stage", type: "precheck", executorKind: "server_command",
+        riskLevel: "low", required: true, status: "failed", currentAttempt: 1,
+        configSnapshot: { command: "echo f" },
+      },
+    });
+    // 关键断言：不抛 500（旧实现会抛裸 Error），plan→canceled，恰一条 plan_canceled 事件。
+    await h.releasePlanService.cancel(team.id, plan.id, "user-rel-int");
+    const planFinal = await h.prisma.releasePlan.findUniqueOrThrow({ where: { id: plan.id } });
+    expect(planFinal.status).toBe("canceled");
+    const events = await h.prisma.releaseEvent.findMany({
+      where: { releasePlanId: plan.id, eventType: "release_plan.canceled" },
+    });
+    expect(events.length).toBe(1);
+    // 旧 failed 阶段保持 failed 终态（cancel 的 stage 翻转集合不含 failed，无需强翻）。
+    const stagesFinal = await h.prisma.releaseStage.findMany({ where: { releasePlanId: plan.id } });
+    expect(stagesFinal.every((s) => s.status === "failed")).toBe(true);
+  });
 });

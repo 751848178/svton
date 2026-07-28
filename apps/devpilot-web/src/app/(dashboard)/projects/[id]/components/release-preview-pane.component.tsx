@@ -17,8 +17,8 @@ export interface ReleasePreviewPaneProps {
   preview: ReleasePlanPreview;
 }
 
-// stage key 形如 "<type>:<serviceId>"；用 serviceId 占位为「服务」标签（仅用于
-// 跨服务边分组的视觉区分，真实服务名由 stage.name 承载）。
+// stage key 形如 "<type>:<serviceId>"；取 serviceId 段用于跨服务边分组
+// （真实服务名由 stage.name 承载；这里仅用于判断两端是否属于不同服务）。
 function serviceIdOf(key: string): string {
   const idx = key.indexOf(":");
   return idx >= 0 ? key.slice(idx + 1) : key;
@@ -30,7 +30,7 @@ export function ReleasePreviewPane({ preview }: ReleasePreviewPaneProps): JSX.El
       key: s.key,
       name: s.name,
       type: s.type,
-      applicationServiceName: serviceIdOf(s.key),
+      applicationServiceId: serviceIdOf(s.key),
     }));
     return describeCrossServiceDependencies(preview.dependencies, stageViews);
   }, [preview.dependencies, preview.stages]);

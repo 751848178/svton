@@ -15,7 +15,9 @@ const PLAN_TRANSITIONS: Record<ReleasePlanStatus, ReleasePlanStatus[]> = {
   blocked: ["ready", "running", "canceled"],
   succeeded: [],
   // 失败可经受控 retry 转回 running（仅在 retryStage 事务内），故非终态。
-  failed: ["running"],
+  // cancel 是逃生通道（P0-3 CR）：failed 计划也可被用户显式取消——CAS 守卫真实状态变更，
+  // 不再依赖 transition-table 拒绝（旧实现 assertLegalPlanTransition(failed→canceled) 抛裸 Error→500）。
+  failed: ["running", "canceled"],
   canceled: [],
 };
 

@@ -134,20 +134,14 @@ export interface ReleaseEvent {
   createdAt: string;
 }
 
-// 预览返回（不持久化）
+// 预览/创建请求里的服务选择器（P0-1：仅选择器字段——命令一律由服务端从
+// ApplicationService.deployConfig 解析，客户端不再承载 shell 命令，杜绝「前端命令被信任」的 RCE 面）。
 export interface ReleaseServiceInputItem {
   applicationId: string;
   applicationServiceId: string;
   environmentId: string;
   serverId?: string;
   serviceName: string;
-  preStartCheckCommand?: string;
-  migrationCommand?: string;
-  initializationCommand?: string;
-  deployCommand?: string;
-  healthCheckUrl?: string;
-  backfillCommand?: string;
-  backfillRequired?: boolean;
 }
 
 export interface ReleaseStagePreview {
@@ -164,15 +158,6 @@ export interface ReleaseStagePreview {
   commitSha?: string | null;
   gitRepo?: string | null;
   applicationServiceName?: string | null;
-}
-
-export interface ReleaseServiceDependencyInput {
-  fromServiceId: string;
-  fromStageType: string;
-  toServiceId: string;
-  toStageType: string;
-  conditionType: string;
-  required?: boolean;
 }
 
 export interface ReleasePlanPreview {
