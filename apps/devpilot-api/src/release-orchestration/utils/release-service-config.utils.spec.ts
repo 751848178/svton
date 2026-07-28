@@ -66,6 +66,7 @@ describe("readServiceReleaseDependencies (P0-1 + Item 1 fail-closed)", () => {
         toStageType: "application_deploy",
         conditionType: "succeeded",
         required: true,
+        sourceIndex: 0,
       },
     ]);
   });

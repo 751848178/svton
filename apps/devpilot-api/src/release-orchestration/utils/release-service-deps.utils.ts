@@ -26,12 +26,16 @@ import type { ReleaseDepParseError } from "./release-dep-error.utils";
 
 // deployConfig.releaseDependencies 数组里的一条声明边（从下游视角看自己依赖谁，
 // 故只填下游 = toServiceId/toStageType，fromServiceId 由所属服务填充）。
+// sourceIndex：该边在合并数组（顶层 + deployment 子层）中的原始 0-based 下标，
+// 与 parser errors 的 dependencyIndex 同源（CR B1）——resolver 用它把服务级错误
+// （自依赖/未选/不存在/跨域）的报告下标对齐用户在配置里看到的真实位置。
 export interface DeclaredServiceDependencyEdge {
   toServiceId: string;
   fromStageType: ReleaseStageType;
   toStageType: ReleaseStageType;
   conditionType: ReleaseDependencyConditionType;
   required?: boolean;
+  sourceIndex: number;
 }
 
 type EdgeField = "toServiceId" | "fromStageType" | "toStageType" | "conditionType";
@@ -131,6 +135,7 @@ function readDeclaredEdge(
     toStageType: toStageType as ReleaseStageType,
     conditionType: conditionType as ReleaseDependencyConditionType,
     required,
+    sourceIndex: index,
   };
 }
 

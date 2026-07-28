@@ -63,7 +63,9 @@ export class ReleaseDependencyResolverService {
       parsedBySvc.push({ svc, edges: parsed.edges });
     }
 
-    // 第二遍：对所有「未选 toServiceId」做两次批量探测（同 scope / 无 scope）。
+    // 第二遍：对所有「未选 toServiceId」做两次批量探测（同 scope / 同 tenant 无 scope）。
+    // CR B3：无 scope 探测必须带 teamId——否则变成跨租户 service-id 存在性预言机
+    //（同 tenant 但跨 project/env 才是唯一能真正满足发布约束的 cross-scope 情况）。
     const probeIds = new Set<string>();
     for (const { svc, edges } of parsedBySvc) {
       for (const edge of edges) {
@@ -85,7 +87,7 @@ export class ReleaseDependencyResolverService {
       const stillMissing = [...probeIds].filter((id) => !sameScopeById.has(id));
       if (stillMissing.length > 0) {
         const anyScope = await this.prisma.applicationService.findMany({
-          where: { id: { in: stillMissing } },
+          where: { id: { in: stillMissing }, teamId },
           select: { id: true, teamId: true, projectId: true, environmentId: true },
         });
         for (const r of anyScope) anyScopeRows.set(r.id, r);
@@ -93,15 +95,17 @@ export class ReleaseDependencyResolverService {
     }
 
     // 第三遍：翻译为 errors（required/optional 分流）或 warnings，并收集有效边。
+    // CR B1：dependencyIndex 用 edge.sourceIndex（parser 锚定的合并数组下标），
+    // 与 parser errors 同源，确保一条响应里多个错误的下标对齐用户配置里的真实位置。
+    // CR B2：optional 依赖对未选/不存在/跨域一律 warn+drop（不阻断）；required 才 400。
     for (const { svc, edges } of parsedBySvc) {
-      let runningIndex = 0;
       for (const edge of edges) {
         if (edge.toServiceId === svc.applicationServiceId) {
           errors.push({
             code: "RELEASE_DEP_SELF_DEPENDENCY",
             applicationServiceId: svc.applicationServiceId,
             serviceName: svc.serviceName,
-            dependencyIndex: -1,
+            dependencyIndex: edge.sourceIndex,
             toServiceId: edge.toServiceId,
             reason: "dependency points to the owning service itself",
             suggestedAction: `服务「${svc.serviceName}」的发布依赖指向自身，请到服务部署配置中修正`,
@@ -109,7 +113,6 @@ export class ReleaseDependencyResolverService {
           continue;
         }
         if (selectedIds.has(edge.toServiceId)) {
-          runningIndex++;
           out.push({
             fromServiceId: svc.applicationServiceId,
             fromStageType: edge.fromStageType,
@@ -120,7 +123,6 @@ export class ReleaseDependencyResolverService {
           });
           continue;
         }
-        const idx = runningIndex++;
         const required = edge.required ?? true;
         const isSameScope = sameScopeById.has(edge.toServiceId);
         const anyRow = anyScopeRows.get(edge.toServiceId);
@@ -136,7 +138,7 @@ export class ReleaseDependencyResolverService {
           expectedProjectId: projectId,
           expectedEnvironmentId: environmentId,
         });
-        if (code === "RELEASE_DEP_TARGET_NOT_SELECTED" && !required) {
+        if (!required) {
           warnings.push(copy.suggestedAction);
           continue;
         }
@@ -144,7 +146,7 @@ export class ReleaseDependencyResolverService {
           code,
           applicationServiceId: svc.applicationServiceId,
           serviceName: svc.serviceName,
-          dependencyIndex: idx,
+          dependencyIndex: edge.sourceIndex,
           toServiceId: edge.toServiceId,
           reason: copy.reason,
           suggestedAction: copy.suggestedAction,
