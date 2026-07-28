@@ -1,18 +1,13 @@
 /**
- * 服务发布依赖边解析（F383 Item 1 fail-closed）。
+ * 服务发布依赖边解析（F383 Item 1 fail-closed）。纯函数，不读 DB。
  *
- * 纯函数——不读 DB。从 deployConfig.releaseDependencies 数组解析该服务声明的出向
- * 跨服务发布依赖边。依赖定义源 = deployConfig.releaseDependencies（平台受控、持久化、
- * 可审计，由 application-service 写入 API 落库）。每条边只声明
- * 「下游（toServiceId / toStageType）+ 上游阶段类型（fromStageType）+ 条件/必需」，
- * 上游服务（fromServiceId）隐式为该 deployConfig 所属的 ApplicationService——
- * 避免一个服务声明跨到自己的对端，杜绝客户端伪造 fromServiceId。
+ * 从 deployConfig.releaseDependencies（顶层 + deployment 子层）解析该服务声明的出向跨服务
+ * 依赖边。每条边只声明下游（toServiceId/toStageType）+ 上游阶段（fromStageType）+ 条件/必需；
+ * fromServiceId 隐式为所属 ApplicationService，杜绝客户端伪造。
  *
- * Item 1 fail-closed：readDeclaredEdge 不再返回 undefined 静默跳过。畸形数据 /
- * 缺少必选字段 / 不支持的 stage type / 不支持的 condition type / 重复且相互冲突的依赖，
- * 全部以 ReleaseDepParseError 结构化形式返回，调用方（access service）必须把它们
- * 升级为 HTTP 400 阻断 preview/create。服务级校验（自依赖 / 未选 / 不存在 / 跨域）
- * 在 access service 完成（需要 DB），见 ReleasePlanAccessService.resolveServiceDependencies。
+ * Item 1 fail-closed：畸形 / 缺字段 / 非法 stage / 非法 condition / 冲突重复 全部以
+ * ReleaseDepParseError 结构化返回，调用方升级为 HTTP 400。服务级校验（自依赖/未选/不存在/
+ * 跨域）在 ReleaseDependencyResolverService 完成（需 DB）。
  */
 import type {
   ReleaseDependencyConditionType,
