@@ -1,16 +1,18 @@
 /**
- * F383 Item 2 — 确定性的 cancel/finalize CAS 竞态集成测试。
+ * F383 Item 2 / P1 — 确定性的 cancel/finalize CAS 竞态集成测试。
  *
  * 旧测试（release-coordinator.integration.spec.ts "finalize wins first"）只是先完整
  * finalize 再串行调用 cancel，命中的是 cancel 入口终态预检（release-cancel.service.ts:41），
  * 没有覆盖真正的旧读竞态。本文件用可控的 $transaction seam（GatedPrismaService）
- * 固定确定性交错：
+ * 固定确定性交错。P1 升级为双向 barrier：
  *   1. cancel 读 plan（status=running）+ 入口预检通过
- *   2. cancel 进入 $transaction，在执行 plan CAS 前暂停（gate）
- *   3. finalize 完成 attempt→succeeded、stage→succeeded、plan→succeeded
- *   4. 释放 gate，cancel 的 plan CAS 真正执行 → 命中 0 行（plan 已 succeeded）→ lost 分支
- *   5. 联合不变量：plan/stage/attempt=succeeded；lease 正确；无 plan_canceled；无半取消
+ *   2. cancel 进入 $transaction，到达 plan CAS 时 notifyEntered 并暂停（await release）
+ *   3. 测试 await gate.entered（确定性到达确认，非 setImmediate/概率性等待）
+ *   4. finalize 完成 attempt→succeeded、stage→succeeded、plan→succeeded
+ *   5. 测试 gate.letRelease()，cancel 的 plan CAS 真正执行 → 命中 0 行 → lost 分支
+ *   6. 联合不变量：plan/stage/attempt=succeeded；lease 正确；无 plan_canceled；无半取消
  *
+ * 场景 1b 连续重复 20 次核心竞态，验证双向 barrier 下无 flake。
  * 同时覆盖：cancel 先获胜、两个 cancel 并发、外部任务取消失败（非 BadRequest）、
  * failed-plan 取消（escape hatch）、幂等重复取消。全部经真实 Prisma + 一次性 MySQL。
  *
@@ -31,7 +33,7 @@ import { ReleaseCancelService } from "./release-cancel.service";
 import {
   assertJointState,
   buildRaceHarness,
-  deferred,
+  raceGate,
   GatedPrismaService,
   seedRunningPlanWithClaimedStage,
   type RaceHarness,
@@ -51,12 +53,13 @@ describeIntegration("F383 Item 2: deterministic cancel/finalize CAS race", () =>
   });
   jest.setTimeout(15000); // 竞态测试给足超时（gate + 真实 DB 写）
 
-  // 场景 1（核心）：cancel 读 running → 暂停 → finalize 推 plan→succeeded → 恢复 cancel → CAS 0 行 lost
-  it("stale-read race: cancel paused before CAS, finalize wins, cancel CAS hits 0 rows → no partial cancel", async () => {
+  // 场景 1（核心，P1 双向 barrier）：cancel 读 running → 到达 CAS 并暂停（entered）→
+  // finalize 推 plan→succeeded → 放行 cancel → CAS 0 行 lost。无 setImmediate/概率性等待。
+  it("stale-read race: cancel reaches CAS (entered barrier), finalize wins, cancel CAS hits 0 rows → no partial cancel", async () => {
     const seeded = await seedRunningPlanWithClaimedStage(h.prisma, h.coordinator, "stale-read");
     const { team, plan, attempt } = seeded;
 
-    const gate = deferred<void>();
+    const gate = raceGate();
     const gated = new GatedPrismaService(h.prisma, gate);
     const cancelWithGate = new ReleaseCancelService(
       gated.asPrisma(),
@@ -65,9 +68,13 @@ describeIntegration("F383 Item 2: deterministic cancel/finalize CAS race", () =>
     );
     // 1. cancel 启动：读 + 预检通过（snapshot=running）→ 进入 $transaction → 卡在 plan CAS。
     const cancelP = cancelWithGate.cancel(team.id, plan.id, "user-cas-race");
-    await Promise.race([cancelP, new Promise((r) => setImmediate(r))]);
+    // 2. 双向 barrier：等待 cancel 真正到达 plan CAS（entered）——确定性，非 timer/setImmediate。
+    await gate.entered;
+    // 此时确认 plan 仍为 running（cancel 暂停在 CAS 前，尚未写）。
+    const planBeforeFinalize = await h.prisma.releasePlan.findUniqueOrThrow({ where: { id: plan.id } });
+    expect(planBeforeFinalize.status).toBe("running");
 
-    // 2. finalize 完成（真实 prisma，不受 gate）：attempt/stage/plan → succeeded。
+    // 3. finalize 完成（真实 prisma，不受 gate）：attempt/stage/plan → succeeded。
     await h.executor.completeJob(attempt.serverExecutionJobId as string, "completed", { exitCode: 0 });
     await h.coordinator.finalizeAndAdvance(plan.id, attempt.id, {
       kind: "serverExecutionJob",
@@ -77,11 +84,11 @@ describeIntegration("F383 Item 2: deterministic cancel/finalize CAS race", () =>
     const planAfterFinalize = await h.prisma.releasePlan.findUniqueOrThrow({ where: { id: plan.id } });
     expect(planAfterFinalize.status).toBe("succeeded");
 
-    // 3. 释放 gate：cancel 的 plan CAS 现在执行 → WHERE status notIn [succeeded,canceled] 命中 0 行。
-    gate.resolve();
+    // 4. 释放 gate：cancel 的 plan CAS 现在执行 → WHERE status notIn [succeeded,canceled] 命中 0 行。
+    gate.letRelease();
     await cancelP; // CAS-lost 分支不抛（幂等语义）
 
-    // 4. 联合不变量：全部 succeeded；无 plan_canceled；lease 已被 finalize 释放（=0）。
+    // 5. 联合不变量：全部 succeeded；无 plan_canceled；lease 已被 finalize 释放（=0）。
     await assertJointState(h.prisma, plan.id, {
       planStatus: "succeeded", stageStatus: "succeeded", attemptStatus: "succeeded",
       leaseCount: 0, canceledEventCount: 0,
@@ -103,6 +110,35 @@ describeIntegration("F383 Item 2: deterministic cancel/finalize CAS race", () =>
       where: { id: attempt.serverExecutionJobId as string },
     });
     expect(["completed", "cancelled"]).toContain(sej.status);
+  });
+
+  // 场景 1b（P1 确定性保证）：连续重复运行核心竞态 20 次，双向 barrier 下不得出现 flake。
+  it("stale-read race repeated 20× via entered/release barrier — no flake", async () => {
+    for (let i = 0; i < 20; i++) {
+      const seeded = await seedRunningPlanWithClaimedStage(h.prisma, h.coordinator, `flake-${i}`);
+      const { team, plan, attempt } = seeded;
+      const gate = raceGate();
+      const gated = new GatedPrismaService(h.prisma, gate);
+      const cancelWithGate = new ReleaseCancelService(
+        gated.asPrisma(),
+        new ReleasePlanRepository(gated.asPrisma()),
+        h.executor as never,
+      );
+      const cancelP = cancelWithGate.cancel(team.id, plan.id, "user-cas-race");
+      await gate.entered; // 确定性到达确认，无 timer/setImmediate
+      await h.executor.completeJob(attempt.serverExecutionJobId as string, "completed", { exitCode: 0 });
+      await h.coordinator.finalizeAndAdvance(plan.id, attempt.id, {
+        kind: "serverExecutionJob",
+        id: attempt.serverExecutionJobId as string,
+        result: { status: "completed", result: { exitCode: 0 } },
+      });
+      gate.letRelease();
+      await cancelP;
+      await assertJointState(h.prisma, plan.id, {
+        planStatus: "succeeded", stageStatus: "succeeded", attemptStatus: "succeeded",
+        leaseCount: 0, canceledEventCount: 0,
+      });
+    }
   });
 
   // 场景 2：cancel 先获胜，finalize 后到达 → finalize 幂等短路（attempt 已 canceled）。

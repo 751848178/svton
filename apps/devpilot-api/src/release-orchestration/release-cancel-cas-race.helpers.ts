@@ -42,10 +42,33 @@ export function deferred<T = void>() {
   return { promise, resolve, reject };
 }
 
-// 包装一个 Prisma.TransactionClient：releasePlan.updateMany（cancel 的 CAS）执行前等待 gate。
+// P1 双向 barrier：
+// - entered：cancel 已到达 plan CAS（releasePlan.updateMany）并暂停——resolve 它证明
+//   cancel 真的进入了竞态窗口，不再依赖 setImmediate/概率性等待。
+// - release：测试在 finalize 完成后才 resolve，放行 CAS 真正执行。
+export interface RaceGate {
+  entered: Promise<void>;
+  release: Promise<void>;
+  notifyEntered: () => void;
+  letRelease: () => void;
+}
+
+export function raceGate(): RaceGate {
+  const entered = deferred<void>();
+  const release = deferred<void>();
+  return {
+    entered: entered.promise,
+    release: release.promise,
+    notifyEntered: entered.resolve,
+    letRelease: release.resolve,
+  };
+}
+
+// 包装一个 Prisma.TransactionClient：releasePlan.updateMany（cancel 的 CAS）到达时
+// 先 notifyEntered（证明 cancel 已进入竞态窗口），再 await release，最后真正执行。
 // 其余方法透传到真实 tx。cancel 的 $transaction 内还会用 releaseStage.updateMany /
 // releaseStageAttempt.updateMany / releaseConcurrencyLease.deleteMany / releaseEvent.create，全部透传。
-function wrapTxGate(realTx: unknown, gate: { promise: Promise<void> }): unknown {
+function wrapTxGate(realTx: unknown, gate: RaceGate): unknown {
   return new Proxy(realTx as object, {
     get(target, prop) {
       if (prop === "releasePlan") {
@@ -54,7 +77,8 @@ function wrapTxGate(realTx: unknown, gate: { promise: Promise<void> }): unknown 
           get(rpTarget: object, rpProp: string) {
             if (rpProp === "updateMany") {
               return async (args: unknown) => {
-                await gate.promise;
+                gate.notifyEntered();
+                await gate.release;
                 return (rpTarget as { updateMany: (a: unknown) => Promise<unknown> }).updateMany(args);
               };
             }
@@ -74,7 +98,7 @@ function wrapTxGate(realTx: unknown, gate: { promise: Promise<void> }): unknown 
 export class GatedPrismaService {
   constructor(
     private readonly real: PrismaService,
-    private readonly gate: { promise: Promise<void> },
+    private readonly gate: RaceGate,
   ) {}
 
   asPrisma(): PrismaService {
