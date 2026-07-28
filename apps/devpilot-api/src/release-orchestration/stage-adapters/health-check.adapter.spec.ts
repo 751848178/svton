@@ -5,8 +5,8 @@
  * - logSummary 去标识化（仅 host/port，无完整 URL）
  */
 import { HealthCheckStageAdapter } from "./health-check.adapter";
+import { ServerCommandStageAdapter } from "./server-command.adapter";
 import type {
-  ReleaseStageAdapter,
   ReleaseStageExecutionContext,
   ReleaseStageExecutionResult,
 } from "./release-stage-adapter.types";
@@ -64,13 +64,13 @@ describe("HealthCheckStageAdapter.execute", () => {
       status: "queued",
       serverExecutionJobId: "sej-1",
     };
-    const delegate: ReleaseStageAdapter & {
-      queue: jest.Mock<Promise<ReleaseStageExecutionResult>, [ReleaseStageExecutionContext]>;
-    } = {
-      kind: "server_command",
+    // HealthCheckStageAdapter 现注入具体 ServerCommandStageAdapter（Nest 按类 token 解析）。
+    // 测试只需 queue 方法行为，用 partial mock + as ServerCommandStageAdapter 满足构造签名。
+    const delegate = {
+      kind: "server_command" as const,
       execute: jest.fn(),
       queue: jest.fn().mockResolvedValue(queued),
-    };
+    } as unknown as ServerCommandStageAdapter;
     const adapter = new HealthCheckStageAdapter(delegate);
     const r = await adapter.execute(
       mkCtx({
@@ -83,7 +83,8 @@ describe("HealthCheckStageAdapter.execute", () => {
     );
 
     expect(delegate.queue).toHaveBeenCalledTimes(1);
-    const passedCtx = delegate.queue.mock.calls[0][0];
+    const queueMock = delegate.queue as unknown as jest.Mock;
+    const passedCtx = queueMock.mock.calls[0][0];
     const cmd = (passedCtx.configSnapshot as { command: string }).command;
     // 委托命令是 curl 循环
     expect(cmd).toContain("for i in $(seq 1 4)");

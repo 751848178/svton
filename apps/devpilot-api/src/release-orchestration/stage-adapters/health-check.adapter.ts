@@ -11,6 +11,7 @@
  */
 import { Injectable } from "@nestjs/common";
 import { buildHealthCheckCurlCommand } from "./health-check-curl.utils";
+import { ServerCommandStageAdapter } from "./server-command.adapter";
 import type {
   ReleaseStageAdapter,
   ReleaseStageExecutionContext,
@@ -26,12 +27,10 @@ const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 export class HealthCheckStageAdapter implements ReleaseStageAdapter {
   readonly kind = "server_command"; // 复用 server_command 执行底座（SEJ + SSH/Agent）
 
+  // 注入具体 ServerCommandStageAdapter（Nest 按类 token 解析），而非 ReleaseStageAdapter
+  // 接口类型——后者无 provider 绑定，生产 DI 无法解析（第二轮遗留启动阻塞）。
   constructor(
-    private readonly serverCommandAdapter: ReleaseStageAdapter & {
-      queue?: (
-        ctx: ReleaseStageExecutionContext,
-      ) => Promise<ReleaseStageExecutionResult>;
-    },
+    private readonly serverCommandAdapter: ServerCommandStageAdapter,
   ) {}
 
   async execute(

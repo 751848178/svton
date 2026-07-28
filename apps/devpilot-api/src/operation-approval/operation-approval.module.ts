@@ -21,6 +21,9 @@ import { OperationApprovalService } from "./operation-approval.service";
     OperationApprovalRequirementRepository,
     OperationApprovalRequirementService,
   ],
-  exports: [OperationApprovalService],
+  // OperationApprovalRepository 必须导出：ReleaseOrchestrationModule 的
+  // ReleaseApprovalLifecycleService 直接注入它（F383 审批生命周期）。第二轮引入该 service
+  // 时遗漏了导出，导致生产 Nest 启动时 DI 无法解析（测试因手工构造 service 未暴露）。
+  exports: [OperationApprovalService, OperationApprovalRepository],
 })
 export class OperationApprovalModule {}
