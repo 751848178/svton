@@ -10,6 +10,7 @@ import { useSetState, usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import { feedback } from '@/components/ui/feedback/feedback';
 import type { Server } from '../types';
+import type { ConnectionTestResult } from '../../types';
 
 interface EditForm {
   name: string;
@@ -27,6 +28,7 @@ export function useServerDetail(serverId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useSetState<EditForm>({
@@ -68,19 +70,20 @@ export function useServerDetail(serverId: string) {
   const testConnection = usePersistFn(async () => {
     setTesting(true);
     try {
-      const result = await apiRequest<{
-        success: boolean;
-        status: string;
-        latency: number;
-        message: string;
-      }>(`POST:/servers/${serverId}/test`);
+      const result = await apiRequest<ConnectionTestResult>(
+        `POST:/servers/${serverId}/test`,
+      );
+      setTestResult(result);
       setServer((prev) => (prev ? { ...prev, status: result.status as Server['status'] } : null));
+      // 不做假成功：仅在「可用于实时发布」时给成功 Toast；其余按判定分类提示。
       if (result.success) {
         feedback.success(result.message, {
           description: t('latencyMs', { latency: result.latency }),
         });
       } else {
-        feedback.error(result.message);
+        feedback.error(result.message, {
+          description: result.recommendation || undefined,
+        });
       }
     } catch (error) {
       feedback.error(t('testFailed'), {
@@ -141,6 +144,7 @@ export function useServerDetail(serverId: string) {
     error,
     reload: load,
     testing,
+    testResult,
     detecting,
     editing,
     editForm,

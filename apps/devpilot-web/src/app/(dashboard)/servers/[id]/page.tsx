@@ -9,6 +9,7 @@ import { Button, ErrorBanner, StatusTag } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useServerDetail } from './hooks/use-server-detail';
 import { ServerDetailView } from './components/server-detail-view';
+import { ServerConnectionResultPanel } from './components/server-connection-result-panel.component';
 
 /** 服务器状态值 → servers 命名空间 i18n key。 */
 const SERVER_STATUS_KEY: Record<string, string> = {
@@ -29,6 +30,7 @@ export default function ServerDetailPage() {
     error,
     reload,
     testing,
+    testResult,
     detecting,
     editing,
     editForm,
@@ -129,6 +131,7 @@ export default function ServerDetailPage() {
             >
               {t('addProxyConfig')}
             </Button>
+            {testResult ? <ServerConnectionResultPanel result={testResult} /> : null}
           </div>
         </div>
         <div className="rounded-lg border border-destructive/50 p-6">

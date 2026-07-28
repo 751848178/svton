@@ -185,6 +185,17 @@ export interface ReleasePlanPreview {
   approvalRequired: Array<{ stageKey: string; reason: string }>;
   /** optional 依赖警告（后端 P0-2b 回传；旧后端可能不带该字段，消费方需容错）。 */
   warnings?: ReleaseDepWarning[];
+  /** F383 §B — 执行器能力预检警告（live 未启用 / authType 不受支持 / 服务器缺失）。 */
+  executorWarnings?: ReleaseExecutorPreflightWarning[];
+}
+
+/** 执行器预检警告（与后端 ExecutorPreflightWarningSnapshot 对齐）。 */
+export interface ReleaseExecutorPreflightWarning {
+  applicationServiceId: string;
+  serviceName: string;
+  serverId: string;
+  reason: string;
+  suggestedAction: string;
 }
 
 /** 发布编排能力（GET /release-plans/capability）。enabled=false 禁用写动作；canCancel 恒真（逃生通道）。 */

@@ -11,6 +11,7 @@
 import { Injectable } from "@nestjs/common";
 import { ReleasePlanService } from "./release-plan.service";
 import { ReleasePlanAccessService } from "./release-plan-access.service";
+import { ReleaseExecutorPreflightService } from "./release-executor-preflight.service";
 import type {
   CreateReleasePlanDto,
   PreviewReleasePlanDto,
@@ -34,6 +35,7 @@ export class ReleasePlanOrchestratorService {
   constructor(
     private readonly releasePlanService: ReleasePlanService,
     private readonly access: ReleasePlanAccessService,
+    private readonly executorPreflight: ReleaseExecutorPreflightService,
   ) {}
 
   async preview(input: PreviewPlanInput) {
@@ -54,6 +56,11 @@ export class ReleasePlanOrchestratorService {
         dto.environmentId,
         services,
       );
+    // F383 §B：预览阶段做执行器能力预检，把「不兼容的服务器」提前暴露给用户（不阻断）。
+    const executorWarnings = await this.executorPreflight.computeWarnings(
+      input.teamId,
+      services,
+    );
     return this.releasePlanService.preview({
       projectId: input.projectId,
       environmentId: dto.environmentId,
@@ -64,6 +71,7 @@ export class ReleasePlanOrchestratorService {
       services,
       serviceDependencies,
       dependencyWarnings,
+      executorWarnings,
     });
   }
 
@@ -82,6 +90,10 @@ export class ReleasePlanOrchestratorService {
         dto.environmentId,
         services,
       );
+    const executorWarnings = await this.executorPreflight.computeWarnings(
+      input.teamId,
+      services,
+    );
     return this.releasePlanService.create({
       teamId: input.teamId,
       projectId: input.projectId,
@@ -93,6 +105,7 @@ export class ReleasePlanOrchestratorService {
       services,
       serviceDependencies,
       dependencyWarnings,
+      executorWarnings,
       createdByUserId: input.actorUserId,
       expectedPlanHash: dto.expectedPlanHash,
     });

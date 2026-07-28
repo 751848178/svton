@@ -2,6 +2,15 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../common/crypto/crypto.service';
 import { CreateServerDto, UpdateServerDto, AuthType } from './dto/server.dto';
+import {
+  ServerConnectionCapabilityService,
+  ServerConnectionCapability,
+} from './server-connection-capability.service';
+
+export type TestConnectionResult = ServerConnectionCapability & {
+  success: boolean;
+  status: string;
+};
 
 @Injectable()
 export class ServerService {
@@ -10,6 +19,7 @@ export class ServerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cryptoService: CryptoService,
+    private readonly capabilityService: ServerConnectionCapabilityService,
   ) {}
 
   // AES-256-GCM 加密
@@ -152,49 +162,32 @@ export class ServerService {
     return { success: true };
   }
 
-  // 测试连接（简化版，实际需要 SSH 库）
-  async testConnection(teamId: string, id: string) {
-    const server = await this.prisma.server.findFirst({
-      where: { id, teamId },
-    });
-
-    if (!server) {
+  // 测试连接：委托 capability service 做网络/认证/执行器三段判定，
+  // 再据此回写状态并补齐向后兼容的 success/status/message 字段。
+  async testConnection(teamId: string, id: string): Promise<TestConnectionResult> {
+    const exists = await this.prisma.server.findFirst({ where: { id, teamId } });
+    if (!exists) {
       throw new NotFoundException('服务器不存在');
     }
 
-    const startTime = Date.now();
+    const cap = await this.capabilityService.verifyCapability(teamId, id);
+    // online 仅在「网络可达 + 认证通过 + 执行器可用」三者齐备时；
+    // 认证未通过或执行器未启用都归为 degraded，避免把不可用伪装成 online。
+    const status = cap.executorCompatible
+      ? 'online'
+      : cap.networkReachable
+        ? 'degraded'
+        : 'offline';
 
-    try {
-      // 简化的连接测试：使用 TCP 连接测试端口是否开放
-      const isReachable = await this.checkPortReachable(server.host, server.port);
-      const latency = Date.now() - startTime;
+    await this.prisma.server.update({ where: { id }, data: { status } }).catch(() => {
+      // 状态回写失败不应掩盖真实的连接判定结果。
+    });
 
-      const status = isReachable ? 'online' : 'offline';
-
-      await this.prisma.server.update({
-        where: { id },
-        data: { status },
-      });
-
-      return {
-        success: isReachable,
-        status,
-        latency,
-        message: isReachable ? '连接成功' : '无法连接到服务器',
-      };
-    } catch (error) {
-      await this.prisma.server.update({
-        where: { id },
-        data: { status: 'offline' },
-      });
-
-      return {
-        success: false,
-        status: 'offline',
-        latency: Date.now() - startTime,
-        message: error instanceof Error ? error.message : '连接失败',
-      };
-    }
+    return {
+      ...cap,
+      success: cap.executorCompatible,
+      status,
+    };
   }
 
   // 检测服务器上安装的服务
@@ -246,32 +239,6 @@ export class ServerService {
       authType: server.authType,
       credentials: this.decrypt(server.credentials),
     };
-  }
-
-  private async checkPortReachable(host: string, port: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      const net = require('net');
-      const socket = new net.Socket();
-
-      socket.setTimeout(5000);
-
-      socket.on('connect', () => {
-        socket.destroy();
-        resolve(true);
-      });
-
-      socket.on('timeout', () => {
-        socket.destroy();
-        resolve(false);
-      });
-
-      socket.on('error', () => {
-        socket.destroy();
-        resolve(false);
-      });
-
-      socket.connect(port, host);
-    });
   }
 
   private formatServerResponse(server: any) {

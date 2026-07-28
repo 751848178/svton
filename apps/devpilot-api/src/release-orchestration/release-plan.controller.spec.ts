@@ -72,7 +72,14 @@ describe("ReleasePlanController", () => {
       prisma as never,
       access as unknown as ControlAccessPolicyService,
     );
-    const orchestrator = new ReleasePlanOrchestratorService(service as never, accessService);
+    const executorPreflight = {
+      computeWarnings: jest.fn().mockResolvedValue([]),
+    };
+    const orchestrator = new ReleasePlanOrchestratorService(
+      service as never,
+      accessService,
+      executorPreflight as never,
+    );
     const stageActionService = {
       retryStage: jest.fn().mockResolvedValue(undefined),
       reRequestApproval: jest.fn().mockResolvedValue(undefined),

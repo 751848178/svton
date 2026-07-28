@@ -82,6 +82,18 @@ export function ReleasePreviewPane({ preview }: ReleasePreviewPaneProps): JSX.El
           ))}
         </div>
       )}
+      {preview.executorWarnings && preview.executorWarnings.length > 0 && (
+        <div className="space-y-1 rounded border border-rose-300/50 bg-rose-50 p-2 dark:bg-rose-950/30">
+          <div className="text-xs font-medium text-rose-700 dark:text-rose-300">
+            执行器能力提示（{preview.executorWarnings.length}，建议修复后再发布）
+          </div>
+          {preview.executorWarnings.map((w, i) => (
+            <div key={`${w.applicationServiceId}-${w.serverId}-${i}`} className="text-xs text-rose-800 dark:text-rose-200">
+              · [{w.serviceName}] {w.suggestedAction}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

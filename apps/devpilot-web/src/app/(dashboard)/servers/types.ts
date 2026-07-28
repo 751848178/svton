@@ -33,4 +33,10 @@ export interface ConnectionTestResult {
   status: string;
   latency: number;
   message: string;
+  /** F383 §B — 三段能力判定（向后兼容：旧字段保留）。 */
+  authType?: string | null;
+  networkReachable?: boolean;
+  authenticationVerified?: boolean;
+  executorCompatible?: boolean;
+  recommendation?: string | null;
 }

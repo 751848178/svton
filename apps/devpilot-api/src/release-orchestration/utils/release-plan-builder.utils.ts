@@ -55,6 +55,9 @@ export interface ReleasePlanBuildInput {
   serviceDependencies?: ServiceDependencyEdge[];
   // P0-2(b)：optional 依赖目标缺失/跨域的结构化警告（不阻断，回传 UI 预览区）。
   dependencyWarnings?: ReleaseDepWarning[];
+  // F383 §B：执行器能力预检警告（live 未启用 / authType 不受支持 / 服务器缺失）。
+  // 与 dependencyWarnings 同为非阻断提示，但语义独立，UI 单独展示。
+  executorWarnings?: ExecutorPreflightWarningSnapshot[];
 }
 
 export interface ReleaseStageNode extends ReleaseStageDefinition {
@@ -78,6 +81,17 @@ export interface ReleasePlanPreview {
   approvalRequired: Array<{ stageKey: string; reason: string }>;
   // P0-2(b)：optional 依赖警告（UI 预览区展示，不阻断创建）。
   warnings: ReleaseDepWarning[];
+  // F383 §B：执行器能力预检警告（UI 预览区单独展示，不阻断创建）。
+  executorWarnings: ExecutorPreflightWarningSnapshot[];
+}
+
+/** 执行器预检警告的快照形状（与 ReleaseExecutorPreflightWarning 对齐，可序列化）。 */
+export interface ExecutorPreflightWarningSnapshot {
+  applicationServiceId: string;
+  serviceName: string;
+  serverId: string;
+  reason: string;
+  suggestedAction: string;
 }
 
 import type { ReleaseDependencyConditionType } from "../types/release-orchestration.types";
@@ -194,6 +208,7 @@ export function buildReleasePlan(
       riskSummary: [],
       approvalRequired,
       warnings: dependencyWarnings,
+      executorWarnings: input.executorWarnings ?? [],
     },
   };
 }
