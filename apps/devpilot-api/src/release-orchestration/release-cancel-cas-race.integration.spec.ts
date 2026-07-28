@@ -86,6 +86,8 @@ describeIntegration("F383 Item 2: deterministic cancel/finalize CAS race", () =>
       planStatus: "succeeded", stageStatus: "succeeded", attemptStatus: "succeeded",
       leaseCount: 0, canceledEventCount: 0,
     });
+    // CR M1：显式断言 cancel 未写 canceledAt（CAS-lost 分支不触碰 plan 行）。
+    expect(planAfterFinalize.canceledAt).toBeNull();
     // 显式断言无半取消：没有 stage/attempt 被翻成 canceled。
     const canceledStages = await h.prisma.releaseStage.findMany({
       where: { releasePlanId: plan.id, status: "canceled" },
@@ -95,6 +97,12 @@ describeIntegration("F383 Item 2: deterministic cancel/finalize CAS race", () =>
     });
     expect(canceledStages).toHaveLength(0);
     expect(canceledAttempts).toHaveLength(0);
+    // CR FC1：cancel 的 best-effort 外部 cancelJob 可能在 finalize 的 completeJob 之前或之后
+    // 跑到 → SEJ 终态非确定（completed 或 cancelled），但必须是终态（无半取消留悬空作业）。
+    const sej = await h.prisma.serverExecutionJob.findUniqueOrThrow({
+      where: { id: attempt.serverExecutionJobId as string },
+    });
+    expect(["completed", "cancelled"]).toContain(sej.status);
   });
 
   // 场景 2：cancel 先获胜，finalize 后到达 → finalize 幂等短路（attempt 已 canceled）。
@@ -129,7 +137,11 @@ describeIntegration("F383 Item 2: deterministic cancel/finalize CAS race", () =>
       h.cancelService.cancel(team.id, plan.id, "user-cas-race"),
       h.cancelService.cancel(team.id, plan.id, "user-cas-race-2"),
     ]);
-    expect(results.every((r) => r.status === "fulfilled")).toBe(true);
+    // CR F1：两个 cancel 都读 running 旧快照时，第二个走 CAS-lost（fulfilled）；若第二个读
+    // 到第一个已提交的 canceled，则入口预检抛 ConflictException（rejected）。两种都是合法终态，
+    // 故只断言「至少一个 fulfilled（CAS 获胜）」；下方 canceledEventCount:1 才是「恰好一胜」的硬证据。
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    expect(fulfilled.length).toBeGreaterThanOrEqual(1);
     await assertJointState(h.prisma, plan.id, {
       planStatus: "canceled", stageStatus: "canceled", attemptStatus: "canceled",
       leaseCount: 0, canceledEventCount: 1,
@@ -180,6 +192,11 @@ describeIntegration("F383 Item 2: deterministic cancel/finalize CAS race", () =>
       where: { releasePlanId: plan.id, eventType: "release_plan.canceled" },
     });
     expect(events.length).toBe(1);
+    // CR M2：failed plan 无活跃租约（failed stage 不持有 lease）。
+    const leaseCount = await h.prisma.releaseConcurrencyLease.count({
+      where: { releaseStage: { releasePlanId: plan.id } },
+    });
+    expect(leaseCount).toBe(0);
     void env;
   });
 
