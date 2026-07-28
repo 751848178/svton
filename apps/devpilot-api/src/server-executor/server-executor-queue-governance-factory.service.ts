@@ -9,6 +9,7 @@ import { ServerExecutorQueueClaimService } from "./server-executor-queue-claim.s
 import { ServerExecutorQueuedJobProcessingService } from "./server-executor-queued-job-processing.service";
 import { ServerExecutorQueueWorkerService } from "./server-executor-queue-worker.service";
 import { ServerExecutorRemoteExecutionMetadataService } from "./server-executor-remote-execution-metadata.service";
+import type { ResolveDevpilotSecretsFn } from "./server-executor-secret-reapply.utils";
 import { ServerExecutorStaleRemoteCleanupService } from "./server-executor-stale-remote-cleanup.service";
 import { ServerExecutorStaleRunningJobRecoveryService } from "./server-executor-stale-running-job-recovery.service";
 import {
@@ -37,6 +38,8 @@ type QueueGovernanceFactoryOptions = {
   ) => Promise<unknown>;
   runJob: RunJob;
   processNextQueuedJob: () => Promise<{ processed: boolean }>;
+  // F383 P0-A：队列执行边界重解析 $DEVPILOT_* 秘密（可选；非发布场景不提供）。
+  resolveDevpilotSecrets?: ResolveDevpilotSecretsFn;
   lockExpiresAt: (now: Date) => Date;
   queueRetryDelayMs: () => number;
   queueRecoveryBatchSize: () => number;
@@ -89,6 +92,7 @@ export class ServerExecutorQueueGovernanceFactoryService {
         this.options.recoverStaleRunningJobs,
         this.options.runJob,
         this.options.queueRetryDelayMs,
+        this.options.resolveDevpilotSecrets,
       );
     const queueWorkerService = new ServerExecutorQueueWorkerService({
       workerId: this.options.workerId,

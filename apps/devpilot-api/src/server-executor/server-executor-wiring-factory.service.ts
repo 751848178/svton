@@ -3,6 +3,7 @@ import type { AuditEventService } from "../audit-event";
 import { LogCollectionIngestionService } from "../log-center/log-collection-ingestion.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { ReleaseCoordinatorPort } from "../release-orchestration/release-coordinator.port";
+import type { ResolveDevpilotSecretsFn } from "./server-executor-secret-reapply.utils";
 import type { DistributedLock } from "../common/lock/distributed-lock";
 import { ServerAgentServerExecutorAdapter } from "./adapters/server-agent.adapter";
 import { ScriptPlanServerExecutorAdapter } from "./adapters/script-plan.adapter";
@@ -40,6 +41,8 @@ type ServerExecutorWiringFactoryOptions = {
   jobQueue?: JobQueuePort;
   // 发布编排完成回调端口（F383 D3）；可选——flag 关闭时为 undefined。
   releaseCoordinator?: ReleaseCoordinatorPort;
+  // F383 P0-A：发布凭据解析回调（队列执行边界重解析 $DEVPILOT_* 秘密）；可选。
+  resolveDevpilotSecrets?: ResolveDevpilotSecretsFn;
   sshLiveAdapter: SshLiveServerExecutorAdapter;
   serverAgentAdapter?: ServerAgentServerExecutorAdapter;
   scriptPlanAdapter: ScriptPlanServerExecutorAdapter;
@@ -117,6 +120,7 @@ export class ServerExecutorWiringFactoryService {
         runJob: (input, job) =>
           executionCoreServices.jobRunnerService.run(input, job),
         processNextQueuedJob: this.options.processNextQueuedJob,
+        resolveDevpilotSecrets: this.options.resolveDevpilotSecrets,
         lockExpiresAt: (now) =>
           this.options.runtimeConfigService.lockExpiresAt(now),
         queueRetryDelayMs: () =>

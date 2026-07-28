@@ -32,6 +32,7 @@ import type { HeaderBag } from "./server-agent-auth.service";
 import { ServerCommandPolicyService } from "./server-command-policy.service";
 import { ServerAgentCapabilityService } from "./server-agent-capability.service";
 import { ServerExecutorRemoteExecutionMetadataService } from "./server-executor-remote-execution-metadata.service";
+import { ServerExecutorDevpilotSecretResolverService } from "./server-executor-devpilot-secret-resolver.service";
 import { ServerExecutorRuntimeConfigService } from "./server-executor-runtime-config.service";
 import { ServerExecutorSupervisorService } from "./server-executor-supervisor.service";
 import type {
@@ -74,6 +75,8 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @Inject(RELEASE_COORDINATOR_PORT)
     private readonly releaseCoordinator?: ReleaseCoordinatorPort,
+    // F383 P0-A：$DEVPILOT_* 秘密解析（域内自包含，避免跨模块循环依赖）。
+    private readonly devpilotSecretResolver?: ServerExecutorDevpilotSecretResolverService,
     @Optional()
     @Inject(DISTRIBUTED_LOCK)
     private readonly distributedLock: DistributedLock = new NoopDistributedLock(),
@@ -110,6 +113,9 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       recoverStaleRunningJobs: (teamId, actorId) =>
         this.recoverStaleRunningJobs(teamId, actorId),
       processNextQueuedJob: () => this.processNextQueuedJob(),
+      resolveDevpilotSecrets: this.devpilotSecretResolver
+        ? (t, p, e) => this.devpilotSecretResolver!.resolveSecretEnv(t, p, e)
+        : undefined,
     }).create();
   }
 

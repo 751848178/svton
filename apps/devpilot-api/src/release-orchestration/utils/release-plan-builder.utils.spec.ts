@@ -54,12 +54,11 @@ describe("release-plan-builder buildReleasePlan", () => {
     expect(keys).toContain("health_check:svc-admin");
   });
 
-  // F383 回归：schema_migration 的 configSnapshot.command 必须保留真实 DB 连接串密码，
-  // 不能在 builder 层被脱敏成 [REDACTED]。此前 release-plan.service.create() 对
-  // configSnapshot 做 redactSecretsInObject，把 mysql://root:password@ 冻结成
-  // mysql://root:[REDACTED]@ 并导致执行期 P1000 认证失败。builder 这里保证执行配置
-  // 原样；展示/审计脱敏由 inputSnapshot 与 get()/list() 响应级 redact 负责。
-  it("keeps the real inline DB password in schema_migration configSnapshot.command", () => {
+  // F383 P0-A 回归：schema_migration 的 configSnapshot.command 必须在 builder 层就地脱敏，
+  // 内联 DB 密码改写为 $DEVPILOT_DATABASE_URL 占位——明文秘密绝不进入持久化模型。
+  // 真实值在执行边界由 ReleaseCredentialResolverService 解析并经 step.secretEnvExport
+  // （仅内存，落库前被 stripSecretEnv 剥离）注入。
+  it("redacts the inline DB password in schema_migration configSnapshot.command to a placeholder", () => {
     const withPassword: ReleaseServiceInput[] = [
       {
         applicationId: "app-backend",
@@ -80,8 +79,9 @@ describe("release-plan-builder buildReleasePlan", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const mig = r.value.stages.find((s) => s.key === "schema_migration:svc-backend");
-    expect(mig?.configSnapshot?.command).toContain("root:s3cret-pw@");
-    expect(mig?.configSnapshot?.command).not.toContain("[REDACTED]");
+    expect(mig?.configSnapshot?.command).toContain("$DEVPILOT_DATABASE_URL");
+    expect(mig?.configSnapshot?.command).not.toContain("s3cret-pw");
+    expect(mig?.configSnapshot?.command).not.toContain("root:s3cret-pw@");
   });
 
   it("chains backend stages in dependency order", () => {

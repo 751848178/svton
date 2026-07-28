@@ -84,6 +84,17 @@ export function redactCommandSecrets(command: string): RedactedCommandResult {
 }
 
 /**
+ * 扫描命令里已有的 `$DEVPILOT_<KEY>` / `${DEVPILOT_<KEY>}` 占位引用，返回变量名集合。
+ * 用于命令已在构建期脱敏（configSnapshot 仅含占位）时，在执行边界识别要解析哪些秘密。
+ */
+const DEVPILOT_REF_RE = /\$\{?(DEVPILOT_[A-Z0-9_]+)\}?/g;
+export function extractDevpilotVarRefs(command: string): string[] {
+  const names = new Set<string>();
+  for (const m of command.matchAll(DEVPILOT_REF_RE)) names.add(m[1]);
+  return [...names];
+}
+
+/**
  * 把已解析的真实秘密值映射回 step.secretEnvExport 需要的形状。
  * 入参：redactCommandSecrets 返回的变量名集合 + 平台解析出的 {KEY: value} 明文映射。
  * 只保留命令实际引用的变量名对应的值（避免把无关平台秘密带入执行环境）。

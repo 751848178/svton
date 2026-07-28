@@ -43,7 +43,7 @@ services:
       # apps/devpilot-api/src/resource-request/resource-request-provisioning.service.ts.
       RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED: "true"
       # Enable project-level release orchestration (F383) for local verification.
-      DEVPILOT_RELEASE_ORCHESTRATION_ENABLED: "false"
+      DEVPILOT_RELEASE_ORCHESTRATION_ENABLED: "true"
     volumes:
       # Other secrets (JWT, OAuth...) come from the local .env; env above wins
       - ./apps/devpilot-api/.env:/app/apps/devpilot-api/.env:ro

@@ -6,6 +6,7 @@
 import {
   redactCommandSecrets,
   buildSecretEnvExport,
+  extractDevpilotVarRefs,
 } from "./release-credential-injection.utils";
 
 const SECRET_DB_URL = "mysql://root:Devpilot@2025@host:3306/db";
@@ -104,5 +105,25 @@ describe("buildSecretEnvExport", () => {
   it("returns empty object when resolved env is empty (secrets not provisioned)", () => {
     const out = buildSecretEnvExport(["DEVPILOT_DATABASE_URL"], {});
     expect(out).toEqual({});
+  });
+});
+
+describe("extractDevpilotVarRefs", () => {
+  it("extracts $DEVPILOT_<KEY> and ${DEVPILOT_<KEY>} references from a build-time-redacted command", () => {
+    const cmd =
+      'docker run -e DATABASE_URL="$DEVPILOT_DATABASE_URL" -e REDISCLI_AUTH="${DEVPILOT_REDISCLI_AUTH}" app';
+    expect(extractDevpilotVarRefs(cmd).sort()).toEqual([
+      "DEVPILOT_DATABASE_URL",
+      "DEVPILOT_REDISCLI_AUTH",
+    ]);
+  });
+
+  it("returns empty array when the command has no DEVPILOT references", () => {
+    expect(extractDevpilotVarRefs("curl http://picshare-backend:3000/api")).toEqual([]);
+  });
+
+  it("dedupes repeated references", () => {
+    const cmd = 'sh -c "echo $DEVPILOT_DATABASE_URL; migrate $DEVPILOT_DATABASE_URL"';
+    expect(extractDevpilotVarRefs(cmd)).toEqual(["DEVPILOT_DATABASE_URL"]);
   });
 });

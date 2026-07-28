@@ -15,6 +15,7 @@ import { interpretServerCommandResult } from "./release-adapter-interpret.utils"
 import {
   redactCommandSecrets,
   buildSecretEnvExport,
+  extractDevpilotVarRefs,
 } from "../utils/release-credential-injection.utils";
 import { ReleaseCredentialResolverService } from "../release-credential-resolver.service";
 import type { ServerCommandStep } from "../../server-executor/server-executor.types";
@@ -71,8 +72,10 @@ export class ServerCommandStageAdapter implements ReleaseStageAdapter {
         error: "server_command 阶段缺少 command 配置",
       };
     }
-    // P0-A：把内联秘密 token 改写为占位引用；记下需解析的变量名。
-    const { redactedCommand: command, secretVarNames } = redactCommandSecrets(rawCommand);
+    // P0-A：命令已在构建期脱敏（configSnapshot 仅含 $DEVPILOT_* 占位），执行边界再
+    // 幂等脱敏一次（兼容未脱敏的旧 configSnapshot）+ 抽取占位引用，合并为需解析的变量名。
+    const { redactedCommand: command } = redactCommandSecrets(rawCommand);
+    const secretVarNames = extractDevpilotVarRefs(command);
     // 执行边界解析真实秘密（仅内存）；命令无秘密时跳过解析。
     const resolvedEnv =
       secretVarNames.length > 0

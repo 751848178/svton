@@ -15,6 +15,15 @@ import {
   makeStage,
   type StageCtx,
 } from "./release-plan-stage-helpers.utils";
+import { redactCommandSecrets } from "./release-credential-injection.utils";
+
+// F383 P0-A：阶段命令在落库前就地脱敏——把承载秘密的 -e KEY=value 改写为
+// $DEVPILOT_<KEY> 占位引用，使 configSnapshot / configHash 只反映占位结构，
+// 永不出现明文秘密。真实值在执行边界由 ReleaseCredentialResolverService 解析。
+function safeCommand(raw: string | undefined): string | undefined {
+  if (!raw) return raw;
+  return redactCommandSecrets(raw).redactedCommand;
+}
 
 export interface ServiceStageResult {
   stages: Array<ReturnType<typeof makeStage>>;
@@ -49,7 +58,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: true,
         risk: "low",
         ctx,
-        config: { command: svc.preStartCheckCommand },
+        config: { command: safeCommand(svc.preStartCheckCommand) },
       }),
     );
     prevKey = key;
@@ -67,7 +76,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: true,
         risk: SCHEMA_MIGRATION_RISK,
         ctx,
-        config: { command: svc.migrationCommand, concurrencyKey: `db:${svc.environmentId}` },
+        config: { command: safeCommand(svc.migrationCommand), concurrencyKey: `db:${svc.environmentId}` },
       }),
     );
     if (prevKey) dependencies.push(edge(key, prevKey, "succeeded", true));
@@ -89,7 +98,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         risk: BOOTSTRAP_RISK,
         ctx,
         config: {
-          command: svc.initializationCommand,
+          command: safeCommand(svc.initializationCommand),
           runPolicy: "once_per_environment_command",
           concurrencyKey: `bootstrap:${svc.applicationServiceId}:${svc.environmentId}`,
         },
@@ -114,7 +123,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: isRequired,
         risk: BACKFILL_RISK,
         ctx,
-        config: { command: svc.backfillCommand, concurrencyKey: `db:${svc.environmentId}` },
+        config: { command: safeCommand(svc.backfillCommand), concurrencyKey: `db:${svc.environmentId}` },
       }),
     );
     const cond: ReleaseDependencyConditionType = isRequired ? "succeeded" : "completed";
@@ -174,7 +183,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
           risk: "low",
           ctx,
           config: {
-            healthCheckUrl: svc.healthCheckUrl,
+            healthCheckUrl: safeCommand(svc.healthCheckUrl),
             concurrencyKey: `service:${svc.environmentId}:${svc.applicationServiceId}`,
           },
         }),

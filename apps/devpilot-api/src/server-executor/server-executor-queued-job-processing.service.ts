@@ -3,6 +3,10 @@ import { rehydrateServerExecutionInput } from "./server-executor-input-snapshot.
 import { ServerExecutorJobLifecycleWriteService } from "./server-executor-job-lifecycle-write.service";
 import { ServerExecutorQueueClaimService } from "./server-executor-queue-claim.service";
 import {
+  reapplySecretEnvExport,
+  type ResolveDevpilotSecretsFn,
+} from "./server-executor-secret-reapply.utils";
+import {
   ServerExecutionInput,
   ServerExecutionResult,
 } from "./server-executor.types";
@@ -36,6 +40,8 @@ export class ServerExecutorQueuedJobProcessingService {
     private readonly recoverStaleRunningJobs: RecoverStaleRunningJobs,
     private readonly runExecutionWithJob: RunExecutionWithJob,
     private readonly queueRetryDelayMs: () => number,
+    // F383 P0-A：队列执行边界重解析 $DEVPILOT_* 秘密（rehydrate 后 secretEnvExport 已丢失）。
+    private readonly resolveDevpilotSecrets?: ResolveDevpilotSecretsFn,
   ) {}
 
   async processNextQueuedJob(
@@ -49,13 +55,17 @@ export class ServerExecutorQueuedJobProcessingService {
       return { processed: false };
     }
 
-    const input = rehydrateServerExecutionInput(job.inputSnapshot, {
+    const rehydrated = rehydrateServerExecutionInput(job.inputSnapshot, {
       teamId: job.teamId,
       userId: job.actorId || undefined,
       retryOfJobId: job.retryOfId || undefined,
       retryAttempt: job.attempt,
       maxAttempts: job.maxAttempts,
     });
+    // F383 P0-A：rehydrate 丢失了 secretEnvExport，在此执行边界重新解析 $DEVPILOT_* 秘密。
+    const input = this.resolveDevpilotSecrets
+      ? await reapplySecretEnvExport(rehydrated, this.resolveDevpilotSecrets)
+      : rehydrated;
     const result = await this.runExecutionWithJob(input, {
       id: job.id,
       attempt: job.attempt,
