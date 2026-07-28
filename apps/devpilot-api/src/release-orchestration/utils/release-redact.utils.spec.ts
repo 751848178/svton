@@ -45,6 +45,20 @@ describe("release-redact redactSecretsInText", () => {
   it("does not touch plain text", () => {
     expect(redactSecretsInText("hello world")).toBe("hello world");
   });
+
+  // F383 安全审计回归：CLI 命令里写死的 DB/缓存密码必须脱敏，否则会随 configSnapshot
+  // 进入快照/日志/API 响应。覆盖 mysql -p、--password=、redis -a 等常见形态。
+  it.each([
+    ['mysql -h db -u root -pS3cret app -e "select 1"', /-p\[REDACTED\]/],
+    ['mysql --password=S3cret -h db', /--password=\[REDACTED\]/],
+    ['mysql --password S3cret -h db', /--password \[REDACTED\]/],
+    ['redis-cli -a MyRedisSecret -h cache', /-a \[REDACTED\]/],
+    ['flyway -password=S3cret', /-password=\[REDACTED\]/],
+  ])("redacts CLI inline password in %s", (cmd, pattern) => {
+    expect(redactSecretsInText(cmd)).toMatch(pattern);
+    expect(redactSecretsInText(cmd)).not.toContain("S3cret");
+    expect(redactSecretsInText(cmd)).not.toContain("MyRedisSecret");
+  });
 });
 
 describe("release-redact redactSecretsInObject", () => {
