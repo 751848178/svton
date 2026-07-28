@@ -31,7 +31,19 @@ list/execute/heartbeat/isEnabled/resolveGitRefInto。controller 委托新服务�
 | nestjs-http build / test | exit 0 / 3 passed |
 
 **Docker 健康**（2026-07-28）：`docker info` exit 0，`http://localhost:3120` → 200，`mysql:8` 本地可用。
-浏览器 Picshare 参考流验证待执行（F383.9.3 保持 in-progress）。
+
+**浏览器验证状态（如实声明 — F383.9.3 保持 in-progress/blocked）**：
+尝试用 `docker compose -f docker-compose.devpilot-app.yml -f docker-compose.devpilot-app.release.yml up -d --build`
+启动应用栈走 Picshare 参考流时，发现并修复了**两个基线即存在的生产 Nest DI 启动阻塞**（提交 `0b68dfd8`）：
+- `OperationApprovalModule` 未导出 `OperationApprovalRepository`（第二轮 `ReleaseApprovalLifecycleService` 直接注入它）；
+- `HealthCheckStageAdapter` 构造函数请求 `ReleaseStageAdapter` 接口类型（无 provider 绑定该 token）。
+
+修复后 Nest 容器已能越过这两个 provider 完成初始化（容器日志从 `can't resolve dependencies` 变为
+`P1017`——纯 MySQL 连接失败，即应用自身的 MySQL 依赖未起，而非 DI）。
+**未完成浏览器流**：完整 Picshare 参考流还需要 staging 栈（`devpilot-g003-api-mysql`/`redis`/`ssh-server`）
++ 8 步数据初始化（资源池、服务器、MySQL/Redis 资源申请、SSH 凭据注入、Picshare 项目/服务/`deployConfig`/
+`releaseDependencies` 落库），详见 `docs/devpilot/local-test-data.md`。staging 镜像下载极慢（网络）+ 初始化
+耗时超出单会话预算，故停在等待 staging/数据初始化的节点。**未声称完成真实浏览器流或 SSH/生产验证。**
 
 ---
 
