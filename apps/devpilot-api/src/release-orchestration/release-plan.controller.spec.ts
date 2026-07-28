@@ -7,10 +7,13 @@
  * 不接 DB——prisma / accessPolicy / service / access service 全部 mock。
  * ReleasePlanAccessService 的 DB 路径独立测试（见 release-plan-access.service.spec.ts）。
  */
-import { ForbiddenException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException } from "@nestjs/common";
 import { ReleasePlanController } from "./release-plan.controller";
 import { ControlAccessPolicyService } from "../control-access-policy";
 import { ReleasePlanAccessService } from "./release-plan-access.service";
+import { ReleaseDependencyResolverService } from "./release-dependency-resolver.service";
+import { ReleasePlanAccessGuard } from "./release-plan-access.guard";
+import { ReleasePlanOrchestratorService } from "./release-plan-orchestrator.service";
 
 interface PrismaLike {
   project: { findFirst: jest.Mock };
@@ -59,11 +62,17 @@ describe("ReleasePlanController", () => {
       canRead: jest.fn(),
     };
     const prisma = opts.prisma ?? makePrisma();
-    // 真实的 access service（持有 prisma）；测试可覆盖其行为。
-    const accessService = new ReleasePlanAccessService(prisma as never);
+    // 真实的 access service + dependency resolver（持有 prisma）；测试可覆盖其行为。
+    const dependencyResolver = new ReleaseDependencyResolverService(prisma as never);
+    const accessService = new ReleasePlanAccessService(prisma as never, dependencyResolver);
     if (opts.accessServiceAssert) {
       accessService.assertAndResolve = opts.accessServiceAssert as never;
     }
+    const accessGuard = new ReleasePlanAccessGuard(
+      prisma as never,
+      access as unknown as ControlAccessPolicyService,
+    );
+    const orchestrator = new ReleasePlanOrchestratorService(service as never, accessService);
     const stageActionService = {
       retryStage: jest.fn().mockResolvedValue(undefined),
       reRequestApproval: jest.fn().mockResolvedValue(undefined),
@@ -72,11 +81,10 @@ describe("ReleasePlanController", () => {
     const controller = new ReleasePlanController(
       service as never,
       stageActionService as never,
-      access as unknown as ControlAccessPolicyService,
-      prisma as never,
-      accessService,
+      accessGuard,
+      orchestrator,
     );
-    return { controller, service, access, prisma, accessService };
+    return { controller, service, access, prisma, accessService, dependencyResolver };
   }
 
   describe("capability endpoint", () => {
@@ -296,8 +304,8 @@ describe("ReleasePlanController", () => {
       ]);
     });
 
-    it("preview: cross-service edge to a service NOT in selection is dropped", async () => {
-      // admin 未被选中 → backend 声明指向 admin 的边被丢弃（不阻断发布）。
+    it("preview: REQUIRED cross-service edge to a service NOT in selection → 400 RELEASE_DEP_TARGET_NOT_SELECTED (Item 1 fail-closed)", async () => {
+      // admin 在同 scope 存在但未被选中 → required 依赖必须 fail-closed，不再静默丢弃。
       const backendCfg = {
         deployCommand: "make deploy-backend",
         healthCheckUrl: "http://backend/healthz",
@@ -310,7 +318,58 @@ describe("ReleasePlanController", () => {
           findFirst: jest.fn().mockResolvedValue({
             id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: backendCfg,
           }),
-          findMany: jest.fn().mockResolvedValue([{ id: "svc-backend", deployConfig: backendCfg }]),
+          // same-scope probe returns admin（存在但未选）→ RELEASE_DEP_TARGET_NOT_SELECTED
+          findMany: jest.fn().mockImplementation(async (args: { where: { id?: { in?: string[] }; environmentId?: string } }) => {
+            const ids = args.where.id?.in ?? [];
+            if (args.where.environmentId) {
+              return ids.map((id) => ({ id, deployConfig: id === "svc-backend" ? backendCfg : {} }));
+            }
+            // unscoped probe（区分跨域/不存在）—— admin 在同 scope 命中，不应走到这里
+            return ids.map((id) => ({ id, teamId: "team-1", projectId: "proj-1", environmentId: "env-prod" }));
+          }),
+        },
+      });
+      const { controller, service } = build({ prisma });
+      const dto = baseDto({
+        services: [
+          { applicationId: "app-backend", applicationServiceId: "svc-backend", environmentId: "env-prod", serviceName: "backend" },
+        ],
+      });
+      await expect(controller.preview(req as never, "proj-1", dto as never)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(
+        controller.preview(req as never, "proj-1", dto as never),
+      ).rejects.toMatchObject({
+        response: {
+          code: "RELEASE_PLAN_INVALID",
+          details: [{ code: "RELEASE_DEP_TARGET_NOT_SELECTED", toServiceId: "svc-admin" }],
+        },
+      });
+      expect(service.preview).not.toHaveBeenCalled();
+    });
+
+    it("preview: OPTIONAL cross-service edge to a service NOT in selection → warning + dropped (not silent)", async () => {
+      // required=false + 未选（但同 scope 存在）→ 记 warning 并丢弃，不阻断（也不静默）。
+      const backendCfg = {
+        deployCommand: "make deploy-backend",
+        releaseDependencies: [
+          { toServiceId: "svc-admin", fromStageType: "health_check", toStageType: "application_deploy", conditionType: "succeeded", required: false },
+        ],
+      };
+      const prisma = makePrisma({
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: backendCfg,
+          }),
+          findMany: jest.fn().mockImplementation(async (args: { where: { id?: { in?: string[] }; environmentId?: string } }) => {
+            const ids = args.where.id?.in ?? [];
+            if (args.where.environmentId) {
+              // same-scope probe: backend (deployConfig) + admin（存在但未选）
+              return ids.map((id) => ({ id, deployConfig: id === "svc-backend" ? backendCfg : {} }));
+            }
+            return [];
+          }),
         },
       });
       const { controller, service } = build({ prisma });
@@ -321,7 +380,142 @@ describe("ReleasePlanController", () => {
       });
       await controller.preview(req as never, "proj-1", dto as never);
       const call = service.preview.mock.calls[0][0];
+      // optional 未选 → 丢弃（不阻断），serviceDependencies 为空
       expect(call.serviceDependencies).toEqual([]);
+    });
+
+    it("preview: self-dependency → 400 RELEASE_DEP_SELF_DEPENDENCY (Item 1 §5)", async () => {
+      const cfg = {
+        deployConfig: { deployCommand: "x" },
+        releaseDependencies: [
+          { toServiceId: "svc-backend", fromStageType: "health_check", toStageType: "application_deploy", conditionType: "succeeded" },
+        ],
+      };
+      const prisma = makePrisma({
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: cfg,
+          }),
+          findMany: jest.fn().mockResolvedValue([{ id: "svc-backend", deployConfig: cfg }]),
+        },
+      });
+      const { controller } = build({ prisma });
+      const dto = baseDto({
+        services: [
+          { applicationId: "app-backend", applicationServiceId: "svc-backend", environmentId: "env-prod", serviceName: "backend" },
+        ],
+      });
+      await expect(controller.preview(req as never, "proj-1", dto as never)).rejects.toMatchObject({
+        response: {
+          code: "RELEASE_PLAN_INVALID",
+          details: [{ code: "RELEASE_DEP_SELF_DEPENDENCY" }],
+        },
+      });
+    });
+
+    it("preview: target does not exist anywhere → 400 RELEASE_DEP_TARGET_NOT_FOUND (Item 1 §8)", async () => {
+      const cfg = {
+        releaseDependencies: [
+          { toServiceId: "svc-ghost", fromStageType: "health_check", toStageType: "application_deploy", conditionType: "succeeded" },
+        ],
+      };
+      const prisma = makePrisma({
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: cfg,
+          }),
+          // same-scope 空 + unscoped 空 → 不存在
+          findMany: jest.fn().mockResolvedValue([{ id: "svc-backend", deployConfig: cfg }]),
+        },
+      });
+      const { controller } = build({ prisma });
+      const dto = baseDto({
+        services: [
+          { applicationId: "app-backend", applicationServiceId: "svc-backend", environmentId: "env-prod", serviceName: "backend" },
+        ],
+      });
+      await expect(controller.preview(req as never, "proj-1", dto as never)).rejects.toMatchObject({
+        response: {
+          code: "RELEASE_PLAN_INVALID",
+          details: [{ code: "RELEASE_DEP_TARGET_NOT_FOUND", toServiceId: "svc-ghost" }],
+        },
+      });
+    });
+
+    it("preview: target exists in another project → 400 RELEASE_DEP_CROSS_SCOPE (Item 1 §9)", async () => {
+      const cfg = {
+        releaseDependencies: [
+          { toServiceId: "svc-foreign", fromStageType: "health_check", toStageType: "application_deploy", conditionType: "succeeded" },
+        ],
+      };
+      const prisma = makePrisma({
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: cfg,
+          }),
+          findMany: jest.fn().mockImplementation(async (args: { where: { id?: { in?: string[] }; environmentId?: string } }) => {
+            const ids = args.where.id?.in ?? [];
+            if (args.where.environmentId) {
+              // same-scope: 只有 backend
+              return ids.filter((id) => id === "svc-backend").map((id) => ({ id, deployConfig: cfg }));
+            }
+            // unscoped: foreign 存在但属于别的 project
+            return ids.map((id) =>
+              id === "svc-foreign"
+                ? { id, teamId: "team-1", projectId: "proj-OTHER", environmentId: "env-OTHER" }
+                : { id, teamId: "team-1", projectId: "proj-1", environmentId: "env-prod" },
+            );
+          }),
+        },
+      });
+      const { controller } = build({ prisma });
+      const dto = baseDto({
+        services: [
+          { applicationId: "app-backend", applicationServiceId: "svc-backend", environmentId: "env-prod", serviceName: "backend" },
+        ],
+      });
+      await expect(controller.preview(req as never, "proj-1", dto as never)).rejects.toMatchObject({
+        response: {
+          code: "RELEASE_PLAN_INVALID",
+          details: [{ code: "RELEASE_DEP_CROSS_SCOPE", toServiceId: "svc-foreign" }],
+        },
+      });
+    });
+
+    // Item 1 §4: preview 与 create 必须使用完全一致的校验逻辑
+    it("preview↔create parity: same malformed dep blocks both endpoints identically", async () => {
+      const cfg = {
+        releaseDependencies: [
+          { toServiceId: "svc-admin", fromStageType: "health_check", toStageType: "application_deploy", conditionType: "succeeded", required: true },
+        ],
+      };
+      const prisma = makePrisma({
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: cfg,
+          }),
+          findMany: jest.fn().mockResolvedValue([{ id: "svc-backend", deployConfig: cfg }]),
+        },
+      });
+      const { controller } = build({ prisma });
+      const base = {
+        environmentId: "env-prod",
+        name: "release-1",
+        services: [
+          { applicationId: "app-backend", applicationServiceId: "svc-backend", environmentId: "env-prod", serviceName: "backend" },
+        ],
+      };
+      const previewErr = controller.preview(req as never, "proj-1", base as never);
+      const createErr = controller.create(req as never, "proj-1", { ...base, expectedPlanHash: "x" } as never);
+      const [p, c] = await Promise.allSettled([previewErr, createErr]);
+      expect(p.status).toBe("rejected");
+      expect(c.status).toBe("rejected");
+      const pErr = (p as PromiseRejectedResult).reason as BadRequestException;
+      const cErr = (c as PromiseRejectedResult).reason as BadRequestException;
+      const pBody = pErr.getResponse() as { code: string; details: { code: string }[] };
+      const cBody = cErr.getResponse() as { code: string; details: { code: string }[] };
+      expect(pBody.code).toBe(cBody.code);
+      expect(pBody.details[0].code).toBe(cBody.details[0].code);
     });
   });
 });

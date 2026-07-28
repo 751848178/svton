@@ -20,6 +20,7 @@ export type ReleaseErrorKind =
   | 'status_transition'
   | 'network'
   | 'env_mismatch'
+  | 'dependency_invalid'
   | 'other';
 
 export interface ReleaseErrorView {
@@ -38,6 +39,33 @@ function extractEnvCode(err: ApiError): unknown {
   return err.code;
 }
 
+// Item 1：发布依赖校验失败时，后端在响应体的 details[] 携带 RELEASE_DEP_* 明细数组
+// （每条含 code/dependencyIndex/suggestedAction 等）。取第一条依赖错误用于 UI 文案。
+export interface ReleaseDepDetail {
+  code: string;
+  dependencyIndex?: number;
+  suggestedAction?: string;
+  reason?: string;
+  toServiceId?: string;
+  serviceName?: string;
+}
+function extractReleaseDepDetail(err: ApiError): ReleaseDepDetail | undefined {
+  const details = err.details as unknown;
+  // 后端两种形态：details 是 RELEASE_DEP_[] 数组（HttpError 路径），或 details.details 是数组。
+  const candidates: unknown[] = Array.isArray(details)
+    ? details
+    : Array.isArray((details as { details?: unknown })?.details)
+      ? ((details as { details: unknown[] }).details)
+      : [];
+  const dep = candidates.find(
+    (c): c is ReleaseDepDetail =>
+      typeof c === 'object' && c !== null &&
+      typeof (c as ReleaseDepDetail).code === 'string' &&
+      (c as ReleaseDepDetail).code.startsWith('RELEASE_DEP_'),
+  );
+  return dep;
+}
+
 /** 由后端信封 code / HTTP 状态 / message 文本推断错误类型。 */
 export function classifyReleaseError(err: unknown): ReleaseErrorView {
   if (!(err instanceof ApiError)) {
@@ -54,8 +82,20 @@ export function classifyReleaseError(err: unknown): ReleaseErrorView {
   if (envCode === 'RELEASE_PLAN_STALE') {
     return { kind: 'preview_stale', message: '配置已变化，已为你重新预览', autoRepreview: true };
   }
+  // Item 1：发布依赖校验失败（fail-closed）。后端把 RELEASE_DEP_* 明细放 details[]，
+  // 每条携带面向新手的中文 suggestedAction。优先展示第一条可操作文案。
+  if (envCode === 'RELEASE_PLAN_INVALID') {
+    const depDetail = extractReleaseDepDetail(err);
+    if (depDetail) {
+      return {
+        kind: 'dependency_invalid',
+        message: depDetail.suggestedAction || depDetail.reason || '发布依赖配置有误，请按提示修正',
+        autoRepreview: false,
+      };
+    }
+    return { kind: 'env_mismatch', message: msg || '服务与目标环境不一致', autoRepreview: false };
+  }
   if (
-    envCode === 'RELEASE_PLAN_INVALID' ||
     envCode === 'RELEASE_ENVIRONMENT_MISMATCH' ||
     envCode === 'RELEASE_SERVICE_NOT_IN_TARGET_ENV'
   ) {

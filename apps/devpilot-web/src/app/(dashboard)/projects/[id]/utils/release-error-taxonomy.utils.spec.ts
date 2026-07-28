@@ -43,10 +43,46 @@ describe('classifyReleaseError (CR-3-F3 envelope code)', () => {
     expect(view.kind).toBe('env_mismatch');
   });
 
-  it('RELEASE_PLAN_INVALID → env_mismatch', () => {
+  it('RELEASE_PLAN_INVALID (no dep details) → env_mismatch', () => {
     const err = new ApiError(400, '校验失败', { code: 'RELEASE_PLAN_INVALID' });
     const view = classifyReleaseError(err);
     expect(view.kind).toBe('env_mismatch');
+  });
+
+  it('RELEASE_PLAN_INVALID with RELEASE_DEP_* details → dependency_invalid with CN suggestedAction (Item 1)', () => {
+    // 后端信封：details 是 RELEASE_DEP_[] 数组（HttpError 路径），取首条 suggestedAction。
+    const err = new ApiError(400, '发布依赖校验失败（1 处）', {
+      code: 'RELEASE_PLAN_INVALID',
+      message: '发布依赖校验失败（1 处）',
+      details: [
+        {
+          code: 'RELEASE_DEP_TARGET_NOT_SELECTED',
+          applicationServiceId: 'svc-admin',
+          serviceName: '管理端',
+          dependencyIndex: 0,
+          toServiceId: 'svc-backend',
+          reason: 'required dependency target not in release selection: svc-backend',
+          suggestedAction: '服务「管理端」依赖服务「svc-backend」，请先将该服务加入本次发布',
+        },
+      ],
+    });
+    const view = classifyReleaseError(err);
+    expect(view.kind).toBe('dependency_invalid');
+    expect(view.message).toContain('请先将该服务加入本次发布');
+    expect(view.autoRepreview).toBe(false);
+  });
+
+  it('RELEASE_PLAN_INVALID with details.details array → dependency_invalid', () => {
+    // 信封体嵌套形态：details.details 是数组。
+    const err = new ApiError(400, 'fail', {
+      code: 'RELEASE_PLAN_INVALID',
+      details: [
+        { code: 'RELEASE_DEP_SELF_DEPENDENCY', suggestedAction: '依赖指向自身，请修正' },
+      ],
+    });
+    const view = classifyReleaseError(err);
+    expect(view.kind).toBe('dependency_invalid');
+    expect(view.message).toContain('依赖指向自身');
   });
 
   it('409 status_transition (no envelope code) → status_transition, no autoRepreview', () => {

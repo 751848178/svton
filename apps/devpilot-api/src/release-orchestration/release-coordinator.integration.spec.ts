@@ -41,103 +41,22 @@ const DB_URL = process.env.DATABASE_URL ?? "";
 const isIntegration = DB_URL.includes("3399") || process.env.RUN_RELEASE_INTEGRATION === "1";
 const describeIntegration = isIntegration ? describe : (describe.skip as jest.Describe);
 
-// 测试专用 ServerExecutorService 替身：queueExecution 写一行真实 ServerExecutionJob；
-// cancelJob 把作业置 cancelled；completeJob 模拟回调完成。
-// cancelJob 调用记录到 cancelledJobIds 数组，供取消场景断言。
-class FakeServerExecutorService {
-  readonly kind = "server_command";
-  readonly cancelledJobIds: string[] = [];
-  constructor(private readonly prisma: PrismaService) {}
-  async queueExecution(
-    input: {
-      teamId: string;
-      operationKey?: string;
-      adapterKey?: string;
-      metadata?: unknown;
-      steps?: Array<{ command?: string }>;
-    },
-  ): Promise<{ serverExecutionJobId: string; queuedAt: Date }> {
-    const job = await this.prisma.serverExecutionJob.create({
-      data: {
-        teamId: input.teamId,
-        operationKey: input.operationKey ?? "release_stage.test",
-        adapterKey: input.adapterKey ?? "ssh-live",
-        transport: "ssh",
-        status: "queued",
-        // 透传 steps（含 command）以便 health 路由测试断言 curl 命令被排队
-        inputSnapshot: { steps: input.steps ?? [] },
-        metadata: input.metadata as never,
-      },
-    });
-    return { serverExecutionJobId: job.id, queuedAt: job.queuedAt };
-  }
-  async cancelJob(_teamId: string, _userId: string, id: string): Promise<void> {
-    this.cancelledJobIds.push(id);
-    await this.prisma.serverExecutionJob.update({
-      where: { id },
-      data: { status: "cancelled", cancelledAt: new Date(), finishedAt: new Date() },
-    });
-  }
-  async completeJob(id: string, status: "completed" | "failed", result: Record<string, unknown> = {}): Promise<void> {
-    await this.prisma.serverExecutionJob.update({
-      where: { id },
-      data: { status, finishedAt: new Date(), result: result as never },
-    });
-  }
-}
+// 测试替身（FakeServerExecutorService / FakeServerCommandStageAdapter /
+// FakeOperationApprovalService / FakeOperationApprovalRepository）已抽到
+// release-coordinator-test-fakes.ts（非 spec 文件，避免 jest 重复运行套件）。
+import {
+  FakeServerExecutorService,
+  FakeServerCommandStageAdapter,
+  FakeOperationApprovalService,
+  FakeOperationApprovalRepository,
+} from "./release-coordinator-test-fakes";
 
-// 真实 ServerCommandStageAdapter 的测试替身：直接复用其结构，但 executor 换成 fake
-class FakeServerCommandStageAdapter implements ReleaseStageAdapter {
-  readonly kind = "server_command";
-  constructor(private readonly executor: FakeServerExecutorService) {}
-  async execute(ctx: ReleaseStageExecutionContext): Promise<ReleaseStageExecutionResult> {
-    const cfg = (ctx.configSnapshot ?? {}) as { __stageType?: string; command?: string };
-    const r = await this.executor.queueExecution({
-      teamId: ctx.teamId,
-      operationKey: `release_stage.${cfg.__stageType ?? "test"}`,
-      adapterKey: "ssh-live",
-      steps: [{ command: cfg.command }],
-      metadata: {
-        businessRunSync: "release_stage",
-        releasePlanId: ctx.releasePlanId,
-        releaseStageId: ctx.releaseStageId,
-        stageAttemptId: ctx.attemptId,
-      },
-    });
-    return { status: "queued", serverExecutionJobId: r.serverExecutionJobId, logSummary: { queuedAt: r.queuedAt } };
-  }
-  async queue(ctx: ReleaseStageExecutionContext): Promise<ReleaseStageExecutionResult> {
-    return this.execute(ctx);
-  }
-}
-
-// DeploymentService 替身：不实际部署，只回填 queued 占位
+// DeploymentService 替身：不实际部署，只回填 queued 占位（仅本 spec 使用）
 class FakeDeploymentService {
   async createRun(teamId: string): Promise<{ id: string; status: string }> {
     return { id: `fake-dr-${Date.now()}`, status: "queued" };
   }
   async cancelRunIdempotent(): Promise<void> {}
-}
-
-// OperationApprovalService 替身：createPending 自动 approved，findLatestForTarget 返回 approved
-class FakeOperationApprovalService {
-  async createPending(input: { teamId: string; targetId?: string; inputHash?: string | null }) {
-    return {
-      id: `appr-${Math.random().toString(36).slice(2)}`,
-      teamId: input.teamId,
-      status: "approved",
-      inputHash: input.inputHash ?? null,
-      consumedAt: null,
-      expiresAt: null,
-      targetType: "release_stage",
-      targetId: input.targetId ?? null,
-    };
-  }
-  async consume(): Promise<void> {}
-}
-class FakeOperationApprovalRepository {
-  async findLatestForTarget(): Promise<null> { return null; }
-  async cancel(): Promise<number> { return 0; }
 }
 
 // 真实 DB 支持的 OperationApprovalService/Repository 替身（CR-2-1 真实审批流回归）：

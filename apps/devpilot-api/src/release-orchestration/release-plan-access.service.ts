@@ -13,13 +13,10 @@
  */
 import { ForbiddenException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import {
-  readServiceDeployConfig,
-  readServiceReleaseDependencies,
-  type DeclaredServiceDependencyEdge,
-} from "./utils/release-service-config.utils";
+import { readServiceDeployConfig } from "./utils/release-service-config.utils";
 import type { ServiceDependencyEdge } from "./utils/release-cross-service-edges.utils";
 import type { ReleaseServiceInputDto } from "./dto/release-plan.dto";
+import { ReleaseDependencyResolverService } from "./release-dependency-resolver.service";
 
 // builder 接受的服务输入形状（与 utils/release-plan-builder ReleaseServiceInput 等价，
 // 但本服务不依赖 builder 内部类型，避免反向耦合）。
@@ -46,7 +43,10 @@ export interface ReleaseServiceAccessError {
 
 @Injectable()
 export class ReleasePlanAccessService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dependencyResolver: ReleaseDependencyResolverService,
+  ) {}
 
   // 对每个 DTO 服务做 DB 级 + 环境一致性校验，并从 deployConfig 服务端读取命令字段。
   // 任何校验失败抛带 code 的 ForbiddenException；成功返回装配好的服务输入数组。
@@ -118,44 +118,21 @@ export class ReleasePlanAccessService {
     return resolved;
   }
 
-  // 从已校验服务集合 + 它们各自 deployConfig 声明的出向边，组装 builder 需要的
-  // 跨服务依赖边（P0-1）。fromServiceId 用所属服务 id；toServiceId 必须落在已选
-  // 已校验集合内——否则该边被丢弃（不阻断发布，避免引用未参与本计划的服务）。
-  // 因为每个 resolved service 都过了 assertAndResolve 的 team/project/env 归属校验，
-  // 保留的边天然满足「两端同 team/project/目标 environment」。
+  // 跨服务依赖解析（P0-1 + Item 1 fail-closed）委托给 ReleaseDependencyResolverService。
+  // 保留本入口以维持控制器已有调用形状不变（API 行为兼容）。preview/create 共用，
+  // 故两者校验逻辑完全一致（Item 1 §4）。详细语义见 release-dependency-resolver.service.ts。
   async resolveServiceDependencies(
     teamId: string,
     projectId: string,
     environmentId: string,
     services: ResolvedReleaseService[],
   ): Promise<ServiceDependencyEdge[]> {
-    const selectedIds = new Set(services.map((s) => s.applicationServiceId));
-    if (selectedIds.size === 0) return [];
-    // 一次性拉取所有已选服务的 deployConfig（避免 N+1）。
-    const rows = await this.prisma.applicationService.findMany({
-      where: { id: { in: [...selectedIds] }, teamId, projectId, environmentId },
-      select: { id: true, deployConfig: true },
-    });
-    const configById = new Map(rows.map((r) => [r.id, r.deployConfig]));
-    const out: ServiceDependencyEdge[] = [];
-    for (const svc of services) {
-      const cfg = configById.get(svc.applicationServiceId);
-      const declared: DeclaredServiceDependencyEdge[] =
-        readServiceReleaseDependencies(cfg);
-      for (const d of declared) {
-        if (!selectedIds.has(d.toServiceId)) continue; // 下游不在本计划 → 丢弃
-        if (d.toServiceId === svc.applicationServiceId) continue; // 不允许自环
-        out.push({
-          fromServiceId: svc.applicationServiceId,
-          fromStageType: d.fromStageType,
-          toServiceId: d.toServiceId,
-          toStageType: d.toStageType,
-          conditionType: d.conditionType,
-          required: d.required,
-        });
-      }
-    }
-    return out;
+    return this.dependencyResolver.resolveDependencies(
+      teamId,
+      projectId,
+      environmentId,
+      services,
+    );
   }
 
   private forbidden(err: ReleaseServiceAccessError): never {
