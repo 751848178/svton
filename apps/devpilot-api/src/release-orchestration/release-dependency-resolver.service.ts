@@ -28,8 +28,15 @@ import {
   releaseDepErrorsToException,
   type ReleaseDepError,
   type ReleaseDepParseError,
+  type ReleaseDepWarning,
 } from "./utils/release-dep-error.utils";
 import { describeReleaseDepError } from "./utils/release-dep-copy.utils";
+
+/** 解析结果：有效跨服务边 + optional 警告（不阻断，但必须回传 UI）。 */
+export interface ReleaseDependencyResolution {
+  edges: ServiceDependencyEdge[];
+  warnings: ReleaseDepWarning[];
+}
 
 @Injectable()
 export class ReleaseDependencyResolverService {
@@ -41,16 +48,16 @@ export class ReleaseDependencyResolverService {
     projectId: string,
     environmentId: string,
     services: ResolvedReleaseService[],
-  ): Promise<ServiceDependencyEdge[]> {
+  ): Promise<ReleaseDependencyResolution> {
     const selectedIds = new Set(services.map((s) => s.applicationServiceId));
-    if (selectedIds.size === 0) return [];
+    if (selectedIds.size === 0) return { edges: [], warnings: [] };
     const rows = await this.prisma.applicationService.findMany({
       where: { id: { in: [...selectedIds] }, teamId, projectId, environmentId },
       select: { id: true, deployConfig: true },
     });
     const configById = new Map(rows.map((r) => [r.id, r.deployConfig]));
     const errors: ReleaseDepError[] = [];
-    const warnings: string[] = [];
+    const warnings: ReleaseDepWarning[] = [];
     const out: ServiceDependencyEdge[] = [];
 
     // 第一遍：解析声明边，收集 parser 级错误；保留原始顺序用于 dependencyIndex。
@@ -139,7 +146,17 @@ export class ReleaseDependencyResolverService {
           expectedEnvironmentId: environmentId,
         });
         if (!required) {
-          warnings.push(copy.suggestedAction);
+          // P0-2(b)：optional 目标未选/不存在/跨域 → 结构化 warning（不阻断），
+          // 必须回传 UI 预览区展示。不再只 logger.warn 后丢弃。
+          warnings.push({
+            code,
+            applicationServiceId: svc.applicationServiceId,
+            serviceName: svc.serviceName,
+            dependencyIndex: edge.sourceIndex,
+            toServiceId: edge.toServiceId,
+            reason: copy.reason,
+            suggestedAction: copy.suggestedAction,
+          });
           continue;
         }
         errors.push({
@@ -155,12 +172,15 @@ export class ReleaseDependencyResolverService {
     }
 
     if (warnings.length > 0) {
+      // 仍写服务端日志（排查用），但 warnings 已结构化回传 UI，不得只靠日志声称用户已知。
       ReleaseDependencyResolverService.logger.warn(
-        `release-dep optional target not selected (downgraded to warning):\n${warnings.join("\n")}`,
+        `release-dep optional target not selected (downgraded to warning):\n${warnings
+          .map((w) => `- [${w.serviceName}#${w.dependencyIndex}] ${w.suggestedAction}`)
+          .join("\n")}`,
       );
     }
     if (errors.length > 0) throw releaseDepErrorsToException(errors);
-    return out;
+    return { edges: out, warnings };
   }
 
   private stamp(e: ReleaseDepParseError, svc: ResolvedReleaseService): ReleaseDepError {

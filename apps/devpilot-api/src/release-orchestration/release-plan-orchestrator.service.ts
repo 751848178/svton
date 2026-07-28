@@ -46,12 +46,14 @@ export class ReleasePlanOrchestratorService {
     );
     // 跨服务依赖边由服务端从 deployConfig.releaseDependencies 解析（P0-1 + Item 1 fail-closed）。
     // resolveServiceDependencies 在任何依赖错误时抛 BadRequestException，控制器透传到 UI。
-    const serviceDependencies = await this.access.resolveServiceDependencies(
-      input.teamId,
-      input.projectId,
-      dto.environmentId,
-      services,
-    );
+    // P0-2(b)：同时返回 optional warnings，回传 UI 预览区（不阻断）。
+    const { edges: serviceDependencies, warnings: dependencyWarnings } =
+      await this.access.resolveServiceDependencies(
+        input.teamId,
+        input.projectId,
+        dto.environmentId,
+        services,
+      );
     return this.releasePlanService.preview({
       projectId: input.projectId,
       environmentId: dto.environmentId,
@@ -61,6 +63,7 @@ export class ReleasePlanOrchestratorService {
       gitRepo: dto.gitRepo,
       services,
       serviceDependencies,
+      dependencyWarnings,
     });
   }
 
@@ -72,12 +75,13 @@ export class ReleasePlanOrchestratorService {
       dto.environmentId,
       dto.services,
     );
-    const serviceDependencies = await this.access.resolveServiceDependencies(
-      input.teamId,
-      input.projectId,
-      dto.environmentId,
-      services,
-    );
+    const { edges: serviceDependencies, warnings: dependencyWarnings } =
+      await this.access.resolveServiceDependencies(
+        input.teamId,
+        input.projectId,
+        dto.environmentId,
+        services,
+      );
     return this.releasePlanService.create({
       teamId: input.teamId,
       projectId: input.projectId,
@@ -88,6 +92,7 @@ export class ReleasePlanOrchestratorService {
       gitRepo: dto.gitRepo,
       services,
       serviceDependencies,
+      dependencyWarnings,
       createdByUserId: input.actorUserId,
       expectedPlanHash: dto.expectedPlanHash,
     });

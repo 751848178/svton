@@ -70,6 +70,18 @@ export function ReleasePreviewPane({ preview }: ReleasePreviewPaneProps): JSX.El
             .join("、")}）
         </div>
       )}
+      {preview.warnings && preview.warnings.length > 0 && (
+        <div className="space-y-1 rounded border border-amber-300/50 bg-amber-50 p-2 dark:bg-amber-950/30">
+          <div className="text-xs font-medium text-amber-700 dark:text-amber-300">
+            可选依赖提示（{preview.warnings.length}，不阻止发布）
+          </div>
+          {preview.warnings.map((w, i) => (
+            <div key={`${w.applicationServiceId}-${w.dependencyIndex}-${i}`} className="text-xs text-amber-800 dark:text-amber-200">
+              · {w.suggestedAction}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

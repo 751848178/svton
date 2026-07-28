@@ -199,12 +199,18 @@ describe("readServiceReleaseDependencies (P0-1 + Item 1 fail-closed)", () => {
     expect(errors[1].dependencyIndex).toBe(2);
   });
 
-  it("returns empty when no releaseDependencies declared", () => {
+  it("returns empty when no releaseDependencies declared (absent = no deps)", () => {
     expect(readServiceReleaseDependencies({ deployCommand: "x" })).toEqual({ edges: [], errors: [] });
     expect(readServiceReleaseDependencies(null)).toEqual({ edges: [], errors: [] });
-    expect(readServiceReleaseDependencies({ releaseDependencies: "not-array" })).toEqual({
-      edges: [],
-      errors: [],
-    });
+  });
+
+  // P0-2(a)：非数组 releaseDependencies 不再静默忽略——返回结构化错误（fail-closed）。
+  it("returns INVALID_FIELD_TYPE error when releaseDependencies is non-array", () => {
+    const r = readServiceReleaseDependencies({ releaseDependencies: "not-array" });
+    expect(r.edges).toEqual([]);
+    expect(r.errors).toHaveLength(1);
+    expect(r.errors[0].code).toBe("RELEASE_DEP_INVALID_FIELD_TYPE");
+    expect(r.errors[0].field).toBe("releaseDependencies");
+    expect(r.errors[0].invalidValue).toBe("not-array");
   });
 });

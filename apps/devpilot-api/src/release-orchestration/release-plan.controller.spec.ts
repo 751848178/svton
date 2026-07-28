@@ -382,6 +382,84 @@ describe("ReleasePlanController", () => {
       const call = service.preview.mock.calls[0][0];
       // optional 未选 → 丢弃（不阻断），serviceDependencies 为空
       expect(call.serviceDependencies).toEqual([]);
+      // P0-2(b)：warning 必须结构化回传（不再只 logger.warn），携带可定位字段。
+      expect(call.dependencyWarnings).toHaveLength(1);
+      expect(call.dependencyWarnings[0]).toEqual(
+        expect.objectContaining({
+          code: "RELEASE_DEP_TARGET_NOT_SELECTED",
+          applicationServiceId: "svc-backend",
+          serviceName: "backend",
+          dependencyIndex: 0,
+          toServiceId: "svc-admin",
+        }),
+      );
+      expect(call.dependencyWarnings[0].suggestedAction).toMatch(/请先将该服务加入本次发布/);
+    });
+
+    it("preview: non-array top-level releaseDependencies → 400 INVALID_FIELD_TYPE (P0-2a fail-closed)", async () => {
+      const backendCfg = {
+        deployCommand: "make deploy-backend",
+        releaseDependencies: "bad-string-not-array",
+      };
+      const prisma = makePrisma({
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: backendCfg,
+          }),
+          findMany: jest.fn().mockResolvedValue([{ id: "svc-backend", deployConfig: backendCfg }]),
+        },
+      });
+      const { controller } = build({ prisma });
+      const dto = baseDto({
+        services: [
+          { applicationId: "app-backend", applicationServiceId: "svc-backend", environmentId: "env-prod", serviceName: "backend" },
+        ],
+      });
+      await expect(controller.preview(req as never, "proj-1", dto as never)).rejects.toMatchObject({
+        response: {
+          code: "RELEASE_PLAN_INVALID",
+          details: [
+            expect.objectContaining({
+              code: "RELEASE_DEP_INVALID_FIELD_TYPE",
+              field: "releaseDependencies",
+              invalidValue: "bad-string-not-array",
+            }),
+          ],
+        },
+      });
+    });
+
+    it("preview: non-array deployment.releaseDependencies → 400 INVALID_FIELD_TYPE (P0-2a)", async () => {
+      const backendCfg = {
+        deployCommand: "make deploy-backend",
+        deployment: { releaseDependencies: { not: "an-array" } },
+      };
+      const prisma = makePrisma({
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: backendCfg,
+          }),
+          findMany: jest.fn().mockResolvedValue([{ id: "svc-backend", deployConfig: backendCfg }]),
+        },
+      });
+      const { controller } = build({ prisma });
+      const dto = baseDto({
+        services: [
+          { applicationId: "app-backend", applicationServiceId: "svc-backend", environmentId: "env-prod", serviceName: "backend" },
+        ],
+      });
+      await expect(controller.preview(req as never, "proj-1", dto as never)).rejects.toMatchObject({
+        response: {
+          code: "RELEASE_PLAN_INVALID",
+          details: [
+            expect.objectContaining({
+              code: "RELEASE_DEP_INVALID_FIELD_TYPE",
+              field: "releaseDependencies",
+              invalidValue: { not: "an-array" },
+            }),
+          ],
+        },
+      });
     });
 
     it("preview: self-dependency → 400 RELEASE_DEP_SELF_DEPENDENCY (Item 1 §5)", async () => {

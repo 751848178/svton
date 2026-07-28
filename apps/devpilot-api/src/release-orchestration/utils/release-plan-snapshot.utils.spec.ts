@@ -222,3 +222,51 @@ describe("P0-2 canonical snapshot excludes secrets & volatile fields", () => {
     expect(a.value.planHash).toBe(b.value.planHash);
   });
 });
+
+describe("P0-2(b) planHash binds dependency warnings", () => {
+  it("hash DIFFERS: no warnings vs with an optional-target warning", () => {
+    // 同样的服务+边，但一次带 optional 警告、一次不带 → planHash 必须不同。
+    // 这保证 preview 与 create 之间 warnings 变化会触发 RELEASE_PLAN_STALE。
+    const base = {
+      projectId: "p1", environmentId: "env-prod", name: "r1",
+      services: picshareServices(), serviceDependencies: [crossEdge],
+    };
+    const without = buildReleasePlan(base);
+    const withWarning = buildReleasePlan({
+      ...base,
+      dependencyWarnings: [
+        {
+          code: "RELEASE_DEP_TARGET_NOT_SELECTED",
+          applicationServiceId: "svc-backend",
+          serviceName: "backend",
+          dependencyIndex: 0,
+          toServiceId: "svc-ghost",
+          reason: "optional target not in selection",
+          suggestedAction: "可选依赖未选，已跳过",
+        },
+      ],
+    });
+    expect(without.ok && withWarning.ok).toBe(true);
+    if (!without.ok || !withWarning.ok) return;
+    expect(without.value.planHash).not.toBe(withWarning.value.planHash);
+  });
+
+  it("preview warnings field populated when dependencyWarnings provided", () => {
+    const r = buildReleasePlan({
+      projectId: "p1", environmentId: "env-prod", name: "r1",
+      services: picshareServices(), serviceDependencies: [crossEdge],
+      dependencyWarnings: [
+        {
+          code: "RELEASE_DEP_TARGET_NOT_SELECTED",
+          applicationServiceId: "svc-backend", serviceName: "backend",
+          dependencyIndex: 0, toServiceId: "svc-ghost",
+          reason: "x", suggestedAction: "y",
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.warnings).toHaveLength(1);
+    expect(r.value.warnings[0].toServiceId).toBe("svc-ghost");
+  });
+});

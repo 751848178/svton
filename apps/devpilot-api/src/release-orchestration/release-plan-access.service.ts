@@ -14,9 +14,11 @@
 import { ForbiddenException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { readServiceDeployConfig } from "./utils/release-service-config.utils";
-import type { ServiceDependencyEdge } from "./utils/release-cross-service-edges.utils";
 import type { ReleaseServiceInputDto } from "./dto/release-plan.dto";
-import { ReleaseDependencyResolverService } from "./release-dependency-resolver.service";
+import {
+  ReleaseDependencyResolverService,
+  type ReleaseDependencyResolution,
+} from "./release-dependency-resolver.service";
 
 // builder 接受的服务输入形状（与 utils/release-plan-builder ReleaseServiceInput 等价，
 // 但本服务不依赖 builder 内部类型，避免反向耦合）。
@@ -121,12 +123,13 @@ export class ReleasePlanAccessService {
   // 跨服务依赖解析（P0-1 + Item 1 fail-closed）委托给 ReleaseDependencyResolverService。
   // 保留本入口以维持控制器已有调用形状不变（API 行为兼容）。preview/create 共用，
   // 故两者校验逻辑完全一致（Item 1 §4）。详细语义见 release-dependency-resolver.service.ts。
+  // P0-2(b)：返回 { edges, warnings }，warnings 必须回传 UI。
   async resolveServiceDependencies(
     teamId: string,
     projectId: string,
     environmentId: string,
     services: ResolvedReleaseService[],
-  ): Promise<ServiceDependencyEdge[]> {
+  ): Promise<ReleaseDependencyResolution> {
     return this.dependencyResolver.resolveDependencies(
       teamId,
       projectId,

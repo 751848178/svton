@@ -19,6 +19,7 @@ import type {
   ReleaseRiskLevel,
   ReleaseStageDefinition,
 } from "../types/release-orchestration.types";
+import type { ReleaseDepWarning } from "./release-dep-error.utils";
 
 void _unusedMakeStage;
 
@@ -52,6 +53,8 @@ export interface ReleasePlanBuildInput {
   services: ReleaseServiceInput[];
   // 跨服务依赖边（显式声明，Devpilot 不推断）。Picshare 的 backend-readiness → admin-deploy 在此声明。
   serviceDependencies?: ServiceDependencyEdge[];
+  // P0-2(b)：optional 依赖目标缺失/跨域的结构化警告（不阻断，回传 UI 预览区）。
+  dependencyWarnings?: ReleaseDepWarning[];
 }
 
 export interface ReleaseStageNode extends ReleaseStageDefinition {
@@ -73,6 +76,8 @@ export interface ReleasePlanPreview {
   sideEffects: string[];
   riskSummary: Array<{ stageKey: string; risk: ReleaseRiskLevel }>;
   approvalRequired: Array<{ stageKey: string; reason: string }>;
+  // P0-2(b)：optional 依赖警告（UI 预览区展示，不阻断创建）。
+  warnings: ReleaseDepWarning[];
 }
 
 import type { ReleaseDependencyConditionType } from "../types/release-orchestration.types";
@@ -140,11 +145,15 @@ export function buildReleasePlan(
 
   // P0-2：planHash 绑定依赖图。canonical snapshot 覆盖会影响实际执行的全部输入
   // （含 serviceDependencies 与解析后的 stages/dependencies），顺序无关、不含易变字段。
+  // P0-2(b)：warnings 也纳入 hash——若 preview 与 create 之间 optional 警告发生变化
+  // （例如新增/移除了某个 optional 目标），planHash 必然改变 → RELEASE_PLAN_STALE 阻断陈旧创建。
+  const dependencyWarnings = input.dependencyWarnings ?? [];
   const canonicalSnapshot = buildCanonicalPlanSnapshot({
     input: { ...input, serviceDependencies: input.serviceDependencies ?? [] },
     stages,
     dependencies,
     approvalRequired,
+    dependencyWarnings,
   });
   const planHash = computePlanHash(canonicalSnapshot);
 
@@ -170,6 +179,7 @@ export function buildReleasePlan(
     })),
     dependencies,
     approvalRequired,
+    dependencyWarnings,
     generatedAt: new Date().toISOString(),
   };
 
@@ -183,6 +193,7 @@ export function buildReleasePlan(
       sideEffects,
       riskSummary: [],
       approvalRequired,
+      warnings: dependencyWarnings,
     },
   };
 }

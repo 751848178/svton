@@ -160,6 +160,17 @@ export interface ReleaseStagePreview {
   applicationServiceName?: string | null;
 }
 
+/** P0-2(b)：optional 依赖目标缺失/跨域的非阻断警告（预览区展示，不阻止创建）。 */
+export interface ReleaseDepWarning {
+  code: string;
+  applicationServiceId: string;
+  serviceName: string;
+  dependencyIndex: number;
+  toServiceId: string;
+  reason: string;
+  suggestedAction: string;
+}
+
 export interface ReleasePlanPreview {
   stages: ReleaseStagePreview[];
   dependencies: Array<{
@@ -172,6 +183,8 @@ export interface ReleasePlanPreview {
   sideEffects: string[];
   riskSummary: Array<{ stageKey: string; risk: string }>;
   approvalRequired: Array<{ stageKey: string; reason: string }>;
+  /** optional 依赖警告（后端 P0-2b 回传；旧后端可能不带该字段，消费方需容错）。 */
+  warnings?: ReleaseDepWarning[];
 }
 
 /** 发布编排能力（GET /release-plans/capability）。enabled=false 禁用写动作；canCancel 恒真（逃生通道）。 */

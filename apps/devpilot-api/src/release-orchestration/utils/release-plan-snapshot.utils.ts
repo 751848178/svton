@@ -17,6 +17,7 @@
  */
 import type { ReleaseServiceInput, ReleaseStageNode, ReleaseDependency } from "./release-plan-builder.utils";
 import type { ServiceDependencyEdge } from "./release-cross-service-edges.utils";
+import type { ReleaseDepWarning } from "./release-dep-error.utils";
 
 interface SnapshotInput {
   input: {
@@ -32,6 +33,8 @@ interface SnapshotInput {
   stages: ReleaseStageNode[];
   dependencies: ReleaseDependency[];
   approvalRequired: Array<{ stageKey: string; reason: string }>;
+  // P0-2(b)：optional 警告纳入 hash，使 preview↔create 之间警告变化必触发陈旧阻断。
+  dependencyWarnings?: ReleaseDepWarning[];
 }
 
 // 规范化服务选择器：只取影响执行的字段，丢弃原始 shell 命令（由 stage.configHash 覆盖）。
@@ -81,6 +84,7 @@ export function buildCanonicalPlanSnapshot({
   stages,
   dependencies,
   approvalRequired,
+  dependencyWarnings,
 }: SnapshotInput): Record<string, unknown> {
   const services: NormalizedService[] = input.services
     .map((s) => ({
@@ -138,8 +142,25 @@ export function buildCanonicalPlanSnapshot({
 
   const approval = [...approvalRequired].sort((a, b) => cmp(a.stageKey, b.stageKey));
 
+  // P0-2(b)：warnings 规范化——只取影响语义的字段（去掉纯展示文案的易变部分，
+  // 保留 code/位置/toServiceId/reason），顺序无关。空数组也纳入，保证
+  // 「无警告」与「有警告」产生不同 hash。
+  const warnings = (dependencyWarnings ?? [])
+    .map((w) => ({
+      code: w.code,
+      applicationServiceId: w.applicationServiceId,
+      dependencyIndex: w.dependencyIndex,
+      toServiceId: w.toServiceId,
+      reason: w.reason,
+    }))
+    .sort((a, b) =>
+      cmp(a.applicationServiceId, b.applicationServiceId) ||
+      cmp(String(a.dependencyIndex), String(b.dependencyIndex)) ||
+      cmp(a.toServiceId, b.toServiceId),
+    );
+
   return {
-    v: 2,
+    v: 3,
     projectId: input.projectId,
     environmentId: input.environmentId,
     name: input.name,
@@ -151,5 +172,6 @@ export function buildCanonicalPlanSnapshot({
     stages: normalizedStages,
     dependencies: normalizedDeps,
     approvalRequired: approval,
+    dependencyWarnings: warnings,
   };
 }

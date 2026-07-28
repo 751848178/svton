@@ -18,6 +18,7 @@ import { BadRequestException } from "@nestjs/common";
 export type ReleaseDepErrorCode =
   | "RELEASE_DEP_MALFORMED"
   | "RELEASE_DEP_MISSING_FIELD"
+  | "RELEASE_DEP_INVALID_FIELD_TYPE"
   | "RELEASE_DEP_INVALID_STAGE_TYPE"
   | "RELEASE_DEP_INVALID_CONDITION_TYPE"
   | "RELEASE_DEP_SELF_DEPENDENCY"
@@ -33,12 +34,31 @@ export interface ReleaseDepError {
   serviceName: string;
   /** 合并后的声明边数组下标（0-based），跨顶层 + deployment 两层连续编号。 */
   dependencyIndex: number;
-  field?: "toServiceId" | "fromStageType" | "toStageType" | "conditionType";
+  field?:
+    | "toServiceId"
+    | "fromStageType"
+    | "toStageType"
+    | "conditionType"
+    | "releaseDependencies";
   invalidValue?: unknown;
   allowedValues?: readonly string[];
   toServiceId?: string;
   conflictWithIndex?: number;
   differingFields?: string[];
+  /** 机器可读的英文原因（日志/排查用）。 */
+  reason: string;
+  /** 面向平台新手的中文处理建议（UI 文案）。 */
+  suggestedAction: string;
+}
+
+// P0-2(b)：optional 依赖目标缺失/跨域时下发的非阻断警告（UI 预览区展示，不阻止创建）。
+// 与 ReleaseDepError 同构但语义不同：warning 不抛 400，仅提示用户。
+export interface ReleaseDepWarning {
+  code: ReleaseDepErrorCode;
+  applicationServiceId: string;
+  serviceName: string;
+  dependencyIndex: number;
+  toServiceId: string;
   /** 机器可读的英文原因（日志/排查用）。 */
   reason: string;
   /** 面向平台新手的中文处理建议（UI 文案）。 */
@@ -54,7 +74,12 @@ export type ReleaseDepParseError = Omit<
 
 // 供 UI 文案构造：把字段名翻译为中文。
 export function fieldNameZh(
-  field: "toServiceId" | "fromStageType" | "toStageType" | "conditionType",
+  field:
+    | "toServiceId"
+    | "fromStageType"
+    | "toStageType"
+    | "conditionType"
+    | "releaseDependencies",
 ): string {
   switch (field) {
     case "toServiceId":
@@ -65,6 +90,8 @@ export function fieldNameZh(
       return "下游阶段";
     case "conditionType":
       return "条件类型";
+    case "releaseDependencies":
+      return "发布依赖列表";
   }
 }
 
