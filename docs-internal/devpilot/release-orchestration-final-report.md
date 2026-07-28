@@ -32,7 +32,11 @@ list/execute/heartbeat/isEnabled/resolveGitRefInto。controller 委托新服务�
 
 **Docker 健康**（2026-07-28，第四轮复核）：Docker 存储损坏**已恢复**（`docker info` exit 0，storage driver = overlayfs，`docker run --rm alpine sh -c 'echo x > /tmp/t && cat /tmp/t'` 通过）；`http://localhost:3120` → 200，`http://localhost:3121/api/health` → 200；一次性 `mysql:8` 本地可用（集成测试 287 通过）。下方第 5 节"阻塞于 Docker 存储损坏"的结论为**第三轮当时事实**，第四轮已不再成立（矛盾已消除，以本行为准）。
 
-**浏览器验证状态（如实声明 — F383.9.3 保持 in-progress/blocked）**：
+**password live transport 闭环状态（2026-07-28 第五轮，如实声明）**：
+password SSH live 主链**已真实跑通**（提交 `20d41208` 移除 adapter 对非 key auth 的硬拒绝，`ssh-credential-mapping.utils` 统一映射并 fail-closed）。新建 Picshare 发布计划 `cms4n68sw000bbdxirzcpgv1n` 的 `schema_migration`、`bootstrap` 经真实 `ssh-live` + password auth 执行**成功**（ServerExecutionJob.transport=ssh、adapterKey=ssh-live、commandPolicy.status=passed、migration 日志显示 "No pending migrations to apply"）。同时修复：`release-plan.service.create()` 误对 configSnapshot 脱敏导致 DB 密码冻结为 `[REDACTED]` 并执行期 P1000（`5ae1a4ed`）；`Ssh2Transport.execCommand` 不 drain stdout / 预先 stream.end 导致命令超时的 backpressure bug（`20d41208`）；连接测试从 TCP-only 升级为 网络/SSH 认证/执行器 三段判定（`5b2ff107`）；CLI 内联密码脱敏加固（`1880894f`）。
+**仍待完成（独立缺陷，非 password SSH 阻塞）**：`application_deploy` 阶段走 `deployment_run` 执行器（非 ssh-live），命中 release_stage 审批 category 与 deployment 审批 category 不匹配（"审批单与本次操作不匹配: category"），属部署↔发布审批协调的既有设计缺口；六阶段全绿与浏览器像素级取证待该问题修复后完成。F383.9.3 / F383.9.4 / F383 整体**未标 done**。
+
+**浏览器验证状态（历史，第四轮 — IAB 点击投递阻塞结论已随第五轮 password 闭环推进而过时）**：
 尝试用 `docker compose -f docker-compose.devpilot-app.yml -f docker-compose.devpilot-app.release.yml up -d --build`
 启动应用栈走 Picshare 参考流时，发现并修复了**两个基线即存在的生产 Nest DI 启动阻塞**（提交 `0b68dfd8`）：
 - `OperationApprovalModule` 未导出 `OperationApprovalRepository`（第二轮 `ReleaseApprovalLifecycleService` 直接注入它）；
@@ -232,4 +236,4 @@ docker compose -f docker-compose.devpilot-app.yml -f docker-compose.devpilot-app
 
 ---
 
-**结论**：F383 后端主链（数据 DAG、原子并发、审批闭环、完成回调、retry/cancel、health、env 一致性、preview/create 绑定、feature flag、脱敏/时间契约）已修复并由真实 MySQL 集成测试 + 对抗式 CR 证明；浏览器端到端截图取证阻塞于 Docker Desktop 存储损坏（环境问题，非代码缺陷），待环境修复后即可执行。未 push。
+**结论（第五轮，2026-07-28）**：F383 后端主链（数据 DAG、原子并发、审批闭环、完成回调、retry/cancel、health、env 一致性、preview/create 绑定、feature flag、脱敏/时间契约）已修复并由真实 MySQL 集成测试 + 对抗式 CR 证明；**password SSH live 主链已真实跑通**（schema_migration + bootstrap 经 ssh-live + password auth 成功执行，Docker 存储与 Redis 循环阻塞已解除）。**未达完成**：六阶段全绿受阻于 `application_deploy` 的 deployment↔release 审批 category 不匹配（独立缺陷），浏览器像素级端到端取证随之待办。故 F383.9.3 / F383.9.4 / F383 整体保持 in-progress，未标 done。未 push。

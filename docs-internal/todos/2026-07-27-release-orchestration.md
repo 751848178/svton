@@ -193,8 +193,8 @@ GLM 长任务提示词：
 | --- | --- | --- | --- |
 | F383.9.1 | done | 完成 API/Web 定向测试、type-check、build、lint。 | `cr-fixes/`：API type-check exit 0；Web type-check/lint/build exit 0；nestjs-http build+test（3 用例）。212 单测 + 22 真实 MySQL 集成用例全过。 |
 | F383.9.2 | done | 在一次性 MySQL 与本地执行目标验证分支、失败、恢复、幂等。 | 真实 MySQL :3399 22 集成用例：完整成功链、migration 失败阻断、bootstrap 幂等、backfill skip、health 失败、真实审批 approved/denied、API 重启恢复、retry、cancel、并发认领、并发同 concurrencyKey、CAS-lost 无孤儿、stale-lease 抢占、finalize-vs-cancel、retry-vs-cancel。 |
-| F383.9.3 | in-progress | 在 `localhost:3120` 完成真实浏览器全流程。 | **阻塞于 Docker Desktop 存储损坏**：重建镜像失败（`failed to create temp dir: read-only file system` + `input/output error`），Docker daemon 进入挂起状态，原运行的 `devpilot-app-api`（旧镜像）与一次性 MySQL :3399 均被波及不可达。代码侧已通过 22 真实 MySQL 集成用例证明主链，但 Picshare 浏览器端到端截图取证需要先修复 Docker Desktop 存储（`docker system prune`/重启 Docker/重建镜像）后才能进行。 |
-| F383.9.4 | in-progress | 同步 TODO、进度、架构、操作手册与最终报告。 | TODO 已据真实证据更新（done/in-progress 区分）；最终报告已更新区分本地验证与外部阻塞；架构与操作手册保持权威。 |
+| F383.9.3 | in-progress | 在 `localhost:3120` 完成真实浏览器全流程。 | Docker 存储损坏阻塞**已解除**（标准 Compose 重建 api/web 成功，Redis ECONNREFUSED 循环消失，staging 数据未丢）。password live transport 主链**已真实跑通**：新建 Picshare 发布计划 `cms4n68sw000bbdxirzcpgv1n` 的 `schema_migration` 与 `bootstrap` 两阶段经真实 `ssh-live` + password auth 执行成功（ServerExecutionJob.transport=ssh、adapterKey=ssh-live、commandPolicy.status=passed）。**仍待完成**：`application_deploy` 阶段使用 `deployment_run` 执行器（非 ssh-live），命中 release_stage 与 deployment 两类审批 category 不匹配的既有问题（"审批单与本次操作不匹配: category"），属部署集成独立缺陷，非 password SSH 阻塞；六阶段全绿与浏览器截图取证待该审批协调问题修复后完成。 |
+| F383.9.4 | in-progress | 同步 TODO、进度、架构、操作手册与最终报告。 | TODO 已据真实证据更新（清除"Docker 存储损坏阻塞""password transport 不是代码问题""命令策略仍阻塞""IAB 点击投递阻塞"等过时结论）；最终报告已更新；架构与操作手册保持权威。F383.9.3 未达 done，故 F383.9.4 与 F383 整体不标 done。 |
 
 ## Required Picshare Reference Flow
 

@@ -87,3 +87,28 @@ DEVPILOT_RELEASE_ORCHESTRATION_ENABLED=true
 - health 阶段依赖真实探针结果；若目标不可达，阶段判 failed 而非伪成功。
 - 结构化输出哨兵 `@@DEVPILOT_OUTPUT@@ <base64url(json)>` 单行，最大 64 KiB，
   schemaVersion 必须为 1。
+- **application_deploy 审批 category 不匹配（待修）**：`application_deploy` 阶段走
+  `deployment_run` 执行器，把 release 阶段的 `release_stage`-category 审批传给部署服务，
+  而部署服务按 `deployment`-category 校验，报「审批单与本次操作不匹配: category」。
+  属部署↔发布审批协调的设计缺口（与 password SSH 无关）；在修复前，发布链止于
+  application_deploy。
+- **configSnapshot 保留可执行真实命令**：`release-plan.service.create()` 不再对
+  `ReleaseStage.configSnapshot` 脱敏（否则 DB 密码被冻结成 `[REDACTED]` 导致执行期 P1000）。
+  展示/审计安全由 `get()/list()` 响应级 `redactSecretsInObject`（含 CLI 内联密码形态）
+  与 `inputSnapshot` 脱敏保证；FE 不会收到未脱敏的 configSnapshot。
+
+## 9. password live SSH 验证
+
+password 认证的服务器现可走 live 发布（`SERVER_EXECUTOR_LIVE_ENABLED=true`）。
+
+- **连接测试**：`POST /servers/:id/test` 现做三段判定（`networkReachable` /
+  `authenticationVerified` / `executorCompatible`），任一不通过给出可操作 `recommendation`；
+  不再把「端口可达」伪装成 online。
+- **真实 password SSH 集成测试**：
+  ```bash
+  docker compose -f docker-compose.deploy-target.yml up -d deploy-target-password
+  RUN_SSH_INTEGRATION=1 npx jest src/common/ssh/ssh2-transport-password.integration.spec.ts
+  ```
+  （默认 skip，需显式 `RUN_SSH_INTEGRATION=1`。）
+- **目标 sshd 要求**：`PasswordAuthentication yes` 且（若部署用户 uid=0）`PermitRootLogin yes`；
+  linuxserver/openssh-server 镜像用 `PASSWORD_ACCESS=true`（非 `PASSWORD_AUTH`）才会开启密码登录。
