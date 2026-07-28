@@ -162,6 +162,12 @@ export class Ssh2Transport implements SshTransport {
           reject(error);
           return;
         }
+        // 必须 drain stdout：不订阅 data 时，远端命令产生的 stdout 会撑满内核
+        // 管道缓冲并阻塞，channel 永不 close → 表现为命令超时。execCommand 只
+        // 关心 exitCode/stderr，但仍要消费 stdout 防止背压死锁。
+        stream.on('data', () => {
+          /* drain stdout; exitCode/stderr are the only fields we return */
+        });
         stream.stderr.on('data', (chunk: Buffer) => {
           stderr += chunk.toString();
         });
@@ -169,8 +175,10 @@ export class Ssh2Transport implements SshTransport {
           clearTimeout(timer);
           resolve({ exitCode: code ?? null, stderr });
         });
-        // 非交互命令无需 stdin
-        stream.end();
+        // 非交互命令不写 stdin：不要预先 stream.end()。
+        // 预先 EOF 会让部分 sshd（如 linuxserver/openssh-server）在命令尚未退出前
+        // 关闭 channel，exec 回调永不触发 → 表现为命令超时。命令自然退出时 ssh2
+        // 会关闭 channel 并 emit close，无需手动 end。
       });
     });
   }

@@ -69,5 +69,41 @@ services:
       retries: 30
       start_period: 30s
 
+  # Password-auth SSH target — TEST INFRA ONLY for the F383 §A/§H password live
+  # integration test. Mirrors the key-auth target but enables PASSWORD_AUTH so the
+  # ssh-live adapter's password transport path can be exercised against a real sshd.
+  # The password below is a non-secret test fixture; never reuse it for a real deploy.
+  # Bring up:
+  #   docker compose -f docker-compose.deploy-target.yml up -d deploy-target-password
+  # Reach from host:  sshpass -p devpilot-test ssh -p 2225 -o StrictHostKeyChecking=no deploy@127.0.0.1 'true'
+  deploy-target-password:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: devpilot-deploy-target-password
+    restart: unless-stopped
+    networks:
+      - staging
+    ports:
+      - "127.0.0.1:2225:2222"
+    environment:
+      # NOTE: linuxserver/openssh-server gates password auth on PASSWORD_ACCESS
+      # (not PASSWORD_AUTH); PASSWORD_ACCESS=true flips PasswordAuthentication yes.
+      PASSWORD_ACCESS: "true"
+      USER_NAME: deploy
+      USER_PASSWORD: "devpilot-test"
+      PUBLIC_KEY_FILE: "/keys/integ-test-key.pub"
+      SUDO_ACCESS: "false"
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      - /tmp/codex-tool-runs/svton/dataplane/integ-test-key.pub:/keys/integ-test-key.pub:ro
+      - devpilot-deploy-target-password-data:/config
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 2222 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
 volumes:
   devpilot-deploy-target-data:
+  devpilot-deploy-target-password-data:

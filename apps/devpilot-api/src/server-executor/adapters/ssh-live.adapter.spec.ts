@@ -86,28 +86,41 @@ function createCancellationToken() {
   };
 }
 
-describe('SshLiveServerExecutorAdapter remote cancellation (ssh2 transport)', () => {
-  function buildDeps(controls: FakeTransportControls) {
-    const configService = {
-      get: jest.fn((key: string, fallback?: string | number) => {
-        if (key === 'SERVER_EXECUTOR_LIVE_ENABLED') return 'true';
-        return fallback;
-      }),
-    } as unknown as ConfigService;
-    const serverService = {
-      getDecryptedCredentials: jest.fn().mockResolvedValue({
-        authType: 'key',
-        credentials: 'PRIVATE KEY',
-        username: 'deploy',
-        host: '10.0.0.10',
-        port: 22,
-      }),
-    } as unknown as ServerService;
-    const sshTransportFactory = createFakeTransportFactory(controls);
-    const adapter = new SshLiveServerExecutorAdapter(configService, serverService, sshTransportFactory);
-    return { adapter, sshTransportFactory, configService, serverService };
-  }
+interface CredsOverride {
+  authType: string;
+  credentials: string;
+  username?: string;
+  host?: string;
+  port?: number;
+}
 
+function buildDeps(
+  controls: FakeTransportControls,
+  credsOverride?: CredsOverride,
+  liveEnabled: string | boolean = 'true',
+) {
+  const configService = {
+    get: jest.fn((key: string, fallback?: string | number) => {
+      if (key === 'SERVER_EXECUTOR_LIVE_ENABLED') return liveEnabled;
+      return fallback;
+    }),
+  } as unknown as ConfigService;
+  const serverService = {
+    getDecryptedCredentials: jest.fn().mockResolvedValue({
+      authType: 'key',
+      credentials: 'PRIVATE KEY',
+      username: 'deploy',
+      host: '10.0.0.10',
+      port: 22,
+      ...credsOverride,
+    }),
+  } as unknown as ServerService;
+  const sshTransportFactory = createFakeTransportFactory(controls);
+  const adapter = new SshLiveServerExecutorAdapter(configService, serverService, sshTransportFactory);
+  return { adapter, sshTransportFactory, configService, serverService };
+}
+
+describe('SshLiveServerExecutorAdapter remote cancellation (ssh2 transport)', () => {
   it('runs live scripts through a remote session wrapper and best-effort kills the remote process tree on cancel', async () => {
     let capturedHandle: FakeTransportHandle | undefined;
     let killCommand = '';
@@ -255,5 +268,142 @@ describe('SshLiveServerExecutorAdapter remote cancellation (ssh2 transport)', ()
     expect(killCommand).toContain('pid=4321');
     expect(killCommand).toContain('kill -TERM -- "-$pid"');
     expect(killCommand).toContain('kill -KILL -- "-$pid"');
+  });
+});
+
+const PASSWORD = 'p@ssw0rd-secret';
+
+function buildExecuteInput(overrides: Partial<ServerExecutionInput> = {}): ServerExecutionInput {
+  return {
+    teamId: 'team-1',
+    userId: 'user-1',
+    operationKey: 'deployment.run',
+    adapterKey: 'deployment-script-plan',
+    dryRun: false,
+    target: { transport: 'ssh', serverId: 'server-1' },
+    steps: [
+      { key: 'deploy', label: 'Deploy', command: 'echo hi', required: true, timeoutSeconds: 30 },
+    ],
+    requiredConfirmationText: 'Example App',
+    confirmationText: 'Example App',
+    ...overrides,
+  };
+}
+
+describe('SshLiveServerExecutorAdapter password auth (F383 §A)', () => {
+  it('runs a password-auth live execution through the unified credential mapper', async () => {
+    let captured: { script: string; transportCreds?: unknown } | undefined;
+    let resolveExec: ((r: { exitCode: number | null }) => void) | undefined;
+    const { adapter } = buildDeps(
+      {
+        onExecScript: (handle) => {
+          captured = { script: handle.script };
+          resolveExec = handle.resolveExec;
+        },
+      },
+      { authType: 'password', credentials: PASSWORD },
+    );
+
+    const exec = adapter.execute(buildExecuteInput());
+    await new Promise((r) => setTimeout(r, 10));
+
+    // 执行到达 transport（不再被 password 硬拒绝）
+    expect(captured?.script).toBeTruthy();
+    resolveExec!({ exitCode: 0 });
+
+    const result = await exec;
+    expect(result.status).toBe('completed');
+    // 安全：密码不出现在结果、脚本计划、warnings
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain(PASSWORD);
+  });
+
+  it('blocks an unknown authType with an actionable fail-closed message (no crash, no secret)', async () => {
+    const { adapter } = buildDeps({}, { authType: 'otp', credentials: 'DO-NOT-LEAK' });
+    const result = await adapter.execute(buildExecuteInput());
+    expect(result.status).toBe('blocked');
+    const serialized = JSON.stringify(result);
+    expect(serialized).toContain('不支持认证类型');
+    expect(serialized).toContain('key / password');
+    expect(serialized).not.toContain('DO-NOT-LEAK');
+  });
+
+  it('surfaces SSH auth failure as an actionable execution error (no plaintext)', async () => {
+    const { adapter } = buildDeps(
+      {
+        onExecScript: () => {
+          throw new Error('All configured authentication methods failed');
+        },
+      },
+      { authType: 'password', credentials: PASSWORD },
+    );
+    // onExecScript throw 在 fake 里会 reject execScript promise；adapter 转为 failed。
+    const result = await adapter.execute(buildExecuteInput()).catch((e) => ({
+      thrown: e instanceof Error ? e.message : String(e),
+    }));
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain(PASSWORD);
+    if (typeof result === 'object' && result && 'status' in result) {
+      // 落入 failed/blocked 而非 completed
+      expect(['failed', 'blocked']).toContain((result as { status: string }).status);
+    }
+  });
+
+  it('runs stale remote cleanup with password auth through the unified mapper', async () => {
+    let killCommand = '';
+    const { adapter } = buildDeps(
+      {
+        onExecCommand: (command) => {
+          killCommand = command;
+          return { exitCode: 0, stderr: '' };
+        },
+      },
+      { authType: 'password', credentials: PASSWORD },
+    );
+    const cleanup = await adapter.cleanupRemoteExecutionSession(
+      buildExecuteInput(),
+      {
+        transport: 'ssh',
+        pid: 5555,
+        observedAt: '2026-07-28T00:00:01.000Z',
+        serverId: 'server-1',
+        operationKey: 'deployment.run',
+        adapterKey: 'deployment-script-plan',
+        cleanupStrategy: 'best_effort_ssh',
+      },
+      'stale_recovery',
+    );
+    expect(cleanup).toEqual(expect.objectContaining({
+      transport: 'ssh',
+      pid: 5555,
+      reason: 'stale_recovery',
+      attempted: true,
+      succeeded: true,
+    }));
+    expect(killCommand).toContain('pid=5555');
+    expect(JSON.stringify(cleanup)).not.toContain(PASSWORD);
+  });
+
+  it('fails closed on cleanup with unknown authType (actionable, no secret)', async () => {
+    const { adapter } = buildDeps(
+      { onExecCommand: () => ({ exitCode: 0, stderr: '' }) },
+      { authType: 'otp', credentials: 'DO-NOT-LEAK' },
+    );
+    const cleanup = await adapter.cleanupRemoteExecutionSession(
+      buildExecuteInput(),
+      {
+        transport: 'ssh',
+        pid: 5556,
+        observedAt: '2026-07-28T00:00:01.000Z',
+        serverId: 'server-1',
+        operationKey: 'deployment.run',
+        adapterKey: 'deployment-script-plan',
+        cleanupStrategy: 'best_effort_ssh',
+      },
+      'stale_recovery',
+    );
+    expect(cleanup.attempted).toBe(false);
+    expect(cleanup.error).toContain('不支持认证类型');
+    expect(JSON.stringify(cleanup)).not.toContain('DO-NOT-LEAK');
   });
 });

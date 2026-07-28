@@ -1,4 +1,3 @@
-import { ServerService } from "../../server/server.service";
 import {
   SshTransport,
   SshTransportCredentials,
@@ -6,16 +5,16 @@ import {
 import { buildSshLiveRemoteKillCommand } from "./ssh-live-script.utils";
 import { truncateSshOutput } from "./ssh-live-json.utils";
 
-export function toSshTransportCredentials(
-  credentials: Awaited<ReturnType<ServerService["getDecryptedCredentials"]>>,
-): SshTransportCredentials {
-  return {
-    host: credentials.host,
-    port: credentials.port,
-    username: credentials.username,
-    privateKey: credentials.credentials,
-  };
-}
+/**
+ * transport 凭据映射的再导出：历史调用点（adapter execute/cleanup/stale recovery）
+ * 统一从 `ssh-credential-mapping.utils` 取单一实现，避免重复分支。
+ */
+export {
+  toSshTransportCredentials,
+  type DecryptedServerCredentials,
+} from "./ssh-credential-mapping.utils";
+
+export type { SshTransportCredentials } from "../../common/ssh/ssh-transport";
 
 export async function killSshRemoteProcessTree(
   transport: SshTransport,

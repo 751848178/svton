@@ -22,6 +22,16 @@ import {
   killSshRemoteProcessTree,
   toSshTransportCredentials,
 } from "./ssh-live-transport.utils";
+import {
+  isSupportedSshAuthType,
+  buildUnsupportedAuthTypeMessage,
+} from "./ssh-credential-mapping.utils";
+import {
+  buildSshCleanupBase,
+  buildSshCleanupNotAttempted,
+  hasSshCleanupTarget,
+  isSshCleanupSessionValid,
+} from "./ssh-live-cleanup.utils";
 
 @Injectable()
 export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
@@ -95,12 +105,13 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
       input.target.serverId,
     );
 
-    if (credentials.authType !== "key") {
+    // fail-closed：未知 authType 在这里拦截（可操作文案），key/password 继续走统一映射。
+    if (!isSupportedSshAuthType(credentials.authType)) {
       return buildSshLiveBlockedResult(
         input,
         commandPlan,
         warnings,
-        "SSH live adapter 当前仅支持 key auth；password auth 请使用 server agent 或补充受控密码 transport",
+        buildUnsupportedAuthTypeMessage(credentials.authType),
       );
     }
 
@@ -128,32 +139,22 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
     session: ServerRemoteExecutionSession,
     reason: ServerRemoteExecutionCleanup["reason"] = "stale_recovery",
   ): Promise<ServerRemoteExecutionCleanup> {
-    const base = {
-      transport: "ssh" as const,
-      pid: session.pid,
-      observedAt: new Date().toISOString(),
-      ...(reason ? { reason } : {}),
-    };
+    const base = buildSshCleanupBase(session, reason);
 
-    if (
-      session.transport !== "ssh" ||
-      !Number.isSafeInteger(session.pid) ||
-      session.pid <= 1
-    ) {
-      return {
-        ...base,
-        attempted: false,
-        error: "remote execution session metadata is invalid",
-      };
+    if (!isSshCleanupSessionValid(session)) {
+      return buildSshCleanupNotAttempted(
+        base,
+        "remote execution session metadata is invalid",
+      );
     }
 
-    if (input.target.transport !== "ssh" || !input.target.serverId) {
-      return {
-        ...base,
-        attempted: false,
-        error: "stale remote cleanup requires an SSH target with serverId",
-      };
+    if (!hasSshCleanupTarget(input)) {
+      return buildSshCleanupNotAttempted(
+        base,
+        "stale remote cleanup requires an SSH target with serverId",
+      );
     }
+    const serverId = input.target.serverId!;
 
     let attempted = false;
     let transport: SshTransport | undefined;
@@ -161,14 +162,13 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
     try {
       const credentials = await this.serverService.getDecryptedCredentials(
         input.teamId,
-        input.target.serverId,
+        serverId,
       );
-      if (credentials.authType !== "key") {
-        return {
-          ...base,
-          attempted: false,
-          error: "stale remote cleanup currently supports key auth only",
-        };
+      if (!isSupportedSshAuthType(credentials.authType)) {
+        return buildSshCleanupNotAttempted(
+          base,
+          buildUnsupportedAuthTypeMessage(credentials.authType),
+        );
       }
 
       transport = this.sshTransportFactory.create(
@@ -181,20 +181,14 @@ export class SshLiveServerExecutorAdapter implements ServerExecutorAdapter {
         resolveSshRemoteKillTimeoutMs(this.configService),
       );
 
-      return {
-        ...base,
-        attempted: true,
-        succeeded: true,
-      };
+      return { ...base, attempted: true, succeeded: true };
     } catch (error) {
       return {
         ...base,
         attempted,
         succeeded: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "stale remote cleanup failed",
+          error instanceof Error ? error.message : "stale remote cleanup failed",
       };
     } finally {
       transport?.dispose?.();
