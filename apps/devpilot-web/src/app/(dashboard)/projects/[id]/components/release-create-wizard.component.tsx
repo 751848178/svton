@@ -59,7 +59,6 @@ export function ReleaseCreateWizard({ detail, ops, onCancel, onCreated }: Releas
       for (const svc of app.services ?? []) {
         if (svc.environment?.id !== environmentId) continue;
         if (!selectedServices.has(svc.id)) continue;
-        const cfg = (svc.deployConfig ?? {}) as Record<string, unknown>;
         out.push({
           applicationId: app.id,
           applicationServiceId: svc.id,
@@ -67,16 +66,29 @@ export function ReleaseCreateWizard({ detail, ops, onCancel, onCreated }: Releas
           environmentId,
           serverId: svc.server?.id,
           serviceName: svc.name,
-          preStartCheckCommand: str(cfg.preStartCheckCommand),
-          migrationCommand: str(cfg.migrationCommand),
-          initializationCommand: str(cfg.initializationCommand),
-          deployCommand: str(cfg.deployCommand),
-          healthCheckUrl: str(cfg.healthCheckUrl),
         });
       }
     }
     return out;
   }, [applications, environmentId, selectedServices]);
+
+  // 环境切换时清除不再属于目标环境的已选服务（P0-1 §8）：
+  // 切换 dev→prod 后，dev 下选中的 service id 在 prod 下无效，必须清掉，
+  // 避免把失效的 selectedServices 带进 buildInput（被 env 过滤跳过 → 静默丢服务）。
+  useEffect(() => {
+    const valid = new Set<string>();
+    for (const app of applications) {
+      for (const svc of app.services ?? []) {
+        if (svc.environment?.id === environmentId) valid.add(svc.id);
+      }
+    }
+    setSelectedServices((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set<string>();
+      for (const id of prev) if (valid.has(id)) next.add(id);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [applications, environmentId]);
 
   // 表单任意变化即失效预览（invest-3 §C.2）。
   useEffect(() => {

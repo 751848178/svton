@@ -12,7 +12,6 @@ import type {
   ReleaseCapability,
   ReleasePlan,
   ReleasePlanPreview,
-  ReleaseServiceDependencyInput,
   ReleaseServiceInputItem,
 } from '../types/releases';
 
@@ -25,8 +24,12 @@ export interface ReleasePlanBuildInput {
   /** 预览↔创建强绑定（invest-3 §C）：回传上一次 preview 的 planHash，不一致则 409。 */
   expectedPlanHash?: string;
   services: ReleaseServiceInputItem[];
-  /** 跨服务依赖边（invest-3 §D6）。 */
-  serviceDependencies?: ReleaseServiceDependencyInput[];
+  /**
+   * 跨服务依赖边不再由客户端提交（P0-1）：由服务端从
+   * ApplicationService.deployConfig.releaseDependencies 解析。此字段保留以维持
+   * ReleasePlanBuildInput 的类型兼容，但 create/preview 不会把它送进请求体。
+   */
+  serviceDependencies?: never[];
 }
 
 export interface ProjectReleaseOperations {

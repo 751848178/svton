@@ -15,7 +15,7 @@ import { ReleasePlanAccessService } from "./release-plan-access.service";
 interface PrismaLike {
   project: { findFirst: jest.Mock };
   projectEnvironment: { findFirst: jest.Mock };
-  applicationService: { findFirst: jest.Mock };
+  applicationService: { findFirst: jest.Mock; findMany: jest.Mock };
   projectEnvironmentServer: { findFirst: jest.Mock };
 }
 
@@ -23,7 +23,12 @@ function makePrisma(over: Partial<PrismaLike> = {}): PrismaLike {
   return {
     project: { findFirst: jest.fn().mockResolvedValue({ id: "proj-1" }) },
     projectEnvironment: { findFirst: jest.fn().mockResolvedValue({ id: "env-1" }) },
-    applicationService: { findFirst: jest.fn().mockResolvedValue(null) },
+    applicationService: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      // P0-1: resolveServiceDependencies 批量拉取已选服务 deployConfig。
+      // 默认返回空（无 releaseDependencies 声明）。
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     projectEnvironmentServer: { findFirst: jest.fn().mockResolvedValue(null) },
     ...over,
   };
@@ -59,8 +64,14 @@ describe("ReleasePlanController", () => {
     if (opts.accessServiceAssert) {
       accessService.assertAndResolve = opts.accessServiceAssert as never;
     }
+    const stageActionService = {
+      retryStage: jest.fn().mockResolvedValue(undefined),
+      reRequestApproval: jest.fn().mockResolvedValue(undefined),
+      skipStage: jest.fn().mockResolvedValue(undefined),
+    };
     const controller = new ReleasePlanController(
       service as never,
+      stageActionService as never,
       access as unknown as ControlAccessPolicyService,
       prisma as never,
       accessService,
@@ -158,7 +169,10 @@ describe("ReleasePlanController", () => {
     it("create: service not in project/team/env → 403 RELEASE_SERVICE_NOT_IN_TARGET_ENV", async () => {
       // environmentId 一致但 ApplicationService 查不到 → 第二道闸
       const prisma = makePrisma({
-        applicationService: { findFirst: jest.fn().mockResolvedValue(null) },
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          findMany: jest.fn().mockResolvedValue([]),
+        },
       });
       const { controller, service } = build({ prisma });
       const dto = baseDto();
@@ -184,7 +198,10 @@ describe("ReleasePlanController", () => {
         deployConfig,
       };
       const prisma = makePrisma({
-        applicationService: { findFirst: jest.fn().mockResolvedValue(appSvc) },
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue(appSvc),
+          findMany: jest.fn().mockResolvedValue([{ id: "svc-1", deployConfig }]),
+        },
         projectEnvironmentServer: { findFirst: jest.fn().mockResolvedValue({ id: "bind-1" }) },
       });
       const { controller, service } = build({ prisma });
@@ -206,6 +223,105 @@ describe("ReleasePlanController", () => {
       expect(call.services[0].deployCommand).toBe("make deploy");
       expect(call.services[0].healthCheckUrl).toBe("http://h");
       expect(call.services[0].serverId).toBe("srv-other");
+      // P0-1: cross-service dependencies resolved server-side; none declared → empty array
+      expect(call.serviceDependencies).toEqual([]);
+      // controller must NOT echo a client-supplied serviceDependencies
+      expect(dto).not.toHaveProperty("serviceDependencies");
+    });
+
+    it("preview: client serviceDependencies ignored; server resolves from deployConfig", async () => {
+      // P0-1: 即使客户端在 body 里塞了 serviceDependencies，controller 也不消费——
+      // 依赖边只由服务端从 deployConfig.releaseDependencies 解析。
+      const backendCfg = {
+        deployCommand: "make deploy-backend",
+        healthCheckUrl: "http://backend/healthz",
+        releaseDependencies: [
+          {
+            toServiceId: "svc-admin",
+            fromStageType: "health_check",
+            toStageType: "application_deploy",
+            conditionType: "succeeded",
+            required: true,
+          },
+        ],
+      };
+      const prisma = makePrisma({
+        applicationService: {
+          findFirst: jest.fn().mockImplementation(async (args: { where: { id: string } }) => {
+            if (args.where.id === "svc-backend") {
+              return { id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: backendCfg };
+            }
+            return { id: "svc-admin", serverId: null, environmentId: "env-prod", deployConfig: {} };
+          }),
+          findMany: jest.fn().mockResolvedValue([
+            { id: "svc-backend", deployConfig: backendCfg },
+            { id: "svc-admin", deployConfig: {} },
+          ]),
+        },
+      });
+      const { controller, service } = build({ prisma });
+      // client attempts to inject a fake edge in the body — controller must ignore it.
+      const dto = {
+        ...baseDto({
+          services: [
+            {
+              applicationId: "app-backend",
+              applicationServiceId: "svc-backend",
+              environmentId: "env-prod",
+              serviceName: "backend",
+            },
+            {
+              applicationId: "app-admin",
+              applicationServiceId: "svc-admin",
+              environmentId: "env-prod",
+              serviceName: "admin",
+            },
+          ],
+        }),
+        serviceDependencies: [{ fromServiceId: "svc-admin", toServiceId: "svc-backend" }],
+      };
+      await controller.preview(req as never, "proj-1", dto as never);
+      expect(service.preview).toHaveBeenCalledTimes(1);
+      const call = service.preview.mock.calls[0][0];
+      // server-resolved edge: backend:health_check → admin:application_deploy
+      expect(call.serviceDependencies).toEqual([
+        {
+          fromServiceId: "svc-backend",
+          fromStageType: "health_check",
+          toServiceId: "svc-admin",
+          toStageType: "application_deploy",
+          conditionType: "succeeded",
+          required: true,
+        },
+      ]);
+    });
+
+    it("preview: cross-service edge to a service NOT in selection is dropped", async () => {
+      // admin 未被选中 → backend 声明指向 admin 的边被丢弃（不阻断发布）。
+      const backendCfg = {
+        deployCommand: "make deploy-backend",
+        healthCheckUrl: "http://backend/healthz",
+        releaseDependencies: [
+          { toServiceId: "svc-admin", fromStageType: "health_check", toStageType: "application_deploy", conditionType: "succeeded", required: true },
+        ],
+      };
+      const prisma = makePrisma({
+        applicationService: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: "svc-backend", serverId: null, environmentId: "env-prod", deployConfig: backendCfg,
+          }),
+          findMany: jest.fn().mockResolvedValue([{ id: "svc-backend", deployConfig: backendCfg }]),
+        },
+      });
+      const { controller, service } = build({ prisma });
+      const dto = baseDto({
+        services: [
+          { applicationId: "app-backend", applicationServiceId: "svc-backend", environmentId: "env-prod", serviceName: "backend" },
+        ],
+      });
+      await controller.preview(req as never, "proj-1", dto as never);
+      const call = service.preview.mock.calls[0][0];
+      expect(call.serviceDependencies).toEqual([]);
     });
   });
 });

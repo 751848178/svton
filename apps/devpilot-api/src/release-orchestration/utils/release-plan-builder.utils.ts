@@ -14,6 +14,7 @@ import type {
   ServiceDependencyEdge,
 } from "./release-cross-service-edges.utils";
 import { resolveCrossServiceEdges } from "./release-cross-service-edges.utils";
+import { buildCanonicalPlanSnapshot } from "./release-plan-snapshot.utils";
 import type {
   ReleaseRiskLevel,
   ReleaseStageDefinition,
@@ -131,6 +132,24 @@ export function buildReleasePlan(
     dependencies.push(...resolved.edges);
   }
 
+  const dag = validateReleaseDag(
+    stages.map((s) => ({ key: s.key, name: s.name })),
+    dependencies.map((d) => ({ from: d.dependsOnStageKey, to: d.stageKey })),
+  );
+  if (!dag.ok) return dag;
+
+  // P0-2：planHash 绑定依赖图。canonical snapshot 覆盖会影响实际执行的全部输入
+  // （含 serviceDependencies 与解析后的 stages/dependencies），顺序无关、不含易变字段。
+  const canonicalSnapshot = buildCanonicalPlanSnapshot({
+    input: { ...input, serviceDependencies: input.serviceDependencies ?? [] },
+    stages,
+    dependencies,
+    approvalRequired,
+  });
+  const planHash = computePlanHash(canonicalSnapshot);
+
+  // 持久化/返回用的 inputSnapshot：保留可读的服务与依赖图，供审计与诊断；
+  // 与 canonicalSnapshot 同源但保留人类可读结构（含 generatedAt，不进 hash）。
   const inputSnapshot: Record<string, unknown> = {
     projectId: input.projectId,
     environmentId: input.environmentId,
@@ -139,15 +158,20 @@ export function buildReleasePlan(
     commitSha: input.commitSha ?? null,
     gitRepo: input.gitRepo ?? null,
     services: input.services,
+    serviceDependencies: input.serviceDependencies ?? [],
+    stages: stages.map((s) => ({
+      key: s.key,
+      type: s.type,
+      executorKind: s.executorKind,
+      required: s.required,
+      riskLevel: s.riskLevel,
+      configHash: s.configHash ?? null,
+      concurrencyKey: s.concurrencyKey ?? null,
+    })),
+    dependencies,
+    approvalRequired,
     generatedAt: new Date().toISOString(),
   };
-  const planHash = computePlanHash(stripVolatile(inputSnapshot));
-
-  const dag = validateReleaseDag(
-    stages.map((s) => ({ key: s.key, name: s.name })),
-    dependencies.map((d) => ({ from: d.dependsOnStageKey, to: d.stageKey })),
-  );
-  if (!dag.ok) return dag;
 
   return {
     ok: true,
@@ -161,11 +185,4 @@ export function buildReleasePlan(
       approvalRequired,
     },
   };
-}
-
-// 排除生成时间等易变量，保证 planHash 稳定
-function stripVolatile(snapshot: Record<string, unknown>): Record<string, unknown> {
-  const { generatedAt: _omit, ...rest } = snapshot;
-  void _omit;
-  return rest as Record<string, unknown>;
 }

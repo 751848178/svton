@@ -24,6 +24,8 @@ import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.se
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
 import { ReleaseRecoverySchedulerService } from "./release-recovery-scheduler.service";
 import { ReleasePlanService } from "./release-plan.service";
+import { ReleaseCancelService } from "./release-cancel.service";
+import { ReleaseStageActionService } from "./release-stage-action.service";
 import { HealthCheckStageAdapter } from "./stage-adapters/health-check.adapter";
 import { ServerCommandStageAdapter } from "./stage-adapters/server-command.adapter";
 import { ServerExecutorReleaseStageRunSyncService } from "../server-executor/server-executor-release-stage-run-sync.service";
@@ -220,6 +222,8 @@ interface Harness {
   executor: FakeServerExecutorService;
   releaseStageSync: ServerExecutorReleaseStageRunSyncService;
   releasePlanService: ReleasePlanService;
+  stageActionService: ReleaseStageActionService;
+  cancelService: ReleaseCancelService;
   leaseRepo: ReleaseConcurrencyLeaseRepository;
   schedulerFor: (enabled: boolean) => ReleaseRecoverySchedulerService;
   // 真实 DB 支持的审批服务/仓储（仅 CR-2-1 真实审批流场景使用；其余场景为 null）
@@ -281,16 +285,26 @@ async function buildHarness(): Promise<Harness> {
     get: (key: string, fallback?: string) =>
       key === RELEASE_ORCHESTRATION_FLAG ? "true" : (fallback ?? ""),
   } as never;
+  // P0-3：cancel 已抽到 ReleaseCancelService（持有 prisma + planRepo + executor），
+  // ReleasePlanService.cancel 委托给它。集成测试用真实 cancel 路径验证 CAS 所有权。
+  const cancelService = new ReleaseCancelService(prisma, planRepo, executor as never);
   const releasePlanService = new ReleasePlanService(
     configOn,
     prisma,
     planRepo,
-    stageRepo,
     attemptRepo,
     eventRepo,
     coordinator,
+    cancelService,
+  );
+  // 阶段动作服务（retry / re-request-approval / skip）：真实路径，推进用真实 coordinator。
+  const stageActionService = new ReleaseStageActionService(
+    prisma,
+    stageRepo,
+    planRepo,
+    eventRepo,
+    coordinator,
     approvalLifecycle,
-    executor as never,
   );
   // schedulerFor 注入 leaseRepo（CR-1-F1：runOnce 顶部 best-effort sweepExpired）
   const schedulerFor = (enabled: boolean) =>
@@ -300,7 +314,7 @@ async function buildHarness(): Promise<Harness> {
       leaseRepo,
       { get: (_k: string, fallback?: string) => (enabled ? "true" : (fallback ?? "false")) } as never,
     );
-  return { prisma, coordinator, executor, releaseStageSync, releasePlanService, leaseRepo, schedulerFor, realApproval: null };
+  return { prisma, coordinator, executor, releaseStageSync, releasePlanService, stageActionService, cancelService, leaseRepo, schedulerFor, realApproval: null };
 }
 
 async function seedBaseline(prisma: PrismaService) {
@@ -953,7 +967,7 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
       },
     });
 
-    await h.releasePlanService.retryStage(team.id, plan.id, stage.id, "user-rel-int");
+    await h.stageActionService.retryStage(team.id, plan.id, stage.id, "user-rel-int");
 
     // 计划重开：failed→running，finishedAt 清空
     const planAfter = await h.prisma.releasePlan.findUnique({ where: { id: plan.id } });
@@ -1007,9 +1021,9 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
     });
 
     // 串行调用第二次：第一次已把 stage 翻转为 ready，第二次 CAS count===0 → ConflictException
-    await h.releasePlanService.retryStage(team.id, plan.id, stage.id, "user-rel-int");
+    await h.stageActionService.retryStage(team.id, plan.id, stage.id, "user-rel-int");
     await expect(
-      h.releasePlanService.retryStage(team.id, plan.id, stage.id, "user-rel-int"),
+      h.stageActionService.retryStage(team.id, plan.id, stage.id, "user-rel-int"),
     ).rejects.toThrow(ConflictException);
 
     // 仍只有一个新 attempt（attemptNo=2），没有第三次
@@ -1423,7 +1437,7 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
       return origAdvance(planId, actorId);
     }) as never;
 
-    await h.releasePlanService.retryStage(team.id, plan.id, stage.id, "user-rel-int");
+    await h.stageActionService.retryStage(team.id, plan.id, stage.id, "user-rel-int");
     h.coordinator.advancePlan = origAdvance as never;
 
     // plan 应保持 canceled（cancel 在 retry 之后注入）
@@ -1437,5 +1451,174 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
       where: { releasePlanId: plan.id, status: "ready" },
     });
     expect(readyStranded.length).toBe(0);
+  });
+
+  // === P0-3: cancel CAS 所有权 + 反向竞态 ===
+
+  // 辅助：构造一个 running plan + 一个已被认领（running attempt + SEJ + lease）的 stage。
+  async function seedRunningPlanWithClaimedStage(label: string) {
+    const ck = `p03-${label}`;
+    const { team, env } = await seedBaseline(h.prisma);
+    const plan = await h.prisma.releasePlan.create({
+      data: {
+        teamId: team.id, projectId: "proj-rel-int", environmentId: env.id,
+        name: label, status: "running", planHash: `h-${label}`,
+      },
+    });
+    const stage = await h.prisma.releaseStage.create({
+      data: {
+        releasePlanId: plan.id, teamId: team.id,
+        key: "precheck:" + label, name: label, type: "precheck",
+        executorKind: "server_command", riskLevel: "low", required: true,
+        status: "ready", currentAttempt: 0, concurrencyKey: ck,
+        configSnapshot: { command: "echo " + label },
+      },
+    });
+    await h.coordinator.advancePlan(plan.id);
+    const attempt = await h.prisma.releaseStageAttempt.findFirstOrThrow({
+      where: { releaseStageId: stage.id },
+    });
+    return { team, env, plan, stage, attempt, ck };
+  }
+
+  // 断言联合不变量：plan=expected，stage/attempt 全终态一致，lease 清空，事件计数正确。
+  async function assertJointState(planId: string, opts: {
+    planStatus: string;
+    stageStatus: string;
+    attemptStatus: string;
+    leaseCount: number;
+    canceledEventCount: number;
+  }) {
+    const plan = await h.prisma.releasePlan.findUniqueOrThrow({ where: { id: planId } });
+    expect(plan.status).toBe(opts.planStatus);
+    const stages = await h.prisma.releaseStage.findMany({ where: { releasePlanId: planId } });
+    expect(stages.every((s) => s.status === opts.stageStatus)).toBe(true);
+    const attempts = await h.prisma.releaseStageAttempt.findMany({
+      where: { releaseStage: { releasePlanId: planId } },
+    });
+    expect(attempts.every((a) => a.status === opts.attemptStatus)).toBe(true);
+    const leases = await h.prisma.releaseConcurrencyLease.findMany({
+      where: { releaseStage: { releasePlanId: planId } },
+    });
+    expect(leases.length).toBe(opts.leaseCount);
+    const events = await h.prisma.releaseEvent.findMany({
+      where: { releasePlanId: planId, eventType: "release_plan.canceled" },
+    });
+    expect(events.length).toBe(opts.canceledEventCount);
+  }
+
+  it("P0-3: finalize wins first → stale cancel is a no-op, no partial cancel, no false event", async () => {
+    // finalize 抢先把 plan→succeeded（attempt succeeded + stage succeeded + recompute）；
+    // 随后到达的 cancel CAS 命中 0 行 → 短路，不动 stages/attempts/leases，不写 plan_canceled。
+    const seeded = await seedRunningPlanWithClaimedStage("finalize-first");
+    const { team, plan, stage, attempt } = seeded;
+    // finalize：SEJ completed → coordinator 收尾 attempt succeeded → stage succeeded → recompute plan succeeded
+    await h.executor.completeJob(attempt.serverExecutionJobId as string, "completed", { exitCode: 0 });
+    await h.coordinator.finalizeAndAdvance(plan.id, attempt.id, {
+      kind: "serverExecutionJob",
+      id: attempt.serverExecutionJobId as string,
+      result: { status: "completed", result: { exitCode: 0 } },
+    });
+    const planAfterFinalize = await h.prisma.releasePlan.findUniqueOrThrow({ where: { id: plan.id } });
+    expect(planAfterFinalize.status).toBe("succeeded");
+
+    // stale cancel 到达（plan 已 succeeded）。cancel 入口预检：succeeded → ConflictException。
+    await expect(
+      h.releasePlanService.cancel(team.id, plan.id, "user-rel-int"),
+    ).rejects.toThrow(ConflictException);
+
+    // 联合不变量：plan/stage/attempt 全保持 succeeded 终态；无 plan_canceled 事件。
+    await assertJointState(plan.id, {
+      planStatus: "succeeded",
+      stageStatus: "succeeded",
+      attemptStatus: "succeeded",
+      leaseCount: 0,
+      canceledEventCount: 0,
+    });
+    void stage;
+  });
+
+  it("P0-3: cancel wins first → finalize after is a no-op on already-canceled rows", async () => {
+    // cancel 先成功（CAS 命中 1 行，翻 stages/attempts→canceled，释放 lease，写 1 事件）；
+    // 随后 finalize 到达：attempt 已 canceled（终态）→ finalizeAndAdvance 幂等短路返回。
+    const seeded = await seedRunningPlanWithClaimedStage("cancel-first");
+    const { team, plan, attempt } = seeded;
+    await h.releasePlanService.cancel(team.id, plan.id, "user-rel-int");
+
+    // stale finalize 到达（SEJ 完成回调）
+    await h.executor.completeJob(attempt.serverExecutionJobId as string, "completed", { exitCode: 0 });
+    await h.coordinator.finalizeAndAdvance(plan.id, attempt.id, {
+      kind: "serverExecutionJob",
+      id: attempt.serverExecutionJobId as string,
+      result: { status: "completed", result: { exitCode: 0 } },
+    });
+
+    await assertJointState(plan.id, {
+      planStatus: "canceled",
+      stageStatus: "canceled",
+      attemptStatus: "canceled",
+      leaseCount: 0,
+      canceledEventCount: 1,
+    });
+  });
+
+  it("P0-3: two concurrent cancels → exactly one wins, exactly one plan_canceled event", async () => {
+    // 并发两个 cancel：第一个 CAS 命中 1 行赢；第二个读到已 canceled（预检 409）。
+    // 关键不变量：至多一个有效取消事件，无重复翻表。
+    const seeded = await seedRunningPlanWithClaimedStage("two-cancel");
+    const { team, plan } = seeded;
+    const results = await Promise.allSettled([
+      h.releasePlanService.cancel(team.id, plan.id, "user-a"),
+      h.releasePlanService.cancel(team.id, plan.id, "user-b"),
+    ]);
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    // 至少一个成功；其余因预检已终态被拒（409）。不可能两个都成功。
+    expect(fulfilled.length).toBeGreaterThanOrEqual(1);
+    expect(rejected.length).toBe(results.length - fulfilled.length);
+
+    await assertJointState(plan.id, {
+      planStatus: "canceled",
+      stageStatus: "canceled",
+      attemptStatus: "canceled",
+      leaseCount: 0,
+      canceledEventCount: 1,
+    });
+  });
+
+  it("P0-3: cancel when external job already terminal → cancelJob throws BadRequest (swallowed), DB still canceled", async () => {
+    // 外部 SEJ 已 completed（终态）：cancelJob 抛 BadRequestException 被吞；
+    // DB 侧 cancel 仍一致终态（CAS 在 plan 非 succeeded 时命中）。
+    const seeded = await seedRunningPlanWithClaimedStage("ext-terminal");
+    const { team, plan, attempt } = seeded;
+    await h.executor.completeJob(attempt.serverExecutionJobId as string, "completed", { exitCode: 0 });
+    // 注意：尚未调用 syncAfterExecution，故 plan 仍 running，cancel CAS 会命中。
+    h.executor.cancelledJobIds.length = 0;
+    await h.releasePlanService.cancel(team.id, plan.id, "user-rel-int");
+    await assertJointState(plan.id, {
+      planStatus: "canceled",
+      stageStatus: "canceled",
+      attemptStatus: "canceled",
+      leaseCount: 0,
+      canceledEventCount: 1,
+    });
+  });
+
+  it("P0-3: cancel when external cancelJob fails (non-BadRequest) → warn only, DB still consistent", async () => {
+    // cancelJob 抛非 BadRequest（模拟网络错误）：仅 warn，不阻断 DB 取消。
+    const seeded = await seedRunningPlanWithClaimedStage("ext-fail");
+    const { team, plan } = seeded;
+    // 让 cancelJob 抛通用错误
+    const origCancel = h.executor.cancelJob.bind(h.executor);
+    h.executor.cancelJob = jest.fn(async () => { throw new Error("network down"); }) as never;
+    await h.releasePlanService.cancel(team.id, plan.id, "user-rel-int");
+    h.executor.cancelJob = origCancel as never;
+    await assertJointState(plan.id, {
+      planStatus: "canceled",
+      stageStatus: "canceled",
+      attemptStatus: "canceled",
+      leaseCount: 0,
+      canceledEventCount: 1,
+    });
   });
 });

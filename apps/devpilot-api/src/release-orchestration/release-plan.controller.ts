@@ -19,6 +19,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { ControlAccessPolicyService } from "../control-access-policy";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReleasePlanService } from "./release-plan.service";
+import { ReleaseStageActionService } from "./release-stage-action.service";
 import { ReleasePlanAccessService } from "./release-plan-access.service";
 import {
   CreateReleasePlanDto,
@@ -38,6 +39,7 @@ interface AuthRequest {
 export class ReleasePlanController {
   constructor(
     private readonly releasePlanService: ReleasePlanService,
+    private readonly stageActionService: ReleaseStageActionService,
     private readonly accessPolicy: ControlAccessPolicyService,
     private readonly prisma: PrismaService,
     private readonly access: ReleasePlanAccessService,
@@ -59,6 +61,14 @@ export class ReleasePlanController {
       dto.environmentId,
       dto.services,
     );
+    // 跨服务依赖边由服务端从 deployConfig.releaseDependencies 解析（P0-1）。
+    // 不再信任客户端提交的依赖边——客户端无法注入未校验的跨服务编排。
+    const serviceDependencies = await this.access.resolveServiceDependencies(
+      req.teamId,
+      projectId,
+      dto.environmentId,
+      services,
+    );
     return this.releasePlanService.preview({
       projectId,
       environmentId: dto.environmentId,
@@ -67,7 +77,7 @@ export class ReleasePlanController {
       commitSha: dto.commitSha,
       gitRepo: dto.gitRepo,
       services,
-      serviceDependencies: dto.serviceDependencies as never,
+      serviceDependencies,
     });
   }
 
@@ -85,6 +95,12 @@ export class ReleasePlanController {
       dto.environmentId,
       dto.services,
     );
+    const serviceDependencies = await this.access.resolveServiceDependencies(
+      req.teamId,
+      projectId,
+      dto.environmentId,
+      services,
+    );
     return this.releasePlanService.create({
       teamId: req.teamId,
       projectId,
@@ -94,7 +110,7 @@ export class ReleasePlanController {
       commitSha: dto.commitSha,
       gitRepo: dto.gitRepo,
       services,
-      serviceDependencies: dto.serviceDependencies as never,
+      serviceDependencies,
       createdByUserId: req.user.id,
       expectedPlanHash: dto.expectedPlanHash,
     });
@@ -173,7 +189,7 @@ export class ReleasePlanController {
     this.requireEnabled();
     const plan = await this.releasePlanService.get(req.teamId, planId);
     await this.assertProjectAccess(req, plan.projectId, plan.environmentId, "write");
-    await this.releasePlanService.retryStage(req.teamId, planId, stageId, req.user.id);
+    await this.stageActionService.retryStage(req.teamId, planId, stageId, req.user.id);
     return { planId, stageId, status: "retrying" };
   }
 
@@ -188,7 +204,7 @@ export class ReleasePlanController {
     this.requireEnabled();
     const plan = await this.releasePlanService.get(req.teamId, planId);
     await this.assertProjectAccess(req, plan.projectId, plan.environmentId, "write");
-    await this.releasePlanService.skipStage(
+    await this.stageActionService.skipStage(
       req.teamId,
       planId,
       stageId,
@@ -208,7 +224,7 @@ export class ReleasePlanController {
     this.requireEnabled();
     const plan = await this.releasePlanService.get(req.teamId, planId);
     await this.assertProjectAccess(req, plan.projectId, plan.environmentId, "write");
-    await this.releasePlanService.reRequestApproval(
+    await this.stageActionService.reRequestApproval(
       req.teamId,
       planId,
       stageId,

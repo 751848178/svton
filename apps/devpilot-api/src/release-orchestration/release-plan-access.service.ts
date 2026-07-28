@@ -1,5 +1,5 @@
 /**
- * 发布计划服务归属与目标环境一致性校验（F383 Slice 8a, invest-3 §A.2）。
+ * 发布计划服务归属与目标环境一致性校验（F383 Slice 8a, invest-3 §A.2 + 第三轮 P0-1）。
  *
  * 从 ReleasePlanController 抽离的 DB 级访问校验：
  *   1. ApplicationService 必须属于同 team/project/application/environment；
@@ -7,13 +7,18 @@
  *      ProjectEnvironmentServer；
  *   3. svc.environmentId === dto.environmentId（硬保证，控制器入口已断言）。
  * 同时从 deployConfig 服务端读取阶段命令字段（DTO 不再承载原始 shell 命令——
- * invest-3 §A.5）。
+ * invest-3 §A.5），并读取该服务声明的跨服务发布依赖边（P0-1）。
  *
  * 控制器只做 HTTP 翻译（抛 ForbiddenException→403）；本服务持有 PrismaService。
  */
 import { ForbiddenException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { readServiceDeployConfig } from "./utils/release-service-config.utils";
+import {
+  readServiceDeployConfig,
+  readServiceReleaseDependencies,
+  type DeclaredServiceDependencyEdge,
+} from "./utils/release-service-config.utils";
+import type { ServiceDependencyEdge } from "./utils/release-cross-service-edges.utils";
 import type { ReleaseServiceInputDto } from "./dto/release-plan.dto";
 
 // builder 接受的服务输入形状（与 utils/release-plan-builder ReleaseServiceInput 等价，
@@ -111,6 +116,46 @@ export class ReleasePlanAccessService {
       });
     }
     return resolved;
+  }
+
+  // 从已校验服务集合 + 它们各自 deployConfig 声明的出向边，组装 builder 需要的
+  // 跨服务依赖边（P0-1）。fromServiceId 用所属服务 id；toServiceId 必须落在已选
+  // 已校验集合内——否则该边被丢弃（不阻断发布，避免引用未参与本计划的服务）。
+  // 因为每个 resolved service 都过了 assertAndResolve 的 team/project/env 归属校验，
+  // 保留的边天然满足「两端同 team/project/目标 environment」。
+  async resolveServiceDependencies(
+    teamId: string,
+    projectId: string,
+    environmentId: string,
+    services: ResolvedReleaseService[],
+  ): Promise<ServiceDependencyEdge[]> {
+    const selectedIds = new Set(services.map((s) => s.applicationServiceId));
+    if (selectedIds.size === 0) return [];
+    // 一次性拉取所有已选服务的 deployConfig（避免 N+1）。
+    const rows = await this.prisma.applicationService.findMany({
+      where: { id: { in: [...selectedIds] }, teamId, projectId, environmentId },
+      select: { id: true, deployConfig: true },
+    });
+    const configById = new Map(rows.map((r) => [r.id, r.deployConfig]));
+    const out: ServiceDependencyEdge[] = [];
+    for (const svc of services) {
+      const cfg = configById.get(svc.applicationServiceId);
+      const declared: DeclaredServiceDependencyEdge[] =
+        readServiceReleaseDependencies(cfg);
+      for (const d of declared) {
+        if (!selectedIds.has(d.toServiceId)) continue; // 下游不在本计划 → 丢弃
+        if (d.toServiceId === svc.applicationServiceId) continue; // 不允许自环
+        out.push({
+          fromServiceId: svc.applicationServiceId,
+          fromStageType: d.fromStageType,
+          toServiceId: d.toServiceId,
+          toStageType: d.toStageType,
+          conditionType: d.conditionType,
+          required: d.required,
+        });
+      }
+    }
+    return out;
   }
 
   private forbidden(err: ReleaseServiceAccessError): never {

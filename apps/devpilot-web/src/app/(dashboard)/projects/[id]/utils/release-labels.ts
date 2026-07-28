@@ -39,11 +39,12 @@ export const STAGE_TYPE_LABEL: Record<string, string> = {
   custom_command: '自定义命令',
 };
 
-/** 依赖条件类型 → 中文。 */
+/** 依赖条件类型 → 中文（对齐后端 ReleaseDependencyConditionType 枚举字符串）。 */
 export const DEPENDENCY_CONDITION_LABEL: Record<string, string> = {
-  on_success: '成功后',
-  always: '无论成败',
-  on_failure: '失败后',
+  succeeded: '成功后',
+  completed: '完成后（允许跳过继续）',
+  output_match: '输出匹配后',
+  approved: '审批通过后',
 };
 
 /**

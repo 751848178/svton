@@ -21,19 +21,18 @@ function makeService({
   } as never;
   const planRepo = { persistPlanWithStages: jest.fn(async (input: never) => ({ id: "plan-1", planHash: "h" })) };
   const eventRepo = { append: jest.fn().mockResolvedValue(undefined) };
+  const cancelService = { cancel: jest.fn().mockResolvedValue(undefined) };
   const others = {} as never;
   const svc = new ReleasePlanService(
     config,
     others, // prisma
     planRepo as never,
-    others, // stageRepo
     others, // attemptRepo
     eventRepo as never,
     others, // coordinator
-    others, // approvalLifecycle
-    others, // serverExecutor
+    cancelService as never, // cancelService
   );
-  return { svc, planRepo, eventRepo };
+  return { svc, planRepo, eventRepo, cancelService };
 }
 
 const validInput = {
@@ -95,5 +94,83 @@ describe("ReleasePlanService preview↔create hash binding (invest-3 §C)", () =
   it("create fails fast when flag disabled (assertEnabled)", async () => {
     const { svc } = makeService({ enabled: false });
     await expect(svc.create(validInput)).rejects.toThrow();
+  });
+
+  // P0-2：preview 一种依赖图、create 提交另一种 → 409 RELEASE_PLAN_STALE。
+  // 旧实现 planHash 不含依赖图，两次相同 → 不触发 409，允许 preview/create 篡改。
+  describe("P0-2 planHash binds dependency graph (preview↔create drift)", () => {
+    const twoServices = [
+      {
+        applicationId: "app-backend",
+        applicationServiceId: "svc-backend",
+        environmentId: "env-prod",
+        serviceName: "backend",
+        deployCommand: "make deploy-backend",
+        healthCheckUrl: "http://backend/healthz",
+      },
+      {
+        applicationId: "app-admin",
+        applicationServiceId: "svc-admin",
+        environmentId: "env-prod",
+        serviceName: "admin",
+        deployCommand: "make deploy-admin",
+        healthCheckUrl: "http://admin/healthz",
+      },
+    ];
+    const crossEdge = {
+      fromServiceId: "svc-backend",
+      fromStageType: "health_check",
+      toServiceId: "svc-admin",
+      toStageType: "application_deploy",
+      conditionType: "succeeded",
+      required: true,
+    } as const;
+
+    it("preview without edge, then create WITH edge → 409 (hash now depends on deps)", async () => {
+      const { svc } = makeService();
+      const preview = await svc.preview({
+        projectId: "p1", environmentId: "env-prod", name: "r1", services: twoServices,
+      });
+      await expect(
+        svc.create({
+          projectId: "p1", environmentId: "env-prod", name: "r1",
+          services: twoServices,
+          serviceDependencies: [crossEdge],
+          teamId: "team-1",
+          expectedPlanHash: preview.planHash,
+        }),
+      ).rejects.toMatchObject({ response: { code: "RELEASE_PLAN_STALE" } });
+    });
+
+    it("preview with edge, then create WITHOUT edge → 409", async () => {
+      const { svc } = makeService();
+      const preview = await svc.preview({
+        projectId: "p1", environmentId: "env-prod", name: "r1",
+        services: twoServices, serviceDependencies: [crossEdge],
+      });
+      await expect(
+        svc.create({
+          projectId: "p1", environmentId: "env-prod", name: "r1",
+          services: twoServices,
+          teamId: "team-1",
+          expectedPlanHash: preview.planHash,
+        }),
+      ).rejects.toMatchObject({ response: { code: "RELEASE_PLAN_STALE" } });
+    });
+
+    it("preview with edge, then create with SAME edge → succeeds (no false stale)", async () => {
+      const { svc } = makeService();
+      const preview = await svc.preview({
+        projectId: "p1", environmentId: "env-prod", name: "r1",
+        services: twoServices, serviceDependencies: [crossEdge],
+      });
+      const created = await svc.create({
+        projectId: "p1", environmentId: "env-prod", name: "r1",
+        services: twoServices, serviceDependencies: [crossEdge],
+        teamId: "team-1",
+        expectedPlanHash: preview.planHash,
+      });
+      expect(created.planHash).toBe(preview.planHash);
+    });
   });
 });
