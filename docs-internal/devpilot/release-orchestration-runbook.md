@@ -10,10 +10,10 @@
 
 | 值 | 行为 |
 | --- | --- |
-| `false`（默认） | 创建/执行/重试/跳过接口返回 403；读取接口仍可用。旧 `POST /deployments/projects/:projectId/runs` 与部署页面完全不变。历史发布计划与事件保留，可读不可推进。 |
+| `false`（默认） | 禁止创建、预览、执行、重试、跳过、重新申请审批（均返回 403）。历史发布计划与事件保留**可读**。`cancel` 始终可用（逃生通道，见 §3）。旧 `POST /deployments/projects/:projectId/runs` 与部署页面完全不变。 |
 | `true` | 全部接口可用；可对单项目预览/执行。 |
 
-切换不影响历史数据；关闭只阻止创建/推进新计划，不删除证据。
+切换不影响历史数据；关闭只阻止创建/推进新计划，不删除证据。**不建议直接 SQL 修改业务状态**——所有状态变更都走 REST 接口（cancel 在 flag 关闭时仍走接口）。
 
 ## 2. 启用步骤（本地）
 
@@ -40,8 +40,12 @@ DEVPILOT_RELEASE_ORCHESTRATION_ENABLED=true
 
 - 关闭开关时，已 `running` 的阶段仍按其租约完成或被恢复链路回收；
   已 `queued` 的新阶段不再被认领推进。
-- 若需立即停止：`POST /release-plans/:planId/cancel`（关闭后该接口不可用，
-  需临时开启或直接 SQL 标记；生产推荐先 cancel 再关闭开关）。
+- **`cancel` 始终可用**：`POST /release-plans/:planId/cancel` 是逃生通道，
+  feature flag 关闭时**不**返回 403，可随时停止在途计划（控制器 cancel 路由有意不守 flag，
+  对应 `GET /release-plans/capability` 的 `canCancel:true`）。**不建议直接 SQL 修改业务状态**。
+- cancel 采用 plan 级 CAS（compare-and-set）决定所有权：若 plan 已被并发 finalize 推进到
+  `succeeded`，cancel 的 CAS 命中 0 行即短路返回，不产生部分取消、不写虚假 `plan_canceled` 事件
+  （P0-3 修复）。调用方读最新 plan 即可看到真实终态。
 - 过期租约回收：恢复链路在 `advancePlan` 触发时扫描
   `leaseExpiresAt < now` 的 `running` attempt，从关联
   `ServerExecutionJob`/`DeploymentRun` 回读终态。

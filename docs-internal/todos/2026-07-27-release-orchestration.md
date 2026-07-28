@@ -4,10 +4,32 @@
 > 创建时间：2026-07-27（Asia/Shanghai）
 > 设计者：OpenAI Codex（GPT-5 系列）
 > 使用工具：Git、CodeGraph CLI、受限源码读取、Prisma 模型检查、既有运行证据
-> 当前状态：**后端主链修复并经真实验证（done）；浏览器 GUI 全流程仍为进行中（blocked-by-infra）**。
-> 修复轮次：2026-07-27 第二轮（独立审计揭示主链断点后返工，分支 `fix/f383-release-orchestration-mainchain`）。
+> 当前状态：**第三轮 P0-1/2/3 修复并经真实验证（done，268 单测+集成通过）；浏览器 GUI 全流程仍为进行中（blocked-by-infra，F383.9.3 未标 done）**。
+> 修复轮次：2026-07-27 第二轮 → 2026-07-28 第三轮（P0-1/2/3），分支 `fix/f383-release-orchestration-mainchain`。
 > 最终报告：`docs-internal/devpilot/release-orchestration-final-report.md`
 > 运维手册：`docs-internal/devpilot/release-orchestration-runbook.md`
+
+## 第三轮修复（P0-1/2/3，2026-07-28）
+
+> 第三轮针对独立审查揭示的三个确定性主链断点修复。提交 `03d6d10d`，证据日志 `/tmp/codex-tool-runs/svton/f383-third-round/`。
+
+- **P0-1 跨服务依赖改为服务端归属**：依赖定义源 = `ApplicationService.deployConfig.releaseDependencies`
+  （平台受控/持久化/可审计，零迁移）。控制器不再信任客户端 `serviceDependencies`（DTO 移除入参），
+  改由 `ReleasePlanAccessService.resolveServiceDependencies` 从已校验服务集合解析；向导环境切换清除失效
+  `selectedServices`；预览面板用中文描述展示依赖（「Backend 就绪检查成功后，才会部署 Admin」）。
+  通用，非 Picshare 名称硬编码。
+- **P0-2 planHash 绑定依赖图**：新增 canonical snapshot 纯函数（`release-plan-snapshot.utils`），覆盖
+  project/env、VCS、规范化服务集、服务端解析阶段、跨服务依赖、最终 stages/dependencies、风险/required/
+  审批；数组全部 sortBy → 声明顺序无关；不含 generatedAt/idempotencyKey/原始 shell。preview↔create
+  依赖图 drift → 409 RELEASE_PLAN_STALE 真正生效。
+- **P0-3 cancel CAS 所有权**：plan 级 updateMany 影响行数决定取消所有权。CAS 命中 0 行（finalize 抢先
+  把 plan→succeeded）→ 事务内短路，不动 stages/attempts/leases、不写虚假 plan_canceled 事件。外部 SEJ
+  取消仍 best-effort。抽出 `ReleaseCancelService` + `ReleaseStageActionService`（retry/skip/re-request），
+  `release-plan.service` 收敛为计划生命周期核心（<200 行）。
+- **文档同步**：runbook §1/§3（cancel 是逃生通道，flag 关闭仍可用，不建议直接 SQL）；requirements §10。
+- **验证**：268 单测+集成测试通过（集成套件**不再 skip**，新增 5 个 P0-3 竞态用例断言联合不变量）；
+  api/web type-check/lint/build、prisma validate/generate、nestjs-http build/test 全绿；两 F383 migration
+  在一次性 MySQL 8 deploy 通过。Docker 健康（3120→200），浏览器验证待执行。
 
 ## 实现证据索引（done 项）
 

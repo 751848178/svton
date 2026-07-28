@@ -1,8 +1,42 @@
-# F383 发布编排最终报告（第二轮返工后）
+# F383 发布编排最终报告（第三轮 P0-1/2/3 修复后）
 
 > 仓库：`/Users/zhaoxingbo/Workspace/ai-driven/svton`
-> 分支：`fix/f383-release-orchestration-mainchain`（HEAD `f95f9a47`，未 push）
+> 分支：`fix/f383-release-orchestration-mainchain`（HEAD `03d6d10d` 第三轮 + 第二轮 `f95f9a47`，未 push）
 > 权威架构：`docs-internal/devpilot/release-orchestration-architecture.md`
+> 第一/二轮报告已存档于本文件后半；本节（§0.5）记录第三轮（P0-1/2/3）修复的真实证据。
+
+## 0.5 第三轮修复（P0-1/2/3，2026-07-28）
+
+第二轮宣称主链 done，但独立审查在源码层面复现了三个确定性断点（P0-1 跨服务依赖未真实提交、
+P0-2 planHash 不绑定依赖图、P0-3 cancel 反向竞态）。第三轮在保留第二轮骨架的前提下修复，证据可复现。
+
+| 断点 | 根因 | 第三轮修复 | 真实验证 |
+| --- | --- | --- | --- |
+| **P0-1** 真实页面不提交跨服务依赖 | 向导 `buildInput()` 只传 `services`，从不传 `serviceDependencies`；后端规定"Devpilot 不推断"。故 Picshare 计划永不包含 `backend:health_check → admin:application_deploy` | 依赖定义源改为 `ApplicationService.deployConfig.releaseDependencies`（服务端归属、零迁移）；控制器移除 DTO `serviceDependencies` 入参，改由 `ReleasePlanAccessService.resolveServiceDependencies` 解析；向导环境切换清选；预览面板中文描述 | `release-service-config.utils.spec`（releaseDependencies 读取/畸形/去重）、`release-cross-service-edges.utils.spec`（Picshare 边解析）、`release-plan.controller.spec`（客户端注入被忽略、服务端解析、下游未选丢弃） |
+| **P0-2** planHash 不绑定依赖图 | `inputSnapshot` 不含 `serviceDependencies`/解析后 `dependencies`；增减跨服务边 hash 不变 → preview/create 篡改不触发 409 | 新增 canonical snapshot 纯函数（`release-plan-snapshot.utils`），覆盖服务选择器 + 跨服务依赖 + 解析阶段 + dependencies + 审批；数组 sortBy 顺序无关 | `release-plan-snapshot.utils.spec`（无/有依赖 hash 不同、endpoint/condition/required 变更不同、顺序相同、命令变更不同、snapshot 无秘密）；`release-plan.service.spec`（preview↔create 依赖图 drift→409） |
+| **P0-3** cancel 反向竞态 | `cancel` 的 plan `updateMany` 影响行数未检查；finalize 抢先把 plan→succeeded 后 cancel 的 CAS 命中 0 行但仍翻 stages/attempts 并写 plan_canceled 事件 → plan=succeeded/stage=canceled/event=plan_canceled 不一致 | plan 级 CAS 决定所有权：命中 0 行即事务内短路，不动 stages/attempts/leases、不写事件 | coordinator integration（真实 MySQL :3399，5 个新用例：finalize-then-cancel、cancel-then-finalize、双 cancel、外部 job 已终态、外部 cancel 失败；全部断言 plan/stage/attempt/event/lease 联合不变量） |
+
+**结构拆分**：`release-plan.service.ts`（426 行）→ 拆出 `release-cancel.service.ts`（cancel + cancelAttemptExternalJob，
+P0-3 落点）+ `release-stage-action.service.ts`（retry/re-request/skipStage），核心收敛为 preview/create/get/
+list/execute/heartbeat/isEnabled/resolveGitRefInto。controller 委托新服务。单向无环、无逻辑复制。
+
+**验证证据**（日志 `/tmp/codex-tool-runs/svton/f383-third-round/`）：
+
+| 套件 | 结果 |
+| --- | --- |
+| release-orchestration + operation-approval 单测 + 集成 | **268 passed**（22 集成用例不再 skip，含 5 个 P0-3 竞态） |
+| prisma validate + generate | exit 0（两 F383 migration 在一次性 MySQL 8 deploy 通过） |
+| api type-check / build | exit 0 |
+| web type-check / lint / build | exit 0 |
+| nestjs-http build / test | exit 0 / 3 passed |
+
+**Docker 健康**（2026-07-28）：`docker info` exit 0，`http://localhost:3120` → 200，`mysql:8` 本地可用。
+浏览器 Picshare 参考流验证待执行（F383.9.3 保持 in-progress）。
+
+---
+
+# 存档：第二轮返工报告
+
 > 第一轮报告已被独立审计证伪（多处 done 状态与源码事实不符）。本报告据第二轮返工的真实证据重写。
 
 ## 0. 第二轮返工的触发与范围

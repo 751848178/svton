@@ -359,16 +359,21 @@ MVP 验收标准：
 
 ## 10. F383 项目级发布编排设计与 GLM 交接（2026-07-27）
 
-- 状态：架构、任务台账、兼容边界、验收矩阵和全新对话可执行的 GLM Goal
-  提示词已完成；本轮按约定停止在实现前。
+- 状态：**已实现并经三轮修复**（2026-07-28）。架构、任务台账、兼容边界、验收矩阵
+  与可执行的 Goal 提示词均已完成。详见 `release-orchestration-final-report.md`。
 - 核心决策：数据库结构迁移、生产 bootstrap、存量数据回填和应用部署独立
   执行，通过项目/环境范围的持久化 DAG 编排，不再依赖单条部署命令拼接。
-- 复用边界：命令阶段继续使用 `ServerExecutorJob`，应用部署继续使用
+- 复用边界：命令阶段继续使用 `ServerExecutionJob`，应用部署继续使用
   `DeploymentRun`，审批和审计继续使用现有模块；不得另建 SSH/Agent 旁路。
 - 兼容边界：现有直接部署保持 F382 串行语义；新编排默认关闭，发布内部适配
   模式避免 migration/bootstrap 重复执行。
 - UI 目标：用户只需看到当前结论、一个推荐动作、阻塞原因、阶段输入/依赖/
   尝试/输出/日志/错误和关联运行；所有按钮必须有真实后端效果。
+- **第三轮修复（P0-1/2/3，2026-07-28）**：跨服务依赖改为服务端归属
+  （`deployConfig.releaseDependencies`）；planHash 绑定依赖图（canonical snapshot，
+  preview↔create drift → 409）；cancel CAS 所有权（finalize-then-cancel 不再产生
+  部分取消/虚假事件）；release-plan.service 按职责拆分为 cancel/stage-action 子服务。
+  验证：268 单测+集成测试通过（集成套件不再 skip），类型/lint/build/prisma 全绿。
 - 详细架构见 `docs-internal/devpilot/release-orchestration-architecture.md`，
   长任务入口见
   `docs-internal/devpilot/glm-goals/devpilot-release-orchestration-goal.md`。
