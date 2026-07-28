@@ -5,6 +5,7 @@
  * 已抽离的职责（按 200 行/单职责约定）：
  *   - 取消 → ReleaseCancelService（P0-3 CAS 所有权）
  *   - 重试 / 重新申请审批 / 跳过 → ReleaseStageActionService
+ *   - stage 持久化映射 → mapStagesForPersist
  * 本服务只保留 preview/create/get/list/execute/heartbeat/isEnabled/resolveGitRefInto。
  */
 import {
@@ -20,17 +21,11 @@ import { ReleasePlanRepository } from "./repository/release-plan.repository";
 import { ReleaseStageAttemptRepository } from "./repository/release-stage-attempt.repository";
 import { ReleaseEventRepository } from "./repository/release-event.repository";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
-import {
-  buildReleasePlan,
-  type ReleasePlanBuildInput,
-  type ReleasePlanPreview,
-} from "./utils/release-plan-builder.utils";
+import { buildReleasePlan, type ReleasePlanBuildInput, type ReleasePlanPreview } from "./utils/release-plan-builder.utils";
+import { mapStagesForPersist } from "./utils/release-plan-create-mapper.utils";
 import { redactSecretsInObject } from "./utils/release-redact.utils";
 import { resolveGitRef } from "./utils/release-git-ref.utils";
-import {
-  RELEASE_AUDIT_ACTIONS,
-  RELEASE_ORCHESTRATION_FLAG,
-} from "./types/release-orchestration.types";
+import { RELEASE_AUDIT_ACTIONS, RELEASE_ORCHESTRATION_FLAG } from "./types/release-orchestration.types";
 import { ReleaseCancelService } from "./release-cancel.service";
 
 const LEASE_MS = 15 * 60 * 1000;
@@ -57,7 +52,6 @@ export class ReleasePlanService {
     }
   }
 
-  // 预览：纯解析，不写 DB；提交前解析 git ref（branch → commitSha）。
   async preview(input: ReleasePlanBuildInput): Promise<ReleasePlanPreview> {
     await this.resolveGitRefInto(input);
     const result = buildReleasePlan(input);
@@ -81,11 +75,9 @@ export class ReleasePlanService {
   ): Promise<{ id: string; planHash: string }> {
     this.assertEnabled();
     const preview = await this.preview(input);
-    // preview ↔ create 强绑定（invest-3 §C）：客户端回传 expectedPlanHash，
-    // 与本次重新计算的 preview.planHash 不一致即 409。
-    // CR-3-F2：expectedPlanHash 现为必填（DTO @IsNotEmpty）。删除可选时的静默绕过分支——
-    // 缺失/不一致一律 RELEASE_PLAN_STALE，关闭 hash 校验绕过。
-    // P0-2：planHash 现绑定依赖图（canonical snapshot），依赖图变化必改变 hash。
+    // preview ↔ create 强绑定（invest-3 §C）：客户端回传 expectedPlanHash，与本次重新计算的
+    // preview.planHash 不一致即 409。CR-3-F2：expectedPlanHash 现为必填，关闭 hash 校验绕过。
+    // P0-2：planHash 绑定依赖图（canonical snapshot），依赖图变化必改变 hash。
     if (preview.planHash !== input.expectedPlanHash) {
       throw new ConflictException({
         code: "RELEASE_PLAN_STALE",
@@ -94,11 +86,9 @@ export class ReleasePlanService {
         received: input.expectedPlanHash,
       });
     }
-    // 持久化阶段必须用「未脱敏」的原始阶段定义——preview() 返回的对象已整体
-    // redactSecretsInObject（含 stages[].configSnapshot），会把 DB 连接串密码
-    // 冻结成 [REDACTED]，导致执行时以字面量 [REDACTED] 认证失败（P1000）。
-    // 这里重新跑一次未脱敏的 buildReleasePlan 取原始 stages；planHash 与 preview
-    // 同源（都由 buildReleasePlan 计算），故 STALE 校验仍然有效。
+    // 持久化阶段用「未脱敏」原始 stages——preview() 已整体 redactSecretsInObject 会把
+    // 连接串密码冻结成 [REDACTED]，执行时会以字面量 [REDACTED] 认证失败。重新跑未脱敏
+    // buildReleasePlan 取原始 stages；planHash 与 preview 同源（都由 buildReleasePlan 计算）。
     const rawBuild = buildReleasePlan(input);
     if (!rawBuild.ok) {
       throw new BadRequestException({
@@ -107,7 +97,6 @@ export class ReleasePlanService {
         details: rawBuild.error.details,
       });
     }
-    const rawStages = rawBuild.value.stages;
     const plan = await this.planRepo.persistPlanWithStages({
       teamId: input.teamId,
       projectId: input.projectId,
@@ -118,23 +107,7 @@ export class ReleasePlanService {
       planHash: preview.planHash,
       inputSnapshot: redactSecretsInObject(preview.inputSnapshot),
       createdByUserId: input.createdByUserId ?? null,
-      stages: rawStages.map((stage) => ({
-        key: stage.key,
-        name: stage.name,
-        type: stage.type,
-        executorKind: stage.executorKind,
-        applicationId: stage.applicationId ?? null,
-        applicationServiceId: stage.applicationServiceId ?? null,
-        environmentId: stage.environmentId ?? null,
-        serverId: stage.serverId ?? null,
-        // configSnapshot 保留可执行的真实命令（含 DB 连接串密码）；展示/审计
-        // 用 inputSnapshot（已脱敏）与 get()/list() 的响应级 redactSecretsInObject。
-        configSnapshot: stage.configSnapshot ?? {},
-        configHash: stage.configHash ?? null,
-        concurrencyKey: stage.concurrencyKey ?? null,
-        riskLevel: stage.riskLevel,
-        required: stage.required,
-      })),
+      stages: mapStagesForPersist(rawBuild.value.stages),
       dependencies: preview.dependencies,
     });
     await this.eventRepo.append({
@@ -150,9 +123,7 @@ export class ReleasePlanService {
 
   async get(teamId: string, planId: string) {
     const plan = await this.planRepo.findById(planId);
-    if (!plan || plan.teamId !== teamId) {
-      throw new NotFoundException("发布计划不存在");
-    }
+    if (!plan || plan.teamId !== teamId) throw new NotFoundException("发布计划不存在");
     return redactSecretsInObject(plan);
   }
 
@@ -170,14 +141,10 @@ export class ReleasePlanService {
       ["ready", "blocked"],
       { status: "running", startedAt: new Date(), blockedReason: null },
     );
-    if (updated === 0) {
-      throw new ConflictException(`计划当前状态 ${plan.status} 不可执行`);
-    }
+    if (updated === 0) throw new ConflictException(`计划当前状态 ${plan.status} 不可执行`);
     await this.eventRepo.append({
-      releasePlanId: planId,
-      teamId,
-      eventType: RELEASE_AUDIT_ACTIONS.plan_executed,
-      actorId,
+      releasePlanId: planId, teamId,
+      eventType: RELEASE_AUDIT_ACTIONS.plan_executed, actorId,
       summary: "开始执行发布计划",
     });
     await this.coordinator.advancePlan(planId, actorId);
@@ -194,10 +161,6 @@ export class ReleasePlanService {
   }
 
   // 解析 git ref（invest-3 §B.2）：分支 → commit SHA。
-  // 若 input.gitRepo + input.branch 提供但 commitSha 缺失，则尝试 git ls-remote。
-  // 解析失败（不可达/超时/畸形）抛 BadRequest RELEASE_GIT_UNRESOLVABLE，
-  // 拦截 preview/create；成功则回填 input.commitSha，由 builder 冻结到
-  // 阶段 configSnapshot + planHash。
   private async resolveGitRefInto(input: ReleasePlanBuildInput): Promise<void> {
     if (!input.gitRepo || !input.branch) return;
     if (input.commitSha) return;

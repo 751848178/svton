@@ -1,100 +1,34 @@
 /**
- * 发布计划构建器（纯函数）：跨服务编排阶段工厂，校验 DAG，计算 planHash。
+ * 发布计划构建器（纯函数，F383）：跨服务编排阶段工厂，校验 DAG，计算 planHash。
  * 不读取 DB、不执行副作用。dry-run 与正式计划共用本函数。
+ * 类型契约见 release-plan-builder.types；inputSnapshot 装配见 release-plan-input-snapshot。
  */
 import { computePlanHash } from "./release-hash.utils";
 import { validateReleaseDag } from "./release-dag.utils";
 import type { ReleaseDagResult } from "./release-dag.utils";
 import { validateServiceOwnership } from "./release-env-validation.utils";
-import {
-  buildServiceStages,
-  makeStage as _unusedMakeStage,
-} from "./release-plan-stage-factory.utils";
-import type {
-  ServiceDependencyEdge,
-} from "./release-cross-service-edges.utils";
+import { buildServiceStages, makeStage as _unusedMakeStage } from "./release-plan-stage-factory.utils";
 import { resolveCrossServiceEdges } from "./release-cross-service-edges.utils";
 import { buildCanonicalPlanSnapshot } from "./release-plan-snapshot.utils";
+import { buildInputSnapshot } from "./release-plan-input-snapshot.utils";
 import type {
-  ReleaseRiskLevel,
-  ReleaseStageDefinition,
-} from "../types/release-orchestration.types";
-import type { ReleaseDepWarning } from "./release-dep-error.utils";
+  ReleasePlanBuildInput,
+  ReleaseStageNode,
+  ReleaseDependency,
+  ReleasePlanPreview,
+} from "./release-plan-builder.types";
+
+// 重新导出类型，保持 `from "./release-plan-builder.utils"` 的既有导入路径稳定。
+export type {
+  ReleaseServiceInput,
+  ReleasePlanBuildInput,
+  ReleaseStageNode,
+  ReleaseDependency,
+  ReleasePlanPreview,
+  ExecutorPreflightWarningSnapshot,
+} from "./release-plan-builder.types";
 
 void _unusedMakeStage;
-
-// 单个应用服务在发布计划中的解析输入
-export interface ReleaseServiceInput {
-  applicationId: string;
-  applicationServiceId: string;
-  environmentId: string;
-  serverId?: string | null;
-  serviceName: string;
-  preStartCheckCommand?: string;
-  migrationCommand?: string;
-  initializationCommand?: string;
-  deployCommand?: string;
-  healthCheckUrl?: string;
-  backfillCommand?: string;
-  backfillRequired?: boolean;
-  // VCS 透传到 application_deploy 阶段 configSnapshot；plan-level 输入覆盖 per-service 值。
-  branch?: string;
-  commitSha?: string;
-  gitRepo?: string;
-}
-
-export interface ReleasePlanBuildInput {
-  projectId: string;
-  environmentId: string;
-  name: string;
-  branch?: string;
-  commitSha?: string;
-  gitRepo?: string;
-  services: ReleaseServiceInput[];
-  // 跨服务依赖边（显式声明，Devpilot 不推断）。Picshare 的 backend-readiness → admin-deploy 在此声明。
-  serviceDependencies?: ServiceDependencyEdge[];
-  // P0-2(b)：optional 依赖目标缺失/跨域的结构化警告（不阻断，回传 UI 预览区）。
-  dependencyWarnings?: ReleaseDepWarning[];
-  // F383 §B：执行器能力预检警告（live 未启用 / authType 不受支持 / 服务器缺失）。
-  // 与 dependencyWarnings 同为非阻断提示，但语义独立，UI 单独展示。
-  executorWarnings?: ExecutorPreflightWarningSnapshot[];
-}
-
-export interface ReleaseStageNode extends ReleaseStageDefinition {
-  idempotencyKey: string;
-}
-
-export interface ReleaseDependency {
-  stageKey: string;
-  dependsOnStageKey: string;
-  conditionType: ReleaseDependencyConditionType;
-  required: boolean;
-}
-
-export interface ReleasePlanPreview {
-  stages: ReleaseStageNode[];
-  dependencies: ReleaseDependency[];
-  planHash: string;
-  inputSnapshot: Record<string, unknown>;
-  sideEffects: string[];
-  riskSummary: Array<{ stageKey: string; risk: ReleaseRiskLevel }>;
-  approvalRequired: Array<{ stageKey: string; reason: string }>;
-  // P0-2(b)：optional 依赖警告（UI 预览区展示，不阻断创建）。
-  warnings: ReleaseDepWarning[];
-  // F383 §B：执行器能力预检警告（UI 预览区单独展示，不阻断创建）。
-  executorWarnings: ExecutorPreflightWarningSnapshot[];
-}
-
-/** 执行器预检警告的快照形状（与 ReleaseExecutorPreflightWarning 对齐，可序列化）。 */
-export interface ExecutorPreflightWarningSnapshot {
-  applicationServiceId: string;
-  serviceName: string;
-  serverId: string;
-  reason: string;
-  suggestedAction: string;
-}
-
-import type { ReleaseDependencyConditionType } from "../types/release-orchestration.types";
 
 export function buildReleasePlan(
   input: ReleasePlanBuildInput,
@@ -113,18 +47,13 @@ export function buildReleasePlan(
   const approvalRequired: ReleasePlanPreview["approvalRequired"] = [];
 
   for (const svc of input.services) {
-    // 防御性环境一致性（invest-3 §A.2 第二道闸）：控制器已做 DB 级校验，
-    // 但 builder 作为纯函数层再断言一次——任何 environmentId 漂移立即拦截，
-    // 返回 missing_reference（preview/create → RELEASE_PLAN_INVALID）。
+    // 防御性环境一致性（invest-3 §A.2 第二道闸）：控制器已做 DB 级校验，builder 再断言一次。
     const ownership = validateServiceOwnership(svc, input.environmentId);
     if (!ownership.ok) {
-      return {
-        ok: false,
-        error: { kind: "missing_reference", message: ownership.message },
-      };
+      return { ok: false, error: { kind: "missing_reference", message: ownership.message } };
     }
     // plan-level 分支/commit/仓库覆盖 per-service 值（发布计划目标是权威）。
-    const svcWithVcs: ReleaseServiceInput = {
+    const svcWithVcs: ReleasePlanBuildInput["services"][number] = {
       ...svc,
       branch: input.branch ?? svc.branch,
       commitSha: input.commitSha ?? svc.commitSha,
@@ -138,15 +67,11 @@ export function buildReleasePlan(
   }
 
   // 跨服务依赖边：在所有 per-service 阶段收集完毕后叠加。
-  // 引用不存在的 service/stageType → missing_reference（preview/create 抛 RELEASE_PLAN_INVALID）。
   if (input.serviceDependencies && input.serviceDependencies.length > 0) {
     const knownStageKeys = new Set(stages.map((s) => s.key));
     const resolved = resolveCrossServiceEdges(input.serviceDependencies, knownStageKeys);
     if (!resolved.ok) {
-      return {
-        ok: false,
-        error: { kind: resolved.kind, message: resolved.message },
-      };
+      return { ok: false, error: { kind: resolved.kind, message: resolved.message } };
     }
     dependencies.push(...resolved.edges);
   }
@@ -159,8 +84,7 @@ export function buildReleasePlan(
 
   // P0-2：planHash 绑定依赖图。canonical snapshot 覆盖会影响实际执行的全部输入
   // （含 serviceDependencies 与解析后的 stages/dependencies），顺序无关、不含易变字段。
-  // P0-2(b)：warnings 也纳入 hash——若 preview 与 create 之间 optional 警告发生变化
-  // （例如新增/移除了某个 optional 目标），planHash 必然改变 → RELEASE_PLAN_STALE 阻断陈旧创建。
+  // P0-2(b)：warnings 也纳入 hash——optional 警告变化 → planHash 改变 → STALE 阻断陈旧创建。
   const dependencyWarnings = input.dependencyWarnings ?? [];
   const canonicalSnapshot = buildCanonicalPlanSnapshot({
     input: { ...input, serviceDependencies: input.serviceDependencies ?? [] },
@@ -171,39 +95,15 @@ export function buildReleasePlan(
   });
   const planHash = computePlanHash(canonicalSnapshot);
 
-  // 持久化/返回用的 inputSnapshot：保留可读的服务与依赖图，供审计与诊断；
-  // 与 canonicalSnapshot 同源但保留人类可读结构（含 generatedAt，不进 hash）。
-  const inputSnapshot: Record<string, unknown> = {
-    projectId: input.projectId,
-    environmentId: input.environmentId,
-    name: input.name,
-    branch: input.branch ?? null,
-    commitSha: input.commitSha ?? null,
-    gitRepo: input.gitRepo ?? null,
-    services: input.services,
-    serviceDependencies: input.serviceDependencies ?? [],
-    stages: stages.map((s) => ({
-      key: s.key,
-      type: s.type,
-      executorKind: s.executorKind,
-      required: s.required,
-      riskLevel: s.riskLevel,
-      configHash: s.configHash ?? null,
-      concurrencyKey: s.concurrencyKey ?? null,
-    })),
-    dependencies,
-    approvalRequired,
-    dependencyWarnings,
-    generatedAt: new Date().toISOString(),
-  };
-
   return {
     ok: true,
     value: {
       stages,
       dependencies,
       planHash,
-      inputSnapshot,
+      inputSnapshot: buildInputSnapshot({
+        input, stages, dependencies, approvalRequired, dependencyWarnings,
+      }),
       sideEffects,
       riskSummary: [],
       approvalRequired,

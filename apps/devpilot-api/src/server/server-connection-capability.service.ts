@@ -8,19 +8,21 @@ import {
   buildUnsupportedAuthTypeMessage,
   SSH_CAPABILITY_PROBE_COMMAND,
 } from "../server-executor/adapters/ssh-credential-mapping.utils";
+import { checkPortReachable } from "./tcp-reachability.utils";
+import {
+  capabilityNotFound,
+  executorEnabledRecommendation,
+  readLiveExecutorEnabled,
+  sanitizeAuthMessage,
+} from "./capability-message.utils";
 
 /**
- * 服务器连接能力检测（F383 §B）。
- *
- * 把旧的「TCP 端口可达 = online」误导性判定拆成三段：
+ * 服务器连接能力检测（F383 §B）。把判定拆成三段：
  *  1. networkReachable — TCP 端口是否开放
  *  2. authenticationVerified — 真实 SSH 握手 + 凭据认证 + 最小无副作用命令 `true`
  *  3. executorCompatible — live executor 开关 + 受支持 authType + 传输可用
- *
- * 任一不通过都给出可操作的 recommendation，让新手知道改哪一项，
- * 而不是把「端口可达但发布执行器不能用」伪装成「连接成功」。
- *
- * 安全：密码/私钥只在本次检测的内存中用于 SSH 连接，绝不进入返回结果。
+ * 任一不通过都给出可操作的 recommendation。安全：密码/私钥只在本次检测的内存中
+ * 用于 SSH 连接，绝不进入返回结果。文案/开关/探活已抽离到 capability-message/tcp utils。
  */
 export interface ServerConnectionCapability {
   authType: string | null;
@@ -50,15 +52,10 @@ export class ServerConnectionCapabilityService {
     const server = await this.prisma.server.findFirst({
       where: { id: serverId, teamId },
     });
-    if (!server) {
-      return notFound();
-    }
+    if (!server) return capabilityNotFound();
 
     const startedAt = Date.now();
-    const networkReachable = await this.checkPortReachable(
-      server.host,
-      server.port,
-    );
+    const networkReachable = await this.checkPortReachable(server.host, server.port);
     const latency = Date.now() - startedAt;
 
     if (!networkReachable) {
@@ -73,17 +70,15 @@ export class ServerConnectionCapabilityService {
       };
     }
 
-    // 网络可达后做真实 SSH 认证 + executor 兼容性判定。
     const authType = server.authType;
     if (!isSupportedSshAuthType(authType)) {
-      const message = buildUnsupportedAuthTypeMessage(authType);
       return {
         authType,
         networkReachable: true,
         authenticationVerified: false,
         executorCompatible: false,
         latency,
-        message,
+        message: buildUnsupportedAuthTypeMessage(authType),
         recommendation:
           `平台当前支持的认证方式：key / password。请在服务器「${server.name}」` +
           `配置中改用受支持的认证方式。`,
@@ -136,17 +131,11 @@ export class ServerConnectionCapabilityService {
       const result = await transport.execCommand(SSH_CAPABILITY_PROBE_COMMAND, {
         timeoutMs: 12_000,
       });
-      if (result.exitCode === 0) {
-        return { verified: true, message: "SSH 认证通过。" };
-      }
-      return {
-        verified: false,
-        message: `SSH 认证通过但探测命令退出码为 ${result.exitCode}。`,
-      };
+      if (result.exitCode === 0) return { verified: true, message: "SSH 认证通过。" };
+      return { verified: false, message: `SSH 认证通过但探测命令退出码为 ${result.exitCode}。` };
     } catch (error) {
       const msg = error instanceof Error ? error.message : "SSH 连接失败";
       this.logger.warn(`SSH capability probe failed for ${input.host}: ${msg}`);
-      // 不回显任何凭据片段；ssh2 的 auth 失败信息本身不含明文。
       return { verified: false, message: sanitizeAuthMessage(msg) };
     } finally {
       transport?.dispose?.();
@@ -157,52 +146,4 @@ export class ServerConnectionCapabilityService {
   protected checkPortReachable(host: string, port: number): Promise<boolean> {
     return checkPortReachable(host, port);
   }
-}
-
-function notFound(): ServerConnectionCapability {
-  return {
-    authType: null,
-    networkReachable: false,
-    authenticationVerified: false,
-    executorCompatible: false,
-    latency: 0,
-    message: "服务器不存在",
-    recommendation: "确认服务器 ID 与所属团队。",
-  };
-}
-
-function executorEnabledRecommendation(liveEnabled: boolean | string): string | undefined {
-  if (liveEnabled === true || liveEnabled === "true") return undefined;
-  return "在 API 环境变量中设置 SERVER_EXECUTOR_LIVE_ENABLED=true 以启用实时发布执行器。";
-}
-
-function readLiveExecutorEnabled(config: ConfigService): boolean {
-  const v = config.get("SERVER_EXECUTOR_LIVE_ENABLED", "false");
-  return v === true || v === "true";
-}
-
-function sanitizeAuthMessage(msg: string): string {
-  // 防御性：万一上游把凭据拼进 message，这里截断明显可识别的私密片段。
-  return msg.replace(/-{5,}BEGIN[A\s\S]*?END[A-Z ]*-{5,}/g, "[私钥已隐藏]");
-}
-
-async function checkPortReachable(host: string, port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const net = require("net");
-    const socket = new net.Socket();
-    socket.setTimeout(5000);
-    socket.on("connect", () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.on("timeout", () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.on("error", () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.connect(port, host);
-  });
 }
