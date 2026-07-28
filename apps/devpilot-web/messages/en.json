@@ -1556,6 +1556,7 @@
     "pageDescription": "Inspect the execution of the platform's background tasks (for admin diagnostics; usually not needed)",
     "infoAlertText": "This is a diagnostic view of the platform's execution engine; end users usually do not need it. If a deployment is blocked, check Operation Approvals.",
     "infoAlertCta": "Go to Operation Approvals",
+    "focusedJob": "Focused on execution job: {id} (showing only that job)",
     "queue": "Queue",
     "workers": "Workers",
     "sessions": "Sessions",

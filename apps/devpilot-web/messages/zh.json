@@ -1556,6 +1556,7 @@
     "pageDescription": "查看平台后台任务的执行情况（管理员诊断用，一般无需关注）",
     "infoAlertText": "本页为平台执行引擎诊断视图，普通用户通常无需关注。如遇部署阻塞，请前往操作审批查看。",
     "infoAlertCta": "前往操作审批",
+    "focusedJob": "已按执行任务聚焦：{id}（仅显示该任务）",
     "queue": "队列",
     "workers": "执行进程",
     "sessions": "会话",

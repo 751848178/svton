@@ -30,6 +30,8 @@ export function readExecutionGovernanceScope(
     operationKey: readParam(searchParams, 'operationKey'),
     adapterKey: readParam(searchParams, 'adapterKey'),
     queueMode: readParam(searchParams, 'queueMode'),
+    // jobId 是展示聚焦参数（客户端过滤），不发给后端 job 列表查询。
+    focusedJobId: searchParams.get('jobId')?.trim() || undefined,
   };
 }
 

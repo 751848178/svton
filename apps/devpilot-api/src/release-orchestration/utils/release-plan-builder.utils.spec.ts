@@ -54,6 +54,36 @@ describe("release-plan-builder buildReleasePlan", () => {
     expect(keys).toContain("health_check:svc-admin");
   });
 
+  // F383 回归：schema_migration 的 configSnapshot.command 必须保留真实 DB 连接串密码，
+  // 不能在 builder 层被脱敏成 [REDACTED]。此前 release-plan.service.create() 对
+  // configSnapshot 做 redactSecretsInObject，把 mysql://root:password@ 冻结成
+  // mysql://root:[REDACTED]@ 并导致执行期 P1000 认证失败。builder 这里保证执行配置
+  // 原样；展示/审计脱敏由 inputSnapshot 与 get()/list() 响应级 redact 负责。
+  it("keeps the real inline DB password in schema_migration configSnapshot.command", () => {
+    const withPassword: ReleaseServiceInput[] = [
+      {
+        applicationId: "app-backend",
+        applicationServiceId: "svc-backend",
+        environmentId: "env-prod",
+        serverId: "srv-1",
+        serviceName: "backend",
+        migrationCommand:
+          "docker run -e DATABASE_URL=\"mysql://root:s3cret-pw@db:3306/app\" migrate",
+      },
+    ];
+    const r = buildReleasePlan({
+      projectId: "p1",
+      environmentId: "env-prod",
+      name: "release-pw",
+      services: withPassword,
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const mig = r.value.stages.find((s) => s.key === "schema_migration:svc-backend");
+    expect(mig?.configSnapshot?.command).toContain("root:s3cret-pw@");
+    expect(mig?.configSnapshot?.command).not.toContain("[REDACTED]");
+  });
+
   it("chains backend stages in dependency order", () => {
     const r = buildReleasePlan({
       projectId: "p1",

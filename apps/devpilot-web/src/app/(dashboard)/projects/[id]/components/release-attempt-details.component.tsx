@@ -27,8 +27,10 @@ export function ReleaseAttemptDetails({ attempt, plan }: ReleaseAttemptDetailsPr
   const deploymentHref = attempt.deploymentRunId
     ? `/deployments?runId=${encodeURIComponent(attempt.deploymentRunId)}`
     : null;
-  // /servers 路由存在但不支持 ?jobId 过滤；仅作跳转入口。
-  const serverJobHref = attempt.serverExecutionJobId ? `/servers` : null;
+  // F383 §F：执行任务跳到执行治理页并按 jobId 过滤到该任务，不再泛化跳 /servers。
+  const serverJobHref = attempt.serverExecutionJobId
+    ? `/execution-governance?jobId=${encodeURIComponent(attempt.serverExecutionJobId)}`
+    : null;
 
   return (
     <div className="space-y-3 rounded border border-border bg-muted/20 p-3 text-sm">

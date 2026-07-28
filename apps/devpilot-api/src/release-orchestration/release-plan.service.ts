@@ -94,6 +94,20 @@ export class ReleasePlanService {
         received: input.expectedPlanHash,
       });
     }
+    // 持久化阶段必须用「未脱敏」的原始阶段定义——preview() 返回的对象已整体
+    // redactSecretsInObject（含 stages[].configSnapshot），会把 DB 连接串密码
+    // 冻结成 [REDACTED]，导致执行时以字面量 [REDACTED] 认证失败（P1000）。
+    // 这里重新跑一次未脱敏的 buildReleasePlan 取原始 stages；planHash 与 preview
+    // 同源（都由 buildReleasePlan 计算），故 STALE 校验仍然有效。
+    const rawBuild = buildReleasePlan(input);
+    if (!rawBuild.ok) {
+      throw new BadRequestException({
+        code: "RELEASE_PLAN_INVALID",
+        message: rawBuild.error.message,
+        details: rawBuild.error.details,
+      });
+    }
+    const rawStages = rawBuild.value.stages;
     const plan = await this.planRepo.persistPlanWithStages({
       teamId: input.teamId,
       projectId: input.projectId,
@@ -104,7 +118,7 @@ export class ReleasePlanService {
       planHash: preview.planHash,
       inputSnapshot: redactSecretsInObject(preview.inputSnapshot),
       createdByUserId: input.createdByUserId ?? null,
-      stages: preview.stages.map((stage) => ({
+      stages: rawStages.map((stage) => ({
         key: stage.key,
         name: stage.name,
         type: stage.type,
@@ -113,7 +127,9 @@ export class ReleasePlanService {
         applicationServiceId: stage.applicationServiceId ?? null,
         environmentId: stage.environmentId ?? null,
         serverId: stage.serverId ?? null,
-        configSnapshot: redactSecretsInObject(stage.configSnapshot ?? {}),
+        // configSnapshot 保留可执行的真实命令（含 DB 连接串密码）；展示/审计
+        // 用 inputSnapshot（已脱敏）与 get()/list() 的响应级 redactSecretsInObject。
+        configSnapshot: stage.configSnapshot ?? {},
         configHash: stage.configHash ?? null,
         concurrencyKey: stage.concurrencyKey ?? null,
         riskLevel: stage.riskLevel,
