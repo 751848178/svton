@@ -374,6 +374,17 @@ MVP 验收标准：
   preview↔create drift → 409）；cancel CAS 所有权（finalize-then-cancel 不再产生
   部分取消/虚假事件）；release-plan.service 按职责拆分为 cancel/stage-action 子服务。
   验证：268 单测+集成测试通过（集成套件不再 skip），类型/lint/build/prisma 全绿。
+- **第四轮收尾（Item 1/2/3 + 两轮独立 CR，2026-07-28，HEAD `4f2f691f`）**：release-dependency
+  解析改为 **fail-closed**（9 类结构化错误码；required→400、optional→warn+drop；preview/create 共用
+  同一路径）；新增确定性 stale-read cancel/finalize CAS 竞态测试（Proxy-gated `$transaction`，
+  6 场景）；controller 拆分 274→183 行（抽出 `ReleasePlanAccessGuard` /
+  `ReleasePlanOrchestratorService` / `ReleaseDependencyResolverService`，所有生产文件 ≤200）。
+  真实验证：**287 测试通过**（一次性 MySQL :3399 串行，真实重算）；本地 staging 全栈可访问
+  （3120/3121 + 13 infra 容器，Nest 无 DI 错误）；真实 API fail-closed 双证（负面 preview→400
+  `RELEASE_PLAN_INVALID`）；真实 SSH/Server-Executor 路径接线验证（命令实际执行阻塞于
+  command-policy 模板匹配，配置问题非代码）。浏览器像素级全流程阻塞于 IAB click 投递不稳定
+  （环境问题）。Docker 存储损坏已恢复。详表见
+  `/tmp/codex-tool-runs/svton/f383-final-closure/BLOCKED-STATUS.md`。
 - 详细架构见 `docs-internal/devpilot/release-orchestration-architecture.md`，
   长任务入口见
   `docs-internal/devpilot/glm-goals/devpilot-release-orchestration-goal.md`。

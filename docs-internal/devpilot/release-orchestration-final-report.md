@@ -30,7 +30,7 @@ list/execute/heartbeat/isEnabled/resolveGitRefInto。controller 委托新服务�
 | web type-check / lint / build | exit 0 |
 | nestjs-http build / test | exit 0 / 3 passed |
 
-**Docker 健康**（2026-07-28）：`docker info` exit 0，`http://localhost:3120` → 200，`mysql:8` 本地可用。
+**Docker 健康**（2026-07-28，第四轮复核）：Docker 存储损坏**已恢复**（`docker info` exit 0，storage driver = overlayfs，`docker run --rm alpine sh -c 'echo x > /tmp/t && cat /tmp/t'` 通过）；`http://localhost:3120` → 200，`http://localhost:3121/api/health` → 200；一次性 `mysql:8` 本地可用（集成测试 287 通过）。下方第 5 节"阻塞于 Docker 存储损坏"的结论为**第三轮当时事实**，第四轮已不再成立（矛盾已消除，以本行为准）。
 
 **浏览器验证状态（如实声明 — F383.9.3 保持 in-progress/blocked）**：
 尝试用 `docker compose -f docker-compose.devpilot-app.yml -f docker-compose.devpilot-app.release.yml up -d --build`
@@ -44,6 +44,41 @@ list/execute/heartbeat/isEnabled/resolveGitRefInto。controller 委托新服务�
 + 8 步数据初始化（资源池、服务器、MySQL/Redis 资源申请、SSH 凭据注入、Picshare 项目/服务/`deployConfig`/
 `releaseDependencies` 落库），详见 `docs/devpilot/local-test-data.md`。staging 镜像下载极慢（网络）+ 初始化
 耗时超出单会话预算，故停在等待 staging/数据初始化的节点。**未声称完成真实浏览器流或 SSH/生产验证。**
+
+---
+
+## 0.6 第四轮收尾（Item 1/2/3 + 两轮独立 CR，2026-07-28，HEAD `4f2f691f`）
+
+第三轮 P0-1 把"畸形/缺字段/非法 stage/非法 condition"的依赖条目当作**静默跳过**处理（旧 spec
+以此断言为正确）。第四轮的 Item 1 把这一行为定性为**发布安全问题**（关键依赖从 DAG 静默消失）
+并改为 **fail-closed**。同轮完成 Item 2（确定性 CAS 竞态测试）与 Item 3（controller 拆分）。
+
+| 项 | 第三轮状态 | 第四轮修复 | 真实验证 |
+| --- | --- | --- | --- |
+| **Item 1** 依赖解析 fail-closed | 静默跳过（旧 spec 断言为正确） | parser 返回 `{edges, errors}`，9 类错误码结构化；`ReleaseDependencyResolverService` 区分 未选/不存在/跨域（required→400、optional→warn+drop）；preview/create 共用同一路径；web 新增 `dependency_invalid` 分类 + 中文文案 | 单测覆盖 9 分支；**真实 staging API 负面 preview 返回 400 `RELEASE_PLAN_INVALID`（栈：`releaseDepErrorsToException → ReleaseDependencyResolverService → ReleasePlanOrchestratorService.preview`）**；正面 preview 含跨服务边 `health_check:backend → application_deploy:admin` |
+| **Item 1 CR**（REQUEST-CHANGES） | — | B1 `dependencyIndex` 错位（parser 给存活边盖 `sourceIndex`）；B2 optional+不存在/跨域 误阻断（全部 warn+drop）；B3 跨租户 service-id 探测（无 scope 探测加 `teamId`） | 3 个新测试（optional-NOT_FOUND/CROSS_SCOPE warn、混合错误下标对齐） |
+| **Item 2** 真实 stale-read CAS 竞态 | "finalize wins first" 测试只是串行 finalize-then-cancel，命中入口预检 | 新 `release-cancel-cas-race.integration.spec.ts` 用 Proxy-gated `$transaction` 固定真实交错：cancel 读 running → 暂停 → finalize 推 succeeded → cancel CAS 命中 0 行 → lost，无半取消；6 场景 | **6 场景全部通过（一次性 MySQL :3399，串行）**；CR APPROVE-WITH-NITS，4 处 nit 已应用（容并发 cancel、SEJ 终态、canceledAt、failed-plan lease） |
+| **Item 3** controller <200 行 | controller 274 行（超限） | 拆出 `ReleasePlanAccessGuard`（RBAC）/ `ReleasePlanOrchestratorService`（preview-create 装配）/ `ReleaseDependencyResolverService`（依赖 fail-closed）/ `release-dep-error.utils` + `release-dep-copy.utils` + `release-service-deps.utils`；controller 收敛 274→183 行 | 所有触及生产文件 ≤200 行 |
+
+**自动化测试（真实重算）**：287 pass（release-orchestration + operation-approval，一次性 MySQL :3399 串行 `--runInBand`）。不再引用旧报告的 268/269。
+
+**本地真实 staging（第四轮）**：
+- 一次性 MySQL :3399（集成测试）+ staging infra（13 容器全 healthy）+ app stack（api:3121 / web:3120）全部起来。
+- `http://localhost:3120` → 200、`http://localhost:3121/api/health` → 200；Nest 启动 `Nest application successfully started`，**无 DI 错误、无 P1017**。
+- Picshare 数据经 API 落库：项目/环境/应用/backend+admin 服务 + backend `health_check → admin application_deploy` 跨服务依赖（DB 直读确认）。
+- 真实 SSH 目标 `devpilot-g003-ssh-server`（devpilot/devpilot）：`POST /servers/:id/test` → `{success:true, status:online, latency:1, 连接成功}`。
+- F383 flag：`capability → {enabled:true, canCancel:true}`。
+
+**真实 SSH/Server Executor 路径**：execute → `release_plan.executed` 事件 → 审批 5 阶段 → schema_migration 被 claim、生成 SEJ（`transport:ssh / adapterKey:ssh-live`）→ 命令被 built-in command-policy baseline 以 `no-allowlist-match` 阻断（与 `local-test-data.md` Step 6 一致，需 team 命令策略模板）。retry 路径验证：failed 计划 retry → plan running、stage running。**路径接线正确（非 fake executor）；命令实际执行被 policy 模板匹配阻断，属配置/数据问题，非 F383 代码缺陷。**
+
+**浏览器 GUI 全流程（F383.9.3）—— 维持 blocked**：ZCode IAB 后端可用（`goto` + `domSnapshot()` 正常，登录/首页均渲染）；但 IAB 的**点击事件投递在当前环境不稳定**——登录按钮 `click()` 即使 `count()==1/isEnabled/isVisible` 也持续 `Browser broker response id mismatch`/超时；表单 submit（button type=submit 包在 form 内）的 Enter 不触发 React onSubmit；`evaluate` 注入 token 被 side-effect guard 拒绝。故无法在真实浏览器内完成 登录→创建→preview→审批→执行→失败诊断→retry→取消 的**像素级**取证。**阻塞于 IAB 交互投递（环境问题，非代码缺陷）；需换系统 Chrome/extension 后端或本地 Chromium `--browser-use=headless` 才能完成。** 本会话仅 IAB 可用。
+
+**完成定义对照（据实，详见 `/tmp/codex-tool-runs/svton/f383-final-closure/BLOCKED-STATUS.md`）**：
+代码侧 Items 1/2/3 + 两轮 CR 全部 done；287 测试 + 真实 staging API fail-closed 双证 done；
+真实 SSH 路径接线 done（命令实际执行阻塞于 policy 配置）；
+浏览器像素级全流程 + 真实 SSH 命令实际成功 两项 **blocked（环境/配置，非代码）**。
+
+证据目录：`/tmp/codex-tool-runs/svton/f383-final-closure/`（`final-verification.log`、`api-evidence-summary.json`、`api-evidence.json.positive/.negative`、`browser-login-snapshot.txt`、`BLOCKED-STATUS.md`、各 `*.log`）。
 
 ---
 

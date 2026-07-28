@@ -4,10 +4,11 @@
 > 创建时间：2026-07-27（Asia/Shanghai）
 > 设计者：OpenAI Codex（GPT-5 系列）
 > 使用工具：Git、CodeGraph CLI、受限源码读取、Prisma 模型检查、既有运行证据
-> 当前状态：**第三轮 P0-1/2/3 修复并经真实验证（done，268 单测+集成通过）；浏览器 GUI 全流程仍为进行中（blocked-by-infra，F383.9.3 未标 done）**。
-> 修复轮次：2026-07-27 第二轮 → 2026-07-28 第三轮（P0-1/2/3），分支 `fix/f383-release-orchestration-mainchain`。
+> 当前状态：**第四轮（2026-07-28）收尾：Items 1/2/3（依赖 fail-closed + CAS 竞态测试 + controller 拆分）完成并经两轮独立 CR 修复；真实重算 287 测试通过（不再引用旧 268/269）；本地 staging 全栈可访问（3120/3121 + 13 infra 容器，Nest 无 DI 错误）；真实 API 端到端 fail-closed 双证通过；真实 SSH/Server Executor 路径接线验证通过（命令实际执行被 command-policy 模板匹配阻断，配置问题非代码缺陷）；浏览器 GUI 像素级全流程阻塞于 IAB click 投递不稳定（环境问题）→ F383.9.3 维持 in-progress/blocked。Docker 存储损坏已恢复（overlayfs，写测试通过），旧报告"Docker healthy"与"blocked on Docker storage"的矛盾已消除。**
+> 修复轮次：2026-07-27 第二轮 → 2026-07-28 第三轮（P0-1/2/3）→ 2026-07-28 第四轮（Item 1/2/3 收尾 + 两轮 CR），分支 `fix/f383-release-orchestration-mainchain`，HEAD `4f2f691f`（未 push、未合并）。
 > 最终报告：`docs-internal/devpilot/release-orchestration-final-report.md`
 > 运维手册：`docs-internal/devpilot/release-orchestration-runbook.md`
+> 阻塞状态详表：`/tmp/codex-tool-runs/svton/f383-final-closure/BLOCKED-STATUS.md`
 
 ## 第三轮修复（P0-1/2/3，2026-07-28）
 
