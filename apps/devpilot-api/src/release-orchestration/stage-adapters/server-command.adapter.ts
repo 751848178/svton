@@ -93,6 +93,10 @@ export class ServerCommandStageAdapter implements ReleaseStageAdapter {
           releaseStageId: ctx.releaseStageId,
           stageAttemptId: ctx.attemptId,
           operationApprovalId: ctx.operationApprovalId,
+          // 作用域同时写顶层（标准契约，policy matcher 直接读）与 sourceMetadata
+          // （兼容旧 job 行/audit reader）。readExecutionScopeFromMetadata 两者都认。
+          projectId: ctx.projectId,
+          environmentId: ctx.environmentId,
           sourceMetadata: {
             projectId: ctx.projectId,
             environmentId: ctx.environmentId,
