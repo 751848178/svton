@@ -236,6 +236,8 @@ export class ReleaseCoordinatorService implements ReleaseCoordinatorPort {
       applicationId: stage.applicationId,
       applicationServiceId: stage.applicationServiceId,
       serverId: stage.serverId ?? null,
+      stageKey: stage.key ?? null,
+      stageType: stage.type ?? null,
       configSnapshot: enrichConfig(stage),
       configHash: stage.configHash ?? null,
       actorId: actorId ?? null,
