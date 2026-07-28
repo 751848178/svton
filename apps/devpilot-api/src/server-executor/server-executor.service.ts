@@ -1,11 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-  Optional,
-} from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "node:crypto";
 import { AuditEventService } from "../audit-event";
@@ -70,8 +63,7 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @Inject(JOB_QUEUE_PORT)
     private readonly jobQueue?: JobQueuePort,
-    // 发布编排完成回调端口（F383 D3）：flag 关闭或未引入 ReleaseOrchestrationModule
-    // 时为 undefined，SEJ 完成路径不依赖它。Symbol+interface 仅类型导入，无运行时循环。
+    // F383 D3：发布完成回调端口（@Optional；flag 关闭时 undefined；Symbol+interface 无运行时循环）。
     @Optional()
     @Inject(RELEASE_COORDINATOR_PORT)
     private readonly releaseCoordinator?: ReleaseCoordinatorPort,
@@ -80,16 +72,9 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @Inject(DISTRIBUTED_LOCK)
     private readonly distributedLock: DistributedLock = new NoopDistributedLock(),
-    private readonly agentAuthService: ServerAgentAuthService = new ServerAgentAuthService(
-      configService,
-      agentCapabilityService,
-    ),
-    private readonly runtimeConfigService: ServerExecutorRuntimeConfigService = new ServerExecutorRuntimeConfigService(
-      configService,
-    ),
-    private readonly remoteExecutionMetadataService: ServerExecutorRemoteExecutionMetadataService = new ServerExecutorRemoteExecutionMetadataService(
-      prisma,
-    ),
+    private readonly agentAuthService: ServerAgentAuthService = new ServerAgentAuthService(configService, agentCapabilityService),
+    private readonly runtimeConfigService: ServerExecutorRuntimeConfigService = new ServerExecutorRuntimeConfigService(configService),
+    private readonly remoteExecutionMetadataService: ServerExecutorRemoteExecutionMetadataService = new ServerExecutorRemoteExecutionMetadataService(prisma),
   ) {
     this.services = new ServerExecutorWiringFactoryService(prisma, {
       workerId: this.workerId,
