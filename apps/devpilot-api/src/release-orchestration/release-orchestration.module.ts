@@ -24,6 +24,7 @@ import { ReleaseRecoveryService } from "./release-recovery.service";
 import { ReleaseRecoverySchedulerService } from "./release-recovery-scheduler.service";
 import { ReleaseReadinessService } from "./release-readiness.service";
 import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.service";
+import { ReleaseCredentialResolverService } from "./release-credential-resolver.service";
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
 import { ReleaseStageRepository } from "./repository/release-stage.repository";
 import { ReleaseStageAttemptRepository } from "./repository/release-stage-attempt.repository";
@@ -62,6 +63,7 @@ import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
     ReleaseRecoverySchedulerService,
     ReleaseReadinessService,
     ReleaseApprovalLifecycleService,
+    ReleaseCredentialResolverService,
     ReleasePlanRepository,
     ReleaseStageRepository,
     ReleaseStageAttemptRepository,

@@ -2,11 +2,21 @@
  * server_command 阶段适配器：precheck/schema_migration/bootstrap/data_backfill/
  * custom_command/health_check 通过 ServerExecutorService.queueExecution 创建作业。
  * 不新建 SSH/Agent 通道；策略、租约、心跳、恢复全部沿用执行器。
+ *
+ * F383 P0-A：命令里承载秘密的 -e KEY=value token 在本边界改写为 $DEVPILOT_<KEY>
+ * 占位，真实值经 ReleaseCredentialResolverService 解析后写入 step.secretEnvExport
+ * （仅内存，落库前被 stripSecretEnv 剥离）。持久化的 configSnapshot / inputSnapshot /
+ * commandPlan / result 因此只含占位引用，永不出现明文秘密。
  */
 import { Injectable } from "@nestjs/common";
 import { ServerExecutorService } from "../../server-executor/server-executor.service";
 import { redactSecretsInObject } from "../utils/release-redact.utils";
 import { interpretServerCommandResult } from "./release-adapter-interpret.utils";
+import {
+  redactCommandSecrets,
+  buildSecretEnvExport,
+} from "../utils/release-credential-injection.utils";
+import { ReleaseCredentialResolverService } from "../release-credential-resolver.service";
 import type { ServerCommandStep } from "../../server-executor/server-executor.types";
 import type {
   ReleaseStageAdapter,
@@ -38,7 +48,10 @@ const STAGE_RISK: Record<string, ServerCommandStep["risk"]> = {
 export class ServerCommandStageAdapter implements ReleaseStageAdapter {
   readonly kind = "server_command";
 
-  constructor(private readonly serverExecutor: ServerExecutorService) {}
+  constructor(
+    private readonly serverExecutor: ServerExecutorService,
+    private readonly credentialResolver: ReleaseCredentialResolverService,
+  ) {}
 
   async execute(
     ctx: ReleaseStageExecutionContext,
@@ -51,13 +64,26 @@ export class ServerCommandStageAdapter implements ReleaseStageAdapter {
     ctx: ReleaseStageExecutionContext,
   ): Promise<ReleaseStageExecutionResult> {
     const cfg = ctx.configSnapshot ?? {};
-    const command = readString(cfg.command) ?? readString(cfg.healthCheckUrl);
-    if (!command) {
+    const rawCommand = readString(cfg.command) ?? readString(cfg.healthCheckUrl);
+    if (!rawCommand) {
       return {
         status: "failed",
         error: "server_command 阶段缺少 command 配置",
       };
     }
+    // P0-A：把内联秘密 token 改写为占位引用；记下需解析的变量名。
+    const { redactedCommand: command, secretVarNames } = redactCommandSecrets(rawCommand);
+    // 执行边界解析真实秘密（仅内存）；命令无秘密时跳过解析。
+    const resolvedEnv =
+      secretVarNames.length > 0
+        ? await this.credentialResolver.resolveSecretEnv(
+            ctx.teamId,
+            ctx.projectId,
+            ctx.environmentId,
+          )
+        : {};
+    const secretEnvExport = buildSecretEnvExport(secretVarNames, resolvedEnv);
+
     const stageType = readString(cfg.__stageType) ?? "custom_command";
     const step: ServerCommandStep = {
       key: ctx.releaseStageId,
@@ -73,6 +99,9 @@ export class ServerCommandStageAdapter implements ReleaseStageAdapter {
           ? "once_per_environment_command"
           : "every_deploy",
       failurePolicy: "block",
+      // 仅内存的真实秘密值；落库前被 stripSecretEnv 剥离。命令里的 $DEVPILOT_*
+      // 引用由 SSH live 脚本 export 进子 shell 后展开。
+      ...(Object.keys(secretEnvExport).length > 0 ? { secretEnvExport } : {}),
     };
     const target = {
       serverId: ctx.serverId ?? null,
@@ -93,8 +122,6 @@ export class ServerCommandStageAdapter implements ReleaseStageAdapter {
           releaseStageId: ctx.releaseStageId,
           stageAttemptId: ctx.attemptId,
           operationApprovalId: ctx.operationApprovalId,
-          // 作用域同时写顶层（标准契约，policy matcher 直接读）与 sourceMetadata
-          // （兼容旧 job 行/audit reader）。readExecutionScopeFromMetadata 两者都认。
           projectId: ctx.projectId,
           environmentId: ctx.environmentId,
           sourceMetadata: {

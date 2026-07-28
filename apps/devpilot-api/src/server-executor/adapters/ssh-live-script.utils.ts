@@ -85,6 +85,17 @@ function shellQuote(value: string) {
 
 function renderStepExecution(step: ServerExecutionInput["steps"][number]) {
   const key = step.key.replace(/[^a-zA-Z0-9_.:-]/g, "_");
+  // F383 release-stage credential injection: when a step carries
+  // `secretEnvExport`, the values are emitted as `export KEY=...` lines inside
+  // the step's subshell so `$DEVPILOT_*` references in `command` expand to the
+  // real (memory-only) values. These export lines live only in the transient
+  // remote script and are never persisted (stripSecretEnv drops the field).
+  const exportLines =
+    step.secretEnvExport && Object.keys(step.secretEnvExport).length > 0
+      ? Object.entries(step.secretEnvExport).map(
+          ([k, v]) => `  export ${k}=${shellQuote(v)}`,
+        )
+      : [];
   const command =
     step.secretEnv && Object.keys(step.secretEnv).length > 0
       ? renderEnvWriteCommandReal(step.secretEnv)
@@ -97,6 +108,7 @@ function renderStepExecution(step: ServerExecutionInput["steps"][number]) {
     "set +e",
     "(",
     ...(step.cwd ? [`  cd ${shellQuote(step.cwd)}`] : []),
+    ...exportLines,
     indent(command),
     ")",
     '__devpilot_step_status="$?"',
