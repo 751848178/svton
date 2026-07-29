@@ -2,10 +2,11 @@
 
 > Document type: long-goal implementation ledger
 > Created: 2026-07-28 (Asia/Shanghai)
-> Status: in-review (PI000–PI010 done; PI010-R1 independent closure review done 2026-07-29)
+> Status: **completed** — final product-level acceptance done 2026-07-29 (PI000–PI010 + PI010-R1 + live-E2E closure). Real browser E2E (9/9) and real Desktop native command-boundary (6/6) now pass; 4 real bugs found & fixed with regression coverage. See "Final Closure (Live E2E)" section below.
 > Architecture: `docs-internal/design/pi-agent-migration-architecture.md`
 > Goal prompt: `docs-internal/goals/pi-agent-migration-goal.md`
 > Runtime board: `/tmp/codex-tool-runs/svton/long-goals/pi-agent-migration/board.json`
+> Live-E2E closure board: `/tmp/codex-tool-runs/svton/long-goals/pi-agent-live-e2e-closure/board.json`
 > First board worker: `pi000` (implements ledger slice `PI000`)
 
 ## Goal
@@ -146,3 +147,57 @@ re-verified** the migration against source, git diff and freshly-run gates
 acceptance requirements are satisfied; no old Provider/ReAct/event
 implementation remains; all relevant automated and product-path verification is
 green; and only external operations explicitly excluded from the goal remain.
+
+## Final Closure (Live E2E) — 2026-07-29
+
+A second independent pass in a clean worktree (`codex/pi-agent-migration-live-e2e`,
+base `origin/master` @ `8594ccb8`, cherry-pick of `686c1c1e`) upgraded the
+verification from "jsdom integration" to **real product paths**, and found+fixed
+4 real bugs with regression coverage.
+
+### What is REAL automated browser E2E vs real app-run verification
+- **Automated browser E2E (agent-web):** `apps/agent-web/e2e/chat-product-path.spec.ts`
+  (Playwright) boots a REAL `next dev -p 3210` process and drives a REAL Chromium
+  page through the real client-side agent (AgentChat → initAgentConfig →
+  ChatService → Pi runtime → React → DOM). A localStorage-gated faux-provider
+  seam (`src/lib/e2e-provider.ts`, inert in prod) gives deterministic responses
+  with no real API key. **9/9 pass**: create+send, streaming, multi-turn,
+  thinking show/hide (config-driven), tool approval + success/failure, abort,
+  provider-failure + recovery, page-refresh resume, secret-leak assertion.
+- **Real Desktop/Tauri product path:** `apps/agent-desktop/src-tauri/src/lib.rs`
+  `#[cfg(test)]` call the ACTUAL `#[tauri::command]` functions (the native
+  boundary JS `invoke()` hits) — real `process_exec` (real echo / non-zero exit /
+  cwd+env), real `process_get_env` (real HOME), real fs write→read→stat
+  (tempfile). **6/6 pass**. Plus the real Tauri app compiles (cargo `Finished`)
+  and the desktop frontend builds (Vite).
+
+### Real bugs found & fixed (regression-tested)
+1. **postTurn/checkpoint never ran** — it was placed AFTER `yield doneEvent` in
+   `runtime-run.ts`; the ChatService consumer breaks on `done`, so checkpoints
+   were never persisted and session resume was silently broken. Moved `postTurn`
+   to run BEFORE the terminal done. Regression: `post-turn-checkpoint-regression.test.ts`.
+2. **session-restore on reload** — startup skipped `loadMessages` when the saved
+   display list was empty, so checkpoint restore + display refresh never fired.
+   Now always runs loadMessages and re-derives the display from the restored
+   runtime (`chat-to-display.utils.ts`).
+3. **thinkingLevel** — applied at agent build time from `config.reasoningEffort`
+   (`AgentConfig.reasoningEffort` added) so the Pi Agent streams thinking when
+   configured.
+4. **node:path browser build** — agent-core dist bundles server-only
+   auto-reviewer utils that import `node:path`, which broke the desktop Vite
+   (WebView) build. Externalized Node built-ins in the desktop vite config.
+
+### Verification commands + logs (all under `/tmp/codex-tool-runs/svton/pi-agent-live-e2e-closure/`)
+- agent-core tests: `vitest run` → 330 files / 1841 pass (`p5-core-test-isolated.log`)
+- agent-client tsc: `tsc --noEmit` → 0 errors (`p5-client-tsc2.log`)
+- agent-web tests+E2E: 25 pass + 9/9 Playwright (`p5-web-test.log`, `p5-web-e2e.log`)
+- desktop tests + Rust boundary: 45 pass + 6/6 (`p5-desktop-test.log`, `p3-cargo-test2.log`)
+- agent-core tsc baseline diff: Pi 12 errors all pre-existing; baseline @5d9c035a had 51 (`p5-tsc-curr.log`, `p5-tsc-baseline.log`)
+- full build: 10/10 packages green (`p5-build-all.log`)
+- diff audit: `origin/master..HEAD` only Pi-relevant files (no check2.mjs/F383/Devpilot)
+
+### Remaining limits
+- agent-core strict tsc still has 12 pre-existing errors (auto-reviewer/memory/planning barrels + tool-hook-lifecycle) — all verified pre-existing against the baseline; tolerated by tsup (the build gate).
+- The Desktop real-app run is evidenced by Rust command-boundary tests + successful frontend/cargo build + the existing jsdom integration tests; a full GUI-driven WKWebView turn was not automated (WKWebView is not CDP-driveable; no `tauri-driver` in this env). The native command boundary the WebView reaches is covered by the Rust tests.
+- No `git push` / publish / deploy performed (per goal constraints).
+
