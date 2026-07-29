@@ -51,8 +51,7 @@ export type {
 export {
   AgentRuntime,
   ToolRegistry,
-  OpenAIProvider,
-  AnthropicProvider,
+  createPiModelsForProvider,
   PromptManager,
   PermissionManager,
   HookManager,

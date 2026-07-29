@@ -2,6 +2,8 @@ import type { IRuntime } from '../agent/types';
 import type { ChatMessage, TokenUsage } from '../provider/types';
 import type { AgentConfig } from '../agent/types';
 import type { SubagentConfig } from './types';
+import { toAgentMessages } from '../agent/message-bridge';
+import { resolveModel } from '../pi/pi-models-factory';
 
 export function seedSubagentRuntimeContext(
   runtime: IRuntime,
@@ -102,14 +104,21 @@ async function summarizeWithLLM(
     },
   ];
 
+  // PI003: summarize via pi-ai Models.streamSimple (the IProvider path is gone).
+  const piMessages = toAgentMessages(messages);
+  // `AgentMessage[]` is the pi-agent-core transcript type; pi-ai's
+  // `streamSimple` consumes the LLM-facing `Message[]`. The svton AgentMessages
+  // here are plain user/assistant text, which map 1:1 onto pi-ai Messages.
+  const llmMessages = piMessages as unknown as Parameters<typeof parentConfig.models.streamSimple>[1]['messages'];
   let result = '';
-  for await (const event of parentConfig.provider.chat(messages, {
-    model: parentConfig.model,
-    stream: false,
-  } as any)) {
-    if (event.type === 'text_delta') {
-      result += event.text;
+  try {
+    const model = parentConfig.piModel ?? resolveModel(parentConfig.models, parentConfig.model, 'openai', { family: 'openai', models: [] });
+    const stream = parentConfig.models.streamSimple(model, { messages: llmMessages }, { maxTokens: 1000 });
+    for await (const ev of stream) {
+      if (ev.type === 'text_delta') result += ev.delta;
     }
+  } catch {
+    return null;
   }
 
   return result.trim() || null;

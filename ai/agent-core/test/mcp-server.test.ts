@@ -159,7 +159,10 @@ describe('MCPServer', () => {
   // ----------------------------------------------------------
 
   describe('handleRequest — tools/call', () => {
-    it('invokes tool from registry and returns content', async () => {
+    it('fails CLOSED when no security-gated ToolExecutionService is wired', async () => {
+      // Security (§7.4): inbound MCP tool calls must not bypass the security
+      // pipeline. Without a wired service, the server refuses to execute and
+      // never falls back to a raw registry.execute with platform:null.
       const registry = new ToolRegistry();
       const executor = makeExecutor('hello world');
       registry.register(makeToolDef('greet'), executor);
@@ -171,11 +174,42 @@ describe('MCPServer', () => {
         makeRequest('tools/call', { name: 'greet', arguments: { input: 'test' } }),
       );
 
+      const result = response.result as { content: Array<{ type: string; text: string }>; isError?: boolean };
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Refusing to execute');
+      // The raw executor must NOT have run — no bypass.
+      expect(executor.execute).not.toHaveBeenCalled();
+    });
+
+    it('routes inbound tool calls through the wired ToolExecutionService', async () => {
+      const registry = new ToolRegistry();
+      const executor = makeExecutor('hello world');
+      registry.register(makeToolDef('greet'), executor);
+
+      const transport = new MockTransport();
+      await server.start(transport, registry);
+
+      // Wire a security-gated execution service that drains to the registry.
+      const executedCalls: ToolCall[] = [];
+      server.setToolExecutionService({
+        async *execute(call: ToolCall) {
+          executedCalls.push(call);
+          const r = await registry.execute(call, { platform: null as never, sessionId: '', workingDir: '/' });
+          yield { type: 'tool_call_end', result: r };
+        },
+      });
+
+      const response = await server.handleRequest(
+        makeRequest('tools/call', { name: 'greet', arguments: { input: 'test' } }),
+      );
+
       expect(response.error).toBeUndefined();
       expect(response.result).toMatchObject({
         content: [{ type: 'text', text: 'hello world' }],
       });
-      expect(executor.execute).toHaveBeenCalledTimes(1);
+      // The tool ran via the wired service, not directly through the server.
+      expect(executedCalls).toHaveLength(1);
+      expect(executedCalls[0].name).toBe('greet');
     });
 
     it('with missing params returns error result', async () => {

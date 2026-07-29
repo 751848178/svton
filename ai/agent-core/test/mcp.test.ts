@@ -495,7 +495,7 @@ describe('MCPServer', () => {
     });
   });
 
-  it('handleRequest tools/call executes tool and returns content', async () => {
+  it('handleRequest tools/call executes tool via the wired security service and returns content', async () => {
     const registry = new ToolRegistry();
     const mockExecutor: IToolExecutor = {
       execute: async (call: ToolCall) => ({
@@ -514,6 +514,13 @@ describe('MCPServer', () => {
 
     const transport = new MockTransport();
     await server.start(transport, registry);
+    // Security (§7.4): inbound tool calls route through a wired execution service.
+    server.setToolExecutionService({
+      async *execute(call: ToolCall) {
+        const r = await registry.execute(call, { platform: null as never, sessionId: '', workingDir: '/' });
+        yield { type: 'tool_call_end', result: r };
+      },
+    });
 
     const response = await server.handleRequest({
       jsonrpc: '2.0',

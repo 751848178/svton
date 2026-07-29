@@ -8,11 +8,11 @@
  *  - skill with missing requiredTools is filtered out and not surfaced.
  */
 import { describe, it, expect } from 'vitest';
-import { AgentRuntime } from '../src/agent/runtime';
+import { SvtonAgentRuntime } from '../src/agent/svton-agent-runtime';
 import { ToolRegistry } from '../src/tool/registry';
 import { SkillManager } from '../src/skill/manager';
 import type { SkillDefinition } from '../src/skill/types';
-import { MockProvider, createMockPlatform, collectEvents } from './helpers';
+import { createMockModels, createMockPlatform, collectEvents, fauxAssistantMessage, fauxText } from './helpers';
 import type { AgentEvent } from '../src/agent/types';
 import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 
@@ -35,16 +35,10 @@ const unavailableSkill: SkillDefinition = {
 };
 
 function buildRuntime(skills: SkillDefinition[], platform: IPlatform = createMockPlatform()) {
-  const provider = new MockProvider();
-  provider.addResponse([
-    { type: 'text_delta', text: 'done' },
-    { type: 'done', stopReason: 'stop' },
-  ]);
+  const mock = createMockModels();
+  mock.addResponse(fauxAssistantMessage([fauxText('done')]));
 
   const registry = new ToolRegistry();
-  // Register git_diff so reviewSkill's requiredTools are satisfied.
-  // (the executor is irrelevant for this test — we never let it run; we just
-  // need the tool definition to exist so isSkillAvailable returns true.)
   registry.register({
     name: 'git_diff',
     description: 'git diff',
@@ -54,15 +48,16 @@ function buildRuntime(skills: SkillDefinition[], platform: IPlatform = createMoc
   const skillManager = new SkillManager();
   for (const s of skills) skillManager.register(s);
 
-  const runtime = AgentRuntime.create({
-    provider,
+  const runtime = SvtonAgentRuntime.create({
+    models: mock.models,
+    piModel: mock.model,
     model: 'test-model',
     toolRegistry: registry,
     capabilities: { skillManager },
     workingDir: '/repo',
   }, platform);
 
-  return { runtime, provider };
+  return { runtime };
 }
 
 describe('skill_activated event flow', () => {

@@ -5,16 +5,17 @@ import type { HookManager } from '../hooks/manager';
 import type { SkillDefinition } from '../skill/types';
 import type { AgentEvent } from './types';
 import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
-import type { ContextManager } from './context';
 import type { AutoReviewerManager } from '../auto-reviewer/manager';
-import type { ReviewResult } from '../auto-reviewer/types';
 import type { SessionResumeManager } from '../checkpoint/manager';
+import type { PendingApprovalMap } from './approval-gate';
 import { logger } from '../utils/logger';
-import { toAutoReviewMetadata, withAutoReviewMetadata } from './tool-auto-review-result.utils';
-import { createPermissionDeniedResult, requestUserApproval, stopIfRunAborted } from './tool-execution-approval.utils';
+import { withAutoReviewMetadata } from './tool-auto-review-result.utils';
+import { stopIfRunAborted } from './tool-execution-approval.utils';
 import { enforceActiveSkillToolGate } from './tool-skill-gate.utils';
-import { addToolResultToContext } from './tool-context-result.utils';
+import { noopToolResultSink, type ToolResultSink } from './tool-context-result.utils';
 import { runPostToolUseHook, runPreToolUseHook } from './tool-hook-lifecycle.utils';
+import { runPermissionAndApprovalGate } from './tool-policy-gates';
+import { createSecretRedactor } from './secret-redactor.utils';
 
 /**
  * Additional options for tool execution pipeline.
@@ -28,147 +29,118 @@ export interface ToolExecOptions {
   sessionId?: string;
   signal?: AbortSignal;
 }
+
+/**
+ * Optional result redactor (Architecture §5.3 svton-owned: "result redaction
+ * and audit metadata"). Invoked after the tool executes and before the result
+ * is yielded/recorded. The default scrubs common secrets (see
+ * `secret-redactor.utils`); callers may install a stricter or identity redactor.
+ *
+ * The hook receives the call + executed result and must return a `ToolResult`
+ * (possibly a redacted copy). It MUST NOT throw; failures should return the
+ * input unchanged. The executor also writes an audit-log line around the call
+ * (see `auditToolResult`) so the redaction decision is observable.
+ */
+export type Redactor = (call: ToolCall, result: ToolResult) => ToolResult;
+
 /**
  * Handles tool execution with permission gating, auto-review, sandbox wrapping,
- * and hook lifecycle.
+ * hook lifecycle, and the redaction/audit seam.
+ *
+ * Pipeline order (Architecture §5.3, §7.4):
+ *   abort → pre-hook → skill-gate → permission → auto-review → approval
+ *   → abort → sandbox+platform exec → REDACT/audit → post-hook → record.
+ *
+ * Pi Agent owns scheduling/batch/progress; this service owns the policy path.
+ * The only entry to product execution is `execute()` — every tool the LLM
+ * requests flows through here via the `AgentTool` wrapper in `pi-tool-adapter`.
  */
 export class ToolExecutionService {
-  /** Skills active in the current run, set by AgentRuntime before tool execution */
   private activeSkills: SkillDefinition[] = [];
-  /** Extra options settable post-construction */
   private execOptions: ToolExecOptions = {};
+  // Default to the real secret-scrubbing redactor (Architecture §5.3). Callers
+  // can still override with `setRedactor` (e.g. tests, or a stricter pipeline).
+  private redactor: Redactor = createSecretRedactor();
   constructor(
     private readonly toolRegistry: ToolRegistry,
-    private readonly contextManager: ContextManager,
     private readonly platform: IPlatform,
     private readonly workingDir: string,
     private readonly permissionManager: PermissionManager | null,
     private readonly hookManager: HookManager | null,
-    private readonly pendingApprovals: Map<string, {
-      call: ToolCall;
-      resolve: (approved: boolean) => void;
-      timestamp: number;
-    }>,
+    private readonly pendingApprovals: PendingApprovalMap,
+    private readonly toolResultSink: ToolResultSink = noopToolResultSink,
   ) {}
 
-  /** Set additional execution options (auto-reviewer, sandbox, session ID) */
+  /** Set additional execution options (auto-reviewer, sandbox, session ID). */
   setExecOptions(options: Partial<ToolExecOptions>): void {
     this.execOptions = { ...this.execOptions, ...options };
   }
 
-  /** Set the currently active skills (called by AgentRuntime after skill injection) */
+  /** Set the currently active skills (called by AgentRuntime after skill injection). */
   setActiveSkills(skills: SkillDefinition[]): void {
     this.activeSkills = skills;
   }
 
   /**
-   * Execute a tool call through the full pipeline:
-   * 1. Pre-tool hook
-   * 2. Active skill tool gate
-   * 3. Permission and user approval (if needed)
-   * 4. Tool execution
-   * 5. Post-tool hook and context update
+   * Override the result redactor (Architecture §5.3). The default scrubs common
+   * secret shapes (API keys, bearer tokens, AWS/GitHub/Stripe keys, PEM blocks,
+   * JWTs) — see `secret-redactor.utils`. Tests or stricter pipelines may install
+   * their own; pass the identity redactor `(c, r) => r` to disable scrubbing.
    */
-  async *execute(call: ToolCall): AsyncGenerator<AgentEvent> {
-    logger.info('Tool', `Executing: ${call.name}`, {
-      id: call.id,
-      args: call.arguments,
-    });
+  setRedactor(redactor: Redactor): void {
+    this.redactor = redactor;
+  }
+
+  /**
+   * Execute a tool call through the full policy pipeline.
+   *
+   * @param signal optional abort signal (overrides `execOptions.signal`; Pi
+   *   Agent forwards its per-run signal so aborts halt in-flight execution).
+   * @param onProgress optional streaming-progress callback bridged into the
+   *   tool's `ToolContext.onProgress` so a tool that emits partial output
+   *   surfaces it through Pi as `tool_execution_update` (mapped by the runtime
+   *   event adapter to svton `tool_call_progress`). PI005 plumbing.
+   */
+  async *execute(
+    call: ToolCall,
+    signal?: AbortSignal,
+    onProgress?: (message: string) => void,
+  ): AsyncGenerator<AgentEvent> {
+    if (signal) this.execOptions = { ...this.execOptions, signal };
+    logger.info('Tool', `Executing: ${call.name}`, { id: call.id, args: call.arguments });
 
     const initialAbort = yield* stopIfRunAborted(call, this.execOptions.signal);
-    if (initialAbort) {
-      addToolResultToContext(this.contextManager, call.id, initialAbort.output, true);
-      return;
-    }
+    if (initialAbort) { this.toolResultSink(call.id, initialAbort.output, true); return; }
 
     const preToolHook = await runPreToolUseHook(this.hookManager, call);
     call = preToolHook.toolCall;
     if (preToolHook.deniedResult) {
-      const hookDeniedResult = preToolHook.deniedResult;
-      yield { type: 'tool_call_end', result: hookDeniedResult };
-      addToolResultToContext(this.contextManager, call.id, hookDeniedResult.output, true);
+      const denied = preToolHook.deniedResult;
+      yield { type: 'tool_call_end', result: denied };
+      this.toolResultSink(call.id, denied.output, true);
       return;
     }
 
     const skillGateResult = enforceActiveSkillToolGate(call, this.activeSkills);
     if (skillGateResult) {
       yield { type: 'tool_call_end', result: skillGateResult };
-      addToolResultToContext(this.contextManager, call.id, skillGateResult.output, true);
+      this.toolResultSink(call.id, skillGateResult.output, true);
       return;
     }
 
-    let autoReviewResult: ReviewResult | null = null;
-
-    // 2. Permission check
-    if (this.permissionManager) {
-      const decision = this.permissionManager.check(call);
-
-      if (!decision.allowed) {
-        const result = createPermissionDeniedResult(call.id, decision.reason);
-        yield {
-          type: 'tool_call_end',
-          result,
-        };
-        addToolResultToContext(this.contextManager, call.id, result.output, true);
-        return;
-      }
-
-      if (decision.needsApproval) {
-        // 2a. Auto-reviewer check (if configured)
-        if (this.execOptions.autoReviewer) {
-          const review = await this.execOptions.autoReviewer.review({
-            toolCall: call,
-            toolName: call.name,
-            args: call.arguments,
-            workingDir: this.workingDir,
-          });
-
-          if (review.verdict === 'approve') {
-            autoReviewResult = review;
-            logger.info('Tool', `Auto-approved by rule: ${review.ruleId ?? 'auto'}`, { tool: call.name });
-          } else if (review.verdict === 'deny') {
-            yield {
-              type: 'tool_call_end',
-              result: withAutoReviewMetadata({
-                callId: call.id,
-                output: `Auto-reviewer denied: ${review.reason}`,
-                isError: true,
-              }, review),
-            };
-            addToolResultToContext(this.contextManager, call.id, `Auto-reviewer denied: ${review.reason}`, true);
-            return;
-          } else {
-            // ask_user — fall through to user approval
-            const rejection = yield* requestUserApproval(
-              this.pendingApprovals,
-              call,
-              this.execOptions.signal,
-              (result) => withAutoReviewMetadata(result, review),
-              toAutoReviewMetadata(review),
-            );
-            if (rejection) {
-              addToolResultToContext(this.contextManager, call.id, rejection.output, true);
-              return;
-            }
-            autoReviewResult = review;
-          }
-        } else {
-          const rejection = yield* requestUserApproval(this.pendingApprovals, call, this.execOptions.signal);
-          if (rejection) {
-            addToolResultToContext(this.contextManager, call.id, rejection.output, true);
-            return;
-          }
-        }
-      }
-    }
-
-    const beforeExecuteAbort = yield* stopIfRunAborted(call, this.execOptions.signal);
-    if (beforeExecuteAbort) {
-      addToolResultToContext(this.contextManager, call.id, beforeExecuteAbort.output, true);
+    const outcome = yield* runPermissionAndApprovalGate({
+      call, workingDir: this.workingDir, permissionManager: this.permissionManager,
+      autoReviewer: this.execOptions.autoReviewer ?? null,
+      pendingApprovals: this.pendingApprovals, execOptions: this.execOptions,
+    });
+    if (outcome.kind === 'blocked') {
+      this.toolResultSink(call.id, outcome.result.output, true);
       return;
     }
 
-    // 4. Execute the tool
+    const beforeExecAbort = yield* stopIfRunAborted(call, this.execOptions.signal);
+    if (beforeExecAbort) { this.toolResultSink(call.id, beforeExecAbort.output, true); return; }
+
     const toolCtx: ToolContext = {
       platform: this.platform,
       sessionId: this.execOptions.sessionId ?? '',
@@ -176,23 +148,46 @@ export class ToolExecutionService {
       sandboxProfile: this.execOptions.sandboxProfile,
       sandboxRequired: this.execOptions.sandboxRequired,
       signal: this.execOptions.signal,
+      onProgress,
     };
 
-    const result = withAutoReviewMetadata(
+    const executed = withAutoReviewMetadata(
       await this.toolRegistry.execute(call, toolCtx),
-      autoReviewResult,
+      outcome.autoReviewResult,
     );
 
+    // SEAM (Architecture §5.3): redact + audit before yielding/recording.
+    const result = auditAndRedact(this.redactor, call, executed);
+
     logger.info('Tool', `Result: ${call.name}`, {
-      isError: result.isError,
-      outputLength: result.output?.length ?? 0,
+      isError: result.isError, outputLength: result.output?.length ?? 0,
     });
 
     yield { type: 'tool_call_end', result };
 
     await runPostToolUseHook(this.hookManager, call, result);
 
-    // 6. Context update
-    addToolResultToContext(this.contextManager, call.id, result.output, result.isError);
+    // Pi Agent records the tool result from the AgentToolResult the wrapper
+    // returns; the sink is a no-op for the normal path but kept for callers
+    // that observe results outside Pi (denied/blocked calls above).
+    this.toolResultSink(call.id, result.output, result.isError);
   }
+}
+
+/**
+ * Apply the redactor and emit an audit-log line. Redaction is best-effort: if
+ * the hook throws, the original result is preserved and the failure is logged.
+ */
+function auditAndRedact(redactor: Redactor, call: ToolCall, result: ToolResult): ToolResult {
+  let redacted = result;
+  try {
+    redacted = redactor(call, result);
+  } catch (err) {
+    logger.warn('Tool', `Redactor threw for ${call.name}; using unredacted result`, { error: String(err) });
+    redacted = result;
+  }
+  logger.info('Tool', `Audit: ${call.name}`, {
+    callId: call.id, isError: redacted.isError, redacted: redacted !== result,
+  });
+  return redacted;
 }

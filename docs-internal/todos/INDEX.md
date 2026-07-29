@@ -1,8 +1,14 @@
-# Devpilot TODO Index
+# Internal TODO Index
 
-> This index exists so long-running Devpilot work can start from a stable
-> document handle instead of scanning every TODO file. Keep detailed status in
-> the linked TODO documents.
+> This index exists so long-running work can start from a stable document
+> handle instead of scanning every TODO file. Keep detailed status in the
+> linked TODO documents.
+
+## Active AI Agent TODOs
+
+| Area | Document | Notes |
+| --- | --- | --- |
+| Pi-backed AI Agent runtime migration | `2026-07-28-pi-agent-migration.md` | PI000-PI010 ledger for replacing the generic Provider, Agent loop, base event and tool scheduling layers with `pi-ai` and `pi-agent-core` while retaining svton product capabilities. |
 
 ## Active Devpilot TODOs
 
@@ -17,6 +23,9 @@
 
 ## Current Reading Rule
 
+- For AI Agent Pi migration work, start with
+  `../design/pi-agent-migration-architecture.md`, then read
+  `2026-07-28-pi-agent-migration.md` and the runtime board referenced there.
 - For project/environment Devpilot work, start with this index, then read the
   active slice in `2026-06-25-existing-project-onboarding.md`, and finally read
   the relevant `docs-internal/devpilot/progress/P*.md` file.

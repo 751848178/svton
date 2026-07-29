@@ -1,6 +1,28 @@
 # @svton/agent-core
 
-Core runtime for Svton AI Agent. Provides a ReAct loop with tool execution, context management, multi-provider LLM support, MCP protocol, skills, memory, permissions, planning, subagents, and plugins.
+Core runtime for the Svton AI Agent. Built on top of
+[`@earendil-works/pi-ai`](https://github.com/earendil-works/pi/blob/main/packages/ai/README.md)
+(provider/model/stream layer) and
+[`@earendil-works/pi-agent-core`](https://github.com/earendil-works/pi/blob/main/packages/agent/README.md)
+(Agent loop layer), with svton's product-specific tool system, capability
+managers and security pipeline layered on top.
+
+## Architecture
+
+svton does **not** reimplement the LLM wire protocol or the ReAct loop. Instead
+`SvtonAgentRuntime` is a composition root over pi-agent-core's `Agent`:
+
+- **pi-ai** owns OpenAI/Anthropic registration, SSE/JSON parsing, auth and
+  reasoning-effort mapping. svton calls `models.streamSimple` directly.
+- **pi-agent-core** owns the agent loop, continuation, abort, message source of
+  truth and tool-call scheduling.
+- **agent-core** owns the credential-store boundary, approval gate, context
+  compaction, event translation (Pi → `AgentEvent`), and the product capabilities
+  (tools, skills, memory, MCP, subagents, planning, permissions, hooks,
+  auto-review, checkpoints).
+
+See `docs-internal/design/pi-agent-migration-architecture.md` for the full
+design. Public docs live under `docs/agent/core/`.
 
 ## Install
 
@@ -12,40 +34,41 @@ npm install @svton/agent-core
 
 ```typescript
 import {
-  AgentRuntime, OpenAIProvider, ToolRegistry, setPlatform
+  SvtonAgentRuntime,
+  ToolRegistry,
+  createPiModelsForProvider,
 } from '@svton/agent-core';
 import { BrowserPlatform } from '@svton/agent-platform';
 
-setPlatform(new BrowserPlatform());
-
-const provider = new OpenAIProvider({
-  baseUrl: 'https://api.openai.com',
-  apiKey: 'sk-xxx',
-  models: [{
-    id: 'gpt-4o', name: 'GPT-4o', contextWindow: 128000,
-    supportsToolUse: true, supportsVision: true, supportsStreaming: true,
-  }],
+const { models, model } = createPiModelsForProvider('gpt-4o', {
+  family: 'openai',
+  apiKey: process.env.OPENAI_API_KEY!,
 });
 
-const registry = new ToolRegistry();
-registry.register(webSearchDef, new WebSearchExecutor());
+const runtime = await SvtonAgentRuntime.createAsync(
+  {
+    models,
+    piModel: model,
+    model: 'gpt-4o',
+    toolRegistry: new ToolRegistry(),
+    workingDir: '/project',
+  },
+  new BrowserPlatform(),
+);
 
-const runtime = AgentRuntime.create({
-  provider, model: 'gpt-4o', toolRegistry: registry,
-});
-
-const stream = runtime.run('Hello, what can you do?');
-for await (const event of stream) {
+for await (const event of runtime.run('Hello, what can you do?')) {
   if (event.type === 'text_delta') process.stdout.write(event.text);
   if (event.type === 'done') console.log('\nDone');
 }
 ```
 
+> `AgentRuntime` is kept as a back-compat alias for `SvtonAgentRuntime`.
+
 ## Features
 
-- **ReAct Loop** — Think → Act (tool call) → Observe → Think → ...
-- **Multi-Provider** — OpenAI (and compatible: DeepSeek, Ollama, vLLM) + Anthropic
-- **Tool System** — 20+ built-in tools (file, shell, web, memory, planning, computer use, Chrome CDP)
+- **Pi-backed Agent loop** — `SvtonAgentRuntime` composes pi-agent-core's `Agent`
+- **Multi-Provider via pi-ai** — OpenAI (+ DeepSeek, Ollama, vLLM, Azure) and Anthropic, configured through `createPiModelsForProvider`
+- **Tool System** — 30+ built-in tools (file, shell, web, memory, planning, computer use, Chrome CDP, image gen)
 - **MCP Protocol** — Connect external tool servers via HTTP, SSE, or Stdio
 - **Skills** — Discover and inject context-aware instructions
 - **Memory** — Project-level (AGENT.md) + auto memory (IStorage)
@@ -53,53 +76,37 @@ for await (const event of stream) {
 - **Hooks** — 8 lifecycle events (pre/post tool, session, etc.)
 - **Planning** — Multi-step plans with dependency tracking
 - **Subagents** — Spawn isolated agents with restricted toolsets
+- **Auto-reviewer** — Pre-execution review of mutating tool calls
+- **Session checkpoint/resume** — Pi state serialized and re-seeded on restore
 - **Plugins** — Install from directory or Git
 
 ## Providers
 
-### OpenAI Compatible
+svton no longer ships `OpenAIProvider`/`AnthropicProvider` classes. Build a
+pi-ai `Models` collection via `createPiModelsForProvider`:
 
 ```typescript
-new OpenAIProvider({
-  baseUrl: 'https://api.openai.com',  // or DeepSeek, Ollama, etc.
+// OpenAI (or compatible: DeepSeek, Ollama, vLLM, Azure)
+createPiModelsForProvider('gpt-4o', {
+  family: 'openai',
   apiKey: 'sk-xxx',
-  models: [/* ModelInfo[] */],
-})
-```
+  baseUrl: 'https://api.openai.com/v1', // optional override
+});
 
-### Anthropic
-
-```typescript
-new AnthropicProvider({
+// Anthropic
+createPiModelsForProvider('claude-sonnet-4-20250514', {
+  family: 'anthropic',
   apiKey: 'sk-ant-xxx',
-  // Default models: claude-sonnet-4, claude-haiku-4
-})
+});
 ```
-
-## Built-in Tools
-
-| Category | Tools | Browser |
-|----------|-------|---------|
-| File | `file_read`, `file_write`, `file_edit` | No |
-| Search | `grep`, `glob` | No |
-| Shell | `bash` | No |
-| Web | `web_search`, `web_fetch` | Yes |
-| Memory | `memory_save`, `memory_recall` | Yes |
-| Planning | `plan_create`, `plan_update_step`, `plan_get_status` | Yes |
-| Computer Use | `screenshot`, `mouse_click`, `mouse_move`, `keyboard_type`, `keyboard_press_key` | Tauri only |
-| Chrome CDP | `chrome_navigate`, `chrome_screenshot`, `chrome_click`, `chrome_type`, `chrome_evaluate`, `chrome_get_content` | Browser only |
 
 ## Agent Events
 
-The `run()` method returns an `AsyncGenerator<AgentEvent>`:
-
-- `text_delta` — LLM text output
-- `thinking_delta` — Chain-of-thought (DeepSeek / Claude)
-- `tool_call_start` / `tool_call_progress` / `tool_call_end` — Tool execution
-- `tool_approval_needed` — Awaiting user approval
-- `context_compacted` — Context window compression
-- `done` — Run complete with token usage
-- `error` — Runtime error
+`run()` returns an `AsyncGenerator<AgentEvent>`. Pi-base events
+(`text_delta`, `thinking_delta`, `tool_call_*`, `error`, `done`) are translated
+from pi-agent-core by `pi-event-adapter.ts`; svton-only events
+(`tool_approval_needed`, `context_compacted`, `warning`, `skill_activated`)
+cover capabilities Pi does not own. See `docs/agent/core/runtime.md`.
 
 ## License
 

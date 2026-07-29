@@ -3,6 +3,7 @@ import { SubagentManager, ToolRegistry } from '@svton/agent-core';
 import type { IToolExecutor, ToolCall, ToolResult, SubagentConfig } from '@svton/agent-core';
 import type { AgentConfig, AgentRuntime as AgentRuntimeType } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
+import { createMockModels, fauxAssistantMessage, fauxText } from './helpers';
 
 // ============================================================
 // Helpers
@@ -79,15 +80,16 @@ describe('SubagentManager', () => {
     toolRegistry = createParentToolRegistry();
     platform = createMockPlatform();
 
+    // PI003: AgentConfig uses a pi-ai Models collection (+ resolved Model)
+    // instead of the deleted IProvider. The child runtime built by
+    // SubagentManager consumes this directly.
+    const mock = createMockModels();
+    // Pre-queue a response so the spawned subagent runtime can complete.
+    mock.addResponse(fauxAssistantMessage([fauxText('Task completed.')]));
+
     parentConfig = {
-      provider: {
-        name: 'mock',
-        models: [],
-        chat: async function* () {},
-        countTokens: () => 0,
-        supportsToolUse: () => true,
-        supportsVision: () => false,
-      } as any,
+      models: mock.models,
+      piModel: mock.model,
       model: 'test-model',
       toolRegistry,
       systemPrompt: 'You are a helpful assistant.',
@@ -167,9 +169,10 @@ describe('SubagentManager', () => {
     });
 
     it('spawn returns error result when runtime creation fails', async () => {
-      // Use an invalid provider that will cause an error
+      // PI003: AgentConfig requires a pi-ai Models collection. An invalid
+      // config (no models / no matching provider) makes runtime creation fail.
       const badConfig: AgentConfig = {
-        provider: null as any,
+        models: undefined as any,
         model: 'bad-model',
         toolRegistry: new ToolRegistry(),
       };

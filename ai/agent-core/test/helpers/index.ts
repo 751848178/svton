@@ -4,10 +4,14 @@
  * Centralises the mocks that every test file used to re-implement:
  *  - {@link createMockPlatform} — an in-memory IPlatform (fs/process/storage/search/http)
  *  - {@link createMockHttpClient} — a scripted IHttpClient for web tools
- *  - {@link MockProvider} — an IProvider with queued responses
+ *  - {@link createMockModels} — a pi-ai `Models` collection backed by
+ *    `fauxProvider` (no network, no real API key) for Pi-Agent runtime tests
  *  - re-exports {@link FakeClock} / {@link SequentialIdGenerator} from production
  *
- * New tests should import from here instead of reinventing mocks.
+ * PI003: the legacy `MockProvider` (an `IProvider` with queued `StreamEvent[]`
+ * scripts) is gone together with `IProvider`; runtime tests drive the
+ * Pi-backed `SvtonAgentRuntime` via `createMockModels()` + `fauxProvider`
+ * response scripts.
  */
 
 import type {
@@ -26,16 +30,21 @@ import type {
   GrepOptions,
   GrepMatch,
 } from '@svton/agent-platform';
-import type {
-  IProvider,
-  ChatMessage,
-  ChatOptions,
-  StreamEvent,
-  ModelInfo,
-} from '../../src/provider/types';
+import {
+  createModels,
+  fauxProvider,
+  fauxAssistantMessage,
+  fauxText,
+  fauxToolCall,
+  fauxThinking,
+  type FauxProviderHandle,
+  type FauxResponseStep,
+  type Model,
+} from '@earendil-works/pi-ai';
 import { FakeClock, SequentialIdGenerator } from '../../src/utils/clock';
 
 export { FakeClock, SequentialIdGenerator };
+export { fauxAssistantMessage, fauxText, fauxToolCall, fauxThinking };
 
 // ============================================================
 // Storage
@@ -187,26 +196,54 @@ export function createMockPlatform(opts: MockPlatformOptions = {}): IPlatform {
 }
 
 // ============================================================
-// Provider mock
+// Pi Models mock (fauxProvider-backed)
 // ============================================================
 
+export interface MockModelsHandle {
+  /** pi-ai `Models` collection — feed into `AgentConfig.models`. */
+  models: ReturnType<typeof createModels>;
+  /** Resolved pi-ai `Model` for the requested id (feed into `AgentConfig.piModel`). */
+  model: Model<string>;
+  /** Underlying fauxProvider handle for assertions (callCount, etc.). */
+  faux: FauxProviderHandle;
+  /** Queue one AssistantMessage (or factory) as the next LLM response. */
+  addResponse(response: FauxResponseStep): this;
+  /** Replace the whole response queue. */
+  setResponses(responses: FauxResponseStep[]): void;
+}
+
 /**
- * IProvider mock with a queue of response scripts. Each `chat()` call pops
- * one script (an array of StreamEvents) and replays them. Throws if empty.
+ * Build a pi-ai `Models` collection backed by `fauxProvider` for runtime
+ * tests. No network, no real API key. Responses are scripted as
+ * `AssistantMessage` objects (use `fauxAssistantMessage`, `fauxToolCall`,
+ * `fauxThinking`).
+ *
+ * The faux provider is registered under the `openai` id with a large token
+ * size so text content streams as a single delta (preserving the legacy
+ * runtime tests' exact-`text_delta` assertions).
  */
-export class MockProvider implements IProvider {
-  readonly name = 'mock';
-  readonly models: ModelInfo[] = [{ id: 'mock-model', name: 'Mock', contextWindow: 128000, supportsToolUse: true, supportsVision: false, supportsStreaming: true }];
-  private queue: StreamEvent[][] = [];
-  addResponse(events: StreamEvent[]) { this.queue.push(events); return this; }
-  async *chat(_messages: ChatMessage[], _options: ChatOptions): AsyncGenerator<StreamEvent> {
-    const script = this.queue.shift();
-    if (!script) throw new Error('MockProvider: no queued response');
-    for (const ev of script) yield ev;
-  }
-  countTokens(text: string): number { return Math.ceil(text.length / 4); }
-  supportsToolUse(): boolean { return true; }
-  supportsVision(): boolean { return false; }
+export function createMockModels(modelId = 'test-model'): MockModelsHandle {
+  const faux = fauxProvider({
+    api: 'openai-responses',
+    provider: 'openai',
+    models: [{ id: modelId }],
+    tokenSize: { min: 1_000_000, max: 1_000_000 },
+  });
+  const models = createModels();
+  models.setProvider(faux.provider);
+  const model = faux.getModel(modelId) ?? faux.getModel();
+  return {
+    models,
+    model,
+    faux,
+    addResponse(response) {
+      faux.appendResponses([response]);
+      return this;
+    },
+    setResponses(responses) {
+      faux.setResponses(responses);
+    },
+  };
 }
 
 /** Collect all events from an async generator into an array. */

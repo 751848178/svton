@@ -13,45 +13,20 @@ import { useSession } from '../src/hooks/useSession';
 import { useToolApproval } from '../src/hooks/useTool';
 import { useAgent } from '../src/hooks/useAgent';
 import { AgentProvider } from '../src/service/provider';
-import { ToolRegistry } from '@svton/agent-core';
-import type { AgentConfig, IProvider, StreamEvent, ModelInfo } from '@svton/agent-core';
-import type { IPlatform, IStorage } from '@svton/agent-platform';
-
-class StubProvider implements IProvider {
-  readonly name = 'mock';
-  readonly models: ModelInfo[] = [{ id: 'test-model', name: 'Test', contextWindow: 128000, supportsToolUse: true, supportsVision: false, supportsStreaming: true }];
-  async *chat(): AsyncGenerator<StreamEvent> {}
-  countTokens(t: string): number { return Math.ceil(t.length / 4); }
-  supportsToolUse(): boolean { return true; }
-  supportsVision(): boolean { return false; }
-}
-
-class MemStorage implements IStorage {
-  private m = new Map<string, unknown>();
-  async get<T>(k: string): Promise<T | null> { return (this.m.get(k) as T) ?? null; }
-  async set<T>(k: string, v: T): Promise<void> { this.m.set(k, v); }
-  async delete(k: string): Promise<void> { this.m.delete(k); }
-  async list(): Promise<string[]> { return Array.from(this.m.keys()); }
-  async clear(): Promise<void> { this.m.clear(); }
-}
+import type { AgentConfig } from '@svton/agent-core';
+import type { IPlatform } from '@svton/agent-platform';
+import { buildPiAgentConfig, makeBrowserPlatform } from './helpers/pi-test-utils';
 
 function makeConfig(): AgentConfig {
-  return { provider: new StubProvider(), model: 'test-model', toolRegistry: new ToolRegistry(), workingDir: '/' };
+  return buildPiAgentConfig().config;
 }
 
 function makePlatform(): IPlatform {
-  return {
-    type: 'browser',
-    capabilities: { filesystem: false, process: false, watch: false, mcpStdio: false, clipboard: false, notification: false, sandboxing: false, pty: false, documentPreview: false, computerUse: false } as any,
-    fs: {} as any, process: {} as any, storage: new MemStorage(), search: {} as any,
-  } as IPlatform;
+  return makeBrowserPlatform();
 }
 
 function makeTauriPlatform(): IPlatform {
-  return {
-    ...makePlatform(),
-    type: 'tauri',
-  } as IPlatform;
+  return { ...makePlatform(), type: 'tauri' } as IPlatform;
 }
 
 function HookProbe<T>({ hook, onState }: { hook: () => T; onState: (s: T) => void }) {

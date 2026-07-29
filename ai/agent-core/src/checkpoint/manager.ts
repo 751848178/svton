@@ -16,7 +16,7 @@
 import type { IStorage } from '@svton/agent-platform';
 import type { ChatMessage, ReasoningEffort } from '../provider/types';
 import type { SerializedRuntime, CheckpointMeta } from './types';
-import type { AgentRuntime } from '../agent/runtime';
+import type { SvtonAgentRuntime } from '../agent/svton-agent-runtime';
 import { parseSerializedRuntime } from './checkpoint-state.utils';
 import { logger } from '../utils/logger';
 
@@ -31,7 +31,7 @@ export class SessionResumeManager {
    */
   async checkpoint(
     sessionId: string,
-    runtime: AgentRuntime,
+    runtime: SvtonAgentRuntime,
   ): Promise<void> {
     try {
       const state = this.serializeRuntime(runtime);
@@ -77,7 +77,7 @@ export class SessionResumeManager {
    * Sets messages, reasoning effort, and plan state.
    * @returns true if restore succeeded, false if no checkpoint found
    */
-  async restore(sessionId: string, runtime: AgentRuntime): Promise<boolean> {
+  async restore(sessionId: string, runtime: SvtonAgentRuntime): Promise<boolean> {
     const state = await this.load(sessionId);
     if (!state) {
       logger.debug('Checkpoint', `No checkpoint found for session ${sessionId}`);
@@ -139,13 +139,13 @@ export class SessionResumeManager {
   // Private helpers
   // ----------------------------------------------------------
 
-  private serializeRuntime(runtime: AgentRuntime): SerializedRuntime {
+  private serializeRuntime(runtime: SvtonAgentRuntime): SerializedRuntime {
     const messages = runtime.getMessages();
     const reasoningEffort = runtime.getReasoningEffort();
 
     return {
       messages,
-      model: (runtime as unknown as { model: string }).model,
+      model: runtime.getModel(),
       reasoningEffort,
       updatedAt: Date.now(),
     };

@@ -2,7 +2,7 @@
  * @svton/agent-app — Type definitions
  */
 
-import type { AgentConfig, BuiltinIntegrationId, IProvider, IntegrationManifest } from '@svton/agent-core';
+import type { AgentConfig, BuiltinIntegrationId, IntegrationManifest } from '@svton/agent-core';
 import type { SplitScreenContent, SidebarConfig, SidebarItem } from '@svton/agent-ui';
 
 // ============================================================
@@ -15,10 +15,6 @@ export interface ProviderConfig {
   baseUrl?: string;
   name?: string;
   models: ModelConfig[];
-  /** Prebuilt provider instance. Takes precedence over type/baseUrl/apiKey. */
-  provider?: IProvider;
-  /** Factory for custom provider types. */
-  createProvider?: (config: ProviderConfig, models: import('@svton/agent-core').ModelInfo[]) => IProvider;
 }
 
 export interface ModelConfig {

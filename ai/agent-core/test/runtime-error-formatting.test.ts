@@ -1,52 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { AgentRuntime } from '../src/agent/runtime';
+import { SvtonAgentRuntime } from '../src/agent/svton-agent-runtime';
 import { ToolRegistry } from '../src/tool/registry';
-import type {
-  ChatMessage,
-  ChatOptions,
-  IProvider,
-  ModelInfo,
-  StreamEvent,
-} from '../src/provider/types';
-import { collectEvents, createMockPlatform } from './helpers';
+import { collectEvents, createMockModels, createMockPlatform, fauxAssistantMessage } from './helpers';
 
-class ThrowingProvider implements IProvider {
-  readonly name = 'throwing';
-  readonly models: ModelInfo[] = [{
-    id: 'throwing-model',
-    name: 'Throwing',
-    contextWindow: 128000,
-    supportsToolUse: true,
-    supportsVision: false,
-    supportsStreaming: true,
-  }];
+describe('SvtonAgentRuntime error formatting (Pi-backed)', () => {
+  it('surfaces provider error events as an `error` AgentEvent with done(error)', async () => {
+    // PI003: Pi's StreamFn contract encodes failures in the stream via a final
+    // AssistantMessage with stopReason "error" + errorMessage (it must not
+    // throw). We script the faux provider to return such a message.
+    const mock = createMockModels();
+    mock.addResponse(
+      fauxAssistantMessage('Unknown error', { stopReason: 'error', errorMessage: 'Unknown error' }),
+    );
 
-  async *chat(
-    _messages: ChatMessage[],
-    _options: ChatOptions,
-  ): AsyncGenerator<StreamEvent> {
-    throw { code: 'provider_unavailable' };
-  }
-
-  countTokens(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
-
-  supportsToolUse(): boolean {
-    return true;
-  }
-
-  supportsVision(): boolean {
-    return false;
-  }
-}
-
-describe('AgentRuntime error formatting', () => {
-  it('normalizes non-Error provider stream failures', async () => {
-    const runtime = AgentRuntime.create(
+    const runtime = SvtonAgentRuntime.create(
       {
-        provider: new ThrowingProvider(),
-        model: 'throwing-model',
+        models: mock.models,
+        piModel: mock.model,
+        model: 'test-model',
         toolRegistry: new ToolRegistry(),
       },
       createMockPlatform(),

@@ -3,8 +3,7 @@ import type { BrowserPlatform } from '@svton/agent-platform';
 import type { AgentConfig, AgentCapabilities, McpServerToolConfig } from '@svton/agent-core';
 import {
   ToolRegistry,
-  OpenAIProvider,
-  AnthropicProvider,
+  createPiModelsForProvider,
   webFetchDef,
   WebFetchExecutor,
   webSearchDef,
@@ -106,7 +105,7 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
 
   const selectedModel = model || providerSetting.models[0]?.id || 'gpt-4o';
 
-  // Create provider based on type
+  // Create pi-ai Models collection (PI003: deleted OpenAIProvider/AnthropicProvider)
   const modelInfos = providerSetting.models.map((m) => ({
     id: m.id,
     name: m.name,
@@ -116,18 +115,13 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
     supportsStreaming: true,
   }));
 
-  const provider = providerSetting.type === 'anthropic'
-    ? new AnthropicProvider({
-        baseUrl: providerSetting.baseUrl,
-        apiKey: providerSetting.apiKey,
-        models: modelInfos,
-      })
-    : new OpenAIProvider({
-        name: providerSetting.name,
-        baseUrl: providerSetting.baseUrl,
-        apiKey: providerSetting.apiKey,
-        models: modelInfos,
-      });
+  const providerFamily = providerSetting.type === 'anthropic' ? 'anthropic' : 'openai';
+  const { models, model: piModel } = createPiModelsForProvider(selectedModel, {
+    family: providerFamily,
+    baseUrl: providerSetting.baseUrl,
+    apiKey: providerSetting.apiKey,
+    models: modelInfos,
+  });
 
   // Register tools (browser: limited set, no filesystem/shell)
   const toolRegistry = new ToolRegistry();
@@ -322,7 +316,8 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
   const customInstructions = loadString(LS_CUSTOM_INSTRUCTIONS);
 
   return {
-    provider,
+    models,
+    piModel,
     model: selectedModel,
     toolRegistry,
     workingDir: '/',

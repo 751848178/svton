@@ -1,8 +1,18 @@
+/**
+ * Provider-facing shared types barrel.
+ *
+ * PI002/PI003 deleted the `IProvider` implementations (OpenAIProvider,
+ * AnthropicProvider), the temporary Pi bridge, and the `IProvider` /
+ * `StreamEvent` / `ChatOptions` provider contract itself — Pi Agent calls
+ * pi-ai `models.streamSimple` directly and emits the `AgentEvent` union.
+ *
+ * The svton-owned message/content/tool/usage shapes below are still consumed by
+ * the event protocol, message bridge, tool registry and UI model catalog, so
+ * they remain the public surface for those cross-cutting types. See
+ * `provider/types.ts` for the per-type rationale.
+ */
 export type {
-  IProvider,
   ChatMessage,
-  ChatOptions,
-  StreamEvent,
   TokenUsage,
   ModelInfo,
   ToolDefinition,
@@ -13,9 +23,6 @@ export type {
   ImageContent,
   ToolUseContent,
   ToolResultContent,
-  ProviderConfig,
-  ModelConfig,
+  ReasoningContent,
+  ReasoningEffort,
 } from './types';
-
-export { OpenAIProvider } from './openai';
-export { AnthropicProvider } from './anthropic';

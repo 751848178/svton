@@ -4,8 +4,7 @@ import type { TauriPlatform } from '@svton/agent-platform';
 import type { AgentConfig, AgentCapabilities, McpServerToolConfig, WebSearchConfig } from '@svton/agent-core';
 import {
   ToolRegistry,
-  OpenAIProvider,
-  AnthropicProvider,
+  createPiModelsForProvider,
   // File tools
   fileReadDef,
   FileReadExecutor,
@@ -192,21 +191,17 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
     supportsStreaming: true,
   }));
 
-  // Create provider
-  const provider = providerCfg.type === 'anthropic'
-    ? new AnthropicProvider({
-        baseUrl: providerCfg.base_url,
-        apiKey: providerCfg.api_key,
-        models: modelInfos,
-      })
-    : new OpenAIProvider({
-        name: providerKey,
-        baseUrl: providerCfg.base_url,
-        apiKey: providerCfg.api_key,
-        models: modelInfos,
-      });
-
   const selectedModel = modelOverride || modelConfig.name || modelEntries[0]?.[0] || 'gpt-4o';
+
+  // PI003: build a pi-ai Models collection + resolve the model. The deleted
+  // OpenAIProvider/AnthropicProvider are replaced by createPiModelsForProvider.
+  const providerFamily = providerCfg.type === 'anthropic' ? 'anthropic' : 'openai';
+  const { models, model: piModel } = createPiModelsForProvider(selectedModel, {
+    family: providerFamily,
+    baseUrl: providerCfg.base_url,
+    apiKey: providerCfg.api_key,
+    models: modelInfos,
+  });
 
   // ── Register ALL tools ──
   const toolRegistry = new ToolRegistry();
@@ -495,7 +490,8 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   return {
     kind: 'ready',
     config: {
-      provider,
+      models,
+      piModel,
       model: selectedModel,
       toolRegistry,
       workingDir,
