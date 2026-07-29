@@ -19,6 +19,8 @@ function ApplicationsContent() {
   const searchParams = useSearchParams();
   const queryProjectId = searchParams.get('projectId') || '';
   const queryEnvironmentId = searchParams.get('environmentId') || '';
+  const queryApplicationId = searchParams.get('applicationId') || '';
+  const queryServiceId = searchParams.get('serviceId') || '';
   const data = useApplications(queryProjectId, queryEnvironmentId);
   const {
     applications,
@@ -62,6 +64,8 @@ function ApplicationsContent() {
 
   const cardProps = {
     queryEnvironmentId,
+    focusedApplicationId: queryApplicationId,
+    focusedServiceId: queryServiceId,
     runningOperation,
     deployingServiceId,
     queueDeploymentRuns,

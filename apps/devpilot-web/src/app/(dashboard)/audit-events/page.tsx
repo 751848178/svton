@@ -3,6 +3,10 @@ import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { AuditEvent } from './types';
 import { AuditEventsContent } from './components/AuditEventsContent';
+import {
+  auditEventScopeFromSearchParams,
+  auditEventsApiName,
+} from './utils/audit-events-query.utils';
 
 /** 该页在请求时读取 cookies() 鉴权，必须动态渲染。 */
 export const dynamic = 'force-dynamic';
@@ -16,15 +20,21 @@ export const dynamic = 'force-dynamic';
  * 注意：server 取到空列表时不传 fallback（传 undefined），让客户端 SWR 走正常 loading 流程，
  * 避免空数组被当作「已有数据」而不发起请求。
  */
-export default async function AuditEventsPage() {
+export default async function AuditEventsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const scope = auditEventScopeFromSearchParams(await searchParams);
+  const apiName = auditEventsApiName(scope);
   let initialEvents: AuditEvent[] | undefined;
   try {
-    const data = await serverRequest<AuditEvent[]>('GET:/audit-events');
+    const data = await serverRequest<AuditEvent[]>(apiName);
     initialEvents = data.length > 0 ? data : undefined;
   } catch (error) {
     redirectOnUnauthorized(error, '/audit-events');
     console.error('Failed to load audit events:', error);
   }
 
-  return <AuditEventsContent initialEvents={initialEvents} />;
+  return <AuditEventsContent initialEvents={initialEvents} scope={scope} />;
 }

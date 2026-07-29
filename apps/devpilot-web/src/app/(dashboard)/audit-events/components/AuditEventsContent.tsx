@@ -10,17 +10,24 @@ import { EventTable } from './event-table';
 import { CategoryDistribution } from './category-distribution';
 import type { FilterOption } from '../constants';
 import type { AuditEvent } from '../types';
+import type { AuditEventScope } from '../utils/audit-events-query.utils';
 
 /**
  * 审计事件客户端视图。
  *
  * 接收首屏 server 数据 initialEvents（SWR fallback），筛选/刷新等交互在此完成。
  */
-export function AuditEventsContent({ initialEvents }: { initialEvents?: AuditEvent[] }) {
+export function AuditEventsContent({
+  initialEvents,
+  scope,
+}: {
+  initialEvents?: AuditEvent[];
+  scope?: AuditEventScope;
+}) {
   const t = useTranslations('auditEvents');
   const tc = useTranslations('common');
   const { events, loading, error, filters, stats, setFilter, reload } =
-    useAuditEvents(initialEvents);
+    useAuditEvents(initialEvents, scope);
   const handleRetry = usePersistFn(() => reload());
 
   // 筛选下拉项随 locale 解析（复用 auditEvents 命名空间既有 i18n 键，避免裸中文）。
@@ -32,6 +39,7 @@ export function AuditEventsContent({ initialEvents }: { initialEvents?: AuditEve
     { value: 'backup', label: t('actionBackup') },
     { value: 'alert', label: t('actionAlert') },
     { value: 'log', label: t('actionLog') },
+    { value: 'repository_analysis', label: t('actionRepositoryAnalysis') },
   ];
   const statusOptions: FilterOption[] = [
     { value: 'all', label: t('filterAllStatuses') },

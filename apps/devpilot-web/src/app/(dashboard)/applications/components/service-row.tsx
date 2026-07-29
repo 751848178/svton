@@ -6,6 +6,7 @@
 
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
@@ -21,11 +22,13 @@ import type {
 import { ServiceSloSummary } from './service-slo-summary.component';
 import { ServiceActionMenu } from './service-action-menu';
 import { DeployRunStatusBadge } from './deploy-run-status-badge';
-import { getKindLabel, getOperationLabel, getOperationStatusLabel, getServiceStatusLabel, formatDate } from '../utils';
+import { getKindLabel, getOperationLabel, getServiceStatusLabel } from '../utils';
+import { ServiceRecentOperations } from './service-recent-operations';
 
 interface ServiceRowProps {
   application: ApplicationItem;
   service: ApplicationServiceItem;
+  focused: boolean;
   runningOperation: string;
   deployingServiceId: string;
   queueServiceOperations: boolean;
@@ -61,6 +64,7 @@ export function ServiceRow(props: ServiceRowProps) {
     serviceSloRows,
     serviceSloLoading,
     latestDeployRun,
+    focused,
   } = props;
   const { onRunOperation, onRequestLive, onOpenDeploy, onEditDeployment } = props;
   const t = useTranslations('applications');
@@ -75,9 +79,19 @@ export function ServiceRow(props: ServiceRowProps) {
   const handleEditDeployment = usePersistFn(() =>
     onEditDeployment(application, service),
   );
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focused) rowRef.current?.scrollIntoView({ block: 'center' });
+  }, [focused]);
 
   return (
-    <div className="py-3 first:pt-0 last:pb-0">
+    <div
+      ref={rowRef}
+      id={`application-service-${service.id}`}
+      className={`py-3 first:pt-0 last:pb-0 ${
+        focused ? 'rounded-md bg-primary/5 px-3 ring-2 ring-primary/20' : ''
+      }`}
+    >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -153,48 +167,7 @@ export function ServiceRow(props: ServiceRowProps) {
         loading={serviceSloLoading}
       />
 
-      {service.operationRuns && service.operationRuns.length > 0 ? (
-        <div className="mt-3 rounded-md bg-muted/50 p-3">
-          <div className="text-xs font-medium text-muted-foreground">{t('recentOps')}</div>
-          <div className="mt-2 space-y-2">
-            {service.operationRuns.slice(0, 3).map((run) => (
-              <div
-                key={run.id}
-                className="flex flex-wrap items-center justify-between gap-2 text-xs"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{getOperationLabel(t, run.action)}</span>
-                  <StatusTag
-                    status={run.status}
-                    label={getOperationStatusLabel(t, run.status)}
-                  />
-                  <span className="text-muted-foreground">
-                    {run.dryRun ? t('modeDryRun') : t('modeLive')}
-                  </span>
-                  {run.serverExecutionJob ? (
-                    <Link
-                      href="/execution-governance"
-                      className="text-primary hover:underline"
-                    >
-                      {t('jobLabel')} #{run.serverExecutionJob.id.slice(0, 8)} ·{' '}
-                      {getOperationStatusLabel(t, run.serverExecutionJob.status)}
-                    </Link>
-                  ) : null}
-                  {run.error ? (
-                    <span
-                      className="max-w-[16rem] truncate text-destructive"
-                      title={run.error}
-                    >
-                      {run.error}
-                    </span>
-                  ) : null}
-                </div>
-                <span className="text-muted-foreground">{formatDate(run.startedAt)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <ServiceRecentOperations service={service} />
     </div>
   );
 }

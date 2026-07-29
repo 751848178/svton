@@ -1,4 +1,5 @@
 export type DeliveryAction =
+  | 'open_repository'
   | 'open_environments'
   | 'request_resource'
   | 'open_resources'
@@ -12,7 +13,16 @@ export function getProjectDeliveryNextAction(input: {
   unboundResourceCount: number;
   hasDeployments: boolean;
   resourceOnly: boolean;
+  repositoryComplete: boolean;
 }) {
+  if (!input.resourceOnly && !input.repositoryComplete) {
+    return next(
+      'open_repository',
+      'deliveryActionRepository',
+      'deliveryNextRepository',
+      'deliveryNextRepositoryDesc',
+    );
+  }
   if (input.environmentCount === 0) {
     return next(
       'open_environments',

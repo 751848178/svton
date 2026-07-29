@@ -9,7 +9,7 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, Card, EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
@@ -21,11 +21,20 @@ import type { useProjectDetail } from '../hooks/use-project-detail';
 import type { ProjectEnvironment } from '../types';
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
-export function EnvironmentPanel({ detail }: { detail: DetailHook }) {
+export function EnvironmentPanel({
+  detail,
+  focusedEnvironmentId,
+}: {
+  detail: DetailHook;
+  focusedEnvironmentId?: string;
+}) {
   const t = useTranslations('projects');
   const [activeEnvId, setActiveEnvId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const p = detail.project;
+  useEffect(() => {
+    if (focusedEnvironmentId) setActiveEnvId(focusedEnvironmentId);
+  }, [focusedEnvironmentId]);
   if (!p || !p.environments || p.environments.length === 0) {
     return (
       <div className="space-y-2">

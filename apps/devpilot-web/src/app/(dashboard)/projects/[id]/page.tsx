@@ -19,7 +19,9 @@ import { EnvironmentsTab } from './components/tabs/environments-tab';
 import { WebhooksTab } from './components/tabs/webhooks-tab';
 import { ResourcesTab } from './components/tabs/resources-tab';
 import { SettingsTab } from './components/tabs/settings-tab';
+import { RepositoryTab } from './components/tabs/repository-tab';
 import { useProjectDetailTabs } from './hooks/use-project-detail-tabs.hooks';
+import { useRepositoryAnalysis } from './hooks/use-repository-analysis.hooks';
 import type { DeliveryAction } from './utils/project-delivery-readiness.utils';
 
 const DEPLOYMENTS_TAB = 'deployments';
@@ -30,8 +32,16 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = params.id as string;
-  const { activeKey, focusedDeploymentRunId, setActiveKey } = useProjectDetailTabs();
+  const {
+    activeKey,
+    focusedDeploymentRunId,
+    focusedRepositoryRunId,
+    focusedEnvironmentId,
+    setActiveKey,
+    setFocusedRepositoryRunId,
+  } = useProjectDetailTabs();
   const detail = useProjectDetail(projectId, focusedDeploymentRunId);
+  const repositoryAnalysis = useRepositoryAnalysis(projectId, focusedRepositoryRunId);
 
   // 所有 hook 必须在任何 early return 之前调用（rules-of-hooks）。
   const operations = useProjectDeployOperations({
@@ -86,6 +96,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleDeliveryAction = (action: DeliveryAction, environmentId?: string) => {
+    if (action === 'open_repository') return setActiveKey('repository');
     if (action === 'open_environments') return setActiveKey('environments');
     if (action === 'open_resources') return setActiveKey('resources');
     if (action === 'open_applications') {
@@ -118,6 +129,17 @@ export default function ProjectDetailPage() {
           detail={detail}
           onDeployClick={goToDeployments}
           onDeliveryAction={handleDeliveryAction}
+          repositoryReadiness={repositoryAnalysis.state.readiness}
+        />
+      ),
+    },
+    {
+      key: 'repository',
+      label: t('tabRepository'),
+      children: (
+        <RepositoryTab
+          analysis={repositoryAnalysis}
+          onSelectRun={setFocusedRepositoryRunId}
         />
       ),
     },
@@ -140,7 +162,7 @@ export default function ProjectDetailPage() {
     {
       key: 'environments',
       label: t('tabEnvironments'),
-      children: <EnvironmentsTab detail={detail} />,
+      children: <EnvironmentsTab detail={detail} focusedEnvironmentId={focusedEnvironmentId} />,
     },
     { key: 'webhooks', label: t('tabWebhooks'), children: <WebhooksTab detail={detail} /> },
     { key: 'resources', label: t('tabResources'), children: <ResourcesTab detail={detail} /> },
