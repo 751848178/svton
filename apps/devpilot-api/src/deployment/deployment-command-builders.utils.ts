@@ -115,13 +115,15 @@ export function buildCommandSteps(
     {
       key: "health_check",
       label: "启动后健康检查",
+      // 服务容器刚启动时进程尚未就绪，单次 curl 会立即失败（连接拒绝）。
+      // 用 BusyBox 兼容的重试循环：在 timeoutSeconds 窗口内反复探测直到 2xx。
       command: deployment.healthCheckUrl
-        ? `curl -fsS ${deployment.healthCheckUrl}`
+        ? `for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do curl -fsS ${deployment.healthCheckUrl} && exit 0; sleep 2; done; exit 1`
         : "",
       cwd: "",
       required: Boolean(deployment.healthCheckUrl),
       risk: "low",
-      timeoutSeconds: 30,
+      timeoutSeconds: 60,
       phase: "health_check",
       runPolicy: "every_deploy",
       failurePolicy: "block",
