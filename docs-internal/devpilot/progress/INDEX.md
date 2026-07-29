@@ -21,6 +21,10 @@
 
 ## Current Use
 
+- F384 repository connection and analysis closed on 2026-07-29. Use
+  `f384-repository-analysis.md` and
+  `../../todos/2026-07-29-repository-analysis.md` as the bounded progress and
+  atomic task sources.
 - F383 release orchestration closed on 2026-07-29. Until `P2-webhook-deployment.md`
   is restored, use `requirements-and-progress.md` §10 and
   `release-orchestration-{architecture,runbook,final-report}.md` as the current

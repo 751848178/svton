@@ -397,3 +397,21 @@ MVP 验收标准：
 - 详细架构见 `docs-internal/devpilot/release-orchestration-architecture.md`，
   长任务入口见
   `docs-internal/devpilot/glm-goals/devpilot-release-orchestration-goal.md`。
+
+## 11. F384 真实只读仓库连接与代码解析纳管（2026-07-29）
+
+- 状态：**done**（2026-07-29）。
+- 已确认缺口：当前项目导入只保存手工仓库、分支、技术栈和命令，
+  F381 明确把自动仓库分析列为后续工作，项目页因此不能把这些字段标为真实验证。
+- 本阶段闭环：只读连接并解析真实默认分支/精确 commit，持久化可审计运行与阶段证据，
+  检测服务/框架/命令/容器/环境变量名/端口/健康检查/数据操作，再让用户逐项
+  确认、编辑或忽略建议后应用到项目、应用服务、环境和部署配置。
+- 验收边界：只有真实连接、解析、确认应用、日志审计及页面/API/数据库回读全部完成，
+  项目交付准备度才能从 5/6 变为 6/6；F383 和后续资源供应能力均不在本阶段改动。
+- 任务账本：`docs-internal/todos/2026-07-29-repository-analysis.md`。
+- 进度锚点：`docs-internal/devpilot/progress/f384-repository-analysis.md`。
+- 最终证据：Picshare
+  `master@8e7c465d56e68dafcef0dfbc480fe721044b0fb3`，解析运行
+  `cms5xb3o2000aazxpaut9boes` 六阶段 succeeded，5 条建议完成
+  edit/accept/reject 后持久化应用，项目准备度 6/6，并完成仓库、应用服务、环境、
+  审计页面及脱敏数据库回读。
