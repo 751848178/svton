@@ -59,7 +59,7 @@ export function chatToDisplayMessages(messages: ChatMessage[]): DisplayMessage[]
     for (const b of blocks) {
       if (b.type === 'tool_result') {
         const tr = b as ToolResultContent;
-        if (tr.tool_use_id) toolResults.set(tr.tool_use_id, tr);
+        if (tr.toolUseId) toolResults.set(tr.toolUseId, tr);
       }
     }
   }
@@ -79,7 +79,7 @@ export function chatToDisplayMessages(messages: ChatMessage[]): DisplayMessage[]
       if (toolCalls) {
         for (const tc of toolCalls) {
           const res = toolResults.get(tc.id);
-          if (res) tc.result = { output: typeof res.content === 'string' ? res.content : '', isError: !!res.is_error };
+          if (res) tc.result = { callId: tc.id, output: typeof res.output === 'string' ? res.output : '', isError: !!res.isError };
         }
       }
       out.push({
@@ -88,7 +88,9 @@ export function chatToDisplayMessages(messages: ChatMessage[]): DisplayMessage[]
         content: contentToText(m.content),
         thinking: extractThinking(blocks),
         toolCalls,
-        blocks,
+        // ContentBlock type identities differ across packages; the runtime
+        // blocks are already the shape the UI renders — pass through as-is.
+        blocks: blocks as unknown as DisplayMessage['blocks'],
         timestamp: Date.now(),
       });
     }

@@ -17,6 +17,9 @@ export default defineConfig({
       // resolvable in the test environment. Stub it to a no-op invoke so deps
       // that pull it in transitively don't break collection.
       '@tauri-apps/api/core': path.resolve(__dirname, 'test/stubs/tauri-core.ts'),
+      // agent-platform's TauriPlatform also dynamically imports
+      // @tauri-apps/api/event; stub it the same way so collection doesn't break.
+      '@tauri-apps/api/event': path.resolve(__dirname, 'test/stubs/tauri-event.ts'),
     },
   },
   test: {
