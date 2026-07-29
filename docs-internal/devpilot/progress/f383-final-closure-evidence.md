@@ -125,3 +125,75 @@ password-SSH execution (migration + bootstrap) and a working approval bridge.
 The single remaining blocker is the F382 deployment-initialization-checkpoint
 requirement on `application_deploy`. F383.9.3 / F383.9.4 / F383 overall must stay
 `in-progress`.
+
+---
+
+# F383 Release Mainchain — Evidence Update (2026-07-29 session)
+
+Branch: `fix/f383-release-orchestration-mainchain`
+Session commits: `ca22005d` → `b06a3b70`
+
+## Status: PARTIAL — release mainchain code complete + verified; live 6-stage deploy blocked by private-repo Git auth at the deploy target
+
+This session implemented and verified the formal **release-initialization evidence
+bridge** plus state-sync, branch-source, drive-script, and structural fixes. All
+code-level verification is green (type-check/build/full-test/integration/SSH). The
+real 6-stage deploy now reaches `schema_migration` + `bootstrap` succeeded over
+password SSH, the evidence bridge records and verifies bootstrap evidence, and the
+previously-stuck plan auto-terminates correctly. The deploy is blocked ONLY at the
+`application_deploy` git-fetch step because the SSH target and API container have no
+GitHub credentials for the private Picshare repo. This is an environment-auth gate,
+not a code defect. F383 overall stays `in-progress`.
+
+## 1. Commits (this session)
+
+| Commit | Subject |
+|---|---|
+| `ca22005d` | feat(release): F383 release/deployment initialization evidence bridge + mainchain fixes |
+| `b06a3b70` | fix(release): deployment-run adapter resolves project name for live-executor confirmationText |
+
+## 2. Deliverables
+
+- **Evidence bridge (§1)**: `ReleaseInitializationEvidenceService` (record/verify,
+  fail-closed) + migration adding auditable parent columns
+  (releasePlanId/releaseStageId/releaseStageAttemptId/serverExecutionJobId/releaseEvidenceStatus)
+  on `ApplicationServiceInitialization`. `DeploymentService.createRun` verifies the
+  ref from DB (scope/fingerprint/stage-type/succeeded) when `releaseApplicationOnly`;
+  direct deploys keep original F382 semantics. Public controller strips all internal
+  bridge fields.
+- **State sync (§2)**: blocked (non-approval) DeploymentRun → release stage `failed`
+  (fail-closed); orphan expired attempt → `failed` (not hung). Proven: the stuck
+  plan `cms4tn4q2` auto-transitioned `running`→`failed`.
+- **Branch source (§3)**: removed hardcoded `|| "main"`; orchestrator inherits
+  `Project.config.source.branch` (Picshare = master); new branch-resolution utils.
+- **Drive script (§4)**: env-injected creds, plan-scoped approvals only, precise
+  matches, master asserted, safe logs.
+- **Structural (§6)**: `release-coordinator.service.ts` 425→173; `server-executor-wiring-factory.service.ts` 211→190; all touched production files <200 lines.
+
+## 3. Verification results
+
+| Gate | Result | Log |
+|---|---|---|
+| API type-check | PASS | `/tmp/codex-tool-runs/svton/api-typecheck.log` |
+| API build | PASS | `/tmp/codex-tool-runs/svton/api-build.log` |
+| Web type-check | PASS | `/tmp/codex-tool-runs/svton/web-typecheck.log` |
+| Web build | PASS | `/tmp/codex-tool-runs/svton/web-build.log` |
+| API full test | 1144 passed, 42 skipped (integration-gated), 0 failed | `/tmp/codex-tool-runs/svton/api-fulltest.log` |
+| Integration (real MySQL) | 44 passed, 3 skipped, 0 failed | `/tmp/codex-tool-runs/svton/api-integration-test2.log` |
+| Password SSH (real sshd) | 3/3 passed (+ key regression) | `/tmp/codex-tool-runs/svton/ssh-integration-test.log` |
+| Running API/Web = latest HEAD | YES (`ca22005d`/`b06a3b70` in container dist) | — |
+
+## 4. Live deploy evidence (plan `cms5hnkib000bky71c746mhj0`, branch master, password SSH)
+
+- `schema_migration` (backend): **succeeded** — job `cms5hnnt0001uky71bezo7dib`, attempt `cms5hnnsi001qky71epy6pjzg`, real password-SSH `prisma migrate deploy`.
+- `bootstrap` (backend): **succeeded** — job `cms5hoayt002lky71ypoqv75s`, attempt `cms5hoayj002fky71fp4uvahq`; evidence recorded (verified by the bridge on the subsequent deploy).
+- `application_deploy` (backend): **failed** at git checkout — `git fetch --all --prune` → `fatal: could not read Username for 'https://github.com'` (private repo, no credentials on the deploy target or API container).
+- Approval bridge: 4 plan-scoped approvals bound (no orphan/other-plan approvals).
+
+## 5. Remaining blocker (next session)
+
+Provide GitHub read credentials to the deploy target (and/or API container) for
+`github.com/751848178/picshare.git`, OR point the project gitRepo at an
+auth-free mirror, then rerun `f383-drive-release.mjs` to complete the 6 stages.
+The code path is verified correct up to the git-auth gate. Do NOT mark F383 done
+until the live 6-stage deploy reaches `succeeded` and backend/admin are `healthy`.
