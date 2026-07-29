@@ -53,9 +53,9 @@ in an isolated worktree, with full logs under
 
 | ID | Status | Work | Evidence |
 | --- | --- | --- | --- |
-| I4.1 | pending | Commit the integrated result and create a rollback tag. | Pending |
-| I4.2 | pending | Merge the verified branch into local master. | Pending |
-| I4.3 | pending | Build, mount, validate, and checksum the arm64 DMG. | Pending |
+| I4.1 | done | Commit the integrated result and create a rollback tag. | Integration `f34d6db1`; tag `pre-ai-agent-pi-runtime-integration-20260729`. |
+| I4.2 | done | Merge the verified branch into local master. | Merge commit `f8c31c75`; remote refs unchanged. |
+| I4.3 | done | Build, mount, validate, and checksum the arm64 DMG. | arm64 app, ad-hoc signature, `/Applications` link, mounted bundle, and DMG checksum all verified. |
 
 ## Acceptance
 
