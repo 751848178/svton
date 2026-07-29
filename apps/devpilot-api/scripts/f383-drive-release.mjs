@@ -221,7 +221,7 @@ async function nudge(planId) {
   await api(`/api/release-plans/${planId}/execute`, { method: "POST" }).catch(() => {});
 }
 
-async function driveToTerminal(planId, teamId, maxIters = 30) {
+async function driveToTerminal(planId, teamId, maxIters = 90) {
   for (let i = 0; i < maxIters; i++) {
     const plan = await getPlan(planId);
     const stageSummary = (plan.stages || []).map((s) => `${s.type}:${s.status}`).join(" ");
