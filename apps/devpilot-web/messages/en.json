@@ -189,6 +189,8 @@
     "linkedApps": "Linked Apps",
     "serviceCount": "{count} services",
     "noDeploymentRuns": "No deployment runs",
+    "focusedDeploymentRun": "Focused on deployment run: {id} (showing only that run)",
+    "focusedDeploymentRunNotFound": "Deployment run was not found or is not readable",
     "deploymentRuns": "Deployment Runs",
     "loadFailed": "Failed to load project list. Please try again later.",
     "detailTitle": "Project Details",

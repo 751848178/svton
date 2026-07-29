@@ -9,6 +9,9 @@ import { AuditEventModule } from "../audit-event";
 import { OperationApprovalModule } from "../operation-approval";
 import { PrismaModule } from "../prisma/prisma.module";
 import { ReleasePlanController } from "./release-plan.controller";
+import { ReleaseSecretLeakVerificationController } from "./release-secret-leak-verification.controller";
+import { ReleaseSecretLeakVerificationRepository } from "./repository/release-secret-leak-verification.repository";
+import { ReleaseSecretLeakVerificationService } from "./release-secret-leak-verification.service";
 import { ReleasePlanService } from "./release-plan.service";
 import { ReleaseCancelService } from "./release-cancel.service";
 import { ReleaseStageActionService } from "./release-stage-action.service";
@@ -47,9 +50,11 @@ import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
     AuditEventModule,
     OperationApprovalModule,
   ],
-  controllers: [ReleasePlanController],
+  controllers: [ReleasePlanController, ReleaseSecretLeakVerificationController],
   providers: [
     ReleasePlanService,
+    ReleaseSecretLeakVerificationRepository,
+    ReleaseSecretLeakVerificationService,
     ReleaseCancelService,
     ReleaseStageActionService,
     ReleasePlanAccessService,

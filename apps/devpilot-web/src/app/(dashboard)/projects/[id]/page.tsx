@@ -30,8 +30,8 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = params.id as string;
-  const detail = useProjectDetail(projectId);
-  const { activeKey, setActiveKey } = useProjectDetailTabs();
+  const { activeKey, focusedDeploymentRunId, setActiveKey } = useProjectDetailTabs();
+  const detail = useProjectDetail(projectId, focusedDeploymentRunId);
 
   // 所有 hook 必须在任何 early return 之前调用（rules-of-hooks）。
   const operations = useProjectDeployOperations({
@@ -127,6 +127,7 @@ export default function ProjectDetailPage() {
       children: (
         <DeploymentsTab
           detail={detail}
+          focusedRunId={focusedDeploymentRunId}
           onOpenDeploy={deployHost.onOpenDeploy}
         />
       ),

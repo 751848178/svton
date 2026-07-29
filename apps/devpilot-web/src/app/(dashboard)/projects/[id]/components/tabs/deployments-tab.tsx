@@ -18,10 +18,17 @@ type DetailHook = ReturnType<typeof useProjectDetail>;
 
 interface DeploymentsTabProps {
   detail: DetailHook;
+  focusedRunId?: string;
   /** 打开内联部署向导。header 主「部署」按钮（单服务时）与服务行均会调用。 */
   onOpenDeploy?: (application: ProjectApplication, service: ProjectService) => void;
 }
 
-export function DeploymentsTab({ detail, onOpenDeploy }: DeploymentsTabProps) {
-  return <DeploymentPanel detail={detail} onOpenDeploy={onOpenDeploy} />;
+export function DeploymentsTab({ detail, focusedRunId, onOpenDeploy }: DeploymentsTabProps) {
+  return (
+    <DeploymentPanel
+      detail={detail}
+      focusedRunId={focusedRunId}
+      onOpenDeploy={onOpenDeploy}
+    />
+  );
 }

@@ -1,9 +1,59 @@
-# F383 发布编排最终报告（第三轮 P0-1/2/3 修复后）
+# F383 发布编排最终报告（2026-07-29 完成）
 
 > 仓库：`/Users/zhaoxingbo/Workspace/ai-driven/svton`
-> 分支：`fix/f383-release-orchestration-mainchain`（HEAD `03d6d10d` 第三轮 + 第二轮 `f95f9a47`，未 push）
+> 分支：`fix/f383-release-orchestration-mainchain`
 > 权威架构：`docs-internal/devpilot/release-orchestration-architecture.md`
-> 第一/二轮报告已存档于本文件后半；本节（§0.5）记录第三轮（P0-1/2/3）修复的真实证据。
+> 本节（§0.7）是当前最终事实；§0.5 及后续旧轮次仅作历史存档。
+
+## 0.7 最终闭环（F383 第二批，2026-07-29）
+
+**最终结论：done。** 唯一最终可复现计划为
+`cms5m7z2001ow14kkg3jg0l87`，对应 Picshare
+`master@8e7c465d56e68dafcef0dfbc480fe721044b0fb3`。计划 6 个阶段全部
+succeeded，关联 2 条 DeploymentRun、4 条 ServerExecutionJob；旧计划
+`cms5kc2rp009z14kkn2ch9lqb` 不作为最终证据。
+
+第二批完成两项产品化收口：
+
+1. 发布阶段的执行任务链接变为精确定位链路。真实发布页输出：
+   - `/execution-governance?jobId=cms5m8kko01rb14kksfudwxtf`，自动选中“作业”，
+     服务端按 `where.id` 查询，只显示目标任务；
+   - `/projects/cmrwxl1ks000k6enjiclutd5a?tab=deployments&runId=cms5m9uwe01sy14kk7u4uig00`，
+     经作用域详情 API 读取，只显示并自动展开目标运行。
+   两条链路对伪造 ID 都显示空态/未找到，不回退到通用最近列表。
+2. 新增计划级管理员零泄漏验证 API。它覆盖 DeploymentRun、ServerExecutionJob 的
+   参数/输入、命令计划、日志、结果、错误、元数据及关联日志/审计，失败时 fail-closed；
+   返回与 AuditEvent 只含计数和安全定位，不含值、片段或秘密探针。
+
+**真实零泄漏结果**：
+
+| 项 | 结果 |
+| --- | --- |
+| 计划 | `cms5m7z2001ow14kkg3jg0l87` |
+| 探针来源 | 运行中的 `picshare-backend` / `picshare-admin`，仅内存读取 |
+| 有效探针 / 记录 / 字段 | 4 / 8 / 44 |
+| verdict / findings | `clean` / 0 |
+| 审计回读 | `cms5o57vz000akza17koems85`，`coverageComplete=true` |
+| 秘密回显检查 | API response=false；AuditEvent=false |
+
+首次校准扫描曾把布尔运行标志和 `secretsInOutput` 安全策略标记误判为秘密；
+修正后新增回归测试并重新构建/重启真实 API。该次校准审计保留为历史，不删除或改写；
+最终权威结果是上述较新的 clean 审计。
+
+**自动化与运行证据**：
+
+| 验证 | 结果 | 日志/证据 |
+| --- | --- | --- |
+| API 全量 Jest | 164 suites / 1158 tests passed；4 suites / 42 tests gated skip | `/tmp/codex-tool-runs/svton/f383-batch2-api-full-tests-post-audit-failure-20260729-140832.log` |
+| API integration | 1 suite / 5 tests passed；4 suites / 42 tests gated skip | `/tmp/codex-tool-runs/svton/f383-batch2-api-integration-tests-20260729-134002.log` |
+| 第二批定向测试 | 6 suites / 9 tests passed；detector 校准 2 suites passed | `/tmp/codex-tool-runs/svton/f383-batch2-targeted-*.log`、`f383-batch2-detector-tests-rerun-20260729-135005.log` |
+| API/Web type-check | 两端 exit 0 | `/tmp/codex-tool-runs/svton/f383-batch2-targeted-*-typecheck.log` |
+| API/Web build | 两端 exit 0；最终 Compose API/Web 健康 | `/tmp/codex-tool-runs/svton/f383-batch2-{api,web}-build-*.log`、`f383-batch2-compose-runtime-refresh-*.log` |
+| 真实 API/数据库证据 | 计划、阶段关联、扫描和审计一致 | `/tmp/codex-tool-runs/svton/f383-batch2-real-evidence.json` |
+| 真实浏览器 | 两个精确链接、单条聚焦、伪造 ID fail-closed | `/tmp/codex-tool-runs/svton/f383-batch2-browser-evidence.json`、`f383-batch2-*-deep-link.png` |
+
+**剩余风险**：零泄漏验证是计划级时间点审计，不是持续写入拦截；生产多副本并发、
+生产数据库变更窗口和真实审批通知仍需各自的生产运维验收，不影响本地 F383 完成定义。
 
 ## 0.5 第三轮修复（P0-1/2/3，2026-07-28）
 
@@ -34,7 +84,7 @@ list/execute/heartbeat/isEnabled/resolveGitRefInto。controller 委托新服务�
 
 **password live transport 闭环状态（2026-07-28 第五轮，如实声明）**：
 password SSH live 主链**已真实跑通**（提交 `20d41208` 移除 adapter 对非 key auth 的硬拒绝，`ssh-credential-mapping.utils` 统一映射并 fail-closed）。新建 Picshare 发布计划 `cms4n68sw000bbdxirzcpgv1n` 的 `schema_migration`、`bootstrap` 经真实 `ssh-live` + password auth 执行**成功**（ServerExecutionJob.transport=ssh、adapterKey=ssh-live、commandPolicy.status=passed、migration 日志显示 "No pending migrations to apply"）。同时修复：`release-plan.service.create()` 误对 configSnapshot 脱敏导致 DB 密码冻结为 `[REDACTED]` 并执行期 P1000（`5ae1a4ed`）；`Ssh2Transport.execCommand` 不 drain stdout / 预先 stream.end 导致命令超时的 backpressure bug（`20d41208`）；连接测试从 TCP-only 升级为 网络/SSH 认证/执行器 三段判定（`5b2ff107`）；CLI 内联密码脱敏加固（`1880894f`）。
-**仍待完成（独立缺陷，非 password SSH 阻塞）**：`application_deploy` 阶段走 `deployment_run` 执行器（非 ssh-live），命中 release_stage 审批 category 与 deployment 审批 category 不匹配（"审批单与本次操作不匹配: category"），属部署↔发布审批协调的既有设计缺口；六阶段全绿与浏览器像素级取证待该问题修复后完成。F383.9.3 / F383.9.4 / F383 整体**未标 done**。
+**历史状态（第五轮当时结论，已被 §0.7 取代）**：`application_deploy` 阶段走 `deployment_run` 执行器（非 ssh-live），当时命中 release_stage 审批 category 与 deployment 审批 category 不匹配（"审批单与本次操作不匹配: category"）；当时六阶段全绿与浏览器像素级取证尚未完成，故 F383.9.3 / F383.9.4 / F383 未标 done。
 
 **浏览器验证状态（历史，第四轮 — IAB 点击投递阻塞结论已随第五轮 password 闭环推进而过时）**：
 尝试用 `docker compose -f docker-compose.devpilot-app.yml -f docker-compose.devpilot-app.release.yml up -d --build`
@@ -236,4 +286,5 @@ docker compose -f docker-compose.devpilot-app.yml -f docker-compose.devpilot-app
 
 ---
 
-**结论（第五轮，2026-07-28）**：F383 后端主链（数据 DAG、原子并发、审批闭环、完成回调、retry/cancel、health、env 一致性、preview/create 绑定、feature flag、脱敏/时间契约）已修复并由真实 MySQL 集成测试 + 对抗式 CR 证明；**password SSH live 主链已真实跑通**（schema_migration + bootstrap 经 ssh-live + password auth 成功执行，Docker 存储与 Redis 循环阻塞已解除）。**未达完成**：六阶段全绿受阻于 `application_deploy` 的 deployment↔release 审批 category 不匹配（独立缺陷），浏览器像素级端到端取证随之待办。故 F383.9.3 / F383.9.4 / F383 整体保持 in-progress，未标 done。未 push。
+**当前结论（2026-07-29）**：上方 §0.7 已用真实六阶段计划、精确页面链路、
+平台零泄漏审计和最终自动化证据关闭 F383；本节以前的阻塞结论仅为历史。

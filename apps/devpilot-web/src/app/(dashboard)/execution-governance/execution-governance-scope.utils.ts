@@ -30,7 +30,6 @@ export function readExecutionGovernanceScope(
     operationKey: readParam(searchParams, 'operationKey'),
     adapterKey: readParam(searchParams, 'adapterKey'),
     queueMode: readParam(searchParams, 'queueMode'),
-    // jobId 是展示聚焦参数（客户端过滤），不发给后端 job 列表查询。
     focusedJobId: searchParams.get('jobId')?.trim() || undefined,
   };
 }
@@ -40,6 +39,7 @@ export function buildExecutionJobParams(
   scope: ExecutionGovernanceScope,
 ): Record<string, string> | undefined {
   const params: Record<string, string> = {};
+  if (scope.focusedJobId) params.jobId = scope.focusedJobId;
   if (jobStatus !== 'all') params.status = jobStatus;
   JOB_SCOPE_FILTER_KEYS.forEach((key) => {
     const value = scope[key];
@@ -63,6 +63,7 @@ export function buildExecutionLeaseParams(
 
 export function buildExecutionJobScopeKey(scope: ExecutionGovernanceScope): string {
   return [
+    `focusedJobId:${scope.focusedJobId || ''}`,
     `leaseStatus:${scope.leaseStatus || ''}`,
     ...JOB_SCOPE_FILTER_KEYS.map((key) => `${key}:${scope[key] || ''}`),
   ].join('|');

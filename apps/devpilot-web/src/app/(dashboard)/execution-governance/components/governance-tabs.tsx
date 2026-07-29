@@ -14,12 +14,19 @@ type GovernanceHook = ReturnType<typeof useExecutionGovernance>;
  * 让概览卡(GovernanceOverview)成为页面唯一的视觉焦点,详情按需切换。
  * 单一职责:仅做布局收纳,数据与动作全部来自 useExecutionGovernance。
  */
-export function GovernanceTabs({ gov }: { gov: GovernanceHook }) {
+export function GovernanceTabs({
+  gov,
+  defaultActiveKey,
+}: {
+  gov: GovernanceHook;
+  defaultActiveKey?: 'supervisor' | 'jobs' | 'leases';
+}) {
   const t = useTranslations('executionGovernance');
 
   return (
     <Tabs
       type="line"
+      defaultActiveKey={defaultActiveKey}
       items={[
         {
           key: 'supervisor',

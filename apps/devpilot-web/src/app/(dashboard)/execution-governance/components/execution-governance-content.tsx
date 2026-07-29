@@ -131,7 +131,10 @@ function ExecutionGovernanceInner() {
         </Alert>
       ) : null}
 
-      <GovernanceTabs gov={govView} />
+      <GovernanceTabs
+        gov={govView}
+        defaultActiveKey={focusedJobId ? 'jobs' : 'supervisor'}
+      />
 
       <ConfirmDialog
         open={Boolean(gov.pendingJobAction)}

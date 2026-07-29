@@ -11,6 +11,10 @@ import Link from 'next/link';
 import { CodeBlock, StatusTag } from '@/components/ui';
 import { STAGE_STATUS_LABEL, pickLabel } from '../utils/release-labels';
 import { formatDuration, formatIso } from '../utils/release-time.utils';
+import {
+  buildDeploymentRunHref,
+  buildServerExecutionJobHref,
+} from '../utils/release-run-deep-links.utils';
 import type { ReleasePlan, ReleaseStageAttempt } from '../types/releases';
 
 export interface ReleaseAttemptDetailsProps {
@@ -25,11 +29,10 @@ export function ReleaseAttemptDetails({ attempt, plan }: ReleaseAttemptDetailsPr
   const approval = attempt.operationApproval;
   const auditHref = `/audit-events?releasePlanId=${encodeURIComponent(plan.id)}`;
   const deploymentHref = attempt.deploymentRunId
-    ? `/deployments?runId=${encodeURIComponent(attempt.deploymentRunId)}`
+    ? buildDeploymentRunHref(plan.projectId, attempt.deploymentRunId)
     : null;
-  // F383 §F：执行任务跳到执行治理页并按 jobId 过滤到该任务，不再泛化跳 /servers。
   const serverJobHref = attempt.serverExecutionJobId
-    ? `/execution-governance?jobId=${encodeURIComponent(attempt.serverExecutionJobId)}`
+    ? buildServerExecutionJobHref(attempt.serverExecutionJobId)
     : null;
 
   return (

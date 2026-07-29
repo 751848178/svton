@@ -359,8 +359,17 @@ MVP 验收标准：
 
 ## 10. F383 项目级发布编排设计与 GLM 交接（2026-07-27）
 
-- 状态：**已实现并经三轮修复**（2026-07-28）。架构、任务台账、兼容边界、验收矩阵
-  与可执行的 Goal 提示词均已完成。详见 `release-orchestration-final-report.md`。
+- 状态：**done（2026-07-29）**。架构、任务台账、兼容边界、验收矩阵、运维手册、
+  浏览器证据和可执行 Goal 均已完成。最终可复现计划
+  `cms5m7z2001ow14kkg3jg0l87` 对应 Picshare
+  `master@8e7c465d56e68dafcef0dfbc480fe721044b0fb3`，六阶段全部 succeeded。
+  详见 `release-orchestration-final-report.md`。
+- 第二批收口：发布详情中的 `ServerExecutionJob` 链接使用服务端 `jobId` 精确查询并
+  自动切到“作业”Tab；`DeploymentRun` 链接进入项目“部署”Tab，使用作用域详情 API
+  精确读取并自动展开，真实/伪造 ID 都不会回退到通用列表。平台新增 team-admin
+  计划级零泄漏验证 API，覆盖两类运行的参数、命令计划、日志、结果、错误、元数据及
+  关联日志/审计；真实结果为 4 probes / 8 records / 44 fields / 0 findings，审计事件
+  `cms5o57vz000akza17koems85`，响应与审计均不含探针值。
 - 核心决策：数据库结构迁移、生产 bootstrap、存量数据回填和应用部署独立
   执行，通过项目/环境范围的持久化 DAG 编排，不再依赖单条部署命令拼接。
 - 复用边界：命令阶段继续使用 `ServerExecutionJob`，应用部署继续使用

@@ -4,7 +4,7 @@
 > 创建时间：2026-07-27（Asia/Shanghai）
 > 设计者：OpenAI Codex（GPT-5 系列）
 > 使用工具：Git、CodeGraph CLI、受限源码读取、Prisma 模型检查、既有运行证据
-> 当前状态：**2026-07-29 第一批可复现主链已完成：Picshare 健康检查修复已以 `8e7c465` 推送至 `origin/master`，工作区干净；Devpilot 全新计划 `cms5m7z2001ow14kkg3jg0l87` 以 `master@8e7c465` 完成真实六阶段发布，初始化证据、容器健康、实际页面及真实秘密零泄漏扫描均通过。F383.9.3/F383.9.4 继续保持 in-progress，第二批处理执行任务深链接、平台化零泄漏验证器及最终文档关闭。**
+> 当前状态：**done（2026-07-29）**。Picshare `master@8e7c465d56e68dafcef0dfbc480fe721044b0fb3` 的真实计划 `cms5m7z2001ow14kkg3jg0l87` 六阶段全部 succeeded；`ServerExecutionJob`、`DeploymentRun` 已有不可退化为通用列表的精确页面链路；平台计划级零泄漏验证覆盖 8 条关联记录、44 个持久化字段，使用 4 个真实秘密探针得到 `clean / 0 findings`，审计事件 `cms5o57vz000akza17koems85` 已回读。F383.9.3/F383.9.4 与第二批原子项全部完成。
 > 修复轮次：2026-07-27 第二轮 → 2026-07-28 第三/四轮 → 2026-07-29 第一批可复现主链收尾；Devpilot 分支 `fix/f383-release-orchestration-mainchain`，Picshare `master@8e7c465` 已推送。
 > 最终报告：`docs-internal/devpilot/release-orchestration-final-report.md`
 > 运维手册：`docs-internal/devpilot/release-orchestration-runbook.md`
@@ -117,7 +117,7 @@ GLM 长任务提示词：
 
 ## Workflow Routing
 
-`routing: focused cross-repository closure + isolated noisy verification; Picshare only commits the existing compose fix, Devpilot only reruns the release and records evidence; no unrelated source changes.`
+`routing: long-goal + todo-plan + codegraph + noisy-tools; F383 第二批由当前线程单写入，先独立核对真实源码、数据库和页面，再实现精确任务深链接与平台化零泄漏验证，所有高噪声验证隔离到 /tmp。`
 
 ## Functional TODO Breakdown
 
@@ -193,8 +193,19 @@ GLM 长任务提示词：
 | --- | --- | --- | --- |
 | F383.9.1 | done | 完成 API/Web 定向测试、type-check、build、lint。 | `cr-fixes/`：API type-check exit 0；Web type-check/lint/build exit 0；nestjs-http build+test（3 用例）。212 单测 + 22 真实 MySQL 集成用例全过。 |
 | F383.9.2 | done | 在一次性 MySQL 与本地执行目标验证分支、失败、恢复、幂等。 | 真实 MySQL :3399 22 集成用例：完整成功链、migration 失败阻断、bootstrap 幂等、backfill skip、health 失败、真实审批 approved/denied、API 重启恢复、retry、cancel、并发认领、并发同 concurrencyKey、CAS-lost 无孤儿、stale-lease 抢占、finalize-vs-cancel、retry-vs-cancel。 |
-| F383.9.3 | in-progress | 在 `localhost:3120` 完成真实浏览器全流程。 | **第一批可复现主链已完成（2026-07-29）**：Picshare 健康检查以独立提交 `8e7c465` 推送至 `origin/master`，本地/远端/部署挂载目录全程干净；全新计划 `cms5m7z2001ow14kkg3jg0l87` 记录 `master@8e7c465`，真实 password SSH 六阶段全部 succeeded，2 条 DeploymentRun completed，初始化证据 verified。实际 Devpilot 发布页默认选中新计划并展示正确分支、提交及六项成功状态。基于当前 Picshare 容器真实秘密值扫描该计划 2 条 DeploymentRun + 4 条 ServerExecutionJob，持久化字段 0 命中。仍保留第二批：执行任务深链接和平台化零泄漏验证器，因此状态保持 in-progress。 |
-| F383.9.4 | in-progress | 同步 TODO、进度、架构、操作手册与最终报告。 | TODO 与 `f383-final-closure-evidence.md` 已同步第一批干净 master 重跑证据，并明确旧计划 `cms5kc2rp...` 仅为运行证明、不能作为可复现发布证明。待第二批产品能力完成后再同步架构/操作手册并关闭 F383。 |
+| F383.9.3 | done | 在 `localhost:3120` 完成真实浏览器全流程。 | 真实计划 `cms5m7z2001ow14kkg3jg0l87` 记录 Picshare `master@8e7c465d` 且六阶段 succeeded。发布页精确输出执行任务 `cms5m8kko01rb14kksfudwxtf` 与部署运行 `cms5m9uwe01sy14kk7u4uig00`；实际页面分别自动选中“作业”/“部署”、仅显示目标记录并展开详情；伪造 ID 不回退通用列表。截图与 DOM 证据见 `/tmp/codex-tool-runs/svton/f383-batch2-*-deep-link.png`、`f383-batch2-browser-evidence.json`。 |
+| F383.9.4 | done | 同步 TODO、进度、架构、操作手册与最终报告。 | 本文、TODO/进度索引、requirements、架构、runbook、最终报告已同步第二批能力和真实证据；旧计划 `cms5kc2rp009z14kkn2ch9lqb` 不作为最终证据。 |
+
+#### F383 第二批原子计划（2026-07-29）
+
+| ID | Status | Atomic TODO | Context boundary | Evidence |
+| --- | --- | --- | --- | --- |
+| F383.9.3.a | done | 独立核对发布页“执行任务”入口到任务/运行详情的路由、ID 和过滤链路。 | 只读 Web/API/Prisma、真实页面与计划 `cms5m7z2001ow14kkg3jg0l87`。 | 真实页面复现：job 链接未切作业 Tab；deployment 链接 404；代码图见 `/tmp/codex-tool-runs/svton/f383-batch2-deep-link-audit.log`。 |
+| F383.9.3.b | done | 为 `ServerExecutionJob` 与 `DeploymentRun` 提供不可退化为通用列表的精确深链接。 | 仅修改发布详情、对应列表/详情查询契约及定向测试。 | `jobId` 进入服务端精确 where、默认切到作业 Tab；`runId` 走项目作用域详情 API、404 fail-closed、单运行自动展开。真实/伪造 ID 浏览器验证通过。 |
+| F383.9.3.c | done | 盘点两类运行记录全部持久化秘密载体与现有脱敏/审计能力。 | 只读 Prisma、执行器、部署、审计和访问策略链路；不回显真实秘密。 | 字段矩阵覆盖参数、命令计划、日志、结果、错误、元数据及关联 LogStream/LogEntry/AuditEvent；日志 `f383-batch2-zero-leak-audit.log`。 |
+| F383.9.3.d | done | 实现平台内可复用、可审计、默认不回显秘密的零泄漏验证能力。 | 覆盖参数、命令计划、日志、结果、错误、元数据；统一 service/repository/API 边界。 | `POST /release-plans/:id/secret-leak-verification` 仅 team admin 可用；计划级只读扫描、失败不生成通过结论；响应/AuditEvent 仅含计数和定位元数据，不含值、片段或秘密探针。 |
+| F383.9.3.e | done | 用真实计划、实际数据库及 `localhost:3120` 完成自动化和浏览器闭环。 | API/Web type-check、build、相关单元/集成测试、数据库回读、浏览器交互。 | 全量 API 164 suites/1158 tests 通过（4 suites/42 tests gated skip）；集成 1 suite/5 tests 通过（4 suites/42 tests gated skip）；两端 type-check/build 通过。真实扫描 `clean`：4 probes、8 records、44 fields、0 findings，审计 `cms5o57vz000akza17koems85`，安全证据 `f383-batch2-real-evidence.json`。 |
+| F383.9.4.a | done | 同步 TODO、进度、架构、运维与最终报告并提交第二批。 | 只提交 F383 相关改动；`check2.mjs` 保持未跟踪且不改动。 | 权威文档已同步；本批提交 SHA 由最终交付输出，`check2.mjs` 未修改且不入提交。 |
 
 ## Required Picshare Reference Flow
 

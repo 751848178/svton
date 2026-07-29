@@ -9,7 +9,7 @@ export interface ExecutionGovernanceScope {
   operationKey?: string;
   adapterKey?: string;
   queueMode?: string;
-  /** F383 §F：从 ?jobId= 携带，用于把执行任务列表聚焦到单个任务（客户端过滤）。 */
+  /** 从 ?jobId= 携带，贯穿后端精确查询并在客户端做防御性聚焦。 */
   focusedJobId?: string;
 }
 
