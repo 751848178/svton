@@ -232,4 +232,3 @@ The migration is complete only when:
 - [pi-coding-agent SDK](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sdk.md)
 - [pi-coding-agent philosophy](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md#philosophy)
 - [pi-coding-agent security](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md)
-

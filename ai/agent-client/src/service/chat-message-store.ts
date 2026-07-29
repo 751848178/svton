@@ -152,4 +152,3 @@ export function forceMessagesForSave(host: MessageStoreHost): DisplayMessage[] {
   const messages = host.messages.filter((m) => m.role !== 'system');
   return finalizeStalePendingApprovals(messages).map((m) => ({ ...m, isStreaming: false }));
 }
-
