@@ -20,6 +20,7 @@ import {
   openConfigInEditor,
   type SvtonConfig,
 } from '@/lib/config-store';
+import { toConfigProviders, toProviderInfoList } from '@/lib/provider-settings.utils';
 
 export class TauriSettingsAdapter implements ISettingsAdapter {
   private config: SvtonConfig | null = null;
@@ -81,34 +82,13 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
   // ── Providers ────────────────────────────────────────────
   getProviders(): ProviderInfo[] {
     if (!this.config) return [];
-    return Object.entries(this.config.providers).map(([name, p]) => ({
-      id: name,
-      name,
-      type: p.type,
-      baseUrl: p.base_url,
-      apiKey: p.api_key,
-      models: Object.entries(p.models || {}).map(([id, displayName]) => ({
-        id,
-        name: displayName || id,
-      })),
-    }));
+    return toProviderInfoList(this.config.providers);
   }
 
   setProviders(providers: ProviderInfo[]): void {
     if (!this.config) return;
-    const map: SvtonConfig['providers'] = {};
-    for (const p of providers) {
-      const models: Record<string, string> = {};
-      for (const m of p.models) models[m.id] = m.name;
-      const existing = this.config.providers[p.name] || this.config.providers[p.id];
-      map[p.name] = {
-        type: (existing?.type || p.type) as 'openai' | 'anthropic',
-        base_url: p.baseUrl,
-        api_key: p.apiKey,
-        models,
-      };
-    }
-    this.config = { ...this.config, providers: map };
+    const mapped = toConfigProviders(this.config.providers, providers);
+    this.config = { ...this.config, providers: mapped };
     this.onUpdate?.();
   }
 

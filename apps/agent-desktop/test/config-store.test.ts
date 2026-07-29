@@ -92,6 +92,7 @@ provider = "anthropic"
 
 [providers.anthropic]
 type = "anthropic"
+api = "anthropic-messages"
 base_url = "https://api.anthropic.com"
 api_key = "sk-ant-test"
 
@@ -103,6 +104,7 @@ claude-sonnet-4 = "Claude Sonnet 4"
       expect(result.config!.model.name).toBe('claude-sonnet-4');
       expect(result.config!.model.provider).toBe('anthropic');
       expect(result.config!.providers.anthropic.api_key).toBe('sk-ant-test');
+      expect(result.config!.providers.anthropic.api).toBe('anthropic-messages');
       expect(result.config!.providers.anthropic.models['claude-sonnet-4']).toBe('Claude Sonnet 4');
     });
 
@@ -134,7 +136,13 @@ claude-sonnet-4 = "Claude Sonnet 4"
       await saveConfig(platform, {
         model: { name: 'gpt-4o', provider: 'openai' },
         providers: {
-          openai: { type: 'openai', base_url: 'https://api.openai.com', api_key: 'sk-x', models: { 'gpt-4o': 'GPT-4o' } },
+          openai: {
+            type: 'openai',
+            api: 'openai-responses',
+            base_url: 'https://api.openai.com/v1',
+            api_key: 'sk-x',
+            models: { 'gpt-4o': 'GPT-4o' },
+          },
         },
       });
       // directory creation was attempted (mkdir -p)
@@ -144,6 +152,7 @@ claude-sonnet-4 = "Claude Sonnet 4"
       expect(written).toContain('[model]');
       expect(written).toContain('gpt-4o');
       expect(written).toContain('sk-x');
+      expect(written).toContain('openai-responses');
     });
 
     it('does not call mkdir when directory already exists', async () => {
@@ -177,6 +186,10 @@ claude-sonnet-4 = "Claude Sonnet 4"
       expect(written).toContain('anthropic');
       expect(written).toContain('claude-sonnet');
       expect(written).toContain('openai');
+      expect(written).toContain('api = "openai-responses"');
+      expect(written).toContain('base_url = "https://api.openai.com/v1"');
+      expect(written).toContain('api = "openai-completions"');
+      expect(written).toContain('base_url = "https://api.deepseek.com"');
     });
 
     it('shell-quotes the config directory before creating a default config', async () => {

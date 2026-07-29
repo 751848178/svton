@@ -7,10 +7,10 @@ import type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress } from '
 import { InputHistoryStore } from './chat-input-history';
 import { ApprovalQueue } from './chat-approval-queue';
 import { ChatEventHandler } from './chat-event-handler';
-import { planEditMessage, planRetry, planRetryFromMessage } from './chat-commands';
-import { restoreMessagesIntoRuntime } from './chat-runtime-bridge';
-import { chatToDisplayMessages } from './chat-to-display.utils';
+import { planEditMessage, planRetry, planRetryFromMessage, type MessageEditPlan } from './chat-commands';
+import { captureRuntimeMessageIndex, rollbackRuntimeForMessage } from './chat-runtime-history.service';
 import { recreateRuntime } from './chat-runtime-lifecycle';
+import { loadChatMessages, type LoadMessagesOptions } from './chat-message-loader.service';
 import {
   abortStreaming,
   forceMessagesForSave,
@@ -19,7 +19,6 @@ import {
   type MessageStoreHost,
 } from './chat-message-store';
 import { runAssistantTurn, finalizeStreamEnd } from './chat-stream-runner';
-import { finalizeStalePendingApprovals } from './chat-message-tool-status.utils';
 
 export type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress };
 
@@ -97,18 +96,17 @@ export class ChatService implements MessageStoreHost {
     this.status = 'idle';
     this.lastUsage = null;
   }
-
   @action()
   async sendMessage(content: string, images?: Array<{ data: string; mimeType?: string }>): Promise<void> {
     if (!this.runtime || this.isStreaming) return;
     logger.info('Chat', 'Sending message', { length: content.length, hasImages: !!images?.length });
     this.history.record(content);
     const userMsg = this.createDisplayMessage('user', content);
+    userMsg.runtimeMessageIndex = captureRuntimeMessageIndex(this.runtime);
     if (images && images.length > 0) userMsg.images = images;
     this.messages = [...this.messages, userMsg];
     await this.runAssistant(content, images);
   }
-
   @action()
   async retry(): Promise<void> { await this.runMessageEdit(planRetry(this.messages)); }
   @action()
@@ -120,12 +118,13 @@ export class ChatService implements MessageStoreHost {
     await this.runMessageEdit(planEditMessage(this.messages, messageId, newContent));
   }
   /** Shared retry/edit runner: apply the planned message mutation, then re-run. */
-  private async runMessageEdit(plan: { messages: DisplayMessage[]; prompt: string } | null): Promise<void> {
+  private async runMessageEdit(plan: MessageEditPlan | null): Promise<void> {
     if (!this.runtime || this.isStreaming || !plan) return;
-    this.messages = plan.messages;
-    await this.runAssistant(plan.prompt);
+    const messages = rollbackRuntimeForMessage(this.runtime, this.messages, plan);
+    if (!messages) return;
+    this.messages = messages;
+    await this.runAssistant(plan.prompt, plan.images);
   }
-
   @action()
   approveToolCall(callId: string): void {
     this.approvals.resolve(callId, true);
@@ -138,7 +137,6 @@ export class ChatService implements MessageStoreHost {
     updateToolCallStatusEverywhere(this, callId, 'error');
     this.runtime?.rejectToolCall(callId);
   }
-
   @action()
   abort(): void {
     this.runtime?.abort();
@@ -148,7 +146,6 @@ export class ChatService implements MessageStoreHost {
     this.streamingAssistantMsgId.current = null;
     if (bgId && bgId !== this.activeSessionId) this.onBackgroundStreamEnd?.(bgId);
   }
-
   @action()
   abortIfStreaming(): boolean {
     if (this.status !== 'running' && this.status !== 'waiting_approval') return false;
@@ -166,26 +163,18 @@ export class ChatService implements MessageStoreHost {
   forcePrepareForSave(): DisplayMessage[] { return forceMessagesForSave(this); }
 
   @action()
-  clearMessages(options?: { preservePendingToolCalls?: boolean }): void { this.applyLoaded([], options); }
+  clearMessages(options?: LoadMessagesOptions): void { this.runtime?.rollbackCanonicalMessages(0); this.applyLoaded([], options); }
   @action()
-  loadMessages(messages: DisplayMessage[], options?: { preservePendingToolCalls?: boolean }): void {
-    const loaded = options?.preservePendingToolCalls ? messages : finalizeStalePendingApprovals(messages);
-    this.applyLoaded(loaded, options);
-    this.history.recordFromMessages(loaded);
-    if (this.runtime) {
-      // When the checkpoint restores the runtime, re-derive the display list
-      // from the runtime's canonical messages (the saved display list may be
-      // empty/stale). Fire-and-forget; failures fall back to the loaded list.
-      void restoreMessagesIntoRuntime(this.runtime, this.activeSessionId, loaded).then((restored) => {
-        if (restored && this.activeSessionId) {
-          const refreshed = chatToDisplayMessages(this.runtime!.getMessages());
-          if (refreshed.length > 0) this.applyLoaded(refreshed, options);
-        }
-      });
-    }
+  loadMessages(messages: DisplayMessage[], options?: LoadMessagesOptions): void {
+    loadChatMessages({
+      runtime: this.runtime,
+      sessionId: this.activeSessionId,
+      apply: (loaded) => this.applyLoaded(loaded, options),
+      recordHistory: (loaded) => this.history.recordFromMessages(loaded),
+    }, messages, options);
   }
   /** Apply a loaded message list + idle the status (shared by clear/load). */
-  private applyLoaded(messages: DisplayMessage[], options?: { preservePendingToolCalls?: boolean }): void {
+  private applyLoaded(messages: DisplayMessage[], options?: LoadMessagesOptions): void {
     this.messages = messages;
     this.status = 'idle';
     this.lastUsage = null;

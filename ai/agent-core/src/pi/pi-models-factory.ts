@@ -3,37 +3,40 @@
  * construction at every call site (create-agent, create-agent-config,
  * agent-setup desktop/web).
  *
- * Builds a pi-ai `Models` collection with OpenAI + Anthropic registered,
- * attaches svton's credential-store boundary, and resolves the pi-ai `Model`
- * for a given model id. Custom OpenAI-compatible endpoints (DeepSeek, Ollama,
- * vLLM, Azure) work via a synthesized model that carries the `baseUrl`, so
- * they route without catalog changes (Architecture §5.1, §6).
+ * Builds a pi-ai `Models` collection, attaches svton's credential-store
+ * boundary, and resolves the pi-ai `Model` for a given model id. Provider
+ * family selects authentication while an independent API protocol selects the
+ * wire format. Custom OpenAI-compatible endpoints use Chat Completions unless
+ * explicitly configured otherwise.
  */
 import type { Model, Models, MutableModels, Provider } from '@earendil-works/pi-ai';
-import { createModels } from '@earendil-works/pi-ai';
+import { createModels, createProvider } from '@earendil-works/pi-ai';
+import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
+import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import { openaiProvider as registerOpenAI } from '@earendil-works/pi-ai/providers/openai';
 import { anthropicProvider as registerAnthropic } from '@earendil-works/pi-ai/providers/anthropic';
 import type { ModelInfo } from '../provider/types';
 import { SvtonPiCredentialStore } from './credential-store';
+import {
+  resolvePiApiProtocol,
+  resolvePiBaseUrl,
+  type PiApiProtocol,
+  type PiOpenAIApiProtocol,
+  type PiProviderFamily,
+} from './pi-api-protocol';
 
-/** Svton-supported LLM provider families. */
-export type PiProviderFamily = 'openai' | 'anthropic';
-
-/** Default base URLs per family (used when caller omits baseUrl). */
-export const DEFAULT_BASE_URL: Record<PiProviderFamily, string> = {
-  openai: 'https://api.openai.com/v1',
-  anthropic: 'https://api.anthropic.com/v1',
-};
-
-/** Pi-ai API id per family. */
-export const FAMILY_API: Record<PiProviderFamily, string> = {
-  openai: 'openai-responses',
-  anthropic: 'anthropic-messages',
-};
+export {
+  DEFAULT_BASE_URL,
+  FAMILY_API,
+  type PiApiProtocol,
+  type PiProviderFamily,
+} from './pi-api-protocol';
 
 export interface CreatePiModelsOptions {
   /** Provider family to wire (selects the registered provider + default baseUrl). */
   family: PiProviderFamily;
+  /** Wire protocol, independent from provider authentication family. */
+  api?: PiApiProtocol;
   /** API key forwarded to the credential store. */
   apiKey?: string;
   /** Optional custom OpenAI/Anthropic-compatible endpoint. */
@@ -71,11 +74,7 @@ export function createPiModelsForProvider(
   const credentials = new SvtonPiCredentialStore(apiKeys);
 
   const models: MutableModels = createModels({ credentials });
-  const provider = options.piProvider
-    ? options.piProvider
-    : options.family === 'anthropic'
-      ? registerAnthropic()
-      : registerOpenAI();
+  const provider = options.piProvider ?? createFamilyProvider(options.family);
   models.setProvider(provider);
 
   // Try to resolve the model from the registered catalog first; fall back to a
@@ -91,9 +90,17 @@ export function resolveModel(
   family: PiProviderFamily,
   options: CreatePiModelsOptions,
 ): Model<any> {
+  if (options.piProvider) {
+    const injected = models.getModel(options.piProvider.id, modelId);
+    if (injected) return injected;
+  }
+  const api = resolvePiApiProtocol(options);
+  const baseUrl = resolvePiBaseUrl(options);
   for (const provider of models.getProviders()) {
     const model = models.getModel(provider.id, modelId);
-    if (model) return model;
+    if (model && model.api === api && trimTrailingSlash(model.baseUrl) === baseUrl) {
+      return model;
+    }
   }
   return synthesizePiModel(modelId, family, options);
 }
@@ -106,13 +113,13 @@ export function synthesizePiModel(
 ): Model<string> {
   const catalog = options.models ?? [];
   const info = catalog.find((m) => m.id === modelId);
-  const baseUrl = (options.baseUrl && trimTrailingSlash(options.baseUrl)) || DEFAULT_BASE_URL[family];
+  const baseUrl = resolvePiBaseUrl(options);
   const reasoning = info?.supportsThinking ?? false;
   const input: ('text' | 'image')[] = info?.supportsVision ? ['text', 'image'] : ['text'];
   return {
     id: modelId,
     name: info?.name ?? modelId,
-    api: FAMILY_API[family],
+    api: resolvePiApiProtocol(options),
     provider: family,
     baseUrl,
     reasoning,
@@ -125,6 +132,23 @@ export function synthesizePiModel(
 
 function trimTrailingSlash(url: string): string {
   return url.endsWith('/') ? url.slice(0, -1) : url;
+}
+
+function createFamilyProvider(family: PiProviderFamily): Provider {
+  if (family === 'anthropic') return registerAnthropic();
+  const openai = registerOpenAI();
+  return createProvider<PiOpenAIApiProtocol>({
+    id: openai.id,
+    name: openai.name,
+    baseUrl: openai.baseUrl,
+    headers: openai.headers,
+    auth: openai.auth,
+    models: openai.getModels(),
+    api: {
+      'openai-completions': openAICompletionsApi(),
+      'openai-responses': openAIResponsesApi(),
+    },
+  });
 }
 
 // Re-export for callers that build a Models collection directly (subagents).

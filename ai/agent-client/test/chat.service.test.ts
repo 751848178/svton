@@ -5,6 +5,8 @@ import type { DisplayMessage } from '../src/types';
 import {
   AgentRuntime,
   ToolRegistry,
+  fauxAssistantMessage,
+  fauxText,
 } from '@svton/agent-core';
 import type {
   AgentEvent,
@@ -15,7 +17,12 @@ import type {
   IToolExecutor,
 } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
-import { buildPiAgentConfig, EventScripter, makeBrowserPlatform } from './helpers/pi-test-utils';
+import {
+  buildPiAgentConfig,
+  EventScripter,
+  makeBrowserPlatform,
+  type MockModelsHandle,
+} from './helpers/pi-test-utils';
 
 // ==============================================================
 // Mock executor + config (Pi-backed runtime, no provider contract)
@@ -66,6 +73,14 @@ describe('ChatService', () => {
     await service.init(mockPlatform, config);
     scripter = new EventScripter(service as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<AgentEvent> } });
     return scripter;
+  }
+
+  async function initCanonicalRuntime(): Promise<MockModelsHandle> {
+    const registry = new ToolRegistry();
+    registry.register(testToolDef, createMockExecutor());
+    const { config, mock } = buildPiAgentConfig({ toolRegistry: registry });
+    await service.init(mockPlatform, config);
+    return mock;
   }
 
   // ----------------------------------------------------------
@@ -295,21 +310,16 @@ describe('ChatService', () => {
   // 3. retry
   // ----------------------------------------------------------
   describe('retry', () => {
+    let mock: MockModelsHandle;
     beforeEach(async () => {
-      scripter = await initScripted();
+      mock = await initCanonicalRuntime();
     });
 
     it('removes last assistant message and regenerates', async () => {
-      scripter.addResponse([
-        { type: 'text_delta', text: 'First response' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('First response')]));
       await service.sendMessage('Hello');
 
-      scripter.addResponse([
-        { type: 'text_delta', text: 'Retried response' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('Retried response')]));
       await service.retry();
 
       // Should have: user msg + retried assistant
@@ -327,33 +337,25 @@ describe('ChatService', () => {
   // 4. retryFromMessage
   // ----------------------------------------------------------
   describe('retryFromMessage', () => {
+    let mock: MockModelsHandle;
     beforeEach(async () => {
-      scripter = await initScripted();
+      mock = await initCanonicalRuntime();
     });
 
     it('truncates after specified user message and retries', async () => {
       // Send first message
-      scripter.addResponse([
-        { type: 'text_delta', text: 'Response 1' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('Response 1')]));
       await service.sendMessage('Message 1');
 
       // Send second message
-      scripter.addResponse([
-        { type: 'text_delta', text: 'Response 2' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('Response 2')]));
       await service.sendMessage('Message 2');
 
       // Now we have: user1, assistant1, user2, assistant2
       expect(service.messages.length).toBe(4);
 
       // Retry from user1
-      scripter.addResponse([
-        { type: 'text_delta', text: 'Retried from 1' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('Retried from 1')]));
       const user1Id = service.messages[0].id;
       await service.retryFromMessage(user1Id);
 
@@ -364,10 +366,7 @@ describe('ChatService', () => {
     });
 
     it('does nothing for non-existent message id', async () => {
-      scripter.addResponse([
-        { type: 'text_delta', text: 'Hi' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('Hi')]));
       await service.sendMessage('Test');
 
       await service.retryFromMessage('nonexistent');
@@ -376,10 +375,7 @@ describe('ChatService', () => {
     });
 
     it('does nothing for assistant message id', async () => {
-      scripter.addResponse([
-        { type: 'text_delta', text: 'Hi' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('Hi')]));
       await service.sendMessage('Test');
 
       const assistantId = service.messages[1].id;
@@ -393,22 +389,17 @@ describe('ChatService', () => {
   // 5. editMessage
   // ----------------------------------------------------------
   describe('editMessage', () => {
+    let mock: MockModelsHandle;
     beforeEach(async () => {
-      scripter = await initScripted();
+      mock = await initCanonicalRuntime();
     });
 
     it('edits user message, truncates, and re-runs', async () => {
-      scripter.addResponse([
-        { type: 'text_delta', text: 'Original response' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('Original response')]));
       await service.sendMessage('Original question');
 
       // Edit the user message
-      scripter.addResponse([
-        { type: 'text_delta', text: 'Edited response' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('Edited response')]));
       const userMsgId = service.messages[0].id;
       await service.editMessage(userMsgId, 'Edited question');
 
@@ -418,10 +409,7 @@ describe('ChatService', () => {
     });
 
     it('does nothing for non-existent message', async () => {
-      scripter.addResponse([
-        { type: 'text_delta', text: 'Hi' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      mock.addResponse(fauxAssistantMessage([fauxText('Hi')]));
       await service.sendMessage('Test');
 
       await service.editMessage('nonexistent', 'new');
