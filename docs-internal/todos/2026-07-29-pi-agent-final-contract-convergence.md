@@ -170,7 +170,7 @@ verified local desktop artifact without changing remote state.
 | PC005.3 | done | Run real `tauri dev` WKWebView streamed turn and Tauri IPC boundary. | Dedicated dev PID 30385 ran `target/debug/svton-agent-desktop`; the WKWebView auto-drive recorded a Pi streamed turn and real `process_exec` plus `fs_write_file` IPC as passed. |
 | PC005.4 | done | Independently review final diff, capabilities, source/docs and user-file isolation; fix and rerun. | Root review found and split one 223-line Web E2E spec; final residual, unsafe-addition, line-count, diff and public-doc checks pass with no unresolved P0-P2. |
 | PC005.5 | done | Create `pre-pi-final-contract-convergence-YYYYMMDD` on pre-merge master and merge the dedicated branch with `--no-ff`. | Tag `pre-pi-final-contract-convergence-20260730` protects `076fbfd9`; local merge `867e8f18` contains accepted branch `b3a29220`; remote unchanged. |
-| PC005.6 | pending | Build, verify, mount, inspect, sign-check, checksum and copy the arm64 DMG. | Artifact exists in `svton-desktop-artifacts` with complete evidence. |
+| PC005.6 | done | Build, verify, mount, inspect, sign-check, checksum and copy the arm64 DMG. | arm64 DMG passes checksum, image verification, read-only mount, App/Applications-link inspection and strict deep ad-hoc signature verification; verified copy exists in `svton-desktop-artifacts`. |
 
 #### PC005 Required Test, Type And Build Matrix
 
@@ -426,5 +426,12 @@ verified local desktop artifact without changing remote state.
   signature, so strict bundle verification rejected sealed resources. Tauri
   macOS bundling now explicitly uses ad-hoc signing identity `-`; a dedicated
   branch rebuild passed image verification, read-only mount, arm64, Applications
-  link and `codesign --verify --deep --strict`. Final master rebuild/copy remains
-  PC005.6.
+  link and `codesign --verify --deep --strict`. The merged-master rebuild and
+  verified copy completed in PC005.6 below.
+- 2026-07-30: PC005.6 completed on merged master `fc2833e8`. The explicit
+  `aarch64-apple-darwin` Tauri build produced a 7,291,632-byte DMG; checksum,
+  `hdiutil verify`, actual read-only mount, `Svton Agent.app`, `/Applications`
+  symlink, thin arm64 Mach-O and strict deep codesign all passed. The verified
+  copy is `svton-desktop-artifacts/Svton Agent_0.1.0_aarch64_fc2833e8.dmg`
+  with SHA-256
+  `1e5b340a3c444a82fa26b6452edde871484616ac95bbf97400beec3b8155fbac`.
