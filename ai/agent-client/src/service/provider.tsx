@@ -14,6 +14,7 @@ export interface InternalLike<T> {
 
 interface AgentContextValue {
   platform: IPlatform;
+  initialSessionId?: string;
   chatService: ChatService;
   sessionService: SessionService;
   projectService: ProjectService;
@@ -47,6 +48,7 @@ interface AgentProviderProps {
   platform: IPlatform;
   config: AgentConfig;
   runtimeKey?: string;
+  initialSessionId?: string;
   children: React.ReactNode;
 }
 
@@ -54,7 +56,7 @@ interface AgentProviderProps {
  * Top-level provider that initializes Agent services.
  * Uses the @svton/service container to create reactive instances.
  */
-export function AgentProvider({ platform, config, runtimeKey, children }: AgentProviderProps) {
+export function AgentProvider({ platform, config, runtimeKey, initialSessionId, children }: AgentProviderProps) {
   const scopeRef = useRef(container.createScope());
   // Track what config we've already initialized with, to avoid re-init on every render
   const initConfigRef = useRef<AgentConfig | null>(null);
@@ -90,6 +92,7 @@ export function AgentProvider({ platform, config, runtimeKey, children }: AgentP
 
   const value = useMemo(() => ({
     platform,
+    initialSessionId,
     chatService: instances.chatInternal.target,
     sessionService: instances.sessionInternal.target,
     projectService: instances.projectInternal.target,
@@ -97,7 +100,7 @@ export function AgentProvider({ platform, config, runtimeKey, children }: AgentP
     sessionInternal: instances.sessionInternal,
     projectInternal: instances.projectInternal,
     flush: globalFlush,
-  }), [instances]);
+  }), [instances, platform, initialSessionId]);
 
   return (
     <AgentContext.Provider value={value}>

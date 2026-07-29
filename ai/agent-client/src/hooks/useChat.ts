@@ -15,6 +15,7 @@ export function useChat() {
   const [lastUsage, setLastUsage] = useState(() => chatInternal.getState('lastUsage'));
   const [activePlan, setActivePlan] = useState<PlanProgress | null>(() => chatInternal.getState('activePlan'));
   const [inputHistory, setInputHistory] = useState<string[]>(() => chatInternal.getState('inputHistory'));
+  const [, refreshSessionRouting] = useState(0);
 
   useEffect(() => {
     const unsubMessages = chatInternal.subscribe('messages', () => {
@@ -32,6 +33,10 @@ export function useChat() {
     const unsubInputHistory = chatInternal.subscribe('inputHistory', () => {
       setInputHistory(chatInternal.getState('inputHistory'));
     });
+    const refreshRouting = () => refreshSessionRouting((version) => version + 1);
+    const unsubActiveSession = chatInternal.subscribe('activeSessionId', refreshRouting);
+    const unsubBackgroundSession = chatInternal.subscribe('backgroundSessionId', refreshRouting);
+    const unsubRuntimeSession = chatInternal.subscribe('runtimeSessionId', refreshRouting);
 
     return () => {
       unsubMessages();
@@ -39,15 +44,19 @@ export function useChat() {
       unsubUsage();
       unsubPlan();
       unsubInputHistory();
+      unsubActiveSession();
+      unsubBackgroundSession();
+      unsubRuntimeSession();
     };
   }, [chatInternal]);
 
-  const isStreaming = status === 'running' || status === 'waiting_approval';
+  const isStreaming = status === 'running' || status === 'waiting_approval' || !chatService.canSend;
 
   return {
     messages,
     status,
     isStreaming,
+    canSend: chatService.canSend,
     lastUsage,
     activePlan,
     inputHistory,
@@ -59,7 +68,7 @@ export function useChat() {
     abort: () => chatService.abort(),
     clear: () => {
       chatService.abortIfStreaming();
-      chatService.clearMessages();
+      return chatService.clearMessages();
     },
   };
 }

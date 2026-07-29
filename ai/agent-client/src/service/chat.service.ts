@@ -10,19 +10,11 @@ import { ChatEventHandler } from './chat-event-handler';
 import { planEditMessage, planRetry, planRetryFromMessage, type MessageEditPlan } from './chat-commands';
 import { captureRuntimeMessageIndex, rollbackRuntimeForMessage } from './chat-runtime-history.service';
 import { recreateRuntime } from './chat-runtime-lifecycle';
-import { loadChatMessages, type LoadMessagesOptions } from './chat-message-loader.service';
-import {
-  abortStreaming,
-  forceMessagesForSave,
-  messagesForSave,
-  updateToolCallStatusEverywhere,
-  type MessageStoreHost,
-} from './chat-message-store';
+import { ChatSessionRuntimeService } from './chat-session-runtime.service';
+import { prepareLoadedMessages, type LoadMessagesOptions } from './chat-message-loader.service';
+import { abortStreaming, forceMessagesForSave, messagesForSave, updateToolCallStatusEverywhere, type MessageStoreHost } from './chat-message-store';
 import { runAssistantTurn, finalizeStreamEnd } from './chat-stream-runner';
-
 export type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress };
-
-/** ChatService — composition root for the chat lifecycle. Owns the observable state Web/Desktop subscribe to; implements MessageStoreHost so the stateless event handler mutates the live observable slice. Public API stable; internals split across chat-event-handler/-input-history/-approval-queue/-runtime-bridge/-runtime-lifecycle/-stream-runner/-commands (PI007). */
 @Service()
 export class ChatService implements MessageStoreHost {
   @observable() messages: DisplayMessage[] = [];
@@ -31,17 +23,18 @@ export class ChatService implements MessageStoreHost {
   @observable() lastUsage: TokenUsage | null = null;
   @observable() activePlan: PlanProgress | null = null;
   @observable() activeSessionId: string | null = null;
+  @observable() backgroundSessionId: string | null = null;
+  @observable() runtimeSessionId: string | null = null;
   @observable() inputHistory: string[] = [];
   @observable() pendingApprovalVersion = 0;
-
   private runtime: AgentRuntime | null = null;
   private runtimeConfig: AgentConfig | null = null;
   private runtimeKey: string | undefined = undefined;
   private platform: IPlatform | null = null;
   private messageCounter = 0;
+  private readonly sessionRuntime = new ChatSessionRuntimeService();
   private readonly approvals = new ApprovalQueue(() => { this.pendingApprovalVersion += 1; });
   readonly sessionMessages = new Map<string, DisplayMessage[]>();
-  backgroundSessionId: string | null = null;
   private readonly streamingAssistantMsgId = { current: null as string | null };
   onBackgroundStreamEnd: ((sessionId: string) => void) | null = null;
   private readonly history = new InputHistoryStore();
@@ -56,29 +49,27 @@ export class ChatService implements MessageStoreHost {
   @computed() get isStreaming(): boolean {
     return this.status === 'running' || this.status === 'waiting_approval';
   }
+  @computed() get canSend(): boolean {
+    return !this.isStreaming && (!this.backgroundSessionId || this.backgroundSessionId === this.activeSessionId)
+      && (!this.activeSessionId || this.runtimeSessionId === this.activeSessionId);
+  }
   @computed() get hasPendingApprovals(): boolean { return this.approvals.size > 0; }
   getPendingToolCalls(): DisplayToolCall[] { return this.approvals.toDisplay(); }
   isSessionStreaming(sessionId: string): boolean { return this.backgroundSessionId === sessionId; }
-  /** Bump the observable pending-approval version (forces hook re-reads). */
   bumpPendingApprovals(): void { this.approvals.bump(); }
-  /** Dispatch a single AgentEvent to the display projection (test/advanced seam). */
   handleEvent(event: AgentEvent, assistantMsgId: string): void { this.handler.handle(event, assistantMsgId, this); }
-  /** Update a tool call's status across active + background sessions (test seam). */
   updateToolCallStatus(callId: string, status: DisplayToolCall['status'], metadata?: Record<string, unknown>): void {
     updateToolCallStatusEverywhere(this, callId, status, metadata);
   }
-  /** Finalize a streaming assistant message (test/advanced seam). */
   handleStreamEnd(assistantMsgId: string, updates: Partial<DisplayMessage>): void {
     finalizeStreamEnd(this, assistantMsgId, updates, this.onBackgroundStreamEnd, this.streamingAssistantMsgId);
   }
-  /** Pending-approval queue (tests/advanced consumers seed/clear directly). */
   get pendingToolCalls(): ApprovalQueue { return this.approvals; }
   @action()
   async init(platform: IPlatform, config: AgentConfig, runtimeKey?: string): Promise<void> {
     const sameRuntime = runtimeKey ? this.runtimeKey === runtimeKey : this.runtimeConfig === config;
     if (this.runtime && sameRuntime) return;
     this.platform = platform;
-    // PI007 3-list fix: snapshot canonical runtime truth before recreating (one-way runtime→runtime).
     const { runtime, snapshotApplied } = await recreateRuntime(
       {
         platform, config, approvals: this.approvals, host: this,
@@ -89,6 +80,7 @@ export class ChatService implements MessageStoreHost {
       this.runtime,
     );
     this.runtime = runtime;
+    this.runtimeSessionId = snapshotApplied ? this.activeSessionId : null;
     this.currentModel = config.model;
     this.runtimeConfig = config;
     this.runtimeKey = runtimeKey;
@@ -98,7 +90,7 @@ export class ChatService implements MessageStoreHost {
   }
   @action()
   async sendMessage(content: string, images?: Array<{ data: string; mimeType?: string }>): Promise<void> {
-    if (!this.runtime || this.isStreaming) return;
+    if (!this.runtime || !this.canSend) return;
     logger.info('Chat', 'Sending message', { length: content.length, hasImages: !!images?.length });
     this.history.record(content);
     const userMsg = this.createDisplayMessage('user', content);
@@ -110,16 +102,11 @@ export class ChatService implements MessageStoreHost {
   @action()
   async retry(): Promise<void> { await this.runMessageEdit(planRetry(this.messages)); }
   @action()
-  async retryFromMessage(messageId: string): Promise<void> {
-    await this.runMessageEdit(planRetryFromMessage(this.messages, messageId));
-  }
+  async retryFromMessage(messageId: string): Promise<void> { await this.runMessageEdit(planRetryFromMessage(this.messages, messageId)); }
   @action()
-  async editMessage(messageId: string, newContent: string): Promise<void> {
-    await this.runMessageEdit(planEditMessage(this.messages, messageId, newContent));
-  }
-  /** Shared retry/edit runner: apply the planned message mutation, then re-run. */
+  async editMessage(messageId: string, newContent: string): Promise<void> { await this.runMessageEdit(planEditMessage(this.messages, messageId, newContent)); }
   private async runMessageEdit(plan: MessageEditPlan | null): Promise<void> {
-    if (!this.runtime || this.isStreaming || !plan) return;
+    if (!this.runtime || !this.canSend || !plan) return;
     const messages = rollbackRuntimeForMessage(this.runtime, this.messages, plan);
     if (!messages) return;
     this.messages = messages;
@@ -152,35 +139,48 @@ export class ChatService implements MessageStoreHost {
     this.abort();
     return true;
   }
-
   @action()
-  bindSession(sessionId: string | null): void { this.activeSessionId = sessionId; }
+  bindSession(sessionId: string | null): void {
+    this.sessionRuntime.invalidate();
+    this.activeSessionId = sessionId;
+    if (this.runtime && !this.backgroundSessionId && this.runtime.getMessages().length === 0) {
+      this.runtimeSessionId = sessionId;
+    }
+  }
   setReasoningEffort(effort: ReasoningEffort | undefined): void { this.runtime?.setReasoningEffort(effort); }
   cacheSessionMessages(sessionId: string, messages: DisplayMessage[]): void { this.sessionMessages.set(sessionId, messages); }
   getCachedMessages(sessionId: string): DisplayMessage[] | undefined { return this.sessionMessages.get(sessionId); }
   getMessagesForSessionSave(sessionId: string): DisplayMessage[] { return messagesForSave(this, sessionId); }
   getMessagesForSave(): DisplayMessage[] { return messagesForSave(this); }
   forcePrepareForSave(): DisplayMessage[] { return forceMessagesForSave(this); }
-
   @action()
-  clearMessages(options?: LoadMessagesOptions): void { this.runtime?.rollbackCanonicalMessages(0); this.applyLoaded([], options); }
+  async clearMessages(options?: LoadMessagesOptions): Promise<void> { await this.loadMessages([], options); }
   @action()
-  loadMessages(messages: DisplayMessage[], options?: LoadMessagesOptions): void {
-    loadChatMessages({
-      runtime: this.runtime,
-      sessionId: this.activeSessionId,
-      apply: (loaded) => this.applyLoaded(loaded, options),
-      recordHistory: (loaded) => this.history.recordFromMessages(loaded),
-    }, messages, options);
+  async loadMessages(messages: DisplayMessage[], options?: LoadMessagesOptions): Promise<void> {
+    const loaded = prepareLoadedMessages(messages, options);
+    this.applyLoaded(loaded, options);
+    this.history.recordFromMessages(loaded);
+    await this.restoreActiveRuntime(loaded);
   }
-  /** Apply a loaded message list + idle the status (shared by clear/load). */
   private applyLoaded(messages: DisplayMessage[], options?: LoadMessagesOptions): void {
     this.messages = messages;
     this.status = 'idle';
     this.lastUsage = null;
     if (!options?.preservePendingToolCalls && this.approvals.size > 0) this.approvals.clear();
   }
-
+  async syncRuntimeToActiveSession(): Promise<void> { await this.restoreActiveRuntime(this.messages); }
+  private async restoreActiveRuntime(messages: DisplayMessage[]): Promise<void> {
+    const sessionId = this.activeSessionId;
+    if (this.backgroundSessionId) return;
+    const restored = await this.sessionRuntime.restore(
+      this.runtime, sessionId, messages,
+      () => sessionId === this.activeSessionId && !this.backgroundSessionId,
+    );
+    if (!restored) return;
+    this.messages = restored;
+    this.history.recordFromMessages(restored);
+    this.runtimeSessionId = sessionId;
+  }
   private async runAssistant(userContent: string, images?: Array<{ data: string; mimeType?: string }>): Promise<void> {
     if (!this.runtime) return;
     await runAssistantTurn(
@@ -193,7 +193,6 @@ export class ChatService implements MessageStoreHost {
       userContent, images,
     );
   }
-
   private createDisplayMessage(role: 'user' | 'assistant' | 'system', content: string): DisplayMessage {
     return { id: `msg_${++this.messageCounter}`, role, content, toolCalls: [], timestamp: Date.now() };
   }

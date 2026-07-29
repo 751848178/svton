@@ -84,12 +84,7 @@ export class SessionResumeManager {
       return false;
     }
 
-    runtime.setMessages(state.messages);
-
-    if (state.reasoningEffort) {
-      runtime.setReasoningEffort(state.reasoningEffort);
-    }
-
+    this.applyLoadedState(state, runtime);
     logger.info('Checkpoint', `Restored session ${sessionId}`, {
       messageCount: state.messages.length,
       model: state.model,
@@ -97,6 +92,12 @@ export class SessionResumeManager {
     });
 
     return true;
+  }
+
+  /** Apply an already-loaded checkpoint after the caller verifies ownership. */
+  applyLoadedState(state: SerializedRuntime, runtime: SvtonAgentRuntime): void {
+    runtime.setMessages(state.messages);
+    if (state.reasoningEffort) runtime.setReasoningEffort(state.reasoningEffort);
   }
 
   /**
