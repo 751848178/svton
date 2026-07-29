@@ -9,6 +9,7 @@ import { ApprovalQueue } from './chat-approval-queue';
 import { ChatEventHandler } from './chat-event-handler';
 import { planEditMessage, planRetry, planRetryFromMessage } from './chat-commands';
 import { restoreMessagesIntoRuntime } from './chat-runtime-bridge';
+import { chatToDisplayMessages } from './chat-to-display.utils';
 import { recreateRuntime } from './chat-runtime-lifecycle';
 import {
   abortStreaming,
@@ -171,7 +172,17 @@ export class ChatService implements MessageStoreHost {
     const loaded = options?.preservePendingToolCalls ? messages : finalizeStalePendingApprovals(messages);
     this.applyLoaded(loaded, options);
     this.history.recordFromMessages(loaded);
-    if (this.runtime) void restoreMessagesIntoRuntime(this.runtime, this.activeSessionId, loaded);
+    if (this.runtime) {
+      // When the checkpoint restores the runtime, re-derive the display list
+      // from the runtime's canonical messages (the saved display list may be
+      // empty/stale). Fire-and-forget; failures fall back to the loaded list.
+      void restoreMessagesIntoRuntime(this.runtime, this.activeSessionId, loaded).then((restored) => {
+        if (restored && this.activeSessionId) {
+          const refreshed = chatToDisplayMessages(this.runtime!.getMessages());
+          if (refreshed.length > 0) this.applyLoaded(refreshed, options);
+        }
+      });
+    }
   }
   /** Apply a loaded message list + idle the status (shared by clear/load). */
   private applyLoaded(messages: DisplayMessage[], options?: { preservePendingToolCalls?: boolean }): void {

@@ -203,6 +203,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         className={cn('group flex justify-end', className)}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
+        data-testid="message-user"
       >
         <div className="px-6 py-3 max-w-[80%]">
           {isEditing ? (
@@ -353,6 +354,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       className={cn('px-6 py-3 group min-w-0 overflow-hidden', className)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      data-testid="message-assistant"
     >
       {hasBlocks ? (
         <>
@@ -454,7 +456,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             }
             if (block.type === 'error' && block.text) {
               return (
-                <div key={`err-${i}`} className="flex items-start gap-2 mt-2">
+                <div key={`err-${i}`} className="flex items-start gap-2 mt-2" data-testid="message-error">
                   <span className="text-red-500 select-none flex-shrink-0 mt-px">✗</span>
                   <div className="text-sm text-red-600 leading-relaxed">{block.text}</div>
                 </div>
@@ -620,12 +622,17 @@ function ThinkingBlock({ text, isStreaming }: { text: string; isStreaming?: bool
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-500 transition-colors"
+        data-testid="thinking-toggle"
+        aria-expanded={open}
       >
         <span className="text-[10px]">{open ? '▾' : '▸'}</span>
         <span className="italic">{t('chat.thinking')}</span>
       </button>
       {open && (
-        <div className="mt-1 pl-4 border-l-2 border-[#3a3a3a] text-xs text-gray-400 italic leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+        <div
+          className="mt-1 pl-4 border-l-2 border-[#3a3a3a] text-xs text-gray-400 italic leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto"
+          data-testid="thinking-content"
+        >
           {text}
         </div>
       )}

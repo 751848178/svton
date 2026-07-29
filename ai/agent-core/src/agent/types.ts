@@ -2,7 +2,7 @@
  * Agent runtime type definitions.
  */
 
-import type { ChatMessage, TokenUsage, ToolDefinition, ContentBlock } from '../provider/types';
+import type { ChatMessage, TokenUsage, ToolDefinition, ContentBlock, ReasoningEffort } from '../provider/types';
 import type { ToolCall, ToolResult } from '../tool/types';
 import type { Models, Model } from '@earendil-works/pi-ai';
 
@@ -120,6 +120,12 @@ export interface AgentConfig {
   maxIterations?: number;
   workingDir?: string;
   capabilities?: AgentCapabilities;
+  /**
+   * Initial reasoning effort applied to the Pi Agent's `thinkingLevel` at
+   * runtime creation (undefined → 'off', hides thinking). Used by the web E2E
+   * seam to exercise the thinking show/hide path without a UI control.
+   */
+  reasoningEffort?: ReasoningEffort;
 }
 
 // ============================================================

@@ -111,13 +111,14 @@ export function useSession() {
     const savedId = sessionInternal.getState('currentSessionId');
 
     const finishStartup = (sid: string, data: unknown) => {
-      if (data && typeof data === 'object') {
-        const d = data as { messages?: unknown[] };
-        if (d.messages && d.messages.length > 0) {
-          chatService.loadMessages(storedToDisplayMessages(d.messages));
-        }
-      }
+      // Always run loadMessages so the checkpoint-restore path can rehydrate the
+      // display from the runtime checkpoint even when the saved display list is
+      // empty/stale (the canonical transcript is the checkpoint).
+      const msgs = (data && typeof data === 'object' && Array.isArray((data as { messages?: unknown[] }).messages))
+        ? storedToDisplayMessages((data as { messages: unknown[] }).messages)
+        : [];
       chatService.bindSession(sid);
+      chatService.loadMessages(msgs);
       activeSessionId.current = sid;
       startupDone.current = true;
     };

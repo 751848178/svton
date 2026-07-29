@@ -31,6 +31,8 @@ export interface PiAgentBuildContext {
   compactor: SvtonCompactor;
   approvalGate: ApprovalGate;
   initialMessages: AgentConfig['initialMessages'];
+  /** Initial Pi thinking level ('low'|'medium'|'high'|'xhigh'); undefined → 'off'. */
+  thinkingLevel?: 'low' | 'medium' | 'high' | 'xhigh';
   /** Sink the compactor + tool events route through to consumers. */
   routeToolEvent: (ev: AgentEvent) => void;
 }
@@ -48,6 +50,9 @@ export function buildPiAgent(ctx: PiAgentBuildContext): Agent {
       model: ctx.model,
       tools,
       messages: ctx.initialMessages ? toAgentMessages(ctx.initialMessages) : [],
+      // Apply an initial thinking level so the Pi Agent streams reasoning when
+      // configured (undefined → 'off', the Pi Agent default).
+      ...(ctx.thinkingLevel ? { thinkingLevel: ctx.thinkingLevel } : {}),
     },
     streamFn: ctx.models.streamSimple.bind(ctx.models),
     transformContext: ctx.compactor.toTransformContext((outcome) => {

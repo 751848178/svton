@@ -80,12 +80,14 @@ export const ToolApprovalModal: React.FC<ToolApprovalModalProps> = ({
           <button
             onClick={() => onReject(toolCall.id)}
             className="px-4 py-2 text-xs font-medium rounded-lg border border-[#3a3a3a] text-gray-400 hover:bg-[#2a2a2a] transition-colors"
+            data-testid="tool-reject"
           >
             {t('tool.deny')}
           </button>
           <button
             onClick={() => onApprove(toolCall.id)}
             className="px-4 py-2 text-xs font-medium rounded-lg bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors"
+            data-testid="tool-approve"
           >
             {t('tool.allow')}
           </button>

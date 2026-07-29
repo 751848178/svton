@@ -9,10 +9,17 @@
  */
 import {
   createModels,
+  fauxProvider,
+  fauxAssistantMessage,
+  fauxText,
+  fauxThinking,
+  fauxToolCall,
+  type AssistantMessage,
   type Context,
   type CredentialStore,
   type Model,
   type MutableModels,
+  type Provider,
   type Tool,
 } from '@earendil-works/pi-ai';
 // Provider-specific entrypoints — never import from the all-provider barrel.
@@ -28,7 +35,11 @@ export type {
 } from '@earendil-works/pi-agent-core';
 
 // Re-exported canonical types (pi-ai).
-export type { Context, CredentialStore, Model, Tool };
+export type { AssistantMessage, Context, CredentialStore, Model, Provider, Tool };
+// Re-exported faux-provider factory + message builders (pi-ai) so the monorepo
+// does not depend on `@earendil-works/pi-ai` directly — used by the agent-web
+// E2E seam and tests.
+export { fauxProvider, fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall };
 
 /**
  * Builds the Pi `Models` collection with svton's two baseline LLM providers

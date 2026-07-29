@@ -66,6 +66,12 @@ export async function recreateRuntime(
   const runtime = await AgentRuntime.createAsync(bindings.config, bindings.platform);
   await wireSubagentManager(bindings.config, runtime, bindings.platform);
 
+  // Apply an initial reasoning effort (config.reasoningEffort) so the Pi
+  // Agent's thinkingLevel reflects the desired config at creation time.
+  if (bindings.config.reasoningEffort !== undefined) {
+    runtime.setReasoningEffort(bindings.config.reasoningEffort);
+  }
+
   if (snapshot) reseedRuntimeFromSnapshot(runtime, snapshot);
   return { runtime, snapshotApplied: snapshot !== null };
 }

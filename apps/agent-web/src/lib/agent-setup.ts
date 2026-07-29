@@ -65,6 +65,7 @@ import {
   LS_DISABLED_SKILLS,
   LS_CUSTOM_INSTRUCTIONS,
 } from './settings-store';
+import { getE2eModelsOverride, getE2eReasoningEffort } from './e2e-provider';
 
 /** Built-in skills to load from public directory */
 const SKILL_PATHS = [
@@ -121,6 +122,9 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
     baseUrl: providerSetting.baseUrl,
     apiKey: providerSetting.apiKey,
     models: modelInfos,
+    // E2E seam: inert unless localStorage['agent-web:e2e'] is set. Lets real
+    // Playwright browser E2E run with a deterministic faux provider and no key.
+    ...getE2eModelsOverride(),
   });
 
   // Register tools (browser: limited set, no filesystem/shell)
@@ -315,6 +319,8 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
   // Custom instructions → append to system prompt
   const customInstructions = loadString(LS_CUSTOM_INSTRUCTIONS);
 
+  const e2eReasoning = getE2eReasoningEffort();
+
   return {
     models,
     piModel,
@@ -323,5 +329,8 @@ export async function initAgentConfig(model?: string, platform?: BrowserPlatform
     workingDir: '/',
     capabilities,
     ...(customInstructions ? { systemPrompt: `\n\n### Custom Instructions\n${customInstructions}` } : {}),
+    // E2E seam: forward the configured reasoning effort so the runtime applies
+    // it at creation (config-driven thinking show/hide). Undefined when inactive.
+    ...(e2eReasoning ? { reasoningEffort: e2eReasoning } : {}),
   };
 }

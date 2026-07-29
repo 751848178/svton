@@ -158,6 +158,11 @@ export class SvtonAgentRuntime implements IRuntime {
       toolRegistry: this.toolRegistry, toolExecService: this.toolExecService,
       compactor: this.compactor, approvalGate: this.approvalGate,
       initialMessages: config.initialMessages,
+      // Apply an initial thinking level from the config so the Pi Agent streams
+      // thinking when reasoning is configured (e.g. the web E2E thinking path).
+      thinkingLevel: config.reasoningEffort
+        ? reasoningToThinkingLevel(config.reasoningEffort) as 'low' | 'medium' | 'high' | 'xhigh'
+        : undefined,
       routeToolEvent: (ev) => this.routeToolEvent(ev),
     });
   }

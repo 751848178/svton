@@ -103,9 +103,10 @@ export async function restoreMessagesIntoRuntime(
   runtime: AgentRuntime,
   sessionId: string | null,
   display: DisplayMessage[],
-): Promise<void> {
+): Promise<boolean> {
   const restored = await restoreRuntimeState(runtime, sessionId);
   if (!restored) seedRuntimeFromDisplay(runtime, display);
+  return restored;
 }
 
 // ============================================================

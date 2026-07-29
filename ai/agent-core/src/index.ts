@@ -313,6 +313,11 @@ export { SYSTEM_CLOCK, RANDOM_ID_GENERATOR, FakeClock, SequentialIdGenerator } f
 // use createPiModelsForProvider to build a Models collection for a provider.
 export {
   createPiModels,
+  fauxProvider,
+  fauxAssistantMessage,
+  fauxText,
+  fauxThinking,
+  fauxToolCall,
   SvtonPiCredentialStore,
   createPiModelsForProvider,
   resolveModel,
@@ -325,9 +330,11 @@ export type {
   AgentLoopConfig,
   AgentMessage,
   AgentTool,
+  AssistantMessage,
   Context,
   CredentialStore,
   Model,
+  Provider,
   Tool,
   CreatePiModelsOptions,
   PiModelsHandle,

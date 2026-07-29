@@ -138,7 +138,11 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
   );
 
   return (
-    <div className={cn('text-sm', className)}>
+    <div
+      className={cn('text-sm', className)}
+      data-testid={`tool-card-${toolCall.name}`}
+      data-tool-status={toolCall.status}
+    >
       {/* Header row — always visible */}
       <button
         className="w-full flex items-start gap-1.5 text-left group"

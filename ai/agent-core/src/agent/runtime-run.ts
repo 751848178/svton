@@ -126,11 +126,12 @@ export async function* runOnce(
 
   const piReason = adapter.getStopReason();
   const stopReason = hitMaxIterations ? 'max_iterations' : piReason === 'error' ? 'error' : piReason;
-  yield doneEvent(stopReason, piUsageToTokenUsage(adapter.getUsage()));
 
-  // PI006: reattach memory extraction + checkpoint to the post-done Pi
-  // lifecycle point (Architecture §7.5). Previously memory extraction was
-  // dropped (it lived on the deleted runtime's post-turn path) and checkpoint
-  // was called with `null as never` as the runtime — both fixed here.
+  // PI006: reattach memory extraction + checkpoint. This MUST run BEFORE
+  // yielding the terminal `done` event — consumers (`chat-stream-runner`) break
+  // out of the generator on `done`, so any code after the yield would never run.
+  // Running it pre-done guarantees the checkpoint + memory extraction fire.
   deps.postTurn(stopReason, options?.sessionId ?? 'default');
+
+  yield doneEvent(stopReason, piUsageToTokenUsage(adapter.getUsage()));
 }

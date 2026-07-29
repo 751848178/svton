@@ -10,15 +10,17 @@
  * mappers, stream-options) — Pi Agent now calls `models.streamSimple`
  * directly (Architecture §3, §7.2).
  */
-export { createPiModels } from './foundation';
+export { createPiModels, fauxProvider, fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall } from './foundation';
 export type {
   Agent,
   AgentLoopConfig,
   AgentMessage,
   AgentTool,
+  AssistantMessage,
   Context,
   CredentialStore,
   Model,
+  Provider,
   Tool,
 } from './foundation';
 export { SvtonPiCredentialStore } from './credential-store';
