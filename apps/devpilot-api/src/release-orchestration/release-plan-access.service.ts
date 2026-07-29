@@ -28,6 +28,7 @@ export interface ResolvedReleaseService {
   environmentId: string;
   serverId?: string | null;
   serviceName: string;
+  workingDirectory?: string;
   preStartCheckCommand?: string;
   migrationCommand?: string;
   initializationCommand?: string;
@@ -108,6 +109,7 @@ export class ReleasePlanAccessService {
         environmentId: svc.environmentId,
         serverId: svc.serverId ?? app.serverId ?? null,
         serviceName: svc.serviceName,
+        workingDirectory: cmds.workingDirectory,
         preStartCheckCommand: cmds.preStartCheckCommand,
         migrationCommand: cmds.migrationCommand,
         initializationCommand: cmds.initializationCommand,

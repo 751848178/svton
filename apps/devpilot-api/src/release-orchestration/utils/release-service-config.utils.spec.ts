@@ -12,6 +12,7 @@ import { readServiceReleaseDependencies } from "./release-service-deps.utils";
 describe("readServiceDeployConfig", () => {
   it("reads flat top-level commands", () => {
     const cmds = readServiceDeployConfig({
+      workingDirectory: "apps/backend",
       preStartCheckCommand: "make check",
       migrationCommand: "make migrate",
       deployCommand: "make deploy",
@@ -20,6 +21,7 @@ describe("readServiceDeployConfig", () => {
       initializationCommand: "make bootstrap",
     });
     expect(cmds).toEqual({
+      workingDirectory: "apps/backend",
       preStartCheckCommand: "make check",
       migrationCommand: "make migrate",
       initializationCommand: "make bootstrap",

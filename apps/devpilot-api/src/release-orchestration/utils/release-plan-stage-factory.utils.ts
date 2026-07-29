@@ -58,7 +58,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: true,
         risk: "low",
         ctx,
-        config: { command: safeCommand(svc.preStartCheckCommand) },
+        config: { command: safeCommand(svc.preStartCheckCommand), ...(svc.workingDirectory ? { workingDirectory: svc.workingDirectory } : {}) },
       }),
     );
     prevKey = key;
@@ -76,7 +76,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: true,
         risk: SCHEMA_MIGRATION_RISK,
         ctx,
-        config: { command: safeCommand(svc.migrationCommand), concurrencyKey: `db:${svc.environmentId}` },
+        config: { command: safeCommand(svc.migrationCommand), concurrencyKey: `db:${svc.environmentId}`, ...(svc.workingDirectory ? { workingDirectory: svc.workingDirectory } : {}) },
       }),
     );
     if (prevKey) dependencies.push(edge(key, prevKey, "succeeded", true));
@@ -98,7 +98,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         risk: BOOTSTRAP_RISK,
         ctx,
         config: {
-          command: safeCommand(svc.initializationCommand),
+          command: safeCommand(svc.initializationCommand), ...(svc.workingDirectory ? { workingDirectory: svc.workingDirectory } : {}),
           runPolicy: "once_per_environment_command",
           concurrencyKey: `bootstrap:${svc.applicationServiceId}:${svc.environmentId}`,
         },
@@ -123,7 +123,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: isRequired,
         risk: BACKFILL_RISK,
         ctx,
-        config: { command: safeCommand(svc.backfillCommand), concurrencyKey: `db:${svc.environmentId}` },
+        config: { command: safeCommand(svc.backfillCommand), concurrencyKey: `db:${svc.environmentId}`, ...(svc.workingDirectory ? { workingDirectory: svc.workingDirectory } : {}) },
       }),
     );
     const cond: ReleaseDependencyConditionType = isRequired ? "succeeded" : "completed";
