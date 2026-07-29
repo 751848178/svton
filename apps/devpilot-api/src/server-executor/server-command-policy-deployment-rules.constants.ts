@@ -51,13 +51,17 @@ export const DEPLOYMENT_COMMAND_RULES: CommandRule[] = [
   {
     key: "write-env-file",
     description:
-      "Write redacted .env file (secrets injected at execution time via secretEnv)",
+      "Write .env file (redacted form persisted; real heredoc re-rendered at the queue execution boundary from step.secretEnv)",
     adapters: ["deployment-script-plan"],
     operations: ["deployment.run", "deployment.rollback"],
-    // Anchors the REDACTED form only; real values never reach the policy
-    // because they live in the step's `secretEnv`, not `command`.
+    // Matches BOTH forms:
+    //  - persisted/redacted: fixed delimiter DEVPLOT_ENV_EOF + ***REDACTED*** values
+    //  - execution-boundary real form: randomized delimiter DEVPLOT_ENV_EOF_<hex>
+    //    + real values (re-applied by reapplyDeploymentEnvWriteSecrets just before SSH live).
+    // Values are non-user-supplied (resolved platform secrets), so allowing any value here
+    // does not weaken command injection protection; the heredoc structure is the invariant.
     pattern:
-      /^cat > \.env <<'DEVPLOT_ENV_EOF'\n(?:[A-Z_][A-Z0-9_]*=\*\*\*REDACTED\*\*\*\n)+DEVPLOT_ENV_EOF$/,
+      /^cat > \.env <<'DEVPLOT_ENV_EOF(?:_[0-9a-f]+)?'\n(?:[A-Z_][A-Z0-9_]*=[^\n]*\n)+DEVPLOT_ENV_EOF(?:_[0-9a-f]+)?$/,
   },
   {
     key: "remove-env-file",
