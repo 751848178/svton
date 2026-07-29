@@ -13,7 +13,6 @@
  */
 import type { ServerExecutionInput, ServerCommandStep } from "./server-executor.types";
 import type { ResolveDevpilotSecretsFn } from "./server-executor-secret-reapply.utils";
-import { renderEnvWriteCommandReal } from "../deployment/deployment-env-heredoc.utils";
 
 /** 从 write_env 步骤的脱敏 heredoc command 抽取键名（KEY=... 行的 KEY 部分）。 */
 function extractEnvKeysFromWriteEnvCommand(command: string | undefined): string[] {
@@ -65,10 +64,12 @@ export async function reapplyDeploymentEnvWriteSecrets(
     }
     if (Object.keys(secretEnv).length === 0) return step;
     changed = true;
+    // 只回填 step.secretEnv；绝不改写 step.command（脱敏 command 仍用于持久化/策略匹配）。
+    // SSH live 脚本渲染器在 step.secretEnv 存在时会用 renderEnvWriteCommandReal 生成真实
+    // heredoc（仅内存），真实值因此不进入任何持久化字段。
     return {
       ...step,
       secretEnv,
-      command: renderEnvWriteCommandReal(secretEnv),
     } as ServerCommandStep;
   });
 

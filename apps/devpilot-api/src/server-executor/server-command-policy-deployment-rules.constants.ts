@@ -54,17 +54,15 @@ export const DEPLOYMENT_COMMAND_RULES: CommandRule[] = [
   {
     key: "write-env-file",
     description:
-      "Write .env file (redacted form persisted; real heredoc re-rendered at the queue execution boundary from step.secretEnv)",
+      "Write redacted .env file (secrets injected at execution time via secretEnv)",
     adapters: ["deployment-script-plan"],
     operations: ["deployment.run", "deployment.rollback"],
-    // Matches BOTH forms:
-    //  - persisted/redacted: fixed delimiter DEVPLOT_ENV_EOF + ***REDACTED*** values
-    //  - execution-boundary real form: randomized delimiter DEVPLOT_ENV_EOF_<hex>
-    //    + real values (re-applied by reapplyDeploymentEnvWriteSecrets just before SSH live).
-    // Values are non-user-supplied (resolved platform secrets), so allowing any value here
-    // does not weaken command injection protection; the heredoc structure is the invariant.
+    // Anchors the REDACTED form only; the real heredoc is rendered in-memory from
+    // step.secretEnv by the ssh-live script builder AFTER policy evaluation, so real
+    // values never reach the policy (zero-leak invariant). The queue-boundary reapply
+    // (reapplyDeploymentEnvWriteSecrets) repopulates only step.secretEnv, not command.
     pattern:
-      /^cat > \.env <<'DEVPLOT_ENV_EOF(?:_[0-9a-f]+)?'\n(?:[A-Z_][A-Z0-9_]*=[^\n]*\n)+DEVPLOT_ENV_EOF(?:_[0-9a-f]+)?$/,
+      /^cat > \.env <<'DEVPLOT_ENV_EOF'\n(?:[A-Z_][A-Z0-9_]*=\*\*\*REDACTED\*\*\*\n)+DEVPLOT_ENV_EOF$/,
   },
   {
     key: "remove-env-file",

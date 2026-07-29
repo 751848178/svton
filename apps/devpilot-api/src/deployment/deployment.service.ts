@@ -322,11 +322,9 @@ export class DeploymentService {
       project.id,
       environmentRef?.id,
     );
-    if (queue && Object.keys(envVars).length > 0) {
-      warnings.push(
-        "队列部署暂不支持安全恢复环境密钥，请关闭队列并使用即时执行",
-      );
-    }
+    // 旧限制已解除：队列 worker 现在在执行边界重新解析 .env 秘密
+    // （reapplyDeploymentEnvWriteSecrets），队列部署与即时执行同样安全恢复环境密钥，
+    // 不再产生阻断性 warning。
     let steps = buildCommandSteps(
       deployment,
       gitRepo,

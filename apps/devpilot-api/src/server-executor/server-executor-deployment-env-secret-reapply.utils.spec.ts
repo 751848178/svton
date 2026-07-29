@@ -35,10 +35,10 @@ describe("reapplyDeploymentEnvWriteSecrets", () => {
       DATABASE_URL: "mysql://real@host/db",
       JWT_SECRET: "real-jwt",
     });
-    // command rebuilt with REAL values (not ***REDACTED***)
-    expect(step.command).toContain("mysql://real@host/db");
-    expect(step.command).toContain("real-jwt");
-    expect(step.command).not.toContain("***REDACTED***");
+    // command stays as the redacted form (zero-leak: real values live only in secretEnv,
+    // rendered to a real heredoc in-memory by the ssh-live script builder at execution time)
+    expect(step.command).toBe(REDED);
+    expect(step.command).toContain("***REDACTED***");
   });
 
   it("returns input unchanged when no write_env step", async () => {
