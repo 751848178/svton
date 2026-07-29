@@ -9,27 +9,18 @@
  * consumption chain is real. Responses are scripted live onto
  * `window.__SVTON_E2E_QUEUE__` from these tests.
  *
- * Covers the 10 required product paths W1–W10.
+ * Together with chat-tool-product-path.spec.ts, covers W1–W10.
  */
-import { test, expect, type Page } from '@playwright/test';
-import { seedE2e, enqueueResponses, responses } from './helpers';
-
-const SHOTS = 'e2e/.screenshots';
-
-/** Navigate + wait until the chat input is present (app hydrated, agent configured). */
-async function appReady(page: Page): Promise<void> {
-  await page.goto('/');
-  await expect(page.getByTestId('chat-input')).toBeVisible({ timeout: 30_000 });
-}
-
-/** Send a message. */
-async function send(page: Page, text: string): Promise<void> {
-  await page.getByTestId('chat-input').fill(text);
-  await page.getByTestId('send-button').click();
-}
-
-/** The last assistant message locator. */
-const lastAssistant = (page: Page) => page.getByTestId('message-assistant').last();
+import { test, expect } from '@playwright/test';
+import {
+  SHOTS,
+  appReady,
+  enqueueResponses,
+  lastAssistant,
+  responses,
+  seedE2e,
+  send,
+} from './helpers';
 
 test.describe('agent-web real browser E2E', () => {
   // Each test seeds its own E2E config (W4 passes a reasoning effort).
@@ -77,43 +68,6 @@ test.describe('agent-web real browser E2E', () => {
     await toggle.click();
     await expect(lastAssistant(page).getByTestId('thinking-content')).toContainText('Let me reason step by step');
     await page.screenshot({ path: `${SHOTS}/w4-thinking.png` });
-  });
-
-  // W5 — tool call routed through the unified approval boundary (default mode → approval card).
-  test('W5: tool call surfaces an approval card; reject keeps the session usable', async ({ page }) => {
-    await seedE2e(page);
-    await appReady(page);
-    // memory_save is a registered web tool; default permission mode REQUIRES approval.
-    await enqueueResponses(page, [responses.toolCall('memory_save', { content: 'remember this' })]);
-    await send(page, 'remember something');
-    await expect(page.getByTestId('tool-approve')).toBeVisible({ timeout: 20_000 });
-    await page.getByTestId('tool-reject').click();
-    await expect(page.getByTestId('tool-approve')).toHaveCount(0);
-    await page.screenshot({ path: `${SHOTS}/w5-approval-reject.png` });
-  });
-
-  // W6 — tool result feedback (success path: a read-only tool runs without approval).
-  test('W6: a read-only tool runs and its result is reflected', async ({ page }) => {
-    await seedE2e(page);
-    await page.route('**/*', async (route) => {
-      const url = route.request().url();
-      if (url.includes('example.test')) {
-        return route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>example content</body></html>' });
-      }
-      return route.continue();
-    });
-    await appReady(page);
-    // web_fetch is read-only → runs without approval. Turn 1 calls it; turn 2 summarizes.
-    await enqueueResponses(page, [
-      responses.toolCall('web_fetch', { url: 'https://example.test/' }),
-      responses.text('Fetched the page successfully'),
-    ]);
-    await send(page, 'fetch example');
-    // Tool calls are process blocks, collapsed under the "已处理" toggle.
-    await lastAssistant(page).getByText('已处理').click().catch(() => {});
-    await expect(page.locator('[data-testid^="tool-card-web_fetch"]')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('send-button')).toBeVisible({ timeout: 20_000 });
-    await page.screenshot({ path: `${SHOTS}/w6-tool-success.png` });
   });
 
   // W7 — user cancels a running generation.

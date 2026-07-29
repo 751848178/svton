@@ -1,4 +1,5 @@
 import type { SerializedRuntime } from './types';
+import { isAgentMessageArray } from './agent-message-validation.utils';
 
 export function parseSerializedRuntime(raw: string): SerializedRuntime | null {
   try {
@@ -11,7 +12,7 @@ export function parseSerializedRuntime(raw: string): SerializedRuntime | null {
 
 function isSerializedRuntime(value: unknown): value is SerializedRuntime {
   if (!isRecord(value)) return false;
-  if (!Array.isArray(value.messages)) return false;
+  if (!isAgentMessageArray(value.messages)) return false;
   if (typeof value.model !== 'string') return false;
   if (typeof value.updatedAt !== 'number' || !Number.isFinite(value.updatedAt)) {
     return false;

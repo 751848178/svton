@@ -2,7 +2,7 @@
  * Chrome runtime evaluation and content extraction tools.
  */
 
-import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import type { SvtonToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { getCdpClient } from './chrome-cdp-client';
 import { formatChromeErrorMessage } from './chrome-error.utils';
 import {
@@ -12,7 +12,7 @@ import {
   formatRuntimeExceptionText,
 } from './chrome-runtime-result.utils';
 
-export const chromeEvaluateDef: ToolDefinition = {
+export const chromeEvaluateDef: SvtonToolDefinition = {
   name: 'chrome_evaluate',
   description: 'Execute JavaScript in the Chrome page and return the result.',
   parameters: {
@@ -76,7 +76,7 @@ export class ChromeEvaluateExecutor implements IToolExecutor {
   }
 }
 
-export const chromeGetContentDef: ToolDefinition = {
+export const chromeGetContentDef: SvtonToolDefinition = {
   name: 'chrome_get_content',
   description: 'Get the text content of the current Chrome page.',
   parameters: {

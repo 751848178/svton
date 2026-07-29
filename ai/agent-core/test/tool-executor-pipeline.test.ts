@@ -6,42 +6,19 @@ import {
   HookManager,
 } from '@svton/agent-core';
 import { ToolExecutionService } from '../src/agent/tool-executor';
+import { settleToolExecution } from '../src/agent/tool-execution-settlement.utils';
 import type { ToolResultSink } from '../src/agent/tool-context-result.utils';
+import { createMockPlatform } from './helpers';
 import type {
   ToolCall,
   ToolResult,
   ToolContext,
   IToolExecutor,
-  ToolDefinition,
+  SvtonToolDefinition,
   SkillDefinition,
+  SvtonCapabilityEvent,
 } from '@svton/agent-core';
 import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
-
-// ==============================================================
-// Mock Helpers
-// ==============================================================
-
-function createMockPlatform(): IPlatform {
-  return {
-    type: 'tauri',
-    capabilities: {
-      filesystem: true,
-      process: true,
-      watch: false,
-      mcpStdio: false,
-      clipboard: false,
-      notification: false,
-      sandboxing: false,
-      pty: false,
-      documentPreview: false,
-      computerUse: false,
-    },
-    fs: {} as any,
-    process: {} as any,
-    storage: {} as any,
-    search: {} as any,
-  };
-}
 
 /** A tool executor that records calls and returns a fixed output */
 function createRecordingExecutor(
@@ -57,7 +34,7 @@ function createRecordingExecutor(
   };
 }
 
-function makeToolDef(name: string): ToolDefinition {
+function makeToolDef(name: string): SvtonToolDefinition {
   return {
     name,
     description: `Tool ${name}`,
@@ -76,15 +53,15 @@ function makeToolCall(
   };
 }
 
-/**
- * Drain an async generator into an array.
- */
-async function drain<T>(gen: AsyncGenerator<T>): Promise<T[]> {
-  const items: T[] = [];
-  for await (const item of gen) {
-    items.push(item);
-  }
-  return items;
+async function collectExecution(
+  execution: AsyncGenerator<SvtonCapabilityEvent, ToolResult>,
+): Promise<{ capabilities: SvtonCapabilityEvent[]; result: ToolResult }> {
+  const capabilities: SvtonCapabilityEvent[] = [];
+  const result = await settleToolExecution(
+    execution,
+    (event) => capabilities.push(event),
+  );
+  return { capabilities, result };
 }
 
 // ==============================================================
@@ -158,19 +135,16 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       });
 
       const service = createService(pm, reviewer);
-      const events = await drain(service.execute(
+      const { capabilities, result } = await collectExecution(service.execute(
         makeToolCall('bash', { command: 'ls' }),
       ));
 
       // Should NOT emit tool_approval_needed
-      expect(events.some((e) => e.type === 'tool_approval_needed')).toBe(false);
+      expect(capabilities.some((e) => e.type === 'tool_approval_needed')).toBe(false);
 
       // Should have executed the tool
       expect(exec.calls).toHaveLength(1);
-
-      // Should emit a tool_call_end with the result
-      const endEvents = events.filter((e) => e.type === 'tool_call_end');
-      expect(endEvents).toHaveLength(1);
+      expect(result.output).toBe('bash output');
     });
 
     it('does not create a pending approval entry when auto-approved', async () => {
@@ -191,7 +165,7 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       });
 
       const service = createService(pm, reviewer);
-      await drain(service.execute(makeToolCall('bash')));
+      await collectExecution(service.execute(makeToolCall('bash')));
 
       expect(pendingApprovals.size).toBe(0);
     });
@@ -214,17 +188,15 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       });
 
       const service = createService(pm, reviewer);
-      const events = await drain(service.execute(makeToolCall('bash', { command: 'ls' })));
+      const { result } = await collectExecution(
+        service.execute(makeToolCall('bash', { command: 'ls' })),
+      );
 
-      const endEvent = events.find((event) => event.type === 'tool_call_end');
-      expect(endEvent).toBeDefined();
-      if (endEvent?.type === 'tool_call_end') {
-        expect(endEvent.result.metadata?.autoReviewVerdict).toEqual({
-          verdict: 'approve',
-          reason: 'matches safe command',
-          ruleId: 'allow-safe-bash',
-        });
-      }
+      expect(result.metadata?.autoReviewVerdict).toEqual({
+        verdict: 'approve',
+        reason: 'matches safe command',
+        ruleId: 'allow-safe-bash',
+      });
     });
   });
 
@@ -246,17 +218,11 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       const gen = service.execute(makeToolCall('bash'));
       const first = await gen.next();
 
-      expect(first.done).toBe(false);
-      expect(first.value.type).toBe('tool_call_end');
-      if (first.value.type === 'tool_call_end') {
-        expect(first.value.result.isError).toBe(true);
-        expect(first.value.result.output).toContain('disallowed by active skill');
-      }
+      expect(first.done).toBe(true);
+      expect(first.value.isError).toBe(true);
+      expect(first.value.output).toContain('disallowed by active skill');
       expect(exec.calls).toHaveLength(0);
       expect(pendingApprovals.size).toBe(0);
-
-      const done = await gen.next();
-      expect(done.done).toBe(true);
     });
   });
 
@@ -280,7 +246,7 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
 
       const service = createService(new PermissionManager({ mode: 'default' }), null, hookManager);
 
-      await drain(service.execute(makeToolCall('file_read', { path: 'original.txt' })));
+      await collectExecution(service.execute(makeToolCall('file_read', { path: 'original.txt' })));
 
       expect(exec.calls).toHaveLength(1);
       expect(exec.calls[0].arguments).toEqual({ path: 'modified.txt' });
@@ -304,7 +270,7 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
 
       const service = createService(new PermissionManager({ mode: 'default' }), null, hookManager);
 
-      await drain(service.execute(makeToolCall('file_read', { path: 'original.txt' })));
+      await collectExecution(service.execute(makeToolCall('file_read', { path: 'original.txt' })));
 
       expect(exec.calls).toHaveLength(1);
       expect(exec.calls[0].name).toBe('file_read');
@@ -335,17 +301,13 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       });
 
       const service = createService(pm, reviewer);
-      const events = await drain(service.execute(
+      const { result } = await collectExecution(service.execute(
         makeToolCall('bash', { command: 'rm -rf /' }),
       ));
 
       // Should NOT execute the tool
       expect(exec.calls).toHaveLength(0);
 
-      // Should emit tool_call_end with isError=true
-      const endEvents = events.filter((e) => e.type === 'tool_call_end');
-      expect(endEvents).toHaveLength(1);
-      const result = (endEvents[0] as any).result as ToolResult;
       expect(result.isError).toBe(true);
       expect(result.output).toContain('Auto-reviewer denied');
       expect(result.output).toContain('Dangerous');
@@ -369,9 +331,9 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       });
 
       const service = createService(pm, reviewer);
-      const events = await drain(service.execute(makeToolCall('bash')));
+      const { capabilities } = await collectExecution(service.execute(makeToolCall('bash')));
 
-      expect(events.some((e) => e.type === 'tool_approval_needed')).toBe(false);
+      expect(capabilities.some((e) => e.type === 'tool_approval_needed')).toBe(false);
       expect(pendingApprovals.size).toBe(0);
     });
 
@@ -393,18 +355,16 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       });
 
       const service = createService(pm, reviewer);
-      const events = await drain(service.execute(makeToolCall('bash', { command: 'rm -rf /' })));
+      const { result } = await collectExecution(
+        service.execute(makeToolCall('bash', { command: 'rm -rf /' })),
+      );
 
-      const endEvent = events.find((event) => event.type === 'tool_call_end');
-      expect(endEvent).toBeDefined();
-      if (endEvent?.type === 'tool_call_end') {
-        expect(endEvent.result.isError).toBe(true);
-        expect(endEvent.result.metadata?.autoReviewVerdict).toEqual({
-          verdict: 'deny',
-          reason: 'Dangerous',
-          ruleId: 'deny-dangerous-bash',
-        });
-      }
+      expect(result.isError).toBe(true);
+      expect(result.metadata?.autoReviewVerdict).toEqual({
+        verdict: 'deny',
+        reason: 'Dangerous',
+        ruleId: 'deny-dangerous-bash',
+      });
     });
   });
 
@@ -466,15 +426,13 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       pendingApprovals.clear();
 
       const rejectedEvent = await gen.next();
-      expect(rejectedEvent.value.type).toBe('tool_call_end');
-      if (rejectedEvent.value.type === 'tool_call_end') {
-        expect(rejectedEvent.value.result.isError).toBe(true);
-        expect(rejectedEvent.value.result.metadata?.autoReviewVerdict).toEqual({
-          verdict: 'ask_user',
-          reason: 'No matching rule',
-          ruleId: undefined,
-        });
-      }
+      expect(rejectedEvent.done).toBe(true);
+      expect(rejectedEvent.value.isError).toBe(true);
+      expect(rejectedEvent.value.metadata?.autoReviewVerdict).toEqual({
+        verdict: 'ask_user',
+        reason: 'No matching rule',
+        ruleId: undefined,
+      });
     });
 
     it('attaches auto-review verdict metadata when the escalated approval is approved', async () => {
@@ -497,15 +455,13 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       pendingApprovals.clear();
 
       const approvedEvent = await gen.next();
-      expect(approvedEvent.value.type).toBe('tool_call_end');
-      if (approvedEvent.value.type === 'tool_call_end') {
-        expect(approvedEvent.value.result.isError).toBeFalsy();
-        expect(approvedEvent.value.result.metadata?.autoReviewVerdict).toEqual({
-          verdict: 'ask_user',
-          reason: 'No matching rule',
-          ruleId: undefined,
-        });
-      }
+      expect(approvedEvent.done).toBe(true);
+      expect(approvedEvent.value.isError).toBeFalsy();
+      expect(approvedEvent.value.metadata?.autoReviewVerdict).toEqual({
+        verdict: 'ask_user',
+        reason: 'No matching rule',
+        ruleId: undefined,
+      });
       expect(exec.calls).toHaveLength(1);
     });
 
@@ -527,9 +483,9 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
         signal: controller.signal,
       });
 
-      const events = await drain(service.execute(makeToolCall('bash')));
+      const { capabilities } = await collectExecution(service.execute(makeToolCall('bash')));
 
-      expect(events.some((e) => e.type === 'tool_approval_needed')).toBe(false);
+      expect(capabilities.some((e) => e.type === 'tool_approval_needed')).toBe(false);
       expect(pendingApprovals.size).toBe(0);
       expect(exec.calls).toHaveLength(0);
     });
@@ -560,7 +516,9 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       const first = await gen.next();
       expect(first.value.type).toBe('tool_approval_needed');
       // Clean up the pending approval
+      for (const entry of pendingApprovals.values()) entry.resolve(false);
       pendingApprovals.clear();
+      await gen.next();
 
       // Now set an auto-reviewer that approves everything
       service.setExecOptions({
@@ -580,11 +538,11 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
 
       // Reset executor call tracking
       exec.calls.length = 0;
-      const events = await drain(service.execute(makeToolCall('bash')));
+      const { capabilities } = await collectExecution(service.execute(makeToolCall('bash')));
 
       // Should execute without approval
       expect(exec.calls).toHaveLength(1);
-      expect(events.some((e) => e.type === 'tool_approval_needed')).toBe(false);
+      expect(capabilities.some((e) => e.type === 'tool_approval_needed')).toBe(false);
     });
 
     it('includes sessionId from execOptions in tool context', async () => {
@@ -612,7 +570,7 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
 
       service.setExecOptions({ sessionId: 'my-custom-session' });
 
-      await drain(service.execute(makeToolCall('file_read')));
+      await collectExecution(service.execute(makeToolCall('file_read')));
 
       expect(capturedCtx).toHaveLength(1);
       expect(capturedCtx[0].sessionId).toBe('my-custom-session');
@@ -631,12 +589,9 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
         signal: controller.signal,
       });
 
-      const events = await drain(service.execute(makeToolCall('file_read')));
+      const { result } = await collectExecution(service.execute(makeToolCall('file_read')));
 
       expect(exec.calls).toHaveLength(0);
-      const endEvents = events.filter((e) => e.type === 'tool_call_end');
-      expect(endEvents).toHaveLength(1);
-      const result = (endEvents[0] as any).result as ToolResult;
       expect(result.isError).toBe(true);
       expect(result.output).toContain('run was aborted');
     });
@@ -669,7 +624,7 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
 
       service.setExecOptions({ sandboxProfile, sandboxRequired: true, sessionId: 'sandbox-session' });
 
-      await drain(service.execute(makeToolCall('file_read')));
+      await collectExecution(service.execute(makeToolCall('file_read')));
 
       expect(capturedCtx).toHaveLength(1);
       expect(capturedCtx[0].sandboxProfile).toBe(sandboxProfile);
@@ -689,14 +644,11 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       const pm = new PermissionManager({ mode: 'read_only' });
 
       const service = createService(pm, null);
-      const events = await drain(service.execute(makeToolCall('bash')));
+      const { result } = await collectExecution(service.execute(makeToolCall('bash')));
 
       // Should NOT execute
       expect(exec.calls).toHaveLength(0);
 
-      const endEvents = events.filter((e) => e.type === 'tool_call_end');
-      expect(endEvents).toHaveLength(1);
-      const result = (endEvents[0] as any).result as ToolResult;
       expect(result.isError).toBe(true);
       expect(result.output).toContain('Permission denied');
     });
@@ -704,17 +656,13 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
     it('writes the same permission-denied fallback output to context when no reason is provided', async () => {
       const exec = createRecordingExecutor();
       toolRegistry.register(makeToolDef('bash'), exec);
-      const pm = {
-        check: vi.fn(() => ({ allowed: false, needsApproval: false })),
-      } as unknown as PermissionManager;
+      const pm = new PermissionManager({ mode: 'read_only' });
+      vi.spyOn(pm, 'check').mockReturnValue({ allowed: false, needsApproval: false });
 
       const service = createService(pm, null);
-      const events = await drain(service.execute(makeToolCall('bash')));
+      const { result } = await collectExecution(service.execute(makeToolCall('bash')));
 
       expect(exec.calls).toHaveLength(0);
-      const endEvent = events.find((e) => e.type === 'tool_call_end');
-      expect(endEvent?.type).toBe('tool_call_end');
-      const result = (endEvent as any).result as ToolResult;
       expect(result.output).toBe('Permission denied: not allowed');
       const contextResult = recordedResults.at(-1);
       expect(contextResult?.output).toBe(result.output);
@@ -734,15 +682,14 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
         signal: controller.signal,
       });
 
-      const events = await drain(service.execute(makeToolCall('bash')));
+      const { capabilities, result } = await collectExecution(
+        service.execute(makeToolCall('bash')),
+      );
 
-      expect(events.some((e) => e.type === 'tool_approval_needed')).toBe(false);
+      expect(capabilities.some((e) => e.type === 'tool_approval_needed')).toBe(false);
       expect(pendingApprovals.size).toBe(0);
       expect(exec.calls).toHaveLength(0);
 
-      const endEvents = events.filter((e) => e.type === 'tool_call_end');
-      expect(endEvents).toHaveLength(1);
-      const result = (endEvents[0] as any).result as ToolResult;
       expect(result.isError).toBe(true);
       expect(result.output).toContain('run was aborted');
     });
@@ -758,17 +705,16 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       const pm = new PermissionManager({ mode: 'default' });
 
       const service = createService(pm, null);
-      const events = await drain(service.execute(makeToolCall('file_read')));
+      const { capabilities, result } = await collectExecution(
+        service.execute(makeToolCall('file_read')),
+      );
 
       // Should execute
       expect(exec.calls).toHaveLength(1);
 
       // Should NOT emit approval needed
-      expect(events.some((e) => e.type === 'tool_approval_needed')).toBe(false);
-
-      // Should have tool_call_end with the result
-      const endEvents = events.filter((e) => e.type === 'tool_call_end');
-      expect(endEvents).toHaveLength(1);
+      expect(capabilities.some((e) => e.type === 'tool_approval_needed')).toBe(false);
+      expect(result.output).toBe('file content');
     });
   });
 });

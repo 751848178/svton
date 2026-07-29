@@ -46,9 +46,9 @@ export interface PreviewImagesBlock {
 }
 
 export type ContentBlock =
-  | { type: 'thinking'; text: string }
+  | { type: 'thinking'; text: string; thinkingSignature?: string }
   | { type: 'tool_call'; call: DisplayToolCall }
-  | { type: 'text'; text: string }
+  | { type: 'text'; text: string; textSignature?: string }
   | { type: 'error'; text: string }
   | { type: 'plan'; plan: PlanProgress }
   | { type: 'file_change'; changes: FileChange[] }
@@ -60,7 +60,7 @@ export type ContentBlock =
   | { type: 'turn_diff'; changes: FileChange[] }
   | { type: 'command'; label: string; action: string; icon?: string }
   | { type: 'file_tree'; tree: FileTreeNode[] }
-  | { type: 'redacted_thinking'; reason?: string }
+  | { type: 'redacted_thinking'; reason?: string; thinkingSignature?: string }
   | { type: 'image_generated'; images: Array<{ url?: string; base64?: string; mimeType?: string; revisedPrompt?: string }>; model: string }
   | PreviewImagesBlock
   | { type: 'code_review'; findings: Array<{ file: string; line?: number; severity: 'info' | 'warning' | 'error'; comment: string }> }
@@ -83,6 +83,8 @@ export interface DisplayMessage {
   duration?: number;
   /** Skills active for this assistant turn — surfaced in the activity indicator */
   activeSkills?: string[];
+  /** Canonical provider/message metadata retained across checkpoint restore. */
+  metadata?: Record<string, unknown>;
   /** Pi canonical history index immediately before this user turn was added. */
   runtimeMessageIndex?: number;
   timestamp: number;

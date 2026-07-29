@@ -1,9 +1,9 @@
-import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import type { SvtonToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatComputerUseErrorMessage } from './computer-use-error.utils';
 import { computerInvoke } from './computer-use-invoke';
 import { validateScrollInput } from './computer-use-validation.utils';
 
-export const scrollDef: ToolDefinition = {
+export const scrollDef: SvtonToolDefinition = {
   name: 'scroll',
   description: 'Scroll at the specified screen position. Supports up/down/left/right directions.',
   parameters: {

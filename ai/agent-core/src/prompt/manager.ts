@@ -1,5 +1,5 @@
 import type { PromptTemplate, PromptVariable } from './types';
-import type { ToolDefinition } from '../provider/types';
+import type { SvtonToolDefinition } from '../tool/types';
 import { buildTemplateVariablePattern } from './prompt-template.utils';
 
 /**
@@ -35,7 +35,7 @@ export class PromptManager {
    * Compose the full system prompt.
    */
   compose(options: {
-    tools?: ToolDefinition[];
+    tools?: SvtonToolDefinition[];
     baseTemplate?: string;
     skillsSummary?: string;
     memoryNotes?: string;

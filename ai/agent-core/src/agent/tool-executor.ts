@@ -3,14 +3,14 @@ import type { ToolRegistry } from '../tool/registry';
 import type { PermissionManager } from '../permission/manager';
 import type { HookManager } from '../hooks/manager';
 import type { SkillDefinition } from '../skill/types';
-import type { AgentEvent } from './types';
+import type { SvtonCapabilityEvent } from './types';
 import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 import type { AutoReviewerManager } from '../auto-reviewer/manager';
 import type { SessionResumeManager } from '../checkpoint/manager';
 import type { PendingApprovalMap } from './approval-gate';
 import { logger } from '../utils/logger';
 import { withAutoReviewMetadata } from './tool-auto-review-result.utils';
-import { stopIfRunAborted } from './tool-execution-approval.utils';
+import { readRunAbortResult } from './tool-execution-approval.utils';
 import { enforceActiveSkillToolGate } from './tool-skill-gate.utils';
 import { noopToolResultSink, type ToolResultSink } from './tool-context-result.utils';
 import { runPostToolUseHook, runPreToolUseHook } from './tool-hook-lifecycle.utils';
@@ -76,7 +76,7 @@ export class ToolExecutionService {
     this.execOptions = { ...this.execOptions, ...options };
   }
 
-  /** Set the currently active skills (called by AgentRuntime after skill injection). */
+  /** Set the currently active skills (called by SvtonAgentRuntime after skill injection). */
   setActiveSkills(skills: SkillDefinition[]): void {
     this.activeSkills = skills;
   }
@@ -99,33 +99,34 @@ export class ToolExecutionService {
    * @param onProgress optional streaming-progress callback bridged into the
    *   tool's `ToolContext.onProgress` so a tool that emits partial output
    *   surfaces it through Pi as `tool_execution_update` (mapped by the runtime
-   *   event adapter to svton `tool_call_progress`). PI005 plumbing.
+   *   native Pi `tool_execution_update` lifecycle). PI005 plumbing.
    */
   async *execute(
     call: ToolCall,
     signal?: AbortSignal,
     onProgress?: (message: string) => void,
-  ): AsyncGenerator<AgentEvent> {
+  ): AsyncGenerator<SvtonCapabilityEvent, ToolResult> {
     if (signal) this.execOptions = { ...this.execOptions, signal };
     logger.info('Tool', `Executing: ${call.name}`, { id: call.id, args: call.arguments });
 
-    const initialAbort = yield* stopIfRunAborted(call, this.execOptions.signal);
-    if (initialAbort) { this.toolResultSink(call.id, initialAbort.output, true); return; }
+    const initialAbort = readRunAbortResult(call, this.execOptions.signal);
+    if (initialAbort) {
+      this.toolResultSink(call.id, initialAbort.output, true);
+      return initialAbort;
+    }
 
     const preToolHook = await runPreToolUseHook(this.hookManager, call);
     call = preToolHook.toolCall;
     if (preToolHook.deniedResult) {
       const denied = preToolHook.deniedResult;
-      yield { type: 'tool_call_end', result: denied };
       this.toolResultSink(call.id, denied.output, true);
-      return;
+      return denied;
     }
 
     const skillGateResult = enforceActiveSkillToolGate(call, this.activeSkills);
     if (skillGateResult) {
-      yield { type: 'tool_call_end', result: skillGateResult };
       this.toolResultSink(call.id, skillGateResult.output, true);
-      return;
+      return skillGateResult;
     }
 
     const outcome = yield* runPermissionAndApprovalGate({
@@ -135,11 +136,14 @@ export class ToolExecutionService {
     });
     if (outcome.kind === 'blocked') {
       this.toolResultSink(call.id, outcome.result.output, true);
-      return;
+      return outcome.result;
     }
 
-    const beforeExecAbort = yield* stopIfRunAborted(call, this.execOptions.signal);
-    if (beforeExecAbort) { this.toolResultSink(call.id, beforeExecAbort.output, true); return; }
+    const beforeExecAbort = readRunAbortResult(call, this.execOptions.signal);
+    if (beforeExecAbort) {
+      this.toolResultSink(call.id, beforeExecAbort.output, true);
+      return beforeExecAbort;
+    }
 
     const toolCtx: ToolContext = {
       platform: this.platform,
@@ -163,14 +167,13 @@ export class ToolExecutionService {
       isError: result.isError, outputLength: result.output?.length ?? 0,
     });
 
-    yield { type: 'tool_call_end', result };
-
     await runPostToolUseHook(this.hookManager, call, result);
 
     // Pi Agent records the tool result from the AgentToolResult the wrapper
     // returns; the sink is a no-op for the normal path but kept for callers
     // that observe results outside Pi (denied/blocked calls above).
     this.toolResultSink(call.id, result.output, result.isError);
+    return result;
   }
 }
 

@@ -9,6 +9,7 @@ import type {
 import { MCPClient, MCPServer } from '@svton/agent-core';
 import { ToolRegistry } from '@svton/agent-core';
 import type { IToolExecutor, ToolCall, ToolResult } from '@svton/agent-core';
+import { createMockPlatform } from './helpers';
 
 // ============================================================
 // Mock Transport
@@ -517,8 +518,11 @@ describe('MCPServer', () => {
     // Security (§7.4): inbound tool calls route through a wired execution service.
     server.setToolExecutionService({
       async *execute(call: ToolCall) {
-        const r = await registry.execute(call, { platform: null as never, sessionId: '', workingDir: '/' });
-        yield { type: 'tool_call_end', result: r };
+        return registry.execute(call, {
+          platform: createMockPlatform(),
+          sessionId: '',
+          workingDir: '/',
+        });
       },
     });
 

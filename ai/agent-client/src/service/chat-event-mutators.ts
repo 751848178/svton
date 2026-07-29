@@ -1,17 +1,16 @@
 /**
- * Pure per-event display mutators — one function per AgentEvent variant.
+ * Pure display mutators selected from native Pi or capability events.
  *
  * Extracted from the event dispatcher (PI007) so the dispatcher stays a thin
  * switch and each mutator is independently testable. Every mutator is a pure
  * `(message, event, ctx) => message` transform; the dispatcher owns routing
  * (active vs background session) via the message store.
  *
- * Classification mirrors the AgentEvent union doc (agent/types.ts):
- *   Pi-base: text, thinking, tool_call_*, error, done
- *   svton-only: tool_approval_needed, context_compacted, skill_activated, warning
+ * The dispatcher owns protocol matching; these functions only update the
+ * product display model.
  */
 
-import type { AgentEvent } from '@svton/agent-core';
+import type { ToolResult } from '@svton/agent-core';
 import type { DisplayMessage, DisplayToolCall } from '../types';
 import {
   appendToolResultMetadataBlocks,
@@ -25,8 +24,7 @@ import { finalizeTurnBlocks } from './chat-turn-blocks.utils';
 
 export interface MutatorContext {
   assistantMsgId: string;
-  /** Previous event type — used to insert thinking separators after tool calls. */
-  lastEventType: string | null;
+  insertThinkingSeparator: boolean;
 }
 
 export const CONTEXT_COMPACTED_LABEL = '上下文已压缩';
@@ -35,35 +33,35 @@ export const CONTEXT_COMPACTED_LABEL = '上下文已压缩';
 // Pi-base: streaming content
 // ============================================================
 
-export function applyTextDelta(m: DisplayMessage, event: Extract<AgentEvent, { type: 'text_delta' }>, ctx: MutatorContext): DisplayMessage {
+export function applyTextDelta(m: DisplayMessage, text: string, ctx: MutatorContext): DisplayMessage {
   if (m.id !== ctx.assistantMsgId) return m;
   const blocks = [...(m.blocks || [])];
   const last = blocks[blocks.length - 1];
   if (last && last.type === 'text') {
-    blocks[blocks.length - 1] = { type: 'text', text: last.text + event.text };
+    blocks[blocks.length - 1] = { type: 'text', text: last.text + text };
   } else {
-    blocks.push({ type: 'text', text: event.text });
+    blocks.push({ type: 'text', text });
   }
-  return { ...m, content: m.content + event.text, blocks };
+  return { ...m, content: m.content + text, blocks };
 }
 
-export function applyThinkingDelta(m: DisplayMessage, event: Extract<AgentEvent, { type: 'thinking_delta' }>, ctx: MutatorContext): DisplayMessage {
+export function applyThinkingDelta(m: DisplayMessage, thinking: string, ctx: MutatorContext): DisplayMessage {
   if (m.id !== ctx.assistantMsgId) return m;
-  const separator = ctx.lastEventType === 'tool_call_end' || ctx.lastEventType === 'done' ? '\n---\n' : '';
-  const newThinking = (m.thinking || '') + separator + event.thinking;
+  const separator = ctx.insertThinkingSeparator ? '\n---\n' : '';
+  const newThinking = (m.thinking || '') + separator + thinking;
   const blocks = [...(m.blocks || [])];
 
   // Anthropic encrypted thinking — surface as a redacted marker.
-  if (event.thinking.includes('__REDACTED__') || event.thinking.startsWith('[REDACTED]')) {
+  if (thinking.includes('__REDACTED__') || thinking.startsWith('[REDACTED]')) {
     blocks.push({ type: 'redacted_thinking', reason: 'Provider returned encrypted thinking content' });
     return { ...m, thinking: newThinking, blocks };
   }
 
   const last = blocks[blocks.length - 1];
   if (last && last.type === 'thinking') {
-    blocks[blocks.length - 1] = { type: 'thinking', text: last.text + separator + event.thinking };
+    blocks[blocks.length - 1] = { type: 'thinking', text: last.text + separator + thinking };
   } else {
-    blocks.push({ type: 'thinking', text: event.thinking });
+    blocks.push({ type: 'thinking', text: thinking });
   }
   return { ...m, thinking: newThinking, blocks };
 }
@@ -72,38 +70,63 @@ export function applyThinkingDelta(m: DisplayMessage, event: Extract<AgentEvent,
 // Pi-base: tool-call lifecycle
 // ============================================================
 
-export function applyToolCallStart(m: DisplayMessage, event: Extract<AgentEvent, { type: 'tool_call_start' }>, ctx: MutatorContext): DisplayMessage {
+export function applyToolCallStart(m: DisplayMessage, toolCall: DisplayToolCall, ctx: MutatorContext): DisplayMessage {
   if (m.id !== ctx.assistantMsgId) return m;
-  const toolCall: DisplayToolCall = {
-    id: event.call.id,
-    name: event.call.name,
-    arguments: event.call.arguments,
-    status: 'running',
-  };
-  const isSubagent = event.call.name === 'subagent_spawn' || event.call.name === 'spawn_subagent';
-  const progressBlock = readSlowToolProgressBlock(event.call.name);
+  if (m.toolCalls?.some((existing) => existing.id === toolCall.id)) {
+    return upsertExistingToolCall(m, toolCall);
+  }
+  const isSubagent = toolCall.name === 'subagent_spawn' || toolCall.name === 'spawn_subagent';
+  const progressBlock = readSlowToolProgressBlock(toolCall.name);
   const blocks = [...(m.blocks || [])];
   if (progressBlock && !isSubagent) blocks.push(progressBlock);
   if (isSubagent) {
-    const task = (event.call.arguments as Record<string, unknown> | undefined)?.task as string || 'Subagent task';
-    blocks.push({ type: 'subagent', agentId: event.call.id, task, status: 'running' });
+    const taskValue = toolCall.arguments.task;
+    const task = typeof taskValue === 'string' ? taskValue : 'Subagent task';
+    blocks.push({ type: 'subagent', agentId: toolCall.id, task, status: 'running' });
   } else {
     blocks.push({ type: 'tool_call', call: toolCall });
   }
   return { ...m, toolCalls: [...(m.toolCalls || []), toolCall], blocks };
 }
 
-export function applyToolCallProgress(m: DisplayMessage, event: Extract<AgentEvent, { type: 'tool_call_progress' }>): DisplayMessage {
-  const callId = event.callId;
+function upsertExistingToolCall(
+  message: DisplayMessage,
+  toolCall: DisplayToolCall,
+): DisplayMessage {
+  const toolCalls = (message.toolCalls || []).map((existing) =>
+    existing.id === toolCall.id ? { ...existing, ...toolCall } : existing,
+  );
+  const blocks = (message.blocks || []).map((block) => {
+    if (block.type === 'tool_call' && block.call.id === toolCall.id) {
+      return { ...block, call: { ...block.call, ...toolCall } };
+    }
+    if (block.type === 'subagent' && block.agentId === toolCall.id) {
+      const task = toolCall.arguments.task;
+      return {
+        ...block,
+        task: typeof task === 'string' ? task : block.task,
+        status: 'running' as const,
+      };
+    }
+    return block;
+  });
+  return { ...message, toolCalls, blocks };
+}
+
+export function applyToolExecutionUpdate(
+  m: DisplayMessage,
+  update: { callId: string; name?: string; arguments: Record<string, unknown> },
+): DisplayMessage {
+  const callId = update.callId;
   const updatedCalls = (m.toolCalls || []).map((tc) =>
     tc.id === callId
-      ? { ...tc, name: event.name ?? tc.name, arguments: event.arguments ?? tc.arguments }
+      ? { ...tc, name: update.name ?? tc.name, arguments: update.arguments }
       : tc,
   );
   const blocks = (m.blocks || []).map((b) => {
     if (b.type !== 'tool_call' || b.call.id !== callId) return b;
-    const name = event.name ?? b.call.name;
-    const args = event.arguments ?? b.call.arguments;
+    const name = update.name ?? b.call.name;
+    const args = update.arguments;
     if (name === 'subagent_spawn' || name === 'spawn_subagent') {
       const task = (args as Record<string, unknown> | undefined)?.task;
       return {
@@ -118,17 +141,16 @@ export function applyToolCallProgress(m: DisplayMessage, event: Extract<AgentEve
   return {
     ...m,
     toolCalls: updatedCalls,
-    blocks: insertSlowToolProgressBlock(blocks, callId, event.name),
+    blocks: insertSlowToolProgressBlock(blocks, callId, update.name),
   };
 }
 
 export function applyToolCallEnd(
   m: DisplayMessage,
-  event: Extract<AgentEvent, { type: 'tool_call_end' }>,
+  result: ToolResult,
   toolName: string,
   owningCall: DisplayToolCall | undefined,
 ): DisplayMessage {
-  const { result } = event;
   const endStatus = result.isError ? 'error' as const : 'completed' as const;
   const updatedCalls = (m.toolCalls || []).map((tc) =>
     tc.id === result.callId ? { ...tc, result, status: endStatus } : tc,
@@ -147,18 +169,14 @@ export function applyToolCallEnd(
   return { ...m, toolCalls: updatedCalls, blocks };
 }
 
-// ============================================================
-// Pi-base: termination
-// ============================================================
-
-export function applyError(m: DisplayMessage, event: Extract<AgentEvent, { type: 'error' }>, ctx: MutatorContext): DisplayMessage {
+export function applyError(m: DisplayMessage, error: string, ctx: MutatorContext): DisplayMessage {
   if (m.id !== ctx.assistantMsgId) return m;
   const blocks = [...(m.blocks || [])];
-  blocks.push({ type: 'error', text: event.error.message });
-  return { ...m, error: event.error.message, blocks };
+  blocks.push({ type: 'error', text: error });
+  return { ...m, error, blocks };
 }
 
-export function applyDone(m: DisplayMessage, ctx: MutatorContext): DisplayMessage {
+export function applyTurnFinalized(m: DisplayMessage, ctx: MutatorContext): DisplayMessage {
   if (m.id !== ctx.assistantMsgId) return m;
   return finalizeTurnBlocks(m);
 }
@@ -167,14 +185,14 @@ export function applyDone(m: DisplayMessage, ctx: MutatorContext): DisplayMessag
 // svton-only: capability events
 // ============================================================
 
-export function applyWarning(m: DisplayMessage, event: Extract<AgentEvent, { type: 'warning' }>, ctx: MutatorContext): DisplayMessage {
+export function applyWarning(m: DisplayMessage, text: string, source: string | undefined, ctx: MutatorContext): DisplayMessage {
   if (m.id !== ctx.assistantMsgId) return m;
   const blocks = [...(m.blocks || [])];
-  blocks.push({ type: 'warning', text: event.text, source: event.source });
+  blocks.push({ type: 'warning', text, source });
   return { ...m, blocks };
 }
 
-export function applySkillActivated(m: DisplayMessage, event: Extract<AgentEvent, { type: 'skill_activated' }>, ctx: MutatorContext): DisplayMessage {
+export function applySkillActivated(m: DisplayMessage, skills: string[], ctx: MutatorContext): DisplayMessage {
   if (m.id !== ctx.assistantMsgId) return m;
-  return { ...m, activeSkills: event.skills };
+  return { ...m, activeSkills: skills };
 }

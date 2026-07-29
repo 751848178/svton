@@ -1,8 +1,8 @@
-import type { ToolDefinition } from '../provider/types';
+import type { SvtonToolDefinition } from './types';
 import type { ToolEntry, ToolCall, ToolResult, ToolContext, IToolExecutor } from './types';
 import type { IPlatform } from '@svton/agent-platform';
 import { formatUnknownErrorMessage } from '../utils/error-message.utils';
-import { cloneToolDefinition } from './tool-definition-snapshot.utils';
+import { cloneToolDefinition } from './svton-tool-snapshot.utils';
 
 /**
  * Tool Registry - manages tool definitions and their executors.
@@ -17,7 +17,7 @@ export class ToolRegistry {
   /**
    * Register a tool with its executor.
    */
-  register(definition: ToolDefinition, executor: IToolExecutor): void {
+  register(definition: SvtonToolDefinition, executor: IToolExecutor): void {
     if (this.tools.has(definition.name)) {
       console.warn(`Tool "${definition.name}" is already registered. Overwriting.`);
     }
@@ -42,7 +42,7 @@ export class ToolRegistry {
   /**
    * List all registered tool definitions.
    */
-  listDefinitions(): ToolDefinition[] {
+  listDefinitions(): SvtonToolDefinition[] {
     return Array.from(this.tools.values()).map((entry) => cloneToolDefinition(entry.definition));
   }
 

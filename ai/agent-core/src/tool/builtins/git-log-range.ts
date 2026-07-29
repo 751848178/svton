@@ -2,14 +2,14 @@
  * Git log range code review tool.
  */
 
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatCommandResult } from '../command-result.utils';
 import { resolveCommandRunner } from '../command-runner.utils';
 import { readSafeGitRefs, shellQuote } from '../git-review-command.utils';
 import { formatUnknownErrorMessage } from './error-message.utils';
 
-export const gitLogRangeDef: ToolDefinition = {
+export const gitLogRangeDef: SvtonToolDefinition = {
   name: 'git_log_range',
   description:
     'List commits between two git refs. Returns commit hashes, authors, dates, and messages.',
@@ -34,7 +34,7 @@ export const gitLogRangeDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class GitLogRangeExecutor implements IToolExecutor {

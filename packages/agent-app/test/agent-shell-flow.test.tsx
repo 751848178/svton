@@ -4,9 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import 'reflect-metadata';
 import { AgentProvider } from '@svton/agent-client';
-import { AgentRuntime, ToolRegistry, type AgentConfig, type AgentEvent } from '@svton/agent-core';
+import {
+  SvtonAgentRuntime,
+  ToolRegistry,
+  type AgentConfig,
+  type PublicRuntimeEvent,
+} from '@svton/agent-core';
 import type { IPlatform, IStorage } from '@svton/agent-platform';
-import { createMockModels } from '../../../ai/agent-core/test/helpers';
+import {
+  createMockModels,
+  nativeAssistantLifecycle,
+  nativeTextDelta,
+} from '../../../ai/agent-core/test/helpers';
 import { AgentShell } from '../src/components/AgentShell';
 
 vi.mock('react-markdown', () => ({
@@ -86,10 +95,9 @@ function makePlatform(storage: IStorage): IPlatform {
 }
 
 /**
- * Build a Pi-backed AgentConfig (no provider contract) + a runtime.run spy
- * that yields a canned "Hello from the runtime" response. PI007: the deleted
- * IProvider/StreamEvent mock is replaced by a fauxProvider-backed Models
- * collection + an AgentEvent script.
+ * Build a Pi-backed AgentConfig plus a runtime.run spy that yields a canned
+ * "Hello from the runtime" response. The test uses a fauxProvider-backed
+ * Models collection and a native Pi event script.
  */
 function makeConfig(): { config: AgentConfig; scriptRun: () => void } {
   const mock = createMockModels('mock-model');
@@ -101,10 +109,10 @@ function makeConfig(): { config: AgentConfig; scriptRun: () => void } {
     workingDir: '/',
   };
   const scriptRun = () => {
-    vi.spyOn(AgentRuntime.prototype, 'run').mockImplementation(() => {
-      const events: AgentEvent[] = [
-        { type: 'text_delta', text: 'Hello from the runtime' },
-        { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } },
+    vi.spyOn(SvtonAgentRuntime.prototype, 'run').mockImplementation(() => {
+      const events: PublicRuntimeEvent[] = [
+        nativeTextDelta('Hello from the runtime'),
+        ...nativeAssistantLifecycle({ content: 'Hello from the runtime' }),
       ];
       return (async function* () {
         for (const ev of events) yield ev;

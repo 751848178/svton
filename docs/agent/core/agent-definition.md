@@ -268,14 +268,15 @@ getBuiltinDefaults(): AgentDefinition[];
 
 ---
 
-## 与 AgentRuntime 集成
+## 与 SvtonAgentRuntime 集成
 
 ### 注入 AgentDefinitionManager
 
 ```typescript
-const runtime = await AgentRuntime.createAsync(
+const runtime = await SvtonAgentRuntime.createAsync(
   {
-    provider,
+    models,
+    piModel,
     model: 'claude-sonnet-4-20250514',
     toolRegistry,
     capabilities: {
@@ -378,7 +379,7 @@ for await (const event of runtime.run('审查最近的 5 个 commit')) {
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — 运行时切换 AgentDefinition
+- [SvtonAgentRuntime](./runtime) — 运行时切换 AgentDefinition
 - [权限系统](./permission) — AgentDefinition 中的权限配置
 - [技能系统](./skills) — 与 AgentDefinition 互补的能力扩展
 - [Provider](./provider) — AgentDefinition 可指定模型

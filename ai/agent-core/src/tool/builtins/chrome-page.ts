@@ -2,13 +2,13 @@
  * Chrome page navigation and screenshot tools.
  */
 
-import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import type { SvtonToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { getCdpClient } from './chrome-cdp-client';
 import { formatChromeErrorMessage } from './chrome-error.utils';
 
 const CHROME_SCREENSHOT_MIME_TYPE = 'image/png';
 
-export const chromeNavigateDef: ToolDefinition = {
+export const chromeNavigateDef: SvtonToolDefinition = {
   name: 'chrome_navigate',
   description: 'Navigate Chrome to a URL. Requires Chrome running with --remote-debugging-port=9222.',
   parameters: {
@@ -90,7 +90,7 @@ export class ChromeNavigateExecutor implements IToolExecutor {
   }
 }
 
-export const chromeScreenshotDef: ToolDefinition = {
+export const chromeScreenshotDef: SvtonToolDefinition = {
   name: 'chrome_screenshot',
   description: 'Capture a screenshot of the current Chrome page. Returns base64 PNG.',
   parameters: {

@@ -4,7 +4,7 @@
  * Covers the Pi-owned vs svton-owned contract surface in `pi-tool-adapter.ts`:
  *   - executionMode mapping (annotations → sequential/parallel) per §5.3
  *   - schema normalization (annotations stripped, type/properties guaranteed)
- *   - onUpdate streaming bridge (Pi onUpdate → executor onProgress → tool_call_progress)
+ *   - onUpdate streaming bridge (Pi onUpdate → executor onProgress)
  *   - NO bypass: every AgentTool.execute() drains the ToolExecutionService policy
  *     pipeline (permission/approval/auto-review/sandbox/hooks). A denied tool
  *     never executes; an approved tool does; an auto-review-deny blocks; hook
@@ -24,14 +24,14 @@ import {
 import { ToolExecutionService } from '../src/agent/tool-executor';
 import { buildAgentTools } from '../src/agent/pi-tool-adapter';
 import type { ToolEventSink } from '../src/agent/pi-tool-adapter';
-import type { AgentEvent } from '../src/agent/types';
+import type { SvtonCapabilityEvent } from '../src/agent/types';
 import type {
   ToolCall,
   ToolResult,
   ToolContext,
   IToolExecutor,
-  ToolDefinition,
-  ToolAnnotations,
+  SvtonToolDefinition,
+  SvtonToolAnnotations,
 } from '@svton/agent-core';
 import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
@@ -69,7 +69,7 @@ function recordingExecutor(output = 'ran', opts?: { onProgress?: (m: string) => 
   };
 }
 
-function def(name: string, annotations?: ToolAnnotations): ToolDefinition {
+function def(name: string, annotations?: SvtonToolAnnotations): SvtonToolDefinition {
   return { name, description: `Tool ${name}`, parameters: { type: 'object', properties: {} }, annotations };
 }
 
@@ -77,17 +77,18 @@ function call(name: string): ToolCall {
   return { id: `call-${name}-${Math.random().toString(36).slice(2, 6)}`, name, arguments: {} };
 }
 
-async function drain(g: AsyncGenerator<AgentEvent>): Promise<AgentEvent[]> {
-  const out: AgentEvent[] = [];
-  for await (const ev of g) out.push(ev);
-  return out;
+function readResultError(details: unknown): boolean | undefined {
+  if (!details || typeof details !== 'object' || !('isError' in details)) {
+    return undefined;
+  }
+  return typeof details.isError === 'boolean' ? details.isError : undefined;
 }
 
 // ============================================================
-// executionMode mapping (Architecture §5.3)
+// executionMode ownership (Architecture §5.3)
 // ============================================================
 
-describe('PI005 executionMode mapping (annotations → sequential/parallel)', () => {
+describe('PI005 executionMode ownership', () => {
   let registry: ToolRegistry;
   let service: ToolExecutionService;
   const sink: ToolEventSink = () => {};
@@ -100,48 +101,26 @@ describe('PI005 executionMode mapping (annotations → sequential/parallel)', ()
     );
   });
 
-  it('marks a destructive tool sequential', () => {
+  it('leaves annotation-only destructive tools on the global sequential default', () => {
     registry.register(def('rm_rf', { destructiveHint: true }), recordingExecutor());
     const tools = buildAgentTools(registry, service, sink);
     const tool = tools.find((t) => t.name === 'rm_rf')!;
-    expect(tool.executionMode).toBe('sequential');
-  });
-
-  it('marks a proven read-only tool parallel', () => {
-    registry.register(def('grep', { readOnlyHint: true }), recordingExecutor());
-    const tools = buildAgentTools(registry, service, sink);
-    const tool = tools.find((t) => t.name === 'grep')!;
-    expect(tool.executionMode).toBe('parallel');
-  });
-
-  it('forces sequential when both readOnly and destructive are set', () => {
-    registry.register(def('ambig', { readOnlyHint: true, destructiveHint: true }), recordingExecutor());
-    const tools = buildAgentTools(registry, service, sink);
-    const tool = tools.find((t) => t.name === 'ambig')!;
-    expect(tool.executionMode).toBe('sequential');
-  });
-
-  it('leaves executionMode undefined when no relevant annotations (falls back to global sequential)', () => {
-    registry.register(def('plain'), recordingExecutor());
-    const tools = buildAgentTools(registry, service, sink);
-    const tool = tools.find((t) => t.name === 'plain')!;
     expect(tool.executionMode).toBeUndefined();
   });
 
-  it('a batch of read-only tools can all be marked parallel', () => {
+  it('does not infer parallel execution from readOnlyHint', () => {
     registry.register(def('grep', { readOnlyHint: true }), recordingExecutor());
-    registry.register(def('glob', { readOnlyHint: true }), recordingExecutor());
-    registry.register(def('file_read', { readOnlyHint: true }), recordingExecutor());
     const tools = buildAgentTools(registry, service, sink);
-    expect(tools.every((t) => t.executionMode === 'parallel')).toBe(true);
+    const tool = tools.find((t) => t.name === 'grep')!;
+    expect(tool.executionMode).toBeUndefined();
   });
 
-  it('a destructive tool in an otherwise read-only batch forces sequential for itself', () => {
-    registry.register(def('grep', { readOnlyHint: true }), recordingExecutor());
-    registry.register(def('bash', { destructiveHint: true }), recordingExecutor());
+  it('preserves only an explicit audited parallel execution mode', () => {
+    const definition = def('parallel_read', { readOnlyHint: true });
+    definition.executionMode = 'parallel';
+    registry.register(definition, recordingExecutor());
     const tools = buildAgentTools(registry, service, sink);
-    expect(tools.find((t) => t.name === 'grep')!.executionMode).toBe('parallel');
-    expect(tools.find((t) => t.name === 'bash')!.executionMode).toBe('sequential');
+    expect(tools.find((t) => t.name === 'parallel_read')!.executionMode).toBe('parallel');
   });
 });
 
@@ -149,7 +128,7 @@ describe('PI005 executionMode mapping (annotations → sequential/parallel)', ()
 // Schema normalization
 // ============================================================
 
-describe('PI005 schema normalization', () => {
+describe('PI005 canonical Pi schema', () => {
   let registry: ToolRegistry;
   let service: ToolExecutionService;
   const sink: ToolEventSink = () => {};
@@ -168,29 +147,32 @@ describe('PI005 schema normalization', () => {
       recordingExecutor(),
     );
     const tool = buildAgentTools(registry, service, sink)[0];
-    const params = tool.parameters as unknown as Record<string, unknown>;
-    expect(params.annotations).toBeUndefined();
-    expect(params.type).toBe('object');
-    expect(params.properties).toEqual({ a: { type: 'string' } });
-    expect(params.required).toEqual(['a']);
+    expect(tool.parameters).toEqual({
+      type: 'object',
+      properties: { a: { type: 'string' } },
+      required: ['a'],
+    });
   });
 
-  it('guarantees type:object + properties when missing', () => {
+  it('passes the registered Pi schema through without rewriting it', () => {
+    const parameters = {
+      type: 'object',
+      properties: { value: { type: 'number' } },
+      required: ['value'],
+    };
     registry.register(
-      { name: 't', description: 'd', parameters: {} as any },
+      { name: 't', description: 'd', parameters },
       recordingExecutor(),
     );
     const tool = buildAgentTools(registry, service, sink)[0];
-    const params = tool.parameters as unknown as Record<string, unknown>;
-    expect(params.type).toBe('object');
-    expect(params.properties).toEqual({});
+    expect(tool.parameters).toEqual(parameters);
   });
 
   it('does not mutate the registry-stored definition', () => {
-    const original = { type: 'object', properties: { x: { type: 'number' } }, annotations: { destructiveHint: true } } as any;
+    const original = { type: 'object', properties: { x: { type: 'number' } }, annotations: { destructiveHint: true } };
     registry.register({ name: 't', description: 'd', parameters: original }, recordingExecutor());
     buildAgentTools(registry, service, sink);
-    // The original object passed in keeps its annotations (normalize copies).
+    // Registry snapshots never mutate the original schema object.
     expect(original.annotations).toEqual({ destructiveHint: true });
   });
 });
@@ -255,7 +237,7 @@ describe('PI005 onUpdate streaming bridge', () => {
     );
     const tool = buildAgentTools(registry, service, sink)[0];
     const result = await tool.execute('call-1', {}, undefined, (() => { throw new Error('boom'); }) as any);
-    expect(result.isError).toBeFalsy();
+    expect(readResultError(result.details)).toBe(false);
     expect(exec.calls).toHaveLength(1);
   });
 });
@@ -296,7 +278,7 @@ describe('PI005 security pipeline is the only execution path (no bypass)', () =>
 
     const result = await tool.execute(call('bash').id, {});
     expect(exec.calls).toHaveLength(0);          // never executed
-    expect(result.isError).toBe(true);
+    expect(readResultError(result.details)).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain('Permission denied');
   });
 
@@ -308,7 +290,7 @@ describe('PI005 security pipeline is the only execution path (no bypass)', () =>
 
     const result = await tool.execute(call('file_read').id, {});
     expect(exec.calls).toHaveLength(1);
-    expect(result.isError).toBeFalsy();
+    expect(readResultError(result.details)).toBe(false);
   });
 
   it('blocks when the auto-reviewer denies', async () => {
@@ -323,7 +305,7 @@ describe('PI005 security pipeline is the only execution path (no bypass)', () =>
 
     const result = await tool.execute(call('bash').id, {});
     expect(exec.calls).toHaveLength(0);          // never executed
-    expect(result.isError).toBe(true);
+    expect(readResultError(result.details)).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain('Auto-reviewer denied');
   });
 
@@ -361,10 +343,10 @@ describe('PI005 security pipeline is the only execution path (no bypass)', () =>
     expect(captured[0].sandboxRequired).toBe(true);
   });
 
-  it('forwards every yielded pipeline event to the ToolEventSink', async () => {
+  it('does not invent a capability event for a native tool result', async () => {
     const exec = recordingExecutor();
     registry.register(def('bash'), exec);
-    const events: AgentEvent[] = [];
+    const events: SvtonCapabilityEvent[] = [];
     const capturingSink: ToolEventSink = (ev) => events.push(ev);
     const service = new ToolExecutionService(
       registry, platform, '/project',
@@ -372,9 +354,9 @@ describe('PI005 security pipeline is the only execution path (no bypass)', () =>
     );
     const tool = buildAgentTools(registry, service, capturingSink)[0];
 
-    await tool.execute(call('bash').id, {});
-    // Permission-denied path yields a tool_call_end event through the sink.
-    expect(events.some((e) => e.type === 'tool_call_end')).toBe(true);
+    const result = await tool.execute(call('bash').id, {});
+    expect(events).toEqual([]);
+    expect(readResultError(result.details)).toBe(true);
   });
 });
 

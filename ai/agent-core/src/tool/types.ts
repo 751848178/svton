@@ -4,11 +4,29 @@
  * executors are platform-dependent implementations.
  */
 
-import type { ToolDefinition, ToolAnnotations } from '../provider/types';
+import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 
-// Re-export from provider
-export type { ToolDefinition, ToolAnnotations };
+export interface SvtonToolAnnotations {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
+export interface SvtonToolMetadata {
+  source?: 'builtin' | 'mcp' | 'integration' | 'subagent' | 'automation';
+  sourceId?: string;
+}
+
+/** Pi base tool contract plus Svton-owned product/security annotations. */
+export type SvtonToolParameters = AgentTool['parameters'];
+
+export type SvtonToolDefinition = Omit<AgentTool, 'execute' | 'label'> & {
+  label?: AgentTool['label'];
+  annotations?: SvtonToolAnnotations;
+  metadata?: SvtonToolMetadata;
+};
 
 export interface ToolCall {
   id: string;
@@ -38,6 +56,6 @@ export interface IToolExecutor {
 }
 
 export interface ToolEntry {
-  definition: ToolDefinition;
+  definition: SvtonToolDefinition;
   executor: IToolExecutor;
 }

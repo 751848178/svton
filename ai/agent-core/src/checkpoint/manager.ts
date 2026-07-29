@@ -14,7 +14,6 @@
  */
 
 import type { IStorage } from '@svton/agent-platform';
-import type { ChatMessage, ReasoningEffort } from '../provider/types';
 import type { SerializedRuntime, CheckpointMeta } from './types';
 import type { SvtonAgentRuntime } from '../agent/svton-agent-runtime';
 import { parseSerializedRuntime } from './checkpoint-state.utils';
@@ -96,6 +95,7 @@ export class SessionResumeManager {
 
   /** Apply an already-loaded checkpoint after the caller verifies ownership. */
   applyLoadedState(state: SerializedRuntime, runtime: SvtonAgentRuntime): void {
+    runtime.reset();
     runtime.setMessages(state.messages);
     if (state.reasoningEffort) runtime.setReasoningEffort(state.reasoningEffort);
   }

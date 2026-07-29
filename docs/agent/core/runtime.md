@@ -1,44 +1,23 @@
-# SvtonAgentRuntime 与事件流
+# SvtonAgentRuntime
 
-> 自 Pi Agent 迁移起,核心运行时由 `SvtonAgentRuntime` 担任——它是 pi-agent-core
-> `Agent` 之上的组合根(composition root)。Pi 负责循环、续轮、终止、消息源与工具
-> 调度;svton 负责能力管理器、审批门、上下文压缩与事件翻译。
+`SvtonAgentRuntime` 是 svton 对 Pi Agent 的组合根。Pi 是模型、消息状态、
+Agent 循环、工具调度和基础生命周期的唯一所有者；svton 只在它周围组合产品、
+安全与平台能力。
 
-## 架构概览
+## 所有权边界
 
-```
-用户消息
-   ↓
-┌──────────────────────────────────────────────┐
-│            SvtonAgentRuntime.run()           │
-│  (composition root over pi-agent-core Agent) │
-│                                              │
-│  ┌────────────────────────────────────────┐  │
-│  │ 1. 注入 Skill / Memory 上下文          │  │
-│  │ 2. 上下文压缩(SvtonCompactor)         │  │
-│  │ 3. Pi Agent.run()(循环/续轮/终止)     │  │
-│  │ 4. 工具调用经 ToolExecutionService:    │  │
-│  │    a. 权限检查                         │  │
-│  │    b. pre_tool_use 钩子                │  │
-│  │    c. 审批门(可选)                    │  │
-│  │    d. auto-reviewer(可选)             │  │
-│  │    e. 沙箱执行                         │  │
-│  │    f. post_tool_use 钩子               │  │
-│  │ 5. Pi 事件 → AgentEvent(pi-event-adapter)│
-│  └────────────────────────────────────────┘  │
-│                                              │
-│  输出: AsyncGenerator<AgentEvent>            │
-└──────────────────────────────────────────────┘
-```
+| 层 | 所有内容 |
+| --- | --- |
+| `@earendil-works/pi-ai` | provider/model 注册、请求与流解析、`Message` 内容 |
+| `@earendil-works/pi-agent-core` | `Agent`、`AgentMessage[]`、续轮、工具调度、原生生命周期 |
+| `@svton/agent-core` | 权限、审批、自动审查、沙箱、hooks、MCP、Skills、Memory、Planning、Subagents、Checkpoint |
+| `@svton/agent-client` | Session/Display DTO，以及唯一的 Pi→Display 投影 |
+| `@svton/agent-app` | Client Display→UI 的显式渲染投影 |
 
-`SvtonAgentRuntime` 把职责拆到多个 ≤200 行的文件:
-`runtime-run`(单轮循环)、`runtime-capabilities`(能力注入/MCP 桥接)、
-`runtime-lifecycle`(post-turn 钩子:记忆抽取 + checkpoint)、
-`runtime-compose`(构建 Pi Agent)、`runtime-helpers`(模型解析)、
-`pi-event-adapter`(Pi→svton 事件翻译)、`approval-gate`、
-`svton-compactor`、`message-bridge`。
+运行时内存中的对话事实只存在于 Pi `Agent.state.messages`。Display/Session
+对象用于持久化和渲染，不会反向成为另一套运行时协议。
 
-## 快速使用
+## 创建运行时
 
 ```typescript
 import {
@@ -59,160 +38,136 @@ const runtime = await SvtonAgentRuntime.createAsync(
     piModel: model,
     model: 'gpt-4o',
     toolRegistry: new ToolRegistry(),
-    workingDir: '/project',
+    workingDir: '/workspace',
   },
   new BrowserPlatform(),
 );
-
-for await (const event of runtime.run('分析项目结构')) {
-  if (event.type === 'text_delta') process.stdout.write(event.text);
-}
 ```
 
-> `AgentRuntime` 是 `SvtonAgentRuntime` 的别名,保留用于旧调用点(见
-> `agent-runtime-alias.ts`)。
+有 MCP 客户端时使用 `createAsync()`，它会先桥接工具。没有异步装配需求时可用
+`create()`。
 
 ## AgentConfig
 
 ```typescript
 interface AgentConfig {
-  models: Models;                  // pi-ai Models 集合(createPiModelsForProvider 返回)
-  piModel?: Model<any>;            // 已解析的 pi-ai Model(可选;省略则按 id 解析)
-  model: string;                   // 模型 id,如 "gpt-4o"
+  models: Models;
+  piModel?: Model;
+  model: string;
   toolRegistry: ToolRegistry;
   systemPrompt?: string;
-  initialMessages?: ChatMessage[]; // 初始对话(种子入 Pi state)
+  initialMessages?: AgentMessage[];
   contextConfig?: Partial<ContextConfig>;
-  maxIterations?: number;          // 默认 50
+  maxIterations?: number;
   workingDir?: string;
   capabilities?: AgentCapabilities;
+  reasoningEffort?: ReasoningEffort;
 }
 ```
 
-## 工厂方法
+`initialMessages` 直接种入 Pi state。工具定义基于 Pi `AgentTool`，svton 只附加
+安全注解和来源元数据。
 
-### SvtonAgentRuntime.create()(同步)
+## 原生事件协议
 
-不桥接 MCP 工具,适合不使用 MCP 的场景。
-
-### SvtonAgentRuntime.createAsync()(异步)
-
-初始化 MCP 客户端、桥接 MCP 工具到注册表,并重组系统提示词。**有 MCP 客户端
-时必须使用此方法**。
-
-## AgentEvent 事件协议
-
-`run()` 返回 `AsyncGenerator<AgentEvent>`。事件分两类(详见
-`agent/types.ts`):
-
-### Pi-base 事件(pi-agent-core 产生,由 pi-event-adapter 翻译)
-
-| 事件类型 | 字段 | 说明 |
-| --- | --- | --- |
-| `text_delta` | `text` | LLM 文本片段 |
-| `thinking_delta` | `thinking` | 思考过程片段 |
-| `tool_call_start` | `call: ToolCall` | 工具调用开始 |
-| `tool_call_progress` | `callId, message, arguments?` | 工具执行进度 |
-| `tool_call_end` | `result: ToolResult` | 工具调用结束 |
-| `error` | `error: Error` | 错误 |
-| `done` | `stopReason, usage` | 运行完成 |
-
-### svton-only 事件(Pi 不拥有的能力)
-
-| 事件类型 | 字段 | 说明 |
-| --- | --- | --- |
-| `tool_approval_needed` | `call, metadata?` | 需要用户审批 |
-| `context_compacted` | `summary` | 上下文已被压缩 |
-| `warning` | `text, source?` | 警告 |
-| `skill_activated` | `skills` | 技能被触发 |
-
-> 子代理不再有独立事件类型——它们通过 `subagent_spawn` 工具以普通
-> `tool_call_*` 事件浮现。
-
-## 迭代示例
+`run()` 返回 `AsyncGenerator<PublicRuntimeEvent>`：
 
 ```typescript
-for await (const event of runtime.run('帮我重构 src/utils.ts')) {
-  switch (event.type) {
-    case 'text_delta':
-      process.stdout.write(event.text);
-      break;
-    case 'tool_call_end':
-      if (event.result.isError) console.error('失败:', event.result.output);
-      break;
-    case 'tool_approval_needed':
-      // 需要用户确认
-      break;
-    case 'done':
-      console.log(`完成 (reason: ${event.stopReason}, tokens: ${event.usage.totalTokens})`);
-      break;
+type PublicRuntimeEvent = PiAgentEvent | SvtonCapabilityEvent;
+```
+
+`PiAgentEvent` 是上游 Pi `AgentEvent` 的公开别名。下列 Pi 事件对象会原样穿过
+运行时，不会被改名或翻译：
+
+- Agent：`agent_start`、`agent_end`
+- Turn：`turn_start`、`turn_end`
+- Message：`message_start`、`message_update`、`message_end`
+- Tool：`tool_execution_start`、`tool_execution_update`、`tool_execution_end`
+
+流式文本和 thinking 位于 `message_update.assistantMessageEvent`。工具结果位于
+Pi 的 `tool_execution_end` 和 canonical `toolResult` message 中。
+
+svton 仅增加四种 capability event：
+
+- `tool_approval_needed`
+- `context_compacted`
+- `warning`
+- `skill_activated`
+
+```typescript
+for await (const event of runtime.run('检查当前变更')) {
+  if (
+    event.type === 'message_update'
+    && event.assistantMessageEvent.type === 'text_delta'
+  ) {
+    process.stdout.write(event.assistantMessageEvent.delta);
+  }
+
+  if (event.type === 'tool_execution_update') {
+    console.log(event.toolName, event.partialResult);
+  }
+
+  if (event.type === 'tool_approval_needed') {
+    runtime.approveToolCall(event.call.id);
+  }
+
+  if (event.type === 'agent_end') {
+    console.log('Pi run settled', event.messages.length);
   }
 }
 ```
 
-## 中断运行
+注意：内层 `assistantMessageEvent.type === 'text_delta'` 是 Pi 的原生 assistant
+流事件，不是 svton 的顶层事件。
+
+## 结算、取消与并发
+
+- 同一 runtime 同时只允许一个 prompt。
+- `AbortSignal` 只取消它捕获的那次 Pi run；旧 run 不能终止新 run。
+- 消费者提前停止读取 generator 时，runtime 会取消并等待对应 run 进入 idle。
+- `agent_end` 监听器属于结算的一部分。Memory extraction 和 Checkpoint 会在
+  generator 完成前被等待。
+- approval wait 在 abort、reject 或 run teardown 时释放，不留下悬挂 promise。
 
 ```typescript
 const controller = new AbortController();
-setTimeout(() => controller.abort(), 5000);
-
-for await (const event of runtime.run('一个大任务', { signal: controller.signal })) {
-  if (event.type === 'done' && event.stopReason === 'aborted') console.log('已中断');
+const stream = runtime.run('长任务', { signal: controller.signal });
+controller.abort();
+for await (const event of stream) {
+  // 最终仍按 Pi 原生生命周期完成排空。
 }
-
-// 或直接调用:
-runtime.abort();
 ```
 
-## 工具审批
-
-权限系统决定某工具需要审批时,运行时发出 `tool_approval_needed` 事件并暂停:
+## Canonical message API
 
 ```typescript
-const pending = runtime.getPendingApprovals(); // Map<string, PendingApproval>
-for (const [callId, approval] of pending) {
-  approval.resolve(true);  // true=允许,false=拒绝
-}
-
-// 也可直接按 id 决策:
-runtime.approveToolCall(callId);
-runtime.rejectToolCall(callId);
+const messages = runtime.getMessages(); // AgentMessage[]
+runtime.setMessages(messages);
+runtime.rollbackCanonicalMessages(index);
+runtime.reset();
 ```
 
-## 其他 API
+`getMessages()` 返回 Pi canonical state 的浅拷贝。Retry/Edit 通过
+`rollbackCanonicalMessages()` 回滚到记录的 canonical index；Clear 和新会话
+通过 `reset()` 清除 Pi state、审批和 capability sink。
 
-- `getMessages()` — 当前完整消息历史(svton `ChatMessage[]`,从 Pi state 翻译)
-- `setMessages(messages)` — 重置 Pi state(模型切换/恢复场景)
-- `getModel()` / `setReasoningEffort(effort)` / `getReasoningEffort()`
-- `setPermissionManager(m)` / `setHookManager(m)` — 重建 ToolExecutionService
-- `setSubagentManager(m)` — 循环依赖,创建后注入
-- `switchAgentDefinition(name)` — 切换 Agent 定义(提示词/权限/工具过滤)
+## 工具安全路径
 
-## 运行模式(AgentMode)
+Pi 负责 schema 校验、批次、`executionMode`、进度与续轮。每个工具执行都经过
+同一个 `ToolExecutionService`：
 
-| 模式 | 说明 |
-| --- | --- |
-| `default` | 读操作自动通过,写操作和命令需审批 |
-| `plan` | 只允许只读操作,不修改任何文件 |
-| `auto` | 全自动模式,所有操作自动批准(慎用) |
+```
+abort → pre hook → skill gate → permission → auto review → approval
+      → sandbox/platform execute → redaction/audit → post hook
+```
 
-## post-turn 钩子
-
-`runtime-lifecycle.ts` 在每轮 `done` 后执行:
-
-- **记忆抽取**:`memoryManager.extractFromConversation(...)`(fire-and-forget,非致命)
-- **checkpoint**:`resumeManager.checkpoint(sessionId, runtime)`——序列化 Pi state
-  供会话恢复。`restore()` 通过 `setMessages` 把 Pi state 重新种回新运行时。
+MCP、Subagent 和内置工具都使用这条路径。`ToolExecutionService` 只返回
+`ToolResult` 并产生 capability event；工具基础生命周期只由 Pi 发出。
 
 ## 相关文档
 
-- [index](./index) — agent-core 总览
-- [Provider](./provider) — pi-ai 模型/provider 配置
-- [工具系统](./tools) — 工具注册与执行
-- [权限系统](./permission) — 运行时权限检查
-- [会话恢复](./memory) — checkpoint/resume
-
-## 参考
-
-- 设计文档:`docs-internal/design/pi-agent-migration-architecture.md`(§5.2 事件、§5.3 工具)
-- [pi-agent-core README](https://github.com/earendil-works/pi/blob/main/packages/agent/README.md)
+- [Provider 与模型](./provider)
+- [工具系统](./tools)
+- [权限](./permission)
+- [MCP](./mcp)
+- [Client 服务](../client/services)

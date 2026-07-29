@@ -4,6 +4,10 @@
 
 Svton Agent 是一套分层体系:核心运行时(`agent-core`)→ 客户端(`agent-client`)→ UI 组件(`agent-ui`)→ 平台适配(`agent-platform`)→ 应用(`agent-app` / `agent-web`)。
 
+基础契约由 Pi 独占：`pi-ai` 提供模型和消息，`pi-agent-core` 提供 Agent
+state、工具调度和原生生命周期。svton 只增加产品/安全能力；Session/Display
+类型只存在于 Client→UI 的显式渲染和持久化边界，不是第二套运行时协议。
+
 ## 章节导航
 
 - **[集成指南](./integration)** — 从零把 Svton Agent 接入你的应用(Tauri / Web / 自定义工具 / Chrome 控制 / Computer Use)

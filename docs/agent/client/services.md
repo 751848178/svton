@@ -17,13 +17,18 @@
 
 ## ChatService
 
-聊天服务是整个 Agent 客户端的核心。它封装了 `AgentRuntime`，负责：
+聊天服务是整个 Agent 客户端的核心。它组合 `SvtonAgentRuntime`，负责：
 
 - 管理当前会话的消息列表与运行状态
 - 发送消息、处理流式事件、路由到正确的会话
 - 工具调用的审批流程（pending → approved/rejected）
 - 后台流式运行（用户切换会话后，原会话的流继续执行）
 - 模型切换时保留消息历史
+
+Pi `AgentMessage[]` 是运行时唯一对话事实。`DisplayMessage` 和这里合法的
+`ContentBlock` 是 Client Session/UI DTO；二者只通过
+`pi-message-display-boundary.utils.ts` 从 Pi state 投影，不构成第二套
+消息或事件协议。
 
 ### Observable 属性
 
@@ -32,11 +37,11 @@ class ChatService {
   @observable() messages: DisplayMessage[] = [];
   @observable() status: ChatStatus = 'idle';
   @observable() currentModel: string = '';
-  @observable() lastUsage: TokenUsage | null = null;
+  @observable() lastUsage: Usage | null = null;
   @observable() activePlan: PlanProgress | null = null;
   @observable() activeSessionId: string | null = null;
 
-  @computed() get isStreaming(): boolean;            // status === 'running'
+  @computed() get isStreaming(): boolean;            // running 或 waiting_approval
   @computed() get hasPendingApprovals(): boolean;    // pendingToolCalls.size > 0
 }
 ```
@@ -46,17 +51,17 @@ class ChatService {
 | `messages` | `DisplayMessage[]` | 当前活跃会话的消息列表 |
 | `status` | `ChatStatus` | `'idle' \| 'running' \| 'waiting_approval' \| 'error'` |
 | `currentModel` | `string` | 当前使用的模型名称 |
-| `lastUsage` | `TokenUsage \| null` | 最近一次运行的 token 统计 |
+| `lastUsage` | `Usage \| null` | 最近一次 Pi assistant message 的 usage |
 | `activePlan` | `PlanProgress \| null` | 当前计划进度 |
 | `activeSessionId` | `string \| null` | 当前绑定的会话 ID |
-| `isStreaming` | `boolean` | 是否正在流式运行（计算属性） |
+| `isStreaming` | `boolean` | `status === 'running' || status === 'waiting_approval'` |
 | `hasPendingApprovals` | `boolean` | 是否有待审批的工具调用（计算属性） |
 
 ### 核心方法
 
 #### init(platform, config)
 
-初始化 ChatService，创建 AgentRuntime。
+初始化 ChatService，创建 `SvtonAgentRuntime`。
 
 ```ts
 @action()
@@ -76,8 +81,9 @@ import type { AgentConfig } from '@svton/agent-core';
 const chatService = container.resolve(ChatService);
 
 const config: AgentConfig = {
+  models,
+  piModel: model,
   model: 'gpt-4o',
-  apiKey: process.env.OPENAI_API_KEY,
   workingDir: '/path/to/project',
   toolRegistry: registry,
 };
@@ -97,7 +103,9 @@ async sendMessage(
 ): Promise<void>
 ```
 
-- 如果 `status === 'running'`，直接返回（不排队）。
+- 如果 `canSend` 为 false，直接返回（不排队）。这覆盖 Runtime 未初始化、
+  `running` / `waiting_approval`、已有 run 所有权，以及后台会话或当前会话
+  不拥有 Runtime 的情况。
 - 创建用户消息追加到 `messages`，然后调用内部的 `runAssistant()`。
 
 ```ts
@@ -727,7 +735,7 @@ class TauriStorageAdapter implements IStorage {
    │      └─→ ChatService.sendMessage(content)
    │            │
    │            ├─→ 添加用户消息到 messages
-   │            ├─→ AgentRuntime.run() → 流式事件
+   │            ├─→ SvtonAgentRuntime.run() → 原生 Pi + Svton capability 事件
    │            └─→ status: 'idle' → 自动触发 useSession 的保存
    │                  │
    │                  └─→ SessionService.saveSession(data)

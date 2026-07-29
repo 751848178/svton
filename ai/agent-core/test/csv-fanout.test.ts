@@ -12,8 +12,15 @@ import type {
   ToolContext,
   IToolExecutor,
 } from '@svton/agent-core';
-import type { AgentConfig, AgentRuntime as AgentRuntimeType } from '@svton/agent-core';
-import type { IPlatform } from '@svton/agent-platform';
+import type { AgentConfig, IRuntime } from '@svton/agent-core';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
+import {
+  createMockModels,
+  createMockPlatform,
+  fauxAssistantMessage,
+  fauxText,
+  nativeAssistantLifecycle,
+} from './helpers';
 
 // ==============================================================
 // Mock Helpers
@@ -43,35 +50,29 @@ function createParentToolRegistry(): ToolRegistry {
   return registry;
 }
 
-function createMockPlatform(): IPlatform {
+function createParentConfig(toolRegistry: ToolRegistry): AgentConfig {
+  const mock = createMockModels();
   return {
-    type: 'tauri',
-    capabilities: {
-      filesystem: true,
-      process: true,
-      watch: false,
-      mcpStdio: false,
-      clipboard: false,
-      notification: false,
-    },
-    fs: {} as any,
-    process: {} as any,
-    storage: {} as any,
-    search: {} as any,
+    models: mock.models,
+    piModel: mock.model,
+    model: 'test-model',
+    toolRegistry,
   };
 }
 
-function createMockRuntime() {
+function createMockRuntime(): IRuntime {
+  const messages: AgentMessage[] = [
+    fauxAssistantMessage([fauxText('subagent result')]),
+  ];
   return {
-    run: vi.fn(async function* (): AsyncGenerator<any> {
-      yield { type: 'text_delta', text: 'subagent result' };
-      yield {
-        type: 'done',
-        stopReason: 'stop',
-        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
-      };
+    run: vi.fn(async function* () {
+      for (const event of nativeAssistantLifecycle({
+        content: 'subagent result',
+        usage: { input: 10, output: 5, totalTokens: 15 },
+      })) yield event;
     }),
-    getMessages: vi.fn(() => []),
+    getMessages: vi.fn(() => messages),
+    reset: vi.fn(),
     abort: vi.fn(),
   };
 }
@@ -90,24 +91,11 @@ describe('F6 — CSV Fan-out', () => {
     beforeEach(() => {
       const toolRegistry = createParentToolRegistry();
       const platform = createMockPlatform();
-      const parentConfig: AgentConfig = {
-        provider: {
-          name: 'mock',
-          models: [],
-          chat: async function* () {
-            yield { type: 'done', stopReason: 'stop' } as any;
-          },
-          countTokens: () => 1,
-          supportsToolUse: () => true,
-          supportsVision: () => false,
-        },
-        model: 'test-model',
-        toolRegistry,
-      };
+      const parentConfig = createParentConfig(toolRegistry);
       const mockRuntime = createMockRuntime();
       subagentManager = new SubagentManager(
         parentConfig,
-        mockRuntime as any,
+        mockRuntime,
         platform,
         toolRegistry,
       );
@@ -222,24 +210,11 @@ describe('F6 — CSV Fan-out', () => {
     beforeEach(() => {
       const toolRegistry = createParentToolRegistry();
       const platform = createMockPlatform();
-      const parentConfig: AgentConfig = {
-        provider: {
-          name: 'mock',
-          models: [],
-          chat: async function* () {
-            yield { type: 'done', stopReason: 'stop' } as any;
-          },
-          countTokens: () => 1,
-          supportsToolUse: () => true,
-          supportsVision: () => false,
-        },
-        model: 'test-model',
-        toolRegistry,
-      };
+      const parentConfig = createParentConfig(toolRegistry);
       const mockRuntime = createMockRuntime();
       subagentManager = new SubagentManager(
         parentConfig,
-        mockRuntime as any,
+        mockRuntime,
         platform,
         toolRegistry,
       );
@@ -320,24 +295,11 @@ describe('F6 — CSV Fan-out', () => {
     beforeEach(() => {
       const toolRegistry = createParentToolRegistry();
       const platform = createMockPlatform();
-      const parentConfig: AgentConfig = {
-        provider: {
-          name: 'mock',
-          models: [],
-          chat: async function* () {
-            yield { type: 'done', stopReason: 'stop' } as any;
-          },
-          countTokens: () => 1,
-          supportsToolUse: () => true,
-          supportsVision: () => false,
-        },
-        model: 'test-model',
-        toolRegistry,
-      };
+      const parentConfig = createParentConfig(toolRegistry);
       const mockRuntime = createMockRuntime();
       subagentManager = new SubagentManager(
         parentConfig,
-        mockRuntime as any,
+        mockRuntime,
         platform,
         toolRegistry,
       );

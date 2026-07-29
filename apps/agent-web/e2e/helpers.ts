@@ -11,6 +11,25 @@
 import type { Page } from '@playwright/test';
 import { E2E_QUEUE_GLOBAL, E2E_FLAG_KEY, E2E_ERROR_MARKER } from '../src/lib/e2e-constants';
 
+export const SHOTS = 'e2e/.screenshots';
+
+export async function appReady(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.getByTestId('chat-input').waitFor({
+    state: 'visible',
+    timeout: 30_000,
+  });
+}
+
+export async function send(page: Page, text: string): Promise<void> {
+  await page.getByTestId('chat-input').fill(text);
+  await page.getByTestId('send-button').click();
+}
+
+export const lastAssistant = (page: Page) => (
+  page.getByTestId('message-assistant').last()
+);
+
 /**
  * Build an `AssistantMessage`-shaped object matching pi-ai's
  * `fauxAssistantMessage` output. Inlined here (rather than imported from
@@ -85,6 +104,7 @@ export async function seedE2e(
     };
     window.localStorage.setItem('agent-web:settings', JSON.stringify([provider]));
     window.localStorage.setItem('agent-web:defaultModel', 'e2e::e2e-test-model');
+    window.localStorage.setItem('agent-web:searchEndpoint', 'https://search.test/api');
     const flag: Record<string, unknown> = { modelId: 'e2e-test-model', family: 'openai' };
     if (effort) flag.reasoningEffort = effort;
     window.localStorage.setItem('agent-web:e2e', JSON.stringify(flag));

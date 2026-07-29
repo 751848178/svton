@@ -1,4 +1,5 @@
 import type { HookManager } from '../hooks/manager';
+import type { HookContext } from '../hooks/types';
 import type { ToolCall, ToolResult } from '../tool/types';
 
 export interface PreToolUseHookOutcome {
@@ -12,7 +13,7 @@ export async function runPreToolUseHook(
 ): Promise<PreToolUseHookOutcome> {
   if (!hookManager) return { deniedResult: null, toolCall: call };
 
-  const hookContext = {
+  const hookContext: HookContext = {
     event: 'pre_tool_use',
     toolName: call.name,
     toolCall: call,

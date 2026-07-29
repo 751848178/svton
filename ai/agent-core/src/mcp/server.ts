@@ -9,13 +9,19 @@ import type {
 } from './types';
 import type { ToolRegistry } from '../tool/registry';
 import type { ToolCall, ToolResult as ToolCallResult } from '../tool/types';
+import type { SvtonCapabilityEvent } from '../agent/types';
+import { settleToolExecution } from '../agent/tool-execution-settlement.utils';
 import { formatUnknownErrorMessage } from '../utils/error-message.utils';
+import { cloneMcpToolSchema } from './mcp-tool-schema.utils';
 
 /** Security-gated execution shape for inbound tool calls. Must be the same
  * `ToolExecutionService` the runtime uses so inbound MCP calls cannot bypass
  * the security pipeline (§5.3/§7.4). */
 export type McpInboundToolExecutionService = {
-  execute: (call: ToolCall, signal?: AbortSignal) => AsyncGenerator<{ type: string; result?: ToolCallResult }, void, unknown>;
+  execute: (
+    call: ToolCall,
+    signal?: AbortSignal,
+  ) => AsyncGenerator<SvtonCapabilityEvent, ToolCallResult>;
 };
 
 /**
@@ -149,7 +155,7 @@ export class MCPServer {
     return this.toolRegistry.listDefinitions().map((def) => ({
       name: def.name,
       description: def.description,
-      inputSchema: def.parameters,
+      inputSchema: cloneMcpToolSchema(def.parameters),
     }));
   }
 
@@ -179,19 +185,11 @@ export class MCPServer {
       };
     }
 
-    let output = '';
-    let isError = false;
-    for await (const ev of this.toolExecutionService.execute(call)) {
-      if (ev.type === 'tool_call_end' && ev.result) {
-        output = ev.result.output;
-        isError = ev.result.isError === true;
-      }
-    }
+    const result = await settleToolExecution(this.toolExecutionService.execute(call));
 
     return {
-      content: [{ type: 'text', text: output }],
-      isError,
+      content: [{ type: 'text', text: result.output }],
+      isError: result.isError === true,
     };
   }
-
 }

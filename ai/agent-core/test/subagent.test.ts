@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SubagentManager, ToolRegistry } from '@svton/agent-core';
 import type { IToolExecutor, ToolCall, ToolResult, SubagentConfig } from '@svton/agent-core';
-import type { AgentConfig, AgentRuntime as AgentRuntimeType } from '@svton/agent-core';
+import type { AgentConfig, IRuntime } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
-import { createMockModels, fauxAssistantMessage, fauxText } from './helpers';
+import {
+  createMockModels,
+  fauxAssistantMessage,
+  fauxText,
+  nativeAssistantLifecycle,
+  nativeTextDelta,
+} from './helpers';
 
 // ============================================================
 // Helpers
@@ -56,14 +62,14 @@ function createMockPlatform(): IPlatform {
 
 // ============================================================
 // The SubagentManager internally uses require('../agent/runtime')
-// which calls AgentRuntime.create(). Since vi.mock cannot intercept
+// which calls SvtonAgentRuntime.create(). Since vi.mock cannot intercept
 // bare require() calls that bypass vitest's module system, we test
 // what we can: construction, spawn result structure, summarize
 // behavior, and spawnParallel.
 //
 // For tool registry building tests, we create a minimal test that
 // verifies the SubagentManager's buildToolRegistry logic by examining
-// the arguments passed to AgentRuntime.create through a spy on the
+// the arguments passed to SvtonAgentRuntime.create through a spy on the
 // constructor parameter of the parent config.
 // ============================================================
 
@@ -71,17 +77,14 @@ describe('SubagentManager', () => {
   let toolRegistry: ToolRegistry;
   let platform: IPlatform;
   let parentConfig: AgentConfig;
-  let mockRuntime: {
-    run: ReturnType<typeof vi.fn>;
-    getMessages: ReturnType<typeof vi.fn>;
-  };
+  let mockRuntime: IRuntime;
 
   beforeEach(() => {
     toolRegistry = createParentToolRegistry();
     platform = createMockPlatform();
 
     // PI003: AgentConfig uses a pi-ai Models collection (+ resolved Model)
-    // instead of the deleted IProvider. The child runtime built by
+    // through canonical Pi Models. The child runtime built by
     // SubagentManager consumes this directly.
     const mock = createMockModels();
     // Pre-queue a response so the spawned subagent runtime can complete.
@@ -98,25 +101,25 @@ describe('SubagentManager', () => {
     };
 
     mockRuntime = {
-      run: vi.fn(function* () {
-        yield { type: 'text_delta', text: 'Task completed.' };
-        yield {
-          type: 'done',
-          stopReason: 'stop',
-          usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
-        };
+      run: vi.fn(async function* () {
+        yield nativeTextDelta('Task completed.');
+        for (const event of nativeAssistantLifecycle({ content: 'Task completed.' })) {
+          yield event;
+        }
       }),
       getMessages: vi.fn(() => [
-        { role: 'user', content: 'Do something' },
-        { role: 'assistant', content: 'Task completed.' },
+        { role: 'user', content: 'Do something', timestamp: 1 },
+        fauxAssistantMessage([fauxText('Task completed.')]),
       ]),
+      reset: vi.fn(),
+      abort: vi.fn(),
     };
   });
 
   function createManager(): SubagentManager {
     return new SubagentManager(
       parentConfig,
-      mockRuntime as unknown as AgentRuntimeType,
+      mockRuntime,
       platform,
       toolRegistry,
     );
@@ -159,9 +162,9 @@ describe('SubagentManager', () => {
 
       const result = await manager.spawn({ task: 'test' });
 
-      // When AgentRuntime.create is called internally, it returns a real runtime
+      // When SvtonAgentRuntime.create is called internally, it returns a real runtime
       // whose run() generator yields events. The usage comes from the done event.
-      // The actual usage depends on what the real AgentRuntime does with the mock provider.
+      // The actual usage depends on what the real SvtonAgentRuntime does with the mock provider.
       // At minimum, the result should have a usage object.
       expect(result.usage).toHaveProperty('promptTokens');
       expect(result.usage).toHaveProperty('completionTokens');
@@ -179,7 +182,7 @@ describe('SubagentManager', () => {
 
       const manager = new SubagentManager(
         badConfig,
-        mockRuntime as unknown as AgentRuntimeType,
+        mockRuntime,
         platform,
         toolRegistry,
       );
@@ -188,7 +191,7 @@ describe('SubagentManager', () => {
 
       // The spawn should handle the error gracefully
       expect(result.agentId).toMatch(/^subagent_/);
-      // Success/failure depends on whether the internal AgentRuntime.create throws
+      // Success/failure depends on whether the internal SvtonAgentRuntime.create throws
       // but the result should always have the correct structure
       expect(typeof result.success).toBe('boolean');
     });
@@ -250,7 +253,7 @@ describe('SubagentManager', () => {
 
   describe('summarize behavior', () => {
     it('summarize uses getMessages from the runtime', async () => {
-      // The real AgentRuntime is created internally and its getMessages() is called.
+      // The real SvtonAgentRuntime is created internally and its getMessages() is called.
       // We cannot mock the internal runtime's getMessages directly since it goes through require.
       // But we can verify the result has a summary field.
       const manager = createManager();
@@ -264,7 +267,7 @@ describe('SubagentManager', () => {
       const manager = createManager();
       const result = await manager.spawn({ task: 'test' });
 
-      // The internal AgentRuntime will run with our mock provider which yields nothing useful.
+      // The internal SvtonAgentRuntime will run with our mock provider which yields nothing useful.
       // When no assistant message with content is found, the default summary is used.
       expect(result.summary).toBeDefined();
       expect(result.summary.length).toBeGreaterThan(0);
@@ -276,7 +279,7 @@ describe('SubagentManager', () => {
       const manager = createManager();
 
       // We can't easily inspect the internal tool registry created by buildToolRegistry
-      // since it's passed to the internally-created AgentRuntime. But we can verify
+      // since it's passed to the internally-created SvtonAgentRuntime. But we can verify
       // that spawn completes without error when tools are specified.
       const result = await manager.spawn({
         task: 'Restricted task',

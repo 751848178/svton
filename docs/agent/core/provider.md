@@ -33,9 +33,8 @@
 
 关键点:
 
-- **svton 不再有 `IProvider` 接口**——历史里的 `OpenAIProvider`/`AnthropicProvider`
-  类、`StreamEvent`/`ChatOptions` 类型已在 PI002/PI003 删除。运行时通过
-  pi-ai 的 `Models` 对象直接调用。
+- **没有自定义 provider 抽象或 wire parser**。运行时直接使用 pi-ai
+  `Models`；模型请求、流解析和 provider 差异由 Pi 维护。
 - **凭证隔离**:`SvtonPiCredentialStore` 在 `agent-core` 与上游凭证存储之间
   划一条边界,API key 在请求级别透传(`AuthResolutionOverrides.apiKey`),
   不依赖 pi-ai 的环境变量回退。
@@ -52,6 +51,7 @@ import { createPiModelsForProvider } from '@svton/agent-core';
 
 const { models, model } = createPiModelsForProvider('gpt-4o', {
   family: 'openai',
+  api: 'openai-responses',                  // 可选;见下方默认路由规则
   apiKey: process.env.OPENAI_API_KEY!,
   baseUrl: 'https://api.openai.com/v1',   // 可选;DeepSeek/Ollama 换成对应地址
   models: [                                // svton UI 模型目录(可选,用于能力提示)
@@ -67,6 +67,7 @@ const { models, model } = createPiModelsForProvider('gpt-4o', {
 ```typescript
 interface CreatePiModelsOptions {
   family: 'openai' | 'anthropic';
+  api?: 'anthropic-messages' | 'openai-completions' | 'openai-responses';
   apiKey?: string;
   baseUrl?: string;
   models?: ModelInfo[];   // svton UI 模型目录
@@ -100,9 +101,10 @@ interface ModelInfo {
 
 ```typescript
 interface ProviderConfig {
-  family: 'openai' | 'anthropic';
+  type: 'openai' | 'anthropic' | (string & {});
   apiKey?: string;
   baseUrl?: string;
+  name?: string;
   models: Array<{
     id: string;
     name: string;
@@ -115,12 +117,23 @@ interface ProviderConfig {
 }
 ```
 
-## 内置 provider 家族
+`ProviderConfig.type` 是应用层的 provider 家族字段。`createAgentConfig` 会把
+`type === 'anthropic'` 映射为 `family: 'anthropic'`;其余类型走
+`family: 'openai'`。`family` 只属于 Core 的 `CreatePiModelsOptions`,不是
+`ProviderConfig` 字段。
 
-| family | pi-ai provider | 默认 baseUrl | 默认 API |
+## Provider 家族与默认路由
+
+| 场景 | pi-ai provider | 解析后的默认 baseUrl | 未显式传 `api` 时的协议 |
 | --- | --- | --- | --- |
-| `openai` | `openaiProvider()` | `https://api.openai.com/v1` | `openai-responses` |
-| `anthropic` | `anthropicProvider()` | `https://api.anthropic.com/v1` | `anthropic-messages` |
+| 官方 OpenAI(未传 URL,或 host 为 `api.openai.com`) | `openaiProvider()` | `https://api.openai.com/v1` | `openai-responses` |
+| 自定义 OpenAI-compatible(DeepSeek/Ollama/vLLM 等) | `openaiProvider()` | 保留配置值(移除末尾 `/`) | `openai-completions` |
+| Anthropic | `anthropicProvider()` | `https://api.anthropic.com` | `anthropic-messages` |
+
+`api` 与认证家族相互独立:OpenAI 家族可显式选择
+`openai-completions` 或 `openai-responses`;Anthropic 家族只接受
+`anthropic-messages`。因此官方 OpenAI 默认走 Responses API,而自定义
+OpenAI-compatible URL 默认走 Chat Completions,无需依赖模型 id 猜测协议。
 
 ## 示例:连接 Anthropic
 
@@ -136,6 +149,8 @@ const { models, model } = createPiModelsForProvider('claude-sonnet-4-20250514', 
 ```typescript
 const { models, model } = createPiModelsForProvider('deepseek-chat', {
   family: 'openai',
+  // 自定义 OpenAI-compatible URL 未传 api 时也默认 openai-completions。
+  api: 'openai-completions',
   apiKey: process.env.DEEPSEEK_API_KEY!,
   baseUrl: 'https://api.deepseek.com',
   models: [
@@ -147,7 +162,7 @@ const { models, model } = createPiModelsForProvider('deepseek-chat', {
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — Pi Agent 循环 + 事件流
+- [SvtonAgentRuntime](./runtime) — Pi Agent 循环 + 原生事件流
 - [工具系统](./tools) — 工具定义与执行
 - [权限系统](./permission) — 运行时权限检查
 

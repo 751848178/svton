@@ -3,14 +3,14 @@ import 'reflect-metadata';
 import { ChatService } from '../src/service/chat.service';
 import type { DisplayMessage } from '../src/types';
 import {
-  AgentRuntime,
+  SvtonAgentRuntime,
   ToolRegistry,
   fauxAssistantMessage,
   fauxText,
 } from '@svton/agent-core';
 import type {
-  AgentEvent,
-  ToolDefinition,
+  PublicRuntimeEvent,
+  SvtonToolDefinition,
   ToolCall,
   ToolResult,
   ToolContext,
@@ -21,6 +21,15 @@ import {
   buildPiAgentConfig,
   EventScripter,
   makeBrowserPlatform,
+  nativeAssistantLifecycle,
+  nativeAgentEnd,
+  nativeError,
+  nativeTextDelta,
+  nativeThinkingDelta,
+  nativeToolEnd,
+  nativeToolStart,
+  nativeToolUpdate,
+  nativeTurnBoundary,
   type MockModelsHandle,
 } from './helpers/pi-test-utils';
 
@@ -28,7 +37,7 @@ import {
 // Mock executor + config (Pi-backed runtime, no provider contract)
 // ==============================================================
 
-const testToolDef: ToolDefinition = {
+const testToolDef: SvtonToolDefinition = {
   name: 'test_tool',
   description: 'A test tool',
   parameters: {
@@ -55,6 +64,12 @@ function createConfig() {
   return buildPiAgentConfig({ toolRegistry: registry }).config;
 }
 
+function getInitializedRuntime(chat: ChatService): SvtonAgentRuntime {
+  const runtime = chat['runtime'];
+  if (!runtime) throw new Error('ChatService runtime is not initialized');
+  return runtime;
+}
+
 // ==============================================================
 // Tests
 // ==============================================================
@@ -68,10 +83,10 @@ describe('ChatService', () => {
     scripter = null;
   });
 
-  /** Init the service and start scripting runtime.run with queued AgentEvents. */
+  /** Init the service and start scripting runtime.run with queued PublicRuntimeEvents. */
   async function initScripted(config = createConfig()): Promise<EventScripter> {
     await service.init(mockPlatform, config);
-    scripter = new EventScripter(service as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<AgentEvent> } });
+    scripter = new EventScripter(service as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<PublicRuntimeEvent> } });
     return scripter;
   }
 
@@ -98,12 +113,12 @@ describe('ChatService', () => {
     it('preserves messages across model switches', async () => {
       const config1 = createConfig();
       await service.init(mockPlatform, config1);
-      scripter = new EventScripter(service as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<AgentEvent> } });
+      scripter = new EventScripter(service as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<PublicRuntimeEvent> } });
 
       // Simulate a message
       scripter.addResponse([
-        { type: 'text_delta', text: 'Hello' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Hello'),
+        nativeAgentEnd(),
       ]);
       await service.sendMessage('Hi');
       expect(service.messages.length).toBeGreaterThanOrEqual(2);
@@ -120,7 +135,7 @@ describe('ChatService', () => {
     });
 
     it('skips re-initialization with the same config object', async () => {
-      const spy = vi.spyOn(AgentRuntime, 'createAsync');
+      const spy = vi.spyOn(SvtonAgentRuntime, 'createAsync');
       const config = createConfig();
       await service.init(mockPlatform, config);
       const beforeModel = service.currentModel;
@@ -132,7 +147,7 @@ describe('ChatService', () => {
     });
 
     it('re-initializes when runtime config changes without changing model or workingDir', async () => {
-      const spy = vi.spyOn(AgentRuntime, 'createAsync');
+      const spy = vi.spyOn(SvtonAgentRuntime, 'createAsync');
       const config1 = createConfig();
       const config2 = createConfig();
       await service.init(mockPlatform, config1);
@@ -142,7 +157,7 @@ describe('ChatService', () => {
     });
 
     it('uses runtimeKey to skip semantically identical configs', async () => {
-      const spy = vi.spyOn(AgentRuntime, 'createAsync');
+      const spy = vi.spyOn(SvtonAgentRuntime, 'createAsync');
       const config1 = createConfig();
       const config2 = createConfig();
       await service.init(mockPlatform, config1, 'same-runtime');
@@ -189,8 +204,8 @@ describe('ChatService', () => {
 
     it('sends a user message and receives assistant response', async () => {
       scripter.addResponse([
-        { type: 'text_delta', text: 'Hi there!' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Hi there!'),
+        nativeAgentEnd(),
       ]);
 
       await service.sendMessage('Hello');
@@ -205,8 +220,8 @@ describe('ChatService', () => {
 
     it('sets status to idle after completion', async () => {
       scripter.addResponse([
-        { type: 'text_delta', text: 'Done' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Done'),
+        nativeAgentEnd(),
       ]);
 
       await service.sendMessage('Go');
@@ -238,8 +253,8 @@ describe('ChatService', () => {
 
     it('records duration on the assistant message', async () => {
       scripter.addResponse([
-        { type: 'text_delta', text: 'Fast' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Fast'),
+        nativeAgentEnd(),
       ]);
 
       await service.sendMessage('Quick');
@@ -247,10 +262,10 @@ describe('ChatService', () => {
       expect(assistant?.duration).toBeGreaterThanOrEqual(0);
     });
 
-    it('stores lastUsage from done event', async () => {
+    it('stores lastUsage from native agent settlement', async () => {
       scripter.addResponse([
-        { type: 'text_delta', text: 'Response' },
-        { type: 'done', stopReason: 'stop', usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 } },
+        nativeTextDelta('Response'),
+        nativeAgentEnd({ input: 10, output: 5, totalTokens: 15 }),
       ]);
 
       await service.sendMessage('Test');
@@ -258,11 +273,11 @@ describe('ChatService', () => {
       expect(service.lastUsage!.totalTokens).toBe(15);
     });
 
-    it('handles thinking_delta events', async () => {
+    it('handles native thinking message updates', async () => {
       scripter.addResponse([
-        { type: 'thinking_delta', thinking: 'Let me think...' },
-        { type: 'text_delta', text: 'Answer' },
-        { type: 'done', stopReason: 'stop' },
+        nativeThinkingDelta('Let me think...'),
+        nativeTextDelta('Answer'),
+        nativeAgentEnd(),
       ]);
 
       await service.sendMessage('Think');
@@ -274,7 +289,7 @@ describe('ChatService', () => {
     it('handles streaming error', async () => {
       // Make runtime.run throw to simulate an API error during streaming.
       vi.spyOn((service as any).runtime, 'run').mockImplementation(() => {
-        const gen: AsyncGenerator<AgentEvent> = (async function* () {
+        const gen: AsyncGenerator<PublicRuntimeEvent> = (async function* () {
           throw new Error('API error');
         })();
         return gen as any;
@@ -287,8 +302,8 @@ describe('ChatService', () => {
 
     it('does nothing when status is running', async () => {
       scripter.addResponse([
-        { type: 'text_delta', text: 'First' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('First'),
+        nativeAgentEnd(),
       ]);
 
       // Start a message (it's synchronous in queueing, but async in streaming)
@@ -298,8 +313,8 @@ describe('ChatService', () => {
       expect(service.status).toBe('idle');
       // Now send again should work
       scripter.addResponse([
-        { type: 'text_delta', text: 'Second' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Second'),
+        nativeAgentEnd(),
       ]);
       await service.sendMessage('Second');
       expect(service.messages.length).toBe(4);
@@ -431,8 +446,8 @@ describe('ChatService', () => {
       const donePromise = new Promise<void>((r) => { resolveDone = r; });
 
       scripter.addResponse([
-        { type: 'text_delta', text: 'Partial' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Partial'),
+        nativeAgentEnd(),
       ]);
 
       // Start sending but don't await yet — abort in the middle
@@ -446,6 +461,30 @@ describe('ChatService', () => {
 
       expect(service.messages[0].isStreaming).toBe(false);
       expect(service.status).toBe('idle');
+    });
+
+    it('blocks same-runtime reuse until an aborted generator settles', async () => {
+      let releaseRun: (() => void) | null = null;
+      let markStarted: () => void = () => {};
+      const started = new Promise<void>((resolve) => { markStarted = resolve; });
+      scripter.addStream(async function* () {
+        yield nativeTextDelta('working');
+        markStarted();
+        await new Promise<void>((resolve) => { releaseRun = resolve; });
+        yield* nativeAssistantLifecycle({ stopReason: 'aborted' });
+      });
+
+      const firstRun = service.sendMessage('first');
+      await started;
+      service.abort();
+      expect(service.canSend).toBe(false);
+
+      await service.sendMessage('must be blocked');
+      expect(service.messages.filter((message) => message.role === 'user')).toHaveLength(1);
+
+      releaseRun?.();
+      await firstRun;
+      expect(service.canSend).toBe(true);
     });
 
     it('clears pending approvals and marks them errored', async () => {
@@ -601,12 +640,12 @@ describe('ChatService', () => {
 
     it('clears all messages and resets state', async () => {
       scripter.addResponse([
-        { type: 'text_delta', text: 'Hi' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Hi'),
+        nativeAgentEnd(),
       ]);
       await service.sendMessage('Hello');
 
-      service.clearMessages();
+      await service.clearMessages();
 
       expect(service.messages).toEqual([]);
       expect(service.status).toBe('idle');
@@ -784,12 +823,11 @@ describe('ChatService', () => {
       scripter = await initScripted();
     });
 
-    it('handles tool_call_start and tool_call_end events', async () => {
-      // AgentEvent format: tool_call_start carries a ToolCall; tool_call_end carries a ToolResult.
+    it('handles native tool execution start and end events', async () => {
       scripter.addResponse([
-        { type: 'tool_call_start', call: { id: 'tc1', name: 'test_tool', arguments: { key: 'val' } } },
-        { type: 'tool_call_end', result: { callId: 'tc1', output: 'done', isError: false } },
-        { type: 'done', stopReason: 'stop' },
+        nativeToolStart({ id: 'tc1', name: 'test_tool', arguments: { key: 'val' } }),
+        nativeToolEnd({ callId: 'tc1', output: 'done', isError: false }),
+        nativeAgentEnd(),
       ]);
 
       await service.sendMessage('Use tool');
@@ -802,11 +840,11 @@ describe('ChatService', () => {
 
     it('updates blocks for tool calls', async () => {
       scripter.addResponse([
-        { type: 'text_delta', text: 'Let me check...' },
-        { type: 'tool_call_start', call: { id: 'tc1', name: 'read_file', arguments: { path: '/test' } } },
-        { type: 'tool_call_end', result: { callId: 'tc1', output: 'contents', isError: false } },
-        { type: 'text_delta', text: ' Here is the result.' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Let me check...'),
+        nativeToolStart({ id: 'tc1', name: 'read_file', arguments: { path: '/test' } }),
+        nativeToolEnd({ callId: 'tc1', output: 'contents', isError: false }),
+        nativeTextDelta(' Here is the result.'),
+        nativeAgentEnd(),
       ]);
 
       await service.sendMessage('Read file');
@@ -818,20 +856,68 @@ describe('ChatService', () => {
       expect(assistant!.blocks![0].type).toBe('text');
     });
 
-    it('ignores late stream events after final done', async () => {
-      const run = vi.spyOn((service as any).runtime, 'run');
-      run.mockImplementation(() => (async function* () {
-        yield { type: 'text_delta', text: 'final' };
-        yield { type: 'done', stopReason: 'stop' };
-        yield { type: 'text_delta', text: 'late' };
-      })() as any);
+    it('drains awaited cleanup after native agent_end', async () => {
+      let releaseCleanup: (() => void) | null = null;
+      let cleanupComplete = false;
+      scripter.addStream(async function* () {
+        yield nativeTextDelta('final');
+        yield* nativeAssistantLifecycle({ content: 'final' });
+        await new Promise<void>((resolve) => { releaseCleanup = resolve; });
+        cleanupComplete = true;
+      });
 
-      await service.sendMessage('finish');
+      const send = service.sendMessage('finish');
+      await vi.waitFor(() => expect(service.status).toBe('running'));
+      await vi.waitFor(() => expect(releaseCleanup).toBeTypeOf('function'));
+      expect(cleanupComplete).toBe(false);
+      releaseCleanup?.();
+      await send;
+      expect(service.status).toBe('idle');
 
       const assistant = service.messages.find((m) => m.role === 'assistant');
       expect(assistant?.content).toBe('final');
       expect(assistant?.blocks).toEqual([{ type: 'text', text: 'final' }]);
       expect(assistant?.isStreaming).toBe(false);
+      expect(cleanupComplete).toBe(true);
+    });
+
+    it('keeps a thinking separator pending across native turn bookkeeping', async () => {
+      const completed = fauxAssistantMessage([fauxText('tool turn')]);
+      const starting = fauxAssistantMessage([fauxText('')]);
+      scripter.addResponse([
+        nativeToolStart({ id: 'sequence-tool', name: 'read_file', arguments: { path: '/tmp/a' } }),
+        nativeToolEnd({ callId: 'sequence-tool', output: 'ok', isError: false }, 'read_file'),
+        ...nativeTurnBoundary(completed, starting),
+        nativeThinkingDelta('next thought'),
+        ...nativeAssistantLifecycle({ content: 'done' }),
+      ]);
+
+      await service.sendMessage('tool then think');
+
+      const assistant = service.messages.find((m) => m.role === 'assistant');
+      expect(assistant?.thinking).toBe('\n---\nnext thought');
+    });
+
+    it('upserts replayed native tool starts by toolCallId', async () => {
+      const start = nativeToolStart({
+        id: 'replayed-start',
+        name: 'read_file',
+        arguments: { path: '/tmp/a' },
+      });
+      scripter.addResponse([
+        start,
+        start,
+        nativeToolEnd({ callId: 'replayed-start', output: 'ok', isError: false }, 'read_file'),
+        ...nativeAssistantLifecycle(),
+      ]);
+
+      await service.sendMessage('replayed start');
+
+      const assistant = service.messages.find((m) => m.role === 'assistant');
+      expect(assistant?.toolCalls?.filter((call) => call.id === 'replayed-start')).toHaveLength(1);
+      expect(assistant?.blocks?.filter((block) =>
+        block.type === 'tool_call' && block.call.id === 'replayed-start',
+      )).toHaveLength(1);
     });
 
     it('marks read_file alias progress blocks done when the tool completes', async () => {
@@ -848,18 +934,12 @@ describe('ChatService', () => {
         blocks: [],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_start',
-        call: { id: 'read-alias-1', name: 'read_file', arguments: { path: '/workspace/src/alias.ts' } },
-      }, 'msg_read_alias');
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolStart({ id: 'read-alias-1', name: 'read_file', arguments: { path: '/workspace/src/alias.ts' } }), 'msg_read_alias');
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'read-alias-1',
           output: 'export const alias = true;',
           isError: false,
-        },
-      }, 'msg_read_alias');
+        }), 'msg_read_alias');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'progress',
@@ -886,9 +966,7 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'csv-1', name: 'csv_fanout', arguments: {}, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'csv-1',
           output: JSON.stringify({
             totalRows: '2',
@@ -900,8 +978,7 @@ describe('ChatService', () => {
             ],
           }),
           isError: false,
-        },
-      }, 'msg_csv');
+        }), 'msg_csv');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'csv_fanout',
@@ -929,9 +1006,7 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'list-1', name: 'list_files', arguments: {}, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'list-1',
           output: JSON.stringify([
             { name: 'app.ts', type: 'file' },
@@ -949,8 +1024,7 @@ describe('ChatService', () => {
             },
           ]),
           isError: false,
-        },
-      }, 'msg_tree');
+        }), 'msg_tree');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'file_tree',
@@ -986,9 +1060,7 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'csv-metadata-1', name: 'csv_fanout', arguments: {}, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'csv-metadata-1',
           output: 'CSV fan-out completed: 1 succeeded, 1 failed out of 2 rows.',
           isError: false,
@@ -1001,8 +1073,7 @@ describe('ChatService', () => {
               { summary: 'bounced', success: false, error: 'invalid email' },
             ],
           },
-        },
-      }, 'msg_csv_metadata');
+        }), 'msg_csv_metadata');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'csv_fanout',
@@ -1030,14 +1101,11 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'glob-1', name: 'glob', arguments: { pattern: '**/*.ts' }, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'glob-1',
           output: 'src/app.ts\nsrc/components/Button.tsx',
           isError: false,
-        },
-      }, 'msg_glob_paths');
+        }), 'msg_glob_paths');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'file_tree',
@@ -1062,18 +1130,12 @@ describe('ChatService', () => {
         blocks: [],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_start',
-        call: { id: 'ls-alias-1', name: 'ls', arguments: { path: '/workspace/src' } },
-      }, 'msg_ls_alias');
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolStart({ id: 'ls-alias-1', name: 'ls', arguments: { path: '/workspace/src' } }), 'msg_ls_alias');
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'ls-alias-1',
           output: JSON.stringify([{ name: 'alias.ts', type: 'file' }]),
           isError: false,
-        },
-      }, 'msg_ls_alias');
+        }), 'msg_ls_alias');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'progress',
@@ -1100,9 +1162,7 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'search-1', name: 'web_search', arguments: { query: 'agent client testing' }, status: 'running' } }],
       }];
 
-      expect(() => (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      expect(() => (service as any).handleEvent(nativeToolEnd({
           callId: 'search-1',
           output: 'Search complete',
           isError: false,
@@ -1113,8 +1173,7 @@ describe('ChatService', () => {
               snippet: 'How to test agent client services.',
             },
           },
-        },
-      }, 'msg_search')).not.toThrow();
+        }), 'msg_search')).not.toThrow();
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'web_search',
@@ -1143,9 +1202,7 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'search-replay', name: 'web_search', arguments: { query: 'agent client replay' }, status: 'running' } }],
       }];
 
-      const replayedEndEvent = {
-        type: 'tool_call_end',
-        result: {
+      const replayedEndEvent = nativeToolEnd({
           callId: 'search-replay',
           output: 'Search complete',
           isError: false,
@@ -1156,8 +1213,7 @@ describe('ChatService', () => {
               snippet: 'Replay-safe search blocks.',
             },
           },
-        },
-      };
+        });
 
       (service as any).handleEvent(replayedEndEvent, 'msg_search_replay');
       (service as any).handleEvent(replayedEndEvent, 'msg_search_replay');
@@ -1199,9 +1255,7 @@ describe('ChatService', () => {
         ],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'search-overlap',
           output: 'Search complete',
           isError: false,
@@ -1212,8 +1266,7 @@ describe('ChatService', () => {
               snippet: 'Overlap-safe search blocks.',
             },
           },
-        },
-      }, 'msg_search_overlap');
+        }), 'msg_search_overlap');
 
       expect(service.messages[0].blocks?.map((block) => block.type)).toEqual([
         'progress',
@@ -1249,16 +1302,13 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'image-1', name: 'image_generate', arguments: { model: 'gpt-image-test' }, status: 'running' } }],
       }];
 
-      expect(() => (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      expect(() => (service as any).handleEvent(nativeToolEnd({
           callId: 'image-1',
           output: JSON.stringify({
             images: { url: 'https://example.com/generated.png', revised_prompt: 'A clearer prompt' },
           }),
           isError: false,
-        },
-      }, 'msg_image')).not.toThrow();
+        }), 'msg_image')).not.toThrow();
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'image_generated',
@@ -1281,9 +1331,7 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'image-metadata-1', name: 'image_generate', arguments: { model: 'gpt-image-test' }, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'image-metadata-1',
           output: 'Generated 1 image(s) using model "gpt-image-test".',
           isError: false,
@@ -1291,8 +1339,7 @@ describe('ChatService', () => {
             model: 'gpt-image-test',
             images: [{ url: 'https://example.com/metadata-image.png', revisedPrompt: 'Metadata prompt' }],
           },
-        },
-      }, 'msg_image_metadata');
+        }), 'msg_image_metadata');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'image_generated',
@@ -1315,14 +1362,11 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'screenshot-1', name: 'screenshot', arguments: {}, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'screenshot-1',
           output: JSON.stringify({ type: 'image', data: 'screenshot-base64', mimeType: 'image/jpeg' }),
           isError: false,
-        },
-      }, 'msg_screenshot_image');
+        }), 'msg_screenshot_image');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'image_generated',
@@ -1345,17 +1389,14 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'preview-1', name: 'preview_document', arguments: { path: '/workspace/report.pdf' }, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'preview-1',
           output: JSON.stringify({ kind: 'images', count: 1, type: 'pdf' }),
           isError: false,
           metadata: {
             previewResult: { kind: 'images', images: 'page-one-base64' },
           },
-        },
-      }, 'msg_preview');
+        }), 'msg_preview');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'preview_images',
@@ -1378,9 +1419,7 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'diff-1', name: 'git_diff', arguments: {}, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'diff-1',
           output: [
             'diff --git a/src/app.ts b/src/app.ts',
@@ -1391,8 +1430,7 @@ describe('ChatService', () => {
             '+++ b/src/new.ts',
           ].join('\n'),
           isError: false,
-        },
-      }, 'msg_diff');
+        }), 'msg_diff');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'code_review',
@@ -1417,14 +1455,11 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'write-1', name: 'write_file', arguments: {}, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'write-1',
           output: 'created file',
           isError: false,
-        },
-      }, 'msg_write');
+        }), 'msg_write');
 
       expect(service.messages[0].blocks?.some((block: any) => (
         block.type === 'file_change' || block.type === 'turn_diff'
@@ -1452,14 +1487,11 @@ describe('ChatService', () => {
         ],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'write-overlap',
           output: '+export const overlap = true;',
           isError: false,
-        },
-      }, 'msg_write_overlap');
+        }), 'msg_write_overlap');
 
       expect(service.messages[0].blocks?.map((block) => block.type)).toEqual([
         'tool_call',
@@ -1490,11 +1522,7 @@ describe('ChatService', () => {
         blocks: [{ type: 'text', text: 'Ready [Run checks](action:run_checks)' }],
       }];
 
-      (service as any).handleEvent({
-        type: 'done',
-        stopReason: 'stop',
-        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-      }, 'msg_command');
+      (service as any).handleEvent(nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 }), 'msg_command');
 
       expect(service.messages[0].blocks).toEqual([
         { type: 'text', text: 'Ready' },
@@ -1516,9 +1544,7 @@ describe('ChatService', () => {
         blocks: [{ type: 'tool_call', call: { id: 'review-1', name: 'bash', arguments: { command: 'rm -rf /' }, status: 'running' } }],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'review-1',
           output: 'Auto-reviewer denied: Dangerous',
           isError: true,
@@ -1529,8 +1555,7 @@ describe('ChatService', () => {
               ruleId: 'deny-dangerous-bash',
             },
           },
-        },
-      }, 'msg_review');
+        }), 'msg_review');
 
       expect(service.messages[0].blocks).toContainEqual({
         type: 'auto_review',
@@ -1555,9 +1580,7 @@ describe('ChatService', () => {
         blocks: [],
       }];
 
-      (service as any).handleEvent({
-        type: 'tool_call_end',
-        result: {
+      (service as any).handleEvent(nativeToolEnd({
           callId: 'missing-auto-review',
           output: 'Auto-reviewer denied: Orphaned',
           isError: true,
@@ -1568,8 +1591,7 @@ describe('ChatService', () => {
               ruleId: 'orphan-auto-review',
             },
           },
-        },
-      }, 'msg_orphan_review');
+        }), 'msg_orphan_review');
 
       expect(service.messages[0].blocks?.some((block: any) => block.type === 'auto_review')).toBe(false);
     });
@@ -1591,8 +1613,8 @@ describe('ChatService', () => {
       // SvtonCompactor prunes; here we drive it directly via the scripter).
       scripter.addResponse([
         { type: 'context_compacted', summary: 'compacted' },
-        { type: 'text_delta', text: 'Response' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Response'),
+        nativeAgentEnd(),
       ]);
 
       await service.sendMessage('A'.repeat(200));
@@ -1754,13 +1776,11 @@ describe('ChatService', () => {
   });
 
   // ----------------------------------------------------------
-  // 17. tool_call_progress event
+  // 17. Native tool execution updates
   // ----------------------------------------------------------
-  describe('tool_call_progress event', () => {
+  describe('tool_execution_update event', () => {
     it('updates tool call arguments via progress event', async () => {
-      // The runtime emits tool_call_progress after parsing accumulated args
-      // This is tested indirectly through the tool call flow
-      // Here we test the ChatService handler directly
+      // Test the display selector against a native Pi tool update.
       scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
@@ -1773,13 +1793,8 @@ describe('ChatService', () => {
       };
       service.messages = [assistantMsg];
 
-      // Simulate tool_call_progress event
-      const event: any = {
-        type: 'tool_call_progress',
-        callId: 'tc1',
-        message: '',
-        arguments: { key: 'updated_value' },
-      };
+      // Simulate a native tool execution update.
+      const event: any = nativeToolUpdate('tc1', '', { key: 'updated_value' }, '');
       (service as any).handleEvent(event, 'msg_test');
 
       expect(service.messages[0].toolCalls![0].arguments).toEqual({ key: 'updated_value' });
@@ -1800,13 +1815,7 @@ describe('ChatService', () => {
       };
       service.messages = [assistantMsg];
 
-      const event: any = {
-        type: 'tool_call_progress',
-        callId: 'tc1',
-        name: 'test_tool',
-        message: '',
-        arguments: { key: 'updated_value' },
-      };
+      const event: any = nativeToolUpdate('tc1', 'test_tool', { key: 'updated_value' }, '');
       (service as any).handleEvent(event, 'msg_test');
 
       expect(service.messages[0].toolCalls![0]).toMatchObject({
@@ -1837,13 +1846,7 @@ describe('ChatService', () => {
       };
       service.messages = [assistantMsg];
 
-      const event: any = {
-        type: 'tool_call_progress',
-        callId: 'subagent-1',
-        name: 'subagent_spawn',
-        message: '',
-        arguments: { task: 'inspect auth flow' },
-      };
+      const event: any = nativeToolUpdate('subagent-1', 'subagent_spawn', { task: 'inspect auth flow' }, '');
       (service as any).handleEvent(event, 'msg_test');
 
       expect(service.messages[0].toolCalls![0]).toMatchObject({
@@ -1876,13 +1879,7 @@ describe('ChatService', () => {
       };
       service.messages = [assistantMsg];
 
-      const event: any = {
-        type: 'tool_call_progress',
-        callId: 'web-1',
-        name: 'web_search',
-        message: '',
-        arguments: { query: 'agent runtime' },
-      };
+      const event: any = nativeToolUpdate('web-1', 'web_search', { query: 'agent runtime' }, '');
       (service as any).handleEvent(event, 'msg_test');
 
       expect(service.messages[0].blocks).toContainEqual({
@@ -1922,13 +1919,7 @@ describe('ChatService', () => {
       };
       service.messages = [assistantMsg];
 
-      const event: any = {
-        type: 'tool_call_progress',
-        callId: 'web-1',
-        name: 'web_search',
-        message: '',
-        arguments: { query: 'agent runtime' },
-      };
+      const event: any = nativeToolUpdate('web-1', 'web_search', { query: 'agent runtime' }, '');
       (service as any).handleEvent(event, 'msg_test');
 
       expect(service.messages[0].blocks![0]).toEqual({ type: 'text', text: 'Intro' });
@@ -1964,20 +1955,8 @@ describe('ChatService', () => {
       };
       service.messages = [assistantMsg];
 
-      const firstEvent: any = {
-        type: 'tool_call_progress',
-        callId: 'web-1',
-        name: 'web_search',
-        message: '',
-        arguments: { query: 'first' },
-      };
-      const secondEvent: any = {
-        type: 'tool_call_progress',
-        callId: 'web-2',
-        name: 'web_search',
-        message: '',
-        arguments: { query: 'second' },
-      };
+      const firstEvent: any = nativeToolUpdate('web-1', 'web_search', { query: 'first' }, '');
+      const secondEvent: any = nativeToolUpdate('web-2', 'web_search', { query: 'second' }, '');
       (service as any).handleEvent(firstEvent, 'msg_test');
       (service as any).handleEvent(secondEvent, 'msg_test');
 
@@ -2020,10 +1999,7 @@ describe('ChatService', () => {
       };
       service.messages = [assistantMsg];
 
-      const event: any = {
-        type: 'tool_call_end',
-        result: { callId: 'web-1', output: 'first done', isError: false },
-      };
+      const event: any = nativeToolEnd({ callId: 'web-1', output: 'first done', isError: false });
       (service as any).handleEvent(event, 'msg_test');
 
       expect(service.messages[0].blocks![0]).toEqual({
@@ -2053,13 +2029,7 @@ describe('ChatService', () => {
       };
       service.messages = [assistantMsg];
 
-      const event: any = {
-        type: 'tool_call_progress',
-        callId: 'missing-call',
-        name: 'web_search',
-        message: '',
-        arguments: { query: 'orphan' },
-      };
+      const event: any = nativeToolUpdate('missing-call', 'web_search', { query: 'orphan' }, '');
       (service as any).handleEvent(event, 'msg_test');
 
       expect(service.messages[0].toolCalls).toEqual([]);
@@ -2071,6 +2041,111 @@ describe('ChatService', () => {
   // 18. Background streaming routing
   // ----------------------------------------------------------
   describe('background streaming', () => {
+    it('isolates a newly cleared session from the runtime still streaming in background', async () => {
+      await service.init(mockPlatform, createConfig());
+      service.bindSession('session-a');
+      const oldRuntime = getInitializedRuntime(service);
+      const oldReset = vi.spyOn(oldRuntime, 'reset');
+      let markStarted!: () => void;
+      let settle!: () => void;
+      const started = new Promise<void>((resolve) => { markStarted = resolve; });
+      const settlement = new Promise<void>((resolve) => { settle = resolve; });
+      vi.spyOn(oldRuntime, 'run').mockImplementation(async function* () {
+        markStarted();
+        yield nativeTextDelta('A_PART');
+        await settlement;
+        oldRuntime.setMessages([
+          { role: 'user', content: 'SESSION_A', timestamp: 1 },
+          fauxAssistantMessage([fauxText('A_DONE')]),
+        ]);
+        yield nativeTextDelta('_DONE');
+        yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
+      });
+
+      const backgroundTurn = service.sendMessage('SESSION_A');
+      await started;
+      service.cacheSessionMessages('session-a', [...service.messages]);
+      service.bindSession('session-b');
+      await service.clearMessages();
+      const activeRuntime = getInitializedRuntime(service);
+
+      expect(activeRuntime).not.toBe(oldRuntime);
+      expect(oldReset).not.toHaveBeenCalled();
+      expect(service.runtimeSessionId).toBe('session-b');
+      expect(activeRuntime.getMessages()).toEqual([]);
+      expect(service.messages).toEqual([]);
+
+      settle();
+      await backgroundTurn;
+
+      expect(oldRuntime.getMessages().map((message) => message.role)).toEqual([
+        'user',
+        'assistant',
+      ]);
+      expect(activeRuntime.getMessages()).toEqual([]);
+      expect(service.getCachedMessages('session-a')?.map((message) => message.content)).toEqual([
+        'SESSION_A',
+        'A_PART_DONE',
+      ]);
+      expect(service.backgroundSessionId).toBeNull();
+      expect(service.runtimeSessionId).toBe('session-b');
+    });
+
+    it('routes controls to the active runtime after aborting a detached background runtime', async () => {
+      await service.init(mockPlatform, createConfig());
+      service.bindSession('session-a');
+      const backgroundRuntime = getInitializedRuntime(service);
+      let markBackgroundStarted!: () => void;
+      let settleBackground!: () => void;
+      const backgroundStarted = new Promise<void>((resolve) => { markBackgroundStarted = resolve; });
+      const backgroundSettlement = new Promise<void>((resolve) => { settleBackground = resolve; });
+      vi.spyOn(backgroundRuntime, 'run').mockImplementation(async function* () {
+        markBackgroundStarted();
+        yield nativeTextDelta('A_PART');
+        await backgroundSettlement;
+      });
+      const backgroundAbort = vi.spyOn(backgroundRuntime, 'abort').mockImplementation(() => settleBackground());
+      const backgroundApprove = vi.spyOn(backgroundRuntime, 'approveToolCall');
+      const backgroundReject = vi.spyOn(backgroundRuntime, 'rejectToolCall');
+
+      const backgroundTurn = service.sendMessage('SESSION_A');
+      await backgroundStarted;
+      service.cacheSessionMessages('session-a', [...service.messages]);
+      service.bindSession('session-b');
+      await service.clearMessages();
+      const activeRuntime = getInitializedRuntime(service);
+      const activeApprove = vi.spyOn(activeRuntime, 'approveToolCall');
+      const activeReject = vi.spyOn(activeRuntime, 'rejectToolCall');
+      let markActiveStarted!: () => void;
+      let settleActive!: () => void;
+      const activeStarted = new Promise<void>((resolve) => { markActiveStarted = resolve; });
+      const activeSettlement = new Promise<void>((resolve) => { settleActive = resolve; });
+      vi.spyOn(activeRuntime, 'run').mockImplementation(async function* () {
+        markActiveStarted();
+        yield nativeTextDelta('B_PART');
+        await activeSettlement;
+      });
+      const activeAbort = vi.spyOn(activeRuntime, 'abort').mockImplementation(() => settleActive());
+
+      service.abort();
+      await backgroundTurn;
+      expect(backgroundAbort).toHaveBeenCalledTimes(1);
+
+      const activeTurn = service.sendMessage('SESSION_B');
+      await activeStarted;
+      service.approveToolCall('approve-b');
+      service.rejectToolCall('reject-b');
+      service.abort();
+      await activeTurn;
+
+      expect(activeApprove).toHaveBeenCalledWith('approve-b');
+      expect(activeReject).toHaveBeenCalledWith('reject-b');
+      expect(activeAbort).toHaveBeenCalledTimes(1);
+      expect(backgroundApprove).not.toHaveBeenCalled();
+      expect(backgroundReject).not.toHaveBeenCalled();
+      expect(backgroundAbort).toHaveBeenCalledTimes(1);
+    });
+
     it('routes events to session cache when session is not active', async () => {
       scripter = await initScripted();
       service.bindSession('sess-active');
@@ -2083,8 +2158,8 @@ describe('ChatService', () => {
       ];
       service.cacheSessionMessages('sess-bg', bgMsgs);
 
-      // Simulate text_delta for background session
-      const event: any = { type: 'text_delta', text: 'BG response' };
+      // Simulate a native text message update for the background session.
+      const event: any = nativeTextDelta('BG response');
       (service as any).handleEvent(event, 'bg_assistant');
 
       // Active messages should NOT change
@@ -2244,8 +2319,8 @@ describe('ChatService', () => {
       scripter = await initScripted();
 
       scripter.addResponse([
-        { type: 'text_delta', text: 'I see the image' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('I see the image'),
+        nativeAgentEnd(),
       ]);
 
       const images = [{ data: 'base64imagedata', mimeType: 'image/png' }];
@@ -2260,8 +2335,8 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   // 21. Thinking separator logic
   // ----------------------------------------------------------
-  describe('thinking_delta separator', () => {
-    it('adds separator when lastEventType is tool_call_end or done', async () => {
+  describe('thinking update separator', () => {
+    it('adds a separator after native tool settlement', async () => {
       scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
@@ -2271,14 +2346,13 @@ describe('ChatService', () => {
       };
       service.messages = [assistantMsg];
 
-      // Emit a tool_call_end first so the handler's lastEventType is set, then
-      // a thinking_delta — the separator should appear between them.
+      // Emit tool_execution_end first, then a native thinking update.
       (service as any).handleEvent(
-        { type: 'tool_call_end', result: { callId: 'tc_sep', output: 'ok', isError: false } },
+        nativeToolEnd({ callId: 'tc_sep', output: 'ok', isError: false }),
         'msg_sep',
       );
       (service as any).handleEvent(
-        { type: 'thinking_delta', thinking: 'New thinking after tool' },
+        nativeThinkingDelta('New thinking after tool'),
         'msg_sep',
       );
 

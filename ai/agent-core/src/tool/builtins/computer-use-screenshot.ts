@@ -1,11 +1,11 @@
-import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import type { SvtonToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatComputerUseErrorMessage } from './computer-use-error.utils';
 import { computerInvoke } from './computer-use-invoke';
 import { validateDisplayIndex } from './computer-use-validation.utils';
 
 const SCREENSHOT_MIME_TYPE = 'image/png';
 
-export const screenshotDef: ToolDefinition = {
+export const screenshotDef: SvtonToolDefinition = {
   name: 'screenshot',
   description:
     'Capture a screenshot of the current display. Returns a base64-encoded PNG image. Use this to see what is on the screen before interacting with it.',

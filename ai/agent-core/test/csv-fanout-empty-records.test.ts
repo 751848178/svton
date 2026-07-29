@@ -5,12 +5,13 @@ import {
 } from '@svton/agent-core';
 import type {
   AgentConfig,
+  IRuntime,
   IToolExecutor,
   SubagentConfig,
   SubagentResult,
   ToolCall,
 } from '@svton/agent-core';
-import type { IPlatform } from '@svton/agent-platform';
+import { createMockModels, createMockPlatform } from './helpers';
 
 function createToolRegistry(): ToolRegistry {
   const registry = new ToolRegistry();
@@ -28,38 +29,22 @@ function createToolRegistry(): ToolRegistry {
   return registry;
 }
 
-function createPlatform(): IPlatform {
+function createConfig(toolRegistry: ToolRegistry): AgentConfig {
+  const mock = createMockModels();
   return {
-    type: 'tauri',
-    capabilities: {
-      filesystem: true,
-      process: true,
-      watch: false,
-      mcpStdio: false,
-      clipboard: false,
-      notification: false,
-    },
-    fs: {} as any,
-    process: {} as any,
-    storage: {} as any,
-    search: {} as any,
+    models: mock.models,
+    piModel: mock.model,
+    model: 'test-model',
+    toolRegistry,
   };
 }
 
-function createConfig(toolRegistry: ToolRegistry): AgentConfig {
+function createParentRuntime(): IRuntime {
   return {
-    provider: {
-      name: 'mock',
-      models: [],
-      chat: async function* () {
-        yield { type: 'done', stopReason: 'stop' } as any;
-      },
-      countTokens: () => 1,
-      supportsToolUse: () => true,
-      supportsVision: () => false,
-    },
-    model: 'test-model',
-    toolRegistry,
+    async *run() {},
+    getMessages: () => [],
+    reset: () => {},
+    abort: () => {},
   };
 }
 
@@ -68,8 +53,8 @@ describe('csv_fanout blank records', () => {
     const toolRegistry = createToolRegistry();
     const manager = new SubagentManager(
       createConfig(toolRegistry),
-      {} as any,
-      createPlatform(),
+      createParentRuntime(),
+      createMockPlatform(),
       toolRegistry,
     );
     const spawnedTasks: string[] = [];

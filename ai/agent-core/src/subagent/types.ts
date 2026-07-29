@@ -3,8 +3,8 @@
  */
 
 import type { AgentConfig } from '../agent/types';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { TokenUsage } from '../provider/types';
-import type { ChatMessage } from '../provider/types';
 
 export interface SubagentConfig {
   /** The task to delegate */
@@ -31,7 +31,7 @@ export interface SubagentResult {
   /** Summary of what the subagent accomplished */
   summary: string;
   /** Full message history (not injected into parent context) */
-  messages: ChatMessage[];
+  messages: AgentMessage[];
   /** Token usage statistics */
   usage: TokenUsage;
   /** Whether the subagent completed successfully */

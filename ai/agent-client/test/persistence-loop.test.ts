@@ -11,10 +11,19 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import 'reflect-metadata';
 import { ChatService } from '../src/service/chat.service';
-import type { AgentEvent } from '@svton/agent-core';
+import type { PublicRuntimeEvent } from '@svton/agent-core';
 import type { IPlatform, IStorage } from '@svton/agent-platform';
 import { displayToStoredMessages, storedToDisplayMessages } from '../src/hooks/useSession';
-import { buildPiAgentConfig, EventScripter, MemoryStorage } from './helpers/pi-test-utils';
+import {
+  buildPiAgentConfig,
+  EventScripter,
+  MemoryStorage,
+  nativeAgentEnd,
+  nativeTextDelta,
+  nativeThinkingDelta,
+  nativeToolEnd,
+  nativeToolStart,
+} from './helpers/pi-test-utils';
 
 class MemStorage implements IStorage {
   private m = new Map<string, unknown>();
@@ -39,7 +48,7 @@ describe('Message persistence full loop', () => {
   async function createChat(): Promise<{ chat: ChatService; scripter: EventScripter }> {
     const chat = new ChatService();
     await chat.init(makePlatform(new MemStorage()), buildPiAgentConfig().config);
-    const scripter = new EventScripter(chat as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<AgentEvent> } });
+    const scripter = new EventScripter(chat as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<PublicRuntimeEvent> } });
     return { chat, scripter };
   }
 
@@ -57,8 +66,8 @@ describe('Message persistence full loop', () => {
   it('preserves a simple text conversation through serialize → restore', async () => {
     const chat1 = await createAndSend(
       (s) => s.addResponse([
-        { type: 'text_delta', text: 'Hello back!' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Hello back!'),
+        nativeAgentEnd(),
       ]),
       async (c) => { await c.sendMessage('Hi there'); },
     );
@@ -87,11 +96,11 @@ describe('Message persistence full loop', () => {
         // One turn: thinking + tool call + final text (the runtime would normally
         // auto-continue after tool_use; the scripter collapses it into one run).
         s.addResponse([
-          { type: 'thinking_delta', thinking: 'Let me analyze.' },
-          { type: 'tool_call_start', call: { id: 'tc1', name: 'git_diff', arguments: { base: 'main' } } },
-          { type: 'tool_call_end', result: { callId: 'tc1', output: 'diff', isError: false } },
-          { type: 'text_delta', text: 'Done reviewing.' },
-          { type: 'done', stopReason: 'stop' },
+          nativeThinkingDelta('Let me analyze.'),
+          nativeToolStart({ id: 'tc1', name: 'git_diff', arguments: { base: 'main' } }),
+          nativeToolEnd({ callId: 'tc1', output: 'diff', isError: false }),
+          nativeTextDelta('Done reviewing.'),
+          nativeAgentEnd(),
         ]);
       },
       async (c) => { await c.sendMessage('Review code'); },
@@ -119,8 +128,8 @@ describe('Message persistence full loop', () => {
   it('marks all messages as not-streaming after restore', async () => {
     const chat1 = await createAndSend(
       (s) => s.addResponse([
-        { type: 'text_delta', text: 'Complete.' },
-        { type: 'done', stopReason: 'stop' },
+        nativeTextDelta('Complete.'),
+        nativeAgentEnd(),
       ]),
       async (c) => { await c.sendMessage('test'); },
     );
@@ -136,8 +145,8 @@ describe('Message persistence full loop', () => {
   it('preserves duration field through serialize → restore', async () => {
     const chat1 = await createAndSend(
       (s) => s.addResponse([
-        { type: 'text_delta', text: 'Quick response.' },
-        { type: 'done', stopReason: 'stop', usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 } },
+        nativeTextDelta('Quick response.'),
+        nativeAgentEnd({ input: 10, output: 5, totalTokens: 15 }),
       ]),
       async (c) => { await c.sendMessage('test'); },
     );
@@ -153,8 +162,8 @@ describe('Message persistence full loop', () => {
   it('preserves a multi-turn conversation (2 turns) through serialize → restore', async () => {
     const chat = await createAndSend(
       (s) => {
-        s.addResponse([{ type: 'text_delta', text: 'Turn 1 answer.' }, { type: 'done', stopReason: 'stop' }]);
-        s.addResponse([{ type: 'text_delta', text: 'Turn 2 answer.' }, { type: 'done', stopReason: 'stop' }]);
+        s.addResponse([nativeTextDelta('Turn 1 answer.'), nativeAgentEnd()]);
+        s.addResponse([nativeTextDelta('Turn 2 answer.'), nativeAgentEnd()]);
       },
       async (c) => {
         await c.sendMessage('Turn 1 question');

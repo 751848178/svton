@@ -87,9 +87,11 @@ class MCPClient {
 const tools = await client.listTools();
 
 // 调用工具
-const result = await client.callTool(name: string, args: Record<string, unknown>): Promise<ToolResult>;
+const result = await client.callTool('search', { query: 'AI agents' });
 ```
 
+`callTool()` 的签名是
+`callTool(name: string, args: Record<string, unknown>): Promise<ToolResult>`。
 `listTools()` 结果会被缓存,同一连接内不会重复请求。
 
 ---
@@ -199,7 +201,7 @@ interface MCPToolDefinition {
 
 ## 工具发现与桥接
 
-### 在 AgentRuntime 中自动桥接
+### 在 SvtonAgentRuntime 中自动桥接
 
 使用 `createAsync()` 创建 runtime 时,所有已连接的 MCP 客户端工具会自动桥接到工具注册表:
 
@@ -210,9 +212,10 @@ await mcpClient1.connect(new HTTPTransport({ url: 'https://mcp1.example.com/sse'
 const mcpClient2 = new MCPClient();
 await mcpClient2.connect(new StdioTransport(platform.process, 'npx', ['@mcp/server-git']));
 
-const runtime = await AgentRuntime.createAsync(
+const runtime = await SvtonAgentRuntime.createAsync(
   {
-    provider,
+    models,
+    piModel: model,
     model: 'claude-sonnet-4-20250514',
     toolRegistry,
     capabilities: {
@@ -249,10 +252,23 @@ capabilities: {
 `@svton/agent-core` 也提供 MCP 服务器端实现,可以将自己的工具暴露为 MCP 服务:
 
 ```typescript
-import { MCPServer } from '@svton/agent-core';
+import {
+  MCPServer,
+  ToolRegistry,
+  type ITransport,
+} from '@svton/agent-core';
 
-const server = new MCPServer({ name: 'my-mcp-server', version: '1.0.0' });
-// 注册工具和处理程序,然后监听传输层
+declare const transport: ITransport;
+declare const securityExecutionService:
+  Parameters<MCPServer['setToolExecutionService']>[0];
+
+const toolRegistry = new ToolRegistry();
+// 先向 toolRegistry 注册要公开的工具。
+
+const server = new MCPServer();
+// 必须接入与 Runtime 相同的安全执行管线;未接入时入站工具调用会 fail closed。
+server.setToolExecutionService(securityExecutionService);
+await server.start(transport, toolRegistry);
 ```
 
 ---
@@ -275,7 +291,7 @@ for (const server of result.servers) {
 }
 
 // 获取详情
-const detail = await marketplace.getDetails('@modelcontextprotocol/server-github');
+const detail = await marketplace.getServer('@modelcontextprotocol/server-github');
 console.log(`工具数: ${detail.tools?.length}`);
 console.log(`连接方式:`);
 for (const conn of detail.connections) {
@@ -291,7 +307,7 @@ class McpMarketplace {
 
   async search(query: string, page?: number, pageSize?: number): Promise<McpMarketplaceResult>;
   async list(page?: number, pageSize?: number): Promise<McpMarketplaceResult>;
-  async getDetails(qualifiedName: string): Promise<McpMarketplaceServerDetail>;
+  async getServer(qualifiedName: string): Promise<McpMarketplaceServerDetail>;
 }
 ```
 
@@ -318,30 +334,41 @@ interface McpMarketplaceServer {
 
 ```typescript
 import {
-  AgentRuntime, AnthropicProvider, ToolRegistry,
+  SvtonAgentRuntime, createPiModelsForProvider, ToolRegistry,
   MCPClient, HTTPTransport, McpMarketplace,
 } from '@svton/agent-core';
+
+const { models, model } = createPiModelsForProvider(
+  'claude-sonnet-4-20250514',
+  {
+    family: 'anthropic',
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+  },
+);
 
 // 1. 从市场查找 GitHub MCP 服务器
 const marketplace = new McpMarketplace();
 const searchResult = await marketplace.search('github');
 const githubServer = searchResult.servers[0];
+if (!githubServer) throw new Error('No GitHub MCP server found');
 
 // 2. 获取详情确定连接方式
-const detail = await marketplace.getDetails(githubServer.qualifiedName);
+const detail = await marketplace.getServer(githubServer.qualifiedName);
 const httpConn = detail.connections.find(c => c.type === 'http');
+if (!httpConn?.deploymentUrl) throw new Error('No HTTP connection available');
 
 // 3. 连接 MCP 服务器
 const mcpClient = new MCPClient();
 await mcpClient.connect(new HTTPTransport({
-  url: httpConn.deploymentUrl!,
+  url: httpConn.deploymentUrl,
   headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` },
 }));
 
 // 4. 创建 runtime,自动桥接 MCP 工具
-const runtime = await AgentRuntime.createAsync(
+const runtime = await SvtonAgentRuntime.createAsync(
   {
-    provider: new AnthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+    models,
+    piModel: model,
     model: 'claude-sonnet-4-20250514',
     toolRegistry: new ToolRegistry(),
     capabilities: { mcpClients: [mcpClient] },
@@ -360,4 +387,4 @@ for await (const event of runtime.run('查看 svton/svton 仓库最近的 5 个 
 - [index](./index) — agent-core 总览
 - [工具系统](./tools) — MCP 工具自动桥接到 ToolRegistry
 - [第三方集成](./integrations) — 替代 MCP 的集成方式
-- [AgentRuntime](./runtime) — 运行时通过 capabilities 配置 MCP 客户端
+- [SvtonAgentRuntime](./runtime) — 运行时通过 capabilities 配置 MCP 客户端

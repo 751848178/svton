@@ -3,23 +3,22 @@
  * "reattach memory extraction, planning, checkpoint and resume to explicit Pi
  * lifecycle points").
  *
- * The old runtime fired these from an internal post-turn block. Pi now owns the
- * turn; `runOnce` calls {@link runPostTurnHooks} after the terminal `done`
- * event. Both hooks are fire-and-forget and swallow their own errors so a
- * non-fatal lifecycle failure can never break the next turn.
+ * Pi owns the turn; `runOnce` awaits these hooks from the native `agent_end`
+ * listener. Each hook handles its own non-fatal failure so listener settlement
+ * includes the work without letting lifecycle failures break the next turn.
  *
  *   - **memory extraction**: `memoryManager.extractFromConversation(...)` over
- *     the post-turn transcript, driven through pi-ai `models.streamSimple`
- *     (the deleted `IProvider.chat` path is gone). Mirrors the legacy contract.
+ *     the post-turn transcript, driven through canonical pi-ai
+ *     `models.streamSimple`.
  *   - **checkpoint**: `resumeManager.checkpoint(sessionId, runtime)` persists
  *     the Pi-owned transcript + model + reasoning effort for resume.
  */
-import type { Models, Model } from '@earendil-works/pi-ai';
+import type { Models, Model, Message, UserMessage } from '@earendil-works/pi-ai';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
-import type { ChatMessage } from '../provider/types';
 import type { MemoryManager } from '../memory/manager';
 import type { SessionResumeManager } from '../checkpoint/manager';
 import type { SvtonAgentRuntime } from './svton-agent-runtime';
+import { logger } from '../utils/logger';
 
 /** pi-ai `streamSimple`-shaped adapter satisfying `extractFromConversation`. */
 interface ChatLikeProvider {
@@ -35,84 +34,103 @@ export interface PostTurnDeps {
   resumeManager: SessionResumeManager | null;
   runtime: SvtonAgentRuntime;
   /** Read the post-turn transcript from Pi Agent state. */
-  getMessages: () => ChatMessage[];
+  getMessages: () => AgentMessage[];
 }
 
 /**
- * Build the `(stopReason, sessionId)` callback `runOnce` invokes after the
- * terminal `done` event. Keeps the composition root free of lifecycle detail.
+ * Build the awaited callback `runOnce` invokes from native `agent_end`.
  */
-export function createPostTurnCallback(deps: PostTurnDeps): (stopReason: string, sessionId: string) => void {
-  return (stopReason, sessionId) => runPostTurnHooks(deps, stopReason, sessionId);
+export function createPostTurnCallback(
+  deps: PostTurnDeps,
+): (stopReason: string, sessionId: string) => Promise<void> {
+  return async (stopReason, sessionId) => runPostTurnHooks(deps, stopReason, sessionId);
 }
 
 /**
- * Run memory extraction + checkpoint after a turn settles. Fire-and-forget:
- * both hooks catch internally; rejection of the returned promise is impossible
- * unless `getMessages()` itself throws (which would indicate a deeper fault).
+ * Run memory extraction + checkpoint as part of awaited turn settlement.
+ * Failures are explicitly logged and contained inside this lifecycle boundary.
  */
-export function runPostTurnHooks(
+export async function runPostTurnHooks(
   deps: PostTurnDeps,
   stopReason: string,
   sessionId: string,
-): void {
+): Promise<void> {
   if (deps.memoryManager && deps.models && deps.model) {
-    extractMemory(deps.memoryManager, deps.models, deps.model, deps.modelId, deps.getMessages());
+    await extractMemory(
+      deps.memoryManager,
+      deps.models,
+      deps.model,
+      deps.modelId,
+      readMessages(deps),
+    );
   }
   if (deps.resumeManager && stopReason !== 'aborted') {
-    deps.resumeManager.checkpoint(sessionId, deps.runtime).catch(() => {});
+    try {
+      await deps.resumeManager.checkpoint(sessionId, deps.runtime);
+    } catch (error) {
+      logger.warn('Runtime', 'Post-turn checkpoint failed', { error: String(error), sessionId });
+    }
   }
 }
 
 /**
- * Reattach the legacy post-turn memory extraction. Builds a pi-ai-backed chat
- * adapter (the deleted `IProvider.chat` is replaced by `models.streamSimple`)
- * and feeds the post-turn transcript. Non-fatal — extraction failure is logged
- * and swallowed (matches the legacy `.catch(() => {})` contract).
+ * Run post-turn memory extraction through a pi-ai-backed chat
+ * adapter and feeds the post-turn transcript. Extraction failures are logged
+ * and contained so checkpoint settlement still runs.
  */
-function extractMemory(
+async function extractMemory(
   memoryManager: MemoryManager,
   models: Models,
   model: Model<any>,
   modelId: string,
-  messages: ChatMessage[],
-): void {
+  messages: AgentMessage[],
+): Promise<void> {
   const convMessages = toExtractionMessages(messages);
   if (convMessages.length < 4) return;
   const provider = toChatLikeProvider(models, model);
-  memoryManager
-    .extractFromConversation(convMessages, provider, modelId)
-    .catch(() => { /* non-fatal — legacy contract */ });
+  try {
+    await memoryManager.extractFromConversation(convMessages, provider, modelId);
+  } catch (error) {
+    logger.warn('Runtime', 'Post-turn memory extraction failed', { error: String(error) });
+  }
 }
 
-/** Flatten ChatMessage[] into the {role,content:string} shape extraction needs. */
+function readMessages(deps: PostTurnDeps): AgentMessage[] {
+  try {
+    return deps.getMessages();
+  } catch (error) {
+    logger.warn('Runtime', 'Post-turn message snapshot failed', { error: String(error) });
+    return [];
+  }
+}
+
+/** Project canonical Pi state into the plain text shape memory extraction owns. */
 function toExtractionMessages(
-  messages: ChatMessage[],
+  messages: AgentMessage[],
 ): Array<{ role: string; content: string }> {
-  return messages.map((m) => ({
-    role: m.role,
-    content: typeof m.content === 'string'
-      ? m.content
-      : Array.isArray(m.content)
-        ? m.content.map((b) => (b.type === 'text' ? b.text : '')).join('')
-        : '',
-  }));
+  return messages
+    .filter(isPiMessage)
+    .map((message) => ({
+      role: message.role,
+      content: typeof message.content === 'string'
+        ? message.content
+        : message.content
+          .filter((block) => block.type === 'text')
+          .map((block) => block.text)
+          .join(''),
+    }));
 }
 
 /** Wrap `models.streamSimple(model, ...)` as the `{chat}` shape extraction expects. */
 function toChatLikeProvider(models: Models, model: Model<any>): ChatLikeProvider {
   return {
     async *chat(msgs, opts) {
-      // The extraction service sends a [{role:'system',...},{role:'user',...}]
-      // pair. Pi's `Message` union has no `system` role — the system prompt is
-      // a separate `streamSimple` option — so split it out here.
-      const { systemPrompt, conversation } = splitSystemMessage(msgs);
-      const piMessages = toAgentLikeMessages(conversation) as unknown as Parameters<typeof models.streamSimple>[1]['messages'];
+      const { systemPrompt, messages } = splitExtractionPrompt(msgs);
       const streamOptions: Record<string, unknown> = {
-        maxTokens: (opts as { maxTokens?: number } | undefined)?.maxTokens ?? 500,
+        maxTokens: readMaxTokens(opts),
       };
       if (systemPrompt) streamOptions.systemPrompt = systemPrompt;
-      const stream = models.streamSimple(model, { messages: piMessages }, streamOptions);
+      const stream = models.streamSimple(model, { messages }, streamOptions);
       for await (const ev of stream) {
         if (ev.type === 'text_delta') yield { type: 'text_delta', text: ev.delta };
       }
@@ -120,22 +138,41 @@ function toChatLikeProvider(models: Models, model: Model<any>): ChatLikeProvider
   };
 }
 
-/** Separate a leading system message from the conversation messages. */
-function splitSystemMessage(msgs: unknown[]): { systemPrompt?: string; conversation: unknown[] } {
-  if (msgs.length > 0 && (msgs[0] as { role?: string }).role === 'system') {
-    const content = (msgs[0] as { content?: string }).content;
-    return { systemPrompt: typeof content === 'string' ? content : undefined, conversation: msgs.slice(1) };
+function splitExtractionPrompt(msgs: unknown[]): { systemPrompt?: string; messages: Message[] } {
+  let systemPrompt: string | undefined;
+  const messages: Message[] = [];
+  for (const value of msgs) {
+    if (!isRecord(value) || typeof value.role !== 'string' || typeof value.content !== 'string') {
+      continue;
+    }
+    if (value.role === 'system' && systemPrompt === undefined) {
+      systemPrompt = value.content;
+      continue;
+    }
+    if (value.role === 'user') {
+      const message: UserMessage = {
+        role: 'user',
+        content: value.content,
+        timestamp: Date.now(),
+      };
+      messages.push(message);
+    }
   }
-  return { conversation: msgs };
+  return { systemPrompt, messages };
 }
 
-/** Coerce extraction's plain messages into the shape streamSimple expects. */
-function toAgentLikeMessages(msgs: unknown[]): AgentMessage[] {
-  return msgs.map((m) => {
-    const { role, content } = m as { role: string; content: string };
-    // Cast through unknown: pi-ai's `Message` union is narrower than
-    // `AgentMessage` at the type level, but streamSimple accepts the plain
-    // {role,content} shape at runtime (same bridge subagent-runtime uses).
-    return { role, content, timestamp: Date.now() } as unknown as AgentMessage;
-  });
+function readMaxTokens(value: unknown): number {
+  return isRecord(value) && typeof value.maxTokens === 'number'
+    ? value.maxTokens
+    : 500;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isPiMessage(message: AgentMessage): message is Message {
+  return message.role === 'user'
+    || message.role === 'assistant'
+    || message.role === 'toolResult';
 }

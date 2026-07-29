@@ -2,12 +2,18 @@
 
 > Document type: long-goal implementation ledger
 > Created: 2026-07-28 (Asia/Shanghai)
-> Status: **completed** — final product-level acceptance done 2026-07-29 (PI000–PI010 + PI010-R1/R2 + live-E2E closure). Real browser E2E (9/9), a real Tauri/WKWebView streamed turn and real WebView→Rust IPC evidence now pass; Rust command tests remain supplemental. See "Final Closure (Live E2E)" below.
+> Status: **functionally completed; final contract convergence reopened** — PI000–PI010 + PI010-R1/R2 and live-E2E proved the product path. PC000 historically found message/tool/event/runtime compatibility contracts and 14 strict Core errors; PC001–PC003 removed those contracts and reduced current strict Core errors to zero. Remaining final acceptance is tracked in `docs-internal/todos/2026-07-29-pi-agent-final-contract-convergence.md`.
 > Architecture: `docs-internal/design/pi-agent-migration-architecture.md`
 > Goal prompt: `docs-internal/goals/pi-agent-migration-goal.md`
 > Runtime board: `/tmp/codex-tool-runs/svton/long-goals/pi-agent-migration/board.json`
 > Live-E2E closure board: `/tmp/codex-tool-runs/svton/long-goals/pi-agent-live-e2e-closure/board.json`
 > First board worker: `pi000` (implements ledger slice `PI000`)
+
+> 2026-07-30 contract note: rows below are preserved as historical delivery
+> evidence, not current API documentation. The final contract uses Pi canonical
+> messages/tools, native Pi lifecycle events, `SvtonAgentRuntime`, an explicit
+> Client Session/Display boundary and no runtime compatibility aliases. Current
+> acceptance and rerun evidence lives in the final-contract ledger linked above.
 
 ## Goal
 
@@ -53,7 +59,7 @@ Implement the accepted Pi migration architecture in small verified slices:
 | PI007 | done | Migrate Agent Client, SDK and app composition | `ChatService` split 1071→200-line composition root + 9 single-responsibility modules (all ≤200); the 3-list message-ownership divergence resolved (model-switch + restore now one-way runtime→runtime, tool_result blocks survive); `handleEvent` tightened around the Pi-base/svton-only protocol; SDK + app config accept Pi models; no residual `IProvider`/`StreamEvent` runtime refs (doc-comments only). Build green across all 4 packages; core **328/1818**, client **12/267**, sdk **2/60**, app **3/12**; agent-sdk + agent-app `tsc --noEmit` clean. Result: `/tmp/codex-tool-runs/svton/pi-agent-migration/pi007-result.md`. |
 | PI008 | done | Migrate Web and desktop product surfaces | Web/Desktop/UI verified on Pi-backed `ChatService`: agent-web gained vitest + **3 test files / 18 tests** (was zero) including a real `SvtonAgentRuntime` streamed-turn integration; agent-ui **11/201**, agent-desktop **7/43** pass; all 3 build clean; no consumer references deleted symbols; Tauri platform abstraction + security pipeline preserved. All product flows evidenced (streaming/thinking/tool-progress/approval/abort/error/resume/background). Result: `/tmp/codex-tool-runs/svton/pi-agent-migration/pi008-result.md`. |
 | PI009 | done | Remove obsolete implementation and update docs | Dead provider contract types deleted from `provider/types.ts` (`IProvider`, `StreamEvent`, `ChatOptions` — verified dead by grep: 0 live refs, comments only); `ModelInfo` + all message/content/tool/usage types KEPT (live consumers). Barrels `provider/index.ts` + `src/index.ts` + dead `StreamEvent` import in `agent/types.ts` cleaned. `provider/` now holds only `types.ts` + `index.ts` (impls were already deleted in PI002/PI003). Public docs rewritten for Pi-backed architecture: `docs/agent/core/provider.md`, `runtime.md`, `index.md`, `agent-core/README.md`. No dead deps in package.json (pi-ai/pi-agent-core only). Build green across all 7 packages; core **328/1818**, client **12/267**, sdk **2/60**, app **3/12**, ui **11/201**, web **3/18**, desktop **7/43**. Result: `/tmp/codex-tool-runs/svton/pi-agent-migration/pi009-result.md`. |
-| PI010 | done | Full verification and closure | All §7.1–§7.10 acceptance verified against actual state. All 8 packages build (0 errors); **366 test files / 2419 tests pass, 0 failures** (core 328/1818, client 12/267, sdk 2/60, app 3/12, ui 11/201, web 3/18, desktop 7/43). `pi-ai` = sole provider/model/stream layer; `pi-agent-core` = sole Agent state/loop/event/scheduling layer; `SvtonAgentRuntime` = composition root (no loop reimplementation); full svton security pipeline + all capabilities preserved; 17 dead files deleted; `docs/agent` updated. Remaining external-only limits explicit (no agent-web Playwright e2e; redaction is a seam; parallel tools opt-in; pre-existing app-layer config files only minimally touched). Result: `/tmp/codex-tool-runs/svton/pi-agent-migration/pi010-result.md`. |
+| PI010 | done | Historical functional verification and closure | This historical slice verified the then-defined §7.1–§7.10 functional gates: all 8 packages built and **366 test files / 2419 tests passed**. Its conclusion that Pi was already the sole base event/tool/message contract was superseded by fresh PC000 source inspection, which found the remaining compatibility contracts and strict type errors now tracked in the final-contract ledger. Result: `/tmp/codex-tool-runs/svton/pi-agent-migration/pi010-result.md`. |
 | PI010-R1 | done | Independent closure review | Re-verified the uncommitted migration against source, git diff and freshly-run gates (did NOT trust the original conclusions). Found + fixed what PI010 mislabeled as "external limits": **(1)** real tool-result secret redactor replaced the identity stub (`secret-redactor.utils.ts`, default-installed, 17 leak tests); **(2)** agent-web real product-path E2E covering stream/thinking/tool-progress/approval/abort/failure/refresh-resume (`chat-flows-e2e.test.ts`, 7 tests); **(3)** Desktop real product-path E2E (`desktop-streamed-turn.test.ts`, initAgent→ChatService→Pi runtime→platform.exec, 2 tests); **(4)** MCPServer inbound bypass made fail-closed + routed through a wired `ToolExecutionService`; **(5)** 5 migration-introduced tsc errors fixed (PI010's "all pre-existing" claim was inaccurate — verified via HEAD worktree); **(6)** reasoning-effort→thinkingLevel coverage gap closed. Architecture confirmed sound (Pi owns loop/state/scheduling; security pipeline gates every LLM tool; ChatService split correct). Final: **369 files / 2449 tests, 0 failures**; builds green; agent-core tsc 14 errors all HEAD-verified pre-existing. Result: `/tmp/codex-tool-runs/svton/pi-agent-migration-r1/pi010-r1-result.md`. |
 | PI010-R2 | done | Desktop real WKWebView final acceptance | Started the actual `target/debug/svton-agent-desktop` via `tauri:dev`; Vite 1420 and WS relay 9223 were owned by that run. A Vite-gated, default-inert faux-provider seam drove one real `useChat()` → `ChatService` → Pi runtime streamed turn inside WKWebView without reading real config or contacting a real model provider. Result evidence passed with `finalStatus=idle`, one new user message, one new marker response and correct ordering. The same WebView invoked real `process_exec`, validated stdout `svton-tauri-native-boundary`, then persisted native evidence through real `fs_write_file`. Desktop **14 files / 69 tests**, Rust command tests **6/6**, agent-client strict tsc 0 errors and Pi-scope build **10/10** pass. Runtime/config/cleanup evidence: `/tmp/codex-tool-runs/svton/pi-agent-live-e2e-closure/`. |
 
@@ -140,7 +146,7 @@ PI000 must finish before dependency or production-code changes.
 | Client/SDK | send, stream, approve, abort, background session and restore |
 | Web/Desktop | real UI stream, tool progress, approval, failure, refresh/resume and platform execution |
 
-## Completion Definition
+## Historical Completion Definition (superseded)
 
 PI000-PI010 are all `done` with evidence, and **PI010-R1 independently
 re-verified** the migration against source, git diff and freshly-run gates
@@ -187,10 +193,12 @@ claim with an actual Tauri process + WKWebView streamed turn + native IPC chain.
   product path.
 
 ### Real bugs found & fixed (regression-tested)
-1. **postTurn/checkpoint never ran** — it was placed AFTER `yield doneEvent` in
-   `runtime-run.ts`; the ChatService consumer breaks on `done`, so checkpoints
-   were never persisted and session resume was silently broken. Moved `postTurn`
-   to run BEFORE the terminal done. Regression: `post-turn-checkpoint-regression.test.ts`.
+1. **Historical post-turn/checkpoint ordering bug** — the old translated
+   terminal protocol allowed a consumer to stop before post-turn work. The
+   current contract supersedes that fix: native Pi `agent_end` listeners are
+   awaited as part of exact run settlement, so Memory extraction and Checkpoint
+   complete before the runtime generator settles. Current regressions cover
+   early consumer cancellation and checkpoint settlement.
 2. **session-restore on reload** — startup skipped `loadMessages` when the saved
    display list was empty, so checkpoint restore + display refresh never fired.
    Now always runs loadMessages and re-derives the display from the restored
@@ -217,12 +225,12 @@ claim with an actual Tauri process + WKWebView streamed turn + native IPC chain.
 - desktop tests + Rust boundary: 69 pass + 6/6 (`regression-20260729-145620/desktop-tests-20260729-145620.log`, `regression-20260729-145620/rust-command-tests-20260729-145620.log`)
 - real Desktop Tauri/WKWebView turn + IPC: passed (`p3b-r3-tauri-dev-20260729-144931.log`, `p3b-r3-process-evidence-20260729-144931.log`, `p3b-r3-json-evidence-20260729-144931.log`)
 - config protection + cleanup: config existence/hash/mtime unchanged; run PIDs exited and 1420/9223 were clear (`p3b-r3-config-fingerprint-20260729-144931.log`, `p3b-r3-process-evidence-20260729-144931.log`)
-- agent-core tsc baseline diff: Pi 12 errors all pre-existing; baseline @5d9c035a had 51 (`p5-tsc-curr.log`, `p5-tsc-baseline.log`)
+- historical agent-core tsc baseline diff: the live-E2E snapshot reported 12 pre-existing errors; fresh PC000 strict `tsc --noEmit` found 14 current errors, now tracked as mandatory closure work in the final-contract ledger.
 - current Pi/Agent/Desktop scope build: 10/10 tasks green (`regression-20260729-145620/pi-scope-monorepo-build-20260729-145620.log`)
 - root `pnpm build`: 31/34 before an unchanged baseline Picshare documentation parse error (`docs/todos/2026-07-22-picshare-deployment-plan.md:420`); origin/master, HEAD and worktree have the same blob. This is outside the Pi/Desktop scope (`regression-20260729-145620/monorepo-build-20260729-145620.log`).
 - diff audit: `origin/master..HEAD` only Pi-relevant files (no check2.mjs/F383/Devpilot)
 
 ### Remaining limits
-- agent-core strict tsc still has 12 pre-existing errors (auto-reviewer/memory/planning barrels + tool-hook-lifecycle) — all verified pre-existing against the baseline; tolerated by tsup (the build gate).
+- agent-core strict tsc still has 14 current errors (auto-reviewer/memory/planning barrels + tool-hook-lifecycle). Their historical origin no longer exempts them: the final-contract goal requires zero errors without unsafe casts or weakened checks.
 - macOS screen-recording permission was unavailable, so a screenshot is not a hard gate. The evidence chain instead uses the real Tauri/Vite/Desktop/9223 process ownership, WKWebView-driven streamed-turn marker, two externally re-read JSON files, real `process_exec`/`fs_write_file` results, config fingerprint and post-run process/port cleanup.
 - No `git push` / publish / deploy performed (per goal constraints).

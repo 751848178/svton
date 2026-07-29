@@ -1,9 +1,9 @@
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatUnknownErrorMessage } from './error-message.utils';
 import { resolveToolPath } from './path-resolution.utils';
 
-export const fileReadDef: ToolDefinition = {
+export const fileReadDef: SvtonToolDefinition = {
   name: 'file_read',
   description:
     'Read the contents of a file at the given path. Returns the file content as a string.',
@@ -28,7 +28,7 @@ export const fileReadDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class FileReadExecutor implements IToolExecutor {

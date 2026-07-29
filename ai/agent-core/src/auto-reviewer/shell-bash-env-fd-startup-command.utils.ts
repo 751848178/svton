@@ -23,7 +23,7 @@ export function bashEnvFdStartupCommandStrings(
     .concat(hereDocCommandStringsForFd(sourceCommand, fd))
     .filter(Boolean);
 
-  return scripts.concat(scripts.flatMap(staticAssignmentCommandStrings));
+  return scripts.concat(scripts.flatMap((script) => staticAssignmentCommandStrings(script)));
 }
 
 function bashEnvStdinStartupCommandStrings(statement: string, sourceCommand: string): string[] {
@@ -35,7 +35,7 @@ function bashEnvStdinStartupCommandStrings(statement: string, sourceCommand: str
     .concat(hereDocCommandStringsForFd(sourceCommand, null))
     .filter(Boolean);
 
-  return scripts.concat(scripts.flatMap(staticAssignmentCommandStrings));
+  return scripts.concat(scripts.flatMap((script) => staticAssignmentCommandStrings(script)));
 }
 
 function fdHereStringScriptCommandStrings(statement: string, fd: number): string[] {

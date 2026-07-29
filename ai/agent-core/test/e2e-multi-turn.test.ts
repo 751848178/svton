@@ -16,10 +16,11 @@ import {
   fauxAssistantMessage,
   fauxToolCall,
   fauxText,
-  type MockModelsHandle,
+  piMessageText,
+  piToolCalls,
+  piToolResultTexts,
 } from './helpers';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../src/tool/types';
-import type { ChatMessage } from '../src/provider/types';
 
 function makeExecutor(output: string): { executor: IToolExecutor; calls: ToolCall[] } {
   const calls: ToolCall[] = [];
@@ -60,24 +61,6 @@ function setup() {
   return { runtime, mock, diffCalls, readCalls };
 }
 
-function extractText(msg: ChatMessage): string {
-  if (typeof msg.content === 'string') return msg.content;
-  if (Array.isArray(msg.content)) {
-    return msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
-  }
-  return '';
-}
-
-function extractToolUses(msg: ChatMessage): any[] {
-  if (!Array.isArray(msg.content)) return [];
-  return msg.content.filter((b: any) => b.type === 'tool_use');
-}
-
-function extractToolResults(msg: ChatMessage): any[] {
-  if (!Array.isArray(msg.content)) return [];
-  return msg.content.filter((b: any) => b.type === 'tool_result');
-}
-
 describe('Multi-turn conversation E2E (Pi-backed)', () => {
   it('accumulates messages across two user→assistant turns (no messages lost)', async () => {
     const { runtime, mock } = setup();
@@ -96,13 +79,13 @@ describe('Multi-turn conversation E2E (Pi-backed)', () => {
     expect(roles[2]).toBe('user');
     expect(roles[3]).toBe('assistant');
 
-    expect(extractText(msgs[0])).toContain('First message');
-    expect(extractText(msgs[1])).toContain('Hello from turn 1');
-    expect(extractText(msgs[2])).toContain('Second message');
-    expect(extractText(msgs[3])).toContain('Hello from turn 2');
+    expect(piMessageText(msgs[0])).toContain('First message');
+    expect(piMessageText(msgs[1])).toContain('Hello from turn 1');
+    expect(piMessageText(msgs[2])).toContain('Second message');
+    expect(piMessageText(msgs[3])).toContain('Hello from turn 2');
   });
 
-  it('injects tool_result into context so the LLM can continue (tool → result → text)', async () => {
+  it('injects a Pi toolResult message so the LLM can continue', async () => {
     const { runtime, mock, diffCalls } = setup();
     mock.addResponse(fauxAssistantMessage([fauxToolCall('git_diff', { base: 'main' })]));
     mock.addResponse(fauxAssistantMessage([fauxText('I reviewed the diff.')]));
@@ -113,14 +96,13 @@ describe('Multi-turn conversation E2E (Pi-backed)', () => {
     expect(diffCalls.length).toBe(1);
     expect(diffCalls[0].name).toBe('git_diff');
 
-    const assistantWithTool = msgs.find((m) => m.role === 'assistant' && extractToolUses(m).length > 0);
+    const assistantWithTool = msgs.find((m) => piToolCalls(m).length > 0);
     expect(assistantWithTool).toBeDefined();
 
-    const toolMsg = msgs.find((m) => m.role === 'tool' && extractToolResults(m).length > 0);
+    const toolMsg = msgs.find((m) => piToolResultTexts(m).length > 0);
     expect(toolMsg).toBeDefined();
-    const toolResult = extractToolResults(toolMsg!)[0];
-    expect(toolResult.output).toContain('diff: +line1');
-    expect(toolResult.isError).toBeFalsy();
+    expect(piToolResultTexts(toolMsg!)[0]).toContain('diff: +line1');
+    if (toolMsg?.role === 'toolResult') expect(toolMsg.isError).toBe(false);
   });
 
   it('handles multiple tool calls in one turn (all results land in context)', async () => {
@@ -139,11 +121,11 @@ describe('Multi-turn conversation E2E (Pi-backed)', () => {
     expect(readCalls.length).toBe(1);
 
     const msgs = runtime.getMessages();
-    const toolMsgs = msgs.filter((m) => m.role === 'tool');
+    const toolMsgs = msgs.filter((m) => m.role === 'toolResult');
     expect(toolMsgs.length).toBe(2);
-    const allResults = toolMsgs.flatMap(extractToolResults);
+    const allResults = toolMsgs.flatMap(piToolResultTexts);
     expect(allResults.length).toBe(2);
-    const outputs = allResults.map((r) => r.output).sort();
+    const outputs = allResults.sort();
     expect(outputs).toEqual(['diff: +line1\n-line2', 'file contents: hello world']);
   });
 
@@ -160,14 +142,15 @@ describe('Multi-turn conversation E2E (Pi-backed)', () => {
     const msgsAfterTurn2 = runtime.getMessages();
 
     expect(msgsAfterTurn2.length).toBeGreaterThan(msgsAfterTurn1);
-    expect(extractText(msgsAfterTurn2[0])).toContain('Show diff against v1');
+    expect(piMessageText(msgsAfterTurn2[0])).toContain('Show diff against v1');
 
-    const hasToolResult = msgsAfterTurn2.some((m) => m.role === 'tool' && extractToolResults(m).length > 0);
+    const hasToolResult = msgsAfterTurn2.some((m) => piToolResultTexts(m).length > 0);
     expect(hasToolResult).toBe(true);
 
     const lastUser = [...msgsAfterTurn2].reverse().find((m) => m.role === 'user');
-    expect(extractText(lastUser!)).toContain('Got it');
-    const lastAssistant = [...msgsAfterTurn2].reverse().find((m) => m.role === 'assistant' && extractText(m));
-    expect(extractText(lastAssistant!)).toContain('Acknowledged');
+    expect(piMessageText(lastUser!)).toContain('Got it');
+    const lastAssistant = [...msgsAfterTurn2].reverse()
+      .find((m) => m.role === 'assistant' && piMessageText(m));
+    expect(piMessageText(lastAssistant!)).toContain('Acknowledged');
   });
 });

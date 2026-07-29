@@ -1,32 +1,32 @@
 /**
- * Agent — high-level wrapper around AgentRuntime.
+ * Agent — high-level wrapper around SvtonAgentRuntime.
  *
  * Provides a clean API for chat, tool approval, session management,
  * and dynamic tool/skill registration.
  */
 
 import type {
-  AgentEvent,
-  AgentRuntime,
-  ChatMessage,
-  ContentBlock,
   AgentCapabilities,
+  PublicRuntimeEvent,
   SkillDefinition,
+  SvtonAgentRuntime,
   ToolRegistry,
 } from '@svton/agent-core';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
+import type { UserMessage } from '@earendil-works/pi-ai';
 import type { IPlatform } from '@svton/agent-platform';
 import type { UserToolDefinition } from './types';
 import { FunctionToolExecutor } from './tool-adapter';
 
 export class Agent {
-  readonly runtime: AgentRuntime;
+  readonly runtime: SvtonAgentRuntime;
   readonly toolRegistry: ToolRegistry;
   readonly platform: IPlatform;
 
   private readonly _mcpClients: import('@svton/agent-core').MCPClient[];
 
   constructor(
-    runtime: AgentRuntime,
+    runtime: SvtonAgentRuntime,
     toolRegistry: ToolRegistry,
     platform: IPlatform,
     mcpClients: import('@svton/agent-core').MCPClient[] = [],
@@ -47,12 +47,14 @@ export class Agent {
    *
    * ```ts
    * for await (const event of agent.chat('Hello')) {
-   *   if (event.type === 'text_delta') process.stdout.write(event.text);
-   *   if (event.type === 'done') console.log('\nTokens:', event.usage);
+   *   if (event.type === 'message_update'
+   *     && event.assistantMessageEvent.type === 'text_delta') {
+   *     process.stdout.write(event.assistantMessageEvent.delta);
+   *   }
    * }
    * ```
    */
-  async *chat(message: string | ContentBlock[]): AsyncGenerator<AgentEvent> {
+  async *chat(message: UserMessage['content']): AsyncGenerator<PublicRuntimeEvent> {
     yield* this.runtime.run(message);
   }
 
@@ -93,13 +95,18 @@ export class Agent {
   // ============================================================
 
   /** Get the full conversation history. */
-  getMessages(): ChatMessage[] {
+  getMessages(): AgentMessage[] {
     return this.runtime.getMessages();
   }
 
   /** Restore conversation history (e.g. loading a saved session). */
-  setMessages(messages: ChatMessage[]): void {
+  setMessages(messages: AgentMessage[]): void {
     this.runtime.setMessages(messages);
+  }
+
+  /** Clear canonical transcript and all Pi-owned transient runtime state. */
+  reset(): void {
+    this.runtime.reset();
   }
 
   /**
@@ -129,14 +136,10 @@ export class Agent {
 
   /** Register a custom tool at runtime. */
   addTool(tool: UserToolDefinition): void {
+    const { execute, ...definition } = tool;
     this.toolRegistry.register(
-      {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-        annotations: tool.annotations,
-      },
-      new FunctionToolExecutor(tool.execute),
+      definition,
+      new FunctionToolExecutor(execute),
     );
   }
 

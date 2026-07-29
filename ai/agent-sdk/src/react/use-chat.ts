@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SetStateAction } from 'react';
-import type { TokenUsage } from '@svton/agent-core';
+import type { Usage } from '@earendil-works/pi-ai';
 import type { Agent } from '../agent';
 import { useAgentContext } from './context';
 import type { ChatStatus, DisplayMessage, PlanProgress } from './types';
@@ -9,12 +9,13 @@ import { getSharedChatMessages, setSharedChatMessages, subscribeSharedChatMessag
 import { buildChatContent } from './chat-content.utils';
 import { useChatEventHandler } from './use-chat-event-handler.hooks';
 import { finalizeAbortedMessages, hasPendingToolCallsInMessages } from './tool-call-status.utils';
+import { SdkChatRunOwnershipService } from './chat-run-ownership.service';
 
 export interface UseChatReturn {
   messages: DisplayMessage[];
   status: ChatStatus;
   isStreaming: boolean;
-  lastUsage: TokenUsage | null;
+  lastUsage: Usage | null;
   activePlan: PlanProgress | null;
   send: (message: string, images?: Array<{ data: string; mimeType?: string }>) => void;
   abort: () => void;
@@ -44,12 +45,12 @@ export function useChat(): UseChatReturn {
 
   const [messages, setMessages] = useState<DisplayMessage[]>(() => getSharedChatMessages(agent));
   const [status, setStatus] = useState<ChatStatus>('idle');
-  const [lastUsage, setLastUsage] = useState<TokenUsage | null>(null);
+  const [lastUsage, setLastUsage] = useState<Usage | null>(null);
   const [activePlan, setActivePlan] = useState<PlanProgress | null>(null);
 
   const statusRef = useRef<ChatStatus>('idle');
-  const lastEventType = useRef<string | null>(null);
-  const runSeqRef = useRef(0);
+  const thinkingSeparatorPending = useRef(false);
+  const runOwnershipRef = useRef(new SdkChatRunOwnershipService());
 
   useEffect(() => subscribeSharedChatMessages(agent, setMessages), [agent]);
 
@@ -80,7 +81,7 @@ export function useChat(): UseChatReturn {
     publishMessages,
     createSystemMessage,
     statusRef,
-    lastEventType,
+    thinkingSeparatorPending,
     setStatus,
     setLastUsage,
     setActivePlan,
@@ -89,9 +90,12 @@ export function useChat(): UseChatReturn {
   const send = useCallback(
     (message: string, images?: Array<{ data: string; mimeType?: string }>) => {
       if (
+        runOwnershipRef.current.isProcessing ||
         isActiveChatStatus(statusRef.current)
         || hasPendingToolCallsInMessages(getSharedChatMessages(agent))
       ) return;
+      const lease = runOwnershipRef.current.begin();
+      if (!lease) return;
 
       const userMsg = createMessage('user', message, {
         images: images?.length ? images : undefined,
@@ -102,27 +106,20 @@ export function useChat(): UseChatReturn {
       publishMessages((prev) => [...prev, assistantMsg]);
 
       statusRef.current = 'running';
-      lastEventType.current = null;
+      thinkingSeparatorPending.current = false;
       setStatus('running');
 
       const runId = assistantMsg.id;
-      const runSeq = ++runSeqRef.current;
 
       const content = buildChatContent(message, images);
 
       (async () => {
         try {
           for await (const event of agent.chat(content)) {
-            if (runSeq !== runSeqRef.current) {
-              break;
-            }
-            if (statusRef.current === 'idle' || statusRef.current === 'error') {
-              break;
-            }
-            handleEvent(event, runId);
+            if (lease.acceptsEvents()) handleEvent(event, runId);
           }
         } catch (err) {
-          if (runSeq !== runSeqRef.current || statusRef.current === 'idle' || statusRef.current === 'error') {
+          if (!lease.acceptsEvents() || statusRef.current === 'idle' || statusRef.current === 'error') {
             return;
           }
           const errorMsg = err instanceof Error ? err.message : String(err);
@@ -134,14 +131,19 @@ export function useChat(): UseChatReturn {
           }));
           statusRef.current = 'error';
           setStatus('error');
+        } finally {
+          const settlement = lease.release();
+          if (settlement.released && settlement.resetRequested) {
+            agent.setMessages([]);
+          }
         }
       })();
     },
-    [agent, handleEvent, updateMessage],
+    [agent, handleEvent, publishMessages, updateMessage],
   );
 
   const abort = useCallback(() => {
-    runSeqRef.current += 1;
+    runOwnershipRef.current.invalidateActive();
     agent.abort();
     publishMessages(finalizeAbortedMessages);
     statusRef.current = 'idle';
@@ -149,14 +151,15 @@ export function useChat(): UseChatReturn {
   }, [agent, publishMessages]);
 
   const clear = useCallback(() => {
-    runSeqRef.current += 1;
+    const resetDeferred = runOwnershipRef.current.invalidateActive(true);
     if (
+      resetDeferred ||
       isActiveChatStatus(statusRef.current)
       || hasPendingToolCallsInMessages(getSharedChatMessages(agent))
     ) {
       agent.abort();
     }
-    agent.setMessages([]);
+    if (!resetDeferred) agent.setMessages([]);
     publishMessages([]);
     setStatus('idle');
     setLastUsage(null);

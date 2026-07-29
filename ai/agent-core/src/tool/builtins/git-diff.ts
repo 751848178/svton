@@ -2,14 +2,14 @@
  * Git diff code review tool.
  */
 
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatCommandResult } from '../command-result.utils';
 import { resolveCommandRunner } from '../command-runner.utils';
 import { readSafeGitRefs, shellQuote } from '../git-review-command.utils';
 import { formatUnknownErrorMessage } from './error-message.utils';
 
-export const gitDiffDef: ToolDefinition = {
+export const gitDiffDef: SvtonToolDefinition = {
   name: 'git_diff',
   description:
     'Get the git diff between two refs, or the working tree if no refs are given. ' +
@@ -43,7 +43,7 @@ export const gitDiffDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class GitDiffExecutor implements IToolExecutor {

@@ -13,6 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@svton/agent-app": "workspace:*",
     "@svton/agent-client": "workspace:*",
     "@svton/agent-core": "workspace:*",
     "@svton/agent-platform": "workspace:*",

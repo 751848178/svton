@@ -17,9 +17,11 @@ svton does **not** reimplement the LLM wire protocol or the ReAct loop. Instead
 - **pi-agent-core** owns the agent loop, continuation, abort, message source of
   truth and tool-call scheduling.
 - **agent-core** owns the credential-store boundary, approval gate, context
-  compaction, event translation (Pi → `AgentEvent`), and the product capabilities
+  compaction, native Pi event multiplexing, and the product capabilities
   (tools, skills, memory, MCP, subagents, planning, permissions, hooks,
   auto-review, checkpoints).
+- **agent-client / agent-app** own the explicit Session/Display and UI
+  projection boundaries; those DTOs never replace Pi canonical state.
 
 See `docs-internal/design/pi-agent-migration-architecture.md` for the full
 design. Public docs live under `docs/agent/core/`.
@@ -57,12 +59,9 @@ const runtime = await SvtonAgentRuntime.createAsync(
 );
 
 for await (const event of runtime.run('Hello, what can you do?')) {
-  if (event.type === 'text_delta') process.stdout.write(event.text);
-  if (event.type === 'done') console.log('\nDone');
+  if (event.type === 'agent_end') console.log('Turn settled');
 }
 ```
-
-> `AgentRuntime` is kept as a back-compat alias for `SvtonAgentRuntime`.
 
 ## Features
 
@@ -82,8 +81,8 @@ for await (const event of runtime.run('Hello, what can you do?')) {
 
 ## Providers
 
-svton no longer ships `OpenAIProvider`/`AnthropicProvider` classes. Build a
-pi-ai `Models` collection via `createPiModelsForProvider`:
+svton does not ship custom provider classes. Build a pi-ai `Models` collection
+via `createPiModelsForProvider`:
 
 ```typescript
 // OpenAI (or compatible: DeepSeek, Ollama, vLLM, Azure)
@@ -102,11 +101,18 @@ createPiModelsForProvider('claude-sonnet-4-20250514', {
 
 ## Agent Events
 
-`run()` returns an `AsyncGenerator<AgentEvent>`. Pi-base events
-(`text_delta`, `thinking_delta`, `tool_call_*`, `error`, `done`) are translated
-from pi-agent-core by `pi-event-adapter.ts`; svton-only events
+`run()` returns an `AsyncGenerator<PublicRuntimeEvent>`.
+`PiAgentEvent` is the exported name for upstream pi-agent-core `AgentEvent`,
+and the public contract is:
+
+```typescript
+type PublicRuntimeEvent = PiAgentEvent | SvtonCapabilityEvent;
+```
+
+Pi events pass through unchanged and own agent, turn, message, streaming, tool
+execution, failure, abort and settlement lifecycles. Svton capability events
 (`tool_approval_needed`, `context_compacted`, `warning`, `skill_activated`)
-cover capabilities Pi does not own. See `docs/agent/core/runtime.md`.
+cover product behavior Pi does not own. See `docs/agent/core/runtime.md`.
 
 ## License
 

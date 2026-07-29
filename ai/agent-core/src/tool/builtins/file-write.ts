@@ -1,9 +1,9 @@
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatUnknownErrorMessage } from './error-message.utils';
 import { resolveToolPath } from './path-resolution.utils';
 
-export const fileWriteDef: ToolDefinition = {
+export const fileWriteDef: SvtonToolDefinition = {
   name: 'file_write',
   description:
     'Create or overwrite a file with the given content. Creates parent directories if needed.',
@@ -24,7 +24,7 @@ export const fileWriteDef: ToolDefinition = {
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class FileWriteExecutor implements IToolExecutor {

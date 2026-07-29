@@ -2,6 +2,13 @@
 
 Status: verified_branch_pushed_pr_auth_required
 
+> [!NOTE]
+> **Historical / superseded repair ledger.** 下列条目记录 2026-07-13
+> 审计时的实现与验证证据，出现的 `AgentRuntime`、`AgentEvent`、
+> `OpenAIProvider` 或 `AnthropicProvider` 等旧名称不代表当前公共契约。
+> 当前实现以 Pi canonical contracts 和 `SvtonAgentRuntime` 为准；参见
+> [`docs/agent/core/runtime.md`](../agent/core/runtime.md)。
+
 ## Workflow Routing
 
 - routing: long-goal + specialized multi-agent + noisy-tools verification.

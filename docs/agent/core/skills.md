@@ -8,21 +8,25 @@
 
 ```typescript
 import { SkillManager, SkillLoader } from '@svton/agent-core';
+import { getPlatform } from '@svton/agent-platform';
 
-const skillManager = new SkillManager(provider);
-
-// 从项目目录加载技能
-const loader = new SkillLoader(storage);
-await loader.loadFromDirectory('.svton/skills/');
+const platform = getPlatform();
+const skillManager = new SkillManager();
+const { skills } = await SkillLoader.discover(
+  platform.storage,
+  platform,
+  [],
+  platform.process.getCwd(),
+);
 
 // 注册技能
-for (const skill of loader.skills) {
+for (const skill of skills) {
   skillManager.register(skill);
 }
 
 // 根据用户消息自动匹配并激活技能
-await skillManager.matchSkills('帮我写一个 React 组件');
-// → 激活 "react-expert" 技能,注入领域知识
+const relevant = skillManager.findRelevant('帮我写一个 React 组件');
+// 调用方再选择 relevant 中的技能并按需加载 instructions
 ```
 
 ## 核心组件
@@ -212,10 +216,15 @@ triggerSignals:
 
 ```typescript
 import { SkillLoader } from '@svton/agent-core';
+import { getPlatform } from '@svton/agent-platform';
 
-const loader = new SkillLoader(storage, platform);
-await loader.loadFromStorage();
-const skills = loader.list();
+const platform = getPlatform();
+const { skills, errors } = await SkillLoader.discover(
+  platform.storage,
+  platform,
+  ['/skills/svton/SKILL.md'],
+  platform.process.getCwd(),
+);
 ```
 
 SkillLoader 支持的 frontmatter 字段(括号内为 kebab-case 等价形式):
@@ -287,15 +296,14 @@ const result = await installer.installFromGit(
 2. 失败则 clone 到临时目录,搜索 `.svton/skills/*/SKILL.md`。
 3. 解析 frontmatter 并注册。
 
-### installFromContent()
+### 从已有内容创建用户技能
 
-从已有内容安装:
+原始 Markdown 内容不是安装器的公开入口。应通过公开的 `SkillLoader`
+解析并保存为用户技能:
 
 ```typescript
-const result = await installer.installFromContent(
-  markdownContent,
-  { type: 'storage' },
-);
+const skill = SkillLoader.parseMarkdown(markdownContent);
+await SkillLoader.saveToStorage(storage, skill);
 ```
 
 ### InstallResult
@@ -317,7 +325,7 @@ interface InstallResult {
 ```typescript
 import { SkillMarketplace } from '@svton/agent-core';
 
-const market = new SkillMarketplace(storage);
+const market = new SkillMarketplace();
 
 // 搜索技能
 const results = await market.search('react');
@@ -330,8 +338,8 @@ const detail = await market.getDetail('vercel-labs/agent-skills/next-js');
 console.log(`文件数: ${detail.files?.length}`);
 
 // 安全审计
-const audit = await market.getAudit('vercel-labs/agent-skills/next-js');
-for (const entry of audit.audits) {
+const auditEntries = await market.getAudit('vercel-labs/agent-skills/next-js');
+for (const entry of auditEntries) {
   console.log(`${entry.provider}: ${entry.status} (${entry.riskLevel})`);
 }
 ```
@@ -352,7 +360,10 @@ interface MarketplaceSkill {
 ### 一键安装
 
 ```typescript
-const result = await market.install('vercel-labs/agent-skills/next-js');
+const result = await market.install(
+  'vercel-labs/agent-skills/next-js',
+  storage,
+);
 if (result.success) {
   console.log(`已安装: ${result.skill?.name}`);
 }
@@ -372,12 +383,13 @@ skillManager.register(codeReviewSkill);
 
 ---
 
-## 与 AgentRuntime 集成
+## 与 SvtonAgentRuntime 集成
 
 ```typescript
-const runtime = await AgentRuntime.createAsync(
+const runtime = await SvtonAgentRuntime.createAsync(
   {
-    provider,
+    models,
+    piModel,
     model: 'claude-sonnet-4-20250514',
     toolRegistry,
     capabilities: {
@@ -444,6 +456,6 @@ svton skill build --skills-dir ./skills --out-dir ./.svton/skills
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — 运行时注入技能上下文
+- [SvtonAgentRuntime](./runtime) — 运行时注入技能上下文
 - [自定义 Agent](./agent-definition) — 与技能互补的人格定义
 - [记忆系统](./memory) — 类似的渐进式上下文注入策略

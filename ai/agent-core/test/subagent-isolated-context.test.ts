@@ -1,21 +1,21 @@
 /**
  * PI006 — SubagentManager isolatedContext through the Pi-backed runtime.
  *
- * Replaces the stale mock that referenced the deleted `IProvider`. This now
- * drives a REAL `SvtonAgentRuntime` child (Pi Agent under the hood) via
+ * Drives a real `SvtonAgentRuntime` child (Pi Agent under the hood) via
  * `createMockModels()`, proving:
  *   - non-isolated context seeds parent messages into the child's Pi state
  *     (`setMessages` → `agent.state.messages`)
  *   - isolated context (the default) does NOT inherit parent messages
  *
  * The subagent runtime reads its post-run transcript from Pi Agent state via
- * `getMessages()` (the message-bridge), so seeding is observable end-to-end.
+ * `getMessages()` from canonical Pi state, so seeding is observable end-to-end.
  */
 import { describe, it, expect } from 'vitest';
 import { SubagentManager } from '../src/subagent/manager';
 import { ToolRegistry } from '../src/tool/registry';
 import type { AgentConfig, IRuntime } from '../src/agent/types';
-import type { ChatMessage } from '../src/provider/types';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
+import type { UserMessage } from '@earendil-works/pi-ai';
 import { createMockModels, createMockPlatform, fauxAssistantMessage, fauxText } from './helpers';
 
 function createPlatform() {
@@ -38,17 +38,23 @@ function createConfig(toolRegistry: ToolRegistry): { config: AgentConfig; mock: 
 
 describe('SubagentManager isolatedContext (Pi-backed SvtonAgentRuntime child)', () => {
   it('seeds parent messages into the child Pi state when isolatedContext is false', async () => {
-    const parentMessages: ChatMessage[] = [
-      { role: 'user', content: 'Parent question' },
-      { role: 'assistant', content: 'Parent answer' },
+    const parentUser: UserMessage = {
+      role: 'user',
+      content: 'Parent question',
+      timestamp: 1,
+    };
+    const parentMessages: AgentMessage[] = [
+      parentUser,
+      fauxAssistantMessage([fauxText('Parent answer')]),
     ];
     const toolRegistry = new ToolRegistry();
     const { config } = createConfig(toolRegistry);
 
     // Parent runtime exposes the seed transcript via getMessages().
     const parentRuntime: IRuntime = {
-      run: async function* () { yield { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } }; },
+      run: async function* () {},
       getMessages: () => parentMessages,
+      reset: () => {},
       abort: () => {},
     };
 
@@ -65,16 +71,22 @@ describe('SubagentManager isolatedContext (Pi-backed SvtonAgentRuntime child)', 
   });
 
   it('does NOT inherit parent messages when isolatedContext is true (default)', async () => {
-    const parentMessages: ChatMessage[] = [
-      { role: 'user', content: 'Parent-only secret' },
-      { role: 'assistant', content: 'Parent-only answer' },
+    const parentUser: UserMessage = {
+      role: 'user',
+      content: 'Parent-only secret',
+      timestamp: 1,
+    };
+    const parentMessages: AgentMessage[] = [
+      parentUser,
+      fauxAssistantMessage([fauxText('Parent-only answer')]),
     ];
     const toolRegistry = new ToolRegistry();
     const { config } = createConfig(toolRegistry);
 
     const parentRuntime: IRuntime = {
-      run: async function* () { yield { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } }; },
+      run: async function* () {},
       getMessages: () => parentMessages,
+      reset: () => {},
       abort: () => {},
     };
 

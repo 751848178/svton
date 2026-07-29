@@ -1,14 +1,14 @@
-import type { AgentRuntime } from '@svton/agent-core';
+import type { SvtonAgentRuntime } from '@svton/agent-core';
 import type { DisplayMessage } from '../types';
 import type { MessageEditPlan } from './chat-commands';
 
-export function captureRuntimeMessageIndex(runtime: AgentRuntime): number {
+export function captureRuntimeMessageIndex(runtime: SvtonAgentRuntime): number {
   return runtime.getCanonicalMessages().length;
 }
 
 export function attachRuntimeMessageIndexes(
   messages: DisplayMessage[],
-  runtime: AgentRuntime,
+  runtime: SvtonAgentRuntime,
 ): DisplayMessage[] {
   const positions = userPositions(runtime.getCanonicalMessages());
   let userOrdinal = 0;
@@ -23,7 +23,7 @@ export function attachRuntimeMessageIndexes(
 }
 
 export function rollbackRuntimeForMessage(
-  runtime: AgentRuntime,
+  runtime: SvtonAgentRuntime,
   currentMessages: DisplayMessage[],
   plan: MessageEditPlan,
 ): DisplayMessage[] | null {
@@ -42,7 +42,7 @@ export function rollbackRuntimeForMessage(
 }
 
 function resolveByUserOrdinal(
-  canonical: ReturnType<AgentRuntime['getCanonicalMessages']>,
+  canonical: ReturnType<SvtonAgentRuntime['getCanonicalMessages']>,
   messages: DisplayMessage[],
   targetMessageId: string,
 ): number | undefined {

@@ -18,7 +18,7 @@ hookManager.register({
   event: 'pre_tool_use',
   priority: 100,
   handler: async (ctx) => {
-    console.log(`[AUDIT] ${ctx.toolName}:`, ctx.input);
+    console.log(`[AUDIT] ${ctx.toolName}:`, ctx.toolCall?.arguments);
     return { action: 'continue' };
   },
 });
@@ -28,7 +28,10 @@ hookManager.register({
   event: 'pre_tool_use',
   priority: 1,
   handler: async (ctx) => {
-    if (ctx.toolName === 'bash' && ctx.input.command.includes('rm -rf')) {
+    const command = ctx.toolCall?.arguments.command;
+    if (ctx.toolName === 'bash'
+      && typeof command === 'string'
+      && command.includes('rm -rf')) {
       return { action: 'deny', reason: '禁止删除操作' };
     }
     return { action: 'continue' };
@@ -228,9 +231,9 @@ hookManager.register({
   id: 'block-dangerous-commands',
   handler: async (ctx) => {
     if (ctx.toolName === 'bash') {
-      const cmd = (ctx.toolCall?.arguments as any)?.command as string;
+      const cmd = ctx.toolCall?.arguments.command;
       const dangerous = ['rm -rf', 'mkfs', 'dd if=', '> /dev/sda'];
-      if (dangerous.some(d => cmd.includes(d))) {
+      if (typeof cmd === 'string' && dangerous.some(d => cmd.includes(d))) {
         return { action: 'deny', reason: `危险命令被拦截: ${cmd}` };
       }
     }
@@ -294,9 +297,13 @@ hookManager.register({
   event: 'post_tool_use',
   handler: async (ctx) => {
     if (ctx.toolName === 'file_write' || ctx.toolName === 'file_edit') {
+      const path = ctx.toolCall?.arguments.path;
+      if (typeof path !== 'string') {
+        return { action: 'continue' };
+      }
       // 工具写入文件后自动触发代码审查
       const review = await autoReviewer.review({
-        file: (ctx.toolCall?.arguments as any)?.path,
+        file: path,
       });
       if (review.hasIssues) {
         return {
@@ -317,12 +324,13 @@ hookManager.register({
 
 ---
 
-## 与 AgentRuntime 集成
+## 与 SvtonAgentRuntime 集成
 
 ```typescript
-const runtime = await AgentRuntime.createAsync(
+const runtime = await SvtonAgentRuntime.createAsync(
   {
-    provider,
+    models,
+    piModel,
     model: 'claude-sonnet-4-20250514',
     toolRegistry,
     capabilities: {
@@ -333,15 +341,17 @@ const runtime = await AgentRuntime.createAsync(
 );
 ```
 
-集成后,runtime 会在以下时机自动触发钩子:
+当前 runtime 已接线并自动触发的钩子只有:
 
 | 时机 | 事件 |
 | --- | --- |
 | 每次 `run()` 开始 | `session_start` |
 | 工具执行前 | `pre_tool_use` |
 | 工具执行后 | `post_tool_use` |
-| 上下文压缩时 | `context_compact` |
-| 会话结束 | `session_end` |
+
+`permission_request`、`session_end`、`context_compact`、`message_sent` 和
+`message_received` 仍是公开 `HookEvent` 值,可由产品能力显式调用
+`HookManager.trigger()`;当前 Core runtime 不会自动触发它们。
 
 也可以运行时更新:
 
@@ -374,6 +384,6 @@ hookManager.register({ event: 'pre_tool_use', priority: 100, handler: fn3 }); //
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — 运行时触发各种钩子事件
+- [SvtonAgentRuntime](./runtime) — 运行时触发各种钩子事件
 - [权限系统](./permission) — `permission_request` 钩子与权限系统协作
 - [工具系统](./tools) — `pre_tool_use` / `post_tool_use` 钩子

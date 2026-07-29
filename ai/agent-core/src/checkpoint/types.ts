@@ -3,7 +3,7 @@
  * Used by SessionResumeManager to serialize/restore full runtime state.
  */
 
-import type { ChatMessage } from '../provider/types';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { ReasoningEffort } from '../provider/types';
 
 /**
@@ -11,7 +11,7 @@ import type { ReasoningEffort } from '../provider/types';
  * Persisted to storage so sessions can be fully restored later.
  */
 export interface SerializedRuntime {
-  messages: ChatMessage[];
+  messages: AgentMessage[];
   model: string;
   reasoningEffort?: ReasoningEffort;
   /** Active plan ID if a plan was in progress */

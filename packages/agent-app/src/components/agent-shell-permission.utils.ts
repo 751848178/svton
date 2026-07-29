@@ -1,12 +1,7 @@
-import type { AgentConfig } from '@svton/agent-core';
+import type { AgentConfig, PermissionMode } from '@svton/agent-core';
 
-export type AgentShellPermissionMode =
-  | 'read_only'
-  | 'plan'
-  | 'default'
-  | 'accept_edits'
-  | 'auto';
+export type AgentShellPermissionMode = PermissionMode;
 
 export function readAgentShellPermissionMode(config: AgentConfig): AgentShellPermissionMode {
-  return (config.capabilities?.permissionManager?.getMode() as AgentShellPermissionMode | undefined) ?? 'default';
+  return config.capabilities?.permissionManager?.getMode() ?? 'default';
 }

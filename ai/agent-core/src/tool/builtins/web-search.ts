@@ -1,5 +1,5 @@
 import type { IHttpClient, IHttpResponse } from '@svton/agent-platform';
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatUnknownErrorMessage } from './error-message.utils';
 import { resolveHttp } from './web-http.utils';
@@ -13,7 +13,7 @@ import {
   webSearchRequestMetadata,
 } from './web-search.utils';
 
-export const webSearchDef: ToolDefinition = {
+export const webSearchDef: SvtonToolDefinition = {
   name: 'web_search',
   description: 'Search the web for information. Returns search results with titles, URLs, and snippets.',
   parameters: {
@@ -33,7 +33,7 @@ export const webSearchDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     openWorldHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export type WebSearchProvider = 'tavily' | 'custom';

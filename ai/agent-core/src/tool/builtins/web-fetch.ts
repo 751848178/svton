@@ -1,5 +1,5 @@
 import type { IHttpResponse } from '@svton/agent-platform';
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import {
   formatWebFetchOutput,
@@ -13,7 +13,7 @@ import { resolveHttp } from './web-http.utils';
 
 const MAX_FETCH_OUTPUT_LENGTH = 50000;
 
-export const webFetchDef: ToolDefinition = {
+export const webFetchDef: SvtonToolDefinition = {
   name: 'web_fetch',
   description: 'Fetch and return the content of a URL. Returns the response body as text.',
   parameters: {
@@ -34,7 +34,7 @@ export const webFetchDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     openWorldHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class WebFetchExecutor implements IToolExecutor {

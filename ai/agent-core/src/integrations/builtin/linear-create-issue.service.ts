@@ -1,10 +1,10 @@
-import type { ToolAnnotations, ToolDefinition } from '../../provider/types';
+import type { SvtonToolAnnotations, SvtonToolDefinition } from '../../tool/types';
 import type { IToolExecutor, ToolCall, ToolContext, ToolResult } from '../../tool/types';
 import { formatUnknownErrorMessage } from '../../utils/error-message.utils';
 import { LINEAR_GRAPHQL_URL } from './linear.constants';
 import { escapeLinearGql } from './linear-gql.utils';
 
-export const linearCreateIssueDef: ToolDefinition = {
+export const linearCreateIssueDef: SvtonToolDefinition = {
   name: 'linear_create_issue',
   description: 'Create a new Linear issue in a team.',
   parameters: {
@@ -34,7 +34,7 @@ export const linearCreateIssueDef: ToolDefinition = {
     destructiveHint: false,
     idempotentHint: false,
     openWorldHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class LinearCreateIssueExecutor implements IToolExecutor {

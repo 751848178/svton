@@ -7,7 +7,7 @@
  * 1. **Memory extraction is reattached** (Architecture §7.5): after a turn
  *    settles, `memoryManager.extractFromConversation` runs against the Pi-state
  *    transcript and persists a learned fact. (PI003 dropped the old runtime's
- *    post-turn hook; PI006 reattaches it to the post-`done` point.)
+ *    post-turn hook; PI006 reattaches it to native `agent_end` settlement.)
  *
  * 2. **Checkpoint round-trips through Pi state**: after a run,
  *    `resumeManager.checkpoint(sessionId, runtime)` serializes Pi's transcript
@@ -95,16 +95,13 @@ describe('PI006 memory extraction fires after a Pi-backed turn', () => {
 
     // Seed a long-enough transcript so extraction's messages.length>=4 guard passes.
     runtime.setMessages([
-      { role: 'user', content: 'hello' },
-      { role: 'assistant', content: 'hi there' },
-      { role: 'user', content: 'I prefer dark mode always' },
-      { role: 'assistant', content: 'got it' },
+      { role: 'user', content: 'hello', timestamp: 1 },
+      fauxAssistantMessage([fauxText('hi there')]),
+      { role: 'user', content: 'I prefer dark mode always', timestamp: 2 },
+      fauxAssistantMessage([fauxText('got it')]),
     ]);
 
     await collectEvents(runtime.run('remember this please'));
-
-    // Give the fire-and-forget extraction a chance to settle.
-    await new Promise((r) => setTimeout(r, 50));
 
     const text = memoryManager.getAutoMemoryText();
     expect(text).toContain('dark mode');
@@ -113,7 +110,7 @@ describe('PI006 memory extraction fires after a Pi-backed turn', () => {
   it('does not crash when no memory manager is configured', async () => {
     const { runtime } = buildRuntime({});
     const events = await collectEvents(runtime.run('hi'));
-    expect(events.some((e) => e.type === 'done')).toBe(true);
+    expect(events.some((e) => e.type === 'agent_end')).toBe(true);
   });
 });
 
@@ -133,13 +130,12 @@ describe('PI006 checkpoint/resume round-trips through Pi state', () => {
   it('checkpoints the Pi transcript after a run and restores it into a fresh runtime', async () => {
     const { runtime: rt1 } = buildRuntime({ resumeManager });
     rt1.setMessages([
-      { role: 'user', content: 'seed question' },
-      { role: 'assistant', content: 'seed answer' },
+      { role: 'user', content: 'seed question', timestamp: 1 },
+      fauxAssistantMessage([fauxText('seed answer')]),
     ]);
     await collectEvents(rt1.run('follow up', { sessionId: 'sess-rt' }));
 
-    // The post-done hook fired checkpoint(sess-rt, rt1). Wait for it.
-    await new Promise((r) => setTimeout(r, 50));
+    // Native agent_end listeners are awaited before the generator settles.
     const stored = await resumeManager.load('sess-rt');
     expect(stored).not.toBeNull();
     expect(stored!.model).toBe('test-model');

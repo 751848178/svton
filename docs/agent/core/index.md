@@ -17,7 +17,7 @@ svton agent-core 不重复实现 LLM wire 协议或 ReAct 循环,而是在 Pi �
 | --- | --- | --- |
 | provider/model/stream | `@earendil-works/pi-ai` | OpenAI/Anthropic 注册、SSE/JSON 解析、鉴权、reasoning 映射 |
 | Agent 循环/续轮/终止/消息源/工具调度 | `@earendil-works/pi-agent-core` | `Agent.run()`,工具调用批序、进度、续轮 |
-| 组合根 + 能力 + 安全 | `@svton/agent-core` | `SvtonAgentRuntime`、凭证边界、审批门、压缩、事件翻译、记忆/技能/MCP/子代理/规划/权限/钩子 |
+| 组合根 + 能力 + 安全 | `@svton/agent-core` | `SvtonAgentRuntime`、凭证边界、审批门、压缩、原生事件透传、记忆/技能/MCP/子代理/规划/权限/钩子 |
 
 详见 [Pi Agent 迁移架构](#) (`docs-internal/design/pi-agent-migration-architecture.md`)。
 
@@ -27,7 +27,7 @@ svton agent-core 不重复实现 LLM wire 协议或 ReAct 循环,而是在 Pi �
 |------|------|
 | [Provider 与模型配置](./provider) | pi-ai 模型/provider + `createPiModelsForProvider` |
 | [工具系统](./tools) | ToolRegistry + 30+ 内置工具 |
-| [SvtonAgentRuntime](./runtime) | Pi Agent 循环 + AgentEvent 事件流 |
+| [SvtonAgentRuntime](./runtime) | Pi Agent 循环 + 原生事件流 |
 | [记忆系统](./memory) | 自动提取 + 上下文回忆 |
 | [自动化任务](./automation) | 定时/Cron/事件触发 |
 | [子代理](./subagent) | 动态创建隔离 Agent |
@@ -66,7 +66,12 @@ const runtime = await SvtonAgentRuntime.createAsync(
 );
 
 for await (const event of runtime.run('分析项目结构')) {
-  if (event.type === 'text_delta') process.stdout.write(event.text);
+  if (
+    event.type === 'message_update'
+    && event.assistantMessageEvent.type === 'text_delta'
+  ) {
+    process.stdout.write(event.assistantMessageEvent.delta);
+  }
 }
 ```
 

@@ -12,13 +12,13 @@ import { redactSecrets, createSecretRedactor } from '../src/agent/secret-redacto
 import { ToolExecutionService } from '../src/agent/tool-executor';
 import { ToolRegistry, PermissionManager } from '@svton/agent-core';
 import { buildAgentTools, type ToolEventSink } from '../src/agent/pi-tool-adapter';
-import type { ToolDefinition } from '../src/provider/types';
+import type { SvtonToolDefinition } from '../src/tool/types';
 import type { IPlatform } from '@svton/agent-platform';
 
 const sink: ToolEventSink = () => {};
 const call = (name: string) => ({ id: `${name}-1`, name, arguments: {} as Record<string, unknown> });
 
-function def(name: string): ToolDefinition {
+function def(name: string): SvtonToolDefinition {
   return { name, description: `${name} tool`, parameters: { type: 'object', properties: {} } };
 }
 

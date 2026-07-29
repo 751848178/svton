@@ -1,9 +1,9 @@
-import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import type { SvtonToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatComputerUseErrorMessage } from './computer-use-error.utils';
 import { computerInvoke } from './computer-use-invoke';
 import { validateKeyboardPressInput } from './computer-use-validation.utils';
 
-export const keyboardTypeDef: ToolDefinition = {
+export const keyboardTypeDef: SvtonToolDefinition = {
   name: 'keyboard_type',
   description: 'Type a string of text using the keyboard. For special keys, use keyboard_press_key instead.',
   parameters: {
@@ -45,7 +45,7 @@ export class KeyboardTypeExecutor implements IToolExecutor {
   }
 }
 
-export const keyboardPressKeyDef: ToolDefinition = {
+export const keyboardPressKeyDef: SvtonToolDefinition = {
   name: 'keyboard_press_key',
   description:
     'Press a special key, optionally with modifier keys (Ctrl, Alt, Shift, Meta/Cmd). Supported keys: enter, tab, escape, backspace, delete, up, down, left, right, home, end, pageup, pagedown, space, f1-f12.',

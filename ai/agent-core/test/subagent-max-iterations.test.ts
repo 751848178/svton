@@ -1,8 +1,7 @@
 /**
  * PI006 — SubagentManager maxIterations propagation through the Pi runtime.
  *
- * Replaces the stale mock that referenced the deleted `IProvider`. The child
- * is now a real `SvtonAgentRuntime` (Pi Agent), and we assert the resolved
+ * Uses a real `SvtonAgentRuntime` child (Pi Agent), and asserts the resolved
  * `maxIterations` reaches `agent.state` by counting `turn_end` events against
  * an oversized LLM response script (the runtime aborts at the cap).
  */
@@ -39,8 +38,9 @@ describe('SubagentManager maxIterations propagation (Pi-backed child)', () => {
     const toolRegistry = new ToolRegistry();
     const parentConfig = createConfig(toolRegistry, 3);
     const parentRuntime: IRuntime = {
-      run: async function* () { yield { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } }; },
+      run: async function* () {},
       getMessages: () => [],
+      reset: () => {},
       abort: () => {},
     };
     const manager = new SubagentManager(parentConfig, parentRuntime, createPlatform(), toolRegistry);
@@ -55,8 +55,9 @@ describe('SubagentManager maxIterations propagation (Pi-backed child)', () => {
     const toolRegistry = new ToolRegistry();
     const parentConfig = createConfig(toolRegistry, 5);
     const parentRuntime: IRuntime = {
-      run: async function* () { yield { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } }; },
+      run: async function* () {},
       getMessages: () => [],
+      reset: () => {},
       abort: () => {},
     };
     const manager = new SubagentManager(parentConfig, parentRuntime, createPlatform(), toolRegistry);

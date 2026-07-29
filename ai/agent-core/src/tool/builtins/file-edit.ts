@@ -1,10 +1,10 @@
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatUnknownErrorMessage } from './error-message.utils';
 import { buildEditDiff } from './file-edit-diff.utils';
 import { resolveToolPath } from './path-resolution.utils';
 
-export const fileEditDef: ToolDefinition = {
+export const fileEditDef: SvtonToolDefinition = {
   name: 'file_edit',
   description:
     'Perform exact string replacement in a file. The old_string must match exactly (including indentation). Returns whether the edit was applied.',
@@ -33,7 +33,7 @@ export const fileEditDef: ToolDefinition = {
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class FileEditExecutor implements IToolExecutor {

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type {
-  ToolDefinition,
+  SvtonToolDefinition,
   ToolCall,
   ToolResult,
   ToolContext,
@@ -46,7 +46,7 @@ const mockContext: ToolContext = {
 };
 
 /** Create a simple tool definition */
-function makeToolDef(name: string, overrides?: Partial<ToolDefinition>): ToolDefinition {
+function makeToolDef(name: string, overrides?: Partial<SvtonToolDefinition>): SvtonToolDefinition {
   return {
     name,
     description: `Description for ${name}`,
@@ -372,7 +372,7 @@ describe('ToolRegistry', () => {
 // ============================================================
 
 describe('Built-in tool definitions', () => {
-  function assertValidToolDef(def: ToolDefinition, expectedName: string) {
+  function assertValidToolDef(def: SvtonToolDefinition, expectedName: string) {
     expect(def.name).toBe(expectedName);
     expect(typeof def.description).toBe('string');
     expect(def.description.length).toBeGreaterThan(0);

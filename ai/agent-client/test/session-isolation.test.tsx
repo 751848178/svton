@@ -6,8 +6,17 @@ import { SessionResumeManager } from '@svton/agent-core';
 import { AgentProvider, useAgentContext } from '../src/service/provider';
 import { ChatService } from '../src/service/chat.service';
 import { restoreMessagesIntoRuntime } from '../src/service/chat-runtime-bridge';
+import { piMessagesToDisplay } from '../src/service/pi-message-display-boundary.utils';
 import { useSession } from '../src/hooks/useSession';
-import { buildPiAgentConfig, EventScripter, makeBrowserPlatform } from './helpers/pi-test-utils';
+import {
+  buildPiAgentConfig,
+  EventScripter,
+  fauxAssistantMessage,
+  fauxText,
+  makeBrowserPlatform,
+  nativeAssistantLifecycle,
+  nativeTextDelta,
+} from './helpers/pi-test-utils';
 
 class DelayedStorage implements IStorage {
   private readonly values = new Map<string, unknown>();
@@ -64,24 +73,90 @@ function storedSession(id: string, content: string, updatedAt: number) {
 }
 
 describe('session isolation', () => {
-  it('falls back to the selected display transcript when checkpoint loading fails', async () => {
+  it('projects canonical timestamps and provider/tool metadata without regeneration', () => {
+    const assistant = fauxAssistantMessage([
+      { type: 'text', text: 'answer', textSignature: 'text-signature' },
+      {
+        type: 'thinking',
+        thinking: 'reasoning',
+        thinkingSignature: 'thinking-signature',
+        redacted: false,
+      },
+      {
+        type: 'toolCall',
+        id: 'call-1',
+        name: 'search',
+        arguments: { query: 'pi' },
+        thoughtSignature: 'tool-signature',
+      },
+    ]);
+    assistant.timestamp = 22;
+    assistant.responseModel = 'response-model';
+    assistant.responseId = 'response-id';
+    const display = piMessagesToDisplay([
+      { role: 'user', content: 'question', timestamp: 11 },
+      assistant,
+      {
+        role: 'toolResult',
+        toolCallId: 'call-1',
+        toolName: 'search',
+        content: [{ type: 'image', data: 'image-data', mimeType: 'image/png' }],
+        details: { source: 'fixture' },
+        usage: assistant.usage,
+        addedToolNames: ['follow_up'],
+        isError: false,
+        timestamp: 33,
+      },
+    ]);
+
+    expect(display.map((message) => message.timestamp)).toEqual([11, 22]);
+    expect(display[1].metadata).toMatchObject({
+      api: assistant.api,
+      provider: assistant.provider,
+      model: assistant.model,
+      responseModel: 'response-model',
+      responseId: 'response-id',
+      usage: assistant.usage,
+    });
+    expect(display[1].blocks).toContainEqual({
+      type: 'text',
+      text: 'answer',
+      textSignature: 'text-signature',
+    });
+    expect(display[1].toolCalls?.[0]).toMatchObject({
+      metadata: { thoughtSignature: 'tool-signature' },
+      result: {
+        metadata: {
+          toolName: 'search',
+          details: { source: 'fixture' },
+          usage: assistant.usage,
+          addedToolNames: ['follow_up'],
+          timestamp: 33,
+        },
+      },
+    });
+  });
+
+  it('clears canonical state instead of synthesizing it from display when checkpoint loading fails', async () => {
     const setMessages = vi.fn();
+    const reset = vi.fn();
     const runtime = {
       getResumeManager: () => ({
         load: vi.fn().mockRejectedValue(new Error('broken checkpoint')),
       }),
       setMessages,
+      reset,
     } as unknown as Parameters<typeof restoreMessagesIntoRuntime>[0];
 
     await expect(restoreMessagesIntoRuntime(
       runtime,
       'session-b',
-      [{ id: 'b', role: 'user', content: 'ONLY_B', timestamp: 1 }],
-    )).resolves.toBe(true);
-    expect(setMessages).toHaveBeenCalledWith([{ role: 'user', content: 'ONLY_B' }]);
+    )).resolves.toBe('empty');
+    expect(setMessages).not.toHaveBeenCalled();
+    expect(reset).toHaveBeenCalledOnce();
   });
 
-  it('clears runtime context when an empty session is activated', async () => {
+  it('clears runtime and stale display history when no canonical checkpoint exists', async () => {
     const storage = new DelayedStorage();
     const platform = makeBrowserPlatform(storage);
     const { config } = buildPiAgentConfig();
@@ -92,9 +167,12 @@ describe('session isolation', () => {
     runtime.setMessages([{ role: 'user', content: 'SESSION_A_SECRET' }]);
     service.bindSession('session-a');
     service.bindSession('session-b');
-    await service.loadMessages([]);
+    await service.loadMessages([
+      { id: 'stale', role: 'user', content: 'STALE_DISPLAY_ONLY', timestamp: 1 },
+    ]);
 
     expect(runtime.getMessages()).toEqual([]);
+    expect(service.messages).toEqual([]);
   });
 
   it('does not start a second turn while another session owns the runtime stream', async () => {
@@ -109,9 +187,7 @@ describe('session isolation', () => {
     service.status = 'idle';
 
     const runtime = (service as unknown as { runtime: { run: (...args: unknown[]) => AsyncGenerator<unknown> } }).runtime;
-    const run = vi.spyOn(runtime, 'run').mockImplementation(async function* () {
-      yield { type: 'done', stopReason: 'stop' };
-    });
+    const run = vi.spyOn(runtime, 'run').mockImplementation(async function* () {});
 
     await service.sendMessage('SESSION_B_MESSAGE');
 
@@ -146,12 +222,10 @@ describe('session isolation', () => {
       expect(state?.chat.activeSessionId).toBe('session-a');
       expect(state?.chat.runtimeSessionId).toBe('session-a');
     });
-    const scripter = new EventScripter(
-      state!.chat as unknown as ConstructorParameters<typeof EventScripter>[0],
-    );
+    const scripter = new EventScripter(state!.chat);
     scripter.addResponse([
-      { type: 'text_delta', text: 'SAVED_REPLY' },
-      { type: 'done', stopReason: 'stop' },
+      nativeTextDelta('SAVED_REPLY'),
+      ...nativeAssistantLifecycle({ content: 'SAVED_REPLY' }),
     ]);
     await act(async () => {
       await state!.chat.sendMessage('SAVE_ME');
@@ -182,8 +256,8 @@ describe('session isolation', () => {
     await storage.set('agent:session:session-a', session);
     await storage.set('agent:checkpoint:session-a', JSON.stringify({
       messages: [
-        { role: 'user', content: 'CHECKPOINT_USER' },
-        { role: 'assistant', content: 'CHECKPOINT_ASSISTANT' },
+        { role: 'user', content: 'CHECKPOINT_USER', timestamp: 1 },
+        fauxAssistantMessage([fauxText('CHECKPOINT_ASSISTANT')]),
       ],
       model: 'test-model',
       updatedAt: 2,
@@ -207,7 +281,7 @@ describe('session isolation', () => {
     view.unmount();
   });
 
-  it('keeps the latest requested session content after rapid async switches', async () => {
+  it('keeps the latest session owner after rapid switches without displaying noncanonical history', async () => {
     const storage = new DelayedStorage();
     const sessions = [
       { id: 'session-a', title: 'A', model: 'test-model', messageCount: 1, createdAt: 1, updatedAt: 1 },
@@ -230,7 +304,8 @@ describe('session isolation', () => {
     );
 
     await waitFor(() => expect(state?.session.currentSessionId).toBe('session-a'));
-    await waitFor(() => expect(state?.chat.messages[0]?.content).toBe('ONLY_A'));
+    await waitFor(() => expect(state?.chat.runtimeSessionId).toBe('session-a'));
+    expect(state!.chat.messages).toEqual([]);
 
     await act(async () => {
       await Promise.all([
@@ -241,11 +316,11 @@ describe('session isolation', () => {
 
     await waitFor(() => expect(state?.session.currentSessionId).toBe('session-c'));
     expect(state!.chat.activeSessionId).toBe('session-c');
-    expect(state!.chat.messages.map((message) => message.content)).toEqual(['ONLY_C']);
+    expect(state!.chat.messages).toEqual([]);
     view.unmount();
   });
 
-  it('opens the explicitly requested popout session instead of the newest session', async () => {
+  it('opens the requested popout session without displaying noncanonical history', async () => {
     const storage = new DelayedStorage();
     const sessions = [
       { id: 'session-a', title: 'A', model: 'test-model', messageCount: 1, createdAt: 1, updatedAt: 2 },
@@ -268,7 +343,8 @@ describe('session isolation', () => {
     );
 
     await waitFor(() => expect(state?.session.currentSessionId).toBe('session-b'));
-    await waitFor(() => expect(state?.chat.messages[0]?.content).toBe('ONLY_B'));
+    await waitFor(() => expect(state?.chat.runtimeSessionId).toBe('session-b'));
+    expect(state!.chat.messages).toEqual([]);
     view.unmount();
   });
 });

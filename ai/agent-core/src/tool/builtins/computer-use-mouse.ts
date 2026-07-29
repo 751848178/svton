@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import type { SvtonToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatComputerUseErrorMessage } from './computer-use-error.utils';
 import { computerInvoke } from './computer-use-invoke';
 import { mouseDragErrorResult, mouseDragResult, mousePointErrorResult, mousePointResult } from './computer-use-mouse-result.utils';
@@ -19,7 +19,7 @@ function validationFailure(call: ToolCall, output: string): ToolResult {
   return { callId: call.id, output, isError: true };
 }
 
-export const mouseClickDef: ToolDefinition = {
+export const mouseClickDef: SvtonToolDefinition = {
   name: 'mouse_click',
   description: 'Click the mouse at the specified screen coordinates. Use "left", "right", or "middle" for the button.',
   parameters: {
@@ -45,7 +45,7 @@ export class MouseClickExecutor implements IToolExecutor {
   }
 }
 
-export const mouseDoubleClickDef: ToolDefinition = {
+export const mouseDoubleClickDef: SvtonToolDefinition = {
   name: 'mouse_double_click',
   description: 'Double-click the mouse at the specified screen coordinates. Useful for opening files, selecting words, etc.',
   parameters: {
@@ -71,7 +71,7 @@ export class MouseDoubleClickExecutor implements IToolExecutor {
   }
 }
 
-export const mouseMoveDef: ToolDefinition = {
+export const mouseMoveDef: SvtonToolDefinition = {
   name: 'mouse_move',
   description: 'Move the mouse cursor to the specified screen coordinates without clicking.',
   parameters: {
@@ -97,7 +97,7 @@ export class MouseMoveExecutor implements IToolExecutor {
   }
 }
 
-export const mouseDownDef: ToolDefinition = {
+export const mouseDownDef: SvtonToolDefinition = {
   name: 'mouse_down',
   description: 'Press and hold the mouse button at the specified coordinates. Pair with mouse_up for drag selection or long press.',
   parameters: {
@@ -123,7 +123,7 @@ export class MouseDownExecutor implements IToolExecutor {
   }
 }
 
-export const mouseUpDef: ToolDefinition = {
+export const mouseUpDef: SvtonToolDefinition = {
   name: 'mouse_up',
   description: 'Release the mouse button at the specified coordinates. Pair with mouse_down for drag selection or long press.',
   parameters: {
@@ -149,7 +149,7 @@ export class MouseUpExecutor implements IToolExecutor {
   }
 }
 
-export const mouseDragDef: ToolDefinition = {
+export const mouseDragDef: SvtonToolDefinition = {
   name: 'mouse_drag',
   description: 'Drag from one screen coordinate to another. Used for moving files, resizing windows, drag-selecting text, etc.',
   parameters: {

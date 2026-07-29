@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { Service, observable, action, computed } from '@svton/service';
 import { logger } from '@svton/agent-core';
-import type { AgentConfig, AgentEvent, AgentRuntime, ReasoningEffort, TokenUsage } from '@svton/agent-core';
+import type { AgentConfig, PublicRuntimeEvent, ReasoningEffort, SvtonAgentRuntime } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
 import type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress } from '../types';
 import { InputHistoryStore } from './chat-input-history';
@@ -11,6 +11,7 @@ import { planEditMessage, planRetry, planRetryFromMessage, type MessageEditPlan 
 import { captureRuntimeMessageIndex, rollbackRuntimeForMessage } from './chat-runtime-history.service';
 import { recreateRuntime } from './chat-runtime-lifecycle';
 import { ChatSessionRuntimeService } from './chat-session-runtime.service';
+import { ChatRunOwnershipService } from './chat-run-ownership.service';
 import { prepareLoadedMessages, type LoadMessagesOptions } from './chat-message-loader.service';
 import { abortStreaming, forceMessagesForSave, messagesForSave, updateToolCallStatusEverywhere, type MessageStoreHost } from './chat-message-store';
 import { runAssistantTurn, finalizeStreamEnd } from './chat-stream-runner';
@@ -20,22 +21,22 @@ export class ChatService implements MessageStoreHost {
   @observable() messages: DisplayMessage[] = [];
   @observable() status: ChatStatus = 'idle';
   @observable() currentModel = '';
-  @observable() lastUsage: TokenUsage | null = null;
+  @observable() lastUsage: import('@earendil-works/pi-ai').Usage | null = null;
   @observable() activePlan: PlanProgress | null = null;
   @observable() activeSessionId: string | null = null;
   @observable() backgroundSessionId: string | null = null;
   @observable() runtimeSessionId: string | null = null;
   @observable() inputHistory: string[] = [];
   @observable() pendingApprovalVersion = 0;
-  private runtime: AgentRuntime | null = null;
+  private runtime: SvtonAgentRuntime | null = null;
   private runtimeConfig: AgentConfig | null = null;
   private runtimeKey: string | undefined = undefined;
   private platform: IPlatform | null = null;
   private messageCounter = 0;
   private readonly sessionRuntime = new ChatSessionRuntimeService();
+  private readonly runOwnership = new ChatRunOwnershipService();
   private readonly approvals = new ApprovalQueue(() => { this.pendingApprovalVersion += 1; });
   readonly sessionMessages = new Map<string, DisplayMessage[]>();
-  private readonly streamingAssistantMsgId = { current: null as string | null };
   onBackgroundStreamEnd: ((sessionId: string) => void) | null = null;
   private readonly history = new InputHistoryStore();
   private readonly handler = new ChatEventHandler({
@@ -50,19 +51,19 @@ export class ChatService implements MessageStoreHost {
     return this.status === 'running' || this.status === 'waiting_approval';
   }
   @computed() get canSend(): boolean {
-    return !this.isStreaming && (!this.backgroundSessionId || this.backgroundSessionId === this.activeSessionId)
+    return !this.isStreaming && !this.runOwnership.isProcessing && (!this.backgroundSessionId || this.backgroundSessionId === this.activeSessionId)
       && (!this.activeSessionId || this.runtimeSessionId === this.activeSessionId);
   }
   @computed() get hasPendingApprovals(): boolean { return this.approvals.size > 0; }
   getPendingToolCalls(): DisplayToolCall[] { return this.approvals.toDisplay(); }
   isSessionStreaming(sessionId: string): boolean { return this.backgroundSessionId === sessionId; }
   bumpPendingApprovals(): void { this.approvals.bump(); }
-  handleEvent(event: AgentEvent, assistantMsgId: string): void { this.handler.handle(event, assistantMsgId, this); }
+  handleEvent(event: PublicRuntimeEvent, assistantMsgId: string): void { this.handler.handle(event, assistantMsgId, this); }
   updateToolCallStatus(callId: string, status: DisplayToolCall['status'], metadata?: Record<string, unknown>): void {
     updateToolCallStatusEverywhere(this, callId, status, metadata);
   }
   handleStreamEnd(assistantMsgId: string, updates: Partial<DisplayMessage>): void {
-    finalizeStreamEnd(this, assistantMsgId, updates, this.onBackgroundStreamEnd, this.streamingAssistantMsgId);
+    finalizeStreamEnd(this, assistantMsgId, updates, (id) => { this.sessionRuntime.releaseBackgroundRuntime(); this.onBackgroundStreamEnd?.(id); }, this.runOwnership.assistantMessageId);
   }
   get pendingToolCalls(): ApprovalQueue { return this.approvals; }
   @action()
@@ -116,22 +117,21 @@ export class ChatService implements MessageStoreHost {
   approveToolCall(callId: string): void {
     this.approvals.resolve(callId, true);
     updateToolCallStatusEverywhere(this, callId, 'running');
-    this.runtime?.approveToolCall(callId);
+    this.sessionRuntime.getStreamingRuntime(this.runtime, this.backgroundSessionId)?.approveToolCall(callId);
   }
   @action()
   rejectToolCall(callId: string): void {
     this.approvals.resolve(callId, false);
     updateToolCallStatusEverywhere(this, callId, 'error');
-    this.runtime?.rejectToolCall(callId);
+    this.sessionRuntime.getStreamingRuntime(this.runtime, this.backgroundSessionId)?.rejectToolCall(callId);
   }
   @action()
   abort(): void {
-    this.runtime?.abort();
+    this.sessionRuntime.getStreamingRuntime(this.runtime, this.backgroundSessionId)?.abort();
     for (const callId of this.approvals.keys()) updateToolCallStatusEverywhere(this, callId, 'error');
     this.approvals.clear();
     const bgId = abortStreaming(this);
-    this.streamingAssistantMsgId.current = null;
-    if (bgId && bgId !== this.activeSessionId) this.onBackgroundStreamEnd?.(bgId);
+    this.runOwnership.abortActive(() => { this.sessionRuntime.releaseBackgroundRuntime(); if (bgId && bgId !== this.activeSessionId) this.onBackgroundStreamEnd?.(bgId); });
   }
   @action()
   abortIfStreaming(): boolean {
@@ -154,7 +154,7 @@ export class ChatService implements MessageStoreHost {
   getMessagesForSave(): DisplayMessage[] { return messagesForSave(this); }
   forcePrepareForSave(): DisplayMessage[] { return forceMessagesForSave(this); }
   @action()
-  async clearMessages(options?: LoadMessagesOptions): Promise<void> { this.sessionRuntime.clear(this.runtime); this.applyLoaded([], options); this.history.recordFromMessages([]); this.runtimeSessionId = this.activeSessionId; }
+  async clearMessages(options?: LoadMessagesOptions): Promise<void> { this.runtime = await this.sessionRuntime.clear(this.runtime, { activeSessionId: this.activeSessionId, backgroundSessionId: this.backgroundSessionId, runtimeSessionId: this.runtimeSessionId, config: this.runtimeConfig, platform: this.platform }); this.applyLoaded([], options); this.history.recordFromMessages([]); this.runtimeSessionId = this.activeSessionId; }
   @action()
   async loadMessages(messages: DisplayMessage[], options?: LoadMessagesOptions): Promise<void> {
     const loaded = prepareLoadedMessages(messages, options);
@@ -186,8 +186,8 @@ export class ChatService implements MessageStoreHost {
     await runAssistantTurn(
       {
         runtime: this.runtime, handler: this.handler, store: this,
-        streamingAssistantMsgId: this.streamingAssistantMsgId,
-        onBackgroundStreamEnd: this.onBackgroundStreamEnd,
+        ownership: this.runOwnership,
+        onBackgroundStreamEnd: (id) => { this.sessionRuntime.releaseBackgroundRuntime(); this.onBackgroundStreamEnd?.(id); },
         createDisplayMessage: (role, content) => this.createDisplayMessage(role, content),
       },
       userContent, images,

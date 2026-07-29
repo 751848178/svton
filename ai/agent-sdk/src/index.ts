@@ -23,21 +23,18 @@ export type {
 
 // Re-export commonly needed types from agent-core
 export type {
-  AgentEvent,
+  PiAgentEvent,
+  PublicRuntimeEvent,
+  SvtonCapabilityEvent,
   AgentMode,
   RunOptions,
   ContextConfig,
-  ChatMessage,
-  ContentBlock,
-  TextContent,
-  ImageContent,
-  ToolParameterSchema,
-  ToolAnnotations,
-  ToolDefinition,
+  SvtonToolParameters,
+  SvtonToolAnnotations,
+  SvtonToolDefinition,
   ToolCall,
   ToolResult,
   ToolContext,
-  TokenUsage,
   ModelInfo,
   SkillDefinition,
   PermissionMode,
@@ -46,10 +43,21 @@ export type {
   HookResult,
   HookHandler,
 } from '@svton/agent-core';
+export type { AgentMessage, AgentTool } from '@earendil-works/pi-agent-core';
+export type {
+  Message,
+  UserMessage,
+  AssistantMessage,
+  ToolResultMessage,
+  TextContent,
+  ImageContent,
+  ThinkingContent,
+  ToolCall as PiToolCall,
+} from '@earendil-works/pi-ai';
 
 // Re-export core classes for advanced use
 export {
-  AgentRuntime,
+  SvtonAgentRuntime,
   ToolRegistry,
   createPiModelsForProvider,
   PromptManager,

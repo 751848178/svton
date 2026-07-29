@@ -5,9 +5,8 @@
  * 工具进度、审批、abort、失败和刷新恢复". The existing `streamed-turn.test.ts`
  * proves only the text-streaming seam. This suite drives the REAL ChatService
  * (the web consumer's product path: AgentLayout → useChat → ChatService →
- * AgentEvent → observable display state) through every required flow, using an
- * `EventScripter` to script `AgentEvent` streams deterministically (no network,
- * no real API key).
+ * native Pi events → observable display state) through every required flow,
+ * using an `EventScripter` deterministically (no network or real API key).
  *
  * Environment: jsdom (the closest "browser" surface available without a live
  * Next.js server + Playwright). It exercises the actual event → message-state
@@ -15,21 +14,26 @@
  * here. Each test asserts on the settled ChatService observable display state —
  * the same state the browser renders.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import 'reflect-metadata';
 import { ChatService } from '@svton/agent-client';
-import { ToolRegistry, type AgentEvent } from '@svton/agent-core';
+import { ToolRegistry } from '@svton/agent-core';
 import {
   buildPiAgentConfig,
   EventScripter,
   makeBrowserPlatform,
-  MemoryStorage,
+  nativeAssistantLifecycle,
+  nativeTextDelta,
+  nativeThinkingDelta,
+  nativeToolEnd,
+  nativeToolStart,
+  nativeToolUpdate,
 } from '../../../ai/agent-client/test/helpers/pi-test-utils';
-import type { IPlatform, IStorage } from '@svton/agent-platform';
+import type { IPlatform } from '@svton/agent-platform';
 
 const mockPlatform: IPlatform = makeBrowserPlatform();
 
-function makeService(storage?: IStorage) {
+function makeService() {
   const { config } = buildPiAgentConfig({ toolRegistry: new ToolRegistry() });
   const service = new ChatService();
   return { service, config };
@@ -48,7 +52,7 @@ function snapshot(service: ChatService) {
   };
 }
 
-describe('agent-web product-path E2E (ChatService → AgentEvent → display)', () => {
+describe('agent-web product path (ChatService → native Pi events → display)', () => {
   let service: ChatService;
   let scripter: EventScripter;
 
@@ -56,14 +60,14 @@ describe('agent-web product-path E2E (ChatService → AgentEvent → display)', 
     const env = makeService();
     service = env.service;
     await service.init(mockPlatform, env.config);
-    scripter = new EventScripter(service as never);
+    scripter = new EventScripter(service);
   });
 
   it('streaming reply: text deltas accumulate then settle to idle', async () => {
     scripter.addResponse([
-      { type: 'text_delta', text: 'Hello' },
-      { type: 'text_delta', text: ' world' },
-      { type: 'done', stopReason: 'stop' },
+      nativeTextDelta('Hello'),
+      nativeTextDelta(' world'),
+      ...nativeAssistantLifecycle({ content: 'Hello world' }),
     ]);
     await service.sendMessage('hi');
     const snap = snapshot(service);
@@ -72,12 +76,12 @@ describe('agent-web product-path E2E (ChatService → AgentEvent → display)', 
     expect(snap.status).toBe('idle');
   });
 
-  it('thinking: thinking_delta is captured on the assistant message', async () => {
+  it('thinking: native message updates are captured on the assistant message', async () => {
     scripter.addResponse([
-      { type: 'thinking_delta', thinking: 'Let me reason' },
-      { type: 'thinking_delta', thinking: ' carefully' },
-      { type: 'text_delta', text: 'Answer' },
-      { type: 'done', stopReason: 'stop' },
+      nativeThinkingDelta('Let me reason'),
+      nativeThinkingDelta(' carefully'),
+      nativeTextDelta('Answer'),
+      ...nativeAssistantLifecycle({ content: 'Answer' }),
     ]);
     await service.sendMessage('q');
     const snap = snapshot(service);
@@ -86,13 +90,16 @@ describe('agent-web product-path E2E (ChatService → AgentEvent → display)', 
     expect(assistant?.text).toBe('Answer');
   });
 
-  it('tool progress: tool_call_start → progress → end updates tool-call status', async () => {
+  it('tool progress: native start → update → end updates tool-call status', async () => {
     scripter.addResponse([
-      { type: 'tool_call_start', call: { id: 'tc1', name: 'web_search', arguments: { q: 'x' } } },
-      { type: 'tool_call_progress', callId: 'tc1', message: 'searching…' },
-      { type: 'tool_call_end', result: { callId: 'tc1', output: 'hit: 1 result', isError: false } },
-      { type: 'text_delta', text: 'Done' },
-      { type: 'done', stopReason: 'stop' },
+      nativeToolStart({ id: 'tc1', name: 'web_search', arguments: { q: 'x' } }),
+      nativeToolUpdate('tc1', 'web_search', { q: 'x' }, 'searching…'),
+      nativeToolEnd(
+        { callId: 'tc1', output: 'hit: 1 result', isError: false },
+        'web_search',
+      ),
+      nativeTextDelta('Done'),
+      ...nativeAssistantLifecycle({ content: 'Done' }),
     ]);
     await service.sendMessage('search');
     const snap = snapshot(service);
@@ -109,9 +116,9 @@ describe('agent-web product-path E2E (ChatService → AgentEvent → display)', 
     // full approve→resume→complete cycle (Pi turn pause/resume via the awaited
     // approval promise) is proven at the agent-core approval-gate layer.
     scripter.addResponse([
-      { type: 'tool_call_start', call: { id: 'tcA', name: 'bash', arguments: { cmd: 'rm' } } },
+      nativeToolStart({ id: 'tcA', name: 'bash', arguments: { cmd: 'rm' } }),
       { type: 'tool_approval_needed', call: { id: 'tcA', name: 'bash', arguments: { cmd: 'rm' } } },
-      { type: 'done', stopReason: 'stop' },
+      ...nativeAssistantLifecycle(),
     ]);
     await service.sendMessage('do it');
     const snap = snapshot(service);
@@ -122,9 +129,9 @@ describe('agent-web product-path E2E (ChatService → AgentEvent → display)', 
   });
 
   it('abort: abort() cancels the in-flight stream and returns status to idle', async () => {
-    // A response that never emits `done` — simulates an in-flight stream.
+    // A response without native settlement simulates an in-flight stream.
     scripter.addResponse([
-      { type: 'text_delta', text: 'partial' },
+      nativeTextDelta('partial'),
     ]);
     const sendP = service.sendMessage('long');
     // Abort shortly after sending, then await the send promise settling.
@@ -136,10 +143,13 @@ describe('agent-web product-path E2E (ChatService → AgentEvent → display)', 
 
   it('failure: an error tool result is recorded with isError semantics', async () => {
     scripter.addResponse([
-      { type: 'tool_call_start', call: { id: 'tcE', name: 'bash', arguments: { cmd: 'bad' } } },
-      { type: 'tool_call_end', result: { callId: 'tcE', output: 'command failed: exit 1', isError: true } },
-      { type: 'text_delta', text: 'sorry' },
-      { type: 'done', stopReason: 'stop' },
+      nativeToolStart({ id: 'tcE', name: 'bash', arguments: { cmd: 'bad' } }),
+      nativeToolEnd(
+        { callId: 'tcE', output: 'command failed: exit 1', isError: true },
+        'bash',
+      ),
+      nativeTextDelta('sorry'),
+      ...nativeAssistantLifecycle({ content: 'sorry' }),
     ]);
     await service.sendMessage('run bad cmd');
     const snap = snapshot(service);
@@ -150,8 +160,8 @@ describe('agent-web product-path E2E (ChatService → AgentEvent → display)', 
 
   it('refresh/resume: messages rehydrate into a fresh ChatService via loadMessages', async () => {
     scripter.addResponse([
-      { type: 'text_delta', text: 'persisted answer' },
-      { type: 'done', stopReason: 'stop' },
+      nativeTextDelta('persisted answer'),
+      ...nativeAssistantLifecycle({ content: 'persisted answer' }),
     ]);
     await service.sendMessage('remember this');
     const prior = service.messages;

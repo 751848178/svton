@@ -22,7 +22,12 @@ const agent = await createAgent({
 });
 
 for await (const event of agent.chat('Hello!')) {
-  if (event.type === 'text_delta') process.stdout.write(event.text);
+  if (
+    event.type === 'message_update'
+    && event.assistantMessageEvent.type === 'text_delta'
+  ) {
+    process.stdout.write(event.assistantMessageEvent.delta);
+  }
 }
 
 await agent.dispose();
@@ -95,7 +100,7 @@ const agent = await createAgent({
 
 | Method | Description |
 |--------|-------------|
-| `chat(message)` | Start conversation, returns `AsyncGenerator<AgentEvent>` |
+| `chat(message)` | Start conversation, returns native Pi events plus Svton capability events |
 | `abort()` | Cancel current conversation |
 | `approveToolCall(id)` | Approve a pending tool call |
 | `rejectToolCall(id)` | Reject a pending tool call |

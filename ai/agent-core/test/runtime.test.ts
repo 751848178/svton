@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { Agent } from '@earendil-works/pi-agent-core';
 import { SvtonAgentRuntime } from '../src/agent/svton-agent-runtime';
+import { selectNativeToolResult } from '../src/agent/native-tool-event-selectors.utils';
 import { ToolRegistry } from '../src/tool/registry';
 import { PermissionManager } from '../src/permission/manager';
 import { HookManager } from '../src/hooks/manager';
@@ -12,7 +14,7 @@ import {
   fauxText,
   type MockModelsHandle,
 } from './helpers';
-import type { AgentEvent } from '../src/agent/types';
+import type { PublicRuntimeEvent } from '../src/agent/types';
 import type {
   ToolCall,
   ToolResult,
@@ -20,9 +22,9 @@ import type {
   IToolExecutor,
 } from '../src/tool/types';
 import type { IPlatform } from '@svton/agent-platform';
-import type { ToolDefinition } from '../src/provider/types';
+import type { SvtonToolDefinition } from '../src/tool/types';
 
-const testToolDef: ToolDefinition = {
+const testToolDef: SvtonToolDefinition = {
   name: 'test_tool',
   description: 'A test tool',
   parameters: {
@@ -70,17 +72,21 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
   // 1. Simple text response
   // ----------------------------------------------------------
   describe('simple text response', () => {
-    it('yields text_delta and done events for a basic response', async () => {
+    it('passes through native message updates and agent settlement', async () => {
       const { runtime, mock } = createRuntime();
       mock.addResponse(fauxAssistantMessage([fauxText('Hello, world!')]));
 
       const events = await collectEvents(runtime.run('Hi'));
-      const texts = events.filter((e) => e.type === 'text_delta').map((e) => (e as any).text).join('');
-      const done = events[events.length - 1];
+      const texts = events.flatMap((event) =>
+        event.type === 'message_update'
+        && event.assistantMessageEvent.type === 'text_delta'
+          ? [event.assistantMessageEvent.delta]
+          : [],
+      ).join('');
+      const settled = events[events.length - 1];
 
       expect(texts).toBe('Hello, world!');
-      expect(done.type).toBe('done');
-      if (done.type === 'done') expect(done.stopReason).toBe('stop');
+      expect(settled.type).toBe('agent_end');
     });
 
     it('includes thinking_delta events when the model sends them', async () => {
@@ -90,8 +96,7 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       // the model emits thinking blocks. The faux provider emits them when the
       // response carries a thinking block.
       const events = await collectEvents(runtime.run('Think'));
-      const textDone = events.find((e) => e.type === 'done');
-      expect(textDone).toBeDefined();
+      expect(events.at(-1)?.type).toBe('agent_end');
     });
   });
 
@@ -107,21 +112,21 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       const events = await collectEvents(runtime.run('Use the tool'));
       const types = events.map((e) => e.type);
 
-      expect(types).toContain('tool_call_start');
-      expect(types).toContain('tool_call_end');
-      expect(types).toContain('text_delta');
-      expect(types[types.length - 1]).toBe('done');
+      expect(types).toContain('tool_execution_start');
+      expect(types).toContain('tool_execution_end');
+      expect(types).toContain('message_update');
+      expect(types[types.length - 1]).toBe('agent_end');
 
-      const startEvent = events.find((e) => e.type === 'tool_call_start');
-      if (startEvent?.type === 'tool_call_start') {
-        expect(startEvent.call.name).toBe('test_tool');
-        expect(startEvent.call.arguments).toEqual({});
+      const startEvent = events.find((e) => e.type === 'tool_execution_start');
+      if (startEvent?.type === 'tool_execution_start') {
+        expect(startEvent.toolName).toBe('test_tool');
+        expect(startEvent.args).toEqual({ key: 'value' });
       }
 
-      const endEvent = events.find((e) => e.type === 'tool_call_end');
-      if (endEvent?.type === 'tool_call_end') {
-        expect(endEvent.result.output).toContain('Executed test_tool');
-        expect(endEvent.result.isError).toBeFalsy();
+      const endEvent = events.find((e) => e.type === 'tool_execution_end');
+      if (endEvent?.type === 'tool_execution_end') {
+        expect(selectNativeToolResult(endEvent).output).toContain('Executed test_tool');
+        expect(endEvent.isError).toBe(false);
       }
     });
 
@@ -137,8 +142,12 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
 
       const userMsg = messages.find((m) => m.role === 'user');
       expect(userMsg).toBeDefined();
-      const toolMsg = messages.find((m) => m.role === 'tool');
+      const toolMsg = messages.find((m) => m.role === 'toolResult');
       expect(toolMsg).toBeDefined();
+      if (toolMsg?.role === 'toolResult') {
+        expect(toolMsg.toolName).toBe('test_tool');
+        expect(toolMsg.isError).toBe(false);
+      }
       const assistantMsg = messages.filter((m) => m.role === 'assistant');
       expect(assistantMsg.length).toBeGreaterThanOrEqual(1);
     });
@@ -154,7 +163,7 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       mock.addResponse(fauxAssistantMessage([fauxText('Both done')]));
 
       const events = await collectEvents(runtime.run('test'));
-      const toolCallEnds = events.filter((e) => e.type === 'tool_call_end');
+      const toolCallEnds = events.filter((e) => e.type === 'tool_execution_end');
       expect(toolCallEnds.length).toBe(2);
     });
   });
@@ -163,14 +172,19 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
   // 3. Abort
   // ----------------------------------------------------------
   describe('abort', () => {
-    it('stops with done(reason="aborted") via AbortSignal', async () => {
-      const { runtime } = createRuntime();
+    it('settles with a native aborted assistant message via AbortSignal', async () => {
+      const { runtime, mock } = createRuntime();
+      mock.addResponse(fauxAssistantMessage([fauxText('unreachable')]));
       const controller = new AbortController();
       controller.abort();
       const events = await collectEvents(runtime.run('test', { signal: controller.signal }));
-      const done = events[events.length - 1];
-      expect(done.type).toBe('done');
-      if (done.type === 'done') expect(done.stopReason).toBe('aborted');
+      const terminal = events.find((event) =>
+        event.type === 'message_end'
+        && event.message.role === 'assistant'
+        && event.message.stopReason === 'aborted',
+      );
+      expect(terminal).toBeDefined();
+      expect(events.at(-1)?.type).toBe('agent_end');
     });
 
     it('abort() rejects pending tool approvals', async () => {
@@ -179,7 +193,7 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       mock.addResponse(fauxAssistantMessage([fauxToolCall('test_tool', { key: 'val' })]));
       mock.addResponse(fauxAssistantMessage([fauxText('Done')]));
 
-      const events: AgentEvent[] = [];
+      const events: PublicRuntimeEvent[] = [];
       const gen = runtime.run('test');
       let result = await gen.next();
       while (!result.done) {
@@ -190,10 +204,10 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
         result = await gen.next();
       }
 
-      const toolEnd = events.find((e) => e.type === 'tool_call_end');
-      if (toolEnd?.type === 'tool_call_end') {
-        expect(toolEnd.result.isError).toBe(true);
-        expect(toolEnd.result.output).toContain('aborted');
+      const toolEnd = events.find((e) => e.type === 'tool_execution_end');
+      if (toolEnd?.type === 'tool_execution_end') {
+        expect(toolEnd.isError).toBe(true);
+        expect(selectNativeToolResult(toolEnd).output).toContain('canceled');
       }
     });
 
@@ -223,23 +237,23 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
   // 4. Max iterations
   // ----------------------------------------------------------
   describe('max iterations', () => {
-    it('stops with done(reason="max_iterations") when iterations are exhausted', async () => {
+    it('warns and settles natively when iterations are exhausted', async () => {
       const { runtime, mock } = createRuntime({ maxIterations: 1 });
       mock.addResponse(fauxAssistantMessage([fauxToolCall('test_tool', { key: 'val' })]));
 
       const events = await collectEvents(runtime.run('Loop test'));
-      const done = events[events.length - 1];
-      expect(done.type).toBe('done');
-      if (done.type === 'done') expect(done.stopReason).toBe('max_iterations');
+      expect(events).toContainEqual(expect.objectContaining({
+        type: 'warning',
+        text: expect.stringContaining('Maximum iteration count'),
+      }));
+      expect(events.at(-1)?.type).toBe('agent_end');
     });
 
     it('completes normally within max iterations', async () => {
       const { runtime, mock } = createRuntime({ maxIterations: 5 });
       mock.addResponse(fauxAssistantMessage([fauxText('Quick answer')]));
       const events = await collectEvents(runtime.run('Simple question'));
-      const done = events[events.length - 1];
-      expect(done.type).toBe('done');
-      if (done.type === 'done') expect(done.stopReason).toBe('stop');
+      expect(events.at(-1)?.type).toBe('agent_end');
     });
   });
 
@@ -253,7 +267,7 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       mock.addResponse(fauxAssistantMessage([fauxToolCall('test_tool', { key: 'val' })]));
       mock.addResponse(fauxAssistantMessage([fauxText('Approved result')]));
 
-      const events: AgentEvent[] = [];
+      const events: PublicRuntimeEvent[] = [];
       const gen = runtime.run('test');
       let result = await gen.next();
       while (!result.done) {
@@ -265,7 +279,7 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       }
       const types = events.map((e) => e.type);
       expect(types).toContain('tool_approval_needed');
-      expect(types).toContain('tool_call_end');
+      expect(types).toContain('tool_execution_end');
     });
   });
 
@@ -273,13 +287,13 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
   // 6. Permission deny
   // ----------------------------------------------------------
   describe('permission deny', () => {
-    it('yields tool_call_end with isError=true when tool call is rejected', async () => {
+    it('publishes native tool_execution_end with isError=true when rejected', async () => {
       const { runtime, mock } = createRuntime();
       runtime.setPermissionManager(new PermissionManager({ mode: 'default' }));
       mock.addResponse(fauxAssistantMessage([fauxToolCall('test_tool', { key: 'val' })]));
       mock.addResponse(fauxAssistantMessage([fauxText('After rejection')]));
 
-      const events: AgentEvent[] = [];
+      const events: PublicRuntimeEvent[] = [];
       const gen = runtime.run('test');
       let result = await gen.next();
       while (!result.done) {
@@ -291,12 +305,12 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
         result = await gen.next();
       }
       const approvalIdx = events.findIndex((e) => e.type === 'tool_approval_needed');
-      const toolEndEvents = events.slice(approvalIdx + 1).filter((e) => e.type === 'tool_call_end');
+      const toolEndEvents = events.slice(approvalIdx + 1).filter((e) => e.type === 'tool_execution_end');
       expect(toolEndEvents.length).toBeGreaterThanOrEqual(1);
       const rejectedEnd = toolEndEvents[0];
-      if (rejectedEnd?.type === 'tool_call_end') {
-        expect(rejectedEnd.result.isError).toBe(true);
-        expect(rejectedEnd.result.output).toContain('rejected');
+      if (rejectedEnd?.type === 'tool_execution_end') {
+        expect(rejectedEnd.isError).toBe(true);
+        expect(selectNativeToolResult(rejectedEnd).output).toContain('rejected');
       }
     });
   });
@@ -317,12 +331,12 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       mock.addResponse(fauxAssistantMessage([fauxText('Continuing')]));
 
       const events = await collectEvents(runtime.run('test'));
-      const toolEndEvents = events.filter((e) => e.type === 'tool_call_end');
+      const toolEndEvents = events.filter((e) => e.type === 'tool_execution_end');
       expect(toolEndEvents.length).toBeGreaterThanOrEqual(1);
       const deniedEnd = toolEndEvents[0];
-      if (deniedEnd?.type === 'tool_call_end') {
-        expect(deniedEnd.result.isError).toBe(true);
-        expect(deniedEnd.result.output).toContain('denied by hook');
+      if (deniedEnd?.type === 'tool_execution_end') {
+        expect(deniedEnd.isError).toBe(true);
+        expect(selectNativeToolResult(deniedEnd).output).toContain('denied by hook');
       }
     });
   });
@@ -340,8 +354,7 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       const events = await collectEvents(runtime.run(longMessage));
       const compacted = events.find((e) => e.type === 'context_compacted');
       expect(compacted).toBeDefined();
-      const done = events[events.length - 1];
-      expect(done.type).toBe('done');
+      expect(events.at(-1)?.type).toBe('agent_end');
     });
   });
 
@@ -349,6 +362,18 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
   // 9. Edge cases
   // ----------------------------------------------------------
   describe('edge cases', () => {
+    it('resets canonical and Pi-owned transient state through Agent.reset()', () => {
+      const reset = vi.spyOn(Agent.prototype, 'reset');
+      const { runtime } = createRuntime();
+      runtime.setMessages([{ role: 'user', content: 'stale', timestamp: 1 }]);
+
+      runtime.reset();
+
+      expect(reset).toHaveBeenCalledOnce();
+      expect(runtime.getMessages()).toEqual([]);
+      reset.mockRestore();
+    });
+
     it('passes the user message to context', async () => {
       const { runtime, mock } = createRuntime();
       mock.addResponse(fauxAssistantMessage([fauxText('Reply')]));
@@ -369,10 +394,10 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       mock.addResponse(fauxAssistantMessage([fauxToolCall('unknown_tool', {})]));
       mock.addResponse(fauxAssistantMessage([fauxText('Ok')]));
       const events = await collectEvents(runtime.run('test'));
-      const toolEnd = events.find((e) => e.type === 'tool_call_end');
-      if (toolEnd?.type === 'tool_call_end') {
-        expect(toolEnd.result.isError).toBe(true);
-        expect(toolEnd.result.output).toContain('Unknown tool');
+      const toolEnd = events.find((e) => e.type === 'tool_execution_end');
+      if (toolEnd?.type === 'tool_execution_end') {
+        expect(toolEnd.isError).toBe(true);
+        expect(selectNativeToolResult(toolEnd).output).toContain('not found');
       }
     });
   });

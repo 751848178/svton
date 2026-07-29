@@ -16,7 +16,8 @@ import { shouldApplyStaticStatement } from './shell-static-command-list-assignme
 import { staticShellCommandExecutionStatus } from './shell-static-command-execution-status.utils';
 import type { StaticShellCommandStatus } from './shell-static-command-status.types';
 import { applyStaticShellOptionState } from './shell-static-option-command.utils';
-import { applyBashEnvAssignmentTokens, applyBashEnvUnsetTokens, bashEnvStartupValuesFromPrefix, bashEnvVariablesWithWorkingDir, createBashEnvState, type BashEnvState } from './shell-bash-env-static-variable.utils';
+import { bashEnvVariablesWithWorkingDir } from './shell-bash-env-static-assignment.utils';
+import { applyBashEnvAssignmentTokens, applyBashEnvUnsetTokens, bashEnvStartupValuesFromPrefix, createBashEnvState, type BashEnvState } from './shell-bash-env-static-variable.utils';
 import { applyBashEnvDeclarationTokens } from './shell-bash-env-declaration-state.utils';
 import { activeBashEnvStartup } from './shell-bash-env-function-state.utils';
 import { applyBashEnvStaticCommandAssignment } from './shell-bash-env-static-command.utils';

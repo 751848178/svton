@@ -1,25 +1,11 @@
-import type { ToolDefinition } from '../provider/types';
+import type { SvtonToolDefinition } from '../tool/types';
 import type { MCPPrompt, MCPResource, MCPToolDefinition } from './types';
-
-function cloneUnknownValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(cloneUnknownValue);
-  if (!value || typeof value !== 'object') return value;
-
-  const clone: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    clone[key] = cloneUnknownValue(entry);
-  }
-  return clone;
-}
+import { cloneMcpToolSchema } from './mcp-tool-schema.utils';
 
 function cloneMcpTool(tool: MCPToolDefinition): MCPToolDefinition {
   return {
     ...tool,
-    inputSchema: {
-      type: 'object',
-      properties: cloneUnknownValue(tool.inputSchema.properties ?? {}) as Record<string, unknown>,
-      required: tool.inputSchema.required ? [...tool.inputSchema.required] : undefined,
-    },
+    inputSchema: cloneMcpToolSchema(tool.inputSchema),
   };
 }
 
@@ -41,19 +27,19 @@ export function cloneMcpPrompts(prompts: MCPPrompt[]): MCPPrompt[] {
 export function toToolDefinitions(
   tools: MCPToolDefinition[],
   serverName: string | undefined,
-): ToolDefinition[] {
+): SvtonToolDefinition[] {
   return tools.map((tool) => {
     const inputSchema = cloneMcpTool(tool).inputSchema;
     return {
       name: `mcp__${serverName || 'unknown'}__${tool.name}`,
       description: tool.description || `MCP tool: ${tool.name}`,
-      parameters: {
-        type: 'object',
-        properties: inputSchema.properties ?? {},
-        required: inputSchema.required,
-      },
+      parameters: inputSchema,
       annotations: {
         openWorldHint: true,
+      },
+      metadata: {
+        source: 'mcp',
+        sourceId: serverName,
       },
     };
   });

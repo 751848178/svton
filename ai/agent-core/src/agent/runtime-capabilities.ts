@@ -8,6 +8,7 @@
  * do not participate in the ReAct loop (Pi owns that).
  */
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
+import type { UserMessage } from '@earendil-works/pi-ai';
 import type { MCPClient } from '../mcp/client';
 import type { ToolRegistry } from '../tool/registry';
 import type { PermissionManager } from '../permission/manager';
@@ -16,7 +17,9 @@ import type { SkillDefinition } from '../skill/types';
 import type { MemoryManager } from '../memory/manager';
 import type { PromptManager } from '../prompt/manager';
 import type { IPlatform } from '@svton/agent-platform';
-import type { ContentBlock, McpServerToolConfig } from './types';
+import type { McpServerToolConfig } from './types';
+import type { AutoReviewerManager } from '../auto-reviewer/manager';
+import type { SessionResumeManager } from '../checkpoint/manager';
 import { createToolExecOptions } from './tool-exec-options.utils';
 import { resolveSkillDynamicContext } from './skill-dynamic-context.utils';
 
@@ -73,8 +76,8 @@ export function buildDefaultSystemPrompt(ctx: CapabilityContext): string {
 export async function injectSkillContext(
   ctx: CapabilityContext,
   userMessage: string,
-  autoReviewer: unknown,
-  resumeManager: unknown,
+  autoReviewer: AutoReviewerManager | null,
+  resumeManager: SessionResumeManager | null,
 ): Promise<SkillInjection> {
   if (!ctx.skillManager) return { skills: [], contextMessage: null };
   const relevant = ctx.skillManager.findRelevant(userMessage);
@@ -89,8 +92,8 @@ export async function injectSkillContext(
   const execOptions = createToolExecOptions({
     platform: ctx.platform,
     workingDir: ctx.workingDir,
-    autoReviewer: autoReviewer as never,
-    resumeManager: resumeManager as never,
+    autoReviewer,
+    resumeManager,
   });
   const blocks: string[] = [];
   for (const s of usable) {
@@ -108,18 +111,17 @@ export async function injectSkillContext(
     if (effective) block += `\n\n**Tools available for this skill:** ${effective.join(', ')}`;
     blocks.push(block);
   }
-  const contextMessage: AgentMessage = {
+  const contextMessage: UserMessage = {
     role: 'user',
     content: `[Skill Context Activated]\nThe following skills are relevant to your request:\n\n${blocks.join('\n\n')}`,
     timestamp: Date.now(),
-  } as AgentMessage;
+  };
   return { skills: usable, contextMessage };
 }
 
 /**
  * Bridge discovered MCP tools into the svton ToolRegistry, applying per-server
- * approval/enabled/disabled policy. Mirrors the legacy runtime.initialize()
- * path; runs once during createAsync.
+ * approval/enabled/disabled policy during createAsync initialization.
  */
 export async function bridgeMcpTools(ctx: CapabilityContext): Promise<void> {
   for (const client of ctx.mcpClients) {
@@ -154,12 +156,11 @@ async function bridgeOneMcpClient(ctx: CapabilityContext, client: MCPClient): Pr
 }
 
 /** Build the AgentMessage[] to feed Pi for a run (user msg). */
-export function buildPromptMessages(userMessage: string | ContentBlock[]): AgentMessage[] {
-  if (typeof userMessage === 'string') {
-    return [{ role: 'user', content: userMessage, timestamp: Date.now() }] as AgentMessage[];
-  }
-  const content = userMessage.map((b) => b.type === 'image'
-    ? { type: 'image' as const, data: b.data, mimeType: b.mimeType ?? 'image/png' }
-    : { type: 'text' as const, text: b.type === 'text' ? b.text : '' });
-  return [{ role: 'user', content, timestamp: Date.now() }] as AgentMessage[];
+export function buildPromptMessages(userMessage: UserMessage['content']): AgentMessage[] {
+  const message: UserMessage = {
+    role: 'user',
+    content: userMessage,
+    timestamp: Date.now(),
+  };
+  return [message];
 }

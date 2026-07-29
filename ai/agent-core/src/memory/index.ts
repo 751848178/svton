@@ -1,2 +1,2 @@
-export type { MemoryEntry, MemoryScope, ProjectMemoryConfig, AutoMemoryConfig } from './types';
+export type { MemoryEntry, MemoryScope } from './types';
 export { MemoryManager } from './manager';

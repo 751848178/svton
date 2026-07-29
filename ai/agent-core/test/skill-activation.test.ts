@@ -13,7 +13,7 @@ import { ToolRegistry } from '../src/tool/registry';
 import { SkillManager } from '../src/skill/manager';
 import type { SkillDefinition } from '../src/skill/types';
 import { createMockModels, createMockPlatform, collectEvents, fauxAssistantMessage, fauxText } from './helpers';
-import type { AgentEvent } from '../src/agent/types';
+import type { PublicRuntimeEvent } from '../src/agent/types';
 import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
 
 // A skill that matches "code review" / "审查代码" requests.
@@ -64,7 +64,7 @@ describe('skill_activated event flow', () => {
   it('emits skill_activated when the user message matches a skill', async () => {
     const { runtime } = buildRuntime([reviewSkill]);
     const events = await collectEvents(runtime.run('请帮我做代码审查'));
-    const activated = events.filter((e) => e.type === 'skill_activated') as Extract<AgentEvent, { type: 'skill_activated' }>[];
+    const activated = events.filter((e) => e.type === 'skill_activated') as Extract<PublicRuntimeEvent, { type: 'skill_activated' }>[];
     expect(activated.length).toBe(1);
     expect(activated[0].skills).toContain('code-review');
   });
@@ -81,7 +81,7 @@ describe('skill_activated event flow', () => {
     // Message matches both skills' triggerSignals, but unavailableSkill should
     // be dropped because its required tool doesn't exist.
     const events = await collectEvents(runtime.run('special-request code review'));
-    const activated = events.filter((e) => e.type === 'skill_activated') as Extract<AgentEvent, { type: 'skill_activated' }>[];
+    const activated = events.filter((e) => e.type === 'skill_activated') as Extract<PublicRuntimeEvent, { type: 'skill_activated' }>[];
     expect(activated.length).toBe(1);
     expect(activated[0].skills).toContain('code-review');
     expect(activated[0].skills).not.toContain('needs-missing-tool');
@@ -91,7 +91,10 @@ describe('skill_activated event flow', () => {
     const { runtime } = buildRuntime([reviewSkill]);
     const events = await collectEvents(runtime.run('审查代码 please'));
     const skillIdx = events.findIndex((e) => e.type === 'skill_activated');
-    const textIdx = events.findIndex((e) => e.type === 'text_delta');
+    const textIdx = events.findIndex((event) =>
+      event.type === 'message_update'
+      && event.assistantMessageEvent.type === 'text_delta',
+    );
     expect(skillIdx).toBeGreaterThanOrEqual(0);
     expect(textIdx).toBeGreaterThanOrEqual(0);
     expect(skillIdx).toBeLessThan(textIdx);

@@ -1,7 +1,5 @@
 /**
- * Pi models factory — replaces the deleted `OpenAIProvider`/`AnthropicProvider`
- * construction at every call site (create-agent, create-agent-config,
- * agent-setup desktop/web).
+ * Pi models factory used by SDK, App, Desktop and Web composition roots.
  *
  * Builds a pi-ai `Models` collection, attaches svton's credential-store
  * boundary, and resolves the pi-ai `Model` for a given model id. Provider

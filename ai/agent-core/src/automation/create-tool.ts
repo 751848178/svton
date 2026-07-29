@@ -1,12 +1,12 @@
 /**
  * create_automation tool — lets the LLM create scheduled tasks from natural language.
  */
-import type { ToolDefinition } from '../provider/types';
+import type { SvtonToolDefinition } from '../tool/types';
 import type { ToolCall, ToolResult, IToolExecutor, ToolContext } from '../tool/types';
 import { formatUnknownErrorMessage } from '../utils/error-message.utils';
 import { AutomationManager } from './manager';
 
-export const createAutomationDef: ToolDefinition = {
+export const createAutomationDef: SvtonToolDefinition = {
   name: 'create_automation',
   description: [
     'Create a scheduled automation task that runs on a recurring basis.',

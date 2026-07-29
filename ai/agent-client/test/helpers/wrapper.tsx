@@ -2,9 +2,8 @@
  * Test helper: wraps hooks in a real AgentProvider with mock services.
  *
  * Uses the @svton/service reactive container (same as production) so hooks
- * observe real state changes. PI007: the legacy MockProvider (deleted
- * IProvider/StreamEvent contract) is replaced by a fauxProvider-backed Pi
- * Models collection via buildPiAgentConfig — the runtime consumes
+ * observe real state changes. A fauxProvider-backed Pi Models collection from
+ * buildPiAgentConfig lets the runtime consume
  * models.streamSimple directly, no provider wrapper.
  */
 import React from 'react';

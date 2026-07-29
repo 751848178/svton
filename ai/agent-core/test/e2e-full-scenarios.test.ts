@@ -39,36 +39,22 @@ import {
   fauxToolCall,
   fauxText,
   fauxThinking,
+  piMessageHasThinking,
+  piMessageText,
+  piToolCalls,
+  piToolResultTexts,
   type MockModelsHandle,
 } from './helpers';
-import type { ChatMessage } from '../src/provider/types';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
 
 // ── Helpers ──────────────────────────────────────────────
 
-function textOf(msg: ChatMessage): string {
-  if (typeof msg.content === 'string') return msg.content;
-  if (Array.isArray(msg.content)) {
-    return msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
-  }
-  return '';
+function allToolResults(messages: AgentMessage[]): string[] {
+  return messages.flatMap(piToolResultTexts);
 }
 
-function allToolResults(msgs: ChatMessage[]): string[] {
-  return msgs
-    .filter((m) => m.role === 'tool')
-    .flatMap((m) => {
-      if (!Array.isArray(m.content)) return [];
-      return m.content.filter((b: any) => b.type === 'tool_result').map((b: any) => b.output);
-    });
-}
-
-function allToolUses(msgs: ChatMessage[]): string[] {
-  return msgs
-    .filter((m) => m.role === 'assistant')
-    .flatMap((m) => {
-      if (!Array.isArray(m.content)) return [];
-      return m.content.filter((b: any) => b.type === 'tool_use').map((b: any) => b.name);
-    });
+function allToolUses(messages: AgentMessage[]): string[] {
+  return messages.flatMap((message) => piToolCalls(message).map((call) => call.name));
 }
 
 /** Script a tool-call LLM response. */
@@ -359,7 +345,7 @@ describe('Full-scenario E2E conversations (Pi-backed)', () => {
     expect(allToolUses(msgs)).toContain('file_read');
     const results = allToolResults(msgs);
     expect(results.length).toBeGreaterThan(0);
-    expect(textOf(msgs[msgs.length - 1])).toContain('does not exist');
+    expect(piMessageText(msgs[msgs.length - 1])).toContain('does not exist');
   });
 
   it('renders thinking + 2 tool calls + text conclusion in one turn', async () => {
@@ -374,12 +360,12 @@ describe('Full-scenario E2E conversations (Pi-backed)', () => {
 
     const msgs = ctx.runtime.getMessages();
     const assistantMsgs = msgs.filter((m) => m.role === 'assistant');
-    const hasThinking = assistantMsgs.some((m) => Array.isArray(m.content) && m.content.some((b: any) => b.type === 'reasoning'));
+    const hasThinking = assistantMsgs.some(piMessageHasThinking);
     expect(hasThinking).toBe(true);
     expect(allToolUses(msgs)).toEqual(['file_read', 'file_read']);
     expect(allToolResults(msgs).some((r) => r.includes('export const x = 1;'))).toBe(true);
     expect(allToolResults(msgs).some((r) => r.includes('export const y = 2;'))).toBe(true);
-    expect(textOf(msgs[msgs.length - 1])).toContain('x=1');
+    expect(piMessageText(msgs[msgs.length - 1])).toContain('x=1');
   });
 
   it('sustains a 3-turn conversation: question → tool → follow-up → tool → summary', async () => {
@@ -403,8 +389,9 @@ describe('Full-scenario E2E conversations (Pi-backed)', () => {
     expect(assistantMsgs.length).toBeGreaterThanOrEqual(3);
     expect(allToolUses(msgs)).toEqual(['file_read', 'file_edit']);
     expect(ctx.fileContents.get('/data.json')).toContain('100');
-    expect(textOf(msgs[1])).toContain('I can help');
-    const lastWithText = [...msgs].reverse().find((m) => m.role === 'assistant' && textOf(m));
-    expect(textOf(lastWithText!)).toContain('100');
+    expect(piMessageText(msgs[1])).toContain('I can help');
+    const lastWithText = [...msgs].reverse()
+      .find((m) => m.role === 'assistant' && piMessageText(m));
+    expect(piMessageText(lastWithText!)).toContain('100');
   });
 });

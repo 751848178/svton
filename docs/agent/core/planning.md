@@ -9,21 +9,21 @@
 ```typescript
 import { PlanningManager } from '@svton/agent-core';
 
-const planner = new PlanningManager(storage);
-await planner.init();
+const planner = new PlanningManager();
+await planner.init(storage);
 
 // 创建一个多步骤计划
-const plan = await planner.createPlan({
-  title: '重构认证模块',
-  steps: [
+const plan = planner.createPlan(
+  '重构认证模块',
+  [
     { title: '分析现有代码', description: '阅读 src/auth/ 下所有文件' },
     { title: '设计新架构', description: '绘制架构图并确认方案' },
     { title: '实现重构', description: '编写代码并运行测试' },
   ],
-});
+);
 
 // 更新步骤状态
-await planner.updateStepStatus(plan.id, 0, 'completed');
+planner.updateStepStatus(plan.id, 'step_1', 'completed');
 ```
 
 ## 类型定义
@@ -322,12 +322,13 @@ planner.createPlan('数据处理流水线', [
 
 ---
 
-## 与 AgentRuntime 集成
+## 与 SvtonAgentRuntime 集成
 
 ```typescript
-const runtime = await AgentRuntime.createAsync(
+const runtime = await SvtonAgentRuntime.createAsync(
   {
-    provider,
+    models,
+    piModel,
     model: 'claude-sonnet-4-20250514',
     toolRegistry,
     capabilities: {
@@ -347,12 +348,14 @@ const runtime = await AgentRuntime.createAsync(
 - **大任务先规划**:复杂任务先用 `plan_create` 拆分为步骤,再逐步执行。
 - **善用依赖**:通过 `dependencies` 确保执行顺序,避免并行冲突。
 - **记录结果**:每个步骤完成后用 `result` 记录关键信息,便于回溯。
-- **用 plan 模式规划**:配合 `RunOptions.mode: 'plan'`,Agent 在只读模式下分析任务并生成计划,确认后再切换模式执行。
+- **规划与权限分离**:`PlanningManager` 只管理计划状态。需要只读规划时,
+  应把注入的 `PermissionManager` 切换到 `mode: 'plan'`,再开始下一次
+  `run()`;`RunOptions.mode` 不会改变工具权限。
 
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — 运行时集成 PlanningManager
+- [SvtonAgentRuntime](./runtime) — 运行时集成 PlanningManager
 - [工具系统](./tools) — 3 个内置规划工具
 - [子代理](./subagent) — 配合子代理拆分复杂任务
 - [权限系统](./permission) — plan 模式下的只读权限

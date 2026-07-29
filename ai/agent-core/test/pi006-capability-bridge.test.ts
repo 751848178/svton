@@ -21,7 +21,7 @@ import { ToolRegistry, PermissionManager } from '@svton/agent-core';
 import { ToolExecutionService } from '../src/agent/tool-executor';
 import { buildAgentTools, type ToolEventSink } from '../src/agent/pi-tool-adapter';
 import { validateToolArguments } from '@earendil-works/pi-ai';
-import type { ToolDefinition, ToolAnnotations } from '@svton/agent-core';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '@svton/agent-core';
 import type {
   ToolCall,
   ToolResult,
@@ -61,7 +61,7 @@ function call(name: string): ToolCall {
 }
 
 /** A representative complex MCP input schema ($ref + $defs + oneOf + anyOf). */
-function complexMcpParameters(): ToolDefinition['parameters'] {
+function complexMcpParameters(): SvtonToolDefinition['parameters'] {
   return {
     type: 'object',
     properties: {
@@ -79,7 +79,7 @@ function complexMcpParameters(): ToolDefinition['parameters'] {
       },
       Inner: { type: 'string', enum: ['x', 'y'] },
     },
-  } as ToolDefinition['parameters'];
+  } as SvtonToolDefinition['parameters'];
 }
 
 const sink: ToolEventSink = () => {};
@@ -101,11 +101,11 @@ describe('PI006 MCP schema robustness (complex shapes through pi-ai validator)',
   });
 
   it('passes a complex MCP schema through normalizeParameters unchanged in shape', () => {
-    const def: ToolDefinition = {
+    const def: SvtonToolDefinition = {
       name: 'mcp__srv__search',
       description: 'complex',
       parameters: complexMcpParameters(),
-      annotations: { openWorldHint: true } as ToolAnnotations,
+      annotations: { openWorldHint: true } as SvtonToolAnnotations,
     };
     registry.register(def, recordingExecutor());
     const tool = buildAgentTools(registry, service, sink)[0];
@@ -119,7 +119,7 @@ describe('PI006 MCP schema robustness (complex shapes through pi-ai validator)',
   });
 
   it('accepts valid args against a complex MCP schema via validateToolArguments', () => {
-    const def: ToolDefinition = { name: 'search', description: 'd', parameters: complexMcpParameters() };
+    const def: SvtonToolDefinition = { name: 'search', description: 'd', parameters: complexMcpParameters() };
     registry.register(def, recordingExecutor());
     const tool = buildAgentTools(registry, service, sink)[0];
     const valid = { query: 'hi', filter: { field: 'x', nested: 'y' }, mode: 'fast', kind: 'a', tags: ['a', 1] };
@@ -127,14 +127,14 @@ describe('PI006 MCP schema robustness (complex shapes through pi-ai validator)',
   });
 
   it('rejects invalid args (missing required) against a complex MCP schema', () => {
-    const def: ToolDefinition = { name: 'search', description: 'd', parameters: complexMcpParameters() };
+    const def: SvtonToolDefinition = { name: 'search', description: 'd', parameters: complexMcpParameters() };
     registry.register(def, recordingExecutor());
     const tool = buildAgentTools(registry, service, sink)[0];
     expect(() => validateToolArguments(tool, { name: 'search', arguments: { filter: { field: 'x' } } })).toThrow(/query/);
   });
 
   it('rejects an invalid nested $ref enum value', () => {
-    const def: ToolDefinition = { name: 'search', description: 'd', parameters: complexMcpParameters() };
+    const def: SvtonToolDefinition = { name: 'search', description: 'd', parameters: complexMcpParameters() };
     registry.register(def, recordingExecutor());
     const tool = buildAgentTools(registry, service, sink)[0];
     expect(() => validateToolArguments(tool, { name: 'search', arguments: { query: 'q', filter: { nested: 'z' } } })).toThrow();
@@ -175,7 +175,7 @@ describe('PI006 MCP tools use the same policy pipeline (no bypass)', () => {
 
     const result = await tool.execute(call('mcp__srv__write').id, {});
     expect(exec.calls).toHaveLength(0);          // never reached the MCP executor
-    expect(result.isError).toBe(true);
+    expect(result.details).toMatchObject({ isError: true });
     expect((result.content[0] as { text: string }).text).toContain('Permission denied');
   });
 

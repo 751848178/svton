@@ -5,7 +5,7 @@ import { splitShellCommandListSegments } from './shell-command-list.utils';
 import { stripShellControlCommandPrefix } from './shell-control-command.utils';
 import { type ShellPositionalArguments, shellPositionalTargetTokens } from './shell-positional-parameter.utils';
 
-type SplitCommandTokens = (command: string) => string[];
+type SplitCommandTokens = (command: string, keepAssignmentPrefixes?: boolean) => string[];
 
 export function nextStaticShellCommandWorkingDirState(
   command: string,

@@ -1,7 +1,9 @@
 import {
-  applyBashEnvKnownAssignment,
   bashEnvStaticAssignment,
   bashEnvVariablesWithWorkingDir,
+} from './shell-bash-env-static-assignment.utils';
+import {
+  applyBashEnvKnownAssignment,
   type BashEnvState,
 } from './shell-bash-env-static-variable.utils';
 import { normalizeShellWordToken, unquoteShellToken } from './shell-command.utils';

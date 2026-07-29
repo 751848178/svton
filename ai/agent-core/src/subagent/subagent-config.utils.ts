@@ -31,9 +31,8 @@ export function buildSubagentConfig(
     : undefined;
 
   return {
-    // PI003: forward the pi-ai Models collection + resolved Model so the child
-    // runtime (SvtonAgentRuntime) can drive Pi Agent. The legacy `provider`
-    // field is gone.
+    // Forward the pi-ai Models collection and resolved Model so the child
+    // SvtonAgentRuntime drives the same canonical Pi contract.
     models: parentConfig.models,
     piModel: parentConfig.piModel,
     model: config.model || parentConfig.model,

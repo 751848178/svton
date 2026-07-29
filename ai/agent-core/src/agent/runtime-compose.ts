@@ -12,14 +12,14 @@
  */
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { Model } from '@earendil-works/pi-ai';
-import type { AgentConfig, AgentEvent } from './types';
+import type { AgentConfig, SvtonCapabilityEvent } from './types';
 import type { ToolRegistry } from '../tool/registry';
 import type { ToolExecutionService } from './tool-executor';
 import type { SvtonCompactor } from './svton-compactor';
 import type { ApprovalGate } from './approval-gate';
 import type { ToolEventSink } from './pi-tool-adapter';
 import { buildAgentTools } from './pi-tool-adapter';
-import { toAgentMessages } from './message-bridge';
+import { readSvtonToolResultError } from './pi-tool-result-details.utils';
 
 /** Collaborators the composition root passes to the factory. */
 export interface PiAgentBuildContext {
@@ -34,7 +34,7 @@ export interface PiAgentBuildContext {
   /** Initial Pi thinking level ('low'|'medium'|'high'|'xhigh'); undefined → 'off'. */
   thinkingLevel?: 'low' | 'medium' | 'high' | 'xhigh';
   /** Sink the compactor + tool events route through to consumers. */
-  routeToolEvent: (ev: AgentEvent) => void;
+  routeToolEvent: (ev: SvtonCapabilityEvent) => void;
 }
 
 /**
@@ -49,7 +49,7 @@ export function buildPiAgent(ctx: PiAgentBuildContext): Agent {
       systemPrompt: ctx.systemPrompt,
       model: ctx.model,
       tools,
-      messages: ctx.initialMessages ? toAgentMessages(ctx.initialMessages) : [],
+      messages: ctx.initialMessages ? [...ctx.initialMessages] : [],
       // Apply an initial thinking level so the Pi Agent streams reasoning when
       // configured (undefined → 'off', the Pi Agent default).
       ...(ctx.thinkingLevel ? { thinkingLevel: ctx.thinkingLevel } : {}),
@@ -64,6 +64,10 @@ export function buildPiAgent(ctx: PiAgentBuildContext): Agent {
       });
     }),
     beforeToolCall: ctx.approvalGate.toBeforeToolCall(),
+    afterToolCall: async ({ result }) => {
+      const isError = readSvtonToolResultError(result.details);
+      return isError === undefined ? undefined : { isError };
+    },
     toolExecution: 'sequential',
   });
 }

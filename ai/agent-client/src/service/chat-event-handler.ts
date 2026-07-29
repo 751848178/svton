@@ -1,5 +1,6 @@
 /**
- * Chat event handler — dispatches a single `AgentEvent` to the message store.
+ * Chat event handler — projects native Pi and Svton capability events into the
+ * product display store.
  *
  * Stateless dispatcher: each `handle()` call receives the live message-store
  * host (ChatService's observable slice) so there are no stale-closure hazards.
@@ -7,13 +8,17 @@
  * session cache, and delegates per-message mutation to the pure functions in
  * `chat-event-mutators.ts`.
  *
- * Event classification (Architecture §5.2):
- *   Pi-base (text, thinking, tool_call lifecycle, error, done): delegate to mutators.
- *   svton-only (tool_approval_needed, context_compacted, skill_activated,
- *   warning): handled here (they touch capability/UI state, not just blocks).
+ * Native event objects remain unchanged; this is a display selector, not a
+ * second runtime protocol.
  */
 
-import type { AgentEvent } from '@svton/agent-core';
+import {
+  selectLastAssistantMessage,
+  selectNativeToolCall,
+  selectNativeToolResult,
+  selectNativeToolUpdate,
+  type PublicRuntimeEvent,
+} from '@svton/agent-core';
 import type { MessageStoreHost } from './chat-message-store';
 import {
   applyPlanProgressToStore,
@@ -25,14 +30,14 @@ import {
 import type { ApprovalQueue } from './chat-approval-queue';
 import type { DisplayMessage } from '../types';
 import {
-  applyDone,
   applyError,
   applySkillActivated,
   applyTextDelta,
   applyThinkingDelta,
   applyToolCallEnd,
-  applyToolCallProgress,
+  applyToolExecutionUpdate,
   applyToolCallStart,
+  applyTurnFinalized,
   applyWarning,
   CONTEXT_COMPACTED_LABEL,
   type MutatorContext,
@@ -45,45 +50,55 @@ export interface EventHandlerDeps {
 }
 
 export class ChatEventHandler {
-  private lastEventType: string | null = null;
+  private thinkingSeparatorPending = false;
 
   constructor(private deps: EventHandlerDeps) {}
 
   handle(
-    event: AgentEvent,
+    event: PublicRuntimeEvent,
     assistantMsgId: string,
     store: MessageStoreHost,
   ): void {
-    const ctx: MutatorContext = { assistantMsgId, lastEventType: this.lastEventType };
+    const ctx: MutatorContext = {
+      assistantMsgId,
+      insertThinkingSeparator: this.thinkingSeparatorPending,
+    };
 
     switch (event.type) {
-      // --- Pi-base: streaming content ---
-      case 'text_delta':
-        mapStreamingMessage(store, (m) => applyTextDelta(m, event, ctx));
-        break;
-      case 'thinking_delta':
-        mapStreamingMessage(store, (m) => applyThinkingDelta(m, event, ctx));
-        break;
-
-      // --- Pi-base: tool-call lifecycle ---
-      case 'tool_call_start':
-        mapStreamingMessage(store, (m) => applyToolCallStart(m, event, ctx));
-        break;
-      case 'tool_call_progress':
-        if (event.arguments || event.name) {
-          mapStreamingMessage(store, (m) =>
-            m.id === assistantMsgId ? applyToolCallProgress(m, event) : m,
-          );
+      case 'message_update': {
+        const update = event.assistantMessageEvent;
+        if (update.type === 'text_delta') {
+          mapStreamingMessage(store, (m) => applyTextDelta(m, update.delta, ctx));
+        } else if (update.type === 'thinking_delta') {
+          mapStreamingMessage(store, (m) => applyThinkingDelta(m, update.delta, ctx));
+          this.thinkingSeparatorPending = false;
         }
         break;
-      case 'tool_call_end': {
-        const owningMsg = findStreamingMessage(store, assistantMsgId);
-        const owningCall = owningMsg?.toolCalls?.find((t) => t.id === event.result.callId);
-        const toolName = owningCall?.name || '';
+      }
+
+      case 'tool_execution_start': {
+        const call = selectNativeToolCall(event);
+        const toolCall = { ...call, status: 'running' as const };
+        mapStreamingMessage(store, (m) => applyToolCallStart(m, toolCall, ctx));
+        break;
+      }
+      case 'tool_execution_update': {
+        const update = selectNativeToolUpdate(event);
         mapStreamingMessage(store, (m) =>
-          m.id === assistantMsgId ? applyToolCallEnd(m, event, toolName, owningCall) : m,
+          m.id === assistantMsgId ? applyToolExecutionUpdate(m, update) : m,
         );
-        applyPlanProgressToStore(store, event.result, assistantMsgId);
+        break;
+      }
+      case 'tool_execution_end': {
+        const result = selectNativeToolResult(event);
+        const owningMsg = findStreamingMessage(store, assistantMsgId);
+        const owningCall = owningMsg?.toolCalls?.find((tool) => tool.id === result.callId);
+        const toolName = owningCall?.name ?? event.toolName;
+        mapStreamingMessage(store, (m) =>
+          m.id === assistantMsgId ? applyToolCallEnd(m, result, toolName, owningCall) : m,
+        );
+        applyPlanProgressToStore(store, result, assistantMsgId);
+        this.thinkingSeparatorPending = true;
         break;
       }
 
@@ -98,14 +113,20 @@ export class ChatEventHandler {
         updateToolCallStatusEverywhere(store, event.call.id, 'pending_approval', event.metadata);
         break;
 
-      // --- Pi-base: termination ---
-      case 'error':
-        mapStreamingMessage(store, (m) => applyError(m, event, ctx));
+      case 'message_end':
+        if (event.message.role !== 'assistant') break;
+        store.lastUsage = event.message.usage;
+        if (event.message.stopReason === 'error') {
+          const error = event.message.errorMessage ?? 'Agent run failed';
+          mapStreamingMessage(store, (m) => applyError(m, error, ctx));
+        }
         break;
-      case 'done':
-        store.lastUsage = event.usage;
-        mapStreamingMessage(store, (m) => applyDone(m, ctx));
+      case 'agent_end': {
+        const assistant = selectLastAssistantMessage(event.messages);
+        if (assistant) store.lastUsage = assistant.usage;
+        mapStreamingMessage(store, (m) => applyTurnFinalized(m, ctx));
         break;
+      }
 
       // --- svton-only: compaction (UI-only system marker) ---
       case 'context_compacted':
@@ -117,18 +138,23 @@ export class ChatEventHandler {
 
       // --- svton-only: product warnings + skill activation ---
       case 'warning':
-        mapStreamingMessage(store, (m) => applyWarning(m, event, ctx));
+        mapStreamingMessage(store, (m) => applyWarning(m, event.text, event.source, ctx));
         break;
       case 'skill_activated':
-        mapStreamingMessage(store, (m) => applySkillActivated(m, event, ctx));
+        mapStreamingMessage(store, (m) => applySkillActivated(m, event.skills, ctx));
+        break;
+
+      case 'agent_start':
+      case 'turn_start':
+      case 'turn_end':
+      case 'message_start':
         break;
     }
 
-    this.lastEventType = event.type;
   }
 
   /** Reset streaming-state tracking between runs. */
-  resetLastEventType(): void {
-    this.lastEventType = null;
+  resetSequenceState(): void {
+    this.thinkingSeparatorPending = false;
   }
 }

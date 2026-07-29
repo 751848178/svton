@@ -58,18 +58,37 @@ export function getE2eReasoningEffort(): E2eFlag['reasoningEffort'] | undefined 
  * - empty queue → waits for a response to be enqueued (keeps the turn running,
  *   which is what the abort/failure tests need)
  */
-async function drainQueuedResponse(): Promise<AssistantMessage> {
+async function drainQueuedResponse(signal?: AbortSignal): Promise<AssistantMessage> {
   const w = window as unknown as Record<string, unknown[]>;
-  // Poll until a response is queued. A test either pushes a response or the
-  // runtime is aborted (which rejects the in-flight stream independently).
   while (!Array.isArray(w[E2E_QUEUE_GLOBAL]) || w[E2E_QUEUE_GLOBAL].length === 0) {
-    await new Promise((r) => setTimeout(r, 20));
+    await waitForQueuePoll(signal);
   }
   const next = w[E2E_QUEUE_GLOBAL].shift();
   if (next && typeof next === 'object' && (next as { __error?: boolean }).__error) {
     throw new Error(E2E_ERROR_MARKER);
   }
   return next as AssistantMessage;
+}
+
+function waitForQueuePoll(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) {
+    return Promise.reject(new DOMException('E2E response wait aborted', 'AbortError'));
+  }
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (aborted: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      if (aborted) reject(new DOMException('E2E response wait aborted', 'AbortError'));
+      else resolve();
+    };
+    const onAbort = () => finish(true);
+    const timer = setTimeout(() => finish(false), 20);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  });
 }
 
 let cachedHandle: { piProvider: Provider } | null = null;
@@ -91,13 +110,15 @@ export function getE2eModelsOverride(): { piProvider: Provider } | null {
       models: [{ id: flag.modelId, reasoning: true }],
       tokenSize: { min: 1_000_000, max: 1_000_000 },
     });
+    type FauxStep = Parameters<typeof handle.setResponses>[0][number];
+    type FauxFactory = Exclude<FauxStep, AssistantMessage>;
     // The faux provider shifts+consumes each queued step (faux.js). To keep it
     // alive across many turns without exhausting the queue, we register one
     // self-re-enqueuing factory that reads the live page-global queue (waiting
     // while empty so a turn stays in-flight until the test scripts a response).
-    const factory = async (): Promise<AssistantMessage> => {
+    const factory: FauxFactory = async (_context, options) => {
       handle.appendResponses([factory]);
-      return drainQueuedResponse();
+      return drainQueuedResponse(options?.signal);
     };
     handle.setResponses([factory]);
     cachedHandle = { piProvider: handle.provider };

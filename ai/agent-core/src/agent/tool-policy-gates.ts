@@ -10,10 +10,8 @@
  *   2. auto-reviewer (if the call needs approval) — `AutoReviewerManager.review`
  *   3. user approval (if the reviewer escalates or no reviewer is configured)
  *
- * Every gate yields the svton `AgentEvent`s it produces (permission-denied
- * `tool_call_end`, auto-review-deny `tool_call_end`, `tool_approval_needed`)
- * and returns a discriminated outcome the orchestrator switches on. The
- * orchestrator owns the abort/skill/hook gates that surround this block.
+ * The gate yields only Svton-owned approval capability events and returns a
+ * discriminated outcome. Pi publishes the eventual tool execution result.
  *
  * This module is pure policy resolution — it never touches the platform or
  * executes the tool. Execution stays in `ToolExecutionService`.
@@ -22,7 +20,7 @@ import type { PermissionManager } from '../permission/manager';
 import type { AutoReviewerManager } from '../auto-reviewer/manager';
 import type { ReviewResult } from '../auto-reviewer/types';
 import type { ToolCall, ToolResult } from '../tool/types';
-import type { AgentEvent } from './types';
+import type { SvtonCapabilityEvent } from './types';
 import type { ToolExecOptions } from './tool-executor';
 import type { PendingApprovalMap } from './approval-gate';
 import { logger } from '../utils/logger';
@@ -47,19 +45,17 @@ export type PolicyGateOutcome =
 /**
  * Resolve the permission → auto-review → user-approval chain.
  *
- * Yields any svton events produced along the way and returns the outcome.
- * `blocked` means a gate denied the call (the yielded `tool_call_end` already
- * carries the denial); `approved` means the tool may execute.
+ * Yields approval requests and returns the outcome. `blocked` means a gate
+ * denied the call; Pi emits the native `tool_execution_end` for that result.
  */
 export async function* runPermissionAndApprovalGate(
   ctx: PolicyGateContext,
-): AsyncGenerator<AgentEvent, PolicyGateOutcome> {
+): AsyncGenerator<SvtonCapabilityEvent, PolicyGateOutcome> {
   if (!ctx.permissionManager) return { kind: 'approved', autoReviewResult: null };
 
   const decision = ctx.permissionManager.check(ctx.call);
   if (!decision.allowed) {
     const result = createPermissionDeniedResult(ctx.call.id, decision.reason);
-    yield { type: 'tool_call_end', result };
     return { kind: 'blocked', result };
   }
   if (!decision.needsApproval) {
@@ -73,7 +69,7 @@ export async function* runPermissionAndApprovalGate(
 /** Auto-reviewer + user-approval resolution when permission requires approval. */
 async function* resolveApproval(
   ctx: PolicyGateContext,
-): AsyncGenerator<AgentEvent, PolicyGateOutcome> {
+): AsyncGenerator<SvtonCapabilityEvent, PolicyGateOutcome> {
   if (!ctx.autoReviewer) {
     const rejection = yield* requestUserApproval(
       ctx.pendingApprovals, ctx.call, ctx.execOptions.signal,
@@ -101,7 +97,6 @@ async function* resolveApproval(
       output: `Auto-reviewer denied: ${review.reason}`,
       isError: true,
     }, review);
-    yield { type: 'tool_call_end', result };
     return { kind: 'blocked', result };
   }
 

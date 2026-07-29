@@ -6,7 +6,7 @@
  * processing (e.g. per-row research, per-record transformations).
  */
 
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import type { SubagentManager } from '../../subagent/manager';
 import {
@@ -15,7 +15,7 @@ import {
 } from '../../subagent/csv-fanout.utils';
 import { formatUnknownErrorMessage } from './error-message.utils';
 
-export const csvFanoutDef: ToolDefinition = {
+export const csvFanoutDef: SvtonToolDefinition = {
   name: 'csv_fanout',
   description:
     'Spawn a subagent for each row of a CSV input. ' +
@@ -46,7 +46,7 @@ export const csvFanoutDef: ToolDefinition = {
     destructiveHint: false,
     idempotentHint: false,
     openWorldHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class CsvFanoutExecutor implements IToolExecutor {
