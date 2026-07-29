@@ -73,6 +73,15 @@ describe('repository analysis redaction', () => {
     });
   });
 
+  it('preserves Date values for API serialization', () => {
+    const createdAt = new Date('2026-07-29T12:00:00.000Z');
+
+    expect(redactRepositoryValue({ createdAt, accessToken: 'token' })).toEqual({
+      createdAt,
+      accessToken: '[REDACTED]',
+    });
+  });
+
   it('redacts database URI userinfo and literal secret command assignments', () => {
     const result = redactRepositoryText(
       'DATABASE_URL=mysql://db-user:sentinel-db@mysql:3306/app '

@@ -30,6 +30,7 @@ export function redactRepositoryText(value: string, secrets: string[] = []): str
 
 export function redactRepositoryValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redactRepositoryValue);
+  if (value instanceof Date) return value;
   if (!value || typeof value !== 'object') {
     return typeof value === 'string' ? redactRepositoryText(value) : value;
   }
