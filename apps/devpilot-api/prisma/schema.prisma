@@ -69,6 +69,9 @@ model User {
   resourceAuditLogs    ResourceAuditLog[] @relation("ResourceAuditActor")
   resourceProvisioningRuns ResourceProvisioningRun[] @relation("ResourceProvisioningRunActor")
   createdReleasePlans  ReleasePlan[] @relation("ReleasePlanCreatedBy")
+  repositoryConnections RepositoryConnection[] @relation("RepositoryConnectionActor")
+  repositoryAnalysisRuns RepositoryAnalysisRun[] @relation("RepositoryAnalysisRunActor")
+  reviewedRepositorySuggestions RepositoryAnalysisSuggestion[] @relation("RepositorySuggestionReviewer")
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime @updatedAt
@@ -133,6 +136,8 @@ model Team {
   releaseStages ReleaseStage[]
   releaseStageAttempts ReleaseStageAttempt[]
   releaseEvents ReleaseEvent[]
+  repositoryConnections RepositoryConnection[]
+  repositoryAnalysisRuns RepositoryAnalysisRun[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -185,6 +190,7 @@ model GitConnection {
   username     String
 
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositoryConnections RepositoryConnection[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -545,6 +551,7 @@ model TeamCredential {
   resourceConnectionRuns ResourceConnectionRun[]
   resourceQueryRuns ResourceQueryRun[]
   resourceProvisioningRuns ResourceProvisioningRun[]
+  repositoryConnections RepositoryConnection[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -668,12 +675,158 @@ model Project {
   serverCommandPolicyTemplates ServerCommandPolicyTemplate[]
   controlAccessPolicies ControlAccessPolicy[]
   releasePlans ReleasePlan[]
+  repositoryConnection RepositoryConnection?
+  repositoryAnalysisRuns RepositoryAnalysisRun[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([teamId])
   @@index([createdById])
+}
+
+// 项目只读仓库连接：只记录加密凭据引用与真实 Git 验证结果
+model RepositoryConnection {
+  id                 String   @id @default(cuid())
+  teamId             String
+  projectId          String   @unique
+  connectedById      String?
+  gitConnectionId    String?
+  teamCredentialId   String?
+  provider           String   @default("generic")
+  repositoryUrl      String   @db.Text
+  visibility         String   @default("public") // public | private
+  credentialSource   String   @default("none") // none | git_connection | team_credential
+  externalRepositoryId String?
+  defaultBranch      String?
+  selectedBranch     String?
+  commitSha          String?
+  branches           Json?
+  status             String   @default("pending") // pending | connected | failed
+  verifiedAt         DateTime?
+  lastAppliedRunId   String?
+  appliedAt          DateTime?
+  errorCode          String?
+  errorMessage       String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  team               Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connectedBy        User?    @relation("RepositoryConnectionActor", fields: [connectedById], references: [id], onDelete: SetNull)
+  gitConnection      GitConnection? @relation(fields: [gitConnectionId], references: [id], onDelete: SetNull)
+  teamCredential     TeamCredential? @relation(fields: [teamCredentialId], references: [id], onDelete: SetNull)
+  analysisRuns       RepositoryAnalysisRun[]
+
+  @@index([teamId])
+  @@index([connectedById])
+  @@index([gitConnectionId])
+  @@index([teamCredentialId])
+  @@index([status])
+}
+
+// 一个不可变仓库/分支/commit 解析快照
+model RepositoryAnalysisRun {
+  id               String   @id @default(cuid())
+  teamId           String
+  projectId        String
+  connectionId     String
+  triggeredById    String?
+  retryOfId        String?
+  repositoryUrl    String   @db.Text
+  branch           String
+  commitSha        String
+  status           String   @default("queued") // queued | running | succeeded | failed | cancelled
+  activeKey        String?
+  idempotencyKey   String
+  currentStage     String?
+  parserVersion    String
+  summary          Json?
+  result           Json?
+  warnings         Json?
+  errorCode        String?
+  errorMessage     String?  @db.Text
+  errorAction      String?  @db.Text
+  cancelRequestedAt DateTime?
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  durationMs       Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  team             Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connection       RepositoryConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  triggeredBy      User?    @relation("RepositoryAnalysisRunActor", fields: [triggeredById], references: [id], onDelete: SetNull)
+  retryOf          RepositoryAnalysisRun? @relation("RepositoryAnalysisRetry", fields: [retryOfId], references: [id], onDelete: SetNull)
+  retries          RepositoryAnalysisRun[] @relation("RepositoryAnalysisRetry")
+  stages           RepositoryAnalysisStage[]
+  suggestions      RepositoryAnalysisSuggestion[]
+
+  @@unique([projectId, idempotencyKey])
+  @@unique([projectId, activeKey])
+  @@index([teamId])
+  @@index([connectionId])
+  @@index([triggeredById])
+  @@index([retryOfId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// 解析运行的可审计阶段证据
+model RepositoryAnalysisStage {
+  id           String   @id @default(cuid())
+  runId        String
+  name         String
+  ordinal      Int
+  status       String   @default("queued") // queued | running | succeeded | failed | cancelled
+  logs         Json?
+  evidence     Json?
+  errorCode    String?
+  errorMessage String?  @db.Text
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  durationMs   Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  run          RepositoryAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, name])
+  @@index([runId, ordinal])
+  @@index([status])
+}
+
+// 用户逐项确认、编辑或忽略后才可应用的检测建议
+model RepositoryAnalysisSuggestion {
+  id             String   @id @default(cuid())
+  runId          String
+  reviewedById   String?
+  key            String
+  kind           String
+  status         String   @default("pending") // pending | accepted | edited | rejected | applied
+  confidence     String   @default("medium")
+  conflict       Boolean  @default(false)
+  impact         String?  @db.Text
+  currentValue   Json?
+  proposedValue  Json
+  reviewDecision String?  // accept | edit | reject
+  reviewedValue  Json?
+  evidence       Json?
+  warnings       Json?
+  appliedRefs    Json?
+  reviewedAt     DateTime?
+  appliedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  run            RepositoryAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  reviewedBy     User?    @relation("RepositorySuggestionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([runId, key])
+  @@index([runId, status])
+  @@index([reviewedById])
+  @@index([kind])
 }
 
 // 项目环境

@@ -44,9 +44,15 @@ services:
       RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED: "true"
       # Enable project-level release orchestration (F383) for local verification.
       DEVPILOT_RELEASE_ORCHESTRATION_ENABLED: "true"
+      # Local repository analysis remains default-off in production. This
+      # disposable app stack exposes only the explicitly mounted read-only root.
+      REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories
     volumes:
       # Other secrets (JWT, OAuth...) come from the local .env; env above wins
       - ./apps/devpilot-api/.env:/app/apps/devpilot-api/.env:ro
+      # Override the fixture path when validating another repository. The
+      # container cannot write to the source checkout.
+      - ${DEVPILOT_REPOSITORY_FIXTURE:-../picshare}:/read-only-repositories/picshare:ro
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3121/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

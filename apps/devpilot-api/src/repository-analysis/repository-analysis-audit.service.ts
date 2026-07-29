@@ -1,0 +1,37 @@
+import { Injectable } from '@nestjs/common';
+import { AuditEventService } from '../audit-event/audit-event.service';
+import { redactRepositoryValue } from './repository-analysis-redact.utils';
+
+interface RepositoryAuditInput {
+  teamId: string;
+  userId?: string | null;
+  projectId: string;
+  action: string;
+  targetType: 'repository_connection' | 'repository_analysis_run';
+  targetId?: string;
+  status?: 'completed' | 'failed' | 'running' | 'blocked';
+  summary: string;
+  risk?: 'low' | 'medium';
+  metadata?: Record<string, unknown>;
+}
+
+@Injectable()
+export class RepositoryAnalysisAuditService {
+  constructor(private readonly audit: AuditEventService) {}
+
+  record(input: RepositoryAuditInput) {
+    return this.audit.create({
+      teamId: input.teamId,
+      actorId: input.userId,
+      projectId: input.projectId,
+      category: 'repository_analysis',
+      action: input.action,
+      targetType: input.targetType,
+      targetId: input.targetId,
+      risk: input.risk || 'low',
+      status: input.status || 'completed',
+      summary: input.summary,
+      metadata: redactRepositoryValue(input.metadata || {}) as Record<string, unknown>,
+    });
+  }
+}
