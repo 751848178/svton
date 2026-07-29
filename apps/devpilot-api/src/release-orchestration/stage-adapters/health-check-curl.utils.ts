@@ -11,9 +11,11 @@
  * 否则耗尽尝试后 exit 1。curl 的退出码（0/非0）即阶段成功/失败信号。
  *
  * 哨兵载荷：`{schemaVersion:1, summary:"ready", values:{ready:true, httpStatus:$code},
- * metrics:{attempts:$i}}`。$code 在哨兵发射点必为 2xx 整数（已通过 `[ -ge 200 ] &&
- * [ -lt 300 ]` 判定），故 bash 字符串拼接出的 JSON 永远合法。失败路径不发射哨兵，
- * SEJ 终态 failed → 阶段 failed，结构化输出为空（ready:false 由状态隐含）。
+ * metrics:{attempts:$i}}`。$code/$i 在发射点必为整数（$code 已通过 `[ -ge 200 ] &&
+ * [ -lt 300 ]` 判定）。payload 用双引号包裹（JSON 双引号转义为 \"），使 $code/$i 在
+ * bash 赋值时展开为整数，拼接出合法 JSON 后 base64url 编码。base64 输出去除换行
+ * （BusyBox base64 默认每 76 字符折行），保证哨兵是单行连续 base64。失败路径不发射
+ * 哨兵，SEJ 终态 failed → 阶段 failed，结构化输出为空（ready:false 由状态隐含）。
  */
 export interface HealthCheckCurlOptions {
   timeoutMs: number;
@@ -46,16 +48,17 @@ export function buildHealthCheckCurlCommand(
     : "";
 
   // 哨兵载荷：$code/$i 在发射点必为整数，bash 拼接出合法 JSON 后 base64url 编码。
-  // 单引号字面量 + 不带引号的 $code/$i（数字，安全）交替拼接。
+  // payload 用双引号包裹（JSON 内的双引号已转义为 \"），使 $code/$i 在赋值时展开；
+  // 单引号会让 $code/$i 保持字面量，base64 出来是 "$code" 文本，解码后 JSON 非法。
   const payloadLiteral =
-    '{"schemaVersion":1,"summary":"ready","values":{"ready":true,"httpStatus":' +
+    '{\\"schemaVersion\\":1,\\"summary\\":\\"ready\\",\\"values\\":{\\"ready\\":true,\\"httpStatus\\":' +
     "$code" +
-    '},"metrics":{"attempts":' +
+    '},\\"metrics\\":{\\"attempts\\":' +
     "$i" +
     "}}";
   const emitSentinel =
-    `payload='${payloadLiteral}'; ` +
-    `encoded=$(printf '%s' "$payload" | base64 | tr '+/' '-_' | tr -d '='); ` +
+    `payload="${payloadLiteral}"; ` +
+    `encoded=$(printf '%s' "$payload" | base64 | tr '+/' '-_' | tr -d '=\\n'); ` +
     `echo '@@DEVPILOT_OUTPUT@@ '"$encoded"; ` +
     `rm -f ${HEALTH_CHECK_BODY_TMP}; exit 0`;
 
