@@ -21,6 +21,16 @@ function createMockStorage(): IStorage {
   };
 }
 
+function withDelayedGet(storage: IStorage, delayedKey: string, milliseconds: number): IStorage {
+  return {
+    ...storage,
+    get: async <T = unknown>(key: string) => {
+      if (key === delayedKey) await new Promise((resolve) => setTimeout(resolve, milliseconds));
+      return storage.get<T>(key);
+    },
+  };
+}
+
 // ==============================================================
 // Tests
 // ==============================================================
@@ -54,6 +64,37 @@ describe('SessionService', () => {
       service.currentSessionId = 'test-id';
       await service.init(storage);
       expect(service.currentSessionId).toBe('test-id');
+    });
+
+    it('reloads session state when the storage backend changes', async () => {
+      await service.init(storage);
+      await service.create('Old backend');
+
+      const replacement = createMockStorage();
+      await replacement.set('agent:session_list', [
+        { id: 'fresh', title: 'New backend', model: 'gpt-4o', messageCount: 0, createdAt: 1, updatedAt: 1 },
+      ]);
+      await service.init(replacement);
+
+      expect(service.sessions.map((session) => session.id)).toEqual(['fresh']);
+      expect(service.currentSessionId).toBeNull();
+    });
+
+    it('ignores a stale initialization that finishes after a new backend', async () => {
+      const oldStorage = createMockStorage();
+      await oldStorage.set('agent:session_list', [
+        { id: 'old', title: 'Old', model: 'gpt-4o', messageCount: 0, createdAt: 1, updatedAt: 1 },
+      ]);
+      const replacement = createMockStorage();
+      await replacement.set('agent:session_list', [
+        { id: 'fresh', title: 'Fresh', model: 'gpt-4o', messageCount: 0, createdAt: 2, updatedAt: 2 },
+      ]);
+
+      const staleInit = service.init(withDelayedGet(oldStorage, 'agent:session_list', 20));
+      await service.init(replacement);
+      await staleInit;
+
+      expect(service.sessions.map((session) => session.id)).toEqual(['fresh']);
     });
 
     it('loads existing sessions from storage', async () => {
@@ -153,6 +194,20 @@ describe('SessionService', () => {
     it('returns null for non-existent session', async () => {
       const loaded = await service.loadSession('nonexistent');
       expect(loaded).toBeNull();
+    });
+
+    it('rejects and removes a record stored under another session id', async () => {
+      await storage.set('agent:session:expected', {
+        id: 'other',
+        title: 'Wrong owner',
+        model: 'gpt-4o',
+        messages: [{ id: 'secret', role: 'user', content: 'other session' }],
+        createdAt: 1,
+        updatedAt: 1,
+      });
+
+      expect(await service.loadSession('expected')).toBeNull();
+      expect(await storage.get('agent:session:expected')).toBeNull();
     });
   });
 

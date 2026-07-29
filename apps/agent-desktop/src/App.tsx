@@ -3,72 +3,25 @@ import 'reflect-metadata';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { TauriPlatform } from '@svton/agent-platform';
 import type { AgentConfig } from '@svton/agent-core';
-import { AgentProvider } from '@svton/agent-client';
-import { ChatPanel, SplitScreenPanel, type ChatPanelMessage, type SplitScreenContent } from '@svton/agent-ui';
+import type { ChatPanelMessage } from '@svton/agent-ui';
 import { initAgent, type AgentExtra } from '@/lib/agent-setup';
 import { createDefaultConfig, openConfigInEditor } from '@/lib/config-store';
 import { loadDesktopAgentConfig } from '@/lib/desktop-agent-config.service';
-import { Sidebar, type View } from '@/components/Sidebar';
-import { startDragging, toggleMaximize } from '@/lib/window-controls';
-import { SettingsPanel } from '@/components/SettingsPanel';
+import type { View } from '@/components/Sidebar';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { MainLayout } from '@/components/MainLayout';
-import { DesktopE2eAutoDrive } from '@/components/DesktopE2eAutoDrive';
-import { desktopE2eActive } from '@/lib/e2e-provider';
 import { startDesktopE2eBootstrap } from '@/lib/desktop-e2e-bootstrap.service';
+import { parseAgentWindowParams } from '@/lib/agent-window-params.utils';
+import { PreviewWindow } from '@/components/PreviewWindow.component';
+import { ConfiguredAgentApp } from '@/components/ConfiguredAgentApp.component';
+import { UnconfiguredAgentApp } from '@/components/UnconfiguredAgentApp.component';
 
-// ── Preview Window ───────────────────────────────────────
-function PreviewWindow() {
-  const [content, setContent] = useState<SplitScreenContent | null>(null);
-
-  useEffect(() => {
-    // Read content from localStorage (shared across Tauri windows of same origin)
-    const params = new URLSearchParams(window.location.search);
-    const key = params.get('key');
-    if (key) {
-      const storageKey = `svton-preview-${key}`;
-      // Poll for a short time in case localStorage write hasn't completed yet
-      let attempts = 0;
-      const tryRead = () => {
-        const stored = localStorage.getItem(storageKey);
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored) as SplitScreenContent;
-            setContent(parsed);
-            // Clean up after reading
-            localStorage.removeItem(storageKey);
-          } catch { /* ignore parse error */ }
-        } else if (attempts < 20) {
-          attempts++;
-          setTimeout(tryRead, 100);
-        }
-      };
-      tryRead();
-    }
-  }, []);
-
-  return (
-    <div className="h-screen bg-[#2a2a2a] text-gray-100">
-      <SplitScreenPanel
-        content={content}
-        onClose={() => {
-          (async () => {
-            try {
-              const { getCurrentWindow } = await import('@tauri-apps/api/window' as string);
-              getCurrentWindow().close();
-            } catch { window.close(); }
-          })();
-        }}
-      />
-    </div>
-  );
-}
 // ── App ──────────────────────────────────────────────────
 export default function App() {
-  const isPreviewWindow = typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).get('preview') === '1';
+  const windowParams = parseAgentWindowParams(
+    typeof window === 'undefined' ? '' : window.location.search,
+  );
 
-  if (isPreviewWindow) {
+  if (windowParams.isPreview) {
     return <PreviewWindow />;
   }
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
@@ -78,8 +31,10 @@ export default function App() {
   const [unconfiguredMessages, setUnconfiguredMessages] = useState<ChatPanelMessage[]>([]);
   const [unconfiguredView, setUnconfiguredView] = useState<View>('chat');
 
+  // ── Model switching state ──
   const [currentModel, setCurrentModel] = useState('');
   const [models, setModels] = useState<{ id: string; name: string; providerName: string }[]>([]);
+
   useEffect(() => {
     let cancelled = false;
     let bootstrap: ReturnType<typeof startDesktopE2eBootstrap> | undefined;
@@ -124,12 +79,15 @@ export default function App() {
     return () => { cancelled = true; bootstrap?.dispose(); };
   }, []);
 
+  // ── Re-init agent when model changes ──
   const platformRef = useRef<TauriPlatform | null>(null);
   platformRef.current = platform;
 
   useEffect(() => {
     if (!currentModel || !platformRef.current) return;
+    // Skip the initial load (already handled by startup effect)
     if (currentModel === agentConfig?.model) return;
+
     let cancelled = false;
     initAgent(platformRef.current, currentModel)
       .then((result) => {
@@ -143,6 +101,7 @@ export default function App() {
     return () => { cancelled = true; };
   }, [currentModel]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cmd+, shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
@@ -177,6 +136,19 @@ export default function App() {
     if (platform) await openConfigInEditor(platform);
   }, [platform]);
 
+  const handleReinit = useCallback(async (workingDir?: string) => {
+    if (!platform) return;
+    if (workingDir) {
+      await platform.storage.set('agent:workingDir', workingDir);
+      setAgentConfig(prev => prev ? { ...prev, workingDir } : prev);
+    }
+    const result = await initAgent(platform, currentModel);
+    if (result.kind === 'ready') {
+      setAgentConfig(result.config);
+      setAgentExtra(result.extra ?? null);
+    }
+  }, [platform, currentModel]);
+
   // R6 fix: use incrementing counter to avoid ID collision
   const unconfiguredMsgCounter = useRef(0);
   const handleUnconfiguredSend = useCallback(async (content: string) => {
@@ -196,103 +168,26 @@ export default function App() {
   return (
     <ErrorBoundary>
       {agentConfig && platform ? (
-        <AgentProvider platform={platform} config={agentConfig}>
-          {desktopE2eActive() ? <DesktopE2eAutoDrive /> : null}
-          <MainLayout
-            config={agentConfig}
-            platform={platform}
-            models={models}
-            currentModel={currentModel}
-            setCurrentModel={setCurrentModel}
-            onReinit={async (workingDir?: string) => {
-              if (workingDir) {
-                await platform.storage.set('agent:workingDir', workingDir);
-                // Immediately update workingDir for UI responsiveness (mention cache, etc.)
-                setAgentConfig(prev => prev ? { ...prev, workingDir } : prev);
-              }
-              // Full re-init in background for skills, MCP, memory
-              const result = await initAgent(platform, currentModel);
-              if (result.kind === 'ready') {
-                setAgentConfig(result.config);
-                setAgentExtra(result.extra ?? null);
-              }
-            }}
-            extra={agentExtra ?? undefined}
-          />
-        </AgentProvider>
-      ) : unconfiguredView === 'settings' && platform ? (
-        // Settings: full-screen — no Sidebar
-        <div className="flex flex-col h-screen bg-[#212121] text-gray-100">
-          {/* Draggable spacer for macOS traffic light buttons */}
-          <div
-            onMouseDown={() => startDragging()}
-            onDoubleClick={() => toggleMaximize()}
-            className="h-9 flex-shrink-0 cursor-default select-none"
-          />
-          <SettingsPanel platform={platform} onBack={() => setUnconfiguredView('chat')} />
-        </div>
+        <ConfiguredAgentApp
+          platform={platform}
+          config={agentConfig}
+          initialSessionId={windowParams.sessionId}
+          models={models}
+          currentModel={currentModel}
+          setCurrentModel={setCurrentModel}
+          onReinit={handleReinit}
+          extra={agentExtra ?? undefined}
+        />
       ) : (
-        <div className="flex h-screen bg-[#212121] text-gray-100">
-          {platform && (
-            <Sidebar
-              config={null}
-              sessions={[]}
-              currentSessionId={null}
-              projects={[]}
-              currentProjectId={null}
-              onNewChat={() => {}}
-              onSwitchSession={() => {}}
-              onDeleteSession={() => {}}
-              onNavigate={(v) => setUnconfiguredView(v)}
-              onSwitchProject={() => {}}
-              onOpenProjectFolder={() => {}}
-              onDeleteProject={() => {}}
-              activeView={unconfiguredView}
-            />
-          )}
-          <div className="flex-1 flex flex-col min-w-0">
-            {(unconfiguredView === 'chat' || unconfiguredView === 'search') && (
-              <ChatPanel
-                messages={unconfiguredMessages}
-                onSend={handleUnconfiguredSend}
-                disabled={false}
-                placeholder="Press Cmd+, to configure..."
-                emptyMessage={unconfigured ? (
-                  <div className="text-center py-8">
-                    <h2 className="text-2xl text-white font-light tracking-tight mb-2">
-                      Welcome to Svton
-                    </h2>
-                    <p className="text-sm text-gray-500 mb-4">
-                      按 Cmd+, 打开配置文件，填入 API Key 即可开始
-                    </p>
-                    <button
-                      onClick={() => handleEditConfig()}
-                      className="px-5 py-2 text-sm font-medium rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 transition-colors"
-                    >
-                      打开配置文件
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500 text-sm">Loading...</p>
-                  </div>
-                )}
-                presets={[]}
-                className="bg-transparent"
-              />
-            )}
-            {(unconfiguredView === 'automation' || unconfiguredView === 'skills') && (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <h2 className="text-lg text-white font-light mb-2">
-                    {unconfiguredView === 'automation' ? '自动化' : '技能'}
-                  </h2>
-                  <p className="text-sm text-gray-500">请先完成配置后使用</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <UnconfiguredAgentApp
+          platform={platform}
+          view={unconfiguredView}
+          setView={setUnconfiguredView}
+          messages={unconfiguredMessages}
+          onSend={handleUnconfiguredSend}
+          onEditConfig={handleEditConfig}
+          unconfigured={unconfigured}
+        />
       )}
     </ErrorBoundary>
   );

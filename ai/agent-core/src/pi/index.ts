@@ -34,3 +34,11 @@ export {
   type PiModelsHandle,
   type PiProviderFamily,
 } from './pi-models-factory';
+export {
+  DEFAULT_API_BY_FAMILY,
+  resolvePiApiProtocol,
+  resolvePiBaseUrl,
+  type PiApiProtocol,
+  type PiApiProtocolOptions,
+  type PiOpenAIApiProtocol,
+} from './pi-api-protocol';

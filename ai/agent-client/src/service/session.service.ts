@@ -3,30 +3,9 @@ import { Service, observable, action } from '@svton/service';
 import type { IStorage } from '@svton/agent-platform';
 import { SYSTEM_CLOCK, RANDOM_ID_GENERATOR } from '@svton/agent-core';
 import type { IClock, IIdGenerator } from '@svton/agent-core';
-
-export interface SessionInfo {
-  id: string;
-  title: string;
-  model: string;
-  messageCount: number;
-  createdAt: number;
-  updatedAt: number;
-  projectId?: string;
-}
-
-export interface SessionData {
-  id: string;
-  title: string;
-  model: string;
-  /** Stored messages — serialized DisplayMessage[] for lossless persistence */
-  messages: unknown[];
-  createdAt: number;
-  updatedAt: number;
-  projectId?: string;
-}
-
-const STORAGE_PREFIX = 'agent:session:';
-const LIST_KEY = 'agent:session_list';
+import { SessionRepository } from './session.repository';
+import type { SessionData, SessionInfo } from './session.types';
+export type { SessionData, SessionInfo } from './session.types';
 
 @Service()
 export class SessionService {
@@ -35,29 +14,30 @@ export class SessionService {
   @observable() ready: boolean = false;
 
   private storage: IStorage | null = null;
+  private repository: SessionRepository | null = null;
+  private initGeneration = 0;
   // Injectable for deterministic tests; default to the real clock/id generator.
   private clock: IClock = SYSTEM_CLOCK;
   private idGen: IIdGenerator = RANDOM_ID_GENERATOR;
 
-  /**
-   * Initialize with storage backend.
-   * The clock/idGen params are optional and default to the system singletons;
-   * tests pass in FakeClock / SequentialIdGenerator for determinism.
-   */
   @action()
   async init(storage: IStorage, opts?: { clock?: IClock; idGen?: IIdGenerator }): Promise<void> {
-    if (this.ready) return;
+    if (this.ready && this.storage === storage) return;
+    const generation = ++this.initGeneration;
+    this.ready = false;
     this.storage = storage;
+    const repository = new SessionRepository(storage);
+    this.repository = repository;
+    this.sessions = [];
+    this.currentSessionId = null;
     if (opts?.clock) this.clock = opts.clock;
     if (opts?.idGen) this.idGen = opts.idGen;
-    await this.loadSessionList();
+    const sessions = await repository.loadSessionList();
+    if (generation !== this.initGeneration) return;
+    this.sessions = sessions;
     this.ready = true;
   }
 
-  /**
-   * Create a new session.
-   * All async I/O is done BEFORE setting observables to avoid cascading re-renders.
-   */
   @action()
   async create(title?: string, model?: string, projectId?: string): Promise<string> {
     if (!Array.isArray(this.sessions)) {
@@ -90,8 +70,8 @@ export class SessionService {
 
     // All async I/O first — no observable changes yet
     const newSessions = [info, ...this.sessions];
-    await this.storage!.set(`${STORAGE_PREFIX}${id}`, session);
-    await this.storage!.set(LIST_KEY, newSessions);
+    await this.repository!.saveSession(session);
+    await this.repository!.saveSessionList(newSessions);
 
     // Apply observable changes last
     this.sessions = newSessions;
@@ -100,11 +80,8 @@ export class SessionService {
     return id;
   }
 
-  /**
-   * Load a session's messages.
-   */
   async loadSession(id: string): Promise<SessionData | null> {
-    return this.storage!.get<SessionData>(`${STORAGE_PREFIX}${id}`);
+    return this.repository!.loadSession(id);
   }
 
   /**
@@ -124,14 +101,14 @@ export class SessionService {
       updatedAt: now,
       projectId: data.projectId,
     };
-    await this.storage!.set(`${STORAGE_PREFIX}${data.id}`, toSave);
+    await this.repository!.saveSession(toSave);
 
     const updatedSessions = this.sessions.map((s) =>
       s.id === data.id
         ? { ...s, title: data.title, messageCount: data.messages.length, updatedAt: now, projectId: data.projectId }
         : s,
     );
-    await this.storage!.set(LIST_KEY, updatedSessions);
+    await this.repository!.saveSessionList(updatedSessions);
 
     this.sessions = updatedSessions;
   }
@@ -144,9 +121,9 @@ export class SessionService {
     if (!Array.isArray(this.sessions)) {
       this.sessions = [];
     }
-    await this.storage!.delete(`${STORAGE_PREFIX}${id}`);
+    await this.repository!.deleteSession(id);
     const newSessions = this.sessions.filter((s) => s.id !== id);
-    await this.storage!.set(LIST_KEY, newSessions);
+    await this.repository!.saveSessionList(newSessions);
 
     this.sessions = newSessions;
     if (this.currentSessionId === id) {
@@ -175,12 +152,12 @@ export class SessionService {
     );
 
     // Persist list
-    await this.storage!.set(LIST_KEY, updatedSessions);
+    await this.repository!.saveSessionList(updatedSessions);
 
     // Also update the session data itself (for loadSession to return correct projectId)
-    const data = await this.storage!.get<SessionData>(`${STORAGE_PREFIX}${sessionId}`);
+    const data = await this.repository!.loadSession(sessionId);
     if (data) {
-      await this.storage!.set(`${STORAGE_PREFIX}${sessionId}`, { ...data, projectId });
+      await this.repository!.saveSession({ ...data, projectId });
     }
 
     this.sessions = updatedSessions;
@@ -201,69 +178,19 @@ export class SessionService {
       s.id === id ? { ...s, ...updates } : s,
     );
 
-    await this.storage!.set(LIST_KEY, updatedSessions);
+    await this.repository!.saveSessionList(updatedSessions);
 
     // Also patch the session data record (title + projectId)
-    const data = await this.storage!.get<SessionData>(`${STORAGE_PREFIX}${id}`);
+    const data = await this.repository!.loadSession(id);
     if (data) {
       const patched: SessionData = {
         ...data,
         ...(updates.title ? { title: updates.title } : {}),
         ...(updates.projectId !== undefined ? { projectId: updates.projectId } : {}),
       };
-      await this.storage!.set(`${STORAGE_PREFIX}${id}`, patched);
+      await this.repository!.saveSession(patched);
     }
 
     this.sessions = updatedSessions;
-  }
-
-  // ----------------------------------------------------------
-  // Private
-  // ----------------------------------------------------------
-
-  private async loadSessionList(): Promise<void> {
-    const raw = await this.storage!.get<unknown>(LIST_KEY);
-
-    if (raw == null || !Array.isArray(raw)) {
-      this.sessions = [];
-      if (raw != null) {
-        await this.storage!.delete(LIST_KEY);
-      }
-      return;
-    }
-
-    const list = raw as SessionInfo[];
-
-    if (list.length > 200) {
-      console.warn(`[SessionService] loadSessionList: ${list.length} entries — corrupted, clearing`);
-      await this.nukeAllSessionData();
-      return;
-    }
-
-    const valid = list.filter(
-      (item): item is SessionInfo =>
-        item != null &&
-        typeof item === 'object' &&
-        typeof (item as any).id === 'string' &&
-        typeof (item as any).title === 'string',
-    );
-
-    if (valid.length !== list.length) {
-      console.warn(`[SessionService] loadSessionList: ${valid.length}/${list.length} valid — clearing`);
-      await this.nukeAllSessionData();
-      return;
-    }
-
-    this.sessions = valid;
-  }
-
-  private async nukeAllSessionData(): Promise<void> {
-    const allKeys = await this.storage!.list(STORAGE_PREFIX);
-    for (const key of allKeys) {
-      await this.storage!.delete(key);
-    }
-    await this.storage!.delete(LIST_KEY);
-    await this.storage!.set(LIST_KEY, []);
-    this.sessions = [];
   }
 }

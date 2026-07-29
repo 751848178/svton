@@ -192,10 +192,10 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   }));
 
   const selectedModel = effectiveModelOverride || modelConfig.name || modelEntries[0]?.[0] || 'gpt-4o';
-
   const providerFamily = providerCfg.type === 'anthropic' ? 'anthropic' : 'openai';
   const { models, model: piModel } = createPiModelsForProvider(selectedModel, {
     family: providerFamily,
+    api: providerCfg.api,
     baseUrl: providerCfg.base_url,
     apiKey: providerCfg.api_key,
     models: modelInfos,

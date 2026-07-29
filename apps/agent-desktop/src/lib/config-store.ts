@@ -4,6 +4,7 @@
  */
 
 import * as TOML from 'smol-toml';
+import type { PiApiProtocol } from '@svton/agent-core';
 import type { TauriPlatform } from '@svton/agent-platform';
 import { buildEnsureDirCommand, buildOpenPathCommand, readNavigatorPlatform } from './config-store-command.utils';
 
@@ -16,6 +17,8 @@ export interface SvtonConfig {
     string,
     {
       type: 'openai' | 'anthropic';
+      /** Wire protocol; independent from provider authentication family. */
+      api?: PiApiProtocol;
       base_url: string;
       api_key: string;
       models: Record<string, string>; // id → display name
@@ -130,12 +133,14 @@ name = "claude-sonnet-4-20250514"
 provider = "anthropic"
 
 # ── Providers ──────────────────────────────────────────
-# Each provider has: type, base_url, api_key, and models.
-# Uncomment and fill in the api_key for the provider you want to use.
+  # type selects auth/public behavior; api selects the wire protocol.
+  # Custom OpenAI-compatible providers normally use "openai-completions".
+  # Uncomment and fill in the api_key for the provider you want to use.
 
 [providers.openai]
 type = "openai"
-base_url = "https://api.openai.com"
+api = "openai-responses"
+base_url = "https://api.openai.com/v1"
 api_key = ""  # Fill in your OpenAI API key: sk-...
 
 [providers.openai.models]
@@ -144,6 +149,7 @@ gpt-4o-mini = "GPT-4o Mini"
 
 [providers.anthropic]
 type = "anthropic"
+api = "anthropic-messages"
 base_url = "https://api.anthropic.com"
 api_key = ""  # Fill in your Anthropic API key: sk-ant-...
 
@@ -153,6 +159,7 @@ claude-haiku-4-20250506 = "Claude Haiku 4"
 
 [providers.deepseek]
 type = "openai"
+api = "openai-completions"
 base_url = "https://api.deepseek.com"
 api_key = ""
 

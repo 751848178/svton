@@ -1,12 +1,7 @@
-/**
- * SvtonAgentRuntime — composition root over pi-agent-core `Agent` (Arch §3,§7.2).
- * Pi owns the loop/continuation/abort/messages/tool-scheduling; svton owns
- * capability wiring, approval gate, compaction, and event translation.
- * Split for the 200-line ceiling: runtime-run, runtime-capabilities,
- * runtime-lifecycle, runtime-helpers, pi-event-adapter, approval-gate,
- * svton-compactor, message-bridge; legacy alias in agent-runtime-alias.ts.
- */
-import { Agent } from '@earendil-works/pi-agent-core';
+/** Pi owns loop, canonical messages, and tool scheduling; this class wires
+ * svton capabilities around it (Arch §3, §7.2). Supporting responsibilities
+ * live in runtime-*, approval-gate, compactor, and message-bridge modules. */
+import { Agent, type AgentMessage } from '@earendil-works/pi-agent-core';
 import type { Models, Model } from '@earendil-works/pi-ai';
 import type { ChatMessage, ContentBlock, ReasoningEffort, TokenUsage } from '../provider/types';
 import type { ToolRegistry } from '../tool/registry';
@@ -95,11 +90,9 @@ export class SvtonAgentRuntime implements IRuntime {
     this.toolExecService = this.buildToolExecService();
     this.agent = this.buildAgent(config);
   }
-
   static create(config: AgentConfig, platform: IPlatform): SvtonAgentRuntime {
     return new SvtonAgentRuntime(config, platform);
   }
-
   static async createAsync(config: AgentConfig, platform: IPlatform): Promise<SvtonAgentRuntime> {
     const rt = new SvtonAgentRuntime(config, platform);
     await bridgeMcpTools(rt.capabilityContext());
@@ -107,7 +100,6 @@ export class SvtonAgentRuntime implements IRuntime {
     rt.agent.state.systemPrompt = rt.systemPrompt;
     return rt;
   }
-
   async *run(userMessage: string | ContentBlock[], options?: RunOptions): AsyncGenerator<AgentEvent> {
     yield* runOnce({
       agent: this.agent, toolRegistry: this.toolRegistry, toolExecService: this.toolExecService,
@@ -125,6 +117,11 @@ export class SvtonAgentRuntime implements IRuntime {
   abort(): void { this.agent.abort(); this.approvalGate.abortPending(); }
   getMessages(): ChatMessage[] { return toChatMessages(this.agent.state.messages); }
   setMessages(messages: ChatMessage[]): void { this.agent.state.messages = toAgentMessages(messages); }
+  getCanonicalMessages(): AgentMessage[] { return [...this.agent.state.messages]; }
+  rollbackCanonicalMessages(index: number): void {
+    if (!Number.isInteger(index) || index < 0 || index > this.agent.state.messages.length) throw new RangeError(`Invalid canonical message index: ${index}`);
+    this.agent.state.messages = this.agent.state.messages.slice(0, index);
+  }
   getModel(): string { return this.modelId; }
   setSubagentManager(manager: SubagentManager): void { this.subagentManager = manager; }
   setPermissionManager(manager: PermissionManager): void { this.permissionManager = manager; this.toolExecService = this.buildToolExecService(); }

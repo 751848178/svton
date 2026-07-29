@@ -11,22 +11,24 @@ export async function loadSessionMessagesForSwitch(
 ): Promise<void> {
   const cached = chatService.getCachedMessages(sessionId);
   if (cached) {
-    chatService.loadMessages(cached, {
+    await chatService.loadMessages(cached, {
       preservePendingToolCalls: shouldPreservePending(chatService, sessionId, cached, preservePendingToolCalls),
     });
     return;
   }
 
   const data = await sessionService.loadSession(sessionId);
-  if (data?.messages?.length) {
-    const messages = storedToDisplayMessages(data.messages);
-    chatService.loadMessages(messages, {
-      preservePendingToolCalls: shouldPreservePending(chatService, sessionId, messages, preservePendingToolCalls),
-    });
-    return;
-  }
-
-  chatService.clearMessages({ preservePendingToolCalls });
+  const messages = data?.messages?.length
+    ? storedToDisplayMessages(data.messages)
+    : [];
+  await chatService.loadMessages(messages, {
+    preservePendingToolCalls: shouldPreservePending(
+      chatService,
+      sessionId,
+      messages,
+      preservePendingToolCalls,
+    ),
+  });
 }
 
 function shouldPreservePending(

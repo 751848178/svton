@@ -83,6 +83,8 @@ export interface DisplayMessage {
   duration?: number;
   /** Skills active for this assistant turn — surfaced in the activity indicator */
   activeSkills?: string[];
+  /** Pi canonical history index immediately before this user turn was added. */
+  runtimeMessageIndex?: number;
   timestamp: number;
 }
 

@@ -105,9 +105,6 @@ export class ChatEventHandler {
       case 'done':
         store.lastUsage = event.usage;
         mapStreamingMessage(store, (m) => applyDone(m, ctx));
-        if (isActiveSessionStreaming(store) && store.status !== 'waiting_approval') {
-          store.status = 'idle';
-        }
         break;
 
       // --- svton-only: compaction (UI-only system marker) ---

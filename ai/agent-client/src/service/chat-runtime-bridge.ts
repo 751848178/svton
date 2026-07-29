@@ -21,11 +21,7 @@
  */
 
 import { logger } from '@svton/agent-core';
-import type {
-  AgentRuntime,
-  ChatMessage,
-  ContentBlock,
-} from '@svton/agent-core';
+import type { AgentRuntime, ChatMessage, ContentBlock, SerializedRuntime } from '@svton/agent-core';
 import type { DisplayMessage } from '../types';
 
 /**
@@ -64,9 +60,7 @@ export function seedRuntimeFromDisplay(
   display: DisplayMessage[],
 ): void {
   const chatMessages = displayToChatMessages(display);
-  if (chatMessages.length > 0) {
-    runtime.setMessages(chatMessages);
-  }
+  runtime.setMessages(chatMessages);
   logger.info('Chat', 'Seeded runtime from display (cold start)', {
     messageCount: chatMessages.length,
   });
@@ -103,10 +97,26 @@ export async function restoreMessagesIntoRuntime(
   runtime: AgentRuntime,
   sessionId: string | null,
   display: DisplayMessage[],
+  shouldApply: () => boolean = () => true,
 ): Promise<boolean> {
-  const restored = await restoreRuntimeState(runtime, sessionId);
-  if (!restored) seedRuntimeFromDisplay(runtime, display);
-  return restored;
+  const resumeManager = sessionId ? runtime.getResumeManager() : null;
+  let checkpoint: SerializedRuntime | null = null;
+  try {
+    checkpoint = resumeManager && sessionId
+      ? await resumeManager.load(sessionId)
+      : null;
+  } catch (error) {
+    logger.warn('Chat', 'Checkpoint load failed; falling back to display seed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  if (!shouldApply()) return false;
+  if (checkpoint && resumeManager) {
+    resumeManager.applyLoadedState(checkpoint, runtime);
+  } else {
+    seedRuntimeFromDisplay(runtime, display);
+  }
+  return true;
 }
 
 // ============================================================
