@@ -123,8 +123,22 @@ function renderStepExecution(step: ServerExecutionInput["steps"][number]) {
 }
 
 function indent(value: string) {
-  return value
-    .split("\n")
-    .map((line) => `  ${line}`)
-    .join("\n");
+  // heredoc 感知：cat > f <<'DELIM' ... DELIM 的正文行不得缩进，否则 bash 把缩进后的
+  // 终止分隔符视为普通正文 → heredoc 永不闭合（"delimited by end-of-file"）→ 语法错误。
+  // 检测 <<[-]'DELIM' 起始行后，正文与终止 DELIM 行保持第 0 列，其余行正常缩进 2 空格。
+  const lines = value.split("\n");
+  let heredocDelim: string | null = null;
+  const out: string[] = [];
+  for (const line of lines) {
+    if (heredocDelim) {
+      // heredoc 正文：原样输出；终止行（仅含分隔符）结束 heredoc。
+      if (line.trim() === heredocDelim) heredocDelim = null;
+      out.push(line);
+      continue;
+    }
+    const start = line.match(/<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?/);
+    if (start) heredocDelim = start[1];
+    out.push(`  ${line}`);
+  }
+  return out.join("\n");
 }

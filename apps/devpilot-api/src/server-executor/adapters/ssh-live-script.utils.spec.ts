@@ -95,3 +95,26 @@ describe("buildSshLiveScript — secretEnvExport injection", () => {
     expect(script).not.toMatch(/rm -rf \/[^'"]/);
   });
 });
+
+describe("buildSshLiveScript — heredoc-aware indent (secretEnv write-env)", () => {
+  it("does NOT indent heredoc body/terminator of the write-env command", () => {
+    const SECRET = "s3cret";
+    const input = makeInput([
+      {
+        key: "write_env",
+        label: "写入环境配置",
+        command: 'cat > .env <<\'DEVPLOT_ENV_EOF\'\nKEY=***REDACTED***\nDEVPLOT_ENV_EOF',
+        cwd: "/workspace/app",
+        required: true,
+        secretEnv: { KEY: SECRET },
+      },
+    ]);
+    const script = buildSshLiveScript(input);
+    // heredoc terminator must appear at column 0 (preceded only by newline, no leading spaces)
+    // so bash closes it. Terminator is randomized (DEVPLOT_ENV_EOF_<hex>).
+    expect(script).toMatch(/\nDEVPLOT_ENV_EOF_[0-9a-f]{6,}/);
+    // the body line must NOT be indented with the 2-space step indent either.
+    expect(script).toContain("\nKEY=s3cret\n");
+  });
+});
+
