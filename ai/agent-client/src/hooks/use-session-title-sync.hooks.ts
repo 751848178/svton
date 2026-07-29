@@ -2,14 +2,17 @@ import { useEffect, type MutableRefObject } from 'react';
 import type { ChatService, DisplayMessage } from '../service/chat.service';
 import type { InternalLike } from '../service/provider';
 import type { ProjectService } from '../service/project.service';
-import type { SessionService } from '../service/session.service';
 
 export function useSessionTitleSync(
   chatService: ChatService,
   chatInternal: InternalLike<ChatService>,
-  sessionService: SessionService,
   projectService: ProjectService,
   isSwitching: MutableRefObject<boolean>,
+  updateSessionPreview: (
+    sessionId: string,
+    messages: DisplayMessage[],
+    projectId: string | undefined,
+  ) => Promise<void>,
 ): void {
   useEffect(() => {
     let previousLength = (chatInternal.getState('messages') as DisplayMessage[]).length;
@@ -22,15 +25,14 @@ export function useSessionTitleSync(
         && !isSwitching.current
         && messages[0].role === 'user'
       ) {
-        const text = messages[0].content.replace(/\n/g, ' ').trim();
-        void sessionService.updateSessionInfo(chatService.activeSessionId, {
-          title: text.length > 40 ? `${text.slice(0, 40)}...` : text,
-          projectId: projectService.currentProjectId ?? undefined,
-          messageCount: 1,
-        });
+        void updateSessionPreview(
+          chatService.activeSessionId,
+          messages,
+          projectService.currentProjectId ?? undefined,
+        );
       }
       previousLength = messages.length;
     });
     return () => unsubscribe();
-  }, [chatInternal, chatService, sessionService, projectService, isSwitching]);
+  }, [chatInternal, chatService, projectService, isSwitching, updateSessionPreview]);
 }

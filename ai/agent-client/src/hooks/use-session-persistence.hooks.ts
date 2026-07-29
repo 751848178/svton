@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { IPlatform } from '@svton/agent-platform';
 import type { ChatService, DisplayMessage } from '../service/chat.service';
 import type { InternalLike } from '../service/provider';
@@ -13,7 +13,6 @@ interface SessionPersistenceParams {
   sessionService: SessionService;
   chatInternal: InternalLike<ChatService>;
   platform: IPlatform;
-  isSwitching: MutableRefObject<boolean>;
 }
 
 export function useSessionPersistence({
@@ -21,7 +20,6 @@ export function useSessionPersistence({
   sessionService,
   chatInternal,
   platform,
-  isSwitching,
 }: SessionPersistenceParams) {
   const saveQueue = useRef(new SessionTransitionQueue()).current;
 
@@ -64,6 +62,20 @@ export function useSessionPersistence({
     return saveSessionMessages(sessionId, messages);
   }, [chatService, saveSessionMessages]);
 
+  const updateSessionPreview = useCallback((
+    sessionId: string,
+    messages: DisplayMessage[],
+    projectId: string | undefined,
+  ) => saveQueue.run(async () => {
+    const info = sessionService.sessions.find((session) => session.id === sessionId);
+    if (!info) return;
+    await sessionService.updateSessionInfo(sessionId, {
+      title: deriveTitle(info.title, messages),
+      projectId,
+      messageCount: messages.length,
+    });
+  }), [saveQueue, sessionService]);
+
   useEffect(() => {
     chatService.onBackgroundStreamEnd = (sessionId: string) => {
       void saveBackgroundSessionMessages(sessionId);
@@ -76,16 +88,15 @@ export function useSessionPersistence({
     let previousStatus = chatInternal.getState('status');
     const unsubscribe = chatInternal.subscribe('status', () => {
       const status = chatInternal.getState('status');
-      if (status === 'idle' && previousStatus !== 'idle' && !isSwitching.current) {
-        const sessionId = chatService.activeSessionId;
-        if (sessionId) {
-          void saveSessionMessages(sessionId, chatService.getMessagesForSave());
-        }
+      const sessionId = chatService.activeSessionId;
+      const ownsRuntime = sessionId && chatService.runtimeSessionId === sessionId;
+      if (status === 'idle' && previousStatus !== 'idle' && ownsRuntime) {
+        void saveSessionMessages(sessionId, chatService.getMessagesForSave());
       }
       previousStatus = status;
     });
     return () => unsubscribe();
-  }, [chatInternal, chatService, isSwitching, saveSessionMessages]);
+  }, [chatInternal, chatService, saveSessionMessages]);
 
   useEffect(() => {
     const saveOnHide = () => {
@@ -142,5 +153,5 @@ export function useSessionPersistence({
     };
   }, [platform.type, chatService, saveBackgroundSessionMessages, saveSessionMessages]);
 
-  return { saveSessionMessages, flush };
+  return { saveSessionMessages, updateSessionPreview, flush };
 }

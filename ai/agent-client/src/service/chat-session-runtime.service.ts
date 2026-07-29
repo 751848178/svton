@@ -12,6 +12,11 @@ export class ChatSessionRuntimeService {
     this.generation += 1;
   }
 
+  clear(runtime: AgentRuntime | null): void {
+    this.invalidate();
+    runtime?.rollbackCanonicalMessages(0);
+  }
+
   async restore(
     runtime: AgentRuntime | null,
     sessionId: string | null,

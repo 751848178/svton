@@ -28,12 +28,11 @@ export function useSession() {
   const transitionQueue = useRef(new SessionTransitionQueue()).current;
   const isSwitching = useRef(false);
   const state = useSessionState(sessionInternal);
-  const { saveSessionMessages, flush } = useSessionPersistence({
+  const { saveSessionMessages, updateSessionPreview, flush } = useSessionPersistence({
     chatService,
     sessionService,
     chatInternal,
     platform,
-    isSwitching,
   });
 
   useSessionStartup({
@@ -47,9 +46,9 @@ export function useSession() {
   useSessionTitleSync(
     chatService,
     chatInternal,
-    sessionService,
     projectService,
     isSwitching,
+    updateSessionPreview,
   );
   const { create, switchTo } = useSessionCreateSwitch({
     chatService,

@@ -2,11 +2,12 @@ import React, { useEffect } from 'react';
 import { act, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { IStorage } from '@svton/agent-platform';
+import { SessionResumeManager } from '@svton/agent-core';
 import { AgentProvider, useAgentContext } from '../src/service/provider';
 import { ChatService } from '../src/service/chat.service';
 import { restoreMessagesIntoRuntime } from '../src/service/chat-runtime-bridge';
 import { useSession } from '../src/hooks/useSession';
-import { buildPiAgentConfig, makeBrowserPlatform } from './helpers/pi-test-utils';
+import { buildPiAgentConfig, EventScripter, makeBrowserPlatform } from './helpers/pi-test-utils';
 
 class DelayedStorage implements IStorage {
   private readonly values = new Map<string, unknown>();
@@ -116,6 +117,94 @@ describe('session isolation', () => {
 
     expect(run).not.toHaveBeenCalled();
     expect(service.messages).toEqual([]);
+  });
+
+  it('serializes first-message title and transcript persistence', async () => {
+    const storage = new DelayedStorage();
+    const session = storedSession('session-a', '', 1);
+    session.title = 'Chat 1';
+    session.messages = [];
+    await storage.set('agent:session_list', [{
+      id: session.id,
+      title: session.title,
+      model: session.model,
+      messageCount: 0,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    }]);
+    await storage.set('agent:session:session-a', session);
+    const platform = makeBrowserPlatform(storage);
+    const { config } = buildPiAgentConfig();
+    let state: ProbeState | null = null;
+    const view = render(
+      <AgentProvider platform={platform} config={config}>
+        <SessionProbe onState={(next) => { state = next; }} />
+      </AgentProvider>,
+    );
+
+    await waitFor(() => {
+      expect(state?.chat.activeSessionId).toBe('session-a');
+      expect(state?.chat.runtimeSessionId).toBe('session-a');
+    });
+    const scripter = new EventScripter(
+      state!.chat as unknown as ConstructorParameters<typeof EventScripter>[0],
+    );
+    scripter.addResponse([
+      { type: 'text_delta', text: 'SAVED_REPLY' },
+      { type: 'done', stopReason: 'stop' },
+    ]);
+    await act(async () => {
+      await state!.chat.sendMessage('SAVE_ME');
+    });
+    await waitFor(async () => {
+      const saved = await storage.get<typeof session>('agent:session:session-a');
+      expect(saved?.messages.map((message) => message.content)).toEqual([
+        'SAVE_ME',
+        'SAVED_REPLY',
+      ]);
+    });
+    scripter.restore();
+    view.unmount();
+  });
+
+  it('restores a checkpoint when the stored session transcript is still empty', async () => {
+    const storage = new DelayedStorage();
+    const session = storedSession('session-a', '', 1);
+    session.messages = [];
+    await storage.set('agent:session_list', [{
+      id: session.id,
+      title: session.title,
+      model: session.model,
+      messageCount: 0,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    }]);
+    await storage.set('agent:session:session-a', session);
+    await storage.set('agent:checkpoint:session-a', JSON.stringify({
+      messages: [
+        { role: 'user', content: 'CHECKPOINT_USER' },
+        { role: 'assistant', content: 'CHECKPOINT_ASSISTANT' },
+      ],
+      model: 'test-model',
+      updatedAt: 2,
+    }));
+    const platform = makeBrowserPlatform(storage);
+    const { config } = buildPiAgentConfig({
+      capabilities: { resumeManager: new SessionResumeManager(storage) },
+    });
+    let state: ProbeState | null = null;
+    const view = render(
+      <AgentProvider platform={platform} config={config}>
+        <SessionProbe onState={(next) => { state = next; }} />
+      </AgentProvider>,
+    );
+
+    await waitFor(() => expect(state?.chat.messages.map((message) => message.content)).toEqual([
+      'CHECKPOINT_USER',
+      'CHECKPOINT_ASSISTANT',
+    ]));
+    expect(state!.chat.runtimeSessionId).toBe('session-a');
+    view.unmount();
   });
 
   it('keeps the latest requested session content after rapid async switches', async () => {

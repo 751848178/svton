@@ -154,7 +154,7 @@ export class ChatService implements MessageStoreHost {
   getMessagesForSave(): DisplayMessage[] { return messagesForSave(this); }
   forcePrepareForSave(): DisplayMessage[] { return forceMessagesForSave(this); }
   @action()
-  async clearMessages(options?: LoadMessagesOptions): Promise<void> { await this.loadMessages([], options); }
+  async clearMessages(options?: LoadMessagesOptions): Promise<void> { this.sessionRuntime.clear(this.runtime); this.applyLoaded([], options); this.history.recordFromMessages([]); this.runtimeSessionId = this.activeSessionId; }
   @action()
   async loadMessages(messages: DisplayMessage[], options?: LoadMessagesOptions): Promise<void> {
     const loaded = prepareLoadedMessages(messages, options);

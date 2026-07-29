@@ -18,15 +18,17 @@ export async function loadSessionMessagesForSwitch(
   }
 
   const data = await sessionService.loadSession(sessionId);
-  if (data?.messages?.length) {
-    const messages = storedToDisplayMessages(data.messages);
-    await chatService.loadMessages(messages, {
-      preservePendingToolCalls: shouldPreservePending(chatService, sessionId, messages, preservePendingToolCalls),
-    });
-    return;
-  }
-
-  await chatService.clearMessages({ preservePendingToolCalls });
+  const messages = data?.messages?.length
+    ? storedToDisplayMessages(data.messages)
+    : [];
+  await chatService.loadMessages(messages, {
+    preservePendingToolCalls: shouldPreservePending(
+      chatService,
+      sessionId,
+      messages,
+      preservePendingToolCalls,
+    ),
+  });
 }
 
 function shouldPreservePending(
