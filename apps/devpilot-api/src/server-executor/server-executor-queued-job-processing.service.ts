@@ -6,6 +6,7 @@ import {
   reapplySecretEnvExport,
   type ResolveDevpilotSecretsFn,
 } from "./server-executor-secret-reapply.utils";
+import { reapplyDeploymentEnvWriteSecrets } from "./server-executor-deployment-env-secret-reapply.utils";
 import {
   ServerExecutionInput,
   ServerExecutionResult,
@@ -63,9 +64,13 @@ export class ServerExecutorQueuedJobProcessingService {
       maxAttempts: job.maxAttempts,
     });
     // F383 P0-A：rehydrate 丢失了 secretEnvExport，在此执行边界重新解析 $DEVPILOT_* 秘密。
-    const input = this.resolveDevpilotSecrets
+    // 同时重应用部署 write_env 步骤的 .env 秘密（同样在 rehydrate 时丢失）。
+    const reexportApplied = this.resolveDevpilotSecrets
       ? await reapplySecretEnvExport(rehydrated, this.resolveDevpilotSecrets)
       : rehydrated;
+    const input = this.resolveDevpilotSecrets
+      ? await reapplyDeploymentEnvWriteSecrets(reexportApplied, this.resolveDevpilotSecrets)
+      : reexportApplied;
     const result = await this.runExecutionWithJob(input, {
       id: job.id,
       attempt: job.attempt,
