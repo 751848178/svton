@@ -12,6 +12,7 @@ import { DeploymentInitializationCheckpointService } from "./deployment-initiali
 import { DeploymentLogStreamBootstrapService } from "./deployment-log-stream-bootstrap.service";
 import { DeploymentPostRollbackSmokeSchedulerService } from "./deployment-post-rollback-smoke-scheduler.service";
 import { DeploymentService } from "./deployment.service";
+import { ReleaseInitializationEvidenceService } from "./release-initialization-evidence.service";
 
 @Module({
   imports: [
@@ -27,12 +28,14 @@ import { DeploymentService } from "./deployment.service";
   providers: [
     DeploymentService,
     DeploymentInitializationCheckpointService,
+    ReleaseInitializationEvidenceService,
     DeploymentLogStreamBootstrapService,
     DeploymentAutoRollbackSchedulerService,
     DeploymentPostRollbackSmokeSchedulerService,
   ],
   exports: [
     DeploymentService,
+    ReleaseInitializationEvidenceService,
     DeploymentAutoRollbackSchedulerService,
     DeploymentPostRollbackSmokeSchedulerService,
   ],

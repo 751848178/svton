@@ -18,6 +18,8 @@ import { ReleasePlanAccessGuard } from "./release-plan-access.guard";
 import { ReleasePlanOrchestratorService } from "./release-plan-orchestrator.service";
 import { ReleaseExecutorPreflightService } from "./release-executor-preflight.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { ReleaseCoordinatorTerminalService } from "./release-coordinator-terminal.service";
+import { ReleaseCoordinatorExecutionService } from "./release-coordinator-execution.service";
 import { RELEASE_COORDINATOR_PORT } from "./release-coordinator.port";
 import { ReleaseStageClaimService } from "./release-stage-claim.service";
 import { ReleaseRecoveryService } from "./release-recovery.service";
@@ -55,6 +57,8 @@ import { ManualGateStageAdapter } from "./stage-adapters/manual-gate.adapter";
     ReleasePlanAccessGuard,
     ReleasePlanOrchestratorService,
     ReleaseExecutorPreflightService,
+    ReleaseCoordinatorTerminalService,
+    ReleaseCoordinatorExecutionService,
     ReleaseCoordinatorService,
     // 把 port token 绑定到 ReleaseCoordinatorService（useExisting，对齐 JOB_QUEUE_PORT 模式）。
     // ServerExecutorModule @Optional() 注入此 token；flag 关闭时为 undefined。

@@ -49,7 +49,12 @@ import {
   resolveDeploymentConfig,
   type ProjectConfigRecord,
 } from "./deployment-config-resolution.utils";
-import { DeploymentInitializationCheckpointService } from "./deployment-initialization-checkpoint.service";
+import {
+  DeploymentInitializationCheckpointService,
+  deploymentInitializationFingerprint,
+} from "./deployment-initialization-checkpoint.service";
+import { ReleaseInitializationEvidenceService } from "./release-initialization-evidence.service";
+import type { ReleaseInitializationEvidenceRef } from "./release-initialization-evidence.types";
 import { plannedInitializationDecision } from "./deployment-initialization.types";
 
 type SmokeFailureAutoRollbackPolicy = {
@@ -143,6 +148,8 @@ export class DeploymentService {
     private readonly logStreamBootstrap?: DeploymentLogStreamBootstrapService,
     @Optional()
     private readonly initializationCheckpoint?: DeploymentInitializationCheckpointService,
+    @Optional()
+    private readonly releaseInitializationEvidence?: ReleaseInitializationEvidenceService,
   ) {}
 
   async listRuns(teamId: string, query: ListDeploymentRunsQueryDto) {
@@ -455,7 +462,81 @@ export class DeploymentService {
       return blockedRun;
     }
 
+    // F383 初始化证据桥接：releaseApplicationOnly 部署运行携带发布 bootstrap 阶段
+    // 成功后形成的初始化证据引用。这里从数据库重新读取并严格校验证据（scope、
+    // fingerprint、attempt 成功状态），绝不信任调用方传入的引用本身。验证通过则
+    // 视为初始化已完成（不 reserve、不要求 initialization 步骤）；失败则 fail-closed
+    // 终止运行，不得静默成功。直接部署（非 release）保持原 F382 reserve 语义不变。
+    const releaseEvidence = dto.releaseInitializationEvidence;
     if (
+      dto.releaseApplicationOnly === true &&
+      releaseEvidence &&
+      this.releaseInitializationEvidence &&
+      applicationServiceRef?.id &&
+      environmentRef?.id &&
+      deployment.initializationCommand
+    ) {
+      const fingerprint =
+        releaseEvidence.commandFingerprint ||
+        deploymentInitializationFingerprint(deployment.initializationCommand);
+      const verification = await this.releaseInitializationEvidence.verify(
+        {
+          teamId,
+          projectId: project.id,
+          environmentId: environmentRef.id,
+          applicationServiceId: applicationServiceRef.id,
+          commandFingerprint: fingerprint ?? "",
+        },
+        { ...releaseEvidence, commandFingerprint: fingerprint ?? "" },
+      );
+      if (verification.status !== "verified") {
+        // fail-closed：证据不匹配，标记运行失败并保留审计，绝不放行。
+        const blockedRun = await this.prisma.deploymentRun.update({
+          where: { id: run.id },
+          data: {
+            status: DeploymentRunStatus.FAILED,
+            error: `发布初始化证据校验失败：${verification.reason}`,
+            finishedAt: new Date(),
+          },
+          include: this.runInclude(),
+        });
+        await this.auditEventService.create({
+          teamId,
+          actorId: userId,
+          projectId: project.id,
+          environmentId: environmentRef.id,
+          applicationId,
+          applicationServiceId: applicationServiceRef.id,
+          deploymentRunId: blockedRun.id,
+          category: "deployment",
+          action: "deployment.run",
+          targetType: "deployment_run",
+          targetId: blockedRun.id,
+          risk: "high",
+          status: DeploymentRunStatus.FAILED,
+          summary: "发布初始化证据校验失败，部署终止",
+          metadata: { reason: verification.reason },
+        });
+        return blockedRun;
+      }
+      // 证据已验证：初始化视为已完成，命令计划不含 initialization 步骤，
+      // 同步 finish 因无 checkpointId 直接跳过，运行正常完成。
+      initialization = {
+        status: "skipped_already_completed",
+        checkpointId: undefined,
+        commandFingerprint: fingerprint,
+        skipReason: "发布 bootstrap 阶段已完成初始化（证据已验证）",
+      };
+      warnings = collectWarnings(deployment, gitRepo, branch, initialization);
+      steps = buildCommandSteps(
+        deployment,
+        gitRepo,
+        branch,
+        envVars,
+        initialization,
+        { releaseApplicationOnly: true },
+      );
+    } else if (
       !dryRun &&
       deployment.initializationCommand &&
       this.initializationCheckpoint

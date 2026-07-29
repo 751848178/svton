@@ -64,6 +64,14 @@ export class ReleaseRecoveryService {
           error: err instanceof Error ? err.message : String(err),
         };
       }
+      // 过期孤儿 attempt：租约已过期且没有任何关联运行（SEJ/DeploymentRun）→ 不得静默挂起，
+      // 标记 failed 并给出明确原因（不静默成功）。保留审计：onFinish 会写 attempt 终态 + 事件。
+      if (!result && expired) {
+        result = {
+          status: "failed" as const,
+          error: "发布阶段租约过期且无关联运行，判定为孤儿任务",
+        };
+      }
       if (!result || result.status === "queued") continue;
       await onFinish(stage as ReadinessStageView, attempt as AttemptLinkedView, result);
     }

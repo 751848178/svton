@@ -37,6 +37,26 @@ export function interpretServerCommandResult(
 export function interpretDeploymentRunResult(
   run: LinkedRunTerminal,
 ): ReleaseStageExecutionResult {
+  // blocked 的语义区分：
+  //  - result.mode === "blocked_operation_approval"：等待部署审批，是合法的暂态 → queued。
+  //    （release application_deploy 已通过审批桥接提供 deployment 审批，正常不应再落到此分支。）
+  //  - 其它 blocked（如 deployment-initialization-checkpoint 失败、命令 warning 阻断）：
+  //    属真实终态阻塞，不得让发布阶段长期挂 queued/running → failed + 明确原因（fail-closed）。
+  if (run.status === "blocked") {
+    const mode = readBlockedMode(run.result);
+    if (mode === "blocked_operation_approval") {
+      return {
+        status: "queued",
+        logSummary: { deploymentRunStatus: run.status, blockedMode: mode },
+        error: run.error ?? undefined,
+      };
+    }
+    return {
+      status: "failed",
+      logSummary: { deploymentRunStatus: run.status, blockedMode: mode },
+      error: run.error ?? "部署运行被阻塞且未进入审批暂态，视为失败",
+    };
+  }
   const status: ReleaseStageExecutionResult["status"] =
     run.status === "completed"
       ? "succeeded"
@@ -50,6 +70,14 @@ export function interpretDeploymentRunResult(
     logSummary: { deploymentRunStatus: run.status },
     error: run.error ?? undefined,
   };
+}
+
+function readBlockedMode(result: unknown): string | undefined {
+  if (result && typeof result === "object") {
+    const mode = (result as Record<string, unknown>).mode;
+    return typeof mode === "string" ? mode : undefined;
+  }
+  return undefined;
 }
 
 /**

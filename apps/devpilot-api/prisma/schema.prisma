@@ -907,6 +907,14 @@ model ApplicationServiceInitialization {
   leaseExpiresAt       DateTime?
   startedAt            DateTime @default(now())
   finishedAt           DateTime?
+  // F383 release initialization evidence bridge: 审计父级发布关联。
+  // 仅在 release bootstrap 阶段成功后由 ReleaseInitializationEvidenceService 写入；
+  // releaseApplicationOnly=true 的部署运行据此验证初始化证据，而非在命令计划里重复执行。
+  releasePlanId        String?
+  releaseStageId       String?
+  releaseStageAttemptId String?
+  serverExecutionJobId String?
+  releaseEvidenceStatus String? // verified | mismatch（仅记录最终验证结论）
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -914,6 +922,7 @@ model ApplicationServiceInitialization {
   @@index([teamId, status])
   @@index([projectId])
   @@index([deploymentRunId])
+  @@index([releaseStageAttemptId])
 }
 
 // 应用服务运行态操作记录

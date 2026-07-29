@@ -76,6 +76,7 @@ describe("ReleasePlanController", () => {
       computeWarnings: jest.fn().mockResolvedValue([]),
     };
     const orchestrator = new ReleasePlanOrchestratorService(
+      prisma as never,
       service as never,
       accessService,
       executorPreflight as never,

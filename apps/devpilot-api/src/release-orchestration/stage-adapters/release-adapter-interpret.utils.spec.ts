@@ -6,6 +6,7 @@
 import {
   toLogsText,
   interpretServerCommandResult,
+  interpretDeploymentRunResult,
 } from "./release-adapter-interpret.utils";
 
 function b64url(obj: unknown): string {
@@ -111,5 +112,46 @@ describe("interpretServerCommandResult sentinel parsing (regression)", () => {
     });
     expect(result.status).toBe("failed");
     expect(result.error).toBe("exit 1");
+  });
+});
+
+describe("interpretDeploymentRunResult blocked-state sync", () => {
+  it("maps completed deployment run to succeeded", () => {
+    const result = interpretDeploymentRunResult({ status: "completed" });
+    expect(result.status).toBe("succeeded");
+  });
+
+  it("maps failed deployment run to failed", () => {
+    const result = interpretDeploymentRunResult({ status: "failed", error: "boom" });
+    expect(result.status).toBe("failed");
+    expect(result.error).toBe("boom");
+  });
+
+  it("maps cancelled deployment run to skipped", () => {
+    const result = interpretDeploymentRunResult({ status: "cancelled" });
+    expect(result.status).toBe("skipped");
+  });
+
+  it("maps blocked-operation-approval to queued (legitimate wait)", () => {
+    const result = interpretDeploymentRunResult({
+      status: "blocked",
+      result: { mode: "blocked_operation_approval" },
+    });
+    expect(result.status).toBe("queued");
+  });
+
+  it("maps blocked (non-approval, e.g. initialization-checkpoint) to failed (fail-closed)", () => {
+    const result = interpretDeploymentRunResult({
+      status: "blocked",
+      error: "deployment-initialization-checkpoint",
+    });
+    expect(result.status).toBe("failed");
+    expect(result.error).toBe("deployment-initialization-checkpoint");
+  });
+
+  it("maps blocked with no result mode to failed (fail-closed)", () => {
+    const result = interpretDeploymentRunResult({ status: "blocked" });
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("阻塞");
   });
 });

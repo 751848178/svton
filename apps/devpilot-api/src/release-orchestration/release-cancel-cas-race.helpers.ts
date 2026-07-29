@@ -21,6 +21,8 @@ import { ReleaseReadinessService } from "./release-readiness.service";
 import { ReleaseRecoveryService } from "./release-recovery.service";
 import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { ReleaseCoordinatorTerminalService } from "./release-coordinator-terminal.service";
+import { ReleaseCoordinatorExecutionService } from "./release-coordinator-execution.service";
 import { ReleaseCancelService } from "./release-cancel.service";
 import {
   FakeOperationApprovalService,
@@ -153,9 +155,16 @@ export async function buildRaceHarness(): Promise<RaceHarness> {
   );
   const deploymentRunAdapter = { kind: "deployment_run", execute: async () => ({ status: "queued" as const }) } as never;
   const manualGateAdapter = { kind: "manual_gate", execute: async () => ({ status: "queued" as const }) } as never;
+  const terminal = new ReleaseCoordinatorTerminalService(
+    prisma, attemptRepo, eventRepo, stageRepo, approvalLifecycle,
+  );
+  const execution = new ReleaseCoordinatorExecutionService(
+    stageRepo, attemptRepo, terminal,
+    serverCommandAdapter as never, deploymentRunAdapter, healthCheckAdapter, manualGateAdapter,
+  );
   const coordinator = new ReleaseCoordinatorService(
-    prisma, stageRepo, attemptRepo, leaseRepo, planRepo, eventRepo,
-    claimService, readiness, recovery, approvalLifecycle,
+    prisma, stageRepo, attemptRepo, planRepo,
+    claimService, readiness, recovery, approvalLifecycle, terminal, execution,
     serverCommandAdapter as never, deploymentRunAdapter, healthCheckAdapter, manualGateAdapter,
   );
   const cancelService = new ReleaseCancelService(prisma, planRepo, executor as never);

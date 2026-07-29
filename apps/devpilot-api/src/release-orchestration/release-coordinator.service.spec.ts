@@ -8,6 +8,8 @@
  * release-coordinator.integration.spec.ts。
  */
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { ReleaseCoordinatorTerminalService } from "./release-coordinator-terminal.service";
+import { ReleaseCoordinatorExecutionService } from "./release-coordinator-execution.service";
 import type { ReadinessStageView } from "./release-readiness.service";
 import { expectedStageInputHash } from "./utils/release-approval-predicate.utils";
 
@@ -80,17 +82,35 @@ function buildHarness() {
   const healthCheckAdapter = { execute: jest.fn() };
   const manualGateAdapter = { execute: jest.fn() };
   const prisma = { releaseConcurrencyLease: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) } };
+  // 真实终态服务：用同一组 mocked repos，使 finishAttempt 行为可断言。
+  const terminal = new ReleaseCoordinatorTerminalService(
+    prisma as any,
+    attemptRepo as any,
+    eventRepo as any,
+    stageRepo as any,
+    approvalLifecycle as any,
+  );
+  // 真实执行服务：用同一组 mocked adapters，使 startAttempt/路由可断言。
+  const execution = new ReleaseCoordinatorExecutionService(
+    stageRepo as any,
+    attemptRepo as any,
+    terminal as any,
+    serverCommandAdapter as any,
+    deploymentRunAdapter as any,
+    healthCheckAdapter as any,
+    manualGateAdapter as any,
+  );
   const coordinator = new ReleaseCoordinatorService(
     prisma as any,
     stageRepo as any,
     attemptRepo as any,
-    leaseRepo as any,
     planRepo as any,
-    eventRepo as any,
     claimService as any,
     readiness as any,
     recovery as any,
     approvalLifecycle as any,
+    terminal as any,
+    execution as any,
     serverCommandAdapter as any,
     deploymentRunAdapter as any,
     healthCheckAdapter as any,
@@ -384,17 +404,33 @@ describe("ReleaseCoordinatorService.finalizeAndAdvance", () => {
     const healthCheckAdapter = { execute: jest.fn() };
     const manualGateAdapter = { execute: jest.fn() };
     const prisma = { releaseConcurrencyLease: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) } };
+    const terminal = new ReleaseCoordinatorTerminalService(
+      prisma as any,
+      attemptRepo as any,
+      eventRepo as any,
+      stageRepo as any,
+      approvalLifecycle as any,
+    );
+    const execution = new ReleaseCoordinatorExecutionService(
+      stageRepo as any,
+      attemptRepo as any,
+      terminal as any,
+      serverCommandAdapter as any,
+      deploymentRunAdapter as any,
+      healthCheckAdapter as any,
+      manualGateAdapter as any,
+    );
     const coordinator = new ReleaseCoordinatorService(
       prisma as any,
       stageRepo as any,
       attemptRepo as any,
-      leaseRepo as any,
       planRepo as any,
-      eventRepo as any,
       claimService as any,
       readiness as any,
       recovery as any,
       approvalLifecycle as any,
+      terminal as any,
+      execution as any,
       serverCommandAdapter as any,
       deploymentRunAdapter as any,
       healthCheckAdapter as any,

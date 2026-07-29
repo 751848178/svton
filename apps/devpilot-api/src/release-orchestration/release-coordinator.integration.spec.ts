@@ -22,6 +22,8 @@ import { ReleaseReadinessService } from "./release-readiness.service";
 import { ReleaseRecoveryService } from "./release-recovery.service";
 import { ReleaseApprovalLifecycleService } from "./release-approval-lifecycle.service";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
+import { ReleaseCoordinatorTerminalService } from "./release-coordinator-terminal.service";
+import { ReleaseCoordinatorExecutionService } from "./release-coordinator-execution.service";
 import { ReleaseRecoverySchedulerService } from "./release-recovery-scheduler.service";
 import { ReleasePlanService } from "./release-plan.service";
 import { ReleaseCancelService } from "./release-cancel.service";
@@ -178,17 +180,24 @@ async function buildHarness(): Promise<Harness> {
     execute: async () => ({ status: "queued" as const }),
   } as never;
   const manualGateAdapter = { kind: "manual_gate", execute: async () => ({ status: "queued" as const }) } as never;
+  const terminal = new ReleaseCoordinatorTerminalService(
+    prisma, attemptRepo, eventRepo, stageRepo, approvalLifecycle,
+  );
+  const execution = new ReleaseCoordinatorExecutionService(
+    stageRepo, attemptRepo, terminal,
+    serverCommandAdapter as never, deploymentRunAdapter, healthCheckAdapter, manualGateAdapter,
+  );
   const coordinator = new ReleaseCoordinatorService(
     prisma,
     stageRepo,
     attemptRepo,
-    leaseRepo,
     planRepo,
-    eventRepo,
     claimService,
     readiness,
     recovery,
     approvalLifecycle,
+    terminal,
+    execution,
     serverCommandAdapter as never,
     deploymentRunAdapter,
     healthCheckAdapter,
@@ -1097,13 +1106,21 @@ describeIntegration("release coordinator integration: atomic claim + lease + rec
     );
     const executor = new FakeServerExecutorService(prisma);
     const serverCommandAdapter = new FakeServerCommandStageAdapter(executor);
+    const terminal = new ReleaseCoordinatorTerminalService(
+      prisma, attemptRepo, eventRepo, stageRepo, approvalLifecycle,
+    );
+    const depAdapter = { kind: "deployment_run", execute: async () => ({ status: "queued" as const }) } as never;
+    const hcAdapter = { kind: "health_check", execute: async () => ({ status: "queued" as const }) } as never;
+    const mgAdapter = { kind: "manual_gate", execute: async () => ({ status: "queued" as const }) } as never;
+    const execution = new ReleaseCoordinatorExecutionService(
+      stageRepo, attemptRepo, terminal,
+      serverCommandAdapter as never, depAdapter, hcAdapter, mgAdapter,
+    );
     const coordinator = new ReleaseCoordinatorService(
-      prisma, stageRepo, attemptRepo, leaseRepo, planRepo, eventRepo,
-      claimService, readiness, recovery, approvalLifecycle,
+      prisma, stageRepo, attemptRepo, planRepo,
+      claimService, readiness, recovery, approvalLifecycle, terminal, execution,
       serverCommandAdapter as never,
-      { kind: "deployment_run", execute: async () => ({ status: "queued" as const }) } as never,
-      { kind: "health_check", execute: async () => ({ status: "queued" as const }) } as never,
-      { kind: "manual_gate", execute: async () => ({ status: "queued" as const }) } as never,
+      depAdapter, hcAdapter, mgAdapter,
     );
 
     const { team, env } = await seedBaseline(prisma);

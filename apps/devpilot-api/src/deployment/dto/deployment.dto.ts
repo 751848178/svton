@@ -1,4 +1,5 @@
 import { IsBoolean, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
+import type { ReleaseInitializationEvidenceRef } from '../release-initialization-evidence.types';
 
 export class ListDeploymentRunsQueryDto {
   @IsOptional()
@@ -96,6 +97,16 @@ export class CreateDeploymentRunDto {
   @IsOptional()
   @IsBoolean()
   releaseApplicationOnly?: boolean;
+
+  /**
+   * 内部字段：F383 发布初始化证据桥接引用。由 DeploymentRunStageAdapter 在
+   * 发布 bootstrap 阶段成功后装配，携带父级 plan/stage/attempt/job + 命令指纹。
+   * DeploymentService 会调用 ReleaseInitializationEvidenceService.verify 从数据库
+   * 重新读取并严格校验，绝不信任调用方传入的引用本身。公共入口剥离本字段。
+   */
+  @IsOptional()
+  @IsObject()
+  releaseInitializationEvidence?: ReleaseInitializationEvidenceRef;
 }
 
 export class RollbackDeploymentRunDto {
