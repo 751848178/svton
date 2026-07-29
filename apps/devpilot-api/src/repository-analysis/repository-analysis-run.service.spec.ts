@@ -9,6 +9,7 @@ describe('RepositoryAnalysisRunService', () => {
     selectedBranch: 'main',
     commitSha: 'a'.repeat(40),
   };
+  const secretCommand = 'JWT_SECRET=sentinel-jwt node server.js';
 
   function createHarness() {
     const connections = {
@@ -36,12 +37,18 @@ describe('RepositoryAnalysisRunService', () => {
 
   it('returns the same run for a repeated project idempotency key', async () => {
     const harness = createHarness();
-    const existing = { id: 'run-existing', status: 'running' };
+    const existing = {
+      id: 'run-existing',
+      status: 'running',
+      suggestions: [{ currentValue: { deployConfig: { initializationCommand: secretCommand } } }],
+    };
     harness.runs.findIdempotent.mockResolvedValue(existing);
 
-    await expect(harness.service.start('team-1', 'user-1', 'project-1', {
+    const result = await harness.service.start('team-1', 'user-1', 'project-1', {
       idempotencyKey: 'request-1',
-    })).resolves.toBe(existing);
+    });
+    expect(result).toEqual(expect.objectContaining({ id: existing.id }));
+    expect(JSON.stringify(result)).not.toContain('sentinel-jwt');
     expect(harness.runs.findActive).not.toHaveBeenCalled();
     expect(harness.runs.create).not.toHaveBeenCalled();
     expect(harness.worker.enqueue).not.toHaveBeenCalled();
@@ -90,13 +97,19 @@ describe('RepositoryAnalysisRunService', () => {
 
   it('always scopes run detail by team and project to reject forged IDs', async () => {
     const harness = createHarness();
-    harness.runs.findScoped.mockResolvedValue({ id: 'run-1' });
-    await harness.service.detail('team-1', 'project-1', 'forged-run-id');
+    harness.runs.findScoped.mockResolvedValue({
+      id: 'run-1',
+      result: { services: [{ commands: { bootstrap: secretCommand } }] },
+      suggestions: [{ reviewedValue: { deployConfig: { initializationCommand: secretCommand } } }],
+    });
+    const result = await harness.service.detail('team-1', 'project-1', 'forged-run-id');
     expect(harness.runs.findScoped).toHaveBeenCalledWith(
       'team-1',
       'project-1',
       'forged-run-id',
     );
+    expect(JSON.stringify(result)).not.toContain('sentinel-jwt');
+    expect(JSON.stringify(result)).toContain('[REDACTED]');
   });
 
   it('retries the same immutable snapshot with lineage and a fresh run', async () => {
@@ -132,9 +145,19 @@ describe('RepositoryAnalysisRunService', () => {
     const harness = createHarness();
     harness.runs.findScoped
       .mockResolvedValueOnce({ id: 'run-active', status: 'running' })
-      .mockResolvedValueOnce({ id: 'run-active', status: 'running', cancelRequestedAt: new Date() });
+      .mockResolvedValueOnce({
+        id: 'run-active',
+        status: 'running',
+        cancelRequestedAt: new Date(),
+        suggestions: [{ reviewedValue: { initializationCommand: secretCommand } }],
+      });
 
-    await harness.service.cancel('team-1', 'user-1', 'project-1', 'run-active');
+    const result = await harness.service.cancel(
+      'team-1',
+      'user-1',
+      'project-1',
+      'run-active',
+    );
 
     expect(harness.runs.requestCancel).toHaveBeenCalledWith(
       'team-1',
@@ -146,6 +169,7 @@ describe('RepositoryAnalysisRunService', () => {
       action: 'repository.analysis.cancel.request',
       targetId: 'run-active',
     }));
+    expect(JSON.stringify(result)).not.toContain('sentinel-jwt');
   });
 
   it('rejects cancellation after a run is terminal', async () => {

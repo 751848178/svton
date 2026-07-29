@@ -8,6 +8,7 @@ import {
 } from './repository-apply.types';
 import { RepositoryPlatformApplyRepository } from './repository-platform-apply.repository';
 import { json } from './repository-platform-apply.utils';
+import { repositorySafeJson } from './repository-analysis-storage.utils';
 
 @Injectable()
 export class RepositorySuggestionApplyRepository {
@@ -107,7 +108,7 @@ export class RepositorySuggestionApplyRepository {
         reviewDecision: decision.status === 'edited' ? 'edit' : 'accept',
         reviewedById: input.userId,
         reviewedAt: now,
-        reviewedValue: json(value),
+        reviewedValue: repositorySafeJson(value),
         appliedRefs: json(reference),
         appliedAt: now,
       },

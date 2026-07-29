@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { REPOSITORY_ANALYSIS_STAGES } from './repository-analysis.constants';
 import { repositoryError } from './repository-analysis-validation.utils';
@@ -7,6 +6,10 @@ import {
   RepositoryAnalysisResult,
   RepositorySuggestionDraft,
 } from './repository-parser.types';
+import {
+  optionalRepositorySafeJson,
+  repositorySafeJson,
+} from './repository-analysis-storage.utils';
 
 export interface CreateRepositoryRunInput {
   teamId: string;
@@ -126,10 +129,10 @@ export class RepositoryAnalysisRunRepository {
             confidence: draft.confidence,
             conflict: draft.conflict,
             impact: draft.impact,
-            currentValue: optionalJson(draft.currentValue),
-            proposedValue: json(draft.proposedValue),
-            evidence: json(draft.evidence),
-            warnings: json(draft.warnings),
+            currentValue: optionalRepositorySafeJson(draft.currentValue),
+            proposedValue: repositorySafeJson(draft.proposedValue),
+            evidence: repositorySafeJson(draft.evidence),
+            warnings: repositorySafeJson(draft.warnings),
           })),
         });
       }
@@ -138,14 +141,14 @@ export class RepositoryAnalysisRunRepository {
         data: {
           status: 'succeeded',
           activeKey: null,
-          summary: json({
+          summary: repositorySafeJson({
             services: result.services.length,
             deployableServices: result.services.filter((item) => item.deployable).length,
             suggestions: drafts.length,
             warnings: result.warnings.length,
           }),
-          result: json(result),
-          warnings: json(result.warnings),
+          result: repositorySafeJson(result),
+          warnings: repositorySafeJson(result.warnings),
           finishedAt: now,
           durationMs: run.startedAt ? now.getTime() - run.startedAt.getTime() : 0,
         },
@@ -190,11 +193,3 @@ const runInclude = {
   stages: { orderBy: { ordinal: 'asc' as const } },
   suggestions: { orderBy: { createdAt: 'asc' as const } },
 };
-
-function json(value: unknown): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-}
-
-function optionalJson(value: unknown): Prisma.InputJsonValue | undefined {
-  return value === undefined ? undefined : json(value);
-}

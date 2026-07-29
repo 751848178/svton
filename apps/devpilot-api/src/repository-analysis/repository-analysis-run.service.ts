@@ -11,6 +11,7 @@ import { RepositoryAnalysisRunRepository } from './repository-analysis-run.repos
 import { RepositoryAnalysisWorkerService } from './repository-analysis-worker.service';
 import { RepositoryConnectionRepository } from './repository-connection.repository';
 import { repositoryError } from './repository-analysis-validation.utils';
+import { redactRepositoryValue } from './repository-analysis-redact.utils';
 
 @Injectable()
 export class RepositoryAnalysisRunService {
@@ -21,12 +22,12 @@ export class RepositoryAnalysisRunService {
     private readonly audit: RepositoryAnalysisAuditService,
   ) {}
 
-  list(teamId: string, projectId: string) {
-    return this.runs.list(teamId, projectId);
+  async list(teamId: string, projectId: string) {
+    return this.safe(await this.runs.list(teamId, projectId));
   }
 
-  detail(teamId: string, projectId: string, runId: string) {
-    return this.runs.findScoped(teamId, projectId, runId);
+  async detail(teamId: string, projectId: string, runId: string) {
+    return this.safe(await this.runs.findScoped(teamId, projectId, runId));
   }
 
   async start(
@@ -53,7 +54,7 @@ export class RepositoryAnalysisRunService {
       ));
     }
     const idempotent = await this.runs.findIdempotent(projectId, dto.idempotencyKey);
-    if (idempotent) return idempotent;
+    if (idempotent) return this.safe(idempotent);
     const active = await this.runs.findActive(teamId, projectId);
     if (active) throw new ConflictException(repositoryError(
       'REPOSITORY_ANALYSIS_ACTIVE',
@@ -84,7 +85,7 @@ export class RepositoryAnalysisRunService {
         metadata: { branch: run.branch, commitSha: run.commitSha, parserVersion: run.parserVersion },
       });
       this.worker.enqueue(run.id);
-      return run;
+      return this.safe(run);
     } catch (error) {
       const concurrent = await this.runs.findActive(teamId, projectId);
       if (concurrent) throw new ConflictException(repositoryError(
@@ -128,7 +129,7 @@ export class RepositoryAnalysisRunService {
       metadata: { retryOfId: source.id, branch: run.branch, commitSha: run.commitSha },
     });
     this.worker.enqueue(run.id);
-    return run;
+    return this.safe(run);
   }
 
   async cancel(teamId: string, userId: string, projectId: string, runId: string) {
@@ -151,6 +152,10 @@ export class RepositoryAnalysisRunService {
       targetId: runId,
       summary: '已请求取消仓库解析',
     });
-    return this.runs.findScoped(teamId, projectId, runId);
+    return this.safe(await this.runs.findScoped(teamId, projectId, runId));
+  }
+
+  private safe<T>(value: T): T {
+    return redactRepositoryValue(value) as T;
   }
 }

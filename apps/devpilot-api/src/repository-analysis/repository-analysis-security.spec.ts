@@ -8,6 +8,7 @@ import {
   redactRepositoryText,
   redactRepositoryValue,
 } from './repository-analysis-redact.utils';
+import { secureRepositoryCommands } from './repository-command-security.utils';
 
 describe('repository analysis input security', () => {
   it.each([
@@ -70,6 +71,28 @@ describe('repository analysis redaction', () => {
       accessToken: '[REDACTED]',
       nested: { password: '[REDACTED]', branch: 'main' },
     });
+  });
+
+  it('redacts database URI userinfo and literal secret command assignments', () => {
+    const result = redactRepositoryText(
+      'DATABASE_URL=mysql://db-user:sentinel-db@mysql:3306/app '
+      + 'JWT_SECRET=sentinel-jwt --password=sentinel-cli',
+    );
+    expect(result).not.toContain('sentinel-');
+    expect(result).toContain('DATABASE_URL=[REDACTED]');
+    expect(result).toContain('JWT_SECRET=[REDACTED]');
+    expect(result).toContain('--password=[REDACTED]');
+  });
+
+  it('preserves environment references and omits only literal-secret commands', () => {
+    const secured = secureRepositoryCommands({
+      start: 'JWT_SECRET=$JWT_SECRET node server.js',
+      migrate: 'DATABASE_URL=mysql://db-user:sentinel-db@mysql/app prisma migrate deploy',
+    });
+    expect(secured.commands.start).toBe('JWT_SECRET=$JWT_SECRET node server.js');
+    expect(secured.commands.migrate).toBeUndefined();
+    expect(secured.warnings).toHaveLength(1);
+    expect(JSON.stringify(secured)).not.toContain('sentinel-db');
   });
 
   it.each(['DATABASE_PASSWORD', 'JWT_SECRET', 'GITHUB_TOKEN', 'SSH_PRIVATE_KEY'])(

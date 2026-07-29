@@ -95,4 +95,24 @@ describe('RepositorySuggestionApplyService', () => {
       ]),
     }));
   });
+
+  it('rejects edited values that embed literal credentials in commands', async () => {
+    const { service, repository } = createHarness();
+    await expect(service.apply('team-1', 'user-1', 'project-1', 'run-1', {
+      decisions: [
+        { suggestionId: 'suggestion-project', decision: 'accept' },
+        {
+          suggestionId: 'suggestion-service',
+          decision: 'edit',
+          value: {
+            applicationName: 'backend',
+            deployConfig: {
+              initializationCommand: 'JWT_SECRET=sentinel-jwt node initialize.js',
+            },
+          },
+        },
+      ],
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.apply).not.toHaveBeenCalled();
+  });
 });

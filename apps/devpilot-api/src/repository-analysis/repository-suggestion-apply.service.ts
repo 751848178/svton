@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ApplyRepositorySuggestionsDto } from './dto/repository-analysis.dto';
 import { RepositoryDecision } from './repository-apply.types';
+import { redactRepositoryValue } from './repository-analysis-redact.utils';
 import { repositoryError } from './repository-analysis-validation.utils';
 import { RepositorySuggestionApplyRepository } from './repository-suggestion-apply.repository';
 
@@ -89,5 +90,13 @@ function sanitizeValue(value: unknown): Record<string, unknown> {
       '请恢复检测值或重新编辑。',
     ));
   }
-  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+  const cloned = JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+  if (JSON.stringify(redactRepositoryValue(cloned)) !== JSON.stringify(cloned)) {
+    throw new BadRequestException(repositoryError(
+      'REPOSITORY_SUGGESTION_SECRET_VALUE',
+      '建议值包含凭据或秘密赋值',
+      '请移除命令中的明文凭据并通过环境变量或秘密引用注入。',
+    ));
+  }
+  return cloned;
 }

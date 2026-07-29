@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { RepositoryAnalysisRun } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { repositoryError } from './repository-analysis-validation.utils';
+import { secureRepositoryCommands } from './repository-command-security.utils';
 import {
   DetectedService,
   RepositoryAnalysisResult,
@@ -118,15 +119,16 @@ function serviceDraft(
 ): RepositorySuggestionDraft {
   const application = findRepositoryApplication(applications, detected, repositoryUrl);
   const currentService = findRepositoryService(application, detected, environmentId);
+  const secured = secureRepositoryCommands(detected.commands);
   const deployConfig = compact({
     targetType: detected.container.composeFiles.length > 0 ? 'docker-compose' : 'server',
     workingDirectory: detected.path,
-    buildCommand: detected.commands.build,
-    deployCommand: detected.commands.start,
-    migrationCommand: detected.commands.migrate,
-    initializationCommand: detected.commands.bootstrap,
-    seedCommand: detected.commands.seed,
-    backfillCommand: detected.commands.backfill,
+    buildCommand: secured.commands.build,
+    deployCommand: secured.commands.start,
+    migrationCommand: secured.commands.migrate,
+    initializationCommand: secured.commands.bootstrap,
+    seedCommand: secured.commands.seed,
+    backfillCommand: secured.commands.backfill,
     healthCheckPath: detected.healthChecks[0]?.path,
     dockerfile: detected.container.dockerfile,
     dockerBuildContext: detected.container.buildContext,
@@ -172,7 +174,7 @@ function serviceDraft(
       : application ? { applicationId: application.id, serviceId: null } : undefined,
     proposedValue: compact(proposedValue),
     evidence: detected.evidence,
-    warnings: detected.warnings,
+    warnings: [...detected.warnings, ...secured.warnings],
   };
 }
 function compact<T>(value: T): T {

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { redactRepositoryText } from './repository-analysis-redact.utils';
+import { repositorySafeJson } from './repository-analysis-storage.utils';
 
 @Injectable()
 export class RepositoryAnalysisStageRepository {
@@ -41,8 +42,8 @@ export class RepositoryAnalysisStageRepository {
       where: { id: stage.id },
       data: {
         status: 'succeeded',
-        logs: json(logs),
-        evidence: json(evidence),
+        logs: repositorySafeJson(logs),
+        evidence: repositorySafeJson(evidence),
         finishedAt: now,
         durationMs: stage.startedAt ? now.getTime() - stage.startedAt.getTime() : 0,
       },
@@ -64,9 +65,9 @@ export class RepositoryAnalysisStageRepository {
       where: { id: stage.id },
       data: {
         status: 'failed',
-        logs: json(logs),
+        logs: repositorySafeJson(logs),
         errorCode: code,
-        errorMessage: message,
+        errorMessage: redactRepositoryText(message),
         finishedAt: now,
         durationMs: stage.startedAt ? now.getTime() - stage.startedAt.getTime() : 0,
       },
@@ -79,8 +80,4 @@ export class RepositoryAnalysisStageRepository {
       data: { status: 'cancelled', finishedAt: new Date() },
     });
   }
-}
-
-function json(value: unknown): Prisma.InputJsonValue {
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
