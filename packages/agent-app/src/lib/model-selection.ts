@@ -45,7 +45,7 @@ export function findProviderForModel(
     (!providerId || getProviderId(p) === providerId)
     && p.models.some((m) => m.id === modelId),
   )
-    || providers.find((p) => p.apiKey || p.provider || p.createProvider)
+    || providers.find((p) => p.apiKey)
     || providers[0];
   return { provider, modelId };
 }

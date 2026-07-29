@@ -5,6 +5,7 @@ import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 
 const host = process.env.TAURI_DEV_HOST;
+const posixPathShim = path.resolve(__dirname, 'src/lib/desktop-posix-path.utils.ts');
 
 export default defineConfig(async () => ({
   plugins: [react()],
@@ -19,6 +20,8 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       '@': '/src',
+      'path': posixPathShim,
+      'node:path': posixPathShim,
       // Resolve @tauri-apps/api from our node_modules (pnpm strict mode fix)
       '@tauri-apps/api': path.resolve(__dirname, 'node_modules/@tauri-apps/api'),
     },
@@ -42,6 +45,8 @@ export default defineConfig(async () => ({
   },
   build: {
     rollupOptions: {
+      // Remaining server-only built-ins stay external; path is browser-shimmed.
+      external: ['node:fs', 'fs', 'node:os', 'os', 'node:child_process', 'child_process'],
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {

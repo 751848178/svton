@@ -98,6 +98,7 @@ export function Sidebar({
             <div key={session.id} className="relative group mb-0.5">
               <button
                 onClick={() => { onNavigate('chat'); onSwitchSession(session.id); }}
+                data-testid="session-item"
                 className={`w-full text-left px-3 py-1.5 pr-7 rounded-md text-[13px] truncate transition-colors ${
                   session.id === currentSessionId && activeView === 'chat'
                     ? 'bg-[#2a2a2a] text-white'

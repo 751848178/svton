@@ -17,6 +17,7 @@ import {
   summarizeSubagentMessages,
 } from './subagent-runtime.utils';
 import { formatUnknownErrorMessage } from '../utils/error-message.utils';
+import { SvtonAgentRuntime } from '../agent/svton-agent-runtime';
 
 let subagentCounter = 0;
 
@@ -150,10 +151,9 @@ export class SubagentManager {
   }
 
   private createRuntime(config: AgentConfig, _subConfig: SubagentConfig): IRuntime {
-    // Import dynamically to avoid circular dependency at module level
-    // but use proper async-compatible import pattern
-    const { AgentRuntime } = require('../agent/runtime') as typeof import('../agent/runtime');
-    return AgentRuntime.create(config, this.platform);
+    // Static import is safe: SvtonAgentRuntime imports SubagentManager only as a
+    // type (erased at runtime), so there is no runtime circular dependency.
+    return SvtonAgentRuntime.create(config, this.platform);
   }
 }
 

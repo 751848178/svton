@@ -1,182 +1,133 @@
-# AgentRuntime 与 ReAct 循环
+# SvtonAgentRuntime 与事件流
 
-> 核心运行时 — 实现 Think → Act → Observe 的 ReAct 循环，集成所有能力管理器。
-
-`AgentRuntime` 是 `@svton/agent-core` 的核心,实现了 Think → Act → Observe 的 ReAct(Reasoning + Acting)循环。它集成所有能力管理器(Prompt、Skill、Memory、Permission、Hook、MCP、Subagent、Planning 等),对外暴露一个简单的 `run()` 异步生成器。
-
-## 快速使用
-
-<Demo name="react-loop" :height="500" />
-
-```typescript
-import { AgentRuntime, OpenAIProvider, ToolRegistry } from '@svton/agent-core';
-
-const runtime = await AgentRuntime.createAsync({
-  provider: new OpenAIProvider({ apiKey: process.env.OPENAI_API_KEY! }),
-  model: 'gpt-4o',
-  toolRegistry: new ToolRegistry(),
-  workingDir: '/project',
-});
-
-for await (const event of runtime.run('分析项目结构')) {
-  console.log(event.type);
-}
-```
+> 自 Pi Agent 迁移起,核心运行时由 `SvtonAgentRuntime` 担任——它是 pi-agent-core
+> `Agent` 之上的组合根(composition root)。Pi 负责循环、续轮、终止、消息源与工具
+> 调度;svton 负责能力管理器、审批门、上下文压缩与事件翻译。
 
 ## 架构概览
 
 ```
 用户消息
    ↓
-┌─────────────────────────────────────────┐
-│             AgentRuntime.run()          │
-│                                         │
-│  ┌─────────────────────────────────┐    │
-│  │  1. 注入 Skill / Memory 上下文  │    │
-│  │  2. 上下文压缩(compaction)     │    │
-│  │  3. 调用 LLM Provider           │    │
-│  │  4. 解析流式事件                │    │
-│  │  5. 若有工具调用:              │    │
-│  │     a. 权限检查                 │    │
-│  │     b. 触发 pre_tool_use 钩子   │    │
-│  │     c. 执行工具                 │    │
-│  │     d. 触发 post_tool_use 钩子  │    │
-│  │     e. 将结果加入上下文         │    │
-│  │  6. 回到第 2 步(ReAct 循环)   │    │
-│  └─────────────────────────────────┘    │
-│                                         │
-│  输出: AsyncGenerator<AgentEvent>       │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│            SvtonAgentRuntime.run()           │
+│  (composition root over pi-agent-core Agent) │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │ 1. 注入 Skill / Memory 上下文          │  │
+│  │ 2. 上下文压缩(SvtonCompactor)         │  │
+│  │ 3. Pi Agent.run()(循环/续轮/终止)     │  │
+│  │ 4. 工具调用经 ToolExecutionService:    │  │
+│  │    a. 权限检查                         │  │
+│  │    b. pre_tool_use 钩子                │  │
+│  │    c. 审批门(可选)                    │  │
+│  │    d. auto-reviewer(可选)             │  │
+│  │    e. 沙箱执行                         │  │
+│  │    f. post_tool_use 钩子               │  │
+│  │ 5. Pi 事件 → AgentEvent(pi-event-adapter)│
+│  └────────────────────────────────────────┘  │
+│                                              │
+│  输出: AsyncGenerator<AgentEvent>            │
+└──────────────────────────────────────────────┘
 ```
+
+`SvtonAgentRuntime` 把职责拆到多个 ≤200 行的文件:
+`runtime-run`(单轮循环)、`runtime-capabilities`(能力注入/MCP 桥接)、
+`runtime-lifecycle`(post-turn 钩子:记忆抽取 + checkpoint)、
+`runtime-compose`(构建 Pi Agent)、`runtime-helpers`(模型解析)、
+`pi-event-adapter`(Pi→svton 事件翻译)、`approval-gate`、
+`svton-compactor`、`message-bridge`。
+
+## 快速使用
+
+```typescript
+import {
+  SvtonAgentRuntime,
+  ToolRegistry,
+  createPiModelsForProvider,
+} from '@svton/agent-core';
+import { BrowserPlatform } from '@svton/agent-platform';
+
+const { models, model } = createPiModelsForProvider('gpt-4o', {
+  family: 'openai',
+  apiKey: process.env.OPENAI_API_KEY!,
+});
+
+const runtime = await SvtonAgentRuntime.createAsync(
+  {
+    models,
+    piModel: model,
+    model: 'gpt-4o',
+    toolRegistry: new ToolRegistry(),
+    workingDir: '/project',
+  },
+  new BrowserPlatform(),
+);
+
+for await (const event of runtime.run('分析项目结构')) {
+  if (event.type === 'text_delta') process.stdout.write(event.text);
+}
+```
+
+> `AgentRuntime` 是 `SvtonAgentRuntime` 的别名,保留用于旧调用点(见
+> `agent-runtime-alias.ts`)。
 
 ## AgentConfig
 
 ```typescript
 interface AgentConfig {
-  provider: IProvider;
-  model: string;
+  models: Models;                  // pi-ai Models 集合(createPiModelsForProvider 返回)
+  piModel?: Model<any>;            // 已解析的 pi-ai Model(可选;省略则按 id 解析)
+  model: string;                   // 模型 id,如 "gpt-4o"
   toolRegistry: ToolRegistry;
   systemPrompt?: string;
+  initialMessages?: ChatMessage[]; // 初始对话(种子入 Pi state)
   contextConfig?: Partial<ContextConfig>;
-  maxIterations?: number;            // 默认 50
+  maxIterations?: number;          // 默认 50
   workingDir?: string;
-  capabilities?: AgentCapabilities;  // 可选的高级能力
-}
-
-interface ContextConfig {
-  maxTokens: number;
-  compactionThreshold: number;       // 0.0-1.0,例如 0.8 = 80% 时压缩
-  reservedForResponse: number;
-  preserveRecentMessages: number;
+  capabilities?: AgentCapabilities;
 }
 ```
-
-## AgentCapabilities
-
-所有高级能力都是可选的,按需注入:
-
-```typescript
-interface AgentCapabilities {
-  skillManager?: SkillManager;
-  memoryManager?: MemoryManager;
-  promptManager?: PromptManager;
-  permissionManager?: PermissionManager;
-  hookManager?: HookManager;
-  mcpClients?: MCPClient[];
-  mcpServerConfigs?: Map<string, McpServerToolConfig>;
-  pluginManager?: PluginManager;
-  subagentManager?: SubagentManager;
-  planningManager?: PlanningManager;
-  resumeManager?: SessionResumeManager;
-  agentDefinitionManager?: AgentDefinitionManager;
-  worktreeManager?: WorktreeManager;
-  autoReviewer?: AutoReviewerManager;
-}
-```
-
----
 
 ## 工厂方法
 
-### AgentRuntime.create()(同步)
+### SvtonAgentRuntime.create()(同步)
 
-不桥接 MCP 工具,适合不使用 MCP 的场景:
+不桥接 MCP 工具,适合不使用 MCP 的场景。
 
-```typescript
-static create(config: AgentConfig, platform: IPlatform): AgentRuntime;
-```
+### SvtonAgentRuntime.createAsync()(异步)
 
-### AgentRuntime.createAsync()(异步)
+初始化 MCP 客户端、桥接 MCP 工具到注册表,并重组系统提示词。**有 MCP 客户端
+时必须使用此方法**。
 
-会初始化 MCP 客户端、桥接 MCP 工具到注册表,并重新组合系统提示词。**有 MCP 客户端时必须使用此方法**。
+## AgentEvent 事件协议
 
-```typescript
-static async createAsync(config: AgentConfig, platform: IPlatform): Promise<AgentRuntime>;
-```
+`run()` 返回 `AsyncGenerator<AgentEvent>`。事件分两类(详见
+`agent/types.ts`):
 
-```typescript
-import { AgentRuntime, AnthropicProvider, ToolRegistry, MCPClient, HTTPTransport } from '@svton/agent-core';
-
-const mcpClient = new MCPClient();
-await mcpClient.connect(new HTTPTransport({ url: 'https://mcp.example.com/sse' }));
-
-const runtime = await AgentRuntime.createAsync(
-  {
-    provider: new AnthropicProvider({ apiKey: '...' }),
-    model: 'claude-sonnet-4-20250514',
-    toolRegistry: new ToolRegistry(),
-    capabilities: {
-      mcpClients: [mcpClient],
-    },
-  },
-  platform,
-);
-```
-
----
-
-## run() 方法
-
-```typescript
-async *run(
-  userMessage: string | ContentBlock[],
-  options?: RunOptions,
-): AsyncGenerator<AgentEvent>;
-```
-
-### RunOptions
-
-```typescript
-interface RunOptions {
-  mode?: 'default' | 'plan' | 'auto';   // 运行模式
-  signal?: AbortSignal;                  // 中断信号
-  maxIterations?: number;                // 本次运行的最大迭代数
-  sessionId?: string;                    // 用于检查点/恢复
-}
-```
-
----
-
-## AgentEvent 类型(11 种)
-
-`run()` 生成器输出的所有事件类型:
+### Pi-base 事件(pi-agent-core 产生,由 pi-event-adapter 翻译)
 
 | 事件类型 | 字段 | 说明 |
 | --- | --- | --- |
-| `text_delta` | `text` | LLM 输出的文本片段 |
-| `thinking_delta` | `thinking` | LLM 思考过程片段(extended thinking) |
+| `text_delta` | `text` | LLM 文本片段 |
+| `thinking_delta` | `thinking` | 思考过程片段 |
 | `tool_call_start` | `call: ToolCall` | 工具调用开始 |
-| `tool_call_progress` | `callId, message, arguments?` | 工具执行进度更新 |
+| `tool_call_progress` | `callId, message, arguments?` | 工具执行进度 |
 | `tool_call_end` | `result: ToolResult` | 工具调用结束 |
-| `tool_approval_needed` | `call: ToolCall` | 需要用户审批 |
-| `context_compacted` | `summary` | 上下文已被压缩 |
-| `subagent_start` | `agentId, task` | 子代理启动 |
-| `subagent_end` | `agentId, summary` | 子代理完成 |
-| `warning` | `text, source?` | 警告信息 |
 | `error` | `error: Error` | 错误 |
 | `done` | `stopReason, usage` | 运行完成 |
 
----
+### svton-only 事件(Pi 不拥有的能力)
+
+| 事件类型 | 字段 | 说明 |
+| --- | --- | --- |
+| `tool_approval_needed` | `call, metadata?` | 需要用户审批 |
+| `context_compacted` | `summary` | 上下文已被压缩 |
+| `warning` | `text, source?` | 警告 |
+| `skill_activated` | `skills` | 技能被触发 |
+
+> 子代理不再有独立事件类型——它们通过 `subagent_spawn` 工具以普通
+> `tool_call_*` 事件浮现。
 
 ## 迭代示例
 
@@ -184,191 +135,84 @@ interface RunOptions {
 for await (const event of runtime.run('帮我重构 src/utils.ts')) {
   switch (event.type) {
     case 'text_delta':
-      // 流式输出 LLM 文本
       process.stdout.write(event.text);
       break;
-
-    case 'thinking_delta':
-      // 可选:展示思考过程
-      console.log(`[思考] ${event.thinking}`);
-      break;
-
-    case 'tool_call_start':
-      console.log(`\n🔧 调用工具: ${event.call.name}`);
-      console.log(`   参数: ${JSON.stringify(event.call.arguments)}`);
-      break;
-
-    case 'tool_call_progress':
-      console.log(`   进度: ${event.message}`);
-      break;
-
     case 'tool_call_end':
-      if (event.result.isError) {
-        console.error(`   ❌ 失败: ${event.result.output}`);
-      } else {
-        console.log(`   ✅ 完成 (${event.result.output.length} 字符)`);
-      }
+      if (event.result.isError) console.error('失败:', event.result.output);
       break;
-
     case 'tool_approval_needed':
-      // 需要用户确认,详见"工具审批"小节
-      console.log(`需要审批: ${event.call.name}`);
+      // 需要用户确认
       break;
-
-    case 'context_compacted':
-      console.log(`\n[上下文压缩] ${event.summary}`);
-      break;
-
-    case 'warning':
-      console.warn(`\n[警告] ${event.text}`);
-      break;
-
-    case 'error':
-      console.error(`\n[错误] ${event.error.message}`);
-      break;
-
     case 'done':
-      console.log(`\n\n完成 (reason: ${event.stopReason})`);
-      console.log(`Tokens: ${event.usage.totalTokens}`);
+      console.log(`完成 (reason: ${event.stopReason}, tokens: ${event.usage.totalTokens})`);
       break;
   }
 }
 ```
-
----
 
 ## 中断运行
 
-### 通过 AbortSignal
-
 ```typescript
 const controller = new AbortController();
-
-// 5 秒后自动中断
 setTimeout(() => controller.abort(), 5000);
 
 for await (const event of runtime.run('一个大任务', { signal: controller.signal })) {
-  if (event.type === 'done' && event.stopReason === 'aborted') {
-    console.log('已中断');
-  }
+  if (event.type === 'done' && event.stopReason === 'aborted') console.log('已中断');
 }
-```
 
-### 通过 runtime.abort()
-
-```typescript
-// 在另一个地方调用
+// 或直接调用:
 runtime.abort();
 ```
 
----
+## 工具审批
 
-## 工具审批流程
-
-当权限系统决定某个工具调用需要审批时(`needsApproval: true`),运行时会发出 `tool_approval_needed` 事件并暂停,等待外部决策。
+权限系统决定某工具需要审批时,运行时发出 `tool_approval_needed` 事件并暂停:
 
 ```typescript
-import type { PendingApproval } from '@svton/agent-core';
-
-// 从 runtime 获取待审批项
 const pending = runtime.getPendingApprovals(); // Map<string, PendingApproval>
-
 for (const [callId, approval] of pending) {
-  console.log(`工具: ${approval.call.name}`);
-  console.log(`参数: ${JSON.stringify(approval.call.arguments)}`);
-
-  // 用户点击"允许"或"拒绝"
-  const userApproved = await showApprovalDialog(approval.call);
-  approval.resolve(userApproved);  // true=允许, false=拒绝
+  approval.resolve(true);  // true=允许,false=拒绝
 }
+
+// 也可直接按 id 决策:
+runtime.approveToolCall(callId);
+runtime.rejectToolCall(callId);
 ```
-
-`PendingApproval` 结构:
-
-```typescript
-interface PendingApproval {
-  call: ToolCall;
-  resolve: (approved: boolean) => void;
-  timestamp: number;
-}
-```
-
-如果用户拒绝,工具不会执行,LLM 会收到一条拒绝消息并据此决定下一步。
-
----
 
 ## 其他 API
 
-### getMessages()
-
-获取当前完整的消息历史(包括系统消息、用户消息、助手消息、工具结果):
-
-```typescript
-const messages = runtime.getMessages();
-```
-
-### setSubagentManager()
-
-由于循环依赖,子代理管理器必须在 runtime 创建后注入:
-
-```typescript
-const subagentMgr = new SubagentManager(config, runtime, platform, registry);
-runtime.setSubagentManager(subagentMgr);
-```
-
-### setPermissionManager() / setHookManager()
-
-运行时更新权限/钩子管理器(会重建 ToolExecutionService):
-
-```typescript
-runtime.setPermissionManager(new PermissionManager({ mode: 'accept_edits' }));
-runtime.setHookManager(new HookManager());
-```
-
-### setReasoningEffort()
-
-控制后续运行的推理强度:
-
-```typescript
-runtime.setReasoningEffort('high');
-// 支持: 'low' | 'medium' | 'high' | 'xhigh'
-```
-
-### switchAgentDefinition()
-
-切换激活的 Agent 定义(对应 `/agent <name>` 命令):
-
-```typescript
-runtime.switchAgentDefinition('researcher');
-// 会更新系统提示词、权限模式和工具过滤
-```
-
----
+- `getMessages()` — 当前完整消息历史(svton `ChatMessage[]`,从 Pi state 翻译)
+- `setMessages(messages)` — 重置 Pi state(模型切换/恢复场景)
+- `getModel()` / `setReasoningEffort(effort)` / `getReasoningEffort()`
+- `setPermissionManager(m)` / `setHookManager(m)` — 重建 ToolExecutionService
+- `setSubagentManager(m)` — 循环依赖,创建后注入
+- `switchAgentDefinition(name)` — 切换 Agent 定义(提示词/权限/工具过滤)
 
 ## 运行模式(AgentMode)
 
 | 模式 | 说明 |
 | --- | --- |
-| `default` | 默认模式,读操作自动通过,写操作和命令需审批 |
-| `plan` | 规划模式,只允许只读操作,不修改任何文件 |
+| `default` | 读操作自动通过,写操作和命令需审批 |
+| `plan` | 只允许只读操作,不修改任何文件 |
 | `auto` | 全自动模式,所有操作自动批准(慎用) |
 
-```typescript
-for await (const event of runtime.run('分析项目结构', { mode: 'plan' })) {
-  // 在 plan 模式下,所有写操作会被拒绝
-}
-```
+## post-turn 钩子
 
-## 默认最大迭代
+`runtime-lifecycle.ts` 在每轮 `done` 后执行:
 
-`DEFAULT_MAX_ITERATIONS = 50`。如果 Agent 在 50 次工具调用后仍未完成,会自动停止。可以通过 `AgentConfig.maxIterations` 或 `RunOptions.maxIterations` 调整。
+- **记忆抽取**:`memoryManager.extractFromConversation(...)`(fire-and-forget,非致命)
+- **checkpoint**:`resumeManager.checkpoint(sessionId, runtime)`——序列化 Pi state
+  供会话恢复。`restore()` 通过 `setMessages` 把 Pi state 重新种回新运行时。
 
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [Provider](./provider) — LLM 提供商接口
+- [Provider](./provider) — pi-ai 模型/provider 配置
 - [工具系统](./tools) — 工具注册与执行
 - [权限系统](./permission) — 运行时权限检查
-- [生命周期钩子](./hooks) — 运行时事件拦截
-- [记忆系统](./memory) — 上下文注入
-- [规划系统](./planning) — 多步骤计划追踪
+- [会话恢复](./memory) — checkpoint/resume
+
+## 参考
+
+- 设计文档:`docs-internal/design/pi-agent-migration-architecture.md`(§5.2 事件、§5.3 工具)
+- [pi-agent-core README](https://github.com/earendil-works/pi/blob/main/packages/agent/README.md)

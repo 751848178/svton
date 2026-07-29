@@ -7,11 +7,7 @@ import {
   ToolRegistry,
 } from '@svton/agent-core';
 import type {
-  IProvider,
-  StreamEvent,
-  ChatMessage,
-  ChatOptions,
-  ModelInfo,
+  AgentEvent,
   ToolDefinition,
   ToolCall,
   ToolResult,
@@ -19,62 +15,10 @@ import type {
   IToolExecutor,
 } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
+import { buildPiAgentConfig, EventScripter, makeBrowserPlatform } from './helpers/pi-test-utils';
 
 // ==============================================================
-// Mock Provider — queues responses for controlled streaming
-// ==============================================================
-
-class MockProvider implements IProvider {
-  readonly name = 'mock';
-  readonly models: ModelInfo[] = [
-    { id: 'test-model', name: 'Test', contextWindow: 128000, supportsToolUse: true, supportsVision: false, supportsStreaming: true },
-  ];
-
-  private responseQueue: StreamEvent[][] = [];
-
-  addResponse(events: StreamEvent[]): void {
-    this.responseQueue.push(events);
-  }
-
-  async *chat(_messages: ChatMessage[], _options: ChatOptions): AsyncGenerator<StreamEvent> {
-    const response = this.responseQueue.shift();
-    if (response) {
-      for (const event of response) {
-        yield event;
-      }
-    }
-  }
-
-  countTokens(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
-
-  supportsToolUse(_model: string): boolean { return true; }
-  supportsVision(_model: string): boolean { return false; }
-}
-
-// ==============================================================
-// Mock Platform
-// ==============================================================
-
-const mockPlatform: IPlatform = {
-  type: 'browser' as const,
-  capabilities: {
-    filesystem: false,
-    process: false,
-    watch: false,
-    mcpStdio: false,
-    clipboard: false,
-    notification: false,
-  },
-  fs: {} as any,
-  process: {} as any,
-  storage: {} as any,
-  search: {} as any,
-};
-
-// ==============================================================
-// Helpers
+// Mock executor + config (Pi-backed runtime, no provider contract)
 // ==============================================================
 
 const testToolDef: ToolDefinition = {
@@ -96,19 +40,12 @@ function createMockExecutor(): IToolExecutor {
   };
 }
 
-function createChatService() {
-  const service = new ChatService();
-  return service;
-}
+const mockPlatform: IPlatform = makeBrowserPlatform();
 
-function createConfig(provider: MockProvider) {
+function createConfig() {
   const registry = new ToolRegistry();
   registry.register(testToolDef, createMockExecutor());
-  return {
-    provider,
-    model: 'test-model',
-    toolRegistry: registry,
-  };
+  return buildPiAgentConfig({ toolRegistry: registry }).config;
 }
 
 // ==============================================================
@@ -117,19 +54,26 @@ function createConfig(provider: MockProvider) {
 
 describe('ChatService', () => {
   let service: ChatService;
-  let provider: MockProvider;
+  let scripter: EventScripter | null;
 
   beforeEach(() => {
-    service = createChatService();
-    provider = new MockProvider();
+    service = new ChatService();
+    scripter = null;
   });
+
+  /** Init the service and start scripting runtime.run with queued AgentEvents. */
+  async function initScripted(config = createConfig()): Promise<EventScripter> {
+    await service.init(mockPlatform, config);
+    scripter = new EventScripter(service as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<AgentEvent> } });
+    return scripter;
+  }
 
   // ----------------------------------------------------------
   // 1. init
   // ----------------------------------------------------------
   describe('init', () => {
     it('initializes and sets currentModel', async () => {
-      const config = createConfig(provider);
+      const config = createConfig();
       await service.init(mockPlatform, config);
       expect(service.currentModel).toBe('test-model');
       expect(service.status).toBe('idle');
@@ -137,19 +81,21 @@ describe('ChatService', () => {
     });
 
     it('preserves messages across model switches', async () => {
-      const config1 = createConfig(provider);
+      const config1 = createConfig();
       await service.init(mockPlatform, config1);
+      scripter = new EventScripter(service as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<AgentEvent> } });
 
       // Simulate a message
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Hello' },
         { type: 'done', stopReason: 'stop' },
       ]);
       await service.sendMessage('Hi');
       expect(service.messages.length).toBeGreaterThanOrEqual(2);
 
-      // Re-init with different model
-      const config2 = createConfig(provider);
+      // Re-init with different model. The old scripter spy is discarded; the
+      // new runtime is unscripted (no further sends in this test).
+      const config2 = createConfig();
       config2.model = 'test-model-v2';
       await service.init(mockPlatform, config2);
 
@@ -160,7 +106,7 @@ describe('ChatService', () => {
 
     it('skips re-initialization with the same config object', async () => {
       const spy = vi.spyOn(AgentRuntime, 'createAsync');
-      const config = createConfig(provider);
+      const config = createConfig();
       await service.init(mockPlatform, config);
       const beforeModel = service.currentModel;
       // Init again with same config
@@ -172,8 +118,8 @@ describe('ChatService', () => {
 
     it('re-initializes when runtime config changes without changing model or workingDir', async () => {
       const spy = vi.spyOn(AgentRuntime, 'createAsync');
-      const config1 = createConfig(provider);
-      const config2 = createConfig(provider);
+      const config1 = createConfig();
+      const config2 = createConfig();
       await service.init(mockPlatform, config1);
       await service.init(mockPlatform, config2);
       expect(spy).toHaveBeenCalledTimes(2);
@@ -182,8 +128,8 @@ describe('ChatService', () => {
 
     it('uses runtimeKey to skip semantically identical configs', async () => {
       const spy = vi.spyOn(AgentRuntime, 'createAsync');
-      const config1 = createConfig(provider);
-      const config2 = createConfig(provider);
+      const config1 = createConfig();
+      const config2 = createConfig();
       await service.init(mockPlatform, config1, 'same-runtime');
       await service.init(mockPlatform, config2, 'same-runtime');
       expect(spy).toHaveBeenCalledTimes(1);
@@ -191,7 +137,7 @@ describe('ChatService', () => {
     });
 
     it('marks pending approvals errored when runtime is reinitialized', async () => {
-      await service.init(mockPlatform, createConfig(provider), 'runtime-a');
+      await service.init(mockPlatform, createConfig(), 'runtime-a');
       service.messages = [{
         id: 'a1',
         role: 'assistant',
@@ -209,7 +155,7 @@ describe('ChatService', () => {
       });
       (service as any).status = 'waiting_approval';
 
-      await service.init(mockPlatform, createConfig(provider), 'runtime-b');
+      await service.init(mockPlatform, createConfig(), 'runtime-b');
 
       expect(service.status).toBe('idle');
       expect(service.hasPendingApprovals).toBe(false);
@@ -223,11 +169,11 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('sendMessage', () => {
     beforeEach(async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
     });
 
     it('sends a user message and receives assistant response', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Hi there!' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -243,7 +189,7 @@ describe('ChatService', () => {
     });
 
     it('sets status to idle after completion', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Done' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -276,7 +222,7 @@ describe('ChatService', () => {
     });
 
     it('records duration on the assistant message', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Fast' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -287,10 +233,9 @@ describe('ChatService', () => {
     });
 
     it('stores lastUsage from done event', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Response' },
-        { type: 'usage', usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 } },
-        { type: 'done', stopReason: 'stop' },
+        { type: 'done', stopReason: 'stop', usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 } },
       ]);
 
       await service.sendMessage('Test');
@@ -299,7 +244,7 @@ describe('ChatService', () => {
     });
 
     it('handles thinking_delta events', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'thinking_delta', thinking: 'Let me think...' },
         { type: 'text_delta', text: 'Answer' },
         { type: 'done', stopReason: 'stop' },
@@ -312,9 +257,13 @@ describe('ChatService', () => {
     });
 
     it('handles streaming error', async () => {
-      // Make the provider's chat method throw
-      const origChat = provider.chat.bind(provider);
-      provider.chat = async function* () { throw new Error('API error'); };
+      // Make runtime.run throw to simulate an API error during streaming.
+      vi.spyOn((service as any).runtime, 'run').mockImplementation(() => {
+        const gen: AsyncGenerator<AgentEvent> = (async function* () {
+          throw new Error('API error');
+        })();
+        return gen as any;
+      });
 
       await service.sendMessage('Trigger error');
       const assistant = service.messages.find((m) => m.role === 'assistant');
@@ -322,7 +271,7 @@ describe('ChatService', () => {
     });
 
     it('does nothing when status is running', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'First' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -333,7 +282,7 @@ describe('ChatService', () => {
       await service.sendMessage('First');
       expect(service.status).toBe('idle');
       // Now send again should work
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Second' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -347,17 +296,17 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('retry', () => {
     beforeEach(async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
     });
 
     it('removes last assistant message and regenerates', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'First response' },
         { type: 'done', stopReason: 'stop' },
       ]);
       await service.sendMessage('Hello');
 
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Retried response' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -379,19 +328,19 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('retryFromMessage', () => {
     beforeEach(async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
     });
 
     it('truncates after specified user message and retries', async () => {
       // Send first message
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Response 1' },
         { type: 'done', stopReason: 'stop' },
       ]);
       await service.sendMessage('Message 1');
 
       // Send second message
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Response 2' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -401,7 +350,7 @@ describe('ChatService', () => {
       expect(service.messages.length).toBe(4);
 
       // Retry from user1
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Retried from 1' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -415,7 +364,7 @@ describe('ChatService', () => {
     });
 
     it('does nothing for non-existent message id', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Hi' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -427,7 +376,7 @@ describe('ChatService', () => {
     });
 
     it('does nothing for assistant message id', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Hi' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -445,18 +394,18 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('editMessage', () => {
     beforeEach(async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
     });
 
     it('edits user message, truncates, and re-runs', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Original response' },
         { type: 'done', stopReason: 'stop' },
       ]);
       await service.sendMessage('Original question');
 
       // Edit the user message
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Edited response' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -469,7 +418,7 @@ describe('ChatService', () => {
     });
 
     it('does nothing for non-existent message', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Hi' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -485,7 +434,7 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('abort', () => {
     beforeEach(async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
     });
 
     it('marks streaming messages as not streaming', async () => {
@@ -493,7 +442,7 @@ describe('ChatService', () => {
       let resolveDone: () => void;
       const donePromise = new Promise<void>((r) => { resolveDone = r; });
 
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Partial' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -559,7 +508,7 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('loadMessages', () => {
     beforeEach(async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
     });
 
     it('loads messages and resets state', () => {
@@ -659,11 +608,11 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('clearMessages', () => {
     beforeEach(async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
     });
 
     it('clears all messages and resets state', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Hi' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -731,7 +680,7 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('tool approval', () => {
     beforeEach(async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
     });
 
     it('approveToolCall resolves pending tool', () => {
@@ -844,15 +793,14 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('tool call events in sendMessage', () => {
     beforeEach(async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
     });
 
     it('handles tool_call_start and tool_call_end events', async () => {
-      // Provider format: tool_call_start has id/name, tool_call_delta has id/argumentsDelta, tool_call_end has id/name/arguments
-      provider.addResponse([
-        { type: 'tool_call_start', id: 'tc1', name: 'test_tool' },
-        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"key":"val"}' },
-        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"val"}' },
+      // AgentEvent format: tool_call_start carries a ToolCall; tool_call_end carries a ToolResult.
+      scripter.addResponse([
+        { type: 'tool_call_start', call: { id: 'tc1', name: 'test_tool', arguments: { key: 'val' } } },
+        { type: 'tool_call_end', result: { callId: 'tc1', output: 'done', isError: false } },
         { type: 'done', stopReason: 'stop' },
       ]);
 
@@ -865,11 +813,10 @@ describe('ChatService', () => {
     });
 
     it('updates blocks for tool calls', async () => {
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'Let me check...' },
-        { type: 'tool_call_start', id: 'tc1', name: 'read_file' },
-        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"path":"/test"}' },
-        { type: 'tool_call_end', id: 'tc1', name: 'read_file', arguments: '{"path":"/test"}' },
+        { type: 'tool_call_start', call: { id: 'tc1', name: 'read_file', arguments: { path: '/test' } } },
+        { type: 'tool_call_end', result: { callId: 'tc1', output: 'contents', isError: false } },
         { type: 'text_delta', text: ' Here is the result.' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -900,7 +847,7 @@ describe('ChatService', () => {
     });
 
     it('marks read_file alias progress blocks done when the tool completes', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -938,7 +885,7 @@ describe('ChatService', () => {
     });
 
     it('preserves csv fanout row details in display blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -981,7 +928,7 @@ describe('ChatService', () => {
     });
 
     it('normalizes nested file tree children in display blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1038,7 +985,7 @@ describe('ChatService', () => {
     });
 
     it('surfaces csv fanout metadata results in display blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1082,7 +1029,7 @@ describe('ChatService', () => {
     });
 
     it('surfaces glob newline file paths as file tree blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1114,7 +1061,7 @@ describe('ChatService', () => {
     });
 
     it('marks ls alias progress blocks done when the tool completes', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1152,7 +1099,7 @@ describe('ChatService', () => {
     });
 
     it('accepts single web search result metadata in display blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1195,7 +1142,7 @@ describe('ChatService', () => {
     });
 
     it('does not duplicate web search blocks when a tool result is replayed', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1243,7 +1190,7 @@ describe('ChatService', () => {
     });
 
     it('keeps overlapping tool result blocks next to their owning tool call', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1301,7 +1248,7 @@ describe('ChatService', () => {
     });
 
     it('accepts single image_generate images object in display blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1333,7 +1280,7 @@ describe('ChatService', () => {
     });
 
     it('surfaces image generation metadata images in display blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1367,7 +1314,7 @@ describe('ChatService', () => {
     });
 
     it('surfaces screenshot JSON image output in display blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1397,7 +1344,7 @@ describe('ChatService', () => {
     });
 
     it('normalizes single preview document image metadata in display blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1430,7 +1377,7 @@ describe('ChatService', () => {
     });
 
     it('deduplicates git diff file headers in code review blocks', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1469,7 +1416,7 @@ describe('ChatService', () => {
     });
 
     it('skips file change blocks when file edit calls omit a path', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1497,7 +1444,7 @@ describe('ChatService', () => {
     });
 
     it('keeps overlapping file change blocks next to their owning write tool call', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1543,7 +1490,7 @@ describe('ChatService', () => {
     });
 
     it('extracts command blocks on done even without multiple file changes', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1568,7 +1515,7 @@ describe('ChatService', () => {
     });
 
     it('surfaces denied auto review metadata even when the tool result is an error', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1607,7 +1554,7 @@ describe('ChatService', () => {
     });
 
     it('ignores auto review metadata when a tool result has no matching tool call', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1645,28 +1592,22 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('context_compacted event', () => {
     it('adds a system message on context_compacted event', async () => {
-      await service.init(mockPlatform, {
-        provider,
-        model: 'test-model',
+      scripter = await initScripted(buildPiAgentConfig({
         toolRegistry: new ToolRegistry(),
-        contextConfig: {
-          maxTokens: 100,
-          compactionThreshold: 0.5,
-          reservedForResponse: 10,
-          preserveRecentMessages: 2,
-        },
-      });
+        contextConfig: { maxTokens: 100, compactionThreshold: 0.5, reservedForResponse: 10, preserveRecentMessages: 2 },
+      }).config);
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
-      // Use a long message to trigger compaction with the small context window
-      const longMsg = 'A'.repeat(200);
-      provider.addResponse([
+      // Script a compaction signal mid-stream (the runtime emits this when the
+      // SvtonCompactor prunes; here we drive it directly via the scripter).
+      scripter.addResponse([
+        { type: 'context_compacted', summary: 'compacted' },
         { type: 'text_delta', text: 'Response' },
         { type: 'done', stopReason: 'stop' },
       ]);
 
-      await service.sendMessage(longMsg);
+      await service.sendMessage('A'.repeat(200));
 
       const systemMsg = service.messages.find((m) => m.role === 'system');
       expect(systemMsg).toBeDefined();
@@ -1679,52 +1620,32 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('tool_approval_needed event', () => {
     it('sets status to waiting_approval and registers pending call', async () => {
-      // Need PermissionManager with 'default' mode to trigger approval
-      const { PermissionManager } = await import('@svton/agent-core');
-      const registry = new ToolRegistry();
-      registry.register(testToolDef, createMockExecutor());
-      const config = { provider, model: 'test-model', toolRegistry: registry };
-
-      await service.init(mockPlatform, config);
-
-      // Get the runtime and set permission manager
-      const runtime = (service as any).runtime;
-      const pm = new PermissionManager({ mode: 'default' });
-      runtime.setPermissionManager(pm);
-
+      scripter = await initScripted();
       service.bindSession('sess-active');
       (service as any).backgroundSessionId = 'sess-active';
 
-      provider.addResponse([
-        { type: 'tool_call_start', id: 'tc1', name: 'test_tool' },
-        { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"key":"val"}' },
-        { type: 'tool_call_end', id: 'tc1', name: 'test_tool', arguments: '{"key":"val"}' },
-        { type: 'done', stopReason: 'tool_use' },
-      ]);
+      // Drive the approval-gate event directly (the runtime emits this from its
+      // beforeToolCall hook). Verifies status transitions + pending registration.
+      service.messages = [{
+        id: 'a1', role: 'assistant', content: '', timestamp: Date.now(),
+        toolCalls: [{ id: 'tc1', name: 'test_tool', arguments: {}, status: 'running' }],
+        blocks: [],
+      }];
+      (service as any).handleEvent(
+        { type: 'tool_approval_needed', call: { id: 'tc1', name: 'test_tool', arguments: { key: 'val' } } },
+        'a1',
+      );
 
-      // Second response after approval
-      provider.addResponse([
-        { type: 'text_delta', text: 'Approved!' },
-        { type: 'done', stopReason: 'stop' },
-      ]);
+      expect(service.status).toBe('waiting_approval');
+      expect(service.hasPendingApprovals).toBe(true);
 
-      // Start streaming but don't await — we need to approve mid-stream
-      const streamPromise = service.sendMessage('Use tool');
-
-      // Wait a bit for the approval to be needed
-      await new Promise((r) => setTimeout(r, 10));
-
-      // Approve
+      // Approve resolves the pending entry and clears the queue.
       service.approveToolCall('tc1');
-
-      await streamPromise;
-
-      // After approval, status should eventually be idle
-      expect(service.status).toBe('idle');
+      expect(service.hasPendingApprovals).toBe(false);
     });
 
     it('preserves approval metadata on pending tool calls before the user decides', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.messages = [{
         id: 'msg_metadata',
         role: 'assistant',
@@ -1774,7 +1695,7 @@ describe('ChatService', () => {
     });
 
     it('keeps tool_call blocks in sync when approving or rejecting pending calls', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.messages = [{
         id: 'msg_approval',
         role: 'assistant',
@@ -1814,7 +1735,7 @@ describe('ChatService', () => {
     });
 
     it('keeps subagent blocks in sync when approval state changes', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.messages = [{
         id: 'msg_subagent_approval',
         role: 'assistant',
@@ -1852,7 +1773,7 @@ describe('ChatService', () => {
       // The runtime emits tool_call_progress after parsing accumulated args
       // This is tested indirectly through the tool call flow
       // Here we test the ChatService handler directly
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1877,7 +1798,7 @@ describe('ChatService', () => {
     });
 
     it('updates tool call names via progress event', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1911,7 +1832,7 @@ describe('ChatService', () => {
     });
 
     it('reclassifies partial subagent starts when progress carries the final name', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1950,7 +1871,7 @@ describe('ChatService', () => {
     });
 
     it('adds slow tool progress blocks when progress carries the final slow tool name', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -1993,7 +1914,7 @@ describe('ChatService', () => {
     });
 
     it('inserts progress-updated slow tool blocks before the matching tool call', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -2035,7 +1956,7 @@ describe('ChatService', () => {
     });
 
     it('keeps separate progress blocks for repeated progress-updated slow tools', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -2089,7 +2010,7 @@ describe('ChatService', () => {
     });
 
     it('marks only the completed slow tool progress block done', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -2130,7 +2051,7 @@ describe('ChatService', () => {
     });
 
     it('does not create orphan progress blocks for unknown tool calls', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
 
@@ -2163,7 +2084,7 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('background streaming', () => {
     it('routes events to session cache when session is not active', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-active');
       (service as any).backgroundSessionId = 'sess-bg';
 
@@ -2187,7 +2108,7 @@ describe('ChatService', () => {
     });
 
     it('invokes onBackgroundStreamEnd when stream completes in background', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-active');
       (service as any).backgroundSessionId = 'sess-bg';
 
@@ -2211,7 +2132,7 @@ describe('ChatService', () => {
     });
 
     it('invokes onBackgroundStreamEnd when a background stream is aborted', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-active');
       (service as any).backgroundSessionId = 'sess-bg';
 
@@ -2234,7 +2155,7 @@ describe('ChatService', () => {
     });
 
     it('marks cached background tool calls pending when approval is requested', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-active');
       (service as any).backgroundSessionId = 'sess-bg';
 
@@ -2332,9 +2253,9 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('images in sendMessage', () => {
     it('sends message with images', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
 
-      provider.addResponse([
+      scripter.addResponse([
         { type: 'text_delta', text: 'I see the image' },
         { type: 'done', stopReason: 'stop' },
       ]);
@@ -2353,20 +2274,25 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('thinking_delta separator', () => {
     it('adds separator when lastEventType is tool_call_end or done', async () => {
-      await service.init(mockPlatform, createConfig(provider));
+      scripter = await initScripted();
       service.bindSession('sess-1');
       (service as any).backgroundSessionId = 'sess-1';
-
-      // Set lastEventType to simulate a tool call having just ended
-      (service as any).lastEventType = 'tool_call_end';
 
       const assistantMsg: DisplayMessage = {
         id: 'msg_sep', role: 'assistant', content: '', thinking: '', timestamp: Date.now(), toolCalls: [],
       };
       service.messages = [assistantMsg];
 
-      const event: any = { type: 'thinking_delta', thinking: 'New thinking after tool' };
-      (service as any).handleEvent(event, 'msg_sep');
+      // Emit a tool_call_end first so the handler's lastEventType is set, then
+      // a thinking_delta — the separator should appear between them.
+      (service as any).handleEvent(
+        { type: 'tool_call_end', result: { callId: 'tc_sep', output: 'ok', isError: false } },
+        'msg_sep',
+      );
+      (service as any).handleEvent(
+        { type: 'thinking_delta', thinking: 'New thinking after tool' },
+        'msg_sep',
+      );
 
       expect(service.messages[0].thinking).toContain('---');
       expect(service.messages[0].thinking).toContain('New thinking after tool');

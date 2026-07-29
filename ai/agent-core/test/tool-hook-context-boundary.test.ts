@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ContextManager,
   HookManager,
   PermissionManager,
   ToolRegistry,
@@ -80,7 +79,6 @@ describe('tool hook context boundaries', () => {
 
     const service = new ToolExecutionService(
       toolRegistry,
-      new ContextManager(),
       createMockPlatform(),
       '/project',
       new PermissionManager({ mode: 'default' }),

@@ -592,6 +592,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           disabled={disabled}
           placeholder={placeholder ?? t('chat.inputPlaceholder')}
           rows={1}
+          data-testid="chat-input"
           className={cn(
             'flex-1 resize-none bg-transparent text-sm text-gray-900 dark:text-gray-100',
             'focus:outline-none',
@@ -717,6 +718,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onClick={onAbort}
             className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-red-600 text-white hover:bg-red-700 transition-all"
             title="Stop"
+            data-testid="stop-button"
           >
             <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor">
               <rect x="1" y="1" width="10" height="10" rx="1.5" />
@@ -726,13 +728,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 	          <button
 	            onClick={handleSend}
 	            disabled={disabled || isStreaming || (!value.trim() && images.length === 0)}
-            className={cn(
+	            className={cn(
               'flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center',
               'bg-gray-100 text-gray-900 hover:bg-gray-200',
               'dark:bg-[#333] dark:text-gray-200 dark:hover:bg-[#444]',
               'disabled:opacity-30 disabled:cursor-not-allowed',
               'transition-all',
             )}
+            data-testid="send-button"
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <path

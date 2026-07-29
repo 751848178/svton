@@ -36,7 +36,8 @@ class MockStorage implements IStorage {
 /**
  * Minimal AgentRuntime stub.
  * SessionResumeManager calls: getMessages(), getReasoningEffort(),
- * setMessages(), setReasoningEffort(), and reads .model.
+ * setMessages(), setReasoningEffort(), and getModel() (PI003 replaced the
+ * unsafe `(runtime as any).model` cast with a clean accessor).
  */
 function createMockRuntime(messages: ChatMessage[] = []) {
   let currentMessages = [...messages];
@@ -44,6 +45,7 @@ function createMockRuntime(messages: ChatMessage[] = []) {
 
   return {
     model: 'test-model',
+    getModel: vi.fn(() => 'test-model'),
     getMessages: vi.fn(() => currentMessages),
     getReasoningEffort: vi.fn(() => currentEffort),
     setMessages: vi.fn((msgs: ChatMessage[]) => {

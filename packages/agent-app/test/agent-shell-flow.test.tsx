@@ -4,8 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import 'reflect-metadata';
 import { AgentProvider } from '@svton/agent-client';
-import { ToolRegistry, type AgentConfig, type StreamEvent } from '@svton/agent-core';
+import { AgentRuntime, ToolRegistry, type AgentConfig, type AgentEvent } from '@svton/agent-core';
 import type { IPlatform, IStorage } from '@svton/agent-platform';
+import { createMockModels } from '../../../ai/agent-core/test/helpers';
 import { AgentShell } from '../src/components/AgentShell';
 
 vi.mock('react-markdown', () => ({
@@ -62,28 +63,6 @@ class MemoryStorage implements IStorage {
   }
 }
 
-class MockProvider {
-  readonly name = 'mock';
-  readonly models = [{ id: 'mock-model', name: 'Mock Model', contextWindow: 128000, supportsToolUse: true, supportsStreaming: true }];
-
-  async *chat(): AsyncGenerator<StreamEvent> {
-    yield { type: 'text_delta', text: 'Hello from the runtime' };
-    yield { type: 'done', stopReason: 'stop' };
-  }
-
-  countTokens(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
-
-  supportsToolUse(): boolean {
-    return true;
-  }
-
-  supportsVision(): boolean {
-    return false;
-  }
-}
-
 function makePlatform(storage: IStorage): IPlatform {
   return {
     type: 'browser',
@@ -106,19 +85,40 @@ function makePlatform(storage: IStorage): IPlatform {
   };
 }
 
-function makeConfig(): AgentConfig {
-  return {
-    provider: new MockProvider() as any,
+/**
+ * Build a Pi-backed AgentConfig (no provider contract) + a runtime.run spy
+ * that yields a canned "Hello from the runtime" response. PI007: the deleted
+ * IProvider/StreamEvent mock is replaced by a fauxProvider-backed Models
+ * collection + an AgentEvent script.
+ */
+function makeConfig(): { config: AgentConfig; scriptRun: () => void } {
+  const mock = createMockModels('mock-model');
+  const config: AgentConfig = {
+    models: mock.models,
+    piModel: mock.model,
     model: 'mock-model',
     toolRegistry: new ToolRegistry(),
     workingDir: '/',
   };
+  const scriptRun = () => {
+    vi.spyOn(AgentRuntime.prototype, 'run').mockImplementation(() => {
+      const events: AgentEvent[] = [
+        { type: 'text_delta', text: 'Hello from the runtime' },
+        { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } },
+      ];
+      return (async function* () {
+        for (const ev of events) yield ev;
+      })();
+    });
+  };
+  return { config, scriptRun };
 }
 
 describe('AgentShell user flow', () => {
   it('sends a prompt through the UI and renders the assistant response', async () => {
     const storage = new MemoryStorage();
-    const config = makeConfig();
+    const { config, scriptRun } = makeConfig();
+    scriptRun();
     const user = userEvent.setup();
 
     render(
