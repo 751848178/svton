@@ -23,8 +23,12 @@ deployment configuration without overwriting manual values silently.
 - Confirmed: F381 deliberately left automatic repository scanning outside its
   scope; current project import saves repository, branch, stack, and commands as
   manual and unverified configuration.
-- Confirmed: F383 is complete at `dbce7a7f` but not merged to `master`; F384
-  starts from that verified commit on `codex/f384-repository-analysis`.
+- Historical feature baseline: F383 was complete at `dbce7a7f` and F384
+  started from that commit on `codex/f384-repository-analysis`.
+- Current integration status: F383/F384 source head `1524df44` is preserved on
+  `codex/devpilot-f383-f384-integration`, based on local `master@68aabfa7`;
+  merge-readiness evidence is in
+  `docs-internal/devpilot/f383-f384-integration-report.md`.
 - Confirmed: `check2.mjs` is unrelated, untracked, and must remain untouched.
 - Constraint: credentials and environment secret values must never enter API
   responses, logs, evidence, parser results, audit metadata, or Git arguments.
@@ -102,7 +106,7 @@ audit, and failure behavior rather than frontend simulation.
 | F384.6.1 | done | Run focused unit/integration, permission, redaction, concurrency, timeout, forged-ID, type-check, build, and 200-line gates. | Isolated logs under `/tmp/codex-tool-runs/svton/`. | 7 backend suites / 42 tests and 2 frontend suites / 6 tests pass; API/Web checks and builds pass; every changed production TS/TSX file is at most 200 lines. |
 | F384.6.2 | done | Complete Picshare browser success flow and API/database readback. | Disposable/local Devpilot runtime; Picshare remains read-only. | Repository and audit screenshots plus redacted DB readback live under `/tmp/codex-tool-runs/svton/f384-final-runtime/`; Picshare stayed clean. |
 | F384.6.3 | done | Verify invalid source/credential, parser failure/timeout, duplicate/concurrent, cancel/retry, and forged-ID boundaries at their highest-signal safe layer. | Runtime audit plus focused service/worker/repository tests. | Runtime retained failed remote-credential audits; 42 backend tests cover the remaining deterministic failure and isolation branches without disturbing the final Picshare state. |
-| F384.6.4 | done | Synchronize progress, architecture, runbook, evidence summary, diff hygiene, and clean commits. | Docs, scoped Git diff, and commits only. | Backend `cc87c2d8`; frontend `5bffc4a6`; final docs/evidence commit follows this update. |
+| F384.6.4 | done | Synchronize progress, architecture, runbook, evidence summary, diff hygiene, and clean commits. | Docs, scoped Git diff, and commits only. | Backend `cc87c2d8`; frontend `5bffc4a6`; feature close `1524df44`; master-integration verdict and hardened redaction proof live in `docs-internal/devpilot/f383-f384-integration-report.md`. |
 
 ## Verification Plan
 

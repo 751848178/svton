@@ -21,6 +21,12 @@
 
 ## Current Use
 
+- F383 + F384 were integrated onto local `master@68aabfa7` on 2026-07-29.
+  The authoritative merge-readiness source is
+  `../f383-f384-integration-report.md`; it records full-history ancestry,
+  semantic conflict resolution, 55-migration fresh/upgrade parity, affected
+  regression gates, real Picshare browser/API/DB proof, zero-leak readback,
+  cleanup, and the explicit merge verdict.
 - F384 repository connection and analysis closed on 2026-07-29. Use
   `f384-repository-analysis.md` and
   `../../todos/2026-07-29-repository-analysis.md` as the bounded progress and

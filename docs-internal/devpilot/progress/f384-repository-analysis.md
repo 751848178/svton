@@ -3,8 +3,12 @@
 ## Current State
 
 - Status: done
-- Branch: `codex/f384-repository-analysis`
-- Base: `dbce7a7f` (verified F383 HEAD; not yet on `master`)
+- Source branch: `codex/f384-repository-analysis@1524df44`
+- Historical feature base: `dbce7a7f`
+- Integrated branch: `codex/devpilot-f383-f384-integration` on local
+  `master@68aabfa7`
+- Integration verdict: can merge; see
+  `../f383-f384-integration-report.md`
 - Final run: `cms5xb3o2000aazxpaut9boes`
 - Primary TODO: `docs-internal/todos/2026-07-29-repository-analysis.md`
 - Long-goal board:
@@ -61,11 +65,12 @@ production provisioning capabilities.
 
 ## Verification
 
-- Repository-analysis backend: 7 Jest suites, 42 tests passed, including
+- Repository-analysis backend after integration: 7 Jest suites, 45 tests
+  passed, including
   redaction, scope, forged IDs, idempotency/concurrency, cancel/retry, timeout,
   parser failure cleanup, matching, and transactional apply.
-- Frontend: audit-query and readiness suites, 6 tests passed; Web type-check and
-  production build passed.
+- Frontend after activating the repository test runtime: 6 files / 25 tests;
+  Web type-check and production build passed.
 - Prisma generate/validate, API type-check/build, Docker build/migration/up, and
   browser repository/readiness/application/service/environment/audit flows
   passed.
@@ -86,4 +91,6 @@ resource creation, Picshare changes, or F383 release-behavior changes occurred.
 
 - `cc87c2d8` — auditable repository analysis backend.
 - `5bffc4a6` — repository review/apply/readiness/audit UI.
-- Final documentation/evidence synchronization is the closing commit.
+- `1524df44` — feature documentation/evidence close.
+- Integration, redaction hardening, browser rerun, and master-readiness evidence
+  are recorded in `../f383-f384-integration-report.md`.

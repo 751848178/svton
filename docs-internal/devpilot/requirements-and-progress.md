@@ -415,3 +415,23 @@ MVP 验收标准：
   `cms5xb3o2000aazxpaut9boes` 六阶段 succeeded，5 条建议完成
   edit/accept/reject 后持久化应用，项目准备度 6/6，并完成仓库、应用服务、环境、
   审计页面及脱敏数据库回读。
+
+## 12. F383 + F384 master 集成验收（2026-07-29）
+
+- 状态：**done；可以合并，尚未 push 或实际合并 master**。
+- 集成分支：`codex/devpilot-f383-f384-integration`；源基线为本地
+  `master@68aabfa7` 与
+  `codex/f384-repository-analysis@1524df44`。
+- 历史：使用双父 merge commit 保留 F383/F384 完整提交链；17 个冲突中
+  16 个 Pi 迁移冲突保留 master 的语义超集，锁文件从合并后的 manifests
+  重新生成。
+- 数据库：新库 55/55；本地 master 基线 50/50 后升级到 55/55；新库与升级库
+  schema 指纹一致；历史仓库分析命令字段和敏感哨兵均清零。
+- 回归：F383/F384、权限/伪造 ID/脱敏、Devpilot Web、Pi Core/Client/Web、
+  `nestjs-http`、API/Web type-check/build 与 200 行结构门禁全部通过。
+- 真实验收：克隆 Picshare 验收库运行集成产物；页面 6/6、三次解析历史、
+  五项审核、应用/服务/环境、13 条仓库审计、F383 六阶段发布、审批/执行/
+  部署深链均通过；伪造项目/解析/部署/发布 ID 均为精确 404。
+- 安全读回：仓库分析 API、数据库建议、仓库审计、API/Web 运行日志均为
+  0 敏感命中；源验收库保持 54 个迁移，克隆资源和含密临时文件已清理。
+- 权威报告：`docs-internal/devpilot/f383-f384-integration-report.md`。

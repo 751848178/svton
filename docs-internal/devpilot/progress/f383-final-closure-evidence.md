@@ -324,5 +324,13 @@ release-stage 审批及 2 条派生 deployment 审批均为 approved。
 
 ## Completion boundary
 
-第一批“可复现的干净 master 六阶段主链”完成。F383 整体仍保持 in-progress；
-第二批继续完成执行任务深链接和平台化零泄漏验证器，再更新最终架构/运维文档并关闭。
+第一批“可复现的干净 master 六阶段主链”和第二批精确执行/部署深链接、计划级
+零泄漏验证均已完成，F383 状态为 done。
+
+2026-07-29 的 F383 + F384 集成验收进一步在
+`codex/devpilot-f383-f384-integration` 上复验计划
+`cms5m7z2001ow14kkg3jg0l87`：六阶段、六次尝试、两条 DeploymentRun、四条
+ServerExecutionJob 和审批关联均与 Picshare
+`master@8e7c465d56e68dafcef0dfbc480fe721044b0fb3` 一致；真实与伪造运行深链、
+克隆数据库读回和零泄漏扫描均通过。权威集成结论见
+`docs-internal/devpilot/f383-f384-integration-report.md`。
