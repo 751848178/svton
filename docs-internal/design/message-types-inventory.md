@@ -3,6 +3,15 @@
 > 整理时间：2026-05-31
 > 基于 agent-core、agent-client、UI 三层代码的完整梳理
 
+> [!WARNING]
+> **Pre-Pi historical / superseded inventory.** 本文保留 2026-05-31
+> 迁移前的消息链快照，不描述当前实现。当前链路由 `pi-ai` 和
+> `pi-agent-core` 提供 canonical model/message/event/tool contracts，
+> `SvtonAgentRuntime` 只组合产品能力，Client 再通过显式 Pi→Display
+> 边界投影到 UI。当前架构见
+> [`pi-agent-migration-architecture.md`](./pi-agent-migration-architecture.md)
+> 与 [`docs/agent/core/runtime.md`](../../docs/agent/core/runtime.md)。
+
 ---
 
 ## 1. 数据流概览

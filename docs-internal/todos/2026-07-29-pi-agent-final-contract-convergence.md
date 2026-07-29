@@ -165,10 +165,10 @@ verified local desktop artifact without changing remote state.
 
 | ID | Status | Atomic TODO | Acceptance |
 | --- | --- | --- | --- |
-| PC005.1 | pending | Run all required package tests, strict type-checks, builds and residual architecture/security audits. | Every required gate exits 0 and forbidden residuals are zero. |
-| PC005.2 | pending | Run full Agent Web Playwright E2E, deterministic provider contracts and minimal real DeepSeek request with redacted evidence. | All required flows pass; network claims match evidence. |
-| PC005.3 | pending | Run real `tauri dev` WKWebView streamed turn and Tauri IPC boundary. | Real process, turn and IPC evidence pass. |
-| PC005.4 | pending | Independently review final diff, capabilities, source/docs and user-file isolation; fix and rerun. | No unresolved review issue; dedicated worktree clean. |
+| PC005.1 | done | Run all required package tests, strict type-checks, builds and residual architecture/security audits. | Final-tree matrix: 8/8 full suites, 5/5 strict checks, 7/7 package builds, 12/12 forced Turbo chain and 15/15 Rust/Tauri tests pass; current-contract residual audit is zero. |
+| PC005.2 | done | Run full Agent Web Playwright E2E, deterministic provider contracts and minimal real DeepSeek request with redacted evidence. | Final Playwright is 10/10 across all required flows; provider contracts are 6/6; one DeepSeek request returned HTTP 200 with only redacted transport/status/family/timing evidence. Official OpenAI was deterministic-only because no credential exists. |
+| PC005.3 | done | Run real `tauri dev` WKWebView streamed turn and Tauri IPC boundary. | Dedicated dev PID 30385 ran `target/debug/svton-agent-desktop`; the WKWebView auto-drive recorded a Pi streamed turn and real `process_exec` plus `fs_write_file` IPC as passed. |
+| PC005.4 | done | Independently review final diff, capabilities, source/docs and user-file isolation; fix and rerun. | Root review found and split one 223-line Web E2E spec; final residual, unsafe-addition, line-count, diff and public-doc checks pass with no unresolved P0-P2. |
 | PC005.5 | pending | Create `pre-pi-final-contract-convergence-YYYYMMDD` on pre-merge master and merge the dedicated branch with `--no-ff`. | Local master contains the verified merge; remote unchanged. |
 | PC005.6 | pending | Build, verify, mount, inspect, sign-check, checksum and copy the arm64 DMG. | Artifact exists in `svton-desktop-artifacts` with complete evidence. |
 
@@ -391,3 +391,30 @@ verified local desktop artifact without changing remote state.
   public exports, provider routing, strict-compiling documentation snippets,
   regenerated public demo and exact historical-residual classification. Seven
   unrelated global-doc repairs were reverted before approval.
+- 2026-07-30: Started PC005 as the only active write/acceptance slice. The
+  final gate covers the full package matrix, deterministic and real provider
+  evidence, Web Playwright, real Tauri/WKWebView plus IPC, independent final
+  review, protected local merge and verified arm64 DMG delivery.
+- 2026-07-30: PC005.2 uncovered and fixed a real Web abort-settlement
+  regression in the deterministic browser provider: its empty-queue wait now
+  observes Pi's `AbortSignal`, so the runtime generator drains and run
+  ownership releases after Stop. Browser coverage now also proves approval
+  accept/reject and a real read-only tool's visible running-to-completed
+  progress. Final Next/Chromium Playwright passes 10/10.
+- 2026-07-30: PC005.1-PC005.3 completed pre-merge acceptance. The final
+  uncommitted code/test tree passed 8 package suites, 5 strict checks, 7
+  package builds, the forced 12-package Pi Turbo chain and 15 Rust/Tauri
+  tests. Provider routing passed 6/6; exactly one redacted DeepSeek live smoke
+  returned HTTP 200 in 568 ms, while official OpenAI remained deterministic
+  only because no credential exists. A cleanly restarted `tauri dev` process
+  (PID 30385) produced a passed WKWebView Pi streamed turn and real native
+  process/filesystem IPC evidence. The identically named installed app could
+  not be used for manual UI attribution and its overwritten `/tmp` evidence
+  was excluded; only the immediately sealed dev-run artifacts are accepted.
+- 2026-07-30: PC005.4 independent root review approved with no remaining
+  P0-P2. Review found the expanded browser product-path spec at 223 lines and
+  split tool approval/progress into a single-responsibility 106-line spec;
+  affected code files are now 106-144 lines. Web unit/build and the 10-scenario
+  Next/Chromium run passed again. The final 22-gate matrix (21 required plus
+  Rust/Tauri) ran after all code/test changes and preserved HEAD, status and
+  scoped content; only this acceptance-ledger conclusion was added afterwards.
