@@ -116,7 +116,9 @@ import {
   PluginManager,
 } from '@svton/agent-core';
 import type { McpServerConfig } from '@svton/agent-ui';
-import { loadConfig, type LoadConfigResult } from './config-store';
+import type { LoadConfigResult } from './config-store';
+import { loadDesktopAgentConfig } from './desktop-agent-config.service';
+import { desktopE2eActive, getDesktopE2eModelsOverride } from './e2e-provider';
 
 export type InitResult =
   | { kind: 'ready'; config: AgentConfig; extra?: AgentExtra }
@@ -143,7 +145,7 @@ export interface AgentExtra {
 export async function initAgent(platform: TauriPlatform, modelOverride?: string): Promise<InitResult> {
   let result: LoadConfigResult;
   try {
-    result = await loadConfig(platform);
+    result = await loadDesktopAgentConfig(platform);
   } catch (err: any) {
     return { kind: 'error', message: `Failed to read config: ${err.message || err}` };
   }
@@ -157,14 +159,13 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   }
 
   const { model: modelConfig, providers } = result.config;
+  const effectiveModelOverride = desktopE2eActive() ? undefined : modelOverride;
 
-  // Determine which provider to use — support model override for runtime switching
   let providerKey = modelConfig.provider;
 
-  if (modelOverride) {
-    // Find the provider that has the requested model
+  if (effectiveModelOverride) {
     for (const [key, pCfg] of Object.entries(providers)) {
-      if (pCfg.models && modelOverride in pCfg.models) {
+      if (pCfg.models && effectiveModelOverride in pCfg.models) {
         providerKey = key;
         break;
       }
@@ -180,7 +181,6 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
     return { kind: 'no_api_key' };
   }
 
-  // Build model infos
   const modelEntries = Object.entries(providerCfg.models || {});
   const modelInfos = modelEntries.map(([id, name]) => ({
     id,
@@ -191,16 +191,16 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
     supportsStreaming: true,
   }));
 
-  const selectedModel = modelOverride || modelConfig.name || modelEntries[0]?.[0] || 'gpt-4o';
+  const selectedModel = effectiveModelOverride || modelConfig.name || modelEntries[0]?.[0] || 'gpt-4o';
 
-  // PI003: build a pi-ai Models collection + resolve the model. The deleted
-  // OpenAIProvider/AnthropicProvider are replaced by createPiModelsForProvider.
   const providerFamily = providerCfg.type === 'anthropic' ? 'anthropic' : 'openai';
   const { models, model: piModel } = createPiModelsForProvider(selectedModel, {
     family: providerFamily,
     baseUrl: providerCfg.base_url,
     apiKey: providerCfg.api_key,
     models: modelInfos,
+    // Inert unless VITE_SVTON_DESKTOP_E2E is exactly "1".
+    ...getDesktopE2eModelsOverride(),
   });
 
   // ── Register ALL tools ──

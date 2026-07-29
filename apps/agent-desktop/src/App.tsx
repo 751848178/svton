@@ -6,12 +6,16 @@ import type { AgentConfig } from '@svton/agent-core';
 import { AgentProvider } from '@svton/agent-client';
 import { ChatPanel, SplitScreenPanel, type ChatPanelMessage, type SplitScreenContent } from '@svton/agent-ui';
 import { initAgent, type AgentExtra } from '@/lib/agent-setup';
-import { loadConfig, createDefaultConfig, openConfigInEditor } from '@/lib/config-store';
+import { createDefaultConfig, openConfigInEditor } from '@/lib/config-store';
+import { loadDesktopAgentConfig } from '@/lib/desktop-agent-config.service';
 import { Sidebar, type View } from '@/components/Sidebar';
 import { startDragging, toggleMaximize } from '@/lib/window-controls';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MainLayout } from '@/components/MainLayout';
+import { DesktopE2eAutoDrive } from '@/components/DesktopE2eAutoDrive';
+import { desktopE2eActive } from '@/lib/e2e-provider';
+import { startDesktopE2eBootstrap } from '@/lib/desktop-e2e-bootstrap.service';
 
 // ── Preview Window ───────────────────────────────────────
 function PreviewWindow() {
@@ -59,10 +63,8 @@ function PreviewWindow() {
     </div>
   );
 }
-
 // ── App ──────────────────────────────────────────────────
 export default function App() {
-  // Check if this is a standalone preview window
   const isPreviewWindow = typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('preview') === '1';
 
@@ -76,19 +78,18 @@ export default function App() {
   const [unconfiguredMessages, setUnconfiguredMessages] = useState<ChatPanelMessage[]>([]);
   const [unconfiguredView, setUnconfiguredView] = useState<View>('chat');
 
-  // ── Model switching state ──
   const [currentModel, setCurrentModel] = useState('');
   const [models, setModels] = useState<{ id: string; name: string; providerName: string }[]>([]);
-
   useEffect(() => {
     let cancelled = false;
+    let bootstrap: ReturnType<typeof startDesktopE2eBootstrap> | undefined;
     (async () => {
       const p = new TauriPlatform();
       setPlatform(p);
-
+      bootstrap = startDesktopE2eBootstrap(p);
       try {
-        // Load full config to build models list from ALL providers
-        const configResult = await loadConfig(p);
+        await bootstrap.started;
+        const configResult = await loadDesktopAgentConfig(p);
         if (configResult.config) {
           const allModels: { id: string; name: string; providerName: string }[] = [];
           for (const [providerName, providerCfg] of Object.entries(configResult.config.providers)) {
@@ -107,6 +108,7 @@ export default function App() {
           setAgentExtra(result.extra ?? null);
           setCurrentModel(result.config.model);
         } else {
+          await bootstrap.failInitialization(result.kind);
           setUnconfigured(true);
           if (result.kind === 'no_config') {
             await createDefaultConfig(p);
@@ -114,22 +116,20 @@ export default function App() {
           console.warn('[App] initAgent result:', result.kind, result.kind === 'error' ? (result as any).message : '');
         }
       } catch (err) {
+        await bootstrap.failInitialization('exception');
         console.error('[App] initAgent threw:', err);
         setUnconfigured(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; bootstrap?.dispose(); };
   }, []);
 
-  // ── Re-init agent when model changes ──
   const platformRef = useRef<TauriPlatform | null>(null);
   platformRef.current = platform;
 
   useEffect(() => {
     if (!currentModel || !platformRef.current) return;
-    // Skip the initial load (already handled by startup effect)
     if (currentModel === agentConfig?.model) return;
-
     let cancelled = false;
     initAgent(platformRef.current, currentModel)
       .then((result) => {
@@ -143,7 +143,6 @@ export default function App() {
     return () => { cancelled = true; };
   }, [currentModel]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Cmd+, shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
@@ -198,6 +197,7 @@ export default function App() {
     <ErrorBoundary>
       {agentConfig && platform ? (
         <AgentProvider platform={platform} config={agentConfig}>
+          {desktopE2eActive() ? <DesktopE2eAutoDrive /> : null}
           <MainLayout
             config={agentConfig}
             platform={platform}

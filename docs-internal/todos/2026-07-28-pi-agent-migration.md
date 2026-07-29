@@ -2,7 +2,7 @@
 
 > Document type: long-goal implementation ledger
 > Created: 2026-07-28 (Asia/Shanghai)
-> Status: **completed** — final product-level acceptance done 2026-07-29 (PI000–PI010 + PI010-R1 + live-E2E closure). Real browser E2E (9/9) and real Desktop native command-boundary (6/6) now pass; 4 real bugs found & fixed with regression coverage. See "Final Closure (Live E2E)" section below.
+> Status: **completed** — final product-level acceptance done 2026-07-29 (PI000–PI010 + PI010-R1/R2 + live-E2E closure). Real browser E2E (9/9), a real Tauri/WKWebView streamed turn and real WebView→Rust IPC evidence now pass; Rust command tests remain supplemental. See "Final Closure (Live E2E)" below.
 > Architecture: `docs-internal/design/pi-agent-migration-architecture.md`
 > Goal prompt: `docs-internal/goals/pi-agent-migration-goal.md`
 > Runtime board: `/tmp/codex-tool-runs/svton/long-goals/pi-agent-migration/board.json`
@@ -55,6 +55,7 @@ Implement the accepted Pi migration architecture in small verified slices:
 | PI009 | done | Remove obsolete implementation and update docs | Dead provider contract types deleted from `provider/types.ts` (`IProvider`, `StreamEvent`, `ChatOptions` — verified dead by grep: 0 live refs, comments only); `ModelInfo` + all message/content/tool/usage types KEPT (live consumers). Barrels `provider/index.ts` + `src/index.ts` + dead `StreamEvent` import in `agent/types.ts` cleaned. `provider/` now holds only `types.ts` + `index.ts` (impls were already deleted in PI002/PI003). Public docs rewritten for Pi-backed architecture: `docs/agent/core/provider.md`, `runtime.md`, `index.md`, `agent-core/README.md`. No dead deps in package.json (pi-ai/pi-agent-core only). Build green across all 7 packages; core **328/1818**, client **12/267**, sdk **2/60**, app **3/12**, ui **11/201**, web **3/18**, desktop **7/43**. Result: `/tmp/codex-tool-runs/svton/pi-agent-migration/pi009-result.md`. |
 | PI010 | done | Full verification and closure | All §7.1–§7.10 acceptance verified against actual state. All 8 packages build (0 errors); **366 test files / 2419 tests pass, 0 failures** (core 328/1818, client 12/267, sdk 2/60, app 3/12, ui 11/201, web 3/18, desktop 7/43). `pi-ai` = sole provider/model/stream layer; `pi-agent-core` = sole Agent state/loop/event/scheduling layer; `SvtonAgentRuntime` = composition root (no loop reimplementation); full svton security pipeline + all capabilities preserved; 17 dead files deleted; `docs/agent` updated. Remaining external-only limits explicit (no agent-web Playwright e2e; redaction is a seam; parallel tools opt-in; pre-existing app-layer config files only minimally touched). Result: `/tmp/codex-tool-runs/svton/pi-agent-migration/pi010-result.md`. |
 | PI010-R1 | done | Independent closure review | Re-verified the uncommitted migration against source, git diff and freshly-run gates (did NOT trust the original conclusions). Found + fixed what PI010 mislabeled as "external limits": **(1)** real tool-result secret redactor replaced the identity stub (`secret-redactor.utils.ts`, default-installed, 17 leak tests); **(2)** agent-web real product-path E2E covering stream/thinking/tool-progress/approval/abort/failure/refresh-resume (`chat-flows-e2e.test.ts`, 7 tests); **(3)** Desktop real product-path E2E (`desktop-streamed-turn.test.ts`, initAgent→ChatService→Pi runtime→platform.exec, 2 tests); **(4)** MCPServer inbound bypass made fail-closed + routed through a wired `ToolExecutionService`; **(5)** 5 migration-introduced tsc errors fixed (PI010's "all pre-existing" claim was inaccurate — verified via HEAD worktree); **(6)** reasoning-effort→thinkingLevel coverage gap closed. Architecture confirmed sound (Pi owns loop/state/scheduling; security pipeline gates every LLM tool; ChatService split correct). Final: **369 files / 2449 tests, 0 failures**; builds green; agent-core tsc 14 errors all HEAD-verified pre-existing. Result: `/tmp/codex-tool-runs/svton/pi-agent-migration-r1/pi010-r1-result.md`. |
+| PI010-R2 | done | Desktop real WKWebView final acceptance | Started the actual `target/debug/svton-agent-desktop` via `tauri:dev`; Vite 1420 and WS relay 9223 were owned by that run. A Vite-gated, default-inert faux-provider seam drove one real `useChat()` → `ChatService` → Pi runtime streamed turn inside WKWebView without reading real config or contacting a real model provider. Result evidence passed with `finalStatus=idle`, one new user message, one new marker response and correct ordering. The same WebView invoked real `process_exec`, validated stdout `svton-tauri-native-boundary`, then persisted native evidence through real `fs_write_file`. Desktop **14 files / 69 tests**, Rust command tests **6/6**, agent-client strict tsc 0 errors and Pi-scope build **10/10** pass. Runtime/config/cleanup evidence: `/tmp/codex-tool-runs/svton/pi-agent-live-e2e-closure/`. |
 
 ## Slice Details
 
@@ -151,9 +152,9 @@ green; and only external operations explicitly excluded from the goal remain.
 ## Final Closure (Live E2E) — 2026-07-29
 
 A second independent pass in a clean worktree (`codex/pi-agent-migration-live-e2e`,
-base `origin/master` @ `8594ccb8`, cherry-pick of `686c1c1e`) upgraded the
-verification from "jsdom integration" to **real product paths**, and found+fixed
-4 real bugs with regression coverage.
+base `origin/master` @ `8594ccb8`, cherry-pick of `686c1c1e`) upgraded Web to
+real Chromium E2E. The P3b re-closure then replaced the overstated Desktop
+claim with an actual Tauri process + WKWebView streamed turn + native IPC chain.
 
 ### What is REAL automated browser E2E vs real app-run verification
 - **Automated browser E2E (agent-web):** `apps/agent-web/e2e/chat-product-path.spec.ts`
@@ -164,12 +165,26 @@ verification from "jsdom integration" to **real product paths**, and found+fixed
   with no real API key. **9/9 pass**: create+send, streaming, multi-turn,
   thinking show/hide (config-driven), tool approval + success/failure, abort,
   provider-failure + recovery, page-refresh resume, secret-leak assertion.
-- **Real Desktop/Tauri product path:** `apps/agent-desktop/src-tauri/src/lib.rs`
-  `#[cfg(test)]` call the ACTUAL `#[tauri::command]` functions (the native
-  boundary JS `invoke()` hits) — real `process_exec` (real echo / non-zero exit /
-  cwd+env), real `process_get_env` (real HOME), real fs write→read→stat
-  (tempfile). **6/6 pass**. Plus the real Tauri app compiles (cargo `Finished`)
-  and the desktop frontend builds (Vite).
+- **Real Desktop/Tauri product path:** the actual
+  `target/debug/svton-agent-desktop` was started by `tauri:dev`; its Vite
+  process listened on 1420 and its WS relay listened on 9223. Inside the real
+  WKWebView, `DesktopE2eAutoDrive` ran under the real `AgentProvider` and sent
+  `hello from the real desktop app` through `useChat()` → `ChatService` → Pi
+  runtime. A Vite-gated faux provider returned a deterministic streamed
+  assistant response containing `svton-desktop-e2e-marker`; no real provider,
+  model network request or real config read was used.
+- **Real WebView→Rust command boundary:** the same WKWebView called
+  `platform.process.exec('printf svton-tauri-native-boundary')`, which crossed
+  `invoke('process_exec')`; exit code was 0 and stdout contained the fixed
+  marker. The WebView then persisted `/tmp/svton-desktop-e2e-native.json`
+  through real `invoke('fs_write_file')`. The streamed-turn evidence is
+  `/tmp/svton-desktop-e2e-result.json`; it passed with `finalStatus=idle`,
+  `newMessageCount=2`, `newUserMessageCount=1`, `newMarkerCount=1`, and the
+  assistant marker after the user message.
+- **Supplemental native tests:** Rust `#[cfg(test)]` still call the actual
+  command functions for process and filesystem coverage (**6/6 pass**), but
+  they are supplemental and are not used as a substitute for the WKWebView
+  product path.
 
 ### Real bugs found & fixed (regression-tested)
 1. **postTurn/checkpoint never ran** — it was placed AFTER `yield doneEvent` in
@@ -183,21 +198,31 @@ verification from "jsdom integration" to **real product paths**, and found+fixed
 3. **thinkingLevel** — applied at agent build time from `config.reasoningEffort`
    (`AgentConfig.reasoningEffort` added) so the Pi Agent streams thinking when
    configured.
-4. **node:path browser build** — agent-core dist bundles server-only
-   auto-reviewer utils that import `node:path`, which broke the desktop Vite
-   (WebView) build. Externalized Node built-ins in the desktop vite config.
+4. **node:path WebView runtime crash** — agent-core dist bundles server-only
+   auto-reviewer utils that import `node:path`. Merely externalizing this made
+   the build pass but crashed Vite dev before React mounted (`path.posix` was
+   unavailable). Desktop now aliases exact `path`/`node:path` imports to a
+   browser-safe POSIX shim in both dev and production builds.
+5. **Desktop P3b false-positive and silent-failure gaps** — activation now uses
+   the WKWebView-visible Vite flag; E2E bypasses real config loading; the faux
+   queue, initialization and send are bounded; string and Pi content blocks are
+   both recognized; old session markers cannot satisfy a new run; bootstrap,
+   timeout and native failures write terminal evidence; and run-once state
+   prevents retries or duplicate sends.
 
 ### Verification commands + logs (all under `/tmp/codex-tool-runs/svton/pi-agent-live-e2e-closure/`)
 - agent-core tests: `vitest run` → 330 files / 1841 pass (`p5-core-test-isolated.log`)
 - agent-client tsc: `tsc --noEmit` → 0 errors (`p5-client-tsc2.log`)
 - agent-web tests+E2E: 25 pass + 9/9 Playwright (`p5-web-test.log`, `p5-web-e2e.log`)
-- desktop tests + Rust boundary: 45 pass + 6/6 (`p5-desktop-test.log`, `p3-cargo-test2.log`)
+- desktop tests + Rust boundary: 69 pass + 6/6 (`regression-20260729-145620/desktop-tests-20260729-145620.log`, `regression-20260729-145620/rust-command-tests-20260729-145620.log`)
+- real Desktop Tauri/WKWebView turn + IPC: passed (`p3b-r3-tauri-dev-20260729-144931.log`, `p3b-r3-process-evidence-20260729-144931.log`, `p3b-r3-json-evidence-20260729-144931.log`)
+- config protection + cleanup: config existence/hash/mtime unchanged; run PIDs exited and 1420/9223 were clear (`p3b-r3-config-fingerprint-20260729-144931.log`, `p3b-r3-process-evidence-20260729-144931.log`)
 - agent-core tsc baseline diff: Pi 12 errors all pre-existing; baseline @5d9c035a had 51 (`p5-tsc-curr.log`, `p5-tsc-baseline.log`)
-- full build: 10/10 packages green (`p5-build-all.log`)
+- current Pi/Agent/Desktop scope build: 10/10 tasks green (`regression-20260729-145620/pi-scope-monorepo-build-20260729-145620.log`)
+- root `pnpm build`: 31/34 before an unchanged baseline Picshare documentation parse error (`docs/todos/2026-07-22-picshare-deployment-plan.md:420`); origin/master, HEAD and worktree have the same blob. This is outside the Pi/Desktop scope (`regression-20260729-145620/monorepo-build-20260729-145620.log`).
 - diff audit: `origin/master..HEAD` only Pi-relevant files (no check2.mjs/F383/Devpilot)
 
 ### Remaining limits
 - agent-core strict tsc still has 12 pre-existing errors (auto-reviewer/memory/planning barrels + tool-hook-lifecycle) — all verified pre-existing against the baseline; tolerated by tsup (the build gate).
-- The Desktop real-app run is evidenced by Rust command-boundary tests + successful frontend/cargo build + the existing jsdom integration tests; a full GUI-driven WKWebView turn was not automated (WKWebView is not CDP-driveable; no `tauri-driver` in this env). The native command boundary the WebView reaches is covered by the Rust tests.
+- macOS screen-recording permission was unavailable, so a screenshot is not a hard gate. The evidence chain instead uses the real Tauri/Vite/Desktop/9223 process ownership, WKWebView-driven streamed-turn marker, two externally re-read JSON files, real `process_exec`/`fs_write_file` results, config fingerprint and post-run process/port cleanup.
 - No `git push` / publish / deploy performed (per goal constraints).
-
