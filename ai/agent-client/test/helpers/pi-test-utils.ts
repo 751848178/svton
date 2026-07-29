@@ -26,11 +26,19 @@ import type { IPlatform, IStorage } from '@svton/agent-platform';
 import {
   createMockModels,
   createMockPlatform,
+  fauxAssistantMessage,
+  fauxText,
   MemoryStorage,
   type MockModelsHandle,
 } from '../../../agent-core/test/helpers';
 
-export { createMockModels, createMockPlatform, MemoryStorage };
+export {
+  createMockModels,
+  createMockPlatform,
+  fauxAssistantMessage,
+  fauxText,
+  MemoryStorage,
+};
 export type { MockModelsHandle };
 
 /**

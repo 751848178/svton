@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { ToolDefinition } from '../src/provider/types';
+import type { SvtonToolDefinition } from '../src/tool/types';
 import { ToolRegistry } from '../src/tool/registry';
 import type { IToolExecutor, ToolCall, ToolContext } from '../src/tool/types';
 import { createMockPlatform } from './helpers';
 
-const throwingToolDef: ToolDefinition = {
+const throwingToolDef: SvtonToolDefinition = {
   name: 'throwing_tool',
   description: 'Throws a non-Error value.',
   parameters: { type: 'object', properties: {} },

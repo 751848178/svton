@@ -1,10 +1,10 @@
-import type { ToolAnnotations, ToolDefinition } from '../../provider/types';
+import type { SvtonToolAnnotations, SvtonToolDefinition } from '../../tool/types';
 import type { IToolExecutor, ToolCall, ToolContext, ToolResult } from '../../tool/types';
 import { formatUnknownErrorMessage } from '../../utils/error-message.utils';
 import { LINEAR_GRAPHQL_URL } from './linear.constants';
 import { escapeLinearGql } from './linear-gql.utils';
 
-export const linearListIssuesDef: ToolDefinition = {
+export const linearListIssuesDef: SvtonToolDefinition = {
   name: 'linear_list_issues',
   description:
     'List Linear issues with optional filters by team, status, or assignee.',
@@ -32,7 +32,7 @@ export const linearListIssuesDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     openWorldHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class LinearListIssuesExecutor implements IToolExecutor {

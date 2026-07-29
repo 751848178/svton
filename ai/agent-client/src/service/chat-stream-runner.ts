@@ -11,13 +11,13 @@
  * observable properties on ChatService stay the single source of truth.
  */
 
-import type { ContentBlock } from '@svton/agent-core';
+import type { UserMessage } from '@earendil-works/pi-ai';
 import type { ChatEventHandler } from './chat-event-handler';
 import type { MessageStoreHost } from './chat-message-store';
 import type { DisplayMessage } from '../types';
 
 export interface StreamRunnerDeps {
-  runtime: { run: (content: string | ContentBlock[], options: { sessionId?: string }) => AsyncGenerator<import('@svton/agent-core').AgentEvent> };
+  runtime: { run: (content: UserMessage['content'], options: { sessionId?: string }) => AsyncGenerator<import('@svton/agent-core').AgentEvent> };
   handler: ChatEventHandler;
   store: MessageStoreHost;
   streamingAssistantMsgId: { current: string | null };
@@ -45,10 +45,10 @@ export async function runAssistantTurn(
   streamingAssistantMsgId.current = assistantMsg.id;
   store.backgroundSessionId = store.activeSessionId;
 
-  const content: string | ContentBlock[] = images && images.length > 0
+  const content: UserMessage['content'] = images && images.length > 0
     ? [
         ...(userContent ? [{ type: 'text' as const, text: userContent }] : []),
-        ...images.map((img) => ({ type: 'image' as const, data: img.data, mimeType: img.mimeType })),
+        ...images.map((img) => ({ type: 'image' as const, data: img.data, mimeType: img.mimeType ?? 'image/png' })),
       ]
     : userContent;
 

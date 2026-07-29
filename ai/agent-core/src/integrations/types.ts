@@ -4,7 +4,7 @@
  * either via direct API tools or MCP server templates.
  */
 
-import type { ToolDefinition } from '../provider/types';
+import type { SvtonToolDefinition } from '../tool/types';
 import type { IToolExecutor } from '../tool/types';
 
 export type IntegrationCategory = 'comms' | 'issues' | 'docs' | 'general';
@@ -29,7 +29,7 @@ export interface IntegrationManifest {
   mcpServerTemplate?: { urlTemplate: string; type: 'http' | 'sse' };
   /** Returns tool definitions and executor factories for direct API approach */
   getTools?: (credentials: Record<string, string>) => Array<{
-    definition: ToolDefinition;
+    definition: SvtonToolDefinition;
     executor: IToolExecutor;
   }>;
 }

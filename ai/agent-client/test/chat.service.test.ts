@@ -10,7 +10,7 @@ import {
 } from '@svton/agent-core';
 import type {
   AgentEvent,
-  ToolDefinition,
+  SvtonToolDefinition,
   ToolCall,
   ToolResult,
   ToolContext,
@@ -28,7 +28,7 @@ import {
 // Mock executor + config (Pi-backed runtime, no provider contract)
 // ==============================================================
 
-const testToolDef: ToolDefinition = {
+const testToolDef: SvtonToolDefinition = {
   name: 'test_tool',
   description: 'A test tool',
   parameters: {
@@ -53,6 +53,12 @@ function createConfig() {
   const registry = new ToolRegistry();
   registry.register(testToolDef, createMockExecutor());
   return buildPiAgentConfig({ toolRegistry: registry }).config;
+}
+
+function getInitializedRuntime(chat: ChatService): AgentRuntime {
+  const runtime = chat['runtime'];
+  if (!runtime) throw new Error('ChatService runtime is not initialized');
+  return runtime;
 }
 
 // ==============================================================
@@ -606,7 +612,7 @@ describe('ChatService', () => {
       ]);
       await service.sendMessage('Hello');
 
-      service.clearMessages();
+      await service.clearMessages();
 
       expect(service.messages).toEqual([]);
       expect(service.status).toBe('idle');
@@ -2071,6 +2077,115 @@ describe('ChatService', () => {
   // 18. Background streaming routing
   // ----------------------------------------------------------
   describe('background streaming', () => {
+    it('isolates a newly cleared session from the runtime still streaming in background', async () => {
+      await service.init(mockPlatform, createConfig());
+      service.bindSession('session-a');
+      const oldRuntime = getInitializedRuntime(service);
+      const oldReset = vi.spyOn(oldRuntime, 'reset');
+      let markStarted!: () => void;
+      let settle!: () => void;
+      const started = new Promise<void>((resolve) => { markStarted = resolve; });
+      const settlement = new Promise<void>((resolve) => { settle = resolve; });
+      vi.spyOn(oldRuntime, 'run').mockImplementation(async function* () {
+        markStarted();
+        yield { type: 'text_delta', text: 'A_PART' };
+        await settlement;
+        oldRuntime.setMessages([
+          { role: 'user', content: 'SESSION_A', timestamp: 1 },
+          fauxAssistantMessage([fauxText('A_DONE')]),
+        ]);
+        yield { type: 'text_delta', text: '_DONE' };
+        yield {
+          type: 'done',
+          stopReason: 'stop',
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        };
+      });
+
+      const backgroundTurn = service.sendMessage('SESSION_A');
+      await started;
+      service.cacheSessionMessages('session-a', [...service.messages]);
+      service.bindSession('session-b');
+      await service.clearMessages();
+      const activeRuntime = getInitializedRuntime(service);
+
+      expect(activeRuntime).not.toBe(oldRuntime);
+      expect(oldReset).not.toHaveBeenCalled();
+      expect(service.runtimeSessionId).toBe('session-b');
+      expect(activeRuntime.getMessages()).toEqual([]);
+      expect(service.messages).toEqual([]);
+
+      settle();
+      await backgroundTurn;
+
+      expect(oldRuntime.getMessages().map((message) => message.role)).toEqual([
+        'user',
+        'assistant',
+      ]);
+      expect(activeRuntime.getMessages()).toEqual([]);
+      expect(service.getCachedMessages('session-a')?.map((message) => message.content)).toEqual([
+        'SESSION_A',
+        'A_PART_DONE',
+      ]);
+      expect(service.backgroundSessionId).toBeNull();
+      expect(service.runtimeSessionId).toBe('session-b');
+    });
+
+    it('routes controls to the active runtime after aborting a detached background runtime', async () => {
+      await service.init(mockPlatform, createConfig());
+      service.bindSession('session-a');
+      const backgroundRuntime = getInitializedRuntime(service);
+      let markBackgroundStarted!: () => void;
+      let settleBackground!: () => void;
+      const backgroundStarted = new Promise<void>((resolve) => { markBackgroundStarted = resolve; });
+      const backgroundSettlement = new Promise<void>((resolve) => { settleBackground = resolve; });
+      vi.spyOn(backgroundRuntime, 'run').mockImplementation(async function* () {
+        markBackgroundStarted();
+        yield { type: 'text_delta', text: 'A_PART' };
+        await backgroundSettlement;
+      });
+      const backgroundAbort = vi.spyOn(backgroundRuntime, 'abort').mockImplementation(() => settleBackground());
+      const backgroundApprove = vi.spyOn(backgroundRuntime, 'approveToolCall');
+      const backgroundReject = vi.spyOn(backgroundRuntime, 'rejectToolCall');
+
+      const backgroundTurn = service.sendMessage('SESSION_A');
+      await backgroundStarted;
+      service.cacheSessionMessages('session-a', [...service.messages]);
+      service.bindSession('session-b');
+      await service.clearMessages();
+      const activeRuntime = getInitializedRuntime(service);
+      const activeApprove = vi.spyOn(activeRuntime, 'approveToolCall');
+      const activeReject = vi.spyOn(activeRuntime, 'rejectToolCall');
+      let markActiveStarted!: () => void;
+      let settleActive!: () => void;
+      const activeStarted = new Promise<void>((resolve) => { markActiveStarted = resolve; });
+      const activeSettlement = new Promise<void>((resolve) => { settleActive = resolve; });
+      vi.spyOn(activeRuntime, 'run').mockImplementation(async function* () {
+        markActiveStarted();
+        yield { type: 'text_delta', text: 'B_PART' };
+        await activeSettlement;
+      });
+      const activeAbort = vi.spyOn(activeRuntime, 'abort').mockImplementation(() => settleActive());
+
+      service.abort();
+      await backgroundTurn;
+      expect(backgroundAbort).toHaveBeenCalledTimes(1);
+
+      const activeTurn = service.sendMessage('SESSION_B');
+      await activeStarted;
+      service.approveToolCall('approve-b');
+      service.rejectToolCall('reject-b');
+      service.abort();
+      await activeTurn;
+
+      expect(activeApprove).toHaveBeenCalledWith('approve-b');
+      expect(activeReject).toHaveBeenCalledWith('reject-b');
+      expect(activeAbort).toHaveBeenCalledTimes(1);
+      expect(backgroundApprove).not.toHaveBeenCalled();
+      expect(backgroundReject).not.toHaveBeenCalled();
+      expect(backgroundAbort).toHaveBeenCalledTimes(1);
+    });
+
     it('routes events to session cache when session is not active', async () => {
       scripter = await initScripted();
       service.bindSession('sess-active');

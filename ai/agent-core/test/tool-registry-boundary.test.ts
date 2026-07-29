@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ToolDefinition } from '../src/provider/types';
+import type { SvtonToolDefinition } from '../src/tool/types';
 import { ToolRegistry } from '../src/tool/registry';
 import type { IToolExecutor } from '../src/tool/types';
 
@@ -7,7 +7,7 @@ const executor: IToolExecutor = {
   execute: async (call) => ({ callId: call.id, output: 'ok' }),
 };
 
-function makeDefinition(): ToolDefinition {
+function makeDefinition(): SvtonToolDefinition {
   return {
     name: 'owned_tool',
     description: 'Original description',

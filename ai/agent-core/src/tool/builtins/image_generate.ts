@@ -5,7 +5,7 @@
  * images from a text prompt without knowing which provider to use.
  */
 
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import type { ImageGenRegistry } from '../../image-gen/registry';
 import { formatUnknownErrorMessage } from './error-message.utils';
@@ -17,7 +17,7 @@ const IMAGE_QUALITIES = ['standard', 'hd'] as const;
 type ImageSize = (typeof IMAGE_SIZES)[number];
 type ImageQuality = (typeof IMAGE_QUALITIES)[number];
 
-export const imageGenerateDef: ToolDefinition = {
+export const imageGenerateDef: SvtonToolDefinition = {
   name: 'image_generate',
   description:
     'Generate one or more images from a text prompt. Supports multiple models (e.g. dall-e-3, stable-image-ultra, imagen-4.0).',
@@ -54,7 +54,7 @@ export const imageGenerateDef: ToolDefinition = {
     readOnlyHint: false,
     destructiveHint: false,
     openWorldHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class ImageGenerateExecutor implements IToolExecutor {

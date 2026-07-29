@@ -17,9 +17,9 @@ import {
   fauxText,
 } from './helpers';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../src/tool/types';
-import type { ToolDefinition } from '../src/provider/types';
+import type { SvtonToolDefinition } from '../src/tool/types';
 
-function makeToolDef(name: string): ToolDefinition {
+function makeToolDef(name: string): SvtonToolDefinition {
   return { name, description: name, parameters: { type: 'object', properties: {} } };
 }
 

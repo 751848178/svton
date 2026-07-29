@@ -3,11 +3,11 @@ import {
   PromptManager,
   type PromptTemplate,
   type PromptVariable,
-  type ToolDefinition,
+  type SvtonToolDefinition,
 } from '@svton/agent-core';
 
 // Helpers
-const makeTool = (overrides: Partial<ToolDefinition> = {}): ToolDefinition => ({
+const makeTool = (overrides: Partial<SvtonToolDefinition> = {}): SvtonToolDefinition => ({
   name: 'test_tool',
   description: 'A test tool',
   parameters: { type: 'object', properties: {} },
@@ -47,7 +47,7 @@ describe('PromptManager - compose default template', () => {
 describe('PromptManager - compose with tools', () => {
   it('includes tool descriptions in the output', () => {
     const pm = new PromptManager();
-    const tools: ToolDefinition[] = [
+    const tools: SvtonToolDefinition[] = [
       makeTool({ name: 'file_read', description: 'Read file contents' }),
       makeTool({ name: 'bash', description: 'Execute shell commands' }),
     ];
@@ -81,7 +81,7 @@ describe('PromptManager - compose with tools', () => {
 
   it('includes read-only annotation', () => {
     const pm = new PromptManager();
-    const tools: ToolDefinition[] = [
+    const tools: SvtonToolDefinition[] = [
       makeTool({
         name: 'file_read',
         description: 'Read files',
@@ -94,7 +94,7 @@ describe('PromptManager - compose with tools', () => {
 
   it('includes destructive annotation', () => {
     const pm = new PromptManager();
-    const tools: ToolDefinition[] = [
+    const tools: SvtonToolDefinition[] = [
       makeTool({
         name: 'file_delete',
         description: 'Delete files',
@@ -107,7 +107,7 @@ describe('PromptManager - compose with tools', () => {
 
   it('includes both annotations when both are set', () => {
     const pm = new PromptManager();
-    const tools: ToolDefinition[] = [
+    const tools: SvtonToolDefinition[] = [
       makeTool({
         name: 'multi',
         description: 'Multi tool',

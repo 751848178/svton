@@ -4,7 +4,7 @@ import type {
   IntegrationManifest,
 } from '@svton/agent-core';
 import type {
-  ToolDefinition,
+  SvtonToolDefinition,
 } from '@svton/agent-core';
 import type { IToolExecutor, ToolResult, ToolCall } from '@svton/agent-core';
 import type { IStorage } from '@svton/agent-platform';
@@ -48,7 +48,7 @@ function makeExecutor(name: string): IToolExecutor {
   };
 }
 
-function makeToolDef(name: string): ToolDefinition {
+function makeToolDef(name: string): SvtonToolDefinition {
   return {
     name,
     description: `Tool ${name}`,

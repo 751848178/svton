@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatCommandResult } from '../command-result.utils';
 import { resolveCommandRunner } from '../command-runner.utils';
@@ -8,7 +8,7 @@ import { formatUnknownErrorMessage } from './error-message.utils';
 // bash
 // ============================================================
 
-export const bashDef: ToolDefinition = {
+export const bashDef: SvtonToolDefinition = {
   name: 'bash',
   description:
     'Execute a shell command and return its output. Use with caution - requires approval by default.',
@@ -30,7 +30,7 @@ export const bashDef: ToolDefinition = {
     readOnlyHint: false,
     destructiveHint: true,
     openWorldHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class BashExecutor implements IToolExecutor {

@@ -9,7 +9,7 @@ import type {
   IToolExecutor,
   ToolCall,
   ToolContext,
-  ToolDefinition,
+  SvtonToolDefinition,
   ToolResult,
 } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
@@ -47,7 +47,7 @@ function createRecordingExecutor(): IToolExecutor & { calls: ToolCall[] } {
   };
 }
 
-function makeToolDef(name: string): ToolDefinition {
+function makeToolDef(name: string): SvtonToolDefinition {
   return {
     name,
     description: `Tool ${name}`,

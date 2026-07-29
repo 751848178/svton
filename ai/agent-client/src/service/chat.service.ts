@@ -62,7 +62,7 @@ export class ChatService implements MessageStoreHost {
     updateToolCallStatusEverywhere(this, callId, status, metadata);
   }
   handleStreamEnd(assistantMsgId: string, updates: Partial<DisplayMessage>): void {
-    finalizeStreamEnd(this, assistantMsgId, updates, this.onBackgroundStreamEnd, this.streamingAssistantMsgId);
+    finalizeStreamEnd(this, assistantMsgId, updates, (id) => { this.sessionRuntime.releaseBackgroundRuntime(); this.onBackgroundStreamEnd?.(id); }, this.streamingAssistantMsgId);
   }
   get pendingToolCalls(): ApprovalQueue { return this.approvals; }
   @action()
@@ -116,20 +116,21 @@ export class ChatService implements MessageStoreHost {
   approveToolCall(callId: string): void {
     this.approvals.resolve(callId, true);
     updateToolCallStatusEverywhere(this, callId, 'running');
-    this.runtime?.approveToolCall(callId);
+    this.sessionRuntime.getStreamingRuntime(this.runtime, this.backgroundSessionId)?.approveToolCall(callId);
   }
   @action()
   rejectToolCall(callId: string): void {
     this.approvals.resolve(callId, false);
     updateToolCallStatusEverywhere(this, callId, 'error');
-    this.runtime?.rejectToolCall(callId);
+    this.sessionRuntime.getStreamingRuntime(this.runtime, this.backgroundSessionId)?.rejectToolCall(callId);
   }
   @action()
   abort(): void {
-    this.runtime?.abort();
+    this.sessionRuntime.getStreamingRuntime(this.runtime, this.backgroundSessionId)?.abort();
     for (const callId of this.approvals.keys()) updateToolCallStatusEverywhere(this, callId, 'error');
     this.approvals.clear();
     const bgId = abortStreaming(this);
+    this.sessionRuntime.releaseBackgroundRuntime();
     this.streamingAssistantMsgId.current = null;
     if (bgId && bgId !== this.activeSessionId) this.onBackgroundStreamEnd?.(bgId);
   }
@@ -154,7 +155,7 @@ export class ChatService implements MessageStoreHost {
   getMessagesForSave(): DisplayMessage[] { return messagesForSave(this); }
   forcePrepareForSave(): DisplayMessage[] { return forceMessagesForSave(this); }
   @action()
-  async clearMessages(options?: LoadMessagesOptions): Promise<void> { this.sessionRuntime.clear(this.runtime); this.applyLoaded([], options); this.history.recordFromMessages([]); this.runtimeSessionId = this.activeSessionId; }
+  async clearMessages(options?: LoadMessagesOptions): Promise<void> { this.runtime = await this.sessionRuntime.clear(this.runtime, { activeSessionId: this.activeSessionId, backgroundSessionId: this.backgroundSessionId, runtimeSessionId: this.runtimeSessionId, config: this.runtimeConfig, platform: this.platform }); this.applyLoaded([], options); this.history.recordFromMessages([]); this.runtimeSessionId = this.activeSessionId; }
   @action()
   async loadMessages(messages: DisplayMessage[], options?: LoadMessagesOptions): Promise<void> {
     const loaded = prepareLoadedMessages(messages, options);
@@ -187,7 +188,7 @@ export class ChatService implements MessageStoreHost {
       {
         runtime: this.runtime, handler: this.handler, store: this,
         streamingAssistantMsgId: this.streamingAssistantMsgId,
-        onBackgroundStreamEnd: this.onBackgroundStreamEnd,
+        onBackgroundStreamEnd: (id) => { this.sessionRuntime.releaseBackgroundRuntime(); this.onBackgroundStreamEnd?.(id); },
         createDisplayMessage: (role, content) => this.createDisplayMessage(role, content),
       },
       userContent, images,

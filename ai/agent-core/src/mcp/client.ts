@@ -8,7 +8,7 @@ import type {
   MCPCapabilities,
   MCPServerInfo,
 } from './types';
-import type { ToolDefinition } from '../provider/types';
+import type { SvtonToolDefinition } from '../tool/types';
 import type { ToolCall, ToolResult, IToolExecutor } from '../tool/types';
 import {
   cloneMcpPrompts,
@@ -172,9 +172,9 @@ export class MCPClient {
   // ----------------------------------------------------------
 
   /**
-   * Convert MCP tools to ToolDefinition format for ToolRegistry.
+   * Convert MCP tools to SvtonToolDefinition format for ToolRegistry.
    */
-  toToolDefinitions(tools: MCPToolDefinition[]): ToolDefinition[] {
+  toToolDefinitions(tools: MCPToolDefinition[]): SvtonToolDefinition[] {
     return toToolDefinitions(tools, this.serverInfo?.name);
   }
 

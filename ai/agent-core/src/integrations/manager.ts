@@ -9,7 +9,7 @@
  */
 
 import type { IStorage } from '@svton/agent-platform';
-import type { ToolDefinition } from '../provider/types';
+import type { SvtonToolDefinition } from '../tool/types';
 import type { IToolExecutor } from '../tool/types';
 import {
   cloneIntegrationConfig,
@@ -111,8 +111,8 @@ export class IntegrationManager {
    * Resolve all tools from enabled integrations.
    * Returns tool definitions and their executors.
    */
-  resolveAllTools(): Array<{ definition: ToolDefinition; executor: IToolExecutor }> {
-    const tools: Array<{ definition: ToolDefinition; executor: IToolExecutor }> = [];
+  resolveAllTools(): Array<{ definition: SvtonToolDefinition; executor: IToolExecutor }> {
+    const tools: Array<{ definition: SvtonToolDefinition; executor: IToolExecutor }> = [];
 
     for (const [id, manifest] of this.manifests) {
       if (!this.isEnabled(id)) continue;

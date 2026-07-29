@@ -41,7 +41,7 @@ import {
   fauxThinking,
   type MockModelsHandle,
 } from './helpers';
-import type { ChatMessage } from '../src/provider/types';
+import type { ChatMessage } from '../src/tool/types';
 
 // ── Helpers ──────────────────────────────────────────────
 

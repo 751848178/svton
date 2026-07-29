@@ -10,13 +10,14 @@
  * one `agent.prompt()` invocation and translates the resulting events.
  */
 import type { Agent } from '@earendil-works/pi-agent-core';
+import type { UserMessage } from '@earendil-works/pi-ai';
 import type { ToolRegistry } from '../tool/registry';
 import type { HookManager } from '../hooks/manager';
 import type { SkillDefinition } from '../skill/types';
 import type { AutoReviewerManager } from '../auto-reviewer/manager';
 import type { SessionResumeManager } from '../checkpoint/manager';
 import type { IPlatform } from '@svton/agent-platform';
-import type { AgentEvent, ContentBlock, RunOptions } from './types';
+import type { AgentEvent, RunOptions } from './types';
 import type { ToolExecutionService } from './tool-executor';
 import { PiEventAdapter } from './pi-event-adapter';
 import type { ToolEventSink } from './pi-tool-adapter';
@@ -47,7 +48,7 @@ export interface RunDeps {
 /** Execute one user turn against the Pi Agent, yielding svton AgentEvents. */
 export async function* runOnce(
   deps: RunDeps,
-  userMessage: string | ContentBlock[],
+  userMessage: UserMessage['content'],
   options: RunOptions | undefined,
   doneEvent: (reason: string, usage?: unknown) => AgentEvent,
 ): AsyncGenerator<AgentEvent> {

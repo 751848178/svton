@@ -152,6 +152,43 @@ describe('MCPServer', () => {
         ],
       });
     });
+
+    it('preserves complete top-level and nested schema constraints', async () => {
+      const registry = new ToolRegistry();
+      const definition = makeToolDef('search');
+      definition.parameters = {
+        type: 'object',
+        additionalProperties: false,
+        minProperties: 1,
+        properties: {
+          filters: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              tags: {
+                type: 'array',
+                minItems: 1,
+                uniqueItems: true,
+                items: { type: 'string', minLength: 2 },
+              },
+            },
+          },
+        },
+        required: ['filters'],
+      };
+      await server.start(new MockTransport(), registry);
+      registry.register(definition, makeExecutor('done'));
+
+      const response = await server.handleRequest(makeRequest('tools/list'));
+
+      expect(response.result).toEqual({
+        tools: [{
+          name: 'search',
+          description: definition.description,
+          inputSchema: definition.parameters,
+        }],
+      });
+    });
   });
 
   // ----------------------------------------------------------

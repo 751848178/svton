@@ -41,6 +41,7 @@ describe('SubagentManager maxIterations propagation (Pi-backed child)', () => {
     const parentRuntime: IRuntime = {
       run: async function* () { yield { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } }; },
       getMessages: () => [],
+      reset: () => {},
       abort: () => {},
     };
     const manager = new SubagentManager(parentConfig, parentRuntime, createPlatform(), toolRegistry);
@@ -57,6 +58,7 @@ describe('SubagentManager maxIterations propagation (Pi-backed child)', () => {
     const parentRuntime: IRuntime = {
       run: async function* () { yield { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } }; },
       getMessages: () => [],
+      reset: () => {},
       abort: () => {},
     };
     const manager = new SubagentManager(parentConfig, parentRuntime, createPlatform(), toolRegistry);

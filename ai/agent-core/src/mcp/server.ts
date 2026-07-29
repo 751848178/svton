@@ -10,6 +10,7 @@ import type {
 import type { ToolRegistry } from '../tool/registry';
 import type { ToolCall, ToolResult as ToolCallResult } from '../tool/types';
 import { formatUnknownErrorMessage } from '../utils/error-message.utils';
+import { cloneMcpToolSchema } from './mcp-tool-schema.utils';
 
 /** Security-gated execution shape for inbound tool calls. Must be the same
  * `ToolExecutionService` the runtime uses so inbound MCP calls cannot bypass
@@ -149,7 +150,7 @@ export class MCPServer {
     return this.toolRegistry.listDefinitions().map((def) => ({
       name: def.name,
       description: def.description,
-      inputSchema: def.parameters,
+      inputSchema: cloneMcpToolSchema(def.parameters),
     }));
   }
 
@@ -193,5 +194,4 @@ export class MCPServer {
       isError,
     };
   }
-
 }

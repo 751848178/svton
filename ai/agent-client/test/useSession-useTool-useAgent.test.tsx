@@ -135,8 +135,8 @@ describe('useChat', () => {
     });
 
     await waitFor(() => expect(state?.chat.isStreaming).toBe(true));
-    act(() => {
-      state!.chat.clear();
+    await act(async () => {
+      await state!.chat.clear();
     });
 
     expect(abort).toHaveBeenCalled();

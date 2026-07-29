@@ -2,11 +2,11 @@
  * Chrome DOM interaction tools.
  */
 
-import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import type { SvtonToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { getCdpClient } from './chrome-cdp-client';
 import { formatChromeErrorMessage } from './chrome-error.utils';
 
-export const chromeClickDef: ToolDefinition = {
+export const chromeClickDef: SvtonToolDefinition = {
   name: 'chrome_click',
   description: 'Click an element in Chrome by CSS selector. Uses CDP DOM.dispatchEvent.',
   parameters: {
@@ -129,7 +129,7 @@ export class ChromeClickExecutor implements IToolExecutor {
   }
 }
 
-export const chromeTypeDef: ToolDefinition = {
+export const chromeTypeDef: SvtonToolDefinition = {
   name: 'chrome_type',
   description: 'Type text into the currently focused element in Chrome.',
   parameters: {

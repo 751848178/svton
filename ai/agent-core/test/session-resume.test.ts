@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SessionResumeManager } from '@svton/agent-core';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
+import type { UserMessage } from '@earendil-works/pi-ai';
 import type { IStorage } from '@svton/agent-platform';
-import type { ChatMessage, ReasoningEffort } from '@svton/agent-core';
+import type { ReasoningEffort } from '@svton/agent-core';
 
 // ==============================================================
 // Mock Helpers
@@ -39,7 +41,7 @@ class MockStorage implements IStorage {
  * setMessages(), setReasoningEffort(), and getModel() (PI003 replaced the
  * unsafe `(runtime as any).model` cast with a clean accessor).
  */
-function createMockRuntime(messages: ChatMessage[] = []) {
+function createMockRuntime(messages: AgentMessage[] = []) {
   let currentMessages = [...messages];
   let currentEffort: ReasoningEffort | undefined;
 
@@ -48,7 +50,10 @@ function createMockRuntime(messages: ChatMessage[] = []) {
     getModel: vi.fn(() => 'test-model'),
     getMessages: vi.fn(() => currentMessages),
     getReasoningEffort: vi.fn(() => currentEffort),
-    setMessages: vi.fn((msgs: ChatMessage[]) => {
+    reset: vi.fn(() => {
+      currentMessages = [];
+    }),
+    setMessages: vi.fn((msgs: AgentMessage[]) => {
       currentMessages = msgs;
     }),
     setReasoningEffort: vi.fn((effort: ReasoningEffort | undefined) => {
@@ -57,9 +62,80 @@ function createMockRuntime(messages: ChatMessage[] = []) {
   };
 }
 
-const sampleMessages: ChatMessage[] = [
-  { role: 'user', content: 'Hello' },
-  { role: 'assistant', content: 'Hi there' },
+const sampleUserMessage: UserMessage = {
+  role: 'user',
+  content: 'Hello',
+  timestamp: 1,
+};
+const sampleMessages: AgentMessage[] = [
+  sampleUserMessage,
+  {
+    role: 'assistant',
+    content: [
+      { type: 'text', text: 'Hi there', textSignature: 'text-signature' },
+      {
+        type: 'thinking',
+        thinking: 'private reasoning',
+        thinkingSignature: 'thinking-signature',
+        redacted: true,
+      },
+      {
+        type: 'toolCall',
+        id: 'call-1',
+        name: 'search',
+        arguments: { query: 'pi' },
+        thoughtSignature: 'tool-thought-signature',
+      },
+    ],
+    api: 'openai-completions',
+    provider: 'openai',
+    model: 'gpt-test',
+    responseModel: 'gpt-test-2026',
+    responseId: 'response-1',
+    usage: {
+      input: 11,
+      output: 12,
+      cacheRead: 13,
+      cacheWrite: 14,
+      totalTokens: 50,
+      cost: {
+        input: 1,
+        output: 2,
+        cacheRead: 3,
+        cacheWrite: 4,
+        total: 10,
+      },
+    },
+    stopReason: 'toolUse',
+    timestamp: 2,
+  },
+  {
+    role: 'toolResult',
+    toolCallId: 'call-1',
+    toolName: 'search',
+    content: [
+      { type: 'text', text: 'result', textSignature: 'result-signature' },
+      { type: 'image', data: 'base64-image', mimeType: 'image/png' },
+    ],
+    details: { source: 'fixture', nested: { preserved: true } },
+    usage: {
+      input: 1,
+      output: 2,
+      cacheRead: 3,
+      cacheWrite: 4,
+      totalTokens: 10,
+      cost: {
+        input: 0.1,
+        output: 0.2,
+        cacheRead: 0.3,
+        cacheWrite: 0.4,
+        total: 1,
+      },
+    },
+    addedToolNames: ['follow_up'],
+    isError: false,
+    timestamp: 3,
+  },
 ];
 
 // ==============================================================
@@ -88,7 +164,7 @@ describe('F2 — Session Resume (SessionResumeManager)', () => {
       expect(raw).not.toBeNull();
 
       const parsed = JSON.parse(raw!);
-      expect(parsed.messages).toEqual(sampleMessages);
+      expect(parsed.messages).toStrictEqual(sampleMessages);
       expect(parsed.model).toBe('test-model');
       expect(typeof parsed.updatedAt).toBe('number');
     });
@@ -127,7 +203,7 @@ describe('F2 — Session Resume (SessionResumeManager)', () => {
       const state = await manager.load('sess-load');
 
       expect(state).not.toBeNull();
-      expect(state!.messages).toEqual(sampleMessages);
+      expect(state!.messages).toStrictEqual(sampleMessages);
       expect(state!.model).toBe('test-model');
     });
 
@@ -148,6 +224,7 @@ describe('F2 — Session Resume (SessionResumeManager)', () => {
       const ok = await manager.restore('sess-restore', runtime as any);
 
       expect(ok).toBe(true);
+      expect(runtime.reset).toHaveBeenCalledOnce();
       expect(runtime.setMessages).toHaveBeenCalledWith(sampleMessages);
     });
 
@@ -200,8 +277,16 @@ describe('F2 — Session Resume (SessionResumeManager)', () => {
   // ----------------------------------------------------------
   describe('listAll()', () => {
     it('returns metadata for all checkpoints sorted newest first', async () => {
-      const rt1 = createMockRuntime([{ role: 'user', content: 'a' }]);
-      const rt2 = createMockRuntime([{ role: 'user', content: 'b' }]);
+      const rt1 = createMockRuntime([{
+        role: 'user',
+        content: 'a',
+        timestamp: 1,
+      }]);
+      const rt2 = createMockRuntime([{
+        role: 'user',
+        content: 'b',
+        timestamp: 2,
+      }]);
 
       await manager.checkpoint('sess-a', rt1 as any);
       // Small delay so updatedAt differs
@@ -232,7 +317,7 @@ describe('F2 — Session Resume (SessionResumeManager)', () => {
 
       expect(meta).not.toBeNull();
       expect(meta!.sessionId).toBe('sess-meta');
-      expect(meta!.messageCount).toBe(2);
+      expect(meta!.messageCount).toBe(3);
       expect(meta!.model).toBe('test-model');
     });
 

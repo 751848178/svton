@@ -1,9 +1,9 @@
 /** Pi owns loop, canonical messages, and tool scheduling; this class wires
  * svton capabilities around it (Arch §3, §7.2). Supporting responsibilities
- * live in runtime-*, approval-gate, compactor, and message-bridge modules. */
+ * live in runtime-*, approval-gate, compactor, and boundary utility modules. */
 import { Agent, type AgentMessage } from '@earendil-works/pi-agent-core';
-import type { Models, Model } from '@earendil-works/pi-ai';
-import type { ChatMessage, ContentBlock, ReasoningEffort, TokenUsage } from '../provider/types';
+import type { Models, Model, UserMessage } from '@earendil-works/pi-ai';
+import type { ReasoningEffort, TokenUsage } from '../provider/types';
 import type { ToolRegistry } from '../tool/registry';
 import type { PermissionManager } from '../permission/manager';
 import type { HookManager } from '../hooks/manager';
@@ -21,7 +21,6 @@ import type { AutoReviewerManager } from '../auto-reviewer/manager';
 import type { AgentDefinitionManager } from '../agent-definition/manager';
 import { ToolExecutionService } from './tool-executor';
 import { logger } from '../utils/logger';
-import { toAgentMessages, toChatMessages } from './message-bridge';
 import { SvtonCompactor } from './svton-compactor';
 import { ApprovalGate } from './approval-gate';
 import type { ToolEventSink } from './pi-tool-adapter';
@@ -100,7 +99,7 @@ export class SvtonAgentRuntime implements IRuntime {
     rt.agent.state.systemPrompt = rt.systemPrompt;
     return rt;
   }
-  async *run(userMessage: string | ContentBlock[], options?: RunOptions): AsyncGenerator<AgentEvent> {
+  async *run(userMessage: UserMessage['content'], options?: RunOptions): AsyncGenerator<AgentEvent> {
     yield* runOnce({
       agent: this.agent, toolRegistry: this.toolRegistry, toolExecService: this.toolExecService,
       hookManager: this.hookManager, platform: this.platform, workingDir: this.workingDir,
@@ -115,8 +114,9 @@ export class SvtonAgentRuntime implements IRuntime {
   approveToolCall(callId: string): void { this.approvalGate.approveToolCall(callId); }
   rejectToolCall(callId: string): void { this.approvalGate.rejectToolCall(callId); }
   abort(): void { this.agent.abort(); this.approvalGate.abortPending(); }
-  getMessages(): ChatMessage[] { return toChatMessages(this.agent.state.messages); }
-  setMessages(messages: ChatMessage[]): void { this.agent.state.messages = toAgentMessages(messages); }
+  getMessages(): AgentMessage[] { return [...this.agent.state.messages]; }
+  setMessages(messages: AgentMessage[]): void { this.agent.state.messages = [...messages]; }
+  reset(): void { this.agent.reset(); this.approvalGate.abortPending(); this.activeSkills = []; this.currentToolSink = null; }
   getCanonicalMessages(): AgentMessage[] { return [...this.agent.state.messages]; }
   rollbackCanonicalMessages(index: number): void {
     if (!Number.isInteger(index) || index < 0 || index > this.agent.state.messages.length) throw new RangeError(`Invalid canonical message index: ${index}`);

@@ -2,6 +2,7 @@
  * MCP (Model Context Protocol) types.
  * Based on the MCP specification - JSON-RPC based protocol.
  */
+import type { SvtonToolParameters } from '../tool/types';
 
 // ============================================================
 // JSON-RPC
@@ -34,11 +35,7 @@ export type JSONRPCMessage = JSONRPCRequest | JSONRPCResponse;
 export interface MCPToolDefinition {
   name: string;
   description?: string;
-  inputSchema: {
-    type: 'object';
-    properties?: Record<string, unknown>;
-    required?: string[];
-  };
+  inputSchema: SvtonToolParameters;
 }
 
 export interface MCPResource {

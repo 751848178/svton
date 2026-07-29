@@ -2,23 +2,20 @@
  * Agent runtime type definitions.
  */
 
-import type { ChatMessage, TokenUsage, ToolDefinition, ContentBlock, ReasoningEffort } from '../provider/types';
+import type { TokenUsage, ReasoningEffort } from '../provider/types';
 import type { ToolCall, ToolResult } from '../tool/types';
-import type { Models, Model } from '@earendil-works/pi-ai';
-
-// Re-export `ContentBlock` so runtime modules can import it from this barrel.
-// (`IRuntime.run` accepts `string | ContentBlock[]`; capability/run modules
-// need the same type for run input normalization.)
-export type { ContentBlock };
+import type { Models, Model, UserMessage } from '@earendil-works/pi-ai';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
 
 // ============================================================
 // IRuntime — interface to break circular deps (agent ↔ subagent)
 // ============================================================
 
 export interface IRuntime {
-  run(userMessage: string | ContentBlock[], options?: RunOptions): AsyncGenerator<AgentEvent>;
-  getMessages(): ChatMessage[];
-  setMessages?(messages: ChatMessage[]): void;
+  run(userMessage: UserMessage['content'], options?: RunOptions): AsyncGenerator<AgentEvent>;
+  getMessages(): AgentMessage[];
+  setMessages?(messages: AgentMessage[]): void;
+  reset(): void;
   abort(): void;
 }
 
@@ -114,8 +111,8 @@ export interface AgentConfig {
   model: string;
   toolRegistry: import('../tool/registry').ToolRegistry;
   systemPrompt?: string;
-  /** Initial transcript (svton ChatMessage[]) seeded into Pi's state. */
-  initialMessages?: ChatMessage[];
+  /** Initial canonical Pi transcript. */
+  initialMessages?: AgentMessage[];
   contextConfig?: Partial<ContextConfig>;
   maxIterations?: number;
   workingDir?: string;

@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { Agent } from '@earendil-works/pi-agent-core';
 import { SvtonAgentRuntime } from '../src/agent/svton-agent-runtime';
 import { ToolRegistry } from '../src/tool/registry';
 import { PermissionManager } from '../src/permission/manager';
@@ -20,9 +21,9 @@ import type {
   IToolExecutor,
 } from '../src/tool/types';
 import type { IPlatform } from '@svton/agent-platform';
-import type { ToolDefinition } from '../src/provider/types';
+import type { SvtonToolDefinition } from '../src/tool/types';
 
-const testToolDef: ToolDefinition = {
+const testToolDef: SvtonToolDefinition = {
   name: 'test_tool',
   description: 'A test tool',
   parameters: {
@@ -137,8 +138,12 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
 
       const userMsg = messages.find((m) => m.role === 'user');
       expect(userMsg).toBeDefined();
-      const toolMsg = messages.find((m) => m.role === 'tool');
+      const toolMsg = messages.find((m) => m.role === 'toolResult');
       expect(toolMsg).toBeDefined();
+      if (toolMsg?.role === 'toolResult') {
+        expect(toolMsg.toolName).toBe('test_tool');
+        expect(toolMsg.isError).toBe(false);
+      }
       const assistantMsg = messages.filter((m) => m.role === 'assistant');
       expect(assistantMsg.length).toBeGreaterThanOrEqual(1);
     });
@@ -349,6 +354,18 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
   // 9. Edge cases
   // ----------------------------------------------------------
   describe('edge cases', () => {
+    it('resets canonical and Pi-owned transient state through Agent.reset()', () => {
+      const reset = vi.spyOn(Agent.prototype, 'reset');
+      const { runtime } = createRuntime();
+      runtime.setMessages([{ role: 'user', content: 'stale', timestamp: 1 }]);
+
+      runtime.reset();
+
+      expect(reset).toHaveBeenCalledOnce();
+      expect(runtime.getMessages()).toEqual([]);
+      reset.mockRestore();
+    });
+
     it('passes the user message to context', async () => {
       const { runtime, mock } = createRuntime();
       mock.addResponse(fauxAssistantMessage([fauxText('Reply')]));

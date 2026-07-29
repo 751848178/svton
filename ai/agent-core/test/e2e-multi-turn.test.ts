@@ -19,7 +19,7 @@ import {
   type MockModelsHandle,
 } from './helpers';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../src/tool/types';
-import type { ChatMessage } from '../src/provider/types';
+import type { ChatMessage } from '../src/tool/types';
 
 function makeExecutor(output: string): { executor: IToolExecutor; calls: ToolCall[] } {
   const calls: ToolCall[] = [];

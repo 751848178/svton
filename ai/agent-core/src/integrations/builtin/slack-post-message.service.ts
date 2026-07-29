@@ -1,9 +1,9 @@
-import type { ToolAnnotations, ToolDefinition } from '../../provider/types';
+import type { SvtonToolAnnotations, SvtonToolDefinition } from '../../tool/types';
 import type { IToolExecutor, ToolCall, ToolContext, ToolResult } from '../../tool/types';
 import { formatUnknownErrorMessage } from '../../utils/error-message.utils';
 import { SLACK_API_BASE } from './slack.constants';
 
-export const slackPostMessageDef: ToolDefinition = {
+export const slackPostMessageDef: SvtonToolDefinition = {
   name: 'slack_post_message',
   description: 'Post a message to a Slack channel or DM.',
   parameters: {
@@ -25,7 +25,7 @@ export const slackPostMessageDef: ToolDefinition = {
     destructiveHint: false,
     idempotentHint: false,
     openWorldHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class SlackPostMessageExecutor implements IToolExecutor {

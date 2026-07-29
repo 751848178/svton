@@ -1,9 +1,9 @@
-import type { ToolAnnotations, ToolDefinition } from '../../provider/types';
+import type { SvtonToolAnnotations, SvtonToolDefinition } from '../../tool/types';
 import type { IToolExecutor, ToolCall, ToolContext, ToolResult } from '../../tool/types';
 import { formatUnknownErrorMessage } from '../../utils/error-message.utils';
 import { SLACK_API_BASE } from './slack.constants';
 
-export const slackSearchDef: ToolDefinition = {
+export const slackSearchDef: SvtonToolDefinition = {
   name: 'slack_search',
   description:
     'Search messages in Slack. Returns matching messages with channel, author, timestamp, and text.',
@@ -28,7 +28,7 @@ export const slackSearchDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     openWorldHint: true,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class SlackSearchExecutor implements IToolExecutor {

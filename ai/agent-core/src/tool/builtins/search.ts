@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatUnknownErrorMessage } from './error-message.utils';
 import { resolveToolPath } from './path-resolution.utils';
@@ -8,7 +8,7 @@ import { formatGlobResults, formatGrepResults, globRequestMetadata, grepRequestM
 // grep
 // ============================================================
 
-export const grepDef: ToolDefinition = {
+export const grepDef: SvtonToolDefinition = {
   name: 'grep',
   description:
     'Search file contents using a regular expression pattern. Returns matching lines with file paths and line numbers.',
@@ -41,7 +41,7 @@ export const grepDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class GrepExecutor implements IToolExecutor {
@@ -119,7 +119,7 @@ export class GrepExecutor implements IToolExecutor {
 // glob
 // ============================================================
 
-export const globDef: ToolDefinition = {
+export const globDef: SvtonToolDefinition = {
   name: 'glob',
   description:
     'Find files matching a glob pattern. Returns sorted file paths.',
@@ -140,7 +140,7 @@ export const globDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class GlobExecutor implements IToolExecutor {

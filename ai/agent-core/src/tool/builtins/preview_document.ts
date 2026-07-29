@@ -5,14 +5,14 @@
  * into images/structured data that the UI can display.
  */
 
-import type { ToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
+import type { SvtonToolDefinition, ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import { formatUnknownErrorMessage } from './error-message.utils';
 
 const DOCUMENT_TYPES = ['pdf', 'excel', 'pptx'] as const;
 
 type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
-export const previewDocumentDef: ToolDefinition = {
+export const previewDocumentDef: SvtonToolDefinition = {
   name: 'preview_document',
   description:
     'Preview a document file (PDF, Excel, PowerPoint) by rendering it to images. ' +

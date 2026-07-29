@@ -6,16 +6,14 @@
  */
 
 import type {
-  ContentBlock,
   ContextConfig,
   HookEvent,
   HookHandler,
   ModelInfo,
   PermissionMode,
   SkillDefinition,
-  ToolAnnotations,
+  SvtonToolDefinition,
   ToolContext,
-  ToolParameterSchema,
   WebSearchConfig,
 } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
@@ -41,18 +39,10 @@ export interface ProviderConfig {
 // User Tool Definition
 // ============================================================
 
-export interface UserToolDefinition {
-  /** Tool name (must be unique) */
-  name: string;
-  /** Description for the LLM to understand when to use this tool */
-  description: string;
-  /** JSON Schema parameters */
-  parameters: ToolParameterSchema;
+export type UserToolDefinition = SvtonToolDefinition & {
   /** Execution function — receives parsed args and context, returns string output */
   execute: (args: Record<string, unknown>, context: ToolContext) => Promise<string>;
-  /** Optional hints about the tool's behavior */
-  annotations?: ToolAnnotations;
-}
+};
 
 // ============================================================
 // MCP Server Config

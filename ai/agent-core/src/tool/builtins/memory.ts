@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolAnnotations } from '../../provider/types';
+import type { SvtonToolDefinition, SvtonToolAnnotations } from '../types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../types';
 import type { MemoryManager } from '../../memory/manager';
 import { formatUnknownErrorMessage } from './error-message.utils';
@@ -7,7 +7,7 @@ import { formatUnknownErrorMessage } from './error-message.utils';
 // memory_save
 // ============================================================
 
-export const memorySaveDef: ToolDefinition = {
+export const memorySaveDef: SvtonToolDefinition = {
   name: 'memory_save',
   description:
     'Save a piece of information to long-term memory. Use this to remember user preferences, important facts, or context that should persist across conversations. Saved memories are automatically included in future conversations.',
@@ -28,7 +28,7 @@ export const memorySaveDef: ToolDefinition = {
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class MemorySaveExecutor implements IToolExecutor {
@@ -80,7 +80,7 @@ export class MemorySaveExecutor implements IToolExecutor {
 // memory_recall
 // ============================================================
 
-export const memoryRecallDef: ToolDefinition = {
+export const memoryRecallDef: SvtonToolDefinition = {
   name: 'memory_recall',
   description:
     'Recall information from long-term memory. Returns all saved memories, optionally filtered by keyword.',
@@ -101,7 +101,7 @@ export const memoryRecallDef: ToolDefinition = {
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
-  } satisfies ToolAnnotations,
+  } satisfies SvtonToolAnnotations,
 };
 
 export class MemoryRecallExecutor implements IToolExecutor {

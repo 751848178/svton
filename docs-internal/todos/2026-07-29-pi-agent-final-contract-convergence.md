@@ -71,11 +71,14 @@ security metadata and product/session boundaries.
 
 | ID | Status | Atomic TODO | Acceptance |
 | --- | --- | --- | --- |
-| PC001.1 | pending | Change Runtime/config/lifecycle/checkpoint/subagent seams to Pi `AgentMessage[]`. | No Core canonical `ChatMessage` or `ContentBlock`. |
-| PC001.2 | pending | Replace bidirectional Core message bridges with one named Client/Session boundary conversion. | No system-to-user coercion; Retry/Edit/Clear/restore mutate canonical Pi state. |
-| PC001.3 | pending | Replace duplicated base `ToolDefinition` with Pi `AgentTool` plus explicit Svton annotations/metadata. | Pi owns schema and `executionMode`; security pipeline is unchanged. |
-| PC001.4 | pending | Update immediate Core/Client/SDK call sites and targeted tests without a temporary compatibility export. | Message/tool/state and security tests pass. |
-| PC001.5 | pending | Independently review contract direction, unsafe casts and capability preservation; fix findings. | Review has no unresolved P0/P1/P2 finding. |
+| PC001.1 | done | Change Runtime/config/lifecycle/checkpoint/subagent seams to Pi `AgentMessage[]`. | Core runtime, lifecycle, checkpoint and subagent seams now use Pi canonical messages; the Core message bridge and custom provider message/content types were deleted. |
+| PC001.2 | done | Replace bidirectional Core message bridges with one named Client/Session boundary conversion. | `pi-message-display-boundary.utils.ts` is the single Pi-to-display projection; missing/stale checkpoints clear canonical runtime state instead of synthesizing or coercing messages. |
+| PC001.3 | done | Replace duplicated base `ToolDefinition` with Pi `AgentTool` plus explicit Svton annotations/metadata. | `SvtonToolDefinition` extends Pi ownership only with Svton metadata/annotations; the adapter preserves Pi schema and `executionMode` while routing execution through the existing security service. |
+| PC001.4 | done | Update immediate Core/Client/SDK call sites and targeted tests without a temporary compatibility export. | V3 focused verification is green: Client session/background tests 126/126, SDK create-agent tests 4/4 and Core runtime/resume tests 33/33. Client strict, SDK type-check and all three package builds pass. |
+| PC001.5 | done | Independently review contract direction, unsafe casts and capability preservation; fix findings. | Four review/fix rounds completed; two final reviewers approved v4 with no unresolved P0/P1/P2 finding, and the independent Client rerun passed 91/91. |
+| PC001.6 | done | Isolate an active background session runtime from create/clear/switch operations on another session. | A live session A keeps its captured Pi runtime until settlement; session B receives a fresh empty runtime, and controls route to the current stream owner. Abort releases A only after routing its abort, so a subsequent B stream cannot route approval/rejection/abort to stale A. Both active-stream regressions pass. |
+| PC001.7 | done | Split SDK agent creation into focused runtime-config, MCP and public composition units. | `create-agent.ts` is 33 lines; its runtime-config service is 177 lines, MCP service 50 lines and types 14 lines. Existing public API and create-agent behavior remain green. |
+| PC001.8 | done | Split the Core root entrypoint into focused public contract barrels. | The root entrypoint is 10 lines; every public barrel is under 100 lines, dependency direction is root to public barrel to domain, and the built runtime export set is exactly unchanged at 129 exports. |
 
 ### PC002. Native Pi Event Protocol
 
@@ -215,3 +218,32 @@ verified local desktop artifact without changing remote state.
 
 - 2026-07-29 23:50: PC000 completed. Reopened final architecture acceptance,
   recorded the 14-error strict baseline and created PC001–PC005 atomic work.
+- 2026-07-30 00:00: Started PC001 as the only active write slice.
+- 2026-07-30 00:28: PC001.1-PC001.4 implementation and focused verification reached
+  `needs-review`; PC001.5 remains pending for the independent review slice. Core strict
+  checking has only the 14 PC000 baseline errors reserved for later convergence work.
+- 2026-07-30: Started the confirmed PC001 review-finding repair as the only active
+  writer. Routing: existing long-goal slice + manual code graph (CodeGraph is not
+  initialized) + isolated final verification; no new planning document or worker.
+- 2026-07-30: Reached `needs-review v2` after fixing all confirmed PC001 findings.
+  PC001.5 remains pending. Core strict checking still has exactly the 14 PC000
+  baseline errors. The independent reviewer should rerun the two final
+  canonical-empty Client assertions and review the recorded follow-up split plan
+  for the two pre-existing oversized touched entrypoints.
+- 2026-07-30: Reached `needs-review v3` after closing the background-runtime
+  ownership P1 and completing the required SDK/Core structural splits. The live
+  A-stream/create-clear-switch-B regression passes, Core exports match exactly
+  at 129, Client/SDK/Core focused tests and builds pass, Client/SDK strict gates
+  pass, and Core strict checking remains bounded to the exact 14-error PC000
+  baseline. PC001.5 remains pending for the independent final review.
+- 2026-07-30: Reached `needs-review v4` after making abort teardown release the
+  detached background runtime after abort routing. A typed regression proves a
+  subsequent active B stream receives approval, rejection and abort controls
+  while stale A receives none. The affected Client test passes 91/91, Client
+  strict/build and diff checks pass, and the new background-runtime test hunks
+  contain no `any`, `as unknown as`, double cast or type suppression.
+- 2026-07-30: PC001 independently approved with no remaining P0-P2 findings.
+  The final independent Client rerun passed 91/91; lockfile, MCP schema,
+  explicit-only parallel mode, security routing, canonical reset/restore,
+  background runtime ownership and all touched production line limits are
+  verified.

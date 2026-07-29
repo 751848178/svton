@@ -63,17 +63,37 @@ export async function recreateRuntime(
   const snapshot = snapshotRuntimeMessages(previousRuntime);
   await bindings.attachHistory();
 
-  const runtime = await AgentRuntime.createAsync(bindings.config, bindings.platform);
-  await wireSubagentManager(bindings.config, runtime, bindings.platform);
-
-  // Apply an initial reasoning effort (config.reasoningEffort) so the Pi
-  // Agent's thinkingLevel reflects the desired config at creation time.
-  if (bindings.config.reasoningEffort !== undefined) {
-    runtime.setReasoningEffort(bindings.config.reasoningEffort);
-  }
+  const runtime = await createConfiguredRuntime(bindings.config, bindings.platform);
 
   if (snapshot) reseedRuntimeFromSnapshot(runtime, snapshot);
   return { runtime, snapshotApplied: snapshot !== null };
+}
+
+/** Create a transcript-empty runtime while a prior runtime finishes in background. */
+export async function createIsolatedRuntime(
+  config: AgentConfig,
+  platform: IPlatform,
+): Promise<AgentRuntime> {
+  const isolatedConfig: AgentConfig = {
+    ...config,
+    capabilities: config.capabilities
+      ? { ...config.capabilities, subagentManager: undefined }
+      : undefined,
+    initialMessages: [],
+  };
+  return createConfiguredRuntime(isolatedConfig, platform);
+}
+
+async function createConfiguredRuntime(
+  config: AgentConfig,
+  platform: IPlatform,
+): Promise<AgentRuntime> {
+  const runtime = await AgentRuntime.createAsync(config, platform);
+  await wireSubagentManager(config, runtime, platform);
+  if (config.reasoningEffort !== undefined) {
+    runtime.setReasoningEffort(config.reasoningEffort);
+  }
+  return runtime;
 }
 
 /** Register the subagent_spawn + csv_fanout tools backed by a SubagentManager. */
