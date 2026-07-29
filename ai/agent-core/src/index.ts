@@ -5,12 +5,13 @@
  * Framework-agnostic, runs in browser, Electron, or Taro.
  */
 
-// Provider (LLM abstraction)
+// Provider-facing shared types. PI002/PI003 deleted the IProvider
+// implementations and the IProvider/StreamEvent/ChatOptions provider contract —
+// Pi Agent calls models.streamSimple directly and emits the AgentEvent union.
+// The types below remain because svton's event protocol, message bridge, tool
+// registry and UI model catalog still consume them.
 export type {
-  IProvider,
   ChatMessage,
-  ChatOptions,
-  StreamEvent,
   TokenUsage,
   ModelInfo,
   ToolDefinition,
@@ -21,11 +22,9 @@ export type {
   ImageContent,
   ToolUseContent,
   ToolResultContent,
+  ReasoningContent,
   ReasoningEffort,
 } from './provider/types';
-
-export { OpenAIProvider } from './provider/openai';
-export { AnthropicProvider } from './provider/anthropic';
 
 // Tool system
 export type {
@@ -116,7 +115,9 @@ export {
   PreviewDocumentExecutor,
 } from './tool/builtins';
 
-// Agent runtime
+// Agent runtime. PI003: the hand-written ReAct loop is replaced by
+// SvtonAgentRuntime (composition root over pi-agent-core Agent). The legacy
+// `AgentRuntime` symbol is aliased to SvtonAgentRuntime for back-compat.
 export type {
   AgentEvent,
   AgentMode,
@@ -131,8 +132,9 @@ export type {
 
 export type { WebSearchConfig, WebSearchProvider } from './tool/builtins/web';
 
-export { AgentRuntime } from './agent/runtime';
-export { ContextManager } from './agent/context';
+export { SvtonAgentRuntime } from './agent/svton-agent-runtime';
+export { AgentRuntime } from './agent/agent-runtime-alias';
+export { resolveModelById, reasoningToThinkingLevel } from './agent/runtime-helpers';
 
 // Prompt management
 export type { PromptTemplate, PromptVariable } from './prompt/types';
@@ -305,3 +307,29 @@ export { countTokens } from './utils/token';
 // Time + id abstractions (injectable for deterministic tests)
 export type { IClock, IIdGenerator } from './utils/clock';
 export { SYSTEM_CLOCK, RANDOM_ID_GENERATOR, FakeClock, SequentialIdGenerator } from './utils/clock';
+
+// Pi foundation (canonical model/message/tool types + models factory +
+// credential-store boundary). PI003 deleted the temporary IProvider bridge —
+// use createPiModelsForProvider to build a Models collection for a provider.
+export {
+  createPiModels,
+  SvtonPiCredentialStore,
+  createPiModelsForProvider,
+  resolveModel,
+  synthesizePiModel as synthesizePiModelFromOptions,
+  DEFAULT_BASE_URL,
+  FAMILY_API,
+} from './pi';
+export type {
+  Agent,
+  AgentLoopConfig,
+  AgentMessage,
+  AgentTool,
+  Context,
+  CredentialStore,
+  Model,
+  Tool,
+  CreatePiModelsOptions,
+  PiModelsHandle,
+  PiProviderFamily,
+} from './pi';

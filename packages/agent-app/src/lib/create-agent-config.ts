@@ -5,8 +5,7 @@
 
 import {
   ToolRegistry,
-  OpenAIProvider,
-  AnthropicProvider,
+  createPiModelsForProvider,
   webFetchDef,
   WebFetchExecutor,
   webSearchDef,
@@ -141,12 +140,15 @@ export async function createAgentConfig(opts: CreateAgentConfigOptions): Promise
   // Build model infos
   const modelInfos = providerCfg.models.map(toModelInfo);
 
-  // Create provider
-  const provider = providerCfg.provider
-    ?? providerCfg.createProvider?.(providerCfg, modelInfos)
-    ?? (providerCfg.type === 'anthropic'
-      ? new AnthropicProvider({ baseUrl: providerCfg.baseUrl || undefined, apiKey: providerCfg.apiKey || '', models: modelInfos })
-      : new OpenAIProvider({ name: providerCfg.name || providerCfg.type, baseUrl: providerCfg.baseUrl || 'https://api.openai.com', apiKey: providerCfg.apiKey || '', models: modelInfos }));
+  // PI003: build a pi-ai Models collection + resolve the model. The deleted
+  // OpenAIProvider/AnthropicProvider are replaced by createPiModelsForProvider.
+  const family = providerCfg.type === 'anthropic' ? 'anthropic' : 'openai';
+  const { models, model: piModel } = createPiModelsForProvider(selectedModel, {
+    family,
+    apiKey: providerCfg.apiKey || undefined,
+    baseUrl: providerCfg.baseUrl || undefined,
+    models: modelInfos,
+  });
 
   // ── Tool Registry ──
   const toolRegistry = new ToolRegistry();
@@ -370,7 +372,8 @@ export async function createAgentConfig(opts: CreateAgentConfigOptions): Promise
   const customInstructions = loadString(appStorage, STORAGE_KEYS.customInstructions);
 
   return {
-    provider,
+    models,
+    piModel,
     model: selectedModel,
     toolRegistry,
     workingDir,

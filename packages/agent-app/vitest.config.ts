@@ -19,6 +19,7 @@ export default defineConfig({
       '@svton/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
       '@svton/hooks': path.resolve(__dirname, '../../packages/hooks/src/index.ts'),
       '@tauri-apps/api/core': path.resolve(__dirname, 'test/stubs/tauri-core.ts'),
+      '@tauri-apps/api/event': path.resolve(__dirname, 'test/stubs/tauri-event.ts'),
     },
   },
   test: {

@@ -1,98 +1,84 @@
-# Provider(LLM 提供商)
+# Provider 与模型配置(LLM 层)
 
-> 统一的 `IProvider` 接口抽象不同 LLM 服务商（OpenAI / Anthropic），支持流式输出、工具调用与扩展思考。
+> 自 Pi Agent 迁移起,svton 不再自己实现 OpenAI/Anthropic 的 wire 协议。LLM
+> 的 **provider 注册、模型分发、流式生成、工具调用与扩展思考** 全部由
+> [`@earendil-works/pi-ai`](https://github.com/earendil-works/pi/blob/main/packages/ai/README.md)
+> 提供;svton 只负责凭证边界与 UI 模型目录。
 
-`@svton/agent-core` 通过统一的 `IProvider` 接口抽象不同的 LLM 服务商,目前内置支持:
+## 架构分层
 
-- **OpenAIProvider** — 兼容所有 OpenAI Chat Completions 格式的服务(OpenAI、Azure OpenAI、Ollama、vLLM、DeepSeek 等)。
-- **AnthropicProvider** — Anthropic Claude 系列,支持流式、工具调用和扩展思考(extended thinking)。
+```
+┌─────────────────────────────────────────────┐
+│  应用层(agent-app / agent-web / desktop)    │
+│  ProviderConfig + ModelInfo → createPiModels │
+└───────────────────┬─────────────────────────┘
+                    │ createPiModelsForProvider()
+┌───────────────────▼─────────────────────────┐
+│  @svton/agent-core                          │
+│  SvtonPiCredentialStore(凭证边界)           │
+│  createPiModelsForProvider → Models + Model │
+└───────────────────┬─────────────────────────┘
+                    │ Models.streamSimple
+┌───────────────────▼─────────────────────────┐
+│  @earendil-works/pi-agent-core (Agent 循环) │
+│  Agent.run() → 调度工具、续轮、终止         │
+└───────────────────┬─────────────────────────┘
+                    │
+┌───────────────────▼─────────────────────────┐
+│  @earendil-works/pi-ai (provider/model 层)  │
+│  openaiProvider / anthropicProvider         │
+│  SSE/JSON 解析、鉴权、reasoning 映射        │
+└─────────────────────────────────────────────┘
+```
 
-## 快速使用
+关键点:
 
-<Demo name="provider-config" :height="500" />
+- **svton 不再有 `IProvider` 接口**——历史里的 `OpenAIProvider`/`AnthropicProvider`
+  类、`StreamEvent`/`ChatOptions` 类型已在 PI002/PI003 删除。运行时通过
+  pi-ai 的 `Models` 对象直接调用。
+- **凭证隔离**:`SvtonPiCredentialStore` 在 `agent-core` 与上游凭证存储之间
+  划一条边界,API key 在请求级别透传(`AuthResolutionOverrides.apiKey`),
+  不依赖 pi-ai 的环境变量回退。
+- **自定义端点**:DeepSeek、Ollama、vLLM、Azure 等 OpenAI 兼容端点通过
+  合成的 `Model` 对象携带 `baseUrl` 路由,无需改动 pi-ai 目录。
+
+## createPiModelsForProvider
+
+构建一个 pi-ai `Models` 集合(注册 OpenAI 或 Anthropic provider),挂载凭证
+存储,并解析/合成给定模型 id 对应的 pi-ai `Model`:
 
 ```typescript
-import { OpenAIProvider } from '@svton/agent-core';
+import { createPiModelsForProvider } from '@svton/agent-core';
 
-const provider = new OpenAIProvider({
-  baseUrl: 'https://api.openai.com/v1',
+const { models, model } = createPiModelsForProvider('gpt-4o', {
+  family: 'openai',
   apiKey: process.env.OPENAI_API_KEY!,
-  models: [{ id: 'gpt-4o', name: 'GPT-4o', contextWindow: 128000 }],
+  baseUrl: 'https://api.openai.com/v1',   // 可选;DeepSeek/Ollama 换成对应地址
+  models: [                                // svton UI 模型目录(可选,用于能力提示)
+    { id: 'gpt-4o', name: 'GPT-4o', contextWindow: 128000, supportsToolUse: true, supportsVision: true },
+  ],
 });
 
-for await (const event of provider.chat(messages, { model: 'gpt-4o' })) {
-  if (event.type === 'text') process.stdout.write(event.text);
+// models 喂给 AgentConfig.models,model 喂给 AgentConfig.piModel
+```
+
+### CreatePiModelsOptions
+
+```typescript
+interface CreatePiModelsOptions {
+  family: 'openai' | 'anthropic';
+  apiKey?: string;
+  baseUrl?: string;
+  models?: ModelInfo[];   // svton UI 模型目录
+  piProvider?: Provider;  // 测试注入:fauxProvider(...) 脚本化响应,无网络无真实 key
 }
 ```
 
-## IProvider 接口
+## ModelInfo(svton UI 模型目录)
 
-所有 Provider 都实现以下接口:
-
-```typescript
-interface IProvider {
-  readonly name: string;
-  readonly models: ModelInfo[];
-
-  chat(
-    messages: ChatMessage[],
-    options: ChatOptions,
-  ): AsyncGenerator<StreamEvent>;
-
-  countTokens(text: string): number;
-  supportsToolUse(model: string): boolean;
-  supportsVision(model: string): boolean;
-}
-```
-
-### ChatMessage
-
-```typescript
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | ContentBlock[];
-}
-
-type ContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'image'; data: string; mimeType?: string }
-  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
-  | { type: 'tool_result'; toolUseId: string; output: string; isError?: boolean }
-  | { type: 'reasoning'; text: string };
-```
-
-### ChatOptions
-
-```typescript
-interface ChatOptions {
-  model: string;
-  temperature?: number;
-  maxTokens?: number;
-  tools?: ToolDefinition[];
-  stream?: boolean;             // 默认 true
-  systemPrompt?: string;
-  signal?: AbortSignal;
-  thinkingBudget?: number;      // Anthropic 扩展思考预算
-  reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
-}
-```
-
-### StreamEvent
-
-`chat()` 返回 `AsyncGenerator<StreamEvent>`,事件类型包括:
-
-```typescript
-type StreamEvent =
-  | { type: 'text_delta'; text: string }
-  | { type: 'thinking_delta'; thinking: string }
-  | { type: 'tool_call_start'; id: string; name: string }
-  | { type: 'tool_call_delta'; id: string; argumentsDelta: string }
-  | { type: 'tool_call_end'; id: string; name: string; arguments: string }
-  | { type: 'usage'; usage: TokenUsage }
-  | { type: 'done'; stopReason: string };
-```
-
-### ModelInfo
+`ModelInfo` 是 svton 维护的 UI 模型描述,被 `createPiModelsForProvider` 用于
+能力提示(是否支持视觉/思考)以及在 pi-ai 目录里找不到模型 id 时合成一个
+带正确 `baseUrl` 的 `Model`:
 
 ```typescript
 interface ModelInfo {
@@ -106,193 +92,66 @@ interface ModelInfo {
 }
 ```
 
----
+## ProviderConfig(应用层)
 
-## OpenAIProvider
-
-兼容所有实现 OpenAI Chat Completions API 格式的服务。
-
-### 构造函数
+应用层(`agent-app` 的设置面板)维护一个 `ProviderConfig[]`,描述用户配置的
+每个 provider 及其模型列表。`createAgentConfig` 会从中选出当前 provider,
+用 `toModelInfo()` 映射成 `ModelInfo[]`,再交给 `createPiModelsForProvider`。
 
 ```typescript
-new OpenAIProvider(config: {
-  name?: string;                    // 默认 'openai'
-  baseUrl: string;                  // 例如 'https://api.openai.com'
-  apiKey: string;
-  models: ModelInfo[];
-  customHeaders?: Record<string, string>;
-})
-```
-
-### 示例:连接 OpenAI
-
-```typescript
-import { OpenAIProvider } from '@svton/agent-core';
-
-const provider = new OpenAIProvider({
-  baseUrl: 'https://api.openai.com',
-  apiKey: process.env.OPENAI_API_KEY!,
-  models: [
-    {
-      id: 'gpt-4o',
-      name: 'GPT-4o',
-      contextWindow: 128000,
-      supportsToolUse: true,
-      supportsVision: true,
-      supportsStreaming: true,
-    },
-  ],
-});
-```
-
-### 示例:连接 DeepSeek
-
-```typescript
-const provider = new OpenAIProvider({
-  name: 'deepseek',
-  baseUrl: 'https://api.deepseek.com',
-  apiKey: process.env.DEEPSEEK_API_KEY!,
-  models: [
-    {
-      id: 'deepseek-chat',
-      name: 'DeepSeek Chat',
-      contextWindow: 64000,
-      supportsToolUse: true,
-      supportsVision: false,
-      supportsStreaming: true,
-    },
-  ],
-});
-```
-
-### 示例:连接本地 Ollama
-
-```typescript
-const provider = new OpenAIProvider({
-  name: 'ollama',
-  baseUrl: 'http://localhost:11434',
-  apiKey: 'ollama',                 // Ollama 不校验,但字段必填
-  models: [
-    {
-      id: 'llama3.1:8b',
-      name: 'Llama 3.1 8B',
-      contextWindow: 128000,
-      supportsToolUse: true,
-      supportsVision: false,
-      supportsStreaming: true,
-    },
-  ],
-});
-```
-
-### 示例:流式调用
-
-```typescript
-const messages = [
-  { role: 'user' as const, content: '解释量子隧穿效应' },
-];
-
-for await (const event of provider.chat(messages, {
-  model: 'gpt-4o',
-  stream: true,
-})) {
-  if (event.type === 'text_delta') {
-    process.stdout.write(event.text);
-  } else if (event.type === 'done') {
-    console.log(`\n停止原因: ${event.stopReason}`);
-  }
+interface ProviderConfig {
+  family: 'openai' | 'anthropic';
+  apiKey?: string;
+  baseUrl?: string;
+  models: Array<{
+    id: string;
+    name: string;
+    contextWindow?: number;
+    supportsToolUse?: boolean;
+    supportsVision?: boolean;
+    supportsStreaming?: boolean;
+    supportsThinking?: boolean;
+  }>;
 }
 ```
 
-### 特殊行为
+## 内置 provider 家族
 
-- **reasoningEffort 映射**:OpenAI 的 `reasoning_effort` 仅支持 `low|medium|high`,`xhigh` 会被自动降级为 `high`。
-- **工具调用缓冲**:OpenAI SSE 流不会显式发送每个工具调用的结束事件,Provider 会在流结束时统一 flush。
-- **孤儿 tool_use 清理**:`sanitizeToolUseChain()` 自动剥离没有匹配 `tool_result` 的 `tool_use`,避免 API 报错。
-- **图像结果降级**:对于截图等图像类工具结果,会向非视觉模型发送文本占位符,避免 API 报错。
+| family | pi-ai provider | 默认 baseUrl | 默认 API |
+| --- | --- | --- | --- |
+| `openai` | `openaiProvider()` | `https://api.openai.com/v1` | `openai-responses` |
+| `anthropic` | `anthropicProvider()` | `https://api.anthropic.com/v1` | `anthropic-messages` |
 
----
-
-## AnthropicProvider
-
-连接 Anthropic Claude 系列模型,支持流式、工具调用、扩展思考。
-
-### 构造函数
+## 示例:连接 Anthropic
 
 ```typescript
-new AnthropicProvider(config: {
-  apiKey: string;
-  baseUrl?: string;                 // 默认 'https://api.anthropic.com'
-  models?: ModelInfo[];             // 默认包含 Sonnet 4 / Haiku 4
-  customHeaders?: Record<string, string>;
-})
-```
-
-默认模型列表:
-
-| 模型 ID | 名称 | 上下文窗口 | 工具 | 视觉 | 思考 |
-| --- | --- | --- | --- | --- | --- |
-| `claude-sonnet-4-20250514` | Claude Sonnet 4 | 200K | ✓ | ✓ | ✓ |
-| `claude-haiku-4-20250506` | Claude Haiku 4 | 200K | ✓ | ✓ | ✓ |
-
-### 示例
-
-```typescript
-import { AnthropicProvider } from '@svton/agent-core';
-
-const provider = new AnthropicProvider({
+const { models, model } = createPiModelsForProvider('claude-sonnet-4-20250514', {
+  family: 'anthropic',
   apiKey: process.env.ANTHROPIC_API_KEY!,
 });
-
-// 发送请求时会自动设置 anthropic-version: 2023-06-01 头
-for await (const event of provider.chat(
-  [{ role: 'user', content: '用 TypeScript 写一个快速排序' }],
-  { model: 'claude-sonnet-4-20250514', stream: true },
-)) {
-  if (event.type === 'text_delta') {
-    process.stdout.write(event.text);
-  }
-}
 ```
 
-### 示例:使用代理网关
+## 示例:连接 DeepSeek / Ollama(自定义端点)
 
 ```typescript
-const provider = new AnthropicProvider({
-  apiKey: 'my-key',
-  baseUrl: 'https://my-proxy.example.com',
-  customHeaders: {
-    'X-Custom-Header': 'value',
-  },
+const { models, model } = createPiModelsForProvider('deepseek-chat', {
+  family: 'openai',
+  apiKey: process.env.DEEPSEEK_API_KEY!,
+  baseUrl: 'https://api.deepseek.com',
+  models: [
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', contextWindow: 64000, supportsVision: false },
+  ],
 });
 ```
-
----
-
-## 选择 Provider 的建议
-
-| 场景 | 推荐 |
-| --- | --- |
-| 需要最强推理能力 | AnthropicProvider + Claude Sonnet 4 |
-| 低延迟、轻量任务 | AnthropicProvider + Claude Haiku 4 |
-| 企业内网/数据合规 | OpenAIProvider + Azure OpenAI |
-| 本地部署 | OpenAIProvider + Ollama / vLLM |
-| 预算敏感 | OpenAIProvider + DeepSeek |
-
-## countTokens
-
-两个 Provider 都提供简单的 token 估算(基于字符数和启发式规则),用于上下文窗口管理:
-
-```typescript
-const tokens = provider.countTokens('一段需要估算的文本');
-console.log(`估算 tokens: ${tokens}`);
-```
-
-> 注意:这是粗略估算,与 Provider 实际计费可能略有差异。如需精确计数,建议使用各自的官方 tokenizer。
 
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — ReAct 循环核心，调用 Provider
+- [AgentRuntime](./runtime) — Pi Agent 循环 + 事件流
 - [工具系统](./tools) — 工具定义与执行
-- [技能系统](./skills) — 渐进式加载领域知识
+- [权限系统](./permission) — 运行时权限检查
+
+## 参考
+
+- 设计文档:`docs-internal/design/pi-agent-migration-architecture.md`(§5.1 模型与消息)
+- [pi-ai README](https://github.com/earendil-works/pi/blob/main/packages/ai/README.md)

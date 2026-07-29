@@ -2,11 +2,9 @@ import { useCallback } from 'react';
 import type { MutableRefObject } from 'react';
 import type { AgentEvent, TokenUsage } from '@svton/agent-core';
 import {
-  appendSubagentStart,
   appendTextDelta,
   appendThinkingDelta,
   appendToolCallStart,
-  completeSubagent,
   completeToolCall,
   markToolCallPending,
   readPlanProgress,
@@ -134,16 +132,6 @@ export function useChatEventHandler({
             statusRef.current = 'idle';
             setStatus('idle');
           }
-          break;
-        }
-
-        case 'subagent_start': {
-          updateMessage(assistantMsgId, (msg) => appendSubagentStart(msg, event.agentId, event.task));
-          break;
-        }
-
-        case 'subagent_end': {
-          updateMessage(assistantMsgId, (msg) => completeSubagent(msg, event.agentId, event.summary));
           break;
         }
       }

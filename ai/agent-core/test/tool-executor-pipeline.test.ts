@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   ToolRegistry,
   PermissionManager,
-  ContextManager,
   AutoReviewerManager,
   HookManager,
 } from '@svton/agent-core';
 import { ToolExecutionService } from '../src/agent/tool-executor';
+import type { ToolResultSink } from '../src/agent/tool-context-result.utils';
 import type {
   ToolCall,
   ToolResult,
@@ -93,14 +93,18 @@ async function drain<T>(gen: AsyncGenerator<T>): Promise<T[]> {
 
 describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
   let toolRegistry: ToolRegistry;
-  let contextManager: ContextManager;
+  let recordedResults: Array<{ callId: string; output: string; isError?: boolean }>;
+  let toolResultSink: ToolResultSink;
   let platform: IPlatform;
   let workingDir: string;
   let pendingApprovals: Map<string, { call: ToolCall; resolve: (v: boolean) => void; timestamp: number }>;
 
   beforeEach(() => {
     toolRegistry = new ToolRegistry();
-    contextManager = new ContextManager();
+    recordedResults = [];
+    // PI003: ToolExecutionService no longer takes a ContextManager — Pi Agent
+    // owns the transcript. Tests assert via the recording sink instead.
+    toolResultSink = (callId, output, isError) => recordedResults.push({ callId, output, isError });
     platform = createMockPlatform();
     workingDir = '/project';
     pendingApprovals = new Map();
@@ -113,12 +117,12 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
   ): ToolExecutionService {
     const service = new ToolExecutionService(
       toolRegistry,
-      contextManager,
       platform,
       workingDir,
       permissionManager,
       hookManager,
       pendingApprovals,
+      toolResultSink,
     );
     service.setExecOptions({
       autoReviewer,
@@ -542,12 +546,12 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
 
       const service = new ToolExecutionService(
         toolRegistry,
-        contextManager,
         platform,
         workingDir,
         pm,
         null,
         pendingApprovals,
+        toolResultSink,
       );
 
       // Initially no auto-reviewer → should ask user
@@ -598,12 +602,12 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
 
       const service = new ToolExecutionService(
         toolRegistry,
-        contextManager,
         platform,
         workingDir,
         pm,
         null,
         pendingApprovals,
+        toolResultSink,
       );
 
       service.setExecOptions({ sessionId: 'my-custom-session' });
@@ -655,12 +659,12 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       const pm = new PermissionManager({ mode: 'default' });
       const service = new ToolExecutionService(
         toolRegistry,
-        contextManager,
         platform,
         workingDir,
         pm,
         null,
         pendingApprovals,
+        toolResultSink,
       );
 
       service.setExecOptions({ sandboxProfile, sandboxRequired: true, sessionId: 'sandbox-session' });
@@ -712,10 +716,9 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       expect(endEvent?.type).toBe('tool_call_end');
       const result = (endEvent as any).result as ToolResult;
       expect(result.output).toBe('Permission denied: not allowed');
-      const contextMessages = contextManager.getMessages();
-      const contextResult = (contextMessages.at(-1)?.content as any[])[0];
-      expect(contextResult.output).toBe(result.output);
-      expect(contextResult.output).not.toContain('undefined');
+      const contextResult = recordedResults.at(-1);
+      expect(contextResult?.output).toBe(result.output);
+      expect(contextResult?.output).not.toContain('undefined');
     });
 
     it('does not request approval when the run signal is already aborted', async () => {

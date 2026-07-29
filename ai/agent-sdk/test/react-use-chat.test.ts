@@ -329,15 +329,6 @@ function warningAndSkillChat(): Agent['chat'] {
   }) as Agent['chat'];
 }
 
-function subagentEventsChat(): Agent['chat'] {
-  return (async function* () {
-    yield { type: 'subagent_start', agentId: 'worker-1', task: 'scan repo' } as AgentEvent;
-    yield { type: 'text_delta', text: 'main continues' } as AgentEvent;
-    yield { type: 'subagent_end', agentId: 'worker-1', summary: 'found issue' } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
-  }) as Agent['chat'];
-}
-
 function subagentToolChat(): Agent['chat'] {
   return (async function* () {
     yield {
@@ -1636,28 +1627,6 @@ describe('SDK useChat approval wait state', () => {
       label: 'Open diff',
       action: 'open_diff',
     });
-    rendered.unmount();
-  });
-
-  it('surfaces subagent lifecycle events on the assistant message', async () => {
-    const rendered = await renderProbe();
-    rendered.state.agent.chat = vi.fn(subagentEventsChat());
-
-    act(() => {
-      rendered.state.chat.send('delegate');
-    });
-
-    await waitFor(() => expect(rendered.state.chat.status).toBe('idle'));
-    expect(rendered.state.chat.messages[1].blocks).toEqual([
-      {
-        type: 'subagent',
-        agentId: 'worker-1',
-        task: 'scan repo',
-        status: 'completed',
-        summary: 'found issue',
-      },
-      { type: 'text', text: 'main continues' },
-    ]);
     rendered.unmount();
   });
 

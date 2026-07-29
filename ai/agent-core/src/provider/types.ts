@@ -1,7 +1,16 @@
 /**
- * LLM Provider type definitions.
- * All providers implement the same IProvider interface,
- * producing a standardized stream of events.
+ * Provider-facing shared types.
+ *
+ * The `IProvider` / `StreamEvent` / `ChatOptions` provider contract and the
+ * OpenAI/Anthropic implementations were deleted in PI002/PI003 — Pi Agent now
+ * calls pi-ai `models.streamSimple` directly (Architecture §3, §5.1, §7.2). The
+ * runtime emits the `AgentEvent` union (`agent/types.ts`), translated from Pi
+ * events by `pi-event-adapter.ts`.
+ *
+ * What remains in this file are the svton-owned message/content/tool/usage
+ * shapes that the event protocol, message bridge, tool registry and UI model
+ * catalog still consume. `ModelInfo` is the svton UI model catalog shape used
+ * by `createPiModelsForProvider` to resolve/synthesize pi-ai `Model` objects.
  */
 
 // ============================================================
@@ -71,7 +80,7 @@ export interface ToolAnnotations {
 }
 
 // ============================================================
-// Streaming Events
+// Token Usage
 // ============================================================
 
 export interface TokenUsage {
@@ -80,32 +89,11 @@ export interface TokenUsage {
   totalTokens: number;
 }
 
-export type StreamEvent =
-  | { type: 'text_delta'; text: string }
-  | { type: 'thinking_delta'; thinking: string }
-  | { type: 'tool_call_start'; id: string; name: string }
-  | { type: 'tool_call_delta'; id: string; argumentsDelta: string }
-  | { type: 'tool_call_end'; id: string; name: string; arguments: string }
-  | { type: 'usage'; usage: TokenUsage }
-  | { type: 'done'; stopReason: string };
-
 // ============================================================
-// Chat Options
+// Reasoning effort (user-facing reasoning intensity)
 // ============================================================
 
 export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
-
-export interface ChatOptions {
-  model: string;
-  temperature?: number;
-  maxTokens?: number;
-  tools?: ToolDefinition[];
-  stream?: boolean;
-  systemPrompt?: string;
-  signal?: AbortSignal;
-  thinkingBudget?: number;   // for providers that support extended thinking
-  reasoningEffort?: ReasoningEffort;  // user-facing reasoning intensity
-}
 
 // ============================================================
 // Model Info
@@ -119,22 +107,4 @@ export interface ModelInfo {
   supportsVision: boolean;
   supportsStreaming: boolean;
   supportsThinking?: boolean;
-}
-
-// ============================================================
-// Provider Interface
-// ============================================================
-
-export interface IProvider {
-  readonly name: string;
-  readonly models: ModelInfo[];
-
-  chat(
-    messages: ChatMessage[],
-    options: ChatOptions,
-  ): AsyncGenerator<StreamEvent>;
-
-  countTokens(text: string): number;
-  supportsToolUse(model: string): boolean;
-  supportsVision(model: string): boolean;
 }

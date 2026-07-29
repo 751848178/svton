@@ -11,26 +11,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import 'reflect-metadata';
 import { ChatService } from '../src/service/chat.service';
-import { ToolRegistry } from '@svton/agent-core';
-import type {
-  IProvider, StreamEvent, ChatMessage, ChatOptions, ModelInfo,
-} from '@svton/agent-core';
+import type { AgentEvent } from '@svton/agent-core';
 import type { IPlatform, IStorage } from '@svton/agent-platform';
 import { displayToStoredMessages, storedToDisplayMessages } from '../src/hooks/useSession';
-
-class StubProvider implements IProvider {
-  readonly name = 'mock';
-  readonly models: ModelInfo[] = [{ id: 'm', name: 'M', contextWindow: 128000, supportsToolUse: true, supportsVision: false, supportsStreaming: true }];
-  private queue: StreamEvent[][] = [];
-  addResponse(events: StreamEvent[]) { this.queue.push(events); }
-  async *chat(): AsyncGenerator<StreamEvent> {
-    const r = this.queue.shift();
-    if (r) for (const e of r) yield e;
-  }
-  countTokens(t: string): number { return Math.ceil(t.length / 4); }
-  supportsToolUse(): boolean { return true; }
-  supportsVision(): boolean { return false; }
-}
+import { buildPiAgentConfig, EventScripter, MemoryStorage } from './helpers/pi-test-utils';
 
 class MemStorage implements IStorage {
   private m = new Map<string, unknown>();
@@ -49,36 +33,35 @@ function makePlatform(storage: IStorage): IPlatform {
   } as IPlatform;
 }
 
+
 describe('Message persistence full loop', () => {
-  let provider: StubProvider;
-
-  beforeEach(() => {
-    provider = new StubProvider();
-  });
-
-  /** Create a ChatService, init it, send messages, then extract for save. */
-  async function createAndSend(sendFn: (chat: ChatService) => Promise<void>): Promise<ChatService> {
+  /** Create a ChatService, init it with a Pi-backed runtime + event scripter. */
+  async function createChat(): Promise<{ chat: ChatService; scripter: EventScripter }> {
     const chat = new ChatService();
-    await chat.init(makePlatform(new MemStorage()), {
-      provider,
-      model: 'm',
-      toolRegistry: new ToolRegistry(),
-    });
-    await new Promise(r => setTimeout(r, 200));
+    await chat.init(makePlatform(new MemStorage()), buildPiAgentConfig().config);
+    const scripter = new EventScripter(chat as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<AgentEvent> } });
+    return { chat, scripter };
+  }
+
+  /** Create + init + script + send, then return the chat for save extraction. */
+  async function createAndSend(
+    scriptFn: (scripter: EventScripter) => void,
+    sendFn: (chat: ChatService) => Promise<void>,
+  ): Promise<ChatService> {
+    const { chat, scripter } = await createChat();
+    scriptFn(scripter);
     await sendFn(chat);
-    await new Promise(r => setTimeout(r, 200));
     return chat;
   }
 
   it('preserves a simple text conversation through serialize → restore', async () => {
-    provider.addResponse([
-      { type: 'text_delta', text: 'Hello back!' },
-      { type: 'done', stopReason: 'stop' },
-    ]);
-
-    const chat1 = await createAndSend(async (c) => {
-      await c.sendMessage('Hi there');
-    });
+    const chat1 = await createAndSend(
+      (s) => s.addResponse([
+        { type: 'text_delta', text: 'Hello back!' },
+        { type: 'done', stopReason: 'stop' },
+      ]),
+      async (c) => { await c.sendMessage('Hi there'); },
+    );
 
     // Simulate "save before close"
     const saved = chat1.getMessagesForSave();
@@ -87,10 +70,7 @@ describe('Message persistence full loop', () => {
 
     // Simulate "reopen" — new ChatService, load messages
     const chat2 = new ChatService();
-    await chat2.init(makePlatform(new MemStorage()), {
-      provider, model: 'm', toolRegistry: new ToolRegistry(),
-    });
-    await new Promise(r => setTimeout(r, 200));
+    await chat2.init(makePlatform(new MemStorage()), buildPiAgentConfig().config);
     chat2.loadMessages(storedToDisplayMessages(stored));
 
     const restored = chat2.getMessagesForSave();
@@ -102,21 +82,20 @@ describe('Message persistence full loop', () => {
   });
 
   it('preserves tool calls and thinking through serialize → restore', async () => {
-    provider.addResponse([
-      { type: 'thinking_delta', thinking: 'Let me analyze.' },
-      { type: 'tool_call_start', id: 'tc1', name: 'git_diff' },
-      { type: 'tool_call_delta', id: 'tc1', argumentsDelta: '{"base":"main"}' },
-      { type: 'tool_call_end', id: 'tc1', name: 'git_diff', arguments: '{"base":"main"}' },
-      { type: 'done', stopReason: 'tool_use' },
-    ]);
-    provider.addResponse([
-      { type: 'text_delta', text: 'Done reviewing.' },
-      { type: 'done', stopReason: 'stop' },
-    ]);
-
-    const chat1 = await createAndSend(async (c) => {
-      await c.sendMessage('Review code');
-    });
+    const chat1 = await createAndSend(
+      (s) => {
+        // One turn: thinking + tool call + final text (the runtime would normally
+        // auto-continue after tool_use; the scripter collapses it into one run).
+        s.addResponse([
+          { type: 'thinking_delta', thinking: 'Let me analyze.' },
+          { type: 'tool_call_start', call: { id: 'tc1', name: 'git_diff', arguments: { base: 'main' } } },
+          { type: 'tool_call_end', result: { callId: 'tc1', output: 'diff', isError: false } },
+          { type: 'text_delta', text: 'Done reviewing.' },
+          { type: 'done', stopReason: 'stop' },
+        ]);
+      },
+      async (c) => { await c.sendMessage('Review code'); },
+    );
 
     const saved = chat1.getMessagesForSave();
     const stored = displayToStoredMessages(saved);
@@ -138,14 +117,13 @@ describe('Message persistence full loop', () => {
   });
 
   it('marks all messages as not-streaming after restore', async () => {
-    provider.addResponse([
-      { type: 'text_delta', text: 'Complete.' },
-      { type: 'done', stopReason: 'stop' },
-    ]);
-
-    const chat1 = await createAndSend(async (c) => {
-      await c.sendMessage('test');
-    });
+    const chat1 = await createAndSend(
+      (s) => s.addResponse([
+        { type: 'text_delta', text: 'Complete.' },
+        { type: 'done', stopReason: 'stop' },
+      ]),
+      async (c) => { await c.sendMessage('test'); },
+    );
 
     const stored = displayToStoredMessages(chat1.getMessagesForSave());
     const restored = storedToDisplayMessages(stored);
@@ -156,14 +134,13 @@ describe('Message persistence full loop', () => {
   });
 
   it('preserves duration field through serialize → restore', async () => {
-    provider.addResponse([
-      { type: 'text_delta', text: 'Quick response.' },
-      { type: 'done', stopReason: 'stop', usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 } },
-    ]);
-
-    const chat1 = await createAndSend(async (c) => {
-      await c.sendMessage('test');
-    });
+    const chat1 = await createAndSend(
+      (s) => s.addResponse([
+        { type: 'text_delta', text: 'Quick response.' },
+        { type: 'done', stopReason: 'stop', usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 } },
+      ]),
+      async (c) => { await c.sendMessage('test'); },
+    );
 
     const stored = displayToStoredMessages(chat1.getMessagesForSave());
     const restored = storedToDisplayMessages(stored);
@@ -174,14 +151,16 @@ describe('Message persistence full loop', () => {
   });
 
   it('preserves a multi-turn conversation (2 turns) through serialize → restore', async () => {
-    provider.addResponse([{ type: 'text_delta', text: 'Turn 1 answer.' }, { type: 'done', stopReason: 'stop' }]);
-    provider.addResponse([{ type: 'text_delta', text: 'Turn 2 answer.' }, { type: 'done', stopReason: 'stop' }]);
-
-    const chat = await createAndSend(async (c) => {
-      await c.sendMessage('Turn 1 question');
-      await new Promise(r => setTimeout(r, 200));
-      await c.sendMessage('Turn 2 question');
-    });
+    const chat = await createAndSend(
+      (s) => {
+        s.addResponse([{ type: 'text_delta', text: 'Turn 1 answer.' }, { type: 'done', stopReason: 'stop' }]);
+        s.addResponse([{ type: 'text_delta', text: 'Turn 2 answer.' }, { type: 'done', stopReason: 'stop' }]);
+      },
+      async (c) => {
+        await c.sendMessage('Turn 1 question');
+        await c.sendMessage('Turn 2 question');
+      },
+    );
 
     const stored = displayToStoredMessages(chat.getMessagesForSave());
     const restored = storedToDisplayMessages(stored);

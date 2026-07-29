@@ -8,18 +8,27 @@ import type {
   MCPServerInfo,
 } from './types';
 import type { ToolRegistry } from '../tool/registry';
-import type { IToolExecutor, ToolCall } from '../tool/types';
+import type { ToolCall, ToolResult as ToolCallResult } from '../tool/types';
 import { formatUnknownErrorMessage } from '../utils/error-message.utils';
 
+/** Security-gated execution shape for inbound tool calls. Must be the same
+ * `ToolExecutionService` the runtime uses so inbound MCP calls cannot bypass
+ * the security pipeline (§5.3/§7.4). */
+export type McpInboundToolExecutionService = {
+  execute: (call: ToolCall, signal?: AbortSignal) => AsyncGenerator<{ type: string; result?: ToolCallResult }, void, unknown>;
+};
+
 /**
- * MCP Server - exposes Agent's tools to external MCP clients.
- *
- * Allows external applications to discover and invoke the Agent's tools
- * via the MCP protocol (JSON-RPC).
+ * MCP Server - exposes Agent's tools to external MCP clients via JSON-RPC.
+ * Inbound `tools/call` must NOT bypass the security pipeline; they run through
+ * a `ToolExecutionService` wired via `setToolExecutionService`. Until then the
+ * server fails CLOSED — it never runs tools ungated (§5.3/§7.4).
  */
 export class MCPServer {
   private transport: ITransport | null = null;
   private toolRegistry: ToolRegistry | null = null;
+  /** When unset, `callTool` fails closed (never bypasses the security pipeline). */
+  private toolExecutionService: McpInboundToolExecutionService | null = null;
   private requestId = 0;
   private running = false;
 
@@ -28,9 +37,12 @@ export class MCPServer {
     version: '0.1.0',
   };
 
-  /**
-   * Start the MCP server with a transport and tool registry.
-   */
+  /** Install the security-gated execution service for inbound `tools/call`. */
+  setToolExecutionService(service: McpInboundToolExecutionService): void {
+    this.toolExecutionService = service;
+  }
+
+  /** Start the MCP server with a transport and tool registry. */
   async start(transport: ITransport, toolRegistry: ToolRegistry): Promise<void> {
     this.transport = transport;
     this.toolRegistry = toolRegistry;
@@ -153,22 +165,32 @@ export class MCPServer {
 
     const name = params.name as string;
     const args = (params.arguments as Record<string, unknown>) || {};
+    const call: ToolCall = { id: `mcp_server_${++this.requestId}`, name, arguments: args };
 
-    const call: ToolCall = {
-      id: `mcp_server_${++this.requestId}`,
-      name,
-      arguments: args,
-    };
+    // SECURITY (§5.3/§7.4): fail CLOSED unless a security-gated service is
+    // wired — never run ungated via the raw registry (would skip the pipeline).
+    if (!this.toolExecutionService) {
+      return {
+        content: [{
+          type: 'text',
+          text: `Refusing to execute inbound tool '${name}': no security-gated ToolExecutionService is wired (call setToolExecutionService).`,
+        }],
+        isError: true,
+      };
+    }
 
-    const result = await this.toolRegistry.execute(call, {
-      platform: null as any,
-      sessionId: '',
-      workingDir: '/',
-    });
+    let output = '';
+    let isError = false;
+    for await (const ev of this.toolExecutionService.execute(call)) {
+      if (ev.type === 'tool_call_end' && ev.result) {
+        output = ev.result.output;
+        isError = ev.result.isError === true;
+      }
+    }
 
     return {
-      content: [{ type: 'text', text: result.output }],
-      isError: result.isError,
+      content: [{ type: 'text', text: output }],
+      isError,
     };
   }
 

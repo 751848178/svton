@@ -42,7 +42,9 @@ describe('createAgentConfig', () => {
       platform: makePlatform(),
     });
     expect(config.model).toBe('gpt-4o');
-    expect(config.provider).toBeDefined();
+    // PI003: the deleted `provider` field is replaced by a pi-ai Models collection.
+    expect(config.models).toBeDefined();
+    expect(config.piModel).toBeDefined();
   });
 
   it('registers web_fetch by default', async () => {

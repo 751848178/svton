@@ -2,38 +2,22 @@
  * Test helper: wraps hooks in a real AgentProvider with mock services.
  *
  * Uses the @svton/service reactive container (same as production) so hooks
- * observe real state changes. The provider is backed by:
- *  - MockProvider (canned LLM responses)
- *  - MemoryStorage (in-memory persistence)
- *  - A minimal ToolRegistry
+ * observe real state changes. PI007: the legacy MockProvider (deleted
+ * IProvider/StreamEvent contract) is replaced by a fauxProvider-backed Pi
+ * Models collection via buildPiAgentConfig — the runtime consumes
+ * models.streamSimple directly, no provider wrapper.
  */
 import React from 'react';
 import { AgentProvider } from '../../src/service/provider';
 import { ChatService } from '../../src/service/chat.service';
 import { SessionService } from '../../src/service/session.service';
 import { ProjectService } from '../../src/service/project.service';
-import { AgentRuntime, ToolRegistry } from '@svton/agent-core';
-import type { AgentConfig } from '@svton/agent-core';
+import { ToolRegistry, type AgentConfig } from '@svton/agent-core';
 import type { IPlatform, IStorage } from '@svton/agent-platform';
 import { container } from '@svton/service';
+import { buildPiAgentConfig, MemoryStorage, type MockModelsHandle } from '../helpers/pi-test-utils';
 
-// Re-export the stub-free mock provider from agent-core helpers
-export { MemoryStorage } from '../../../agent-core/test/helpers';
-
-/** Simple mock IProvider that replays queued responses. */
-export class MockProvider {
-  readonly name = 'mock';
-  readonly models = [{ id: 'test-model', name: 'Test', contextWindow: 128000, supportsToolUse: true, supportsVision: false, supportsStreaming: true }];
-  private queue: any[][] = [];
-  addResponse(events: any[]) { this.queue.push(events); return this; }
-  async *chat(): AsyncGenerator<any> {
-    const r = this.queue.shift();
-    if (r) for (const e of r) yield e;
-  }
-  countTokens(t: string): number { return Math.ceil(t.length / 4); }
-  supportsToolUse(): boolean { return true; }
-  supportsVision(): boolean { return false; }
-}
+export { MemoryStorage };
 
 /** In-memory IStorage. */
 export class MemStorage implements IStorage {
@@ -56,7 +40,7 @@ export function makePlatform(storage?: IStorage): IPlatform {
 }
 
 export interface TestHarness {
-  provider: MockProvider;
+  mock: MockModelsHandle;
   chatService: ChatService;
   sessionService: SessionService;
   projectService: ProjectService;
@@ -69,22 +53,14 @@ export interface TestHarness {
 
 /**
  * Build a test harness: creates real ChatService / SessionService /
- * ProjectService wired to a mock provider + memory storage, then wraps
- * children in an AgentProvider so hooks can consume the context.
+ * ProjectService wired to a fauxProvider-backed Pi runtime + memory storage,
+ * then wraps children in an AgentProvider so hooks can consume the context.
  */
 export async function createHarness(opts: { autoInit?: boolean } = {}): Promise<TestHarness> {
   const autoInit = opts.autoInit ?? true;
-  const provider = new MockProvider();
+  const { config, mock } = buildPiAgentConfig({ toolRegistry: new ToolRegistry() });
   const storage = new MemStorage();
   const platform = makePlatform(storage);
-  const registry = new ToolRegistry();
-
-  const config: AgentConfig = {
-    provider: provider as any,
-    model: 'test-model',
-    toolRegistry: registry,
-    workingDir: '/',
-  };
 
   const chatService = new ChatService();
   const sessionService = new SessionService();
@@ -104,5 +80,5 @@ export async function createHarness(opts: { autoInit?: boolean } = {}): Promise<
     </AgentProvider>
   );
 
-  return { provider, chatService, sessionService, projectService, platform, storage, config, wrap };
+  return { mock, chatService, sessionService, projectService, platform, storage, config, wrap };
 }

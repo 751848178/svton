@@ -144,22 +144,6 @@ export function markToolCallPending(
   return { ...msg, toolCalls, blocks };
 }
 
-export function appendSubagentStart(msg: DisplayMessage, agentId: string, task: string): DisplayMessage {
-  return {
-    ...msg,
-    blocks: [...msg.blocks, { type: 'subagent', agentId, task, status: 'running' }],
-  };
-}
-
-export function completeSubagent(msg: DisplayMessage, agentId: string, summary: string): DisplayMessage {
-  const blocks = msg.blocks.map((block) =>
-    block.type === 'subagent' && block.agentId === agentId
-      ? { ...block, status: 'completed' as const, summary }
-      : block,
-  );
-  return { ...msg, blocks };
-}
-
 function isSubagentToolName(name: string | undefined): boolean {
   return name === 'subagent_spawn' || name === 'spawn_subagent';
 }

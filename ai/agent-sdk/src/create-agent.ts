@@ -7,8 +7,7 @@
 
 import {
   AgentRuntime,
-  OpenAIProvider,
-  AnthropicProvider,
+  createPiModelsForProvider,
   ToolRegistry,
   PromptManager,
   PermissionManager,
@@ -70,9 +69,9 @@ export async function createAgent(config: CreateAgentConfig): Promise<Agent> {
   const platform: IPlatform = config.platform ?? new BrowserPlatform();
 
   // ----------------------------------------------------------
-  // 2. Provider
+  // 2. Provider (pi-ai Models collection)
   // ----------------------------------------------------------
-  const provider = createProvider(config.provider);
+  const { models, model } = createPiModelsForProvider(config.model, toProviderOptions(config.provider));
 
   // ----------------------------------------------------------
   // 3. Tool Registry + built-in web tools
@@ -201,7 +200,8 @@ export async function createAgent(config: CreateAgentConfig): Promise<Agent> {
   // 7. Assemble AgentConfig and create runtime
   // ----------------------------------------------------------
   const agentConfig: AgentConfig = {
-    provider,
+    models,
+    piModel: model,
     model: config.model,
     toolRegistry,
     systemPrompt: config.systemPrompt,
@@ -244,37 +244,17 @@ export async function createAgent(config: CreateAgentConfig): Promise<Agent> {
 // Internal helpers
 // ============================================================
 
-function createProvider(config: CreateAgentConfig['provider']) {
-  switch (config.type) {
-    case 'openai':
-      return new OpenAIProvider({
-        name: 'openai',
-        baseUrl: config.baseUrl || 'https://api.openai.com',
-        apiKey: config.apiKey,
-        models: config.models ?? [
-          {
-            id: 'gpt-4o',
-            name: 'GPT-4o',
-            contextWindow: 128000,
-            supportsToolUse: true,
-            supportsVision: true,
-            supportsStreaming: true,
-          },
-        ],
-        customHeaders: config.customHeaders,
-      });
-
-    case 'anthropic':
-      return new AnthropicProvider({
-        apiKey: config.apiKey,
-        baseUrl: config.baseUrl,
-        models: config.models,
-        customHeaders: config.customHeaders,
-      });
-
-    default:
-      throw new Error(
-        `[agent-sdk] Unknown provider type: "${(config as { type: string }).type}". Use 'openai' or 'anthropic'.`,
-      );
-  }
+/**
+ * Translate the SDK's provider config into options for `createPiModelsForProvider`.
+ * PI003: the OpenAIProvider/AnthropicProvider classes are gone; pi-ai's
+ * `Models` collection + a resolved `Model` feed Pi Agent directly.
+ */
+function toProviderOptions(config: CreateAgentConfig['provider']) {
+  const family = config.type === 'anthropic' ? 'anthropic' as const : 'openai' as const;
+  return {
+    family,
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl,
+    models: config.models,
+  };
 }
