@@ -24,11 +24,11 @@ pub static PROCESS_MANAGER: once_cell::sync::Lazy<Mutex<ProcessManager>> =
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecResult {
-    stdout: String,
-    stderr: String,
-    exit_code: Option<i32>,
-    signal: Option<String>,
-    timed_out: bool,
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: Option<i32>,
+    pub signal: Option<String>,
+    pub timed_out: bool,
 }
 
 #[derive(Serialize)]

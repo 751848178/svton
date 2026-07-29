@@ -42,6 +42,10 @@ export default defineConfig(async () => ({
   },
   build: {
     rollupOptions: {
+      // agent-core's dist bundles server-only auto-reviewer utils that import
+      // Node built-ins (`node:path`). The desktop WebView never invokes those
+      // server paths, so externalize Node built-ins rather than fail the build.
+      external: ['node:path', 'path', 'node:fs', 'fs', 'node:os', 'os', 'node:child_process', 'child_process'],
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
