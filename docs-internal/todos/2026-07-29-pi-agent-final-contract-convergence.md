@@ -131,7 +131,7 @@ canonical contracts and boundary ownership.
 | PC004.4 full tests | Core 332/1858; Client 14/289; SDK 2/62; App 4/14; UI 11/201; Web 4/25; Desktop 16/72. | `pc004-core-full-v3.log`, `pc004-client-full-isolated-v3.log`, `pc004-sdk-full-isolated-v2.log`, `pc004-app-full-v3.log`, `pc004-ui-full-v2.log`, `pc004-web-full-v2.log`, `pc004-desktop-full-v2.log`. | done |
 | PC004.4 builds | Core, Client, SDK, App, UI, Web production and Desktop production builds all pass. | `pc004-core-build-final-v2.log`; `pc004-{client,sdk,app,ui,web,desktop}-build-final.log`, all exit 0. | done |
 | Structural/safety gate | Shared config assembly is split by model, tool registry, capability/security, MCP/plugin and storage responsibilities; every touched/new production file is at most 200 lines. | `pc004-residual-audit-final.log`: unsafe additions 0, over-200 files 0, diff check clean; `pc004-cycle-audit-final.log`: 11 files, 9 local edges, 0 cycles. | done |
-| PC004.5 independent audit | A fresh reviewer must inspect the source/docs classifications and rerun the residual matrix before approval. | Reserved for reviewer evidence. | pending |
+| PC004.5 independent audit | Independent source/product and docs/public-contract reviewers inspected the final v5 classifications and residual matrix. | Source/product review approved with no P0-P2; independent strict snippets exit 0 at `/tmp/codex-tool-runs/svton/pc004-doc-snippets-independent-v5-20260730-053452.log`; Provider routing is 6/6 at `/tmp/codex-tool-runs/svton/pc004-provider-routing-independent-v2-20260730-051409.log`. | done |
 
 #### PC004 Needs-Review-v5 Corrections And Evidence
 
