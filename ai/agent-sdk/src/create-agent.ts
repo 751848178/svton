@@ -5,14 +5,14 @@
  * creates the runtime, wires its runtime-dependent subagent manager, and
  * returns the public Agent wrapper.
  */
-import { AgentRuntime, SubagentManager } from '@svton/agent-core';
+import { SubagentManager, SvtonAgentRuntime } from '@svton/agent-core';
 import type { CreateAgentConfig } from './types';
 import { Agent } from './agent';
 import { prepareAgentRuntimeConfig } from './create-agent-runtime-config.service';
 
 export async function createAgent(config: CreateAgentConfig): Promise<Agent> {
   const prepared = await prepareAgentRuntimeConfig(config);
-  const runtime = await AgentRuntime.createAsync(
+  const runtime = await SvtonAgentRuntime.createAsync(
     prepared.agentConfig,
     prepared.platform,
   );

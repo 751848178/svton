@@ -1,15 +1,15 @@
 /**
- * Agent — high-level wrapper around AgentRuntime.
+ * Agent — high-level wrapper around SvtonAgentRuntime.
  *
  * Provides a clean API for chat, tool approval, session management,
  * and dynamic tool/skill registration.
  */
 
 import type {
-  AgentRuntime,
   AgentCapabilities,
   PublicRuntimeEvent,
   SkillDefinition,
+  SvtonAgentRuntime,
   ToolRegistry,
 } from '@svton/agent-core';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
@@ -19,14 +19,14 @@ import type { UserToolDefinition } from './types';
 import { FunctionToolExecutor } from './tool-adapter';
 
 export class Agent {
-  readonly runtime: AgentRuntime;
+  readonly runtime: SvtonAgentRuntime;
   readonly toolRegistry: ToolRegistry;
   readonly platform: IPlatform;
 
   private readonly _mcpClients: import('@svton/agent-core').MCPClient[];
 
   constructor(
-    runtime: AgentRuntime,
+    runtime: SvtonAgentRuntime,
     toolRegistry: ToolRegistry,
     platform: IPlatform,
     mcpClients: import('@svton/agent-core').MCPClient[] = [],

@@ -61,8 +61,6 @@ for await (const event of runtime.run('Hello, what can you do?')) {
 }
 ```
 
-> `AgentRuntime` is kept as a back-compat alias for `SvtonAgentRuntime`.
-
 ## Features
 
 - **Pi-backed Agent loop** — `SvtonAgentRuntime` composes pi-agent-core's `Agent`

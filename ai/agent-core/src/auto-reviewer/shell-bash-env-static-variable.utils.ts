@@ -1,12 +1,13 @@
-import { embeddedCommandSubstitutionOutputToken } from './command-substitution-embedded-token.utils';
-import { staticCommandSubstitutionOutputToken } from './command-substitution-command-output.utils';
-import { shellAssignmentPrefixName } from './shell-assignment-prefix.utils';
+import {
+  bashEnvCommandPrefixAssignment,
+  bashEnvStaticAssignment,
+  bashEnvVariablesWithWorkingDir,
+  type BashEnvAssignment,
+} from './shell-bash-env-static-assignment.utils';
 import {
   bashEnvEnvironmentVariables,
-  bashEnvValuePreservesStartupExpansion,
 } from './shell-bash-env-startup-value.utils';
-import { normalizeShellWordToken, unquoteShellToken } from './shell-command.utils';
-import { substituteStaticShellVariables } from './shell-static-variable-command.utils';
+import { normalizeShellWordToken } from './shell-command.utils';
 
 export interface BashEnvState {
   value: string;
@@ -38,12 +39,6 @@ export interface BashEnvStartupValue {
   expandVariables: boolean;
 }
 
-export interface BashEnvAssignment {
-  name: string;
-  value: string;
-  startupExpandable: boolean;
-}
-
 export function createBashEnvState(): BashEnvState {
   return {
     value: '',
@@ -73,7 +68,7 @@ export function bashEnvStartupValuesFromPrefix(
   const result: BashEnvPrefixValues = { values: [], overrides: false, variables: startupVariables };
 
   for (const token of tokens) {
-    const assignment = bashEnvStaticAssignment(token, variables, workingDir);
+    const assignment = bashEnvCommandPrefixAssignment(token, variables, workingDir);
     if (!assignment) continue;
 
     assignments.push(assignment);
@@ -147,47 +142,4 @@ export function applyBashEnvKnownAssignment(
   state.startupExpandable = assignment.startupExpandable;
   if (exported === true) state.exported = true;
   else if (exported === false) state.exported = false;
-}
-
-export function bashEnvStaticAssignment(
-  token: string,
-  variables: Map<string, string>,
-  workingDir = '',
-): BashEnvAssignment | null {
-  const name = shellAssignmentPrefixName(token);
-  if (!name) return null;
-
-  const separator = token.indexOf('=');
-  const rawValue = token.slice(separator + 1);
-  const append = token[separator - 1] === '+';
-  const value = bashEnvAssignmentWordValue(substituteStaticShellVariables(rawValue, variables), workingDir);
-  return {
-    name,
-    value: append ? `${variables.get(name) ?? ''}${value}` : value,
-    startupExpandable: !isProcessSubstitutionAssignmentValue(rawValue)
-      && bashEnvValuePreservesStartupExpansion(rawValue),
-  };
-}
-
-export function bashEnvAssignmentWordValue(value: string, workingDir = ''): string {
-  if (isProcessSubstitutionAssignmentValue(value)) return unquoteShellToken(value);
-  return normalizeShellWordToken(
-    embeddedCommandSubstitutionOutputToken(
-      value,
-      (command) => staticCommandSubstitutionOutputToken(command, workingDir),
-    ) ?? value,
-  );
-}
-
-export function bashEnvVariablesWithWorkingDir(
-  variables: Map<string, string>,
-  workingDir: string,
-): Map<string, string> {
-  const next = new Map(variables);
-  if (workingDir.startsWith('/')) next.set('PWD', workingDir);
-  return next;
-}
-
-function isProcessSubstitutionAssignmentValue(value: string): boolean {
-  return value.startsWith('<(') || value.startsWith('>(');
 }

@@ -103,7 +103,7 @@ function renderPrintfDirectiveValue(
 
   const precision = precisionResult.value;
   if (directive.precision !== undefined && directive.conversion !== 'c') {
-    if (precision < 0) return null;
+    if (precision === undefined || precision < 0) return null;
     value = value.slice(0, precision);
   }
 

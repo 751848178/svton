@@ -1,4 +1,4 @@
-import type { AgentConfig, AgentRuntime } from '@svton/agent-core';
+import type { AgentConfig, SvtonAgentRuntime } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
 import type { DisplayMessage } from '../types';
 import { piMessagesToDisplay } from './pi-message-display-boundary.utils';
@@ -17,16 +17,16 @@ export interface RuntimeClearContext {
 /** Serializes display-to-runtime restores and rejects stale session ownership. */
 export class ChatSessionRuntimeService {
   private generation = 0;
-  private backgroundRuntime: AgentRuntime | null = null;
+  private backgroundRuntime: SvtonAgentRuntime | null = null;
 
   invalidate(): void {
     this.generation += 1;
   }
 
   async clear(
-    runtime: AgentRuntime | null,
+    runtime: SvtonAgentRuntime | null,
     context: RuntimeClearContext,
-  ): Promise<AgentRuntime | null> {
+  ): Promise<SvtonAgentRuntime | null> {
     this.invalidate();
     if (
       runtime
@@ -44,9 +44,9 @@ export class ChatSessionRuntimeService {
   }
 
   getStreamingRuntime(
-    activeRuntime: AgentRuntime | null,
+    activeRuntime: SvtonAgentRuntime | null,
     backgroundSessionId: string | null,
-  ): AgentRuntime | null {
+  ): SvtonAgentRuntime | null {
     return backgroundSessionId ? this.backgroundRuntime ?? activeRuntime : activeRuntime;
   }
 
@@ -55,7 +55,7 @@ export class ChatSessionRuntimeService {
   }
 
   async restore(
-    runtime: AgentRuntime | null,
+    runtime: SvtonAgentRuntime | null,
     sessionId: string | null,
     _messages: DisplayMessage[],
     isCurrent: () => boolean,

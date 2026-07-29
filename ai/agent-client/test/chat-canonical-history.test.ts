@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'reflect-metadata';
 import {
-  AgentRuntime,
+  SvtonAgentRuntime,
   ToolRegistry,
   fauxAssistantMessage,
   fauxText,
@@ -20,7 +20,7 @@ import {
 
 interface Harness {
   service: ChatService;
-  runtime: AgentRuntime;
+  runtime: SvtonAgentRuntime;
   mock: MockModelsHandle;
 }
 
@@ -52,7 +52,7 @@ describe('ChatService canonical history rollback', () => {
     mock.addResponse(fauxAssistantMessage([fauxText('old response')]));
     await service.sendMessage('old conversation prompt');
 
-    service.clearMessages();
+    await service.clearMessages();
     expect(runtime.getCanonicalMessages()).toEqual([]);
 
     mock.addResponse(fauxAssistantMessage([fauxText('fresh response')]));
@@ -167,8 +167,14 @@ async function createHarness(
     });
   }
   const { config, mock } = buildPiAgentConfig({ toolRegistry: registry });
+  const createRuntime = vi.spyOn(SvtonAgentRuntime, 'createAsync');
   await service.init(makeBrowserPlatform(), config);
-  const runtime = (service as unknown as { runtime: AgentRuntime }).runtime;
+  const result = createRuntime.mock.results.at(-1);
+  createRuntime.mockRestore();
+  if (!result || result.type !== 'return') {
+    throw new Error('ChatService did not create a runtime');
+  }
+  const runtime = await result.value;
   return { service, runtime, mock };
 }
 

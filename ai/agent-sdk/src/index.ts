@@ -57,7 +57,7 @@ export type {
 
 // Re-export core classes for advanced use
 export {
-  AgentRuntime,
+  SvtonAgentRuntime,
   ToolRegistry,
   createPiModelsForProvider,
   PromptManager,

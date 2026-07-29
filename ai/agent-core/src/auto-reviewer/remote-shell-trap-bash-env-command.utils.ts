@@ -56,7 +56,9 @@ function triggeredTrapCommandReceivesRemoteFetch(
 }
 
 function trapActionCommand(trapCommand: ShellTrapActionCommand): string {
-  return expandShellCommandStringPositionals(trapCommand.command, trapCommand.positionals);
+  return trapCommand.positionals
+    ? expandShellCommandStringPositionals(trapCommand.command, trapCommand.positionals)
+    : trapCommand.command;
 }
 
 function trapActionBashEnvReceivesRemoteFetch(

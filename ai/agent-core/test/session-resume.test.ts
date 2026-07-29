@@ -36,7 +36,7 @@ class MockStorage implements IStorage {
 }
 
 /**
- * Minimal AgentRuntime stub.
+ * Minimal SvtonAgentRuntime stub.
  * SessionResumeManager calls: getMessages(), getReasoningEffort(),
  * setMessages(), setReasoningEffort(), and getModel() (PI003 replaced the
  * unsafe `(runtime as any).model` cast with a clean accessor).

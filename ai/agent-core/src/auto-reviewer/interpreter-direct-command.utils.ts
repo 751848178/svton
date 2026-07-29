@@ -26,6 +26,7 @@ import {
 import {
   rubyPerlStaticReferenceReader,
   rubyPerlStaticStringAssignments,
+  type RubyPerlInterpreterName,
 } from './ruby-perl-static-reference.utils';
 
 const DIRECT_RUBY_PERL_FUNCTIONS = ['system', 'exec'];
@@ -100,6 +101,7 @@ function rubyPerlDirectCommandTokenGroups(tokens: string[]): string[][] {
   const code = inlineScriptOption(tokens, '-e', true);
   if (!code) return [];
   const name = getShellTokenBasename(tokens[0] ?? '');
+  if (!isRubyPerlInterpreter(name)) return [];
   const operators: InterpreterStringConcatOperator[] = name === 'ruby' ? ['+', '<<'] : ['.'];
   const methodNames = name === 'ruby' ? ['concat', 'replace'] : [];
   const prependMethodNames = name === 'ruby' ? ['prepend'] : [];
@@ -129,6 +131,10 @@ function rubyPerlDirectCommandTokenGroups(tokens: string[]): string[][] {
       prependMethodNames,
     )
   );
+}
+
+function isRubyPerlInterpreter(name: string): name is RubyPerlInterpreterName {
+  return name === 'ruby' || name === 'perl';
 }
 
 type ArgumentStartReader = (source: string, startIndex: number) => number;

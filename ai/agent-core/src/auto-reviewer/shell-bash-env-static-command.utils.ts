@@ -7,11 +7,14 @@ import {
 } from './shell-static-read-command.utils';
 import { substituteStaticShellVariables } from './shell-static-variable-command.utils';
 import {
-  applyBashEnvKnownAssignment,
   bashEnvAssignmentWordValue,
   type BashEnvAssignment,
+} from './shell-bash-env-static-assignment.utils';
+import {
+  applyBashEnvKnownAssignment,
   type BashEnvState,
 } from './shell-bash-env-static-variable.utils';
+import { bashEnvStartupValueHasUnresolvedParameterExpansion } from './shell-bash-env-startup-value.utils';
 
 export function applyBashEnvStaticCommandAssignment(
   commandTokens: string[],
@@ -48,10 +51,10 @@ function staticPrintfAssignment(
   if (format === null) return null;
 
   const args = tokens.slice(4).map((token) => bashEnvStaticCommandWordValue(token, state));
-  if (args.includes(null)) return null;
+  if (!allStaticWords(args)) return null;
 
-  const value = formatStaticPrintfValue(format, args as string[]);
-  return value === null ? null : { name, value };
+  const value = formatStaticPrintfValue(format, args);
+  return value === null ? null : generatedAssignment(name, value);
 }
 
 function staticReadAssignments(tokens: string[], state: BashEnvState): BashEnvAssignment[] {
@@ -69,10 +72,23 @@ function staticReadAssignments(tokens: string[], state: BashEnvState): BashEnvAs
   const value = bashEnvStaticCommandWordValue(hereString.word, state);
   if (value === null) return [];
 
-  return staticReadValues(names, value).map(([name, field]) => ({ name, value: field }));
+  return staticReadValues(names, value)
+    .map(([name, field]) => generatedAssignment(name, field));
 }
 
 function bashEnvStaticCommandWordValue(token: string | undefined, state: BashEnvState): string | null {
   if (!token) return null;
   return bashEnvAssignmentWordValue(substituteStaticShellVariables(token, state.variables));
+}
+
+function generatedAssignment(name: string, value: string): BashEnvAssignment {
+  return {
+    name,
+    value,
+    startupExpandable: bashEnvStartupValueHasUnresolvedParameterExpansion(value),
+  };
+}
+
+function allStaticWords(values: Array<string | null>): values is string[] {
+  return values.every((value) => value !== null);
 }

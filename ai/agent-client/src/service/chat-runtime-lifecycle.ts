@@ -12,11 +12,11 @@
 
 import {
   SubagentManager,
+  SvtonAgentRuntime,
   csvFanoutDef,
   CsvFanoutExecutor,
 } from '@svton/agent-core';
 import type { AgentConfig } from '@svton/agent-core';
-import { AgentRuntime } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
 import { SubagentSpawnExecutor, subagentSpawnDef } from '../tool/subagent-spawn';
 import {
@@ -50,8 +50,8 @@ export interface ReinitBindings {
  */
 export async function recreateRuntime(
   bindings: ReinitBindings,
-  previousRuntime: AgentRuntime | null,
-): Promise<{ runtime: AgentRuntime; snapshotApplied: boolean }> {
+  previousRuntime: SvtonAgentRuntime | null,
+): Promise<{ runtime: SvtonAgentRuntime; snapshotApplied: boolean }> {
   if (bindings.approvals.size > 0) {
     previousRuntime?.abort();
     for (const callId of bindings.approvals.keys()) {
@@ -73,7 +73,7 @@ export async function recreateRuntime(
 export async function createIsolatedRuntime(
   config: AgentConfig,
   platform: IPlatform,
-): Promise<AgentRuntime> {
+): Promise<SvtonAgentRuntime> {
   const isolatedConfig: AgentConfig = {
     ...config,
     capabilities: config.capabilities
@@ -87,8 +87,8 @@ export async function createIsolatedRuntime(
 async function createConfiguredRuntime(
   config: AgentConfig,
   platform: IPlatform,
-): Promise<AgentRuntime> {
-  const runtime = await AgentRuntime.createAsync(config, platform);
+): Promise<SvtonAgentRuntime> {
+  const runtime = await SvtonAgentRuntime.createAsync(config, platform);
   await wireSubagentManager(config, runtime, platform);
   if (config.reasoningEffort !== undefined) {
     runtime.setReasoningEffort(config.reasoningEffort);
@@ -99,7 +99,7 @@ async function createConfiguredRuntime(
 /** Register the subagent_spawn + csv_fanout tools backed by a SubagentManager. */
 async function wireSubagentManager(
   config: AgentConfig,
-  runtime: AgentRuntime,
+  runtime: SvtonAgentRuntime,
   platform: IPlatform,
 ): Promise<void> {
   if (!config.capabilities || config.capabilities.subagentManager) return;

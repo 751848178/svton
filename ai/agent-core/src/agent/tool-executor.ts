@@ -76,7 +76,7 @@ export class ToolExecutionService {
     this.execOptions = { ...this.execOptions, ...options };
   }
 
-  /** Set the currently active skills (called by AgentRuntime after skill injection). */
+  /** Set the currently active skills (called by SvtonAgentRuntime after skill injection). */
   setActiveSkills(skills: SkillDefinition[]): void {
     this.activeSkills = skills;
   }

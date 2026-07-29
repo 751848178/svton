@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AutoReviewerManager, BUILTIN_RULES } from '../src/auto-reviewer';
-import { bashEnvAssignmentWordValue } from '../src/auto-reviewer/shell-bash-env-static-variable.utils';
+import { bashEnvAssignmentWordValue } from '../src/auto-reviewer/shell-bash-env-static-assignment.utils';
 import type { ReviewContext } from '../src/auto-reviewer/types';
 
 function bashContext(command: string): ReviewContext {

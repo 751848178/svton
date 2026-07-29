@@ -12,7 +12,7 @@ import type {
   ToolContext,
   IToolExecutor,
 } from '@svton/agent-core';
-import type { AgentConfig, AgentRuntime as AgentRuntimeType } from '@svton/agent-core';
+import type { AgentConfig } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
 
 // ==============================================================

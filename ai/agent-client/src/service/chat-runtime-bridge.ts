@@ -18,7 +18,7 @@
  */
 
 import { logger } from '@svton/agent-core';
-import type { AgentRuntime, SerializedRuntime } from '@svton/agent-core';
+import type { SerializedRuntime, SvtonAgentRuntime } from '@svton/agent-core';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 
 /**
@@ -26,7 +26,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core';
  * new runtime inherits Pi's append-only truth (tool_result blocks included).
  * Returns null when there is no prior runtime or it holds no messages.
  */
-export function snapshotRuntimeMessages(runtime: AgentRuntime | null): AgentMessage[] | null {
+export function snapshotRuntimeMessages(runtime: SvtonAgentRuntime | null): AgentMessage[] | null {
   if (!runtime) return null;
   const messages = runtime.getMessages();
   return messages.length > 0 ? messages : null;
@@ -37,7 +37,7 @@ export function snapshotRuntimeMessages(runtime: AgentRuntime | null): AgentMess
  * to the new runtime. One-way: runtime→runtime, no display round-trip.
  */
 export function reseedRuntimeFromSnapshot(
-  runtime: AgentRuntime,
+  runtime: SvtonAgentRuntime,
   snapshot: AgentMessage[],
 ): void {
   runtime.setMessages(snapshot);
@@ -50,7 +50,7 @@ export function reseedRuntimeFromSnapshot(
  * Restore runtime state for a session from the canonical checkpoint.
  */
 export async function restoreRuntimeState(
-  runtime: AgentRuntime,
+  runtime: SvtonAgentRuntime,
   sessionId: string | null,
 ): Promise<boolean> {
   if (!sessionId) {
@@ -81,7 +81,7 @@ export async function restoreRuntimeState(
  * must be empty; stored display history never becomes canonical state.
  */
 export async function restoreMessagesIntoRuntime(
-  runtime: AgentRuntime,
+  runtime: SvtonAgentRuntime,
   sessionId: string | null,
   shouldApply: () => boolean = () => true,
 ): Promise<'checkpoint' | 'empty' | 'stale'> {

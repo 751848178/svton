@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { Service, observable, action, computed } from '@svton/service';
 import { logger } from '@svton/agent-core';
-import type { AgentConfig, AgentRuntime, PublicRuntimeEvent, ReasoningEffort } from '@svton/agent-core';
+import type { AgentConfig, PublicRuntimeEvent, ReasoningEffort, SvtonAgentRuntime } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
 import type { ChatStatus, DisplayMessage, DisplayToolCall, PlanProgress } from '../types';
 import { InputHistoryStore } from './chat-input-history';
@@ -28,7 +28,7 @@ export class ChatService implements MessageStoreHost {
   @observable() runtimeSessionId: string | null = null;
   @observable() inputHistory: string[] = [];
   @observable() pendingApprovalVersion = 0;
-  private runtime: AgentRuntime | null = null;
+  private runtime: SvtonAgentRuntime | null = null;
   private runtimeConfig: AgentConfig | null = null;
   private runtimeKey: string | undefined = undefined;
   private platform: IPlatform | null = null;

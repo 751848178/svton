@@ -163,5 +163,5 @@ export function shellScriptInputCommandStrings(
     .concat(fdRedirectInputScripts(segment, commandTokens, tokensStartWithShell))
     .filter(Boolean);
 
-  return scripts.concat(scripts.flatMap(staticAssignmentCommandStrings));
+  return scripts.concat(scripts.flatMap((script) => staticAssignmentCommandStrings(script)));
 }

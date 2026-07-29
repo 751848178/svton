@@ -17,7 +17,6 @@ export type {
   McpServerToolConfig,
 } from '../agent/types';
 export { SvtonAgentRuntime } from '../agent/svton-agent-runtime';
-export { AgentRuntime } from '../agent/agent-runtime-alias';
 export {
   resolveModelById,
   reasoningToThinkingLevel,

@@ -3,7 +3,7 @@ import 'reflect-metadata';
 import { ChatService } from '../src/service/chat.service';
 import type { DisplayMessage } from '../src/types';
 import {
-  AgentRuntime,
+  SvtonAgentRuntime,
   ToolRegistry,
   fauxAssistantMessage,
   fauxText,
@@ -64,7 +64,7 @@ function createConfig() {
   return buildPiAgentConfig({ toolRegistry: registry }).config;
 }
 
-function getInitializedRuntime(chat: ChatService): AgentRuntime {
+function getInitializedRuntime(chat: ChatService): SvtonAgentRuntime {
   const runtime = chat['runtime'];
   if (!runtime) throw new Error('ChatService runtime is not initialized');
   return runtime;
@@ -135,7 +135,7 @@ describe('ChatService', () => {
     });
 
     it('skips re-initialization with the same config object', async () => {
-      const spy = vi.spyOn(AgentRuntime, 'createAsync');
+      const spy = vi.spyOn(SvtonAgentRuntime, 'createAsync');
       const config = createConfig();
       await service.init(mockPlatform, config);
       const beforeModel = service.currentModel;
@@ -147,7 +147,7 @@ describe('ChatService', () => {
     });
 
     it('re-initializes when runtime config changes without changing model or workingDir', async () => {
-      const spy = vi.spyOn(AgentRuntime, 'createAsync');
+      const spy = vi.spyOn(SvtonAgentRuntime, 'createAsync');
       const config1 = createConfig();
       const config2 = createConfig();
       await service.init(mockPlatform, config1);
@@ -157,7 +157,7 @@ describe('ChatService', () => {
     });
 
     it('uses runtimeKey to skip semantically identical configs', async () => {
-      const spy = vi.spyOn(AgentRuntime, 'createAsync');
+      const spy = vi.spyOn(SvtonAgentRuntime, 'createAsync');
       const config1 = createConfig();
       const config2 = createConfig();
       await service.init(mockPlatform, config1, 'same-runtime');
