@@ -1,11 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  OnModuleInit,
-  Optional,
-} from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "node:crypto";
 import { AuditEventService } from "../audit-event";
@@ -32,8 +25,15 @@ import type { HeaderBag } from "./server-agent-auth.service";
 import { ServerCommandPolicyService } from "./server-command-policy.service";
 import { ServerAgentCapabilityService } from "./server-agent-capability.service";
 import { ServerExecutorRemoteExecutionMetadataService } from "./server-executor-remote-execution-metadata.service";
+import { ServerExecutorDevpilotSecretResolverService } from "./server-executor-devpilot-secret-resolver.service";
 import { ServerExecutorRuntimeConfigService } from "./server-executor-runtime-config.service";
 import { ServerExecutorSupervisorService } from "./server-executor-supervisor.service";
+import type {
+  ReleaseCoordinatorPort,
+} from "../release-orchestration/release-coordinator.port";
+import {
+  RELEASE_COORDINATOR_PORT,
+} from "../release-orchestration/release-coordinator.port";
 import {
   ServerExecutorWiringFactoryService,
   ServerExecutorWiringServices,
@@ -63,24 +63,24 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @Inject(JOB_QUEUE_PORT)
     private readonly jobQueue?: JobQueuePort,
+    // F383 D3：发布完成回调端口（@Optional；flag 关闭时 undefined；Symbol+interface 无运行时循环）。
+    @Optional()
+    @Inject(RELEASE_COORDINATOR_PORT)
+    private readonly releaseCoordinator?: ReleaseCoordinatorPort,
+    // F383 P0-A：$DEVPILOT_* 秘密解析（域内自包含，避免跨模块循环依赖）。
+    private readonly devpilotSecretResolver?: ServerExecutorDevpilotSecretResolverService,
     @Optional()
     @Inject(DISTRIBUTED_LOCK)
     private readonly distributedLock: DistributedLock = new NoopDistributedLock(),
-    private readonly agentAuthService: ServerAgentAuthService = new ServerAgentAuthService(
-      configService,
-      agentCapabilityService,
-    ),
-    private readonly runtimeConfigService: ServerExecutorRuntimeConfigService = new ServerExecutorRuntimeConfigService(
-      configService,
-    ),
-    private readonly remoteExecutionMetadataService: ServerExecutorRemoteExecutionMetadataService = new ServerExecutorRemoteExecutionMetadataService(
-      prisma,
-    ),
+    private readonly agentAuthService: ServerAgentAuthService = new ServerAgentAuthService(configService, agentCapabilityService),
+    private readonly runtimeConfigService: ServerExecutorRuntimeConfigService = new ServerExecutorRuntimeConfigService(configService),
+    private readonly remoteExecutionMetadataService: ServerExecutorRemoteExecutionMetadataService = new ServerExecutorRemoteExecutionMetadataService(prisma),
   ) {
     this.services = new ServerExecutorWiringFactoryService(prisma, {
       workerId: this.workerId,
       distributedLock: this.distributedLock,
       jobQueue: this.jobQueue,
+      releaseCoordinator: this.releaseCoordinator,
       sshLiveAdapter: this.sshLiveAdapter,
       serverAgentAdapter: this.serverAgentAdapter,
       scriptPlanAdapter: this.scriptPlanAdapter,
@@ -98,6 +98,9 @@ export class ServerExecutorService implements OnModuleInit, OnModuleDestroy {
       recoverStaleRunningJobs: (teamId, actorId) =>
         this.recoverStaleRunningJobs(teamId, actorId),
       processNextQueuedJob: () => this.processNextQueuedJob(),
+      resolveDevpilotSecrets: this.devpilotSecretResolver
+        ? (t, p, e) => this.devpilotSecretResolver!.resolveSecretEnv(t, p, e)
+        : undefined,
     }).create();
   }
 

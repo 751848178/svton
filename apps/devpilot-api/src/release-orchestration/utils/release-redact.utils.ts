@@ -35,6 +35,18 @@ export function redactSecretsInText(input: string): string {
     /([a-zA-Z][a-zA-Z0-9+.-]*):\/\/([^:\s/]+):([^@\s/]+)@/g,
     (_, scheme, user) => `${scheme}://${user}:${REDACTED}@`,
   );
+  // CLI 内联密码形态：`-pSECRET`（mysql 短旗标，紧贴值）、`--password=SECRET`、
+  // `--password SECRET`、`-a SECRET`（redis-cli）、`-pw SECRET` 等。宁可多脱敏，
+  // 也不把命令行里写死的 DB/缓存密码泄漏到快照/日志/响应。
+  // 1) 短旗标紧贴值：-pSECRET / -pwSECRET。用负 lookahead 排除 -password / -passwd
+  //    （长形式由 2/3 处理），避免把 -password= 误吞成 -p。
+  out = out.replace(/(^|[\s;&|])(-pw?)(?!asswd|assword)([^\s;&|\-]+)/gi, (_m, p, flag) => `${p}${flag}${REDACTED}`);
+  // 2) 长/短旗标带分隔符：--password=SECRET / -password=SECRET / -pw=SECRET
+  out = out.replace(/(^|[\s;&|])(-{1,2}p(?:assword|w|asswd))(=)([^\s;&|]+)/gi, (_m, p, flag, eq) => `${p}${flag}${eq}${REDACTED}`);
+  // 3) 空格分隔：--password SECRET / -password SECRET
+  out = out.replace(/(^|[\s;&|])(-{1,2}p(?:assword|w|asswd))(\s+)([^\s-][^\s;&|]*)/gi, (_m, p, flag, sp) => `${p}${flag}${sp}${REDACTED}`);
+  // 4) redis-cli -a SECRET
+  out = out.replace(/(^|[\s;&|])(-{1,2}a(?:uth)?)(\s+)([^\s-][^\s;&|]*)/gi, (_m, p, flag, sp) => `${p}${flag}${sp}${REDACTED}`);
   // ENV 行 KEY=value，KEY 命中敏感词
   out = out.replace(
     /(^|[\s;&|])([A-Za-z_][A-Za-z0-9_]*)=([^\s;&|]+)/g,
@@ -57,6 +69,24 @@ export function redactSecretsInObject<T>(input: T): T {
   if (typeof input === "string") return redactSecretsInText(input) as unknown as T;
   if (Array.isArray(input)) {
     return input.map((item) => redactSecretsInObject(item)) as unknown as T;
+  }
+  // Date 必须先于通用 object 分支：Date 也有 toJSON，且 Object.entries(date)===[]
+  // 会把所有 DateTime 字段破坏成 {}（UI 得到 NaN 时间）。
+  if (input instanceof Date) {
+    return input.toISOString() as unknown as T;
+  }
+  if (Buffer.isBuffer(input)) {
+    return input.toString("hex") as unknown as T;
+  }
+  // Decimal/BigInt-as-object/Prisma.Decimal 类对象的防御性归一化
+  // （release 模型不用 Decimal，但本 util 复用于任意 JSON blob 脱敏）。
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "toJSON" in input &&
+    typeof (input as { toJSON: unknown }).toJSON === "function"
+  ) {
+    return String(input) as unknown as T;
   }
   if (typeof input === "object") {
     const out: Record<string, unknown> = {};

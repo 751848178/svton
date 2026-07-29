@@ -14,6 +14,9 @@ export interface ReleaseStageExecutionContext {
   applicationId?: string | null;
   applicationServiceId?: string | null;
   serverId?: string | null;
+  // 阶段的稳定 key/type（F383 P0-B：审批桥接需 key 派生 inputHash 校验父审批）。
+  stageKey?: string | null;
+  stageType?: string | null;
   // 已脱敏的配置快照
   configSnapshot: Record<string, unknown> | null;
   configHash: string | null;

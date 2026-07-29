@@ -1,7 +1,12 @@
 /**
- * 发布计划服务：预览、创建、执行、取消、重试、受控跳过。
- * dry-run 只解析校验显示副作用，不创建任务、不消费审批。
- * 正式创建冻结 inputSnapshot + planHash。
+ * 发布计划服务：计划生命周期核心——预览、创建、查询、执行、心跳续约、git ref 解析。
+ * dry-run 只解析校验显示副作用，不创建任务、不消费审批。正式创建冻结 inputSnapshot + planHash。
+ *
+ * 已抽离的职责（按 200 行/单职责约定）：
+ *   - 取消 → ReleaseCancelService（P0-3 CAS 所有权）
+ *   - 重试 / 重新申请审批 / 跳过 → ReleaseStageActionService
+ *   - stage 持久化映射 → mapStagesForPersist
+ * 本服务只保留 preview/create/get/list/execute/heartbeat/isEnabled/resolveGitRefInto。
  */
 import {
   BadRequestException,
@@ -13,26 +18,17 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReleasePlanRepository } from "./repository/release-plan.repository";
-import { ReleaseStageRepository } from "./repository/release-stage.repository";
 import { ReleaseStageAttemptRepository } from "./repository/release-stage-attempt.repository";
 import { ReleaseEventRepository } from "./repository/release-event.repository";
 import { ReleaseCoordinatorService } from "./release-coordinator.service";
-import {
-  buildReleasePlan,
-  type ReleasePlanBuildInput,
-  type ReleasePlanPreview,
-} from "./utils/release-plan-builder.utils";
+import { buildReleasePlan, type ReleasePlanBuildInput, type ReleasePlanPreview } from "./utils/release-plan-builder.utils";
+import { mapStagesForPersist } from "./utils/release-plan-create-mapper.utils";
 import { redactSecretsInObject } from "./utils/release-redact.utils";
-import {
-  assertLegalPlanTransition,
-  assertLegalStageTransition,
-} from "./utils/release-state-machine.utils";
-import {
-  RELEASE_AUDIT_ACTIONS,
-  RELEASE_ORCHESTRATION_FLAG,
-} from "./types/release-orchestration.types";
+import { resolveGitRef } from "./utils/release-git-ref.utils";
+import { RELEASE_AUDIT_ACTIONS, RELEASE_ORCHESTRATION_FLAG } from "./types/release-orchestration.types";
+import { ReleaseCancelService } from "./release-cancel.service";
 
-const SKIP_CONFIRMATION = "我确认跳过此可选阶段";
+const LEASE_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class ReleasePlanService {
@@ -40,10 +36,10 @@ export class ReleasePlanService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly planRepo: ReleasePlanRepository,
-    private readonly stageRepo: ReleaseStageRepository,
     private readonly attemptRepo: ReleaseStageAttemptRepository,
     private readonly eventRepo: ReleaseEventRepository,
     private readonly coordinator: ReleaseCoordinatorService,
+    private readonly cancelService: ReleaseCancelService,
   ) {}
 
   isEnabled(): boolean {
@@ -56,8 +52,8 @@ export class ReleasePlanService {
     }
   }
 
-  // 预览：纯解析，不写 DB
-  preview(input: ReleasePlanBuildInput): ReleasePlanPreview {
+  async preview(input: ReleasePlanBuildInput): Promise<ReleasePlanPreview> {
+    await this.resolveGitRefInto(input);
     const result = buildReleasePlan(input);
     if (!result.ok) {
       throw new BadRequestException({
@@ -71,10 +67,36 @@ export class ReleasePlanService {
 
   // 正式创建计划（冻结快照）
   async create(
-    input: ReleasePlanBuildInput & { teamId: string; createdByUserId?: string },
+    input: ReleasePlanBuildInput & {
+      teamId: string;
+      createdByUserId?: string;
+      expectedPlanHash?: string;
+    },
   ): Promise<{ id: string; planHash: string }> {
     this.assertEnabled();
-    const preview = this.preview(input);
+    const preview = await this.preview(input);
+    // preview ↔ create 强绑定（invest-3 §C）：客户端回传 expectedPlanHash，与本次重新计算的
+    // preview.planHash 不一致即 409。CR-3-F2：expectedPlanHash 现为必填，关闭 hash 校验绕过。
+    // P0-2：planHash 绑定依赖图（canonical snapshot），依赖图变化必改变 hash。
+    if (preview.planHash !== input.expectedPlanHash) {
+      throw new ConflictException({
+        code: "RELEASE_PLAN_STALE",
+        message: "预览已过期，请重新生成",
+        expected: preview.planHash,
+        received: input.expectedPlanHash,
+      });
+    }
+    // 持久化阶段用「未脱敏」原始 stages——preview() 已整体 redactSecretsInObject 会把
+    // 连接串密码冻结成 [REDACTED]，执行时会以字面量 [REDACTED] 认证失败。重新跑未脱敏
+    // buildReleasePlan 取原始 stages；planHash 与 preview 同源（都由 buildReleasePlan 计算）。
+    const rawBuild = buildReleasePlan(input);
+    if (!rawBuild.ok) {
+      throw new BadRequestException({
+        code: "RELEASE_PLAN_INVALID",
+        message: rawBuild.error.message,
+        details: rawBuild.error.details,
+      });
+    }
     const plan = await this.planRepo.persistPlanWithStages({
       teamId: input.teamId,
       projectId: input.projectId,
@@ -85,21 +107,7 @@ export class ReleasePlanService {
       planHash: preview.planHash,
       inputSnapshot: redactSecretsInObject(preview.inputSnapshot),
       createdByUserId: input.createdByUserId ?? null,
-      stages: preview.stages.map((stage) => ({
-        key: stage.key,
-        name: stage.name,
-        type: stage.type,
-        executorKind: stage.executorKind,
-        applicationId: stage.applicationId ?? null,
-        applicationServiceId: stage.applicationServiceId ?? null,
-        environmentId: stage.environmentId ?? null,
-        serverId: stage.serverId ?? null,
-        configSnapshot: redactSecretsInObject(stage.configSnapshot ?? {}),
-        configHash: stage.configHash ?? null,
-        concurrencyKey: stage.concurrencyKey ?? null,
-        riskLevel: stage.riskLevel,
-        required: stage.required,
-      })),
+      stages: mapStagesForPersist(rawBuild.value.stages),
       dependencies: preview.dependencies,
     });
     await this.eventRepo.append({
@@ -115,9 +123,7 @@ export class ReleasePlanService {
 
   async get(teamId: string, planId: string) {
     const plan = await this.planRepo.findById(planId);
-    if (!plan || plan.teamId !== teamId) {
-      throw new NotFoundException("发布计划不存在");
-    }
+    if (!plan || plan.teamId !== teamId) throw new NotFoundException("发布计划不存在");
     return redactSecretsInObject(plan);
   }
 
@@ -129,120 +135,42 @@ export class ReleasePlanService {
   async execute(teamId: string, planId: string, actorId: string): Promise<void> {
     this.assertEnabled();
     const plan = await this.planRepo.findById(planId);
-    if (!plan || plan.teamId !== teamId) throw new NotFoundException("发布计划不存在");
+    if (!plan || plan.teamId !== teamId) throw new BadRequestException("发布计划不存在");
     const updated = await this.planRepo.updateStatusIf(
       planId,
       ["ready", "blocked"],
       { status: "running", startedAt: new Date(), blockedReason: null },
     );
-    if (updated === 0) {
-      throw new ConflictException(`计划当前状态 ${plan.status} 不可执行`);
-    }
+    if (updated === 0) throw new ConflictException(`计划当前状态 ${plan.status} 不可执行`);
     await this.eventRepo.append({
-      releasePlanId: planId,
-      teamId,
-      eventType: RELEASE_AUDIT_ACTIONS.plan_executed,
-      actorId,
+      releasePlanId: planId, teamId,
+      eventType: RELEASE_AUDIT_ACTIONS.plan_executed, actorId,
       summary: "开始执行发布计划",
     });
     await this.coordinator.advancePlan(planId, actorId);
   }
 
+  // 取消发布计划：委托 ReleaseCancelService（P0-3 CAS 所有权）。
   async cancel(teamId: string, planId: string, actorId: string): Promise<void> {
-    const plan = await this.planRepo.findById(planId);
-    if (!plan || plan.teamId !== teamId) throw new NotFoundException("发布计划不存在");
-    assertLegalPlanTransition(plan.status as never, "canceled");
-    await this.planRepo.updateStatusIf(
-      planId,
-      ["draft", "awaiting_approval", "ready", "running", "blocked"],
-      { status: "canceled", canceledAt: new Date(), finishedAt: new Date() },
-    );
-    await this.prisma.releaseStage.updateMany({
-      where: { releasePlanId: planId, status: { in: ["pending", "blocked", "awaiting_approval", "ready", "queued"] } },
-      data: { status: "canceled" },
-    });
-    await this.prisma.releaseStageAttempt.updateMany({
-      where: { releaseStage: { releasePlanId: planId }, status: { in: ["queued", "running"] } },
-      data: { status: "canceled", finishedAt: new Date(), leaseOwner: null, leaseExpiresAt: null },
-    });
-    await this.eventRepo.append({
-      releasePlanId: planId,
-      teamId,
-      eventType: RELEASE_AUDIT_ACTIONS.plan_canceled,
-      actorId,
-      summary: "发布计划已取消",
-    });
-  }
-
-  // 显式重试失败阶段：创建新 attempt 并重新推进
-  async retryStage(
-    teamId: string,
-    planId: string,
-    stageId: string,
-    actorId: string,
-  ): Promise<void> {
-    this.assertEnabled();
-    const stage = await this.stageRepo.findById(stageId);
-    if (!stage || stage.releasePlanId !== planId || stage.teamId !== teamId) {
-      throw new NotFoundException("阶段不存在");
-    }
-    if (stage.status !== "failed") {
-      throw new ConflictException(`仅失败阶段可重试，当前 ${stage.status}`);
-    }
-    assertLegalStageTransition("failed", "ready");
-    await this.stageRepo.update(stageId, { status: "ready", blockedReason: null });
-    await this.eventRepo.append({
-      releasePlanId: planId,
-      releaseStageId: stageId,
-      teamId,
-      eventType: RELEASE_AUDIT_ACTIONS.stage_retried,
-      actorId,
-      summary: `阶段 ${stage.key} 重试`,
-    });
-    await this.coordinator.advancePlan(planId, actorId);
-  }
-
-  // 受控跳过：仅 optional 阶段；必需阶段永远禁止
-  async skipStage(
-    teamId: string,
-    planId: string,
-    stageId: string,
-    actorId: string,
-    body: { reason: string; confirmationText: string },
-  ): Promise<void> {
-    this.assertEnabled();
-    const stage = await this.stageRepo.findById(stageId);
-    if (!stage || stage.releasePlanId !== planId || stage.teamId !== teamId) {
-      throw new NotFoundException("阶段不存在");
-    }
-    if (stage.required) {
-      throw new ForbiddenException("必需阶段不可跳过");
-    }
-    if (!body.reason?.trim()) {
-      throw new BadRequestException("跳过必须填写原因");
-    }
-    if (body.confirmationText !== SKIP_CONFIRMATION) {
-      throw new BadRequestException(`确认文本必须为：${SKIP_CONFIRMATION}`);
-    }
-    assertLegalStageTransition(stage.status as never, "skipped");
-    await this.stageRepo.update(stageId, { status: "skipped", blockedReason: body.reason });
-    await this.eventRepo.append({
-      releasePlanId: planId,
-      releaseStageId: stageId,
-      teamId,
-      eventType: RELEASE_AUDIT_ACTIONS.stage_skipped,
-      actorId,
-      summary: `阶段 ${stage.key} 被跳过：${body.reason}`,
-      metadata: { reason: body.reason },
-    });
-    await this.coordinator.advancePlan(planId, actorId);
+    return this.cancelService.cancel(teamId, planId, actorId);
   }
 
   // 心跳续约（执行中的 attempt）
   async heartbeat(attemptId: string, owner: string): Promise<number> {
     return this.attemptRepo.heartbeat(attemptId, owner, new Date(Date.now() + LEASE_MS));
   }
-}
 
-const LEASE_MS = 15 * 60 * 1000;
-export const RELEASE_SKIP_CONFIRMATION_TEXT = SKIP_CONFIRMATION;
+  // 解析 git ref（invest-3 §B.2）：分支 → commit SHA。
+  private async resolveGitRefInto(input: ReleasePlanBuildInput): Promise<void> {
+    if (!input.gitRepo || !input.branch) return;
+    if (input.commitSha) return;
+    const resolved = await resolveGitRef(input.gitRepo, input.branch);
+    if (!resolved) {
+      throw new BadRequestException({
+        code: "RELEASE_GIT_UNRESOLVABLE",
+        message: `无法解析分支 ${input.branch} 的提交，请检查仓库地址与分支`,
+      });
+    }
+    input.commitSha = resolved.commitSha;
+  }
+}

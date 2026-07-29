@@ -13,24 +13,30 @@ import { useMemo, useState } from 'react';
 import { usePersistFn } from '@svton/hooks';
 import { useQueryLoose, mutate } from '@/hooks/api/use-api';
 import type { AuditEvent, AuditFilters, AuditStats } from '../types';
+import {
+  auditEventsApiName,
+  type AuditEventScope,
+} from '../utils/audit-events-query.utils';
 
-/** SWR 缓存 key（与 useQueryLoose 的 apiName / server 端 serverRequest 一致）。 */
-const AUDIT_EVENTS_KEY = 'GET:/audit-events';
 const EMPTY_AUDIT_EVENTS: AuditEvent[] = [];
 
-export function useAuditEvents(initialEvents?: AuditEvent[] | undefined) {
+export function useAuditEvents(
+  initialEvents?: AuditEvent[] | undefined,
+  scope: AuditEventScope = {},
+) {
+  const apiName = auditEventsApiName(scope);
   const {
     data,
     isLoading,
     error,
     mutate: refresh,
-  } = useQueryLoose<AuditEvent[]>(AUDIT_EVENTS_KEY, { fallback: initialEvents });
+  } = useQueryLoose<AuditEvent[]>(apiName, { fallback: initialEvents });
   const allEvents = data ?? EMPTY_AUDIT_EVENTS;
 
   const [filters, setFilters] = useState<AuditFilters>({
-    category: 'all',
-    status: 'all',
-    risk: 'all',
+    category: scope.category ?? 'all',
+    status: scope.status ?? 'all',
+    risk: scope.risk ?? 'all',
   });
 
   /** 客户端按筛选条件过滤后的事件列表。 */
@@ -64,7 +70,7 @@ export function useAuditEvents(initialEvents?: AuditEvent[] | undefined) {
   });
 
   const reload = usePersistFn(async () => {
-    await mutate(AUDIT_EVENTS_KEY);
+    await mutate(apiName);
   });
 
   return {

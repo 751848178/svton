@@ -31,10 +31,29 @@ export class OperationApprovalRepository {
         action: input.action,
         targetType: input.targetType,
         targetId: input.targetId ?? null,
+        inputHash: input.inputHash ?? null,
         status: "pending",
       },
       include: OPERATION_APPROVAL_INCLUDE,
     });
+  }
+
+  // 最新绑定到某个 target（如 release_stage）的审批；用于阶段绑定审批的生命周期判定
+  findLatestForTarget(teamId: string, targetType: string, targetId: string) {
+    return this.prisma.operationApproval.findFirst({
+      where: { teamId, targetType, targetId },
+      orderBy: { createdAt: "desc" },
+      include: OPERATION_APPROVAL_INCLUDE,
+    });
+  }
+
+  // 把指定审批标记为 cancelled（用于 re-request 流程作废已拒绝的旧审批）
+  async cancel(approvalId: string, currentStatus: string): Promise<number> {
+    const r = await this.prisma.operationApproval.updateMany({
+      where: { id: approvalId, status: currentStatus },
+      data: { status: "cancelled" },
+    });
+    return r.count;
   }
 
   create(input: CreateOperationApprovalInput) {
@@ -110,6 +129,7 @@ export class OperationApprovalRepository {
       targetType: input.targetType,
       targetId: input.targetId ?? undefined,
       risk: input.risk,
+      inputHash: input.inputHash ?? null,
       summary: input.summary ?? undefined,
       reason: input.reason ?? undefined,
       metadata:

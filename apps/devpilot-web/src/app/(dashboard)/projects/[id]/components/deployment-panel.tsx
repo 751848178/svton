@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
-import { Button, ErrorBanner, StatusTag } from '@/components/ui';
+import { Alert, Button, ErrorBanner, StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import { getProjectEnvironmentLabels } from '@/lib/project-display';
 import { DeploymentRunDetails } from './deployment-run-details.component';
@@ -20,33 +20,43 @@ const INITIAL_VISIBLE = 10;
 
 interface DeploymentPanelProps {
   detail: DetailHook;
+  focusedRunId?: string;
   /** 打开内联部署向导（项目域 app/service）。无值时回退到运行历史视图。 */
   onOpenDeploy?: (application: ProjectApplication, service: ProjectService) => void;
 }
 
-export function DeploymentPanel({ detail, onOpenDeploy }: DeploymentPanelProps) {
+export function DeploymentPanel({ detail, focusedRunId, onOpenDeploy }: DeploymentPanelProps) {
   const t = useTranslations('projects');
   const [expanded, setExpanded] = useState(false);
 
   const showDeploySection = Boolean(onOpenDeploy && detail.project?.applications?.length);
 
+  const focusedRuns = focusedRunId
+    ? detail.deploymentRuns.filter((run) => run.id === focusedRunId)
+    : detail.deploymentRuns;
   const runsPanel = (
     <PanelGroup
       title={t('deploymentRuns')}
       subtitle={t('deploymentPanelDescription')}
     >
+      {focusedRunId ? (
+        <Alert tone="info">
+          {t('focusedDeploymentRun', { id: focusedRunId.slice(-8) })}
+        </Alert>
+      ) : null}
       {detail.deploymentError ? (
         <ErrorBanner
           message={detail.deploymentError}
           onRetry={() => detail.loadDeploymentRuns()}
         />
-      ) : detail.deploymentRuns.length === 0 ? (
-        <EmptyState text={t('noDeploymentRuns')} />
+      ) : focusedRuns.length === 0 ? (
+        <EmptyState text={focusedRunId ? t('focusedDeploymentRunNotFound') : t('noDeploymentRuns')} />
       ) : (
         <DeploymentRunList
-          runs={detail.deploymentRuns}
+          runs={focusedRuns}
           visibleCount={INITIAL_VISIBLE}
-          expanded={expanded}
+          expanded={Boolean(focusedRunId) || expanded}
+          focusedRunId={focusedRunId}
           onToggle={setExpanded}
           t={t}
         />
@@ -72,12 +82,14 @@ function DeploymentRunList({
   visibleCount,
   expanded,
   onToggle,
+  focusedRunId,
   t,
 }: {
   runs: DeploymentRun[];
   visibleCount: number;
   expanded: boolean;
   onToggle: (v: boolean) => void;
+  focusedRunId?: string;
   t: ReturnType<typeof useTranslations<'projects'>>;
 }) {
   const visible = expanded ? runs : runs.slice(0, visibleCount);
@@ -88,6 +100,7 @@ function DeploymentRunList({
           <DeploymentRunRow
             key={run.id}
             run={run}
+            initiallyOpen={run.id === focusedRunId}
             t={t}
           />
         ))}
@@ -109,8 +122,16 @@ function DeploymentRunList({
 
 type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
 
-function DeploymentRunRow({ run, t }: { run: DeploymentRun; t: ProjectsTranslator }) {
-  const [open, setOpen] = useState(false);
+function DeploymentRunRow({
+  run,
+  initiallyOpen,
+  t,
+}: {
+  run: DeploymentRun;
+  initiallyOpen: boolean;
+  t: ProjectsTranslator;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
   const sourceKey = getRunSourceLabelKey(run.source);
   const statusKey = getRunStatusLabelKey(run.status);
   const statusLabel = statusKey ? t(statusKey) : run.status;

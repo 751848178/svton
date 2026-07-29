@@ -40,6 +40,14 @@ function ExecutionGovernanceInner() {
   const gov = useExecutionGovernance(scope);
   const handleRetry = usePersistFn(() => gov.reload());
 
+  // F383 §F：?jobId= 聚焦——把作业列表客户端收窄到该单个任务，使发布尝试详情
+  // 的「执行任务」链接落到真实任务行，而非泛化的 /servers 列表。
+  const focusedJobId = scope.focusedJobId;
+  const govView = useMemo(() => {
+    if (!focusedJobId) return gov;
+    return { ...gov, jobs: gov.jobs.filter((j: { id: string }) => j.id === focusedJobId) };
+  }, [gov, focusedJobId]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -117,7 +125,16 @@ function ExecutionGovernanceInner() {
         leaseStats={gov.leaseStats}
       />
 
-      <GovernanceTabs gov={gov} />
+      {focusedJobId ? (
+        <Alert tone="info">
+          {t('focusedJob', { id: focusedJobId.slice(-8) })}
+        </Alert>
+      ) : null}
+
+      <GovernanceTabs
+        gov={govView}
+        defaultActiveKey={focusedJobId ? 'jobs' : 'supervisor'}
+      />
 
       <ConfirmDialog
         open={Boolean(gov.pendingJobAction)}

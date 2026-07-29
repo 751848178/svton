@@ -32,6 +32,8 @@ function PlusIcon({ className }: { className?: string }) {
 interface ApplicationCardProps {
   application: ApplicationItem;
   queryEnvironmentId: string;
+  focusedApplicationId: string;
+  focusedServiceId: string;
   runningOperation: string;
   deployingServiceId: string;
   queueDeploymentRuns: boolean;
@@ -64,10 +66,21 @@ interface ApplicationCardProps {
 }
 
 export function ApplicationCard(props: ApplicationCardProps) {
-  const { application, queryEnvironmentId, onAddService } = props;
+  const {
+    application,
+    queryEnvironmentId,
+    focusedApplicationId,
+    focusedServiceId,
+    onAddService,
+  } = props;
   const t = useTranslations('applications');
   return (
-    <div className="rounded-md border p-4">
+    <div
+      id={`application-${application.id}`}
+      className={`rounded-md border p-4 ${
+        focusedApplicationId === application.id ? 'border-primary ring-2 ring-primary/20' : ''
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -111,6 +124,7 @@ export function ApplicationCard(props: ApplicationCardProps) {
               key={service.id}
               application={application}
               service={service}
+              focused={focusedServiceId === service.id}
               runningOperation={props.runningOperation}
               deployingServiceId={props.deployingServiceId}
               queueServiceOperations={props.queueServiceOperations}

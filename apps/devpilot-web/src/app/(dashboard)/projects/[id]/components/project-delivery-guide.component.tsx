@@ -9,6 +9,7 @@
 import { useTranslations } from 'next-intl';
 import { Button, Card } from '@svton/ui';
 import type { useProjectDetail } from '../hooks/use-project-detail';
+import type { RepositoryReadiness } from '../types/repository-analysis.types';
 import {
   getProjectDeliveryReadiness,
   type DeliveryAction,
@@ -20,13 +21,19 @@ type DetailHook = ReturnType<typeof useProjectDetail>;
 export function ProjectDeliveryGuide({
   detail,
   onAction,
+  repositoryReadiness,
 }: {
   detail: DetailHook;
   onAction: (action: DeliveryAction, environmentId?: string) => void;
+  repositoryReadiness: RepositoryReadiness;
 }) {
   const t = useTranslations('projects');
   if (!detail.project) return null;
-  const readiness = getProjectDeliveryReadiness(detail.project, detail.deploymentRuns);
+  const readiness = getProjectDeliveryReadiness(
+    detail.project,
+    detail.deploymentRuns,
+    repositoryReadiness,
+  );
   const progress = Math.round((readiness.completedCount / readiness.totalCount) * 100);
 
   return (

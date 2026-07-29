@@ -359,16 +359,59 @@ MVP 验收标准：
 
 ## 10. F383 项目级发布编排设计与 GLM 交接（2026-07-27）
 
-- 状态：架构、任务台账、兼容边界、验收矩阵和全新对话可执行的 GLM Goal
-  提示词已完成；本轮按约定停止在实现前。
+- 状态：**done（2026-07-29）**。架构、任务台账、兼容边界、验收矩阵、运维手册、
+  浏览器证据和可执行 Goal 均已完成。最终可复现计划
+  `cms5m7z2001ow14kkg3jg0l87` 对应 Picshare
+  `master@8e7c465d56e68dafcef0dfbc480fe721044b0fb3`，六阶段全部 succeeded。
+  详见 `release-orchestration-final-report.md`。
+- 第二批收口：发布详情中的 `ServerExecutionJob` 链接使用服务端 `jobId` 精确查询并
+  自动切到“作业”Tab；`DeploymentRun` 链接进入项目“部署”Tab，使用作用域详情 API
+  精确读取并自动展开，真实/伪造 ID 都不会回退到通用列表。平台新增 team-admin
+  计划级零泄漏验证 API，覆盖两类运行的参数、命令计划、日志、结果、错误、元数据及
+  关联日志/审计；真实结果为 4 probes / 8 records / 44 fields / 0 findings，审计事件
+  `cms5o57vz000akza17koems85`，响应与审计均不含探针值。
 - 核心决策：数据库结构迁移、生产 bootstrap、存量数据回填和应用部署独立
   执行，通过项目/环境范围的持久化 DAG 编排，不再依赖单条部署命令拼接。
-- 复用边界：命令阶段继续使用 `ServerExecutorJob`，应用部署继续使用
+- 复用边界：命令阶段继续使用 `ServerExecutionJob`，应用部署继续使用
   `DeploymentRun`，审批和审计继续使用现有模块；不得另建 SSH/Agent 旁路。
 - 兼容边界：现有直接部署保持 F382 串行语义；新编排默认关闭，发布内部适配
   模式避免 migration/bootstrap 重复执行。
 - UI 目标：用户只需看到当前结论、一个推荐动作、阻塞原因、阶段输入/依赖/
   尝试/输出/日志/错误和关联运行；所有按钮必须有真实后端效果。
+- **第三轮修复（P0-1/2/3，2026-07-28）**：跨服务依赖改为服务端归属
+  （`deployConfig.releaseDependencies`）；planHash 绑定依赖图（canonical snapshot，
+  preview↔create drift → 409）；cancel CAS 所有权（finalize-then-cancel 不再产生
+  部分取消/虚假事件）；release-plan.service 按职责拆分为 cancel/stage-action 子服务。
+  验证：268 单测+集成测试通过（集成套件不再 skip），类型/lint/build/prisma 全绿。
+- **第四轮收尾（Item 1/2/3 + 两轮独立 CR，2026-07-28，HEAD `4f2f691f`）**：release-dependency
+  解析改为 **fail-closed**（9 类结构化错误码；required→400、optional→warn+drop；preview/create 共用
+  同一路径）；新增确定性 stale-read cancel/finalize CAS 竞态测试（Proxy-gated `$transaction`，
+  6 场景）；controller 拆分 274→183 行（抽出 `ReleasePlanAccessGuard` /
+  `ReleasePlanOrchestratorService` / `ReleaseDependencyResolverService`，所有生产文件 ≤200）。
+  真实验证：**287 测试通过**（一次性 MySQL :3399 串行，真实重算）；本地 staging 全栈可访问
+  （3120/3121 + 13 infra 容器，Nest 无 DI 错误）；真实 API fail-closed 双证（负面 preview→400
+  `RELEASE_PLAN_INVALID`）；真实 SSH/Server-Executor 路径接线验证（命令实际执行阻塞于
+  command-policy 模板匹配，配置问题非代码）。浏览器像素级全流程阻塞于 IAB click 投递不稳定
+  （环境问题）。Docker 存储损坏已恢复。详表见
+  `/tmp/codex-tool-runs/svton/f383-final-closure/BLOCKED-STATUS.md`。
 - 详细架构见 `docs-internal/devpilot/release-orchestration-architecture.md`，
   长任务入口见
   `docs-internal/devpilot/glm-goals/devpilot-release-orchestration-goal.md`。
+
+## 11. F384 真实只读仓库连接与代码解析纳管（2026-07-29）
+
+- 状态：**done**（2026-07-29）。
+- 已确认缺口：当前项目导入只保存手工仓库、分支、技术栈和命令，
+  F381 明确把自动仓库分析列为后续工作，项目页因此不能把这些字段标为真实验证。
+- 本阶段闭环：只读连接并解析真实默认分支/精确 commit，持久化可审计运行与阶段证据，
+  检测服务/框架/命令/容器/环境变量名/端口/健康检查/数据操作，再让用户逐项
+  确认、编辑或忽略建议后应用到项目、应用服务、环境和部署配置。
+- 验收边界：只有真实连接、解析、确认应用、日志审计及页面/API/数据库回读全部完成，
+  项目交付准备度才能从 5/6 变为 6/6；F383 和后续资源供应能力均不在本阶段改动。
+- 任务账本：`docs-internal/todos/2026-07-29-repository-analysis.md`。
+- 进度锚点：`docs-internal/devpilot/progress/f384-repository-analysis.md`。
+- 最终证据：Picshare
+  `master@8e7c465d56e68dafcef0dfbc480fe721044b0fb3`，解析运行
+  `cms5xb3o2000aazxpaut9boes` 六阶段 succeeded，5 条建议完成
+  edit/accept/reject 后持久化应用，项目准备度 6/6，并完成仓库、应用服务、环境、
+  审计页面及脱敏数据库回读。

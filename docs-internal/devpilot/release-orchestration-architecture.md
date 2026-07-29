@@ -329,6 +329,7 @@ application deploy 通过内部适配器创建 `DeploymentRun`，并把
 - `POST /release-plans/projects/:projectId`
 - `GET /release-plans?projectId=&environmentId=&status=`
 - `GET /release-plans/:planId`
+- `POST /release-plans/:planId/secret-leak-verification`
 - `POST /release-plans/:planId/execute`
 - `POST /release-plans/:planId/cancel`
 - `POST /release-plans/:planId/stages/:stageId/retry`
@@ -345,6 +346,31 @@ application deploy 通过内部适配器创建 `DeploymentRun`，并把
 - 完整时间字段。
 
 错误使用稳定机器码和中文可操作说明，不用 HTTP 200 包装失败。
+
+### 9.1 精确执行证据与零泄漏验证
+
+发布阶段的关联运行必须定位到唯一记录，禁止退化为无过滤条件的最近列表：
+
+- `ServerExecutionJob` 链接为
+  `/execution-governance?jobId=<id>`；Web 将 `jobId` 原样交给
+  `GET /server-execution-jobs?jobId=<id>` 的服务端 `where.id`，默认选中“作业”；
+- `DeploymentRun` 链接为
+  `/projects/<projectId>?tab=deployments&runId=<id>`；Web 调用
+  `GET /deployments/runs/<id>`，API 同时校验 team、project/environment 访问范围，
+  不可读或不存在统一 404，页面只显示并自动展开目标运行；
+- 无效 `jobId`/`runId` 只能得到空态或未找到，不能回退到最近 100/30 条记录。
+
+计划级零泄漏验证由
+`POST /release-plans/:planId/secret-leak-verification` 提供：
+
+- 仅 `team_admin` 且具有计划写权限的操作者可调用；
+- `candidateSecrets` 只在请求内存中参与比对，不进入响应、日志或 AuditEvent；
+- 覆盖 DeploymentRun 的参数、工作目录/命令、命令计划、日志、结果、错误，
+  ServerExecutionJob 的输入快照、命令计划、日志、结果、错误、元数据，以及关联
+  LogStream、LogEntry、AuditEvent；
+- 响应只返回 verdict、覆盖完整性、记录/字段/命中计数和安全定位
+  `recordType/recordId/field/path/detector`，不返回值或片段；
+- 查询、检测或审计失败时 fail-closed，不生成 `clean` 结论；成功和失败均写安全审计。
 
 ## 10. 新手 UI
 
@@ -449,6 +475,8 @@ DEVPILOT_RELEASE_ORCHESTRATION_ENABLED=false
 | 配置变化 | 生成新 planHash，旧审批不可复用 |
 | 用户无环境权限 | 列表与详情均不可读取 |
 | 日志含密钥 | API、数据库和 UI 中均被脱敏 |
+| 关联任务深链接 | 只显示指定 job/run；伪造 ID 不回退通用列表 |
+| 计划级零泄漏验证 | 覆盖完整、审计可回读、响应/审计不含秘密值 |
 | 关闭 feature flag | 所有现有部署回归不变 |
 
 ## 14. 完成定义
@@ -463,3 +491,7 @@ DEVPILOT_RELEASE_ORCHESTRATION_ENABLED=false
 - 截图、API 回读、数据库回读和审计事件一致；
 - 所有按钮真实可用或明确解释不可用原因；
 - TODO、进度和最终报告记录命令、退出码、证据路径与剩余生产风险。
+
+2026-07-29 本地完成证据：计划 `cms5m7z2001ow14kkg3jg0l87` 六阶段
+succeeded；真实浏览器验证两个精确链路与伪造 ID；零泄漏验证为 4 probes /
+8 records / 44 fields / 0 findings，审计 `cms5o57vz000akza17koems85`。

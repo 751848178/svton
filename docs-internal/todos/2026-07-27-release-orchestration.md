@@ -4,23 +4,64 @@
 > 创建时间：2026-07-27（Asia/Shanghai）
 > 设计者：OpenAI Codex（GPT-5 系列）
 > 使用工具：Git、CodeGraph CLI、受限源码读取、Prisma 模型检查、既有运行证据
-> 当前状态：**实现完成（done）**。所有 F383.x 项已实现并有证据；浏览器 GUI 取证为剩余人工项。
+> 当前状态：**done（2026-07-29）**。Picshare `master@8e7c465d56e68dafcef0dfbc480fe721044b0fb3` 的真实计划 `cms5m7z2001ow14kkg3jg0l87` 六阶段全部 succeeded；`ServerExecutionJob`、`DeploymentRun` 已有不可退化为通用列表的精确页面链路；平台计划级零泄漏验证覆盖 8 条关联记录、44 个持久化字段，使用 4 个真实秘密探针得到 `clean / 0 findings`，审计事件 `cms5o57vz000akza17koems85` 已回读。F383.9.3/F383.9.4 与第二批原子项全部完成。
+> 修复轮次：2026-07-27 第二轮 → 2026-07-28 第三/四轮 → 2026-07-29 第一批可复现主链收尾；Devpilot 分支 `fix/f383-release-orchestration-mainchain`，Picshare `master@8e7c465` 已推送。
 > 最终报告：`docs-internal/devpilot/release-orchestration-final-report.md`
 > 运维手册：`docs-internal/devpilot/release-orchestration-runbook.md`
+> 阻塞状态详表：`/tmp/codex-tool-runs/svton/f383-final-closure/BLOCKED-STATUS.md`
+
+## 第三轮修复（P0-1/2/3，2026-07-28）
+
+> 第三轮针对独立审查揭示的三个确定性主链断点修复。提交 `03d6d10d`，证据日志 `/tmp/codex-tool-runs/svton/f383-third-round/`。
+
+- **P0-1 跨服务依赖改为服务端归属**：依赖定义源 = `ApplicationService.deployConfig.releaseDependencies`
+  （平台受控/持久化/可审计，零迁移）。控制器不再信任客户端 `serviceDependencies`（DTO 移除入参），
+  改由 `ReleasePlanAccessService.resolveServiceDependencies` 从已校验服务集合解析；向导环境切换清除失效
+  `selectedServices`；预览面板用中文描述展示依赖（「Backend 就绪检查成功后，才会部署 Admin」）。
+  通用，非 Picshare 名称硬编码。
+- **P0-2 planHash 绑定依赖图**：新增 canonical snapshot 纯函数（`release-plan-snapshot.utils`），覆盖
+  project/env、VCS、规范化服务集、服务端解析阶段、跨服务依赖、最终 stages/dependencies、风险/required/
+  审批；数组全部 sortBy → 声明顺序无关；不含 generatedAt/idempotencyKey/原始 shell。preview↔create
+  依赖图 drift → 409 RELEASE_PLAN_STALE 真正生效。
+- **P0-3 cancel CAS 所有权**：plan 级 updateMany 影响行数决定取消所有权。CAS 命中 0 行（finalize 抢先
+  把 plan→succeeded）→ 事务内短路，不动 stages/attempts/leases、不写虚假 plan_canceled 事件。外部 SEJ
+  取消仍 best-effort。抽出 `ReleaseCancelService` + `ReleaseStageActionService`（retry/skip/re-request），
+  `release-plan.service` 收敛为计划生命周期核心（<200 行）。
+- **文档同步**：runbook §1/§3（cancel 是逃生通道，flag 关闭仍可用，不建议直接 SQL）；requirements §10。
+- **验证**：268 单测+集成测试通过（集成套件**不再 skip**，新增 5 个 P0-3 竞态用例断言联合不变量）；
+  api/web type-check/lint/build、prisma validate/generate、nestjs-http build/test 全绿；两 F383 migration
+  在一次性 MySQL 8 deploy 通过。Docker 健康（3120→200），浏览器验证待执行。
 
 ## 实现证据索引（done 项）
 
-- 持久化与迁移：迁移 `20260727100000_release_orchestration` 在一次性 MySQL 8 与本地
-  dev 库（`localhost:3320`）均 deploy 成功；5 表 + OperationApproval.inputHash 验证。
-- 纯 DAG/状态机/依赖/输出/脱敏/哈希：`utils/` 6 spec，89 用例全过。
-- 计划构建器：`release-plan-builder.utils.spec.ts` 验证 Picshare 参考图 8 阶段与依赖边。
-- 协调器集成：`release-coordinator.integration.spec.ts` 在一次性 MySQL 验证原子认领/
-  租约恢复/幂等/并发键（4 用例）。
-- 实时 API 验证：preview（8 阶段 DAG）/create（持久化 ready）/execute（认领+真实
-  ServerExecutionJob 创建+回填）/重复 execute 409，全部 curl+DB readback 通过。
-- feature flag 默认 false（`.env`/`.env.example`/compose），关闭时旧部署回归不变。
-- API + Web type-check / lint / build 全过。
-- 兼容桥：`buildCommandSteps` 的 `releaseApplicationOnly` opt-out + controller 剥离。
+> 第二轮返工后所有 P0 主链断点已修复并由真实 MySQL 集成测试证明。修复切片 1-8b + CR 修复
+> 共 10 个提交（`7db15f82` → `f95f9a47`），证据日志保存在 `/tmp/codex-tool-runs/svton/f383-fix/`。
+
+- 持久化与迁移：`20260727100000_release_orchestration`（5 表 + OperationApproval.inputHash）
+  + `20260727120000_release_concurrency_lease`（并发租约唯一约束）均 prisma validate + 一次性 MySQL 8 deploy 成功。
+- 纯 DAG/状态机/依赖/输出/脱敏/哈希：`utils/` specs，含 `failed→running`/`pending→queued` 合法转换、
+  Date→ISO 修复、64KiB 解码长度上限、readOutputPath 白名单、artifacts 脱敏。
+- 计划构建器：cross-service DAG（Picshare `health_check:backend → application_deploy:admin`）、
+  optional-backfill 出边 `completed`、branch/commitSha/gitRepo 透传、idempotencyKey 在 persist 时重算。
+- 协调器集成（真实 MySQL :3399，22 用例全过，`cr-fixes/integration-tests.log`）：
+  原子认领（pending 在 CAS 集合）、并发同 concurrencyKey 只一胜、CAS-lost 无孤儿、
+  pending-with-active 恢复、幂等（findSucceededByStage）、租约释放、SEJ 完成回调推进后继、
+  finalizeAndAdvance 幂等、scheduler runOnce、retry 重开 failed 计划+attempt#2+并发 retry 409、
+  cancel 取消真实 SEJ+原子翻表+并发 cancel 409、health 路由+curl 完成、
+  **真实 DB 审批流（pending→approved→claim→succeed+consume）**、stale-lease CAS 抢占、
+  finalize-vs-cancel 一致、retry-vs-cancel 一致。
+- 审批链路：ensureStageApproval 在 readiness 之前按 stage 创建 pending（绑定 inputHash），
+  approved-latest 复用（不再每 tick 重建 pending），denied→blocked，expired→新 pending，
+  re-request-approval 路由（awaiting_approval 在 CLAIMABLE_FROM）。
+- 健康检查：type-first 路由 HealthCheckStageAdapter；URL 解析+协议白名单+单引号 shell 转义
+  构造安全 curl（命令注入防御有专门单测）；2xx+sentinel 成功。
+- 环境一致性：controller + builder 双门校验 service/team/project/environment；DTO 不再携带 shell 命令。
+- preview↔create 强绑定：expectedPlanHash 必填；不一致 409 RELEASE_PLAN_STALE。
+- Git 版本：resolveGitRef（git ls-remote + `--` 分隔 + 格式白名单 + leading-dash 拒绝）。
+- feature flag：主 compose 默认 false；`docker-compose.devpilot-app.release.yml` override 开启。
+- 错误分类：后端 GlobalExceptionFilter 保留业务 string code；前端 classifyReleaseError 读 envelope code。
+- API + Web + nestjs-http type-check / lint / build 全过（`cr-fixes/`）。
+- 兼容桥：`releaseApplicationOnly` opt-out + controller 剥离；旧部署回归不变。
 
 ## Goal
 
@@ -76,7 +117,7 @@ GLM 长任务提示词：
 
 ## Workflow Routing
 
-`routing: one GLM long-goal + codegraph-first + persistent TODO + isolated noisy verification; one active writer per checkout; no recursive goal handoff.`
+`routing: long-goal + todo-plan + codegraph + noisy-tools; F383 第二批由当前线程单写入，先独立核对真实源码、数据库和页面，再实现精确任务深链接与平台化零泄漏验证，所有高噪声验证隔离到 /tmp。`
 
 ## Functional TODO Breakdown
 
@@ -150,10 +191,21 @@ GLM 长任务提示词：
 
 | ID | Status | Atomic TODO | Acceptance evidence |
 | --- | --- | --- | --- |
-| F383.9.1 | done | 完成 API/Web 定向测试、type-check、build、lint。 | 日志隔离且全部关键命令通过。 |
-| F383.9.2 | done | 在一次性 MySQL 与本地执行目标验证分支、失败、恢复、幂等。 | 包含故障注入和数据库回读。 |
-| F383.9.3 | done | 在 `localhost:3120` 完成真实浏览器全流程。 | 截图与 API/数据库事实一致。 |
-| F383.9.4 | done | 同步 TODO、进度、架构、操作手册与最终报告。 | 每项状态都有证据，工作区清洁。 |
+| F383.9.1 | done | 完成 API/Web 定向测试、type-check、build、lint。 | `cr-fixes/`：API type-check exit 0；Web type-check/lint/build exit 0；nestjs-http build+test（3 用例）。212 单测 + 22 真实 MySQL 集成用例全过。 |
+| F383.9.2 | done | 在一次性 MySQL 与本地执行目标验证分支、失败、恢复、幂等。 | 真实 MySQL :3399 22 集成用例：完整成功链、migration 失败阻断、bootstrap 幂等、backfill skip、health 失败、真实审批 approved/denied、API 重启恢复、retry、cancel、并发认领、并发同 concurrencyKey、CAS-lost 无孤儿、stale-lease 抢占、finalize-vs-cancel、retry-vs-cancel。 |
+| F383.9.3 | done | 在 `localhost:3120` 完成真实浏览器全流程。 | 真实计划 `cms5m7z2001ow14kkg3jg0l87` 记录 Picshare `master@8e7c465d` 且六阶段 succeeded。发布页精确输出执行任务 `cms5m8kko01rb14kksfudwxtf` 与部署运行 `cms5m9uwe01sy14kk7u4uig00`；实际页面分别自动选中“作业”/“部署”、仅显示目标记录并展开详情；伪造 ID 不回退通用列表。截图与 DOM 证据见 `/tmp/codex-tool-runs/svton/f383-batch2-*-deep-link.png`、`f383-batch2-browser-evidence.json`。 |
+| F383.9.4 | done | 同步 TODO、进度、架构、操作手册与最终报告。 | 本文、TODO/进度索引、requirements、架构、runbook、最终报告已同步第二批能力和真实证据；旧计划 `cms5kc2rp009z14kkn2ch9lqb` 不作为最终证据。 |
+
+#### F383 第二批原子计划（2026-07-29）
+
+| ID | Status | Atomic TODO | Context boundary | Evidence |
+| --- | --- | --- | --- | --- |
+| F383.9.3.a | done | 独立核对发布页“执行任务”入口到任务/运行详情的路由、ID 和过滤链路。 | 只读 Web/API/Prisma、真实页面与计划 `cms5m7z2001ow14kkg3jg0l87`。 | 真实页面复现：job 链接未切作业 Tab；deployment 链接 404；代码图见 `/tmp/codex-tool-runs/svton/f383-batch2-deep-link-audit.log`。 |
+| F383.9.3.b | done | 为 `ServerExecutionJob` 与 `DeploymentRun` 提供不可退化为通用列表的精确深链接。 | 仅修改发布详情、对应列表/详情查询契约及定向测试。 | `jobId` 进入服务端精确 where、默认切到作业 Tab；`runId` 走项目作用域详情 API、404 fail-closed、单运行自动展开。真实/伪造 ID 浏览器验证通过。 |
+| F383.9.3.c | done | 盘点两类运行记录全部持久化秘密载体与现有脱敏/审计能力。 | 只读 Prisma、执行器、部署、审计和访问策略链路；不回显真实秘密。 | 字段矩阵覆盖参数、命令计划、日志、结果、错误、元数据及关联 LogStream/LogEntry/AuditEvent；日志 `f383-batch2-zero-leak-audit.log`。 |
+| F383.9.3.d | done | 实现平台内可复用、可审计、默认不回显秘密的零泄漏验证能力。 | 覆盖参数、命令计划、日志、结果、错误、元数据；统一 service/repository/API 边界。 | `POST /release-plans/:id/secret-leak-verification` 仅 team admin 可用；计划级只读扫描、失败不生成通过结论；响应/AuditEvent 仅含计数和定位元数据，不含值、片段或秘密探针。 |
+| F383.9.3.e | done | 用真实计划、实际数据库及 `localhost:3120` 完成自动化和浏览器闭环。 | API/Web type-check、build、相关单元/集成测试、数据库回读、浏览器交互。 | 全量 API 164 suites/1158 tests 通过（4 suites/42 tests gated skip）；集成 1 suite/5 tests 通过（4 suites/42 tests gated skip）；两端 type-check/build 通过。真实扫描 `clean`：4 probes、8 records、44 fields、0 findings，审计 `cms5o57vz000akza17koems85`，安全证据 `f383-batch2-real-evidence.json`。 |
+| F383.9.4.a | done | 同步 TODO、进度、架构、运维与最终报告并提交第二批。 | 只提交 F383 相关改动；`check2.mjs` 保持未跟踪且不改动。 | 权威文档已同步；本批提交 SHA 由最终交付输出，`check2.mjs` 未修改且不入提交。 |
 
 ## Required Picshare Reference Flow
 

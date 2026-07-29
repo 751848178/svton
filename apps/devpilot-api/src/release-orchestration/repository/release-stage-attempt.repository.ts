@@ -46,6 +46,17 @@ export class ReleaseStageAttemptRepository {
     });
   }
 
+  // 同一阶段最近一次 succeeded attempt（D8 幂等：claim 前查到则短路）
+  async findSucceededByStage(
+    releaseStageId: string,
+  ): Promise<ReleaseStageAttemptDetail | null> {
+    return this.prisma.releaseStageAttempt.findFirst({
+      where: { releaseStageId, status: "succeeded" },
+      orderBy: { finishedAt: "desc" },
+      include: releaseStageAttemptInclude,
+    });
+  }
+
   // 按 serverExecutionJobId / deploymentRunId 反查（用于恢复回读）
   async findByServerExecutionJobId(serverExecutionJobId: string) {
     return this.prisma.releaseStageAttempt.findFirst({

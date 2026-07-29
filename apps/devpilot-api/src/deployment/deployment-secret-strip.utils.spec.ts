@@ -57,13 +57,14 @@ function makeInput(overrides: Partial<ServerExecutionInput> = {}): ServerExecuti
   };
 }
 
-/** Recursively assert no `secretEnv` key exists anywhere in a serialized value. */
+/** Recursively assert no `secretEnv` / `secretEnvExport` key exists anywhere in a serialized value. */
 function assertNoSecretEnv(value: unknown, path = 'root') {
   if (value && typeof value === 'object') {
     if (Array.isArray(value)) {
       value.forEach((item, i) => assertNoSecretEnv(item, `${path}[${i}]`));
     } else {
       expect(value).not.toHaveProperty('secretEnv');
+      expect(value).not.toHaveProperty('secretEnvExport');
       for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
         assertNoSecretEnv(v, `${path}.${k}`);
       }
@@ -98,6 +99,46 @@ describe('stripSecretEnv', () => {
       { key: 'a', label: 'a', command: 'echo a', cwd: '', required: true },
     ];
     expect(stripSecretEnv(steps)[0]).toBe(steps[0]);
+  });
+
+  // F383 P0-A regression: secretEnvExport (release-stage credential injection)
+  // MUST be stripped alongside secretEnv — it carries the same plaintext secret class.
+  it('removes secretEnvExport from steps that carry it', () => {
+    const steps: ServerExecutionInput['steps'] = [
+      {
+        key: 'migration',
+        label: 'migration',
+        command: 'docker run -e DATABASE_URL="$DEVPILOT_DATABASE_URL" app',
+        cwd: '',
+        required: true,
+        secretEnvExport: { DEVPILOT_DATABASE_URL: SECRET_PASSWORD },
+      },
+    ];
+    const stripped = stripSecretEnv(steps);
+    expect(stripped[0]).not.toHaveProperty('secretEnvExport');
+    expect(stripped[0]).not.toHaveProperty('secretEnv');
+    expect(JSON.stringify(stripped)).not.toContain(SECRET_PASSWORD);
+    // The placeholder command is retained (it is safe to persist).
+    expect(stripped[0].command).toContain('$DEVPILOT_DATABASE_URL');
+  });
+
+  it('strips both secretEnv and secretEnvExport when a step carries both', () => {
+    const steps: ServerExecutionInput['steps'] = [
+      {
+        key: 'mixed',
+        label: 'mixed',
+        command: 'echo ok',
+        cwd: '',
+        required: true,
+        secretEnv: { DATABASE_URL: SECRET_PASSWORD },
+        secretEnvExport: { DEVPILOT_REDIS: 'redis-secret' },
+      },
+    ];
+    const stripped = stripSecretEnv(steps);
+    expect(stripped[0]).not.toHaveProperty('secretEnv');
+    expect(stripped[0]).not.toHaveProperty('secretEnvExport');
+    expect(JSON.stringify(stripped)).not.toContain(SECRET_PASSWORD);
+    expect(JSON.stringify(stripped)).not.toContain('redis-secret');
   });
 });
 

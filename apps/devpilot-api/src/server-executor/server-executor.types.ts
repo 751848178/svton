@@ -84,6 +84,15 @@ export type ServerCommandStep = {
    * serialized into `commandPlan`/`logs`/audit `metadata` by the adapters.
    */
   secretEnv?: Record<string, string>;
+  /**
+   * Real env values exported into the remote shell environment just before the
+   * command runs (F383 release-stage credential injection). Used when the
+   * `command` references `$DEVPILOT_<KEY>` placeholders (e.g. `docker run -e
+   * DATABASE_URL="$DEVPILOT_DATABASE_URL" ...`). The values live only in this
+   * in-memory field; the persisted `command` carries `$DEVPILOT_*` references
+   * and this field is stripped by `stripSecretEnv` before any persistence.
+   */
+  secretEnvExport?: Record<string, string>;
 };
 
 export type ServerExecutorTarget = {

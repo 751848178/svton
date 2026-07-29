@@ -104,4 +104,65 @@ describe("release-output sanitizeOutputForPersistence", () => {
     );
     expect(sanitized?.summary).not.toContain("abc123");
   });
+
+  // F383 D10/invest-2 §E.4: artifacts 内嵌连接串密码必须脱敏。
+  it("redacts secret values inside artifacts", () => {
+    const sanitized = sanitizeOutputForPersistence({
+      schemaVersion: 1,
+      artifacts: [
+        {
+          name: "mysql-image",
+          ref: "mysql://user:pass@registry.example.com/db",
+        },
+        { name: "clean-artifact", ref: "registry.example.com/app:tag" },
+      ],
+    });
+    expect(
+      (sanitized?.artifacts?.[0] as { ref?: string }).ref,
+    ).not.toContain("pass");
+    expect(
+      (sanitized?.artifacts?.[0] as { ref?: string }).ref,
+    ).toContain("[REDACTED]");
+    expect((sanitized?.artifacts?.[1] as { ref?: string }).ref).toBe(
+      "registry.example.com/app:tag",
+    );
+    // name 不被脱敏（不是敏感词）
+    expect((sanitized?.artifacts?.[0] as { name?: string }).name).toBe(
+      "mysql-image",
+    );
+  });
+
+  it("leaves artifacts as-is when not an array", () => {
+    const sanitized = sanitizeOutputForPersistence({
+      schemaVersion: 1,
+      artifacts: undefined,
+    });
+    expect(sanitized?.artifacts).toBeUndefined();
+  });
+});
+
+describe("release-output decoded payload size cap", () => {
+  // F383 D10/invest-2 §E.5: 超过 64KiB 的解码负载必须被拒绝。decodePayload 的
+  // token 长度早退检查 + 解码后字节检查两层都会抛 OutputParseError，对合法 base64
+  // 而言 token 长度永远 >= 解码字节，故此处通过哨兵驱动的解码路径断言拒绝行为。
+  it("throws OutputParseError when payload exceeds 64KiB", () => {
+    const big = "x".repeat(70 * 1024);
+    const payload = b64url({ schemaVersion: 1, values: { value: big } });
+    const text = `@@DEVPILOT_OUTPUT@@ ${payload}`;
+    expect(() => parseOutputSentinel(text)).toThrow(OutputParseError);
+    expect(() => parseOutputSentinel(text)).toThrow(/超过.*字节上限/);
+  });
+
+  it("accepts a payload comfortably under both token and decoded caps", () => {
+    // base64 token ≈ 4/3 * JSON 字节，故 JSON 必须 < 48KB 才能让 token 也 < 64KiB。
+    const big = "y".repeat(40 * 1024);
+    const payload = b64url({
+      schemaVersion: 1,
+      summary: "ok",
+      values: { value: big },
+    });
+    const text = `@@DEVPILOT_OUTPUT@@ ${payload}`;
+    const r = parseOutputSentinel(text);
+    expect(r.output?.values?.value).toHaveLength(40 * 1024);
+  });
 });

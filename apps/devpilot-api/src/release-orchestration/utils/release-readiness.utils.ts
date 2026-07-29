@@ -10,6 +10,10 @@ import type {
   ReleaseStageStatus,
 } from "../types/release-orchestration.types";
 
+// output_match 只允许读 values/metrics，禁止读 summary/artifacts/schemaVersion
+// （避免把人工摘要/制品当成就绪判据，或因 schemaVersion 误配触发匹配）。
+const ALLOWED_OUTPUT_ROOTS = new Set(["values", "metrics"]);
+
 // 从结构化输出按点路径取值：values.foo / metrics.bar / summary
 export function readOutputPath(
   output: ReleaseStageOutput | null | undefined,
@@ -18,6 +22,7 @@ export function readOutputPath(
   if (!output || !path) return undefined;
   const parts = path.split(".");
   if (parts.length === 0) return undefined;
+  if (!ALLOWED_OUTPUT_ROOTS.has(parts[0])) return undefined;
   let current: unknown = output;
   for (const part of parts) {
     if (current == null || typeof current !== "object") return undefined;

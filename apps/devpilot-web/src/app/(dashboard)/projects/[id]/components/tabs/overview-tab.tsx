@@ -22,6 +22,7 @@ import { ApplicationsPanel } from '../applications-panel';
 import { EnvironmentPanel } from '../environment-panel';
 import { ProjectDeliveryGuide } from '../project-delivery-guide.component';
 import type { DeliveryAction } from '../../utils/project-delivery-readiness.utils';
+import type { RepositoryReadiness } from '../../types/repository-analysis.types';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -30,9 +31,15 @@ interface OverviewTabProps {
   /** 点击英雄卡内「部署/查看部署记录」的回调（切到部署 tab）。 */
   onDeployClick?: () => void;
   onDeliveryAction: (action: DeliveryAction, environmentId?: string) => void;
+  repositoryReadiness: RepositoryReadiness;
 }
 
-export function OverviewTab({ detail, onDeployClick, onDeliveryAction }: OverviewTabProps) {
+export function OverviewTab({
+  detail,
+  onDeployClick,
+  onDeliveryAction,
+  repositoryReadiness,
+}: OverviewTabProps) {
   const t = useTranslations('projects');
   const latestRun = getLatestDeploymentRun(detail.deploymentRuns);
   return (
@@ -40,6 +47,7 @@ export function OverviewTab({ detail, onDeployClick, onDeliveryAction }: Overvie
       <ProjectDeliveryGuide
         detail={detail}
         onAction={onDeliveryAction}
+        repositoryReadiness={repositoryReadiness}
       />
       {/* ① 状态快照：项目当前最近一次部署的结果如何。 */}
       <OverviewSection

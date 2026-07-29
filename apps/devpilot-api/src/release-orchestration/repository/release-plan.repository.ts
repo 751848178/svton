@@ -95,6 +95,14 @@ export class ReleasePlanRepository {
     });
   }
 
+  // 非终态计划 id 列表（供 recovery scheduler 扫描后逐个 advancePlan）
+  async listNonTerminal(): Promise<{ id: string }[]> {
+    return this.prisma.releasePlan.findMany({
+      where: { status: { notIn: ["succeeded", "failed", "canceled"] } },
+      select: { id: true },
+    });
+  }
+
   // 事务：创建 plan + stages + 依赖边（一次冻结快照）
   async persistPlanWithStages(input: {
     teamId: string;

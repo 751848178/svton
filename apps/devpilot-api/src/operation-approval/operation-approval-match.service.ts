@@ -32,6 +32,7 @@ export class OperationApprovalMatchService {
         approval.managedResourceId,
         input.managedResourceId ?? null,
       ],
+      ["inputHash", approval.inputHash ?? null, input.inputHash ?? null],
     ];
 
     const mismatched = checks.find(

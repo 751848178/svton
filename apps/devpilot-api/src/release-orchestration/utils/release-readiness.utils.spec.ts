@@ -33,6 +33,46 @@ describe("release-readiness output path", () => {
   it("returns undefined for missing path", () => {
     expect(readOutputPath({ schemaVersion: 1 }, "values.x")).toBeUndefined();
   });
+
+  // F383 Slice 1/invest-2 §E.1: readOutputPath 第一段白名单限制为 values|metrics，
+  // 阻止把人工摘要/制品/schemaVersion 当成就绪判据。
+  it("whitelists values and metrics roots", () => {
+    const out = {
+      schemaVersion: 1,
+      values: { ok: true, count: 7 },
+      metrics: { latency: 12 },
+    } as const;
+    expect(readOutputPath(out, "values.ok")).toBe(true);
+    expect(readOutputPath(out, "values.count")).toBe(7);
+    expect(readOutputPath(out, "metrics.latency")).toBe(12);
+  });
+
+  it("returns undefined for non-whitelisted roots", () => {
+    const out: {
+      schemaVersion: number;
+      summary?: string;
+      values?: Record<string, unknown>;
+      metrics?: Record<string, number>;
+      artifacts?: Array<{ name: string; ref?: string }>;
+    } = {
+      schemaVersion: 1,
+      summary: "ok",
+      values: { count: 1 },
+      artifacts: [{ name: "a", ref: "r" }],
+    };
+    expect(readOutputPath(out, "summary")).toBeUndefined();
+    expect(readOutputPath(out, "artifacts.0.name")).toBeUndefined();
+    expect(readOutputPath(out, "schemaVersion")).toBeUndefined();
+    expect(readOutputPath(out, "unknown.path")).toBeUndefined();
+  });
+
+  it("returns undefined for empty/missing path even if root whitelisted", () => {
+    expect(readOutputPath({ schemaVersion: 1, values: { a: 1 } }, "")).toBe(
+      undefined,
+    );
+    expect(readOutputPath(null, "values.x")).toBeUndefined();
+    expect(readOutputPath(undefined, "values.x")).toBeUndefined();
+  });
 });
 
 describe("release-readiness evaluateOutputRule", () => {

@@ -2,6 +2,8 @@ import type { Logger } from "@nestjs/common";
 import type { AuditEventService } from "../audit-event";
 import { LogCollectionIngestionService } from "../log-center/log-collection-ingestion.service";
 import { PrismaService } from "../prisma/prisma.service";
+import type { ReleaseCoordinatorPort } from "../release-orchestration/release-coordinator.port";
+import type { ResolveDevpilotSecretsFn } from "./server-executor-secret-reapply.utils";
 import type { DistributedLock } from "../common/lock/distributed-lock";
 import { ServerAgentServerExecutorAdapter } from "./adapters/server-agent.adapter";
 import { ScriptPlanServerExecutorAdapter } from "./adapters/script-plan.adapter";
@@ -9,21 +11,17 @@ import { SshLiveServerExecutorAdapter } from "./adapters/ssh-live.adapter";
 import type { JobQueuePort } from "./queue/job-queue.port";
 import { ServerAgentAuthService } from "./server-agent-auth.service";
 import { ServerAgentCapabilityService } from "./server-agent-capability.service";
-import { ServerAgentRuntimeEndpointService } from "./server-agent-runtime-endpoint.service";
-import { ServerAgentTaskPullClaimService } from "./server-agent-task-pull-claim.service";
-import { ServerAgentTaskPullFinishSyncService } from "./server-agent-task-pull-finish-sync.service";
-import { ServerAgentTaskPullQueryService } from "./server-agent-task-pull-query.service";
 import { ServerCommandPolicyService } from "./server-command-policy.service";
 import { ServerExecutorAuditService } from "./server-executor-audit.service";
 import { ServerExecutorExecutionCoreFactoryService } from "./server-executor-execution-core-factory.service";
 import { ServerExecutorLinkedBusinessRunSyncFactoryService } from "./server-executor-linked-business-run-sync-factory.service";
 import { ServerExecutorQueueGovernanceFactoryService } from "./server-executor-queue-governance-factory.service";
-import { ServerExecutorReadQueryService } from "./server-executor-read-query.service";
 import { ServerExecutorRemoteExecutionMetadataService } from "./server-executor-remote-execution-metadata.service";
 import { ServerExecutorRuntimeConfigService } from "./server-executor-runtime-config.service";
 import { ServerExecutorSubmissionService } from "./server-executor-submission.service";
 import { ServerExecutorSupervisorHostService } from "./server-executor-supervisor-host.service";
-import { ServerExecutorTargetResolutionService } from "./server-executor-target-resolution.service";
+import { wireAgentTaskPullServices } from "./server-executor-agent-task-pull-wiring.utils";
+import { wireReadQueryServices } from "./server-executor-read-query-wiring.utils";
 import {
   ServerExecutionInput,
   ServerExecutionResult,
@@ -37,6 +35,10 @@ type ServerExecutorWiringFactoryOptions = {
   workerId: string;
   distributedLock: DistributedLock;
   jobQueue?: JobQueuePort;
+  // 发布编排完成回调端口（F383 D3）；可选——flag 关闭时为 undefined。
+  releaseCoordinator?: ReleaseCoordinatorPort;
+  // F383 P0-A：发布凭据解析回调（队列执行边界重解析 $DEVPILOT_* 秘密）；可选。
+  resolveDevpilotSecrets?: ResolveDevpilotSecretsFn;
   sshLiveAdapter: SshLiveServerExecutorAdapter;
   serverAgentAdapter?: ServerAgentServerExecutorAdapter;
   scriptPlanAdapter: ScriptPlanServerExecutorAdapter;
@@ -75,6 +77,7 @@ export class ServerExecutorWiringFactoryService {
         this.options.logCollectionIngestionService,
         this.options.logger,
         this.options.queueExecution,
+        this.options.releaseCoordinator,
       ).create();
     const auditService = new ServerExecutorAuditService(
       this.options.auditEventService,
@@ -113,6 +116,7 @@ export class ServerExecutorWiringFactoryService {
         runJob: (input, job) =>
           executionCoreServices.jobRunnerService.run(input, job),
         processNextQueuedJob: this.options.processNextQueuedJob,
+        resolveDevpilotSecrets: this.options.resolveDevpilotSecrets,
         lockExpiresAt: (now) =>
           this.options.runtimeConfigService.lockExpiresAt(now),
         queueRetryDelayMs: () =>
@@ -132,44 +136,28 @@ export class ServerExecutorWiringFactoryService {
     const submissionService = new ServerExecutorSubmissionService(
       executionCoreServices,
     );
-    const agentTaskPullQueryService = new ServerAgentTaskPullQueryService(
-      this.prisma,
-    );
-    const agentTaskPullFinishSyncService =
-      new ServerAgentTaskPullFinishSyncService(
-        this.prisma,
-        this.options.logCollectionIngestionService,
-        this.options.jobQueue,
-      );
-    const agentTaskPullClaimService = new ServerAgentTaskPullClaimService(
-      this.prisma,
-      this.options.agentAuthService,
-      this.options.agentCapabilityService,
-      this.options.runtimeConfigService,
-      agentTaskPullQueryService,
-      this.options.commandPolicy,
-      agentTaskPullFinishSyncService,
-    );
-    const agentRuntimeEndpointService = new ServerAgentRuntimeEndpointService(
-      this.prisma,
-      this.options.agentAuthService,
-      this.options.agentCapabilityService,
+    // agent-task-pull 服务集群装配（抽离到 wiring utils，单一职责）。
+    const {
       agentTaskPullQueryService,
       agentTaskPullClaimService,
-    );
-    const targetResolutionService = new ServerExecutorTargetResolutionService(
-      this.prisma,
-      this.options.agentCapabilityService,
-      () => this.options.runtimeConfigService.agentTargetEnabled(),
-    );
-    const readQueryService = new ServerExecutorReadQueryService(
-      this.prisma,
-      (now, teamId) =>
-        executionCoreServices.executionRuntimeService.expireStaleLeases(
-          now,
-          teamId,
-        ),
-    );
+      agentRuntimeEndpointService,
+    } = wireAgentTaskPullServices({
+      prisma: this.prisma,
+      jobQueue: this.options.jobQueue,
+      logCollectionIngestionService: this.options.logCollectionIngestionService,
+      agentAuthService: this.options.agentAuthService,
+      agentCapabilityService: this.options.agentCapabilityService,
+      runtimeConfigService: this.options.runtimeConfigService,
+      commandPolicy: this.options.commandPolicy,
+    });
+    // 目标解析 + 读查询服务装配（抽离到 wiring utils）。
+    const { targetResolutionService, readQueryService } = wireReadQueryServices({
+      prisma: this.prisma,
+      agentCapabilityService: this.options.agentCapabilityService,
+      runtimeConfigService: this.options.runtimeConfigService,
+      expireStaleLeases: (now, teamId) =>
+        executionCoreServices.executionRuntimeService.expireStaleLeases(now, teamId),
+    });
     const supervisorHostService = new ServerExecutorSupervisorHostService({
       workerId: this.options.workerId,
       queueWorkerService: queueGovernanceServices.queueWorkerService,

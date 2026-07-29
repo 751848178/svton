@@ -12,10 +12,16 @@ import { EnvironmentPanel } from '../environment-panel';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
-export function EnvironmentsTab({ detail }: { detail: DetailHook }) {
+export function EnvironmentsTab({
+  detail,
+  focusedEnvironmentId,
+}: {
+  detail: DetailHook;
+  focusedEnvironmentId?: string;
+}) {
   return (
     <div className="mx-auto max-w-4xl">
-      <EnvironmentPanel detail={detail} />
+      <EnvironmentPanel detail={detail} focusedEnvironmentId={focusedEnvironmentId} />
     </div>
   );
 }

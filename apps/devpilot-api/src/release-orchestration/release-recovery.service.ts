@@ -43,7 +43,9 @@ export class ReleaseRecoveryService {
     if (!plan) return;
     const now = new Date();
     for (const stage of plan.stages) {
-      if (!["running", "queued"].includes(stage.status)) continue;
+      // P0-1 修复：扫描覆盖 pending-with-active-attempt（孤儿 attempt + 活作业）。
+      // 仅跳过阶段终态；非终态阶段若存在 active attempt，就回读关联运行终态。
+      if (["succeeded", "skipped", "canceled"].includes(stage.status)) continue;
       const attempt = stage.attempts[0];
       if (!attempt) continue;
       const expired =
@@ -51,7 +53,25 @@ export class ReleaseRecoveryService {
         attempt.leaseExpiresAt &&
         attempt.leaseExpiresAt < now;
       if (!expired && attempt.status !== "queued") continue;
-      const result = await this.readLinkedRunTerminal(attempt);
+      // P1-5（invest-2 §E.2）：单阶段解析异常不得中断整个恢复扫描。
+      // OutputParseError（哨兵解码失败等）被隔离成本阶段 failed，其它阶段继续。
+      let result;
+      try {
+        result = await this.readLinkedRunTerminal(attempt);
+      } catch (err) {
+        result = {
+          status: "failed" as const,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+      // 过期孤儿 attempt：租约已过期且没有任何关联运行（SEJ/DeploymentRun）→ 不得静默挂起，
+      // 标记 failed 并给出明确原因（不静默成功）。保留审计：onFinish 会写 attempt 终态 + 事件。
+      if (!result && expired) {
+        result = {
+          status: "failed" as const,
+          error: "发布阶段租约过期且无关联运行，判定为孤儿任务",
+        };
+      }
       if (!result || result.status === "queued") continue;
       await onFinish(stage as ReadinessStageView, attempt as AttemptLinkedView, result);
     }

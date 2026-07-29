@@ -11,6 +11,7 @@ import { ServerExecutorBackupRunSyncService } from "./server-executor-backup-run
 import { ServerExecutorDeploymentRunSyncService } from "./server-executor-deployment-run-sync.service";
 import { ServerExecutorLinkedBusinessRunSyncService } from "./server-executor-linked-business-run-sync.service";
 import { ServerExecutorLogCollectionRunSyncService } from "./server-executor-log-collection-run-sync.service";
+import { ServerExecutorReleaseStageRunSyncService } from "./server-executor-release-stage-run-sync.service";
 import { ServerExecutorService } from "./server-executor.service";
 import { ServerExecutorResourceActionRunSyncService } from "./server-executor-resource-action-run-sync.service";
 import { ServerExecutorServiceOperationRunSyncService } from "./server-executor-service-operation-run-sync.service";
@@ -383,6 +384,7 @@ describe("ServerExecutorService resource action metric snapshots", () => {
       {} as ServerExecutorServiceOperationRunSyncService,
       {} as ServerExecutorBackupRunSyncService,
       {} as ServerExecutorLogCollectionRunSyncService,
+      {} as ServerExecutorReleaseStageRunSyncService,
       (input, options) => service.queueExecution(input, options),
     );
 

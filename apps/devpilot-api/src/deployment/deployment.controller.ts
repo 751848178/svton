@@ -65,8 +65,13 @@ export class DeploymentController {
       scope.environmentId,
       dto.dryRun === false ? 'high' : 'medium',
     );
-    // releaseApplicationOnly 仅由发布编排模块内部调用使用；公共入口强制剥离。
-    const { releaseApplicationOnly: _strip, ...publicDto } = dto;
+    // releaseApplicationOnly / releaseInitializationEvidence 仅由发布编排模块
+    // 内部调用使用；公共入口强制剥离所有内部桥接字段，普通用户无法注入。
+    const {
+      releaseApplicationOnly: _stripFlag,
+      releaseInitializationEvidence: _stripEvidence,
+      ...publicDto
+    } = dto;
     return this.deploymentService.createRun(
       req.teamId,
       req.user.id,

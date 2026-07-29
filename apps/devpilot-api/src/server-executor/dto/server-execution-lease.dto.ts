@@ -30,6 +30,10 @@ export class ListServerExecutionLeasesQueryDto {
 export class ListServerExecutionJobsQueryDto {
   @IsOptional()
   @IsString()
+  jobId?: string;
+
+  @IsOptional()
+  @IsString()
   status?: string;
 
   @IsOptional()

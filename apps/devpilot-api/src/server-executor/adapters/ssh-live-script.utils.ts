@@ -85,6 +85,17 @@ function shellQuote(value: string) {
 
 function renderStepExecution(step: ServerExecutionInput["steps"][number]) {
   const key = step.key.replace(/[^a-zA-Z0-9_.:-]/g, "_");
+  // F383 release-stage credential injection: when a step carries
+  // `secretEnvExport`, the values are emitted as `export KEY=...` lines inside
+  // the step's subshell so `$DEVPILOT_*` references in `command` expand to the
+  // real (memory-only) values. These export lines live only in the transient
+  // remote script and are never persisted (stripSecretEnv drops the field).
+  const exportLines =
+    step.secretEnvExport && Object.keys(step.secretEnvExport).length > 0
+      ? Object.entries(step.secretEnvExport).map(
+          ([k, v]) => `  export ${k}=${shellQuote(v)}`,
+        )
+      : [];
   const command =
     step.secretEnv && Object.keys(step.secretEnv).length > 0
       ? renderEnvWriteCommandReal(step.secretEnv)
@@ -97,6 +108,7 @@ function renderStepExecution(step: ServerExecutionInput["steps"][number]) {
     "set +e",
     "(",
     ...(step.cwd ? [`  cd ${shellQuote(step.cwd)}`] : []),
+    ...exportLines,
     indent(command),
     ")",
     '__devpilot_step_status="$?"',
@@ -111,8 +123,22 @@ function renderStepExecution(step: ServerExecutionInput["steps"][number]) {
 }
 
 function indent(value: string) {
-  return value
-    .split("\n")
-    .map((line) => `  ${line}`)
-    .join("\n");
+  // heredoc 感知：cat > f <<'DELIM' ... DELIM 的正文行不得缩进，否则 bash 把缩进后的
+  // 终止分隔符视为普通正文 → heredoc 永不闭合（"delimited by end-of-file"）→ 语法错误。
+  // 检测 <<[-]'DELIM' 起始行后，正文与终止 DELIM 行保持第 0 列，其余行正常缩进 2 空格。
+  const lines = value.split("\n");
+  let heredocDelim: string | null = null;
+  const out: string[] = [];
+  for (const line of lines) {
+    if (heredocDelim) {
+      // heredoc 正文：原样输出；终止行（仅含分隔符）结束 heredoc。
+      if (line.trim() === heredocDelim) heredocDelim = null;
+      out.push(line);
+      continue;
+    }
+    const start = line.match(/<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?/);
+    if (start) heredocDelim = start[1];
+    out.push(`  ${line}`);
+  }
+  return out.join("\n");
 }

@@ -6,6 +6,7 @@ import { Injectable } from "@nestjs/common";
 import { ReleaseStageRepository } from "./repository/release-stage.repository";
 import { deriveStageReadiness } from "./utils/release-readiness.utils";
 import type { ReadinessResult } from "./utils/release-readiness.utils";
+import { isStageApprovalUsable } from "./utils/release-approval-predicate.utils";
 import type { ReleaseStageFacts } from "./types/release-orchestration.types";
 
 const ACTIVE_ATTEMPT_STATUSES = new Set(["queued", "running"]);
@@ -31,6 +32,14 @@ export interface ReadinessStageView {
   configSnapshot?: unknown;
   configHash?: string | null;
   concurrencyKey?: string | null;
+  // 阶段绑定的审批快照（由 coordinator.ensureStageApproval 注入）。
+  // readiness 据此判定 approvalSatisfied，不再读 attempt.operationApprovalId。
+  stageApproval?: {
+    status: string;
+    inputHash: string | null;
+    expiresAt?: Date | null;
+    consumedAt?: Date | null;
+  } | null;
   releasePlan: { id: string; projectId: string; environmentId: string; teamId: string };
   dependencies: Array<{
     stageId: string;
@@ -105,14 +114,17 @@ export class ReleaseReadinessService {
     return deriveStageReadiness(facts);
   }
 
-  // 风险阶段需要审批；低风险或 manual_gate 直接视为满足
+  // 阶段绑定审批是否满足（不再读取 attempt.operationApprovalId）：
+  // - manual_gate：无论风险等级，必须有已批准的阶段绑定审批；
+  // - 低风险非 manual_gate：直接满足；
+  // - 其它（中/高风险）：需要 stageApproval.status==='approved' 且 inputHash 与当前
+  //   configHash 派生值一致、未被消费、未过期。
   private isApprovalSatisfied(stage: ReadinessStageView): boolean {
-    if (stage.executorKind === "manual_gate") return false;
+    if (stage.executorKind === "manual_gate") {
+      return isStageApprovalUsable(stage);
+    }
     if (stage.riskLevel === "low") return true;
-    const latest = stage.attempts[0];
-    if (!latest?.operationApprovalId) return false;
-    const approval = latest.operationApproval;
-    return approval?.status === "approved" && !approval?.consumedAt;
+    return isStageApprovalUsable(stage);
   }
 
   // 同 concurrencyKey 不能有其它进行中阶段

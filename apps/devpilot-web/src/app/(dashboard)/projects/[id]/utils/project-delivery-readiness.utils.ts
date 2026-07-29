@@ -7,6 +7,7 @@
 import { getProjectManagementScope, getProjectRepository } from '@/lib/project-display';
 import type { Project } from '../types';
 import type { DeploymentRun } from '../types/operations';
+import type { RepositoryReadiness } from '../types/repository-analysis.types';
 import {
   getProjectDeliveryNextAction,
   type DeliveryAction,
@@ -37,6 +38,7 @@ export interface ProjectDeliveryReadiness {
 export function getProjectDeliveryReadiness(
   project: Project,
   deploymentRuns: DeploymentRun[],
+  repositoryReadiness?: RepositoryReadiness,
 ): ProjectDeliveryReadiness {
   const environments = (project.environments ?? []).filter((env) => env.status === 'active');
   const targetEnvironment = environments[0];
@@ -55,6 +57,7 @@ export function getProjectDeliveryReadiness(
     unboundResourceCount: unboundResources.length,
     hasDeployments,
     resourceOnly,
+    repositoryComplete: Boolean(repositoryReadiness?.complete),
   });
 
   const stages: DeliveryStage[] = [
@@ -67,14 +70,26 @@ export function getProjectDeliveryReadiness(
     },
     {
       key: 'source',
-      status: repository ? 'attention' : scope === 'resources' ? 'complete' : 'blocked',
+      status: resourceOnly
+        ? 'complete'
+        : repositoryReadiness?.complete
+          ? 'complete'
+          : repositoryReadiness?.connected
+            ? 'attention'
+            : actionStatus(decision.action, 'open_repository'),
       titleKey: 'deliveryStageSource',
-      detailKey: repository
-        ? 'deliveryStageSourceManual'
-        : scope === 'resources'
-          ? 'deliveryStageSourceSkipped'
-          : 'deliveryStageSourceMissing',
-      evidence: repository || scope,
+      detailKey: resourceOnly
+        ? 'deliveryStageSourceSkipped'
+        : repositoryReadiness?.complete
+          ? 'deliveryStageSourceComplete'
+          : repositoryReadiness?.connected
+            ? 'deliveryStageSourceConnected'
+            : repository
+              ? 'deliveryStageSourceManual'
+              : 'deliveryStageSourceMissing',
+      evidence: repositoryReadiness?.complete
+        ? 'verified+analyzed+applied'
+        : repository || scope,
     },
     {
       key: 'environment',

@@ -52,6 +52,7 @@ function decodePayload(token: string): ReleaseStageOutput {
   if (!token) {
     throw new OutputParseError("结构化输出哨兵为空");
   }
+  // token 长度早退：base64url token 永远 >= 解码后字节数，先挡一道便宜的检查。
   if (token.length > RELEASE_OUTPUT_MAX_BYTES) {
     throw new OutputParseError(
       `结构化输出超过 ${RELEASE_OUTPUT_MAX_BYTES} 字节上限`,
@@ -62,8 +63,15 @@ function decodePayload(token: string): ReleaseStageOutput {
     const decoded = Buffer.from(base64UrlToBase64(token), "base64").toString(
       "utf8",
     );
+    // 解码后真实字节数上限（防止高压缩比的 base64 解码出超大 JSON）。
+    if (Buffer.byteLength(decoded, "utf8") > RELEASE_OUTPUT_MAX_BYTES) {
+      throw new OutputParseError(
+        `结构化输出解码后超过 ${RELEASE_OUTPUT_MAX_BYTES} 字节上限`,
+      );
+    }
     json = JSON.parse(decoded);
-  } catch {
+  } catch (e) {
+    if (e instanceof OutputParseError) throw e;
     throw new OutputParseError("结构化输出哨兵解码或 JSON 解析失败");
   }
   return validateOutputShape(json);
@@ -158,6 +166,9 @@ export function sanitizeOutputForPersistence(
     summary,
     values: values as Record<string, unknown> | undefined,
     metrics: output.metrics,
-    artifacts: output.artifacts,
+    // artifacts（如镜像 ref / 制品 URL）可能内嵌连接串密码，统一脱敏。
+    artifacts: Array.isArray(output.artifacts)
+      ? output.artifacts.map((a) => redactSecretsInObject(a))
+      : output.artifacts,
   };
 }

@@ -1,9 +1,11 @@
 import { LogCollectionIngestionService } from "../log-center/log-collection-ingestion.service";
 import { PrismaService } from "../prisma/prisma.service";
+import type { ReleaseCoordinatorPort } from "../release-orchestration/release-coordinator.port";
 import { ServerExecutorBackupRunSyncService } from "./server-executor-backup-run-sync.service";
 import { ServerExecutorDeploymentRunSyncService } from "./server-executor-deployment-run-sync.service";
 import { ServerExecutorLinkedBusinessRunSyncService } from "./server-executor-linked-business-run-sync.service";
 import { ServerExecutorLogCollectionRunSyncService } from "./server-executor-log-collection-run-sync.service";
+import { ServerExecutorReleaseStageRunSyncService } from "./server-executor-release-stage-run-sync.service";
 import { ServerExecutorResourceActionRunSyncService } from "./server-executor-resource-action-run-sync.service";
 import { ServerExecutorServiceOperationRunSyncService } from "./server-executor-service-operation-run-sync.service";
 import { ServerExecutorSiteRunSyncService } from "./server-executor-site-run-sync.service";
@@ -30,6 +32,7 @@ export class ServerExecutorLinkedBusinessRunSyncFactoryService {
     private readonly logCollectionIngestionService: LogCollectionIngestionService,
     private readonly logger: LinkedSyncLogger,
     private readonly queueLinkedSiteExecution: QueueLinkedSiteExecution,
+    private readonly releaseCoordinator?: ReleaseCoordinatorPort,
   ) {}
 
   create() {
@@ -48,6 +51,10 @@ export class ServerExecutorLinkedBusinessRunSyncFactoryService {
       new ServerExecutorLogCollectionRunSyncService(
         this.prisma,
         this.logCollectionIngestionService,
+      ),
+      new ServerExecutorReleaseStageRunSyncService(
+        this.prisma,
+        this.releaseCoordinator,
       ),
       this.queueLinkedSiteExecution,
     );

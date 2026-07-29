@@ -20,7 +20,7 @@ import {
   createEmptyResourceBulkBindSelection,
 } from '../utils/resource-bulk-bind';
 
-export function useProjectDetail(projectId: string) {
+export function useProjectDetail(projectId: string, deploymentRunId?: string) {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -67,7 +67,14 @@ export function useProjectDetail(projectId: string) {
 
   const loadDeploymentRuns = usePersistFn(async () => {
     try {
-      setDeploymentRuns(await apiRequest<DeploymentRun[]>('GET:/deployments/runs', { projectId }));
+      if (deploymentRunId) {
+        const run = await apiRequest<DeploymentRun>(
+          `GET:/deployments/runs/${deploymentRunId}`,
+        );
+        setDeploymentRuns([run]);
+      } else {
+        setDeploymentRuns(await apiRequest<DeploymentRun[]>('GET:/deployments/runs', { projectId }));
+      }
       setDeploymentError('');
     } catch (err) {
       console.error('Failed to load deployment runs:', err);
@@ -89,7 +96,7 @@ export function useProjectDetail(projectId: string) {
     loadProject();
     loadDeploymentRuns();
     loadWebhooks();
-  }, [loadDeploymentRuns, loadProject, loadWebhooks, projectId]);
+  }, [deploymentRunId, loadDeploymentRuns, loadProject, loadWebhooks, projectId]);
 
   const callResourceBulkBind = usePersistFn(
     async (environmentId: string, dryRun: boolean, confirmationText?: string) => {

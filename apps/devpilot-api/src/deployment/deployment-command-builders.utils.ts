@@ -57,11 +57,14 @@ export function buildCommandSteps(
     {
       key: "checkout",
       label: "拉取代码",
-      command: gitRepo
-        ? `git fetch --all --prune && git checkout ${branch || "main"} && git pull`
+      // 禁止硬编码 main/master：分支必须由调用方解析（项目配置 source.branch 或显式传入）。
+      // 分支缺失时 checkout 步骤命令为空且 required=false，由 collectWarnings 产出明确告警，
+      // 而不是静默切到 main。
+      command: gitRepo && branch
+        ? `git fetch --all --prune && git checkout ${branch} && git pull`
         : "",
       cwd: deployment.workingDirectory || "",
-      required: Boolean(gitRepo),
+      required: Boolean(gitRepo && branch),
       risk: "low",
       timeoutSeconds: 120,
       phase: "checkout",
@@ -112,13 +115,15 @@ export function buildCommandSteps(
     {
       key: "health_check",
       label: "启动后健康检查",
+      // 服务容器刚启动时进程尚未就绪，单次 curl 会立即失败（连接拒绝）。
+      // 用 BusyBox 兼容的重试循环：在 timeoutSeconds 窗口内反复探测直到 2xx。
       command: deployment.healthCheckUrl
-        ? `curl -fsS ${deployment.healthCheckUrl}`
+        ? `for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do curl -fsS ${deployment.healthCheckUrl} && exit 0; sleep 2; done; exit 1`
         : "",
       cwd: "",
       required: Boolean(deployment.healthCheckUrl),
       risk: "low",
-      timeoutSeconds: 30,
+      timeoutSeconds: 60,
       phase: "health_check",
       runPolicy: "every_deploy",
       failurePolicy: "block",
@@ -230,7 +235,7 @@ export function collectWarnings(
 ): string[] {
   const warnings: string[] = [];
   if (!gitRepo) warnings.push("未配置 Git 仓库，无法生成代码拉取步骤");
-  if (gitRepo && !branch) warnings.push("未配置默认分支，将使用 main");
+  if (gitRepo && !branch) warnings.push("未配置发布分支（既无显式分支也无项目配置 source.branch），代码拉取步骤将被跳过");
   if (!deployment.workingDirectory) warnings.push("未配置工作目录");
   if (!deployment.deployCommand) warnings.push("未配置部署命令");
   if (!deployment.healthCheckUrl) warnings.push("未配置健康检查地址");

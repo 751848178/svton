@@ -1,6 +1,6 @@
 /**
  * 发布计划与阶段合法状态转换（纯函数）。
- * 终态不可覆盖；失败只能经显式 retry 转回 ready。
+ * 终态不可覆盖；plan.failed 经受控 retry 转回 running，stage.failed 转回 ready/queued。
  */
 import type {
   ReleasePlanStatus,
@@ -14,18 +14,24 @@ const PLAN_TRANSITIONS: Record<ReleasePlanStatus, ReleasePlanStatus[]> = {
   running: ["succeeded", "failed", "blocked", "canceled"],
   blocked: ["ready", "running", "canceled"],
   succeeded: [],
-  failed: [],
+  // 失败可经受控 retry 转回 running（仅在 retryStage 事务内），故非终态。
+  // cancel 是逃生通道（P0-3 CR）：failed 计划也可被用户显式取消——CAS 守卫真实状态变更，
+  // 不再依赖 transition-table 拒绝（旧实现 assertLegalPlanTransition(failed→canceled) 抛裸 Error→500）。
+  failed: ["running", "canceled"],
   canceled: [],
 };
 
 const STAGE_TRANSITIONS: Record<ReleaseStageStatus, ReleaseStageStatus[]> = {
-  pending: ["blocked", "awaiting_approval", "ready", "skipped", "canceled"],
-  blocked: ["awaiting_approval", "ready", "skipped", "canceled"],
-  awaiting_approval: ["ready", "canceled"],
+  // pending/blocked 可被 coordinator 直接 CAS 到 queued（绕过 ready）
+  pending: ["blocked", "awaiting_approval", "ready", "queued", "skipped", "canceled"],
+  blocked: ["awaiting_approval", "ready", "queued", "skipped", "canceled"],
+  // awaiting_approval 可直接 CAS 到 queued（claim 绕过 ready；CR-2-2 真实性反映）
+  awaiting_approval: ["ready", "queued", "canceled"],
   ready: ["queued", "running", "canceled"],
-  queued: ["running", "failed", "canceled"],
-  running: ["succeeded", "failed", "canceled"],
-  failed: ["ready"], // 仅由显式 retry 创建新 attempt
+  queued: ["running", "failed", "skipped", "canceled"],
+  // running 可被健康探针（0 候选可选阶段）自动跳过为 skipped
+  running: ["succeeded", "failed", "skipped", "canceled"],
+  failed: ["ready", "queued"], // 仅由显式 retry 创建新 attempt
   succeeded: [],
   skipped: [],
   canceled: [],

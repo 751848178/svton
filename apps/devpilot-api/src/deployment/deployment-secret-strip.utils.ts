@@ -20,16 +20,24 @@
 import { ServerCommandStep } from '../server-executor';
 
 /**
- * Return a copy of `steps` with the `secretEnv` field removed from every
- * step that carries one. Steps without `secretEnv` are returned as-is (same
- * reference). The function is pure and never mutates its input.
+ * Return a copy of `steps` with the `secretEnv` and `secretEnvExport` fields
+ * removed from every step that carries either. Steps without either field are
+ * returned as-is (same reference). The function is pure and never mutates its
+ * input.
+ *
+ * `secretEnvExport` (F383 release-stage credential injection) holds the real
+ * values backing `$DEVPILOT_*` placeholder references in the command; it is the
+ * same exposure class as `secretEnv` and MUST be stripped at every persistence
+ * site alongside it.
  */
 export function stripSecretEnv(steps: ServerCommandStep[]): ServerCommandStep[] {
   return steps.map((step) => {
-    if (step.secretEnv === undefined) return step;
-    // Destructure to drop the secret field; the remaining fields are plain
+    if (step.secretEnv === undefined && step.secretEnvExport === undefined) {
+      return step;
+    }
+    // Destructure to drop both secret fields; the remaining fields are plain
     // command descriptors and are copied by the object spread.
-    const { secretEnv: _removed, ...rest } = step;
+    const { secretEnv: _removed, secretEnvExport: _removedExport, ...rest } = step;
     return rest as ServerCommandStep;
   });
 }

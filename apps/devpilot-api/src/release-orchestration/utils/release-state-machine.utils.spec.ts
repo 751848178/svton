@@ -27,9 +27,17 @@ describe("release state machine plan transitions", () => {
     expect(isLegalPlanTransition("ready", "ready")).toBe(true);
   });
 
+  // F383 D1: 失败计划经 retryStage 事务内受控回到 running，failed 不再是终态。
+  it("failed -> running is legal (controlled retry)", () => {
+    expect(isLegalPlanTransition("failed", "running")).toBe(true);
+    // failed 不再回到 ready/awaiting_approval/draft
+    expect(isLegalPlanTransition("failed", "ready")).toBe(false);
+    expect(isLegalPlanTransition("failed", "succeeded")).toBe(false);
+  });
+
   it("terminal statuses are terminal", () => {
     expect(isPlanTerminal("succeeded")).toBe(true);
-    expect(isPlanTerminal("failed")).toBe(true);
+    expect(isPlanTerminal("failed")).toBe(false); // failed 不再是终态（D1）
     expect(isPlanTerminal("canceled")).toBe(true);
     expect(isPlanTerminal("running")).toBe(false);
   });
@@ -61,11 +69,33 @@ describe("release state machine stage transitions", () => {
     expect(isLegalStageTransition("blocked", "skipped")).toBe(true);
   });
 
+  // F383 Slice 1: 新增的状态转换。对应 invest-1 §B.2 修复项。
+  it("pending/blocked -> queued legal (coordinator CAS bypasses ready)", () => {
+    expect(isLegalStageTransition("pending", "queued")).toBe(true);
+    expect(isLegalStageTransition("blocked", "queued")).toBe(true);
+  });
+
+  it("queued -> skipped legal (manual skip of queued-not-started optional)", () => {
+    expect(isLegalStageTransition("queued", "skipped")).toBe(true);
+  });
+
+  it("running -> skipped legal (health auto-skip when 0 candidates)", () => {
+    expect(isLegalStageTransition("running", "skipped")).toBe(true);
+  });
+
+  it("failed -> queued legal (retry can directly re-queue)", () => {
+    expect(isLegalStageTransition("failed", "queued")).toBe(true);
+    expect(isLegalStageTransition("failed", "ready")).toBe(true);
+    expect(isLegalStageTransition("failed", "running")).toBe(false);
+  });
+
   it("isStageTerminal", () => {
     expect(isStageTerminal("succeeded")).toBe(true);
     expect(isStageTerminal("skipped")).toBe(true);
     expect(isStageTerminal("canceled")).toBe(true);
     expect(isStageTerminal("running")).toBe(false);
+    expect(isStageTerminal("failed")).toBe(false); // 仍可 retry
+    expect(isStageTerminal("queued")).toBe(false);
   });
 });
 

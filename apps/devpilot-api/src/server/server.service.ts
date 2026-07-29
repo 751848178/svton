@@ -1,7 +1,23 @@
+/**
+ * 服务器领域服务（F383）：CRUD + 连接判定。
+ * 单一职责：服务器实体的增删改查与连接/服务探测状态回写。
+ * 凭据加解密与解密读取已抽离到 ServerCredentialAccessService；
+ * 响应脱敏归一化已抽离到 formatServerResponse。
+ */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CryptoService } from '../common/crypto/crypto.service';
-import { CreateServerDto, UpdateServerDto, AuthType } from './dto/server.dto';
+import { CreateServerDto, UpdateServerDto } from './dto/server.dto';
+import {
+  ServerConnectionCapabilityService,
+  ServerConnectionCapability,
+} from './server-connection-capability.service';
+import { ServerCredentialAccessService } from './server-credential-access.service';
+import { formatServerResponse } from './server-response-format.utils';
+
+export type TestConnectionResult = ServerConnectionCapability & {
+  success: boolean;
+  status: string;
+};
 
 @Injectable()
 export class ServerService {
@@ -9,22 +25,11 @@ export class ServerService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly cryptoService: CryptoService,
+    private readonly credentialAccess: ServerCredentialAccessService,
+    private readonly capabilityService: ServerConnectionCapabilityService,
   ) {}
 
-  // AES-256-GCM 加密
-  private encrypt(text: string): string {
-    return this.cryptoService.encryptGcm(text);
-  }
-
-  // AES-256-GCM 解密
-  private decrypt(text: string): string {
-    return this.cryptoService.decryptGcm(text);
-  }
-
   async create(teamId: string, userId: string, dto: CreateServerDto) {
-    const encryptedCredentials = this.encrypt(dto.credentials);
-
     const server = await this.prisma.server.create({
       data: {
         teamId,
@@ -34,252 +39,121 @@ export class ServerService {
         port: dto.port || 22,
         username: dto.username,
         authType: dto.authType,
-        credentials: encryptedCredentials,
+        credentials: this.credentialAccess.encrypt(dto.credentials),
         tags: dto.tags || [],
         status: 'unknown',
       },
     });
-
     this.logger.log(`Server created: ${server.id} (${dto.name})`);
-
-    return this.formatServerResponse(server);
+    return formatServerResponse(server);
   }
 
   async findAll(teamId: string) {
     const servers = await this.prisma.server.findMany({
       where: { teamId },
       orderBy: { createdAt: 'desc' },
-      include: {
-        createdBy: {
-          select: { id: true, name: true, email: true },
-        },
-        _count: {
-          select: { proxyConfigs: true },
-        },
-        environmentBindings: {
-          where: { status: 'active' },
-          select: {
-            id: true,
-            projectId: true,
-            environmentId: true,
-            role: true,
-            environment: { select: { id: true, key: true, name: true, status: true } },
-            project: { select: { id: true, name: true } },
-          },
-        },
-      },
+      include: this.listInclude(),
     });
-
-    return servers.map((s) => this.formatServerResponse(s));
+    return servers.map((s) => formatServerResponse(s));
   }
 
   async findOne(teamId: string, id: string) {
     const server = await this.prisma.server.findFirst({
       where: { id, teamId },
-      include: {
-        createdBy: {
-          select: { id: true, name: true, email: true },
-        },
-        proxyConfigs: {
-          select: {
-            id: true,
-            name: true,
-            domain: true,
-            status: true,
-          },
-        },
-        environmentBindings: {
-          where: { status: 'active' },
-          select: {
-            id: true,
-            projectId: true,
-            environmentId: true,
-            role: true,
-            environment: { select: { id: true, key: true, name: true, status: true } },
-            project: { select: { id: true, name: true } },
-          },
-        },
-      },
+      include: this.detailInclude(),
     });
-
-    if (!server) {
-      throw new NotFoundException('服务器不存在');
-    }
-
-    return this.formatServerResponse(server);
+    if (!server) throw new NotFoundException('服务器不存在');
+    return formatServerResponse(server);
   }
 
   async update(teamId: string, id: string, dto: UpdateServerDto) {
-    const existing = await this.prisma.server.findFirst({
-      where: { id, teamId },
-    });
+    const existing = await this.prisma.server.findFirst({ where: { id, teamId } });
+    if (!existing) throw new NotFoundException('服务器不存在');
 
-    if (!existing) {
-      throw new NotFoundException('服务器不存在');
-    }
+    const updateData: Record<string, unknown> = { ...dto };
+    if (dto.credentials) updateData.credentials = this.credentialAccess.encrypt(dto.credentials);
+    if (dto.tags) updateData.tags = dto.tags;
 
-    const updateData: any = { ...dto };
-    if (dto.credentials) {
-      updateData.credentials = this.encrypt(dto.credentials);
-    }
-    if (dto.tags) {
-      updateData.tags = dto.tags;
-    }
-
-    const server = await this.prisma.server.update({
-      where: { id },
-      data: updateData,
-    });
-
+    const server = await this.prisma.server.update({ where: { id }, data: updateData });
     this.logger.log(`Server updated: ${id}`);
-
-    return this.formatServerResponse(server);
+    return formatServerResponse(server);
   }
 
   async remove(teamId: string, id: string) {
-    const existing = await this.prisma.server.findFirst({
-      where: { id, teamId },
-    });
-
-    if (!existing) {
-      throw new NotFoundException('服务器不存在');
-    }
-
+    const existing = await this.prisma.server.findFirst({ where: { id, teamId } });
+    if (!existing) throw new NotFoundException('服务器不存在');
     await this.prisma.server.delete({ where: { id } });
-
     this.logger.log(`Server deleted: ${id}`);
-
     return { success: true };
   }
 
-  // 测试连接（简化版，实际需要 SSH 库）
-  async testConnection(teamId: string, id: string) {
-    const server = await this.prisma.server.findFirst({
-      where: { id, teamId },
+  // 测试连接：委托 capability service 做网络/认证/执行器三段判定，再据此回写状态
+  // 并补齐向后兼容的 success/status 字段。online 需三者齐备；认证/执行器问题归 degraded。
+  async testConnection(teamId: string, id: string): Promise<TestConnectionResult> {
+    const exists = await this.prisma.server.findFirst({ where: { id, teamId } });
+    if (!exists) throw new NotFoundException('服务器不存在');
+
+    const cap = await this.capabilityService.verifyCapability(teamId, id);
+    const status = cap.executorCompatible
+      ? 'online'
+      : cap.networkReachable
+        ? 'degraded'
+        : 'offline';
+
+    await this.prisma.server.update({ where: { id }, data: { status } }).catch(() => {
+      // 状态回写失败不应掩盖真实的连接判定结果。
     });
 
-    if (!server) {
-      throw new NotFoundException('服务器不存在');
-    }
-
-    const startTime = Date.now();
-
-    try {
-      // 简化的连接测试：使用 TCP 连接测试端口是否开放
-      const isReachable = await this.checkPortReachable(server.host, server.port);
-      const latency = Date.now() - startTime;
-
-      const status = isReachable ? 'online' : 'offline';
-
-      await this.prisma.server.update({
-        where: { id },
-        data: { status },
-      });
-
-      return {
-        success: isReachable,
-        status,
-        latency,
-        message: isReachable ? '连接成功' : '无法连接到服务器',
-      };
-    } catch (error) {
-      await this.prisma.server.update({
-        where: { id },
-        data: { status: 'offline' },
-      });
-
-      return {
-        success: false,
-        status: 'offline',
-        latency: Date.now() - startTime,
-        message: error instanceof Error ? error.message : '连接失败',
-      };
-    }
+    return { ...cap, success: cap.executorCompatible, status };
   }
 
-  // 检测服务器上安装的服务
+  // 检测服务器上安装的服务（当前为模拟实现，真实探测走 SSH 命令——待 F7x 接入）。
   async detectServices(teamId: string, id: string) {
-    const server = await this.prisma.server.findFirst({
-      where: { id, teamId },
-    });
-
-    if (!server) {
-      throw new NotFoundException('服务器不存在');
-    }
-
-    // 简化版：返回模拟数据
-    // 实际实现需要通过 SSH 执行命令检测
-    const services = {
-      nginx: false,
-      docker: false,
-      nodejs: false,
-      pm2: false,
-      mysql: false,
-      redis: false,
-    };
-
-    await this.prisma.server.update({
-      where: { id },
-      data: { services },
-    });
-
-    return {
-      services,
-      message: '服务检测完成（模拟数据）',
-    };
+    const server = await this.prisma.server.findFirst({ where: { id, teamId } });
+    if (!server) throw new NotFoundException('服务器不存在');
+    const services = { nginx: false, docker: false, nodejs: false, pm2: false, mysql: false, redis: false };
+    await this.prisma.server.update({ where: { id }, data: { services } });
+    return { services, message: '服务检测完成（模拟数据）' };
   }
 
-  // 获取解密后的凭证（内部使用）
-  async getDecryptedCredentials(teamId: string, id: string) {
-    const server = await this.prisma.server.findFirst({
-      where: { id, teamId },
-    });
+  // 获取解密后的凭据（内部使用——委派凭据访问服务，保留旧调用点签名）。
+  getDecryptedCredentials(teamId: string, id: string) {
+    return this.credentialAccess.getDecryptedCredentials(teamId, id);
+  }
 
-    if (!server) {
-      throw new NotFoundException('服务器不存在');
-    }
-
+  private listInclude() {
     return {
-      host: server.host,
-      port: server.port,
-      username: server.username,
-      authType: server.authType,
-      credentials: this.decrypt(server.credentials),
+      createdBy: { select: { id: true, name: true, email: true } },
+      _count: { select: { proxyConfigs: true } },
+      environmentBindings: {
+        where: { status: 'active' },
+        select: {
+          id: true,
+          projectId: true,
+          environmentId: true,
+          role: true,
+          environment: { select: { id: true, key: true, name: true, status: true } },
+          project: { select: { id: true, name: true } },
+        },
+      },
     };
   }
 
-  private async checkPortReachable(host: string, port: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      const net = require('net');
-      const socket = new net.Socket();
-
-      socket.setTimeout(5000);
-
-      socket.on('connect', () => {
-        socket.destroy();
-        resolve(true);
-      });
-
-      socket.on('timeout', () => {
-        socket.destroy();
-        resolve(false);
-      });
-
-      socket.on('error', () => {
-        socket.destroy();
-        resolve(false);
-      });
-
-      socket.connect(port, host);
-    });
-  }
-
-  private formatServerResponse(server: any) {
-    const { credentials, ...rest } = server;
+  private detailInclude() {
     return {
-      ...rest,
-      tags: server.tags || [],
-      services: server.services || {},
+      createdBy: { select: { id: true, name: true, email: true } },
+      proxyConfigs: { select: { id: true, name: true, domain: true, status: true } },
+      environmentBindings: {
+        where: { status: 'active' },
+        select: {
+          id: true,
+          projectId: true,
+          environmentId: true,
+          role: true,
+          environment: { select: { id: true, key: true, name: true, status: true } },
+          project: { select: { id: true, name: true } },
+        },
+      },
     };
   }
 }

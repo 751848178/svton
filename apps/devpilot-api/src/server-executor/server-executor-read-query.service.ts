@@ -42,6 +42,7 @@ export class ServerExecutorReadQueryService {
 
   listJobs(teamId: string, query: ListServerExecutionJobsQueryDto) {
     const where: Prisma.ServerExecutionJobWhereInput = { teamId };
+    if (query.jobId) where.id = query.jobId;
     if (query.status) where.status = query.status;
     if (query.serverId) where.serverId = query.serverId;
     if (query.operationKey) where.operationKey = query.operationKey;

@@ -21,6 +21,7 @@ import { ServerAgentController } from "./server-agent.controller";
 import { ServerExecutionJobController } from "./server-execution-job.controller";
 import { ServerExecutionLeaseController } from "./server-execution-lease.controller";
 import { ServerExecutorService } from "./server-executor.service";
+import { ServerExecutorDevpilotSecretResolverService } from "./server-executor-devpilot-secret-resolver.service";
 import { ServerExecutorSupervisorService } from "./server-executor-supervisor.service";
 import { ServerExecutorSupervisorQueryService } from "./server-executor-supervisor-query.service";
 import { ServerExecutorSupervisorJobQueryService } from "./server-executor-supervisor-job-query.service";
@@ -57,6 +58,7 @@ import { ServerAgentTaskPullQueryService } from "./server-agent-task-pull-query.
   ],
   providers: [
     ServerExecutorService,
+    ServerExecutorDevpilotSecretResolverService,
     ServerAgentAuthService,
     ServerAgentCapabilityService,
     ServerAgentTaskPullAckService,

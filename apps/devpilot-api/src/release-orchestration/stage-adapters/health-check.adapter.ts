@@ -1,9 +1,17 @@
 /**
- * 独立 health_check 阶段适配器：必须基于真实探针结果判成功。
- * 不以"进程已启动"或"HTTP 请求已发出"作为成功；只接受 2xx + 可选 body 断言。
- * 无 healthCheckUrl 配置时判 failed（不伪成功）。
+ * health_check 阶段适配器（D7）：构造 shell-safe curl 探针命令，委托
+ * ServerCommandStageAdapter.queue 在目标主机上执行（沿用既有 SSH/Agent 传输）。
+ *
+ * 成功语义：maxAttempts 次内任一一次返回 2xx 且（若设置）body 命中 → curl 退出 0
+ * 且输出 @@DEVPILOT_OUTPUT@@ 哨兵（ready:true, httpStatus:2xx）；耗尽则退出 1。
+ * 终态由恢复链路/完成同步从 ServerExecutionJob 回读后由 interpret 层解析。
+ *
+ * 安全：URL 经 new URL 解析 + 协议白名单 + 重新序列化 + POSIX 单引号转义嵌入；
+ * 任何 shell 元字符都被单引号包裹，命令注入不可行（见 health-check-curl.utils）。
  */
 import { Injectable } from "@nestjs/common";
+import { buildHealthCheckCurlCommand } from "./health-check-curl.utils";
+import { ServerCommandStageAdapter } from "./server-command.adapter";
 import type {
   ReleaseStageAdapter,
   ReleaseStageExecutionContext,
@@ -11,67 +19,83 @@ import type {
 } from "./release-stage-adapter.types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
-const DEFAULT_MAXAttempts = 6;
+const DEFAULT_MAX_ATTEMPTS = 6;
 const DEFAULT_INTERVAL_MS = 5_000;
-
-export interface HealthCheckOutcome {
-  ok: boolean;
-  httpStatus?: number;
-  error?: string;
-  attempts: number;
-}
+const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 
 @Injectable()
 export class HealthCheckStageAdapter implements ReleaseStageAdapter {
-  readonly kind = "server_command"; // 复用 server_command 的执行底座
+  readonly kind = "server_command"; // 复用 server_command 执行底座（SEJ + SSH/Agent）
 
-  // health 检查需要同步等待真实结果，不能只排队后乐观成功。
-  // 实现策略：把检查命令交给 server_command adapter 执行（curl 探针），
-  // 这里只提供同步解释层；coordinator 调用本 adapter 时通过 server_executor 排队，
-  // 然后在恢复链路用真实 job 终态判成功。本 execute 直接返回 queued。
+  // 注入具体 ServerCommandStageAdapter（Nest 按类 token 解析），而非 ReleaseStageAdapter
+  // 接口类型——后者无 provider 绑定，生产 DI 无法解析（第二轮遗留启动阻塞）。
+  constructor(
+    private readonly serverCommandAdapter: ServerCommandStageAdapter,
+  ) {}
+
   async execute(
     ctx: ReleaseStageExecutionContext,
   ): Promise<ReleaseStageExecutionResult> {
     const cfg = ctx.configSnapshot ?? {};
-    const url = readString(cfg.healthCheckUrl);
-    if (!url) {
+    const rawUrl = readString(cfg.healthCheckUrl);
+    if (!rawUrl) {
       return {
         status: "failed",
-        error: "health_check 阶段缺少 healthCheckUrl，无法探针",
+        error: "health_check 缺少 healthCheckUrl 配置",
       };
     }
-    // 排队探针命令（curl），由 server executor 执行；终态由恢复链路回读
+    // URL 解析 + 协议白名单。new URL 对绝大多数畸形输入直接抛 TypeError；
+    // 协议校验在解析成功后做，防止 ftp:/javascript: 等被当成探针目标。
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      return { status: "failed", error: "health_check URL 无效" };
+    }
+    if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) {
+      return {
+        status: "failed",
+        error: "health_check URL 协议必须是 http/https",
+      };
+    }
+
+    const timeoutMs = readNumber(cfg.timeoutMs) ?? DEFAULT_TIMEOUT_MS;
+    const intervalMs = readNumber(cfg.intervalMs) ?? DEFAULT_INTERVAL_MS;
+    const maxAttempts = readNumber(cfg.maxAttempts) ?? DEFAULT_MAX_ATTEMPTS;
+    const expectBodyContains = readString(cfg.expectBodyContains);
+
+    const command = buildHealthCheckCurlCommand(parsed, {
+      timeoutMs,
+      intervalMs,
+      maxAttempts,
+      expectBodyContains,
+    });
+
+    // 委托 server_command adapter 在目标主机排队执行 curl 循环。
+    // 保留原 configSnapshot 字段（__stageType 等路由元信息），仅覆盖 command。
+    const delegateCtx: ReleaseStageExecutionContext = {
+      ...ctx,
+      configSnapshot: { ...cfg, command },
+    };
+    const queued = this.serverCommandAdapter.queue
+      ? await this.serverCommandAdapter.queue(delegateCtx)
+      : await this.serverCommandAdapter.execute(delegateCtx);
+
+    // 去标识化探针配置摘要：只保留 host/port，剥离完整 URL/path/query。
+    // 每次探针的真实结果（httpStatus/latency）在 SEJ 日志里，由完成同步经
+    // D10 脱敏后写入 attempt.logSummary；此处仅记录静态配置。
     return {
-      status: "queued",
+      ...queued,
       logSummary: {
-        healthCheckUrl: url,
-        timeoutMs: readNumber(cfg.timeoutMs) ?? DEFAULT_TIMEOUT_MS,
-        intervalMs: readNumber(cfg.intervalMs) ?? DEFAULT_INTERVAL_MS,
-        maxAttempts: readNumber(cfg.maxAttempts) ?? DEFAULT_MAXAttempts,
+        host: parsed.host,
+        port: parsed.port || null,
+        maxAttempts,
+        timeoutMs,
+        intervalMs,
+        expect: expectBodyContains ? "set" : "none",
       },
     };
   }
-}
-
-// 判定一次 HTTP 探针是否成功（白名单 2xx，可选 body 断言）
-export function evaluateHealthProbe(
-  httpStatus: number,
-  body: string,
-  expectBodyContains?: string,
-): HealthCheckOutcome {
-  const ok = httpStatus >= 200 && httpStatus < 300;
-  if (!ok) {
-    return { ok: false, httpStatus, attempts: 1, error: `HTTP ${httpStatus}` };
-  }
-  if (expectBodyContains && !body.includes(expectBodyContains)) {
-    return {
-      ok: false,
-      httpStatus,
-      attempts: 1,
-      error: `响应体未包含期望片段`,
-    };
-  }
-  return { ok: true, httpStatus, attempts: 1 };
 }
 
 function readString(v: unknown): string | undefined {

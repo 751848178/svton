@@ -11,6 +11,7 @@ import {
   PolicyTemplateRecord,
 } from "./server-command-policy.types";
 import { ServerExecutionInput } from "./server-executor.types";
+import { readExecutionScopeFromMetadata } from "./server-execution-scope";
 
 @Injectable()
 export class ServerCommandPolicyTemplateMatcherService {
@@ -18,13 +19,14 @@ export class ServerCommandPolicyTemplateMatcherService {
     private readonly repository: ServerCommandPolicyTemplateRepository,
   ) {}
 
+  // 读取候选模板：team-global 基线 + 项目级 + 环境级。作用域来自统一 reader
+  // （顶层 projectId/environmentId，回退 sourceMetadata.*，兼容旧 release-stage 数据）。
+  // 租户隔离由 repository.findEnabledForScope 的 teamId 硬等式保证，不会跨租户泄漏。
   async loadMatchingTemplates(
     input: ServerExecutionInput,
   ): Promise<PolicyTemplateRecord[]> {
-    const projectId = this.readMetadataString(input.metadata, "projectId");
-    const environmentId = this.readMetadataString(
+    const { projectId, environmentId } = readExecutionScopeFromMetadata(
       input.metadata,
-      "environmentId",
     );
     const scope: Prisma.ServerCommandPolicyTemplateWhereInput[] = [
       { projectId: null, environmentId: null },
@@ -57,15 +59,5 @@ export class ServerCommandPolicyTemplateMatcherService {
       }
     }
     return undefined;
-  }
-
-  private readMetadataString(
-    metadata: ServerExecutionInput["metadata"],
-    key: string,
-  ): string | undefined {
-    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata))
-      return undefined;
-    const value = metadata[key];
-    return typeof value === "string" && value.trim() ? value.trim() : undefined;
   }
 }
