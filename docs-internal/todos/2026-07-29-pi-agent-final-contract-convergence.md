@@ -169,7 +169,7 @@ verified local desktop artifact without changing remote state.
 | PC005.2 | done | Run full Agent Web Playwright E2E, deterministic provider contracts and minimal real DeepSeek request with redacted evidence. | Final Playwright is 10/10 across all required flows; provider contracts are 6/6; one DeepSeek request returned HTTP 200 with only redacted transport/status/family/timing evidence. Official OpenAI was deterministic-only because no credential exists. |
 | PC005.3 | done | Run real `tauri dev` WKWebView streamed turn and Tauri IPC boundary. | Dedicated dev PID 30385 ran `target/debug/svton-agent-desktop`; the WKWebView auto-drive recorded a Pi streamed turn and real `process_exec` plus `fs_write_file` IPC as passed. |
 | PC005.4 | done | Independently review final diff, capabilities, source/docs and user-file isolation; fix and rerun. | Root review found and split one 223-line Web E2E spec; final residual, unsafe-addition, line-count, diff and public-doc checks pass with no unresolved P0-P2. |
-| PC005.5 | pending | Create `pre-pi-final-contract-convergence-YYYYMMDD` on pre-merge master and merge the dedicated branch with `--no-ff`. | Local master contains the verified merge; remote unchanged. |
+| PC005.5 | done | Create `pre-pi-final-contract-convergence-YYYYMMDD` on pre-merge master and merge the dedicated branch with `--no-ff`. | Tag `pre-pi-final-contract-convergence-20260730` protects `076fbfd9`; local merge `867e8f18` contains accepted branch `b3a29220`; remote unchanged. |
 | PC005.6 | pending | Build, verify, mount, inspect, sign-check, checksum and copy the arm64 DMG. | Artifact exists in `svton-desktop-artifacts` with complete evidence. |
 
 #### PC005 Required Test, Type And Build Matrix
@@ -418,3 +418,13 @@ verified local desktop artifact without changing remote state.
   Next/Chromium run passed again. The final 22-gate matrix (21 required plus
   Rust/Tauri) ran after all code/test changes and preserved HEAD, status and
   scoped content; only this acceptance-ledger conclusion was added afterwards.
+- 2026-07-30: PC005.5 protected pre-merge master `076fbfd9` with annotated tag
+  `pre-pi-final-contract-convergence-20260730`, then merged accepted branch
+  `b3a29220` locally with `--no-ff` as `867e8f18`; no remote operation ran and
+  the user's untracked `check2.mjs` remained untouched. The first merged-master
+  DMG exposed a real packaging defect: only the Mach-O carried a linker ad-hoc
+  signature, so strict bundle verification rejected sealed resources. Tauri
+  macOS bundling now explicitly uses ad-hoc signing identity `-`; a dedicated
+  branch rebuild passed image verification, read-only mount, arm64, Applications
+  link and `codesign --verify --deep --strict`. Final master rebuild/copy remains
+  PC005.6.
