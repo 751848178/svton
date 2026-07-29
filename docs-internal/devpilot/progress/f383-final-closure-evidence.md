@@ -262,3 +262,67 @@ Picshare repo (separate): `docker-compose.devpilot.yml` healthcheck path fixed t
 
 The 6-stage release mainchain is verified green end-to-end. F383 overall is NOT
 marked done (next session: UI deep-link + zero-leak verifier), per the completion boundary.
+
+---
+
+# F383 Reproducible Clean-Master Rerun — SUCCESS (2026-07-29)
+
+> 执行者：OpenAI Codex（GPT-5 系列）
+>
+> 工具：Git、Docker Compose、MySQL/Prisma 数据回读、真实 Devpilot 页面、真实容器秘密值零泄漏扫描
+>
+> 完整日志：`/tmp/codex-tool-runs/svton/f383-clean-rerun/`
+
+本节取代上一节把计划 `cms5kc2rp009z14kkn2ch9lqb` 作为最终可复现证据的结论。
+旧计划的运行结果真实，但当时 Picshare 健康检查修复未进入其记录的
+`master@9506a051`，部署目标又把本机 Picshare 工作区挂载为
+`/workspace/picshare`，因此成功依赖未提交文件。旧计划只保留为运行问题排查证据。
+
+## Picshare source boundary
+
+- 健康检查修复独立提交：`8e7c465d56e68dafcef0dfbc480fe721044b0fb3`
+  （`fix(deploy): make backend healthcheck BusyBox-compatible`）。
+- 已推送 `origin/master`；本地 `master`、`origin/master` 与部署挂载目录 HEAD 一致。
+- 发布前、发布中、发布后 Picshare 工作区均无未提交改动。
+- Compose 结构校验通过；Backend 健康检查使用 BusyBox 兼容重试循环和真实 `/api` 端点。
+
+## Final reproducible ReleasePlan
+
+- **Plan ID**：`cms5m7z2001ow14kkg3jg0l87`
+- **Branch / commit**：`master` /
+  `8e7c465d56e68dafcef0dfbc480fe721044b0fb3`
+- **Mode / status**：`live` / `succeeded`
+- **Started / finished**：2026-07-29 04:59:30 / 05:02:57（数据库时间）
+
+| Stage | Attempt | Job / DeploymentRun | Result |
+|---|---|---|---|
+| backend schema_migration | `cms5m8kkc01r714kkv9b53rfm` | SEJ `cms5m8kko01rb14kksfudwxtf` | succeeded |
+| backend bootstrap | `cms5m97q301rk14kkktbck0hf` | SEJ `cms5m97qb01ro14kktsjngv7r` | succeeded |
+| backend application_deploy | `cms5m9uvp01st14kk9ct2cfri` | DR `cms5m9uwe01sy14kk7u4uig00` | succeeded / completed |
+| backend health_check | `cms5mai0x01tb14kkyk6kaj0v` | SEJ `cms5mai1201tf14kkhisk032p` | succeeded |
+| admin application_deploy | `cms5mb56g01uk14kksxwh12zn` | DR `cms5mb56z01up14kkj2kgyda8` | succeeded / completed |
+| admin health_check | `cms5mbsc201v214kkmxv5dgb8` | SEJ `cms5mbsc901v614kkz24cks4s` | succeeded |
+
+两条 DeploymentRun 均为非 dry-run，且分支/提交与计划完全一致。4 条本计划
+release-stage 审批及 2 条派生 deployment 审批均为 approved。
+
+## Initialization evidence and zero-leak read-back
+
+- `ApplicationServiceInitialization`：`cms5h9whs00iti73u07yggiel`
+  为 completed / verified，并绑定本计划、bootstrap stage/attempt/SEJ。
+- 零泄漏扫描从当前 Picshare Backend/Admin 容器提取真实秘密候选值但不回显，
+  扫描本计划 2 条 DeploymentRun 与 4 条 ServerExecutionJob 的持久化参数、
+  命令计划、日志、结果、错误及元数据：**0 hits / PASS**。
+- 扫描结果：`/tmp/codex-tool-runs/svton/f383-clean-rerun/zero-leak.log`。
+
+## Runtime and browser evidence
+
+- `picshare-backend` running / healthy，`http://127.0.0.1:4100/api` 返回 200。
+- `picshare-admin` running / healthy，`http://127.0.0.1:4101` 返回 200。
+- 实际 Devpilot 发布页默认选中该新计划，展示
+  `succeeded`、`master`、`8e7c465d`、开发环境及六项“成功”状态。
+
+## Completion boundary
+
+第一批“可复现的干净 master 六阶段主链”完成。F383 整体仍保持 in-progress；
+第二批继续完成执行任务深链接和平台化零泄漏验证器，再更新最终架构/运维文档并关闭。

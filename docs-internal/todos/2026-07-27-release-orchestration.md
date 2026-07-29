@@ -4,8 +4,8 @@
 > 创建时间：2026-07-27（Asia/Shanghai）
 > 设计者：OpenAI Codex（GPT-5 系列）
 > 使用工具：Git、CodeGraph CLI、受限源码读取、Prisma 模型检查、既有运行证据
-> 当前状态：**第四轮（2026-07-28）收尾：Items 1/2/3（依赖 fail-closed + CAS 竞态测试 + controller 拆分）完成并经两轮独立 CR 修复；真实重算 287 测试通过（不再引用旧 268/269）；本地 staging 全栈可访问（3120/3121 + 13 infra 容器，Nest 无 DI 错误）；真实 API 端到端 fail-closed 双证通过；真实 SSH/Server Executor 路径接线验证通过（命令实际执行被 command-policy 模板匹配阻断，配置问题非代码缺陷）；浏览器 GUI 像素级全流程阻塞于 IAB click 投递不稳定（环境问题）→ F383.9.3 维持 in-progress/blocked。Docker 存储损坏已恢复（overlayfs，写测试通过），旧报告"Docker healthy"与"blocked on Docker storage"的矛盾已消除。**
-> 修复轮次：2026-07-27 第二轮 → 2026-07-28 第三轮（P0-1/2/3）→ 2026-07-28 第四轮（Item 1/2/3 收尾 + 两轮 CR），分支 `fix/f383-release-orchestration-mainchain`，HEAD `4f2f691f`（未 push、未合并）。
+> 当前状态：**2026-07-29 第一批可复现主链已完成：Picshare 健康检查修复已以 `8e7c465` 推送至 `origin/master`，工作区干净；Devpilot 全新计划 `cms5m7z2001ow14kkg3jg0l87` 以 `master@8e7c465` 完成真实六阶段发布，初始化证据、容器健康、实际页面及真实秘密零泄漏扫描均通过。F383.9.3/F383.9.4 继续保持 in-progress，第二批处理执行任务深链接、平台化零泄漏验证器及最终文档关闭。**
+> 修复轮次：2026-07-27 第二轮 → 2026-07-28 第三/四轮 → 2026-07-29 第一批可复现主链收尾；Devpilot 分支 `fix/f383-release-orchestration-mainchain`，Picshare `master@8e7c465` 已推送。
 > 最终报告：`docs-internal/devpilot/release-orchestration-final-report.md`
 > 运维手册：`docs-internal/devpilot/release-orchestration-runbook.md`
 > 阻塞状态详表：`/tmp/codex-tool-runs/svton/f383-final-closure/BLOCKED-STATUS.md`
@@ -117,7 +117,7 @@ GLM 长任务提示词：
 
 ## Workflow Routing
 
-`routing: one GLM long-goal + codegraph-first + persistent TODO + isolated noisy verification; one active writer per checkout; no recursive goal handoff.`
+`routing: focused cross-repository closure + isolated noisy verification; Picshare only commits the existing compose fix, Devpilot only reruns the release and records evidence; no unrelated source changes.`
 
 ## Functional TODO Breakdown
 
@@ -193,8 +193,8 @@ GLM 长任务提示词：
 | --- | --- | --- | --- |
 | F383.9.1 | done | 完成 API/Web 定向测试、type-check、build、lint。 | `cr-fixes/`：API type-check exit 0；Web type-check/lint/build exit 0；nestjs-http build+test（3 用例）。212 单测 + 22 真实 MySQL 集成用例全过。 |
 | F383.9.2 | done | 在一次性 MySQL 与本地执行目标验证分支、失败、恢复、幂等。 | 真实 MySQL :3399 22 集成用例：完整成功链、migration 失败阻断、bootstrap 幂等、backfill skip、health 失败、真实审批 approved/denied、API 重启恢复、retry、cancel、并发认领、并发同 concurrencyKey、CAS-lost 无孤儿、stale-lease 抢占、finalize-vs-cancel、retry-vs-cancel。 |
-| F383.9.3 | in-progress | 在 `localhost:3120` 完成真实浏览器全流程。 | **第五轮（2026-07-28）核心 P0 闭环**：(1) P0-A 凭据模型——build-time `redactCommandSecrets` 把 `configSnapshot.command` 内联密码改写为 `$DEVPILOT_<KEY>` 占位；执行边界（队列 worker rehydrate 后）`reapplySecretEnvExport` 经 `ServerExecutorDevpilotSecretResolverService` 解析真实秘密并写回 `step.secretEnvExport`（仅内存，`stripSecretEnv` 落库前剥离）；`schema_migration` + `bootstrap` 经真实 password SSH 全绿（plan `cms4tn4q20087jj05tf6kiwdr`，SEJ `cms4tnr4b...`/`cms4toecb...`）。(2) P0-B 审批桥接——`ReleaseDeploymentApprovalBridgeService` 严格校验父 release_stage 审批并派生 deployment 类审批（不动严格 matcher）；`application_deploy` 已被认领并创建 DeploymentRun（bridge log `派生部署审批 cms4u7ch9...`），command-policy 经模板补 `deployment-script-plan` 后 passed。(3) 数据库零泄漏：历史 backfill 226 处 + 独立扫描 0 命中。**仍待完成（单一硬阻塞）**：`application_deploy` 的 DeploymentRun 命中 F382 `deployment-initialization-checkpoint`「一次性初始化缺少逐阶段执行证据」——属 F382 部署子系统校验要求（deploy 期望自身 init-checkpoint 证据，release-stage bootstrap 未被记录为该 checkpoint），非 F383 凭据/审批问题。六阶段全绿与浏览器取证待该 F382 集成修复后完成。详见 `docs-internal/devpilot/progress/f383-final-closure-evidence.md`。 |
-| F383.9.4 | in-progress | 同步 TODO、进度、架构、操作手册与最终报告。 | TODO 据第五轮真实证据更新；最终证据报告 `f383-final-closure-evidence.md` 已写；架构/操作手册保持权威。F383.9.3 因 F382 init-checkpoint 阻塞未达 done，故 F383.9.4 与 F383 整体维持 in-progress。 |
+| F383.9.3 | in-progress | 在 `localhost:3120` 完成真实浏览器全流程。 | **第一批可复现主链已完成（2026-07-29）**：Picshare 健康检查以独立提交 `8e7c465` 推送至 `origin/master`，本地/远端/部署挂载目录全程干净；全新计划 `cms5m7z2001ow14kkg3jg0l87` 记录 `master@8e7c465`，真实 password SSH 六阶段全部 succeeded，2 条 DeploymentRun completed，初始化证据 verified。实际 Devpilot 发布页默认选中新计划并展示正确分支、提交及六项成功状态。基于当前 Picshare 容器真实秘密值扫描该计划 2 条 DeploymentRun + 4 条 ServerExecutionJob，持久化字段 0 命中。仍保留第二批：执行任务深链接和平台化零泄漏验证器，因此状态保持 in-progress。 |
+| F383.9.4 | in-progress | 同步 TODO、进度、架构、操作手册与最终报告。 | TODO 与 `f383-final-closure-evidence.md` 已同步第一批干净 master 重跑证据，并明确旧计划 `cms5kc2rp...` 仅为运行证明、不能作为可复现发布证明。待第二批产品能力完成后再同步架构/操作手册并关闭 F383。 |
 
 ## Required Picshare Reference Flow
 
