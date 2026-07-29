@@ -2,7 +2,13 @@
 
 **日期**: 2026-06-02
 **严重级别**: CRITICAL
-**状态**: FIXED
+**状态**: HISTORICAL / SUPERSEDED
+
+> **Pre-Pi 历史归档**：本文记录的是已经删除的旧 `AgentRuntime`
+> 自研 ReAct 循环和 provider `stopReason` 终止条件，不描述当前实现。
+> 当前 `SvtonAgentRuntime` 使用 `@earendil-works/pi-agent-core` 的原生
+> turn、continuation、工具调度和 settlement 生命周期；下述条件与旧
+> `ai/agent-core/src/agent/runtime.ts` 仅作为迁移历史保留。
 
 ## 现象
 
@@ -10,7 +16,7 @@
 
 ## 根因
 
-`AgentRuntime.run()` 的终止条件：
+旧 `AgentRuntime.run()` 的终止条件：
 
 ```typescript
 if (toolCalls.length === 0 ||

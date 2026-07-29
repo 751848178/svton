@@ -9,25 +9,33 @@
 <Demo name="nl-scheduler" :height="500" />
 
 ```typescript
-import { AutomationManager } from '@svton/agent-core';
+import {
+  AutomationManager,
+  SvtonAgentRuntime,
+  TimerScheduler,
+} from '@svton/agent-core';
 
-const manager = new AutomationManager(storage);
+const manager = new AutomationManager(storage, new TimerScheduler());
+await manager.init();
 
 // 用自然语言创建定时任务
-await manager.create({
+const automation = await manager.create({
   name: '每日站会提醒',
+  description: '每天 9:00 生成项目进度与待办',
   trigger: AutomationManager.parseSchedule('every day at 9am'),
   prompt: '检查项目进度并生成今日待办',
 });
 
 // 注册触发处理器
 manager.setTriggerHandler(async (automation) => {
-  const runtime = await AgentRuntime.createAsync(config);
-  await runtime.run(automation.prompt).next();
+  const runtime = await SvtonAgentRuntime.createAsync(agentConfig, platform);
+  for await (const event of runtime.run(automation.prompt)) {
+    // 消费原生 Pi 事件直到 generator settlement
+  }
 });
 
-// 手动触发事件
-await manager.triggerEvent('deploy_completed', { service: 'api' });
+// 立即运行刚创建的任务
+await manager.runNow(automation.id);
 ```
 
 ## 触发类型
@@ -126,8 +134,8 @@ setTriggerHandler(
 ```typescript
 manager.setTriggerHandler(async (automation) => {
   console.log(`触发: ${automation.name}`);
-  // 在这里创建 AgentRuntime 并执行 automation.prompt
-  const runtime = await AgentRuntime.createAsync(config, platform);
+  // 在这里创建 SvtonAgentRuntime 并执行 automation.prompt
+  const runtime = await SvtonAgentRuntime.createAsync(config, platform);
   for await (const event of runtime.run(automation.prompt)) {
     // 处理事件...
   }
@@ -360,7 +368,13 @@ const scheduler = new TimerScheduler();
 ## 完整示例
 
 ```typescript
-import { AutomationManager, TimerScheduler, createAutomationDef, CreateAutomationExecutor } from '@svton/agent-core';
+import {
+  AutomationManager,
+  CreateAutomationExecutor,
+  SvtonAgentRuntime,
+  TimerScheduler,
+  createAutomationDef,
+} from '@svton/agent-core';
 
 // 1. 创建管理器
 const manager = new AutomationManager(storage, new TimerScheduler());
@@ -368,8 +382,10 @@ await manager.init();
 
 // 2. 设置触发处理器
 manager.setTriggerHandler(async (automation) => {
-  const runtime = await AgentRuntime.createAsync(config, platform);
-  await runtime.run(automation.prompt).next();
+  const runtime = await SvtonAgentRuntime.createAsync(config, platform);
+  for await (const event of runtime.run(automation.prompt)) {
+    // 消费原生 Pi 事件直到 generator settlement
+  }
 });
 
 // 3. 注册 create_automation 工具供 LLM 使用
@@ -378,6 +394,7 @@ registry.register(createAutomationDef, new CreateAutomationExecutor(manager));
 // 4. 也可以直接创建
 await manager.create({
   name: '每周代码审查',
+  description: '每周五汇总并审查本周合并内容',
   trigger: AutomationManager.parseSchedule('weekly on friday at 5pm'),
   prompt: '审查本周所有合并的 PR,生成年终技术总结',
 });
@@ -389,6 +406,6 @@ await manager.triggerEvent('deploy_completed', { service: 'api' });
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — 触发处理器中调用 Runtime
+- [SvtonAgentRuntime](./runtime) — 触发处理器中调用 Runtime
 - [规划系统](./planning) — 结构化任务分解
 - [第三方集成](./integrations) — 事件可来自外部服务

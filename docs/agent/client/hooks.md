@@ -66,11 +66,14 @@ function StatusBar() {
 ### 签名
 
 ```ts
+import type { Usage } from '@earendil-works/pi-ai';
+
 function useChat(): {
   messages: DisplayMessage[];
   status: ChatStatus;
   isStreaming: boolean;
-  lastUsage: TokenUsage | null;
+  canSend: boolean;
+  lastUsage: Usage | null;
   activePlan: PlanProgress | null;
 
   send: (content: string, images?: Array<{ data: string; mimeType?: string }>) => Promise<void>;
@@ -90,8 +93,9 @@ function useChat(): {
 | --- | --- | --- |
 | `messages` | `DisplayMessage[]` | 当前会话的显示消息列表（含用户、助手、系统消息） |
 | `status` | `ChatStatus` | `'idle' \| 'running' \| 'waiting_approval' \| 'error'` |
-| `isStreaming` | `boolean` | 等价于 `status === 'running'`，便于条件渲染 |
-| `lastUsage` | `TokenUsage \| null` | 最近一次运行的 token 使用统计 |
+| `isStreaming` | `boolean` | `status` 为 `running` / `waiting_approval`，或当前运行所有权使 `canSend` 为 false |
+| `canSend` | `boolean` | Runtime 已就绪、无活动运行/审批，且当前会话拥有 Runtime 时为 true |
+| `lastUsage` | `Usage \| null` | 最近一次运行的 Pi token 使用统计 |
 | `activePlan` | `PlanProgress \| null` | 当前活跃的计划进度（多步骤任务） |
 
 #### 操作方法

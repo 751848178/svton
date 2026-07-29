@@ -8,10 +8,8 @@
  *    `fauxProvider` (no network, no real API key) for Pi-Agent runtime tests
  *  - re-exports {@link FakeClock} / {@link SequentialIdGenerator} from production
  *
- * PI003: the legacy `MockProvider` (an `IProvider` with queued `StreamEvent[]`
- * scripts) is gone together with `IProvider`; runtime tests drive the
- * Pi-backed `SvtonAgentRuntime` via `createMockModels()` + `fauxProvider`
- * response scripts.
+ * Runtime tests drive the Pi-backed `SvtonAgentRuntime` through canonical
+ * `AssistantMessage` scripts supplied by `createMockModels()` + `fauxProvider`.
  */
 
 import type {
@@ -43,6 +41,14 @@ import {
   type Model,
 } from '@earendil-works/pi-ai';
 import { FakeClock, SequentialIdGenerator } from '../../src/utils/clock';
+
+export {
+  lastPiAssistant,
+  piMessageHasThinking,
+  piMessageText,
+  piToolCalls,
+  piToolResultTexts,
+} from './pi-message-selectors';
 
 export { FakeClock, SequentialIdGenerator };
 export { fauxAssistantMessage, fauxText, fauxToolCall, fauxThinking };
@@ -162,12 +168,22 @@ export function createMockPlatform(opts: MockPlatformOptions = {}): IPlatform {
     exists: opts.fs?.exists ?? (async () => false),
     readFile: opts.fs?.readFile ?? (async () => ''),
     writeFile: opts.fs?.writeFile ?? (async () => {}),
+    editFile: opts.fs?.editFile ?? (async () => false),
     deleteFile: opts.fs?.deleteFile ?? (async () => {}),
-    stat: opts.fs?.stat ?? (async () => ({ isFile: true, isDirectory: false, size: 0, mtime: 0 }) as FileStat),
+    stat: opts.fs?.stat ?? (async (): Promise<FileStat> => ({
+      isFile: true,
+      isDirectory: false,
+      size: 0,
+      modifiedAt: 0,
+      createdAt: 0,
+    })),
     listDir: opts.fs?.listDir ?? (async () => [] as DirEntry[]),
     resolve: opts.fs?.resolve ?? ((p: string) => p),
     join: opts.fs?.join ?? ((...segs: string[]) => segs.join('/')),
-    watch: opts.fs?.watch ?? (() => () => {}),
+    relative: opts.fs?.relative ?? ((_from: string, to: string) => to),
+    dirname: opts.fs?.dirname ?? ((path: string) => path.split('/').slice(0, -1).join('/')),
+    basename: opts.fs?.basename ?? ((path: string) => path.split('/').at(-1) ?? ''),
+    watch: opts.fs?.watch ?? (() => ({ close() {} })),
     ...opts.fs,
   };
   const process: IProcess = {
@@ -176,7 +192,7 @@ export function createMockPlatform(opts: MockPlatformOptions = {}): IPlatform {
     }),
     getEnv: opts.process?.getEnv ?? ((() => '') as IProcess['getEnv']),
     getCwd: opts.process?.getCwd ?? (() => '/'),
-    spawn: opts.process?.spawn ?? (async () => { throw new Error('mock spawn not configured'); }),
+    spawn: opts.process?.spawn ?? (() => { throw new Error('mock spawn not configured'); }),
   };
   const search: ISearch = {
     grep: opts.search?.grep ?? (async () => [] as GrepMatch[]),

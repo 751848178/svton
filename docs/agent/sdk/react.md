@@ -199,15 +199,17 @@ export function ToolManager() {
 ### 返回值
 
 ```typescript
+import type { Usage } from '@earendil-works/pi-ai';
+
 export interface UseChatReturn {
   /** 渲染用消息列表 */
   messages: DisplayMessage[];
   /** 当前状态 */
   status: ChatStatus;
-  /** 是否正在流式输出（status === 'running'） */
+  /** 是否有活动运行（running 或 waiting_approval） */
   isStreaming: boolean;
   /** 最近一次运行的 Token 用量 */
-  lastUsage: TokenUsage | null;
+  lastUsage: Usage | null;
   /** 发送消息（可附带图片） */
   send: (message: string, images?: Array<{ data: string; mimeType?: string }>) => void;
   /** 中止当前运行 */
@@ -293,7 +295,7 @@ export function ChatInterface() {
       {/* Token 用量 */}
       {lastUsage && (
         <div style={{ fontSize: '12px', color: '#999', padding: '4px 16px' }}>
-          输入: {lastUsage.inputTokens} tokens / 输出: {lastUsage.outputTokens} tokens
+          输入: {lastUsage.input} tokens / 输出: {lastUsage.output} tokens
         </div>
       )}
 

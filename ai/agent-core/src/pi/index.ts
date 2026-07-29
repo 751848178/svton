@@ -6,9 +6,7 @@
  * these from `@svton/agent-core` so the rest of the monorepo does not depend
  * on `@earendil-works/pi-ai` directly.
  *
- * PI003 deleted the temporary `IProvider` bridge (`PiProviderBridge`,
- * mappers, stream-options) — Pi Agent now calls `models.streamSimple`
- * directly (Architecture §3, §7.2).
+ * Pi Agent calls `models.streamSimple` directly (Architecture §3, §7.2).
  */
 export { createPiModels, fauxProvider, fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall } from './foundation';
 export type {

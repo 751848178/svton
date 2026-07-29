@@ -121,7 +121,7 @@ export default defineConfig({
             { text: '总览', link: '/agent/core/' },
             { text: 'Provider 提供商', link: '/agent/core/provider' },
             { text: '工具系统', link: '/agent/core/tools' },
-            { text: 'AgentRuntime', link: '/agent/core/runtime' },
+            { text: 'SvtonAgentRuntime', link: '/agent/core/runtime' },
             { text: '记忆系统', link: '/agent/core/memory' },
             { text: '自动化任务', link: '/agent/core/automation' },
             { text: '子代理', link: '/agent/core/subagent' },

@@ -1,8 +1,7 @@
 /**
  * PI006 — SubagentManager isolatedContext through the Pi-backed runtime.
  *
- * Replaces the stale mock that referenced the deleted `IProvider`. This now
- * drives a REAL `SvtonAgentRuntime` child (Pi Agent under the hood) via
+ * Drives a real `SvtonAgentRuntime` child (Pi Agent under the hood) via
  * `createMockModels()`, proving:
  *   - non-isolated context seeds parent messages into the child's Pi state
  *     (`setMessages` → `agent.state.messages`)
@@ -53,7 +52,7 @@ describe('SubagentManager isolatedContext (Pi-backed SvtonAgentRuntime child)', 
 
     // Parent runtime exposes the seed transcript via getMessages().
     const parentRuntime: IRuntime = {
-      run: async function* () { yield { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } }; },
+      run: async function* () {},
       getMessages: () => parentMessages,
       reset: () => {},
       abort: () => {},
@@ -85,7 +84,7 @@ describe('SubagentManager isolatedContext (Pi-backed SvtonAgentRuntime child)', 
     const { config } = createConfig(toolRegistry);
 
     const parentRuntime: IRuntime = {
-      run: async function* () { yield { type: 'done', stopReason: 'stop', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } }; },
+      run: async function* () {},
       getMessages: () => parentMessages,
       reset: () => {},
       abort: () => {},

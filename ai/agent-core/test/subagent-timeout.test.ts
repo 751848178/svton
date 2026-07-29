@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SubagentManager } from '../src/subagent/manager';
 import { ToolRegistry } from '../src/tool/registry';
-import type { AgentConfig } from '../src/agent/types';
+import type { AgentConfig, IRuntime } from '../src/agent/types';
 import type { IToolExecutor, ToolCall } from '../src/tool/types';
-import type { IPlatform } from '@svton/agent-platform';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
+import {
+  createMockModels,
+  createMockPlatform,
+  fauxAssistantMessage,
+  fauxText,
+  nativeAssistantLifecycle,
+} from './helpers';
 
 function createToolRegistry(): ToolRegistry {
   const registry = new ToolRegistry();
@@ -21,36 +28,22 @@ function createToolRegistry(): ToolRegistry {
   return registry;
 }
 
-function createPlatform(): IPlatform {
+function createConfig(toolRegistry: ToolRegistry): AgentConfig {
+  const mock = createMockModels();
   return {
-    type: 'browser',
-    capabilities: {
-      filesystem: false,
-      process: false,
-      watch: false,
-      mcpStdio: false,
-      clipboard: false,
-      notification: false,
-    },
-    fs: {} as any,
-    process: {} as any,
-    storage: {} as any,
-    search: {} as any,
+    models: mock.models,
+    piModel: mock.model,
+    model: 'test-model',
+    toolRegistry,
   };
 }
 
-function createConfig(toolRegistry: ToolRegistry): AgentConfig {
+function createParentRuntime(): IRuntime {
   return {
-    provider: {
-      name: 'mock',
-      models: [],
-      chat: async function* () {},
-      countTokens: () => 0,
-      supportsToolUse: () => true,
-      supportsVision: () => false,
-    },
-    model: 'test-model',
-    toolRegistry,
+    async *run() {},
+    getMessages: () => [],
+    reset: () => {},
+    abort: () => {},
   };
 }
 
@@ -63,26 +56,24 @@ describe('SubagentManager timeout propagation', () => {
     const toolRegistry = createToolRegistry();
     const manager = new SubagentManager(
       createConfig(toolRegistry),
-      {} as any,
-      createPlatform(),
+      createParentRuntime(),
+      createMockPlatform({ capabilities: { filesystem: false, process: false } }),
       toolRegistry,
     );
 
-    (manager as any).createRuntime = () => ({
-      run: vi.fn(async function* (_task: string, opts: { signal: AbortSignal }) {
+    let messages: AgentMessage[] = [];
+    const runtime: IRuntime = {
+      run: vi.fn(async function* (_task, opts) {
         await new Promise((resolve) => setTimeout(resolve, 20));
-        yield {
-          type: 'text_delta',
-          text: opts.signal.aborted ? 'timeout observed' : 'timeout missing',
-        };
-        yield {
-          type: 'done',
-          stopReason: 'stop',
-          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-        };
+        const text = opts?.signal?.aborted ? 'timeout observed' : 'timeout missing';
+        messages = [fauxAssistantMessage([fauxText(text)])];
+        for (const event of nativeAssistantLifecycle({ content: text })) yield event;
       }),
-      getMessages: vi.fn(() => []),
-    });
+      getMessages: vi.fn(() => messages),
+      reset: vi.fn(),
+      abort: vi.fn(),
+    };
+    Object.defineProperty(manager, 'createRuntime', { value: () => runtime });
 
     const result = await manager.spawn({
       task: 'Inspect timeout-sensitive work',

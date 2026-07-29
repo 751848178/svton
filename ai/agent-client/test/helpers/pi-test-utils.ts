@@ -1,10 +1,8 @@
 /**
  * PI007 test utilities for the agent-client suite.
  *
- * PI002/PI003 deleted the `IProvider`/`StreamEvent` provider contract; the
- * runtime is now Pi-backed (`models.streamSimple`). These helpers let the
- * existing ChatService/hook tests drive a real `SvtonAgentRuntime` without a
- * network and without re-implementing the legacy queued-response pattern.
+ * These helpers let ChatService/hook tests drive a Pi-backed
+ * `SvtonAgentRuntime` without a network.
  *
  * Two layers:
  *  - {@link buildPiAgentConfig} — assembles a valid `AgentConfig` from a
@@ -18,6 +16,7 @@ import { vi } from 'vitest';
 import {
   ToolRegistry,
   type AgentConfig,
+  type IRuntime,
   type PublicRuntimeEvent,
 } from '@svton/agent-core';
 import type { IPlatform, IStorage } from '@svton/agent-platform';
@@ -102,8 +101,12 @@ export class EventScripter {
   private queue: Array<PublicRuntimeEvent[] | EventStreamFactory> = [];
   readonly spy: ReturnType<typeof vi.spyOn>;
 
-  constructor(service: { runtime: { run: (...args: any[]) => AsyncGenerator<PublicRuntimeEvent> } }) {
-    this.spy = vi.spyOn(service.runtime, 'run').mockImplementation(() => this.generator());
+  constructor(service: object) {
+    const runtime = Reflect.get(service, 'runtime');
+    if (!isRuntimeOwner(runtime)) {
+      throw new Error('EventScripter requires a ChatService runtime.');
+    }
+    this.spy = vi.spyOn(runtime, 'run').mockImplementation(() => this.generator());
   }
 
   addResponse(events: PublicRuntimeEvent[]): this {
@@ -134,6 +137,12 @@ export class EventScripter {
       yield event;
     }
   }
+}
+
+function isRuntimeOwner(value: unknown): value is Pick<IRuntime, 'run'> {
+  return typeof value === 'object'
+    && value !== null
+    && typeof Reflect.get(value, 'run') === 'function';
 }
 
 /** Build a browser-style IPlatform backed by MemoryStorage for agent-client tests. */

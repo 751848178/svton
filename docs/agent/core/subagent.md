@@ -61,7 +61,7 @@ interface SubagentConfig {
 interface SubagentResult {
   agentId: string;           // 唯一运行 ID
   summary: string;           // 摘要(返回给父代理)
-  messages: ChatMessage[];   // 完整消息历史(不注入父代理上下文)
+  messages: AgentMessage[];   // 完整消息历史(不注入父代理上下文)
   usage: TokenUsage;         // token 使用统计
   success: boolean;          // 是否成功完成
   error?: string;            // 失败时的错误信息
@@ -148,7 +148,8 @@ for (const r of results) {
 
 ## spawnOnCsv() — CSV 批量扇出
 
-为 CSV 的每一行创建一个子代理任务,通过 `{{column_name}}` 模板占位符将行数据注入到任务中。默认并发数 4。
+为 CSV 的每一行创建一个子代理任务,通过 <code v-pre>{{column_name}}</code>
+模板占位符将行数据注入到任务中。默认并发数 4。
 
 ```typescript
 async spawnOnCsv(opts: {
@@ -259,12 +260,12 @@ ${task}
 
 ---
 
-## 与 AgentRuntime 集成
+## 与 SvtonAgentRuntime 集成
 
-由于循环依赖(AgentRuntime 依赖 SubagentManager,SubagentManager 依赖 IRuntime),子代理管理器必须在 runtime 创建后通过 setter 注入:
+由于循环依赖(SvtonAgentRuntime 依赖 SubagentManager,SubagentManager 依赖 IRuntime),子代理管理器必须在 runtime 创建后通过 setter 注入:
 
 ```typescript
-const runtime = await AgentRuntime.createAsync(config, platform);
+const runtime = await SvtonAgentRuntime.createAsync(config, platform);
 
 const subagentManager = new SubagentManager(
   config,
@@ -288,7 +289,7 @@ runtime.setSubagentManager(subagentManager);
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — 父代理的运行时
+- [SvtonAgentRuntime](./runtime) — 父代理的运行时
 - [权限系统](./permission) — 子代理继承的权限规则
 - [工具系统](./tools) — 子代理可用工具白名单/黑名单
 - [规划系统](./planning) — 与子代理配合处理复杂任务

@@ -26,7 +26,7 @@ import {
   readAgentShellPermissionMode,
   type AgentShellPermissionMode,
 } from './agent-shell-permission.utils';
-import { toInlineChatBlocks } from './agent-shell-message-boundary.utils';
+import { projectClientMessageToChatPanel } from './agent-shell-message-boundary.utils';
 import { AgentShellSettings } from './agent-shell-settings.component';
 import { AgentShellSidebar } from './agent-shell-sidebar.component';
 import { AgentShellToolbar } from './agent-shell-toolbar.component';
@@ -115,22 +115,14 @@ export function AgentShell({
 
   // ── Panel messages ──
   const panelMessages: ChatPanelMessage[] = useMemo(() =>
-    messages.map((msg, i) => ({
-      id: msg.id,
-      role: msg.role,
-      content: msg.content,
-      thinking: msg.thinking,
-      error: msg.error,
-      toolCalls: msg.toolCalls,
-      blocks: toInlineChatBlocks(msg.blocks),
-      isStreaming: msg.isStreaming,
-      duration: msg.duration,
-      usage: i === messages.length - 1 && msg.role === 'assistant' && !msg.isStreaming && lastUsage ? {
-        promptTokens: lastUsage.input,
-        completionTokens: lastUsage.output,
-        totalTokens: lastUsage.totalTokens,
-      } : undefined,
-    })),
+    messages.map((message, index) => projectClientMessageToChatPanel(
+      message,
+      index === messages.length - 1
+        && message.role === 'assistant'
+        && !message.isStreaming
+        ? lastUsage ?? undefined
+        : undefined,
+    )),
   [messages, lastUsage]);
 
   // ── Settings view ──

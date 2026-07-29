@@ -69,8 +69,7 @@ export interface ContextConfig {
 export interface AgentConfig {
   /**
    * Pi-ai `Models` collection (OpenAI + Anthropic registered). Pi Agent calls
-   * `models.streamSimple` directly — svton no longer wraps providers behind
-   * `IProvider` (Architecture §3, §7.2).
+   * `models.streamSimple` directly (Architecture §3, §7.2).
    */
   models: Models;
   /** Resolved pi-ai `Model` for `model`. Optional — resolved by id if omitted. */

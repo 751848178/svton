@@ -1,6 +1,6 @@
 # Pi Agent Migration Architecture
 
-> Status: accepted for implementation
+> Status: accepted and implemented; final contract closure tracked separately
 > Date: 2026-07-28 (Asia/Shanghai)
 > Scope: svton AI Agent product stack only
 > Implementation ledger: `docs-internal/todos/2026-07-28-pi-agent-migration.md`
@@ -59,18 +59,18 @@ The source inventory below excludes tests and generated output:
 | Agent web | 15 | 2,033 |
 | Agent desktop | 21 | 4,869 |
 
-Important current anchors:
+Current implementation anchors:
 
-- `ai/agent-core/src/agent/runtime.ts`
-- `ai/agent-core/src/agent/context.ts`
+- `ai/agent-core/src/agent/svton-agent-runtime.ts`
+- `ai/agent-core/src/agent/runtime-run.ts`
 - `ai/agent-core/src/agent/tool-executor.ts`
 - `ai/agent-core/src/agent/types.ts`
-- `ai/agent-core/src/provider/openai.ts`
-- `ai/agent-core/src/provider/anthropic.ts`
+- `ai/agent-core/src/pi/pi-models-factory.ts`
 - `ai/agent-client/src/service/chat.service.ts`
-- `ai/agent-client/src/service/session.service.ts`
+- `ai/agent-client/src/service/pi-message-display-boundary.utils.ts`
 - `ai/agent-sdk/src/create-agent.ts`
 - `packages/agent-app/src/lib/create-agent-config.ts`
+- `packages/agent-app/src/components/agent-shell-message-boundary.utils.ts`
 - `apps/agent-desktop/src/lib/agent-setup.ts`
 
 ## 3. Decision
@@ -136,29 +136,29 @@ overlap and must not be summed mechanically.
 
 ### 5.1 Models and messages
 
-Pi model, message, content-block, tool-schema and streaming types become the
-canonical core contracts. Do not preserve `IProvider` or duplicate provider
-message types solely for compatibility.
+Pi model, message, content-block, tool-schema and streaming types are the
+canonical core contracts. No duplicate provider or base-message contract is
+retained.
 
 Svton-specific metadata should use explicit extension types instead of forking
 Pi base message semantics.
 
 ### 5.2 Events
 
-The public runtime event union should be:
+The implemented public runtime event union is:
 
 ```text
-SvtonRuntimeEvent =
-  Pi Agent event
-  | approval event
-  | skill activation event
-  | subagent event
-  | compaction event
-  | product warning event
+PublicRuntimeEvent =
+  PiAgentEvent
+  | tool_approval_needed
+  | skill_activated
+  | context_compacted
+  | warning
 ```
 
 Text, thinking, message, turn, tool execution and agent settlement must come
-from Pi events. Svton events exist only for capabilities Pi does not own.
+from Pi events. Subagent work is expressed through canonical messages and tool
+lifecycle, not a separate capability event.
 
 ### 5.3 Tools
 

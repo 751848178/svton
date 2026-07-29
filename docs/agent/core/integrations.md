@@ -7,11 +7,12 @@
 ## 快速使用
 
 ```typescript
-import { IntegrationManager } from '@svton/agent-core';
+import { IntegrationManager, SlackIntegration } from '@svton/agent-core';
 
 const integrations = new IntegrationManager(storage);
 
-// 初始化:加载内置 + 自定义集成清单
+// Manifest 必须先显式注册;init() 只恢复已保存的启用配置。
+integrations.registerManifest(SlackIntegration);
 await integrations.init();
 
 // 启用 Slack 集成并提供凭证
@@ -69,7 +70,7 @@ interface IntegrationManifest {
 
   // 方式二:直接提供工具
   getTools?: (credentials: Record<string, string>) => Array<{
-    definition: ToolDefinition;
+    definition: SvtonToolDefinition;
     executor: IToolExecutor;
   }>;
 }
@@ -218,7 +219,7 @@ const token = integrationManager.getCredential('slack', 'botToken');
 从所有已启用的集成解析工具,返回工具定义和执行器:
 
 ```typescript
-resolveAllTools(): Array<{ definition: ToolDefinition; executor: IToolExecutor }>;
+resolveAllTools(): Array<{ definition: SvtonToolDefinition; executor: IToolExecutor }>;
 ```
 
 ```typescript
@@ -339,7 +340,7 @@ const notionManifest: IntegrationManifest = {
 
 ---
 
-## 与 AgentRuntime 集成
+## 与 SvtonAgentRuntime 集成
 
 ```typescript
 // 1. 创建并初始化
@@ -358,9 +359,10 @@ for (const { definition, executor } of tools) {
 }
 
 // 4. 创建 runtime
-const runtime = await AgentRuntime.createAsync(
+const runtime = await SvtonAgentRuntime.createAsync(
   {
-    provider,
+    models,
+    piModel,
     model: 'claude-sonnet-4-20250514',
     toolRegistry,
   },

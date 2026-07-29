@@ -1,11 +1,9 @@
 /**
  * Provider-facing shared types.
  *
- * The `IProvider` / `StreamEvent` / `ChatOptions` provider contract and the
- * OpenAI/Anthropic implementations were deleted in PI002/PI003 — Pi Agent now
- * calls pi-ai `models.streamSimple` directly (Architecture §3, §5.1, §7.2). The
- * runtime publishes upstream Pi `AgentEvent` objects unchanged and layers only
- * Svton-owned capability events alongside them.
+ * Pi Agent calls pi-ai `models.streamSimple` directly (Architecture §3,
+ * §5.1, §7.2). The runtime publishes upstream Pi lifecycle events unchanged
+ * and layers only Svton-owned capability events alongside them.
  *
  * What remains in this file are Svton-owned usage, reasoning, and UI model
  * catalog types. Pi owns message, content, and base tool contracts.

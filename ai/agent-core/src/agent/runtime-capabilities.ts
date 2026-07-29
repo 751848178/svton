@@ -121,8 +121,7 @@ export async function injectSkillContext(
 
 /**
  * Bridge discovered MCP tools into the svton ToolRegistry, applying per-server
- * approval/enabled/disabled policy. Mirrors the legacy runtime.initialize()
- * path; runs once during createAsync.
+ * approval/enabled/disabled policy during createAsync initialization.
  */
 export async function bridgeMcpTools(ctx: CapabilityContext): Promise<void> {
   for (const client of ctx.mcpClients) {

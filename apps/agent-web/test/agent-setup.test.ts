@@ -1,6 +1,6 @@
 /**
  * agent-setup tests (PI008) — verifies initAgentConfig builds a Pi-backed
- * AgentConfig with no IProvider references (PI003 migration seam).
+ * AgentConfig with canonical Pi Models and a resolved Pi model.
  *
  * Mirrors agent-desktop/test/agent-setup.test.ts: an in-memory storage stands
  * in for platform.storage, and localStorage is seeded with a provider that has
@@ -8,7 +8,7 @@
  *
  * What this proves about the migration:
  *  - createPiModelsForProvider (PI003) is the only model-construction path —
- *    the deleted OpenAIProvider/AnthropicProvider are gone.
+ *    provider/model ownership stays in pi-ai.
  *  - The returned AgentConfig carries `models` (pi-ai Models) + `piModel`
  *    (resolved Model), the shape SvtonAgentRuntime + ChatService consume.
  *  - The browser-safe tool subset (web_fetch, memory_*, plan_*) is registered.
@@ -71,7 +71,7 @@ describe('initAgentConfig — Pi-backed config construction', () => {
     saveSettings(OPENAI_WITH_KEY);
   });
 
-  it('returns an AgentConfig with pi-ai Models + resolved piModel (no IProvider)', async () => {
+  it('returns an AgentConfig with pi-ai Models and a resolved piModel', async () => {
     const config = await initAgentConfig('gpt-4o', makePlatform(storage));
     expect(config.model).toBe('gpt-4o');
     expect(config.models).toBeDefined();

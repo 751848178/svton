@@ -20,6 +20,8 @@ svton does **not** reimplement the LLM wire protocol or the ReAct loop. Instead
   compaction, native Pi event multiplexing, and the product capabilities
   (tools, skills, memory, MCP, subagents, planning, permissions, hooks,
   auto-review, checkpoints).
+- **agent-client / agent-app** own the explicit Session/Display and UI
+  projection boundaries; those DTOs never replace Pi canonical state.
 
 See `docs-internal/design/pi-agent-migration-architecture.md` for the full
 design. Public docs live under `docs/agent/core/`.
@@ -79,8 +81,8 @@ for await (const event of runtime.run('Hello, what can you do?')) {
 
 ## Providers
 
-svton no longer ships `OpenAIProvider`/`AnthropicProvider` classes. Build a
-pi-ai `Models` collection via `createPiModelsForProvider`:
+svton does not ship custom provider classes. Build a pi-ai `Models` collection
+via `createPiModelsForProvider`:
 
 ```typescript
 // OpenAI (or compatible: DeepSeek, Ollama, vLLM, Azure)

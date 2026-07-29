@@ -9,43 +9,56 @@ Agent 通过工具(Tools)与外部世界交互:`@svton/agent-core` 的工具系�
 <Demo name="tool-registration" :height="500" />
 
 ```typescript
-import { ToolRegistry, builtins } from '@svton/agent-core';
+import {
+  FileReadExecutor,
+  ToolRegistry,
+  fileReadDef,
+} from '@svton/agent-core';
 
 const registry = new ToolRegistry();
-
-// 注册内置工具
-registry.register(builtins.fileReadDef, new builtins.FileReadExecutor(fs));
-registry.register(builtins.bashDef, new builtins.BashExecutor(platform));
+registry.register(fileReadDef, new FileReadExecutor());
 
 // 执行工具
-const result = await registry.execute('file_read', { path: '/README.md' });
+const result = await registry.execute(
+  {
+    id: 'call_1',
+    name: 'file_read',
+    arguments: { path: '/README.md' },
+  },
+  {
+    platform,
+    sessionId: 'session_1',
+    workingDir: '/',
+  },
+);
 ```
 
 ## 核心类型
 
-### ToolDefinition
+### SvtonToolDefinition
 
 ```typescript
-interface ToolDefinition {
-  name: string;
-  description: string;
-  parameters: ToolParameterSchema;
-  annotations?: ToolAnnotations;
-}
+type SvtonToolParameters = AgentTool['parameters'];
 
-interface ToolParameterSchema {
-  type: 'object';
-  properties: Record<string, unknown>;
-  required?: string[];
-}
-
-interface ToolAnnotations {
+interface SvtonToolAnnotations {
   readOnlyHint?: boolean;       // 只读操作
   destructiveHint?: boolean;    // 破坏性操作
   idempotentHint?: boolean;     // 幂等操作
   openWorldHint?: boolean;      // 与外部世界交互
 }
+
+type SvtonToolDefinition = Omit<AgentTool, 'execute' | 'label'> & {
+  label?: AgentTool['label'];
+  annotations?: SvtonToolAnnotations;
+  metadata?: {
+    source?: 'builtin' | 'mcp' | 'integration' | 'subagent' | 'automation';
+    sourceId?: string;
+  };
+};
 ```
+
+其中 `AgentTool` 和参数 Schema 来自 Pi;Svton 只扩展产品/安全 annotations
+与 metadata,不复制第二套基础工具契约。
 
 ### ToolCall 与 ToolResult
 
@@ -75,6 +88,8 @@ interface ToolContext {
   platform: IPlatform;
   sessionId: string;
   workingDir: string;
+  sandboxProfile?: SandboxProfile | null;
+  sandboxRequired?: boolean;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
 }
@@ -84,7 +99,7 @@ interface ToolContext {
 
 ```typescript
 interface ToolEntry {
-  definition: ToolDefinition;
+  definition: SvtonToolDefinition;
   executor: IToolExecutor;
 }
 ```
@@ -97,10 +112,10 @@ interface ToolEntry {
 
 ```typescript
 class ToolRegistry {
-  register(definition: ToolDefinition, executor: IToolExecutor): void;
+  register(definition: SvtonToolDefinition, executor: IToolExecutor): void;
   unregister(name: string): boolean;
   get(name: string): ToolEntry | null;
-  listDefinitions(): ToolDefinition[];
+  listDefinitions(): SvtonToolDefinition[];
   has(name: string): boolean;
   execute(call: ToolCall, context: ToolContext): Promise<ToolResult>;
   get size(): number;
@@ -110,7 +125,13 @@ class ToolRegistry {
 ### 注册工具
 
 ```typescript
-import { ToolRegistry } from '@svton/agent-core';
+import {
+  BashExecutor,
+  FileReadExecutor,
+  ToolRegistry,
+  bashDef,
+  fileReadDef,
+} from '@svton/agent-core';
 
 const registry = new ToolRegistry();
 registry.register(fileReadDef, new FileReadExecutor());
@@ -146,14 +167,14 @@ if (result.isError) {
 
 ## 创建自定义工具
 
-实现一个自定义工具只需要:一个 `ToolDefinition` 和一个 `IToolExecutor`。
+实现一个自定义工具只需要:一个 `SvtonToolDefinition` 和一个 `IToolExecutor`。
 
 ```typescript
-import type { ToolDefinition } from '@svton/agent-core';
+import type { SvtonToolDefinition } from '@svton/agent-core';
 import type { ToolCall, ToolResult, IToolExecutor, ToolContext } from '@svton/agent-core';
 
 // 1. 定义工具
-const weatherDef: ToolDefinition = {
+const weatherDef: SvtonToolDefinition = {
   name: 'get_weather',
   description: '查询指定城市的天气',
   parameters: {
@@ -172,7 +193,10 @@ const weatherDef: ToolDefinition = {
 // 2. 实现执行器
 class WeatherExecutor implements IToolExecutor {
   async execute(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
-    const { city } = call.arguments as { city: string };
+    const city = call.arguments.city;
+    if (typeof city !== 'string' || city.length === 0) {
+      return { callId: call.id, output: 'city is required', isError: true };
+    }
     ctx.onProgress?.(`正在查询 ${city} 的天气...`);
 
     try {
@@ -369,32 +393,46 @@ import { previewDocumentDef, PreviewDocumentExecutor } from '@svton/agent-core';
 
 ---
 
-## 批量注册所有内置工具
+## 批量注册无状态内置工具
 
 ```typescript
-import { ToolRegistry } from '@svton/agent-core';
-import * as builtins from '@svton/agent-core';
+import {
+  BashExecutor,
+  FileEditExecutor,
+  FileReadExecutor,
+  FileWriteExecutor,
+  GlobExecutor,
+  GrepExecutor,
+  ToolRegistry,
+  bashDef,
+  fileEditDef,
+  fileReadDef,
+  fileWriteDef,
+  globDef,
+  grepDef,
+  type IToolExecutor,
+  type SvtonToolDefinition,
+} from '@svton/agent-core';
 
 const registry = new ToolRegistry();
 
-const builtinPairs = [
-  [builtins.fileReadDef, new builtins.FileReadExecutor()],
-  [builtins.fileWriteDef, new builtins.FileWriteExecutor()],
-  [builtins.fileEditDef, new builtins.FileEditExecutor()],
-  [builtins.grepDef, new builtins.GrepExecutor()],
-  [builtins.globDef, new builtins.GlobExecutor()],
-  [builtins.bashDef, new builtins.BashExecutor()],
-  [builtins.webSearchDef, new builtins.WebSearchExecutor()],
-  [builtins.webFetchDef, new builtins.WebFetchExecutor()],
-  [builtins.memorySaveDef, new builtins.MemorySaveExecutor()],
-  [builtins.memoryRecallDef, new builtins.MemoryRecallExecutor()],
-  // ... 根据平台能力按需注册
+const builtinPairs: Array<[SvtonToolDefinition, IToolExecutor]> = [
+  [fileReadDef, new FileReadExecutor()],
+  [fileWriteDef, new FileWriteExecutor()],
+  [fileEditDef, new FileEditExecutor()],
+  [grepDef, new GrepExecutor()],
+  [globDef, new GlobExecutor()],
+  [bashDef, new BashExecutor()],
 ];
 
 for (const [def, executor] of builtinPairs) {
   registry.register(def, executor);
 }
 ```
+
+Memory、Planning、Web Search、Image Generation 等执行器需要已初始化的
+manager/provider/config,应由 AgentApp 配置组装层按能力显式注册,不能作为
+无状态工具盲目批量构造。
 
 ## 使用建议
 
@@ -406,7 +444,7 @@ for (const [def, executor] of builtinPairs) {
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — 通过 ToolRegistry 执行工具
+- [SvtonAgentRuntime](./runtime) — 通过 ToolRegistry 执行工具
 - [权限系统](./permission) — 工具调用权限控制
 - [MCP 协议](./mcp) — 动态注册外部 MCP 工具
 - [第三方集成](./integrations) — 通过集成注入外部服务工具

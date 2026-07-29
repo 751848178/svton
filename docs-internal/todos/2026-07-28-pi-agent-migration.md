@@ -2,12 +2,18 @@
 
 > Document type: long-goal implementation ledger
 > Created: 2026-07-28 (Asia/Shanghai)
-> Status: **functionally completed; final contract convergence reopened** — PI000–PI010 + PI010-R1/R2 and live-E2E proved the product path, but PC000 on 2026-07-29 confirmed that message/tool/event/runtime compatibility contracts and 14 strict Core type errors remain. Final architecture acceptance is tracked in `docs-internal/todos/2026-07-29-pi-agent-final-contract-convergence.md`.
+> Status: **functionally completed; final contract convergence reopened** — PI000–PI010 + PI010-R1/R2 and live-E2E proved the product path. PC000 historically found message/tool/event/runtime compatibility contracts and 14 strict Core errors; PC001–PC003 removed those contracts and reduced current strict Core errors to zero. Remaining final acceptance is tracked in `docs-internal/todos/2026-07-29-pi-agent-final-contract-convergence.md`.
 > Architecture: `docs-internal/design/pi-agent-migration-architecture.md`
 > Goal prompt: `docs-internal/goals/pi-agent-migration-goal.md`
 > Runtime board: `/tmp/codex-tool-runs/svton/long-goals/pi-agent-migration/board.json`
 > Live-E2E closure board: `/tmp/codex-tool-runs/svton/long-goals/pi-agent-live-e2e-closure/board.json`
 > First board worker: `pi000` (implements ledger slice `PI000`)
+
+> 2026-07-30 contract note: rows below are preserved as historical delivery
+> evidence, not current API documentation. The final contract uses Pi canonical
+> messages/tools, native Pi lifecycle events, `SvtonAgentRuntime`, an explicit
+> Client Session/Display boundary and no runtime compatibility aliases. Current
+> acceptance and rerun evidence lives in the final-contract ledger linked above.
 
 ## Goal
 
@@ -140,7 +146,7 @@ PI000 must finish before dependency or production-code changes.
 | Client/SDK | send, stream, approve, abort, background session and restore |
 | Web/Desktop | real UI stream, tool progress, approval, failure, refresh/resume and platform execution |
 
-## Completion Definition
+## Historical Completion Definition (superseded)
 
 PI000-PI010 are all `done` with evidence, and **PI010-R1 independently
 re-verified** the migration against source, git diff and freshly-run gates
@@ -187,10 +193,12 @@ claim with an actual Tauri process + WKWebView streamed turn + native IPC chain.
   product path.
 
 ### Real bugs found & fixed (regression-tested)
-1. **postTurn/checkpoint never ran** — it was placed AFTER `yield doneEvent` in
-   `runtime-run.ts`; the ChatService consumer breaks on `done`, so checkpoints
-   were never persisted and session resume was silently broken. Moved `postTurn`
-   to run BEFORE the terminal done. Regression: `post-turn-checkpoint-regression.test.ts`.
+1. **Historical post-turn/checkpoint ordering bug** — the old translated
+   terminal protocol allowed a consumer to stop before post-turn work. The
+   current contract supersedes that fix: native Pi `agent_end` listeners are
+   awaited as part of exact run settlement, so Memory extraction and Checkpoint
+   complete before the runtime generator settles. Current regressions cover
+   early consumer cancellation and checkpoint settlement.
 2. **session-restore on reload** — startup skipped `loadMessages` when the saved
    display list was empty, so checkpoint restore + display refresh never fired.
    Now always runs loadMessages and re-derives the display from the restored

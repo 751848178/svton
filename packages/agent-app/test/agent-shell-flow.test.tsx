@@ -95,10 +95,9 @@ function makePlatform(storage: IStorage): IPlatform {
 }
 
 /**
- * Build a Pi-backed AgentConfig (no provider contract) + a runtime.run spy
- * that yields a canned "Hello from the runtime" response. PI007: the deleted
- * IProvider/StreamEvent mock is replaced by a fauxProvider-backed Models
- * collection + a native Pi event script.
+ * Build a Pi-backed AgentConfig plus a runtime.run spy that yields a canned
+ * "Hello from the runtime" response. The test uses a fauxProvider-backed
+ * Models collection and a native Pi event script.
  */
 function makeConfig(): { config: AgentConfig; scriptRun: () => void } {
   const mock = createMockModels('mock-model');

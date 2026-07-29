@@ -2,10 +2,8 @@
  * End-to-end conversation flow test (Pi-backed runtime).
  *
  * Wires a full SvtonAgentRuntime with a fauxProvider-backed Models collection
- * and runs one complete turn: user message → skill_activated → thinking_delta
- * → tool_call (auto-approved) → tool_result → text_delta → done. Asserts the
- * full event sequence and that the runtime's transcript ends in the correct
- * shape.
+ * and runs one complete turn through native Pi message/tool lifecycle events
+ * plus the Svton-owned `skill_activated` capability event.
  */
 import { describe, it, expect } from 'vitest';
 import { SvtonAgentRuntime } from '../src/agent/svton-agent-runtime';
@@ -20,6 +18,7 @@ import {
   fauxToolCall,
   fauxText,
   fauxThinking,
+  lastPiAssistant,
 } from './helpers';
 import { fauxProvider, createModels } from '@earendil-works/pi-ai';
 
@@ -29,7 +28,7 @@ function createModelsInstance(provider: ReturnType<typeof fauxProvider>['provide
   models.setProvider(provider);
   return models;
 }
-import type { AgentEvent } from '../src/agent/types';
+import type { PublicRuntimeEvent } from '../src/agent/types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../src/tool/types';
 
 const reviewSkill = {
@@ -75,7 +74,7 @@ function setup() {
 }
 
 describe('E2E conversation flow (Pi-backed)', () => {
-  it('runs a full turn: skill → thinking → tool(approved) → result → text → done', async () => {
+  it('runs a full native Pi turn plus the Svton skill capability', async () => {
     const { runtime, mock, toolCalls } = setup();
     mock.addResponse(
       fauxAssistantMessage([
@@ -90,21 +89,25 @@ describe('E2E conversation flow (Pi-backed)', () => {
     const types = events.map((e) => e.type);
     const skillIdx = types.indexOf('skill_activated');
     expect(skillIdx).toBeGreaterThanOrEqual(0);
-    const skillEv = events[skillIdx] as Extract<AgentEvent, { type: 'skill_activated' }>;
+    const skillEv = events[skillIdx] as Extract<PublicRuntimeEvent, { type: 'skill_activated' }>;
     expect(skillEv.skills).toEqual(['code-review']);
 
-    const thinkIdx = types.indexOf('thinking_delta');
-    const toolStartIdx = types.indexOf('tool_call_start');
+    const thinkIdx = events.findIndex((event) =>
+      event.type === 'message_update'
+      && event.assistantMessageEvent.type === 'thinking_delta');
+    const toolStartIdx = types.indexOf('tool_execution_start');
     expect(thinkIdx).toBeGreaterThan(skillIdx);
     expect(toolStartIdx).toBeGreaterThan(thinkIdx);
 
-    const toolEndIdx = types.indexOf('tool_call_end');
+    const toolEndIdx = types.indexOf('tool_execution_end');
     expect(toolEndIdx).toBeGreaterThan(toolStartIdx);
 
-    const textIdx = types.indexOf('text_delta');
+    const textIdx = events.findIndex((event) =>
+      event.type === 'message_update'
+      && event.assistantMessageEvent.type === 'text_delta');
     expect(textIdx).toBeGreaterThan(toolEndIdx);
 
-    expect(types[types.length - 1]).toBe('done');
+    expect(types[types.length - 1]).toBe('agent_end');
 
     expect(toolCalls.length).toBe(1);
     expect(toolCalls[0].name).toBe('git_diff');
@@ -114,7 +117,7 @@ describe('E2E conversation flow (Pi-backed)', () => {
     const roles = msgs.map((m) => m.role);
     expect(roles[0]).toBe('user');
     expect(roles[roles.length - 1]).toBe('assistant');
-    expect(roles).toContain('tool');
+    expect(roles).toContain('toolResult');
   });
 
   it('aborts cleanly when abort() is called mid-stream', async () => {
@@ -144,7 +147,9 @@ describe('E2E conversation flow (Pi-backed)', () => {
     setTimeout(() => runtime.abort(), 0);
     const events = await collectEvents(runtime.run('go'));
     const last = events[events.length - 1];
-    expect(last.type).toBe('done');
-    if (last.type === 'done') expect(last.stopReason).toBe('aborted');
+    expect(last.type).toBe('agent_end');
+    if (last.type === 'agent_end') {
+      expect(lastPiAssistant(last.messages)?.stopReason).toBe('aborted');
+    }
   });
 });

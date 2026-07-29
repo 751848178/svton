@@ -14,6 +14,8 @@ import {
   fauxAssistantMessage,
   fauxText,
   makeBrowserPlatform,
+  nativeAssistantLifecycle,
+  nativeTextDelta,
 } from './helpers/pi-test-utils';
 
 class DelayedStorage implements IStorage {
@@ -185,9 +187,7 @@ describe('session isolation', () => {
     service.status = 'idle';
 
     const runtime = (service as unknown as { runtime: { run: (...args: unknown[]) => AsyncGenerator<unknown> } }).runtime;
-    const run = vi.spyOn(runtime, 'run').mockImplementation(async function* () {
-      yield { type: 'done', stopReason: 'stop' };
-    });
+    const run = vi.spyOn(runtime, 'run').mockImplementation(async function* () {});
 
     await service.sendMessage('SESSION_B_MESSAGE');
 
@@ -222,12 +222,10 @@ describe('session isolation', () => {
       expect(state?.chat.activeSessionId).toBe('session-a');
       expect(state?.chat.runtimeSessionId).toBe('session-a');
     });
-    const scripter = new EventScripter(
-      state!.chat as unknown as ConstructorParameters<typeof EventScripter>[0],
-    );
+    const scripter = new EventScripter(state!.chat);
     scripter.addResponse([
-      { type: 'text_delta', text: 'SAVED_REPLY' },
-      { type: 'done', stopReason: 'stop' },
+      nativeTextDelta('SAVED_REPLY'),
+      ...nativeAssistantLifecycle({ content: 'SAVED_REPLY' }),
     ]);
     await act(async () => {
       await state!.chat.sendMessage('SAVE_ME');

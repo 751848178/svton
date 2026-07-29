@@ -3,10 +3,10 @@ import {
   ChatPanel,
   SplitScreenPanel,
   type ChatPanelMessage,
-  type ToolCallInfo,
   type SplitScreenContent,
 } from '@svton/agent-ui';
 import { useChat, useToolApproval } from '@svton/agent-client';
+import { projectClientMessageToChatPanel } from '@svton/agent-app';
 import { InputControls } from './InputControls';
 import { buildOpenReferenceCommand } from '@/lib/reference-open.utils';
 import { CHAT_PRESETS } from './chat-content.constants';
@@ -71,23 +71,14 @@ export function ChatContent({
 
   const panelMessages: ChatPanelMessage[] = useMemo(
     () =>
-      messages.map((msg, i) => {
-        const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1 && !msg.isStreaming;
-        return {
-          id: msg.id,
-          role: msg.role,
-          content: msg.content,
-          thinking: msg.thinking,
-          error: msg.error,
-          toolCalls: msg.toolCalls as ToolCallInfo[] | undefined,
-          blocks: msg.blocks as import('@svton/agent-ui').ContentBlock[] | undefined,
-          isStreaming: msg.isStreaming,
-          systemType: msg.systemType,
-          duration: msg.duration,
-          activeSkills: msg.activeSkills,
-          usage: isLastAssistant && lastUsage ? lastUsage : undefined,
-        };
-      }),
+      messages.map((message, index) => projectClientMessageToChatPanel(
+        message,
+        index === messages.length - 1
+          && message.role === 'assistant'
+          && !message.isStreaming
+          ? lastUsage ?? undefined
+          : undefined,
+      )),
     [messages, lastUsage],
   );
 

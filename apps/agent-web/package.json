@@ -12,6 +12,7 @@
     "e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
+    "@svton/agent-app": "workspace:*",
     "@svton/agent-platform": "workspace:*",
     "@svton/agent-core": "workspace:*",
     "@svton/agent-client": "workspace:*",

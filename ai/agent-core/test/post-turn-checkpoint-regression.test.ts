@@ -1,10 +1,10 @@
 /**
  * Regression: the post-turn checkpoint must run.
  *
- * Bug found via the agent-web real browser E2E (W9 refresh-resume): the Pi
- * migration once placed `postTurn` after its terminal compatibility event.
- * Consumers could stop iteration at that point, so code after the yield never
- * ran and session checkpoints were silently skipped.
+ * Bug found via the agent-web real browser E2E (W9 refresh-resume): an earlier
+ * settlement order placed `postTurn` after a terminal event. Consumers could
+ * stop iteration at that point, so code after the yield never ran and session
+ * checkpoints were silently skipped.
  *
  * This test drives a REAL `SvtonAgentRuntime` turn (not a mock) and asserts the
  * checkpoint is written to storage before the native generator settles.

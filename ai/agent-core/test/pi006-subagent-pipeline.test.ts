@@ -13,18 +13,7 @@ import { buildAgentTools, type ToolEventSink } from '../src/agent/pi-tool-adapte
 import { buildSubagentToolRegistry } from '../src/subagent/subagent-config.utils';
 import type { ToolCall, ToolResult, IToolExecutor } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
-
-function createMockPlatform(): IPlatform {
-  return {
-    type: 'tauri',
-    capabilities: {
-      filesystem: true, process: true, watch: false, mcpStdio: false,
-      clipboard: false, notification: false, sandboxing: false, pty: false,
-      documentPreview: false, computerUse: false,
-    },
-    fs: {} as any, process: {} as any, storage: {} as any, search: {} as any,
-  };
-}
+import { createMockPlatform } from './helpers';
 
 function recordingExecutor(): IToolExecutor & { calls: ToolCall[] } {
   const calls: ToolCall[] = [];
@@ -72,7 +61,7 @@ describe('PI006 subagent tools use the same policy pipeline (no bypass)', () => 
 
     const result = await tool.execute(call('bash').id, {});
     expect(exec.calls).toHaveLength(0);          // permission gate blocked it
-    expect(result.isError).toBe(true);
+    expect(result.details.isError).toBe(true);
   });
 
   it('a tool excluded by buildSubagentToolRegistry is absent from the AgentTool set', async () => {

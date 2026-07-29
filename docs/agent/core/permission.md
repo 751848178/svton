@@ -20,8 +20,12 @@ const permission = new PermissionManager({
 });
 
 // 检查工具权限
-const decision = permission.check('file_edit', { path: '/README.md' });
-// → { allowed: false, needsApproval: true }
+const decision = permission.check({
+  id: 'call_1',
+  name: 'file_edit',
+  arguments: { path: '/README.md' },
+});
+// → { allowed: true, needsApproval: true, ... }
 ```
 
 ## 5 种权限模式
@@ -156,8 +160,11 @@ console.log(pm.getMode());  // 'accept_edits'
 ```typescript
 pm.addRule({ tool: 'bash(git *)', effect: 'allow' });
 pm.addRule({ tool: 'bash(rm *)', effect: 'deny' });
-pm.removeRule('bash');
+pm.removeRule('bash(git *)');
+pm.removeRule('bash(rm *)');
 ```
+
+`removeRule()` 按 `rule.tool` 精确匹配。
 
 ---
 
@@ -236,14 +243,15 @@ Glob 模式中:
 
 ---
 
-## 与 AgentRuntime 集成
+## 与 SvtonAgentRuntime 集成
 
 将 PermissionManager 注入到 runtime:
 
 ```typescript
-const runtime = await AgentRuntime.createAsync(
+const runtime = await SvtonAgentRuntime.createAsync(
   {
-    provider,
+    models,
+    piModel,
     model: 'claude-sonnet-4-20250514',
     toolRegistry,
     capabilities: {
@@ -278,14 +286,8 @@ runtime.setPermissionManager(new PermissionManager({ mode: 'accept_edits' }));
 pm.setMode('auto');
 ```
 
-### 通过 RunOptions 控制模式
-
-```typescript
-// 本次运行使用 plan 模式
-for await (const event of runtime.run('分析项目', { mode: 'plan' })) {
-  // ...
-}
-```
+`RunOptions` 不包含权限模式。需要改变权限时,应更新注入的
+`PermissionManager`,再开始下一次 `run()`。
 
 ---
 
@@ -302,11 +304,8 @@ for await (const event of runtime.run('删除临时文件')) {
     // 展示 UI,获取用户决策
     const approved = await showApprovalDialog(event.call);
 
-    // 从 runtime 的 pendingApprovals 中 resolve
-    const pending = runtime.getPendingApprovals().get(event.call.id);
-    if (pending) {
-      pending.resolve(approved);  // true=执行, false=拒绝
-    }
+    if (approved) runtime.approveToolCall(event.call.id);
+    else runtime.rejectToolCall(event.call.id);
   }
 }
 ```
@@ -332,7 +331,7 @@ rules: [
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — 运行时权限检查
+- [SvtonAgentRuntime](./runtime) — 运行时权限检查
 - [工具系统](./tools) — annotations 影响权限判断
 - [生命周期钩子](./hooks) — `permission_request` 钩子可自定义决策
 - [自定义 Agent](./agent-definition) — 通过 AgentDefinition 配置权限模式

@@ -32,9 +32,12 @@ import {
   fauxAssistantMessage,
   fauxText,
   fauxToolCall,
+  lastPiAssistant,
+  piMessageText,
 } from './helpers';
-import type { AgentEvent, ChatMessage } from '../src/agent/types';
+import type { PublicRuntimeEvent } from '../src/agent/types';
 import type { ToolCall, ToolResult, ToolContext, IToolExecutor } from '../src/tool/types';
+import type { AgentMessage } from '@earendil-works/pi-agent-core';
 
 /** Long filler text that pushes the transcript over a tiny token budget. */
 function bigText(label: string): string {
@@ -141,24 +144,19 @@ describe('SvtonCompactor (unit, transformContext contract)', () => {
 });
 
 describe('Compaction via SvtonAgentRuntime.transformContext (e2e)', () => {
-  function buildSeedTranscript(): ChatMessage[] {
-    const msgs: ChatMessage[] = [];
+  function buildSeedTranscript(): AgentMessage[] {
+    const msgs: AgentMessage[] = [];
     for (let i = 0; i < 6; i++) {
-      msgs.push({ role: 'user', content: bigText(`history-user-${i}`) });
       msgs.push({
-        role: 'assistant',
-        content: [{ type: 'text', text: bigText(`history-assistant-${i}`) }],
+        role: 'user',
+        content: bigText(`history-user-${i}`),
+        timestamp: i * 2,
       });
+      msgs.push(fauxAssistantMessage([
+        fauxText(bigText(`history-assistant-${i}`)),
+      ]));
     }
     return msgs;
-  }
-
-  function extractText(msg: ChatMessage): string {
-    if (typeof msg.content === 'string') return msg.content;
-    if (Array.isArray(msg.content)) {
-      return msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-    }
-    return '';
   }
 
   function makeExecutor(): { executor: IToolExecutor; calls: ToolCall[] } {
@@ -215,26 +213,28 @@ describe('Compaction via SvtonAgentRuntime.transformContext (e2e)', () => {
     const compacted = events.filter((e) => e.type === 'context_compacted');
     expect(compacted.length).toBeGreaterThanOrEqual(1);
     for (const ev of compacted) {
-      expect((ev as Extract<AgentEvent, { type: 'context_compacted' }>).summary).toContain('Compacted');
+      expect((ev as Extract<PublicRuntimeEvent, { type: 'context_compacted' }>).summary)
+        .toContain('Compacted');
     }
 
     // (b) Pi keeps the full append-only transcript (transformContext is a
     //     transient view); the seeded history + new turn are all present.
     const msgs = runtime.getMessages();
-    expect(msgs.some((m) => extractText(m).includes('history-user-0'))).toBe(true);
-    expect(msgs.some((m) => m.role === 'user' && extractText(m).includes('proceed'))).toBe(true);
+    expect(msgs.some((m) => piMessageText(m).includes('history-user-0'))).toBe(true);
+    expect(msgs.some((m) => m.role === 'user' && piMessageText(m).includes('proceed'))).toBe(true);
 
     // (c) tool-result integrity: the tool ran and its result message is present.
     expect(toolCalls.length).toBe(1);
     expect(toolCalls[0].name).toBe('git_diff');
-    expect(msgs.some((m) => m.role === 'tool')).toBe(true);
+    expect(msgs.some((m) => m.role === 'toolResult')).toBe(true);
 
-    // (d) the run settles with a terminal done carrying usage + stopReason.
+    // (d) the run settles with native agent_end and Pi assistant usage.
     const last = events[events.length - 1];
-    expect(last.type).toBe('done');
-    if (last.type === 'done') {
-      expect(typeof last.stopReason).toBe('string');
-      expect(last.usage.totalTokens).toBeDefined();
+    expect(last.type).toBe('agent_end');
+    if (last.type === 'agent_end') {
+      const assistant = lastPiAssistant(last.messages);
+      expect(typeof assistant?.stopReason).toBe('string');
+      expect(assistant?.usage.totalTokens).toBeDefined();
     }
 
     // (e) resume after compaction: a second turn completes normally on the
@@ -242,9 +242,10 @@ describe('Compaction via SvtonAgentRuntime.transformContext (e2e)', () => {
     mock.addResponse(fauxAssistantMessage([fauxText('SUMMARY-C')]));
     mock.addResponse(fauxAssistantMessage([fauxText('Resume reply.')]));
     const events2 = await collectEvents(runtime.run('continue'));
-    expect(events2[events2.length - 1].type).toBe('done');
+    expect(events2[events2.length - 1].type).toBe('agent_end');
     const msgs2 = runtime.getMessages();
-    expect(msgs2.some((m) => m.role === 'assistant' && extractText(m).includes('Resume reply'))).toBe(true);
+    expect(msgs2.some((m) =>
+      m.role === 'assistant' && piMessageText(m).includes('Resume reply'))).toBe(true);
   });
 
   it('does not compact when the transcript stays under budget (no context_compacted event)', async () => {
@@ -257,7 +258,11 @@ describe('Compaction via SvtonAgentRuntime.transformContext (e2e)', () => {
         model: 'test-model',
         toolRegistry: registry,
         capabilities: { permissionManager: new PermissionManager({ mode: 'auto' }) },
-        contextConfig: { maxTokens: 1_000_000, threshold: 0.9, preserveRecentMessages: 6 },
+        contextConfig: {
+          maxTokens: 1_000_000,
+          compactionThreshold: 0.9,
+          preserveRecentMessages: 6,
+        },
       },
       createMockPlatform(),
     );
@@ -265,6 +270,6 @@ describe('Compaction via SvtonAgentRuntime.transformContext (e2e)', () => {
 
     const events = await collectEvents(runtime.run('hi'));
     expect(events.some((e) => e.type === 'context_compacted')).toBe(false);
-    expect(events[events.length - 1].type).toBe('done');
+    expect(events[events.length - 1].type).toBe('agent_end');
   });
 });

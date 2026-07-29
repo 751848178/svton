@@ -14,7 +14,7 @@ export interface RuntimeClearContext {
   platform: IPlatform | null;
 }
 
-/** Serializes display-to-runtime restores and rejects stale session ownership. */
+/** Restores checkpoint-owned Pi state, projects it to display, and rejects stale ownership. */
 export class ChatSessionRuntimeService {
   private generation = 0;
   private backgroundRuntime: SvtonAgentRuntime | null = null;

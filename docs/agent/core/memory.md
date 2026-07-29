@@ -10,22 +10,17 @@
 
 ```typescript
 import { MemoryManager } from '@svton/agent-core';
+import { getPlatform } from '@svton/agent-platform';
 
-const memory = new MemoryManager(storage, provider);
-
-// 初始化:加载项目 AGENT.md + 已有自动记忆
-await memory.init(workingDir);
+const platform = getPlatform();
+const memory = new MemoryManager();
+await memory.init(platform.storage);
 
 // 手动保存一条记忆
-await memory.saveEntry({
-  key: 'user-prefers-tabs',
-  content: '用户偏好使用 Tab 缩进',
-  scope: 'user',
-  source: 'manual',
-});
+await memory.saveAutoMemory('用户偏好使用 Tab 缩进', 'manual');
 
 // 搜索相关记忆
-const results = await memory.recall('代码风格偏好');
+const results = memory.getRelevantMemories('代码风格偏好');
 ```
 
 ## 两类记忆
@@ -226,17 +221,10 @@ if (memory.hasMemory) {
 
 ## 自动提取(Auto-Extraction)
 
-### extractFromConversation()
-
-这是记忆系统的核心能力:在每轮对话结束后,自动从对话中提取值得记住的事实。
-
-```typescript
-async extractFromConversation(
-  messages: Array<{ role: string; content: string }>,
-  provider?: { chat: (msgs: any[], opts?: any) => AsyncGenerator<any> },
-  model?: string,
-): Promise<number>;   // 返回新提取的记忆条数
-```
+自动提取由 `SvtonAgentRuntime` 的原生 `agent_end` settlement 驱动。
+Runtime 使用已经配置的 Pi `Models` 和当前 `Model`,把 canonical transcript
+交给 `MemoryManager`,并等待提取完成。应用层不应在每轮结束后再手动调用
+`extractFromConversation()` 或另外注入一套 provider。
 
 ### 自动提取的工作原理
 
@@ -272,36 +260,15 @@ One fact per line, prefixed with "- ".
 If nothing memorable, output "NOTHING".
 ```
 
-### 示例
-
-```typescript
-// 在每次对话结束后调用
-const messages = runtime.getMessages().map(m => ({
-  role: m.role,
-  content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-}));
-
-const newCount = await memory.extractFromConversation(
-  messages,
-  provider,
-  'claude-haiku-4-20250506',  // 推荐用小模型做提取,降低成本
-);
-
-if (newCount > 0) {
-  console.log(`从对话中学习了 ${newCount} 条新记忆`);
-}
-```
-
----
-
-## 与 AgentRuntime 集成
+## 与 SvtonAgentRuntime 集成
 
 将 MemoryManager 注入到 runtime 的 capabilities 中:
 
 ```typescript
-const runtime = await AgentRuntime.createAsync(
+const runtime = await SvtonAgentRuntime.createAsync(
   {
-    provider,
+    models,
+    piModel,
     model: 'claude-sonnet-4-20250514',
     toolRegistry,
     capabilities: {
@@ -315,7 +282,8 @@ const runtime = await AgentRuntime.createAsync(
 集成后的效果:
 - 每次运行前,记忆文本会注入到系统提示词。
 - Agent 可以通过 `memory_save` 和 `memory_recall` 工具主动操作记忆。
-- 应用层负责在每轮对话后调用 `extractFromConversation` 完成自动学习。
+- Runtime 在原生 `agent_end` settlement 中等待
+  `extractFromConversation()` 完成;应用层不需要在每轮后重复调用。
 
 ## AGENT.md 格式示例
 
@@ -349,6 +317,6 @@ const runtime = await AgentRuntime.createAsync(
 ## 相关文档
 
 - [index](./index) — agent-core 总览
-- [AgentRuntime](./runtime) — 运行时自动注入记忆上下文
+- [SvtonAgentRuntime](./runtime) — 运行时自动注入记忆上下文
 - [技能系统](./skills) — 与项目记忆类似的渐进式加载策略
 - [自定义 Agent](./agent-definition) — 可通过 AgentDefinition 配置记忆行为

@@ -660,7 +660,7 @@ describe('useToolApproval', () => {
     unmount();
   });
 
-  it('prefers block pending approval metadata over stale legacy toolCalls across messages', async () => {
+  it('prefers block pending approval metadata over stale message-level toolCalls', async () => {
     let state: ToolAgentState | null = null;
     const { unmount } = render(
       <AgentProvider platform={makePlatform()} config={makeConfig()}>
@@ -767,7 +767,7 @@ describe('useToolApproval', () => {
     unmount();
   });
 
-  it('uses runtime pending metadata when visible legacy pending call is stale', async () => {
+  it('uses runtime pending metadata when the visible pending call is stale', async () => {
     let state: ToolAgentState | null = null;
     const { unmount } = render(
       <AgentProvider platform={makePlatform()} config={makeConfig()}>
@@ -778,7 +778,7 @@ describe('useToolApproval', () => {
     await waitFor(() => expect(state).not.toBeNull());
     act(() => {
       state!.agent.chatService.messages = [{
-        id: 'assistant-legacy',
+        id: 'assistant-stale',
         role: 'assistant',
         content: '',
         timestamp: Date.now(),

@@ -84,7 +84,7 @@ describe('SubagentManager', () => {
     platform = createMockPlatform();
 
     // PI003: AgentConfig uses a pi-ai Models collection (+ resolved Model)
-    // instead of the deleted IProvider. The child runtime built by
+    // through canonical Pi Models. The child runtime built by
     // SubagentManager consumes this directly.
     const mock = createMockModels();
     // Pre-queue a response so the spawned subagent runtime can complete.

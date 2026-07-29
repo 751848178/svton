@@ -25,6 +25,10 @@ export { AgentApp } from './AgentApp';
 export { AgentShell } from './components/AgentShell';
 export { DefaultSettingsAdapter } from './lib/default-settings-adapter';
 export { createAgentConfig } from './lib/create-agent-config';
+export {
+  projectClientMessageToChatPanel,
+  toInlineChatBlocks,
+} from './components/agent-shell-message-boundary.utils';
 
 export type {
   AgentAppProps,

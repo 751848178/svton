@@ -2,7 +2,14 @@
 
 **日期**: 2026-06-02
 **严重级别**: CRITICAL
-**状态**: FIXED
+**状态**: HISTORICAL / SUPERSEDED
+
+> **Pre-Pi 历史归档**：本文记录的是已经删除的旧 `AgentRuntime`
+> 自研循环、事件和 context 组装行为，不描述当前实现。当前
+> `SvtonAgentRuntime` 把 turn、ReAct、工具生命周期和基础事件交给
+> `@earendil-works/pi-agent-core`；本文中的 `tool_call_end`、
+> `addToolResultToContext()`、`buildAssistantMessage()` 和旧
+> `ai/agent-core/src/agent/runtime.ts` 仅作为迁移历史保留。
 
 ## 现象
 
@@ -13,7 +20,7 @@ Messages with role 'tool' must be a response to a preceding message with 'tool_c
 
 ## 根因
 
-`AgentRuntime.run()` 的流式循环中，`tool_call_end` 事件到达时**立即执行工具**并调用 `addToolResultToContext()` 添加 `tool` role 消息。但 assistant 消息（包含 `tool_use` blocks）直到流式循环**结束后**才通过 `buildAssistantMessage()` 添加。
+旧 `AgentRuntime.run()` 的流式循环中，`tool_call_end` 事件到达时**立即执行工具**并调用 `addToolResultToContext()` 添加 `tool` role 消息。但 assistant 消息（包含 `tool_use` blocks）直到流式循环**结束后**才通过 `buildAssistantMessage()` 添加。
 
 **错误的上下文顺序**:
 ```

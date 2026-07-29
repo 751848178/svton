@@ -58,6 +58,9 @@ export type {
   Provider,
   Tool,
   CreatePiModelsOptions,
+  PiApiProtocol,
+  PiApiProtocolOptions,
   PiModelsHandle,
+  PiOpenAIApiProtocol,
   PiProviderFamily,
 } from '../pi';

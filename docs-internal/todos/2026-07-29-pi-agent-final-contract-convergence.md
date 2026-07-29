@@ -31,12 +31,13 @@ extensions.
   `076fbfd98d16f9262911ea6d294996b9709efb92`.
 - Pi 0.82.1 already defines canonical `AgentMessage`, `AgentState.messages`,
   `AgentTool` and native `AgentEvent` contracts.
-- Current Core still contains a bidirectional message bridge, duplicated base
+- The PC000 baseline contained a bidirectional message bridge, duplicated base
   tool definition, Pi event renaming adapter/custom base event union and
-  `AgentRuntime` alias.
-- Fresh strict Core `tsc --noEmit` has 14 errors: one hook context error, ten
-  auto-review parser/interpreter errors, two memory barrel errors and one
-  planning barrel error.
+  `AgentRuntime` alias; PC001–PC003 removed those compatibility contracts.
+- The PC000 baseline strict Core `tsc --noEmit` had 14 errors: one hook context
+  error, ten auto-review parser/interpreter errors, two memory barrel errors
+  and one planning barrel error. PC003 resolved them; the current strict check
+  exits 0.
 - The application is unpublished. No compatibility shim is retained merely to
   preserve old call sites.
 - `PublicRuntimeEvent = upstream Pi AgentEvent | SvtonCapabilityEvent`.
@@ -113,11 +114,49 @@ canonical contracts and boundary ownership.
 
 | ID | Status | Atomic TODO | Acceptance |
 | --- | --- | --- | --- |
-| PC004.1 | pending | Converge Client/SDK/App/UI/Web/Desktop types and runtime imports. | Consumers use Pi contracts and `SvtonAgentRuntime`. |
-| PC004.2 | pending | Keep Display/Session DTO conversions at one explicit boundary. | UI state is a view model, not a second runtime protocol. |
-| PC004.3 | pending | Update architecture, provider/runtime/index, Core README and affected SDK/Client docs. | No old adapter/alias/duplicate contract is documented as current. |
-| PC004.4 | pending | Run consumer type-checks, builds and focused product-flow tests. | All affected packages are green. |
-| PC004.5 | pending | Independently audit source/docs consistency and residual symbols. | Acceptance matrix has source and command evidence. |
+| PC004.1 | done | Converge Client/SDK/App/UI/Web/Desktop types and runtime imports. | Consumers use Pi contracts and `SvtonAgentRuntime`. |
+| PC004.2 | done | Keep Display/Session DTO conversions at one explicit boundary. | UI state is a view model, not a second runtime protocol. |
+| PC004.3 | done | Update architecture, provider/runtime/index, Core README and affected SDK/Client docs. | No old adapter/alias/duplicate contract is documented as current. |
+| PC004.4 | done | Run consumer type-checks, builds and focused product-flow tests. | All affected packages are green. |
+| PC004.5 | done | Independently audit source/docs consistency and residual symbols. | Independent source/product and docs/public-contract reviewers approved v5 with no remaining P0-P2 finding; the acceptance matrix has source, command and residual-classification evidence. |
+
+#### PC004 Needs-Review-v1 Acceptance Matrix
+
+| Item | Source evidence | Command evidence | Result |
+| --- | --- | --- | --- |
+| PC004.1 consumer convergence | Client/Core native Pi selectors and event handlers; shared AgentApp assembly used by Web; Web/Desktop message panels import the AgentApp projection. | `pc004-core-37-migration-v1.log` (97/97), `pc004-core-hidden-fixtures-v1.log` (25/25), `pc004-web-chat-flows-v1.log` (7/7). | done |
+| PC004.2 display/session boundary | `pi-message-display-boundary.utils.ts` is the Client Pi-to-Display boundary; `agent-shell-message-boundary.utils.ts` is the single Client-to-UI projection used by AgentShell, Web and Desktop. It preserves tool calls and usage while filtering Client-only `preview_images`. | AgentApp full suite: `pc004-app-full-v3.log` (4 files, 14 tests). | done |
+| PC004.3 public documentation | Architecture/TODO, Core runtime/provider/index, Agent index/integration/Tauri, Core/Client/SDK READMEs and SDK/Client service docs now name Pi as canonical and `SvtonAgentRuntime` as the composition root. | `pc004-residual-audit-final.log`: forbidden contract symbols 0; stale compatibility descriptions 0. | done |
+| PC004.4 strict types | Core, Client, SDK, App, UI, Web and Desktop all type-check from the converged package declarations. | `pc004-{core,client,sdk,app,ui,web,desktop}-typecheck-final.log`, all exit 0. | done |
+| PC004.4 full tests | Core 332/1858; Client 14/289; SDK 2/62; App 4/14; UI 11/201; Web 4/25; Desktop 16/72. | `pc004-core-full-v3.log`, `pc004-client-full-isolated-v3.log`, `pc004-sdk-full-isolated-v2.log`, `pc004-app-full-v3.log`, `pc004-ui-full-v2.log`, `pc004-web-full-v2.log`, `pc004-desktop-full-v2.log`. | done |
+| PC004.4 builds | Core, Client, SDK, App, UI, Web production and Desktop production builds all pass. | `pc004-core-build-final-v2.log`; `pc004-{client,sdk,app,ui,web,desktop}-build-final.log`, all exit 0. | done |
+| Structural/safety gate | Shared config assembly is split by model, tool registry, capability/security, MCP/plugin and storage responsibilities; every touched/new production file is at most 200 lines. | `pc004-residual-audit-final.log`: unsafe additions 0, over-200 files 0, diff check clean; `pc004-cycle-audit-final.log`: 11 files, 9 local edges, 0 cycles. | done |
+| PC004.5 independent audit | A fresh reviewer must inspect the source/docs classifications and rerun the residual matrix before approval. | Reserved for reviewer evidence. | pending |
+
+#### PC004 Needs-Review-v5 Corrections And Evidence
+
+The v1 implementation gates remain green. The v2-v5 passes corrected findings
+from independent source/docs review, and the final v5 snapshot is approved:
+
+| Item | v2 correction | Evidence | Result |
+| --- | --- | --- | --- |
+| Public provider/tool contracts | Provider docs now separate authentication `family` from wire `api`, document exact official/custom defaults, and use the real factory types. Tool docs use actual root exports, exact registry execution inputs, Pi `AgentTool` ownership and typed executors. | `pc004-doc-provider-routing-test-v2.log`: 6/6; `pc004-doc-tools-snippet-typecheck-v2.log`: exit 0. | fixed |
+| Public capability quick starts | Memory, Planning, Skills, Automation, Permission, Hooks and Integrations examples now match constructors, initialization, arguments, generator settlement and the runtime's automatic/manual hook boundary. | `pc004-doc-capability-snippet-typecheck-v2.log`: exact capability snippets compile under strict TypeScript; public residual scan is zero. | fixed |
+| Public static demos | The provider demo now shows `createPiModelsForProvider`; the hook demo distinguishes the three runtime-wired events from manually triggered public events. The tracked Agent App bundle was regenerated from current `main.tsx` rather than hand-edited. | `pc004-agent-app-demo-esbuild-v2.log`: exit 0, 3,257,472 bytes; `node --check` passes; old exact-word adapter/provider/runtime symbols are zero and current native event names are present. | fixed |
+| Web extraction fidelity | `ChatInputControls` again renders the baseline puzzle icon on the plugin button after extraction. | Web focused suite 15/15; full suite 25/25; strict type-check and production build exit 0. | fixed |
+| UI test resolver | The isolated worktree's hoisted `vitest` symlink was moved to a recoverable `/tmp` backup, then `pnpm install --offline --frozen-lockfile --filter @svton/agent-ui...` aligned both Agent UI and `jest-dom` to Vitest 3.2.6. No product source or test config workaround was added. | `pc004-ui-resolver-v2/filtered-frozen-offline-install.log`; both resolver paths point to Vitest 3.2.6; repo-defined UI test is 11 files, 201/201. | fixed |
+| v2 consumer matrix | Core 332/1858; Client 14/289; SDK 2/62; App 4/14; UI 11/201; Web 4/25; Desktop 16/72. All seven consumer type-checks and builds exit 0. | `/tmp/codex-tool-runs/svton/pi-final-contract-convergence/pc004-v2/` and `pc004-ui-resolver-v2/`. | green |
+| v3 public API audit | Skills, MCP, Automation, Planning, Memory, Client hooks/services and SDK React docs now match the current public signatures, Pi Usage fields, runtime settlement and permission/session ownership behavior. Two inaccurate source comments and the PC000 baseline tense were corrected. | `doc-snippets-v3-typecheck.log`: strict snippets exit 0; reviewer-residual scan is zero. | approved |
+| Scope isolation | Seven global-doc-only VitePress repairs from v3 were outside the Agent contract scope and were reverted exactly to `f240f408`. Agent docs, source comments, strict snippets and regenerated public demos remain in scope. | `git diff --quiet f240f408 -- <seven reviewer-listed paths>` exits 0. The global docs build may retain its pre-existing unrelated parser failure and is not a PC004 acceptance gate. | approved |
+| Historical issue classification | Two pre-Pi issue notes retain the accurate legacy `AgentRuntime` name and old loop details, but now carry explicit historical/superseded banners and state that current `SvtonAgentRuntime` delegates lifecycle to Pi. | Current-contract residual matches remain zero; four archival `AgentRuntime` lines in two files are classified historical and both files have pre-Pi banners. | approved |
+| PC004.5 independent audit | Independent source/product and docs/public-contract reviewers completed fresh read-only reviews. | Source/product matrix and Web P2 reruns pass; strict doc snippets, provider routing, public demo syntax/canonical-event audit and diff checks pass. | done |
+
+Display-only naming is intentionally not counted as a compatibility residual:
+Client/SDK/UI `ContentBlock` and the UI `ChatMessage` component are product view
+contracts after the explicit projection boundary. The local, non-exported
+`ToolDefinition` interfaces in Web `AgentLayout` and Desktop `MainLayout` are
+only `{ name, description? }` panel-list shapes; they are not Core
+`AgentTool`/registry/runtime contracts.
 
 ### PC005. Full Acceptance, Local Merge And DMG Delivery
 
@@ -331,3 +370,24 @@ verified local desktop artifact without changing remote state.
   dangerous cases denied and benign controls still user-reviewable. The full
   auto-reviewer matrix passes 717/717, all runtime-alias residuals are zero,
   and unsafe-addition, line-limit and dependency-cycle audits are clean.
+- 2026-07-30: Started PC004 as the only active write slice. In addition to the
+  listed consumer and public-document boundaries, this slice owns migration of
+  the 37 known stale legacy-event assertions so PC005 begins from green package
+  suites rather than carrying a known protocol-test failure.
+- 2026-07-30: PC004.1-PC004.4 reached `needs-review-v1`. Native Pi event
+  fixtures replaced the 37 stale assertions and hidden old-event fixtures; a
+  single tested Client-to-UI projection now feeds AgentShell, Web and Desktop.
+  The duplicated Web runtime setup now consumes AgentApp's shared configuration
+  assembly, which is split by real model/tool/security/MCP responsibilities.
+  Seven strict checks, seven full suites and seven builds pass. Client and SDK
+  React failures were traced to stale absolute `node_modules` links into the
+  main checkout and resolved with frozen offline installs in this worktree,
+  without a product-code workaround. Residual, unsafe-addition, 200-line, diff
+  and local dependency-cycle audits are clean. PC004.5 remains pending for the
+  independent reviewer.
+- 2026-07-30: PC004 independently approved at v5 with no remaining P0-P2
+  findings. Two reviewers confirmed the seven-package source/product matrix,
+  native Pi fixture migration, the shared Client-to-UI projection, current
+  public exports, provider routing, strict-compiling documentation snippets,
+  regenerated public demo and exact historical-residual classification. Seven
+  unrelated global-doc repairs were reverted before approval.

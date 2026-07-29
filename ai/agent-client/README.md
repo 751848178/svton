@@ -2,6 +2,12 @@
 
 React integration layer for Svton AI Agent. Provides reactive services (`@svton/service` based) for chat, sessions, and projects with React hooks.
 
+Pi `AgentMessage[]` remains the sole runtime conversation state. Agent Client
+owns the explicit Pi→Session/Display projection used for persistence and UI;
+its `DisplayMessage`/`ContentBlock` types are view DTOs, not a second Agent
+message or event protocol. Native Pi lifecycle events pass into ChatService
+unchanged, with Svton-only approval/skill/compaction/warning capabilities.
+
 > **For external projects**, consider using [`@svton/agent-sdk`](https://www.npmjs.com/package/@svton/agent-sdk) which offers a simpler API without the `@svton/service` dependency.
 
 ## Install
@@ -14,9 +20,13 @@ npm install @svton/agent-client
 
 ```tsx
 import { AgentProvider, useChat, useSession, useToolApproval } from '@svton/agent-client';
+import type { AgentConfig } from '@svton/agent-core';
 import { BrowserPlatform, setPlatform } from '@svton/agent-platform';
 
-setPlatform(new BrowserPlatform());
+const platform = new BrowserPlatform();
+setPlatform(platform);
+// 由应用组合层创建;必须包含 Pi models、piModel 和 ToolRegistry。
+declare const agentConfig: AgentConfig;
 
 function App() {
   return (
@@ -27,7 +37,7 @@ function App() {
 }
 
 function ChatView() {
-  const { messages, status, send, abort } = useChat();
+  const { messages, canSend, send, abort } = useChat();
   const { pendingCalls, approve, reject } = useToolApproval();
 
   return (
@@ -44,7 +54,7 @@ function ChatView() {
           <button onClick={() => reject(call.id)}>Deny</button>
         </div>
       ))}
-      <button onClick={() => send('Hello')} disabled={status === 'running'}>
+      <button onClick={() => send('Hello')} disabled={!canSend}>
         Send
       </button>
     </div>

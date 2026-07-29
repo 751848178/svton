@@ -1,7 +1,8 @@
 /**
  * Streamed-turn integration test (PI008) — proves the agent-web wiring
  * (AgentConfig shape from initAgentConfig → ChatService → Pi-backed runtime)
- * produces text_delta + done events through the live SvtonAgentRuntime.
+ * projects a native Pi streamed turn and awaited settlement through the live
+ * SvtonAgentRuntime.
  *
  * Deterministic: the pi-ai Models collection is backed by `fauxProvider`
  * (re-used from agent-core's shared test helpers), so no network and no real
@@ -47,7 +48,7 @@ describe('agent-web streamed turn (ChatService → Pi runtime)', () => {
     service = new ChatService();
   });
 
-  it('produces text content + settles to idle (text_delta + done path)', async () => {
+  it('produces text content and settles to idle after native agent_end', async () => {
     const { config } = buildConfig();
     const platform = createMockPlatform({ storage: new MemoryStorage(), type: 'browser' });
     await service.init(platform, config);
@@ -60,7 +61,7 @@ describe('agent-web streamed turn (ChatService → Pi runtime)', () => {
     const assistant = service.messages.find((m) => m.role === 'assistant')!;
     expect(assistant).toBeDefined();
     expect(assistant.content).toContain('Hello from web');
-    // Turn settled back to idle (the done event path).
+    // Turn settles back to idle after the native generator completes.
     expect(service.status).toBe('idle');
   });
 

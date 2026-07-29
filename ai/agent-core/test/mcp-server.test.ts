@@ -6,6 +6,7 @@ import type {
 } from '@svton/agent-core';
 import { MCPServer, ToolRegistry } from '@svton/agent-core';
 import type { IToolExecutor, ToolCall, ToolResult } from '@svton/agent-core';
+import { createMockPlatform } from './helpers';
 
 // ============================================================
 // Mock Transport (server-aware)
@@ -231,8 +232,11 @@ describe('MCPServer', () => {
       server.setToolExecutionService({
         async *execute(call: ToolCall) {
           executedCalls.push(call);
-          const r = await registry.execute(call, { platform: null as never, sessionId: '', workingDir: '/' });
-          yield { type: 'tool_call_end', result: r };
+          return registry.execute(call, {
+            platform: createMockPlatform(),
+            sessionId: '',
+            workingDir: '/',
+          });
         },
       });
 

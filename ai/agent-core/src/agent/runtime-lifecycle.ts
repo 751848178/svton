@@ -8,8 +8,8 @@
  * includes the work without letting lifecycle failures break the next turn.
  *
  *   - **memory extraction**: `memoryManager.extractFromConversation(...)` over
- *     the post-turn transcript, driven through pi-ai `models.streamSimple`
- *     (the deleted `IProvider.chat` path is gone). Mirrors the legacy contract.
+ *     the post-turn transcript, driven through canonical pi-ai
+ *     `models.streamSimple`.
  *   - **checkpoint**: `resumeManager.checkpoint(sessionId, runtime)` persists
  *     the Pi-owned transcript + model + reasoning effort for resume.
  */
@@ -74,7 +74,7 @@ export async function runPostTurnHooks(
 }
 
 /**
- * Reattach the legacy post-turn memory extraction. Builds a pi-ai-backed chat
+ * Run post-turn memory extraction through a pi-ai-backed chat
  * adapter and feeds the post-turn transcript. Extraction failures are logged
  * and contained so checkpoint settlement still runs.
  */

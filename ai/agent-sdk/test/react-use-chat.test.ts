@@ -829,20 +829,20 @@ describe('SDK useChat approval wait state', () => {
     rendered.unmount();
   });
 
-  it('prefers block pending approval metadata over stale legacy tool calls across messages', async () => {
+  it('prefers block pending approval metadata over stale message-level tool calls', async () => {
     const rendered = await renderProbe();
 
     act(() => {
       setSharedChatMessages(rendered.state.agent, [
         {
-          id: 'msg-old-legacy',
+          id: 'msg-old-stale',
           role: 'assistant',
           content: '',
           toolCalls: [
             {
               id: 'tc-shared-pending',
               name: 'write_file',
-              arguments: { path: '/tmp/legacy.txt' },
+              arguments: { path: '/tmp/stale.txt' },
               status: 'pending_approval',
             },
           ],

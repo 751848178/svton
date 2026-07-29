@@ -282,7 +282,7 @@ const demos = {
   // ─── agent-core demos ──────────────────────────────
 
   'react-loop': () => `
-    <div class="dh">AgentRuntime — ReAct 循环可视化</div>
+    <div class="dh">SvtonAgentRuntime — ReAct 循环可视化</div>
     <div class="dc">
       <div style="display:flex;flex-direction:column;gap:8px">
         <div style="padding:10px;border:1px solid #60a5fa;background:rgba(96,165,250,.08);border-radius:8px">
@@ -441,51 +441,41 @@ const demos = {
     </div>`,
 
   'provider-config': () => `
-    <div class="dh">Provider — OpenAI / Anthropic 配置对比</div>
+    <div class="dh">Provider — Pi 模型工厂配置对比</div>
     <div class="dc">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div style="padding:12px;border:1px solid #0891b2;background:rgba(8,145,178,.05);border-radius:8px">
-          <div style="font-size:12px;color:#0891b2;margin-bottom:8px;font-weight:600">OpenAIProvider</div>
-          <pre style="font-size:10px;color:#888;line-height:1.5;white-space:pre-wrap">new OpenAIProvider({
-  baseUrl: 'https://api.openai.com/v1',
+          <div style="font-size:12px;color:#0891b2;margin-bottom:8px;font-weight:600">OpenAI · Responses API</div>
+          <pre style="font-size:10px;color:#888;line-height:1.5;white-space:pre-wrap">createPiModelsForProvider('gpt-4o', {
+  family: 'openai',
+  api: 'openai-responses',
   apiKey: process.env.OPENAI_API_KEY,
-  models: [{
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    contextWindow: 128000,
-    supportsVision: true,
-  }],
 })</pre>
         </div>
         <div style="padding:12px;border:1px solid #d97706;background:rgba(217,119,6,.05);border-radius:8px">
-          <div style="font-size:12px;color:#d97706;margin-bottom:8px;font-weight:600">AnthropicProvider</div>
-          <pre style="font-size:10px;color:#888;line-height:1.5;white-space:pre-wrap">new AnthropicProvider({
-  baseUrl: 'https://api.anthropic.com',
+          <div style="font-size:12px;color:#d97706;margin-bottom:8px;font-weight:600">Anthropic · Messages API</div>
+          <pre style="font-size:10px;color:#888;line-height:1.5;white-space:pre-wrap">createPiModelsForProvider('claude-sonnet-4-20250514', {
+  family: 'anthropic',
+  api: 'anthropic-messages',
   apiKey: process.env.ANTHROPIC_API_KEY,
-  models: [{
-    id: 'claude-sonnet-4-20250514',
-    name: 'Claude Sonnet 4',
-    contextWindow: 200000,
-    supportsVision: true,
-  }],
 })</pre>
         </div>
       </div>
       <div style="margin-top:12px;padding:8px;background:#1a1a1a;border-radius:6px;font-size:10px;color:#666">
-        两者都实现 IProvider 接口：chat() 流式对话 + streamChat() SSE 流
+        family 选择认证家族，api 独立选择 wire protocol；返回 models 与选中的 Pi model。
       </div>
     </div>`,
 
   'hooks-flow': () => `
-    <div class="dh">HookManager — 8 种生命周期事件</div>
+    <div class="dh">HookManager — 8 种公开事件</div>
     <div class="dc">
       <div style="display:flex;flex-direction:column;gap:6px">
-        <div style="padding:8px 12px;border:1px solid #252525;border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(96,165,250,.2);color:#60a5fa;border-radius:3px">START</span><span style="font-family:monospace;font-size:11px;color:#0891b2">session_start</span><span style="font-size:10px;color:#666">会话开始时触发</span></div>
-        <div style="padding:8px 12px;border:1px solid #fbbf24;background:rgba(251,191,36,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(251,191,36,.2);color:#fbbf24;border-radius:3px">BEFORE</span><span style="font-family:monospace;font-size:11px;color:#0891b2">pre_tool_use</span><span style="font-size:10px;color:#666">工具执行前 — 可拦截/修改</span></div>
-        <div style="padding:8px 12px;border:1px solid #4ade80;background:rgba(74,222,128,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(74,222,128,.2);color:#4ade80;border-radius:3px">AFTER</span><span style="font-family:monospace;font-size:11px;color:#0891b2">post_tool_use</span><span style="font-size:10px;color:#666">工具执行后</span></div>
-        <div style="padding:8px 12px;border:1px solid #a78bfa;background:rgba(167,139,250,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(167,139,250,.2);color:#a78bfa;border-radius:3px">SYSTEM</span><span style="font-family:monospace;font-size:11px;color:#0891b2">context_compact</span><span style="font-size:10px;color:#666">上下文压缩时</span></div>
-        <div style="padding:8px 12px;border:1px solid #252525;border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(120,120,120,.2);color:#999;border-radius:3px">MSG</span><span style="font-family:monospace;font-size:11px;color:#0891b2">message_sent / message_received</span><span style="font-size:10px;color:#666">消息收发</span></div>
-        <div style="padding:8px 12px;border:1px solid #f87171;background:rgba(248,113,113,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(248,113,113,.2);color:#f87171;border-radius:3px">END</span><span style="font-family:monospace;font-size:11px;color:#0891b2">session_end</span><span style="font-size:10px;color:#666">会话结束时</span></div>
+        <div style="padding:8px 12px;border:1px solid #252525;border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(96,165,250,.2);color:#60a5fa;border-radius:3px">AUTO</span><span style="font-family:monospace;font-size:11px;color:#0891b2">session_start</span><span style="font-size:10px;color:#666">runtime 自动触发</span></div>
+        <div style="padding:8px 12px;border:1px solid #fbbf24;background:rgba(251,191,36,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(251,191,36,.2);color:#fbbf24;border-radius:3px">AUTO</span><span style="font-family:monospace;font-size:11px;color:#0891b2">pre_tool_use</span><span style="font-size:10px;color:#666">工具执行前 — 可拦截/修改</span></div>
+        <div style="padding:8px 12px;border:1px solid #4ade80;background:rgba(74,222,128,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(74,222,128,.2);color:#4ade80;border-radius:3px">AUTO</span><span style="font-family:monospace;font-size:11px;color:#0891b2">post_tool_use</span><span style="font-size:10px;color:#666">工具执行后</span></div>
+        <div style="padding:8px 12px;border:1px solid #a78bfa;background:rgba(167,139,250,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(167,139,250,.2);color:#a78bfa;border-radius:3px">MANUAL</span><span style="font-family:monospace;font-size:11px;color:#0891b2">context_compact</span><span style="font-size:10px;color:#666">调用方按需 trigger()</span></div>
+        <div style="padding:8px 12px;border:1px solid #252525;border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(120,120,120,.2);color:#999;border-radius:3px">MANUAL</span><span style="font-family:monospace;font-size:11px;color:#0891b2">message_sent / message_received</span><span style="font-size:10px;color:#666">调用方按需 trigger()</span></div>
+        <div style="padding:8px 12px;border:1px solid #f87171;background:rgba(248,113,113,.05);border-radius:6px;display:flex;align-items:center;gap:8px"><span style="font-size:9px;padding:2px 6px;background:rgba(248,113,113,.2);color:#f87171;border-radius:3px">MANUAL</span><span style="font-family:monospace;font-size:11px;color:#0891b2">session_end</span><span style="font-size:10px;color:#666">调用方按需 trigger()</span></div>
       </div>
       <div style="margin-top:10px;padding:8px;background:#1a1a1a;border-radius:6px;font-size:10px;color:#666;line-height:1.5">
         <b style="color:#4ade80">continue</b> → 继续 ｜ <b style="color:#60a5fa">modify</b> → 修改上下文 ｜ <b style="color:#f87171">deny</b> → 拒绝执行 ｜ <b style="color:#4ade80">approve</b> → 批准
