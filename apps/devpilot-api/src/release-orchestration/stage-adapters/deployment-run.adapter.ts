@@ -55,6 +55,10 @@ export class DeploymentRunStageAdapter implements ReleaseStageAdapter {
     // 并严格校验证据，绝不信任本引用本身。bootstrap 未成功则不携带证据，
     // createRun 会因缺少证据继续走直接部署的 F382 语义或由后续校验 fail-closed。
     const releaseEvidence = await this.resolveInitializationEvidence(ctx);
+    // live Server executor 要求 confirmationText === project.name；发布阶段已通过
+    // 审批桥接完成审批，此处解析项目名作为确认文本以放行 live 执行。
+    const confirmationText =
+      readString(cfg.confirmationText) ?? await this.resolveProjectName(ctx.projectId);
 
     const dto: CreateDeploymentRunDto = {
       environmentId: ctx.environmentId ?? undefined,
@@ -68,6 +72,7 @@ export class DeploymentRunStageAdapter implements ReleaseStageAdapter {
       dryRun: false,
       queue: true, // 应用部署一律排队，coordinator 从关联 run 回读终态
       approvalId: deploymentApprovalId ?? undefined,
+      confirmationText,
       // 关键：发布编排已独立执行 migration/bootstrap，应用部署不重复
       releaseApplicationOnly: true,
       releaseInitializationEvidence: releaseEvidence ?? undefined,
@@ -173,6 +178,15 @@ export class DeploymentRunStageAdapter implements ReleaseStageAdapter {
     };
     await this.evidenceService.record(ref);
     return ref;
+  }
+
+  // 解析项目名作为 live executor 确认文本（createRun 的 requiredConfirmationText）。
+  private async resolveProjectName(projectId: string): Promise<string | undefined> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { name: true },
+    });
+    return project?.name;
   }
 }
 

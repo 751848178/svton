@@ -57,10 +57,15 @@ async function login() {
     // 只打印 status，不打印响应体（避免泄漏）
     throw new Error(`login failed: status=${r.status}`);
   }
-  const me = await api("/api/auth/me");
+  const me = await api("/api/auth/profile");
   const meData = dataOf(me);
   teamId = meData?.currentTeamId || meData?.teamId || meData?.team?.id;
-  if (!teamId) throw new Error(`无法解析 teamId（me 未返回团队信息）`);
+  if (!teamId) {
+    // fallback: query teams endpoint
+    const teams = await api("/api/teams");
+    teamId = dataOf(teams)?.[0]?.id;
+  }
+  if (!teamId) throw new Error(`无法解析 teamId（profile/teams 未返回团队信息）`);
   console.log(`[auth] logged in (team=${teamId})`);
   return token;
 }
@@ -100,9 +105,29 @@ async function resolveIds() {
   if (projectBranch !== "master") {
     throw new Error(`项目配置分支为「${projectBranch}」，期望 master（F383 Picshare 必须用 master）`);
   }
-  console.log(`[ids] project=${proj.id} env=${env.id} (dev) server=${server.id} branch=${projectBranch}`);
+  // 预解析 master HEAD commitSha（API 容器可能无 GitHub 凭据，无法在 preview 时
+  // ls-remote 私有仓库）。提供 commitSha 让 resolveGitRefInto 跳过 ls-remote；
+  // 真实 git checkout master && git pull 仍由 SSH 目标在工作目录执行。
+  // 优先用环境变量覆盖；否则尽力解析（失败则不传，由 preview 决定）。
+  const commitSha = process.env.F383_PICSHARE_COMMIT_SHA || await resolveCommitSha(proj.gitRepo, projectBranch);
+  console.log(`[ids] project=${proj.id} env=${env.id} (dev) server=${server.id} branch=${projectBranch} commit=${commitSha || "(unresolved)"}`);
   console.log(`[ids] services:`, services.map((s) => `${s.name}(${s.id})`).join(", "));
-  return { proj, env, services, server, branch: projectBranch };
+  return { proj, env, services, server, branch: projectBranch, commitSha };
+}
+
+// 尽力解析 commitSha（宿主机若有 git 凭据则成功；失败返回 undefined，不阻断）。
+async function resolveCommitSha(gitRepo, branch) {
+  if (!gitRepo || !branch) return undefined;
+  try {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const exec = promisify(execFile);
+    const { stdout } = await exec("git", ["ls-remote", "--", gitRepo, branch], { timeout: 10000, maxBuffer: 1024 * 1024 });
+    const line = stdout.split(/\r?\n/).find((l) => l.trim());
+    return line ? line.split(/\s+/)[0] : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function readProjectSourceBranch(config) {
@@ -127,10 +152,12 @@ async function previewRelease(ctx) {
     name: `F383 final closure ${new Date().toISOString().slice(0, 16)}`,
     // 分支由项目配置继承（不传显式分支，orchestrator 会用 Project.config.source.branch=master）
     gitRepo: proj.gitRepo || undefined,
+    // 预解析的 master commitSha（避免 API 容器 ls-remote 私有仓库失败）。
+    ...(ctx.commitSha ? { commitSha: ctx.commitSha } : {}),
     services: svcInputs,
   };
   const r = await api(`/api/release-plans/projects/${proj.id}/preview`, { method: "POST", body: JSON.stringify(body) });
-  if (r.status !== 200) throw new Error(`preview failed: status=${r.status}`);
+  if (r.status !== 200) throw new Error(`preview failed: status=${r.status} ${(typeof r.body === "object" && r.body) ? JSON.stringify({code: r.body.code, message: r.body.message}) : ""}`);
   const d = dataOf(r);
   console.log(`[preview] planHash=${d.planHash} stages=${d.stages?.length}`);
   return { preview: d, createBody: body };
