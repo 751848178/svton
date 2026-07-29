@@ -197,3 +197,68 @@ Provide GitHub read credentials to the deploy target (and/or API container) for
 auth-free mirror, then rerun `f383-drive-release.mjs` to complete the 6 stages.
 The code path is verified correct up to the git-auth gate. Do NOT mark F383 done
 until the live 6-stage deploy reaches `succeeded` and backend/admin are `healthy`.
+
+---
+
+# F383 Release Mainchain — SUCCESS (2026-07-29, real 6-stage deploy)
+
+The real 6-stage Picshare release on `master` over password SSH now reaches
+**succeeded** end-to-end. This update supersedes the earlier "blocked by
+private-repo git auth" status.
+
+## Final successful ReleasePlan
+
+- **Plan ID**: `cms5kc2rp009z14kkn2ch9lqb` — `F383 final closure 2026-07-29T04:06`
+- **Branch**: `master` (from `Project.config.source.branch`)
+- **Status**: `succeeded`
+- **All 6 stages succeeded** (real Attempts + Jobs/DeploymentRuns):
+
+| Stage | Status | Attempt | Job/DeploymentRun |
+|---|---|---|---|
+| backend schema_migration | succeeded | cms5kcedf00bk | SEJ cms5kceei00bq |
+| backend bootstrap | succeeded | cms5kd1hx00cn | SEJ cms5kd1i600cr |
+| backend application_deploy | succeeded | cms5kdoni00d8 | DR cms5kdooh00dl |
+| backend health_check | succeeded | cms5kebsy00ee | SEJ cms5kebt900ei |
+| admin application_deploy | succeeded | cms5keyyd00f3 | DR cms5keyz100fe |
+| admin health_check | succeeded | cms5kfm4700g5 | SEJ cms5kfm4h00g9 |
+
+- **2 successful DeploymentRuns** (backend + admin), both `completed`.
+- **Containers**: `picshare-backend` Up (healthy), `picshare-admin` Up (healthy).
+- **API re-read** (refresh): plan=succeeded, branch=master, all 6 stages succeeded.
+
+## Evidence bridge (§1) linkage — verified
+
+`ApplicationServiceInitialization` row `cms5h9whs`: status=completed,
+releasePlanId=cms5kc2rp, releaseStageId, releaseStageAttemptId (bootstrap attempt),
+releaseEvidenceStatus=**verified**. Parent-child linkage auditable; release-driven
+deploy verified the evidence instead of re-running initialization.
+
+## Approval bridge — verified
+
+4 derived `deployment` approvals, all `metadata.bridgedBy=release-deployment-approval-bridge`
+with parent release-approval id. No orphan/other-plan approvals.
+
+## Zero-leak — verified
+
+`DeploymentRun.commandPlan` scan for the plaintext DB password token: **0 hits**.
+write_env command persisted as `***REDACTED***`; real heredoc rendered in-memory only.
+
+## Additional fixes this session (commits b06a3b70 → fc7ba77b)
+
+| Commit | Fix |
+|---|---|
+| b06a3b70 | deployment-run adapter resolves project name for live-executor confirmationText |
+| 9d7d2291 | ssh-live heredoc-aware indent (write_env .env heredoc closes correctly) |
+| c42f67f5 | reapply deployment .env secrets at queue boundary (write_env step) |
+| 033a7d6a | write-env-file policy matches execution-boundary real heredoc form (REVERTED — zero-leak: reapply sets secretEnv only, policy stays redacted-only) |
+| bb286806 | health_check step BusyBox retry loop + curl-health-check policy matches loop form |
+| 984b0cbb | health-check sentinel: expand $code/$i + strip base64 newlines |
+| fc7ba77b | zero-leak reapply (secretEnv only) + remove stale queue-env warning |
+
+Picshare repo (separate): `docker-compose.devpilot.yml` healthcheck path fixed to
+`/api` (was `/api/health/readiness` which returns 404) + BusyBox-compatible retry loop.
+
+## Status: F383 release mainchain complete; F383 overall stays in-progress
+
+The 6-stage release mainchain is verified green end-to-end. F383 overall is NOT
+marked done (next session: UI deep-link + zero-leak verifier), per the completion boundary.
