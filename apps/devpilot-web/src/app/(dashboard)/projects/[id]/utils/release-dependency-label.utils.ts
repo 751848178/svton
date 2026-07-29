@@ -40,7 +40,7 @@ export function describeDependency(
   const upLabel = upstream ? upstream.name : '（未知上游阶段）';
   const downLabel = downstream ? downstream.name : '（未知下游阶段）';
   const optional = edge.required ? '' : '（可选：跳过该上游后仍会继续）';
-  return `${upLabel}${cond}，才会执行${downLabel}${optional}`;
+  return `${upLabel} ${cond}，才会执行${downLabel}${optional}`;
 }
 
 /**

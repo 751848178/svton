@@ -2,8 +2,7 @@
  * describeCrossServiceDependencies / describeDependency 单元测试（P0-1 §7 回归）：
  * 验证跨服务边的人能理解中文描述、跨服务过滤、端点缺失兜底、可选边文案。
  *
- * 注：devpilot-web 暂未配置 jest 运行时；此 spec 在 tsconfig 中被排除 type-check，
- * 待 web 引入测试运行时后自动纳入。逻辑回归意图由本文件断言覆盖。
+ * 由 devpilot-web 的 Vitest 入口执行，独立于生产 tsconfig 的 type-check 范围。
  */
 import {
   describeDependency,

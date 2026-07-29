@@ -2,9 +2,7 @@
  * classifyReleaseError 单元测试（CR-3-F3 回归）：
  * 验证前端从 err.details.code 优先读取业务字符串 code，正确触发 autoRepreview。
  *
- * 注：devpilot-web 暂未配置 jest 运行时；此 spec 在 tsconfig 中被排除 type-check，
- * 待 web 引入测试运行时后自动纳入。逻辑回归由 backend GlobalExceptionFilter spec +
- * 本文件的断言意图共同覆盖。
+ * 由 devpilot-web 的 Vitest 入口执行，独立于生产 tsconfig 的 type-check 范围。
  */
 import { ApiError } from '@svton/api-client';
 import { classifyReleaseError } from './release-error-taxonomy.utils';

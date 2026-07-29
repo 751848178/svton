@@ -618,6 +618,9 @@ importers:
       typescript:
         specifier: ^5.3.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.6(@types/node@20.19.27)(jsdom@26.1.0)
 
   docs:
     devDependencies:
@@ -3646,14 +3649,6 @@ packages:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
-
-  /@babel/types@7.28.5:
-    resolution: {integrity: sha512-qQ5m48eI/MFLQ5PxQj4PFaprjyCTLI37ElWMmNs0K8Lk3dVeOdNpB3ks8jc7yM5CDmVC73eMVk/trk3fgmrUpA==}
-    engines: {node: '>=6.9.0'}
-    dependencies:
-      '@babel/helper-string-parser': 7.27.1
-      '@babel/helper-validator-identifier': 7.28.5
-    dev: true
 
   /@babel/types@7.29.0:
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
@@ -13453,10 +13448,10 @@ packages:
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
       '@babel/core': 7.28.5
-      '@babel/generator': 7.28.5
+      '@babel/generator': 7.29.0
       '@babel/plugin-syntax-jsx': 7.27.1(@babel/core@7.28.5)
       '@babel/plugin-syntax-typescript': 7.27.1(@babel/core@7.28.5)
-      '@babel/types': 7.28.5
+      '@babel/types': 7.29.0
       '@jest/expect-utils': 29.7.0
       '@jest/transform': 29.7.0
       '@jest/types': 29.6.3
