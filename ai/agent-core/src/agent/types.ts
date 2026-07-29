@@ -2,17 +2,21 @@
  * Agent runtime type definitions.
  */
 
-import type { TokenUsage, ReasoningEffort } from '../provider/types';
-import type { ToolCall, ToolResult } from '../tool/types';
+import type { ReasoningEffort } from '../provider/types';
+import type { ToolCall } from '../tool/types';
 import type { Models, Model, UserMessage } from '@earendil-works/pi-ai';
-import type { AgentMessage } from '@earendil-works/pi-agent-core';
+import type {
+  AgentEvent as PiAgentEvent,
+  AgentMessage,
+} from '@earendil-works/pi-agent-core';
+export type { PiAgentEvent };
 
 // ============================================================
 // IRuntime — interface to break circular deps (agent ↔ subagent)
 // ============================================================
 
 export interface IRuntime {
-  run(userMessage: UserMessage['content'], options?: RunOptions): AsyncGenerator<AgentEvent>;
+  run(userMessage: UserMessage['content'], options?: RunOptions): AsyncGenerator<PublicRuntimeEvent>;
   getMessages(): AgentMessage[];
   setMessages?(messages: AgentMessage[]): void;
   reset(): void;
@@ -20,58 +24,22 @@ export interface IRuntime {
 }
 
 // ============================================================
-// Agent Events (output of the runtime)
+// Public runtime events
 // ============================================================
 
 /**
- * Runtime event protocol — Pi-base events plus svton-only capability events
- * (Architecture §5.2).
- *
- * The union is the literal contract from §5.2:
- *   SvtonRuntimeEvent = Pi Agent event
- *                     | approval event
- *                     | skill activation event
- *                     | subagent event   ← surfaced via tool_call_* only
- *                     | compaction event
- *                     | product warning event
- *
- * Text, thinking, tool-call lifecycle, error and settlement (`done`) come FROM
- * Pi (translated by `pi-event-adapter.ts`). Svton events exist ONLY for the
- * capabilities Pi does not own (approval gate, skill activation, compaction,
- * product warnings). Subagents are NOT a distinct event type: they surface as
- * ordinary `tool_call_*` events through the `subagent_spawn` tool, so the
- * legacy `subagent_start`/`subagent_end` variants were dead and have been
- * removed (PI004).
- *
- * Variants are classified below as `Pi-base` or `svton-only`. Variants are
- * NOT renamed — consumers (chat.service, react hooks) depend on these names.
- *
- * --- Pi-base (origin: pi-agent-core, translated) ---
- *   text_delta, thinking_delta           streaming assistant content
- *   tool_call_start, tool_call_progress  tool-call lifecycle (Pi schedules)
- *   tool_call_end                        tool execution settled
- *   error, done                          run termination + usage
- *
- * --- svton-only (capabilities Pi does not own) ---
- *   tool_approval_needed                 approval gate (beforeToolCall)
- *   context_compacted                    SvtonCompactor via transformContext
- *   skill_activated                      SkillManager trigger
- *   warning                              product/hook/provider warnings
+ * Product capabilities that upstream Pi does not own. These extensions never
+ * restate Pi's agent, turn, message, streaming, tool, error, abort, or
+ * settlement lifecycle.
  */
-export type AgentEvent =
-  // --- Pi-base (translated from pi-agent-core by pi-event-adapter.ts) ---
-  | { type: 'text_delta'; text: string }
-  | { type: 'thinking_delta'; thinking: string }
-  | { type: 'tool_call_start'; call: ToolCall }
-  | { type: 'tool_call_progress'; callId: string; message: string; name?: string; arguments?: Record<string, unknown> }
-  | { type: 'tool_call_end'; result: ToolResult }
-  | { type: 'error'; error: Error }
-  | { type: 'done'; stopReason: string; usage: TokenUsage }
-  // --- svton-only (capabilities Pi does not own) ---
+export type SvtonCapabilityEvent =
   | { type: 'tool_approval_needed'; call: ToolCall; metadata?: Record<string, unknown> }
   | { type: 'context_compacted'; summary: string }
   | { type: 'warning'; text: string; source?: string }
   | { type: 'skill_activated'; skills: string[] };
+
+/** Canonical public event contract: native Pi lifecycle plus Svton capability. */
+export type PublicRuntimeEvent = PiAgentEvent | SvtonCapabilityEvent;
 
 // ============================================================
 // Agent Run Options

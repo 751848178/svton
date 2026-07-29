@@ -15,12 +15,18 @@ import type { UserMessage } from '@earendil-works/pi-ai';
 import type { ChatEventHandler } from './chat-event-handler';
 import type { MessageStoreHost } from './chat-message-store';
 import type { DisplayMessage } from '../types';
+import type { ChatRunOwnershipService } from './chat-run-ownership.service';
 
 export interface StreamRunnerDeps {
-  runtime: { run: (content: UserMessage['content'], options: { sessionId?: string }) => AsyncGenerator<import('@svton/agent-core').AgentEvent> };
+  runtime: {
+    run: (
+      content: UserMessage['content'],
+      options: { sessionId?: string },
+    ) => AsyncGenerator<import('@svton/agent-core').PublicRuntimeEvent>;
+  };
   handler: ChatEventHandler;
   store: MessageStoreHost;
-  streamingAssistantMsgId: { current: string | null };
+  ownership: ChatRunOwnershipService;
   onBackgroundStreamEnd: ((sessionId: string) => void) | null;
   createDisplayMessage: (role: 'user' | 'assistant' | 'system', content: string) => DisplayMessage;
 }
@@ -34,15 +40,15 @@ export async function runAssistantTurn(
   userContent: string,
   images: Array<{ data: string; mimeType?: string }> | undefined,
 ): Promise<void> {
-  const { runtime, handler, store, streamingAssistantMsgId, onBackgroundStreamEnd, createDisplayMessage } = deps;
-
+  const { runtime, handler, store, ownership, onBackgroundStreamEnd, createDisplayMessage } = deps;
   const assistantMsg = createDisplayMessage('assistant', '');
+  const lease = ownership.begin(store.activeSessionId, assistantMsg.id);
+  if (!lease) return;
   assistantMsg.isStreaming = true;
   const startedAt = Date.now();
   store.messages = [...store.messages, assistantMsg];
   store.status = 'running';
-  handler.resetLastEventType();
-  streamingAssistantMsgId.current = assistantMsg.id;
+  handler.resetSequenceState();
   store.backgroundSessionId = store.activeSessionId;
 
   const content: UserMessage['content'] = images && images.length > 0
@@ -52,22 +58,27 @@ export async function runAssistantTurn(
       ]
     : userContent;
 
+  let failure: string | undefined;
   try {
     const stream = runtime.run(content, { sessionId: store.activeSessionId ?? undefined });
     for await (const event of stream) {
-      handler.handle(event, assistantMsg.id, store);
-      if (event.type === 'done') break;
+      if (lease.acceptsEvents()) handler.handle(event, assistantMsg.id, store);
     }
   } catch (error) {
-    finalizeStreamEnd(store, assistantMsg.id, {
-      error: error instanceof Error ? error.message : String(error),
-      isStreaming: false,
-    }, onBackgroundStreamEnd, streamingAssistantMsgId);
-    return;
+    failure = error instanceof Error ? error.message : String(error);
   }
 
-  // Mark isStreaming=false BEFORE status='idle' (auto-save reads getMessagesForSave).
-  finalizeStreamEnd(store, assistantMsg.id, { isStreaming: false, duration: Date.now() - startedAt }, onBackgroundStreamEnd, streamingAssistantMsgId);
+  const shouldFinalize = lease.acceptsEvents();
+  if (shouldFinalize) {
+    const updates = failure
+      ? { error: failure, isStreaming: false }
+      : { isStreaming: false, duration: Date.now() - startedAt };
+    finalizeStreamEnd(
+      store, assistantMsg.id, updates, onBackgroundStreamEnd,
+      ownership.assistantMessageId,
+    );
+  }
+  lease.release();
 }
 
 /** Route finalization to the active session (observable) or background cache. */

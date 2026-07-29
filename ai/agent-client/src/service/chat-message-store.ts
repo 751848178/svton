@@ -11,7 +11,8 @@
  * transformation logic that keeps them in sync with events.
  */
 
-import type { TokenUsage, ToolResult } from '@svton/agent-core';
+import type { ToolResult } from '@svton/agent-core';
+import type { Usage } from '@earendil-works/pi-ai';
 import type { ChatStatus, DisplayMessage, PlanProgress } from '../types';
 import { finalizeStalePendingApprovals, updateToolCallStatusInMessages } from './chat-message-tool-status.utils';
 
@@ -23,7 +24,7 @@ export interface MessageStoreHost {
   messages: DisplayMessage[];
   sessionMessages: Map<string, DisplayMessage[]>;
   status: ChatStatus;
-  lastUsage: TokenUsage | null;
+  lastUsage: Usage | null;
   activePlan: PlanProgress | null;
   activeSessionId: string | null;
   backgroundSessionId: string | null;

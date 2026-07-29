@@ -1,6 +1,11 @@
 import type { IRuntime } from '../agent/types';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
-import type { AssistantMessage, Message, UserMessage } from '@earendil-works/pi-ai';
+import type {
+  AssistantMessage,
+  Message,
+  Usage,
+  UserMessage,
+} from '@earendil-works/pi-ai';
 import type { TokenUsage } from '../provider/types';
 import type { AgentConfig } from '../agent/types';
 import type { SubagentConfig } from './types';
@@ -28,16 +33,9 @@ export async function runSubagentRuntime(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    let assistantText = '';
-
     for await (const event of runtime.run(task, { signal: controller.signal })) {
-      switch (event.type) {
-        case 'text_delta':
-          assistantText += event.text;
-          break;
-        case 'done':
-          finalUsage = event.usage;
-          break;
+      if (event.type === 'message_end' && event.message.role === 'assistant') {
+        finalUsage = toTokenUsage(event.message.usage);
       }
     }
 
@@ -50,6 +48,14 @@ export async function runSubagentRuntime(
   return {
     messages: fullMessages,
     usage: finalUsage,
+  };
+}
+
+function toTokenUsage(usage: Usage): TokenUsage {
+  return {
+    promptTokens: usage.input,
+    completionTokens: usage.output,
+    totalTokens: usage.totalTokens,
   };
 }
 

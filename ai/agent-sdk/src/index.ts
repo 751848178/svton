@@ -23,7 +23,9 @@ export type {
 
 // Re-export commonly needed types from agent-core
 export type {
-  AgentEvent,
+  PiAgentEvent,
+  PublicRuntimeEvent,
+  SvtonCapabilityEvent,
   AgentMode,
   RunOptions,
   ContextConfig,
@@ -33,7 +35,6 @@ export type {
   ToolCall,
   ToolResult,
   ToolContext,
-  TokenUsage,
   ModelInfo,
   SkillDefinition,
   PermissionMode,

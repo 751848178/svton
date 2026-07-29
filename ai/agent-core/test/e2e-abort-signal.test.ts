@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { SvtonAgentRuntime } from '../src/agent/svton-agent-runtime';
+import { selectNativeToolResult } from '../src/agent/native-tool-event-selectors.utils';
 import { ToolRegistry } from '../src/tool/registry';
 import {
   createMockModels,
@@ -24,18 +25,22 @@ function makeToolDef(name: string): SvtonToolDefinition {
 }
 
 describe('E2E abort signal propagation (Pi-backed)', () => {
-  it('stops with done(aborted) when the external signal is already aborted', async () => {
+  it('settles with a native aborted assistant message when already aborted', async () => {
     const mock = createMockModels();
     const runtime = SvtonAgentRuntime.create(
       { models: mock.models, piModel: mock.model, model: 'test-model', toolRegistry: new ToolRegistry() },
       createMockPlatform(),
     );
+    mock.addResponse(fauxAssistantMessage([fauxText('unreachable')]));
     const controller = new AbortController();
     controller.abort();
     const events = await collectEvents(runtime.run('go', { signal: controller.signal }));
-    const last = events[events.length - 1];
-    expect(last.type).toBe('done');
-    if (last.type === 'done') expect(last.stopReason).toBe('aborted');
+    expect(events.some((event) =>
+      event.type === 'message_end'
+      && event.message.role === 'assistant'
+      && event.message.stopReason === 'aborted',
+    )).toBe(true);
+    expect(events.at(-1)?.type).toBe('agent_end');
   });
 
   it('propagates external RunOptions.signal abort into tool execution context', async () => {
@@ -65,16 +70,19 @@ describe('E2E abort signal propagation (Pi-backed)', () => {
     mock.addResponse(fauxAssistantMessage([fauxText('not aborted')]));
 
     const events = await collectEvents(runtime.run('run long tool', { signal: controller.signal }));
-    const toolEnd = events.find((e) => e.type === 'tool_call_end');
-    const last = events[events.length - 1];
+    const toolEnd = events.find((e) => e.type === 'tool_execution_end');
 
     expect(observedSignal?.aborted).toBe(true);
-    expect(toolEnd?.type).toBe('tool_call_end');
-    if (toolEnd?.type === 'tool_call_end') {
-      expect(toolEnd.result.output).toBe('tool saw abort');
+    expect(toolEnd?.type).toBe('tool_execution_end');
+    if (toolEnd?.type === 'tool_execution_end') {
+      expect(selectNativeToolResult(toolEnd).output).toBe('tool saw abort');
     }
-    expect(last.type).toBe('done');
-    if (last.type === 'done') expect(last.stopReason).toBe('aborted');
+    expect(events.some((event) =>
+      event.type === 'message_end'
+      && event.message.role === 'assistant'
+      && event.message.stopReason === 'aborted',
+    )).toBe(true);
+    expect(events.at(-1)?.type).toBe('agent_end');
   });
 
   it('propagates external RunOptions.signal aborts through web_fetch HTTP requests', async () => {
@@ -101,16 +109,19 @@ describe('E2E abort signal propagation (Pi-backed)', () => {
     mock.addResponse(fauxAssistantMessage([fauxText('done')]));
 
     const events = await collectEvents(runtime.run('fetch page', { signal: controller.signal }));
-    const toolEnd = events.find((e) => e.type === 'tool_call_end');
-    const last = events[events.length - 1];
+    const toolEnd = events.find((e) => e.type === 'tool_execution_end');
 
     expect(observedSignal?.aborted).toBe(true);
-    expect(toolEnd?.type).toBe('tool_call_end');
-    if (toolEnd?.type === 'tool_call_end') {
-      expect(toolEnd.result.output).toBe('http saw abort');
+    expect(toolEnd?.type).toBe('tool_execution_end');
+    if (toolEnd?.type === 'tool_execution_end') {
+      expect(selectNativeToolResult(toolEnd).output).toBe('http saw abort');
     }
-    expect(last.type).toBe('done');
-    if (last.type === 'done') expect(last.stopReason).toBe('aborted');
+    expect(events.some((event) =>
+      event.type === 'message_end'
+      && event.message.role === 'assistant'
+      && event.message.stopReason === 'aborted',
+    )).toBe(true);
+    expect(events.at(-1)?.type).toBe('agent_end');
   });
 });
 

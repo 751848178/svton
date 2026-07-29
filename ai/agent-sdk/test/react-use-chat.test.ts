@@ -8,7 +8,19 @@ import type { UseToolApprovalReturn } from '../src/react/use-tool-approval';
 import { setSharedChatMessages } from '../src/react/chat-message-store';
 import type { Agent } from '../src/agent';
 import type { CreateAgentConfig } from '../src/types';
-import type { AgentEvent } from '@svton/agent-core';
+import {
+  fauxAssistantMessage,
+  fauxThinking,
+  fauxToolCall,
+  nativeAssistantLifecycle,
+  nativeAgentEnd,
+  nativeTextDelta,
+  nativeThinkingDelta,
+  nativeToolEnd,
+  nativeToolStart,
+  nativeToolUpdate,
+  nativeTurnBoundary,
+} from '../../agent-core/test/helpers';
 
 interface ProbeState {
   agent: Agent;
@@ -50,24 +62,18 @@ async function renderProbe() {
 
 function waitingApprovalChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'tc-sdk', name: 'write_file', arguments: { path: '/tmp/out.txt' } },
-    } as AgentEvent;
+    yield nativeToolStart({ id: 'tc-sdk', name: 'write_file', arguments: { path: '/tmp/out.txt' } });
     yield {
       type: 'tool_approval_needed',
       call: { id: 'tc-sdk', name: 'write_file', arguments: { path: '/tmp/out.txt' } },
-    } as AgentEvent;
+    };
     await new Promise(() => {});
   }) as Agent['chat'];
 }
 
 function metadataWaitingApprovalChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'tc-sdk-meta', name: 'write_file', arguments: { path: '/tmp/out.txt' } },
-    } as AgentEvent;
+    yield nativeToolStart({ id: 'tc-sdk-meta', name: 'write_file', arguments: { path: '/tmp/out.txt' } });
     yield {
       type: 'tool_approval_needed',
       call: { id: 'tc-sdk-meta', name: 'write_file', arguments: { path: '/tmp/out.txt' } },
@@ -78,38 +84,32 @@ function metadataWaitingApprovalChat(): Agent['chat'] {
           ruleId: undefined,
         },
       },
-    } as AgentEvent;
+    };
     await new Promise(() => {});
   }) as Agent['chat'];
 }
 
 function approvedToolCompletesChat(onApproveReady: (approve: () => void) => void): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'tc-sdk', name: 'write_file', arguments: { path: '/tmp/out.txt' } },
-    } as AgentEvent;
+    yield nativeToolStart({ id: 'tc-sdk', name: 'write_file', arguments: { path: '/tmp/out.txt' } });
     yield {
       type: 'tool_approval_needed',
       call: { id: 'tc-sdk', name: 'write_file', arguments: { path: '/tmp/out.txt' } },
-    } as AgentEvent;
+    };
     await new Promise<void>((resolve) => { onApproveReady(resolve); });
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolEnd({
         callId: 'tc-sdk',
         output: 'ok',
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'text_delta', text: 'done' } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeTextDelta('done');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function abortRejectingChat(onRejectReady: (reject: (err: Error) => void) => void): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text: 'working' } as AgentEvent;
+    yield nativeTextDelta('working');
     await new Promise<void>((_, reject) => {
       onRejectReady((err) => { reject(err); });
     });
@@ -118,249 +118,207 @@ function abortRejectingChat(onRejectReady: (reject: (err: Error) => void) => voi
 
 function failingChat(): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text: 'working' } as AgentEvent;
+    yield nativeTextDelta('working');
     throw new Error('provider failed');
   }) as Agent['chat'];
 }
 
 function staleEventAfterAbortChat(onReleaseReady: (release: () => void) => void): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text: 'old-start' } as AgentEvent;
+    yield nativeTextDelta('old-start');
     await new Promise<void>((resolve) => { onReleaseReady(resolve); });
-    yield { type: 'text_delta', text: 'stale-old' } as AgentEvent;
+    yield nativeTextDelta('stale-old');
+    yield* nativeAssistantLifecycle({ stopReason: 'aborted' });
   }) as Agent['chat'];
+}
+
+function sameRuntimeReuseChat(onReleaseReady: (release: () => void) => void): Agent['chat'] {
+  let runCount = 0;
+  return async function* () {
+    runCount += 1;
+    if (runCount === 1) {
+      yield nativeTextDelta('first-start');
+      await new Promise<void>((resolve) => { onReleaseReady(resolve); });
+      yield nativeTextDelta('stale-first');
+      yield* nativeAssistantLifecycle({ stopReason: 'aborted' });
+      return;
+    }
+    yield nativeTextDelta('second-clean');
+    yield* nativeAssistantLifecycle({ content: 'second-clean' });
+  };
 }
 
 function hangingTextChat(text: string): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text } as AgentEvent;
+    yield nativeTextDelta(text);
     await new Promise(() => {});
   }) as Agent['chat'];
 }
 
-function lateEventAfterDoneChat(): Agent['chat'] {
+function awaitedCleanupChat(
+  onReleaseReady: (release: () => void) => void,
+  onCleanupComplete: () => void,
+): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text: 'final' } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
-    yield { type: 'text_delta', text: 'late' } as AgentEvent;
+    yield nativeTextDelta('final');
+    yield* nativeAssistantLifecycle({
+      content: 'final',
+      usage: { input: 1, output: 1, totalTokens: 2 },
+    });
+    await new Promise<void>((resolve) => onReleaseReady(resolve));
+    onCleanupComplete();
   }) as Agent['chat'];
 }
 
-function thrownErrorAfterDoneChat(): Agent['chat'] {
+function terminalErrorLifecycleChat(
+  onReleaseReady?: (release: () => void) => void,
+): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text: 'final' } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
-    throw new Error('late iterator failure');
+    yield nativeTextDelta('before-error');
+    yield* nativeAssistantLifecycle({
+      content: 'before-error',
+      errorMessage: 'stream event failed',
+      stopReason: 'error',
+      usage: { input: 1, output: 1, totalTokens: 2 },
+    });
+    if (onReleaseReady) {
+      await new Promise<void>((resolve) => onReleaseReady(resolve));
+    }
   }) as Agent['chat'];
 }
 
-function doneAfterErrorEventChat(): Agent['chat'] {
+function toolThinkingSequenceChat(duplicateStart = false): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text: 'before-error' } as AgentEvent;
-    yield { type: 'error', error: new Error('stream event failed') } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
-    yield { type: 'text_delta', text: 'late' } as AgentEvent;
+    const toolMessage = fauxAssistantMessage([
+      fauxToolCall('read_file', { path: '/tmp/a' }, { id: 'sequence-tool' }),
+    ]);
+    const thinkingStart = fauxAssistantMessage([fauxThinking('')]);
+    const start = nativeToolStart({
+      id: 'sequence-tool',
+      name: 'read_file',
+      arguments: { path: '/tmp/a' },
+    });
+    yield start;
+    if (duplicateStart) yield start;
+    yield nativeToolEnd({
+      callId: 'sequence-tool',
+      output: 'ok',
+      isError: false,
+    }, 'read_file');
+    yield* nativeTurnBoundary(toolMessage, thinkingStart);
+    yield nativeThinkingDelta('next thought');
+    yield* nativeAssistantLifecycle({ content: 'done' });
   }) as Agent['chat'];
 }
 
 function redactedThinkingChat(): Agent['chat'] {
   return (async function* () {
-    yield { type: 'thinking_delta', thinking: '[REDACTED] encrypted reasoning' } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield nativeThinkingDelta('[REDACTED] encrypted reasoning');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function commandTextChat(): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text: 'Ready [Open diff](action:open_diff)' } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield nativeTextDelta('Ready [Open diff](action:open_diff)');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function progressNameChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'tc-progress-name', name: 'test_', arguments: {} },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_progress',
-      callId: 'tc-progress-name',
-      name: 'test_tool',
-      message: '',
-      arguments: { key: 'value' },
-    } as any;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield nativeToolStart({ id: 'tc-progress-name', name: 'test_', arguments: {} });
+    yield nativeToolUpdate('tc-progress-name', 'test_tool', { key: 'value' }, '');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function progressSubagentNameChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'subagent-progress-name', name: 'subagent_', arguments: {} },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_progress',
-      callId: 'subagent-progress-name',
-      name: 'subagent_spawn',
-      message: '',
-      arguments: { task: 'inspect auth flow' },
-    } as any;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield nativeToolStart({ id: 'subagent-progress-name', name: 'subagent_', arguments: {} });
+    yield nativeToolUpdate('subagent-progress-name', 'subagent_spawn', { task: 'inspect auth flow' }, '');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function progressSlowToolNameChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'web-progress-name', name: 'web_', arguments: {} },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_progress',
-      callId: 'web-progress-name',
-      name: 'web_search',
-      message: '',
-      arguments: { query: 'agent runtime' },
-    } as any;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield nativeToolStart({ id: 'web-progress-name', name: 'web_', arguments: {} });
+    yield nativeToolUpdate('web-progress-name', 'web_search', { query: 'agent runtime' }, '');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function progressSlowToolNameAfterTextChat(): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text: 'Intro' } as AgentEvent;
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'web-progress-after-text', name: 'web_', arguments: {} },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_progress',
-      callId: 'web-progress-after-text',
-      name: 'web_search',
-      message: '',
-      arguments: { query: 'agent runtime' },
-    } as any;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield nativeTextDelta('Intro');
+    yield nativeToolStart({ id: 'web-progress-after-text', name: 'web_', arguments: {} });
+    yield nativeToolUpdate('web-progress-after-text', 'web_search', { query: 'agent runtime' }, '');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function repeatedProgressSlowToolNameChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'web-progress-first', name: 'web_', arguments: {} },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'web-progress-second', name: 'web_', arguments: {} },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_progress',
-      callId: 'web-progress-first',
-      name: 'web_search',
-      message: '',
-      arguments: { query: 'first' },
-    } as any;
-    yield {
-      type: 'tool_call_progress',
-      callId: 'web-progress-second',
-      name: 'web_search',
-      message: '',
-      arguments: { query: 'second' },
-    } as any;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield nativeToolStart({ id: 'web-progress-first', name: 'web_', arguments: {} });
+    yield nativeToolStart({ id: 'web-progress-second', name: 'web_', arguments: {} });
+    yield nativeToolUpdate('web-progress-first', 'web_search', { query: 'first' }, '');
+    yield nativeToolUpdate('web-progress-second', 'web_search', { query: 'second' }, '');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function firstSlowToolCompletesChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'web-progress-first', name: 'web_', arguments: {} },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'web-progress-second', name: 'web_', arguments: {} },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_progress',
-      callId: 'web-progress-first',
-      name: 'web_search',
-      message: '',
-      arguments: { query: 'first' },
-    } as any;
-    yield {
-      type: 'tool_call_progress',
-      callId: 'web-progress-second',
-      name: 'web_search',
-      message: '',
-      arguments: { query: 'second' },
-    } as any;
-    yield {
-      type: 'tool_call_end',
-      result: { callId: 'web-progress-first', output: 'first done', isError: false },
-    } as AgentEvent;
+    yield nativeToolStart({ id: 'web-progress-first', name: 'web_', arguments: {} });
+    yield nativeToolStart({ id: 'web-progress-second', name: 'web_', arguments: {} });
+    yield nativeToolUpdate('web-progress-first', 'web_search', { query: 'first' }, '');
+    yield nativeToolUpdate('web-progress-second', 'web_search', { query: 'second' }, '');
+    yield nativeToolEnd({ callId: 'web-progress-first', output: 'first done', isError: false });
     await new Promise(() => {});
   }) as Agent['chat'];
 }
 
 function orphanSlowToolProgressChat(): Agent['chat'] {
   return (async function* () {
-    yield { type: 'text_delta', text: 'Intro' } as AgentEvent;
-    yield {
-      type: 'tool_call_progress',
-      callId: 'missing-call',
-      name: 'web_search',
-      message: '',
-      arguments: { query: 'orphan' },
-    } as any;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield nativeTextDelta('Intro');
+    yield nativeToolUpdate('missing-call', 'web_search', { query: 'orphan' }, '');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function warningAndSkillChat(): Agent['chat'] {
   return (async function* () {
-    yield { type: 'skill_activated', skills: ['code-review', 'shell-safety'] } as AgentEvent;
-    yield { type: 'warning', text: 'Network retries are degraded', source: 'provider' } as AgentEvent;
-    yield { type: 'text_delta', text: 'continuing' } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield { type: 'skill_activated', skills: ['code-review', 'shell-safety'] };
+    yield { type: 'warning', text: 'Network retries are degraded', source: 'provider' };
+    yield nativeTextDelta('continuing');
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function subagentToolChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: {
+    yield nativeToolStart({
         id: 'subagent-tool-1',
         name: 'subagent_spawn',
         arguments: { task: 'inspect auth flow' },
-      },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+      });
+    yield nativeToolEnd({
         callId: 'subagent-tool-1',
         output: 'auth flow has stale token handling',
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function subagentApprovalChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: {
+    yield nativeToolStart({
         id: 'subagent-approval-1',
         name: 'subagent_spawn',
         arguments: { task: 'check permissions' },
-      },
-    } as AgentEvent;
+      });
     yield {
       type: 'tool_approval_needed',
       call: {
@@ -368,20 +326,15 @@ function subagentApprovalChat(): Agent['chat'] {
         name: 'subagent_spawn',
         arguments: { task: 'check permissions' },
       },
-    } as AgentEvent;
+    };
     await new Promise(() => {});
   }) as Agent['chat'];
 }
 
 function planningProgressChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'plan-call-1', name: 'plan_create', arguments: { title: 'Ship feature' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'plan-call-1', name: 'plan_create', arguments: { title: 'Ship feature' } });
+    yield nativeToolEnd({
         callId: 'plan-call-1',
         output: 'Plan created',
         isError: false,
@@ -395,15 +348,9 @@ function planningProgressChat(): Agent['chat'] {
             ],
           },
         },
-      },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'plan-call-2', name: 'plan_update_step', arguments: { planId: 'plan-1' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+      });
+    yield nativeToolStart({ id: 'plan-call-2', name: 'plan_update_step', arguments: { planId: 'plan-1' } });
+    yield nativeToolEnd({
         callId: 'plan-call-2',
         output: 'Plan updated',
         isError: false,
@@ -417,21 +364,15 @@ function planningProgressChat(): Agent['chat'] {
             ],
           },
         },
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function webSearchResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'web-search-1', name: 'web_search', arguments: { query: 'agent sdk testing' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'web-search-1', name: 'web_search', arguments: { query: 'agent sdk testing' } });
+    yield nativeToolEnd({
         callId: 'web-search-1',
         output: 'Search complete',
         isError: false,
@@ -443,21 +384,15 @@ function webSearchResultChat(): Agent['chat'] {
             snippet: 'How to test agent SDK hooks.',
           },
         },
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function replayedWebSearchResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'web-search-replay', name: 'web_search', arguments: { query: 'agent sdk replay' } },
-    } as AgentEvent;
-    const endEvent = {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'web-search-replay', name: 'web_search', arguments: { query: 'agent sdk replay' } });
+    const endEvent = nativeToolEnd({
         callId: 'web-search-replay',
         output: 'Search complete',
         isError: false,
@@ -469,27 +404,18 @@ function replayedWebSearchResultChat(): Agent['chat'] {
             snippet: 'Replay-safe search blocks.',
           },
         },
-      },
-    } as AgentEvent;
+      });
     yield endEvent;
     yield endEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function overlappingWebSearchResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'web-search-overlap', name: 'web_search', arguments: { query: 'agent sdk overlap' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'file-read-overlap', name: 'file_read', arguments: { path: '/workspace/src/next.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'web-search-overlap', name: 'web_search', arguments: { query: 'agent sdk overlap' } });
+    yield nativeToolStart({ id: 'file-read-overlap', name: 'file_read', arguments: { path: '/workspace/src/next.ts' } });
+    yield nativeToolEnd({
         callId: 'web-search-overlap',
         output: 'Search complete',
         isError: false,
@@ -501,57 +427,39 @@ function overlappingWebSearchResultChat(): Agent['chat'] {
             snippet: 'Overlap-safe search blocks.',
           },
         },
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function fileReadResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'file-read-1', name: 'file_read', arguments: { path: '/workspace/src/app.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'file-read-1', name: 'file_read', arguments: { path: '/workspace/src/app.ts' } });
+    yield nativeToolEnd({
         callId: 'file-read-1',
         output: 'export const app = true;',
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function readFileAliasResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'read-file-alias-1', name: 'read_file', arguments: { path: '/workspace/src/alias.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'read-file-alias-1', name: 'read_file', arguments: { path: '/workspace/src/alias.ts' } });
+    yield nativeToolEnd({
         callId: 'read-file-alias-1',
         output: 'export const alias = true;',
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function listFilesResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'list-files-1', name: 'list_files', arguments: { path: '/workspace/src' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'list-files-1', name: 'list_files', arguments: { path: '/workspace/src' } });
+    yield nativeToolEnd({
         callId: 'list-files-1',
         output: JSON.stringify([
           { name: 'app.ts', type: 'file' },
@@ -569,77 +477,53 @@ function listFilesResultChat(): Agent['chat'] {
           },
         ]),
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function lsAliasResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'ls-alias-1', name: 'ls', arguments: { path: '/workspace/src' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'ls-alias-1', name: 'ls', arguments: { path: '/workspace/src' } });
+    yield nativeToolEnd({
         callId: 'ls-alias-1',
         output: JSON.stringify([{ name: 'alias.ts', type: 'file' }]),
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function globResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'glob-1', name: 'glob', arguments: { pattern: '**/*.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'glob-1', name: 'glob', arguments: { pattern: '**/*.ts' } });
+    yield nativeToolEnd({
         callId: 'glob-1',
         output: 'src/app.ts\nsrc/components/Button.tsx',
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function imageGenerateResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'image-generate-1', name: 'image_generate', arguments: { model: 'gpt-image-test' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'image-generate-1', name: 'image_generate', arguments: { model: 'gpt-image-test' } });
+    yield nativeToolEnd({
         callId: 'image-generate-1',
         output: JSON.stringify({
           images: { url: 'https://example.com/image.png', revised_prompt: 'A sharper prompt' },
         }),
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function imageGenerateMetadataResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'image-generate-metadata-1', name: 'image_generate', arguments: { model: 'gpt-image-test' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'image-generate-metadata-1', name: 'image_generate', arguments: { model: 'gpt-image-test' } });
+    yield nativeToolEnd({
         callId: 'image-generate-metadata-1',
         output: 'Generated 1 image(s) using model "gpt-image-test".',
         isError: false,
@@ -647,60 +531,42 @@ function imageGenerateMetadataResultChat(): Agent['chat'] {
           model: 'gpt-image-test',
           images: [{ url: 'https://example.com/metadata-image.png', revisedPrompt: 'Metadata prompt' }],
         },
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function chromeScreenshotResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'chrome-screenshot-1', name: 'chrome_screenshot', arguments: { fullPage: true } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'chrome-screenshot-1', name: 'chrome_screenshot', arguments: { fullPage: true } });
+    yield nativeToolEnd({
         callId: 'chrome-screenshot-1',
         output: JSON.stringify({ type: 'image', data: 'chrome-screenshot-base64', mimeType: 'image/png' }),
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function previewDocumentImagesChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'preview-document-1', name: 'preview_document', arguments: { path: '/workspace/report.pdf' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'preview-document-1', name: 'preview_document', arguments: { path: '/workspace/report.pdf' } });
+    yield nativeToolEnd({
         callId: 'preview-document-1',
         output: JSON.stringify({ kind: 'images', count: 2, type: 'pdf' }),
         isError: false,
         metadata: {
           previewResult: { kind: 'images', images: 'page-one-base64' },
         },
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function gitDiffResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'git-diff-1', name: 'git_diff', arguments: {} },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'git-diff-1', name: 'git_diff', arguments: {} });
+    yield nativeToolEnd({
         callId: 'git-diff-1',
         output: [
           'diff --git a/src/app.ts b/src/app.ts',
@@ -711,21 +577,15 @@ function gitDiffResultChat(): Agent['chat'] {
           '+++ b/src/new.ts',
         ].join('\n'),
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function autoReviewVerdictChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'auto-review-1', name: 'write_file', arguments: { path: '/workspace/src/risky.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'auto-review-1', name: 'write_file', arguments: { path: '/workspace/src/risky.ts' } });
+    yield nativeToolEnd({
         callId: 'auto-review-1',
         output: 'Blocked by reviewer',
         isError: false,
@@ -736,21 +596,15 @@ function autoReviewVerdictChat(): Agent['chat'] {
             ruleId: 'protected-path',
           },
         },
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function deniedAutoReviewVerdictChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'auto-review-deny-1', name: 'bash', arguments: { command: 'rm -rf /' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'auto-review-deny-1', name: 'bash', arguments: { command: 'rm -rf /' } });
+    yield nativeToolEnd({
         callId: 'auto-review-deny-1',
         output: 'Auto-reviewer denied: Dangerous',
         isError: true,
@@ -761,17 +615,14 @@ function deniedAutoReviewVerdictChat(): Agent['chat'] {
             ruleId: 'deny-dangerous-bash',
           },
         },
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function orphanAutoReviewVerdictChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolEnd({
         callId: 'missing-auto-review',
         output: 'Auto-reviewer denied: Orphaned',
         isError: true,
@@ -782,21 +633,15 @@ function orphanAutoReviewVerdictChat(): Agent['chat'] {
             ruleId: 'orphan-auto-review',
           },
         },
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function csvFanoutResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'csv-fanout-1', name: 'csv_fanout', arguments: { path: '/workspace/input.csv' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'csv-fanout-1', name: 'csv_fanout', arguments: { path: '/workspace/input.csv' } });
+    yield nativeToolEnd({
         callId: 'csv-fanout-1',
         output: JSON.stringify({
           totalRows: '3',
@@ -808,21 +653,15 @@ function csvFanoutResultChat(): Agent['chat'] {
           ],
         }),
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function csvFanoutMetadataResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'csv-fanout-metadata-1', name: 'csv_fanout', arguments: { path: '/workspace/input.csv' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'csv-fanout-metadata-1', name: 'csv_fanout', arguments: { path: '/workspace/input.csv' } });
+    yield nativeToolEnd({
         callId: 'csv-fanout-metadata-1',
         output: 'CSV fan-out completed: 1 succeeded, 1 failed out of 2 rows.',
         isError: false,
@@ -835,79 +674,51 @@ function csvFanoutMetadataResultChat(): Agent['chat'] {
             { summary: 'bounced', success: false, error: 'invalid email' },
           ],
         },
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function fileWriteResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'file-write-1', name: 'write_file', arguments: { path: '/workspace/src/new.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'file-write-1', name: 'write_file', arguments: { path: '/workspace/src/new.ts' } });
+    yield nativeToolEnd({
         callId: 'file-write-1',
         output: '+export const created = true;',
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function overlappingFileWriteResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'file-write-overlap', name: 'write_file', arguments: { path: '/workspace/src/overlap.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'file-read-after-write', name: 'file_read', arguments: { path: '/workspace/src/next.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'file-write-overlap', name: 'write_file', arguments: { path: '/workspace/src/overlap.ts' } });
+    yield nativeToolStart({ id: 'file-read-after-write', name: 'file_read', arguments: { path: '/workspace/src/next.ts' } });
+    yield nativeToolEnd({
         callId: 'file-write-overlap',
         output: '+export const overlap = true;',
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
 function multiFileWriteResultChat(): Agent['chat'] {
   return (async function* () {
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'file-write-a', name: 'write_file', arguments: { path: '/workspace/src/a.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+    yield nativeToolStart({ id: 'file-write-a', name: 'write_file', arguments: { path: '/workspace/src/a.ts' } });
+    yield nativeToolEnd({
         callId: 'file-write-a',
         output: '+a',
         isError: false,
-      },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_start',
-      call: { id: 'file-edit-b', name: 'edit_file', arguments: { path: '/workspace/src/b.ts' } },
-    } as AgentEvent;
-    yield {
-      type: 'tool_call_end',
-      result: {
+      });
+    yield nativeToolStart({ id: 'file-edit-b', name: 'edit_file', arguments: { path: '/workspace/src/b.ts' } });
+    yield nativeToolEnd({
         callId: 'file-edit-b',
         output: '~b',
         isError: false,
-      },
-    } as AgentEvent;
-    yield { type: 'done', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 } } as AgentEvent;
+      });
+    yield nativeAgentEnd({ input: 1, output: 1, totalTokens: 2 });
   }) as Agent['chat'];
 }
 
@@ -1543,6 +1354,45 @@ describe('SDK useChat approval wait state', () => {
     rendered.unmount();
   });
 
+  it('defers canonical clear and blocks same-agent reuse until the old run drains', async () => {
+    const rendered = await renderProbe();
+    let releaseFirst: (() => void) | null = null;
+    rendered.state.agent.chat = vi.fn(
+      sameRuntimeReuseChat((release) => { releaseFirst = release; }),
+    );
+    rendered.state.agent.abort = vi.fn();
+    rendered.state.agent.setMessages = vi.fn();
+
+    act(() => {
+      rendered.state.chat.send('first');
+    });
+    await waitFor(() => expect(rendered.state.chat.messages[1].content).toBe('first-start'));
+
+    act(() => {
+      rendered.state.chat.clear();
+      rendered.state.chat.send('blocked second');
+    });
+    expect(rendered.state.agent.chat).toHaveBeenCalledTimes(1);
+    expect(rendered.state.agent.setMessages).not.toHaveBeenCalled();
+    expect(rendered.state.chat.messages).toHaveLength(0);
+
+    await act(async () => {
+      releaseFirst?.();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(rendered.state.agent.setMessages).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      rendered.state.chat.send('second');
+    });
+    await waitFor(() => expect(rendered.state.chat.messages[1].content).toBe('second-clean'));
+    expect(rendered.state.agent.chat).toHaveBeenCalledTimes(2);
+    expect(rendered.state.chat.messages.some((message) =>
+      message.content.includes('stale-first'),
+    )).toBe(false);
+    rendered.unmount();
+  });
+
   it('still surfaces real stream errors while a run is active', async () => {
     const rendered = await renderProbe();
     rendered.state.agent.chat = vi.fn(failingChat());
@@ -1557,9 +1407,12 @@ describe('SDK useChat approval wait state', () => {
     rendered.unmount();
   });
 
-  it('keeps explicit error events terminal when done arrives later', async () => {
+  it('preserves terminal error status while draining through native agent_end', async () => {
     const rendered = await renderProbe();
-    rendered.state.agent.chat = vi.fn(doneAfterErrorEventChat());
+    let releaseCleanup: (() => void) | null = null;
+    rendered.state.agent.chat = vi.fn(
+      terminalErrorLifecycleChat((release) => { releaseCleanup = release; }),
+    );
 
     act(() => {
       rendered.state.chat.send('event error');
@@ -1570,6 +1423,11 @@ describe('SDK useChat approval wait state', () => {
     expect(rendered.state.chat.messages[1].content).toBe('before-error');
     expect(rendered.state.chat.messages[1].error).toBe('stream event failed');
     expect(rendered.state.chat.messages[1].isStreaming).toBe(false);
+    await act(async () => {
+      releaseCleanup?.();
+      await Promise.resolve();
+    });
+    expect(rendered.state.chat.status).toBe('error');
     rendered.unmount();
   });
 
@@ -2182,9 +2040,16 @@ describe('SDK useChat approval wait state', () => {
     rendered.unmount();
   });
 
-  it('ignores late stream events after final done', async () => {
+  it('drains awaited generator cleanup after native agent_end', async () => {
     const rendered = await renderProbe();
-    rendered.state.agent.chat = vi.fn(lateEventAfterDoneChat());
+    let releaseCleanup: (() => void) | null = null;
+    let cleanupComplete = false;
+    rendered.state.agent.chat = vi.fn(
+      awaitedCleanupChat(
+        (release) => { releaseCleanup = release; },
+        () => { cleanupComplete = true; },
+      ),
+    );
 
     act(() => {
       rendered.state.chat.send('finish');
@@ -2194,26 +2059,45 @@ describe('SDK useChat approval wait state', () => {
     expect(rendered.state.chat.isStreaming).toBe(false);
     expect(rendered.state.chat.messages[1].content).toBe('final');
     expect(rendered.state.chat.messages[1].isStreaming).toBe(false);
+    await act(async () => {
+      releaseCleanup?.();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(cleanupComplete).toBe(true));
     rendered.unmount();
   });
 
-  it('ignores thrown iterator errors after final done', async () => {
+  it('keeps a thinking separator pending across native turn bookkeeping', async () => {
     const rendered = await renderProbe();
-    rendered.state.agent.chat = vi.fn(thrownErrorAfterDoneChat());
+    rendered.state.agent.chat = vi.fn(toolThinkingSequenceChat());
 
     act(() => {
-      rendered.state.chat.send('finish with late throw');
+      rendered.state.chat.send('tool then think');
     });
 
     await waitFor(() => expect(rendered.state.chat.status).toBe('idle'));
-    expect(rendered.state.chat.isStreaming).toBe(false);
-    expect(rendered.state.chat.messages[1].content).toBe('final');
-    expect(rendered.state.chat.messages[1].error).toBeUndefined();
-    expect(rendered.state.chat.messages[1].isStreaming).toBe(false);
+    expect(rendered.state.chat.messages[1].thinking).toBe('\n---\nnext thought');
     rendered.unmount();
   });
 
-  it('ignores stale events from an aborted run after a newer run starts', async () => {
+  it('upserts replayed native tool starts by toolCallId', async () => {
+    const rendered = await renderProbe();
+    rendered.state.agent.chat = vi.fn(toolThinkingSequenceChat(true));
+
+    act(() => {
+      rendered.state.chat.send('replayed start');
+    });
+
+    await waitFor(() => expect(rendered.state.chat.status).toBe('idle'));
+    const assistant = rendered.state.chat.messages[1];
+    expect(assistant.toolCalls.filter((call) => call.id === 'sequence-tool')).toHaveLength(1);
+    expect(assistant.blocks.filter((block) =>
+      block.type === 'tool_call' && block.call.id === 'sequence-tool',
+    )).toHaveLength(1);
+    rendered.unmount();
+  });
+
+  it('blocks a newer run until an aborted run drains and ignores its stale events', async () => {
     const rendered = await renderProbe();
     let releaseOldRun: (() => void) | null = null;
     rendered.state.agent.chat = vi.fn(staleEventAfterAbortChat((release) => { releaseOldRun = release; }));
@@ -2228,17 +2112,23 @@ describe('SDK useChat approval wait state', () => {
       rendered.state.chat.abort();
     });
 
-    rendered.state.agent.chat = vi.fn(hangingTextChat('new-start'));
+    const newChat = vi.fn(hangingTextChat('new-start'));
+    rendered.state.agent.chat = newChat;
+    act(() => {
+      rendered.state.chat.send('new');
+    });
+    expect(newChat).not.toHaveBeenCalled();
+    expect(rendered.state.chat.messages).toHaveLength(2);
+
+    await act(async () => {
+      releaseOldRun?.();
+      await Promise.resolve();
+    });
     act(() => {
       rendered.state.chat.send('new');
     });
 
     await waitFor(() => expect(rendered.state.chat.messages[3].content).toBe('new-start'));
-    await act(async () => {
-      releaseOldRun?.();
-      await Promise.resolve();
-    });
-
     expect(rendered.state.chat.status).toBe('running');
     expect(rendered.state.chat.messages[1].content).toBe('old-start');
     expect(rendered.state.chat.messages[3].content).toBe('new-start');

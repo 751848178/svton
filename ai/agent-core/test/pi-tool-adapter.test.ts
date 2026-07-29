@@ -4,7 +4,7 @@
  * Covers the Pi-owned vs svton-owned contract surface in `pi-tool-adapter.ts`:
  *   - executionMode mapping (annotations → sequential/parallel) per §5.3
  *   - schema normalization (annotations stripped, type/properties guaranteed)
- *   - onUpdate streaming bridge (Pi onUpdate → executor onProgress → tool_call_progress)
+ *   - onUpdate streaming bridge (Pi onUpdate → executor onProgress)
  *   - NO bypass: every AgentTool.execute() drains the ToolExecutionService policy
  *     pipeline (permission/approval/auto-review/sandbox/hooks). A denied tool
  *     never executes; an approved tool does; an auto-review-deny blocks; hook
@@ -24,7 +24,7 @@ import {
 import { ToolExecutionService } from '../src/agent/tool-executor';
 import { buildAgentTools } from '../src/agent/pi-tool-adapter';
 import type { ToolEventSink } from '../src/agent/pi-tool-adapter';
-import type { AgentEvent } from '../src/agent/types';
+import type { SvtonCapabilityEvent } from '../src/agent/types';
 import type {
   ToolCall,
   ToolResult,
@@ -82,12 +82,6 @@ function readResultError(details: unknown): boolean | undefined {
     return undefined;
   }
   return typeof details.isError === 'boolean' ? details.isError : undefined;
-}
-
-async function drain(g: AsyncGenerator<AgentEvent>): Promise<AgentEvent[]> {
-  const out: AgentEvent[] = [];
-  for await (const ev of g) out.push(ev);
-  return out;
 }
 
 // ============================================================
@@ -349,10 +343,10 @@ describe('PI005 security pipeline is the only execution path (no bypass)', () =>
     expect(captured[0].sandboxRequired).toBe(true);
   });
 
-  it('forwards every yielded pipeline event to the ToolEventSink', async () => {
+  it('does not invent a capability event for a native tool result', async () => {
     const exec = recordingExecutor();
     registry.register(def('bash'), exec);
-    const events: AgentEvent[] = [];
+    const events: SvtonCapabilityEvent[] = [];
     const capturingSink: ToolEventSink = (ev) => events.push(ev);
     const service = new ToolExecutionService(
       registry, platform, '/project',
@@ -360,9 +354,9 @@ describe('PI005 security pipeline is the only execution path (no bypass)', () =>
     );
     const tool = buildAgentTools(registry, service, capturingSink)[0];
 
-    await tool.execute(call('bash').id, {});
-    // Permission-denied path yields a tool_call_end event through the sink.
-    expect(events.some((e) => e.type === 'tool_call_end')).toBe(true);
+    const result = await tool.execute(call('bash').id, {});
+    expect(events).toEqual([]);
+    expect(readResultError(result.details)).toBe(true);
   });
 });
 

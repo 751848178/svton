@@ -87,11 +87,11 @@ Svton-owned capability events.
 
 | ID | Status | Atomic TODO | Acceptance |
 | --- | --- | --- | --- |
-| PC002.1 | pending | Define the public runtime event union from upstream Pi events plus capability-only Svton events. | No parallel Pi-base lifecycle union. |
-| PC002.2 | pending | Make Runtime subscriptions/generators publish native Pi events and capability extensions. | Native ordering and settlement remain intact. |
-| PC002.3 | pending | Delete `PiEventAdapter` and event-renaming helpers/tests. | No base event rename/aggregation protocol remains. |
-| PC002.4 | pending | Update Client/SDK selectors and event tests without recreating a runtime protocol in UI state. | Stream/tool/error/abort/settlement tests pass. |
-| PC002.5 | pending | Independently review event ordering, double emission and awaited settlement. | Review findings fixed and rerun green. |
+| PC002.1 | done | Define the public runtime event union from upstream Pi events plus capability-only Svton events. | Upstream `AgentEvent` is visibly exported as `PiAgentEvent`, and `PublicRuntimeEvent = PiAgentEvent \| SvtonCapabilityEvent`; Core/Client/SDK builds pass and no custom-looking `AgentEvent` export remains. |
+| PC002.2 | done | Make Runtime subscriptions/generators publish native Pi events and capability extensions. | Native events pass through the FIFO multiplexer unchanged; overlapping runs are rejected before sink acquisition, and cancellation/settlement is scoped to the identity-proven Pi run. Core focused tests pass 57/57. |
+| PC002.3 | done | Delete `PiEventAdapter` and event-renaming helpers/tests. | Adapter, rename/usage helpers and adapter test remain deleted; native tool lifecycle is emitted only by Pi, including idempotent replay handling. |
+| PC002.4 | done | Update Client/SDK selectors and event tests without recreating a runtime protocol in UI state. | Client and SDK drain native generators through settlement; SDK owns an in-flight run independently of display status and defers canonical clear until exact drain. Client strict plus 101/101 focused tests and SDK type-check plus 58/58 focused tests pass. |
+| PC002.5 | done | Independently review event ordering, double emission and awaited settlement. | Independent Core and Client/SDK reviewers approved v4 with no remaining P0-P2 finding; the requested Core cancellation/settlement regressions pass 6/6 and the SDK React ownership suite passes 58/58. |
 
 ### PC003. Runtime Naming And Strict Type Closure
 
@@ -247,3 +247,35 @@ verified local desktop artifact without changing remote state.
   explicit-only parallel mode, security routing, canonical reset/restore,
   background runtime ownership and all touched production line limits are
   verified.
+- 2026-07-30: Started PC002 as the only active write slice.
+- 2026-07-30: PC002 reached `needs-review-v2`: Core build and 51/51 focused
+  tests pass, Client strict and 98/98 focused tests pass, SDK type-check and
+  56/56 focused tests pass, and Core strict is unchanged at the exact 14-error
+  PC003 baseline. PC002.5 remains pending for independent review.
+- 2026-07-30: Started the bounded PC002 v3 review-fix loop. Routing is
+  `todo-plan + manual code graph + noisy-tool isolation`: the repository has no
+  CodeGraph index, so the sole writer will trace the confirmed Core, Client and
+  SDK paths from source and keep verification logs outside the worktree.
+- 2026-07-30: PC002 reached `needs-review-v3`: exact-run cancellation and
+  post-turn settlement are awaited; Client/SDK drain through native settlement,
+  isolate stale ownership, preserve separators/error state and upsert replayed
+  tool starts. Core 56/56, Client 101/101 and SDK 57/57 focused tests pass;
+  all three builds, Client strict and SDK type-check pass. Core strict remains
+  the exact 14-error PC003 baseline. PC002.5 remains pending.
+- 2026-07-30: Started the bounded PC002 v4 review-fix loop. Routing remains
+  `todo-plan + manual code graph + noisy-tool isolation`: CodeGraph is installed
+  but this worktree has no index, so the sole writer will verify the exact Core
+  and SDK ownership paths from source before editing.
+- 2026-07-30: PC002 reached `needs-review-v4`: Core rejects overlaps before
+  capability-sink acquisition and scopes abort/settlement to the newly proven
+  Pi run; SDK blocks same-agent reuse until generator drain and performs a
+  deferred canonical clear exactly once. `PiAgentEvent` now names the upstream
+  public type and the Core README documents the native union. Core 57/57,
+  Client 101/101 and SDK 58/58 focused tests pass; all three builds, Client
+  strict and SDK type-check pass. Core strict remains the exact 14-error PC003
+  baseline, structural/residual/diff audits are clean, and PC002.5 is pending.
+- 2026-07-30: PC002 independently approved with no remaining P0-P2 findings.
+  The final Core cancellation/settlement rerun passed 6/6 and the SDK React
+  ownership suite passed 58/58. Review also confirmed native event identity,
+  exact-run cancellation, exhaustive consumer drain, public `PiAgentEvent`
+  barrels, acyclic imports and the 200-line production-file ceiling.

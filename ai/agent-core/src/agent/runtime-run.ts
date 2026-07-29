@@ -4,10 +4,10 @@
  * Extracted from the composition root to keep `svton-agent-runtime.ts` under
  * the 200-line ceiling (code-structure-standards). This module owns the
  * pre-run steps (hook gate, skill injection, tool refresh), the Pi `prompt()`
- * drive + event drain, and the terminal stop-reason resolution.
+ * drive, and native/capability event multiplexing.
  *
- * Pi Agent owns the loop; this function only wires svton capabilities around
- * one `agent.prompt()` invocation and translates the resulting events.
+ * Pi Agent owns the loop and base event semantics. This function publishes
+ * each subscribed Pi event object unchanged.
  */
 import type { Agent } from '@earendil-works/pi-agent-core';
 import type { UserMessage } from '@earendil-works/pi-ai';
@@ -17,15 +17,14 @@ import type { SkillDefinition } from '../skill/types';
 import type { AutoReviewerManager } from '../auto-reviewer/manager';
 import type { SessionResumeManager } from '../checkpoint/manager';
 import type { IPlatform } from '@svton/agent-platform';
-import type { AgentEvent, RunOptions } from './types';
+import type { PublicRuntimeEvent, RunOptions } from './types';
 import type { ToolExecutionService } from './tool-executor';
-import { PiEventAdapter } from './pi-event-adapter';
 import type { ToolEventSink } from './pi-tool-adapter';
 import type { CapabilityContext } from './runtime-capabilities';
 import { createToolExecOptions } from './tool-exec-options.utils';
 import { isAbortSignalAborted } from './abort-signal.utils';
 import { buildPromptMessages, injectSkillContext } from './runtime-capabilities';
-import { piUsageToTokenUsage } from './pi-usage.utils';
+import { RuntimeEventMultiplexer } from './runtime-event-multiplexer';
 
 /** Internal handles the runtime passes to `runOnce`. */
 export interface RunDeps {
@@ -40,21 +39,21 @@ export interface RunDeps {
   capabilityContext: CapabilityContext;
   maxIterations: number;
   onActiveSkills: (skills: SkillDefinition[]) => void;
-  refreshTools: (sink: ToolEventSink) => void;
+  refreshTools: (sink: ToolEventSink) => () => void;
+  cancelRun: (signal: AbortSignal) => void;
   /** Post-turn lifecycle hooks (memory extraction + checkpoint). PI006. */
-  postTurn: (stopReason: string, sessionId: string) => void;
+  postTurn: (stopReason: string, sessionId: string) => Promise<void>;
 }
 
-/** Execute one user turn against the Pi Agent, yielding svton AgentEvents. */
+/** Execute one user turn, yielding native Pi and Svton capability events. */
 export async function* runOnce(
   deps: RunDeps,
   userMessage: UserMessage['content'],
   options: RunOptions | undefined,
-  doneEvent: (reason: string, usage?: unknown) => AgentEvent,
-): AsyncGenerator<AgentEvent> {
-  if (isAbortSignalAborted(options?.signal)) {
-    yield doneEvent('aborted');
-    return;
+): AsyncGenerator<PublicRuntimeEvent> {
+  const initialSignal = deps.agent.signal;
+  if (initialSignal) {
+    throw new Error('Svton runtime is already processing a prompt.');
   }
   const messageText = typeof userMessage === 'string'
     ? userMessage
@@ -62,8 +61,11 @@ export async function* runOnce(
 
   const agentMatch = messageText.match(/^\/agent\s+(\S+)/);
   if (agentMatch) {
-    yield { type: 'text_delta', text: `Agent switch to "${agentMatch[1]}" requested.` };
-    yield doneEvent('stop');
+    yield {
+      type: 'warning',
+      text: `Agent switch to "${agentMatch[1]}" requested.`,
+      source: 'agent-definition',
+    };
     return;
   }
   if (deps.hookManager) {
@@ -82,8 +84,12 @@ export async function* runOnce(
   if (contextMessage) deps.agent.state.messages = [...deps.agent.state.messages, contextMessage];
 
   const promptMessages = buildPromptMessages(userMessage);
-  const adapter = new PiEventAdapter();
-  deps.refreshTools((ev) => adapter.push(ev));
+  const priorSignal = deps.agent.signal;
+  if (priorSignal) {
+    throw new Error('Svton runtime is already processing a prompt.');
+  }
+  const multiplexer = new RuntimeEventMultiplexer();
+  const releaseCapabilitySink = deps.refreshTools((event) => multiplexer.push(event));
   deps.toolExecService.setActiveSkills(skills);
   deps.toolExecService.setExecOptions({
     sessionId: options?.sessionId,
@@ -93,46 +99,78 @@ export async function* runOnce(
 
   let turnCount = 0;
   let hitMaxIterations = false;
+  let stopReason = 'stop';
   const maxIterations = options?.maxIterations ?? deps.maxIterations;
-  const unsubscribe = deps.agent.subscribe(async (event) => {
+  const unsubscribe = deps.agent.subscribe(async (event, eventSignal) => {
+    multiplexer.push(event);
+    if (event.type === 'agent_start' && isAbortSignalAborted(options?.signal)) {
+      deps.cancelRun(eventSignal);
+    }
+    if (event.type === 'message_end' && event.message.role === 'assistant') {
+      stopReason = event.message.stopReason;
+    }
     if (event.type === 'turn_end') {
       turnCount += 1;
       if (turnCount >= maxIterations) {
         hitMaxIterations = true;
+        multiplexer.push({
+          type: 'warning',
+          text: `Maximum iteration count (${maxIterations}) reached.`,
+          source: 'runtime',
+        });
         deps.agent.abort();
       }
     }
-    await adapter.handle(event);
+    if (event.type === 'agent_end') {
+      await deps.postTurn(
+        hitMaxIterations ? 'max_iterations' : stopReason,
+        options?.sessionId ?? 'default',
+      );
+    }
   });
 
   const externalSignal = options?.signal;
-  const forwardAbort = () => deps.agent.abort();
+  let runSignal: AbortSignal | undefined;
+  const forwardAbort = (): void => {
+    if (runSignal) deps.cancelRun(runSignal);
+  };
   if (externalSignal) {
-    if (externalSignal.aborted) deps.agent.abort();
-    else externalSignal.addEventListener('abort', forwardAbort, { once: true });
+    externalSignal.addEventListener('abort', forwardAbort, { once: true });
   }
 
+  let runPromise: Promise<void> | null = null;
+  let runSettlement: Promise<void> | null = null;
+  let exhaustedNormally = false;
   try {
-    const runPromise = deps.agent.prompt(promptMessages).finally(() => adapter.close());
+    runPromise = deps.agent.prompt(promptMessages);
+    const candidateSignal = deps.agent.signal;
+    if (candidateSignal && candidateSignal !== priorSignal) {
+      runSignal = candidateSignal;
+      runSettlement = deps.agent.waitForIdle();
+    }
+    if (isAbortSignalAborted(externalSignal) && runSignal) {
+      deps.cancelRun(runSignal);
+    }
+    void runPromise.then(
+      () => multiplexer.close(),
+      () => multiplexer.close(),
+    );
     while (true) {
-      const next = await adapter.next();
+      const next = await multiplexer.next();
       if (next === null) break;
       yield next;
     }
-    await runPromise.catch(() => { /* errors surfaced via message_end(error) */ });
+    await runPromise;
+    exhaustedNormally = true;
   } finally {
+    if (!exhaustedNormally && runSignal && deps.agent.signal === runSignal) {
+      deps.cancelRun(runSignal);
+    }
+    await runPromise?.catch(() => {});
+    await runSettlement?.catch(() => {});
     unsubscribe();
+    multiplexer.close();
+    releaseCapabilitySink();
     if (externalSignal) externalSignal.removeEventListener('abort', forwardAbort);
   }
-
-  const piReason = adapter.getStopReason();
-  const stopReason = hitMaxIterations ? 'max_iterations' : piReason === 'error' ? 'error' : piReason;
-
-  // PI006: reattach memory extraction + checkpoint. This MUST run BEFORE
-  // yielding the terminal `done` event — consumers (`chat-stream-runner`) break
-  // out of the generator on `done`, so any code after the yield would never run.
-  // Running it pre-done guarantees the checkpoint + memory extraction fire.
-  deps.postTurn(stopReason, options?.sessionId ?? 'default');
-
-  yield doneEvent(stopReason, piUsageToTokenUsage(adapter.getUsage()));
 }

@@ -10,25 +10,34 @@
  *  - {@link buildPiAgentConfig} — assembles a valid `AgentConfig` from a
  *    fauxProvider-backed `Models` collection (re-exported from agent-core's
  *    shared test helpers). Feed it to `ChatService.init`.
- *  - {@link EventScripter} — spies on `runtime.run` so tests can queue
- *    `AgentEvent[]` scripts (the same shape the old `MockProvider.addResponse`
- *    accepted, but using the live AgentEvent union). This keeps the streaming
- *    tests' intent while routing through the real ChatService.runAssistant.
+ *  - {@link EventScripter} — spies on `runtime.run` so tests can queue native
+ *    Pi lifecycle and Svton capability events.
  */
 
 import { vi } from 'vitest';
 import {
   ToolRegistry,
   type AgentConfig,
-  type AgentEvent,
+  type PublicRuntimeEvent,
 } from '@svton/agent-core';
 import type { IPlatform, IStorage } from '@svton/agent-platform';
 import {
   createMockModels,
   createMockPlatform,
   fauxAssistantMessage,
+  fauxThinking,
+  fauxToolCall,
   fauxText,
   MemoryStorage,
+  nativeAssistantLifecycle,
+  nativeAgentEnd,
+  nativeError,
+  nativeTextDelta,
+  nativeThinkingDelta,
+  nativeToolEnd,
+  nativeToolStart,
+  nativeToolUpdate,
+  nativeTurnBoundary,
   type MockModelsHandle,
 } from '../../../agent-core/test/helpers';
 
@@ -36,10 +45,22 @@ export {
   createMockModels,
   createMockPlatform,
   fauxAssistantMessage,
+  fauxThinking,
+  fauxToolCall,
   fauxText,
   MemoryStorage,
+  nativeAssistantLifecycle,
+  nativeAgentEnd,
+  nativeError,
+  nativeTextDelta,
+  nativeThinkingDelta,
+  nativeToolEnd,
+  nativeToolStart,
+  nativeToolUpdate,
+  nativeTurnBoundary,
 };
 export type { MockModelsHandle };
+type EventStreamFactory = () => AsyncGenerator<PublicRuntimeEvent>;
 
 /**
  * Build a Pi-backed `AgentConfig` identical in shape to what
@@ -69,28 +90,33 @@ export function buildPiAgentConfig(opts: {
 
 /**
  * Spy-based event scripter. Replace `runtime.run` with a generator that pops
- * queued `AgentEvent[]` scripts in order. Each call to `run` consumes one
- * queued response; if none remain it yields a terminal `done`.
+ * queued `PublicRuntimeEvent[]` scripts in order. Each call consumes one
+ * response; if none remain it yields a native `agent_end`.
  *
  * Usage:
  *   const scripter = new EventScripter(service);
- *   scripter.addResponse([{ type: 'text_delta', text: 'Hi' }, { type: 'done', stopReason: 'stop' }]);
+ *   scripter.addResponse([nativeTextDelta('Hi'), nativeAgentEnd()]);
  *   await service.sendMessage('Hello');
  */
 export class EventScripter {
-  private queue: AgentEvent[][] = [];
+  private queue: Array<PublicRuntimeEvent[] | EventStreamFactory> = [];
   readonly spy: ReturnType<typeof vi.spyOn>;
 
-  constructor(service: { runtime: { run: (...args: any[]) => AsyncGenerator<AgentEvent> } }) {
+  constructor(service: { runtime: { run: (...args: any[]) => AsyncGenerator<PublicRuntimeEvent> } }) {
     this.spy = vi.spyOn(service.runtime, 'run').mockImplementation(() => this.generator());
   }
 
-  addResponse(events: AgentEvent[]): this {
+  addResponse(events: PublicRuntimeEvent[]): this {
     this.queue.push(events);
     return this;
   }
 
-  setResponses(events: AgentEvent[][]): void {
+  addStream(factory: EventStreamFactory): this {
+    this.queue.push(factory);
+    return this;
+  }
+
+  setResponses(events: PublicRuntimeEvent[][]): void {
     this.queue = [...events];
   }
 
@@ -98,8 +124,12 @@ export class EventScripter {
     this.spy.mockRestore();
   }
 
-  private async *generator(): AsyncGenerator<AgentEvent> {
-    const response = this.queue.shift() ?? [{ type: 'done', stopReason: 'stop' }];
+  private async *generator(): AsyncGenerator<PublicRuntimeEvent> {
+    const response = this.queue.shift() ?? nativeAssistantLifecycle();
+    if (typeof response === 'function') {
+      yield* response();
+      return;
+    }
     for (const event of response) {
       yield event;
     }

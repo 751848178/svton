@@ -1,4 +1,4 @@
-import type { AgentEvent } from './types';
+import type { SvtonCapabilityEvent } from './types';
 import type { ToolCall, ToolResult } from '../tool/types';
 import { waitForToolApproval, type PendingApprovalMap } from './tool-approval-wait.utils';
 
@@ -19,7 +19,7 @@ export async function* requestUserApproval(
   signal?: AbortSignal,
   decorateResult?: ToolResultDecorator,
   metadata?: Record<string, unknown>,
-): AsyncGenerator<AgentEvent, ToolResult | null> {
+): AsyncGenerator<SvtonCapabilityEvent, ToolResult | null> {
   const approval = waitForToolApproval(pendingApprovals, call, signal);
   if (!signal?.aborted) {
     yield metadata
@@ -31,18 +31,15 @@ export async function* requestUserApproval(
   if (approved) return null;
   const errorResult = createErrorResult(call.id, signal?.aborted ? RUN_ABORTED_OUTPUT : USER_REJECTED_OUTPUT);
   const result = decorateResult ? decorateResult(errorResult) : errorResult;
-  yield { type: 'tool_call_end', result };
   return result;
 }
 
-export async function* stopIfRunAborted(
+export function readRunAbortResult(
   call: ToolCall,
   signal?: AbortSignal,
-): AsyncGenerator<AgentEvent, ToolResult | null> {
+): ToolResult | null {
   if (!signal?.aborted) return null;
-  const result = createErrorResult(call.id, RUN_ABORTED_OUTPUT);
-  yield { type: 'tool_call_end', result };
-  return result;
+  return createErrorResult(call.id, RUN_ABORTED_OUTPUT);
 }
 
 function createErrorResult(callId: string, output: string): ToolResult {

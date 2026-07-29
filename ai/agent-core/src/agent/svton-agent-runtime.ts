@@ -3,7 +3,7 @@
  * live in runtime-*, approval-gate, compactor, and boundary utility modules. */
 import { Agent, type AgentMessage } from '@earendil-works/pi-agent-core';
 import type { Models, Model, UserMessage } from '@earendil-works/pi-ai';
-import type { ReasoningEffort, TokenUsage } from '../provider/types';
+import type { ReasoningEffort } from '../provider/types';
 import type { ToolRegistry } from '../tool/registry';
 import type { PermissionManager } from '../permission/manager';
 import type { HookManager } from '../hooks/manager';
@@ -16,7 +16,10 @@ import type { SubagentManager } from '../subagent/manager';
 import type { PlanningManager } from '../planning/manager';
 import type { SessionResumeManager } from '../checkpoint/manager';
 import type { IPlatform } from '@svton/agent-platform';
-import type { AgentConfig, AgentEvent, IRuntime, McpServerToolConfig, PendingApproval, RunOptions } from './types';
+import type {
+  AgentConfig, IRuntime, McpServerToolConfig, PendingApproval,
+  PublicRuntimeEvent, RunOptions,
+} from './types';
 import type { AutoReviewerManager } from '../auto-reviewer/manager';
 import type { AgentDefinitionManager } from '../agent-definition/manager';
 import { ToolExecutionService } from './tool-executor';
@@ -29,9 +32,10 @@ import { bridgeMcpTools, composeSystemPrompt, type CapabilityContext } from './r
 import { runOnce } from './runtime-run';
 import { createPostTurnCallback, type PostTurnDeps } from './runtime-lifecycle';
 import { reasoningToThinkingLevel, resolveModelById } from './runtime-helpers';
+import { RuntimeCapabilitySinkService } from './runtime-capability-sink.service';
+import { cancelAgentRun } from './runtime-run-cancellation.utils';
 
 const DEFAULT_MAX_ITERATIONS = 50;
-
 /** Composition root over the Pi `Agent`. */
 export class SvtonAgentRuntime implements IRuntime {
   private readonly models: Models;
@@ -60,7 +64,7 @@ export class SvtonAgentRuntime implements IRuntime {
   private activeSkills: SkillDefinition[] = [];
   private toolExecService: ToolExecutionService;
   private readonly platform: IPlatform;
-  private currentToolSink: ToolEventSink | null = null;
+  private readonly capabilitySink = new RuntimeCapabilitySinkService();
 
   private constructor(config: AgentConfig, platform: IPlatform) {
     this.models = config.models;
@@ -99,7 +103,7 @@ export class SvtonAgentRuntime implements IRuntime {
     rt.agent.state.systemPrompt = rt.systemPrompt;
     return rt;
   }
-  async *run(userMessage: UserMessage['content'], options?: RunOptions): AsyncGenerator<AgentEvent> {
+  async *run(userMessage: UserMessage['content'], options?: RunOptions): AsyncGenerator<PublicRuntimeEvent> {
     yield* runOnce({
       agent: this.agent, toolRegistry: this.toolRegistry, toolExecService: this.toolExecService,
       hookManager: this.hookManager, platform: this.platform, workingDir: this.workingDir,
@@ -107,8 +111,9 @@ export class SvtonAgentRuntime implements IRuntime {
       capabilityContext: this.capabilityContext(), maxIterations: this.maxIterations,
       onActiveSkills: (s) => { this.activeSkills = s; },
       refreshTools: (sink) => this.refreshTools(sink),
+      cancelRun: (signal) => cancelAgentRun(this.agent, this.approvalGate, signal),
       postTurn: createPostTurnCallback(this.postTurnDeps()),
-    }, userMessage, options, (reason, usage) => this.doneEvent(reason, usage as TokenUsage | undefined));
+    }, userMessage, options);
   }
 
   approveToolCall(callId: string): void { this.approvalGate.approveToolCall(callId); }
@@ -116,7 +121,7 @@ export class SvtonAgentRuntime implements IRuntime {
   abort(): void { this.agent.abort(); this.approvalGate.abortPending(); }
   getMessages(): AgentMessage[] { return [...this.agent.state.messages]; }
   setMessages(messages: AgentMessage[]): void { this.agent.state.messages = [...messages]; }
-  reset(): void { this.agent.reset(); this.approvalGate.abortPending(); this.activeSkills = []; this.currentToolSink = null; }
+  reset(): void { this.agent.reset(); this.approvalGate.abortPending(); this.activeSkills = []; this.capabilitySink.reset(); }
   getCanonicalMessages(): AgentMessage[] { return [...this.agent.state.messages]; }
   rollbackCanonicalMessages(index: number): void {
     if (!Number.isInteger(index) || index < 0 || index > this.agent.state.messages.length) throw new RangeError(`Invalid canonical message index: ${index}`);
@@ -160,7 +165,7 @@ export class SvtonAgentRuntime implements IRuntime {
       thinkingLevel: config.reasoningEffort
         ? reasoningToThinkingLevel(config.reasoningEffort) as 'low' | 'medium' | 'high' | 'xhigh'
         : undefined,
-      routeToolEvent: (ev) => this.routeToolEvent(ev),
+      routeToolEvent: (ev) => this.capabilitySink.route(ev),
     });
   }
 
@@ -171,11 +176,10 @@ export class SvtonAgentRuntime implements IRuntime {
     );
   }
 
-  private routeToolEvent(ev: AgentEvent): void { this.currentToolSink?.(ev); }
-
-  private refreshTools(sink: ToolEventSink): void {
-    this.currentToolSink = sink;
-    this.agent.state.tools = rebuildTools(this.toolRegistry, this.toolExecService, (ev) => this.routeToolEvent(ev));
+  private refreshTools(sink: ToolEventSink): () => void {
+    const release = this.capabilitySink.acquire(sink);
+    this.agent.state.tools = rebuildTools(this.toolRegistry, this.toolExecService, (ev) => this.capabilitySink.route(ev));
+    return release;
   }
 
   private capabilityContext(): CapabilityContext {
@@ -192,9 +196,5 @@ export class SvtonAgentRuntime implements IRuntime {
       modelId: this.modelId, resumeManager: this.resumeManager, runtime: this,
       getMessages: () => this.getMessages(),
     };
-  }
-
-  private doneEvent(stopReason: string, usage?: TokenUsage): AgentEvent {
-    return { type: 'done', stopReason, usage: usage ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 } };
   }
 }

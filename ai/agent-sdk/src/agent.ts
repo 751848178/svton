@@ -6,9 +6,9 @@
  */
 
 import type {
-  AgentEvent,
   AgentRuntime,
   AgentCapabilities,
+  PublicRuntimeEvent,
   SkillDefinition,
   ToolRegistry,
 } from '@svton/agent-core';
@@ -47,12 +47,14 @@ export class Agent {
    *
    * ```ts
    * for await (const event of agent.chat('Hello')) {
-   *   if (event.type === 'text_delta') process.stdout.write(event.text);
-   *   if (event.type === 'done') console.log('\nTokens:', event.usage);
+   *   if (event.type === 'message_update'
+   *     && event.assistantMessageEvent.type === 'text_delta') {
+   *     process.stdout.write(event.assistantMessageEvent.delta);
+   *   }
    * }
    * ```
    */
-  async *chat(message: UserMessage['content']): AsyncGenerator<AgentEvent> {
+  async *chat(message: UserMessage['content']): AsyncGenerator<PublicRuntimeEvent> {
     yield* this.runtime.run(message);
   }
 

@@ -12,7 +12,7 @@
  */
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { Model } from '@earendil-works/pi-ai';
-import type { AgentConfig, AgentEvent } from './types';
+import type { AgentConfig, SvtonCapabilityEvent } from './types';
 import type { ToolRegistry } from '../tool/registry';
 import type { ToolExecutionService } from './tool-executor';
 import type { SvtonCompactor } from './svton-compactor';
@@ -34,7 +34,7 @@ export interface PiAgentBuildContext {
   /** Initial Pi thinking level ('low'|'medium'|'high'|'xhigh'); undefined → 'off'. */
   thinkingLevel?: 'low' | 'medium' | 'high' | 'xhigh';
   /** Sink the compactor + tool events route through to consumers. */
-  routeToolEvent: (ev: AgentEvent) => void;
+  routeToolEvent: (ev: SvtonCapabilityEvent) => void;
 }
 
 /**

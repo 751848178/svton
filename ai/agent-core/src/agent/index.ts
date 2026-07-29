@@ -11,7 +11,9 @@
  * in `SvtonCompactor` plugged into Pi's `transformContext`).
  */
 export type {
-  AgentEvent,
+  PublicRuntimeEvent,
+  PiAgentEvent,
+  SvtonCapabilityEvent,
   AgentMode,
   RunOptions,
   AgentConfig,
@@ -23,6 +25,12 @@ export type {
 
 export { SvtonAgentRuntime } from './svton-agent-runtime';
 export { resolveModelById } from './runtime-helpers';
+export {
+  selectNativeToolCall,
+  selectNativeToolUpdate,
+  selectNativeToolResult,
+} from './native-tool-event-selectors.utils';
+export { selectLastAssistantMessage } from './native-message-event-selectors.utils';
 
 /**
  * Legacy alias — the hand-written ReAct loop is gone; this now points at the

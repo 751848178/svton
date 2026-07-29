@@ -12,8 +12,14 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import 'reflect-metadata';
 import { ChatService } from '../src/service/chat.service';
 import { ToolRegistry, SkillManager } from '@svton/agent-core';
-import type { AgentEvent } from '@svton/agent-core';
-import { buildPiAgentConfig, EventScripter, makeBrowserPlatform } from './helpers/pi-test-utils';
+import type { PublicRuntimeEvent } from '@svton/agent-core';
+import {
+  buildPiAgentConfig,
+  EventScripter,
+  makeBrowserPlatform,
+  nativeAgentEnd,
+  nativeTextDelta,
+} from './helpers/pi-test-utils';
 
 function buildService() {
   const registry = new ToolRegistry();
@@ -40,15 +46,15 @@ describe('ChatService skill_activated handling', () => {
     const ctx = buildService();
     service = ctx.service;
     await service.init(makeBrowserPlatform(), ctx.config);
-    scripter = new EventScripter(service as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<AgentEvent> } });
+    scripter = new EventScripter(service as unknown as { runtime: { run: (...args: any[]) => AsyncGenerator<PublicRuntimeEvent> } });
   });
 
   it('sets activeSkills on the assistant message when a skill matches', async () => {
     // Script the skill-activation signal the runtime emits when a skill matches.
     scripter.addResponse([
       { type: 'skill_activated', skills: ['code-review'] },
-      { type: 'text_delta', text: 'reviewing' },
-      { type: 'done', stopReason: 'stop' },
+      nativeTextDelta('reviewing'),
+      nativeAgentEnd(),
     ]);
 
     await service.sendMessage('请帮我做代码审查');
@@ -60,8 +66,8 @@ describe('ChatService skill_activated handling', () => {
 
   it('leaves activeSkills undefined when no skill matches', async () => {
     scripter.addResponse([
-      { type: 'text_delta', text: 'hi' },
-      { type: 'done', stopReason: 'stop' },
+      nativeTextDelta('hi'),
+      nativeAgentEnd(),
     ]);
 
     await service.sendMessage('what is 2+2?');

@@ -38,6 +38,7 @@ import {
   fauxToolCall,
   fauxThinking,
   type FauxProviderHandle,
+  type RegisterFauxProviderOptions,
   type FauxResponseStep,
   type Model,
 } from '@earendil-works/pi-ai';
@@ -45,6 +46,17 @@ import { FakeClock, SequentialIdGenerator } from '../../src/utils/clock';
 
 export { FakeClock, SequentialIdGenerator };
 export { fauxAssistantMessage, fauxText, fauxToolCall, fauxThinking };
+export {
+  nativeAssistantLifecycle,
+  nativeAgentEnd,
+  nativeError,
+  nativeTextDelta,
+  nativeThinkingDelta,
+  nativeToolEnd,
+  nativeToolStart,
+  nativeToolUpdate,
+  nativeTurnBoundary,
+} from './native-events';
 
 // ============================================================
 // Storage
@@ -222,12 +234,16 @@ export interface MockModelsHandle {
  * size so text content streams as a single delta (preserving the legacy
  * runtime tests' exact-`text_delta` assertions).
  */
-export function createMockModels(modelId = 'test-model'): MockModelsHandle {
+export function createMockModels(
+  modelId = 'test-model',
+  streamOptions: Pick<RegisterFauxProviderOptions, 'tokenSize' | 'tokensPerSecond'> = {},
+): MockModelsHandle {
   const faux = fauxProvider({
     api: 'openai-responses',
     provider: 'openai',
     models: [{ id: modelId }],
     tokenSize: { min: 1_000_000, max: 1_000_000 },
+    ...streamOptions,
   });
   const models = createModels();
   models.setProvider(faux.provider);

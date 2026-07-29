@@ -2,7 +2,7 @@
  * React integration types — self-contained, no dependency on agent-client.
  */
 
-import type { ToolResult, TokenUsage } from '@svton/agent-core';
+import type { ToolResult } from '@svton/agent-core';
 
 // ============================================================
 // Chat Status

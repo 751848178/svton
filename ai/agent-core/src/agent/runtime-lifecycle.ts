@@ -3,10 +3,9 @@
  * "reattach memory extraction, planning, checkpoint and resume to explicit Pi
  * lifecycle points").
  *
- * The old runtime fired these from an internal post-turn block. Pi now owns the
- * turn; `runOnce` calls {@link runPostTurnHooks} after the terminal `done`
- * event. Both hooks are fire-and-forget and swallow their own errors so a
- * non-fatal lifecycle failure can never break the next turn.
+ * Pi owns the turn; `runOnce` awaits these hooks from the native `agent_end`
+ * listener. Each hook handles its own non-fatal failure so listener settlement
+ * includes the work without letting lifecycle failures break the next turn.
  *
  *   - **memory extraction**: `memoryManager.extractFromConversation(...)` over
  *     the post-turn transcript, driven through pi-ai `models.streamSimple`
@@ -19,6 +18,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { MemoryManager } from '../memory/manager';
 import type { SessionResumeManager } from '../checkpoint/manager';
 import type { SvtonAgentRuntime } from './svton-agent-runtime';
+import { logger } from '../utils/logger';
 
 /** pi-ai `streamSimple`-shaped adapter satisfying `extractFromConversation`. */
 interface ChatLikeProvider {
@@ -38,50 +38,70 @@ export interface PostTurnDeps {
 }
 
 /**
- * Build the `(stopReason, sessionId)` callback `runOnce` invokes after the
- * terminal `done` event. Keeps the composition root free of lifecycle detail.
+ * Build the awaited callback `runOnce` invokes from native `agent_end`.
  */
-export function createPostTurnCallback(deps: PostTurnDeps): (stopReason: string, sessionId: string) => void {
-  return (stopReason, sessionId) => runPostTurnHooks(deps, stopReason, sessionId);
+export function createPostTurnCallback(
+  deps: PostTurnDeps,
+): (stopReason: string, sessionId: string) => Promise<void> {
+  return async (stopReason, sessionId) => runPostTurnHooks(deps, stopReason, sessionId);
 }
 
 /**
- * Run memory extraction + checkpoint after a turn settles. Fire-and-forget:
- * both hooks catch internally; rejection of the returned promise is impossible
- * unless `getMessages()` itself throws (which would indicate a deeper fault).
+ * Run memory extraction + checkpoint as part of awaited turn settlement.
+ * Failures are explicitly logged and contained inside this lifecycle boundary.
  */
-export function runPostTurnHooks(
+export async function runPostTurnHooks(
   deps: PostTurnDeps,
   stopReason: string,
   sessionId: string,
-): void {
+): Promise<void> {
   if (deps.memoryManager && deps.models && deps.model) {
-    extractMemory(deps.memoryManager, deps.models, deps.model, deps.modelId, deps.getMessages());
+    await extractMemory(
+      deps.memoryManager,
+      deps.models,
+      deps.model,
+      deps.modelId,
+      readMessages(deps),
+    );
   }
   if (deps.resumeManager && stopReason !== 'aborted') {
-    deps.resumeManager.checkpoint(sessionId, deps.runtime).catch(() => {});
+    try {
+      await deps.resumeManager.checkpoint(sessionId, deps.runtime);
+    } catch (error) {
+      logger.warn('Runtime', 'Post-turn checkpoint failed', { error: String(error), sessionId });
+    }
   }
 }
 
 /**
  * Reattach the legacy post-turn memory extraction. Builds a pi-ai-backed chat
- * adapter (the deleted `IProvider.chat` is replaced by `models.streamSimple`)
- * and feeds the post-turn transcript. Non-fatal — extraction failure is logged
- * and swallowed (matches the legacy `.catch(() => {})` contract).
+ * adapter and feeds the post-turn transcript. Extraction failures are logged
+ * and contained so checkpoint settlement still runs.
  */
-function extractMemory(
+async function extractMemory(
   memoryManager: MemoryManager,
   models: Models,
   model: Model<any>,
   modelId: string,
   messages: AgentMessage[],
-): void {
+): Promise<void> {
   const convMessages = toExtractionMessages(messages);
   if (convMessages.length < 4) return;
   const provider = toChatLikeProvider(models, model);
-  memoryManager
-    .extractFromConversation(convMessages, provider, modelId)
-    .catch(() => { /* non-fatal — legacy contract */ });
+  try {
+    await memoryManager.extractFromConversation(convMessages, provider, modelId);
+  } catch (error) {
+    logger.warn('Runtime', 'Post-turn memory extraction failed', { error: String(error) });
+  }
+}
+
+function readMessages(deps: PostTurnDeps): AgentMessage[] {
+  try {
+    return deps.getMessages();
+  } catch (error) {
+    logger.warn('Runtime', 'Post-turn message snapshot failed', { error: String(error) });
+    return [];
+  }
 }
 
 /** Project canonical Pi state into the plain text shape memory extraction owns. */

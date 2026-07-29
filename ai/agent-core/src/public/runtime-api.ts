@@ -4,7 +4,9 @@ export type {
   ReasoningEffort,
 } from '../provider/types';
 export type {
-  AgentEvent,
+  PublicRuntimeEvent,
+  PiAgentEvent,
+  SvtonCapabilityEvent,
   AgentMode,
   RunOptions,
   AgentConfig,
@@ -20,6 +22,12 @@ export {
   resolveModelById,
   reasoningToThinkingLevel,
 } from '../agent/runtime-helpers';
+export {
+  selectNativeToolCall,
+  selectNativeToolUpdate,
+  selectNativeToolResult,
+} from '../agent/native-tool-event-selectors.utils';
+export { selectLastAssistantMessage } from '../agent/native-message-event-selectors.utils';
 export type {
   SerializedRuntime,
   CheckpointMeta,

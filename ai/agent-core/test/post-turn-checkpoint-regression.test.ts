@@ -2,14 +2,12 @@
  * Regression: the post-turn checkpoint must run.
  *
  * Bug found via the agent-web real browser E2E (W9 refresh-resume): the Pi
- * migration placed `postTurn` (memory extraction + checkpoint) AFTER the
- * terminal `yield doneEvent` in `runtime-run.ts`. The ChatService consumer
- * breaks out of the generator on `done`, so code after the yield never ran —
- * checkpoints were NEVER persisted and session resume was silently broken.
+ * migration once placed `postTurn` after its terminal compatibility event.
+ * Consumers could stop iteration at that point, so code after the yield never
+ * ran and session checkpoints were silently skipped.
  *
  * This test drives a REAL `SvtonAgentRuntime` turn (not a mock) and asserts the
- * checkpoint is written to storage afterward, locking in the fix that runs
- * `postTurn` BEFORE yielding `done`.
+ * checkpoint is written to storage before the native generator settles.
  */
 import { describe, it, expect } from 'vitest';
 import { SvtonAgentRuntime, SessionResumeManager, ToolRegistry } from '@svton/agent-core';
@@ -57,7 +55,7 @@ describe('post-turn checkpoint regression (real runtime turn)', () => {
     const runtime = await SvtonAgentRuntime.createAsync(config as never, platform);
     await collectEvents(runtime.run('hi', { sessionId: 'sess-err' })).catch(() => {});
     // An error turn must still checkpoint (stopReason !== 'aborted'); the fix
-    // guarantees postTurn runs before the terminal done regardless of outcome.
+    // guarantees postTurn settles before generator completion.
     const raw = await storage.get<string>('agent:checkpoint:sess-err');
     expect(raw).toBeTruthy();
   });

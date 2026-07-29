@@ -67,13 +67,16 @@ export function updateToolCallArguments(
 }
 
 export function appendToolCallStart(msg: DisplayMessage, call: ToolCall): DisplayMessage {
-  const isSubagent = isSubagentToolName(call.name);
   const displayCall: DisplayToolCall = {
     id: call.id,
     name: call.name,
     arguments: call.arguments,
     status: 'running',
   };
+  if (msg.toolCalls.some((existing) => existing.id === call.id)) {
+    return upsertExistingToolCall(msg, displayCall);
+  }
+  const isSubagent = isSubagentToolName(call.name);
   const block = isSubagent
     ? { type: 'subagent' as const, agentId: call.id, task: getSubagentTask(call.arguments), status: 'running' as const }
     : { type: 'tool_call' as const, call: displayCall };
@@ -89,6 +92,29 @@ export function appendToolCallStart(msg: DisplayMessage, call: ToolCall): Displa
     toolCalls: [...msg.toolCalls, displayCall],
     blocks,
   };
+}
+
+function upsertExistingToolCall(
+  message: DisplayMessage,
+  call: DisplayToolCall,
+): DisplayMessage {
+  const toolCalls = message.toolCalls.map((existing) =>
+    existing.id === call.id ? { ...existing, ...call } : existing,
+  );
+  const blocks = message.blocks.map((block) => {
+    if (block.type === 'tool_call' && block.call.id === call.id) {
+      return { ...block, call: { ...block.call, ...call } };
+    }
+    if (block.type === 'subagent' && block.agentId === call.id) {
+      return {
+        ...block,
+        task: getSubagentTask(call.arguments),
+        status: 'running' as const,
+      };
+    }
+    return block;
+  });
+  return { ...message, toolCalls, blocks };
 }
 
 export function completeToolCall(msg: DisplayMessage, result: ToolResult): DisplayMessage {
