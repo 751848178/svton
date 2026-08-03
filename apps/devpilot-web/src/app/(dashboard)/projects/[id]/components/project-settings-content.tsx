@@ -11,6 +11,7 @@ import { RepositoryTab } from './tabs/repository-tab';
 import { ResourcesTab } from './tabs/resources-tab';
 import { SettingsTab } from './tabs/settings-tab';
 import { WebhooksTab } from './tabs/webhooks-tab';
+import { ReleasePolicyTab } from './tabs/release-policy-tab';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -51,6 +52,11 @@ export function ProjectSettingsContent({ detail }: { detail: DetailHook }) {
     },
     { key: 'resources', label: t('tabResources'), children: <ResourcesTab detail={detail} /> },
     { key: 'webhooks', label: t('tabWebhooks'), children: <WebhooksTab detail={detail} /> },
+    {
+      key: 'release-policy',
+      label: t('settingsSectionReleasePolicy'),
+      children: <ReleasePolicyTab projectId={projectId} />,
+    },
     {
       key: 'general',
       label: t('settingsSectionGeneral'),

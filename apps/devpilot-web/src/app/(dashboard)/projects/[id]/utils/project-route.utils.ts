@@ -1,13 +1,20 @@
 import type { ReleaseOrderStep } from '../types/release-order.types';
 
 export type DeliveryView = 'releases' | 'environment-versions' | 'deployments';
-export type SettingsSection = 'repository' | 'environments' | 'resources' | 'webhooks' | 'general';
+export type SettingsSection =
+  | 'repository'
+  | 'environments'
+  | 'resources'
+  | 'webhooks'
+  | 'release-policy'
+  | 'general';
 
 const SETTINGS_TABS: Record<string, SettingsSection> = {
   repository: 'repository',
   environments: 'environments',
   resources: 'resources',
   webhooks: 'webhooks',
+  'release-policy': 'release-policy',
   settings: 'general',
 };
 

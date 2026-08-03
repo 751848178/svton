@@ -45,8 +45,8 @@
 | F402 | done    | 接通 M01-M05 Commit/Build 真实能力组。                                                                  | Commit/build provider adapters。                           | 正/负/新鲜度证据；缺失 Provider 不可用。                                                   |
 | F403 | done    | 接通 M06-M09 Deploy 真实能力组。                                                                        | Config/Secret/resource/connectivity/migration adapters。   | 环境归属、脱敏、过期证据测试。                                                             |
 | F404 | done    | 接通 M10-M15 Promote 真实能力组。                                                                       | Approval/DNS/TLS/HTTP/observability/recovery adapters。    | 业务验证只作证据；技术门禁真实。                                                           |
-| F405 | active  | 完成标准发布策略；金丝雀/蓝绿/自动放量 fail closed。                                                    | Release policy/capability。                                | 标准闭环；高级策略显示具体不可执行原因。                                                   |
-| F406 | pending | 收敛兼容 backfill/archive 和新链路，移除新路径 branch-pull/build-on-deploy。                            | Migration/compat/read adapters。                           | 历史项目/环境/运行/日志保留；任意输入被拒绝。                                              |
+| F405 | done    | 完成标准发布策略；金丝雀/蓝绿/自动放量 fail closed。                                                    | Release policy/capability。                                | 不可变 R1、Production 冻结和高级策略具体拒绝原因已由 DB/API/browser 证明。                 |
+| F406 | active  | 收敛兼容 backfill/archive 和新链路，移除新路径 branch-pull/build-on-deploy。                            | Migration/compat/read adapters。                           | 历史项目/环境/运行/日志保留；任意输入被拒绝。                                              |
 | F407 | pending | 完成中英文文案、术语和用户/迁移文档。                                                                   | messages 与 docs。                                         | zh/en parity；发布单/发布版本号术语审查。                                                  |
 | F408 | pending | 用隔离 Docker 数据完成真实主链浏览器 E2E。                                                              | Disposable compose/runtime/browser evidence。              | 接入→设置→发布→多构建→重复预发→生产→回退。                                                 |
 | F409 | pending | 完成 ACL、并发、失败恢复、兼容、Provider 不可用和脱敏负向 E2E。                                         | Cross-layer tests。                                        | API/DB/browser 负向证据。                                                                  |
@@ -99,3 +99,5 @@
 - 2026-08-03: F404 开始；接通生产审批、DNS/TLS/HTTP、可观测性、稳定制品恢复与策略能力证据，业务人工验证只留证不替代技术门禁。
 - 2026-08-03: F404 完成；Production 审批、Site/DNS/TLS/路由、工作负载/HTTP、日志/指标/Trace/告警、上一稳定版本、恢复兼容和发布证据分别由独立 Provider 评估。正/负/过期/缺失回归通过；真实数据中 D13 因缺变更窗口/冻结期 Provider 为未检查，P03 为需人工，P10 发布证据链已检查，其余缺失技术 Provider 保持不可用，M15 无流量/中止/回切闭环时永不开放。
 - 2026-08-03: F405 开始；固化标准发布为唯一真实可执行策略，并让金丝雀、蓝绿和自动放量通过服务端 Capability API 返回具体不可执行原因。
+- 2026-08-03: F405 完成；新增项目级不可变 ReleasePolicyRevision 与 current 指针，串行化 CAS 并发只允许一个旧指针写入。标准策略被 Production v2 快照冻结并参与审批 inputHash；金丝雀、蓝绿和自动放量在服务端持久化前因缺真实流量、双工作负载、指标、暂停/终止和回滚 Provider 返回 422。真实浏览器创建 R1、显示三种能力未就绪原因并在 Production 预览中读取同一策略哈希，MySQL 审计为 immutable。
+- 2026-08-03: F406 开始；盘点历史 backfill/archive/read adapter 与新 delivery path，证明新路径不再接受 branch-pull/build-on-deploy，并保留历史项目、环境、运行和日志。

@@ -43,6 +43,7 @@ describe('project route compatibility', () => {
     );
     expect(readDeliveryView(new URLSearchParams('view=unknown'))).toBe('releases');
     expect(readSettingsSection(new URLSearchParams('section=resources'))).toBe('resources');
+    expect(readSettingsSection(new URLSearchParams('section=release-policy'))).toBe('release-policy');
     expect(readSettingsSection(new URLSearchParams('section=unknown'))).toBe('repository');
   });
 

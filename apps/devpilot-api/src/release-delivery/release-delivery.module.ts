@@ -39,6 +39,10 @@ import { ReleaseGateIngressCapabilityProvider } from "./release-gate-ingress-cap
 import { ReleaseGatePromotionCapabilityProvider } from "./release-gate-promotion-capability.provider";
 import { ReleaseGateRecoveryStrategyProvider } from "./release-gate-recovery-strategy.provider";
 import { ReleaseGateObservabilityCapabilityProvider } from "./release-gate-observability-capability.provider";
+import { ReleasePolicyController } from "./release-policy.controller";
+import { ReleasePolicyRepository } from "./release-policy.repository";
+import { ReleasePolicyService } from "./release-policy.service";
+import { ReleaseStrategyCapabilityService } from "./release-strategy-capability.service";
 
 @Module({
   imports: [PrismaModule, ControlAccessPolicyModule, RepositoryAnalysisModule],
@@ -46,6 +50,7 @@ import { ReleaseGateObservabilityCapabilityProvider } from "./release-gate-obser
     ReleaseOrderController,
     EnvironmentVersionController,
     ReleaseGateCatalogController,
+    ReleasePolicyController,
   ],
   providers: [
     ReleaseOrderService,
@@ -60,6 +65,9 @@ import { ReleaseGateObservabilityCapabilityProvider } from "./release-gate-obser
     ReleaseStagingService,
     ReleaseProductionRepository,
     ReleaseProductionService,
+    ReleasePolicyRepository,
+    ReleasePolicyService,
+    ReleaseStrategyCapabilityService,
     EnvironmentVersionRepository,
     EnvironmentVersionService,
     EnvironmentVersionReadRepository,

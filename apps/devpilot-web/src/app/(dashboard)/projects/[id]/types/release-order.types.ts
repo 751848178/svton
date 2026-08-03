@@ -93,7 +93,7 @@ export interface ReleaseStagingDeploymentListResponse {
 }
 
 export interface ProductionReleaseSnapshot {
-  version: 1;
+  version: 2;
   projectId: string;
   releaseOrder: { id: string; releaseVersion: string };
   environment: { id: string; key: string; name: string; baselineRole: 'production' };
@@ -112,6 +112,14 @@ export interface ProductionReleaseSnapshot {
     resourceSnapshot: unknown;
     routeSnapshot: unknown;
     policySnapshot: unknown;
+  };
+  releasePolicy: {
+    revisionId: string | null;
+    revision: number;
+    strategy: 'standard';
+    requireProductionApproval: true;
+    snapshotHash: string;
+    synthetic: boolean;
   };
 }
 

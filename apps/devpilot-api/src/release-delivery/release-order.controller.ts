@@ -143,6 +143,7 @@ export class ReleaseOrderController {
       projectId,
       releaseOrderId,
       query.manifestId,
+      query.strategy,
     );
   }
 

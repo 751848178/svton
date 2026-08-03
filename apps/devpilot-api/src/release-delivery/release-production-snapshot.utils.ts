@@ -51,8 +51,9 @@ export function productionPreview(context: any): ProductionReleasePreview {
     );
   }
   const revision = environment.currentConfigRevision;
+  const releasePolicy = resolveReleasePolicy(context);
   const snapshot: ProductionReleaseSnapshot = {
-    version: 1,
+    version: 2,
     projectId: context.order.projectId,
     releaseOrder: {
       id: context.order.id,
@@ -84,10 +85,46 @@ export function productionPreview(context: any): ProductionReleasePreview {
       routeSnapshot: revision.routeSnapshot ?? {},
       policySnapshot: revision.policyReferences ?? [],
     },
+    releasePolicy,
   };
   return {
     snapshot,
     inputHash: stableHash({ scope: "production-release", snapshot }),
+  };
+}
+
+function resolveReleasePolicy(context: any) {
+  if (context.strategy !== undefined && context.strategy !== "standard") {
+    throw new UnprocessableEntityException(
+      "Production 只允许需要审批的标准发布策略",
+    );
+  }
+  const policy = context.releasePolicy;
+  if (!policy) {
+    return {
+      revisionId: null,
+      revision: 0,
+      strategy: "standard" as const,
+      requireProductionApproval: true as const,
+      snapshotHash: "default-standard-policy-v1",
+      synthetic: true,
+    };
+  }
+  if (
+    policy.strategy !== "standard" ||
+    policy.requireProductionApproval !== true
+  ) {
+    throw new UnprocessableEntityException(
+      "Production 只允许需要审批的标准发布策略",
+    );
+  }
+  return {
+    revisionId: policy.id,
+    revision: policy.revision,
+    strategy: "standard" as const,
+    requireProductionApproval: true as const,
+    snapshotHash: policy.snapshotHash,
+    synthetic: false,
   };
 }
 

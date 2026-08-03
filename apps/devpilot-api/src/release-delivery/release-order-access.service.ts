@@ -66,6 +66,17 @@ export class ReleaseOrderAccessService {
     });
   }
 
+  assertManagePolicy(input: ReleaseOrderAccessInput) {
+    return this.access.assertCanWrite({
+      ...input,
+      category: "release",
+      action: "project.release_policy.revision.create",
+      targetType: "project",
+      targetId: input.projectId,
+      risk: "medium",
+    });
+  }
+
   assertDeployEnvironment(input: ReleaseOrderAccessInput) {
     return this.access.assertCanWrite({
       ...input,

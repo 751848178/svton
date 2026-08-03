@@ -41,6 +41,14 @@ function context() {
         manifestDigest: "sha256:known",
       },
     },
+    strategy: "standard",
+    releasePolicy: {
+      id: "policy-1",
+      revision: 4,
+      strategy: "standard",
+      requireProductionApproval: true,
+      snapshotHash: "policy-hash",
+    },
   };
 }
 
@@ -56,7 +64,17 @@ describe("productionPreview", () => {
       manifest: { id: "manifest-1", digest: "sha256:known" },
       stagingProof: { deploymentRunId: "deployment-1" },
       config: { revisionId: "config-1", snapshotHash: "config-hash" },
+      releasePolicy: { revisionId: "policy-1", revision: 4, strategy: "standard" },
     });
+  });
+
+  it("changes the approval hash when the immutable release policy changes", () => {
+    const original = context();
+    const changed = context();
+    changed.releasePolicy.snapshotHash = "new-policy-hash";
+    expect(productionPreview(changed).inputHash).not.toBe(
+      productionPreview(original).inputHash,
+    );
   });
 
   it("changes the approval hash when the frozen config revision changes", () => {

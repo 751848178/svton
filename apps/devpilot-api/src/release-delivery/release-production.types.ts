@@ -1,5 +1,5 @@
 export interface ProductionReleaseSnapshot {
-  version: 1;
+  version: 2;
   projectId: string;
   releaseOrder: { id: string; releaseVersion: string };
   environment: {
@@ -27,6 +27,14 @@ export interface ProductionReleaseSnapshot {
     resourceSnapshot: unknown;
     routeSnapshot: unknown;
     policySnapshot: unknown;
+  };
+  releasePolicy: {
+    revisionId: string | null;
+    revision: number;
+    strategy: "standard";
+    requireProductionApproval: true;
+    snapshotHash: string;
+    synthetic: boolean;
   };
 }
 
