@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F389 — ACL-filtered project directory server read model.
+- Active slice: F390 — project directory Web and three-step existing-repository intake.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -36,7 +36,8 @@
 | F386      | done    | Isolated baseline, TODO/progress/migration contract and baseline verification complete.      |
 | F387      | done    | Additive intake/identity/finalization/config revision schema and preflight reports complete. |
 | F388      | done    | Transactional intake API, duplicate guard, idempotent finalize and recovery complete.        |
-| F389-F391 | pending | Project directory, three-step Web and project IA.                                            |
+| F389      | done    | ACL-filtered directory read model, search/filter/baseline/Production/activity summary complete. |
+| F390-F391 | pending | Three-step Web and project IA.                                                                  |
 | F392-F398 | pending | ReleaseOrder, build/Manifest, four steps, exact Staging/Production and environment versions. |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
@@ -58,7 +59,10 @@
 - F388 focused unit/regression tests: `/tmp/codex-tool-runs/svton/f388-unit-tests-final-20260803-123710.log` — 8 suites, 39 tests passed.
 - F388 real MySQL transaction acceptance: `/tmp/codex-tool-runs/svton/f388-finalization-integration-acceptance-20260803-123802.log` — 7 integration tests passed, including rollback/retry and concurrent finalize.
 - F388 API gates: `/tmp/codex-tool-runs/svton/f388-api-typecheck-replay-20260803-124121.log`, `/tmp/codex-tool-runs/svton/f388-api-build-replay-20260803-124121.log`.
+- F389 unit/regression tests: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-unit-tests-search-summary.log` — 3 suites, 12 tests passed.
+- F389 real MySQL directory isolation/search: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-mysql-search-integration-retry.log` — 2 integration tests passed; disposable container removed.
+- F389 API gates and graph: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-api-typecheck-search-summary.log`, `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-api-build.log`, `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-codegraph.log`.
 
 ## Next
 
-Implement and verify F389 ACL-filtered project directory read model without waiting for user confirmation.
+Implement and verify F390 project directory Web and three-step intake without waiting for user confirmation.

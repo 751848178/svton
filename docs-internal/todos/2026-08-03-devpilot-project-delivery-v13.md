@@ -29,8 +29,8 @@
 | F386 | done    | 建立独立 worktree/分支、集成两个授权提交、登记 V13 事实源/迁移/任务板并运行基线验证。                   | Git、V13 文档、现有 API/Web 基线；不改产品行为。           | `7d9d580c` → `724abfef`；Prisma/build/type-check/35 tests 通过；主工作区 checkpoint 未变。 |
 | F387 | done    | 增加项目生命周期、仓库规范身份、finalize、环境 baseline role/config revision 的增量 schema 与冲突报告。 | Prisma 与项目/环境迁移工具。                               | 空库/升级 fixture 迁移、Prisma/type-check、14 tests 通过；历史状态/歧义环境保持 NULL。     |
 | F388 | done    | 实现 draft→analysis→review→幂等 finalize 后端事务与恢复。                                               | project-intake、repository-analysis、project-environment。 | 39 unit + 7 real-MySQL integration tests、API build/type-check 通过。                      |
-| F389 | pending | 提供 ACL 过滤的项目目录服务端读模型。                                                                   | Project query/read-model 与 DTO。                          | 搜索、运行/配置状态、环境/Production/活动 API 测试。                                       |
-| F390 | pending | 实现 `/projects` 目录和三步 `/projects/create`，兼容 `/projects/import`。                               | Projects Web routes/components/hooks。                     | Web 单测和浏览器接入闭环。                                                                 |
+| F389 | done    | 提供 ACL 过滤的项目目录服务端读模型。                                                                   | Project query/read-model 与 DTO。                          | 12 unit/regression + 2 real-MySQL tests；API type-check/build 通过。                         |
+| F390 | in_progress | 实现 `/projects` 目录和三步 `/projects/create`，兼容 `/projects/import`。                               | Projects Web routes/components/hooks。                     | Web 单测和浏览器接入闭环。                                                                 |
 | F391 | pending | 建立 delivery/settings 路由宿主和旧 tab/query 深链适配。                                                | Project detail routes/navigation。                         | 路由/深链回归；一级只保留发布单和环境版本。                                                |
 | F392 | pending | 增加 ReleaseOrder、BuildRun、ArtifactManifest、ReleaseRun、EnvironmentVersion 与 legacy nullable 关系。 | Prisma/release domain migration。                          | 新库/升级库迁移；legacy/unverified 报告。                                                  |
 | F393 | pending | 实现发布单列表/创建读写模型；创建只含版本号与说明且不自动构建。                                         | ReleaseOrder API/Web。                                     | 唯一性、ACL、幂等、零 BuildRun 证据。                                                      |
@@ -66,3 +66,6 @@
 - 2026-08-03: F387 完成；新增三张增量表、nullable lifecycle/baseline/config revision 关系和只读迁移预检。真实 MySQL 空库全迁移及含 `prod`/`production` 历史 fixture 的升级迁移均通过，历史项目未被默认为 DRAFT/READY。
 - 2026-08-03: F388 开始；新增 intake API 编排层，复用真实 repository-analysis 能力，并把 finalize、幂等记录与失败恢复放入独立事务职责。
 - 2026-08-03: F388 完成；新 draft 无隐式环境，intake API 复用真实 connect/run/retry/review，finalize 以 Serializable/CAS 事务锁定仓库身份和 Staging/Production。重复、并发、部分回滚恢复、跨团队、重复仓库及历史环境保留均在真实 MySQL 验证通过。
+- 2026-08-03: F389 开始；目录查询先固定 team scope，再执行逐项目 ACL，运行、配置、Production、域名和活动均只从项目关系读取。
+- 2026-08-03: F389 完成；新增 ACL 过滤目录读模型，支持名称/仓库/域名搜索、运行/配置筛选、精确 Staging/Production 基线、线上/待配置摘要、最近活动排序，真实 MySQL 证明团队/归档/嵌套运行隔离。
+- 2026-08-03: F390 开始；Web 项目目录改用新读模型，创建与接入入口收敛为生成新项目和三步接入已有项目，同时保留旧 `/projects/import` 深链兼容。

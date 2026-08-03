@@ -14,6 +14,7 @@ import { RegistryModule } from './registry/registry.module';
 import { GeneratorModule } from './generator/generator.module';
 import { ProjectModule } from './project/project.module';
 import { ProjectIntakeModule } from './project-intake/project-intake.module';
+import { ProjectDirectoryModule } from './project-directory/project-directory.module';
 import { ServerModule } from './server/server.module';
 import { ProxyConfigModule } from './proxy-config/proxy-config.module';
 import { CDNConfigModule } from './cdn-config/cdn-config.module';
@@ -143,6 +144,9 @@ import { useAuthzConfig } from './authz.config';
 
     // 项目接入编排与原子基线确认
     ProjectIntakeModule,
+
+    // 项目目录读模型
+    ProjectDirectoryModule,
 
     // 项目环境模块
     ProjectEnvironmentModule,
