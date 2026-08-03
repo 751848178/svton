@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Request,
   UseGuards,
 } from "@nestjs/common";
@@ -11,8 +12,13 @@ import { AuthzGuard, Roles } from "@svton/nestjs-authz";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CreateReleaseOrderDto } from "./dto/release-order.dto";
 import { DeployReleaseToStagingDto } from "./dto/release-staging.dto";
+import {
+  ConfirmProductionReleaseDto,
+  ProductionReleasePreviewDto,
+} from "./dto/release-production.dto";
 import { ReleaseBuildService } from "./release-build.service";
 import { ReleaseStagingService } from "./release-staging.service";
+import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderService } from "./release-order.service";
 
@@ -29,6 +35,7 @@ export class ReleaseOrderController {
     private readonly orders: ReleaseOrderService,
     private readonly builds: ReleaseBuildService,
     private readonly staging: ReleaseStagingService,
+    private readonly production: ReleaseProductionService,
     private readonly access: ReleaseOrderAccessService,
   ) {}
 
@@ -110,6 +117,49 @@ export class ReleaseOrderController {
       projectId,
       releaseOrderId,
       manifestId: dto.manifestId,
+    });
+  }
+
+  @Get(":releaseOrderId/production-releases")
+  async listProduction(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("releaseOrderId") releaseOrderId: string,
+  ) {
+    await this.access.assertRead(this.scope(req, projectId));
+    return this.production.list(req.teamId, projectId, releaseOrderId);
+  }
+
+  @Get(":releaseOrderId/production-preview")
+  async previewProduction(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("releaseOrderId") releaseOrderId: string,
+    @Query() query: ProductionReleasePreviewDto,
+  ) {
+    await this.access.assertRead(this.scope(req, projectId));
+    return this.production.preview(
+      req.teamId,
+      projectId,
+      releaseOrderId,
+      query.manifestId,
+    );
+  }
+
+  @Post(":releaseOrderId/production-releases")
+  async confirmProduction(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("releaseOrderId") releaseOrderId: string,
+    @Body() dto: ConfirmProductionReleaseDto,
+  ) {
+    await this.access.assertConfirmProduction(this.scope(req, projectId));
+    return this.production.confirm({
+      ...dto,
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId,
+      releaseOrderId,
     });
   }
 

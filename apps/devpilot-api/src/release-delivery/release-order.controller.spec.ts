@@ -4,16 +4,23 @@ describe("ReleaseOrderController", () => {
   const orders = { list: jest.fn(), create: jest.fn(), get: jest.fn() };
   const builds = { list: jest.fn(), build: jest.fn() };
   const staging = { list: jest.fn(), deploy: jest.fn() };
+  const production = {
+    list: jest.fn(),
+    preview: jest.fn(),
+    confirm: jest.fn(),
+  };
   const access = {
     assertRead: jest.fn(),
     assertCreate: jest.fn(),
     assertBuild: jest.fn(),
     assertDeployStaging: jest.fn(),
+    assertConfirmProduction: jest.fn(),
   };
   const controller = new ReleaseOrderController(
     orders as never,
     builds as never,
     staging as never,
+    production as never,
     access as never,
   );
   const request = { teamId: "team-1", user: { id: "user-1" } };
@@ -47,11 +54,7 @@ describe("ReleaseOrderController", () => {
     builds.list.mockResolvedValue({ items: [], total: 0 });
     await controller.listBuilds(request, "project-1", "order-1");
     expect(access.assertRead).toHaveBeenCalled();
-    expect(builds.list).toHaveBeenCalledWith(
-      "team-1",
-      "project-1",
-      "order-1",
-    );
+    expect(builds.list).toHaveBeenCalledWith("team-1", "project-1", "order-1");
   });
 
   it("authorizes a stable release-order detail read", async () => {
@@ -89,5 +92,44 @@ describe("ReleaseOrderController", () => {
       releaseOrderId: "order-1",
       manifestId: "manifest-1",
     });
+  });
+
+  it("authorizes Production preview and confirmation against the nested scope", async () => {
+    const previewDto = { manifestId: "manifest-1" };
+    await controller.previewProduction(
+      request,
+      "project-1",
+      "order-1",
+      previewDto,
+    );
+    expect(access.assertRead).toHaveBeenCalled();
+    expect(production.preview).toHaveBeenCalledWith(
+      "team-1",
+      "project-1",
+      "order-1",
+      "manifest-1",
+    );
+
+    const confirmDto = {
+      manifestId: "manifest-1",
+      expectedInputHash: "a".repeat(64),
+      idempotencyKey: "request-1",
+    };
+    await controller.confirmProduction(
+      request,
+      "project-1",
+      "order-1",
+      confirmDto,
+    );
+    expect(access.assertConfirmProduction).toHaveBeenCalled();
+    expect(production.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        teamId: "team-1",
+        actorId: "user-1",
+        projectId: "project-1",
+        releaseOrderId: "order-1",
+        ...confirmDto,
+      }),
+    );
   });
 });

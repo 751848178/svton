@@ -11,6 +11,8 @@ import { ReleaseBuildExecutorPort } from "./release-build.types";
 import { ReleaseStagingRepository } from "./release-staging.repository";
 import { ReleaseStagingService } from "./release-staging.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
+import { ReleaseProductionRepository } from "./release-production.repository";
+import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderController } from "./release-order.controller";
 import { ReleaseOrderRepository } from "./release-order.repository";
@@ -30,6 +32,8 @@ import { ReleaseOrderService } from "./release-order.service";
     ReleaseBuildService,
     ReleaseStagingRepository,
     ReleaseStagingService,
+    ReleaseProductionRepository,
+    ReleaseProductionService,
     {
       provide: ReleaseBuildExecutorPort,
       useExisting: LocalReleaseBuildExecutorService,
@@ -39,6 +43,11 @@ import { ReleaseOrderService } from "./release-order.service";
       useExisting: LocalReleaseStagingExecutorService,
     },
   ],
-  exports: [ReleaseOrderService, ReleaseBuildService, ReleaseStagingService],
+  exports: [
+    ReleaseOrderService,
+    ReleaseBuildService,
+    ReleaseStagingService,
+    ReleaseProductionService,
+  ],
 })
 export class ReleaseDeliveryModule {}

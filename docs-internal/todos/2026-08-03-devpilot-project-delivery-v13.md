@@ -37,8 +37,8 @@
 | F394 | done    | 实现服务端主分支最新 Commit 构建与独立 BuildRun/Manifest/日志/测试安全证据。                            | Build domain 与 executor port。                            | 真实 MySQL/浏览器证明 5 次独立构建、4 Manifest、失败无 Manifest、精确 Commit、脱敏日志。   |
 | F395 | done    | 实现四步详情、步骤恢复、可访问 tab 与独立日志抽屉。                                                     | Release detail Web。                                       | 深链、键盘/ARIA、刷新恢复、按钮位置和日志抽屉浏览器证据通过。                              |
 | F396 | done    | 按精确 Manifest 重复部署 Staging，禁止隐式构建。                                                        | Deployment manifest command。                              | 两次 DeploymentRun 使用同一 Manifest，BuildRun 保持 5，Git/checkout/build 均为 false。    |
-| F397 | in_progress | 实现 Production 同 Manifest 证明、快照冻结、审批和并发门禁。                                            | ReleaseRun/approval/deployment transaction。               | 漂移、跨项目、未知 Digest、并发和幂等负向测试。                                            |
-| F398 | pending | 实现环境版本 current/history、受控升级和 recovery 回退。                                                | EnvironmentVersion API/Web。                               | 只选可追溯制品；新运行不覆盖历史。                                                         |
+| F397 | done    | 实现 Production 同 Manifest 证明、快照冻结、审批和并发门禁。                                            | ReleaseRun/approval/deployment transaction。               | 真实 MySQL 并发收敛；漂移、跨项目、未知 Digest 负例和浏览器审批闭环通过。                   |
+| F398 | in_progress | 实现环境版本 current/history、受控升级和 recovery 回退。                                                | EnvironmentVersion API/Web。                               | 只选可追溯制品；新运行不覆盖历史。                                                         |
 | F399 | pending | 将仓库、环境配置、资源、Webhook 和设置收敛到 Manage Project。                                           | Settings routes/compat adapters。                          | 普通/专业路径浏览器回归。                                                                  |
 | F400 | pending | 实现环境 key 锁定、配置修订、共享资源/Secret 引用/域名路由/策略治理。                                   | Project environment governance。                           | 服务端权限、审计、无 Secret 明文、漂移测试。                                               |
 | F401 | pending | 建立版本化 51 项目录、统一状态和默认不可用 capability registry。                                        | Release gates schema/service/Web。                         | 10/11/20/10 目录计数；未接 Provider 不通过。                                               |
@@ -83,3 +83,5 @@
 - 2026-08-03: F396 开始；Staging 命令只接受当前发布单内成功 BuildRun 的精确 Manifest，逐次创建新的 DeploymentRun，禁止 checkout、pull 或隐式构建。
 - 2026-08-03: F396 完成；Staging API 按 team/project/order 校验成功 BuildRun 的项目 bundle 和 digest，锁定唯一活动 Staging 基线，每次创建独立非 dry-run DeploymentRun；本地 exact-artifact adapter 先复算存储 digest、拒绝越界 ZIP 路径，再物化到 run 隔离目录。真实浏览器连续两次选择 Build #5 Manifest，数据库为 2 DeploymentRun / 1 distinct Manifest / 5 BuildRun，commandPlan 的 checkout/build 均为 false。
 - 2026-08-03: F397 开始；Production 事务只接受已在 Staging 由 exact-artifact adapter 成功验证的同一 Manifest，冻结环境/配置/资源/路由/策略快照并建立审批、并发与幂等边界。
+- 2026-08-03: F397 完成；Production 预览服务端冻结环境、发布版本号、Build/Commit、Manifest/Digest、当前配置修订及资源/路由/策略快照并生成稳定 inputHash，确认事务在 ReleaseOrder 行锁内建立唯一 ReleaseRun 与 pending OperationApproval。真实 MySQL 证明两个并发相同幂等请求只生成一条运行，配置指针漂移、跨项目制品和未知 Digest 全部拒绝；浏览器仅在生产步骤显式确认六类输入后创建 awaiting_approval 运行。
+- 2026-08-03: F398 开始；环境版本只从已完成、可追溯的精确制品运行追加生成，升级和 recovery 回退创建新运行并以事务更新 current 指针，禁止任意版本/镜像输入和历史覆盖。

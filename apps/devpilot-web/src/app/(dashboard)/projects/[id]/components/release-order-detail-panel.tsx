@@ -16,6 +16,7 @@ import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseOrderBuildStep } from './release-order-build-step';
 import { ReleaseOrderPreflightStep } from './release-order-preflight-step';
 import { ReleaseOrderStagingStep } from './release-order-staging-step';
+import { ReleaseOrderProductionStep } from './release-order-production-step';
 
 interface Props {
   projectId: string;
@@ -33,26 +34,31 @@ export function ReleaseOrderDetailPanel(props: Props) {
 
   useEffect(() => {
     if (!order.detail || rawStep === step) return;
-    router.replace(
-      releaseOrderHref(props.projectId, props.releaseOrderId, step, searchParams),
-      { scroll: false },
-    );
+    router.replace(releaseOrderHref(props.projectId, props.releaseOrderId, step, searchParams), {
+      scroll: false,
+    });
   }, [order.detail, props.projectId, props.releaseOrderId, rawStep, router, searchParams, step]);
 
   if (order.loading) return <LoadingState />;
   if (order.error || !order.detail) {
-    return <ErrorBanner message={order.error || t('releaseOrderDetailUnavailable')} onRetry={order.load} />;
+    return (
+      <ErrorBanner
+        message={order.error || t('releaseOrderDetailUnavailable')}
+        onRetry={order.load}
+      />
+    );
   }
   const detail = order.detail;
-  const changeStep = (next: string) => router.replace(
-    releaseOrderHref(
-      props.projectId,
-      props.releaseOrderId,
-      next as ReleaseOrderStep,
-      searchParams,
-    ),
-    { scroll: false },
-  );
+  const changeStep = (next: string) =>
+    router.replace(
+      releaseOrderHref(
+        props.projectId,
+        props.releaseOrderId,
+        next as ReleaseOrderStep,
+        searchParams,
+      ),
+      { scroll: false },
+    );
   const refresh = async () => {
     await Promise.all([order.load(), props.onOrdersChanged()]);
   };
@@ -99,19 +105,24 @@ export function ReleaseOrderDetailPanel(props: Props) {
                 releaseOrderId={props.releaseOrderId}
                 focusedBuildRunId={buildRunId}
                 onChanged={refresh}
-                onOpenLog={(runId) => router.replace(releaseOrderHref(
-                  props.projectId,
-                  props.releaseOrderId,
-                  'build',
-                  searchParams,
-                  runId,
-                ), { scroll: false })}
-                onCloseLog={() => router.replace(releaseOrderHref(
-                  props.projectId,
-                  props.releaseOrderId,
-                  'build',
-                  searchParams,
-                ), { scroll: false })}
+                onOpenLog={(runId) =>
+                  router.replace(
+                    releaseOrderHref(
+                      props.projectId,
+                      props.releaseOrderId,
+                      'build',
+                      searchParams,
+                      runId,
+                    ),
+                    { scroll: false },
+                  )
+                }
+                onCloseLog={() =>
+                  router.replace(
+                    releaseOrderHref(props.projectId, props.releaseOrderId, 'build', searchParams),
+                    { scroll: false },
+                  )
+                }
               />
             ),
           },
@@ -129,19 +140,16 @@ export function ReleaseOrderDetailPanel(props: Props) {
           {
             key: 'production',
             label: t('releaseStepProduction'),
-            children: <PendingStep title={t('releaseStepProductionTitle')} text={t('releaseStepProductionEmpty')} />,
+            children: (
+              <ReleaseOrderProductionStep
+                projectId={props.projectId}
+                releaseOrderId={props.releaseOrderId}
+                onChanged={refresh}
+              />
+            ),
           },
         ]}
       />
-    </div>
-  );
-}
-
-function PendingStep({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-md border border-dashed p-5">
-      <h3 className="font-semibold">{title}</h3>
-      <p className="mt-2 text-sm text-muted-foreground">{text}</p>
     </div>
   );
 }
