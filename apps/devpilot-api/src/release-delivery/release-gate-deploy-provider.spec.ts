@@ -41,6 +41,16 @@ describe("Deploy release gate providers", () => {
     expect(checks.D12.reasonCode).toBe("backup_environment_mismatch");
   });
 
+  it("accepts a config revision without optional route domains", () => {
+    const context = evidenceContext();
+    context.deploy!.environment!.currentConfigRevision!.routeSnapshot = {};
+
+    expect(evaluate(registry, context).D02).toMatchObject({
+      status: "checked",
+      reasonCode: "config_revision_complete",
+    });
+  });
+
   it("turns expired connectivity, metrics, migration, and backup into unchecked", () => {
     const context = evidenceContext();
     const old = new Date("2026-07-01T00:00:00.000Z");

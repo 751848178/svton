@@ -60,10 +60,11 @@ implements ReleaseGateCapabilityProvider {
     const secrets = arrayRecords(revision.secretReferences);
     const references = arrayRecords(revision.resourceReferences);
     const policies = Array.isArray(revision.policyReferences);
+    const domains = route.domains ?? [];
     const variablesValid = Object.entries(plain)
       .every(([key, value]) => /^[A-Z_][A-Z0-9_]*$/.test(key) && typeof value === "string");
-    const routeValid = Array.isArray(route.domains ?? [])
-      && (route.domains as unknown[]).every((value) => typeof value === "string");
+    const routeValid = Array.isArray(domains)
+      && domains.every((value) => typeof value === "string");
     const resourcesValid = references.every((reference) => {
       const ids = reference.sharedEnvironmentIds;
       const row = context.deploy?.resources.find((item) =>
