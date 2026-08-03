@@ -22,6 +22,7 @@ import { EnvironmentEnvVarsSection } from './environment-env-vars-section';
 import { EnvironmentWriteActions } from './environment-write-actions';
 import { EnvironmentCopyPanel } from './environment-copy-panel';
 import { EnvironmentSyncPanel } from './environment-sync-panel';
+import { EnvironmentConfigGovernanceSection } from './environment-config-governance-section';
 import type { DeploymentRun } from '../types/operations';
 import type { Project, ProjectEnvironment } from '../types';
 
@@ -96,6 +97,11 @@ export function EnvironmentDetailDrawer({
           </>
         ) : null}
         <ResourceCounts environment={rendered} t={t} />
+        <EnvironmentConfigGovernanceSection
+          environment={rendered}
+          project={project}
+          onSaved={handleEnvSaved}
+        />
         <EnvironmentEnvVarsSection
           environment={rendered}
           project={project}

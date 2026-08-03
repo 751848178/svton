@@ -144,7 +144,7 @@ export class ProjectIntakeFinalizationExecutorService {
           lockedAt,
         },
       }));
-    const environments = await this.baselines.ensure(tx, input, lockedAt);
+    const environments = await this.baselines.ensure(tx, input);
 
     const result: ProjectIntakeFinalizationResult = {
       projectId: project.id,

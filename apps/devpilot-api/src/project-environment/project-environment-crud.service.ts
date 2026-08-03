@@ -6,7 +6,7 @@
  * `ProjectEnvironmentService`. Behavior preserved verbatim.
  */
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ProjectEnvironmentRepository } from './project-environment.repository';
 import { ProjectEnvironmentDefaultsService } from './project-environment-defaults.service';
@@ -62,6 +62,16 @@ export class ProjectEnvironmentCrudService {
   async update(teamId: string, id: string, dto: UpdateProjectEnvironmentDto) {
     const existing = await this.get(teamId, id);
     const key = dto.key === undefined ? undefined : normalizeKeyUtil(dto.key);
+    if (key !== undefined && key !== existing.key) {
+      const deployments = await this.repo.findDeploymentRuns({
+        where: { teamId, environmentId: id },
+        select: { id: true },
+        take: 1,
+      });
+      if (existing.identityLockedAt || deployments.length > 0) {
+        throw new BadRequestException('环境已有部署历史，key 已锁定');
+      }
+    }
 
     return this.repo.updateProjectEnvironment({
       where: { id: existing.id },

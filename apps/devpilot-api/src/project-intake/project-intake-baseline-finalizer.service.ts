@@ -24,11 +24,10 @@ export class ProjectIntakeBaselineFinalizerService {
   async ensure(
     tx: Prisma.TransactionClient,
     input: FinalizeProjectIntakeInput,
-    lockedAt: Date,
   ): Promise<FinalizedBaselineEnvironment[]> {
     const results: FinalizedBaselineEnvironment[] = [];
     for (const baseline of BASELINES) {
-      results.push(await this.ensureOne(tx, input, baseline, lockedAt));
+      results.push(await this.ensureOne(tx, input, baseline));
     }
     return results;
   }
@@ -37,7 +36,6 @@ export class ProjectIntakeBaselineFinalizerService {
     tx: Prisma.TransactionClient,
     input: FinalizeProjectIntakeInput,
     baseline: (typeof BASELINES)[number],
-    lockedAt: Date,
   ): Promise<FinalizedBaselineEnvironment> {
     const environment = await tx.projectEnvironment.upsert({
       where: {
@@ -51,9 +49,8 @@ export class ProjectIntakeBaselineFinalizerService {
         status: "active",
         sortOrder: baseline.sortOrder,
         baselineRole: baseline.role,
-        identityLockedAt: lockedAt,
       },
-      update: { baselineRole: baseline.role, identityLockedAt: lockedAt },
+      update: { baselineRole: baseline.role },
     });
     const snapshotHash = createHash("sha256")
       .update(JSON.stringify(EMPTY_SNAPSHOT))

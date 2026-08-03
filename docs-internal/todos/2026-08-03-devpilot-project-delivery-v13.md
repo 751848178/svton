@@ -40,7 +40,7 @@
 | F397 | done    | 实现 Production 同 Manifest 证明、快照冻结、审批和并发门禁。                                            | ReleaseRun/approval/deployment transaction。               | 真实 MySQL 并发收敛；漂移、跨项目、未知 Digest 负例和浏览器审批闭环通过。                   |
 | F398 | done    | 实现环境版本 current/history、受控升级和 recovery 回退。                                                | EnvironmentVersion API/Web。                               | Staging/Production 真实版本链、审批消费、升级/回退和任意输入负例通过。                     |
 | F399 | done    | 将仓库、环境配置、资源、Webhook 和设置收敛到 Manage Project。                                           | Settings routes/compat adapters。                          | 五区普通路径、legacy 重定向和专业运行审批证据浏览器回归通过。                              |
-| F400 | in_progress | 实现环境 key 锁定、配置修订、共享资源/Secret 引用/域名路由/策略治理。                                   | Project environment governance。                           | 服务端权限、审计、无 Secret 明文、漂移测试。                                               |
+| F400 | done    | 实现环境 key 锁定、配置修订、共享资源/Secret 引用/域名路由/策略治理。                                   | Project environment governance。                           | 服务端权限、审计、无 Secret 明文、漂移测试通过。                                           |
 | F401 | pending | 建立版本化 51 项目录、统一状态和默认不可用 capability registry。                                        | Release gates schema/service/Web。                         | 10/11/20/10 目录计数；未接 Provider 不通过。                                               |
 | F402 | pending | 接通 M01-M05 Commit/Build 真实能力组。                                                                  | Commit/build provider adapters。                           | 正/负/新鲜度证据；缺失 Provider 不可用。                                                   |
 | F403 | pending | 接通 M06-M09 Deploy 真实能力组。                                                                        | Config/Secret/resource/connectivity/migration adapters。   | 环境归属、脱敏、过期证据测试。                                                             |
@@ -89,3 +89,5 @@
 - 2026-08-03: F399 开始；复核 Manage Project 二级页面对仓库、环境、资源、Webhook 和通用设置的收敛完整性，并补齐普通用户入口与保留专业深链的可达性证据。
 - 2026-08-03: F399 完成；Manage Project 默认仓库识别并以稳定 section 提供环境、资源、Webhook、项目资料五区，旧 tab=resources 与 tab=deployments 分别规范化到二级配置和只读专业运行且保留 focused ID。浏览器审查修复了 Webhook 标题的 ICU 双花括号错误，并让 release-artifact DeploymentRun 的专业详情显示其 ReleaseRun 审批而非错误声称未关联审批。
 - 2026-08-03: F400 开始；在现有不可变 EnvironmentConfigRevision 和首个 DeploymentRun identity lock 上补齐服务端治理写模型、引用型 Secret/资源/路由/策略快照以及影响范围与审计边界。
+- 2026-08-03: F400 完成；配置写入改为串行化不可变修订并用 expectedCurrentRevisionId 拒绝漂移，普通变量兼容镜像继续供现有部署注入。真实浏览器写入 R5，展示无明文 Secret 引用和跨 Staging/Production 的 Redis 共享范围、medium 风险与影响；真实并发从同一 R5 仅一个请求创建 R6，另一请求 409，跨项目资源和 Secret 明文字段均 400。
+- 2026-08-03: F401 开始；建立版本化 51 项目录、统一检查状态与默认 unavailable 的 capability registry，先证明目录 10/11/20/10 计数和缺 Provider 不得成功。
