@@ -46,6 +46,7 @@ import { ReleaseStrategyCapabilityService } from "./release-strategy-capability.
 import { ReleaseDeliveryCompatibilityController } from "./release-delivery-compatibility.controller";
 import { ReleaseDeliveryCompatibilityRepository } from "./release-delivery-compatibility.repository";
 import { ReleaseDeliveryCompatibilityService } from "./release-delivery-compatibility.service";
+import { GateEvaluationRepository } from "./gate-evaluation.repository";
 
 @Module({
   imports: [PrismaModule, ControlAccessPolicyModule, RepositoryAnalysisModule],
@@ -94,6 +95,7 @@ import { ReleaseDeliveryCompatibilityService } from "./release-delivery-compatib
     ReleaseGateDeployEvidenceRepository,
     ReleaseGatePromoteEvidenceRepository,
     ReleaseGateCatalogService,
+    GateEvaluationRepository,
     {
       provide: ReleaseBuildExecutorPort,
       useExisting: LocalReleaseBuildExecutorService,

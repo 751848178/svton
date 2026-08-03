@@ -26,6 +26,6 @@ export class ReleaseGateCatalogController {
       actorId: req.user.id,
       projectId,
     });
-    return this.catalog.get(req.teamId, projectId, releaseOrderId);
+    return this.catalog.get(req.teamId, projectId, releaseOrderId, req.user.id);
   }
 }

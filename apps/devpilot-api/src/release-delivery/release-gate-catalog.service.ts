@@ -4,6 +4,7 @@ import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-
 import { ReleaseGateEvidenceRepository } from "./release-gate-evidence.repository";
 import { ReleaseGateDeployEvidenceRepository } from "./release-gate-deploy-evidence.repository";
 import { ReleaseGatePromoteEvidenceRepository } from "./release-gate-promote-evidence.repository";
+import { GateEvaluationRepository } from "./gate-evaluation.repository";
 import {
   RELEASE_GATE_CAPABILITY_VERSION,
   RELEASE_GATE_CATALOG_VERSION,
@@ -21,9 +22,15 @@ export class ReleaseGateCatalogService {
     private readonly deployEvidence: ReleaseGateDeployEvidenceRepository,
     private readonly promoteEvidence: ReleaseGatePromoteEvidenceRepository,
     private readonly capabilities: ReleaseGateCapabilityRegistryService,
+    private readonly evaluations: GateEvaluationRepository,
   ) {}
 
-  async get(teamId: string, projectId: string, releaseOrderId: string) {
+  async get(
+    teamId: string,
+    projectId: string,
+    releaseOrderId: string,
+    actorId: string,
+  ) {
     const order = await this.evidence.load(teamId, projectId, releaseOrderId);
     if (!order) throw new NotFoundException("发布单不存在或不属于当前项目");
     const context = {
@@ -32,9 +39,17 @@ export class ReleaseGateCatalogService {
       promote: await this.promoteEvidence.load(teamId, projectId, releaseOrderId),
     };
     const now = new Date();
-    const checks = RELEASE_GATE_DEFINITIONS.map((definition) =>
+    const evaluatedChecks = RELEASE_GATE_DEFINITIONS.map((definition) =>
       this.capabilities.evaluate(definition, context, now),
     );
+    const checks = await this.evaluations.persist({
+      teamId,
+      projectId,
+      releaseOrderId,
+      actorId,
+      buildRunId: order.buildRuns[0]?.id,
+      releaseRunId: context.promote?.releaseRun?.id,
+    }, evaluatedChecks);
     const phaseCounts = Object.fromEntries(
       PHASES.map((phase) => [phase, checks.filter((check) => check.phase === phase).length]),
     );

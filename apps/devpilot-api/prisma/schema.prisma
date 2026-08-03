@@ -78,6 +78,7 @@ model User {
   triggeredBuildRuns BuildRun[] @relation("BuildRunActor")
   releaseRuns ReleaseRun[] @relation("ReleaseRunActor")
   createdReleasePolicyRevisions ReleasePolicyRevision[] @relation("ReleasePolicyRevisionActor")
+  gateEvaluations GateEvaluation[] @relation("GateEvaluationActor")
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime @updatedAt
@@ -153,6 +154,7 @@ model Team {
   releaseRuns ReleaseRun[]
   environmentVersions EnvironmentVersion[]
   releasePolicyRevisions ReleasePolicyRevision[]
+  gateEvaluations GateEvaluation[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -707,6 +709,7 @@ model Project {
   environmentVersions EnvironmentVersion[]
   releasePolicyRevisions ReleasePolicyRevision[] @relation("ProjectReleasePolicyRevisionHistory")
   currentReleasePolicyRevision ReleasePolicyRevision? @relation("CurrentReleasePolicyRevision", fields: [currentReleasePolicyRevisionId], references: [id], onDelete: SetNull)
+  gateEvaluations GateEvaluation[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -2769,6 +2772,7 @@ model ReleaseOrder {
   releaseRuns    ReleaseRun[]
   environmentVersions EnvironmentVersion[]
   legacyPlans    ReleasePlan[]
+  gateEvaluations GateEvaluation[]
 
   @@unique([projectId, releaseVersion])
   @@index([teamId])
@@ -2806,6 +2810,7 @@ model BuildRun {
   triggeredBy    User?    @relation("BuildRunActor", fields: [triggeredById], references: [id], onDelete: SetNull)
   manifest       ArtifactManifest?
   stageAttempt   ReleaseStageAttempt?
+  gateEvaluations GateEvaluation[]
 
   @@unique([releaseOrderId, revision])
   @@index([teamId])
@@ -2904,6 +2909,7 @@ model ReleaseRun {
   deploymentRuns        DeploymentRun[]
   environmentVersion    EnvironmentVersion?
   stageAttempt          ReleaseStageAttempt?
+  gateEvaluations       GateEvaluation[]
 
   @@unique([releaseOrderId, idempotencyKey])
   @@index([teamId])
@@ -2952,6 +2958,48 @@ model EnvironmentVersion {
   @@index([releaseOrderId])
   @@index([artifactManifestId])
   @@index([previousVersionId])
+}
+
+// 某一发布对象上的追加式门禁结论；相同证据输入幂等复用，证据变化时追加新行
+model GateEvaluation {
+  id                String   @id @default(cuid())
+  teamId            String
+  projectId         String
+  releaseOrderId    String
+  releaseRunId      String?
+  buildRunId        String?
+  actorId           String?
+  gateId            String
+  definitionVersion String
+  status            String   // pending | running | passed | warning | failed | skipped | unavailable | needs_human
+  providerKey       String?
+  reasonCode        String
+  summary           Json?
+  evidenceRef       String?  @db.Text
+  checkedAt         DateTime?
+  expiresAt         DateTime?
+  sourceSystem      String
+  waiver            Json?
+  waiverExpiresAt   DateTime?
+  inputHash         String
+  createdAt         DateTime @default(now())
+
+  team              Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder      ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  releaseRun        ReleaseRun?  @relation(fields: [releaseRunId], references: [id], onDelete: SetNull)
+  buildRun          BuildRun?    @relation(fields: [buildRunId], references: [id], onDelete: SetNull)
+  actor             User?        @relation("GateEvaluationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([releaseOrderId, gateId, inputHash])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([releaseRunId])
+  @@index([buildRunId])
+  @@index([actorId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
 }
 
 // 项目级发布计划（F383）：一次项目+环境+版本的发布不可变快照
