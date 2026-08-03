@@ -74,6 +74,9 @@ model User {
   reviewedRepositorySuggestions RepositoryAnalysisSuggestion[] @relation("RepositorySuggestionReviewer")
   projectIntakeFinalizations ProjectIntakeFinalization[] @relation("ProjectIntakeFinalizationActor")
   environmentConfigRevisions EnvironmentConfigRevision[] @relation("EnvironmentConfigRevisionActor")
+  createdReleaseOrders ReleaseOrder[] @relation("ReleaseOrderCreator")
+  triggeredBuildRuns BuildRun[] @relation("BuildRunActor")
+  releaseRuns ReleaseRun[] @relation("ReleaseRunActor")
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime @updatedAt
@@ -143,6 +146,11 @@ model Team {
   projectRepositoryIdentities ProjectRepositoryIdentity[]
   projectIntakeFinalizations ProjectIntakeFinalization[]
   environmentConfigRevisions EnvironmentConfigRevision[]
+  releaseOrders ReleaseOrder[]
+  buildRuns BuildRun[]
+  artifactManifests ArtifactManifest[]
+  releaseRuns ReleaseRun[]
+  environmentVersions EnvironmentVersion[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -689,6 +697,11 @@ model Project {
   repositoryIdentity ProjectRepositoryIdentity?
   intakeFinalizations ProjectIntakeFinalization[]
   environmentConfigRevisions EnvironmentConfigRevision[]
+  releaseOrders ReleaseOrder[]
+  buildRuns BuildRun[]
+  artifactManifests ArtifactManifest[]
+  releaseRuns ReleaseRun[]
+  environmentVersions EnvironmentVersion[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -913,6 +926,7 @@ model ProjectEnvironment {
   baselineRole String? // development | test | staging | production; legacy/ambiguous rows stay null
   identityLockedAt DateTime?
   currentConfigRevisionId String? @unique
+  currentEnvironmentVersionId String? @unique
 
   team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -948,6 +962,9 @@ model ProjectEnvironment {
   releaseStages ReleaseStage[]
   configRevisions EnvironmentConfigRevision[] @relation("EnvironmentConfigRevisionHistory")
   currentConfigRevision EnvironmentConfigRevision? @relation("CurrentEnvironmentConfigRevision", fields: [currentConfigRevisionId], references: [id], onDelete: SetNull)
+  currentEnvironmentVersion EnvironmentVersion? @relation("CurrentEnvironmentVersion", fields: [currentEnvironmentVersionId], references: [id], onDelete: SetNull)
+  environmentVersions EnvironmentVersion[] @relation("EnvironmentVersionHistory")
+  releaseRuns ReleaseRun[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -982,6 +999,7 @@ model EnvironmentConfigRevision {
   environment        ProjectEnvironment @relation("EnvironmentConfigRevisionHistory", fields: [environmentId], references: [id], onDelete: Cascade)
   createdBy          User?    @relation("EnvironmentConfigRevisionActor", fields: [createdById], references: [id], onDelete: SetNull)
   currentForEnvironment ProjectEnvironment? @relation("CurrentEnvironmentConfigRevision")
+  releaseRuns ReleaseRun[]
 
   @@unique([environmentId, revision])
   @@index([teamId])
@@ -1251,6 +1269,8 @@ model DeploymentRun {
   serverExecutionJobId String?
   operationApprovalId String?
   sourceRunId      String?
+  artifactManifestId String?
+  releaseRunId     String?
   environment      String?
   mode             String   @default("deploy") // deploy | rollback
   source           String   @default("manual") // manual | webhook | api
@@ -1288,6 +1308,9 @@ model DeploymentRun {
   operationApproval OperationApproval? @relation(fields: [operationApprovalId], references: [id], onDelete: SetNull)
   sourceRun        DeploymentRun? @relation("DeploymentRollbackSource", fields: [sourceRunId], references: [id], onDelete: SetNull)
   rollbackRuns     DeploymentRun[] @relation("DeploymentRollbackSource")
+  artifactManifest ArtifactManifest? @relation(fields: [artifactManifestId], references: [id], onDelete: SetNull)
+  releaseRun       ReleaseRun? @relation(fields: [releaseRunId], references: [id], onDelete: SetNull)
+  environmentVersion EnvironmentVersion?
   auditEvents      AuditEvent[]
   logStreams       LogStream[]
   logEntries       LogEntry[]
@@ -1304,6 +1327,8 @@ model DeploymentRun {
   @@index([serverExecutionJobId])
   @@index([operationApprovalId])
   @@index([sourceRunId])
+  @@index([artifactManifestId])
+  @@index([releaseRunId])
   @@index([environment])
   @@index([mode])
   @@index([source])
@@ -2581,6 +2606,7 @@ model OperationApproval {
   deploymentRuns       DeploymentRun[]
   auditEvents          AuditEvent[]
   releaseStageAttempts ReleaseStageAttempt[] @relation("OperationApprovalReleaseAttempt")
+  releaseRuns          ReleaseRun[]
 
   @@index([teamId])
   @@index([requesterId])
@@ -2692,6 +2718,208 @@ model AuditEvent {
   @@index([occurredAt])
 }
 
+// 发布单：用户可见的一次版本交付工作流；执行细节由 BuildRun/ReleaseRun 和 legacy ReleasePlan 承载
+model ReleaseOrder {
+  id             String   @id @default(cuid())
+  teamId         String
+  projectId      String
+  releaseVersion String
+  note           String?  @db.Text
+  status         String   @default("draft") // draft | active | succeeded | failed | canceled
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy      User?    @relation("ReleaseOrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  buildRuns      BuildRun[]
+  manifests      ArtifactManifest[]
+  releaseRuns    ReleaseRun[]
+  environmentVersions EnvironmentVersion[]
+  legacyPlans    ReleasePlan[]
+
+  @@unique([projectId, releaseVersion])
+  @@index([teamId])
+  @@index([createdById])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// 一次固定分支与 Commit 的不可变构建执行
+model BuildRun {
+  id             String   @id @default(cuid())
+  teamId         String
+  projectId      String
+  releaseOrderId String
+  triggeredById  String?
+  revision       Int
+  sourceBranch   String
+  sourceCommitSha String
+  inputSnapshot  Json
+  inputHash      String
+  status         String   @default("queued") // queued | running | succeeded | failed | canceled
+  logReference   String?
+  logSummary     Json?
+  gateSummary    Json?
+  errorCode      String?
+  errorMessage   String?  @db.Text
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder   ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  triggeredBy    User?    @relation("BuildRunActor", fields: [triggeredById], references: [id], onDelete: SetNull)
+  manifest       ArtifactManifest?
+  stageAttempt   ReleaseStageAttempt?
+
+  @@unique([releaseOrderId, revision])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([triggeredById])
+  @@index([sourceCommitSha])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// 成功 BuildRun 产生的不可变制品清单；同一 digest 可来自不同 BuildRun
+model ArtifactManifest {
+  id             String   @id @default(cuid())
+  teamId         String
+  projectId      String
+  releaseOrderId String
+  buildRunId     String   @unique
+  digest         String
+  provenance     Json?
+  sbom           Json?
+  signature      Json?
+  createdAt      DateTime @default(now())
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder   ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  buildRun       BuildRun @relation(fields: [buildRunId], references: [id], onDelete: Cascade)
+  items          ArtifactManifestItem[]
+  deploymentRuns DeploymentRun[]
+  releaseRuns    ReleaseRun[]
+  environmentVersions EnvironmentVersion[]
+
+  @@index([teamId])
+  @@index([projectId, digest])
+  @@index([releaseOrderId])
+  @@index([createdAt])
+}
+
+model ArtifactManifestItem {
+  id           String   @id @default(cuid())
+  manifestId   String
+  componentKey String
+  artifactType String
+  uri          String   @db.Text
+  digest       String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  manifest     ArtifactManifest @relation(fields: [manifestId], references: [id], onDelete: Cascade)
+
+  @@unique([manifestId, componentKey])
+  @@index([digest])
+}
+
+// 生产确认、升级或恢复的冻结运行边界
+model ReleaseRun {
+  id                    String   @id @default(cuid())
+  teamId                String
+  projectId             String
+  releaseOrderId        String
+  environmentId         String
+  artifactManifestId    String
+  releasePlanId         String?
+  configRevisionId      String?
+  operationApprovalId   String?
+  sourceReleaseRunId    String?
+  actorId               String?
+  mode                  String   @default("standard") // standard | upgrade | recovery
+  status                String   @default("pending") // pending | awaiting_approval | running | succeeded | failed | canceled
+  verifiedDigest        String
+  resourceSnapshot      Json?
+  routeSnapshot         Json?
+  policySnapshot        Json?
+  inputHash             String
+  idempotencyKey        String
+  errorCode             String?
+  errorMessage          String?  @db.Text
+  startedAt             DateTime?
+  finishedAt            DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  team                  Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project               Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder          ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  environment           ProjectEnvironment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  artifactManifest      ArtifactManifest @relation(fields: [artifactManifestId], references: [id], onDelete: Restrict)
+  releasePlan           ReleasePlan? @relation(fields: [releasePlanId], references: [id], onDelete: SetNull)
+  configRevision        EnvironmentConfigRevision? @relation(fields: [configRevisionId], references: [id], onDelete: SetNull)
+  operationApproval     OperationApproval? @relation(fields: [operationApprovalId], references: [id], onDelete: SetNull)
+  sourceReleaseRun      ReleaseRun? @relation("ReleaseRunSource", fields: [sourceReleaseRunId], references: [id], onDelete: SetNull)
+  derivedReleaseRuns    ReleaseRun[] @relation("ReleaseRunSource")
+  actor                 User?    @relation("ReleaseRunActor", fields: [actorId], references: [id], onDelete: SetNull)
+  deploymentRuns        DeploymentRun[]
+  environmentVersion    EnvironmentVersion?
+  stageAttempt          ReleaseStageAttempt?
+
+  @@unique([releaseOrderId, idempotencyKey])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([artifactManifestId])
+  @@index([releasePlanId])
+  @@index([configRevisionId])
+  @@index([operationApprovalId])
+  @@index([sourceReleaseRunId])
+  @@index([actorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// 成功 DeploymentRun 派生的不可变环境当前/历史版本
+model EnvironmentVersion {
+  id                 String   @id @default(cuid())
+  teamId             String
+  projectId          String
+  environmentId      String
+  releaseOrderId     String
+  artifactManifestId String
+  deploymentRunId    String   @unique
+  releaseRunId       String?  @unique
+  previousVersionId  String?
+  kind               String   @default("deploy") // deploy | upgrade | recovery
+  effectiveAt        DateTime
+  createdAt          DateTime @default(now())
+
+  team               Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment        ProjectEnvironment @relation("EnvironmentVersionHistory", fields: [environmentId], references: [id], onDelete: Cascade)
+  releaseOrder       ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  artifactManifest   ArtifactManifest @relation(fields: [artifactManifestId], references: [id], onDelete: Restrict)
+  deploymentRun      DeploymentRun @relation(fields: [deploymentRunId], references: [id], onDelete: Restrict)
+  releaseRun         ReleaseRun? @relation(fields: [releaseRunId], references: [id], onDelete: SetNull)
+  previousVersion    EnvironmentVersion? @relation("EnvironmentVersionHistoryChain", fields: [previousVersionId], references: [id], onDelete: SetNull)
+  nextVersions       EnvironmentVersion[] @relation("EnvironmentVersionHistoryChain")
+  currentForEnvironment ProjectEnvironment? @relation("CurrentEnvironmentVersion")
+
+  @@index([teamId])
+  @@index([projectId])
+  @@index([environmentId, effectiveAt])
+  @@index([releaseOrderId])
+  @@index([artifactManifestId])
+  @@index([previousVersionId])
+}
+
 // 项目级发布计划（F383）：一次项目+环境+版本的发布不可变快照
 model ReleasePlan {
   id              String   @id @default(cuid())
@@ -2709,6 +2937,7 @@ model ReleasePlan {
   planHash        String?
   inputSnapshot   Json?
   createdByUserId String?
+  releaseOrderId  String?
   startedAt       DateTime?
   finishedAt      DateTime?
   canceledAt      DateTime?
@@ -2719,6 +2948,8 @@ model ReleasePlan {
   project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   environment     ProjectEnvironment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
   createdBy       User?    @relation("ReleasePlanCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  releaseOrder    ReleaseOrder? @relation(fields: [releaseOrderId], references: [id], onDelete: SetNull)
+  releaseRuns     ReleaseRun[]
   stages          ReleaseStage[]
   events          ReleaseEvent[]
 
@@ -2726,6 +2957,7 @@ model ReleasePlan {
   @@index([projectId])
   @@index([environmentId])
   @@index([createdByUserId])
+  @@index([releaseOrderId])
   @@index([status])
   @@index([planHash])
   @@index([mode])
@@ -2811,6 +3043,8 @@ model ReleaseStageAttempt {
   deploymentRunId      String?
   serverExecutionJobId String?
   operationApprovalId  String?
+  buildRunId           String?  @unique
+  releaseRunId         String?  @unique
   inputSnapshot        Json?
   output               Json?
   logSummary           Json?
@@ -2828,6 +3062,8 @@ model ReleaseStageAttempt {
   deploymentRun        DeploymentRun? @relation(fields: [deploymentRunId], references: [id], onDelete: SetNull)
   serverExecutionJob   ServerExecutionJob? @relation(fields: [serverExecutionJobId], references: [id], onDelete: SetNull)
   operationApproval    OperationApproval? @relation("OperationApprovalReleaseAttempt", fields: [operationApprovalId], references: [id], onDelete: SetNull)
+  buildRun             BuildRun? @relation(fields: [buildRunId], references: [id], onDelete: SetNull)
+  releaseRun           ReleaseRun? @relation(fields: [releaseRunId], references: [id], onDelete: SetNull)
   events               ReleaseEvent[]
 
   @@unique([releaseStageId, attemptNo], map: "release_stage_attempt_no")

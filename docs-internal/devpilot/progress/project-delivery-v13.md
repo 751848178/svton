@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F392 — additive release order, build, manifest, release run and environment version schema.
+- Active slice: F393 — ReleaseOrder list/create API and default project delivery Web.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -39,7 +39,8 @@
 | F389      | done    | ACL-filtered directory read model, search/filter/baseline/Production/activity summary complete. |
 | F390      | done    | Project directory and three-step existing-repository intake verified end to end.              |
 | F391      | done    | Delivery/settings hosts, two-item primary IA and legacy deep-link adapters verified.           |
-| F392-F398 | pending | ReleaseOrder, build/Manifest, four steps, exact Staging/Production and environment versions.    |
+| F392      | done    | Additive delivery schema and conservative legacy/unverified migration report verified.         |
+| F393-F398 | pending | ReleaseOrder API/Web, build/Manifest, four steps and exact environment delivery.                |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
 
@@ -68,7 +69,9 @@
 - F390 real MySQL evidence: project `cmscs55sy000azibq1is4a4dg` is ready at commit `85fad682d21785cf83cc48a911e993c049750356`, has one locked canonical identity, one successful finalization, exactly one active Staging and Production baseline, and the latest successful run is not overridden by an older failed run.
 - F391 route regressions: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f391-web-unit-final.log` — 2 files, 12 tests; Web type-check/build passed in `f391-web-typecheck-after-build.log` and `f391-web-build-final.log`; CodeGraph selected the compatibility spec.
 - F391 browser evidence: `.../f390-browser/06-f391-project-delivery.png` and `07-f391-manage-project.png`; default release-order view, two-item primary navigation, truthful environment-version empty state, settings sections and repository/environment/deployment legacy deep links all passed with preserved focused IDs and clean final-page consoles.
+- F392 schema gates: `f392-prisma-validate.log`, `f392-prisma-generate.log`, `f392-api-typecheck.log`, `f392-api-build.log` and `f392-api-unit.log` under the long-goal directory all passed; CodeGraph selected the migration-report spec.
+- F392 real MySQL: `f392-migrate-empty.log` and `f392-migrate-upgraded.log` passed. Empty schema has all six delivery tables; same digest produced two independent manifests for two builds; duplicate project releaseVersion failed. Upgrade fixture retained legacy plan/deployment links as NULL, observed-only digest as evidence, zero synthesized orders/manifests/environment versions, and preserved unrelated existing index/FK drift.
 
 ## Next
 
-Implement and verify F392 additive release delivery schema and legacy/unverified migration report without waiting for user confirmation.
+Implement and verify F393 ReleaseOrder list/create API and Web with ACL, idempotency and zero implicit builds without waiting for user confirmation.
