@@ -8,6 +8,7 @@ import { deliveryHref, readDeliveryView } from '../utils/project-route.utils';
 import { DeploymentsTab } from './tabs/deployments-tab';
 import { EnvironmentVersionsPanel } from './environment-versions-panel';
 import { ReleaseOrdersPanel } from './release-orders-panel';
+import { ReleaseDeliveryCompatibilityBanner } from './release-delivery-compatibility-banner';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -22,10 +23,10 @@ export function ProjectDeliveryContent({ detail }: { detail: DetailHook }) {
     return (
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">{t('professionalDeploymentView')}</p>
+        <ReleaseDeliveryCompatibilityBanner projectId={projectId} />
         <DeploymentsTab
           detail={detail}
           focusedRunId={searchParams.get('runId')?.trim() || undefined}
-          onOpenDeploy={() => undefined}
         />
       </div>
     );

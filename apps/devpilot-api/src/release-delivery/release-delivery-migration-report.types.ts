@@ -26,6 +26,24 @@ export interface ReleaseDeliveryMigrationSnapshot {
   environments: LegacyEnvironmentVersionSnapshot[];
 }
 
+export interface ReleaseDeliveryCompatibilitySnapshot
+  extends ReleaseDeliveryMigrationSnapshot {
+  project: {
+    id: string;
+    onboardingStatus?: string | null;
+    archivedAt?: Date | null;
+  };
+  history: Array<{
+    id: string;
+    status: string;
+    artifactManifestId?: string | null;
+    logsRetained: boolean;
+    startedAt: Date;
+  }>;
+  logStreams: number;
+  logEntries: number;
+}
+
 export interface ReleaseDeliveryMigrationIssue {
   entityType: "release_plan" | "deployment_run" | "environment";
   entityId: string;

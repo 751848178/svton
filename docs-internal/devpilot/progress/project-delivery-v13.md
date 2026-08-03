@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F406 — compatibility backfill/archive and removal of branch-pull/build-on-deploy from the new delivery path.
+- Active slice: F407 — bilingual terminology parity and user/migration documentation.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -53,7 +53,8 @@
 | F403      | done    | Environment-scoped M06-M09 Deploy providers with redaction and expiry boundaries.             |
 | F404      | done    | M10-M15 Promote adapters with technical/manual separation and fail-closed traffic capability. |
 | F405      | done    | Immutable standard release policy and explicit advanced-strategy capability gates.             |
-| F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
+| F406      | done    | Read-only legacy compatibility, non-destructive archive and governed-path write closure.       |
+| F407-F410 | pending | Bilingual docs, Docker/browser E2E, negative validation and final audit.                        |
 
 ## Evidence
 
@@ -107,7 +108,9 @@
 - F404 real browser/MySQL evidence: `f404/mysql-evidence.log`, `f404/browser-dom.txt` and `.../f390-browser/22-f404-promote-providers.png`. The real approval is approved, consumed and input-hash-bound, but D13 remains unchecked because no change-window/freeze provider conclusion exists. Production has no Site/DNS/TLS, health/workload/HTTP probe, observability metric, prior stable version or recovery-compatibility evidence, so those checks remain unavailable. P03 is manual evidence only; P10 alone is checked from the retained ReleaseRun→approval→Manifest→DeploymentRun→EnvironmentVersion chain. The catalog totals 51 checks with 39 unavailable and a clean browser console.
 - F405 policy evidence: `f405/focused-tests.log`, `f405/integration-tests.log`, `f405/prisma-migrate-deploy.log`, `f405/api-build.log` and `f405/web-build.log`. An additive MySQL migration creates append-only `ReleasePolicyRevision` history and a project current pointer. Serializable row locking plus compare-and-swap lets only one stale-pointer competitor append. Production preview/confirmation accepts only `standard`, freezes the exact strategy revision into snapshot v2 and includes it in the approval input hash. Canary, blue-green and automatic traffic are rejected before persistence with explicit missing traffic/workload/metric/pause/abort/rollback capabilities.
 - F405 browser/MySQL evidence: `f405/mysql-evidence.log`, `f405/browser-dom.txt`, `f405/production-policy-dom.txt`, `f405/23-f405-release-policy-viewport.png`, `f405/24-f405-advanced-strategies.png` and `f405/25-f405-production-policy-snapshot.png`. The authenticated Manage Project page created immutable R1, shows Standard as executable and all three advanced strategies as capability-unavailable with concrete provider keys. The real Production preview displays `R1 / standard / 986e9990…`; MySQL confirms the current pointer and immutable audit event.
+- F406 compatibility evidence: `f406/focused-tests-final.log`, `f406/integration-test.log`, `f406/api-build.log` and `f406/web-build.log`. Governed or archived projects fail before the legacy branch/commit deployment service can create a checkout/build plan. The compatibility adapter classifies missing-Manifest history as `legacy_unverified`, preserves run/log references and never synthesizes a Digest. Project DELETE now performs a serializable archive transaction, retaining environments, runs and logs and emitting `project.archive` audit evidence; the real integration test reads all retained evidence after archive.
+- F406 browser/MySQL evidence: `f406/mysql-evidence.log`, `f406/browser-dom.txt`, `f406/legacy-deployment-blocked-dom.txt`, `f406/26-f406-read-only-compatibility.png` and `f406/27-f406-legacy-deployment-blocked.png`. The professional deep link is read-only and reports 7 retained runs, 1 legacy-unverified run and zero synthetic manifests. All six exact-Manifest runs have `checkout=false`, `pull=false`, `build=false`. The Applications legacy wizard receives the concrete server rejection before creating any service DeploymentRun; the browser console has no error/warning entries.
 
 ## Next
 
-Implement and verify F406 compatibility backfill/archive while preserving historical projects, environments, runs and logs and keeping arbitrary inputs rejected.
+Complete F407 zh/en terminology parity and user/migration documentation for release orders, immutable manifests, environment versions, archive behavior and unavailable advanced strategies.

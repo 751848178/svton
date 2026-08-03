@@ -43,6 +43,9 @@ import { ReleasePolicyController } from "./release-policy.controller";
 import { ReleasePolicyRepository } from "./release-policy.repository";
 import { ReleasePolicyService } from "./release-policy.service";
 import { ReleaseStrategyCapabilityService } from "./release-strategy-capability.service";
+import { ReleaseDeliveryCompatibilityController } from "./release-delivery-compatibility.controller";
+import { ReleaseDeliveryCompatibilityRepository } from "./release-delivery-compatibility.repository";
+import { ReleaseDeliveryCompatibilityService } from "./release-delivery-compatibility.service";
 
 @Module({
   imports: [PrismaModule, ControlAccessPolicyModule, RepositoryAnalysisModule],
@@ -51,6 +54,7 @@ import { ReleaseStrategyCapabilityService } from "./release-strategy-capability.
     EnvironmentVersionController,
     ReleaseGateCatalogController,
     ReleasePolicyController,
+    ReleaseDeliveryCompatibilityController,
   ],
   providers: [
     ReleaseOrderService,
@@ -68,6 +72,8 @@ import { ReleaseStrategyCapabilityService } from "./release-strategy-capability.
     ReleasePolicyRepository,
     ReleasePolicyService,
     ReleaseStrategyCapabilityService,
+    ReleaseDeliveryCompatibilityRepository,
+    ReleaseDeliveryCompatibilityService,
     EnvironmentVersionRepository,
     EnvironmentVersionService,
     EnvironmentVersionReadRepository,

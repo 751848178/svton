@@ -1,6 +1,7 @@
 import { ControlAccessPolicyService } from '../control-access-policy';
 import { DeploymentController } from './deployment.controller';
 import { DeploymentService } from './deployment.service';
+import { LegacyDeploymentWriteGuardService } from './legacy-deployment-write-guard.service';
 
 describe('DeploymentController authorization', () => {
   const req = {
@@ -10,6 +11,8 @@ describe('DeploymentController authorization', () => {
 
   let deploymentService: {
     listRuns: jest.Mock;
+    resolveRunCreateAccessScope: jest.Mock;
+    createRun: jest.Mock;
     getRunAccessScope: jest.Mock;
     rollbackRun: jest.Mock;
     requestSmokeFailureRollback: jest.Mock;
@@ -21,10 +24,13 @@ describe('DeploymentController authorization', () => {
     assertCanWrite: jest.Mock;
   };
   let controller: DeploymentController;
+  const legacyWriteGuard = { assertAllowed: jest.fn() };
 
   beforeEach(() => {
     deploymentService = {
       listRuns: jest.fn(),
+      resolveRunCreateAccessScope: jest.fn(),
+      createRun: jest.fn(),
       getRunAccessScope: jest.fn(),
       rollbackRun: jest.fn(),
       requestSmokeFailureRollback: jest.fn(),
@@ -35,10 +41,23 @@ describe('DeploymentController authorization', () => {
       canRead: jest.fn(),
       assertCanWrite: jest.fn(),
     };
+    legacyWriteGuard.assertAllowed.mockReset().mockResolvedValue(undefined);
     controller = new DeploymentController(
       deploymentService as unknown as DeploymentService,
       accessPolicyService as unknown as ControlAccessPolicyService,
+      legacyWriteGuard as unknown as LegacyDeploymentWriteGuardService,
     );
+  });
+
+  it('checks the governed-delivery boundary before a legacy create', async () => {
+    deploymentService.resolveRunCreateAccessScope.mockResolvedValue({
+      projectId: 'project-1',
+      environmentId: 'env-1',
+    });
+    deploymentService.createRun.mockResolvedValue({ id: 'run-1' });
+    await controller.createRun(req, 'project-1', { branch: 'main' });
+    expect(legacyWriteGuard.assertAllowed).toHaveBeenCalledWith('team-1', 'project-1');
+    expect(deploymentService.createRun).toHaveBeenCalled();
   });
 
   it('filters deployment runs through project/environment read policy', async () => {

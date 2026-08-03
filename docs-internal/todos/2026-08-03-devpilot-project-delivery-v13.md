@@ -46,8 +46,8 @@
 | F403 | done    | 接通 M06-M09 Deploy 真实能力组。                                                                        | Config/Secret/resource/connectivity/migration adapters。   | 环境归属、脱敏、过期证据测试。                                                             |
 | F404 | done    | 接通 M10-M15 Promote 真实能力组。                                                                       | Approval/DNS/TLS/HTTP/observability/recovery adapters。    | 业务验证只作证据；技术门禁真实。                                                           |
 | F405 | done    | 完成标准发布策略；金丝雀/蓝绿/自动放量 fail closed。                                                    | Release policy/capability。                                | 不可变 R1、Production 冻结和高级策略具体拒绝原因已由 DB/API/browser 证明。                 |
-| F406 | active  | 收敛兼容 backfill/archive 和新链路，移除新路径 branch-pull/build-on-deploy。                            | Migration/compat/read adapters。                           | 历史项目/环境/运行/日志保留；任意输入被拒绝。                                              |
-| F407 | pending | 完成中英文文案、术语和用户/迁移文档。                                                                   | messages 与 docs。                                         | zh/en parity；发布单/发布版本号术语审查。                                                  |
+| F406 | done    | 收敛兼容 backfill/archive 和新链路，移除新路径 branch-pull/build-on-deploy。                            | Migration/compat/read adapters。                           | 历史只读、归档保留、受管项目旧写入口拒绝和 exact-Manifest 命令边界均已证明。                |
+| F407 | active  | 完成中英文文案、术语和用户/迁移文档。                                                                   | messages 与 docs。                                         | zh/en parity；发布单/发布版本号术语审查。                                                  |
 | F408 | pending | 用隔离 Docker 数据完成真实主链浏览器 E2E。                                                              | Disposable compose/runtime/browser evidence。              | 接入→设置→发布→多构建→重复预发→生产→回退。                                                 |
 | F409 | pending | 完成 ACL、并发、失败恢复、兼容、Provider 不可用和脱敏负向 E2E。                                         | Cross-layer tests。                                        | API/DB/browser 负向证据。                                                                  |
 | F410 | pending | 独立代码/领域/UX/无障碍/安全审查、修复、全量验证和最终交付审计。                                        | 全目标与证据包。                                           | 测试/构建/Prisma/Docker/E2E/commit/主工作区保护全部证明。                                  |
@@ -101,3 +101,5 @@
 - 2026-08-03: F405 开始；固化标准发布为唯一真实可执行策略，并让金丝雀、蓝绿和自动放量通过服务端 Capability API 返回具体不可执行原因。
 - 2026-08-03: F405 完成；新增项目级不可变 ReleasePolicyRevision 与 current 指针，串行化 CAS 并发只允许一个旧指针写入。标准策略被 Production v2 快照冻结并参与审批 inputHash；金丝雀、蓝绿和自动放量在服务端持久化前因缺真实流量、双工作负载、指标、暂停/终止和回滚 Provider 返回 422。真实浏览器创建 R1、显示三种能力未就绪原因并在 Production 预览中读取同一策略哈希，MySQL 审计为 immutable。
 - 2026-08-03: F406 开始；盘点历史 backfill/archive/read adapter 与新 delivery path，证明新路径不再接受 branch-pull/build-on-deploy，并保留历史项目、环境、运行和日志。
+- 2026-08-03: F406 完成；新增项目级只读兼容报告，旧运行缺 Manifest 时保持 legacy_unverified，观察到 Digest 也不合成制品。受管/已归档项目在旧 branch/commit 部署入口进入 DeploymentService 前返回具体拒绝；真实浏览器旧向导被阻断且未创建运行。项目 DELETE 改为串行化归档，环境/应用置归档但运行与日志不删除；集成测试归档后仍能读取历史。真实 6 条 Manifest 运行的 commandPlan 均为 checkout/pull/build=false。
+- 2026-08-03: F407 开始；审计 zh/en key parity、发布单/发布版本号/Manifest/环境版本/归档/策略能力术语，并补用户与迁移文档。

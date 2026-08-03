@@ -12,6 +12,7 @@ import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ControlAccessPolicyService } from '../control-access-policy';
 import { DeploymentService } from './deployment.service';
+import { LegacyDeploymentWriteGuardService } from './legacy-deployment-write-guard.service';
 import {
   CreateDeploymentRunDto,
   ListDeploymentRunsQueryDto,
@@ -38,6 +39,7 @@ export class DeploymentController {
   constructor(
     private readonly deploymentService: DeploymentService,
     private readonly accessPolicyService: ControlAccessPolicyService,
+    private readonly legacyWriteGuard: LegacyDeploymentWriteGuardService,
   ) {}
 
   @Get('runs')
@@ -55,6 +57,7 @@ export class DeploymentController {
     @Param('projectId') projectId: string,
     @Body() dto: CreateDeploymentRunDto,
   ) {
+    await this.legacyWriteGuard.assertAllowed(req.teamId, projectId);
     const scope = await this.deploymentService.resolveRunCreateAccessScope(req.teamId, projectId, dto);
     await this.assertCanWriteDeployment(
       req,

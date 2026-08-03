@@ -16,6 +16,7 @@ import { DeploymentLogStreamBootstrapService } from "./deployment-log-stream-boo
 import { DeploymentPostRollbackSmokeSchedulerService } from "./deployment-post-rollback-smoke-scheduler.service";
 import { DeploymentService } from "./deployment.service";
 import { ReleaseInitializationEvidenceService } from "./release-initialization-evidence.service";
+import { LegacyDeploymentWriteGuardService } from "./legacy-deployment-write-guard.service";
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ReleaseInitializationEvidenceService } from "./release-initialization-e
   controllers: [DeploymentController, DeploymentRunDetailController],
   providers: [
     DeploymentService,
+    LegacyDeploymentWriteGuardService,
     DeploymentRunDetailRepository,
     DeploymentRunDetailService,
     DeploymentInitializationCheckpointService,

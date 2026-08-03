@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ControlAccessPolicyService } from '../control-access-policy';
 import { ProjectService } from './project.service';
 import { CreateProjectDto, UpdateProjectDto } from './dto/project.dto';
+import { ProjectArchiveService } from './project-archive.service';
 
 interface AuthRequest {
   user: { id: string };
@@ -56,6 +57,7 @@ export class ProjectController {
   constructor(
     private readonly projectService: ProjectService,
     private readonly accessPolicyService: ControlAccessPolicyService,
+    private readonly archiveService: ProjectArchiveService,
   ) {}
 
   @Post()
@@ -110,12 +112,12 @@ export class ProjectController {
       actorId: req.user.id,
       projectId: id,
       category: 'project',
-      action: 'project.delete',
+      action: 'project.archive',
       targetType: 'project',
       targetId: id,
       risk: 'high',
     });
-    return this.projectService.remove(req.teamId, id);
+    return this.archiveService.archive(req.teamId, req.user.id, id);
   }
 
   private assertCanReadProject(req: AuthRequest, projectId: string) {
