@@ -28,7 +28,11 @@ import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capabil
 import { ReleaseGateCatalogController } from "./release-gate-catalog.controller";
 import { ReleaseGateCatalogService } from "./release-gate-catalog.service";
 import { ReleaseGateEvidenceRepository } from "./release-gate-evidence.repository";
+import { ReleaseGateDeployEvidenceRepository } from "./release-gate-deploy-evidence.repository";
 import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
+import { ReleaseGateConfigCapabilityProvider } from "./release-gate-config-capability.provider";
+import { ReleaseGateMigrationCapabilityProvider } from "./release-gate-migration-capability.provider";
+import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
 
 @Module({
   imports: [PrismaModule, ControlAccessPolicyModule, RepositoryAnalysisModule],
@@ -58,7 +62,11 @@ import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capab
     ReleaseGateArtifactCapabilityProvider,
     ReleaseGateSourceCapabilityProvider,
     ReleaseGateBuildCapabilityProvider,
+    ReleaseGateConfigCapabilityProvider,
+    ReleaseGateRuntimeCapabilityProvider,
+    ReleaseGateMigrationCapabilityProvider,
     ReleaseGateEvidenceRepository,
+    ReleaseGateDeployEvidenceRepository,
     ReleaseGateCatalogService,
     {
       provide: ReleaseBuildExecutorPort,

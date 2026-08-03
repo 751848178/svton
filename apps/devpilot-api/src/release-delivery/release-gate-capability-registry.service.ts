@@ -2,6 +2,9 @@ import { Injectable } from "@nestjs/common";
 import { RELEASE_GATE_CAPABILITIES } from "./release-gate-capability.catalog";
 import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
 import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
+import { ReleaseGateConfigCapabilityProvider } from "./release-gate-config-capability.provider";
+import { ReleaseGateMigrationCapabilityProvider } from "./release-gate-migration-capability.provider";
+import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
 import type {
   ReleaseGateCapabilityId,
   ReleaseGateDefinition,
@@ -29,8 +32,11 @@ export class ReleaseGateCapabilityRegistryService {
     source: ReleaseGateSourceCapabilityProvider,
     build: ReleaseGateBuildCapabilityProvider,
     artifact: ReleaseGateArtifactCapabilityProvider,
+    config: ReleaseGateConfigCapabilityProvider,
+    runtime: ReleaseGateRuntimeCapabilityProvider,
+    migration: ReleaseGateMigrationCapabilityProvider,
   ) {
-    this.providers = [source, build, artifact];
+    this.providers = [source, build, artifact, config, runtime, migration];
   }
 
   list(context: ReleaseGateEvidenceContext) {

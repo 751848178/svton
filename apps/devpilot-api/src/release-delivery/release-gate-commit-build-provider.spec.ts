@@ -1,5 +1,8 @@
 import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
 import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
+import { ReleaseGateConfigCapabilityProvider } from "./release-gate-config-capability.provider";
+import { ReleaseGateMigrationCapabilityProvider } from "./release-gate-migration-capability.provider";
+import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
 import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
 import type { ReleaseGateCapabilityId } from "./release-gate-catalog.types";
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
@@ -13,6 +16,9 @@ describe("Commit/Build release gate providers", () => {
     new ReleaseGateSourceCapabilityProvider(),
     new ReleaseGateBuildCapabilityProvider(),
     new ReleaseGateArtifactCapabilityProvider(),
+    new ReleaseGateConfigCapabilityProvider(),
+    new ReleaseGateRuntimeCapabilityProvider(),
+    new ReleaseGateMigrationCapabilityProvider(),
   );
 
   it("reports positive real M01-M05 evidence with freshness metadata", () => {

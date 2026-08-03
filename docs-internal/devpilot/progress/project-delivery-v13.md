@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F403 — real M06-M09 Deploy capability providers for config, Secret, resources, connectivity and migration evidence.
+- Active slice: F404 — real M10-M15 Promote capability providers for approval, DNS/TLS/HTTP, observability and recovery evidence.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -50,7 +50,8 @@
 | F400      | done    | Audited immutable environment config and reference governance with locked identity.         |
 | F401      | done    | Versioned 51/15 catalog, unified statuses and fail-closed provider registry.                   |
 | F402      | done    | Freshness-aware M01-M05 Commit/Build provider adapters and immutable evidence drill-down.     |
-| F403-F405 | pending | Deploy/Promote providers and standard strategy.                                                |
+| F403      | done    | Environment-scoped M06-M09 Deploy providers with redaction and expiry boundaries.             |
+| F404-F405 | pending | Promote providers and standard strategy.                                                       |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
 
 ## Evidence
@@ -99,7 +100,9 @@
 - F401 browser evidence: `.../f390-browser/19-f401-gate-catalog.png`. The default release preflight shows only the compact 51-total/51-unavailable summary; the professional expansion exposes every bilingual phase/check, Mxx or Target mapping and concrete unavailable reason. The clean browser console had no errors or warnings.
 - F402 provider evidence: `f402/api-tests-final.log` — 4 suites/14 tests; API/Web type-check and production builds plus focused Web ESLint passed. Positive fixtures prove M01-M05 checked evidence, negative Build/test/security/Manifest results block, expired repository/analysis evidence becomes unchecked, and missing merge/CI/diff/security providers remain unavailable. Execution isolation/redaction is now explicitly separated from Secret/SAST/vulnerability scanning.
 - F402 real browser/MySQL evidence: `f402/mysql-evidence.log`, `f402/browser-dom.txt` and `.../f390-browser/20-f402-commit-build-providers.png`. The real project evaluates C01/C05/B02/B09 as checked from exact repository, analysis, Build #5 and Manifest rows; C08/B03 are unchecked because the fixture has no supported lockfile/test provider; the other 45 checks, including all M04 scanner checks, remain unavailable. Evidence refs, checkedAt/expiresAt and precise reasons are visible, and the console is clean.
+- F403 provider evidence: `f403/api-tests-final.log` — 5 suites/20 tests; API type-check/build and Web type-check passed. Positive fixtures prove M06-M09 config, Secret, deployment target, server/resource connectivity, capacity, migration and backup evidence; plaintext fields, cross-environment rows and failed evidence block; expired connectivity/metrics/migration/backup becomes unchecked; missing providers remain unavailable.
+- F403 real browser/MySQL evidence: `f403/mysql-evidence.log`, `f403/browser-dom.txt` and `.../f390-browser/21-f403-deploy-providers.png`. D01 reads the real non-dry-run exact-Manifest Staging DeploymentRun, D02 reads immutable config R6 and its environment-scoped resource reference, and D03 resolves one Secret using only id/project/environment/name/type fields. The database has zero active server bindings, connection probes, capacity snapshots or backup runs, and no migration-diff provider, so D05 and D07-D12 remain unavailable rather than passing. The browser console is clean.
 
 ## Next
 
-Implement and verify F403 real M06-M09 Deploy capability providers, including environment ownership, redaction, expiry and missing-provider boundaries.
+Implement and verify F404 real M10-M15 Promote capability providers, keeping business validation as evidence while technical gates remain provider-backed.
