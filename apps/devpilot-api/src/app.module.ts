@@ -15,6 +15,7 @@ import { GeneratorModule } from './generator/generator.module';
 import { ProjectModule } from './project/project.module';
 import { ProjectIntakeModule } from './project-intake/project-intake.module';
 import { ProjectDirectoryModule } from './project-directory/project-directory.module';
+import { ReleaseDeliveryModule } from './release-delivery/release-delivery.module';
 import { ServerModule } from './server/server.module';
 import { ProxyConfigModule } from './proxy-config/proxy-config.module';
 import { CDNConfigModule } from './cdn-config/cdn-config.module';
@@ -147,6 +148,7 @@ import { useAuthzConfig } from './authz.config';
 
     // 项目目录读模型
     ProjectDirectoryModule,
+    ReleaseDeliveryModule,
 
     // 项目环境模块
     ProjectEnvironmentModule,

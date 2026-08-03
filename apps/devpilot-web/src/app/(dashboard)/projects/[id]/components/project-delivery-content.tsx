@@ -6,8 +6,8 @@ import { Tabs } from '@svton/ui';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 import { deliveryHref, readDeliveryView } from '../utils/project-route.utils';
 import { DeploymentsTab } from './tabs/deployments-tab';
-import { ReleasesTab } from './tabs/releases-tab';
 import { EnvironmentVersionsPanel } from './environment-versions-panel';
+import { ReleaseOrdersPanel } from './release-orders-panel';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -37,7 +37,7 @@ export function ProjectDeliveryContent({ detail }: { detail: DetailHook }) {
         {
           key: 'releases',
           label: t('tabReleaseOrders'),
-          children: <ReleasesTab detail={detail} />,
+          children: <ReleaseOrdersPanel projectId={projectId} />,
         },
         {
           key: 'environment-versions',

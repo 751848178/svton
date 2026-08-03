@@ -1,0 +1,35 @@
+import { Injectable } from "@nestjs/common";
+import { ControlAccessPolicyService } from "../control-access-policy";
+
+interface ReleaseOrderAccessInput {
+  teamId: string;
+  actorId: string;
+  projectId: string;
+}
+
+@Injectable()
+export class ReleaseOrderAccessService {
+  constructor(private readonly access: ControlAccessPolicyService) {}
+
+  assertRead(input: ReleaseOrderAccessInput) {
+    return this.access.assertCanRead({
+      ...input,
+      category: "release",
+      action: "project.release_order.read",
+      targetType: "project",
+      targetId: input.projectId,
+      risk: "low",
+    });
+  }
+
+  assertCreate(input: ReleaseOrderAccessInput) {
+    return this.access.assertCanWrite({
+      ...input,
+      category: "release",
+      action: "project.release_order.create",
+      targetType: "project",
+      targetId: input.projectId,
+      risk: "medium",
+    });
+  }
+}

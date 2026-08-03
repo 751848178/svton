@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F393 — ReleaseOrder list/create API and default project delivery Web.
+- Active slice: F394 — server-resolved BuildRun and immutable ArtifactManifest execution.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -40,7 +40,8 @@
 | F390      | done    | Project directory and three-step existing-repository intake verified end to end.              |
 | F391      | done    | Delivery/settings hosts, two-item primary IA and legacy deep-link adapters verified.           |
 | F392      | done    | Additive delivery schema and conservative legacy/unverified migration report verified.         |
-| F393-F398 | pending | ReleaseOrder API/Web, build/Manifest, four steps and exact environment delivery.                |
+| F393      | done    | ACL/idempotent ReleaseOrder API and default create/list Web verified with zero implicit build.  |
+| F394-F398 | pending | Build/Manifest, four-step detail and exact Staging/Production/environment versions.             |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
 
@@ -71,7 +72,9 @@
 - F391 browser evidence: `.../f390-browser/06-f391-project-delivery.png` and `07-f391-manage-project.png`; default release-order view, two-item primary navigation, truthful environment-version empty state, settings sections and repository/environment/deployment legacy deep links all passed with preserved focused IDs and clean final-page consoles.
 - F392 schema gates: `f392-prisma-validate.log`, `f392-prisma-generate.log`, `f392-api-typecheck.log`, `f392-api-build.log` and `f392-api-unit.log` under the long-goal directory all passed; CodeGraph selected the migration-report spec.
 - F392 real MySQL: `f392-migrate-empty.log` and `f392-migrate-upgraded.log` passed. Empty schema has all six delivery tables; same digest produced two independent manifests for two builds; duplicate project releaseVersion failed. Upgrade fixture retained legacy plan/deployment links as NULL, observed-only digest as evidence, zero synthesized orders/manifests/environment versions, and preserved unrelated existing index/FK drift.
+- F393 API evidence: `f393-api-unit-final.log` — 2 suites/7 tests; `f393-api-mysql-integration-final.log` — 3 real-MySQL tests including concurrent identical create convergence; API type-check/build passed.
+- F393 Web/browser evidence: `f393-web-unit-final.log` — 2 files/12 tests, Web type-check/build passed; `.../f390-browser/08-f393-release-order.png` shows the real `2.4.1` draft with 0 builds/0 manifests. Sequential replay kept one card, conflicting note stayed in the dialog with an explicit error, and the final console was clean.
 
 ## Next
 
-Implement and verify F393 ReleaseOrder list/create API and Web with ACL, idempotency and zero implicit builds without waiting for user confirmation.
+Implement and verify F394 server-resolved BuildRun/Manifest execution, failure isolation and redacted per-run evidence without waiting for user confirmation.
