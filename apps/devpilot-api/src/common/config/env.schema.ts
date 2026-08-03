@@ -113,6 +113,9 @@ export const envSchema = z
     RELEASE_BUILD_COMMAND_TIMEOUT_MS: positiveInt(1).default(600000),
     RELEASE_BUILD_MAX_ARTIFACT_BYTES: positiveInt(1).default(262144000),
     RELEASE_BUILD_ARTIFACT_ROOT: z.string().optional(),
+    RELEASE_STAGING_DEPLOYMENT_ENABLED: booleanString.default('false'),
+    RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: positiveInt(1).default(120000),
+    RELEASE_STAGING_DEPLOYMENT_ROOT: z.string().optional(),
 
     // ---------- 资源管控调度器 ----------
     RESOURCE_CONTROL_SCHEDULER_ENABLED: booleanString.default('true'),

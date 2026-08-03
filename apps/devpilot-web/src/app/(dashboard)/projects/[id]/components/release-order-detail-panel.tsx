@@ -15,6 +15,7 @@ import {
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseOrderBuildStep } from './release-order-build-step';
 import { ReleaseOrderPreflightStep } from './release-order-preflight-step';
+import { ReleaseOrderStagingStep } from './release-order-staging-step';
 
 interface Props {
   projectId: string;
@@ -117,7 +118,13 @@ export function ReleaseOrderDetailPanel(props: Props) {
           {
             key: 'staging',
             label: t('releaseStepStaging'),
-            children: <PendingStep title={t('releaseStepStagingTitle')} text={t('releaseStepStagingEmpty')} />,
+            children: (
+              <ReleaseOrderStagingStep
+                projectId={props.projectId}
+                releaseOrderId={props.releaseOrderId}
+                onChanged={refresh}
+              />
+            ),
           },
           {
             key: 'production',

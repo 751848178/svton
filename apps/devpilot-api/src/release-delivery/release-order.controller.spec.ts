@@ -3,14 +3,17 @@ import { ReleaseOrderController } from "./release-order.controller";
 describe("ReleaseOrderController", () => {
   const orders = { list: jest.fn(), create: jest.fn(), get: jest.fn() };
   const builds = { list: jest.fn(), build: jest.fn() };
+  const staging = { list: jest.fn(), deploy: jest.fn() };
   const access = {
     assertRead: jest.fn(),
     assertCreate: jest.fn(),
     assertBuild: jest.fn(),
+    assertDeployStaging: jest.fn(),
   };
   const controller = new ReleaseOrderController(
     orders as never,
     builds as never,
+    staging as never,
     access as never,
   );
   const request = { teamId: "team-1", user: { id: "user-1" } };
@@ -67,5 +70,24 @@ describe("ReleaseOrderController", () => {
       "project-1",
       "order-1",
     );
+  });
+
+  it("authorizes exact-Manifest Staging reads and writes", async () => {
+    staging.list.mockResolvedValue({ items: [], total: 0 });
+    await controller.listStagingDeployments(request, "project-1", "order-1");
+    expect(access.assertRead).toHaveBeenCalled();
+    expect(staging.list).toHaveBeenCalledWith("team-1", "project-1", "order-1");
+
+    await controller.deployStaging(request, "project-1", "order-1", {
+      manifestId: "manifest-1",
+    });
+    expect(access.assertDeployStaging).toHaveBeenCalled();
+    expect(staging.deploy).toHaveBeenCalledWith({
+      teamId: "team-1",
+      actorId: "user-1",
+      projectId: "project-1",
+      releaseOrderId: "order-1",
+      manifestId: "manifest-1",
+    });
   });
 });

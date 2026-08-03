@@ -10,7 +10,9 @@ import {
 import { AuthzGuard, Roles } from "@svton/nestjs-authz";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CreateReleaseOrderDto } from "./dto/release-order.dto";
+import { DeployReleaseToStagingDto } from "./dto/release-staging.dto";
 import { ReleaseBuildService } from "./release-build.service";
+import { ReleaseStagingService } from "./release-staging.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderService } from "./release-order.service";
 
@@ -26,6 +28,7 @@ export class ReleaseOrderController {
   constructor(
     private readonly orders: ReleaseOrderService,
     private readonly builds: ReleaseBuildService,
+    private readonly staging: ReleaseStagingService,
     private readonly access: ReleaseOrderAccessService,
   ) {}
 
@@ -81,6 +84,33 @@ export class ReleaseOrderController {
       projectId,
       releaseOrderId,
     );
+  }
+
+  @Get(":releaseOrderId/staging-deployments")
+  async listStagingDeployments(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("releaseOrderId") releaseOrderId: string,
+  ) {
+    await this.access.assertRead(this.scope(req, projectId));
+    return this.staging.list(req.teamId, projectId, releaseOrderId);
+  }
+
+  @Post(":releaseOrderId/staging-deployments")
+  async deployStaging(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("releaseOrderId") releaseOrderId: string,
+    @Body() dto: DeployReleaseToStagingDto,
+  ) {
+    await this.access.assertDeployStaging(this.scope(req, projectId));
+    return this.staging.deploy({
+      teamId: req.teamId,
+      actorId: req.user.id,
+      projectId,
+      releaseOrderId,
+      manifestId: dto.manifestId,
+    });
   }
 
   private scope(req: AuthRequest, projectId: string) {

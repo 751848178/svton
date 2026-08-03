@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F396 — exact-Manifest repeatable Staging deployment without implicit builds.
+- Active slice: F397 — Production same-Manifest proof, frozen snapshots, approval and concurrency gates.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -43,7 +43,8 @@
 | F393      | done    | ACL/idempotent ReleaseOrder API and default create/list Web verified with zero implicit build.  |
 | F394      | done    | Server-resolved exact-Commit builds, isolated evidence and success-only immutable Manifests.   |
 | F395      | done    | Four-step accessible detail, stable refresh/deep-link recovery and isolated BuildRun logs.     |
-| F396-F398 | pending | Exact Staging/Production deployment and environment versions.                                  |
+| F396      | done    | Repeatable exact-Manifest Staging DeploymentRuns with no Git, checkout or implicit build.      |
+| F397-F398 | pending | Production proof/freeze/approval and environment versions.                                     |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
 
@@ -80,7 +81,9 @@
 - F394 browser/MySQL evidence: `.../f390-browser/09-f394-build-runs.png`, `10-f394-build-success.png`, `f394/mysql-browser-evidence.log` and `f394/mysql-final-build-evidence.log`. The server resolved `main@85fad682d21785cf83cc48a911e993c049750356`; the release order reached 5 independent BuildRuns and 4 Manifests, failed revision 3 retained zero Manifest, revisions 4/5 produced the same deterministic digest, and the final browser console had no error/warn entries.
 - F395 API/Web evidence: `f395/api-unit-final.log`, `f395/api-typecheck-final.log`, `f395/web-unit-final.log`, `f395/web-typecheck-final.log` and matching build logs verify the scoped detail route, server-derived preflight/resume state, stable route normalization and dual-language build.
 - F395 browser evidence: `.../f390-browser/11-f395-four-step-detail.png` and `12-f395-build-log-drawer.png`. Opening an order without `step` restored `step=build`; ArrowRight moved the selected ARIA tab and URL to Staging; invalid `step` normalized to build and removed a bogus buildRunId; the exact Build #5 log dialog survived refresh with one dialog, `aria-selected=true` and no console error/warn.
+- F396 API evidence: `f396/api-unit-final.log`, `f396/api-integration-final.log`, `f396/api-typecheck-final.log` and `f396/api-build-final.log` cover same-order/successful-build Manifest validation, repeatable DeploymentRuns, exact byte digest verification, archive traversal rejection boundary, failure persistence and real MySQL no-rebuild invariants.
+- F396 browser/MySQL evidence: `.../f390-browser/13-f396-repeat-staging.png` and `f396/mysql-browser-evidence.log`. Two clicks against Build #5 produced two completed DeploymentRuns with the same Manifest and Commit, `dryRun=0`, `artifactVerified=true`, `checkout=false`, `build=false`; BuildRun count remained exactly 5 and the browser console was clean.
 
 ## Next
 
-Implement and verify F396 exact-Manifest repeatable Staging deployment while proving DeploymentRun increments and BuildRun stays unchanged, without waiting for user confirmation.
+Implement and verify F397 Production same-Manifest proof, frozen snapshots, approval and concurrency/idempotency gates without waiting for user confirmation.

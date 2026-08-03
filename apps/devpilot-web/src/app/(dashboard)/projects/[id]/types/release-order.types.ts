@@ -67,3 +67,27 @@ export interface ReleaseBuildListResponse {
   items: ReleaseBuildItem[];
   total: number;
 }
+
+export interface ReleaseStagingDeploymentItem {
+  id: string;
+  environmentId: string | null;
+  artifactManifestId: string | null;
+  status: string;
+  targetType: string;
+  executorKey: string;
+  adapterKey: string;
+  dryRun: boolean;
+  branch: string | null;
+  commitSha: string | null;
+  logs: unknown;
+  result: unknown;
+  error: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  createdAt: string;
+}
+
+export interface ReleaseStagingDeploymentListResponse {
+  items: ReleaseStagingDeploymentItem[];
+  total: number;
+}

@@ -12,8 +12,8 @@ export function buildReleaseOrderInput(
 }
 
 export function releaseOrderStatusTone(status: string) {
-  if (status === 'succeeded') return 'success';
+  if (status === 'succeeded' || status === 'completed') return 'success';
   if (status === 'failed' || status === 'canceled') return 'error';
-  if (status === 'active') return 'running';
+  if (status === 'active' || status === 'running') return 'running';
   return 'idle';
 }

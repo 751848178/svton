@@ -43,4 +43,15 @@ export class ReleaseOrderAccessService {
       risk: "high",
     });
   }
+
+  assertDeployStaging(input: ReleaseOrderAccessInput) {
+    return this.access.assertCanWrite({
+      ...input,
+      category: "release",
+      action: "project.release_order.deploy_staging",
+      targetType: "project",
+      targetId: input.projectId,
+      risk: "high",
+    });
+  }
 }

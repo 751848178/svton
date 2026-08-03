@@ -63,6 +63,31 @@ export class ReleaseBuildArtifactService {
       throw error;
     }
   }
+
+  async resolveAndVerify(input: {
+    projectId: string;
+    releaseOrderId: string;
+    buildRunId: string;
+    uri: string;
+    digest: string;
+  }) {
+    for (const segment of [input.projectId, input.releaseOrderId, input.buildRunId]) {
+      if (!/^[A-Za-z0-9_-]+$/.test(segment)) throw new Error("制品路径标识无效");
+    }
+    const expectedUri = `release-artifact://${input.buildRunId}/bundle.zip`;
+    if (input.uri !== expectedUri) throw new Error("Manifest 制品 URI 与 BuildRun 不匹配");
+    const path = join(
+      this.root,
+      input.projectId,
+      input.releaseOrderId,
+      `${input.buildRunId}.zip`,
+    );
+    const stat = await lstat(path);
+    if (!stat.isFile()) throw new Error("Manifest 制品文件不存在");
+    const digest = `sha256:${await hashFile(path)}`;
+    if (digest !== input.digest) throw new Error("Manifest 制品 Digest 校验失败");
+    return { path, sizeBytes: stat.size };
+  }
 }
 
 interface ArchiveEntry {
