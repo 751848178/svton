@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F409 — cross-layer negative E2E for access, concurrency, recovery, compatibility, unavailable providers and redaction.
+- Active slice: F410 — independent code/domain/UX/accessibility/security review, fixes and final acceptance.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -56,7 +56,8 @@
 | F406      | done    | Read-only legacy compatibility, non-destructive archive and governed-path write closure.       |
 | F407      | done    | Bilingual runtime, terminology parity and user/migration documentation verified.              |
 | F408      | done    | One coherent Docker/MySQL/Redis/browser delivery lifecycle passed end to end.                   |
-| F409-F410 | pending | Cross-layer negative validation and final audit.                                                |
+| F409      | done    | Cross-layer ACL, concurrency, failure, compatibility, provider and redaction negatives passed. |
+| F410      | active  | Independent review, full verification and final delivery audit.                                |
 
 ## Evidence
 
@@ -114,7 +115,8 @@
 - F406 browser/MySQL evidence: `f406/mysql-evidence.log`, `f406/browser-dom.txt`, `f406/legacy-deployment-blocked-dom.txt`, `f406/26-f406-read-only-compatibility.png` and `f406/27-f406-legacy-deployment-blocked.png`. The professional deep link is read-only and reports 7 retained runs, 1 legacy-unverified run and zero synthetic manifests. All six exact-Manifest runs have `checkout=false`, `pull=false`, `build=false`. The Applications legacy wizard receives the concrete server rejection before creating any service DeploymentRun; the browser console has no error/warning entries.
 - F407 parity/documentation evidence: `f407/api-build.log`, `f407/web-build.log`, `f407/browser-en-dom.txt`, `f407/production-en-dom.txt`, `f407/28-f407-release-policy-en.png` and `f407/29-f407-production-en.png`. The recursive parity check covers 2,796 zh/en leaf messages and ICU placeholder names. Runtime cookie switching renders release-policy capability reasons and Production policy snapshots in English without losing the Chinese default. The bilingual user guide and migration guide document release-order terminology, immutable Manifests, environment versions, archive/compatibility behavior and why advanced strategies remain unavailable.
 - F408 complete lifecycle evidence: `f408/settings-dom.txt`, `f408/builds-dom.txt`, `f408/staging-dom.txt`, `f408/production-request-dom.txt`, `f408/approval-dom.txt`, `f408/production-deployed-dom.txt`, `f408/recovery-dom.txt`, `f408/mysql-evidence.log`, screenshots `30-f408-multiple-builds.png` through `33-f408-recovery.png`, and `f408/browser-console.json`. ReleaseOrder `2.4.2` retained the verified `main@85fad682...` repository/settings baseline, created two independent successful BuildRuns and two immutable Manifests, repeated Build #2's exact Manifest twice in Staging, consumed one high-risk approval for Production, and appended a Staging recovery version. MySQL ties four EnvironmentVersions to four distinct completed non-dry-run DeploymentRuns; every command plan has `checkout=false`, `pull=false`, `build=false`. The browser console contained no errors or warnings.
+- F409 cross-layer negative evidence: `f409/focused-negative-tests.log` — 11 suites/74 tests; `f409/mysql-evidence.log`, browser DOM captures, screenshots `34-f409-cross-team-denied.png` through `38-f409-secret-redaction.png`, `f409/browser-console-fixed.json`, and `f409/web-build.log`. A real other-team Project with zero current-user membership rendered only “project not found” and retained zero release/deployment rows. Controlled Build #3 failed with no Manifest, while restored configuration produced successful Build #4. Concurrent ReleaseOrder/Production integration, exact-artifact boundaries, legacy compatibility, provider freshness/failure and deployment/Secret redaction all passed. The compatibility view remains read-only with no synthesized Manifest; 4xx load errors are rendered in UI state without polluting the console, while network/5xx errors are still reported. Browser and MySQL expose only Secret id/name/type plus masked value, with no plaintext field or test database credential.
 
 ## Next
 
-Complete ACL, concurrent/idempotent write, failure/retry, legacy compatibility, unavailable-provider and Secret/log redaction negative E2E with API, MySQL and browser evidence.
+Run independent code, domain, UX/accessibility and security review passes; fix source-backed defects; then execute full Prisma, test, type-check, build, Docker/browser, worktree-protection and commit-chain acceptance.

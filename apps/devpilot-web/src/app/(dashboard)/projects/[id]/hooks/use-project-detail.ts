@@ -19,6 +19,7 @@ import {
   buildResourceBulkBindRequest,
   createEmptyResourceBulkBindSelection,
 } from '../utils/resource-bulk-bind';
+import { shouldReportLoadError } from '../utils/load-error.utils';
 
 export function useProjectDetail(projectId: string, deploymentRunId?: string) {
   const [project, setProject] = useState<Project | null>(null);
@@ -57,7 +58,7 @@ export function useProjectDetail(projectId: string, deploymentRunId?: string) {
           '',
       );
     } catch (err) {
-      console.error('Failed to load project:', err);
+      if (shouldReportLoadError(err)) console.error('Failed to load project:', err);
       setProject(null);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -77,7 +78,7 @@ export function useProjectDetail(projectId: string, deploymentRunId?: string) {
       }
       setDeploymentError('');
     } catch (err) {
-      console.error('Failed to load deployment runs:', err);
+      if (shouldReportLoadError(err)) console.error('Failed to load deployment runs:', err);
       setDeploymentError(err instanceof Error ? err.message : String(err));
     }
   });
@@ -87,7 +88,7 @@ export function useProjectDetail(projectId: string, deploymentRunId?: string) {
       setWebhooks(await apiRequest<ProjectWebhook[]>('GET:/project-webhooks', { projectId }));
       setWebhookError('');
     } catch (err) {
-      console.error('Failed to load webhooks:', err);
+      if (shouldReportLoadError(err)) console.error('Failed to load webhooks:', err);
       setWebhookError(err instanceof Error ? err.message : String(err));
     }
   });
