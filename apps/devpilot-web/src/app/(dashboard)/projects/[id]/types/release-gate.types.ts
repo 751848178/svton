@@ -21,6 +21,10 @@ export type ReleaseGateCheck = {
   providerKey: string | null;
   reasonCode: string;
   reason: LocalizedGateText;
+  evidenceRef: string | null;
+  checkedAt: string | null;
+  expiresAt: string | null;
+  fresh: boolean | null;
 };
 
 export type ReleaseGateCatalog = {

@@ -577,6 +577,8 @@
     "releaseGateCatalogExpand": "View 51 checks",
     "releaseGateCatalogCollapse": "Collapse catalog",
     "releaseGateCapabilityCount": "{count} MVP capability groups",
+    "releaseGateEvidenceChecked": "checked at {time}",
+    "releaseGateEvidenceExpires": "valid until {time}",
     "releaseGatePhase": {
       "commit": "Commit Gate",
       "build": "Build Gate",

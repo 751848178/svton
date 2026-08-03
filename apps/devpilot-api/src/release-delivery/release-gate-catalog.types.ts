@@ -36,4 +36,8 @@ export type ReleaseGateEvaluation = ReleaseGateDefinition & {
   providerKey: string | null;
   reasonCode: string;
   reason: LocalizedText;
+  evidenceRef: string | null;
+  checkedAt: string | null;
+  expiresAt: string | null;
+  fresh: boolean | null;
 };

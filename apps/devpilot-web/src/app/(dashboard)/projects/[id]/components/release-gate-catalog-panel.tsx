@@ -87,6 +87,7 @@ function GatePhase({
   localize: (text: LocalizedGateText) => string;
 }) {
   const t = useTranslations('projects');
+  const locale = useLocale();
   return (
     <div className="space-y-2 rounded-md border bg-background p-3">
       <div className="flex items-center justify-between">
@@ -105,6 +106,22 @@ function GatePhase({
               <span>·</span>
               <span>{localize(check.reason)}</span>
             </div>
+            {check.evidenceRef ? (
+              <div className="mt-1 break-all text-[11px] text-muted-foreground">
+                <span>{check.providerKey}</span>
+                <span> · {check.evidenceRef}</span>
+                {check.checkedAt ? (
+                  <span> · {t('releaseGateEvidenceChecked', {
+                    time: new Date(check.checkedAt).toLocaleString(locale),
+                  })}</span>
+                ) : null}
+                {check.expiresAt ? (
+                  <span> · {t('releaseGateEvidenceExpires', {
+                    time: new Date(check.expiresAt).toLocaleString(locale),
+                  })}</span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

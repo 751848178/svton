@@ -41,7 +41,9 @@ describe("LocalReleaseBuildExecutorService", () => {
     expect(result.logs.join("\n")).toContain("[REDACTED_TOKEN]");
     expect(result.logs.join("\n")).not.toContain("ghp_12345678901234567890");
     expect(result.gateSummary).toEqual(expect.objectContaining({
-      security: expect.objectContaining({ status: "passed" }),
+      security: expect.objectContaining({
+        executionControls: expect.objectContaining({ status: "passed" }),
+      }),
     }));
     const replay = await executor.execute({
       ...input(checkout, "node emit.js"),

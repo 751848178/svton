@@ -1,10 +1,15 @@
 import { Injectable } from "@nestjs/common";
 import { RELEASE_GATE_CAPABILITIES } from "./release-gate-capability.catalog";
+import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
+import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
 import type {
   ReleaseGateCapabilityId,
   ReleaseGateDefinition,
   ReleaseGateEvaluation,
 } from "./release-gate-catalog.types";
+import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
+import type { ReleaseGateCapabilityProvider } from "./release-gate-provider.types";
+import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
 
 const PROVIDER_UNAVAILABLE = {
   zh: "尚未连接真实 Provider，未执行检查",
@@ -18,34 +23,76 @@ const TARGET_UNAVAILABLE = {
 
 @Injectable()
 export class ReleaseGateCapabilityRegistryService {
-  list() {
+  private readonly providers: ReleaseGateCapabilityProvider[];
+
+  constructor(
+    source: ReleaseGateSourceCapabilityProvider,
+    build: ReleaseGateBuildCapabilityProvider,
+    artifact: ReleaseGateArtifactCapabilityProvider,
+  ) {
+    this.providers = [source, build, artifact];
+  }
+
+  list(context: ReleaseGateEvidenceContext) {
     return RELEASE_GATE_CAPABILITIES.map((definition) => ({
       ...definition,
-      available: false,
-      providerKey: null,
-      reasonCode: "provider_not_connected",
-      reason: PROVIDER_UNAVAILABLE,
+      ...this.capabilityState(definition.id, context),
     }));
   }
 
-  evaluate(definition: ReleaseGateDefinition): ReleaseGateEvaluation {
-    const capability = definition.capabilityId
-      ? this.find(definition.capabilityId)
+  evaluate(
+    definition: ReleaseGateDefinition,
+    context: ReleaseGateEvidenceContext,
+    now: Date,
+  ): ReleaseGateEvaluation {
+    const provider = definition.capabilityId
+      ? this.findProvider(definition.capabilityId)
       : null;
+    if (provider) {
+      return {
+        ...definition,
+        providerKey: provider.providerKey,
+        ...provider.evaluate(definition, context, now),
+      };
+    }
     return {
       ...definition,
       status: "unavailable",
-      providerKey: capability?.providerKey ?? null,
-      reasonCode: definition.capabilityId
-        ? capability?.reasonCode ?? "provider_not_connected"
-        : "target_capability_not_connected",
-      reason: definition.capabilityId
-        ? capability?.reason ?? PROVIDER_UNAVAILABLE
-        : TARGET_UNAVAILABLE,
+      providerKey: null,
+      reasonCode: definition.capabilityId ? "provider_not_connected" : "target_capability_not_connected",
+      reason: definition.capabilityId ? PROVIDER_UNAVAILABLE : TARGET_UNAVAILABLE,
+      evidenceRef: null,
+      checkedAt: null,
+      expiresAt: null,
+      fresh: null,
     };
   }
 
-  private find(id: ReleaseGateCapabilityId) {
-    return this.list().find((capability) => capability.id === id);
+  private capabilityState(
+    id: ReleaseGateCapabilityId,
+    context: ReleaseGateEvidenceContext,
+  ) {
+    const provider = this.findProvider(id);
+    if (!provider) {
+      return {
+        available: false,
+        providerKey: null,
+        reasonCode: "provider_not_connected",
+        reason: PROVIDER_UNAVAILABLE,
+      };
+    }
+    const available = provider.available(id, context);
+    return {
+      available,
+      providerKey: provider.providerKey,
+      reasonCode: available ? "provider_evidence_available" : "provider_evidence_unavailable",
+      reason: available
+        ? { zh: "真实 Provider 证据可用", en: "Real provider evidence is available" }
+        : { zh: "Provider 已接入，但当前对象缺少真实证据", en: "The provider is connected, but this object has no real evidence" },
+    };
+  }
+
+  private findProvider(id: ReleaseGateCapabilityId) {
+    return this.providers.find((provider) => provider.capabilityIds.includes(id));
   }
 }

@@ -577,6 +577,8 @@
     "releaseGateCatalogExpand": "查看 51 项",
     "releaseGateCatalogCollapse": "收起目录",
     "releaseGateCapabilityCount": "{count} 个 MVP 能力组",
+    "releaseGateEvidenceChecked": "检查于 {time}",
+    "releaseGateEvidenceExpires": "有效至 {time}",
     "releaseGatePhase": {
       "commit": "Commit Gate",
       "build": "Build Gate",

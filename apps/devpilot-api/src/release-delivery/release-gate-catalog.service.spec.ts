@@ -1,18 +1,31 @@
 import { NotFoundException } from "@nestjs/common";
+import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
+import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
 import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
 import { ReleaseGateCatalogController } from "./release-gate-catalog.controller";
 import { ReleaseGateCatalogService } from "./release-gate-catalog.service";
 import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
 import { RELEASE_GATE_STATUSES } from "./release-gate-catalog.types";
+import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
 
 describe("ReleaseGateCatalogService", () => {
-  const order = { id: "order-1", releaseVersion: "2.4.1" };
+  const order = {
+    id: "order-1",
+    releaseVersion: "2.4.1",
+    project: { repositoryConnection: null, repositoryAnalysisRuns: [] },
+    buildRuns: [],
+  };
+  const registry = () => new ReleaseGateCapabilityRegistryService(
+    new ReleaseGateSourceCapabilityProvider(),
+    new ReleaseGateBuildCapabilityProvider(),
+    new ReleaseGateArtifactCapabilityProvider(),
+  );
 
   it("publishes the versioned 10/11/20/10 canonical catalog", async () => {
-    const orders = { findScoped: jest.fn().mockResolvedValue(order) };
+    const evidence = { load: jest.fn().mockResolvedValue(order) };
     const service = new ReleaseGateCatalogService(
-      orders as never,
-      new ReleaseGateCapabilityRegistryService(),
+      evidence as never,
+      registry(),
     );
     const result = await service.get("team-1", "project-1", "order-1");
     expect(result.catalogVersion).toMatch(/^v13\./);
@@ -36,8 +49,8 @@ describe("ReleaseGateCatalogService", () => {
 
   it("does not expose a catalog for a cross-project or unknown release order", async () => {
     const service = new ReleaseGateCatalogService(
-      { findScoped: jest.fn().mockResolvedValue(null) } as never,
-      new ReleaseGateCapabilityRegistryService(),
+      { load: jest.fn().mockResolvedValue(null) } as never,
+      registry(),
     );
     await expect(service.get("team-1", "project-1", "other-order"))
       .rejects.toBeInstanceOf(NotFoundException);

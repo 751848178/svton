@@ -42,8 +42,8 @@
 | F399 | done    | 将仓库、环境配置、资源、Webhook 和设置收敛到 Manage Project。                                           | Settings routes/compat adapters。                          | 五区普通路径、legacy 重定向和专业运行审批证据浏览器回归通过。                              |
 | F400 | done    | 实现环境 key 锁定、配置修订、共享资源/Secret 引用/域名路由/策略治理。                                   | Project environment governance。                           | 服务端权限、审计、无 Secret 明文、漂移测试通过。                                           |
 | F401 | done    | 建立版本化 51 项目录、统一状态和默认不可用 capability registry。                                        | Release gates schema/service/Web。                         | 10/11/20/10 目录计数；未接 Provider 不通过。                                               |
-| F402 | active  | 接通 M01-M05 Commit/Build 真实能力组。                                                                  | Commit/build provider adapters。                           | 正/负/新鲜度证据；缺失 Provider 不可用。                                                   |
-| F403 | pending | 接通 M06-M09 Deploy 真实能力组。                                                                        | Config/Secret/resource/connectivity/migration adapters。   | 环境归属、脱敏、过期证据测试。                                                             |
+| F402 | done    | 接通 M01-M05 Commit/Build 真实能力组。                                                                  | Commit/build provider adapters。                           | 正/负/新鲜度证据；缺失 Provider 不可用。                                                   |
+| F403 | active  | 接通 M06-M09 Deploy 真实能力组。                                                                        | Config/Secret/resource/connectivity/migration adapters。   | 环境归属、脱敏、过期证据测试。                                                             |
 | F404 | pending | 接通 M10-M15 Promote 真实能力组。                                                                       | Approval/DNS/TLS/HTTP/observability/recovery adapters。    | 业务验证只作证据；技术门禁真实。                                                           |
 | F405 | pending | 完成标准发布策略；金丝雀/蓝绿/自动放量 fail closed。                                                    | Release policy/capability。                                | 标准闭环；高级策略显示具体不可执行原因。                                                   |
 | F406 | pending | 收敛兼容 backfill/archive 和新链路，移除新路径 branch-pull/build-on-deploy。                            | Migration/compat/read adapters。                           | 历史项目/环境/运行/日志保留；任意输入被拒绝。                                              |
@@ -93,3 +93,5 @@
 - 2026-08-03: F401 开始；建立版本化 51 项目录、统一检查状态与默认 unavailable 的 capability registry，先证明目录 10/11/20/10 计数和缺 Provider 不得成功。
 - 2026-08-03: F401 完成；服务端版本化目录固定 Commit/Build/Deploy/Promote 为 10/11/20/10 共 51 项并映射 15 个 MVP 能力组，统一六态契约。未接 Provider 的 51 项全部 fail closed 为 unavailable；真实 API、跨项目 ACL 负例、17 项回归、API/Web 构建和浏览器默认摘要/专业展开均通过。
 - 2026-08-03: F402 开始；接通 M01-M05 Commit/Build 的真实仓库、分析、构建测试、安全和不可变制品证据，并验证成功、失败、过期与缺 Provider 边界。
+- 2026-08-03: F402 完成；门禁从真实 RepositoryConnection、精确 Commit RepositoryAnalysisRun、最新 BuildRun 和 Manifest 读取证据，并携带 evidenceRef、checkedAt、expiresAt 与 fresh。正例、失败阻断、过期转未检查和缺 Provider 不可用均有回归；真实浏览器为当前发布单显示 C01/C05/B02/B09 已检查、C08/B03 未检查及 45 项不可用，安全执行隔离不再误称 Secret/SAST/漏洞扫描通过。
+- 2026-08-03: F403 开始；接通 M06-M09 的环境配置、Secret 引用、资源/部署目标连通、容量与迁移/备份真实证据，并严守环境归属、脱敏和过期边界。

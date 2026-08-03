@@ -80,8 +80,10 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
         build: { status: "passed", components: input.components.length },
         tests: { status: "not_configured", blocking: false },
         security: {
-          status: "passed",
-          controls: ["minimal_environment", "path_confinement", "log_redaction"],
+          executionControls: {
+            status: "passed",
+            controls: ["minimal_environment", "path_confinement", "log_redaction"],
+          },
         },
       },
     };

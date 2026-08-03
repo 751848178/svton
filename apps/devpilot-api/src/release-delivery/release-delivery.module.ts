@@ -23,8 +23,12 @@ import { EnvironmentVersionService } from "./environment-version.service";
 import { EnvironmentVersionReadRepository } from "./environment-version-read.repository";
 import { EnvironmentVersionPolicyService } from "./environment-version-policy.service";
 import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
+import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
+import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
 import { ReleaseGateCatalogController } from "./release-gate-catalog.controller";
 import { ReleaseGateCatalogService } from "./release-gate-catalog.service";
+import { ReleaseGateEvidenceRepository } from "./release-gate-evidence.repository";
+import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
 
 @Module({
   imports: [PrismaModule, ControlAccessPolicyModule, RepositoryAnalysisModule],
@@ -51,6 +55,10 @@ import { ReleaseGateCatalogService } from "./release-gate-catalog.service";
     EnvironmentVersionReadRepository,
     EnvironmentVersionPolicyService,
     ReleaseGateCapabilityRegistryService,
+    ReleaseGateArtifactCapabilityProvider,
+    ReleaseGateSourceCapabilityProvider,
+    ReleaseGateBuildCapabilityProvider,
+    ReleaseGateEvidenceRepository,
     ReleaseGateCatalogService,
     {
       provide: ReleaseBuildExecutorPort,
