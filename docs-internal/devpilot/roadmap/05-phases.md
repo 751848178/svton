@@ -3,6 +3,13 @@
 > 这是路线骨架。**每个 P 只有一句目标 + 状态 + 下一步**。详细"已支持"清单在各 `progress/P*.md`。
 > 跨 P 的下一步优先级见末尾。
 
+### V13. 项目与发布管控（跨 P 主线）
+
+- 目标:以项目目录、三步接入、发布单、环境版本和 Manage Project 重组交付主线，并以不可变 BuildRun/Manifest 贯通 Staging、Production 和 recovery。
+- 状态:🔵 F386 基线与迁移合同进行中；F387-F410 按单写者串行实施。
+- 进度:`../progress/project-delivery-v13.md`
+- 下一步:完成 F386 基线验证后进入 F387 项目生命周期、仓库规范身份和环境 baseline schema。
+
 ### P0. 项目纳管入口
 
 - 目标:`Project` 作为项目管控容器,支持 generated/imported/external 三种来源和 full/deployment/resources 三种管理范围。
@@ -68,14 +75,13 @@
 
 ## 8. 推荐下一步优先级
 
-建议优先做真实执行治理、P3 的真实站点同步,以及可观测性:
+当前最高优先级是 V13 项目与发布管控；既有 P0-P8 后续作为其治理和 Provider 能力输入：
 
-1. 继续补安全治理:扩展真实 DB fixture/e2e 权限覆盖、资源实例级策略、agent supervisor、跨实例远端 orphan 治理和实际多实例队列治理。
-2. 继续完善 Nginx/OpenResty adapter:模块基线策略化与失败告警、性能调优、真实环境 smoke,并把 ProxyConfig 收敛到 Site。
-3. 补服务可观测性:实时日志流/SLS 查询、容器指标、健康趋势、通知通道、SLO、环境变量和 Secret 注入。
-4. 在环境工作台基础上继续把 Site copy queued live sync 的 follow-up 摘要接到前端治理入口和 worker 运行态可视化,并把资源 copy 后的同步、指标、告警接管入口做深。
+1. 串行完成 F386-F410，优先项目接入、ReleaseOrder/Manifest 和标准发布真实闭环。
+2. 将既有安全治理、站点/DNS/TLS、资源、日志、监控和审批能力以真实 Provider 状态接入 15 个 MVP 能力组。
+3. 未形成 Provider 闭环的能力保持未检查/不可用；金丝雀和蓝绿不模拟成功。
 
-这样 Devpilot 会从"能登记资源"变成"项目代码变更后能触发部署并落到服务器资源",产品主线会明显更完整。
+完成后 Devpilot 将从分散的项目/环境/发布能力升级为同一可追溯制品贯穿预发、生产和恢复的项目交付产品。
 
 ### PT. 工程债:手搓功能应替换为三方库
 
