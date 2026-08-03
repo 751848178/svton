@@ -11,6 +11,7 @@ export interface ProjectEnvironment {
   name: string;
   status: string;
   sortOrder: number;
+  baselineRole?: 'staging' | 'production' | null;
   /**
    * 环境级配置（后端 ProjectEnvironment.config Json?）。
    * 其中 `envVars` 承载该环境的普通（非密钥）环境变量 KEY=VALUE，由部署注入

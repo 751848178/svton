@@ -2,46 +2,32 @@
  * 项目详情页 - 头部信息条
  *
  * 单一职责：渲染返回按钮 + 项目名 + 整体健康度 StatusTag +
- * 元信息（git 仓库 / 创建时间 / 应用数 / 环境数）+ 突出的「部署」主操作按钮。
+ * 元信息（git 仓库 / 创建时间 / 应用数 / 环境数）+ 路由宿主提供的上下文操作。
  *
  * 遵循 teams/[id] 的头部骨架（图标返回按钮 + 标题），并叠加
- * 健康度徽章与主 CTA，给出页面的第一焦点（"项目状态如何"）。
- * 不承载任何业务逻辑 —— 所有数据来自传入的 detail，派生通过纯函数。
- *
- * 主「部署」按钮（A10 修复）：不再跳转 /applications?projectId=X，
- * 改为 onClick —— 由 page 层决定是直接打开内联 DeployWizardModal（单服务）
- * 还是滚动到部署 tab 提示用户选服务（多服务）。
+ * 健康度徽章与页面级动作，给出页面的第一焦点（"项目状态如何"）。
+ * 不承载任何业务逻辑 —— 所有数据来自传入的 detail，动作由 route host 注入。
  */
 
 'use client';
 
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import type { ReactNode } from 'react';
 import { Tag } from '@svton/ui';
 import { Button, StatusTag } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
 import type { useProjectDetail } from '../hooks/use-project-detail';
-import {
-  getProjectHealth,
-  getHealthLabelKey,
-  getHealthStatusValue,
-} from '../utils/project-health';
+import { getProjectHealth, getHealthLabelKey, getHealthStatusValue } from '../utils/project-health';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
 interface ProjectDetailHeaderProps {
   detail: DetailHook;
-  /** 主「部署」按钮：单服务时直接打开向导，多服务时切到部署 tab + toast。 */
-  onDeployClick?: () => void;
-  /** 次要「部署历史」按钮：切到部署 tab 查看运行历史。 */
-  onDeployHistoryClick?: () => void;
+  actions?: ReactNode;
 }
 
-export function ProjectDetailHeader({
-  detail,
-  onDeployClick,
-  onDeployHistoryClick,
-}: ProjectDetailHeaderProps) {
+export function ProjectDetailHeader({ detail, actions }: ProjectDetailHeaderProps) {
   const t = useTranslations('projects');
   const router = useRouter();
   const p = detail.project;
@@ -80,37 +66,25 @@ export function ProjectDetailHeader({
             {t('createdAtLabel')}: {formatDateTime(p.createdAt)}
           </span>
           <Dot />
-          <Tag color="blue">
-            {t('appCount', { count: appCount })}
-          </Tag>
-          <Tag color="cyan">
-            {t('envCount', { count: envCount })}
-          </Tag>
+          <Tag color="blue">{t('appCount', { count: appCount })}</Tag>
+          <Tag color="cyan">{t('envCount', { count: envCount })}</Tag>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {onDeployClick ? (
-          <Button variant="primary" onClick={onDeployClick}>
-            {t('deployAction')}
-          </Button>
-        ) : null}
-        {onDeployHistoryClick ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onDeployHistoryClick}
-          >
-            {t('deployHistoryAction')}
-          </Button>
-        ) : null}
-      </div>
+      {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
     </div>
   );
 }
 
 /** 间隔圆点。 */
 function Dot() {
-  return <span className="text-muted-foreground/50" aria-hidden="true">·</span>;
+  return (
+    <span
+      className="text-muted-foreground/50"
+      aria-hidden="true"
+    >
+      ·
+    </span>
+  );
 }
 
 /** 内联回退箭头（与 teams/[id] 风格一致）。 */

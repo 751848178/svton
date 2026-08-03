@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F391 — delivery/settings route hosts and legacy deep-link adapters.
+- Active slice: F392 — additive release order, build, manifest, release run and environment version schema.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -38,8 +38,8 @@
 | F388      | done    | Transactional intake API, duplicate guard, idempotent finalize and recovery complete.        |
 | F389      | done    | ACL-filtered directory read model, search/filter/baseline/Production/activity summary complete. |
 | F390      | done    | Project directory and three-step existing-repository intake verified end to end.              |
-| F391      | active  | Delivery/settings route hosts, primary project IA and legacy deep-link adapters.               |
-| F392-F398 | pending | ReleaseOrder, build/Manifest, four steps, exact Staging/Production and environment versions. |
+| F391      | done    | Delivery/settings hosts, two-item primary IA and legacy deep-link adapters verified.           |
+| F392-F398 | pending | ReleaseOrder, build/Manifest, four steps, exact Staging/Production and environment versions.    |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
 
@@ -66,7 +66,9 @@
 - F390 focused regression: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f390-api-unit-latest.log` — 5 API tests; `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f390-web-unit-latest.log` — 6 Web tests; API/Web type-check and build logs use the matching `f390-*-latest/final.log` names.
 - F390 browser evidence: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f390-browser/` — draft retention and explicit branch failure, retry, fixed-commit analysis, dependency-safe review, baseline finalization, project detail, directory search/filter and legacy redirect; console error/warn was empty after the final regression.
 - F390 real MySQL evidence: project `cmscs55sy000azibq1is4a4dg` is ready at commit `85fad682d21785cf83cc48a911e993c049750356`, has one locked canonical identity, one successful finalization, exactly one active Staging and Production baseline, and the latest successful run is not overridden by an older failed run.
+- F391 route regressions: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f391-web-unit-final.log` — 2 files, 12 tests; Web type-check/build passed in `f391-web-typecheck-after-build.log` and `f391-web-build-final.log`; CodeGraph selected the compatibility spec.
+- F391 browser evidence: `.../f390-browser/06-f391-project-delivery.png` and `07-f391-manage-project.png`; default release-order view, two-item primary navigation, truthful environment-version empty state, settings sections and repository/environment/deployment legacy deep links all passed with preserved focused IDs and clean final-page consoles.
 
 ## Next
 
-Implement and verify F391 project IA, delivery/settings route hosts and legacy deep-link adapters without waiting for user confirmation.
+Implement and verify F392 additive release delivery schema and legacy/unverified migration report without waiting for user confirmation.
