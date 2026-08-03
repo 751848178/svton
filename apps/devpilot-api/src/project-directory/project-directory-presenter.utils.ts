@@ -72,9 +72,9 @@ export function toProjectDirectoryItem(
 function runtimeStatus(project: ProjectDirectoryRecord): ProjectRuntimeStatus {
   const statuses = [
     project.repositoryConnection?.status,
-    ...project.repositoryAnalysisRuns.map((run) => run.status),
-    ...project.deploymentRuns.map((run) => run.status),
-    ...project.releasePlans.map((plan) => plan.status),
+    project.repositoryAnalysisRuns[0]?.status,
+    project.deploymentRuns[0]?.status,
+    project.releasePlans[0]?.status,
   ].filter((status): status is string => Boolean(status));
   if (statuses.some((status) => RUNNING.has(status))) return "running";
   if (statuses.some((status) => FAILED.has(status))) return "failed";

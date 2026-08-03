@@ -30,8 +30,8 @@
 | F387 | done    | 增加项目生命周期、仓库规范身份、finalize、环境 baseline role/config revision 的增量 schema 与冲突报告。 | Prisma 与项目/环境迁移工具。                               | 空库/升级 fixture 迁移、Prisma/type-check、14 tests 通过；历史状态/歧义环境保持 NULL。     |
 | F388 | done    | 实现 draft→analysis→review→幂等 finalize 后端事务与恢复。                                               | project-intake、repository-analysis、project-environment。 | 39 unit + 7 real-MySQL integration tests、API build/type-check 通过。                      |
 | F389 | done    | 提供 ACL 过滤的项目目录服务端读模型。                                                                   | Project query/read-model 与 DTO。                          | 12 unit/regression + 2 real-MySQL tests；API type-check/build 通过。                         |
-| F390 | in_progress | 实现 `/projects` 目录和三步 `/projects/create`，兼容 `/projects/import`。                               | Projects Web routes/components/hooks。                     | Web 单测和浏览器接入闭环。                                                                 |
-| F391 | pending | 建立 delivery/settings 路由宿主和旧 tab/query 深链适配。                                                | Project detail routes/navigation。                         | 路由/深链回归；一级只保留发布单和环境版本。                                                |
+| F390 | done    | 实现 `/projects` 目录和三步 `/projects/create`，兼容 `/projects/import`。                               | Projects Web routes/components/hooks。                     | 11 个 API/Web 回归、双端 type-check/build、真实 MySQL 和浏览器接入闭环通过。               |
+| F391 | in_progress | 建立 delivery/settings 路由宿主和旧 tab/query 深链适配。                                                | Project detail routes/navigation。                         | 路由/深链回归；一级只保留发布单和环境版本。                                                |
 | F392 | pending | 增加 ReleaseOrder、BuildRun、ArtifactManifest、ReleaseRun、EnvironmentVersion 与 legacy nullable 关系。 | Prisma/release domain migration。                          | 新库/升级库迁移；legacy/unverified 报告。                                                  |
 | F393 | pending | 实现发布单列表/创建读写模型；创建只含版本号与说明且不自动构建。                                         | ReleaseOrder API/Web。                                     | 唯一性、ACL、幂等、零 BuildRun 证据。                                                      |
 | F394 | pending | 实现服务端主分支最新 Commit 构建与独立 BuildRun/Manifest/日志/测试安全证据。                            | Build domain 与 executor port。                            | 多构建、失败无 Manifest、精确 Commit、日志脱敏。                                           |
@@ -69,3 +69,5 @@
 - 2026-08-03: F389 开始；目录查询先固定 team scope，再执行逐项目 ACL，运行、配置、Production、域名和活动均只从项目关系读取。
 - 2026-08-03: F389 完成；新增 ACL 过滤目录读模型，支持名称/仓库/域名搜索、运行/配置筛选、精确 Staging/Production 基线、线上/待配置摘要、最近活动排序，真实 MySQL 证明团队/归档/嵌套运行隔离。
 - 2026-08-03: F390 开始；Web 项目目录改用新读模型，创建与接入入口收敛为生成新项目和三步接入已有项目，同时保留旧 `/projects/import` 深链兼容。
+- 2026-08-03: F390 完成；浏览器真实完成失败保留、重试、分析审核、双环境 finalize 和目录筛选，数据库证明固定 commit、唯一 Staging/Production 及幂等 finalization；目录运行态只读取最新运行，应用建议依赖的环境建议在 UI 中 fail closed。
+- 2026-08-03: F391 开始；收敛项目详情一级 IA，并建立 delivery/settings 宿主与旧 tab/query 深链适配。

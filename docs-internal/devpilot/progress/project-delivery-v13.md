@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F390 — project directory Web and three-step existing-repository intake.
+- Active slice: F391 — delivery/settings route hosts and legacy deep-link adapters.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -37,7 +37,8 @@
 | F387      | done    | Additive intake/identity/finalization/config revision schema and preflight reports complete. |
 | F388      | done    | Transactional intake API, duplicate guard, idempotent finalize and recovery complete.        |
 | F389      | done    | ACL-filtered directory read model, search/filter/baseline/Production/activity summary complete. |
-| F390-F391 | pending | Three-step Web and project IA.                                                                  |
+| F390      | done    | Project directory and three-step existing-repository intake verified end to end.              |
+| F391      | active  | Delivery/settings route hosts, primary project IA and legacy deep-link adapters.               |
 | F392-F398 | pending | ReleaseOrder, build/Manifest, four steps, exact Staging/Production and environment versions. |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
@@ -62,7 +63,10 @@
 - F389 unit/regression tests: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-unit-tests-search-summary.log` — 3 suites, 12 tests passed.
 - F389 real MySQL directory isolation/search: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-mysql-search-integration-retry.log` — 2 integration tests passed; disposable container removed.
 - F389 API gates and graph: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-api-typecheck-search-summary.log`, `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-api-build.log`, `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f389-codegraph.log`.
+- F390 focused regression: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f390-api-unit-latest.log` — 5 API tests; `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f390-web-unit-latest.log` — 6 Web tests; API/Web type-check and build logs use the matching `f390-*-latest/final.log` names.
+- F390 browser evidence: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/f390-browser/` — draft retention and explicit branch failure, retry, fixed-commit analysis, dependency-safe review, baseline finalization, project detail, directory search/filter and legacy redirect; console error/warn was empty after the final regression.
+- F390 real MySQL evidence: project `cmscs55sy000azibq1is4a4dg` is ready at commit `85fad682d21785cf83cc48a911e993c049750356`, has one locked canonical identity, one successful finalization, exactly one active Staging and Production baseline, and the latest successful run is not overridden by an older failed run.
 
 ## Next
 
-Implement and verify F390 project directory Web and three-step intake without waiting for user confirmation.
+Implement and verify F391 project IA, delivery/settings route hosts and legacy deep-link adapters without waiting for user confirmation.

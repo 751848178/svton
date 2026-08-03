@@ -121,6 +121,29 @@ describe("project directory read model", () => {
     expect(item.production).toBeNull();
   });
 
+  it("does not let an older failed run override the latest successful run", () => {
+    const item = toProjectDirectoryItem(
+      record({
+        repositoryAnalysisRuns: [
+          {
+            id: "run-latest",
+            status: "succeeded",
+            createdAt: new Date("2026-08-03T04:00:00.000Z"),
+            finishedAt: new Date("2026-08-03T04:01:00.000Z"),
+          },
+          {
+            id: "run-old",
+            status: "failed",
+            createdAt: new Date("2026-08-03T03:00:00.000Z"),
+            finishedAt: new Date("2026-08-03T03:01:00.000Z"),
+          },
+        ],
+      }),
+    );
+
+    expect(item.runtimeStatus).toBe("idle");
+  });
+
   it("filters denied projects before applying runtime/configuration filters", async () => {
     const repository = {
       list: jest
