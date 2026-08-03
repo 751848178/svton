@@ -2,9 +2,15 @@ import { ReleaseOrderController } from "./release-order.controller";
 
 describe("ReleaseOrderController", () => {
   const orders = { list: jest.fn(), create: jest.fn() };
-  const access = { assertRead: jest.fn(), assertCreate: jest.fn() };
+  const builds = { list: jest.fn(), build: jest.fn() };
+  const access = {
+    assertRead: jest.fn(),
+    assertCreate: jest.fn(),
+    assertBuild: jest.fn(),
+  };
   const controller = new ReleaseOrderController(
     orders as never,
+    builds as never,
     access as never,
   );
   const request = { teamId: "team-1", user: { id: "user-1" } };
@@ -31,6 +37,28 @@ describe("ReleaseOrderController", () => {
       "user-1",
       "project-1",
       dto,
+    );
+  });
+
+  it("authorizes nested build history reads", async () => {
+    builds.list.mockResolvedValue({ items: [], total: 0 });
+    await controller.listBuilds(request, "project-1", "order-1");
+    expect(access.assertRead).toHaveBeenCalled();
+    expect(builds.list).toHaveBeenCalledWith(
+      "team-1",
+      "project-1",
+      "order-1",
+    );
+  });
+
+  it("uses the high-risk build access action before execution", async () => {
+    await controller.build(request, "project-1", "order-1");
+    expect(access.assertBuild).toHaveBeenCalled();
+    expect(builds.build).toHaveBeenCalledWith(
+      "team-1",
+      "user-1",
+      "project-1",
+      "order-1",
     );
   });
 });

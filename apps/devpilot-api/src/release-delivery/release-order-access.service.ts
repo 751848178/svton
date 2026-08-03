@@ -32,4 +32,15 @@ export class ReleaseOrderAccessService {
       risk: "medium",
     });
   }
+
+  assertBuild(input: ReleaseOrderAccessInput) {
+    return this.access.assertCanWrite({
+      ...input,
+      category: "release",
+      action: "project.release_order.build",
+      targetType: "project",
+      targetId: input.projectId,
+      risk: "high",
+    });
+  }
 }

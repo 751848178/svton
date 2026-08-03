@@ -108,6 +108,12 @@ export const envSchema = z
     PROJECT_ARTIFACT_CLEANUP_SCHEDULER_DRY_RUN: booleanString.default('false'),
     DEVPILOT_GENERATED_PROJECT_ARTIFACT_RETENTION_DAYS: positiveInt(1).default(7),
 
+    // ---------- 发布构建 ----------
+    RELEASE_BUILD_EXECUTION_ENABLED: booleanString.default('false'),
+    RELEASE_BUILD_COMMAND_TIMEOUT_MS: positiveInt(1).default(600000),
+    RELEASE_BUILD_MAX_ARTIFACT_BYTES: positiveInt(1).default(262144000),
+    RELEASE_BUILD_ARTIFACT_ROOT: z.string().optional(),
+
     // ---------- 资源管控调度器 ----------
     RESOURCE_CONTROL_SCHEDULER_ENABLED: booleanString.default('true'),
     RESOURCE_CONTROL_SCHEDULER_INTERVAL_SECONDS: positiveInt(1).default(300),

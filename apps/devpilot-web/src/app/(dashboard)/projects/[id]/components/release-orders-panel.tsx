@@ -8,6 +8,7 @@ import { formatDateTime } from '@/lib/format-date';
 import { useReleaseOrders } from '../hooks/use-release-orders';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseOrderCreateModal } from './release-order-create-modal';
+import { ReleaseOrderBuildSummary } from './release-order-build-summary';
 
 export function ReleaseOrdersPanel({ projectId }: { projectId: string }) {
   const t = useTranslations('projects');
@@ -56,6 +57,11 @@ export function ReleaseOrdersPanel({ projectId }: { projectId: string }) {
               <span>{t('releaseOrderBuildCount', { count: order.counts.buildRuns })}</span>
               <span>{t('releaseOrderManifestCount', { count: order.counts.manifests })}</span>
             </div>
+            <ReleaseOrderBuildSummary
+              projectId={projectId}
+              releaseOrderId={order.id}
+              onChanged={orders.load}
+            />
           </article>
         ))}
       </div>

@@ -10,6 +10,7 @@ import {
 import { AuthzGuard, Roles } from "@svton/nestjs-authz";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CreateReleaseOrderDto } from "./dto/release-order.dto";
+import { ReleaseBuildService } from "./release-build.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderService } from "./release-order.service";
 
@@ -24,6 +25,7 @@ interface AuthRequest {
 export class ReleaseOrderController {
   constructor(
     private readonly orders: ReleaseOrderService,
+    private readonly builds: ReleaseBuildService,
     private readonly access: ReleaseOrderAccessService,
   ) {}
 
@@ -44,6 +46,31 @@ export class ReleaseOrderController {
   ) {
     await this.access.assertCreate(this.scope(req, projectId));
     return this.orders.create(req.teamId, req.user.id, projectId, dto);
+  }
+
+  @Get(":releaseOrderId/builds")
+  async listBuilds(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("releaseOrderId") releaseOrderId: string,
+  ) {
+    await this.access.assertRead(this.scope(req, projectId));
+    return this.builds.list(req.teamId, projectId, releaseOrderId);
+  }
+
+  @Post(":releaseOrderId/builds")
+  async build(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("releaseOrderId") releaseOrderId: string,
+  ) {
+    await this.access.assertBuild(this.scope(req, projectId));
+    return this.builds.build(
+      req.teamId,
+      req.user.id,
+      projectId,
+      releaseOrderId,
+    );
   }
 
   private scope(req: AuthRequest, projectId: string) {

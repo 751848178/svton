@@ -6,9 +6,9 @@
 ### V13. 项目与发布管控（跨 P 主线）
 
 - 目标:以项目目录、三步接入、发布单、环境版本和 Manage Project 重组交付主线，并以不可变 BuildRun/Manifest 贯通 Staging、Production 和 recovery。
-- 状态:🔵 F386-F393 已完成接入、IA、交付 schema 和发布单创建；F394-F410 按单写者串行实施。
+- 状态:🔵 F386-F394 已完成接入、IA、交付 schema、发布单和真实 BuildRun/Manifest；F395-F410 按单写者串行实施。
 - 进度:`../progress/project-delivery-v13.md`
-- 下一步:完成 F394 服务端 BuildRun/Manifest 与逐次日志证据。
+- 下一步:完成 F395 四步发布详情、步骤恢复和逐次日志抽屉。
 
 ### P0. 项目纳管入口
 

@@ -48,6 +48,8 @@ import { RepositorySuggestionBuilderService } from './repository-suggestion-buil
   exports: [
     RepositoryAnalysisRunService,
     RepositoryConnectionService,
+    RepositoryCredentialService,
+    RepositoryGitExecutorService,
     RepositorySuggestionApplyService,
   ],
 })

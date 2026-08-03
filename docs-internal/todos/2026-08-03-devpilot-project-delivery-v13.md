@@ -34,8 +34,8 @@
 | F391 | done    | 建立 delivery/settings 路由宿主和旧 tab/query 深链适配。                                                | Project detail routes/navigation。                         | 12 个路由回归、Web type-check/build 和浏览器深链验收通过；focused ID 保留。                |
 | F392 | done    | 增加 ReleaseOrder、BuildRun、ArtifactManifest、ReleaseRun、EnvironmentVersion 与 legacy nullable 关系。 | Prisma/release domain migration。                          | 新库/升级库真实迁移、legacy/unverified 报告、API 门禁通过。                                |
 | F393 | done    | 实现发布单列表/创建读写模型；创建只含版本号与说明且不自动构建。                                         | ReleaseOrder API/Web。                                     | 19 个 API/Web 回归、真实 MySQL 并发幂等、浏览器和零 BuildRun/Manifest 证据通过。           |
-| F394 | in_progress | 实现服务端主分支最新 Commit 构建与独立 BuildRun/Manifest/日志/测试安全证据。                            | Build domain 与 executor port。                            | 多构建、失败无 Manifest、精确 Commit、日志脱敏。                                           |
-| F395 | pending | 实现四步详情、步骤恢复、可访问 tab 与独立日志抽屉。                                                     | Release detail Web。                                       | 深链、键盘/ARIA、刷新恢复、按钮位置浏览器证据。                                            |
+| F394 | done    | 实现服务端主分支最新 Commit 构建与独立 BuildRun/Manifest/日志/测试安全证据。                            | Build domain 与 executor port。                            | 真实 MySQL/浏览器证明 5 次独立构建、4 Manifest、失败无 Manifest、精确 Commit、脱敏日志。   |
+| F395 | in_progress | 实现四步详情、步骤恢复、可访问 tab 与独立日志抽屉。                                                     | Release detail Web。                                       | 深链、键盘/ARIA、刷新恢复、按钮位置浏览器证据。                                            |
 | F396 | pending | 按精确 Manifest 重复部署 Staging，禁止隐式构建。                                                        | Deployment manifest command。                              | 两次 DeploymentRun、同 Manifest、BuildRun 数不变。                                         |
 | F397 | pending | 实现 Production 同 Manifest 证明、快照冻结、审批和并发门禁。                                            | ReleaseRun/approval/deployment transaction。               | 漂移、跨项目、未知 Digest、并发和幂等负向测试。                                            |
 | F398 | pending | 实现环境版本 current/history、受控升级和 recovery 回退。                                                | EnvironmentVersion API/Web。                               | 只选可追溯制品；新运行不覆盖历史。                                                         |
@@ -77,3 +77,5 @@
 - 2026-08-03: F393 开始；建立 ReleaseOrder ACL 列表/创建合同和 Web 默认发布单列表，创建只接受发布版本号与说明且不触发构建。
 - 2026-08-03: F393 完成；ReleaseOrder API 按 team/project ACL 隔离，项目内版本唯一且相同输入顺序/并发重放收敛；浏览器创建 `2.4.1` 后仅出现一张草稿卡，冲突说明明确拒绝，数据库为 1 order / 0 build / 0 manifest / 0 release run。
 - 2026-08-03: F394 开始；构建服务端解析项目主分支最新 Commit，每次创建独立 BuildRun，只有成功构建才能产生 Manifest，日志与证据按运行隔离并脱敏。
+- 2026-08-03: F394 完成；API 在服务端重新解析默认分支并按精确 Commit 隔离检出，逐次分配不可变 revision，显式启用的受控本地 executor 仅接收最小环境并约束工作目录，成功后写入可复现 ZIP Manifest，失败运行只保留脱敏日志/门禁证据。真实浏览器与 MySQL 证明同一发布单 5 个 BuildRun、4 个 Manifest，revision 3 失败且无 Manifest，revision 4/5 的同输入 digest 一致。
+- 2026-08-03: F395 开始；在 ReleaseOrder 聚合上建立四步详情、稳定步骤深链、刷新恢复和按 BuildRun 隔离的可访问日志抽屉。

@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F394 — server-resolved BuildRun and immutable ArtifactManifest execution.
+- Active slice: F395 — four-step release detail, stable step recovery and isolated build logs.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -41,7 +41,8 @@
 | F391      | done    | Delivery/settings hosts, two-item primary IA and legacy deep-link adapters verified.           |
 | F392      | done    | Additive delivery schema and conservative legacy/unverified migration report verified.         |
 | F393      | done    | ACL/idempotent ReleaseOrder API and default create/list Web verified with zero implicit build.  |
-| F394-F398 | pending | Build/Manifest, four-step detail and exact Staging/Production/environment versions.             |
+| F394      | done    | Server-resolved exact-Commit builds, isolated evidence and success-only immutable Manifests.   |
+| F395-F398 | pending | Four-step detail and exact Staging/Production/environment versions.                            |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
 
@@ -74,7 +75,9 @@
 - F392 real MySQL: `f392-migrate-empty.log` and `f392-migrate-upgraded.log` passed. Empty schema has all six delivery tables; same digest produced two independent manifests for two builds; duplicate project releaseVersion failed. Upgrade fixture retained legacy plan/deployment links as NULL, observed-only digest as evidence, zero synthesized orders/manifests/environment versions, and preserved unrelated existing index/FK drift.
 - F393 API evidence: `f393-api-unit-final.log` — 2 suites/7 tests; `f393-api-mysql-integration-final.log` — 3 real-MySQL tests including concurrent identical create convergence; API type-check/build passed.
 - F393 Web/browser evidence: `f393-web-unit-final.log` — 2 files/12 tests, Web type-check/build passed; `.../f390-browser/08-f393-release-order.png` shows the real `2.4.1` draft with 0 builds/0 manifests. Sequential replay kept one card, conflicting note stayed in the dialog with an explicit error, and the final console was clean.
+- F394 API evidence: `f394/api-release-suite-final.log`, `f394/api-integration-final.log`, `f394/api-typecheck-final.log` and `f394/api-build-final.log` cover executor/config/controller/service/repository behavior plus real MySQL revision allocation and success-only Manifest persistence. Executor tests prove deterministic archive digest, minimal environment, checkout path confinement and token redaction.
+- F394 browser/MySQL evidence: `.../f390-browser/09-f394-build-runs.png`, `10-f394-build-success.png`, `f394/mysql-browser-evidence.log` and `f394/mysql-final-build-evidence.log`. The server resolved `main@85fad682d21785cf83cc48a911e993c049750356`; the release order reached 5 independent BuildRuns and 4 Manifests, failed revision 3 retained zero Manifest, revisions 4/5 produced the same deterministic digest, and the final browser console had no error/warn entries.
 
 ## Next
 
-Implement and verify F394 server-resolved BuildRun/Manifest execution, failure isolation and redacted per-run evidence without waiting for user confirmation.
+Implement and verify F395 four-step ReleaseOrder detail, stable step deep links, refresh recovery and a keyboard-accessible per-BuildRun log drawer without waiting for user confirmation.

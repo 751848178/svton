@@ -1,0 +1,145 @@
+import { UnprocessableEntityException } from "@nestjs/common";
+import { ReleaseBuildExecutionError } from "./release-build-execution.error";
+import { ReleaseBuildService } from "./release-build.service";
+
+describe("ReleaseBuildService", () => {
+  const connection = {
+    id: "connection-1",
+    teamId: "team-1",
+    repositoryUrl: "https://user:secret@example.com/repo.git",
+    defaultBranch: "main",
+    status: "connected",
+  };
+  const context = {
+    id: "order-1",
+    project: {
+      repositoryConnection: connection,
+      applications: [{
+        id: "application-1",
+        name: "api",
+        repoPath: ".",
+        services: [{
+          id: "service-1",
+          name: "api",
+          deployConfig: { workingDirectory: ".", buildCommand: "npm run build" },
+        }],
+      }],
+    },
+  };
+  const repository = {
+    context: jest.fn(),
+    list: jest.fn(),
+    reserve: jest.fn(),
+    succeed: jest.fn(),
+    fail: jest.fn(),
+  };
+  const credentials = { resolveStored: jest.fn() };
+  const cleanup = jest.fn();
+  const git = { resolveRef: jest.fn(), checkout: jest.fn() };
+  const executor = { execute: jest.fn() };
+  const service = new ReleaseBuildService(
+    repository as never,
+    credentials as never,
+    git as never,
+    executor as never,
+  );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    repository.context.mockResolvedValue(context);
+    credentials.resolveStored.mockResolvedValue({ kind: "none" });
+    git.resolveRef.mockResolvedValue({
+      selectedBranch: "main",
+      commitSha: "b".repeat(40),
+    });
+    git.checkout.mockResolvedValue({ root: "/tmp/build", cleanup });
+    repository.reserve.mockResolvedValue(record(1, "running"));
+    executor.execute.mockResolvedValue({
+      artifact: { digest: `sha256:${"c".repeat(64)}`, sizeBytes: 42, uri: "release-artifact://run-1/bundle.zip" },
+      logs: ["build ok"],
+      gateSummary: { build: { status: "passed" } },
+    });
+    repository.succeed.mockResolvedValue(record(1, "succeeded", { id: "manifest-1" }));
+    repository.fail.mockResolvedValue(record(1, "failed"));
+  });
+
+  it("resolves the server-side default branch and freezes its latest commit", async () => {
+    await service.build("team-1", "user-1", "project-1", "order-1");
+    expect(git.resolveRef).toHaveBeenCalledWith(
+      connection.repositoryUrl,
+      "main",
+      expect.anything(),
+    );
+    expect(repository.reserve).toHaveBeenCalledWith(expect.objectContaining({
+      snapshot: expect.objectContaining({
+        repositoryUrl: "https://[REDACTED]@example.com/repo.git",
+        sourceBranch: "main",
+        sourceCommitSha: "b".repeat(40),
+      }),
+    }));
+    expect(git.checkout).toHaveBeenCalledWith(
+      connection.repositoryUrl,
+      "main",
+      "b".repeat(40),
+      expect.anything(),
+    );
+    expect(cleanup).toHaveBeenCalled();
+  });
+
+  it("creates an independent reserved run for every build request", async () => {
+    await service.build("team-1", "user-1", "project-1", "order-1");
+    repository.reserve.mockResolvedValue(record(2, "running"));
+    repository.succeed.mockResolvedValue(record(2, "succeeded", { id: "manifest-2" }));
+    await service.build("team-1", "user-1", "project-1", "order-1");
+    expect(repository.reserve).toHaveBeenCalledTimes(2);
+    expect(repository.succeed).toHaveBeenCalledTimes(2);
+  });
+
+  it("records a failed BuildRun without creating a Manifest", async () => {
+    executor.execute.mockRejectedValue(new ReleaseBuildExecutionError({
+      code: "BUILD_COMMAND_FAILED",
+      message: "build failed",
+      logs: ["token=secret"],
+      gateSummary: { build: { status: "failed" } },
+    }));
+    await expect(
+      service.build("team-1", "user-1", "project-1", "order-1"),
+    ).resolves.toEqual(expect.objectContaining({ status: "failed", manifest: null }));
+    expect(repository.fail).toHaveBeenCalledWith(expect.objectContaining({
+      code: "BUILD_COMMAND_FAILED",
+    }));
+    expect(repository.succeed).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before execution when the main repository is not connected", async () => {
+    repository.context.mockResolvedValue({
+      ...context,
+      project: { ...context.project, repositoryConnection: null },
+    });
+    await expect(
+      service.build("team-1", "user-1", "project-1", "order-1"),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(repository.reserve).not.toHaveBeenCalled();
+  });
+});
+
+function record(revision: number, status: string, manifest: unknown = null) {
+  return {
+    id: `run-${revision}`,
+    releaseOrderId: "order-1",
+    revision,
+    sourceBranch: "main",
+    sourceCommitSha: "b".repeat(40),
+    status,
+    inputHash: "hash",
+    logReference: null,
+    logSummary: null,
+    gateSummary: null,
+    errorCode: status === "failed" ? "BUILD_COMMAND_FAILED" : null,
+    errorMessage: status === "failed" ? "build failed" : null,
+    startedAt: new Date(),
+    finishedAt: status === "running" ? null : new Date(),
+    createdAt: new Date(),
+    manifest,
+  };
+}
