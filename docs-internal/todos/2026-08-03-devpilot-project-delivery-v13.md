@@ -48,8 +48,8 @@
 | F405 | done    | 完成标准发布策略；金丝雀/蓝绿/自动放量 fail closed。                                                    | Release policy/capability。                                | 不可变 R1、Production 冻结和高级策略具体拒绝原因已由 DB/API/browser 证明。                 |
 | F406 | done    | 收敛兼容 backfill/archive 和新链路，移除新路径 branch-pull/build-on-deploy。                            | Migration/compat/read adapters。                           | 历史只读、归档保留、受管项目旧写入口拒绝和 exact-Manifest 命令边界均已证明。                |
 | F407 | done    | 完成中英文文案、术语和用户/迁移文档。                                                                   | messages 与 docs。                                         | 2,796 条 zh/en leaf/ICU parity；运行时切换与双语文档已验证。                               |
-| F408 | active  | 用隔离 Docker 数据完成真实主链浏览器 E2E。                                                              | Disposable compose/runtime/browser evidence。              | 接入→设置→发布→多构建→重复预发→生产→回退。                                                 |
-| F409 | pending | 完成 ACL、并发、失败恢复、兼容、Provider 不可用和脱敏负向 E2E。                                         | Cross-layer tests。                                        | API/DB/browser 负向证据。                                                                  |
+| F408 | done    | 用隔离 Docker 数据完成真实主链浏览器 E2E。                                                              | Disposable compose/runtime/browser evidence。              | 2.4.2 接入/设置→双构建→双预发→生产审批/部署→回退均已闭环。                                |
+| F409 | active  | 完成 ACL、并发、失败恢复、兼容、Provider 不可用和脱敏负向 E2E。                                         | Cross-layer tests。                                        | API/DB/browser 负向证据。                                                                  |
 | F410 | pending | 独立代码/领域/UX/无障碍/安全审查、修复、全量验证和最终交付审计。                                        | 全目标与证据包。                                           | 测试/构建/Prisma/Docker/E2E/commit/主工作区保护全部证明。                                  |
 
 ## Verification Plan
@@ -105,3 +105,5 @@
 - 2026-08-03: F407 开始；审计 zh/en key parity、发布单/发布版本号/Manifest/环境版本/归档/策略能力术语，并补用户与迁移文档。
 - 2026-08-03: F407 完成；新增递归 zh/en key 与 ICU placeholder 对账脚本，2,796 条 leaf message 全量一致。运行时语言切换已在 Release Policy 与 Production 快照真实浏览器路径验证，策略能力理由按 locale 输出；用户指南和迁移指南覆盖发布单、不可变 Manifest、环境版本、归档/兼容和高级策略不可用边界。
 - 2026-08-03: F408 开始；使用隔离 MySQL/Redis 和真实本地 Git fixture 串行执行接入、设置、发布、多构建、重复 Staging、Production 审批与 recovery 回退主链。
+- 2026-08-03: F408 完成；真实浏览器创建 2.4.2 发布单，固定 `main@85fad682...` 后生成 2 个独立 BuildRun/Manifest；Build #2 精确 Manifest 两次 Staging、一次高风险审批后的 Production 和一次 Staging recovery 共形成 4 个新 EnvironmentVersion。MySQL 证明 4 个 DeploymentRun 均 completed、非 dry-run、无 checkout/pull/build，浏览器控制台无 error/warn。
+- 2026-08-03: F409 开始；串行完成 ACL、并发/幂等、失败恢复、历史兼容、Provider 缺失及 Secret/日志脱敏负向 E2E，并保留 API/DB/browser 三层证据。

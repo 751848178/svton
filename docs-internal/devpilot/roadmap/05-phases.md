@@ -6,9 +6,9 @@
 ### V13. 项目与发布管控（跨 P 主线）
 
 - 目标:以项目目录、三步接入、发布单、环境版本和 Manage Project 重组交付主线，并以不可变 BuildRun/Manifest 贯通 Staging、Production 和 recovery。
-- 状态:🔵 F386-F407 已完成接入、IA、不可变交付、51/15 Provider、标准策略、兼容/归档及双语文档；F408-F410 按单写者串行实施。
+- 状态:🔵 F386-F408 已完成接入、IA、不可变交付、51/15 Provider、标准策略、兼容/归档、双语文档及完整浏览器主链；F409-F410 按单写者串行实施。
 - 进度:`../progress/project-delivery-v13.md`
-- 下一步:完成 F408 隔离 Docker 数据下的真实浏览器主链 E2E。
+- 下一步:完成 F409 ACL、并发、失败恢复、兼容、Provider 不可用和脱敏负向 E2E。
 
 ### P0. 项目纳管入口
 
