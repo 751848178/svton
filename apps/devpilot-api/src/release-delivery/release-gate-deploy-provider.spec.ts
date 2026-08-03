@@ -1,25 +1,13 @@
-import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
-import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
 import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
-import { ReleaseGateConfigCapabilityProvider } from "./release-gate-config-capability.provider";
 import type { ReleaseGateCapabilityId } from "./release-gate-catalog.types";
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
-import { ReleaseGateMigrationCapabilityProvider } from "./release-gate-migration-capability.provider";
-import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
-import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
+import { createReleaseGateRegistry } from "./release-gate-test-registry.spec-utils";
 
 const NOW = new Date("2026-08-03T09:10:00.000Z");
 
 describe("Deploy release gate providers", () => {
-  const registry = new ReleaseGateCapabilityRegistryService(
-    new ReleaseGateSourceCapabilityProvider(),
-    new ReleaseGateBuildCapabilityProvider(),
-    new ReleaseGateArtifactCapabilityProvider(),
-    new ReleaseGateConfigCapabilityProvider(),
-    new ReleaseGateRuntimeCapabilityProvider(),
-    new ReleaseGateMigrationCapabilityProvider(),
-  );
+  const registry = createReleaseGateRegistry();
 
   it("reports positive environment-scoped M06-M09 evidence", () => {
     const context = evidenceContext();

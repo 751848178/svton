@@ -2,9 +2,11 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { ReleaseGateDeployEvidence } from "./release-gate-deploy-evidence.types";
+import type { ReleaseGatePromoteEvidence } from "./release-gate-promote-evidence.types";
 
 export const releaseGateEvidenceSelect = {
   id: true,
+  projectId: true,
   releaseVersion: true,
   project: {
     select: {
@@ -76,7 +78,10 @@ export const releaseGateEvidenceSelect = {
 
 export type ReleaseGateEvidenceContext = Prisma.ReleaseOrderGetPayload<{
   select: typeof releaseGateEvidenceSelect;
-}> & { deploy?: ReleaseGateDeployEvidence };
+}> & {
+  deploy?: ReleaseGateDeployEvidence;
+  promote?: ReleaseGatePromoteEvidence;
+};
 
 @Injectable()
 export class ReleaseGateEvidenceRepository {

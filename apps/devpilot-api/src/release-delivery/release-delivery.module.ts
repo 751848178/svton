@@ -29,10 +29,16 @@ import { ReleaseGateCatalogController } from "./release-gate-catalog.controller"
 import { ReleaseGateCatalogService } from "./release-gate-catalog.service";
 import { ReleaseGateEvidenceRepository } from "./release-gate-evidence.repository";
 import { ReleaseGateDeployEvidenceRepository } from "./release-gate-deploy-evidence.repository";
+import { ReleaseGatePromoteEvidenceRepository } from "./release-gate-promote-evidence.repository";
 import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
 import { ReleaseGateConfigCapabilityProvider } from "./release-gate-config-capability.provider";
 import { ReleaseGateMigrationCapabilityProvider } from "./release-gate-migration-capability.provider";
 import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
+import { ReleaseGateApprovalCapabilityProvider } from "./release-gate-approval-capability.provider";
+import { ReleaseGateIngressCapabilityProvider } from "./release-gate-ingress-capability.provider";
+import { ReleaseGatePromotionCapabilityProvider } from "./release-gate-promotion-capability.provider";
+import { ReleaseGateRecoveryStrategyProvider } from "./release-gate-recovery-strategy.provider";
+import { ReleaseGateObservabilityCapabilityProvider } from "./release-gate-observability-capability.provider";
 
 @Module({
   imports: [PrismaModule, ControlAccessPolicyModule, RepositoryAnalysisModule],
@@ -65,8 +71,14 @@ import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-cap
     ReleaseGateConfigCapabilityProvider,
     ReleaseGateRuntimeCapabilityProvider,
     ReleaseGateMigrationCapabilityProvider,
+    ReleaseGateApprovalCapabilityProvider,
+    ReleaseGateIngressCapabilityProvider,
+    ReleaseGatePromotionCapabilityProvider,
+    ReleaseGateObservabilityCapabilityProvider,
+    ReleaseGateRecoveryStrategyProvider,
     ReleaseGateEvidenceRepository,
     ReleaseGateDeployEvidenceRepository,
+    ReleaseGatePromoteEvidenceRepository,
     ReleaseGateCatalogService,
     {
       provide: ReleaseBuildExecutorPort,

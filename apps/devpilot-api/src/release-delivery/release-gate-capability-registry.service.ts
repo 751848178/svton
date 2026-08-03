@@ -5,6 +5,11 @@ import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capabil
 import { ReleaseGateConfigCapabilityProvider } from "./release-gate-config-capability.provider";
 import { ReleaseGateMigrationCapabilityProvider } from "./release-gate-migration-capability.provider";
 import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
+import { ReleaseGateApprovalCapabilityProvider } from "./release-gate-approval-capability.provider";
+import { ReleaseGateIngressCapabilityProvider } from "./release-gate-ingress-capability.provider";
+import { ReleaseGatePromotionCapabilityProvider } from "./release-gate-promotion-capability.provider";
+import { ReleaseGateRecoveryStrategyProvider } from "./release-gate-recovery-strategy.provider";
+import { ReleaseGateObservabilityCapabilityProvider } from "./release-gate-observability-capability.provider";
 import type {
   ReleaseGateCapabilityId,
   ReleaseGateDefinition,
@@ -35,8 +40,16 @@ export class ReleaseGateCapabilityRegistryService {
     config: ReleaseGateConfigCapabilityProvider,
     runtime: ReleaseGateRuntimeCapabilityProvider,
     migration: ReleaseGateMigrationCapabilityProvider,
+    approval: ReleaseGateApprovalCapabilityProvider,
+    ingress: ReleaseGateIngressCapabilityProvider,
+    promotion: ReleaseGatePromotionCapabilityProvider,
+    observability: ReleaseGateObservabilityCapabilityProvider,
+    recovery: ReleaseGateRecoveryStrategyProvider,
   ) {
-    this.providers = [source, build, artifact, config, runtime, migration];
+    this.providers = [
+      source, build, artifact, config, runtime, migration,
+      approval, ingress, promotion, observability, recovery,
+    ];
   }
 
   list(context: ReleaseGateEvidenceContext) {

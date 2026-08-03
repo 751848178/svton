@@ -1,15 +1,9 @@
 import { NotFoundException } from "@nestjs/common";
-import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
-import { ReleaseGateConfigCapabilityProvider } from "./release-gate-config-capability.provider";
-import { ReleaseGateMigrationCapabilityProvider } from "./release-gate-migration-capability.provider";
-import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
-import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
-import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
 import { ReleaseGateCatalogController } from "./release-gate-catalog.controller";
 import { ReleaseGateCatalogService } from "./release-gate-catalog.service";
 import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
 import { RELEASE_GATE_STATUSES } from "./release-gate-catalog.types";
-import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
+import { createReleaseGateRegistry } from "./release-gate-test-registry.spec-utils";
 
 describe("ReleaseGateCatalogService", () => {
   const order = {
@@ -18,21 +12,13 @@ describe("ReleaseGateCatalogService", () => {
     project: { repositoryConnection: null, repositoryAnalysisRuns: [] },
     buildRuns: [],
   };
-  const registry = () => new ReleaseGateCapabilityRegistryService(
-    new ReleaseGateSourceCapabilityProvider(),
-    new ReleaseGateBuildCapabilityProvider(),
-    new ReleaseGateArtifactCapabilityProvider(),
-    new ReleaseGateConfigCapabilityProvider(),
-    new ReleaseGateRuntimeCapabilityProvider(),
-    new ReleaseGateMigrationCapabilityProvider(),
-  );
-
   it("publishes the versioned 10/11/20/10 canonical catalog", async () => {
     const evidence = { load: jest.fn().mockResolvedValue(order) };
     const service = new ReleaseGateCatalogService(
       evidence as never,
       { load: jest.fn().mockResolvedValue(undefined) } as never,
-      registry(),
+      { load: jest.fn().mockResolvedValue(undefined) } as never,
+      createReleaseGateRegistry(),
     );
     const result = await service.get("team-1", "project-1", "order-1");
     expect(result.catalogVersion).toMatch(/^v13\./);
@@ -58,7 +44,8 @@ describe("ReleaseGateCatalogService", () => {
     const service = new ReleaseGateCatalogService(
       { load: jest.fn().mockResolvedValue(null) } as never,
       { load: jest.fn() } as never,
-      registry(),
+      { load: jest.fn() } as never,
+      createReleaseGateRegistry(),
     );
     await expect(service.get("team-1", "project-1", "other-order"))
       .rejects.toBeInstanceOf(NotFoundException);

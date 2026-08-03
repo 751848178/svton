@@ -3,6 +3,7 @@ import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
 import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
 import { ReleaseGateEvidenceRepository } from "./release-gate-evidence.repository";
 import { ReleaseGateDeployEvidenceRepository } from "./release-gate-deploy-evidence.repository";
+import { ReleaseGatePromoteEvidenceRepository } from "./release-gate-promote-evidence.repository";
 import {
   RELEASE_GATE_CAPABILITY_VERSION,
   RELEASE_GATE_CATALOG_VERSION,
@@ -18,6 +19,7 @@ export class ReleaseGateCatalogService {
   constructor(
     private readonly evidence: ReleaseGateEvidenceRepository,
     private readonly deployEvidence: ReleaseGateDeployEvidenceRepository,
+    private readonly promoteEvidence: ReleaseGatePromoteEvidenceRepository,
     private readonly capabilities: ReleaseGateCapabilityRegistryService,
   ) {}
 
@@ -27,6 +29,7 @@ export class ReleaseGateCatalogService {
     const context = {
       ...order,
       deploy: await this.deployEvidence.load(teamId, projectId, releaseOrderId),
+      promote: await this.promoteEvidence.load(teamId, projectId, releaseOrderId),
     };
     const now = new Date();
     const checks = RELEASE_GATE_DEFINITIONS.map((definition) =>
