@@ -82,4 +82,3 @@ describeIntegration("Release delivery compatibility integration", () => {
     })).resolves.toBe(1);
   });
 });
-

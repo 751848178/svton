@@ -14,4 +14,3 @@ export class CreateReleasePolicyRevisionDto {
   @MaxLength(100)
   expectedCurrentRevisionId?: string;
 }
-

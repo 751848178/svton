@@ -23,4 +23,3 @@ export function useReleaseDeliveryCompatibility(projectId: string) {
   useEffect(() => { void load(); }, [load]);
   return { compatibility, error, load };
 }
-

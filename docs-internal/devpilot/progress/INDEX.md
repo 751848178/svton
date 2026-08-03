@@ -6,7 +6,7 @@
 
 ## Phase Anchors
 
-> Active cross-phase program: Devpilot V13 project delivery is tracked in
+> Completed cross-phase program: Devpilot V13 project delivery is tracked in
 > `project-delivery-v13.md` and the F386-F410 TODO. It supersedes sampled
 > project/release UI progress without erasing the P0-P8 control-plane history.
 

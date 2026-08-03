@@ -30,4 +30,3 @@ describe("LegacyDeploymentWriteGuardService", () => {
       .rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 });
-

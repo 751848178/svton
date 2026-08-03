@@ -108,4 +108,3 @@ export class ReleasePolicyRepository {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 }
-

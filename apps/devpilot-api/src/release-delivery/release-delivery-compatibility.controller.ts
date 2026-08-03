@@ -28,4 +28,3 @@ export class ReleaseDeliveryCompatibilityController {
     return this.compatibility.get(req.teamId, projectId);
   }
 }
-

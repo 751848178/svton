@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F410 — independent code/domain/UX/accessibility/security review, fixes and final acceptance.
+- Program state: F386-F410 complete — independent code/domain/UX/accessibility/security review, fixes and final acceptance passed.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -57,7 +57,7 @@
 | F407      | done    | Bilingual runtime, terminology parity and user/migration documentation verified.              |
 | F408      | done    | One coherent Docker/MySQL/Redis/browser delivery lifecycle passed end to end.                   |
 | F409      | done    | Cross-layer ACL, concurrency, failure, compatibility, provider and redaction negatives passed. |
-| F410      | active  | Independent review, full verification and final delivery audit.                                |
+| F410      | done    | Independent review, persisted gate facts, security hardening and final delivery audit passed.  |
 
 ## Evidence
 
@@ -116,7 +116,8 @@
 - F407 parity/documentation evidence: `f407/api-build.log`, `f407/web-build.log`, `f407/browser-en-dom.txt`, `f407/production-en-dom.txt`, `f407/28-f407-release-policy-en.png` and `f407/29-f407-production-en.png`. The recursive parity check covers 2,796 zh/en leaf messages and ICU placeholder names. Runtime cookie switching renders release-policy capability reasons and Production policy snapshots in English without losing the Chinese default. The bilingual user guide and migration guide document release-order terminology, immutable Manifests, environment versions, archive/compatibility behavior and why advanced strategies remain unavailable.
 - F408 complete lifecycle evidence: `f408/settings-dom.txt`, `f408/builds-dom.txt`, `f408/staging-dom.txt`, `f408/production-request-dom.txt`, `f408/approval-dom.txt`, `f408/production-deployed-dom.txt`, `f408/recovery-dom.txt`, `f408/mysql-evidence.log`, screenshots `30-f408-multiple-builds.png` through `33-f408-recovery.png`, and `f408/browser-console.json`. ReleaseOrder `2.4.2` retained the verified `main@85fad682...` repository/settings baseline, created two independent successful BuildRuns and two immutable Manifests, repeated Build #2's exact Manifest twice in Staging, consumed one high-risk approval for Production, and appended a Staging recovery version. MySQL ties four EnvironmentVersions to four distinct completed non-dry-run DeploymentRuns; every command plan has `checkout=false`, `pull=false`, `build=false`. The browser console contained no errors or warnings.
 - F409 cross-layer negative evidence: `f409/focused-negative-tests.log` — 11 suites/74 tests; `f409/mysql-evidence.log`, browser DOM captures, screenshots `34-f409-cross-team-denied.png` through `38-f409-secret-redaction.png`, `f409/browser-console-fixed.json`, and `f409/web-build.log`. A real other-team Project with zero current-user membership rendered only “project not found” and retained zero release/deployment rows. Controlled Build #3 failed with no Manifest, while restored configuration produced successful Build #4. Concurrent ReleaseOrder/Production integration, exact-artifact boundaries, legacy compatibility, provider freshness/failure and deployment/Secret redaction all passed. The compatibility view remains read-only with no synthesized Manifest; 4xx load errors are rendered in UI state without polluting the console, while network/5xx errors are still reported. Browser and MySQL expose only Secret id/name/type plus masked value, with no plaintext field or test database credential.
+- F410 final evidence: `f410/review-code-structure.md`, `review-domain.md`, `review-ux-a11y.md`, `review-security.md`, `accessibility-audit.json`, `final-browser-acceptance.json`, `mysql-post-browser-invariants.tsv`, screenshots `40-f410-gate-catalog-a11y.png` through `46-f410-production-build-environment-history.png`, and the final Prisma/type/build/test/lint logs. `GateEvaluation` now persists append-only, versioned, evidence-bound facts: the final project has 51 latest gate conclusions (9 passed, 3 pending, 1 needs-human, 38 unavailable) plus 2 retained superseded evaluations after repository evidence changed. Security review removed full API-environment inheritance from Git subprocesses and a real browser re-analysis still pinned `85fad682...` and cleaned its disposable checkout. API focused/regression verification passed 38 suites/185 tests, real MySQL integration passed 9 suites/23 tests, Web passed 11 files/54 tests, Prisma validate/generate/migrate, both type-checks and production builds passed, and i18n parity covers 2,798 leaf messages. Web lint passed with only three unchanged legacy warnings; the API lint command remains a baseline tooling gap because that package has no ESLint configuration.
 
 ## Next
 
-Run independent code, domain, UX/accessibility and security review passes; fix source-backed defects; then execute full Prisma, test, type-check, build, Docker/browser, worktree-protection and commit-chain acceptance.
+F386-F410 is complete in the isolated delivery branch. Remaining product gaps are explicit capability boundaries: advanced rollout strategies and provider-backed checks stay unavailable until real providers exist; push, PR, merge and external production deployment were outside this objective.

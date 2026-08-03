@@ -58,7 +58,7 @@ export function useProjectIntake() {
           .map((suggestion) => suggestion.id),
       ),
     );
-  }, [run?.id, run?.status]);
+  }, [run?.id, run?.status, run?.suggestions]);
 
   const connectAndAnalyze = useCallback(async () => {
     setMutating(true);

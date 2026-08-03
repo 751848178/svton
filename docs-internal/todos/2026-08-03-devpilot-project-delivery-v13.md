@@ -50,7 +50,7 @@
 | F407 | done    | 完成中英文文案、术语和用户/迁移文档。                                                                   | messages 与 docs。                                         | 2,796 条 zh/en leaf/ICU parity；运行时切换与双语文档已验证。                               |
 | F408 | done    | 用隔离 Docker 数据完成真实主链浏览器 E2E。                                                              | Disposable compose/runtime/browser evidence。              | 2.4.2 接入/设置→双构建→双预发→生产审批/部署→回退均已闭环。                                |
 | F409 | done    | 完成 ACL、并发、失败恢复、兼容、Provider 不可用和脱敏负向 E2E。                                         | Cross-layer tests。                                        | 11 suites/74 tests 与 API/DB/browser 负向证据全部通过。                                   |
-| F410 | active  | 独立代码/领域/UX/无障碍/安全审查、修复、全量验证和最终交付审计。                                        | 全目标与证据包。                                           | 测试/构建/Prisma/Docker/E2E/commit/主工作区保护全部证明。                                  |
+| F410 | done    | 独立代码/领域/UX/无障碍/安全审查、修复、全量验证和最终交付审计。                                        | 全目标与证据包。                                           | GateEvaluation 持久化、安全收口、全量验证、生产构建浏览器 E2E 与工作区保护全部通过。       |
 
 ## Verification Plan
 
@@ -109,3 +109,4 @@
 - 2026-08-03: F409 开始；串行完成 ACL、并发/幂等、失败恢复、历史兼容、Provider 缺失及 Secret/日志脱敏负向 E2E，并保留 API/DB/browser 三层证据。
 - 2026-08-03: F409 完成；跨团队 Project 对当前用户保持 0 membership、0 release/deployment 写入，浏览器只显示项目不存在。受控 Build #3 失败且无 Manifest，恢复配置后 Build #4 成功；并发/幂等、Production、兼容、Provider 正负/过期及 Secret/部署日志脱敏 11 suites/74 tests 通过。历史兼容仍只读且不合成 Manifest，Secret 只暴露 id/name/type 与掩码。修复预期 4xx 被重复写入 console.error 的噪声后，跨团队拒绝页控制台无 error/warn，网络/5xx 仍保留诊断。
 - 2026-08-03: F410 开始；分别执行代码结构、领域不变量、UX/无障碍、安全审查，修复真实缺陷并完成 Prisma、全量测试/类型/构建、Docker/browser、提交链和主工作区保护最终验收。
+- 2026-08-03: F410 完成；补齐 51 项 GateEvaluation 追加式持久化与证据版本，仓库 Git 子进程改为最小环境白名单和隔离 HOME。四类独立审查通过；API 38 suites/185 tests、真实 MySQL 9 suites/23 tests、Web 11 files/54 tests、Prisma validate/generate/migrate、API/Web type-check/build、2,798 条双语 parity 均通过。生产构建浏览器复核项目目录、51 项门禁、环境版本、恢复与中英文路径；最终 51 项最新结论为 9 passed、3 pending、1 needs_human、38 unavailable，Provider 缺失没有伪通过。主工作区 checkpoint 保持不变，任务 Docker 资源已删除，Git fixture 已可恢复地移入废纸篓。

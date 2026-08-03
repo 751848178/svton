@@ -90,4 +90,3 @@ function legacyDigest(value: unknown) {
   const digest = record.artifactDigest ?? record.manifestDigest;
   return typeof digest === "string" ? digest : null;
 }
-

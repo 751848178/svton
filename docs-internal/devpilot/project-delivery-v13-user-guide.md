@@ -56,4 +56,3 @@
 5. Successful deployment appends an EnvironmentVersion. Upgrade and recovery create new runs and never rewrite history.
 6. Standard release is executable. Canary, blue-green and automatic traffic ramp remain unavailable until real traffic, metrics, pause/abort and rollback providers exist.
 7. Archived projects and legacy deployment links remain read-only and auditable; unproven legacy digests never become synthetic Manifests.
-

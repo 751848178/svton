@@ -1,9 +1,11 @@
 # Devpilot 控制平面重构架构
 
 > 本文档基于实际代码梳理，记录 @svton/\* 全栈统一重构后的架构、数据流与组织结构。
-> 更新日期：2026-06-29。
+> 更新日期：2026-08-03。
 
 ## 一、重构总览
+
+V13 项目交付扩展保持相同分层原则：Project intake/directory、environment configuration、release delivery、gate providers 和 compatibility adapter 各自拥有访问、策略、持久化或执行职责。新生产文件遵守 200 行上限；既有超限 Nest 入口仅增加窄委派或模块 wiring，继续作为后续结构债务，未在 F386-F410 内扩大职责。
 
 devpilot 控制平面（devpilot-web + devpilot-api）完成以下统一改造：
 

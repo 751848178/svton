@@ -59,4 +59,3 @@ export class ProjectArchiveService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 }
-

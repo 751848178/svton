@@ -39,4 +39,3 @@ export class ReleasePolicyController {
     return { teamId: req.teamId, actorId: req.user.id, projectId };
   }
 }
-

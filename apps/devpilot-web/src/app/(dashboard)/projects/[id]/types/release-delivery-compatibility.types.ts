@@ -28,4 +28,3 @@ export interface ReleaseDeliveryCompatibility {
     logEntries: number;
   };
 }
-

@@ -41,4 +41,3 @@ export class ReleasePolicyService {
     return { current, capabilities: this.capabilities.list() };
   }
 }
-

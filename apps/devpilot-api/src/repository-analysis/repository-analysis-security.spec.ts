@@ -9,6 +9,7 @@ import {
   redactRepositoryValue,
 } from './repository-analysis-redact.utils';
 import { secureRepositoryCommands } from './repository-command-security.utils';
+import { repositoryGitEnvironment } from './repository-git-environment.utils';
 
 describe('repository analysis input security', () => {
   it.each([
@@ -42,6 +43,32 @@ describe('repository analysis input security', () => {
     'rejects a branch that can alter git argument meaning: %s',
     (branch) => expect(() => validateRepositoryBranch(branch)).toThrow(BadRequestException),
   );
+});
+
+describe('repository Git process isolation', () => {
+  it('passes only the required process environment into Git', () => {
+    const environment = repositoryGitEnvironment('/tmp/devpilot-git-home', {
+      PATH: '/test/bin',
+      LANG: 'zh_CN.UTF-8',
+      DATABASE_URL: 'mysql://secret',
+      JWT_SECRET: 'sentinel-jwt',
+      REPOSITORY_ANALYSIS_LOCAL_ROOTS: '/private/repositories',
+    });
+
+    expect(environment).toEqual({
+      PATH: '/test/bin',
+      LANG: 'zh_CN.UTF-8',
+      LC_ALL: 'zh_CN.UTF-8',
+      HOME: '/tmp/devpilot-git-home',
+      XDG_CONFIG_HOME: '/tmp/devpilot-git-home',
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_OPTIONAL_LOCKS: '0',
+    });
+    expect(environment).not.toHaveProperty('DATABASE_URL');
+    expect(environment).not.toHaveProperty('JWT_SECRET');
+  });
 });
 
 describe('repository analysis redaction', () => {

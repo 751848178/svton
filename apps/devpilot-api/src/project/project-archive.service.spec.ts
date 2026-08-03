@@ -29,4 +29,3 @@ describe("ProjectArchiveService", () => {
     expect((tx as { project?: { delete?: unknown } }).project?.delete).toBeUndefined();
   });
 });
-

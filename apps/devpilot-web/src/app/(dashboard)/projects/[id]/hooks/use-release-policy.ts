@@ -52,4 +52,3 @@ export function useReleasePolicy(projectId: string) {
 function message(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
-
