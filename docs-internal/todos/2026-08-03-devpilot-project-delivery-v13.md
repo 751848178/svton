@@ -20,7 +20,7 @@
 
 ## Workflow Routing
 
-`routing: long-goal + codegraph-manual-fallback + single-writer + noisy-tools; F386-F410 逐切片登记、实现、测试、文档同步和原子提交，完整日志保存在 /tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/。`
+`routing: long-goal + codegraph-manual-fallback + single-writer + noisy-tools; F386-F411 逐切片登记、实现、测试、文档同步和原子提交，完整日志保存在 /tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/。`
 
 ## Functional TODO Breakdown
 
@@ -51,6 +51,7 @@
 | F408 | done    | 用隔离 Docker 数据完成真实主链浏览器 E2E。                                                              | Disposable compose/runtime/browser evidence。              | 2.4.2 接入/设置→双构建→双预发→生产审批/部署→回退均已闭环。                                |
 | F409 | done    | 完成 ACL、并发、失败恢复、兼容、Provider 不可用和脱敏负向 E2E。                                         | Cross-layer tests。                                        | 11 suites/74 tests 与 API/DB/browser 负向证据全部通过。                                   |
 | F410 | done    | 独立代码/领域/UX/无障碍/安全审查、修复、全量验证和最终交付审计。                                        | 全目标与证据包。                                           | GateEvaluation 持久化、安全收口、全量验证、生产构建浏览器 E2E 与工作区保护全部通过。       |
+| F411 | done    | 拆分超长新增测试、恢复 API ESLint、修复任务板历史状态并完成 PR 前最终复核。                               | 测试职责、lint 配置、任务板/文档与全量验收；不改产品语义。 | `chore(devpilot): close V13 acceptance gaps`；完整日志在 `.../f411/`。                    |
 
 ## Verification Plan
 
@@ -110,3 +111,5 @@
 - 2026-08-03: F409 完成；跨团队 Project 对当前用户保持 0 membership、0 release/deployment 写入，浏览器只显示项目不存在。受控 Build #3 失败且无 Manifest，恢复配置后 Build #4 成功；并发/幂等、Production、兼容、Provider 正负/过期及 Secret/部署日志脱敏 11 suites/74 tests 通过。历史兼容仍只读且不合成 Manifest，Secret 只暴露 id/name/type 与掩码。修复预期 4xx 被重复写入 console.error 的噪声后，跨团队拒绝页控制台无 error/warn，网络/5xx 仍保留诊断。
 - 2026-08-03: F410 开始；分别执行代码结构、领域不变量、UX/无障碍、安全审查，修复真实缺陷并完成 Prisma、全量测试/类型/构建、Docker/browser、提交链和主工作区保护最终验收。
 - 2026-08-03: F410 完成；补齐 51 项 GateEvaluation 追加式持久化与证据版本，仓库 Git 子进程改为最小环境白名单和隔离 HOME。四类独立审查通过；API 38 suites/185 tests、真实 MySQL 9 suites/23 tests、Web 11 files/54 tests、Prisma validate/generate/migrate、API/Web type-check/build、2,798 条双语 parity 均通过。生产构建浏览器复核项目目录、51 项门禁、环境版本、恢复与中英文路径；最终 51 项最新结论为 9 passed、3 pending、1 needs_human、38 unavailable，Provider 缺失没有伪通过。主工作区 checkpoint 保持不变，任务 Docker 资源已删除，Git fixture 已可恢复地移入废纸篓。
+- 2026-08-03: F411 开始；仅收敛 PR 前验收缺口：按测试职责拆分两个超过 200 行的新增 spec，按 monorepo 既有 ESLint 体系恢复 Devpilot API lint，修复任务板早期阻塞/worker result 缺项，并重跑规定的静态、Prisma、API、MySQL、Web、消息与工作区保护验证。
+- 2026-08-03: F411 完成；348 行 intake integration spec 拆为 141 行 fixture、176 行幂等/恢复 spec 和 135 行边界/并发 spec，224 行 directory spec 拆为 82 行 fixture、69 行 presenter spec 和 85 行 service spec，4 suites/12 tests 保持全部场景与断言。新增 API `.eslintrc.js` 复用仓库 ESLint 8 + `@typescript-eslint/recommended`，规则仍启用，API lint 以 0 退出（0 error / 412 warning）；逐条清单证明 379 条 warning 来自基线、33 条来自既有 V13 行、F411 新增 0 条，并修复 V13 的 2 个 `ban-types` error。198 个新增可维护 TS/TSX/JS 等源文件均不超过 200 行；298 行 Prisma migration SQL 作为已应用、不可拆分的迁移历史工件单独披露，不改写 checksum。Prisma validate/generate/59 migrations status、API type/build、201 suites/1,310 tests、真实 MySQL 10 suites/23 tests、Web lint/type/build、11 files/54 tests及 2,798 条 zh/en/ICU parity 全部通过。任务板将 p0-worktree-init 记为由 F386 恢复完成，并用真实提交/日志补齐 F390-F399 result；缺失原 worker 会话与截图明确标为 evidence gap。F410 浏览器证据对应父提交 `f7071a1b`，F411 provider 修改的 JS emit 哈希完全一致；补跑已验证生产页面壳和空 console，但认证页面复核被 Browser URL 安全策略阻断，未伪称完整 authenticated smoke。

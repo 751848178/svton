@@ -11,6 +11,12 @@ import {
   unavailable,
 } from "./release-gate-provider.types";
 
+type CurrentConfigRevision = NonNullable<
+  NonNullable<
+    NonNullable<ReleaseGateEvidenceContext["deploy"]>["environment"]
+  >["currentConfigRevision"]
+>;
+
 @Injectable()
 export class ReleaseGateConfigCapabilityProvider
 implements ReleaseGateCapabilityProvider {
@@ -46,7 +52,7 @@ implements ReleaseGateCapabilityProvider {
   private config(
     context: ReleaseGateEvidenceContext,
     environmentId: string,
-    revision: NonNullable<NonNullable<ReleaseGateEvidenceContext["deploy"]>["environment"]>["currentConfigRevision"] & {},
+    revision: CurrentConfigRevision,
     now: Date,
   ) {
     const plain = record(revision.plainVariables);
@@ -92,7 +98,7 @@ implements ReleaseGateCapabilityProvider {
   private secrets(
     context: ReleaseGateEvidenceContext,
     environmentId: string,
-    revision: NonNullable<NonNullable<ReleaseGateEvidenceContext["deploy"]>["environment"]>["currentConfigRevision"] & {},
+    revision: CurrentConfigRevision,
     now: Date,
   ) {
     const references = arrayRecords(revision.secretReferences);
