@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F395 — four-step release detail, stable step recovery and isolated build logs.
+- Active slice: F396 — exact-Manifest repeatable Staging deployment without implicit builds.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -42,7 +42,8 @@
 | F392      | done    | Additive delivery schema and conservative legacy/unverified migration report verified.         |
 | F393      | done    | ACL/idempotent ReleaseOrder API and default create/list Web verified with zero implicit build.  |
 | F394      | done    | Server-resolved exact-Commit builds, isolated evidence and success-only immutable Manifests.   |
-| F395-F398 | pending | Four-step detail and exact Staging/Production/environment versions.                            |
+| F395      | done    | Four-step accessible detail, stable refresh/deep-link recovery and isolated BuildRun logs.     |
+| F396-F398 | pending | Exact Staging/Production deployment and environment versions.                                  |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
 
@@ -77,7 +78,9 @@
 - F393 Web/browser evidence: `f393-web-unit-final.log` — 2 files/12 tests, Web type-check/build passed; `.../f390-browser/08-f393-release-order.png` shows the real `2.4.1` draft with 0 builds/0 manifests. Sequential replay kept one card, conflicting note stayed in the dialog with an explicit error, and the final console was clean.
 - F394 API evidence: `f394/api-release-suite-final.log`, `f394/api-integration-final.log`, `f394/api-typecheck-final.log` and `f394/api-build-final.log` cover executor/config/controller/service/repository behavior plus real MySQL revision allocation and success-only Manifest persistence. Executor tests prove deterministic archive digest, minimal environment, checkout path confinement and token redaction.
 - F394 browser/MySQL evidence: `.../f390-browser/09-f394-build-runs.png`, `10-f394-build-success.png`, `f394/mysql-browser-evidence.log` and `f394/mysql-final-build-evidence.log`. The server resolved `main@85fad682d21785cf83cc48a911e993c049750356`; the release order reached 5 independent BuildRuns and 4 Manifests, failed revision 3 retained zero Manifest, revisions 4/5 produced the same deterministic digest, and the final browser console had no error/warn entries.
+- F395 API/Web evidence: `f395/api-unit-final.log`, `f395/api-typecheck-final.log`, `f395/web-unit-final.log`, `f395/web-typecheck-final.log` and matching build logs verify the scoped detail route, server-derived preflight/resume state, stable route normalization and dual-language build.
+- F395 browser evidence: `.../f390-browser/11-f395-four-step-detail.png` and `12-f395-build-log-drawer.png`. Opening an order without `step` restored `step=build`; ArrowRight moved the selected ARIA tab and URL to Staging; invalid `step` normalized to build and removed a bogus buildRunId; the exact Build #5 log dialog survived refresh with one dialog, `aria-selected=true` and no console error/warn.
 
 ## Next
 
-Implement and verify F395 four-step ReleaseOrder detail, stable step deep links, refresh recovery and a keyboard-accessible per-BuildRun log drawer without waiting for user confirmation.
+Implement and verify F396 exact-Manifest repeatable Staging deployment while proving DeploymentRun increments and BuildRun stays unchanged, without waiting for user confirmation.

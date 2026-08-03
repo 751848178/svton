@@ -1,7 +1,7 @@
 import { ReleaseOrderController } from "./release-order.controller";
 
 describe("ReleaseOrderController", () => {
-  const orders = { list: jest.fn(), create: jest.fn() };
+  const orders = { list: jest.fn(), create: jest.fn(), get: jest.fn() };
   const builds = { list: jest.fn(), build: jest.fn() };
   const access = {
     assertRead: jest.fn(),
@@ -49,6 +49,13 @@ describe("ReleaseOrderController", () => {
       "project-1",
       "order-1",
     );
+  });
+
+  it("authorizes a stable release-order detail read", async () => {
+    orders.get.mockResolvedValue({ id: "order-1" });
+    await controller.get(request, "project-1", "order-1");
+    expect(access.assertRead).toHaveBeenCalled();
+    expect(orders.get).toHaveBeenCalledWith("team-1", "project-1", "order-1");
   });
 
   it("uses the high-risk build access action before execution", async () => {

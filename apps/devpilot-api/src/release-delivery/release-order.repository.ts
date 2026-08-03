@@ -24,6 +24,29 @@ export class ReleaseOrderRepository {
     });
   }
 
+  findScoped(teamId: string, projectId: string, releaseOrderId: string) {
+    return this.prisma.releaseOrder.findFirst({
+      where: { id: releaseOrderId, teamId, projectId },
+      include: {
+        ...orderInclude,
+        project: {
+          select: {
+            repositoryConnection: {
+              select: { status: true, defaultBranch: true },
+            },
+            environments: {
+              where: {
+                status: "active",
+                baselineRole: { in: ["staging", "production"] },
+              },
+              select: { id: true, baselineRole: true },
+            },
+          },
+        },
+      },
+    });
+  }
+
   findByVersion(projectId: string, releaseVersion: string) {
     return this.prisma.releaseOrder.findUnique({
       where: { projectId_releaseVersion: { projectId, releaseVersion } },

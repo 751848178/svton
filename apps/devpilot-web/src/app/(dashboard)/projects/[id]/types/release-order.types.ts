@@ -18,6 +18,18 @@ export interface ReleaseOrderListResponse {
   total: number;
 }
 
+export type ReleaseOrderStep = 'preflight' | 'build' | 'staging' | 'production';
+
+export interface ReleaseOrderDetail extends ReleaseOrderItem {
+  resumeStep: ReleaseOrderStep;
+  preflight: {
+    ready: boolean;
+    repository: { ready: boolean; branch: string | null };
+    staging: { ready: boolean };
+    production: { ready: boolean };
+  };
+}
+
 export interface CreateReleaseOrderInput {
   releaseVersion: string;
   note?: string;

@@ -5,6 +5,7 @@ describe("ReleaseOrderService", () => {
   const repository = {
     findProject: jest.fn(),
     list: jest.fn(),
+    findScoped: jest.fn(),
     findByVersion: jest.fn(),
     create: jest.fn(),
   };
@@ -79,6 +80,26 @@ describe("ReleaseOrderService", () => {
     repository.findProject.mockResolvedValue(null);
     await expect(service.list("team-2", "project-1")).rejects.toBeInstanceOf(
       NotFoundException,
+    );
+  });
+
+  it("returns server-derived preflight and resume state for detail", async () => {
+    repository.findScoped.mockResolvedValue({
+      ...record,
+      _count: { buildRuns: 2, manifests: 1, releaseRuns: 0 },
+      project: {
+        repositoryConnection: { status: "connected", defaultBranch: "main" },
+        environments: [
+          { id: "staging", baselineRole: "staging" },
+          { id: "production", baselineRole: "production" },
+        ],
+      },
+    });
+    await expect(service.get("team-1", "project-1", "order-1")).resolves.toEqual(
+      expect.objectContaining({
+        resumeStep: "build",
+        preflight: expect.objectContaining({ ready: true }),
+      }),
     );
   });
 });

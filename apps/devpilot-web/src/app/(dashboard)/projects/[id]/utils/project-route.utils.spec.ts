@@ -1,6 +1,9 @@
 import {
   deliveryHref,
   readDeliveryView,
+  readReleaseOrderStep,
+  releaseOrderHref,
+  releaseOrderListHref,
   readSettingsSection,
   resolveLegacyProjectHref,
   settingsHref,
@@ -45,7 +48,7 @@ describe('project route compatibility', () => {
 
   it('drops incompatible focused IDs when switching areas', () => {
     const current = new URLSearchParams(
-      'runId=run-1&analysisRunId=analysis-1&environmentId=env-1&releasePlanId=release-1',
+      'runId=run-1&analysisRunId=analysis-1&environmentId=env-1&releasePlanId=release-1&releaseOrderId=order-1&step=build&buildRunId=build-1',
     );
     expect(deliveryHref('project-1', 'environment-versions', current)).toBe(
       '/projects/project-1?view=environment-versions',
@@ -53,5 +56,20 @@ describe('project route compatibility', () => {
     expect(settingsHref('project-1', 'resources', current)).toBe(
       '/projects/project-1/settings?section=resources',
     );
+  });
+
+  it('builds stable release detail, step and log deep links', () => {
+    const current = new URLSearchParams('view=environment-versions&analysisRunId=analysis-1');
+    expect(releaseOrderHref('project/1', 'order-1', 'build', current, 'build-1')).toBe(
+      '/projects/project%2F1?releaseOrderId=order-1&step=build&buildRunId=build-1',
+    );
+    expect(readReleaseOrderStep(new URLSearchParams('step=production'), 'preflight')).toBe(
+      'production',
+    );
+    expect(readReleaseOrderStep(new URLSearchParams('step=unknown'), 'build')).toBe('build');
+    expect(releaseOrderListHref(
+      'project-1',
+      new URLSearchParams('releaseOrderId=order-1&step=build&buildRunId=build-1'),
+    )).toBe('/projects/project-1');
   });
 });

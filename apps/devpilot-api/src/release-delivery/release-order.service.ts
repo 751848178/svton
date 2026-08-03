@@ -52,6 +52,17 @@ export class ReleaseOrderService {
     }
   }
 
+  async get(teamId: string, projectId: string, releaseOrderId: string) {
+    await this.assertProject(teamId, projectId);
+    const order = await this.repository.findScoped(
+      teamId,
+      projectId,
+      releaseOrderId,
+    );
+    if (!order) throw new NotFoundException("发布单不存在或不属于当前项目");
+    return presentDetail(order);
+  }
+
   private async assertProject(teamId: string, projectId: string) {
     if (!(await this.repository.findProject(teamId, projectId))) {
       throw new NotFoundException("项目不存在或不属于当前团队");
@@ -86,6 +97,16 @@ interface ReleaseOrderRecord {
   _count: { buildRuns: number; manifests: number; releaseRuns: number };
 }
 
+interface ReleaseOrderDetailRecord extends ReleaseOrderRecord {
+  project: {
+    repositoryConnection: {
+      status: string;
+      defaultBranch: string | null;
+    } | null;
+    environments: Array<{ id: string; baselineRole: string | null }>;
+  };
+}
+
 function present(order: ReleaseOrderRecord) {
   return {
     id: order.id,
@@ -96,5 +117,33 @@ function present(order: ReleaseOrderRecord) {
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     counts: order._count,
+  };
+}
+
+function presentDetail(order: ReleaseOrderDetailRecord) {
+  const base = present(order);
+  const baselineRoles = new Set(
+    order.project.environments.map((environment) => environment.baselineRole),
+  );
+  const repositoryReady = order.project.repositoryConnection?.status === "connected"
+    && Boolean(order.project.repositoryConnection.defaultBranch);
+  return {
+    ...base,
+    resumeStep: order._count.releaseRuns > 0
+      ? "production"
+      : order._count.buildRuns > 0
+        ? "build"
+        : "preflight",
+    preflight: {
+      ready: repositoryReady
+        && baselineRoles.has("staging")
+        && baselineRoles.has("production"),
+      repository: {
+        ready: repositoryReady,
+        branch: order.project.repositoryConnection?.defaultBranch || null,
+      },
+      staging: { ready: baselineRoles.has("staging") },
+      production: { ready: baselineRoles.has("production") },
+    },
   };
 }

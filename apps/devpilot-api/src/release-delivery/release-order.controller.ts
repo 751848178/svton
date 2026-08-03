@@ -48,6 +48,16 @@ export class ReleaseOrderController {
     return this.orders.create(req.teamId, req.user.id, projectId, dto);
   }
 
+  @Get(":releaseOrderId")
+  async get(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("releaseOrderId") releaseOrderId: string,
+  ) {
+    await this.access.assertRead(this.scope(req, projectId));
+    return this.orders.get(req.teamId, projectId, releaseOrderId);
+  }
+
   @Get(":releaseOrderId/builds")
   async listBuilds(
     @Request() req: AuthRequest,

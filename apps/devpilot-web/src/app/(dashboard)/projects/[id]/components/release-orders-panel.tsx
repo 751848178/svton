@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { EmptyState, LoadingState } from '@svton/ui';
 import { Button, ErrorBanner, StatusTag } from '@/components/ui';
@@ -8,12 +9,26 @@ import { formatDateTime } from '@/lib/format-date';
 import { useReleaseOrders } from '../hooks/use-release-orders';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseOrderCreateModal } from './release-order-create-modal';
-import { ReleaseOrderBuildSummary } from './release-order-build-summary';
+import { releaseOrderHref } from '../utils/project-route.utils';
+import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
 
 export function ReleaseOrdersPanel({ projectId }: { projectId: string }) {
   const t = useTranslations('projects');
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const orders = useReleaseOrders(projectId);
   const [createOpen, setCreateOpen] = useState(false);
+  const releaseOrderId = searchParams.get('releaseOrderId')?.trim();
+
+  if (releaseOrderId) {
+    return (
+      <ReleaseOrderDetailPanel
+        projectId={projectId}
+        releaseOrderId={releaseOrderId}
+        onOrdersChanged={orders.load}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -57,11 +72,20 @@ export function ReleaseOrdersPanel({ projectId }: { projectId: string }) {
               <span>{t('releaseOrderBuildCount', { count: order.counts.buildRuns })}</span>
               <span>{t('releaseOrderManifestCount', { count: order.counts.manifests })}</span>
             </div>
-            <ReleaseOrderBuildSummary
-              projectId={projectId}
-              releaseOrderId={order.id}
-              onChanged={orders.load}
-            />
+            <div className="mt-4 border-t pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.replace(releaseOrderHref(
+                  projectId,
+                  order.id,
+                  null,
+                  searchParams,
+                ))}
+              >
+                {t('openReleaseOrder')}
+              </Button>
+            </div>
           </article>
         ))}
       </div>
