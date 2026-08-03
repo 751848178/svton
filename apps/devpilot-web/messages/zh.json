@@ -322,7 +322,7 @@
     "webhookCreated": "Webhook 已创建",
     "webhookUpdated": "Webhook 已更新",
     "webhookDeliveries": "投递记录",
-    "webhookDeliveriesTitle": "{{name}} 的投递记录",
+    "webhookDeliveriesTitle": "{name} 的投递记录",
     "webhookSignatureStatus": "签名校验",
     "webhookLinkedRun": "关联部署",
     "webhookDryRun": "试运行",

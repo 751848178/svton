@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F399 — consolidate repository, environment, resources, webhooks and settings under Manage Project.
+- Active slice: F400 — environment identity/config revisions, shared resources, Secret references, routes and policy governance.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -46,7 +46,8 @@
 | F396      | done    | Repeatable exact-Manifest Staging DeploymentRuns with no Git, checkout or implicit build.      |
 | F397      | done    | Production same-Manifest proof, frozen snapshots, approval and concurrent idempotency.    |
 | F398      | done    | Append-only environment versions, controlled upgrade and recovery rollback.               |
-| F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
+| F399      | done    | Manage Project consolidation and ordinary/professional route reachability.                  |
+| F400-F405 | pending | Environment governance, 51/15 gates and standard strategy.                                  |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
 
 ## Evidence
@@ -88,7 +89,8 @@
 - F397 Web/browser evidence: `f397/web-release-tests.log`, `f397/web-type.log`, `f397/web-build.log` and `.../f390-browser/14-f397-production-confirmation.png`. The Production-only action required an explicit confirmation of environment, release version, Build/Commit, Manifest/Digest, config revision and policy snapshot; the real browser created ReleaseRun `cmscwe4ze000bgm3ufy9gdn0i` in `awaiting_approval` with pending approval `cmscwe4zl000dgm3u234b2dym`, both bound to the same input hash.
 - F398 API evidence: `f398/api-release-suite.log`, `f398/api-integration.log`, `f398/staging-integration.log`, `f398/api-type-final.log` and `f398/api-build.log`. Real MySQL proved three Staging upgrade/recovery requests appended three distinct DeploymentRuns and EnvironmentVersions, preserved the previous-version chain, rejected arbitrary history IDs, and allowed Production only through a matching approved unconsumed ReleaseRun; success consumed the approval and completed the ReleaseRun.
 - F398 Web/browser/MySQL evidence: `f398/web-type-final.log`, `f398/web-build.log`, `f398/mysql-browser-evidence.log` and `.../f390-browser/15-f398-environment-versions.png`. The real flow appended deploy → upgrade → recovery for Staging, approved the F397 Production request in the governance UI, then created the Production current version. The project has four immutable versions backed by four distinct DeploymentRuns; the browser console had no errors or warnings.
+- F399 regression evidence: `f399-api-tests.log`, `f399-web-tests.log`, matching API/Web type-check/build logs, and browser screenshots `16-f399-manage-project.png` plus `17-f399-professional-deployment.png`. All five Manage Project sections were reachable with stable query URLs, legacy `tab=resources` redirected to the secondary page, and a focused legacy DeploymentRun preserved its ID under `view=deployments`. The audit also fixed malformed ICU Webhook text and exposed the ReleaseRun approval through the professional deployment projection; a fresh browser tab then had no error/warn logs.
 
 ## Next
 
-Implement and verify F399 Manage Project consolidation and ordinary/professional route reachability without duplicating primary delivery navigation.
+Implement and verify F400 environment identity/config revision governance, shared-resource impact, Secret references, route snapshots and release-policy revisions.

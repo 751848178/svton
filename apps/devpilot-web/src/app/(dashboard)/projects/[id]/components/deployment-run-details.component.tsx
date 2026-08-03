@@ -67,15 +67,16 @@ export function DeploymentRunDetails({ run }: { run: DeploymentRun }) {
 
 function StateEvidence({ run }: { run: DeploymentRun }) {
   const t = useTranslations('projects');
+  const approval = run.operationApproval || run.releaseRun?.operationApproval;
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       <section className="rounded-md border p-3">
         <h4 className="text-sm font-medium">{t('runDetailApproval')}</h4>
         <p className="mt-1 text-xs text-muted-foreground">
-          {run.operationApproval
+          {approval
             ? t('runDetailApprovalState', {
-                status: run.operationApproval.status,
-                risk: run.operationApproval.risk,
+                status: approval.status,
+                risk: approval.risk,
               })
             : t('runDetailNoApproval')}
         </p>

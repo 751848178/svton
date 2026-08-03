@@ -39,8 +39,8 @@
 | F396 | done    | 按精确 Manifest 重复部署 Staging，禁止隐式构建。                                                        | Deployment manifest command。                              | 两次 DeploymentRun 使用同一 Manifest，BuildRun 保持 5，Git/checkout/build 均为 false。    |
 | F397 | done    | 实现 Production 同 Manifest 证明、快照冻结、审批和并发门禁。                                            | ReleaseRun/approval/deployment transaction。               | 真实 MySQL 并发收敛；漂移、跨项目、未知 Digest 负例和浏览器审批闭环通过。                   |
 | F398 | done    | 实现环境版本 current/history、受控升级和 recovery 回退。                                                | EnvironmentVersion API/Web。                               | Staging/Production 真实版本链、审批消费、升级/回退和任意输入负例通过。                     |
-| F399 | in_progress | 将仓库、环境配置、资源、Webhook 和设置收敛到 Manage Project。                                           | Settings routes/compat adapters。                          | 普通/专业路径浏览器回归。                                                                  |
-| F400 | pending | 实现环境 key 锁定、配置修订、共享资源/Secret 引用/域名路由/策略治理。                                   | Project environment governance。                           | 服务端权限、审计、无 Secret 明文、漂移测试。                                               |
+| F399 | done    | 将仓库、环境配置、资源、Webhook 和设置收敛到 Manage Project。                                           | Settings routes/compat adapters。                          | 五区普通路径、legacy 重定向和专业运行审批证据浏览器回归通过。                              |
+| F400 | in_progress | 实现环境 key 锁定、配置修订、共享资源/Secret 引用/域名路由/策略治理。                                   | Project environment governance。                           | 服务端权限、审计、无 Secret 明文、漂移测试。                                               |
 | F401 | pending | 建立版本化 51 项目录、统一状态和默认不可用 capability registry。                                        | Release gates schema/service/Web。                         | 10/11/20/10 目录计数；未接 Provider 不通过。                                               |
 | F402 | pending | 接通 M01-M05 Commit/Build 真实能力组。                                                                  | Commit/build provider adapters。                           | 正/负/新鲜度证据；缺失 Provider 不可用。                                                   |
 | F403 | pending | 接通 M06-M09 Deploy 真实能力组。                                                                        | Config/Secret/resource/connectivity/migration adapters。   | 环境归属、脱敏、过期证据测试。                                                             |
@@ -87,3 +87,5 @@
 - 2026-08-03: F398 开始；环境版本只从已完成、可追溯的精确制品运行追加生成，升级和 recovery 回退创建新运行并以事务更新 current 指针，禁止任意版本/镜像输入和历史覆盖。
 - 2026-08-03: F398 完成；成功 exact-artifact DeploymentRun 在事务中追加 EnvironmentVersion、previousVersion 链并更新环境 current 指针，首个运行锁定环境身份。升级只能选择同项目成功 Manifest，回退只能选择同环境非当前历史；Production 额外要求同 Manifest Staging 证明和未消费、已批准、配置未漂移的 ReleaseRun。真实浏览器形成 Staging deploy→upgrade→recovery 三版本链并经全局审批生成 Production 当前版本，4 个版本对应 4 个独立 DeploymentRun。
 - 2026-08-03: F399 开始；复核 Manage Project 二级页面对仓库、环境、资源、Webhook 和通用设置的收敛完整性，并补齐普通用户入口与保留专业深链的可达性证据。
+- 2026-08-03: F399 完成；Manage Project 默认仓库识别并以稳定 section 提供环境、资源、Webhook、项目资料五区，旧 tab=resources 与 tab=deployments 分别规范化到二级配置和只读专业运行且保留 focused ID。浏览器审查修复了 Webhook 标题的 ICU 双花括号错误，并让 release-artifact DeploymentRun 的专业详情显示其 ReleaseRun 审批而非错误声称未关联审批。
+- 2026-08-03: F400 开始；在现有不可变 EnvironmentConfigRevision 和首个 DeploymentRun identity lock 上补齐服务端治理写模型、引用型 Secret/资源/路由/策略快照以及影响范围与审计边界。

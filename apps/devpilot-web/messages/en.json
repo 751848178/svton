@@ -322,7 +322,7 @@
     "webhookCreated": "Webhook created",
     "webhookUpdated": "Webhook updated",
     "webhookDeliveries": "Deliveries",
-    "webhookDeliveriesTitle": "Deliveries for {{name}}",
+    "webhookDeliveriesTitle": "Deliveries for {name}",
     "webhookSignatureStatus": "Signature",
     "webhookLinkedRun": "Linked run",
     "webhookDryRun": "Dry run",

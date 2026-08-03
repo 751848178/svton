@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
 
 /** 精确读取单条 DeploymentRun 详情所需的持久化投影。 */
 @Injectable()
@@ -32,6 +32,21 @@ export class DeploymentRunDetailRepository {
             risk: true,
             reviewedAt: true,
             consumedAt: true,
+          },
+        },
+        releaseRun: {
+          select: {
+            id: true,
+            status: true,
+            operationApproval: {
+              select: {
+                id: true,
+                status: true,
+                risk: true,
+                reviewedAt: true,
+                consumedAt: true,
+              },
+            },
           },
         },
         serverExecutionJob: {

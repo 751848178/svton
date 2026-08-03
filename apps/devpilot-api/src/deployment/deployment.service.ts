@@ -2213,6 +2213,21 @@ export class DeploymentService {
           consumedAt: true,
         },
       },
+      releaseRun: {
+        select: {
+          id: true,
+          status: true,
+          operationApproval: {
+            select: {
+              id: true,
+              status: true,
+              risk: true,
+              reviewedAt: true,
+              consumedAt: true,
+            },
+          },
+        },
+      },
       sourceRun: {
         select: {
           id: true,

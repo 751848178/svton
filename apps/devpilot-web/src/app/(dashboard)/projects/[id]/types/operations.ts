@@ -62,6 +62,17 @@ export interface DeploymentRun {
     reviewedAt?: string | null;
     consumedAt?: string | null;
   } | null;
+  releaseRun?: {
+    id: string;
+    status: string;
+    operationApproval?: {
+      id: string;
+      status: string;
+      risk: string;
+      reviewedAt?: string | null;
+      consumedAt?: string | null;
+    } | null;
+  } | null;
   targetType: string;
   dryRun: boolean;
   mode?: 'deploy' | 'rollback' | string;
