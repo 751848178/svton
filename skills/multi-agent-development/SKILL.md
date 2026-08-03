@@ -1,59 +1,33 @@
 ---
 name: multi-agent-development
-description: "Use when planning or executing layered multi-agent development: decide whether to involve Architect, Module Owner, Executor, Verifier, Reviewer, or Integrator agents; create task-board artifacts; constrain worker context packs; keep the main agent context clean; and avoid over-triggering agents for simple one-file edits."
+description: "Use when agent delegation is explicitly authorized for a large development task and independent architecture, module, execution, verification, review, or integration work would reduce context pressure. Skip small direct changes and one-file edits."
 ---
 
 # Multi-Agent Development
 
-Use this skill when a development task is large enough that one long-lived agent context would become noisy: cross-module work, long goals, architecture planning, module decomposition, high-output verification, review gates, or explicit requests for multi-agent execution.
+Coordinate only the agent roles a task actually needs. This skill is self-contained and does not require a separate planner, board system, or output-isolation package; its references provide optional file-backed formats.
 
-Do not use it for a clearly scoped one-file edit, a small config change, or an ordinary explanation.
+## Workflow
 
-## Core Model
-
-- Main Agent owns the long-lived goal, current state, dispatch decisions, and final answer.
-- Architect Agent owns cross-module structure, dependency direction, and migration order.
-- Module Owner Agent owns one module's context pack and atomic todo list.
-- Executor Agent owns exactly one atomic todo.
-- Verifier Agent owns noisy commands and returns only summaries plus log paths.
-- Reviewer Agent owns diff risk, contract drift, and missing-test findings.
-- Integrator Agent owns cross-module merge readiness.
-
-The lower the agent layer, the narrower its context and authority.
-
-## Default Workflow
-
-1. Decide whether the request needs multi-agent handling. For exact triggers, read `references/routing.md`.
-2. If yes, create or update a file-backed task board. For board shape and write ownership, read `references/task-board.md`.
-3. Produce the smallest context pack needed for the next agent. For artifact schemas, read `references/context-contracts.md`.
-4. Trigger only the necessary agent type. Do not run the full pipeline by default.
-5. Keep full logs, long diffs, and broad searches outside the main context. Store paths and summaries in the board.
-6. If a diagram would reduce ambiguity around flow, state, dependencies, permissions, or module boundaries, read `references/diagrams.md`.
-7. Merge worker facts back into the board; the Main Agent decides the next step.
+1. Confirm delegation is authorized and that independent work outweighs coordination cost.
+2. Keep one coordinator responsible for scope, current state, dispatch, and final integration.
+3. Split work into bounded roles only as needed: architecture, module ownership, execution, verification, review, or integration.
+4. Give each worker the minimum context pack: goal slice, allowed paths, forbidden scope, acceptance signal, output format, and stop condition.
+5. Collect facts, changed paths, checks, risks, and context requests—not long reasoning transcripts.
+6. Merge worker results into one compact status source before dispatching more work.
 
 ## Rules
 
-- Do not delegate when the Main Agent can safely finish the task with a small, direct change.
-- Do not let workers read old sessions, full roadmaps, or unrelated modules unless their context pack explicitly allows it.
-- If a worker lacks information, it must return `needs_context` instead of expanding the search scope.
-- Use one active write worker per checkout unless separate worktrees or non-overlapping paths are explicitly assigned.
-- Worker outputs must be facts and file paths, not long reasoning transcripts.
-- Verifier outputs must include `command`, `status`, `exit_code`, `summary`, `relevant_errors`, and `full_log`.
-- Diagrams must be source diagrams such as Mermaid, PlantUML, or JSON graph; avoid opaque images for architecture evidence.
-- Preserve existing project-specific routing skills. When a repository already defines routing for agent capabilities, frameworks, libraries, or code ownership, apply that routing before inventing new runtime code or installing new dependencies.
+- Do not delegate a small change the coordinator can finish safely.
+- Use one active write worker per checkout unless worktrees or non-overlapping paths are explicit.
+- Workers do not expand their own scope; return `needs_context` with the missing item.
+- Keep broad logs and diffs external and reference them by path.
+- Preserve repository-specific ownership and routing rules without requiring another skill package.
+- Add a review/integration gate for shared APIs, schemas, permissions, state machines, or cross-module changes.
 
-## Reference Loading
+## Load References Only When Needed
 
-- `references/routing.md`: choose the minimal agent set for a scenario.
-- `references/context-contracts.md`: write architecture briefs, module plans, atomic todos, context packs, results, review summaries, and `needs_context` requests.
-- `references/task-board.md`: initialize and update `.agent-board/`, status transitions, events, logs, and upgrade criteria.
-- `references/diagrams.md`: decide whether a diagram is required and which diagram artifact to use.
-
-## Completion Checklist
-
-- The Main Agent has a compact board/status summary, not raw logs.
-- Each active worker has an explicit allowed scope and forbidden scope.
-- Every atomic todo has acceptance criteria and a verification signal.
-- High-noise command output is stored by path and summarized.
-- Shared API, schema, permission, state-machine, or cross-module changes have a review gate.
-- Follow-up work is represented as new todos instead of hidden in prose.
+- Read [Routing](references/routing.md) when selecting the minimal role set.
+- Read [Context Contracts](references/context-contracts.md) before drafting worker inputs or result shapes.
+- Read [Task Board](references/task-board.md) only when a persistent board is useful.
+- Read [Diagrams](references/diagrams.md) only when a visual materially reduces ambiguity.

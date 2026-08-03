@@ -9,7 +9,7 @@ function usage() {
   diff-summary.mjs [--project <name>] [--task <name>] [--cwd <path>] [--log-dir <path>] [--staged] -- [paths...]
 
 Example:
-  diff-summary.mjs --project svton --task touched-diff --cwd /repo -- apps/devpilot-api/src docs-internal
+  diff-summary.mjs --project my-project --task touched-diff --cwd /path/to/repo -- src docs
 `);
 }
 

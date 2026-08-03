@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Slice Handoff"
-  short_description: "Generate handoffs and start continuation threads"
-  default_prompt: "Use $codex-slice-handoff to decide whether this long Codex thread should be sliced, generate a minimal continuation handoff, and create a fresh continuation thread when requested."
+  short_description: "Generate compact, authority-safe continuation handoffs"
+  default_prompt: "Use $codex-slice-handoff to decide whether this long Codex task should split, generate a minimal handoff, and return or create a continuation only when currently authorized."

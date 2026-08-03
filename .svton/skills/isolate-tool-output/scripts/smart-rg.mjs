@@ -15,7 +15,7 @@ const DEFAULT_EXCLUDES = [
   '!.codegraph/**',
   '!coverage/**',
   '!**/src-tauri/target/**',
-  '!apps/agent-web/public/skills/**',
+  '!**/public/skills/**',
 ];
 
 function usage() {
@@ -24,7 +24,7 @@ function usage() {
     [--glob <glob>] [--max-files <n>] [--samples-per-file <n>] [--max-total-samples <n>] [--fixed] -- <pattern> [paths...]
 
 Example:
-  smart-rg.mjs --project svton --task policy-search --cwd /repo -- "ControlAccessPolicyService" apps docs
+  smart-rg.mjs --project my-project --task policy-search --cwd /path/to/repo -- "AccessPolicyService" src docs
 `);
 }
 

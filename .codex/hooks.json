@@ -1,7 +1,7 @@
 {
   "PreToolUse": [
     {
-      "matcher": "^Bash$",
+      "matcher": "^(Bash|exec_command|exec|functions\\.exec|js)$",
       "hooks": [
         {
           "type": "command",

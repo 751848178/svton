@@ -2,6 +2,21 @@
 
 Use these scripts to keep discovery output out of the main context. All scripts are dependency-free Node.js ESM.
 
+## `capture-tool-run.mjs`
+
+Adaptive command-output capture. It always writes stdout/stderr to a log, then
+returns the original output when the combined payload is at most 8 KiB. Larger
+payloads are replaced with a compact JSON summary.
+
+```bash
+node <skill-dir>/scripts/capture-tool-run.mjs \
+  --project <project> --task typecheck --cwd /path/to/repo -- npm run typecheck
+```
+
+Use `--summary-threshold-bytes <n>` to tune the threshold. Use
+`--always-summary` only when a caller requires the JSON contract. Do not wrap
+known-small commands such as `pwd` or `git status --short`.
+
 ## `token-guard.mjs`
 
 Preflight classifier for commands that might dump too much output. It does not run the command; it returns compact JSON with `risk`, `violations`, and recommended compact-tool replacements.
@@ -14,7 +29,7 @@ node <skill-dir>/scripts/token-guard.mjs \
 
 Use it before a raw `rg/find/grep`, long `sed/tail/cat`, raw `git diff`, log reread, or session JSONL inspection when the output size is uncertain. If `status` is `route_to_compact_tool`, rewrite the command before running it.
 
-The classifier is also importable: `analyze`, `shellTokens`, `extractRgShape`, `parseSedRange`, `parseTailLines` are all `export`-ed, and the CLI runs only when the module is invoked directly (importing has no side effects). The repo-level PreToolUse hook `scripts/hooks/pre-tool-use.mjs` imports `analyze()` to enforce blocks; reuse the same import path rather than re-implementing detection.
+The classifier is also importable: `analyze`, `shellTokens`, `extractRgShape`, `parseSedRange`, `parseTailLines` are all `export`-ed, and the CLI runs only when the module is invoked directly (importing has no side effects). The repo-level PreToolUse hook imports `analyze()` and covers direct `command`/`cmd` inputs plus static nested `tools.exec_command({ cmd: "..." })` calls. Dynamically constructed nested commands still require an explicit preflight.
 
 ## `smart-rg.mjs`
 
@@ -90,3 +105,18 @@ node <skill-dir>/scripts/codex-session-token-audit.mjs --session ~/.claude/proje
 ```
 
 Use `last_token_usage` for single-step peaks and `total_token_usage` only for cumulative accounting.
+
+## `session-health-check.mjs`
+
+Compact stop-rule evaluator built on the structured session audit. It returns
+`wrap_and_split` when the latest input exceeds 120K tokens or the session has
+already compacted once.
+
+```bash
+node <skill-dir>/scripts/session-health-check.mjs --thread-id <thread-id>
+node <skill-dir>/scripts/session-health-check.mjs --session /path/to/rollout.jsonl
+```
+
+Use `--max-input` or `--max-compactions` only when the surrounding workflow
+defines a stricter threshold. The result is a health signal only; this tool does
+not generate handoffs or authorize task creation.

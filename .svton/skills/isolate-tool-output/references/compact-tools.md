@@ -2,17 +2,34 @@
 
 Use these scripts to keep discovery output out of the main context. All scripts are dependency-free Node.js ESM.
 
+## `capture-tool-run.mjs`
+
+Adaptive command-output capture. It always writes stdout/stderr to a log, then
+returns the original output when the combined payload is at most 8 KiB. Larger
+payloads are replaced with a compact JSON summary.
+
+```bash
+node <skill-dir>/scripts/capture-tool-run.mjs \
+  --project <project> --task typecheck --cwd /path/to/repo -- npm run typecheck
+```
+
+Use `--summary-threshold-bytes <n>` to tune the threshold. Use
+`--always-summary` only when a caller requires the JSON contract. Do not wrap
+known-small commands such as `pwd` or `git status --short`.
+
 ## `token-guard.mjs`
 
 Preflight classifier for commands that might dump too much output. It does not run the command; it returns compact JSON with `risk`, `violations`, and recommended compact-tool replacements.
 
 ```bash
 node <skill-dir>/scripts/token-guard.mjs \
-  --project svton --cwd /repo \
-  --command 'rg -n "server_agent" apps docs-internal'
+  --project <project> --cwd /path/to/repo \
+  --command 'rg -n "policy" src docs'
 ```
 
 Use it before a raw `rg/find/grep`, long `sed/tail/cat`, raw `git diff`, log reread, or session JSONL inspection when the output size is uncertain. If `status` is `route_to_compact_tool`, rewrite the command before running it.
+
+The classifier is also importable: `analyze`, `shellTokens`, `extractRgShape`, `parseSedRange`, `parseTailLines` are all `export`-ed, and the CLI runs only when the module is invoked directly (importing has no side effects). The repo-level PreToolUse hook imports `analyze()` and covers direct `command`/`cmd` inputs plus static nested `tools.exec_command({ cmd: "..." })` calls. Dynamically constructed nested commands still require an explicit preflight.
 
 ## `smart-rg.mjs`
 
@@ -21,7 +38,7 @@ Two-stage search wrapper for broad `rg` work. It writes full ripgrep JSON to a l
 Prefer it when searching across a repository, docs tree, generated-adjacent paths, or multiple packages.
 
 ```bash
-node <skill-dir>/scripts/smart-rg.mjs --project svton --task search-policy --cwd /repo -- "ControlAccessPolicyService" apps docs
+node <skill-dir>/scripts/smart-rg.mjs --project <project> --task search-policy --cwd /path/to/repo -- "AccessPolicyService" src docs
 ```
 
 Useful options:
@@ -53,22 +70,26 @@ Default maximum is 120 lines per window. Use `--max-lines` only when a larger bo
 
 Compact reader for TODO, roadmap, requirements, and similar progress documents. It returns status/keyword lines with headings and line numbers instead of raw document tails.
 
+Use stable target IDs as the hot path. A continuation brief should carry an F-id, module id, ticket id, or similar durable identifier; use `progress-snapshot.mjs --keyword <id>` to locate the current `file:line`, then use `safe-read.mjs` for only that target block plus 30-60 lines. Treat line numbers as version-local anchors, not durable facts.
+
 ```bash
 node <skill-dir>/scripts/progress-snapshot.mjs \
-  --project svton --task devpilot-progress --cwd /repo \
-  --keyword F82
+  --project <project> --task progress --cwd /path/to/repo \
+  --keyword TASK-123 --file docs/todos/platform.md
 node <skill-dir>/scripts/progress-snapshot.mjs \
-  --cwd /repo --file docs/todos/platform.md --keyword server_agent --context 1
+  --cwd /path/to/repo --file docs/todos/platform.md --keyword feature-id --context 1
 ```
 
-When no `--file` is passed and the svton Devpilot docs exist, it uses the standard Devpilot TODO, roadmap, and requirements files. Use returned file:line anchors with `safe-read.mjs` for precise follow-up windows.
+When no target ID is known, run one compact snapshot that returns only candidate `id/status/module/next/file:line` rows, choose the next target, then switch back to ID lookup plus bounded reads. Do not repeatedly scan broad keywords like `TODO|pending|blocked|下一步` across multiple progress docs.
+
+When no `--file` is passed, the script checks common progress-document names under `docs/` and repository root. Repositories with custom planning files should pass one or more `--file` values or set `PROGRESS_SNAPSHOT_FILES` to a path-list. Use returned file:line anchors with `safe-read.mjs` for precise follow-up windows.
 
 ## `diff-summary.mjs`
 
 Diff wrapper that writes full diff to a log and prints compact `stat`, `name_status`, `numstat`, and `check` summaries.
 
 ```bash
-node <skill-dir>/scripts/diff-summary.mjs --project svton --task touched-diff --cwd /repo -- apps/devpilot-api/src docs-internal
+node <skill-dir>/scripts/diff-summary.mjs --project <project> --task touched-diff --cwd /path/to/repo -- src docs
 ```
 
 Use `--staged` for staged changes.
@@ -84,3 +105,18 @@ node <skill-dir>/scripts/codex-session-token-audit.mjs --session ~/.claude/proje
 ```
 
 Use `last_token_usage` for single-step peaks and `total_token_usage` only for cumulative accounting.
+
+## `session-health-check.mjs`
+
+Compact stop-rule evaluator built on the structured session audit. It returns
+`wrap_and_split` when the latest input exceeds 120K tokens or the session has
+already compacted once.
+
+```bash
+node <skill-dir>/scripts/session-health-check.mjs --thread-id <thread-id>
+node <skill-dir>/scripts/session-health-check.mjs --session /path/to/rollout.jsonl
+```
+
+Use `--max-input` or `--max-compactions` only when the surrounding workflow
+defines a stricter threshold. The result is a health signal only; this tool does
+not generate handoffs or authorize task creation.

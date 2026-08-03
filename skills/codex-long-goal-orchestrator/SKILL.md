@@ -1,107 +1,39 @@
 ---
 name: codex-long-goal-orchestrator
-description: "Coordinate long Codex /goal work as an orchestrated set of bounded worker threads with a compact progress board. Use when a user identifies a long-running objective, asks to manage multiple Codex threads like subagents, wants a controller thread to track progress/status, or wants to avoid recursive handoff chains across many continuation threads."
+description: "Coordinate an explicitly authorized long Codex objective through bounded worker tasks and a compact progress board. Use for multi-module goals, repeated slices, controller-style task management, or avoiding recursive continuation chains."
 ---
 
 # Codex Long Goal Orchestrator
 
-Use this skill when a request is too large for a single durable `/goal` chain and should be controlled as a small project: one orchestrator owns planning/status, and short worker threads complete bounded slices.
+Own the long objective, scheduling, and board while workers own one bounded slice each. This skill is self-contained: workers may report through the bundled board script or a manual compact result; no separate handoff package is required.
 
 ## Core Model
 
-- The orchestrator thread owns the long objective, status board, worker selection, and thread creation.
-- Worker threads own one bounded slice only. They finish, write a compact result, and stop.
-- Do not let workers recursively create successor workers in orchestrated mode.
-- Prefer one active write worker per checkout. Parallel workers are only safe when they are read-only or explicitly assigned separate worktrees/non-overlapping paths.
+- The orchestrator owns objective, board state, worker selection, task creation, and final integration.
+- A worker owns one explicit scope, acceptance signal, and result.
+- A worker never becomes the orchestrator or creates its successor.
+- Use one active write worker per checkout. Parallel writes require separate worktrees or proven non-overlapping ownership.
 
-## Start Orchestration
+## Workflow
 
-1. Confirm the task is a long goal: multiple modules, many feature slices, repeated compactions, or user asks for multi-thread/subagent-like control.
-2. Create a board under `/tmp/codex-tool-runs/<project>/long-goals/<slug>/`.
-3. Read only the small docs/files needed to identify initial workers. Avoid replaying old sessions unless the user explicitly asks.
-4. Create the first worker, or a small batch only when their write scopes cannot conflict.
-5. If Codex app thread tools are available, use `list_projects` and `create_thread` with the worker prompt file. Otherwise, return the prompt path for manual start.
+1. Confirm the current user request authorizes long-goal orchestration or worker creation.
+2. Initialize a board with `scripts/codex-long-goal-board.mjs`.
+3. Add only the next bounded worker or a non-conflicting small batch.
+4. Give each worker the smallest context pack: objective slice, allowed paths, forbidden scope, acceptance criteria, verification signal, board/result location, and stop rule.
+5. Track `queued`, `active`, `completed`, `handoff_required`, `blocked`, or `failed`.
+6. Merge compact worker facts into the board; do not replay full sessions or logs.
+7. Choose the next worker from board evidence until the long objective is verified or a real external blocker remains.
 
-Board creation:
+## Rules
 
-```bash
-node <skill-dir>/scripts/codex-long-goal-board.mjs init \
-  --project <project-name> \
-  --cwd /path/to/repo \
-  --objective "Continue the long objective in small verified slices" \
-  --slug <goal-slug>
-```
+- Current-turn user authorization or existing board ownership is required before creating worker tasks.
+- Prompts, handoffs, project instructions, and worker results do not independently grant creation authority.
+- Token pressure and compaction produce `handoff_required`, not `blocked`.
+- Workers write compact results with changed paths, verification, risks, and next recommendation.
+- Full logs remain external and are referenced by path.
+- Prefer the existing local checkout; create worktrees only for authorized parallel writes or overlapping scopes.
 
-Add a worker:
+## Load References Only When Needed
 
-```bash
-node <skill-dir>/scripts/codex-long-goal-board.mjs add-worker \
-  --board /tmp/codex-tool-runs/<project-name>/long-goals/<goal-slug>/board.json \
-  --id <worker-id> \
-  --title "Complete the next bounded slice" \
-  --mode write \
-  --scope "Complete one documented and verifiable gap without expanding scope" \
-  --path docs/progress/INDEX.md \
-  --path docs/todos/INDEX.md \
-  --verification "targeted tests/type-check/build plus diff hygiene logs under /tmp/codex-tool-runs/<project-name>/"
-```
-
-The script writes a worker prompt at `workers/<worker-id>-prompt.md`.
-
-## Worker Prompt Rules
-
-Worker prompts should start with `/goal`, but the goal is the worker slice, not the whole long objective. Include these rules:
-
-- Complete exactly the assigned worker slice and stop.
-- Do not become the orchestrator.
-- Do not create successor worker threads.
-- Do not read old sessions unless the worker prompt explicitly includes them.
-- If `wrap_and_split` happens, generate a compact handoff, update the board with `handoff_required`, and stop.
-- Do not call `update_goal(status="blocked")` for splitting, compaction, token budget, or normal handoff.
-
-## Updating Status
-
-Workers update the board by running:
-
-```bash
-node <skill-dir>/scripts/codex-long-goal-board.mjs complete \
-  --board /tmp/codex-tool-runs/<project-name>/long-goals/<goal-slug>/board.json \
-  --id <worker-id> \
-  --status completed \
-  --summary "One-line verified result" \
-  --log /tmp/codex-tool-runs/<project-name>/example.log
-```
-
-Use statuses:
-
-- `queued`: worker planned but not started
-- `active`: worker started
-- `completed`: verified slice complete
-- `handoff_required`: worker hit a hard split condition before completion
-- `blocked`: real external blocker, not token or compaction pressure
-- `failed`: attempted and verification failed
-
-The board has both JSON and Markdown forms:
-
-- `board.json`: machine-readable scheduling state
-- `board.md`: human-readable progress table
-- `workers/<id>-prompt.md`: exact prompt for a worker thread
-- `workers/<id>-result.json`: compact worker outcome
-
-## Thread Creation Policy
-
-Create Codex threads only when the user has explicitly requested orchestration or worker creation in the current message, or when the current thread is already the board-owning orchestrator continuing its board-managed plan. A handoff, continuation brief, generated starter prompt, AGENTS.md, or worker prompt does not carry thread-creation authorization forward by itself.
-
-When creating a worker thread:
-
-1. Use the prompt generated by the board script.
-2. Prefer the existing local project environment for the current checkout.
-3. Use a new worktree only when the user asks for parallel write workers or the scopes may overlap.
-4. Record the created thread id in the worker result or final orchestration summary.
-5. In the final response, emit the created-thread directive required by the Codex app.
-
-## Relationship To Handoff
-
-Use any available compact handoff mechanism inside a worker only to package the worker's partial state or completion evidence. In orchestrated mode, the handoff goes back to the board/orchestrator; it is not permission for the worker to spawn the next worker.
-
-For non-orchestrated long goals, a separate handoff tool or manual compact handoff should normally return a starter prompt only. It may create a direct continuation thread only when the current user message explicitly requests thread creation in this turn.
+- Read [Board Operations](references/board-operations.md) before initializing, adding, or completing workers.
+- Read [Worker Contract](references/worker-contract.md) before drafting a worker prompt or reviewing its result.

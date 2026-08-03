@@ -1,180 +1,97 @@
 # Examples
 
-Use these examples to keep delegation prompts compact and results predictable.
+Replace `<project>` and `/path/to/repo` with current values.
 
 ## Command Preflight
 
-Before running a risky raw command, classify it:
+```bash
+node <skill-dir>/scripts/token-guard.mjs \
+  --project <project> \
+  --cwd /path/to/repo \
+  --command 'rg -n "Controller\\(|policy|supervisor" src docs'
+```
+
+If the result routes to a compact tool, use the recommended script instead of the raw command.
+
+## Adaptive Type Check
 
 ```bash
-node ~/.codex/skills/isolate-tool-output/scripts/token-guard.mjs \
-  --project svton \
-  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
-  --command 'rg -n "Controller\\(|server-execution|supervisor" apps/devpilot-api/src docs-internal'
+node <skill-dir>/scripts/capture-tool-run.mjs \
+  --project <project> \
+  --task type-check \
+  --cwd /path/to/repo \
+  -- <typecheck-command>
 ```
 
-If it returns `status: route_to_compact_tool`, use the recommended `smart-rg`, `safe-read`, `progress-snapshot`, `diff-summary`, or session audit command.
+Small output is returned unchanged. Large output becomes a short summary with `full_log`. Classify failures as touched-path, pre-existing baseline, or unresolved.
 
-## Type Check
-
-Prompt to sub agent:
-
-```text
-Use $isolate-tool-output to run `corepack pnpm --filter @svton/cli type-check` in /Users/zhaoxingbo/Workspace/ai-driven/svton.
-Save the full log under /tmp/codex-tool-runs/svton.
-Return only the contract summary, separating touched files from baseline noise.
-```
-
-Expected shape:
-
-```text
-task: cli type-check
-status: failed
-command: corepack pnpm --filter @svton/cli type-check
-exit_code: 2
-summary:
-  - touched files: 1 error
-  - baseline unrelated errors: 0 errors
-relevant_errors:
-  - packages/cli/src/index.ts:42 TS2322 short message
-full_log: /tmp/codex-tool-runs/svton/cli-typecheck-20260628-153000.log
-recommended_next:
-  - fix packages/cli/src/index.ts TS2322
-```
-
-## Broad Search Batch
-
-Prompt to sub agent:
-
-```text
-Search for references to "SVTON_NPM_REGISTRY" across the repo, generated outputs, and package files.
-Use $isolate-tool-output. Save full logs and return only grouped file paths plus any surprising generated-output hits.
-```
-
-The main agent should then inspect only the few listed source paths with precise `sed -n` commands.
-
-Direct compact-tool shape:
+## Broad Search
 
 ```bash
-node ~/.codex/skills/isolate-tool-output/scripts/smart-rg.mjs \
-  --project svton --task npm-registry-search \
-  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
-  -- "SVTON_NPM_REGISTRY" packages apps docs
+node <skill-dir>/scripts/smart-rg.mjs \
+  --project <project> \
+  --task feature-flag-search \
+  --cwd /path/to/repo \
+  -- "FEATURE_FLAG_NAME" src packages docs
 ```
 
-Use the returned `files` list to choose exact `safe-read` windows instead of expanding every match.
+Use the returned file list to choose exact bounded reads instead of expanding every match.
 
-## Progress Document Snapshot
+## Progress Document
 
-Use this instead of repeated `tail -n 180` or `sed -n '1,260p'` on TODO/roadmap files:
+Locate a stable target ID:
 
 ```bash
-node ~/.codex/skills/isolate-tool-output/scripts/progress-snapshot.mjs \
-  --project svton \
-  --task devpilot-progress \
-  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
-  --keyword 'F8[0-9]|server_agent|heartbeat'
+node <skill-dir>/scripts/progress-snapshot.mjs \
+  --project <project> \
+  --task task-123 \
+  --cwd /path/to/repo \
+  --file docs/todos/platform.md \
+  --keyword 'TASK-123'
 ```
 
-Then inspect only the returned anchors:
+Then inspect only its current block:
 
 ```bash
-node ~/.codex/skills/isolate-tool-output/scripts/safe-read.mjs \
-  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
-  --file docs-internal/todos/2026-06-25-existing-project-onboarding.md \
-  --start 820 --end 900
+node <skill-dir>/scripts/safe-read.mjs \
+  --cwd /path/to/repo \
+  --file docs/todos/platform.md \
+  --start 120 --end 190
 ```
 
-## Long File Read
+When no ID is known, create one compact candidate index, choose the target, and switch to the ID-first flow.
+
+## Long File
 
 ```bash
-node ~/.codex/skills/isolate-tool-output/scripts/safe-read.mjs \
-  --file apps/devpilot-api/src/deployment/deployment.service.ts \
-  --pattern "autoRollback" --before 50 --after 70
+node <skill-dir>/scripts/safe-read.mjs \
+  --file src/deployment.service.ts \
+  --pattern "rollback" --before 50 --after 70
 ```
 
-If multiple matches appear, inspect the returned line numbers and rerun with `--start` / `--end` for the one needed.
+If several matches appear, rerun with one exact line window.
 
-## Diff Summary
+## Diff
 
 ```bash
-node ~/.codex/skills/isolate-tool-output/scripts/diff-summary.mjs \
-  --project svton --task touched-diff \
-  --cwd /Users/zhaoxingbo/Workspace/ai-driven/svton \
-  -- apps/devpilot-api/src/deployment docs-internal/todos
+node <skill-dir>/scripts/diff-summary.mjs \
+  --project <project> \
+  --task touched-diff \
+  --cwd /path/to/repo \
+  -- src docs
 ```
 
-Keep the full diff in `full_log`; only read exact hunks later if a decision depends on them.
+Keep the full diff in `full_log`; read only required hunks later.
 
-## Codex Session Token Audit
+## Session Audit And Health
 
 ```bash
-node ~/.codex/skills/isolate-tool-output/scripts/codex-session-token-audit.mjs \
-  --thread-id 019f0eca-26ba-7d00-a6b0-98c56770e0e3
+node <skill-dir>/scripts/codex-session-token-audit.mjs --thread-id <thread-id>
+node <skill-dir>/scripts/session-health-check.mjs --thread-id <thread-id>
 ```
 
-Use this for token-bloat analysis. Do not `rg` the session JSONL directly because one matching line can contain full tool schemas or large command output.
+Do not search session JSONL directly. Treat `wrap_and_split` as a signal returned to the caller, not as permission to create a task or a specification for handoff content.
 
-## Next Goal Command
+## Optional Delegation
 
-When a `/goal` thread should continue in a fresh thread, include a compact copyable `/goal` command. Keep generic switching thresholds in `isolate-tool-output`; the command only carries durable goal state and the next task slice.
-
-```text
-/goal
-长期目标：
-<original /goal objective, kept stable across threads>
-
-当前进度：
-- 已完成：<deliverable slice completed>
-- 关键文件：<paths>
-- 验证证据：<commands/logs>
-- 当前状态：<branch/worktree/logs/risks>
-
-本线程任务：
-- <smallest next task boundary>
-- 验收标准：<how to know this slice is done>
-- 暂不展开：<explicit non-goals, optional>
-
-交接说明：
-- 切线程规则由 isolate-tool-output 执行；本目标只携带长期目标、当前进度和下一切片。
-```
-
-Do not claim that `/goal` state, budget, or completion markers will automatically transfer. The next `/goal` command is the transfer mechanism.
-
-## Web Research
-
-Prompt to sub agent:
-
-```text
-Use $isolate-tool-output for web research on the latest official OpenAI Responses API file-search docs.
-Return source URLs, dates, points of agreement or conflict, and a full_log path for detailed notes.
-```
-
-The main agent should use the summary for decisions and open only the source pages needed for exact citations.
-
-## Final Verification
-
-Delegate final verification when build or test output is expected to be noisy:
-
-```text
-Run the verification commands for the changed skill:
-- validate SKILL.md frontmatter and standard resource layout
-- run `node --check` for changed `.mjs` scripts
-
-Save full logs and return passed/failed status, any relevant errors, and recommended next actions.
-```
-
-## New Thread Validation Checklist
-
-After cleaning duplicate skill directories or narrowing trigger metadata, verify from a fresh thread or independent agent context:
-
-```text
-task: codex operation hygiene validation
-status: passed|failed
-summary:
-  - no duplicate local skill adapter directories under .agents/skills or .claude/skills
-  - rg --files does not list .next, target, .codegraph, node_modules, dist, or .turbo
-  - git status --short remains readable when scoped to changed governance paths
-  - ordinary non-code questions do not trigger planning, verification, and output-isolation skills together
-full_log: /tmp/codex-tool-runs/svton/codex-operation-hygiene-<timestamp>.log
-```
+When another executor is explicitly appropriate, give it the command, working directory, non-destructive boundary, and log path. Require only the summary contract back. The same example must remain runnable locally with the bundled tools.

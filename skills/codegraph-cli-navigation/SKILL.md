@@ -1,79 +1,32 @@
 ---
 name: codegraph-cli-navigation
-description: "Use when a change spans multiple files: callers/callees, blast radius, affected tests, state flow, or route/component/style chains. Map the graph via CodeGraph CLI (not MCP), or by hand with search + source if it is missing."
+description: "Use for multi-file code changes that require callers, callees, blast radius, affected tests, state flow, or route/component/style chains. Prefer bounded CodeGraph CLI queries; when unavailable, build the same map from scoped search and source."
 ---
 
 # CodeGraph CLI Navigation
 
-Apply this when a user request is complex enough that the agent should build a code graph before changing code. Prefer CodeGraph CLI as the navigation and impact-analysis layer; if the execution environment lacks CodeGraph, manually inspect all relevant code and build the graph yourself. Final judgment must come from real source files, tests, logs, and browser inspection when relevant.
+Build a compact map before changing a cross-file flow. This skill is independently usable: CodeGraph accelerates discovery but is never a prerequisite for source-based navigation.
 
-## Use When
+## Workflow
 
-- 收到用户需求后，需要判断这是明确局部改动，还是跨文件、跨模块、跨交互链路的复杂需求或问题。
-- 排查逻辑类型改动、调用链 bug、状态流转异常、服务/Hook/handler 关系、入口到副作用的跨层行为。
-- 排查样式、UI、组件结构、路由链路、布局状态、代码结构性重构或多组件协作问题。
-- 需要理解一个模块的源码结构（接口/schema/调用关系）——**先建图一次，不要靠反复 `sed -n`/`nl -ba` 逐段重读同一批源码**来拼凑结构认知。
-- 需要梳理相关代码图谱、调用关系、影响面和受影响测试；如果没有 CodeGraph，也必须手工阅读全量相关代码并整理图谱。
-
-## Avoid When
-
-- 任务明显是单文件、小范围、低风险改动，直接阅读源码和运行局部验证更快。
-- 当前环境既不能运行 CodeGraph CLI，也不能读取项目源码或用搜索工具做手工图谱。
-- 用户只是在讨论方案、解释概念、整理文本、运行简单命令，或明确要求不要做额外侦察。
-
-## Trigger Signals
-
-- 调用 调用方 被调用 调用链 调用关系 谁调用 哪里调用 caller callee callers callees
-- 影响 影响面 影响范围 影响哪些 改动影响 受影响 影响测试 impact blast radius
-- 排查 复杂 bug 调用链 状态流 数据流 跨文件 跨模块 跨层 逻辑排查 入口 副作用
-- 样式排查 组件链路 组件结构 界面链路 route component 状态流 样式来源 布局 哪里渲染
-- 代码图谱 代码结构 代码关系 结构梳理 graph map 复杂需求 复杂问题
-
-## Default Workflow
-
-1. 先做复杂度门禁：判断用户需求是否明确、局部、低风险；如果是简单任务，不使用 CodeGraph，直接读源码和验证。
-2. 若需求复杂，先判断执行环境是否有 CodeGraph CLI；有则查看索引状态，必要时只用 CLI 的 status、sync、index 做非破坏性准备。
-3. 如果没有 CodeGraph CLI 或 CLI 不可用，不要停止；改用 `rg`、文件树、源码阅读和测试定位来全量检查相关代码，并手工整理图谱。
-4. 按问题类型选择图谱路径：逻辑类型关注入口、符号、调用方、被调用方、影响面和受影响测试；样式或结构类型关注文件树、路由、组件、状态、样式和测试链路。
-5. 用受控 CLI 查询或手工源码侦察形成一份轻量图谱摘要：入口点、核心符号、相关文件、调用关系、影响面、受影响测试和不确定点。
-6. 回到真实源码逐文件阅读关键位置，验证图谱是否正确；不得只根据 CodeGraph 输出或初步手工猜测直接改代码。
-7. 基于源码证据修复问题，并用相关测试、日志、浏览器检查或 e2e 验证最终行为。
-8. 最终回复说明是否使用了 CodeGraph、图谱发现、真实源码证据、验证命令和剩余风险。
-
-## Preferred Moves
-
-- 优先用 `codegraph status . --json` 判断索引状态，再决定是否 `codegraph sync .` 或 `codegraph index .`。
-- 如果 `command -v codegraph` 失败，立刻切换到手工图谱路径：用 `rg` 找入口、符号、样式和测试，用源码阅读补全关系。
-- 用 `codegraph query -p . <term> --limit 10 --json` 找候选符号，再用 `node`、`callers`、`callees`、`impact` 收窄。
-- 逻辑问题优先从用户提到的错误、接口、函数、状态名、事件名或测试名出发建立调用图谱。
-- UI/样式问题优先用 `files`、`query`、`node --file --symbols-only` 和源码阅读建立 route-to-component-to-style 图谱。
-- 使用 `codegraph affected -p . <changed-files> --quiet` 辅助找测试，但测试选择最终以源码、脚本和项目约定为准。
-- **对会反复触及的模块（如某 service 目录、某 resource 模块群），建图后把结构快照（入口、核心符号、caller/callee、schema 字段、受影响测试）写入仓库约定的 docs/scratch 位置或会话内笔记。** 后续引用快照，而非对同一目录反复 `rg`/`sed` 重搜——审计显示同一模块被重搜数十到数百次是 token 主因之一。
+1. Apply a complexity gate. Skip graph work for a known, low-risk, single-file change.
+2. Start from the named behavior, error, route, symbol, state, or test.
+3. If CodeGraph CLI is available, inspect index status and run bounded queries for candidates, callers, callees, impact, and affected tests.
+4. If it is unavailable or incomplete, use scoped file search and source reading to build the same map manually.
+5. Record a small snapshot: entry point, core symbols, files, edges, state/data flow, affected tests, and unresolved assumptions.
+6. Confirm every important edge in real source. Treat graph output as navigation evidence, not implementation truth.
+7. Make the change, then validate the affected behavior with source-backed tests, logs, or browser/E2E checks as appropriate.
 
 ## Rules
 
-- 不得使用 CodeGraph MCP；只允许通过 CodeGraph CLI 做受控查询和索引状态准备。
-- 执行环境没有 CodeGraph CLI 时，不得放弃复杂需求分析；必须手工检查全量相关代码并整理等价的逻辑图谱或 UI/结构图谱。
-- CodeGraph 只作为代码结构地图和影响面侦察工具，不能替代真实源码阅读、测试、日志或浏览器验证。
-- 简单任务不得过度使用 CodeGraph；复杂度门禁必须先于 CLI 查询。
-- **理解模块结构时必须先建图一次（CodeGraph 或手工），不得靠反复 `sed -n`/`nl -ba`/`cat` 逐段重读同一批源码来拼凑认知。** 同一段源码在本会话只读一次；需要回顾结构时引用已建图谱或快照。
-- 不得运行 `codegraph install`、`uninstall`、`upgrade`、`daemon`、`uninit` 等环境变更命令，除非用户明确要求。
-- CLI 查询要收窄范围和输出体量，优先使用 limit、json、filter、depth 等参数，避免把大段无关图谱塞进上下文。
-- 图谱摘要必须区分已确认事实、CodeGraph 推断和仍需源码验证的不确定点。
-- 修复完成后必须回到真实验证：单测、集成测试、受影响测试、日志检查、浏览器检查或 e2e，按改动风险选择。
+- Use CodeGraph through its CLI only; do not install, upgrade, start daemons, or mutate the environment unless the user asks.
+- Bound queries with path, result limit, depth, filters, and structured output.
+- Distinguish source-confirmed facts, graph-derived candidates, and unresolved assumptions.
+- Read each source slice once per session; reuse the snapshot instead of repeating broad searches.
+- Do not stop because CodeGraph is absent. The manual fallback is a first-class workflow.
 
-## Review Checklist
+## Load References Only When Needed
 
-- 是否先判断了需求是简单局部任务还是复杂跨文件/跨链路问题？
-- 是否判断了执行环境是否有 CodeGraph；没有时是否切换到手工全量相关代码图谱？
-- 如果使用 CodeGraph，是否只用了 CLI，并避免 MCP 和环境变更命令？
-- 逻辑问题是否形成了入口、符号、caller/callee、影响面和受影响测试图谱？
-- UI/样式/结构问题是否形成了 route、component、state、style 和测试链路图谱？
-- 理解模块结构时是否先建图并复用快照，而不是反复 `sed`/`cat` 重读同一批源码？
-- 最终结论是否回到真实源码、测试、日志或浏览器验证，而不是停在图谱输出？
-
-## References
-
-- [CLI Command Guide](references/cli-command-guide.md) - CodeGraph CLI 的允许命令、禁用命令和常用查询模式。
-- [Graph Workflows](references/graph-workflows.md) - 复杂度门禁、逻辑图谱、UI/样式结构图谱和源码验证流程。
-- [Examples](references/examples.md) - 复杂逻辑 bug、UI 链路问题和简单任务跳过 CodeGraph 的示例。
+- Read [CLI Command Guide](references/cli-command-guide.md) only before choosing exact CLI syntax.
+- Read [Graph Workflows](references/graph-workflows.md) only for a complex logic or route-to-component mapping.
+- Read [Examples](references/examples.md) only when a worked graph example would resolve ambiguity.
