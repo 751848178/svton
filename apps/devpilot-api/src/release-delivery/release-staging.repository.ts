@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { completeVersionedDeployment } from "./environment-version-write.utils";
 
 const deploymentSelect = {
   id: true,
@@ -128,16 +129,12 @@ export class ReleaseStagingRepository {
     result?: Record<string, unknown>;
     error?: string;
   }) {
-    return this.prisma.deploymentRun.update({
-      where: { id: input.deploymentRunId },
-      data: {
-        status: input.status,
-        logs: input.logs,
-        result: input.result as Prisma.InputJsonValue | undefined,
-        error: input.error,
-        finishedAt: new Date(),
-      },
-      select: deploymentSelect,
+    return this.prisma.$transaction(async (tx) => {
+      await completeVersionedDeployment(tx, { ...input, kind: "deploy" });
+      return tx.deploymentRun.findUniqueOrThrow({
+        where: { id: input.deploymentRunId },
+        select: deploymentSelect,
+      });
     });
   }
 }

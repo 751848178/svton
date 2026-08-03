@@ -13,6 +13,7 @@ export interface ProductionFixture {
   orderId: string;
   manifestId: string;
   productionEnvironmentId: string;
+  stagingEnvironmentId: string;
   itemId: string;
 }
 
@@ -138,11 +139,15 @@ export async function createProductionFixture(): Promise<ProductionFixture> {
     orderId: order.id,
     manifestId: manifest.id,
     productionEnvironmentId: production.id,
+    stagingEnvironmentId: staging.id,
     itemId: manifest.items[0].id,
   };
 }
 
 export async function cleanupProductionFixture(fixture: ProductionFixture) {
+  await fixture.prisma.environmentVersion.deleteMany({
+    where: { teamId: fixture.teamId },
+  });
   await fixture.prisma.releaseRun.deleteMany({
     where: { teamId: fixture.teamId },
   });

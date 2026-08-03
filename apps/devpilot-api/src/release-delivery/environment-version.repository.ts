@@ -1,0 +1,147 @@
+import { ConflictException, Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
+import { completeVersionedDeployment } from "./environment-version-write.utils";
+
+@Injectable()
+export class EnvironmentVersionRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  environment(teamId: string, projectId: string, environmentId: string) {
+    return this.prisma.projectEnvironment.findFirst({
+      where: {
+        id: environmentId,
+        teamId,
+        projectId,
+        status: "active",
+        baselineRole: { in: ["staging", "production"] },
+      },
+      select: {
+        id: true,
+        key: true,
+        name: true,
+        baselineRole: true,
+        currentConfigRevisionId: true,
+        currentEnvironmentVersionId: true,
+      },
+    });
+  }
+
+  sourceVersion(
+    teamId: string,
+    projectId: string,
+    environmentId: string,
+    versionId: string,
+  ) {
+    return this.prisma.environmentVersion.findFirst({
+      where: { id: versionId, teamId, projectId, environmentId },
+      select: { id: true, artifactManifestId: true },
+    });
+  }
+
+  manifest(teamId: string, projectId: string, manifestId: string) {
+    return this.prisma.artifactManifest.findFirst({
+      where: { id: manifestId, teamId, projectId },
+      include: {
+        buildRun: {
+          select: {
+            id: true,
+            status: true,
+            sourceBranch: true,
+            sourceCommitSha: true,
+          },
+        },
+        items: true,
+        deploymentRuns: {
+          where: {
+            source: "release_order",
+            status: "completed",
+            projectEnvironment: { baselineRole: "staging" },
+          },
+          select: { id: true, result: true },
+        },
+      },
+    });
+  }
+
+  releaseRun(
+    teamId: string,
+    projectId: string,
+    environmentId: string,
+    runId: string,
+  ) {
+    return this.prisma.releaseRun.findFirst({
+      where: { id: runId, teamId, projectId, environmentId },
+      include: {
+        operationApproval: true,
+        environment: { select: { currentConfigRevisionId: true } },
+      },
+    });
+  }
+
+  reserve(input: {
+    teamId: string;
+    projectId: string;
+    actorId: string;
+    environmentId: string;
+    manifestId: string;
+    releaseRunId?: string;
+    mode: "deploy" | "rollback";
+    branch: string;
+    commitSha: string;
+    params: Record<string, unknown>;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      if (input.releaseRunId) {
+        await tx.$queryRaw`SELECT id FROM ReleaseRun WHERE id = ${input.releaseRunId} FOR UPDATE`;
+        const claimed = await tx.releaseRun.updateMany({
+          where: { id: input.releaseRunId, status: "awaiting_approval" },
+          data: { status: "running", startedAt: new Date() },
+        });
+        if (claimed.count !== 1) {
+          throw new ConflictException(
+            "Production ReleaseRun 已被执行或状态已变化",
+          );
+        }
+      }
+      return tx.deploymentRun.create({
+        data: {
+          teamId: input.teamId,
+          projectId: input.projectId,
+          actorId: input.actorId,
+          environmentId: input.environmentId,
+          artifactManifestId: input.manifestId,
+          releaseRunId: input.releaseRunId,
+          mode: input.mode,
+          source: "release_order",
+          trigger: "manual",
+          targetType: "release-artifact",
+          executorKey: "release-artifact",
+          adapterKey: "local-materialize",
+          dryRun: false,
+          status: "running",
+          branch: input.branch,
+          commitSha: input.commitSha,
+          params: input.params as Prisma.InputJsonValue,
+          commandPlan: {
+            version: 1,
+            steps: ["verify_manifest_digest", "materialize_exact_artifact"],
+            checkout: false,
+            pull: false,
+            build: false,
+          },
+        },
+      });
+    });
+  }
+
+  complete(input: Parameters<typeof completeVersionedDeployment>[1]) {
+    return this.prisma.$transaction(async (tx) => {
+      const version = await completeVersionedDeployment(tx, input);
+      const run = await tx.deploymentRun.findUniqueOrThrow({
+        where: { id: input.deploymentRunId },
+      });
+      return { run, version };
+    });
+  }
+}

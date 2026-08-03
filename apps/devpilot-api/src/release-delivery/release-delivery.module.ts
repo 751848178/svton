@@ -17,10 +17,15 @@ import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderController } from "./release-order.controller";
 import { ReleaseOrderRepository } from "./release-order.repository";
 import { ReleaseOrderService } from "./release-order.service";
+import { EnvironmentVersionController } from "./environment-version.controller";
+import { EnvironmentVersionRepository } from "./environment-version.repository";
+import { EnvironmentVersionService } from "./environment-version.service";
+import { EnvironmentVersionReadRepository } from "./environment-version-read.repository";
+import { EnvironmentVersionPolicyService } from "./environment-version-policy.service";
 
 @Module({
   imports: [PrismaModule, ControlAccessPolicyModule, RepositoryAnalysisModule],
-  controllers: [ReleaseOrderController],
+  controllers: [ReleaseOrderController, EnvironmentVersionController],
   providers: [
     ReleaseOrderService,
     ReleaseOrderRepository,
@@ -34,6 +39,10 @@ import { ReleaseOrderService } from "./release-order.service";
     ReleaseStagingService,
     ReleaseProductionRepository,
     ReleaseProductionService,
+    EnvironmentVersionRepository,
+    EnvironmentVersionService,
+    EnvironmentVersionReadRepository,
+    EnvironmentVersionPolicyService,
     {
       provide: ReleaseBuildExecutorPort,
       useExisting: LocalReleaseBuildExecutorService,
