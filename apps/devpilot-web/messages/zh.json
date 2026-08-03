@@ -571,6 +571,27 @@
     "releasePreflightBaselineDescription": "项目接入时锁定的环境基线",
     "releasePreflightReady": "已就绪",
     "releasePreflightBlocked": "未就绪",
+    "releaseGateCatalogTitle": "完整门禁目录",
+    "releaseGateCatalogDescription": "版本化保留 51 项检查；专业用户可下钻查看 Provider 与证据状态。",
+    "releaseGateCatalogSummary": "共 {total} 项，当前 {unavailable} 项不可用；未接 Provider 不会被视为通过。",
+    "releaseGateCatalogExpand": "查看 51 项",
+    "releaseGateCatalogCollapse": "收起目录",
+    "releaseGateCapabilityCount": "{count} 个 MVP 能力组",
+    "releaseGatePhase": {
+      "commit": "Commit Gate",
+      "build": "Build Gate",
+      "deploy": "Deploy Gate",
+      "promote": "Promote Gate"
+    },
+    "releaseGateStatus": {
+      "checked": "已检查",
+      "unchecked": "未检查",
+      "blocked": "阻断",
+      "warning": "警告",
+      "manual": "需人工",
+      "unavailable": "不可用"
+    },
+    "retry": "重试",
     "releaseStepBuildTitle": "构建制品",
     "releaseStepBuildDescription": "每次从服务端解析的主分支最新 Commit 创建独立 BuildRun 和日志；只有成功运行产生 Manifest。",
     "releaseStepStagingTitle": "预发发布",

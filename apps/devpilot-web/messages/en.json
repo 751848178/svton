@@ -571,6 +571,27 @@
     "releasePreflightBaselineDescription": "Environment baseline locked during project intake",
     "releasePreflightReady": "Ready",
     "releasePreflightBlocked": "Not ready",
+    "releaseGateCatalogTitle": "Full gate catalog",
+    "releaseGateCatalogDescription": "The versioned 51-check catalog remains available for professional provider and evidence drill-down.",
+    "releaseGateCatalogSummary": "{total} checks; {unavailable} are currently unavailable. An unconnected provider is never treated as passed.",
+    "releaseGateCatalogExpand": "View 51 checks",
+    "releaseGateCatalogCollapse": "Collapse catalog",
+    "releaseGateCapabilityCount": "{count} MVP capability groups",
+    "releaseGatePhase": {
+      "commit": "Commit Gate",
+      "build": "Build Gate",
+      "deploy": "Deploy Gate",
+      "promote": "Promote Gate"
+    },
+    "releaseGateStatus": {
+      "checked": "Checked",
+      "unchecked": "Unchecked",
+      "blocked": "Blocked",
+      "warning": "Warning",
+      "manual": "Manual",
+      "unavailable": "Unavailable"
+    },
+    "retry": "Retry",
     "releaseStepBuildTitle": "Build artifact",
     "releaseStepBuildDescription": "Each server-resolved main-branch commit creates an independent BuildRun and log; only a successful run produces a Manifest.",
     "releaseStepStagingTitle": "Staging release",

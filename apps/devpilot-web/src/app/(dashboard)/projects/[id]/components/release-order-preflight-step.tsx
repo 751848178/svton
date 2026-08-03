@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { StatusTag } from '@/components/ui';
 import type { ReleaseOrderDetail } from '../types/release-order.types';
+import { ReleaseGateCatalogPanel } from './release-gate-catalog-panel';
 
 export function ReleaseOrderPreflightStep({ detail }: { detail: ReleaseOrderDetail }) {
   const t = useTranslations('projects');
@@ -42,6 +43,7 @@ export function ReleaseOrderPreflightStep({ detail }: { detail: ReleaseOrderDeta
           />
         </div>
       ))}
+      <ReleaseGateCatalogPanel projectId={detail.projectId} releaseOrderId={detail.id} />
     </div>
   );
 }
