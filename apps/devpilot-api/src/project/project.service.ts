@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectEnvironmentService } from '../project-environment';
 import { CreateProjectDto, ProjectOrigin, UpdateProjectDto } from './dto/project.dto';
+import { ProjectDuplicateGuardService } from './project-duplicate-guard.service';
 
 type ProjectConfigInput = {
   name?: string;
@@ -60,10 +61,12 @@ export class ProjectService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectEnvironmentService: ProjectEnvironmentService,
+    private readonly duplicateGuard: ProjectDuplicateGuardService,
   ) {}
 
   async create(teamId: string, userId: string, dto: CreateProjectDto) {
     const config = this.normalizeProjectConfig(dto);
+    await this.duplicateGuard.assertNoDuplicateRepository(teamId, dto.gitRepo);
 
     const project = await this.prisma.project.create({
       data: {

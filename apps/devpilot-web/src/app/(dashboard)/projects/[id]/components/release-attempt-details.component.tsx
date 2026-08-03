@@ -9,7 +9,12 @@
 
 import Link from 'next/link';
 import { CodeBlock, StatusTag } from '@/components/ui';
-import { STAGE_STATUS_LABEL, pickLabel } from '../utils/release-labels';
+import {
+  APPROVAL_STATUS_LABEL,
+  pickLabel,
+  RISK_LABEL,
+  STAGE_STATUS_LABEL,
+} from '../utils/release-labels';
 import { formatDuration, formatIso } from '../utils/release-time.utils';
 import {
   buildDeploymentRunHref,
@@ -39,7 +44,10 @@ export function ReleaseAttemptDetails({ attempt, plan }: ReleaseAttemptDetailsPr
     <div className="space-y-3 rounded border border-border bg-muted/20 p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">尝试 #{attempt.attemptNo}</span>
-        <StatusTag status={attempt.status} label={pickLabel(STAGE_STATUS_LABEL, attempt.status)} />
+        <StatusTag
+          status={attempt.status}
+          label={pickLabel(STAGE_STATUS_LABEL, attempt.status)}
+        />
         {duration && <span className="text-xs text-muted-foreground">耗时：{duration}</span>}
       </div>
 
@@ -59,28 +67,44 @@ export function ReleaseAttemptDetails({ attempt, plan }: ReleaseAttemptDetailsPr
       )}
 
       {outputText && (
-        <div>
-          <div className="mb-1 text-xs text-muted-foreground">结构化输出</div>
-          <CodeBlock content={outputText} language="json" tone="muted" className="max-h-48 overflow-auto" />
-        </div>
+        <details>
+          <summary className="cursor-pointer text-xs text-muted-foreground">技术输出</summary>
+          <CodeBlock
+            content={outputText}
+            language="json"
+            tone="muted"
+            className="max-h-48 overflow-auto"
+          />
+        </details>
       )}
 
       {logText && (
-        <div>
-          <div className="mb-1 text-xs text-muted-foreground">日志摘要</div>
-          <CodeBlock content={logText} language="json" tone="muted" className="max-h-40 overflow-auto" />
-        </div>
+        <details>
+          <summary className="cursor-pointer text-xs text-muted-foreground">日志摘要</summary>
+          <CodeBlock
+            content={logText}
+            language="json"
+            tone="muted"
+            className="max-h-40 overflow-auto"
+          />
+        </details>
       )}
 
       {(approval || attempt.deploymentRunId || attempt.serverExecutionJobId) && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
           {deploymentHref && (
-            <Link className="text-primary underline-offset-2 hover:underline" href={deploymentHref}>
+            <Link
+              className="text-primary underline-offset-2 hover:underline"
+              href={deploymentHref}
+            >
               部署运行：{attempt.deploymentRunId!.slice(-8)}
             </Link>
           )}
           {serverJobHref && (
-            <Link className="text-primary underline-offset-2 hover:underline" href={serverJobHref}>
+            <Link
+              className="text-primary underline-offset-2 hover:underline"
+              href={serverJobHref}
+            >
               执行任务：{attempt.serverExecutionJobId!.slice(-8)}
             </Link>
           )}
@@ -90,10 +114,13 @@ export function ReleaseAttemptDetails({ attempt, plan }: ReleaseAttemptDetailsPr
               href={`/operation-approvals?status=pending&targetType=release_stage`}
             >
               审批单：{approval.id.slice(-8)}
-              {approval.status ? `（${approval.status}）` : ''}
+              {approval.status ? `（${pickLabel(APPROVAL_STATUS_LABEL, approval.status)}）` : ''}
             </Link>
           )}
-          <Link className="text-primary underline-offset-2 hover:underline" href={auditHref}>
+          <Link
+            className="text-primary underline-offset-2 hover:underline"
+            href={auditHref}
+          >
             审计事件
           </Link>
         </div>
@@ -102,7 +129,7 @@ export function ReleaseAttemptDetails({ attempt, plan }: ReleaseAttemptDetailsPr
       {approval && (approval.reason || approval.risk || approval.inputHash) && (
         <div className="text-xs text-muted-foreground">
           {approval.reason && <div>审批理由：{approval.reason}</div>}
-          {approval.risk && <div>风险：{approval.risk}</div>}
+          {approval.risk && <div>风险：{pickLabel(RISK_LABEL, approval.risk)}</div>}
           {approval.reviewerId && <div>审批人：{approval.reviewerId.slice(-6)}</div>}
           {approval.reviewedAt && <div>审批时间：{formatIso(approval.reviewedAt)}</div>}
           {approval.inputHash && <div>输入指纹：{approval.inputHash.slice(0, 10)}</div>}

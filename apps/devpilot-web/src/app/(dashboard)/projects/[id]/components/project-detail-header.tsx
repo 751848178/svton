@@ -15,17 +15,12 @@
 
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
-import { Button, StatusTag } from '@/components/ui';
+import { Button, LinkButton, StatusTag } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
 import type { useProjectDetail } from '../hooks/use-project-detail';
-import {
-  getProjectHealth,
-  getHealthLabelKey,
-  getHealthStatusValue,
-} from '../utils/project-health';
+import { getProjectHealth, getHealthLabelKey, getHealthStatusValue } from '../utils/project-health';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -43,7 +38,6 @@ export function ProjectDetailHeader({
   onDeployHistoryClick,
 }: ProjectDetailHeaderProps) {
   const t = useTranslations('projects');
-  const router = useRouter();
   const p = detail.project;
   if (!p) return null;
 
@@ -55,14 +49,14 @@ export function ProjectDetailHeader({
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Button
+          <LinkButton
+            href="/projects"
             variant="ghost"
             size="icon"
             aria-label={t('backToProjects')}
-            onClick={() => router.push('/projects')}
           >
             <BackArrowIcon />
-          </Button>
+          </LinkButton>
           <h1 className="text-2xl font-bold">{p.name}</h1>
           <StatusTag
             status={getHealthStatusValue(health)}
@@ -80,24 +74,22 @@ export function ProjectDetailHeader({
             {t('createdAtLabel')}: {formatDateTime(p.createdAt)}
           </span>
           <Dot />
-          <Tag color="blue">
-            {t('appCount', { count: appCount })}
-          </Tag>
-          <Tag color="cyan">
-            {t('envCount', { count: envCount })}
-          </Tag>
+          <Tag color="blue">{t('appCount', { count: appCount })}</Tag>
+          <Tag color="cyan">{t('envCount', { count: envCount })}</Tag>
         </div>
       </div>
       <div className="flex items-center gap-2">
         {onDeployClick ? (
-          <Button variant="primary" onClick={onDeployClick}>
+          <Button
+            variant="primary"
+            onClick={onDeployClick}
+          >
             {t('deployAction')}
           </Button>
         ) : null}
         {onDeployHistoryClick ? (
           <Button
             variant="outline"
-            size="sm"
             onClick={onDeployHistoryClick}
           >
             {t('deployHistoryAction')}
@@ -110,7 +102,14 @@ export function ProjectDetailHeader({
 
 /** 间隔圆点。 */
 function Dot() {
-  return <span className="text-muted-foreground/50" aria-hidden="true">·</span>;
+  return (
+    <span
+      className="text-muted-foreground/50"
+      aria-hidden="true"
+    >
+      ·
+    </span>
+  );
 }
 
 /** 内联回退箭头（与 teams/[id] 风格一致）。 */

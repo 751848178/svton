@@ -12,8 +12,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { ConfirmDialog, Select } from '@/components/ui';
+import { Button, ConfirmDialog, Select } from '@/components/ui';
 import { useEnvironmentCopySync, type CopyPreviewArgs } from '../hooks/use-environment-copy-sync';
 import type { Project, ProjectEnvironment } from '../types';
 
@@ -48,13 +47,23 @@ export function EnvironmentCopyPanel({
     if (!targetId) {
       return;
     }
-    const a: CopyPreviewArgs = { projectId: project.id, sourceEnvironmentId: environment.id, targetEnvironmentId: targetId, kind };
+    const a: CopyPreviewArgs = {
+      projectId: project.id,
+      sourceEnvironmentId: environment.id,
+      targetEnvironmentId: targetId,
+      kind,
+    };
     const result = await hook.previewCopy(a);
     setPreviewCount(result ? result.plannedCount : null);
   };
 
   const confirmApply = async () => {
-    const a: CopyPreviewArgs = { projectId: project.id, sourceEnvironmentId: environment.id, targetEnvironmentId: targetId, kind };
+    const a: CopyPreviewArgs = {
+      projectId: project.id,
+      sourceEnvironmentId: environment.id,
+      targetEnvironmentId: targetId,
+      kind,
+    };
     const ok = await hook.applyCopy(a);
     if (ok) {
       setApplyOpen(false);
@@ -68,26 +77,42 @@ export function EnvironmentCopyPanel({
       <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {t('envCopyTitle')}
       </h4>
-      <p className="text-xs text-muted-foreground">{t('envCopyHint', { source: environment.name })}</p>
+      <p className="text-xs text-muted-foreground">
+        {t('envCopyHint', { source: environment.name })}
+      </p>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('envCopyTarget')}</span>
         <Select
           value={targetId}
-          onChange={(e) => { setTargetId(e.target.value); setPreviewCount(null); }}
+          onChange={(e) => {
+            setTargetId(e.target.value);
+            setPreviewCount(null);
+          }}
           placeholder={t('envSelectTarget')}
-          options={environments.filter((e) => e.id !== environment.id).map((e) => ({ value: e.id, label: e.name }))}
+          options={environments
+            .filter((e) => e.id !== environment.id)
+            .map((e) => ({ value: e.id, label: e.name }))}
         />
       </label>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('envCopyKind')}</span>
         <Select
           value={kind}
-          onChange={(e) => { setKind(e.target.value as CopyKind); setPreviewCount(null); }}
+          onChange={(e) => {
+            setKind(e.target.value as CopyKind);
+            setPreviewCount(null);
+          }}
           options={KIND_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
         />
       </label>
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onPreview} loading={hook.previewing} disabled={!targetId}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onPreview}
+          loading={hook.previewing}
+          disabled={!targetId}
+        >
           {t('envCopyPreview')}
         </Button>
         {previewCount !== null ? (
@@ -112,7 +137,9 @@ export function EnvironmentCopyPanel({
         tone="warning"
         title={t('envCopyApplyTitle')}
         description={t('envCopyApplyConfirm', {
-          kind: t(`envCopyKind${kind === 'cdn' ? 'Cdn' : kind === 'sites' ? 'Sites' : 'Resources'}`),
+          kind: t(
+            `envCopyKind${kind === 'cdn' ? 'Cdn' : kind === 'sites' ? 'Sites' : 'Resources'}`,
+          ),
           target: environments.find((e) => e.id === targetId)?.name ?? '',
           count: previewCount ?? 0,
         })}

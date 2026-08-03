@@ -41,8 +41,10 @@ export interface OperationApproval {
   summary?: string | null;
   reason?: string | null;
   reviewComment?: string | null;
+  inputHash?: string | null;
   metadata?: Record<string, unknown> | null;
   requestedAt: string;
+  expiresAt?: string | null;
   reviewedAt?: string | null;
   consumedAt?: string | null;
   requester?: ApprovalActor | null;

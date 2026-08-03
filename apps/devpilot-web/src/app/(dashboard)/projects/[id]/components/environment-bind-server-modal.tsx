@@ -9,8 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { Modal, Select } from '@/components/ui';
+import { Button, Modal, Select } from '@/components/ui';
 import { apiRequest } from '@/lib/api-client';
 import type { EnvironmentServerRole } from '../hooks/use-environment-actions';
 
@@ -46,20 +45,26 @@ export function BindServerModal({
   const [serverId, setServerId] = useState('');
   const [role, setRole] = useState<EnvironmentServerRole>('deploy');
   const [loading, setLoading] = useState(false);
+  const excludeKey = excludeIds.join(',');
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    const excluded = new Set(excludeKey.split(',').filter(Boolean));
     apiRequest<ServerOption[]>('GET:/servers')
       .then((list) => {
         if (!cancelled) {
-          setServers(list.filter((s) => !excludeIds.includes(s.id)));
+          setServers(list.filter((s) => !excluded.has(s.id)));
           setServerId('');
         }
       })
-      .catch(() => { if (!cancelled) setServers([]); });
-    return () => { cancelled = true; };
-  }, [open, excludeIds.join(',')]);
+      .catch(() => {
+        if (!cancelled) setServers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, excludeKey]);
 
   const submit = async () => {
     if (!serverId) return;
@@ -79,8 +84,19 @@ export function BindServerModal({
       width={420}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={loading}>{t('envCancel')}</Button>
-          <Button variant="primary" onClick={submit} loading={loading} disabled={!serverId}>
+          <Button
+            variant="secondary"
+            onClick={onClose}
+            disabled={loading}
+          >
+            {t('envCancel')}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={submit}
+            loading={loading}
+            disabled={!serverId}
+          >
             {t('envBindServer')}
           </Button>
         </>

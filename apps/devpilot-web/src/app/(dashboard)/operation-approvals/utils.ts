@@ -26,7 +26,13 @@ export function stripPrefix(value: string, prefix: string): string {
 }
 
 /** 已知动作键前缀，用于 humanizeAction 的兜底处理。 */
-const ACTION_PREFIXES = ['resource.', 'application-service.', 'site.', 'deployment.'];
+const ACTION_PREFIXES = [
+  'resource.',
+  'application-service.',
+  'site.',
+  'deployment.',
+  'release_stage.',
+];
 
 /**
  * 把机器动作键转为可读文本：先查 labelMap，命中失败则去前缀并将首字母大写。

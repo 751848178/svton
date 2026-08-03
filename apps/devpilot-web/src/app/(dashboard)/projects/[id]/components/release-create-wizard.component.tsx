@@ -10,18 +10,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card } from '@svton/ui';
-import { Button, ErrorBanner, Input, Select } from '@/components/ui';
+import { ErrorBanner } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
+import { buildReleaseDefaultName } from '../utils/release-default-name.utils';
 import { classifyReleaseError } from '../utils/release-error-taxonomy.utils';
+import { ReleaseCreateActions } from './release-create-actions.component';
+import { ReleaseCreateFields } from './release-create-fields.component';
 import { ReleaseServiceSelect } from './release-service-select.component';
 import { ReleasePreviewPane } from './release-preview-pane.component';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 import type { useProjectReleaseOperations } from '../hooks/use-project-release-operations';
-import type {
-  ReleasePlanPreview,
-  ReleaseServiceInputItem,
-} from '../types/releases';
+import type { ReleasePlanPreview, ReleaseServiceInputItem } from '../types/releases';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 type Ops = ReturnType<typeof useProjectReleaseOperations>;
@@ -33,17 +32,21 @@ export interface ReleaseCreateWizardProps {
   onCreated: (planId: string) => void;
 }
 
-function str(v: unknown): string | undefined {
-  return typeof v === 'string' && v.trim() ? v : undefined;
-}
-
-export function ReleaseCreateWizard({ detail, ops, onCancel, onCreated }: ReleaseCreateWizardProps): JSX.Element {
+export function ReleaseCreateWizard({
+  detail,
+  ops,
+  onCancel,
+  onCreated,
+}: ReleaseCreateWizardProps): JSX.Element {
   const environments = detail.project?.environments ?? [];
-  const applications = useMemo(() => detail.project?.applications ?? [], [detail.project?.applications]);
+  const applications = useMemo(
+    () => detail.project?.applications ?? [],
+    [detail.project?.applications],
+  );
   const [environmentId, setEnvironmentId] = useState(
     environments.find((e) => e.status === 'active')?.id ?? environments[0]?.id ?? '',
   );
-  const [name, setName] = useState(`release-${new Date().toISOString().slice(0, 16)}`);
+  const [name, setName] = useState(() => buildReleaseDefaultName());
   const firstDefaultBranch = applications[0]?.defaultBranch ?? null;
   const [branch, setBranch] = useState(firstDefaultBranch ?? 'main');
   const branchWarn = firstDefaultBranch ? '' : '未配置默认分支，已回退 main，请按需修改';
@@ -131,7 +134,12 @@ export function ReleaseCreateWizard({ detail, ops, onCancel, onCreated }: Releas
       setError(view.message);
       if (view.autoRepreview) {
         try {
-          const p = await ops.preview({ environmentId, name, branch: branch || undefined, services: buildInput() });
+          const p = await ops.preview({
+            environmentId,
+            name,
+            branch: branch || undefined,
+            services: buildInput(),
+          });
           setPreview(p);
           feedback.success('已为你重新预览');
         } catch {
@@ -144,47 +152,37 @@ export function ReleaseCreateWizard({ detail, ops, onCancel, onCreated }: Releas
   }, [buildInput, environmentId, name, branch, ops, preview, onCreated]);
 
   return (
-    <Card title="新建发布">
-      <div className="space-y-4">
-        {error && <ErrorBanner message={error} />}
-        {branchWarn && <div className="text-xs text-orange-600">{branchWarn}</div>}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">环境</span>
-            <Select value={environmentId} onChange={(e) => setEnvironmentId(e.target.value)}>
-              {environments.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </Select>
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">发布名称</span>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">分支</span>
-            <Input value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="main / master" />
-          </label>
-        </div>
+    <div className="space-y-4">
+      {error && <ErrorBanner message={error} />}
+      {branchWarn && <div className="text-xs text-orange-600">{branchWarn}</div>}
+      <ReleaseCreateFields
+        environments={environments}
+        environmentId={environmentId}
+        name={name}
+        branch={branch}
+        onEnvironmentChange={setEnvironmentId}
+        onNameChange={setName}
+        onBranchChange={setBranch}
+      />
 
-        <ReleaseServiceSelect
-          applications={applications}
-          environmentId={environmentId}
-          environmentName={envName}
-          selected={selectedServices}
-          onChange={setSelectedServices}
-        />
+      <ReleaseServiceSelect
+        applications={applications}
+        environmentId={environmentId}
+        environmentName={envName}
+        selected={selectedServices}
+        onChange={setSelectedServices}
+      />
 
-        {preview && <ReleasePreviewPane preview={preview} />}
+      {preview && <ReleasePreviewPane preview={preview} />}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel}>取消</Button>
-          <Button variant="outline" onClick={handlePreview} loading={loading}>预览（dry-run）</Button>
-          <Button onClick={handleSubmit} loading={loading} disabled={!preview || loading}>
-            创建正式发布
-          </Button>
-        </div>
-      </div>
-    </Card>
+      <ReleaseCreateActions
+        loading={loading}
+        canPreview={selectedServices.size > 0}
+        canCreate={Boolean(preview)}
+        onCancel={onCancel}
+        onPreview={handlePreview}
+        onSubmit={handleSubmit}
+      />
+    </div>
   );
 }

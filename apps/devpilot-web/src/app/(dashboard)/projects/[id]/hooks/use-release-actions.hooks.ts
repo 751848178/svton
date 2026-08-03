@@ -19,36 +19,43 @@ export interface ReleaseSkipTarget {
   stageName: string;
 }
 
+export interface ReleaseRetryTarget {
+  stageId: string;
+  stageName: string;
+  nextAttemptNo: number;
+}
+
 export interface UseReleaseActionsResult {
   loadingAction: string | null;
   skipTarget: ReleaseSkipTarget | null;
+  retryTarget: ReleaseRetryTarget | null;
   setSkipTarget: (t: ReleaseSkipTarget | null) => void;
+  setRetryTarget: (t: ReleaseRetryTarget | null) => void;
   handleExecute: (planId: string) => Promise<void>;
   handleCancel: (planId: string) => Promise<void>;
-  handleRetry: (stageId: string) => Promise<void>;
+  handleRetryConfirm: () => Promise<void>;
   handleReRequestApproval: (stageId: string) => Promise<void>;
   handleSkipConfirm: (body: { reason: string; confirmationText: string }) => Promise<void>;
   openSkip: (stageId: string, stageName: string) => void;
+  openRetry: (stageId: string, stageName: string, nextAttemptNo: number) => void;
 }
 
 export function useReleaseActions(ops: Ops, selectedPlanId: string): UseReleaseActionsResult {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [skipTarget, setSkipTarget] = useState<ReleaseSkipTarget | null>(null);
+  const [retryTarget, setRetryTarget] = useState<ReleaseRetryTarget | null>(null);
 
-  const run = useCallback(
-    async (key: string, fn: () => Promise<unknown>, okMsg: string) => {
-      try {
-        setLoadingAction(key);
-        await fn();
-        feedback.success(okMsg);
-      } catch (err) {
-        feedback.error(classifyReleaseError(err).message);
-      } finally {
-        setLoadingAction(null);
-      }
-    },
-    [],
-  );
+  const run = useCallback(async (key: string, fn: () => Promise<unknown>, okMsg: string) => {
+    try {
+      setLoadingAction(key);
+      await fn();
+      feedback.success(okMsg);
+    } catch (err) {
+      feedback.error(classifyReleaseError(err).message);
+    } finally {
+      setLoadingAction(null);
+    }
+  }, []);
 
   const handleExecute = useCallback(
     (planId: string) =>
@@ -59,14 +66,21 @@ export function useReleaseActions(ops: Ops, selectedPlanId: string): UseReleaseA
     (planId: string) => run(`cancel:${planId}`, () => ops.cancel(planId), '发布已取消'),
     [ops, run],
   );
-  const handleRetry = useCallback(
-    (stageId: string) =>
-      run(`retry:${stageId}`, () => ops.retryStage(selectedPlanId, stageId), '阶段已重新排队'),
-    [ops, selectedPlanId, run],
-  );
+  const handleRetryConfirm = useCallback(async () => {
+    if (!retryTarget) return;
+    await run(
+      `retry:${retryTarget.stageId}`,
+      () => ops.retryStage(selectedPlanId, retryTarget.stageId),
+      '阶段已重新排队',
+    );
+  }, [ops, retryTarget, run, selectedPlanId]);
   const handleReRequestApproval = useCallback(
     (stageId: string) =>
-      run(`reapprove:${stageId}`, () => ops.reRequestApproval(selectedPlanId, stageId), '已重新请求审批'),
+      run(
+        `reapprove:${stageId}`,
+        () => ops.reRequestApproval(selectedPlanId, stageId),
+        '已重新请求审批',
+      ),
     [ops, selectedPlanId, run],
   );
   const handleSkipConfirm = useCallback(
@@ -83,16 +97,22 @@ export function useReleaseActions(ops: Ops, selectedPlanId: string): UseReleaseA
   const openSkip = useCallback((stageId: string, stageName: string) => {
     setSkipTarget({ stageId, stageName });
   }, []);
+  const openRetry = useCallback((stageId: string, stageName: string, nextAttemptNo: number) => {
+    setRetryTarget({ stageId, stageName, nextAttemptNo });
+  }, []);
 
   return {
     loadingAction,
     skipTarget,
+    retryTarget,
     setSkipTarget,
+    setRetryTarget,
     handleExecute,
     handleCancel,
-    handleRetry,
+    handleRetryConfirm,
     handleReRequestApproval,
     handleSkipConfirm,
     openSkip,
+    openRetry,
   };
 }

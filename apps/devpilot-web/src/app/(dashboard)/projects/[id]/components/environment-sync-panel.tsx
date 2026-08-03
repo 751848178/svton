@@ -12,8 +12,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { ConfirmDialog, Select } from '@/components/ui';
+import { Button, ConfirmDialog, Select } from '@/components/ui';
 import { useEnvironmentCopySync } from '../hooks/use-environment-copy-sync';
 import type { Project, ProjectEnvironment } from '../types';
 
@@ -62,18 +61,31 @@ export function EnvironmentSyncPanel({
       <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {t('envSyncTitle')}
       </h4>
-      <p className="text-xs text-muted-foreground">{t('envSyncHint', { target: environment.name })}</p>
+      <p className="text-xs text-muted-foreground">
+        {t('envSyncHint', { target: environment.name })}
+      </p>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('envSyncSource')}</span>
         <Select
           value={sourceId}
-          onChange={(e) => { setSourceId(e.target.value); setPreviewCount(null); }}
+          onChange={(e) => {
+            setSourceId(e.target.value);
+            setPreviewCount(null);
+          }}
           placeholder={t('envSelectSource')}
-          options={environments.filter((e) => e.id !== environment.id).map((e) => ({ value: e.id, label: e.name }))}
+          options={environments
+            .filter((e) => e.id !== environment.id)
+            .map((e) => ({ value: e.id, label: e.name }))}
         />
       </label>
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onPreview} loading={hook.previewing} disabled={!sourceId}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onPreview}
+          loading={hook.previewing}
+          disabled={!sourceId}
+        >
           {t('envSyncPreview')}
         </Button>
         {previewCount !== null ? (
@@ -93,7 +105,12 @@ export function EnvironmentSyncPanel({
       </Button>
 
       <div className="border-t pt-2">
-        <Button variant="ghost" size="sm" onClick={() => setSyncProjectOpen(true)} loading={hook.syncingProject}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setSyncProjectOpen(true)}
+          loading={hook.syncingProject}
+        >
           {t('envSyncFromProject')}
         </Button>
       </div>

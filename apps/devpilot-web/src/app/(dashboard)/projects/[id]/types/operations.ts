@@ -85,6 +85,14 @@ export interface DeploymentRun {
     startedAt: string;
   } | null;
   actor?: { id: string; name: string | null; email: string } | null;
+  releaseStageAttempts?: Array<{
+    id: string;
+    releaseStage: {
+      id: string;
+      name: string;
+      releasePlan: { id: string; name: string; status: string };
+    };
+  }>;
 }
 
 export interface ProjectWebhook {

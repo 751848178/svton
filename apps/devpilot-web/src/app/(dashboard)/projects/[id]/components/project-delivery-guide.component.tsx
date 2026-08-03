@@ -7,7 +7,9 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Button, Card } from '@svton/ui';
+import Link from 'next/link';
+import { Card } from '@svton/ui';
+import { Button } from '@/components/ui';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 import type { RepositoryReadiness } from '../types/repository-analysis.types';
 import {
@@ -86,19 +88,28 @@ export function ProjectDeliveryGuide({
           >
             {t(readiness.nextActionLabelKey)}
           </Button>
-          {readiness.nextAction !== 'request_resource' ? (
-            <button
-              type="button"
-              className="mt-3 w-full text-center text-sm text-primary hover:underline"
-              onClick={() => onAction('request_resource', readiness.targetEnvironmentId)}
+          {readiness.nextAction !== 'request_resource' && detail.project ? (
+            <Link
+              className="mt-3 block w-full text-center text-sm text-primary hover:underline"
+              href={buildResourceRequestHref(detail.project.id, readiness.targetEnvironmentId)}
             >
               {t('deliveryActionRequestResource')}
-            </button>
+            </Link>
           ) : null}
         </aside>
       </div>
     </Card>
   );
+}
+
+function buildResourceRequestHref(projectId: string, environmentId?: string): string {
+  const query = new URLSearchParams({
+    create: '1',
+    projectId,
+    returnTo: `/projects/${projectId}?tab=resources`,
+  });
+  if (environmentId) query.set('environmentId', environmentId);
+  return `/resource-requests?${query.toString()}`;
 }
 
 function DeliveryStageItem({ stage, index }: { stage: DeliveryStage; index: number }) {

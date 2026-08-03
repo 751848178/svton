@@ -1,3 +1,5 @@
+import { type ReactNode } from 'react';
+
 /**
  * 错误提示横幅
  *
@@ -16,6 +18,8 @@ export interface ErrorBannerProps {
   onRetry?: () => void;
   /** 重试按钮文案。 */
   retryLabel?: string;
+  /** 可选操作，如查看已有对象。 */
+  action?: ReactNode;
   className?: string;
 }
 
@@ -24,6 +28,7 @@ export function ErrorBanner({
   variant = 'page',
   onRetry,
   retryLabel = '重试',
+  action,
   className,
 }: ErrorBannerProps) {
   if (!message) return null;
@@ -36,15 +41,16 @@ export function ErrorBanner({
   return (
     <div className={`flex items-center justify-between gap-3 ${styles} ${className ?? ''}`}>
       <span>{message}</span>
-      {onRetry ? (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="shrink-0 text-xs font-medium underline underline-offset-2 hover:opacity-80"
-        >
-          {retryLabel}
-        </button>
-      ) : null}
+      {action ??
+        (onRetry ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="shrink-0 text-xs font-medium underline underline-offset-2 hover:opacity-80"
+          >
+            {retryLabel}
+          </button>
+        ) : null)}
     </div>
   );
 }

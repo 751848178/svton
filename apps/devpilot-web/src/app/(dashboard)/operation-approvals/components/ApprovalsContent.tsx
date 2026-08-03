@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard, Button, Select } from '@/components/ui';
+import { useAuthStore } from '@/store/hooks';
 import { useApprovals } from '../hooks/use-approvals';
 import { ApprovalCard } from './approval-card';
 import type { OperationApproval } from '../types';
@@ -17,6 +18,7 @@ import type { OperationApproval } from '../types';
 export function ApprovalsContent({ initialApprovals }: { initialApprovals?: OperationApproval[] }) {
   const t = useTranslations('operationApprovals');
   const tc = useTranslations('common');
+  const { user } = useAuthStore();
   const { approvals, status, setStatus, loading, actingId, error, stats, review, execute, reload } =
     useApprovals(initialApprovals);
   const handleRetry = usePersistFn(() => reload());
@@ -42,17 +44,34 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
           </Button>
         }
       />
-
-      {error ? <ErrorBanner message={error} onRetry={handleRetry} /> : null}
-
+      {error ? (
+        <ErrorBanner
+          message={error}
+          onRetry={handleRetry}
+        />
+      ) : null}
       <div className="grid gap-4 md:grid-cols-5">
-        <MetricCard label={t('metricCurrentList')} value={stats.total} />
-        <MetricCard label={t('metricPending')} value={stats.pending} />
-        <MetricCard label={t('metricApproved')} value={stats.approved} />
-        <MetricCard label={t('metricRejected')} value={stats.rejected} />
-        <MetricCard label={t('metricHighRisk')} value={stats.highRisk} />
+        <MetricCard
+          label={t('metricCurrentList')}
+          value={stats.total}
+        />
+        <MetricCard
+          label={t('metricPending')}
+          value={stats.pending}
+        />
+        <MetricCard
+          label={t('metricApproved')}
+          value={stats.approved}
+        />
+        <MetricCard
+          label={t('metricRejected')}
+          value={stats.rejected}
+        />
+        <MetricCard
+          label={t('metricHighRisk')}
+          value={stats.highRisk}
+        />
       </div>
-
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">{t('filterByStatus')}</span>
         <Select
@@ -62,7 +81,6 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
           options={statusOptions}
         />
       </div>
-
       {loading ? (
         <LoadingState text={tc('loading')} />
       ) : approvals.length === 0 ? (
@@ -76,12 +94,14 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
             <ApprovalCard
               key={approval.id}
               approval={approval}
+              currentUserId={user?.id}
               actingId={actingId}
               onReview={review}
               onExecute={execute}
             />
           ))}
         </div>
-      )}    </div>
+      )}{' '}
+    </div>
   );
 }

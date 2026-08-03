@@ -29,10 +29,14 @@ export function deriveStageActions(
 ): ReleaseStageActionView {
   const flagOn = capability?.enabled !== false;
   const canWrite = capability?.canWrite !== false; // 未加载或未提供 projectId 时按可写处理
+  const latestAttempt = stage.attempts?.[0];
+  const retryInFlight =
+    latestAttempt && ['pending', 'queued', 'running'].includes(latestAttempt.status);
 
   const retry: ReleaseStageAction = (() => {
     if (!flagOn) return { enabled: false, reason: '发布编排未启用' };
     if (!canWrite) return { enabled: false, reason: '无写权限' };
+    if (retryInFlight) return { enabled: false, reason: '已有重试正在排队或执行' };
     if (planStatus !== 'running' && planStatus !== 'failed') {
       return { enabled: false, reason: '发布未在执行中' };
     }

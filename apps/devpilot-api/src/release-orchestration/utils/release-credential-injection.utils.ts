@@ -25,6 +25,12 @@ export interface RedactedCommandResult {
   secretVarNames: string[];
 }
 
+export function safePersistedCommand(
+  raw: string | undefined,
+): string | undefined {
+  return raw ? redactCommandSecrets(raw).redactedCommand : raw;
+}
+
 /**
  * 被判定为承载秘密的 KEY 名（大小写不敏感匹配后缀/包含）。
  * DATABASE_URL（含 mysql://user:pwd@ DSN）、JWT/SECRET 类、PASSWORD 类、
@@ -48,7 +54,10 @@ function isSecretKey(key: string): boolean {
 
 /** 把原始 KEY 名归一为 DEVPILOT_<UPPER_SNAKE> 变量名。 */
 function toEnvVarName(key: string): string {
-  const snake = key.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const snake = key
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
   return `DEVPILOT_${snake}`;
 }
 
@@ -56,7 +65,8 @@ function toEnvVarName(key: string): string {
  * 匹配 `-e KEY="value"` 与 `-e KEY=value` 形态（KEY 为 [A-Z_][A-Z0-9_]*）。
  * 捕获组：1=KEY，2=引号（含或不含），3=value（不含外层引号）。
  */
-const ENV_FLAG_RE = /-e\s+([A-Za-z_][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|([^\s"']+))/g;
+const ENV_FLAG_RE =
+  /-e\s+([A-Za-z_][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|([^\s"']+))/g;
 
 /**
  * 把命令里承载秘密的 `-e KEY=value` token 改写为 `-e KEY="$DEVPILOT_<KEY>"`，
@@ -76,7 +86,9 @@ export function redactCommandSecrets(command: string): RedactedCommandResult {
         secretVarNames.push(varName);
       }
       // 统一改写为双引号包裹的变量引用（docker -e 与 shell 都接受 KEY="$VAR"）。
-      void dq; void sq; void bare;
+      void dq;
+      void sq;
+      void bare;
       return `-e ${key}="$${varName}"`;
     },
   );

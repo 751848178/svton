@@ -2,6 +2,12 @@
 
 import { useTranslations } from 'next-intl';
 import { formatDateTimeMinute } from '@/lib/format-date';
+import {
+  APPROVAL_STATUS_LABEL,
+  pickLabel,
+  RISK_LABEL,
+  STAGE_STATUS_LABEL,
+} from '../utils/release-labels';
 import type { DeploymentRun } from '../types/operations';
 import { DeployVarPreview } from './deploy-var-preview';
 import { DeploymentStageTimeline } from './deployment-stage-timeline.component';
@@ -74,8 +80,8 @@ function StateEvidence({ run }: { run: DeploymentRun }) {
         <p className="mt-1 text-xs text-muted-foreground">
           {run.operationApproval
             ? t('runDetailApprovalState', {
-                status: run.operationApproval.status,
-                risk: run.operationApproval.risk,
+                status: pickLabel(APPROVAL_STATUS_LABEL, run.operationApproval.status),
+                risk: pickLabel(RISK_LABEL, run.operationApproval.risk),
               })
             : t('runDetailNoApproval')}
         </p>
@@ -85,7 +91,7 @@ function StateEvidence({ run }: { run: DeploymentRun }) {
         <p className="mt-1 text-xs text-muted-foreground">
           {run.serverExecutionJob
             ? t('runDetailExecutionState', {
-                status: run.serverExecutionJob.status,
+                status: pickLabel(STAGE_STATUS_LABEL, run.serverExecutionJob.status),
                 attempt: run.serverExecutionJob.attempt,
                 max: run.serverExecutionJob.maxAttempts,
               })

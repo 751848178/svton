@@ -21,7 +21,8 @@ export default function ImportProjectPage() {
   const t = useTranslations('projects');
   const tc = useTranslations('common');
   const router = useRouter();
-  const { form, setForm, submitting, error, toggleEnvironment, submit } = useImportProject();
+  const { form, setForm, submitting, error, duplicateProjectId, toggleEnvironment, submit } =
+    useImportProject();
   const [step, setStep] = useState(0);
 
   const handleSubmit = usePersistFn(async (event: React.FormEvent<HTMLFormElement>) => {
@@ -105,7 +106,22 @@ export default function ImportProjectPage() {
         ) : null}
         {step === 4 ? <ImportReview form={form} /> : null}
 
-        {error ? <ErrorBanner message={error} /> : null}
+        {error ? (
+          <ErrorBanner
+            message={error}
+            action={
+              duplicateProjectId ? (
+                <LinkButton
+                  href={`/projects/${duplicateProjectId}`}
+                  variant="outline"
+                  size="sm"
+                >
+                  查看已有项目
+                </LinkButton>
+              ) : undefined
+            }
+          />
+        ) : null}
 
         <div className="flex justify-end gap-3">
           {step === 0 ? (
@@ -125,15 +141,10 @@ export default function ImportProjectPage() {
             </Button>
           )}
           <Button
-            type={step === IMPORT_STEP_COUNT - 1 ? 'submit' : 'button'}
+            type="submit"
             variant="primary"
             loading={submitting}
             disabled={continueDisabled}
-            onClick={
-              step === IMPORT_STEP_COUNT - 1
-                ? undefined
-                : () => setStep((value) => Math.min(value + 1, IMPORT_STEP_COUNT - 1))
-            }
           >
             {step === IMPORT_STEP_COUNT - 1
               ? submitting

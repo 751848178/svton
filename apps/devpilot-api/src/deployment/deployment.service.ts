@@ -19,6 +19,7 @@ import {
   assertDeploymentRunTransition,
 } from "./deployment-run-status";
 import { DeploymentLogStreamBootstrapService } from "./deployment-log-stream-bootstrap.service";
+import { DEPLOYMENT_RUN_INCLUDE } from "./deployment-run-include.constants";
 import { ServerCommandStep, ServerExecutorService } from "../server-executor";
 import {
   CreateDeploymentRunDto,
@@ -175,7 +176,7 @@ export class DeploymentService {
       where,
       orderBy: { startedAt: "desc" },
       take: 30,
-      include: this.runInclude(),
+      include: DEPLOYMENT_RUN_INCLUDE,
     });
   }
 
@@ -426,7 +427,7 @@ export class DeploymentService {
           error: "非 dry-run 的部署执行需要审批",
           finishedAt: new Date(),
         },
-        include: this.runInclude(),
+        include: DEPLOYMENT_RUN_INCLUDE,
       });
 
       await this.auditEventService.create({
@@ -496,7 +497,7 @@ export class DeploymentService {
             error: `发布初始化证据校验失败：${verification.reason}`,
             finishedAt: new Date(),
           },
-          include: this.runInclude(),
+          include: DEPLOYMENT_RUN_INCLUDE,
         });
         await this.auditEventService.create({
           teamId,
@@ -620,7 +621,7 @@ export class DeploymentService {
           result: queuedExecution.result,
           error: queuedExecution.error,
         },
-        include: this.runInclude(),
+        include: DEPLOYMENT_RUN_INCLUDE,
       });
 
       await this.auditEventService.create({
@@ -697,7 +698,7 @@ export class DeploymentService {
         error: initializationError || execution.error,
         finishedAt: new Date(),
       },
-      include: this.runInclude(),
+      include: DEPLOYMENT_RUN_INCLUDE,
     });
 
     await this.auditEventService.create({
@@ -985,7 +986,7 @@ export class DeploymentService {
           error: "非 dry-run 的部署回滚需要审批",
           finishedAt: new Date(),
         },
-        include: this.runInclude(),
+        include: DEPLOYMENT_RUN_INCLUDE,
       });
 
       await this.auditEventService.create({
@@ -1070,7 +1071,7 @@ export class DeploymentService {
           result: queuedExecution.result,
           error: queuedExecution.error,
         },
-        include: this.runInclude(),
+        include: DEPLOYMENT_RUN_INCLUDE,
       });
 
       await this.auditEventService.create({
@@ -1124,7 +1125,7 @@ export class DeploymentService {
         error: execution.error,
         finishedAt: new Date(),
       },
-      include: this.runInclude(),
+      include: DEPLOYMENT_RUN_INCLUDE,
     });
 
     await this.auditEventService.create({
@@ -1727,7 +1728,7 @@ export class DeploymentService {
           result: queuedExecution.result,
           error: queuedExecution.error,
         },
-        include: this.runInclude(),
+        include: DEPLOYMENT_RUN_INCLUDE,
       });
 
       await this.auditEventService.create({
@@ -1768,7 +1769,7 @@ export class DeploymentService {
         error: execution.error,
         finishedAt: new Date(),
       },
-      include: this.runInclude(),
+        include: DEPLOYMENT_RUN_INCLUDE,
     });
 
     await this.auditEventService.create({
@@ -2180,61 +2181,6 @@ export class DeploymentService {
       queue: raw.queue !== false,
       maxAttempts: safePositiveInt(raw.maxAttempts, 1, 10),
       ...(healthCheckUrl ? { healthCheckUrl } : {}),
-    };
-  }
-
-  private runInclude() {
-    return {
-      project: { select: { id: true, name: true } },
-      projectEnvironment: {
-        select: { id: true, key: true, name: true, status: true },
-      },
-      application: { select: { id: true, name: true, status: true } },
-      applicationService: {
-        select: {
-          id: true,
-          name: true,
-          kind: true,
-          runtime: true,
-          status: true,
-          environment: {
-            select: { id: true, key: true, name: true, status: true },
-          },
-        },
-      },
-      actor: { select: { id: true, name: true, email: true } },
-      server: { select: { id: true, name: true, host: true } },
-      operationApproval: {
-        select: {
-          id: true,
-          status: true,
-          risk: true,
-          reviewedAt: true,
-          consumedAt: true,
-        },
-      },
-      sourceRun: {
-        select: {
-          id: true,
-          mode: true,
-          status: true,
-          branch: true,
-          commitSha: true,
-          startedAt: true,
-        },
-      },
-      serverExecutionJob: {
-        select: {
-          id: true,
-          status: true,
-          queueMode: true,
-          attempt: true,
-          maxAttempts: true,
-          queuedAt: true,
-          startedAt: true,
-          finishedAt: true,
-        },
-      },
     };
   }
 

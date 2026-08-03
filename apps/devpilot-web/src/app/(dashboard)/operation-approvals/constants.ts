@@ -8,6 +8,7 @@ export const categoryLabels: Record<string, string> = {
   resource_action: '资源动作',
   service_operation: '服务操作',
   deployment: '部署',
+  release_plan: '发布计划',
   site_sync: '站点同步',
 };
 
@@ -26,6 +27,14 @@ export const actionLabels: Record<string, string> = {
   'application-service.start': '启动服务',
   'application-service.stop': '停止服务',
   'application-service.restart': '重启服务',
+  'release_stage.precheck': '发布配置校验',
+  'release_stage.schema_migration': '数据库结构迁移',
+  'release_stage.bootstrap': '初始化数据',
+  'release_stage.data_backfill': '历史数据回填',
+  'release_stage.application_deploy': '应用部署',
+  'release_stage.health_check': '发布后健康检查',
+  'release_stage.manual_gate': '人工发布门禁',
+  'release_stage.custom_command': '发布自定义命令',
 };
 
 export const statusLabels: Record<string, string> = {

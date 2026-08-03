@@ -1,8 +1,7 @@
 /**
- * 驳回理由弹窗
+ * 审批决定意见弹窗
  *
- * 单一职责：收集审批人驳回理由（必填），提交时回调 onConfirm(comment)。
- * reject 必须留痕，故 textarea 为空时禁用提交按钮。approved 的可选理由也复用此组件。
+ * 单一职责：为批准和拒绝收集必填意见，提交时回调 onConfirm(comment)。
  */
 
 'use client';
@@ -14,7 +13,7 @@ import { Modal, Textarea } from '@svton/ui';
 
 interface RejectReasonModalProps {
   open: boolean;
-  /** 弹窗用途：rejected 显示「驳回理由」标题，approved 显示可选理由。 */
+  /** 弹窗用途：决定标题和提交按钮文案。 */
   variant?: 'rejected' | 'approved';
   onClose: () => void;
   onConfirm: (comment: string) => void;
@@ -40,7 +39,9 @@ export function RejectReasonModal({
 
   const trimmed = comment.trim();
   const isReject = variant === 'rejected';
-  const canSubmit = isReject ? trimmed.length > 0 : true;
+  const canSubmit = trimmed.length > 0;
+  const reasonLabel = isReject ? t('rejectReasonLabel') : t('approveReasonLabel');
+  const reasonHint = isReject ? t('rejectReasonRequired') : t('approveReasonRequired');
 
   const handleConfirm = usePersistFn(() => {
     if (!canSubmit) return;
@@ -51,7 +52,7 @@ export function RejectReasonModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={isReject ? t('rejectReasonLabel') : t('approveReasonLabel')}
+      title={reasonLabel}
       width={520}
       footer={
         <div className="flex justify-end gap-2">
@@ -72,17 +73,15 @@ export function RejectReasonModal({
       }
     >
       <label className="block text-sm">
-        <span className="mb-1 block font-medium">{t('rejectReasonLabel')}</span>
+        <span className="mb-1 block font-medium">{reasonLabel}</span>
         <Textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder={t('rejectReasonPlaceholder')}
-          invalid={isReject && comment.length > 0 && trimmed.length === 0}
+          placeholder={isReject ? t('rejectReasonPlaceholder') : t('approveReasonPlaceholder')}
+          invalid={comment.length > 0 && trimmed.length === 0}
           autoFocus
         />
-        {isReject ? (
-          <span className="mt-1 block text-xs text-muted-foreground">{t('rejectReasonRequired')}</span>
-        ) : null}
+        <span className="mt-1 block text-xs text-muted-foreground">{reasonHint}</span>
       </label>
     </Modal>
   );

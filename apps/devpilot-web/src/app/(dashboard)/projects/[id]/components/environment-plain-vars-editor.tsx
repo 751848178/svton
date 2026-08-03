@@ -8,6 +8,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { isValidEnvKey } from '../hooks/use-environment-env-vars';
 
@@ -58,7 +59,10 @@ export function EnvironmentPlainVarsEditor({
           {rows.map(([key, value], idx) => {
             const keyValid = isValidEnvKey(key);
             return (
-              <li key={idx} className="flex items-center gap-2">
+              <li
+                key={idx}
+                className="flex items-center gap-2"
+              >
                 <input
                   className="w-2/5 rounded-md border px-2 py-1 font-mono text-xs aria-[invalid=true]:border-destructive"
                   value={key}
@@ -86,29 +90,31 @@ export function EnvironmentPlainVarsEditor({
         </ul>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={onAdd}
-          className="rounded-md border px-2 py-1 text-xs hover:bg-accent"
         >
           {t('envVarsAdd')}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={onImportEnv}
-          className="rounded-md border px-2 py-1 text-xs hover:bg-accent"
         >
           {t('importFromEnv')}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          size="sm"
           onClick={handleSave}
           disabled={saving || hasInvalidKey}
           title={hasInvalidKey ? t('envVarsInvalidKeyHint') : undefined}
-          className="rounded-md bg-primary px-3 py-1 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           {saving ? t('envVarsSaving') : t('envVarsSave')}
-        </button>
+        </Button>
       </div>
       {hasInvalidKey ? (
         <p className="text-xs text-destructive">{t('envVarsInvalidKeyHint')}</p>

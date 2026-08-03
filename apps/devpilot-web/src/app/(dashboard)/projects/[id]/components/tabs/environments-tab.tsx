@@ -20,8 +20,12 @@ export function EnvironmentsTab({
   focusedEnvironmentId?: string;
 }) {
   return (
-    <div className="mx-auto max-w-4xl">
-      <EnvironmentPanel detail={detail} focusedEnvironmentId={focusedEnvironmentId} />
+    <div className="mx-auto max-w-6xl">
+      <EnvironmentPanel
+        detail={detail}
+        focusedEnvironmentId={focusedEnvironmentId}
+        detailPresentation="inline"
+      />
     </div>
   );
 }

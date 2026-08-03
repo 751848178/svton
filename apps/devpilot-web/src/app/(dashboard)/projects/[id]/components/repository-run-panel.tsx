@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, Card, EmptyState, LoadingState } from '@svton/ui';
+import { Card, EmptyState, LoadingState } from '@svton/ui';
+import { Button } from '@/components/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 import type {
   RepositoryAnalysisRun,
@@ -44,7 +45,12 @@ export function RepositoryRunPanel({
           ))}
         </div>
       </Card>
-      {run ? <RunDetail analysis={analysis} run={run} /> : null}
+      {run ? (
+        <RunDetail
+          analysis={analysis}
+          run={run}
+        />
+      ) : null}
     </section>
   );
 }
@@ -78,7 +84,11 @@ function RunDetail({
             </Button>
           ) : null}
           {run.status === 'failed' || run.status === 'cancelled' ? (
-            <Button size="sm" disabled={analysis.mutating} onClick={() => void analysis.retry(run.id)}>
+            <Button
+              size="sm"
+              disabled={analysis.mutating}
+              onClick={() => void analysis.retry(run.id)}
+            >
               重试
             </Button>
           ) : null}
@@ -92,11 +102,18 @@ function RunDetail({
         </div>
       ) : null}
       <ol className="space-y-2">
-        {(run.stages || []).map((stage) => <StageRow key={stage.id} stage={stage} />)}
+        {(run.stages || []).map((stage) => (
+          <StageRow
+            key={stage.id}
+            stage={stage}
+          />
+        ))}
       </ol>
       {run.warnings?.length ? (
         <ul className="list-disc pl-5 text-sm text-amber-700">
-          {run.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+          {run.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
         </ul>
       ) : null}
     </Card>
@@ -110,7 +127,9 @@ function StageRow({ stage }: { stage: RepositoryAnalysisStage }) {
     <li className="rounded-md border p-3">
       <div className="flex items-center justify-between gap-3">
         <span className="font-medium">{stageLabel(stage.name)}</span>
-        <span className={`text-xs ${stage.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>
+        <span
+          className={`text-xs ${stage.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}
+        >
           {statusLabel(stage.status)}
           {stage.durationMs != null ? ` · ${stage.durationMs}ms` : ''}
         </span>
@@ -118,13 +137,18 @@ function StageRow({ stage }: { stage: RepositoryAnalysisStage }) {
       {logs.length ? (
         <p className="mt-1 text-sm text-muted-foreground">{logs.map(String).join('；')}</p>
       ) : null}
-      {stage.errorMessage ? <p className="mt-1 text-sm text-destructive">{stage.errorMessage}</p> : null}
+      {stage.errorMessage ? (
+        <p className="mt-1 text-sm text-destructive">{stage.errorMessage}</p>
+      ) : null}
       {evidence.length ? (
         <details className="mt-2 text-xs">
           <summary className="cursor-pointer text-primary">查看 {evidence.length} 条证据</summary>
           <ul className="mt-2 space-y-1">
             {evidence.slice(0, 20).map((item, index) => (
-              <li key={`${item.file}-${index}`} className="break-all font-mono">
+              <li
+                key={`${item.file}-${index}`}
+                className="break-all font-mono"
+              >
                 {item.file} · {item.detail}
               </li>
             ))}
@@ -136,22 +160,26 @@ function StageRow({ stage }: { stage: RepositoryAnalysisStage }) {
 }
 
 function statusLabel(status: string): string {
-  return {
-    queued: '排队中',
-    running: '解析中',
-    succeeded: '解析成功',
-    failed: '解析失败',
-    cancelled: '已取消',
-  }[status] || status;
+  return (
+    {
+      queued: '排队中',
+      running: '解析中',
+      succeeded: '解析成功',
+      failed: '解析失败',
+      cancelled: '已取消',
+    }[status] || status
+  );
 }
 
 function stageLabel(stage: string): string {
-  return {
-    resolve: '固定仓库快照',
-    checkout: '只读检出',
-    inventory: '文件盘点',
-    detect: '技术栈与服务检测',
-    suggest: '生成可审建议',
-    cleanup: '隔离目录清理',
-  }[stage] || stage;
+  return (
+    {
+      resolve: '固定仓库快照',
+      checkout: '只读检出',
+      inventory: '文件盘点',
+      detect: '技术栈与服务检测',
+      suggest: '生成可审建议',
+      cleanup: '隔离目录清理',
+    }[stage] || stage
+  );
 }

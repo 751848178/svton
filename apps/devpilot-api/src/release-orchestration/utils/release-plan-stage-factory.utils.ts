@@ -5,25 +5,20 @@
  * 低层节点/边构造见 release-plan-stage-helpers.utils。本文件只负责阶段编排。
  */
 import type { ReleaseDependencyConditionType } from "../types/release-orchestration.types";
-import type { ReleaseDependency, ReleaseServiceInput } from "./release-plan-builder.utils";
+import type {
+  ReleaseDependency,
+  ReleaseServiceInput,
+} from "./release-plan-builder.utils";
 import {
   APP_DEPLOY_RISK,
   BACKFILL_RISK,
-  BOOTSTRAP_RISK,
   SCHEMA_MIGRATION_RISK,
   edge,
   makeStage,
   type StageCtx,
 } from "./release-plan-stage-helpers.utils";
-import { redactCommandSecrets } from "./release-credential-injection.utils";
-
-// F383 P0-A：阶段命令在落库前就地脱敏——把承载秘密的 -e KEY=value 改写为
-// $DEVPILOT_<KEY> 占位引用，使 configSnapshot / configHash 只反映占位结构，
-// 永不出现明文秘密。真实值在执行边界由 ReleaseCredentialResolverService 解析。
-function safeCommand(raw: string | undefined): string | undefined {
-  if (!raw) return raw;
-  return redactCommandSecrets(raw).redactedCommand;
-}
+import { safePersistedCommand } from "./release-credential-injection.utils";
+import { makeInitializationStage } from "./release-plan-initialization-stage.utils";
 
 export interface ServiceStageResult {
   stages: Array<ReturnType<typeof makeStage>>;
@@ -32,7 +27,9 @@ export interface ServiceStageResult {
   approvalRequired: Array<{ stageKey: string; reason: string }>;
 }
 
-export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult {
+export function buildServiceStages(
+  svc: ReleaseServiceInput,
+): ServiceStageResult {
   const stages: ServiceStageResult["stages"] = [];
   const dependencies: ReleaseDependency[] = [];
   const sideEffects: string[] = [];
@@ -58,7 +55,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: true,
         risk: "low",
         ctx,
-        config: { command: safeCommand(svc.preStartCheckCommand) },
+        config: { command: safePersistedCommand(svc.preStartCheckCommand) },
       }),
     );
     prevKey = key;
@@ -76,7 +73,10 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: true,
         risk: SCHEMA_MIGRATION_RISK,
         ctx,
-        config: { command: safeCommand(svc.migrationCommand), concurrencyKey: `db:${svc.environmentId}` },
+        config: {
+          command: safePersistedCommand(svc.migrationCommand),
+          concurrencyKey: `db:${svc.environmentId}`,
+        },
       }),
     );
     if (prevKey) dependencies.push(edge(key, prevKey, "succeeded", true));
@@ -87,28 +87,21 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
   }
 
   if (svc.initializationCommand) {
-    const key = `bootstrap:${svc.applicationServiceId}`;
-    stages.push(
-      makeStage({
-        key,
-        name: `生产 bootstrap - ${svc.serviceName}`,
-        type: "bootstrap",
-        executorKind: "server_command",
-        required: true,
-        risk: BOOTSTRAP_RISK,
-        ctx,
-        config: {
-          command: safeCommand(svc.initializationCommand),
-          runPolicy: "once_per_environment_command",
-          concurrencyKey: `bootstrap:${svc.applicationServiceId}:${svc.environmentId}`,
-        },
-      }),
+    const initialization = makeInitializationStage(
+      svc,
+      ctx,
+      safePersistedCommand(svc.initializationCommand) as string,
     );
-    if (prevKey) dependencies.push(edge(key, prevKey, "succeeded", true));
-    prevKey = key;
+    stages.push(initialization.stage);
+    if (prevKey)
+      dependencies.push(edge(initialization.key, prevKey, "succeeded", true));
+    prevKey = initialization.key;
     prevKeyWasOptionalBackfill = false;
-    sideEffects.push(`${key}: 创建/更新生产初始化数据`);
-    approvalRequired.push({ stageKey: key, reason: "生产 bootstrap 修改数据" });
+    sideEffects.push(initialization.sideEffect);
+    approvalRequired.push({
+      stageKey: initialization.key,
+      reason: initialization.approvalReason,
+    });
   }
 
   if (svc.backfillCommand) {
@@ -123,10 +116,15 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
         required: isRequired,
         risk: BACKFILL_RISK,
         ctx,
-        config: { command: safeCommand(svc.backfillCommand), concurrencyKey: `db:${svc.environmentId}` },
+        config: {
+          command: safePersistedCommand(svc.backfillCommand),
+          concurrencyKey: `db:${svc.environmentId}`,
+        },
       }),
     );
-    const cond: ReleaseDependencyConditionType = isRequired ? "succeeded" : "completed";
+    const cond: ReleaseDependencyConditionType = isRequired
+      ? "succeeded"
+      : "completed";
     if (prevKey) dependencies.push(edge(key, prevKey, cond, !isRequired));
     prevKey = key;
     // 标记：紧邻上一阶段是可选 backfill → 其出向 deploy 边改用 completed（允许跳过）。
@@ -138,9 +136,8 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
   if (svc.deployCommand) {
     const key = `application_deploy:${svc.applicationServiceId}`;
     // 可选 backfill 紧邻时，deploy 入边用 completed（允许 backfill 跳过后继续）。
-    const incomingCond: ReleaseDependencyConditionType = prevKeyWasOptionalBackfill
-      ? "completed"
-      : "succeeded";
+    const incomingCond: ReleaseDependencyConditionType =
+      prevKeyWasOptionalBackfill ? "completed" : "succeeded";
     const deployConfig: Record<string, unknown> = {
       deployCommand: svc.deployCommand,
       targetType: "server",
@@ -164,7 +161,9 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
       }),
     );
     if (prevKey)
-      dependencies.push(edge(key, prevKey, incomingCond, prevKeyWasOptionalBackfill));
+      dependencies.push(
+        edge(key, prevKey, incomingCond, prevKeyWasOptionalBackfill),
+      );
     prevKey = key;
     // 部署边已按可选 backfill 决策完毕，重置标记避免后续 health_check 继承。
     prevKeyWasOptionalBackfill = false;
@@ -183,7 +182,7 @@ export function buildServiceStages(svc: ReleaseServiceInput): ServiceStageResult
           risk: "low",
           ctx,
           config: {
-            healthCheckUrl: safeCommand(svc.healthCheckUrl),
+            healthCheckUrl: safePersistedCommand(svc.healthCheckUrl),
             concurrencyKey: `service:${svc.environmentId}:${svc.applicationServiceId}`,
           },
         }),

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card } from '@svton/ui';
-import { Input } from '@/components/ui';
+import { Card } from '@svton/ui';
+import { Button, Input } from '@/components/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 import type { ConnectRepositoryInput } from '../types/repository-analysis.types';
 
@@ -67,9 +67,10 @@ export function RepositoryConnectCard({
   return (
     <Card className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold">连接只读代码仓库</h2>
+        <h2 className="text-base font-semibold">项目解析：连接只读代码仓库</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          先验证分支与 commit，再在隔离临时目录解析；不会向仓库写入或执行仓库脚本。
+          先验证仓库、分支与
+          commit，再在隔离目录识别应用、服务、环境和资源证据；不会向仓库写入或执行仓库脚本。
         </p>
       </div>
       {connection ? <ConnectionSnapshot analysis={analysis} /> : null}
@@ -84,7 +85,10 @@ export function RepositoryConnectCard({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="mb-1 block font-medium">分支（可选）</span>
-          <Input value={branch} onChange={(event) => setBranch(event.target.value)} />
+          <Input
+            value={branch}
+            onChange={(event) => setBranch(event.target.value)}
+          />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">可见性</span>
@@ -178,13 +182,26 @@ function PrivateCredentialFields(props: CredentialFieldsProps) {
         >
           <option value="">请选择</option>
           {props.options.map((item) => (
-            <option key={item.id} value={item.id}>{item.label}</option>
+            <option
+              key={item.id}
+              value={item.id}
+            >
+              {item.label}
+            </option>
           ))}
         </select>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Input placeholder="凭据名称" value={props.name} onChange={(e) => props.setName(e.target.value)} />
-          <Input placeholder="用户名（可选）" value={props.username} onChange={(e) => props.setUsername(e.target.value)} />
+          <Input
+            placeholder="凭据名称"
+            value={props.name}
+            onChange={(e) => props.setName(e.target.value)}
+          />
+          <Input
+            placeholder="用户名（可选）"
+            value={props.username}
+            onChange={(e) => props.setUsername(e.target.value)}
+          />
           <div className="sm:col-span-2">
             <Input
               type="password"

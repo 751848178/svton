@@ -13,8 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { ConfirmDialog, Select } from '@/components/ui';
+import { Button, ConfirmDialog, Select } from '@/components/ui';
 import { useEnvironmentActions } from '../hooks/use-environment-actions';
 import { BindServerBlock } from './environment-bind-server-block';
 import type { ProjectEnvironment } from '../types';
@@ -44,7 +43,10 @@ export function EnvironmentWriteActions({
   const isArchived = environment.status === 'archived';
 
   const submitEdit = async () => {
-    const ok = await actions.update({ name: editName.trim() || environment.name, status: editStatus });
+    const ok = await actions.update({
+      name: editName.trim() || environment.name,
+      status: editStatus,
+    });
     if (ok) setEditing(false);
   };
 
@@ -56,10 +58,20 @@ export function EnvironmentWriteActions({
         </h4>
         {!isArchived ? (
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setEditing((v) => !v)} disabled={actions.acting}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditing((v) => !v)}
+              disabled={actions.acting}
+            >
               {editing ? t('envCancelEdit') : t('envEdit')}
             </Button>
-            <Button variant="danger" size="sm" onClick={() => setArchiveOpen(true)} disabled={actions.acting}>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setArchiveOpen(true)}
+              disabled={actions.acting}
+            >
               {t('envArchive')}
             </Button>
           </div>
@@ -77,7 +89,11 @@ export function EnvironmentWriteActions({
           t={t}
         />
       ) : (
-        <BindServerBlock environment={environment} actions={actions} t={t} />
+        <BindServerBlock
+          environment={environment}
+          actions={actions}
+          t={t}
+        />
       )}
 
       <ConfirmDialog
@@ -134,7 +150,12 @@ function EditFields({
           ]}
         />
       </label>
-      <Button variant="primary" size="sm" onClick={onSave} loading={saving}>
+      <Button
+        variant="primary"
+        size="sm"
+        onClick={onSave}
+        loading={saving}
+      >
         {t('envSave')}
       </Button>
     </div>

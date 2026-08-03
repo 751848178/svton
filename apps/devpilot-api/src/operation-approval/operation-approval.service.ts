@@ -90,6 +90,14 @@ export class OperationApprovalService {
       throw new BadRequestException("只有待审批的操作可以审批");
     }
 
+    if (approval.requesterId && approval.requesterId === reviewerId) {
+      throw new BadRequestException("申请人不能审批自己的操作");
+    }
+
+    if (!dto.reviewComment?.trim()) {
+      throw new BadRequestException("审批意见不能为空");
+    }
+
     await this.accessPolicyService.assertCanReviewApproval({
       teamId,
       actorId: reviewerId,

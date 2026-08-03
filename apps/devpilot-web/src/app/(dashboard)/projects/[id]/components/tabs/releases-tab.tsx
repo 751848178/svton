@@ -9,26 +9,26 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
 import { EmptyState, LoadingState } from '@svton/ui';
-import { Alert, Button, ErrorBanner, Select } from '@/components/ui';
+import { Alert, Button, ErrorBanner } from '@/components/ui';
 import { useProjectDetail } from '../../hooks/use-project-detail';
 import { useProjectReleaseOperations } from '../../hooks/use-project-release-operations';
 import { useReleaseCapability } from '../../hooks/use-release-capability.hooks';
 import { useReleasePolling } from '../../hooks/use-release-polling.hooks';
 import { useReleaseActions } from '../../hooks/use-release-actions.hooks';
 import { deriveConclusion } from '../../utils/release-conclusion.utils';
+import { formatReleaseStageName } from '../../utils/release-labels';
 import { topologicalSortStages } from '../../utils/release-stage-topology.utils';
 import { ReleaseConclusionHeader } from '../release-conclusion-header.component';
 import { ReleaseStageCard } from '../release-stage-card.component';
-import { ReleaseCreateWizard } from '../release-create-wizard.component';
-import { ReleaseSkipDialog } from '../release-skip-dialog.component';
+import { ReleaseHistoryToolbar } from '../release-history-toolbar.component';
+import { ReleaseOutcomeSummary } from '../release-outcome-summary.component';
+import { ReleaseTabDialogs } from '../release-tab-dialogs.component';
 import type { ReleasePlan } from '../../types/releases';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
 export function ReleasesTab({ detail }: { detail: DetailHook }): JSX.Element {
-  const t = useTranslations('projects');
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = detail.project?.id ?? '';
@@ -83,7 +83,10 @@ export function ReleasesTab({ detail }: { detail: DetailHook }): JSX.Element {
     [router, searchParams],
   );
 
-  const selectedPlan = useMemo(() => plans.find((p) => p.id === selectedPlanId) ?? null, [plans, selectedPlanId]);
+  const selectedPlan = useMemo(
+    () => plans.find((p) => p.id === selectedPlanId) ?? null,
+    [plans, selectedPlanId],
+  );
   useReleasePolling({ selectedPlan, reload: loadPlans });
 
   const conclusion = useMemo(() => deriveConclusion(selectedPlan), [selectedPlan]);
@@ -107,22 +110,22 @@ export function ReleasesTab({ detail }: { detail: DetailHook }): JSX.Element {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Select value={selectedPlanId} onChange={(e) => selectPlan(e.target.value)} className="min-w-[240px]">
-            <option value="">{t('tabReleases')}…</option>
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}（{p.status}）</option>
-            ))}
-          </Select>
-          <Button variant="outline" onClick={() => loadPlans()} loading={loading}>刷新</Button>
-        </div>
-        <Button onClick={() => setShowCreate(true)} disabled={flagOff} title={flagOff ? '发布编排未启用' : undefined}>
-          新建发布
-        </Button>
-      </div>
+      <ReleaseHistoryToolbar
+        plans={plans}
+        selectedPlanId={selectedPlanId}
+        loading={loading}
+        createDisabled={flagOff}
+        onSelect={selectPlan}
+        onReload={() => void loadPlans()}
+        onCreate={() => setShowCreate(true)}
+      />
 
-      {error && <ErrorBanner message={error} onRetry={() => loadPlans()} />}
+      {error && (
+        <ErrorBanner
+          message={error}
+          onRetry={() => loadPlans()}
+        />
+      )}
       {flagOff && (
         <Alert tone="warning">历史发布只读；新发布功能未开启（取消仍可用作逃生通道）</Alert>
       )}
@@ -139,6 +142,7 @@ export function ReleasesTab({ detail }: { detail: DetailHook }): JSX.Element {
             onExecute={() => actions.handleExecute(selectedPlan.id)}
             onCancel={() => actions.handleCancel(selectedPlan.id)}
           />
+          <ReleaseOutcomeSummary plan={selectedPlan} />
           <div className="space-y-3">
             {orderedStages.map((stage) => (
               <ReleaseStageCard
@@ -149,7 +153,13 @@ export function ReleasesTab({ detail }: { detail: DetailHook }): JSX.Element {
                 defaultExpanded={stage.id === stageIdFromUrl}
                 onExpandChange={onExpandChange}
                 loadingAction={actions.loadingAction}
-                onRetry={actions.handleRetry}
+                onRetry={(stageId) =>
+                  actions.openRetry(
+                    stageId,
+                    formatReleaseStageName(stage.name, stage.type),
+                    stage.currentAttempt + 1,
+                  )
+                }
                 onSkip={(stageId) => actions.openSkip(stageId, stage.name)}
                 onReRequestApproval={actions.handleReRequestApproval}
               />
@@ -161,28 +171,28 @@ export function ReleasesTab({ detail }: { detail: DetailHook }): JSX.Element {
           <EmptyState
             text="暂无发布计划"
             description="从真实项目配置生成发布预览，按依赖编排数据与应用阶段。"
-            action={<Button onClick={() => setShowCreate(true)} disabled={flagOff}>新建发布</Button>}
+            action={
+              <Button
+                onClick={() => setShowCreate(true)}
+                disabled={flagOff}
+              >
+                新建发布
+              </Button>
+            }
           />
         )
       )}
 
-      {showCreate && (
-        <ReleaseCreateWizard
-          detail={detail}
-          ops={ops}
-          onCancel={() => setShowCreate(false)}
-          onCreated={(id) => {
-            setShowCreate(false);
-            selectPlan(id);
-          }}
-        />
-      )}
-
-      <ReleaseSkipDialog
-        open={!!actions.skipTarget}
-        onOpenChange={(o) => !o && actions.setSkipTarget(null)}
-        stageName={actions.skipTarget?.stageName ?? ''}
-        onConfirm={actions.handleSkipConfirm}
+      <ReleaseTabDialogs
+        detail={detail}
+        ops={ops}
+        actions={actions}
+        createOpen={showCreate}
+        onCreateOpenChange={setShowCreate}
+        onCreated={(id) => {
+          setShowCreate(false);
+          selectPlan(id);
+        }}
       />
     </div>
   );

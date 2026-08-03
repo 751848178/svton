@@ -12,6 +12,7 @@
 
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 import type { ProjectApplication, ProjectService } from '../../types';
+import { Alert } from '@/components/ui';
 import { DeploymentPanel } from '../deployment-panel';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
@@ -24,11 +25,22 @@ interface DeploymentsTabProps {
 }
 
 export function DeploymentsTab({ detail, focusedRunId, onOpenDeploy }: DeploymentsTabProps) {
+  const latestRunFailed = detail.deploymentRuns[0]?.status === 'failed';
+  const hasActiveService = detail.project?.applications?.some((application) =>
+    application.services?.some((service) => service.status === 'active'),
+  );
   return (
-    <DeploymentPanel
-      detail={detail}
-      focusedRunId={focusedRunId}
-      onOpenDeploy={onOpenDeploy}
-    />
+    <div className="space-y-3">
+      {latestRunFailed && hasActiveService && (
+        <Alert tone="warning">
+          最近一次部署失败；“服务活跃”只表示当前进程仍在运行，不代表本次发布成功。
+        </Alert>
+      )}
+      <DeploymentPanel
+        detail={detail}
+        focusedRunId={focusedRunId}
+        onOpenDeploy={onOpenDeploy}
+      />
+    </div>
   );
 }

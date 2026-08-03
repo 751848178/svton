@@ -1,4 +1,10 @@
-import { IsIn, IsOptional, IsString } from "class-validator";
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from "class-validator";
 
 export class ListOperationApprovalsQueryDto {
   @IsOptional()
@@ -38,7 +44,8 @@ export class ReviewOperationApprovalDto {
   @IsIn(["approved", "rejected"])
   decision: "approved" | "rejected";
 
-  @IsOptional()
   @IsString()
-  reviewComment?: string;
+  @IsNotEmpty()
+  @MaxLength(500)
+  reviewComment: string;
 }

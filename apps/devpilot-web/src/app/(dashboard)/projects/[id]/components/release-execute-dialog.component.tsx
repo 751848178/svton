@@ -7,7 +7,7 @@
 'use client';
 
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { RISK_LABEL } from '../utils/release-labels';
+import { formatReleaseSideEffect, RISK_LABEL } from '../utils/release-labels';
 import type { ReleasePlanPreview } from '../types/releases';
 
 export interface ReleaseExecuteDialogProps {
@@ -27,21 +27,22 @@ export function ReleaseExecuteDialog({
   preview,
   onConfirm,
 }: ReleaseExecuteDialogProps): JSX.Element {
-  const highRiskCount = preview
-    ? preview.riskSummary.filter((r) => r.risk === 'high').length
-    : 0;
+  const highRiskCount = preview ? preview.riskSummary.filter((r) => r.risk === 'high').length : 0;
   const mediumRiskCount = preview
     ? preview.riskSummary.filter((r) => r.risk === 'medium').length
     : 0;
   const consequences: string[] = [];
   consequences.push(`目标环境：${environmentName}`);
   if (highRiskCount > 0) consequences.push(`高风险阶段 ${highRiskCount} 个（${RISK_LABEL.high}）`);
-  if (mediumRiskCount > 0) consequences.push(`中风险阶段 ${mediumRiskCount} 个（${RISK_LABEL.medium}）`);
+  if (mediumRiskCount > 0)
+    consequences.push(`中风险阶段 ${mediumRiskCount} 个（${RISK_LABEL.medium}）`);
   if (preview && preview.approvalRequired.length > 0) {
     consequences.push(`需审批阶段 ${preview.approvalRequired.length} 个`);
   }
   if (preview && preview.sideEffects.length > 0) {
-    consequences.push(`副作用：${preview.sideEffects.length} 项（含数据/结构变更）`);
+    consequences.push(
+      ...preview.sideEffects.map((effect) => `执行影响：${formatReleaseSideEffect(effect)}`),
+    );
   }
 
   return (

@@ -21,6 +21,11 @@
 
 ## Current Use
 
+- F385 release-chain usability hardening closed on 2026-07-31. Use
+  `../../todos/2026-07-31-release-chain-usability-hardening.md` as the atomic
+  scope and evidence source; it covers retry/approval safety, user-facing
+  release semantics, decision-detail layering, failure recovery, deployment
+  correlation, focused regression gates, and isolated browser proof.
 - F383 + F384 were integrated onto local `master@68aabfa7` on 2026-07-29.
   The authoritative merge-readiness source is
   `../f383-f384-integration-report.md`; it records full-history ancestry,

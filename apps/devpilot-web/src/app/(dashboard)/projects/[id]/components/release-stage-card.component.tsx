@@ -13,6 +13,8 @@ import { Card } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import {
   DEPENDENCY_CONDITION_LABEL,
+  EXECUTOR_KIND_LABEL,
+  formatReleaseStageName,
   RISK_LABEL,
   STAGE_STATUS_LABEL,
   STAGE_TYPE_LABEL,
@@ -56,12 +58,13 @@ export function ReleaseStageCard(props: ReleaseStageCardProps): JSX.Element {
 
   const latestAttempt = stage.attempts?.[0] ?? null;
   const envName = stage.environmentId
-    ? plan.environment?.name ?? stage.environmentId.slice(-6)
+    ? (plan.environment?.name ?? stage.environmentId.slice(-6))
     : '-';
   const deps = stage.dependencies ?? [];
   const configSnapshotText = stage.configSnapshot
     ? JSON.stringify(stage.configSnapshot, null, 2)
     : null;
+  const displayName = formatReleaseStageName(stage.name, stage.type);
 
   const toggle = () => {
     const next = !expanded;
@@ -77,11 +80,20 @@ export function ReleaseStageCard(props: ReleaseStageCardProps): JSX.Element {
           onClick={toggle}
           className="flex w-full items-center justify-between gap-2 text-left"
         >
-          <span className="font-medium">{stage.name}</span>
+          <span className="font-medium">{displayName}</span>
           <span className="flex items-center gap-2">
-            <StatusTag variant="risk" status={stage.riskLevel} label={pickLabel(RISK_LABEL, stage.riskLevel)} />
-            <StatusTag status={stage.status} label={pickLabel(STAGE_STATUS_LABEL, stage.status)} />
-            <span className="text-xs text-muted-foreground">{stage.required ? '必需' : '可选'}</span>
+            <StatusTag
+              variant="risk"
+              status={stage.riskLevel}
+              label={pickLabel(RISK_LABEL, stage.riskLevel)}
+            />
+            <StatusTag
+              status={stage.status}
+              label={pickLabel(STAGE_STATUS_LABEL, stage.status)}
+            />
+            <span className="text-xs text-muted-foreground">
+              {stage.required ? '必需' : '可选'}
+            </span>
             <span className="text-xs text-muted-foreground">{expanded ? '▾' : '▸'}</span>
           </span>
         </button>
@@ -90,12 +102,12 @@ export function ReleaseStageCard(props: ReleaseStageCardProps): JSX.Element {
       <div className="space-y-3 text-sm">
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-muted-foreground">
           <span>类型：{pickLabel(STAGE_TYPE_LABEL, stage.type)}</span>
-          <span>执行器：{stage.executorKind}</span>
           <span>尝试次数：{stage.currentAttempt}</span>
           <span>目标环境：{envName}</span>
-          {stage.serverId && <span>目标服务器：{stage.serverId.slice(-6)}</span>}
           {stage.applicationServiceId && (
-            <span>来源：{stage.applicationServiceName ?? stage.applicationServiceId.slice(-6)}</span>
+            <span>
+              来源：{stage.applicationServiceName ?? stage.applicationServiceId.slice(-6)}
+            </span>
           )}
         </div>
 
@@ -109,7 +121,12 @@ export function ReleaseStageCard(props: ReleaseStageCardProps): JSX.Element {
                   className="rounded bg-muted px-2 py-0.5 text-xs"
                   title={`条件：${pickLabel(DEPENDENCY_CONDITION_LABEL, dep.conditionType)}`}
                 >
-                  ← {plan.stages?.find((s) => s.id === dep.dependsOnStageId)?.name ?? dep.dependsOnStageId.slice(-6)}
+                  ←{' '}
+                  {formatReleaseStageName(
+                    plan.stages?.find((s) => s.id === dep.dependsOnStageId)?.name ??
+                      dep.dependsOnStageId.slice(-6),
+                    plan.stages?.find((s) => s.id === dep.dependsOnStageId)?.type,
+                  )}
                   （{pickLabel(DEPENDENCY_CONDITION_LABEL, dep.conditionType)}）
                 </span>
               ))}
@@ -126,16 +143,23 @@ export function ReleaseStageCard(props: ReleaseStageCardProps): JSX.Element {
 
         {expanded && (
           <>
-            {configSnapshotText && (
-              <div>
-                <div className="mb-1 text-xs text-muted-foreground">输入快照</div>
-                <pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs">
-                  {configSnapshotText}
-                </pre>
+            <details className="rounded border bg-muted/20 p-2 text-xs">
+              <summary className="cursor-pointer font-medium">技术输入与执行目标</summary>
+              <div className="mt-2 space-y-1 text-muted-foreground">
+                <div>执行方式：{pickLabel(EXECUTOR_KIND_LABEL, stage.executorKind)}</div>
+                {stage.serverId && <div>目标服务器 ID：{stage.serverId.slice(-8)}</div>}
+                {configSnapshotText && (
+                  <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted p-2">
+                    {configSnapshotText}
+                  </pre>
+                )}
               </div>
-            )}
+            </details>
             {latestAttempt ? (
-              <ReleaseAttemptDetails attempt={latestAttempt} plan={plan} />
+              <ReleaseAttemptDetails
+                attempt={latestAttempt}
+                plan={plan}
+              />
             ) : (
               <div className="text-xs text-muted-foreground">暂无尝试记录</div>
             )}

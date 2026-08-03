@@ -1,6 +1,7 @@
 /** 项目部署运行面板。 */
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { Alert, Button, ErrorBanner, StatusTag } from '@/components/ui';
@@ -40,9 +41,7 @@ export function DeploymentPanel({ detail, focusedRunId, onOpenDeploy }: Deployme
       subtitle={t('deploymentPanelDescription')}
     >
       {focusedRunId ? (
-        <Alert tone="info">
-          {t('focusedDeploymentRun', { id: focusedRunId.slice(-8) })}
-        </Alert>
+        <Alert tone="info">{t('focusedDeploymentRun', { id: focusedRunId.slice(-8) })}</Alert>
       ) : null}
       {detail.deploymentError ? (
         <ErrorBanner
@@ -50,7 +49,9 @@ export function DeploymentPanel({ detail, focusedRunId, onOpenDeploy }: Deployme
           onRetry={() => detail.loadDeploymentRuns()}
         />
       ) : focusedRuns.length === 0 ? (
-        <EmptyState text={focusedRunId ? t('focusedDeploymentRunNotFound') : t('noDeploymentRuns')} />
+        <EmptyState
+          text={focusedRunId ? t('focusedDeploymentRunNotFound') : t('noDeploymentRuns')}
+        />
       ) : (
         <DeploymentRunList
           runs={focusedRuns}
@@ -135,6 +136,7 @@ function DeploymentRunRow({
   const sourceKey = getRunSourceLabelKey(run.source);
   const statusKey = getRunStatusLabelKey(run.status);
   const statusLabel = statusKey ? t(statusKey) : run.status;
+  const releaseStage = run.releaseStageAttempts?.[0]?.releaseStage;
   return (
     <div className="rounded-md border px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -161,6 +163,16 @@ function DeploymentRunRow({
               {shortSha(run.commitSha)}
             </span>
           ) : null}
+          {releaseStage && (
+            <Link
+              className="ml-2 text-xs text-primary hover:underline"
+              href={`?tab=releases&releasePlanId=${encodeURIComponent(
+                releaseStage.releasePlan.id,
+              )}&stageId=${encodeURIComponent(releaseStage.id)}`}
+            >
+              发布：{releaseStage.releasePlan.name}
+            </Link>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <StatusTag

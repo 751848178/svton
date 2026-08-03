@@ -18,6 +18,7 @@ export function useImportProject() {
   const [form, setForm] = useSetState<ImportProjectForm>(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [duplicateProjectId, setDuplicateProjectId] = useState('');
 
   const toggleEnvironment = usePersistFn((environment: EnvironmentKey) => {
     setForm((current) => {
@@ -35,6 +36,7 @@ export function useImportProject() {
   const submit = usePersistFn(async (event: FormEvent<HTMLFormElement>): Promise<string | null> => {
     event.preventDefault();
     setError('');
+    setDuplicateProjectId('');
     const name = form.name.trim();
     if (!name) {
       setError(t('importNameRequired'));
@@ -53,6 +55,8 @@ export function useImportProject() {
       return project.id;
     } catch (submitError) {
       console.error('Failed to import project:', submitError);
+      const duplicate = readDuplicateProjectId(submitError);
+      if (duplicate) setDuplicateProjectId(duplicate);
       setError(submitError instanceof Error ? submitError.message : t('importFailed'));
       return null;
     } finally {
@@ -60,5 +64,11 @@ export function useImportProject() {
     }
   });
 
-  return { form, setForm, submitting, error, toggleEnvironment, submit };
+  return { form, setForm, submitting, error, duplicateProjectId, toggleEnvironment, submit };
+}
+
+function readDuplicateProjectId(error: unknown): string {
+  const details = (error as { details?: { data?: { existingProjectId?: unknown } } })?.details;
+  const id = details?.data?.existingProjectId;
+  return typeof id === 'string' ? id : '';
 }

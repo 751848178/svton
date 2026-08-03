@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { ConfirmDialog } from '@/components/ui';
+import { Button, ConfirmDialog } from '@/components/ui';
 import type { EnvironmentResourceBulkBindResult } from '../../types/environment-copy';
 
 export function ResourceBindPreview({

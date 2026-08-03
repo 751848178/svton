@@ -9,7 +9,12 @@
 
 import { useMemo } from 'react';
 import { StatusTag } from '@/components/ui';
-import { RISK_LABEL, pickLabel, STAGE_TYPE_LABEL } from '../utils/release-labels';
+import {
+  formatReleaseSideEffect,
+  RISK_LABEL,
+  pickLabel,
+  STAGE_TYPE_LABEL,
+} from '../utils/release-labels';
 import { describeCrossServiceDependencies } from '../utils/release-dependency-label.utils';
 import type { ReleasePlanPreview } from '../types/releases';
 
@@ -20,7 +25,7 @@ export interface ReleasePreviewPaneProps {
 // stage key 形如 "<type>:<serviceId>"；取 serviceId 段用于跨服务边分组
 // （真实服务名由 stage.name 承载；这里仅用于判断两端是否属于不同服务）。
 function serviceIdOf(key: string): string {
-  const idx = key.indexOf(":");
+  const idx = key.indexOf(':');
   return idx >= 0 ? key.slice(idx + 1) : key;
 }
 
@@ -37,9 +42,7 @@ export function ReleasePreviewPane({ preview }: ReleasePreviewPaneProps): JSX.El
 
   return (
     <div className="space-y-2 rounded border bg-muted/30 p-3">
-      <div className="text-sm font-medium">
-        预览：{preview.stages.length} 个阶段（planHash {preview.planHash.slice(0, 8)}）
-      </div>
+      <div className="text-sm font-medium">发布预览：{preview.stages.length} 个阶段</div>
       <div className="flex flex-wrap gap-2">
         {preview.stages.map((s) => (
           <StatusTag
@@ -54,20 +57,34 @@ export function ReleasePreviewPane({ preview }: ReleasePreviewPaneProps): JSX.El
         <div className="space-y-1">
           <div className="text-xs font-medium text-foreground">跨服务依赖</div>
           {depDescriptions.map((d, i) => (
-            <div key={i} className="text-xs text-muted-foreground">{d}</div>
+            <div
+              key={i}
+              className="text-xs text-muted-foreground"
+            >
+              {d}
+            </div>
           ))}
         </div>
       )}
       {preview.sideEffects.length > 0 && (
-        <div className="text-xs text-muted-foreground">
-          副作用：{preview.sideEffects.length} 项（含数据/结构变更）
+        <div className="space-y-1 rounded border border-amber-300/50 bg-amber-50 p-2 dark:bg-amber-950/30">
+          <div className="text-xs font-medium text-amber-700 dark:text-amber-300">
+            执行影响（{preview.sideEffects.length}）
+          </div>
+          <ul className="list-disc space-y-1 pl-4 text-xs text-amber-800 dark:text-amber-200">
+            {preview.sideEffects.map((effect) => (
+              <li key={effect}>{formatReleaseSideEffect(effect)}</li>
+            ))}
+          </ul>
         </div>
       )}
       {preview.approvalRequired.length > 0 && (
         <div className="text-xs text-muted-foreground">
-          需审批阶段：{preview.approvalRequired.length}（{preview.approvalRequired
-            .map((a) => pickLabel(STAGE_TYPE_LABEL, a.stageKey.split(":")[0]))
-            .join("、")}）
+          需审批阶段：{preview.approvalRequired.length}（
+          {preview.approvalRequired
+            .map((a) => pickLabel(STAGE_TYPE_LABEL, a.stageKey.split(':')[0]))
+            .join('、')}
+          ）
         </div>
       )}
       {preview.warnings && preview.warnings.length > 0 && (
@@ -76,7 +93,10 @@ export function ReleasePreviewPane({ preview }: ReleasePreviewPaneProps): JSX.El
             可选依赖提示（{preview.warnings.length}，不阻止发布）
           </div>
           {preview.warnings.map((w, i) => (
-            <div key={`${w.applicationServiceId}-${w.dependencyIndex}-${i}`} className="text-xs text-amber-800 dark:text-amber-200">
+            <div
+              key={`${w.applicationServiceId}-${w.dependencyIndex}-${i}`}
+              className="text-xs text-amber-800 dark:text-amber-200"
+            >
               · {w.suggestedAction}
             </div>
           ))}
@@ -88,12 +108,19 @@ export function ReleasePreviewPane({ preview }: ReleasePreviewPaneProps): JSX.El
             执行器能力提示（{preview.executorWarnings.length}，建议修复后再发布）
           </div>
           {preview.executorWarnings.map((w, i) => (
-            <div key={`${w.applicationServiceId}-${w.serverId}-${i}`} className="text-xs text-rose-800 dark:text-rose-200">
+            <div
+              key={`${w.applicationServiceId}-${w.serverId}-${i}`}
+              className="text-xs text-rose-800 dark:text-rose-200"
+            >
               · [{w.serviceName}] {w.suggestedAction}
             </div>
           ))}
         </div>
       )}
+      <details className="text-xs text-muted-foreground">
+        <summary className="cursor-pointer">技术校验信息</summary>
+        <div className="mt-1 font-mono">计划指纹：{preview.planHash.slice(0, 12)}</div>
+      </details>
     </div>
   );
 }

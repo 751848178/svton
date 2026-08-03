@@ -9,8 +9,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { ConfirmDialog } from '@/components/ui';
+import { Button, ConfirmDialog } from '@/components/ui';
 import { useEnvironmentActions } from '../hooks/use-environment-actions';
 import { BindServerModal } from './environment-bind-server-modal';
 import type { ProjectEnvironment } from '../types';
@@ -27,7 +26,11 @@ export function BindServerBlock({
   t: ProjectsTranslator;
 }) {
   const [bindOpen, setBindOpen] = useState(false);
-  const [unbindTarget, setUnbindTarget] = useState<{ bindingId: string; serverId: string; name: string } | null>(null);
+  const [unbindTarget, setUnbindTarget] = useState<{
+    bindingId: string;
+    serverId: string;
+    name: string;
+  } | null>(null);
   const bindings = environment.serverBindings ?? [];
 
   return (
@@ -35,10 +38,15 @@ export function BindServerBlock({
       {bindings.length > 0 ? (
         <ul className="space-y-1 text-sm">
           {bindings.map((b) => (
-            <li key={b.id} className="flex items-center justify-between gap-2">
+            <li
+              key={b.id}
+              className="flex items-center justify-between gap-2"
+            >
               <span className="truncate">
                 <span className="font-medium">{b.server.name}</span>
-                <span className="ml-2 font-mono text-xs text-muted-foreground">{b.server.host}</span>
+                <span className="ml-2 font-mono text-xs text-muted-foreground">
+                  {b.server.host}
+                </span>
               </span>
               <button
                 onClick={() =>
@@ -52,7 +60,12 @@ export function BindServerBlock({
           ))}
         </ul>
       ) : null}
-      <Button variant="ghost" size="sm" onClick={() => setBindOpen(true)} disabled={actions.acting}>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setBindOpen(true)}
+        disabled={actions.acting}
+      >
         + {t('envBindServer')}
       </Button>
 
@@ -68,7 +81,9 @@ export function BindServerBlock({
 
       <ConfirmDialog
         open={Boolean(unbindTarget)}
-        onOpenChange={(open) => { if (!open) setUnbindTarget(null); }}
+        onOpenChange={(open) => {
+          if (!open) setUnbindTarget(null);
+        }}
         tone="danger"
         title={t('envUnbindServerTitle')}
         description={t('envUnbindServerConfirm', { name: unbindTarget?.name ?? '' })}

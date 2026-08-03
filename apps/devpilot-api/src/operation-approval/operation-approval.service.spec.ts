@@ -87,4 +87,46 @@ describe("OperationApprovalService", () => {
       "pending",
     );
   });
+
+  it("rejects self approval before evaluating review access", async () => {
+    approvalRepository.findByIdForTeam.mockResolvedValue({
+      id: "approval-self",
+      status: "pending",
+      requesterId: "user-1",
+      projectId: "project-1",
+      environmentId: "env-prod",
+      category: "deployment",
+      action: "deployment.run",
+      targetType: "release_stage",
+      targetId: "stage-1",
+      risk: "high",
+    });
+
+    await expect(
+      service.review("team-1", "user-1", "approval-self", {
+        decision: "approved",
+        reviewComment: "已核对变更与回滚方案",
+      }),
+    ).rejects.toThrow("申请人不能审批自己的操作");
+
+    expect(accessPolicyService.assertCanReviewApproval).not.toHaveBeenCalled();
+    expect(approvalRepository.review).not.toHaveBeenCalled();
+  });
+
+  it("requires a review comment for every decision", async () => {
+    approvalRepository.findByIdForTeam.mockResolvedValue({
+      id: "approval-comment",
+      status: "pending",
+      requesterId: "user-1",
+    });
+
+    await expect(
+      service.review("team-1", "user-2", "approval-comment", {
+        decision: "rejected",
+        reviewComment: " ",
+      }),
+    ).rejects.toThrow("审批意见不能为空");
+
+    expect(approvalRepository.review).not.toHaveBeenCalled();
+  });
 });

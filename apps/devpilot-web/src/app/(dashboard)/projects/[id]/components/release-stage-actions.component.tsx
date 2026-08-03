@@ -30,6 +30,9 @@ export function ReleaseStageActions({
   onReRequestApproval,
 }: ReleaseStageActionsProps): JSX.Element {
   const actions = deriveStageActions(stage, planStatus, capability);
+  const showRetry = stage.status === 'failed';
+  const showSkip =
+    !stage.required && ['pending', 'blocked', 'awaiting_approval'].includes(stage.status);
   const canReRequest =
     capability?.enabled !== false &&
     capability?.canWrite !== false &&
@@ -37,36 +40,43 @@ export function ReleaseStageActions({
     stage.executorKind === 'manual_gate';
 
   return (
-    <div className="flex flex-wrap gap-2 pt-1">
-      <Button
-        size="sm"
-        onClick={() => onRetry?.(stage.id)}
-        disabled={!actions.retry.enabled}
-        title={actions.retry.reason || undefined}
-        loading={loadingAction === `retry:${stage.id}`}
-      >
-        重试
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => onSkip?.(stage.id)}
-        disabled={!actions.skip.enabled}
-        title={actions.skip.reason || undefined}
-        loading={loadingAction === `skip:${stage.id}`}
-      >
-        跳过（可选）
-      </Button>
-      {canReRequest && onReRequestApproval && (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => onReRequestApproval(stage.id)}
-          title="重新生成待审批"
-          loading={loadingAction === `reapprove:${stage.id}`}
-        >
-          重新请求审批
-        </Button>
+    <div className="space-y-1 pt-1">
+      <div className="flex flex-wrap gap-2">
+        {showRetry && (
+          <Button
+            size="sm"
+            onClick={() => onRetry?.(stage.id)}
+            disabled={!actions.retry.enabled}
+            loading={loadingAction === `retry:${stage.id}`}
+          >
+            重试
+          </Button>
+        )}
+        {showSkip && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onSkip?.(stage.id)}
+            disabled={!actions.skip.enabled}
+            loading={loadingAction === `skip:${stage.id}`}
+          >
+            跳过（可选）
+          </Button>
+        )}
+        {canReRequest && onReRequestApproval && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onReRequestApproval(stage.id)}
+            title="重新生成待审批"
+            loading={loadingAction === `reapprove:${stage.id}`}
+          >
+            重新请求审批
+          </Button>
+        )}
+      </div>
+      {showRetry && !actions.retry.enabled && (
+        <p className="text-xs text-muted-foreground">{actions.retry.reason}</p>
       )}
     </div>
   );

@@ -10,38 +10,44 @@
 import { useState } from 'react';
 import { usePersistFn } from '@svton/hooks';
 import { useTranslations } from 'next-intl';
-import { StatusTag, CodeBlock } from '@/components/ui';
+import { StatusTag } from '@/components/ui';
 import type { OperationApproval, ApprovalDecision } from '../types';
 import { categoryLabels, statusLabels, riskLabels, actionLabels } from '../constants';
-import {
-  formatTarget,
-  formatDateTime,
-  readMetadataString,
-  humanizeAction,
-} from '../utils';
+import { formatTarget, formatDateTime, humanizeAction } from '../utils';
 import { RejectReasonModal } from './reject-reason-modal';
+import { ApprovalDecisionContext } from './approval-decision-context';
 
 interface ApprovalCardProps {
   approval: OperationApproval;
+  currentUserId?: string;
   actingId: string;
   onReview: (approval: OperationApproval, decision: ApprovalDecision, comment?: string) => void;
   onExecute: (approval: OperationApproval) => void;
 }
 
-export function ApprovalCard({ approval, actingId, onReview, onExecute }: ApprovalCardProps) {
+export function ApprovalCard({
+  approval,
+  currentUserId,
+  actingId,
+  onReview,
+  onExecute,
+}: ApprovalCardProps) {
   const t = useTranslations('operationApprovals');
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const handleApprove = usePersistFn(() => onReview(approval, 'approved'));
-  const handleReject = usePersistFn(() => setRejectOpen(true));
+  const [decision, setDecision] = useState<ApprovalDecision | null>(null);
+  const handleApprove = usePersistFn(() => setDecision('approved'));
+  const handleReject = usePersistFn(() => setDecision('rejected'));
   const handleExecute = usePersistFn(() => onExecute(approval));
-  const handleCloseReject = usePersistFn(() => setRejectOpen(false));
-  const handleConfirmReject = usePersistFn((comment: string) => {
-    onReview(approval, 'rejected', comment);
-    setRejectOpen(false);
+  const handleCloseReview = usePersistFn(() => setDecision(null));
+  const handleConfirmReview = usePersistFn((comment: string) => {
+    if (!decision) return;
+    onReview(approval, decision, comment);
+    setDecision(null);
   });
 
-  const diffSummary = readMetadataString(approval.metadata, 'diffSummary');
   const actionLabel = humanizeAction(approval.action, actionLabels);
+  const isSelfApproval = Boolean(
+    currentUserId && approval.requesterId && currentUserId === approval.requesterId,
+  );
 
   return (
     <div className="rounded-lg border p-4">
@@ -62,11 +68,14 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
           <div className="mt-2 text-sm text-muted-foreground">
             {categoryLabels[approval.category] || approval.category} · {actionLabel}
           </div>
-          <div className="mt-1 text-sm text-muted-foreground">{t('target', { target: formatTarget(approval) })}</div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            {t('target', { target: formatTarget(approval) })}
+          </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {t('projectEnv', {
               project: approval.project?.name || t('notAssociated'),
-              environment: approval.environment?.name || approval.environment?.key || t('notAssociated'),
+              environment:
+                approval.environment?.name || approval.environment?.key || t('notAssociated'),
             })}
           </div>
           {approval.reason ? (
@@ -81,17 +90,10 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
               <div className="mt-0.5">{approval.reviewComment}</div>
             </div>
           ) : null}
-          {diffSummary ? (
-            <CodeBlock
-              tone="muted"
-              content={diffSummary}
-              className="mt-2"
-            />
-          ) : null}
+          <ApprovalDecisionContext approval={approval} />
           <div className="mt-2 text-xs text-muted-foreground">
             {t('requester', { name: approval.requester?.name || approval.requester?.email || '-' })}{' '}
-            ·{' '}
-            {t('requestedAt', { date: formatDateTime(approval.requestedAt) })}
+            · {t('requestedAt', { date: formatDateTime(approval.requestedAt) })}
             {approval.reviewer
               ? ` · ${t('reviewer', { name: approval.reviewer.name || approval.reviewer.email })}`
               : ''}
@@ -102,22 +104,27 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
         </div>
         <div className="flex flex-wrap gap-2">
           {approval.status === 'pending' ? (
-            <>
-              <button
-                onClick={handleApprove}
-                disabled={Boolean(actingId)}
-                className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-              >
-                {actingId === `${approval.id}:approved` ? t('processing') : t('approve')}
-              </button>
-              <button
-                onClick={handleReject}
-                disabled={Boolean(actingId)}
-                className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-              >
-                {actingId === `${approval.id}:rejected` ? t('processing') : t('reject')}
-              </button>
-            </>
+            <div className="space-y-1">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={handleApprove}
+                  disabled={Boolean(actingId) || isSelfApproval}
+                  className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                >
+                  {actingId === `${approval.id}:approved` ? t('processing') : t('approve')}
+                </button>
+                <button
+                  onClick={handleReject}
+                  disabled={Boolean(actingId) || isSelfApproval}
+                  className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                >
+                  {actingId === `${approval.id}:rejected` ? t('processing') : t('reject')}
+                </button>
+              </div>
+              {isSelfApproval && (
+                <p className="max-w-48 text-xs text-amber-700">{t('selfApprovalBlocked')}</p>
+              )}
+            </div>
           ) : null}
           {approval.status === 'approved' && !approval.consumedAt ? (
             <button
@@ -131,11 +138,11 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
         </div>
       </div>
       <RejectReasonModal
-        open={rejectOpen}
-        variant="rejected"
-        onClose={handleCloseReject}
-        onConfirm={handleConfirmReject}
-        submitting={actingId === `${approval.id}:rejected`}
+        open={decision !== null}
+        variant={decision ?? 'rejected'}
+        onClose={handleCloseReview}
+        onConfirm={handleConfirmReview}
+        submitting={Boolean(decision && actingId === `${approval.id}:${decision}`)}
       />
     </div>
   );

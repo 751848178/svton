@@ -1,8 +1,7 @@
 'use client';
 
-import { Button } from '@svton/ui';
 import Link from 'next/link';
-import { ErrorBanner } from '@/components/ui';
+import { Button, ErrorBanner, LinkButton } from '@/components/ui';
 import { RepositoryConnectCard } from '../repository-connect-card';
 import { RepositoryRunPanel } from '../repository-run-panel';
 import { RepositorySuggestionReview } from '../repository-suggestion-review';
@@ -18,9 +17,16 @@ export function RepositoryTab({
   return (
     <div className="space-y-6">
       {analysis.error ? (
-        <ErrorBanner message={analysis.error} onRetry={() => void analysis.load()} retryLabel="重试" />
+        <ErrorBanner
+          message={analysis.error}
+          onRetry={() => void analysis.load()}
+          retryLabel="重试"
+        />
       ) : null}
-      <RepositoryConnectCard analysis={analysis} onRunCreated={onSelectRun} />
+      <RepositoryConnectCard
+        analysis={analysis}
+        onRunCreated={onSelectRun}
+      />
       {analysis.state.connection?.status === 'connected' && analysis.runs.length > 0 ? (
         <div className="flex justify-end">
           <Button
@@ -33,18 +39,22 @@ export function RepositoryTab({
           </Button>
         </div>
       ) : null}
-      <RepositoryRunPanel analysis={analysis} onSelectRun={onSelectRun} />
+      <RepositoryRunPanel
+        analysis={analysis}
+        onSelectRun={onSelectRun}
+      />
       <RepositorySuggestionReview analysis={analysis} />
       {analysis.selectedRun ? (
         <div className="flex justify-end">
-          <Link
-            className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium hover:bg-muted"
+          <LinkButton
+            variant="outline"
+            size="sm"
             href={`/audit-events?projectId=${encodeURIComponent(
               analysis.projectId,
             )}&category=repository_analysis`}
           >
             查看仓库分析审计事件
-          </Link>
+          </LinkButton>
         </div>
       ) : null}
     </div>

@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card } from '@svton/ui';
-import { Textarea } from '@/components/ui';
+import { Card } from '@svton/ui';
+import { Button, Textarea } from '@/components/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 import type {
   RepositoryAnalysisSuggestion,
@@ -15,25 +15,24 @@ type DraftDecision = {
   value: string;
 };
 
-export function RepositorySuggestionReview({
-  analysis,
-}: {
-  analysis: RepositoryAnalysisHook;
-}) {
+export function RepositorySuggestionReview({ analysis }: { analysis: RepositoryAnalysisHook }) {
   const run = analysis.selectedRun;
   const suggestions = useMemo(() => run?.suggestions || [], [run?.suggestions]);
   const [drafts, setDrafts] = useState<Record<string, DraftDecision>>({});
   const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
-    setDrafts(Object.fromEntries(suggestions.map((item) => [
-      item.id,
-      {
-        decision: item.reviewDecision
-          || (item.status === 'rejected' ? 'reject' : undefined),
-        value: JSON.stringify(item.reviewedValue ?? item.proposedValue, null, 2),
-      },
-    ])));
+    setDrafts(
+      Object.fromEntries(
+        suggestions.map((item) => [
+          item.id,
+          {
+            decision: item.reviewDecision || (item.status === 'rejected' ? 'reject' : undefined),
+            value: JSON.stringify(item.reviewedValue ?? item.proposedValue, null, 2),
+          },
+        ]),
+      ),
+    );
     setValidationError('');
   }, [run?.id, suggestions]);
 
@@ -49,9 +48,10 @@ export function RepositorySuggestionReview({
         return {
           suggestionId: item.id,
           decision: draft.decision,
-          value: draft.decision === 'edit'
-            ? JSON.parse(draft.value) as Record<string, unknown>
-            : undefined,
+          value:
+            draft.decision === 'edit'
+              ? (JSON.parse(draft.value) as Record<string, unknown>)
+              : undefined,
         };
       });
       setValidationError('');
@@ -66,7 +66,7 @@ export function RepositorySuggestionReview({
       <div>
         <h2 className="text-base font-semibold">逐条审核解析建议</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          所有建议都必须明确接受、编辑或忽略；应用时在同一事务中创建平台对象。
+          解析只生成建议，不直接改平台对象。这里逐条确认应用、服务、环境和资源建议；提交后才会在同一事务中创建或更新平台对象。
         </p>
       </div>
       {suggestions.map((item) => (
@@ -80,7 +80,10 @@ export function RepositorySuggestionReview({
       ))}
       {validationError ? <p className="text-sm text-destructive">{validationError}</p> : null}
       {!alreadyReviewed ? (
-        <Button disabled={!complete || analysis.mutating} onClick={() => void apply()}>
+        <Button
+          disabled={!complete || analysis.mutating}
+          onClick={() => void apply()}
+        >
           {analysis.mutating ? '正在应用…' : `应用 ${suggestions.length} 条审核结果`}
         </Button>
       ) : (
@@ -89,15 +92,22 @@ export function RepositorySuggestionReview({
       {analysis.applyResult ? (
         <Card className="space-y-2 border-emerald-500/30">
           <p className="font-medium">
-            {analysis.applyResult.complete ? '仓库交付配置已完整应用' : '建议已处理，但必需项被忽略'}
+            {analysis.applyResult.complete
+              ? '仓库交付配置已完整应用'
+              : '建议已处理，但必需项被忽略'}
           </p>
           <div className="flex flex-wrap gap-3 text-sm">
             {analysis.applyResult.references.flatMap((reference) =>
               reference.links.map((link) => (
-                <Link key={`${reference.suggestionId}-${link.href}`} href={link.href} className="text-primary hover:underline">
+                <Link
+                  key={`${reference.suggestionId}-${link.href}`}
+                  href={link.href}
+                  className="text-primary hover:underline"
+                >
                   {link.label}
                 </Link>
-              )))}
+              )),
+            )}
           </div>
         </Card>
       ) : null}
@@ -117,9 +127,8 @@ function SuggestionCard({
   onChange: (draft: DraftDecision) => void;
 }) {
   const value = draft || { value: JSON.stringify(item.proposedValue, null, 2) };
-  const displayValue = item.status === 'pending'
-    ? item.proposedValue
-    : item.reviewedValue ?? item.proposedValue;
+  const displayValue =
+    item.status === 'pending' ? item.proposedValue : (item.reviewedValue ?? item.proposedValue);
   return (
     <Card className={item.conflict ? 'border-amber-500/40' : ''}>
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -136,12 +145,17 @@ function SuggestionCard({
       </pre>
       {item.warnings?.length ? (
         <ul className="mt-2 list-disc pl-5 text-xs text-amber-700">
-          {item.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+          {item.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
         </ul>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-4 text-sm">
         {(['accept', 'edit', 'reject'] as const).map((decision) => (
-          <label key={decision} className="flex items-center gap-1">
+          <label
+            key={decision}
+            className="flex items-center gap-1"
+          >
             <input
               type="radio"
               name={`decision-${item.id}`}
@@ -166,10 +180,12 @@ function SuggestionCard({
 }
 
 function kindLabel(kind: string): string {
-  return {
-    project_repository: '项目仓库来源',
-    environment: '项目环境',
-    application_service: '应用与服务',
-    resource_requirement: '资源需求',
-  }[kind] || kind;
+  return (
+    {
+      project_repository: '项目仓库来源',
+      environment: '项目环境',
+      application_service: '应用与服务',
+      resource_requirement: '资源需求',
+    }[kind] || kind
+  );
 }

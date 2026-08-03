@@ -24,7 +24,10 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
   if (!p || !p.applications || p.applications.length === 0)
     return <EmptyState text={t('noLinkedApps')} />;
   return (
-    <PanelGroup title={t('linkedApps')} subtitle={t('applicationsPanelDescription')}>
+    <PanelGroup
+      title={t('linkedApps')}
+      subtitle={t('applicationsPanelDescription')}
+    >
       <div className="space-y-3">
         {p.applications.map((app) => (
           <div
@@ -42,6 +45,9 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
                 {t('serviceCount', { count: app._count?.services || 0 })}
               </span>
             </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t(getApplicationScopeLabelKey(app.name, app.services?.map((svc) => svc.name) ?? []))}
+            </p>
             {app.services && app.services.length > 0 && (
               <div className="mt-2 divide-y">
                 {app.services.map((svc) => (
@@ -50,7 +56,10 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
                     className="flex items-center justify-between py-2 text-sm"
                   >
                     <span>{svc.name}</span>
-                    <StatusTag status={svc.status} label={t(getServiceStatusLabelKey(svc.status))} />
+                    <StatusTag
+                      status={svc.status}
+                      label={t(getServiceStatusLabelKey(svc.status))}
+                    />
                   </div>
                 ))}
               </div>
@@ -60,4 +69,12 @@ export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
       </div>
     </PanelGroup>
   );
+}
+
+function getApplicationScopeLabelKey(appName: string, serviceNames: string[]): string {
+  const normalized = [appName, ...serviceNames].join(' ').toLowerCase();
+  if (normalized.includes('proxy')) {
+    return 'applicationScopeProxy';
+  }
+  return 'applicationScopeBusiness';
 }

@@ -9,8 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { Modal } from '@/components/ui';
+import { Button, Modal } from '@/components/ui';
 import { useEnvironmentCopySync } from '../hooks/use-environment-copy-sync';
 
 interface CreateForm {
@@ -63,7 +62,13 @@ export function EnvironmentCreateModal({
       width={420}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={hook.creating}>{t('envCancel')}</Button>
+          <Button
+            variant="secondary"
+            onClick={onClose}
+            disabled={hook.creating}
+          >
+            {t('envCancel')}
+          </Button>
           <Button
             variant="primary"
             onClick={submit}
@@ -78,15 +83,28 @@ export function EnvironmentCreateModal({
       <div className="space-y-3">
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('envCreateKey')}</span>
-          <input value={form.key} onChange={(e) => patch({ key: e.target.value })} className={inputCls} placeholder="production" />
+          <input
+            value={form.key}
+            onChange={(e) => patch({ key: e.target.value })}
+            className={inputCls}
+            placeholder="production"
+          />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('envCreateName')}</span>
-          <input value={form.name} onChange={(e) => patch({ name: e.target.value })} className={inputCls} />
+          <input
+            value={form.name}
+            onChange={(e) => patch({ name: e.target.value })}
+            className={inputCls}
+          />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('envCreateDescription')}</span>
-          <input value={form.description} onChange={(e) => patch({ description: e.target.value })} className={inputCls} />
+          <input
+            value={form.description}
+            onChange={(e) => patch({ description: e.target.value })}
+            className={inputCls}
+          />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('envCreateSortOrder')}</span>
