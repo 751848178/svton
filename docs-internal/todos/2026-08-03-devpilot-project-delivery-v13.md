@@ -47,8 +47,8 @@
 | F404 | done    | 接通 M10-M15 Promote 真实能力组。                                                                       | Approval/DNS/TLS/HTTP/observability/recovery adapters。    | 业务验证只作证据；技术门禁真实。                                                           |
 | F405 | done    | 完成标准发布策略；金丝雀/蓝绿/自动放量 fail closed。                                                    | Release policy/capability。                                | 不可变 R1、Production 冻结和高级策略具体拒绝原因已由 DB/API/browser 证明。                 |
 | F406 | done    | 收敛兼容 backfill/archive 和新链路，移除新路径 branch-pull/build-on-deploy。                            | Migration/compat/read adapters。                           | 历史只读、归档保留、受管项目旧写入口拒绝和 exact-Manifest 命令边界均已证明。                |
-| F407 | active  | 完成中英文文案、术语和用户/迁移文档。                                                                   | messages 与 docs。                                         | zh/en parity；发布单/发布版本号术语审查。                                                  |
-| F408 | pending | 用隔离 Docker 数据完成真实主链浏览器 E2E。                                                              | Disposable compose/runtime/browser evidence。              | 接入→设置→发布→多构建→重复预发→生产→回退。                                                 |
+| F407 | done    | 完成中英文文案、术语和用户/迁移文档。                                                                   | messages 与 docs。                                         | 2,796 条 zh/en leaf/ICU parity；运行时切换与双语文档已验证。                               |
+| F408 | active  | 用隔离 Docker 数据完成真实主链浏览器 E2E。                                                              | Disposable compose/runtime/browser evidence。              | 接入→设置→发布→多构建→重复预发→生产→回退。                                                 |
 | F409 | pending | 完成 ACL、并发、失败恢复、兼容、Provider 不可用和脱敏负向 E2E。                                         | Cross-layer tests。                                        | API/DB/browser 负向证据。                                                                  |
 | F410 | pending | 独立代码/领域/UX/无障碍/安全审查、修复、全量验证和最终交付审计。                                        | 全目标与证据包。                                           | 测试/构建/Prisma/Docker/E2E/commit/主工作区保护全部证明。                                  |
 
@@ -103,3 +103,5 @@
 - 2026-08-03: F406 开始；盘点历史 backfill/archive/read adapter 与新 delivery path，证明新路径不再接受 branch-pull/build-on-deploy，并保留历史项目、环境、运行和日志。
 - 2026-08-03: F406 完成；新增项目级只读兼容报告，旧运行缺 Manifest 时保持 legacy_unverified，观察到 Digest 也不合成制品。受管/已归档项目在旧 branch/commit 部署入口进入 DeploymentService 前返回具体拒绝；真实浏览器旧向导被阻断且未创建运行。项目 DELETE 改为串行化归档，环境/应用置归档但运行与日志不删除；集成测试归档后仍能读取历史。真实 6 条 Manifest 运行的 commandPlan 均为 checkout/pull/build=false。
 - 2026-08-03: F407 开始；审计 zh/en key parity、发布单/发布版本号/Manifest/环境版本/归档/策略能力术语，并补用户与迁移文档。
+- 2026-08-03: F407 完成；新增递归 zh/en key 与 ICU placeholder 对账脚本，2,796 条 leaf message 全量一致。运行时语言切换已在 Release Policy 与 Production 快照真实浏览器路径验证，策略能力理由按 locale 输出；用户指南和迁移指南覆盖发布单、不可变 Manifest、环境版本、归档/兼容和高级策略不可用边界。
+- 2026-08-03: F408 开始；使用隔离 MySQL/Redis 和真实本地 Git fixture 串行执行接入、设置、发布、多构建、重复 Staging、Production 审批与 recovery 回退主链。

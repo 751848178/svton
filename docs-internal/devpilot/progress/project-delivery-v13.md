@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F407 — bilingual terminology parity and user/migration documentation.
+- Active slice: F408 — isolated Docker-backed browser E2E for the complete delivery lifecycle.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -54,7 +54,8 @@
 | F404      | done    | M10-M15 Promote adapters with technical/manual separation and fail-closed traffic capability. |
 | F405      | done    | Immutable standard release policy and explicit advanced-strategy capability gates.             |
 | F406      | done    | Read-only legacy compatibility, non-destructive archive and governed-path write closure.       |
-| F407-F410 | pending | Bilingual docs, Docker/browser E2E, negative validation and final audit.                        |
+| F407      | done    | Bilingual runtime, terminology parity and user/migration documentation verified.              |
+| F408-F410 | pending | Docker/browser E2E, negative validation and final audit.                                       |
 
 ## Evidence
 
@@ -110,7 +111,8 @@
 - F405 browser/MySQL evidence: `f405/mysql-evidence.log`, `f405/browser-dom.txt`, `f405/production-policy-dom.txt`, `f405/23-f405-release-policy-viewport.png`, `f405/24-f405-advanced-strategies.png` and `f405/25-f405-production-policy-snapshot.png`. The authenticated Manage Project page created immutable R1, shows Standard as executable and all three advanced strategies as capability-unavailable with concrete provider keys. The real Production preview displays `R1 / standard / 986e9990…`; MySQL confirms the current pointer and immutable audit event.
 - F406 compatibility evidence: `f406/focused-tests-final.log`, `f406/integration-test.log`, `f406/api-build.log` and `f406/web-build.log`. Governed or archived projects fail before the legacy branch/commit deployment service can create a checkout/build plan. The compatibility adapter classifies missing-Manifest history as `legacy_unverified`, preserves run/log references and never synthesizes a Digest. Project DELETE now performs a serializable archive transaction, retaining environments, runs and logs and emitting `project.archive` audit evidence; the real integration test reads all retained evidence after archive.
 - F406 browser/MySQL evidence: `f406/mysql-evidence.log`, `f406/browser-dom.txt`, `f406/legacy-deployment-blocked-dom.txt`, `f406/26-f406-read-only-compatibility.png` and `f406/27-f406-legacy-deployment-blocked.png`. The professional deep link is read-only and reports 7 retained runs, 1 legacy-unverified run and zero synthetic manifests. All six exact-Manifest runs have `checkout=false`, `pull=false`, `build=false`. The Applications legacy wizard receives the concrete server rejection before creating any service DeploymentRun; the browser console has no error/warning entries.
+- F407 parity/documentation evidence: `f407/api-build.log`, `f407/web-build.log`, `f407/browser-en-dom.txt`, `f407/production-en-dom.txt`, `f407/28-f407-release-policy-en.png` and `f407/29-f407-production-en.png`. The recursive parity check covers 2,796 zh/en leaf messages and ICU placeholder names. Runtime cookie switching renders release-policy capability reasons and Production policy snapshots in English without losing the Chinese default. The bilingual user guide and migration guide document release-order terminology, immutable Manifests, environment versions, archive/compatibility behavior and why advanced strategies remain unavailable.
 
 ## Next
 
-Complete F407 zh/en terminology parity and user/migration documentation for release orders, immutable manifests, environment versions, archive behavior and unavailable advanced strategies.
+Complete one coherent Docker-backed browser lifecycle: repository intake and settings, release-order creation, multiple builds, repeated exact-Manifest Staging deployments, approved Production deployment and recovery rollback.

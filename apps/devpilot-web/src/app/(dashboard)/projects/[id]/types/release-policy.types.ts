@@ -8,7 +8,7 @@ export interface ReleaseStrategyCapability {
   strategy: ReleaseStrategy;
   executable: boolean;
   reasonCode: string;
-  reason: string;
+  reason: { zh: string; en: string };
   missingCapabilities: string[];
 }
 
@@ -25,4 +25,3 @@ export interface ReleasePolicyResponse {
   current: ReleasePolicyRevision;
   capabilities: ReleaseStrategyCapability[];
 }
-

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/hooks';
@@ -15,6 +15,7 @@ import { TeamSwitcher } from './team-switcher';
 export function Header() {
   const t = useTranslations('nav');
   const tc = useTranslations('common');
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -28,6 +29,11 @@ export function Header() {
 
   const closeMobileMenu = usePersistFn(() => {
     setMobileMenuOpen(false);
+  });
+
+  const toggleLocale = usePersistFn(() => {
+    document.cookie = `locale=${locale.startsWith('zh') ? 'en' : 'zh'}; path=/; max-age=31536000; samesite=lax`;
+    router.refresh();
   });
 
   // 主链接高亮:前缀命中取最长匹配
@@ -71,6 +77,14 @@ export function Header() {
           ))}
         </nav>
         <div className="flex min-w-0 flex-1 items-center justify-end space-x-2">
+          <button
+            type="button"
+            onClick={toggleLocale}
+            className="inline-flex min-h-11 items-center rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label={locale.startsWith('zh') ? tc('switchToEnglish') : tc('switchToChinese')}
+          >
+            {locale.startsWith('zh') ? 'EN' : '中'}
+          </button>
           {isAuthenticated && user ? (
             <div className="flex min-w-0 items-center gap-2 md:gap-4">
               <span className="max-w-[120px] truncate text-sm text-muted-foreground md:max-w-[220px]">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Button, Card } from '@svton/ui';
 import { useReleasePolicy } from '../../hooks/use-release-policy';
 import type { ReleaseStrategy } from '../../types/release-policy.types';
@@ -14,6 +14,7 @@ const STRATEGY_KEYS: Record<ReleaseStrategy, string> = {
 
 export function ReleasePolicyTab({ projectId }: { projectId: string }) {
   const t = useTranslations('projects');
+  const locale = useLocale();
   const policy = useReleasePolicy(projectId);
 
   if (policy.loading) return <p className="text-sm text-muted-foreground">{t('loading')}</p>;
@@ -47,7 +48,9 @@ export function ReleasePolicyTab({ projectId }: { projectId: string }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-medium">{t(STRATEGY_KEYS[capability.strategy] as never)}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{capability.reason}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {locale.startsWith('zh') ? capability.reason.zh : capability.reason.en}
+                </p>
               </div>
               <span className={capability.executable
                 ? 'rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700'
@@ -71,4 +74,3 @@ export function ReleasePolicyTab({ projectId }: { projectId: string }) {
 function Value({ label, value }: { label: string; value: string }) {
   return <div><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-medium">{value}</dd></div>;
 }
-

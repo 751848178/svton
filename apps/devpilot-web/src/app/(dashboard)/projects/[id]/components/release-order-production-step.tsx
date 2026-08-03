@@ -97,7 +97,7 @@ export function ReleaseOrderProductionStep(props: Props) {
             />
             <SnapshotRow
               label={t('releaseProductionPolicy')}
-              value={`${snapshot.releasePolicy.synthetic ? 'default' : `R${snapshot.releasePolicy.revision}`} / ${snapshot.releasePolicy.strategy} / ${snapshot.releasePolicy.snapshotHash}`}
+              value={`${snapshot.releasePolicy.synthetic ? t('releasePolicySynthetic') : `R${snapshot.releasePolicy.revision}`} / ${t('releasePolicyStrategyStandard')} / ${snapshot.releasePolicy.snapshotHash}`}
             />
           </dl>
         ) : null}

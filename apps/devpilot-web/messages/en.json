@@ -46,6 +46,8 @@
     "updateSuccess": "Updated successfully",
     "login": "Log In",
     "logout": "Log Out",
+    "switchToEnglish": "Switch to English",
+    "switchToChinese": "Switch to Chinese",
     "userMenu": "User menu",
     "notFoundTitle": "Page Not Found",
     "notFoundDescription": "The page you visited does not exist or has been moved. Please check the address.",
