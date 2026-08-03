@@ -20,7 +20,7 @@
 
 ## Workflow Routing
 
-`routing: long-goal + codegraph-manual-fallback + single-writer + noisy-tools; F386-F411 逐切片登记、实现、测试、文档同步和原子提交，完整日志保存在 /tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/。`
+`routing: long-goal + codegraph-manual-fallback + single-writer + noisy-tools; F386-F412 逐切片登记、实现、测试、文档同步和原子提交，完整日志保存在 /tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/。`
 
 ## Functional TODO Breakdown
 
@@ -30,7 +30,7 @@
 | F387 | done    | 增加项目生命周期、仓库规范身份、finalize、环境 baseline role/config revision 的增量 schema 与冲突报告。 | Prisma 与项目/环境迁移工具。                               | 空库/升级 fixture 迁移、Prisma/type-check、14 tests 通过；历史状态/歧义环境保持 NULL。     |
 | F388 | done    | 实现 draft→analysis→review→幂等 finalize 后端事务与恢复。                                               | project-intake、repository-analysis、project-environment。 | 39 unit + 7 real-MySQL integration tests、API build/type-check 通过。                      |
 | F389 | done    | 提供 ACL 过滤的项目目录服务端读模型。                                                                   | Project query/read-model 与 DTO。                          | 12 unit/regression + 2 real-MySQL tests；API type-check/build 通过。                         |
-| F390 | done    | 实现 `/projects` 目录和三步 `/projects/create`，兼容 `/projects/import`。                               | Projects Web routes/components/hooks。                     | 11 个 API/Web 回归、双端 type-check/build、真实 MySQL 和浏览器接入闭环通过。               |
+| F390 | done    | 实现 `/projects` 目录和三步 `/projects/create`，兼容 `/projects/import`。                               | Projects Web routes/components/hooks。                     | 产品与 API/MySQL 验证完成；原三张浏览器图为同一近白图，F412 仅以后继证据验证当前行为。     |
 | F391 | done    | 建立 delivery/settings 路由宿主和旧 tab/query 深链适配。                                                | Project detail routes/navigation。                         | 12 个路由回归、Web type-check/build 和浏览器深链验收通过；focused ID 保留。                |
 | F392 | done    | 增加 ReleaseOrder、BuildRun、ArtifactManifest、ReleaseRun、EnvironmentVersion 与 legacy nullable 关系。 | Prisma/release domain migration。                          | 新库/升级库真实迁移、legacy/unverified 报告、API 门禁通过。                                |
 | F393 | done    | 实现发布单列表/创建读写模型；创建只含版本号与说明且不自动构建。                                         | ReleaseOrder API/Web。                                     | 19 个 API/Web 回归、真实 MySQL 并发幂等、浏览器和零 BuildRun/Manifest 证据通过。           |
@@ -41,7 +41,7 @@
 | F398 | done    | 实现环境版本 current/history、受控升级和 recovery 回退。                                                | EnvironmentVersion API/Web。                               | Staging/Production 真实版本链、审批消费、升级/回退和任意输入负例通过。                     |
 | F399 | done    | 将仓库、环境配置、资源、Webhook 和设置收敛到 Manage Project。                                           | Settings routes/compat adapters。                          | 五区普通路径、legacy 重定向和专业运行审批证据浏览器回归通过。                              |
 | F400 | done    | 实现环境 key 锁定、配置修订、共享资源/Secret 引用/域名路由/策略治理。                                   | Project environment governance。                           | 服务端权限、审计、无 Secret 明文、漂移测试通过。                                           |
-| F401 | done    | 建立版本化 51 项目录、统一状态和默认不可用 capability registry。                                        | Release gates schema/service/Web。                         | 10/11/20/10 目录计数；未接 Provider 不通过。                                               |
+| F401 | done    | 建立版本化 51 项目录、统一状态和默认不可用 capability registry。                                        | Release gates schema/service/Web。                         | 10/11/20/10 目录计数；原引用截图不存在，F412 以后继证据验证当前 51 项页面与 fail closed。   |
 | F402 | done    | 接通 M01-M05 Commit/Build 真实能力组。                                                                  | Commit/build provider adapters。                           | 正/负/新鲜度证据；缺失 Provider 不可用。                                                   |
 | F403 | done    | 接通 M06-M09 Deploy 真实能力组。                                                                        | Config/Secret/resource/connectivity/migration adapters。   | 环境归属、脱敏、过期证据测试。                                                             |
 | F404 | done    | 接通 M10-M15 Promote 真实能力组。                                                                       | Approval/DNS/TLS/HTTP/observability/recovery adapters。    | 业务验证只作证据；技术门禁真实。                                                           |
@@ -52,6 +52,7 @@
 | F409 | done    | 完成 ACL、并发、失败恢复、兼容、Provider 不可用和脱敏负向 E2E。                                         | Cross-layer tests。                                        | 11 suites/74 tests 与 API/DB/browser 负向证据全部通过。                                   |
 | F410 | done    | 独立代码/领域/UX/无障碍/安全审查、修复、全量验证和最终交付审计。                                        | 全目标与证据包。                                           | GateEvaluation 持久化、安全收口、全量验证、生产构建浏览器 E2E 与工作区保护全部通过。       |
 | F411 | done    | 拆分超长新增测试、恢复 API ESLint、修复任务板历史状态并完成 PR 前最终复核。                               | 测试职责、lint 配置、任务板/文档与全量验收；不改产品语义。 | `chore(devpilot): close V13 acceptance gaps`；完整日志在 `.../f411/`。                    |
+| F412 | done    | 补齐当前实现的三步接入与 51 项门禁真实浏览器证据，修正 F390/F401 历史证据缺口及任务板/文档一致性。        | 隔离运行时、Browser/DOM/API/DB 证据、result/board/docs。    | `f412/evidence-manifest.json`；历史白屏/缺图保留，后继证据不冒充原始截图。                 |
 
 ## Verification Plan
 
@@ -70,7 +71,7 @@
 - 2026-08-03: F389 开始；目录查询先固定 team scope，再执行逐项目 ACL，运行、配置、Production、域名和活动均只从项目关系读取。
 - 2026-08-03: F389 完成；新增 ACL 过滤目录读模型，支持名称/仓库/域名搜索、运行/配置筛选、精确 Staging/Production 基线、线上/待配置摘要、最近活动排序，真实 MySQL 证明团队/归档/嵌套运行隔离。
 - 2026-08-03: F390 开始；Web 项目目录改用新读模型，创建与接入入口收敛为生成新项目和三步接入已有项目，同时保留旧 `/projects/import` 深链兼容。
-- 2026-08-03: F390 完成；浏览器真实完成失败保留、重试、分析审核、双环境 finalize 和目录筛选，数据库证明固定 commit、唯一 Staging/Production 及幂等 finalization；目录运行态只读取最新运行，应用建议依赖的环境建议在 UI 中 fail closed。
+- 2026-08-03: F390 完成；产品代码、回归与数据库证据证明固定 commit、唯一 Staging/Production 及幂等 finalization；但后来验收确认其 `01-project-directory-empty.png`、`02-analysis-review.png`、`03-baseline-confirmation.png` 是同 SHA、同尺寸的近白截图，不能证明当时页面可用，故保留为历史 evidence gap。
 - 2026-08-03: F391 开始；收敛项目详情一级 IA，并建立 delivery/settings 宿主与旧 tab/query 深链适配。
 - 2026-08-03: F391 完成；项目默认发布单，一级只保留发布单/环境版本，低频配置进入独立 settings；旧 repository/environment/deployment 深链分别保留 analysisRunId/environmentId/runId，未具备的环境版本明确保持空状态。
 - 2026-08-03: F392 开始；按 nullable-first 增加发布单、构建、不可变 Manifest、生产发布运行和环境版本领域关系，并为 legacy/unverified 数据提供只读报告。
@@ -92,7 +93,7 @@
 - 2026-08-03: F400 开始；在现有不可变 EnvironmentConfigRevision 和首个 DeploymentRun identity lock 上补齐服务端治理写模型、引用型 Secret/资源/路由/策略快照以及影响范围与审计边界。
 - 2026-08-03: F400 完成；配置写入改为串行化不可变修订并用 expectedCurrentRevisionId 拒绝漂移，普通变量兼容镜像继续供现有部署注入。真实浏览器写入 R5，展示无明文 Secret 引用和跨 Staging/Production 的 Redis 共享范围、medium 风险与影响；真实并发从同一 R5 仅一个请求创建 R6，另一请求 409，跨项目资源和 Secret 明文字段均 400。
 - 2026-08-03: F401 开始；建立版本化 51 项目录、统一检查状态与默认 unavailable 的 capability registry，先证明目录 10/11/20/10 计数和缺 Provider 不得成功。
-- 2026-08-03: F401 完成；服务端版本化目录固定 Commit/Build/Deploy/Promote 为 10/11/20/10 共 51 项并映射 15 个 MVP 能力组，统一六态契约。未接 Provider 的 51 项全部 fail closed 为 unavailable；真实 API、跨项目 ACL 负例、17 项回归、API/Web 构建和浏览器默认摘要/专业展开均通过。
+- 2026-08-03: F401 完成；服务端版本化目录固定 Commit/Build/Deploy/Promote 为 10/11/20/10 共 51 项并映射 15 个 MVP 能力组，统一六态契约。真实 API、跨项目 ACL 负例、17 项回归及 API/Web 构建通过；但任务板引用的 `f390-browser/19-f401-gate-catalog.png` 不存在，因此原浏览器声明保留为历史 evidence gap。
 - 2026-08-03: F402 开始；接通 M01-M05 Commit/Build 的真实仓库、分析、构建测试、安全和不可变制品证据，并验证成功、失败、过期与缺 Provider 边界。
 - 2026-08-03: F402 完成；门禁从真实 RepositoryConnection、精确 Commit RepositoryAnalysisRun、最新 BuildRun 和 Manifest 读取证据，并携带 evidenceRef、checkedAt、expiresAt 与 fresh。正例、失败阻断、过期转未检查和缺 Provider 不可用均有回归；真实浏览器为当前发布单显示 C01/C05/B02/B09 已检查、C08/B03 未检查及 45 项不可用，安全执行隔离不再误称 Secret/SAST/漏洞扫描通过。
 - 2026-08-03: F403 开始；接通 M06-M09 的环境配置、Secret 引用、资源/部署目标连通、容量与迁移/备份真实证据，并严守环境归属、脱敏和过期边界。
@@ -113,3 +114,5 @@
 - 2026-08-03: F410 完成；补齐 51 项 GateEvaluation 追加式持久化与证据版本，仓库 Git 子进程改为最小环境白名单和隔离 HOME。四类独立审查通过；API 38 suites/185 tests、真实 MySQL 9 suites/23 tests、Web 11 files/54 tests、Prisma validate/generate/migrate、API/Web type-check/build、2,798 条双语 parity 均通过。生产构建浏览器复核项目目录、51 项门禁、环境版本、恢复与中英文路径；最终 51 项最新结论为 9 passed、3 pending、1 needs_human、38 unavailable，Provider 缺失没有伪通过。主工作区 checkpoint 保持不变，任务 Docker 资源已删除，Git fixture 已可恢复地移入废纸篓。
 - 2026-08-03: F411 开始；仅收敛 PR 前验收缺口：按测试职责拆分两个超过 200 行的新增 spec，按 monorepo 既有 ESLint 体系恢复 Devpilot API lint，修复任务板早期阻塞/worker result 缺项，并重跑规定的静态、Prisma、API、MySQL、Web、消息与工作区保护验证。
 - 2026-08-03: F411 完成；348 行 intake integration spec 拆为 141 行 fixture、176 行幂等/恢复 spec 和 135 行边界/并发 spec，224 行 directory spec 拆为 82 行 fixture、69 行 presenter spec 和 85 行 service spec，4 suites/12 tests 保持全部场景与断言。新增 API `.eslintrc.js` 复用仓库 ESLint 8 + `@typescript-eslint/recommended`，规则仍启用，API lint 以 0 退出（0 error / 412 warning）；逐条清单证明 379 条 warning 来自基线、33 条来自既有 V13 行、F411 新增 0 条，并修复 V13 的 2 个 `ban-types` error。198 个新增可维护 TS/TSX/JS 等源文件均不超过 200 行；298 行 Prisma migration SQL 作为已应用、不可拆分的迁移历史工件单独披露，不改写 checksum。Prisma validate/generate/59 migrations status、API type/build、201 suites/1,310 tests、真实 MySQL 10 suites/23 tests、Web lint/type/build、11 files/54 tests及 2,798 条 zh/en/ICU parity 全部通过。任务板将 p0-worktree-init 记为由 F386 恢复完成，并用真实提交/日志补齐 F390-F399 result；缺失原 worker 会话与截图明确标为 evidence gap。F410 浏览器证据对应父提交 `f7071a1b`，F411 provider 修改的 JS emit 哈希完全一致；补跑已验证生产页面壳和空 console，但认证页面复核被 Browser URL 安全策略阻断，未伪称完整 authenticated smoke。
+- 2026-08-03: F412 开始；在 `cd66455ac793ad87912f138633eeafa1e8dcfaf1` 当前 HEAD 上重跑真实三步接入与 51 项门禁浏览器链路，原 F390 三张近白截图及 F401 缺失截图只保留为历史 evidence gap，不覆盖、不伪造，并用逐 URL/DOM/console/API/DB/截图关联的 successor evidence 修复任务板与文档一致性。
+- 2026-08-03: F412 完成；隔离 MySQL/Redis、F412 测试团队/用户/项目和真实本地 Git fixture 上完成目录→连接→分析→审核→Staging/Production baseline→幂等 finalize→ready 目录→默认发布单链路，01-07 截图及对应 DOM/console/network 与 API/DB 证据均有效。门禁首次真实打开暴露缺失可选 `route.domains` 时 API 500，已用独立提交 `7d43f40a` 修复并重跑；08-09 证明页面含 51 个唯一检查、阶段 10/11/20/10、15 能力组、compact summary/完整专业展开，缺失 Provider 为 unavailable 而非 passed。`f412/evidence-manifest.json` 明确记录每项捕获 HEAD、URL、时间、截图 SHA、DOM 和 API/DB 关联；F390/F401 后继证据仅验证当前实现的行为延续，不恢复或冒充历史截图。产品功能与证据修复已完成，金丝雀、蓝绿、自动放量及缺少真实 Provider 的能力仍 fail closed；未 push、未创建 PR、未合并、未上线。
