@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F387 — additive project-intake and environment-baseline schema migration.
+- Active slice: F388 — transactional project-intake backend and crash recovery.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -34,7 +34,8 @@
 | Range     | State   | Outcome                                                                                      |
 | --------- | ------- | -------------------------------------------------------------------------------------------- |
 | F386      | done    | Isolated baseline, TODO/progress/migration contract and baseline verification complete.      |
-| F387-F391 | pending | Project intake, directory, three-step Web and project IA.                                    |
+| F387      | done    | Additive intake/identity/finalization/config revision schema and preflight reports complete. |
+| F388-F391 | pending | Project intake backend, directory, three-step Web and project IA.                            |
 | F392-F398 | pending | ReleaseOrder, build/Manifest, four steps, exact Staging/Production and environment versions. |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
@@ -50,7 +51,10 @@
 - Initialization build and type-checks: `/tmp/codex-tool-runs/svton/f386-init-build-final-20260803-115737.log`, `/tmp/codex-tool-runs/svton/f386-api-typecheck-20260803-115805.log`, `/tmp/codex-tool-runs/svton/f386-web-typecheck-20260803-115813.log`.
 - Focused integration fixes: `/tmp/codex-tool-runs/svton/f386-focused-tests-20260803-115839.log` — 3 suites, 35 tests passed.
 - CodeGraph initialized with 3,358 files, 37,526 nodes and 128,155 edges; pending changes zero.
+- F387 Prisma and API checks: `/tmp/codex-tool-runs/svton/f387-prisma-validate-replay-20260803-121740.log`, `/tmp/codex-tool-runs/svton/f387-api-typecheck-replay-20260803-121757.log`.
+- F387 preflight fixtures: `/tmp/codex-tool-runs/svton/f387-tests-replay-20260803-121757.log` — 2 suites, 14 tests passed.
+- F387 real MySQL migration: `/tmp/codex-tool-runs/svton/f387-migrate-deploy-empty-20260803-121147.log`, `/tmp/codex-tool-runs/svton/f387-migrate-upgraded-fixture-20260803-121334.log`, `/tmp/codex-tool-runs/svton/f387-upgraded-fixture-assertions-20260803-121349.log`; two ambiguous environments were retained with NULL baseline role and no implicit lifecycle/backfill rows.
 
 ## Next
 
-Implement and verify F387 schema/collision-report slice without waiting for user confirmation.
+Implement and verify F388 transactional project-intake backend without waiting for user confirmation.

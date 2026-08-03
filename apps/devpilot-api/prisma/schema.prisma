@@ -72,6 +72,8 @@ model User {
   repositoryConnections RepositoryConnection[] @relation("RepositoryConnectionActor")
   repositoryAnalysisRuns RepositoryAnalysisRun[] @relation("RepositoryAnalysisRunActor")
   reviewedRepositorySuggestions RepositoryAnalysisSuggestion[] @relation("RepositorySuggestionReviewer")
+  projectIntakeFinalizations ProjectIntakeFinalization[] @relation("ProjectIntakeFinalizationActor")
+  environmentConfigRevisions EnvironmentConfigRevision[] @relation("EnvironmentConfigRevisionActor")
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime @updatedAt
@@ -138,6 +140,9 @@ model Team {
   releaseEvents ReleaseEvent[]
   repositoryConnections RepositoryConnection[]
   repositoryAnalysisRuns RepositoryAnalysisRun[]
+  projectRepositoryIdentities ProjectRepositoryIdentity[]
+  projectIntakeFinalizations ProjectIntakeFinalization[]
+  environmentConfigRevisions EnvironmentConfigRevision[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -638,6 +643,10 @@ model Project {
   config       Json     // ProjectConfig snapshot
   gitRepo      String?  // 推送的仓库地址
   downloadUrl  String?  // ZIP 下载链接（临时）
+  onboardingStatus String? // draft | analyzing | review | ready | needs_configuration | archived
+  onboardingRevision Int?
+  onboardingFinalizedAt DateTime?
+  archivedAt DateTime?
 
   team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy    User     @relation(fields: [createdById], references: [id])
@@ -677,12 +686,17 @@ model Project {
   releasePlans ReleasePlan[]
   repositoryConnection RepositoryConnection?
   repositoryAnalysisRuns RepositoryAnalysisRun[]
+  repositoryIdentity ProjectRepositoryIdentity?
+  intakeFinalizations ProjectIntakeFinalization[]
+  environmentConfigRevisions EnvironmentConfigRevision[]
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@index([teamId])
   @@index([createdById])
+  @@index([onboardingStatus])
+  @@index([archivedAt])
 }
 
 // 项目只读仓库连接：只记录加密凭据引用与真实 Git 验证结果
@@ -717,6 +731,7 @@ model RepositoryConnection {
   gitConnection      GitConnection? @relation(fields: [gitConnectionId], references: [id], onDelete: SetNull)
   teamCredential     TeamCredential? @relation(fields: [teamCredentialId], references: [id], onDelete: SetNull)
   analysisRuns       RepositoryAnalysisRun[]
+  projectRepositoryIdentity ProjectRepositoryIdentity?
 
   @@index([teamId])
   @@index([connectedById])
@@ -762,6 +777,7 @@ model RepositoryAnalysisRun {
   retries          RepositoryAnalysisRun[] @relation("RepositoryAnalysisRetry")
   stages           RepositoryAnalysisStage[]
   suggestions      RepositoryAnalysisSuggestion[]
+  intakeFinalizations ProjectIntakeFinalization[]
 
   @@unique([projectId, idempotencyKey])
   @@unique([projectId, activeKey])
@@ -771,6 +787,60 @@ model RepositoryAnalysisRun {
   @@index([retryOfId])
   @@index([status])
   @@index([createdAt])
+}
+
+// 项目仓库规范身份；迁移前先报告 SSH/HTTPS 别名冲突，再写入唯一键
+model ProjectRepositoryIdentity {
+  id                   String   @id @default(cuid())
+  teamId               String
+  projectId            String   @unique
+  repositoryConnectionId String? @unique
+  provider             String
+  providerRepositoryId String?
+  canonicalKey         String
+  canonicalUrl         String   @db.Text
+  defaultBranch        String?
+  lockedAt             DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  repositoryConnection RepositoryConnection? @relation(fields: [repositoryConnectionId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, canonicalKey])
+  @@index([teamId])
+  @@index([provider, providerRepositoryId])
+}
+
+// 接入最终确认记录；同一幂等键只允许一个可恢复结果
+model ProjectIntakeFinalization {
+  id             String   @id @default(cuid())
+  teamId         String
+  projectId      String
+  analysisRunId  String
+  actorId        String?
+  idempotencyKey String
+  inputHash      String
+  status         String   @default("pending") // pending | succeeded | failed
+  resultSnapshot Json?
+  errorCode      String?
+  errorMessage   String?  @db.Text
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  analysisRun    RepositoryAnalysisRun @relation(fields: [analysisRunId], references: [id], onDelete: Restrict)
+  actor          User?    @relation("ProjectIntakeFinalizationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, idempotencyKey])
+  @@index([teamId])
+  @@index([analysisRunId])
+  @@index([actorId])
+  @@index([status])
 }
 
 // 解析运行的可审计阶段证据
@@ -840,6 +910,9 @@ model ProjectEnvironment {
   status      String   @default("active") // active | archived
   sortOrder   Int      @default(0)
   config      Json?
+  baselineRole String? // development | test | staging | production; legacy/ambiguous rows stay null
+  identityLockedAt DateTime?
+  currentConfigRevisionId String? @unique
 
   team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -873,15 +946,48 @@ model ProjectEnvironment {
   projectWebhooks ProjectWebhook[]
   releasePlans ReleasePlan[]
   releaseStages ReleaseStage[]
+  configRevisions EnvironmentConfigRevision[] @relation("EnvironmentConfigRevisionHistory")
+  currentConfigRevision EnvironmentConfigRevision? @relation("CurrentEnvironmentConfigRevision", fields: [currentConfigRevisionId], references: [id], onDelete: SetNull)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@unique([projectId, key])
+  @@unique([projectId, baselineRole])
   @@index([teamId])
   @@index([projectId])
   @@index([key])
   @@index([status])
+}
+
+// 环境配置不可变修订；仅保存普通变量与 Secret/资源/路由/策略引用
+model EnvironmentConfigRevision {
+  id                 String   @id @default(cuid())
+  teamId             String
+  projectId          String
+  environmentId      String
+  createdById        String?
+  revision           Int
+  snapshotHash       String
+  plainVariables     Json?
+  secretReferences   Json?
+  resourceReferences Json?
+  routeSnapshot      Json?
+  policyReferences   Json?
+  source             String   @default("project_intake")
+  createdAt          DateTime @default(now())
+
+  team               Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment        ProjectEnvironment @relation("EnvironmentConfigRevisionHistory", fields: [environmentId], references: [id], onDelete: Cascade)
+  createdBy          User?    @relation("EnvironmentConfigRevisionActor", fields: [createdById], references: [id], onDelete: SetNull)
+  currentForEnvironment ProjectEnvironment? @relation("CurrentEnvironmentConfigRevision")
+
+  @@unique([environmentId, revision])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([createdById])
+  @@index([snapshotHash])
 }
 
 // 控制面访问策略：项目/环境/动作级 RBAC
