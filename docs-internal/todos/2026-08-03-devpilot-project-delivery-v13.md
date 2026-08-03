@@ -28,7 +28,7 @@
 | ---- | ------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | F386 | done    | 建立独立 worktree/分支、集成两个授权提交、登记 V13 事实源/迁移/任务板并运行基线验证。                   | Git、V13 文档、现有 API/Web 基线；不改产品行为。           | `7d9d580c` → `724abfef`；Prisma/build/type-check/35 tests 通过；主工作区 checkpoint 未变。 |
 | F387 | done    | 增加项目生命周期、仓库规范身份、finalize、环境 baseline role/config revision 的增量 schema 与冲突报告。 | Prisma 与项目/环境迁移工具。                               | 空库/升级 fixture 迁移、Prisma/type-check、14 tests 通过；历史状态/歧义环境保持 NULL。     |
-| F388 | pending | 实现 draft→analysis→review→幂等 finalize 后端事务与恢复。                                               | project-intake、repository-analysis、project-environment。 | 权限、重复仓库、并发/重复 finalize、故障恢复集成测试。                                     |
+| F388 | done    | 实现 draft→analysis→review→幂等 finalize 后端事务与恢复。                                               | project-intake、repository-analysis、project-environment。 | 39 unit + 7 real-MySQL integration tests、API build/type-check 通过。                      |
 | F389 | pending | 提供 ACL 过滤的项目目录服务端读模型。                                                                   | Project query/read-model 与 DTO。                          | 搜索、运行/配置状态、环境/Production/活动 API 测试。                                       |
 | F390 | pending | 实现 `/projects` 目录和三步 `/projects/create`，兼容 `/projects/import`。                               | Projects Web routes/components/hooks。                     | Web 单测和浏览器接入闭环。                                                                 |
 | F391 | pending | 建立 delivery/settings 路由宿主和旧 tab/query 深链适配。                                                | Project detail routes/navigation。                         | 路由/深链回归；一级只保留发布单和环境版本。                                                |
@@ -64,3 +64,5 @@
 - 2026-08-03: F386 完成；依赖安装、Prisma generate/validate、`init:build`、API/Web type-check、3 suites/35 tests 和 CodeGraph 索引均通过，原主工作区 checkpoint 保持不变。
 - 2026-08-03: F387 开始；按 nullable-first 约束增加 intake/environment schema，并先产出仓库别名和 `prod`/`production` 歧义报告，不删除或猜测历史数据。
 - 2026-08-03: F387 完成；新增三张增量表、nullable lifecycle/baseline/config revision 关系和只读迁移预检。真实 MySQL 空库全迁移及含 `prod`/`production` 历史 fixture 的升级迁移均通过，历史项目未被默认为 DRAFT/READY。
+- 2026-08-03: F388 开始；新增 intake API 编排层，复用真实 repository-analysis 能力，并把 finalize、幂等记录与失败恢复放入独立事务职责。
+- 2026-08-03: F388 完成；新 draft 无隐式环境，intake API 复用真实 connect/run/retry/review，finalize 以 Serializable/CAS 事务锁定仓库身份和 Staging/Production。重复、并发、部分回滚恢复、跨团队、重复仓库及历史环境保留均在真实 MySQL 验证通过。

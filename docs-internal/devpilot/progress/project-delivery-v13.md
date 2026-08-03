@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Active slice: F388 — transactional project-intake backend and crash recovery.
+- Active slice: F389 — ACL-filtered project directory server read model.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -35,7 +35,8 @@
 | --------- | ------- | -------------------------------------------------------------------------------------------- |
 | F386      | done    | Isolated baseline, TODO/progress/migration contract and baseline verification complete.      |
 | F387      | done    | Additive intake/identity/finalization/config revision schema and preflight reports complete. |
-| F388-F391 | pending | Project intake backend, directory, three-step Web and project IA.                            |
+| F388      | done    | Transactional intake API, duplicate guard, idempotent finalize and recovery complete.        |
+| F389-F391 | pending | Project directory, three-step Web and project IA.                                            |
 | F392-F398 | pending | ReleaseOrder, build/Manifest, four steps, exact Staging/Production and environment versions. |
 | F399-F405 | pending | Manage Project governance, 51/15 gates and standard strategy.                                |
 | F406-F410 | pending | Compatibility, docs, Docker/browser E2E, negative validation and final audit.                |
@@ -54,7 +55,10 @@
 - F387 Prisma and API checks: `/tmp/codex-tool-runs/svton/f387-prisma-validate-replay-20260803-121740.log`, `/tmp/codex-tool-runs/svton/f387-api-typecheck-replay-20260803-121757.log`.
 - F387 preflight fixtures: `/tmp/codex-tool-runs/svton/f387-tests-replay-20260803-121757.log` — 2 suites, 14 tests passed.
 - F387 real MySQL migration: `/tmp/codex-tool-runs/svton/f387-migrate-deploy-empty-20260803-121147.log`, `/tmp/codex-tool-runs/svton/f387-migrate-upgraded-fixture-20260803-121334.log`, `/tmp/codex-tool-runs/svton/f387-upgraded-fixture-assertions-20260803-121349.log`; two ambiguous environments were retained with NULL baseline role and no implicit lifecycle/backfill rows.
+- F388 focused unit/regression tests: `/tmp/codex-tool-runs/svton/f388-unit-tests-final-20260803-123710.log` — 8 suites, 39 tests passed.
+- F388 real MySQL transaction acceptance: `/tmp/codex-tool-runs/svton/f388-finalization-integration-acceptance-20260803-123802.log` — 7 integration tests passed, including rollback/retry and concurrent finalize.
+- F388 API gates: `/tmp/codex-tool-runs/svton/f388-api-typecheck-replay-20260803-124121.log`, `/tmp/codex-tool-runs/svton/f388-api-build-replay-20260803-124121.log`.
 
 ## Next
 
-Implement and verify F388 transactional project-intake backend without waiting for user confirmation.
+Implement and verify F389 ACL-filtered project directory read model without waiting for user confirmation.

@@ -1,0 +1,189 @@
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import type {
+  ApplyRepositorySuggestionsDto,
+  StartRepositoryAnalysisDto,
+} from "../repository-analysis/dto/repository-analysis.dto";
+import type { ConnectRepositoryDto } from "../repository-analysis/dto/repository-connection.dto";
+import { RepositoryAnalysisRunService } from "../repository-analysis/repository-analysis-run.service";
+import { RepositoryConnectionService } from "../repository-analysis/repository-connection.service";
+import { RepositorySuggestionApplyService } from "../repository-analysis/repository-suggestion-apply.service";
+import type {
+  CreateProjectIntakeDraftDto,
+  FinalizeProjectIntakeDto,
+} from "./dto/project-intake.dto";
+import { ProjectIntakeFinalizationService } from "./project-intake-finalization.service";
+import { intakeError } from "./project-intake-errors.utils";
+import type { ProjectIntakeStatus } from "./project-intake.types";
+import { ProjectRepositoryDuplicateGuardService } from "./project-repository-duplicate-guard.service";
+
+@Injectable()
+export class ProjectIntakeService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly duplicateGuard: ProjectRepositoryDuplicateGuardService,
+    private readonly connections: RepositoryConnectionService,
+    private readonly runs: RepositoryAnalysisRunService,
+    private readonly suggestions: RepositorySuggestionApplyService,
+    private readonly finalization: ProjectIntakeFinalizationService,
+  ) {}
+
+  createDraft(
+    teamId: string,
+    actorId: string,
+    dto: CreateProjectIntakeDraftDto,
+  ) {
+    return this.prisma.project.create({
+      data: {
+        teamId,
+        createdById: actorId,
+        name: dto.name.trim(),
+        description: dto.description?.trim() || null,
+        config: {
+          origin: "imported",
+          onboarding: { version: 1 },
+        },
+        onboardingStatus: "draft",
+        onboardingRevision: 1,
+      },
+    });
+  }
+
+  async state(teamId: string, actorId: string, projectId: string) {
+    const project = await this.findProject(teamId, projectId);
+    const [repository, runs] = await Promise.all([
+      this.connections.getState(teamId, actorId, projectId),
+      this.runs.list(teamId, projectId),
+    ]);
+    return { project, repository, runs };
+  }
+
+  async connect(
+    teamId: string,
+    actorId: string,
+    projectId: string,
+    dto: ConnectRepositoryDto,
+  ) {
+    await this.assertMutable(teamId, projectId);
+    await this.duplicateGuard.assertAvailable(
+      teamId,
+      projectId,
+      dto.repositoryUrl,
+    );
+    const connection = await this.connections.connect(
+      teamId,
+      actorId,
+      projectId,
+      dto,
+    );
+    await this.transition(teamId, projectId, "analyzing");
+    return connection;
+  }
+
+  async startAnalysis(
+    teamId: string,
+    actorId: string,
+    projectId: string,
+    dto: StartRepositoryAnalysisDto,
+  ) {
+    await this.assertMutable(teamId, projectId);
+    const run = await this.runs.start(teamId, actorId, projectId, dto);
+    await this.transition(teamId, projectId, "analyzing");
+    return run;
+  }
+
+  async retryAnalysis(
+    teamId: string,
+    actorId: string,
+    projectId: string,
+    runId: string,
+  ) {
+    await this.assertMutable(teamId, projectId);
+    const run = await this.runs.retry(teamId, actorId, projectId, runId);
+    await this.transition(teamId, projectId, "analyzing");
+    return run;
+  }
+
+  async review(
+    teamId: string,
+    actorId: string,
+    projectId: string,
+    runId: string,
+    dto: ApplyRepositorySuggestionsDto,
+  ) {
+    await this.assertMutable(teamId, projectId);
+    const result = await this.suggestions.apply(
+      teamId,
+      actorId,
+      projectId,
+      runId,
+      dto,
+    );
+    await this.transition(teamId, projectId, "review");
+    return result;
+  }
+
+  finalize(
+    teamId: string,
+    actorId: string,
+    projectId: string,
+    dto: FinalizeProjectIntakeDto,
+  ) {
+    return this.finalization.finalize(teamId, actorId, projectId, dto);
+  }
+
+  private async findProject(teamId: string, projectId: string) {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, teamId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        onboardingStatus: true,
+        onboardingRevision: true,
+        onboardingFinalizedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    if (!project)
+      throw new NotFoundException(
+        intakeError(
+          "PROJECT_NOT_FOUND",
+          "项目不存在",
+          "请返回项目接入列表并重新选择。",
+        ),
+      );
+    return project;
+  }
+
+  private async assertMutable(
+    teamId: string,
+    projectId: string,
+  ): Promise<void> {
+    const project = await this.findProject(teamId, projectId);
+    if (project.onboardingStatus === "ready")
+      throw new ConflictException(
+        intakeError(
+          "PROJECT_INTAKE_ALREADY_FINALIZED",
+          "项目接入已经完成",
+          "请进入项目设置管理仓库和环境。",
+        ),
+      );
+  }
+
+  private async transition(
+    teamId: string,
+    projectId: string,
+    status: ProjectIntakeStatus,
+  ): Promise<void> {
+    await this.prisma.project.updateMany({
+      where: { id: projectId, teamId, onboardingStatus: { not: "ready" } },
+      data: { onboardingStatus: status, onboardingRevision: { increment: 1 } },
+    });
+  }
+}

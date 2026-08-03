@@ -45,5 +45,10 @@ import { RepositorySuggestionBuilderService } from './repository-suggestion-buil
     RepositorySuggestionApplyService,
     RepositorySuggestionBuilderService,
   ],
+  exports: [
+    RepositoryAnalysisRunService,
+    RepositoryConnectionService,
+    RepositorySuggestionApplyService,
+  ],
 })
 export class RepositoryAnalysisModule {}
