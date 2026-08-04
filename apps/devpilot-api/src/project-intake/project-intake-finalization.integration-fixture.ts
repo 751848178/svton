@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProjectGovernanceBaselineService } from "../project/project-governance-baseline.service";
 import { ProjectGovernanceFinalizationService } from "../project/project-governance-finalization.service";
@@ -17,6 +17,8 @@ import { ProjectIntakeFinalizationService } from "./project-intake-finalization.
 export interface ProjectIntakeIntegrationProject {
   projectId: string;
   runId: string;
+  reviewSnapshotId: string;
+  reviewSnapshotHash: string;
   repositoryUrl: string;
 }
 
@@ -87,6 +89,10 @@ export class ProjectIntakeFinalizationIntegrationFixture {
     const projectId = `project-${label}-${this.suffix}`;
     const connectionId = `connection-${label}-${this.suffix}`;
     const runId = `run-${label}-${this.suffix}`;
+    const reviewSnapshotId = `review-${label}-${this.suffix}`;
+    const reviewSnapshotHash = createHash("sha256")
+      .update(`${runId}:review`)
+      .digest("hex");
     await this.prisma.project.create({
       data: {
         id: projectId,
@@ -131,7 +137,23 @@ export class ProjectIntakeFinalizationIntegrationFixture {
       where: { id: connectionId },
       data: { lastAppliedRunId: runId, appliedAt: new Date() },
     });
-    return { projectId, runId, repositoryUrl };
+    await this.prisma.repositoryIntakeReviewSnapshot.create({
+      data: {
+        id: reviewSnapshotId,
+        teamId: this.teamId,
+        projectId,
+        runId,
+        actorId: this.actorId,
+        inputHash: createHash("sha256").update(`${runId}:input`).digest("hex"),
+        snapshotHash: reviewSnapshotHash,
+        branch: "main",
+        commitSha: "a".repeat(40),
+        parserVersion: "integration",
+        decisions: [],
+        references: [],
+      },
+    });
+    return { projectId, runId, reviewSnapshotId, reviewSnapshotHash, repositoryUrl };
   }
 
   seedEnvironment(projectId: string, key: string, name: string) {

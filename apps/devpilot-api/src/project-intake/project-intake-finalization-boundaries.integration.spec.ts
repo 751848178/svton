@@ -20,7 +20,12 @@ describeProjectIntakeIntegration(
         fixture.teamId,
         fixture.actorId,
         first.projectId,
-        { analysisRunId: first.runId, idempotencyKey: "duplicate-a" },
+        {
+          analysisRunId: first.runId,
+          reviewSnapshotId: first.reviewSnapshotId,
+          reviewSnapshotHash: first.reviewSnapshotHash,
+          idempotencyKey: "duplicate-a",
+        },
       );
       const second = await fixture.seedProject("duplicate-b", repositoryUrl);
       await fixture.seedEnvironment(
@@ -34,7 +39,12 @@ describeProjectIntakeIntegration(
           fixture.teamId,
           fixture.actorId,
           second.projectId,
-          { analysisRunId: second.runId, idempotencyKey: "duplicate-b" },
+          {
+            analysisRunId: second.runId,
+            reviewSnapshotId: second.reviewSnapshotId,
+            reviewSnapshotHash: second.reviewSnapshotHash,
+            idempotencyKey: "duplicate-b",
+          },
         ),
       ).rejects.toMatchObject({
         response: { code: "PROJECT_REPOSITORY_DUPLICATE" },
@@ -57,7 +67,12 @@ describeProjectIntakeIntegration(
         fixture.teamId,
         fixture.actorId,
         project.projectId,
-        { analysisRunId: project.runId, idempotencyKey: "legacy-finalize" },
+        {
+          analysisRunId: project.runId,
+          reviewSnapshotId: project.reviewSnapshotId,
+          reviewSnapshotHash: project.reviewSnapshotHash,
+          idempotencyKey: "legacy-finalize",
+        },
       );
 
       const environments = await fixture.prisma.projectEnvironment.findMany({
@@ -87,6 +102,8 @@ describeProjectIntakeIntegration(
           project.projectId,
           {
             analysisRunId: project.runId,
+            reviewSnapshotId: project.reviewSnapshotId,
+            reviewSnapshotHash: project.reviewSnapshotHash,
             idempotencyKey: "wrong-team-finalize",
           },
         ),
@@ -96,6 +113,29 @@ describeProjectIntakeIntegration(
           where: { projectId: project.projectId },
         }),
       ).resolves.toBe(0);
+    });
+
+    it("rejects a mismatched immutable review snapshot hash", async () => {
+      const project = await fixture.seedProject(
+        "review-mismatch",
+        `https://git.example/${fixture.suffix}/review-mismatch.git`,
+      );
+      await expect(fixture.service.finalize(
+        fixture.teamId,
+        fixture.actorId,
+        project.projectId,
+        {
+          analysisRunId: project.runId,
+          reviewSnapshotId: project.reviewSnapshotId,
+          reviewSnapshotHash: "b".repeat(64),
+          idempotencyKey: "review-mismatch",
+        },
+      )).rejects.toMatchObject({
+        response: { code: "PROJECT_INTAKE_ANALYSIS_NOT_APPLIED" },
+      });
+      await expect(fixture.prisma.projectRepositoryIdentity.count({
+        where: { projectId: project.projectId },
+      })).resolves.toBe(0);
     });
 
     it("allows only one winner for concurrent finalization keys", async () => {
@@ -115,7 +155,12 @@ describeProjectIntakeIntegration(
             fixture.teamId,
             fixture.actorId,
             project.projectId,
-            { analysisRunId: project.runId, idempotencyKey },
+            {
+              analysisRunId: project.runId,
+              reviewSnapshotId: project.reviewSnapshotId,
+              reviewSnapshotHash: project.reviewSnapshotHash,
+              idempotencyKey,
+            },
           ),
         ),
       );

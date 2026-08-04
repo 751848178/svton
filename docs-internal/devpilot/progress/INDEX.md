@@ -34,6 +34,17 @@
   `../../todos/2026-08-03-devpilot-project-delivery-v13.md` only for the
   historical F386-F412 implementation/evidence scope.
 
+- F415 closed on 2026-08-04: repository intake now exposes a typed three-step
+  contract pinned to an exact branch/commit, structured overview and component
+  fields, explicit accept/edit/reject decisions, dependency recovery, and one
+  append-only review snapshot that finalization binds by ID and SHA-256. Real
+  Git, MySQL, Browser, bilingual UI, replay/concurrency, build and zero-plaintext-
+  secret evidence is stored under
+  `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f415/`.
+  F461 durable multi-replica analysis execution and F462 Git egress/SSRF policy
+  are registered for post-parity hardening and were not implemented in F415.
+  **Next: F416 canonical repository identity drift enforcement.**
+
 - F383 + F384 were integrated onto local `master@68aabfa7` on 2026-07-29.
   The authoritative merge-readiness source is
   `../f383-f384-integration-report.md`; it records full-history ancestry,

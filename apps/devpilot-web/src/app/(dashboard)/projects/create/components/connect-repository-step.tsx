@@ -76,6 +76,30 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
     <div className="space-y-4 rounded-lg border p-4">
       <p className="text-sm text-muted-foreground">{t('intakePrivateCredentialHint')}</p>
       <div className="grid gap-4 sm:grid-cols-2">
+        <Field label={t('intakeCredentialMode')}>
+          <Select
+            value={form.credentialMode}
+            onChange={(event) => updateForm({ credentialMode: event.target.value as 'managed' | 'inline' })}
+            options={[
+              { label: t('intakeCredentialManaged'), value: 'managed' },
+              { label: t('intakeCredentialInline'), value: 'inline' },
+            ]}
+          />
+        </Field>
+        {form.credentialMode === 'managed' ? (
+          <Field label={t('intakeCredentialReference')}>
+            <Select
+              required
+              value={form.teamCredentialId}
+              onChange={(event) => updateForm({ teamCredentialId: event.target.value })}
+              options={[
+                { label: t('intakeCredentialSelect'), value: '' },
+                ...intake.credentialOptions.map((option) => ({ label: option.label, value: option.id })),
+              ]}
+            />
+          </Field>
+        ) : null}
+        {form.credentialMode === 'inline' ? <>
         <Field label={t('intakeCredentialType')}>
           <Select
             value={form.credentialType}
@@ -109,6 +133,7 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
             onChange={(event) => updateForm({ credentialSecret: event.target.value })}
           />
         </Field>
+        </> : null}
       </div>
     </div>
   );

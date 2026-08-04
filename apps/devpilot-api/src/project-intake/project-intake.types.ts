@@ -11,6 +11,8 @@ export interface FinalizeProjectIntakeInput {
   teamId: string;
   projectId: string;
   analysisRunId: string;
+  reviewSnapshotId: string;
+  reviewSnapshotHash: string;
   actorId: string;
   idempotencyKey: string;
   inputHash: string;
@@ -22,6 +24,8 @@ export type FinalizedBaselineEnvironment = GovernedBaselineEnvironment;
 export interface ProjectIntakeFinalizationResult {
   projectId: string;
   repositoryIdentityId: string;
+  reviewSnapshotId: string;
+  reviewSnapshotHash: string;
   onboardingRevision: number;
   finalizedAt: string;
   environments: FinalizedBaselineEnvironment[];

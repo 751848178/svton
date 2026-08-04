@@ -4,6 +4,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { repositoryError } from './repository-analysis-validation.utils';
 import { secureRepositoryCommands } from './repository-command-security.utils';
 import {
+  detectIntakeComponent,
+  detectIntakeOverview,
+} from './repository-intake-detection.utils';
+import {
   DetectedService,
   RepositoryAnalysisResult,
   RepositorySuggestionDraft,
@@ -61,6 +65,7 @@ export class RepositorySuggestionBuilderService {
           verified: true,
           analysisRunId: run.id,
         },
+        intakeContract: { version: 1, overview: detectIntakeOverview(result) },
       },
       evidence: [{
         file: '.git',
@@ -160,6 +165,7 @@ function serviceDraft(
         environment: detected.environment,
         healthChecks: detected.healthChecks,
         artifacts: detected.artifacts,
+        intakeContract: detectIntakeComponent(detected),
       },
     },
   };

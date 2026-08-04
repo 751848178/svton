@@ -15,7 +15,10 @@ export default function CreateProjectPage() {
   const tc = useTranslations('common');
   const router = useRouter();
   const intake = useProjectIntake();
-  const analysisReady = intake.run?.status === 'succeeded';
+  const credentialReady = intake.form.visibility === 'public'
+    || (intake.form.credentialMode === 'managed' && Boolean(intake.form.teamCredentialId))
+    || (intake.form.credentialMode === 'inline'
+      && Boolean(intake.form.credentialName.trim() && intake.form.credentialSecret));
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -81,8 +84,8 @@ export default function CreateProjectPage() {
               loading={intake.mutating}
               disabled={
                 intake.mutating ||
-                (intake.step === 1 && !intake.form.repositoryUrl.trim()) ||
-                (intake.step === 2 && !analysisReady)
+                (intake.step === 1 && (!intake.form.repositoryUrl.trim() || !credentialReady)) ||
+                (intake.step === 2 && !intake.reviewReady)
               }
             >
               {intake.step === 1

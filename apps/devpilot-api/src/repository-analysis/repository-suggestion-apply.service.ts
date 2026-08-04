@@ -20,6 +20,7 @@ export class RepositorySuggestionApplyService {
     projectId: string,
     runId: string,
     dto: ApplyRepositorySuggestionsDto,
+    snapshot?: { version: number; inputHash: string },
   ) {
     const run = await this.repository.load(teamId, projectId, runId);
     if (!run) throw new NotFoundException(repositoryError(
@@ -78,6 +79,7 @@ export class RepositorySuggestionApplyService {
       commitSha: run.commitSha,
       markConnectionApplied: required.every((item) => item.status !== 'rejected'),
       decisions,
+      snapshot,
     });
   }
 }

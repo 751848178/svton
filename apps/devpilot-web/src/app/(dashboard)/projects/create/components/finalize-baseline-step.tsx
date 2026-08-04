@@ -37,15 +37,50 @@ export function FinalizeBaselineStep({ intake }: { intake: ProjectIntakeHook }) 
         />
         <Summary
           label={t('intakeCommit')}
-          value={intake.connection?.commitSha?.slice(0, 12) ?? '—'}
+          value={intake.connection?.commitSha ?? '—'}
         />
+        <Summary label={t('intakeReviewSnapshot')} value={intake.contract?.snapshot?.hash ?? '—'} />
       </dl>
+      {intake.contract?.overview ? (
+        <dl className="grid gap-3 rounded-lg border p-4 text-sm sm:grid-cols-4">
+          {Object.entries(intake.contract.overview.value).map(([key, value]) => (
+            <Summary
+              key={key}
+              label={t(`intakeField${capitalize(key)}`)}
+              value={t(`intakeValue${pascal(value)}`)}
+            />
+          ))}
+        </dl>
+      ) : null}
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full min-w-[680px] text-left text-sm">
+          <thead className="bg-muted/40"><tr>
+            <th className="p-3">{t('intakeComponentName')}</th>
+            <th className="p-3">{t('intakeComponentPath')}</th>
+            <th className="p-3">{t('intakeComponentType')}</th>
+            <th className="p-3">{t('intakeComponentBuildOutput')}</th>
+            <th className="p-3">{t('intakeComponentRunMethod')}</th>
+          </tr></thead>
+          <tbody>{intake.contract?.components
+            .filter((item) => item.decision !== 'reject')
+            .map((item) => <tr key={item.suggestionId} className="border-t">
+              <td className="p-3 font-medium">{item.value.name}</td>
+              <td className="p-3 font-mono">{item.value.path}</td>
+              <td className="p-3">{t(`intakeValue${pascal(item.value.type)}`)}</td>
+              <td className="p-3">{t(`intakeValue${pascal(item.value.buildOutput)}`)}</td>
+              <td className="p-3">{t(`intakeValue${pascal(item.value.runMethod)}`)}</td>
+            </tr>)}</tbody>
+        </table>
+      </div>
       <div className="rounded-md border border-sky-500/30 bg-sky-500/5 p-4 text-sm">
         {t('intakeDeferredConfiguration')}
       </div>
     </div>
   );
 }
+
+function capitalize(value: string) { return `${value.charAt(0).toUpperCase()}${value.slice(1)}`; }
+function pascal(value: string) { return value.split('_').map(capitalize).join(''); }
 
 function BaselineCard(props: { name: string; tag: string; description: string }) {
   return (

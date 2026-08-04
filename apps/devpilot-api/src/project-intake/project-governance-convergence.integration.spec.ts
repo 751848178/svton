@@ -77,6 +77,8 @@ describeProjectIntakeIntegration("Project governance convergence", () => {
       importedDraft.projectId,
       {
         analysisRunId: importedDraft.runId,
+        reviewSnapshotId: importedDraft.reviewSnapshotId,
+        reviewSnapshotHash: importedDraft.reviewSnapshotHash,
         idempotencyKey: "converge-imported",
       },
     );

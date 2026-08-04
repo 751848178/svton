@@ -9,15 +9,13 @@ import {
 } from "@nestjs/common";
 import { AuthzGuard, Roles } from "@svton/nestjs-authz";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import {
-  ApplyRepositorySuggestionsDto,
-  StartRepositoryAnalysisDto,
-} from "../repository-analysis/dto/repository-analysis.dto";
+import { StartRepositoryAnalysisDto } from "../repository-analysis/dto/repository-analysis.dto";
 import { ConnectRepositoryDto } from "../repository-analysis/dto/repository-connection.dto";
 import {
   CreateProjectIntakeDraftDto,
   FinalizeProjectIntakeDto,
 } from "./dto/project-intake.dto";
+import { ReviewRepositoryIntakeContractDto } from "./dto/repository-intake-review.dto";
 import { ProjectIntakeAccessService } from "./project-intake-access.service";
 import { ProjectIntakeService } from "./project-intake.service";
 
@@ -34,6 +32,12 @@ export class ProjectIntakeController {
     private readonly intake: ProjectIntakeService,
     private readonly access: ProjectIntakeAccessService,
   ) {}
+
+  @Get("credential-options")
+  async credentialOptions(@Request() req: AuthRequest) {
+    await this.access.assertCreate(this.scope(req));
+    return this.intake.credentialOptions(req.teamId, req.user.id);
+  }
 
   @Post("drafts")
   async createDraft(
@@ -97,13 +101,23 @@ export class ProjectIntakeController {
     @Request() req: AuthRequest,
     @Param("projectId") projectId: string,
     @Param("runId") runId: string,
-    @Body() dto: ApplyRepositorySuggestionsDto,
+    @Body() dto: ReviewRepositoryIntakeContractDto,
   ) {
     await this.access.assertWrite(
       this.projectScope(req, projectId),
       "project.intake.analysis.review",
     );
     return this.intake.review(req.teamId, req.user.id, projectId, runId, dto);
+  }
+
+  @Get(":projectId/analysis-runs/:runId/contract")
+  async contract(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("runId") runId: string,
+  ) {
+    await this.access.assertRead(this.projectScope(req, projectId));
+    return this.intake.contract(req.teamId, projectId, runId);
   }
 
   @Post(":projectId/finalize")

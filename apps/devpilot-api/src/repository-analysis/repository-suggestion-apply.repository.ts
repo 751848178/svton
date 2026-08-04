@@ -9,12 +9,14 @@ import {
 import { RepositoryPlatformApplyRepository } from './repository-platform-apply.repository';
 import { json } from './repository-platform-apply.utils';
 import { repositorySafeJson } from './repository-analysis-storage.utils';
+import { RepositoryIntakeSnapshotWriter } from './repository-intake-snapshot.writer';
 
 @Injectable()
 export class RepositorySuggestionApplyRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly platform: RepositoryPlatformApplyRepository,
+    private readonly snapshots: RepositoryIntakeSnapshotWriter,
   ) {}
 
   load(teamId: string, projectId: string, runId: string) {
@@ -48,6 +50,9 @@ export class RepositorySuggestionApplyRepository {
           data: { lastAppliedRunId: run.id, appliedAt: now },
         });
       }
+      const snapshot = input.snapshot
+        ? await this.snapshots.create(tx, run, input, references, now)
+        : null;
       await tx.auditEvent.create({
         data: {
           teamId: input.teamId,
@@ -65,6 +70,9 @@ export class RepositorySuggestionApplyRepository {
             commitSha: run.commitSha,
             complete: input.markConnectionApplied,
             appliedSuggestionIds: references.map((item) => item.suggestionId),
+            snapshotId: snapshot?.id,
+            snapshotHash: snapshot?.snapshotHash,
+            contractVersion: snapshot?.version,
           }),
         },
       });
@@ -72,6 +80,7 @@ export class RepositorySuggestionApplyRepository {
         complete: input.markConnectionApplied,
         references,
         appliedAt: now,
+        snapshot,
       };
     });
   }

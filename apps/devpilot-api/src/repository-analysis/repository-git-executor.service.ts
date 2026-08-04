@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { realpathSync } from 'fs';
 import { mkdtemp, realpath, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { delimiter, relative, resolve } from 'path';
@@ -27,7 +28,7 @@ export class RepositoryGitExecutorService {
       .split(delimiter)
       .map((item) => item.trim())
       .filter(Boolean)
-      .map((item) => resolve(item));
+      .map(canonicalAllowedRoot);
   }
 
   async assertRepositorySourceAllowed(repositoryUrl: string): Promise<void> {
@@ -151,6 +152,15 @@ export class RepositoryGitExecutorService {
   private async cleanupWorkspace(root: string): Promise<void> {
     if (!root.startsWith(`${tmpdir()}/devpilot-repository-analysis-`)) return;
     await rm(root, { recursive: true, force: true });
+  }
+}
+
+function canonicalAllowedRoot(value: string): string {
+  const resolved = resolve(value);
+  try {
+    return realpathSync(resolved);
+  } catch {
+    return resolved;
   }
 }
 

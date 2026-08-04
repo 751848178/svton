@@ -55,13 +55,15 @@ F414 evidence: `f414/svton/f414-mysql-clean-integration-20260804-115818.log` rec
 
 ## Repository Intake And Identity
 
-- [ ] **AC-INTAKE-001** 接入已有项目固定为连接仓库、确认识别、创建基线三步。
-- [ ] **AC-INTAKE-002** 第一步验证真实只读仓库、主分支和精确 Commit。
-- [ ] **AC-INTAKE-003** 私有仓库只保存受管凭据引用，不在页面/API/日志回显秘密。
-- [ ] **AC-INTAKE-004** 第二步结构化展示项目类型、架构、包管理器和部署方案。
-- [ ] **AC-INTAKE-005** 第二步结构化展示组件、路径、类型、构建输出和运行方式。
-- [ ] **AC-INTAKE-006** 用户可调整允许覆盖的识别字段，且应用后形成可追溯快照。
-- [ ] **AC-INTAKE-007** 分析失败、超时、重试、拒绝建议和必选依赖均有明确恢复动作。
+- [x] **AC-INTAKE-001** 接入已有项目固定为连接仓库、确认识别、创建基线三步。
+- [x] **AC-INTAKE-002** 第一步验证真实只读仓库、主分支和精确 Commit。
+- [x] **AC-INTAKE-003** 私有仓库只保存受管凭据引用，不在页面/API/日志回显秘密。
+- [x] **AC-INTAKE-004** 第二步结构化展示项目类型、架构、包管理器和部署方案。
+- [x] **AC-INTAKE-005** 第二步结构化展示组件、路径、类型、构建输出和运行方式。
+- [x] **AC-INTAKE-006** 用户可调整允许覆盖的识别字段，且应用后形成可追溯快照。
+- [x] **AC-INTAKE-007** 分析失败、超时、重试、拒绝建议和必选依赖均有明确恢复动作。
+
+F415 evidence: real Git `main@196d1de753ea34c822d11b1a8ed0a0937bce97dc` remained at tree `76970f2180aa60c131dfce9f979441509786f48c` with a clean status after connect/analyze/retry/review/finalize. Real MySQL persisted immutable snapshot `cmseajium0017pkx6q2l1vvux` / `acbfeada48e1df4fe661b53038c09ffcd63d93c9e968387f4fcbb29dcd8586ac`, and finalization bound that exact ID/hash. Browser screenshots `01`–`09` cover private credential intake, real failure/retry, structured overview/components, dependency blocker/recovery, frozen Step 3, post-finalization project, refresh/back read-only review, and English copy. Final API/Web unit, type-check, build, Prisma, real-MySQL, real-Git, repository immutability, and secret scans are recorded under `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f415/`.
 
 - [ ] **AC-IDENTITY-001** finalize 后 canonical repository identity 只读可见。
 - [ ] **AC-IDENTITY-002** 修改仓库地址或 provider 不得使 connection 与 canonical identity 漂移。

@@ -1,10 +1,11 @@
 import { PrismaService } from "../prisma/prisma.service";
 import { RepositoryAnalysisRunService } from "../repository-analysis/repository-analysis-run.service";
 import { RepositoryConnectionService } from "../repository-analysis/repository-connection.service";
-import { RepositorySuggestionApplyService } from "../repository-analysis/repository-suggestion-apply.service";
 import { ProjectIntakeFinalizationService } from "./project-intake-finalization.service";
 import { ProjectIntakeService } from "./project-intake.service";
 import { ProjectRepositoryDuplicateGuardService } from "./project-repository-duplicate-guard.service";
+import { RepositoryIntakeContractService } from "./repository-intake-contract.service";
+import { RepositoryIntakeReviewService } from "./repository-intake-review.service";
 
 function createService() {
   const prisma = {
@@ -32,9 +33,10 @@ function createService() {
     start: jest.fn().mockResolvedValue({ id: "run-1" }),
     retry: jest.fn().mockResolvedValue({ id: "run-2" }),
   } as unknown as RepositoryAnalysisRunService;
-  const suggestions = {
-    apply: jest.fn().mockResolvedValue({ complete: true }),
-  } as unknown as RepositorySuggestionApplyService;
+  const contracts = { read: jest.fn() } as unknown as RepositoryIntakeContractService;
+  const reviews = {
+    review: jest.fn().mockResolvedValue({ snapshot: { id: "snapshot-1" } }),
+  } as unknown as RepositoryIntakeReviewService;
   const finalization = {
     finalize: jest.fn().mockResolvedValue({ projectId: "project-1" }),
   } as unknown as ProjectIntakeFinalizationService;
@@ -43,13 +45,14 @@ function createService() {
     duplicateGuard,
     connections,
     runs,
-    suggestions,
+    reviews,
     service: new ProjectIntakeService(
       prisma,
       duplicateGuard,
       connections,
       runs,
-      suggestions,
+      contracts,
+      reviews,
       finalization,
     ),
   };
@@ -105,18 +108,18 @@ describe("ProjectIntakeService", () => {
   });
 
   it("advances to review only after the real suggestion apply service returns", async () => {
-    const { prisma, suggestions, service } = createService();
+    const { prisma, reviews, service } = createService();
 
     await service.review("team-1", "user-1", "project-1", "run-1", {
-      decisions: [],
+      items: [],
     });
 
-    expect(suggestions.apply).toHaveBeenCalledWith(
+    expect(reviews.review).toHaveBeenCalledWith(
       "team-1",
       "user-1",
       "project-1",
       "run-1",
-      { decisions: [] },
+      { items: [] },
     );
     expect(prisma.project.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({

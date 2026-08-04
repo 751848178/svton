@@ -16,6 +16,7 @@ import { RepositoryCredentialService } from './repository-credential.service';
 import { RepositoryGitCommandService } from './repository-git-command.service';
 import { RepositoryGitExecutorService } from './repository-git-executor.service';
 import { RepositoryInventoryService } from './repository-inventory.service';
+import { RepositoryIntakeSnapshotWriter } from './repository-intake-snapshot.writer';
 import { RepositoryParserService } from './repository-parser.service';
 import { RepositoryPlatformApplyRepository } from './repository-platform-apply.repository';
 import { RepositorySuggestionApplyRepository } from './repository-suggestion-apply.repository';
@@ -39,6 +40,7 @@ import { RepositorySuggestionBuilderService } from './repository-suggestion-buil
     RepositoryGitCommandService,
     RepositoryGitExecutorService,
     RepositoryInventoryService,
+    RepositoryIntakeSnapshotWriter,
     RepositoryParserService,
     RepositoryPlatformApplyRepository,
     RepositorySuggestionApplyRepository,

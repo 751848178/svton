@@ -27,7 +27,12 @@ export class ProjectIntakeFinalizationService {
     dto: FinalizeProjectIntakeDto,
   ): Promise<ProjectIntakeFinalizationResult> {
     const inputHash = createHash("sha256")
-      .update(JSON.stringify({ projectId, analysisRunId: dto.analysisRunId }))
+      .update(JSON.stringify({
+        projectId,
+        analysisRunId: dto.analysisRunId,
+        reviewSnapshotId: dto.reviewSnapshotId!,
+        reviewSnapshotHash: dto.reviewSnapshotHash!,
+      }))
       .digest("hex");
     const record = await this.records.prepare({
       teamId,
@@ -45,6 +50,8 @@ export class ProjectIntakeFinalizationService {
         teamId,
         projectId,
         analysisRunId: dto.analysisRunId,
+        reviewSnapshotId: dto.reviewSnapshotId!,
+        reviewSnapshotHash: dto.reviewSnapshotHash!,
         actorId,
         idempotencyKey: dto.idempotencyKey,
         inputHash,

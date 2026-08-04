@@ -4,18 +4,17 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import type {
-  ApplyRepositorySuggestionsDto,
-  StartRepositoryAnalysisDto,
-} from "../repository-analysis/dto/repository-analysis.dto";
+import type { StartRepositoryAnalysisDto } from "../repository-analysis/dto/repository-analysis.dto";
 import type { ConnectRepositoryDto } from "../repository-analysis/dto/repository-connection.dto";
 import { RepositoryAnalysisRunService } from "../repository-analysis/repository-analysis-run.service";
 import { RepositoryConnectionService } from "../repository-analysis/repository-connection.service";
-import { RepositorySuggestionApplyService } from "../repository-analysis/repository-suggestion-apply.service";
 import type {
   CreateProjectIntakeDraftDto,
   FinalizeProjectIntakeDto,
 } from "./dto/project-intake.dto";
+import type { ReviewRepositoryIntakeContractDto } from "./dto/repository-intake-review.dto";
+import { RepositoryIntakeContractService } from "./repository-intake-contract.service";
+import { RepositoryIntakeReviewService } from "./repository-intake-review.service";
 import { ProjectIntakeFinalizationService } from "./project-intake-finalization.service";
 import { intakeError } from "./project-intake-errors.utils";
 import type { ProjectIntakeStatus } from "./project-intake.types";
@@ -28,7 +27,8 @@ export class ProjectIntakeService {
     private readonly duplicateGuard: ProjectRepositoryDuplicateGuardService,
     private readonly connections: RepositoryConnectionService,
     private readonly runs: RepositoryAnalysisRunService,
-    private readonly suggestions: RepositorySuggestionApplyService,
+    private readonly contracts: RepositoryIntakeContractService,
+    private readonly reviews: RepositoryIntakeReviewService,
     private readonly finalization: ProjectIntakeFinalizationService,
   ) {}
 
@@ -51,6 +51,10 @@ export class ProjectIntakeService {
         onboardingRevision: 1,
       },
     });
+  }
+
+  credentialOptions(teamId: string, actorId: string) {
+    return this.connections.listCredentialOptions(teamId, actorId);
   }
 
   async state(teamId: string, actorId: string, projectId: string) {
@@ -113,10 +117,10 @@ export class ProjectIntakeService {
     actorId: string,
     projectId: string,
     runId: string,
-    dto: ApplyRepositorySuggestionsDto,
+    dto: ReviewRepositoryIntakeContractDto,
   ) {
     await this.assertMutable(teamId, projectId);
-    const result = await this.suggestions.apply(
+    const result = await this.reviews.review(
       teamId,
       actorId,
       projectId,
@@ -125,6 +129,10 @@ export class ProjectIntakeService {
     );
     await this.transition(teamId, projectId, "review");
     return result;
+  }
+
+  contract(teamId: string, projectId: string, runId: string) {
+    return this.contracts.read(teamId, projectId, runId);
   }
 
   finalize(

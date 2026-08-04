@@ -72,6 +72,7 @@ model User {
   repositoryConnections RepositoryConnection[] @relation("RepositoryConnectionActor")
   repositoryAnalysisRuns RepositoryAnalysisRun[] @relation("RepositoryAnalysisRunActor")
   reviewedRepositorySuggestions RepositoryAnalysisSuggestion[] @relation("RepositorySuggestionReviewer")
+  repositoryIntakeReviewSnapshots RepositoryIntakeReviewSnapshot[] @relation("RepositoryIntakeReviewActor")
   projectIntakeFinalizations ProjectIntakeFinalization[] @relation("ProjectIntakeFinalizationActor")
   environmentConfigRevisions EnvironmentConfigRevision[] @relation("EnvironmentConfigRevisionActor")
   createdReleaseOrders ReleaseOrder[] @relation("ReleaseOrderCreator")
@@ -145,6 +146,7 @@ model Team {
   releaseEvents ReleaseEvent[]
   repositoryConnections RepositoryConnection[]
   repositoryAnalysisRuns RepositoryAnalysisRun[]
+  repositoryIntakeReviewSnapshots RepositoryIntakeReviewSnapshot[]
   projectRepositoryIdentities ProjectRepositoryIdentity[]
   projectIntakeFinalizations ProjectIntakeFinalization[]
   environmentConfigRevisions EnvironmentConfigRevision[]
@@ -699,6 +701,7 @@ model Project {
   releasePlans ReleasePlan[]
   repositoryConnection RepositoryConnection?
   repositoryAnalysisRuns RepositoryAnalysisRun[]
+  repositoryIntakeReviewSnapshots RepositoryIntakeReviewSnapshot[]
   repositoryIdentity ProjectRepositoryIdentity?
   intakeFinalizations ProjectIntakeFinalization[]
   environmentConfigRevisions EnvironmentConfigRevision[]
@@ -842,6 +845,7 @@ model RepositoryAnalysisRun {
   triggeredBy      User?    @relation("RepositoryAnalysisRunActor", fields: [triggeredById], references: [id], onDelete: SetNull)
   retryOf          RepositoryAnalysisRun? @relation("RepositoryAnalysisRetry", fields: [retryOfId], references: [id], onDelete: SetNull)
   retries          RepositoryAnalysisRun[] @relation("RepositoryAnalysisRetry")
+  intakeReviewSnapshot RepositoryIntakeReviewSnapshot?
   stages           RepositoryAnalysisStage[]
   suggestions      RepositoryAnalysisSuggestion[]
   intakeFinalizations ProjectIntakeFinalization[]
@@ -964,6 +968,32 @@ model RepositoryAnalysisSuggestion {
   @@index([runId, status])
   @@index([reviewedById])
   @@index([kind])
+}
+
+// 接入确认的追加式快照；同一解析运行只能形成一个不可变确认结果
+model RepositoryIntakeReviewSnapshot {
+  id             String   @id @default(cuid())
+  teamId         String
+  projectId      String
+  runId          String   @unique
+  actorId        String?
+  version        Int      @default(1)
+  inputHash      String   @db.VarChar(64)
+  snapshotHash   String   @unique @db.VarChar(64)
+  branch         String
+  commitSha      String   @db.VarChar(64)
+  parserVersion  String
+  decisions      Json
+  references     Json
+  createdAt      DateTime @default(now())
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  run            RepositoryAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  actor          User?    @relation("RepositoryIntakeReviewActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, projectId, createdAt])
+  @@index([actorId])
 }
 
 // 项目环境

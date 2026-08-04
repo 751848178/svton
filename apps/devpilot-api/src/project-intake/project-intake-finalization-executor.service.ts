@@ -68,9 +68,19 @@ export class ProjectIntakeFinalizationExecutorService {
         status: "succeeded",
       },
     });
+    const reviewSnapshot = await tx.repositoryIntakeReviewSnapshot.findFirst({
+      where: {
+        id: input.reviewSnapshotId,
+        snapshotHash: input.reviewSnapshotHash,
+        runId: input.analysisRunId,
+        teamId: input.teamId,
+        projectId: input.projectId,
+      },
+    });
     if (
       !run ||
       !connection ||
+      !reviewSnapshot ||
       connection.id !== run.connectionId ||
       connection.lastAppliedRunId !== run.id ||
       !connection.appliedAt
@@ -130,12 +140,18 @@ export class ProjectIntakeFinalizationExecutorService {
       expectedRevision: project.onboardingRevision,
       auditAction: "project.intake.finalize",
       auditSummary: "项目接入已完成，Staging/Production 基线已锁定",
-      auditMetadata: { repositoryIdentityId: identity.id },
+      auditMetadata: {
+        repositoryIdentityId: identity.id,
+        reviewSnapshotId: reviewSnapshot.id,
+        reviewSnapshotHash: reviewSnapshot.snapshotHash,
+      },
     });
 
     const result: ProjectIntakeFinalizationResult = {
       ...governance,
       repositoryIdentityId: identity.id,
+      reviewSnapshotId: reviewSnapshot.id,
+      reviewSnapshotHash: reviewSnapshot.snapshotHash,
     };
     await tx.projectIntakeFinalization.update({
       where: { id: input.finalizationId },

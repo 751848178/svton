@@ -3,27 +3,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiRequest } from '@/lib/api-client';
 import {
-  buildSuggestionDecisions,
   deriveProjectName,
-  isRequiredEnvironmentSuggestion,
 } from '../project-intake.utils';
 import { errorMessage, mutate } from '../project-intake-mutation.utils';
 import {
   INITIAL_INTAKE_FORM,
   type ProjectIntakeConnection,
+  type ProjectIntakeCredentialOption,
   type ProjectIntakeFinalization,
   type ProjectIntakeForm,
   type ProjectIntakeProject,
   type ProjectIntakeRun,
 } from '../types';
+import { useRepositoryIntakeReview } from './use-repository-intake-review';
+import { useProjectIntakeResume } from './use-project-intake-resume';
 
 export function useProjectIntake() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<ProjectIntakeForm>(INITIAL_INTAKE_FORM);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [connection, setConnection] = useState<ProjectIntakeConnection | null>(null);
+  const [credentialOptions, setCredentialOptions] = useState<ProjectIntakeCredentialOption[]>([]);
   const [run, setRun] = useState<ProjectIntakeRun | null>(null);
-  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<Set<string>>(new Set());
   const [mutating, setMutating] = useState(false);
   const [error, setError] = useState('');
   const analysisRequest = useRef<{ signature: string; key: string } | null>(null);
@@ -31,6 +32,12 @@ export function useProjectIntake() {
 
   const updateForm = useCallback((patch: Partial<ProjectIntakeForm>) => {
     setForm((current) => ({ ...current, ...patch }));
+  }, []);
+
+  useEffect(() => {
+    void apiRequest<ProjectIntakeCredentialOption[]>('GET:/project-intake/credential-options')
+      .then(setCredentialOptions)
+      .catch(() => setCredentialOptions([]));
   }, []);
 
   const loadRun = useCallback(async (targetProjectId: string, runId: string) => {
@@ -48,17 +55,6 @@ export function useProjectIntake() {
     }, 2_000);
     return () => window.clearInterval(timer);
   }, [loadRun, projectId, run]);
-
-  useEffect(() => {
-    if (run?.status !== 'succeeded') return;
-    setSelectedSuggestionIds(
-      new Set(
-        (run.suggestions ?? [])
-          .filter((suggestion) => suggestion.status === 'pending')
-          .map((suggestion) => suggestion.id),
-      ),
-    );
-  }, [run?.id, run?.status, run?.suggestions]);
 
   const connectAndAnalyze = useCallback(async () => {
     setMutating(true);
@@ -81,7 +77,9 @@ export function useProjectIntake() {
           repositoryUrl: form.repositoryUrl.trim(),
           branch: form.branch.trim() || undefined,
           visibility: form.visibility,
-          ...(form.visibility === 'private'
+          ...(form.visibility === 'private' && form.credentialMode === 'managed'
+            ? { teamCredentialId: form.teamCredentialId }
+            : form.visibility === 'private'
             ? {
                 credential: {
                   type: form.credentialType,
@@ -94,6 +92,7 @@ export function useProjectIntake() {
         },
       );
       setConnection(nextConnection);
+      updateForm({ credentialSecret: '' });
       const signature = [
         draftId,
         nextConnection.repositoryUrl,
@@ -133,46 +132,33 @@ export function useProjectIntake() {
     );
   }, [projectId, run]);
 
-  const confirmAnalysis = useCallback(async () => {
-    if (!projectId || !run || run.status !== 'succeeded') return;
-    await mutate(
-      async () => {
-        await apiRequest(`POST:/project-intake/${projectId}/analysis-runs/${run.id}/review`, {
-          decisions: buildSuggestionDecisions(run, selectedSuggestionIds),
-        });
-        setStep(3);
-      },
-      setMutating,
-      setError,
-    );
-  }, [projectId, run, selectedSuggestionIds]);
+  const review = useRepositoryIntakeReview({
+    projectId,
+    run,
+    setStep,
+    setMutating,
+    setError,
+  });
+  useProjectIntakeResume({
+    projectId, run, setProjectId, setConnection, setRun, setForm, setStep, setError,
+  });
 
   const finalize = useCallback(async () => {
-    if (!projectId || !run || run.status !== 'succeeded') return null;
+    const snapshot = review.contract?.snapshot;
+    if (!projectId || !run || run.status !== 'succeeded' || !snapshot) return null;
     finalizationKey.current ??= window.crypto.randomUUID();
     return mutate(
       () =>
         apiRequest<ProjectIntakeFinalization>(`POST:/project-intake/${projectId}/finalize`, {
           analysisRunId: run.id,
+          reviewSnapshotId: snapshot.id,
+          reviewSnapshotHash: snapshot.hash,
           idempotencyKey: finalizationKey.current,
         }),
       setMutating,
       setError,
     );
-  }, [projectId, run]);
-
-  const toggleSuggestion = useCallback(
-    (suggestionId: string) => {
-      if (run && isRequiredEnvironmentSuggestion(run, selectedSuggestionIds, suggestionId)) return;
-      setSelectedSuggestionIds((current) => {
-        const next = new Set(current);
-        if (next.has(suggestionId)) next.delete(suggestionId);
-        else next.add(suggestionId);
-        return next;
-      });
-    },
-    [run, selectedSuggestionIds],
-  );
+  }, [projectId, review.contract?.snapshot, run]);
 
   return {
     step,
@@ -181,14 +167,13 @@ export function useProjectIntake() {
     updateForm,
     projectId,
     connection,
+    credentialOptions,
     run,
-    selectedSuggestionIds,
-    toggleSuggestion,
     mutating,
     error,
     connectAndAnalyze,
     retryAnalysis,
-    confirmAnalysis,
+    ...review,
     finalize,
   };
 }

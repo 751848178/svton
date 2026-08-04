@@ -19,6 +19,10 @@ export class RepositoryConnectionService {
     private readonly audit: RepositoryAnalysisAuditService,
   ) {}
 
+  listCredentialOptions(teamId: string, userId: string) {
+    return this.credentials.listOptions(teamId, userId);
+  }
+
   async getState(teamId: string, userId: string, projectId: string) {
     await this.connections.assertProject(teamId, projectId);
     const [connection, credentialOptions] = await Promise.all([

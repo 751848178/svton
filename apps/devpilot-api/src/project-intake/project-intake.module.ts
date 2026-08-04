@@ -9,6 +9,9 @@ import { ProjectIntakeFinalizationExecutorService } from "./project-intake-final
 import { ProjectIntakeFinalizationRecordRepository } from "./project-intake-finalization-record.repository";
 import { ProjectIntakeFinalizationService } from "./project-intake-finalization.service";
 import { ProjectIntakeService } from "./project-intake.service";
+import { RepositoryIntakeContractRepository } from "./repository-intake-contract.repository";
+import { RepositoryIntakeContractService } from "./repository-intake-contract.service";
+import { RepositoryIntakeReviewService } from "./repository-intake-review.service";
 import { ProjectRepositoryDuplicateGuardService } from "./project-repository-duplicate-guard.service";
 
 @Module({
@@ -21,6 +24,9 @@ import { ProjectRepositoryDuplicateGuardService } from "./project-repository-dup
   controllers: [ProjectIntakeController],
   providers: [
     ProjectIntakeService,
+    RepositoryIntakeContractRepository,
+    RepositoryIntakeContractService,
+    RepositoryIntakeReviewService,
     ProjectIntakeAccessService,
     ProjectIntakeFinalizationService,
     ProjectIntakeFinalizationExecutorService,
