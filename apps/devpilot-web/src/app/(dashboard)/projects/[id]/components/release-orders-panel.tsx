@@ -5,25 +5,21 @@ import { useTranslations } from 'next-intl';
 import { EmptyState, LoadingState } from '@svton/ui';
 import { Button, ErrorBanner, StatusTag } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
-import { useReleaseOrders } from '../hooks/use-release-orders';
+import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
-import { ReleaseOrderCreateModal } from './release-order-create-modal';
 import { releaseOrderHref } from '../utils/project-route.utils';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
 
 export function ReleaseOrdersPanel({
   projectId,
-  createOpen,
-  onCreateOpenChange,
+  orders,
 }: {
   projectId: string;
-  createOpen: boolean;
-  onCreateOpenChange: (open: boolean) => void;
+  orders: ReleaseOrdersHook;
 }) {
   const t = useTranslations('projects');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const orders = useReleaseOrders(projectId);
   const releaseOrderId = searchParams.get('releaseOrderId')?.trim();
 
   if (releaseOrderId) {
@@ -91,11 +87,6 @@ export function ReleaseOrdersPanel({
           </article>
         ))}
       </div>
-      <ReleaseOrderCreateModal
-        open={createOpen}
-        onClose={() => onCreateOpenChange(false)}
-        orders={orders}
-      />
     </div>
   );
 }

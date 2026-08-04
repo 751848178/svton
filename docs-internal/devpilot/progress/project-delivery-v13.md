@@ -60,11 +60,11 @@
 | F410  | done  | Independent review, persisted gate facts, security hardening and final delivery audit passed.                              |
 | F411  | done  | Over-limit tests split, API lint restored, historical board records repaired and PR gates rerun.                           |
 | F412  | done  | Current intake and 51-gate behavior re-proved with Browser+DOM and API+MySQL successor evidence; board/docs repaired.      |
-| F418  | done  | ACL-scoped project home summary, exact current-version/resource/Site relations and two-tab SSR/SWR delivery home verified. |
+| F418  | done  | Project home correction now freezes intake to exact succeeded finalization evidence, and keeps one cross-tab create owner. |
 
 ## Evidence
 
-- F418 project-home evidence: `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f418/` contains focused API/Web tests, type-checks, fresh-MySQL integration and schema push, authenticated summary response/cache headers, Browser DOM facts/network facts/console result, and the 1484×1324 home screenshot. The default route uses the summary read model and does not load the legacy deployment/webhook detail graph.
+- F418 project-home evidence: `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f418/` contains the baseline summary proof. Independent review then exposed an active-child cross-tab create no-op and mutable intake projection; `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f418-correction/` contains the correction's focused regressions, two fresh real-MySQL suites, type/build/lint/i18n/format/CodeGraph gates, sanitized no-create counts, zero-console Browser facts and the accepted 1484×1324 Environment Versions dialog screenshot. Intake now requires exact succeeded finalization/result/review evidence and fails closed without mutable config fallback; one always-mounted route owner serves both tabs.
 - Long-goal board: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/board.json`.
 - Phase 0 source audit: `.../artifacts/p0-source-audit.md`.
 - Architecture brief: `.../artifacts/p0-architecture-brief.md`.
@@ -129,4 +129,4 @@
 
 ## Next
 
-Continue from F419 in `../../todos/2026-08-04-devpilot-v13-demo-parity.md`. F418 completed the project-home summary and high-frequency IA with real MySQL/API/Browser evidence. F413-F418 preserve the frozen Demo/spec hashes and acceptance routing; F419-F460 must close the remaining release UX, settings governance, visual parity and independent final acceptance. F461-F463 are registered post-parity hardening/migration work only, not authorization to skip the remaining parity work. Canary, blue-green and automatic ramp-up remain unavailable until real traffic/workload/metric/pause-abort/rollback providers exist; checks without real provider evidence remain unavailable or pending rather than passed. Push, PR creation, merge and external production deployment remain outside the current authorization.
+Continue from F419 in `../../todos/2026-08-04-devpilot-v13-demo-parity.md`. F418 completed the corrected project-home summary and high-frequency IA with real MySQL/API/Browser evidence: frozen intake is bound to exact succeeded finalization truth and the primary create dialog works from both active-child tabs. F413-F418 preserve the frozen Demo/spec hashes and acceptance routing; F419-F460 must close the remaining release UX, settings governance, visual parity and independent final acceptance. F461-F463 are registered post-parity hardening/migration work only, not authorization to skip the remaining parity work. Canary, blue-green and automatic ramp-up remain unavailable until real traffic/workload/metric/pause-abort/rollback providers exist; checks without real provider evidence remain unavailable or pending rather than passed. Push, PR creation, merge and external production deployment remain outside the current authorization.

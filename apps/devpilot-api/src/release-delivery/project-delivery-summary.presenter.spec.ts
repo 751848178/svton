@@ -73,4 +73,15 @@ describe("project delivery summary presenter", () => {
     expect(result.baselines.staging?.ready).toBe(false);
     expect(result.scope.actorId).toBe("actor-2");
   });
+
+  it("fails the whole intake summary closed for a cross-team finalization", () => {
+    const record = projectDeliverySummaryRecord();
+    record.intakeFinalizations[0].teamId = "team-other";
+
+    expect(presentProjectDeliverySummary(record, "actor-1").intake).toEqual({
+      projectType: null,
+      architecture: null,
+      componentCount: null,
+    });
+  });
 });

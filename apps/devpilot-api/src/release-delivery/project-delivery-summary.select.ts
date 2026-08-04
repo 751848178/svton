@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { FROZEN_REPOSITORY_INTAKE_FINALIZATIONS_SELECT } from "../project-intake/repository-intake-summary.select";
 
 const SCOPED_RESOURCE_SELECT = {
   id: true,
@@ -12,7 +13,6 @@ export const PROJECT_DELIVERY_SUMMARY_SELECT =
     id: true,
     teamId: true,
     name: true,
-    config: true,
     repositoryIdentity: {
       select: {
         id: true,
@@ -45,11 +45,7 @@ export const PROJECT_DELIVERY_SUMMARY_SELECT =
         status: true,
       },
     },
-    repositoryIntakeReviewSnapshots: {
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      take: 1,
-      select: { decisions: true },
-    },
+    intakeFinalizations: FROZEN_REPOSITORY_INTAKE_FINALIZATIONS_SELECT,
     environments: {
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
       select: {

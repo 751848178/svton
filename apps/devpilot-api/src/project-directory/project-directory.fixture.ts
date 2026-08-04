@@ -1,4 +1,5 @@
 import type { ProjectDirectoryRecord } from "./project-directory.repository";
+import { frozenRepositoryIntakeFinalization } from "../project-intake/repository-intake-summary.fixture";
 
 export function projectDirectoryRecord(
   overrides: Partial<ProjectDirectoryRecord> = {},
@@ -8,7 +9,6 @@ export function projectDirectoryRecord(
     id: projectId,
     teamId: "team-1",
     name: "Payments",
-    config: intakeConfig(),
     onboardingStatus: "ready",
     onboardingRevision: 4,
     onboardingFinalizedAt: new Date("2026-08-03T01:00:00.000Z"),
@@ -39,12 +39,12 @@ export function projectDirectoryRecord(
       commitSha: "a".repeat(40),
       status: "connected",
     },
-    repositoryIntakeReviewSnapshots: [
-      {
-        id: "snapshot-1",
-        decisions: intakeDecisions(),
-        createdAt: new Date("2026-08-03T01:10:00.000Z"),
-      },
+    intakeFinalizations: [
+      frozenRepositoryIntakeFinalization(
+        projectId,
+        intakeDecisions(),
+        new Date("2026-08-03T01:15:00.000Z"),
+      ),
     ],
     environments: [
       projectDirectoryEnvironment(

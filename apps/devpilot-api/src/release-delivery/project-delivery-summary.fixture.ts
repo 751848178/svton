@@ -1,4 +1,5 @@
 import type { ProjectDeliverySummaryRecord } from "./project-delivery-summary.select";
+import { frozenRepositoryIntakeFinalization } from "../project-intake/repository-intake-summary.fixture";
 
 export function projectDeliverySummaryRecord(
   overrides: Partial<ProjectDeliverySummaryRecord> = {},
@@ -8,7 +9,6 @@ export function projectDeliverySummaryRecord(
     id: projectId,
     teamId: "team-1",
     name: "Payments",
-    config: {},
     repositoryIdentity: {
       id: "identity-1",
       teamId: "team-1",
@@ -35,7 +35,9 @@ export function projectDeliverySummaryRecord(
       selectedBranch: "main",
       status: "connected",
     },
-    repositoryIntakeReviewSnapshots: [{ decisions: intakeDecisions() }],
+    intakeFinalizations: [
+      frozenRepositoryIntakeFinalization(projectId, intakeDecisions()),
+    ],
     environments: [
       environment(projectId, "staging"),
       environment(projectId, "production"),

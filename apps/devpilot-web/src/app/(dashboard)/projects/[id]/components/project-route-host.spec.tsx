@@ -6,7 +6,6 @@ import { ProjectRouteHost } from './project-route-host';
 const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   useProjectDetail: vi.fn(),
-  useProjectDeliverySummary: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -25,18 +24,8 @@ vi.mock('@/components/ui', () => ({
   PageHeader: () => <div>header</div>,
 }));
 vi.mock('../hooks/use-project-detail', () => ({ useProjectDetail: mocks.useProjectDetail }));
-vi.mock('../hooks/use-project-delivery-summary', () => ({
-  useProjectDeliverySummary: mocks.useProjectDeliverySummary,
-}));
-vi.mock('./project-delivery-content', () => ({
-  ProjectDeliveryContent: () => <div>delivery</div>,
-}));
-vi.mock('./project-delivery-header', () => ({
-  ProjectDeliveryHeader: () => <div>delivery-header</div>,
-}));
-vi.mock('./project-delivery-summary', () => ({
-  ProjectDeliveryEnvironmentStrip: () => <div>versions</div>,
-  ProjectDeliveryWeakSummary: () => <div>summary</div>,
+vi.mock('./project-delivery-route', () => ({
+  ProjectDeliveryRoute: () => <div>delivery-route</div>,
 }));
 vi.mock('./project-detail-header', () => ({ ProjectDetailHeader: () => <div>detail-header</div> }));
 vi.mock('./project-settings-content', () => ({
@@ -51,21 +40,12 @@ describe('ProjectRouteHost', () => {
   beforeEach(() => {
     mocks.searchParams = new URLSearchParams();
     mocks.useProjectDetail.mockReset();
-    mocks.useProjectDeliverySummary.mockReset();
-    mocks.useProjectDeliverySummary.mockReturnValue({
-      summary: { project: { name: 'Project 1' } },
-      loading: false,
-      error: null,
-      refresh: vi.fn(),
-    });
   });
 
   it('does not load the low-frequency project detail graph on the delivery home', () => {
     const html = renderToStaticMarkup(<ProjectRouteHost mode="delivery" />);
 
-    expect(html).toContain('delivery-header');
-    expect(html).toContain('delivery');
-    expect(mocks.useProjectDeliverySummary).toHaveBeenCalledWith('project-1', undefined);
+    expect(html).toContain('delivery-route');
     expect(mocks.useProjectDetail).not.toHaveBeenCalled();
   });
 });

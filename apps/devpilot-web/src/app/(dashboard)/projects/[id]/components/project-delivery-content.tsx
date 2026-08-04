@@ -7,15 +7,14 @@ import { Tabs } from '@svton/ui';
 import { deliveryHref, readDeliveryView } from '../utils/project-route.utils';
 import { EnvironmentVersionsPanel } from './environment-versions-panel';
 import { ReleaseOrdersPanel } from './release-orders-panel';
+import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
 
 export function ProjectDeliveryContent({
   projectId,
-  createOpen,
-  onCreateOpenChange,
+  orders,
 }: {
   projectId: string;
-  createOpen: boolean;
-  onCreateOpenChange: (open: boolean) => void;
+  orders: ReleaseOrdersHook;
 }) {
   const t = useTranslations('projects');
   const router = useRouter();
@@ -31,8 +30,7 @@ export function ProjectDeliveryContent({
           children: (
             <ReleaseOrdersPanel
               projectId={projectId}
-              createOpen={createOpen}
-              onCreateOpenChange={onCreateOpenChange}
+              orders={orders}
             />
           ),
         },

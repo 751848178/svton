@@ -33,9 +33,9 @@ describe("project directory presenter", () => {
       "production",
       true,
     );
-    production.currentEnvironmentVersion!.deploymentRun.dryRun = true;
-    production.currentEnvironmentVersion!.deploymentRun.environmentId =
-      "other-env";
+    const current = requireCurrentVersion(production);
+    current.deploymentRun.dryRun = true;
+    current.deploymentRun.environmentId = "other-env";
 
     const item = toProjectDirectoryItem(
       projectDirectoryRecord({
@@ -105,9 +105,9 @@ describe("project directory presenter", () => {
       "production",
       true,
     );
-    production.currentEnvironmentVersion!.releaseOrder.teamId = "other-team";
-    production.currentEnvironmentVersion!.deploymentRun.projectId =
-      "other-project";
+    const current = requireCurrentVersion(production);
+    current.releaseOrder.teamId = "other-team";
+    current.deploymentRun.projectId = "other-project";
 
     const item = toProjectDirectoryItem(
       projectDirectoryRecord({
@@ -129,7 +129,7 @@ describe("project directory presenter", () => {
       "production",
       true,
     );
-    production.currentEnvironmentVersion!.deploymentRun.artifactManifestId =
+    requireCurrentVersion(production).deploymentRun.artifactManifestId =
       "other-manifest";
 
     const item = toProjectDirectoryItem(
@@ -148,9 +148,8 @@ describe("project directory presenter", () => {
   it("makes legacy intake and identity gaps explicit instead of inventing values", () => {
     const item = toProjectDirectoryItem(
       projectDirectoryRecord({
-        config: {},
         repositoryIdentity: null,
-        repositoryIntakeReviewSnapshots: [],
+        intakeFinalizations: [],
       }),
     );
 
@@ -162,4 +161,28 @@ describe("project directory presenter", () => {
       componentCount: null,
     });
   });
+
+  it("fails intake closed when the finalization result drifts from its review snapshot", () => {
+    const record = projectDirectoryRecord();
+    record.intakeFinalizations[0].resultSnapshot = {
+      projectId: record.id,
+      reviewSnapshotId: "snapshot-1",
+      reviewSnapshotHash: "drifted",
+    };
+
+    expect(toProjectDirectoryItem(record).intake).toEqual({
+      projectType: null,
+      architecture: null,
+      componentCount: null,
+    });
+  });
 });
+
+function requireCurrentVersion(
+  environment: ReturnType<typeof projectDirectoryEnvironment>,
+) {
+  if (!environment.currentEnvironmentVersion) {
+    throw new Error("fixture must contain a current environment version");
+  }
+  return environment.currentEnvironmentVersion;
+}

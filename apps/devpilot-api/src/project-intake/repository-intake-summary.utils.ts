@@ -14,26 +14,50 @@ const ARCHITECTURES = new Set(["monorepo", "single_repository"]);
 export function repositoryIntakeSummary(
   project: RepositoryIntakeSummarySource,
 ): RepositoryIntakeSummary {
-  const decisions = array(
-    project.repositoryIntakeReviewSnapshots[0]?.decisions,
-  );
+  const decisions = frozenDecisions(project);
+  if (!decisions) return emptySummary();
   const frozenOverview = decisions
-    ?.filter(isAccepted)
+    .filter(isAccepted)
     .find((decision) => decision.kind === "project_repository");
-  const overview =
-    validOverview(
-      record(record(frozenOverview?.reviewedValue)?.intakeContract)?.overview,
-    ) ??
-    validOverview(
-      record(record(record(project.config)?.repositoryAnalysis)?.intakeContract)
-        ?.overview,
-    );
+  const overview = validOverview(
+    record(record(frozenOverview?.reviewedValue)?.intakeContract)?.overview,
+  );
 
   return {
     projectType: overview?.projectType ?? null,
     architecture: overview?.architecture ?? null,
     componentCount: componentCount(decisions),
   };
+}
+
+function frozenDecisions(project: RepositoryIntakeSummarySource) {
+  const finalization = project.intakeFinalizations[0];
+  const analysis = finalization?.analysisRun;
+  const snapshot = analysis?.intakeReviewSnapshot;
+  const result = record(finalization?.resultSnapshot);
+  const exactScope =
+    finalization?.status === "succeeded" &&
+    finalization.finishedAt instanceof Date &&
+    finalization.teamId === project.teamId &&
+    finalization.projectId === project.id &&
+    analysis?.status === "succeeded" &&
+    analysis.teamId === project.teamId &&
+    analysis.projectId === project.id &&
+    snapshot?.teamId === project.teamId &&
+    snapshot.projectId === project.id;
+  if (
+    !exactScope ||
+    string(result?.projectId) !== project.id ||
+    string(result?.reviewSnapshotId) !== snapshot?.id ||
+    string(result?.reviewSnapshotHash) !== snapshot?.snapshotHash
+  ) {
+    return null;
+  }
+  return array(snapshot.decisions);
+}
+
+function emptySummary(): RepositoryIntakeSummary {
+  return { projectType: null, architecture: null, componentCount: null };
 }
 
 function componentCount(decisions: Record<string, unknown>[] | null) {

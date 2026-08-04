@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { FROZEN_REPOSITORY_INTAKE_FINALIZATIONS_SELECT } from "../project-intake/repository-intake-summary.select";
 import {
   type ProjectDirectoryActivityRecord,
   recentProjectActivity,
@@ -11,7 +12,6 @@ export const PROJECT_DIRECTORY_SELECT =
     id: true,
     teamId: true,
     name: true,
-    config: true,
     onboardingStatus: true,
     onboardingRevision: true,
     onboardingFinalizedAt: true,
@@ -48,11 +48,7 @@ export const PROJECT_DIRECTORY_SELECT =
         status: true,
       },
     },
-    repositoryIntakeReviewSnapshots: {
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      take: 1,
-      select: { id: true, decisions: true, createdAt: true },
-    },
+    intakeFinalizations: FROZEN_REPOSITORY_INTAKE_FINALIZATIONS_SELECT,
     environments: {
       where: { status: "active" },
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],

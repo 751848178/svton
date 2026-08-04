@@ -288,7 +288,7 @@ describeIntegration("project directory real MySQL integration", () => {
         finishedAt: new Date("2026-08-05T01:00:00.000Z"),
       },
     });
-    await prisma.repositoryIntakeReviewSnapshot.create({
+    const reviewSnapshot = await prisma.repositoryIntakeReviewSnapshot.create({
       data: {
         id: `snapshot-${suffix}`,
         teamId: teamA,
@@ -302,6 +302,23 @@ describeIntegration("project directory real MySQL integration", () => {
         parserVersion: "integration",
         decisions: intakeDecisions(),
         references: [],
+      },
+    });
+    await prisma.projectIntakeFinalization.create({
+      data: {
+        teamId: teamA,
+        projectId: onlineId,
+        analysisRunId: analysisId,
+        actorId: userId,
+        idempotencyKey: `finalization-${suffix}`,
+        inputHash: "f".repeat(64),
+        status: "succeeded",
+        resultSnapshot: {
+          projectId: onlineId,
+          reviewSnapshotId: reviewSnapshot.id,
+          reviewSnapshotHash: reviewSnapshot.snapshotHash,
+        },
+        finishedAt: new Date("2026-08-04T03:00:00.000Z"),
       },
     });
     await seedEnvironment(stagingId, "staging", 20);
@@ -371,6 +388,7 @@ describeIntegration("project directory real MySQL integration", () => {
         projectId: onlineId,
         environmentId,
         artifactManifestId: manifest.id,
+        source: "release_order",
         targetType: "server",
         dryRun: false,
         status: "completed",

@@ -21,6 +21,11 @@ describeIntegration("project delivery summary real MySQL integration", () => {
   const teamId = `f418-team-${suffix}`;
   const otherTeamId = `f418-other-team-${suffix}`;
   const projectId = `f418-project-${suffix}`;
+  const otherProjectId = `f418-other-project-${suffix}`;
+  const noFinalizationProjectId = `f418-no-finalization-${suffix}`;
+  const finalizationId = `f418-finalization-${suffix}`;
+  const reviewSnapshotId = `f418-snapshot-${suffix}`;
+  const reviewSnapshotHash = `${suffix.replaceAll("-", "")}${"c".repeat(32)}`;
   const stagingId = `f418-staging-${suffix}`;
   const productionId = `f418-production-${suffix}`;
   const stagingDeploymentId = `f418-deploy-staging-${suffix}`;
@@ -64,6 +69,81 @@ describeIntegration("project delivery summary real MySQL integration", () => {
     });
   });
 
+  it("fails finalization result id, hash and project drift closed", async () => {
+    const originalResult = finalizationResult(
+      projectId,
+      reviewSnapshotId,
+      reviewSnapshotHash,
+    );
+    for (const resultSnapshot of [
+      { ...originalResult, reviewSnapshotId: "wrong-snapshot" },
+      { ...originalResult, reviewSnapshotHash: "wrong-hash" },
+      { ...originalResult, projectId: otherProjectId },
+    ]) {
+      await prisma.projectIntakeFinalization.update({
+        where: { id: finalizationId },
+        data: { resultSnapshot },
+      });
+      expect((await service.get(teamId, userId, projectId)).intake).toEqual(
+        emptyIntake(),
+      );
+    }
+    await prisma.projectIntakeFinalization.update({
+      where: { id: finalizationId },
+      data: { resultSnapshot: originalResult },
+    });
+  });
+
+  it("fails finalization and review snapshot scope or status drift closed", async () => {
+    await prisma.projectIntakeFinalization.update({
+      where: { id: finalizationId },
+      data: { teamId: otherTeamId },
+    });
+    expect((await service.get(teamId, userId, projectId)).intake).toEqual(
+      emptyIntake(),
+    );
+    await prisma.projectIntakeFinalization.update({
+      where: { id: finalizationId },
+      data: { teamId, finishedAt: null },
+    });
+    expect((await service.get(teamId, userId, projectId)).intake).toEqual(
+      emptyIntake(),
+    );
+    await prisma.projectIntakeFinalization.update({
+      where: { id: finalizationId },
+      data: { finishedAt: new Date(), status: "pending" },
+    });
+    expect((await service.get(teamId, userId, projectId)).intake).toEqual(
+      emptyIntake(),
+    );
+    await prisma.projectIntakeFinalization.update({
+      where: { id: finalizationId },
+      data: { status: "succeeded" },
+    });
+    await prisma.repositoryIntakeReviewSnapshot.update({
+      where: { id: reviewSnapshotId },
+      data: { teamId: otherTeamId, projectId: otherProjectId },
+    });
+    expect((await service.get(teamId, userId, projectId)).intake).toEqual(
+      emptyIntake(),
+    );
+    await prisma.repositoryIntakeReviewSnapshot.update({
+      where: { id: reviewSnapshotId },
+      data: { teamId, projectId },
+    });
+  });
+
+  it("does not use mutable config or an unfinalized review snapshot", async () => {
+    const main = await service.get(teamId, userId, projectId);
+    expect(main.intake).toEqual({
+      projectType: "web_application",
+      architecture: "monorepo",
+      componentCount: 1,
+    });
+    const missing = await service.get(teamId, userId, noFinalizationProjectId);
+    expect(missing.intake).toEqual(emptyIntake());
+  });
+
   it("fails a dry-run current-version pointer closed", async () => {
     await prisma.deploymentRun.update({
       where: { id: stagingDeploymentId },
@@ -95,11 +175,29 @@ describeIntegration("project delivery summary real MySQL integration", () => {
   async function seedProject() {
     await prisma.project.create({
       data: {
+        id: otherProjectId,
+        teamId: otherTeamId,
+        createdById: userId,
+        name: "F418 Other",
+        config: {},
+      },
+    });
+    await prisma.project.create({
+      data: {
+        id: noFinalizationProjectId,
+        teamId,
+        createdById: userId,
+        name: "F418 Mutable Only",
+        config: mutableIntakeConfig(),
+      },
+    });
+    await prisma.project.create({
+      data: {
         id: projectId,
         teamId,
         createdById: userId,
         name: "F418",
-        config: {},
+        config: mutableIntakeConfig(),
       },
     });
     const connection = await prisma.repositoryConnection.create({
@@ -157,16 +255,63 @@ describeIntegration("project delivery summary real MySQL integration", () => {
     });
     await prisma.repositoryIntakeReviewSnapshot.create({
       data: {
+        id: reviewSnapshotId,
         teamId,
         projectId,
         runId: run.id,
         actorId: userId,
         inputHash: `${suffix.replaceAll("-", "")}${"b".repeat(32)}`,
-        snapshotHash: `${suffix.replaceAll("-", "")}${"c".repeat(32)}`,
+        snapshotHash: reviewSnapshotHash,
         branch: "main",
         commitSha: "a".repeat(40),
         parserVersion: "f418-v1",
         decisions: intakeDecisions(),
+        references: [],
+      },
+    });
+    await prisma.projectIntakeFinalization.create({
+      data: {
+        id: finalizationId,
+        teamId,
+        projectId,
+        analysisRunId: run.id,
+        actorId: userId,
+        idempotencyKey: `finalization-${suffix}`,
+        inputHash: "9".repeat(64),
+        status: "succeeded",
+        resultSnapshot: finalizationResult(
+          projectId,
+          reviewSnapshotId,
+          reviewSnapshotHash,
+        ),
+        finishedAt: new Date(),
+      },
+    });
+    const laterRun = await prisma.repositoryAnalysisRun.create({
+      data: {
+        teamId,
+        projectId,
+        connectionId: connection.id,
+        repositoryUrl: connection.repositoryUrl,
+        branch: "main",
+        commitSha: "e".repeat(40),
+        status: "succeeded",
+        idempotencyKey: `analysis-later-${suffix}`,
+        parserVersion: "f418-v2-unfinalized",
+      },
+    });
+    await prisma.repositoryIntakeReviewSnapshot.create({
+      data: {
+        teamId,
+        projectId,
+        runId: laterRun.id,
+        actorId: userId,
+        inputHash: `${suffix.replaceAll("-", "")}${"d".repeat(32)}`,
+        snapshotHash: `${suffix.replaceAll("-", "")}${"e".repeat(32)}`,
+        branch: "main",
+        commitSha: "e".repeat(40),
+        parserVersion: "f418-v2-unfinalized",
+        decisions: [],
         references: [],
       },
     });
@@ -376,4 +521,33 @@ function intakeDecisions() {
       },
     },
   ];
+}
+
+function emptyIntake() {
+  return { projectType: null, architecture: null, componentCount: null };
+}
+
+function finalizationResult(
+  projectId: string,
+  reviewSnapshotId: string,
+  reviewSnapshotHash: string,
+) {
+  return {
+    projectId,
+    reviewSnapshotId,
+    reviewSnapshotHash,
+  };
+}
+
+function mutableIntakeConfig() {
+  return {
+    repositoryAnalysis: {
+      intakeContract: {
+        overview: {
+          projectType: "static_site",
+          architecture: "single_repository",
+        },
+      },
+    },
+  };
 }

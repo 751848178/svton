@@ -31,6 +31,26 @@ describe("ProjectDeliverySummaryRepository", () => {
       environmentId: true,
       status: true,
     });
+    expect(query.select.intakeFinalizations).toMatchObject({
+      where: { status: "succeeded" },
+      orderBy: [{ finishedAt: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+      take: 1,
+      select: {
+        finishedAt: true,
+        resultSnapshot: true,
+        analysisRun: {
+          select: {
+            teamId: true,
+            projectId: true,
+            status: true,
+            intakeReviewSnapshot: {
+              select: expect.objectContaining({ snapshotHash: true }),
+            },
+          },
+        },
+      },
+    });
+    expect(query.select).not.toHaveProperty("config");
     const serialized = JSON.stringify(query.select);
     expect(serialized).not.toContain('"gitRepo"');
     expect(serialized).not.toContain('"logs"');

@@ -14,9 +14,32 @@ describe("ProjectDirectoryRepository", () => {
     const query = (prisma.project.findMany as jest.Mock).mock.calls[0][0];
     expect(query.where).toEqual({ teamId: "team-1", archivedAt: null });
     expect(query.orderBy).toEqual([{ id: "asc" }]);
-    expect(query.select.repositoryIntakeReviewSnapshots).toMatchObject({
+    expect(query.select.intakeFinalizations).toMatchObject({
+      where: { status: "succeeded" },
+      orderBy: [{ finishedAt: "desc" }, { createdAt: "desc" }, { id: "asc" }],
       take: 1,
+      select: {
+        finishedAt: true,
+        resultSnapshot: true,
+        analysisRun: {
+          select: {
+            teamId: true,
+            projectId: true,
+            status: true,
+            intakeReviewSnapshot: {
+              select: expect.objectContaining({
+                id: true,
+                teamId: true,
+                projectId: true,
+                snapshotHash: true,
+                decisions: true,
+              }),
+            },
+          },
+        },
+      },
     });
+    expect(query.select).not.toHaveProperty("config");
     expect(
       query.select.environments.select.currentEnvironmentVersion.select,
     ).toMatchObject({
