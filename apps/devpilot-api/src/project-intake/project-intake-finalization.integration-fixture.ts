@@ -13,6 +13,7 @@ import { RegistryService } from "../registry/registry.service";
 import { ProjectIntakeFinalizationExecutorService } from "./project-intake-finalization-executor.service";
 import { ProjectIntakeFinalizationRecordRepository } from "./project-intake-finalization-record.repository";
 import { ProjectIntakeFinalizationService } from "./project-intake-finalization.service";
+import { RepositoryIntakeSnapshotIntegrityService } from "./repository-intake-snapshot-integrity.service";
 
 export interface ProjectIntakeIntegrationProject {
   projectId: string;
@@ -61,6 +62,7 @@ export class ProjectIntakeFinalizationIntegrationFixture {
     const executor = new ProjectIntakeFinalizationExecutorService(
       prisma,
       this.governance,
+      new RepositoryIntakeSnapshotIntegrityService(),
     );
     this.service = new ProjectIntakeFinalizationService(records, executor);
   }

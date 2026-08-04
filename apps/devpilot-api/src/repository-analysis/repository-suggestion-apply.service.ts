@@ -8,6 +8,7 @@ import { ApplyRepositorySuggestionsDto } from './dto/repository-analysis.dto';
 import { RepositoryDecision } from './repository-apply.types';
 import { redactRepositoryValue } from './repository-analysis-redact.utils';
 import { repositoryError } from './repository-analysis-validation.utils';
+import { RepositoryIntakeSnapshotLockedError } from './repository-suggestion-apply.errors';
 import { RepositorySuggestionApplyRepository } from './repository-suggestion-apply.repository';
 
 @Injectable()
@@ -71,16 +72,25 @@ export class RepositorySuggestionApplyService {
     const required = decisions.filter((item) =>
       ['project_repository', 'environment', 'application_service'].includes(item.suggestion.kind),
     );
-    return this.repository.apply({
-      teamId,
-      userId,
-      projectId,
-      runId,
-      commitSha: run.commitSha,
-      markConnectionApplied: required.every((item) => item.status !== 'rejected'),
-      decisions,
-      snapshot,
-    });
+    try {
+      return await this.repository.apply({
+        teamId,
+        userId,
+        projectId,
+        runId,
+        commitSha: run.commitSha,
+        markConnectionApplied: required.every((item) => item.status !== 'rejected'),
+        decisions,
+        snapshot,
+      });
+    } catch (error) {
+      if (!(error instanceof RepositoryIntakeSnapshotLockedError)) throw error;
+      throw new ConflictException(repositoryError(
+        'REPOSITORY_INTAKE_REVIEW_IMMUTABLE',
+        '该分析运行已形成不可变确认快照',
+        '请读取已确认快照，或重新分析当前仓库后再应用建议。',
+      ));
+    }
   }
 }
 

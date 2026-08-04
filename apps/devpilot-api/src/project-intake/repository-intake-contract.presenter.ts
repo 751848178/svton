@@ -15,6 +15,10 @@ import type {
 export function presentRepositoryIntakeContract(
   run: RepositoryIntakeRunRecord,
 ): RepositoryIntakeContractReadModel {
+  const reviewSnapshot = snapshot(run.intakeReviewSnapshot);
+  const frozen = reviewSnapshot
+    ? new Map(reviewSnapshot.decisions.map((item) => [item.suggestionId, item]))
+    : null;
   const projectSuggestion = run.suggestions.find((item) => item.kind === 'project_repository');
   const environment = run.suggestions.find((item) => item.kind === 'environment');
   const components = run.suggestions.filter((item) => item.kind === 'application_service');
@@ -48,14 +52,14 @@ export function presentRepositoryIntakeContract(
     overview: projectSuggestion ? {
       suggestionId: projectSuggestion.id,
       required: true,
-      decision: decision(projectSuggestion.reviewDecision),
-      value: overviewValue(reviewedValue(projectSuggestion)),
+      decision: presentedDecision(projectSuggestion, frozen),
+      value: overviewValue(presentedValue(projectSuggestion, frozen)),
     } : null,
     components: components.map((item) => ({
       suggestionId: item.id,
       requiredDependencyIds: environment ? [environment.id] : [],
-      decision: decision(item.reviewDecision),
-      value: componentValue(reviewedValue(item)),
+      decision: presentedDecision(item, frozen),
+      value: componentValue(presentedValue(item, frozen)),
       warnings: stringArray(item.warnings),
     })),
     dependencies: run.suggestions
@@ -65,15 +69,32 @@ export function presentRepositoryIntakeContract(
         kind: item.kind as 'environment' | 'resource_requirement',
         label: item.kind === 'environment' ? 'Production 环境依赖' : '外部资源需求',
         requiredBy: item.kind === 'environment' ? components.map((value) => value.id) : [],
-        decision: decision(item.reviewDecision),
+        decision: presentedDecision(item, frozen),
       })),
-    snapshot: snapshot(run.intakeReviewSnapshot),
+    snapshot: reviewSnapshot,
   };
   return redactRepositoryValue(model) as RepositoryIntakeContractReadModel;
 }
 
-function reviewedValue(item: RepositoryIntakeRunRecord['suggestions'][number]) {
-  return item.reviewedValue || item.proposedValue;
+type Suggestion = RepositoryIntakeRunRecord['suggestions'][number];
+type FrozenDecisions = Map<string, RepositoryIntakeSnapshotDecision> | null;
+
+function presentedValue(item: Suggestion, frozen: FrozenDecisions) {
+  const frozenItem = frozenDecision(item, frozen);
+  return frozenItem ? frozenItem.reviewedValue ?? frozenItem.proposedValue
+    : item.reviewedValue ?? item.proposedValue;
+}
+
+function presentedDecision(item: Suggestion, frozen: FrozenDecisions) {
+  const frozenItem = frozenDecision(item, frozen);
+  return frozenItem ? frozenItem.decision : decision(item.reviewDecision);
+}
+
+function frozenDecision(item: Suggestion, frozen: FrozenDecisions) {
+  if (!frozen) return null;
+  const value = frozen.get(item.id);
+  if (!value) throw new Error(`review snapshot is missing suggestion ${item.id}`);
+  return value;
 }
 
 function overviewValue(value: unknown): RepositoryIntakeOverviewValue {

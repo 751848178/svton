@@ -13,12 +13,14 @@ import type {
   ProjectIntakeFinalizationResult,
 } from "./project-intake.types";
 import { normalizeRepositoryIdentity } from "./project-repository-identity.utils";
+import { RepositoryIntakeSnapshotIntegrityService } from "./repository-intake-snapshot-integrity.service";
 
 @Injectable()
 export class ProjectIntakeFinalizationExecutorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly governance: ProjectGovernanceFinalizationService,
+    private readonly snapshotIntegrity: RepositoryIntakeSnapshotIntegrityService,
   ) {}
 
   execute(
@@ -67,6 +69,7 @@ export class ProjectIntakeFinalizationExecutorService {
         projectId: input.projectId,
         status: "succeeded",
       },
+      include: { suggestions: true },
     });
     const reviewSnapshot = await tx.repositoryIntakeReviewSnapshot.findFirst({
       where: {
@@ -93,6 +96,7 @@ export class ProjectIntakeFinalizationExecutorService {
         ),
       );
     }
+    this.snapshotIntegrity.assertMatches(run.suggestions, reviewSnapshot, connection);
 
     const normalized = normalizeRepositoryIdentity(connection.repositoryUrl);
     if (!normalized)

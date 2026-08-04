@@ -35,6 +35,7 @@ import { ProjectRepositoryDuplicateGuardService } from './project-repository-dup
 import { RepositoryIntakeContractRepository } from './repository-intake-contract.repository';
 import { RepositoryIntakeContractService } from './repository-intake-contract.service';
 import { RepositoryIntakeReviewService } from './repository-intake-review.service';
+import { RepositoryIntakeSnapshotIntegrityService } from './repository-intake-snapshot-integrity.service';
 
 const git = promisify(execFile);
 
@@ -58,14 +59,7 @@ export function createIntakeService(client: PrismaClient, localRoot: string) {
   const runs = new RepositoryAnalysisRunService(
     new RepositoryConnectionRepository(db), runRepository, worker, audit,
   );
-  const platform = new RepositoryPlatformApplyRepository(
-    new RepositoryApplicationApplyRepository(),
-  );
-  const apply = new RepositorySuggestionApplyService(
-    new RepositorySuggestionApplyRepository(
-      db, platform, new RepositoryIntakeSnapshotWriter(),
-    ),
-  );
+  const apply = createSuggestionApplyService(client);
   const contractRepository = new RepositoryIntakeContractRepository(db);
   const contracts = new RepositoryIntakeContractService(contractRepository);
   const reviews = new RepositoryIntakeReviewService(contractRepository, contracts, apply);
@@ -74,11 +68,25 @@ export function createIntakeService(client: PrismaClient, localRoot: string) {
   );
   const finalization = new ProjectIntakeFinalizationService(
     new ProjectIntakeFinalizationRecordRepository(db),
-    new ProjectIntakeFinalizationExecutorService(db, governance),
+    new ProjectIntakeFinalizationExecutorService(
+      db, governance, new RepositoryIntakeSnapshotIntegrityService(),
+    ),
   );
   return new ProjectIntakeService(
     db, new ProjectRepositoryDuplicateGuardService(db), connections, runs,
     contracts, reviews, finalization,
+  );
+}
+
+export function createSuggestionApplyService(client: PrismaClient) {
+  const db = client as unknown as PrismaService;
+  const platform = new RepositoryPlatformApplyRepository(
+    new RepositoryApplicationApplyRepository(),
+  );
+  return new RepositorySuggestionApplyService(
+    new RepositorySuggestionApplyRepository(
+      db, platform, new RepositoryIntakeSnapshotWriter(),
+    ),
   );
 }
 

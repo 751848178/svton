@@ -41,6 +41,10 @@
   Git, MySQL, Browser, bilingual UI, replay/concurrency, build and zero-plaintext-
   secret evidence is stored under
   `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f415/`.
+  Independent review superseded baseline `c53363ce`: the corrective commit
+  transactionally locks the analysis run, forbids post-snapshot generic apply,
+  serves frozen snapshot values and blocks drifted finalization. Deterministic
+  MySQL race/no-mutation and drift/no-governance regressions passed.
   F461 durable multi-replica analysis execution and F462 Git egress/SSRF policy
   are registered for post-parity hardening and were not implemented in F415.
   **Next: F416 canonical repository identity drift enforcement.**

@@ -8,6 +8,7 @@ import { RepositorySuggestionApplyRepository } from '../repository-analysis/repo
 import { RepositorySuggestionApplyService } from '../repository-analysis/repository-suggestion-apply.service';
 import { RepositoryIntakeContractRepository } from './repository-intake-contract.repository';
 import { RepositoryIntakeContractService } from './repository-intake-contract.service';
+import { waitForRepositoryRunLockWaiters } from './repository-intake-lock-wait.fixture';
 import { RepositoryIntakeReviewService } from './repository-intake-review.service';
 
 const describeIntegration = process.env.RUN_PROJECT_INTAKE_INTEGRATION === '1'
@@ -20,14 +21,17 @@ describeIntegration('repository intake immutable review integration', () => {
   const actorId = `actor-review-${suffix}`;
   const projectId = `project-review-${suffix}`;
   const runId = `run-review-${suffix}`;
+  const raceProjectId = `project-review-race-${suffix}`;
+  const raceRunId = `run-review-race-${suffix}`;
   let service: RepositoryIntakeReviewService;
+  let apply: RepositorySuggestionApplyService;
 
   beforeAll(async () => {
     const db = prisma as unknown as PrismaService;
     const platform = new RepositoryPlatformApplyRepository(
       new RepositoryApplicationApplyRepository(),
     );
-    const apply = new RepositorySuggestionApplyService(
+    apply = new RepositorySuggestionApplyService(
       new RepositorySuggestionApplyRepository(
         db,
         platform,
@@ -38,6 +42,56 @@ describeIntegration('repository intake immutable review integration', () => {
     const contracts = new RepositoryIntakeContractService(repository);
     service = new RepositoryIntakeReviewService(repository, contracts, apply);
     await seed();
+  });
+
+  it('serializes a queued generic apply behind snapshot creation without later mutation', async () => {
+    let unlock!: () => void;
+    let ready!: () => void;
+    const release = new Promise<void>((resolve) => { unlock = resolve; });
+    const locked = new Promise<void>((resolve) => { ready = resolve; });
+    const blocker = prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM RepositoryAnalysisRun WHERE id = ${raceRunId} FOR UPDATE`;
+      ready();
+      await release;
+    });
+    await locked;
+    const reviewPromise = service.review(
+      teamId, actorId, raceProjectId, raceRunId, review('reject', raceRunId),
+    );
+    await waitForRepositoryRunLockWaiters(prisma, 1);
+    const genericPromise = apply.apply(
+      teamId, actorId, raceProjectId, raceRunId, genericReview('accept', raceRunId),
+    );
+    await waitForRepositoryRunLockWaiters(prisma, 2);
+    unlock();
+    await blocker;
+    const [reviewResult, genericResult] = await Promise.allSettled([
+      reviewPromise, genericPromise,
+    ]);
+    expect(reviewResult.status).toBe('fulfilled');
+    expect(genericResult).toMatchObject({
+      status: 'rejected', reason: { response: { code: 'REPOSITORY_INTAKE_REVIEW_IMMUTABLE' } },
+    });
+    const snapshot = await prisma.repositoryIntakeReviewSnapshot.findUniqueOrThrow({
+      where: { runId: raceRunId },
+    });
+    const state = await prisma.repositoryAnalysisSuggestion.findMany({
+      where: { runId: raceRunId }, orderBy: { id: 'asc' },
+    });
+    const decisionById = new Map((snapshot.decisions as Array<{
+      suggestionId: string; decision: string; reviewedValue: unknown;
+    }>).map((item) => [item.suggestionId, item]));
+    for (const suggestion of state) {
+      const decision = decisionById.get(suggestion.id)!;
+      expect(suggestion.reviewDecision).toBe(decision.decision);
+      expect(suggestion.reviewedValue).toEqual(decision.reviewedValue);
+      expect(suggestion.reviewedAt!.getTime()).toBeLessThanOrEqual(snapshot.createdAt.getTime());
+    }
+    expect(await prisma.auditEvent.count({
+      where: { projectId: raceProjectId, action: 'repository.suggestions.apply' },
+    })).toBe(1);
+    const project = await prisma.project.findUniqueOrThrow({ where: { id: raceProjectId } });
+    expect(JSON.stringify(project.config)).not.toContain('resourceRequirements');
   });
   afterAll(() => prisma.$disconnect());
 
@@ -76,22 +130,29 @@ describeIntegration('repository intake immutable review integration', () => {
   async function seed() {
     await prisma.user.create({ data: { id: actorId, email: `${suffix}@example.com`, role: 'user' } });
     await prisma.team.create({ data: { id: teamId, name: `Review ${suffix}` } });
+    await seedProject(projectId, runId, 'Review race');
+    await seedProject(raceProjectId, raceRunId, 'Review queued race');
+  }
+
+  async function seedProject(targetProjectId: string, targetRunId: string, name: string) {
     await prisma.project.create({ data: {
-      id: projectId, teamId, createdById: actorId, name: 'Review race', config: {},
+      id: targetProjectId, teamId, createdById: actorId, name, config: {},
       onboardingStatus: 'draft', onboardingRevision: 1,
     } });
     const connection = await prisma.repositoryConnection.create({ data: {
-      teamId, projectId, connectedById: actorId, repositoryUrl: 'https://git.example/review.git',
+      teamId, projectId: targetProjectId, connectedById: actorId,
+      repositoryUrl: `https://git.example/${targetProjectId}.git`,
       provider: 'generic', visibility: 'private', credentialSource: 'team_credential',
       defaultBranch: 'main', selectedBranch: 'main', commitSha: 'a'.repeat(40), status: 'connected',
     } });
     await prisma.repositoryAnalysisRun.create({ data: {
-      id: runId, teamId, projectId, connectionId: connection.id, triggeredById: actorId,
+      id: targetRunId, teamId, projectId: targetProjectId,
+      connectionId: connection.id, triggeredById: actorId,
       repositoryUrl: connection.repositoryUrl, branch: 'main', commitSha: 'a'.repeat(40),
-      status: 'succeeded', idempotencyKey: `review-${suffix}`, parserVersion: 'integration-v1',
+      status: 'succeeded', idempotencyKey: `review-${targetRunId}`, parserVersion: 'integration-v1',
       suggestions: { create: [
         {
-          id: `${runId}-repo`, key: 'project_repository', kind: 'project_repository',
+          id: `${targetRunId}-repo`, key: 'project_repository', kind: 'project_repository',
           proposedValue: {
             gitRepo: connection.repositoryUrl,
             source: { branch: 'main', commitSha: 'a'.repeat(40), verified: true },
@@ -102,17 +163,25 @@ describeIntegration('repository intake immutable review integration', () => {
           },
         },
         {
-          id: `${runId}-resource`, key: 'resource_requirements', kind: 'resource_requirement',
+          id: `${targetRunId}-resource`, key: 'resource_requirements', kind: 'resource_requirement',
           proposedValue: { requirements: ['mysql'] },
         },
       ] },
     } });
   }
 
-  function review(resource: 'accept' | 'reject') {
+  function review(resource: 'accept' | 'reject', targetRunId = runId) {
     return { items: [
-      { suggestionId: `${runId}-repo`, decision: 'accept' as const },
-      { suggestionId: `${runId}-resource`, decision: resource },
+      { suggestionId: `${targetRunId}-repo`, decision: 'accept' as const },
+      { suggestionId: `${targetRunId}-resource`, decision: resource },
     ] };
   }
+
+  function genericReview(resource: 'accept' | 'reject', targetRunId: string) {
+    return { decisions: [
+      { suggestionId: `${targetRunId}-repo`, decision: 'accept' as const },
+      { suggestionId: `${targetRunId}-resource`, decision: resource },
+    ] };
+  }
+
 });

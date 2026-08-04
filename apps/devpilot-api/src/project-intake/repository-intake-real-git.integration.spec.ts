@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { mkdtemp, realpath, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -6,6 +6,7 @@ import { ProjectIntakeService } from './project-intake.service';
 import {
   createIntakeService,
   createRepository,
+  createSuggestionApplyService,
   repositoryFingerprint,
 } from './repository-intake-real-git.fixture';
 const describeIntegration = process.env.RUN_PROJECT_INTAKE_INTEGRATION === '1'
@@ -74,6 +75,42 @@ describeIntegration('real git repository intake integration', () => {
       ],
     });
     expect(reviewed.snapshot).toMatchObject({ branch: 'main', commitSha: before.commit, version: 1 });
+    const stateBeforeRejectedApply = await mutableState(draft.id, run.id);
+    const genericApply = createSuggestionApplyService(prisma);
+    await expect(genericApply.apply(teamId, actorId, draft.id, run.id, {
+      decisions: reviewed.snapshot!.decisions.map((item) => ({
+        suggestionId: item.suggestionId,
+        decision: item.decision,
+        ...(item.decision === 'edit'
+          ? { value: item.reviewedValue as Record<string, unknown> }
+          : {}),
+      })),
+    })).rejects.toMatchObject({
+      response: { code: 'REPOSITORY_INTAKE_REVIEW_IMMUTABLE' },
+    });
+    expect(await mutableState(draft.id, run.id)).toEqual(stateBeforeRejectedApply);
+    const frozen = await intake.contract(teamId, draft.id, run.id);
+    expect(frozen.snapshot).toEqual(reviewed.snapshot);
+    expect(frozen.overview).toEqual(reviewed.overview);
+    expect(frozen.components).toEqual(reviewed.components);
+    const driftDecision = reviewed.snapshot!.decisions.find((item) => item.decision !== 'reject')!;
+    const governanceBeforeDrift = await governanceState(draft.id);
+    await prisma.repositoryAnalysisSuggestion.update({
+      where: { id: driftDecision.suggestionId }, data: { reviewedValue: { drift: true } },
+    });
+    await expect(intake.finalize(teamId, actorId, draft.id, {
+      analysisRunId: run.id,
+      reviewSnapshotId: reviewed.snapshot!.id,
+      reviewSnapshotHash: reviewed.snapshot!.hash,
+      idempotencyKey: `finalize-drift-${suffix}`,
+    })).rejects.toMatchObject({
+      response: { code: 'PROJECT_INTAKE_REVIEW_SNAPSHOT_DRIFT' },
+    });
+    expect(await governanceState(draft.id)).toEqual(governanceBeforeDrift);
+    await prisma.repositoryAnalysisSuggestion.update({
+      where: { id: driftDecision.suggestionId },
+      data: { reviewedValue: driftDecision.reviewedValue as Prisma.InputJsonValue },
+    });
     const finalized = await intake.finalize(teamId, actorId, draft.id, {
       analysisRunId: run.id,
       reviewSnapshotId: reviewed.snapshot!.id,
@@ -103,5 +140,40 @@ describeIntegration('real git repository intake integration', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     throw new Error('real repository analysis timed out');
+  }
+
+  async function mutableState(projectId: string, runId: string) {
+    const [project, connection, suggestions, audits] = await Promise.all([
+      prisma.project.findUniqueOrThrow({ where: { id: projectId } }),
+      prisma.repositoryConnection.findUniqueOrThrow({ where: { projectId } }),
+      prisma.repositoryAnalysisSuggestion.findMany({ where: { runId }, orderBy: { id: 'asc' } }),
+      prisma.auditEvent.findMany({
+        where: { projectId, action: 'repository.suggestions.apply' }, orderBy: { id: 'asc' },
+      }),
+    ]);
+    return JSON.parse(JSON.stringify({
+      project: { gitRepo: project.gitRepo, config: project.config },
+      connection: { lastAppliedRunId: connection.lastAppliedRunId, appliedAt: connection.appliedAt },
+      suggestions,
+      audits,
+    }));
+  }
+
+  async function governanceState(projectId: string) {
+    const [project, identity, environments, audits] = await Promise.all([
+      prisma.project.findUniqueOrThrow({ where: { id: projectId } }),
+      prisma.projectRepositoryIdentity.findUnique({ where: { projectId } }),
+      prisma.projectEnvironment.findMany({ where: { projectId }, orderBy: { id: 'asc' } }),
+      prisma.auditEvent.findMany({
+        where: { projectId, action: 'project.intake.finalize' }, orderBy: { id: 'asc' },
+      }),
+    ]);
+    return JSON.parse(JSON.stringify({
+      onboardingStatus: project.onboardingStatus,
+      onboardingRevision: project.onboardingRevision,
+      identity,
+      environments,
+      audits,
+    }));
   }
 });

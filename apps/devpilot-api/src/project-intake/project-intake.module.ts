@@ -13,6 +13,7 @@ import { RepositoryIntakeContractRepository } from "./repository-intake-contract
 import { RepositoryIntakeContractService } from "./repository-intake-contract.service";
 import { RepositoryIntakeReviewService } from "./repository-intake-review.service";
 import { ProjectRepositoryDuplicateGuardService } from "./project-repository-duplicate-guard.service";
+import { RepositoryIntakeSnapshotIntegrityService } from "./repository-intake-snapshot-integrity.service";
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ProjectRepositoryDuplicateGuardService } from "./project-repository-dup
     ProjectIntakeFinalizationExecutorService,
     ProjectIntakeFinalizationRecordRepository,
     ProjectRepositoryDuplicateGuardService,
+    RepositoryIntakeSnapshotIntegrityService,
   ],
   exports: [ProjectIntakeService],
 })
