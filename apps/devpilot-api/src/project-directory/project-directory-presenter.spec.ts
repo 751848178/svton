@@ -6,80 +6,140 @@ import {
 import { toProjectDirectoryItem } from "./project-directory-presenter.utils";
 
 describe("project directory presenter", () => {
-  it("derives ready baselines, exact Production and deduplicated domain summaries", () => {
+  it("presents exact F415 shape and real Production evidence as online", () => {
     const item = toProjectDirectoryItem(projectDirectoryRecord());
 
-    expect(item.configurationStatus).toBe("ready");
-    expect(item.runtimeStatus).toBe("idle");
-    expect(item.production).toMatchObject({
-      environmentId: "env-production",
-      latestDeployment: { id: "deployment-1", dryRun: false },
-      currentVersion: null,
+    expect(item.status).toBe("online");
+    expect(item.intake).toEqual({
+      projectType: "web_application",
+      architecture: "monorepo",
+      componentCount: 2,
     });
-    expect(item.domains).toEqual([
-      { domain: "payments.example.com", status: "active", source: "site" },
-    ]);
+    expect(item.baselines).toMatchObject({
+      staging: { ready: true },
+      production: { ready: true },
+    });
+    expect(item.production).toEqual({
+      currentVersion: "2.3.2",
+      domain: "payments.example.com",
+    });
   });
 
-  it("reports running and configuration gaps from project-scoped relations", () => {
+  it("fails closed when the current version deployment is dry-run or mis-scoped", () => {
+    const production = projectDirectoryEnvironment(
+      "env-production",
+      "production",
+      "production",
+      true,
+    );
+    production.currentEnvironmentVersion!.deploymentRun.dryRun = true;
+    production.currentEnvironmentVersion!.deploymentRun.environmentId =
+      "other-env";
+
     const item = toProjectDirectoryItem(
       projectDirectoryRecord({
-        onboardingStatus: "ready",
         environments: [
           projectDirectoryEnvironment("env-staging", "staging", "staging"),
-        ],
-        repositoryAnalysisRuns: [
-          {
-            id: "run-1",
-            status: "running",
-            createdAt: new Date("2026-08-03T03:00:00.000Z"),
-            finishedAt: null,
-          },
+          production,
         ],
       }),
     );
 
-    expect(item.runtimeStatus).toBe("running");
-    expect(item.configurationStatus).toBe("needs_configuration");
-    expect(item.production).toBeNull();
+    expect(item.status).toBe("needs_configuration");
+    expect(item.production.currentVersion).toBeNull();
   });
 
-  it("does not let an older failed run override the latest successful run", () => {
+  it("uses only the exact active Production-scoped domain", () => {
     const item = toProjectDirectoryItem(
       projectDirectoryRecord({
-        repositoryAnalysisRuns: [
+        sites: [
           {
-            id: "run-latest",
-            status: "succeeded",
-            createdAt: new Date("2026-08-03T04:00:00.000Z"),
-            finishedAt: new Date("2026-08-03T04:01:00.000Z"),
+            id: "staging",
+            primaryDomain: "staging.example.com",
+            status: "active",
+            environmentId: "env-staging",
           },
           {
-            id: "run-old",
-            status: "failed",
-            createdAt: new Date("2026-08-03T03:00:00.000Z"),
-            finishedAt: new Date("2026-08-03T03:01:00.000Z"),
+            id: "pending",
+            primaryDomain: "pending.example.com",
+            status: "pending",
+            environmentId: "env-production",
+          },
+          {
+            id: "production",
+            primaryDomain: "prod.example.com",
+            status: "active",
+            environmentId: "env-production",
           },
         ],
       }),
     );
 
-    expect(item.runtimeStatus).toBe("idle");
+    expect(item.production.domain).toBe("prod.example.com");
   });
 
-  it("fails closed for a READY legacy project without an identity revision", () => {
-    const item = toProjectDirectoryItem(projectDirectoryRecord({
-      onboardingStatus: "ready",
-      repositoryIdentity: null,
-    }));
+  it("rejects a cross-team ReleaseOrder and cross-project deployment version", () => {
+    const production = projectDirectoryEnvironment(
+      "env-production",
+      "production",
+      "production",
+      true,
+    );
+    production.currentEnvironmentVersion!.releaseOrder.teamId = "other-team";
+    production.currentEnvironmentVersion!.deploymentRun.projectId =
+      "other-project";
 
-    expect(item.repository).toMatchObject({
-      canonicalUrl: null,
-      defaultBranch: null,
-      identityRevisionId: null,
-      identityRevision: null,
-      commitSha: null,
-      status: "identity_migration_required",
+    const item = toProjectDirectoryItem(
+      projectDirectoryRecord({
+        environments: [
+          projectDirectoryEnvironment("env-staging", "staging", "staging"),
+          production,
+        ],
+      }),
+    );
+
+    expect(item.production.currentVersion).toBeNull();
+    expect(item.status).toBe("needs_configuration");
+  });
+
+  it("rejects a deployment backed by a different artifact manifest", () => {
+    const production = projectDirectoryEnvironment(
+      "env-production",
+      "production",
+      "production",
+      true,
+    );
+    production.currentEnvironmentVersion!.deploymentRun.artifactManifestId =
+      "other-manifest";
+
+    const item = toProjectDirectoryItem(
+      projectDirectoryRecord({
+        environments: [
+          projectDirectoryEnvironment("env-staging", "staging", "staging"),
+          production,
+        ],
+      }),
+    );
+
+    expect(item.production.currentVersion).toBeNull();
+    expect(item.status).toBe("needs_configuration");
+  });
+
+  it("makes legacy intake and identity gaps explicit instead of inventing values", () => {
+    const item = toProjectDirectoryItem(
+      projectDirectoryRecord({
+        config: {},
+        repositoryIdentity: null,
+        repositoryIntakeReviewSnapshots: [],
+      }),
+    );
+
+    expect(item.status).toBe("needs_configuration");
+    expect(item.repository).toBeNull();
+    expect(item.intake).toEqual({
+      projectType: null,
+      architecture: null,
+      componentCount: null,
     });
   });
 });

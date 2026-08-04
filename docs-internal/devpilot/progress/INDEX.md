@@ -69,6 +69,17 @@
   only for exact numeric v1 or null and fails closed for every other malformed or
   future version.
 
+- F417 closed on 2026-08-04: `/projects` now uses one server-backed status
+  filter, canonical repository/domain search, deterministic recent-activity
+  ordering, and fail-closed status/version/domain derivation from authorized
+  project relations. The responsive five-column directory has one project
+  action, retained empty-state columns, dual true-empty entry points, and one
+  sidebar module link. Focused API/Web tests, fresh MySQL integration, cold
+  authenticated Browser reloads and 1484×1324 Demo/product comparisons are
+  stored under
+  `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f417/`.
+  **Next: F418 project-home weak-summary parity.**
+
 - F383 + F384 were integrated onto local `master@68aabfa7` on 2026-07-29.
   The authoritative merge-readiness source is
   `../f383-f384-integration-report.md`; it records full-history ancestry,

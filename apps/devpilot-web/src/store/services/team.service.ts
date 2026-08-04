@@ -8,7 +8,8 @@ import { Service, observable, action } from '@svton/service';
 import { apiAsync } from '@/lib/api-client';
 import { TEAM_ROUTES } from '@/lib/api-client/registry';
 import type { Team, TeamDetail, TeamMember } from '@/types/api-registry';
-import { syncTeamCookie } from '@/lib/auth/token-storage';
+import { readTeamId, syncTeamCookie } from '@/lib/auth/token-storage';
+import { reconcileAuthorizedTeam } from './team-selection.utils';
 
 export type { TeamMember };
 
@@ -30,9 +31,9 @@ export class TeamService {
     try {
       const teams = await apiAsync(TEAM_ROUTES.LIST);
       this.teams = teams;
-      if (!this.currentTeam && teams.length > 0) {
-        this.setCurrentTeam(teams[0]);
-      }
+      this.setCurrentTeam(
+        reconcileAuthorizedTeam(teams, this.currentTeam?.id ?? null, readTeamId()),
+      );
     } catch (err) {
       this.fail(err, '获取团队列表失败');
     } finally {

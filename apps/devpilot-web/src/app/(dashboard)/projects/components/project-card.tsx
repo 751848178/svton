@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
 import { formatDate } from '@/lib/format-date';
 import type { ProjectDirectoryItem } from '../types';
 
@@ -14,73 +13,91 @@ const ACTIVITY_LABELS = {
   deployment: 'activityDeployment',
   release: 'activityRelease',
   audit: 'activityAudit',
+  intake: 'activityIntake',
+  project: 'activityProject',
 } as const;
+
+const PROJECT_TYPE_LABELS: Record<string, string> = {
+  web_application: 'projectTypeWebApplication',
+  backend_service: 'projectTypeBackendService',
+  static_site: 'projectTypeStaticSite',
+  mixed_application: 'projectTypeMixedApplication',
+};
+
+const ARCHITECTURE_LABELS: Record<string, string> = {
+  monorepo: 'architectureMonorepo',
+  single_repository: 'architectureSingleRepository',
+};
 
 export function ProjectCard({ project }: ProjectCardProps) {
   const t = useTranslations('projects');
-  const activity = project.activity[0];
-  const productionDomain = project.domains[0]?.domain;
-
+  const readyBaselines = [project.baselines.staging, project.baselines.production].filter(
+    (baseline) => baseline?.ready,
+  ).length;
   return (
-    <article className="rounded-lg border bg-card p-5 transition-shadow hover:shadow-md">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-center">
+    <article className="px-4 py-4 transition-colors hover:bg-muted/20">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(11rem,.8fr)] lg:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-lg font-semibold">{project.name}</h2>
-            <StatusTag
-              status={project.runtimeStatus}
-              label={t(`runtime${capitalize(project.runtimeStatus)}`)}
-            />
+            <h2 className="truncate text-base font-semibold">{project.name}</h2>
+            <Tag color={project.status === 'online' ? 'green' : 'orange'}>
+              {t(project.status === 'online' ? 'statusOnline' : 'statusNeedsConfiguration')}
+            </Tag>
           </div>
           <p className="mt-1 truncate text-sm text-muted-foreground">
-            {project.repository?.canonicalUrl ?? t('repositoryNotConnected')}
+            {project.repository?.canonicalUrl ?? t('repositoryUnknown')}
           </p>
-          {project.description ? (
-            <p className="mt-2 line-clamp-1 text-sm text-muted-foreground">{project.description}</p>
-          ) : null}
         </div>
 
-        <DirectoryCell label={t('directoryStructure')}>
-          <p>{t('applicationServiceCount', project.counts)}</p>
+        <DirectoryCell label={t('directoryType')}>
+          <p>{label(t, PROJECT_TYPE_LABELS[project.intake.projectType ?? ''])}</p>
           <p className="text-xs text-muted-foreground">
-            {project.repository?.defaultBranch ?? t('branchNotDetected')}
+            {label(t, ARCHITECTURE_LABELS[project.intake.architecture ?? ''])}
+            {' · '}
+            {project.intake.componentCount === null
+              ? t('componentCountUnknown')
+              : t('componentCount', { count: project.intake.componentCount })}
           </p>
         </DirectoryCell>
 
         <DirectoryCell label={t('directoryBaselines')}>
           <div className="flex flex-wrap gap-1.5">
-            <Tag color={project.baselines.staging ? 'cyan' : 'default'}>Staging</Tag>
-            <Tag color={project.baselines.production ? 'green' : 'default'}>Production</Tag>
+            <BaselineTag
+              name="Staging"
+              ready={project.baselines.staging?.ready === true}
+            />
+            <BaselineTag
+              name="Production"
+              ready={project.baselines.production?.ready === true}
+            />
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {t(`configuration${configurationLabel(project.configurationStatus)}`)}
+            {t('baselineReadiness', { ready: readyBaselines, total: 2 })}
           </p>
         </DirectoryCell>
 
         <DirectoryCell label="Production">
           <p className="font-medium">
-            {project.production?.currentVersion ?? t('productionNotReleased')}
+            {project.production.currentVersion ?? t('productionNotReleased')}
           </p>
           <p className="truncate text-xs text-muted-foreground">
-            {productionDomain ?? t('domainNotConfigured')}
+            {project.production.domain ?? t('domainNotConfigured')}
           </p>
         </DirectoryCell>
 
-        <div className="flex items-center justify-between gap-4 lg:block lg:min-w-40">
+        <div className="flex items-center justify-between gap-4 lg:block">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground lg:hidden">
               {t('directoryRecentActivity')}
             </p>
-            <p className="mt-1 text-sm">
-              {activity ? t(ACTIVITY_LABELS[activity.type]) : t('activityNone')}
-            </p>
+            <p className="text-sm">{t(ACTIVITY_LABELS[project.activity.type])}</p>
             <p className="text-xs text-muted-foreground">
-              {formatDate(activity?.occurredAt ?? project.updatedAt)}
+              {formatDate(project.activity.occurredAt)}
             </p>
           </div>
           <Link
             href={`/projects/${project.id}`}
-            className="link whitespace-nowrap text-sm font-medium lg:mt-3 lg:inline-block"
+            className="inline-flex whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring lg:mt-2"
           >
             {t('enterProject')} →
           </Link>
@@ -90,21 +107,21 @@ export function ProjectCard({ project }: ProjectCardProps) {
   );
 }
 
-function DirectoryCell({ label, children }: { label: string; children: React.ReactNode }) {
+function DirectoryCell({ label: title, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="mt-1 text-sm">{children}</div>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground lg:hidden">
+        {title}
+      </p>
+      <div className="mt-1 text-sm lg:mt-0">{children}</div>
     </div>
   );
 }
 
-function capitalize(value: string) {
-  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+function BaselineTag({ name, ready }: { name: string; ready: boolean }) {
+  return <Tag color={ready ? 'green' : 'default'}>{name}</Tag>;
 }
 
-function configurationLabel(value: ProjectDirectoryItem['configurationStatus']) {
-  if (value === 'needs_configuration') return 'NeedsConfiguration';
-  if (value === 'in_progress') return 'InProgress';
-  return capitalize(value);
+function label(t: ReturnType<typeof useTranslations>, key?: string) {
+  return key ? t(key) : t('directoryUnknown');
 }

@@ -3,6 +3,10 @@ import { ControlAccessPolicyService } from "../control-access-policy";
 import type { ProjectDirectoryQueryDto } from "./dto/project-directory-query.dto";
 import { toProjectDirectoryItem } from "./project-directory-presenter.utils";
 import { ProjectDirectoryRepository } from "./project-directory.repository";
+import type {
+  ProjectDirectoryItem,
+  ProjectDirectoryResponse,
+} from "./project-directory.types";
 
 @Injectable()
 export class ProjectDirectoryService {
@@ -11,8 +15,12 @@ export class ProjectDirectoryService {
     private readonly access: ControlAccessPolicyService,
   ) {}
 
-  async list(teamId: string, actorId: string, query: ProjectDirectoryQueryDto) {
-    const records = await this.repository.list(teamId, query.search);
+  async list(
+    teamId: string,
+    actorId: string,
+    query: ProjectDirectoryQueryDto,
+  ): Promise<ProjectDirectoryResponse> {
+    const records = await this.repository.list(teamId);
     const decisions = await Promise.all(
       records.map(async (project) => ({
         project,
@@ -28,43 +36,45 @@ export class ProjectDirectoryService {
         }),
       })),
     );
-    const filtered = decisions
+    const authorized = decisions
       .filter((decision) => decision.allowed)
       .map((decision) => toProjectDirectoryItem(decision.project));
-    const visible = filtered
-      .filter(
-        (project) =>
-          !query.runtimeStatus || project.runtimeStatus === query.runtimeStatus,
-      )
-      .filter(
-        (project) =>
-          !query.configurationStatus ||
-          project.configurationStatus === query.configurationStatus,
-      )
-      .sort((left, right) =>
-        latestActivityAt(right).localeCompare(latestActivityAt(left)),
-      );
+    const filtered = authorized
+      .filter((project) => matchesQuery(project, query.query))
+      .filter((project) => !query.status || project.status === query.status)
+      .sort(compareProjects);
     return {
-      items: visible.slice(0, query.take),
-      total: visible.length,
+      scope: { teamId, actorId },
+      items: filtered.slice(0, query.take),
+      total: filtered.length,
       summary: {
-        total: filtered.length,
-        online: filtered.filter(isProductionOnline).length,
-        needsConfiguration: filtered.filter(
-          (project) => project.configurationStatus !== "ready",
+        total: authorized.length,
+        online: authorized.filter((project) => project.status === "online")
+          .length,
+        needsConfiguration: authorized.filter(
+          (project) => project.status === "needs_configuration",
         ).length,
       },
     };
   }
 }
 
-function latestActivityAt(project: ReturnType<typeof toProjectDirectoryItem>) {
-  return project.activity[0]?.occurredAt ?? project.updatedAt;
+function matchesQuery(project: ProjectDirectoryItem, input?: string): boolean {
+  const query = input?.trim().toLocaleLowerCase();
+  if (!query) return true;
+  return [
+    project.name,
+    project.repository?.canonicalUrl,
+    project.production.domain,
+  ].some((value) => value?.toLocaleLowerCase().includes(query));
 }
 
-function isProductionOnline(
-  project: ReturnType<typeof toProjectDirectoryItem>,
+function compareProjects(
+  left: ProjectDirectoryItem,
+  right: ProjectDirectoryItem,
 ) {
-  const deployment = project.production?.latestDeployment;
-  return deployment?.status === "completed" && deployment.dryRun === false;
+  const activity = right.activity.occurredAt.localeCompare(
+    left.activity.occurredAt,
+  );
+  return activity || left.id.localeCompare(right.id);
 }

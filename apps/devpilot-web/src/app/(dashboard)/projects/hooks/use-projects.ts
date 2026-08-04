@@ -1,42 +1,67 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useRef, useState } from 'react';
+import useSWR from 'swr';
 import { usePersistFn } from '@svton/hooks';
-import { useQueryLoose } from '@/hooks/api/use-api';
-import type {
-  ProjectConfigurationFilter,
-  ProjectDirectoryResponse,
-  ProjectRuntimeFilter,
-} from '../types';
+import { DEFAULT_SWR_CONFIG } from '@/hooks/api/use-api';
+import { apiRequest } from '@/lib/api-client';
+import { useAuthStore, useTeamStore } from '@/store/hooks';
+import type { ProjectDirectoryResponse, ProjectDirectoryStatusFilter } from '../types';
 
-const BASE_QUERY = 'GET:/project-directory?take=100';
+export const PROJECT_DIRECTORY_BASE_QUERY = 'GET:/project-directory?take=100';
 
 export function useProjects(initialDirectory?: ProjectDirectoryResponse) {
+  const { user } = useAuthStore();
+  const { currentTeam } = useTeamStore();
   const [search, setSearch] = useState('');
-  const [runtimeFilter, setRuntimeFilter] = useState<ProjectRuntimeFilter>('all');
-  const [configurationFilter, setConfigurationFilter] = useState<ProjectConfigurationFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<ProjectDirectoryStatusFilter>('all');
   const deferredSearch = useDeferredValue(search.trim());
   const queryKey = useMemo(
-    () => buildDirectoryQuery(deferredSearch, runtimeFilter, configurationFilter),
-    [configurationFilter, deferredSearch, runtimeFilter],
+    () => buildDirectoryQuery(deferredSearch, statusFilter),
+    [deferredSearch, statusFilter],
   );
-  const directory = useQueryLoose<ProjectDirectoryResponse>(queryKey, {
-    fallback: queryKey === BASE_QUERY ? initialDirectory : undefined,
-    keepPreviousData: true,
-  });
+  const userId = user?.id ?? null;
+  const teamId = currentTeam?.id ?? null;
+  const hasResolvedScope = useRef(false);
+  const scopeWasResolved = hasResolvedScope.current;
+  if (userId && teamId) hasResolvedScope.current = true;
+  const scopedKey = buildDirectoryCacheKey(queryKey, userId, teamId);
+  const fallbackDirectory = shouldUseInitialDirectory(
+    queryKey,
+    userId,
+    teamId,
+    initialDirectory?.scope ?? null,
+    scopeWasResolved,
+  )
+    ? initialDirectory
+    : undefined;
+  const directory = useSWR<ProjectDirectoryResponse>(
+    scopedKey,
+    async () =>
+      (await (apiRequest as (name: string) => Promise<ProjectDirectoryResponse>)(
+        queryKey,
+      )) as ProjectDirectoryResponse,
+    {
+      ...DEFAULT_SWR_CONFIG,
+      fallbackData: fallbackDirectory,
+      keepPreviousData: false,
+    },
+  );
 
-  const refresh = usePersistFn(() => {
-    void directory.mutate();
+  const refresh = usePersistFn(() => void directory.mutate());
+  const resetFilters = usePersistFn(() => {
+    setSearch('');
+    setStatusFilter('all');
   });
 
   return {
     items: directory.data?.items ?? [],
     total: directory.data?.total ?? 0,
-    summary: initialDirectory?.summary ?? directory.data?.summary,
+    summary: directory.data?.summary ?? fallbackDirectory?.summary,
     search,
     setSearch,
-    runtimeFilter,
-    setRuntimeFilter,
-    configurationFilter,
-    setConfigurationFilter,
+    statusFilter,
+    setStatusFilter,
+    filtered: Boolean(search.trim()) || statusFilter !== 'all',
+    resetFilters,
     loading: directory.isLoading,
     validating: directory.isValidating,
     error: directory.error ?? null,
@@ -44,16 +69,31 @@ export function useProjects(initialDirectory?: ProjectDirectoryResponse) {
   };
 }
 
-export function buildDirectoryQuery(
-  search: string,
-  runtime: ProjectRuntimeFilter,
-  configuration: ProjectConfigurationFilter,
+export function buildDirectoryCacheKey(
+  query: string,
+  userId: string | null,
+  teamId: string | null,
 ) {
+  return userId && teamId ? ([userId, teamId, query] as const) : null;
+}
+
+export function shouldUseInitialDirectory(
+  query: string,
+  userId: string | null,
+  teamId: string | null,
+  initialScope: { actorId: string; teamId: string } | null,
+  scopeWasResolved: boolean,
+) {
+  if (query !== PROJECT_DIRECTORY_BASE_QUERY || !initialScope) return false;
+  if (userId && userId !== initialScope.actorId) return false;
+  if (teamId && teamId !== initialScope.teamId) return false;
+  if (userId && teamId) return true;
+  return !scopeWasResolved;
+}
+
+export function buildDirectoryQuery(search: string, status: ProjectDirectoryStatusFilter) {
   const query = new URLSearchParams({ take: '100' });
-  if (search) query.set('search', search);
-  if (runtime !== 'all') query.set('runtimeStatus', runtime);
-  if (configuration !== 'all') {
-    query.set('configurationStatus', configuration);
-  }
+  if (search) query.set('query', search);
+  if (status !== 'all') query.set('status', status);
   return `GET:/project-directory?${query.toString()}`;
 }

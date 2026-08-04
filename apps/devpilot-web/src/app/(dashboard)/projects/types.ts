@@ -1,9 +1,9 @@
-export type ProjectRuntimeStatus = 'idle' | 'running' | 'failed';
-export type ProjectConfigurationStatus = 'draft' | 'in_progress' | 'ready' | 'needs_configuration';
+export type ProjectDirectoryStatus = 'online' | 'needs_configuration';
+export type ProjectDirectoryStatusFilter = 'all' | ProjectDirectoryStatus;
 
 export interface ProjectDirectoryActivity {
   id: string;
-  type: 'analysis' | 'deployment' | 'release' | 'audit';
+  type: 'analysis' | 'deployment' | 'release' | 'audit' | 'intake' | 'project';
   status: string;
   summary: string | null;
   occurredAt: string;
@@ -13,51 +13,38 @@ export interface ProjectDirectoryEnvironment {
   id: string;
   key: string;
   name: string;
-  status: string;
-  baselineRole: string | null;
-  identityLockedAt: string | null;
-  currentConfigRevisionId: string | null;
+  ready: boolean;
 }
 
 export interface ProjectDirectoryItem {
   id: string;
   name: string;
-  description: string | null;
-  onboardingStatus: string | null;
-  runtimeStatus: ProjectRuntimeStatus;
-  configurationStatus: ProjectConfigurationStatus;
+  status: ProjectDirectoryStatus;
   repository: {
     provider: string;
-    canonicalUrl: string | null;
-    defaultBranch: string | null;
-    commitSha: string | null;
-    status: string;
+    canonicalUrl: string;
   } | null;
+  intake: {
+    projectType: string | null;
+    architecture: string | null;
+    componentCount: number | null;
+  };
   baselines: {
     staging: ProjectDirectoryEnvironment | null;
     production: ProjectDirectoryEnvironment | null;
   };
   production: {
-    environmentId: string;
     currentVersion: string | null;
-    latestDeployment: {
-      id: string;
-      status: string;
-      dryRun: boolean;
-      commitSha: string | null;
-      startedAt: string;
-      finishedAt: string | null;
-    } | null;
-  } | null;
-  domains: Array<{ domain: string; status: string; source: 'site' | 'proxy' }>;
-  activity: ProjectDirectoryActivity[];
-  counts: { applications: number; applicationServices: number };
-  createdBy: { id: string; name: string | null; email: string };
-  createdAt: string;
-  updatedAt: string;
+    domain: string | null;
+  };
+  activity: ProjectDirectoryActivity;
 }
 
 export interface ProjectDirectoryResponse {
+  scope: {
+    teamId: string;
+    actorId: string;
+  };
   items: ProjectDirectoryItem[];
   total: number;
   summary: {
@@ -66,6 +53,3 @@ export interface ProjectDirectoryResponse {
     needsConfiguration: number;
   };
 }
-
-export type ProjectRuntimeFilter = 'all' | ProjectRuntimeStatus;
-export type ProjectConfigurationFilter = 'all' | ProjectConfigurationStatus;

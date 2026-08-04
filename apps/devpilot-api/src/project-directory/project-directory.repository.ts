@@ -1,18 +1,22 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  type ProjectDirectoryActivityRecord,
+  recentProjectActivity,
+} from "./project-directory-activity.repository";
 
 export const PROJECT_DIRECTORY_SELECT =
   Prisma.validator<Prisma.ProjectSelect>()({
     id: true,
+    teamId: true,
     name: true,
-    description: true,
+    config: true,
     onboardingStatus: true,
     onboardingRevision: true,
     onboardingFinalizedAt: true,
     createdAt: true,
     updatedAt: true,
-    createdBy: { select: { id: true, name: true, email: true } },
     repositoryIdentity: {
       select: {
         id: true,
@@ -24,12 +28,12 @@ export const PROJECT_DIRECTORY_SELECT =
         currentRevision: {
           select: {
             id: true,
+            identityId: true,
+            projectId: true,
             revision: true,
             defaultBranch: true,
             reason: true,
             createdAt: true,
-            identityId: true,
-            projectId: true,
           },
         },
       },
@@ -44,9 +48,14 @@ export const PROJECT_DIRECTORY_SELECT =
         status: true,
       },
     },
+    repositoryIntakeReviewSnapshots: {
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      take: 1,
+      select: { id: true, decisions: true, createdAt: true },
+    },
     environments: {
       where: { status: "active" },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
       select: {
         id: true,
         key: true,
@@ -55,21 +64,49 @@ export const PROJECT_DIRECTORY_SELECT =
         baselineRole: true,
         identityLockedAt: true,
         currentConfigRevisionId: true,
-        deploymentRuns: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
+        currentEnvironmentVersion: {
           select: {
             id: true,
-            status: true,
-            dryRun: true,
-            commitSha: true,
-            startedAt: true,
-            finishedAt: true,
+            teamId: true,
+            projectId: true,
+            environmentId: true,
+            releaseOrderId: true,
+            artifactManifestId: true,
+            effectiveAt: true,
+            releaseOrder: {
+              select: {
+                id: true,
+                teamId: true,
+                projectId: true,
+                releaseVersion: true,
+              },
+            },
+            artifactManifest: {
+              select: {
+                id: true,
+                teamId: true,
+                projectId: true,
+                releaseOrderId: true,
+              },
+            },
+            deploymentRun: {
+              select: {
+                id: true,
+                teamId: true,
+                projectId: true,
+                environmentId: true,
+                artifactManifestId: true,
+                status: true,
+                dryRun: true,
+              },
+            },
           },
         },
       },
     },
     sites: {
+      where: { status: "active" },
+      orderBy: [{ primaryDomain: "asc" }, { id: "asc" }],
       select: {
         id: true,
         primaryDomain: true,
@@ -77,79 +114,38 @@ export const PROJECT_DIRECTORY_SELECT =
         environmentId: true,
       },
     },
-    proxyConfigs: { select: { id: true, domain: true, status: true } },
-    repositoryAnalysisRuns: {
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      select: { id: true, status: true, createdAt: true, finishedAt: true },
-    },
-    deploymentRuns: {
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      select: { id: true, status: true, createdAt: true, finishedAt: true },
-    },
-    releasePlans: {
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        createdAt: true,
-        finishedAt: true,
-      },
-    },
-    auditEvents: {
-      orderBy: { occurredAt: "desc" },
-      take: 3,
-      select: {
-        id: true,
-        action: true,
-        status: true,
-        summary: true,
-        occurredAt: true,
-      },
-    },
-    _count: { select: { applications: true, applicationServices: true } },
   });
 
-export type ProjectDirectoryRecord = Prisma.ProjectGetPayload<{
+type ProjectDirectoryBaseRecord = Prisma.ProjectGetPayload<{
   select: typeof PROJECT_DIRECTORY_SELECT;
 }>;
+export type ProjectDirectoryRecord = ProjectDirectoryBaseRecord & {
+  recentActivity: ProjectDirectoryActivityRecord;
+};
 
 @Injectable()
 export class ProjectDirectoryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(teamId: string, search?: string): Promise<ProjectDirectoryRecord[]> {
-    const term = search?.trim();
-    return this.prisma.project.findMany({
-      where: {
-        teamId,
-        archivedAt: null,
-        ...(term
-          ? {
-              OR: [
-                { name: { contains: term } },
-                { description: { contains: term } },
-                {
-                  repositoryIdentity: {
-                    is: { canonicalUrl: { contains: term } },
-                  },
-                },
-                {
-                  repositoryConnection: {
-                    is: { repositoryUrl: { contains: term } },
-                  },
-                },
-                { sites: { some: { primaryDomain: { contains: term } } } },
-                { proxyConfigs: { some: { domain: { contains: term } } } },
-              ],
-            }
-          : {}),
+  async list(teamId: string): Promise<ProjectDirectoryRecord[]> {
+    const [projects, activity] = await Promise.all([
+      this.prisma.project.findMany({
+        where: { teamId, archivedAt: null },
+        orderBy: [{ id: "asc" }],
+        select: PROJECT_DIRECTORY_SELECT,
+      }),
+      recentProjectActivity(this.prisma, teamId),
+    ]);
+    return projects.map((project) => ({
+      ...project,
+      recentActivity: activity.get(project.id) ?? {
+        id: project.id,
+        projectId: project.id,
+        activityType: "project",
+        status: project.onboardingStatus ?? "unknown",
+        summary: null,
+        occurredAt: project.updatedAt,
       },
-      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-      select: PROJECT_DIRECTORY_SELECT,
-    });
+    }));
   }
 }

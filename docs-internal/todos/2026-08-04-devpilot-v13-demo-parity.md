@@ -57,89 +57,89 @@
 
 ### P0. Parity Contract And Project Entry
 
-| ID | Status | Atomic TODO | Context Boundary | Acceptance |
-| --- | --- | --- | --- | --- |
-| F413 | done | 固化本次审计差距、Demo/spec 哈希、剩余 TODO 和逐项验收清单。 | Docs only；不改产品行为。 | AC-000～AC-006；本文件与 parity acceptance 文件存在且互相引用。 |
-| F414 | done | 让“生成新项目”和“三步接入已有项目”最终创建同一种 READY Project、唯一 Staging/Production baseline 和首个配置修订。 | 单一 `ProjectGovernanceFinalizationService` owner；生成请求必须带持久 attempt key，数据库 claim 只选中一个唯一 attempt artifact，失败 sibling 不删除 winner；未改发布 UI。 | AC-PROJ-001～006；真实 MySQL 两条入口均为 READY、1+1 baseline、2 个 R1/current，响应丢失重放、异输入拒绝、artifact ownership、回滚/幂等/并发通过。 |
-| F415 | done | 把仓库识别结果整理为项目类型、架构、部署方案、组件、路径、构建输出和运行方式的结构化可编辑合同。 | Repository-analysis typed read/review model + race-safe immutable review snapshot；快照后 generic apply 无副作用 409，finalize 拒绝状态漂移；不改项目首页。 | AC-INTAKE-001～007；真实仓库分析可核对和调整，不显示原始 JSON；确定性 MySQL 竞态/无变更、Git/Browser 证据完成。 |
-| F416 | done | 锁定 finalized 项目的 canonical repository identity，并拒绝构建来源与锁定身份漂移。 | Repository connection/intake/build source policy；READY legacy 无可验证 current identity revision 时 fail closed。 | AC-IDENTITY-001～005；独立修正已补齐 audit reason、冻结 BuildRun 展示、保守 migration 和全证据 hash inventory；二次复核后仅精确 v1/null 允许 legacy 展示回退，未知/畸形快照 fail closed；真实 MySQL/Git/runtime/Browser 通过。 |
-| F417 | pending | 补齐项目目录的单一状态筛选语义、最近活动排序和 Demo 信息密度。 | Project-directory query/presenter/Web list。 | AC-DIR-001～010；同 viewport 对照通过。 |
-| F418 | pending | 增加项目首页弱摘要读模型：项目形态、环境就绪、资源、入口、Staging/Production 当前版本。 | Project delivery summary API/types；不改详情步骤。 | AC-HOME-001～005；摘要全部来自真实关系。 |
-| F419 | pending | 实现发布单列表搜索、状态筛选、最近执行排序、构建/部署计数和最后执行步骤。 | ReleaseOrder list/read model/query/Web list。 | AC-HOME-006～013；无前端全量拼接。 |
+| ID   | Status  | Atomic TODO                                                                                                       | Context Boundary                                                                                                                                                           | Acceptance                                                                                                                                                                                                                     |
+| ---- | ------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F413 | done    | 固化本次审计差距、Demo/spec 哈希、剩余 TODO 和逐项验收清单。                                                      | Docs only；不改产品行为。                                                                                                                                                  | AC-000～AC-006；本文件与 parity acceptance 文件存在且互相引用。                                                                                                                                                                |
+| F414 | done    | 让“生成新项目”和“三步接入已有项目”最终创建同一种 READY Project、唯一 Staging/Production baseline 和首个配置修订。 | 单一 `ProjectGovernanceFinalizationService` owner；生成请求必须带持久 attempt key，数据库 claim 只选中一个唯一 attempt artifact，失败 sibling 不删除 winner；未改发布 UI。 | AC-PROJ-001～006；真实 MySQL 两条入口均为 READY、1+1 baseline、2 个 R1/current，响应丢失重放、异输入拒绝、artifact ownership、回滚/幂等/并发通过。                                                                             |
+| F415 | done    | 把仓库识别结果整理为项目类型、架构、部署方案、组件、路径、构建输出和运行方式的结构化可编辑合同。                  | Repository-analysis typed read/review model + race-safe immutable review snapshot；快照后 generic apply 无副作用 409，finalize 拒绝状态漂移；不改项目首页。                | AC-INTAKE-001～007；真实仓库分析可核对和调整，不显示原始 JSON；确定性 MySQL 竞态/无变更、Git/Browser 证据完成。                                                                                                                |
+| F416 | done    | 锁定 finalized 项目的 canonical repository identity，并拒绝构建来源与锁定身份漂移。                               | Repository connection/intake/build source policy；READY legacy 无可验证 current identity revision 时 fail closed。                                                         | AC-IDENTITY-001～005；独立修正已补齐 audit reason、冻结 BuildRun 展示、保守 migration 和全证据 hash inventory；二次复核后仅精确 v1/null 允许 legacy 展示回退，未知/畸形快照 fail closed；真实 MySQL/Git/runtime/Browser 通过。 |
+| F417 | done    | 补齐项目目录的单一状态筛选语义、最近活动排序和 Demo 信息密度。                                                    | Project-directory query/presenter/Web list。                                                                                                                               | AC-DIR-001～010；真实 MySQL、认证 Browser 和 1484×1324 同 viewport 对照通过。                                                                                                                                                  |
+| F418 | pending | 增加项目首页弱摘要读模型：项目形态、环境就绪、资源、入口、Staging/Production 当前版本。                           | Project delivery summary API/types；不改详情步骤。                                                                                                                         | AC-HOME-001～005；摘要全部来自真实关系。                                                                                                                                                                                       |
+| F419 | pending | 实现发布单列表搜索、状态筛选、最近执行排序、构建/部署计数和最后执行步骤。                                         | ReleaseOrder list/read model/query/Web list。                                                                                                                              | AC-HOME-006～013；无前端全量拼接。                                                                                                                                                                                             |
 
 ### P1. Release Order State, Gates And Build
 
-| ID | Status | Atomic TODO | Context Boundary | Acceptance |
-| --- | --- | --- | --- | --- |
-| F420 | pending | 建立 ReleaseOrder 追加式生命周期派生规则，分别表达草稿、构建、预发、待审批、生产成功、失败和撤回。 | ReleaseOrder status projection only。 | AC-ORDER-001～005；状态不与环境当前版本混用。 |
-| F421 | pending | 修复 `resumeStep`，按最远真实执行证据恢复到 preflight/build/staging/production。 | ReleaseOrder detail projection/route tests。 | AC-ORDER-006～010；刷新和非法深链测试通过。 |
-| F422 | pending | 将四个普通 Tab 改为连接步进条，并展示完成、当前、等待和阻断状态。 | Release detail shell only。 | AC-ORDER-011～016；键盘、ARIA、URL 同步通过。 |
-| F423 | pending | 把“构建最新代码”放到详情页主要位置，并按是否已冻结 Production 制品控制动作。 | Release detail header/action policy。 | AC-BUILD-001～004；不要求 Commit/说明/环境。 |
-| F424 | pending | 在前置检查首屏展示 15 个 MVP 能力组摘要，并保留 51 项完整目录下钻。 | Gate catalog presenter/Web summary。 | AC-GATE-001～006；15/51 数量与状态可追溯。 |
-| F425 | pending | 将门禁结果接入 Build、Staging、Production 服务端阻断策略，区分技术阻断、业务证据、人工确认和 unavailable。 | Gate decision policy/API；不改视觉。 | AC-GATE-007～014；缺 Provider 不得通过。 |
-| F426 | pending | 为受控本地/隔离构建执行器建立明确的 runtime profile、存储卷、超时和并发配置，并在 V13 Docker 验收环境显式启用。 | Build executor/config/compose。 | AC-BUILD-005～010；默认生产仍 fail closed。 |
-| F427 | pending | 收敛环境无关制品合同，只打包声明的组件输出和 provenance，拒绝越界 symlink/特殊文件及把环境变量烘焙为伪同一 Manifest。 | Artifact packaging/build config。 | AC-BUILD-011～018；相同输入可复现、不同环境复用。 |
-| F428 | pending | 补齐构建记录的 revision、Commit、Manifest、结果、耗时和逐次日志抽屉 UI。 | Build step/read model/log drawer。 | AC-BUILD-019～025；成功/失败/重试状态与 Demo 对齐。 |
-| F429 | pending | 为发布单详情聚合 BuildRun、Manifest、DeploymentRun、ReleaseRun 证据，移除项目一级重复的制品/部署主入口。 | Release detail read model/navigation。 | AC-ORDER-017～021；专业深链保留。 |
-| F430 | pending | 统一发布相关状态和动作的中文语义，消除 raw `completed/upgrade/recovery` 与模糊词。 | Release/env-version messages and presenters。 | AC-COPY-001～008；中英文 parity 通过。 |
+| ID   | Status  | Atomic TODO                                                                                                           | Context Boundary                              | Acceptance                                          |
+| ---- | ------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------------------- |
+| F420 | pending | 建立 ReleaseOrder 追加式生命周期派生规则，分别表达草稿、构建、预发、待审批、生产成功、失败和撤回。                    | ReleaseOrder status projection only。         | AC-ORDER-001～005；状态不与环境当前版本混用。       |
+| F421 | pending | 修复 `resumeStep`，按最远真实执行证据恢复到 preflight/build/staging/production。                                      | ReleaseOrder detail projection/route tests。  | AC-ORDER-006～010；刷新和非法深链测试通过。         |
+| F422 | pending | 将四个普通 Tab 改为连接步进条，并展示完成、当前、等待和阻断状态。                                                     | Release detail shell only。                   | AC-ORDER-011～016；键盘、ARIA、URL 同步通过。       |
+| F423 | pending | 把“构建最新代码”放到详情页主要位置，并按是否已冻结 Production 制品控制动作。                                          | Release detail header/action policy。         | AC-BUILD-001～004；不要求 Commit/说明/环境。        |
+| F424 | pending | 在前置检查首屏展示 15 个 MVP 能力组摘要，并保留 51 项完整目录下钻。                                                   | Gate catalog presenter/Web summary。          | AC-GATE-001～006；15/51 数量与状态可追溯。          |
+| F425 | pending | 将门禁结果接入 Build、Staging、Production 服务端阻断策略，区分技术阻断、业务证据、人工确认和 unavailable。            | Gate decision policy/API；不改视觉。          | AC-GATE-007～014；缺 Provider 不得通过。            |
+| F426 | pending | 为受控本地/隔离构建执行器建立明确的 runtime profile、存储卷、超时和并发配置，并在 V13 Docker 验收环境显式启用。       | Build executor/config/compose。               | AC-BUILD-005～010；默认生产仍 fail closed。         |
+| F427 | pending | 收敛环境无关制品合同，只打包声明的组件输出和 provenance，拒绝越界 symlink/特殊文件及把环境变量烘焙为伪同一 Manifest。 | Artifact packaging/build config。             | AC-BUILD-011～018；相同输入可复现、不同环境复用。   |
+| F428 | pending | 补齐构建记录的 revision、Commit、Manifest、结果、耗时和逐次日志抽屉 UI。                                              | Build step/read model/log drawer。            | AC-BUILD-019～025；成功/失败/重试状态与 Demo 对齐。 |
+| F429 | pending | 为发布单详情聚合 BuildRun、Manifest、DeploymentRun、ReleaseRun 证据，移除项目一级重复的制品/部署主入口。              | Release detail read model/navigation。        | AC-ORDER-017～021；专业深链保留。                   |
+| F430 | pending | 统一发布相关状态和动作的中文语义，消除 raw `completed/upgrade/recovery` 与模糊词。                                    | Release/env-version messages and presenters。 | AC-COPY-001～008；中英文 parity 通过。              |
 
 ### P2. Real Staging And Production Execution
 
-| ID | Status | Atomic TODO | Context Boundary | Acceptance |
-| --- | --- | --- | --- | --- |
-| F431 | pending | 定义并实现 exact-Manifest Deployment Provider port，使 DeploymentRun 能把制品交给真实目标而非只解压目录。 | Deployment provider contract/adapter。 | AC-STG-001～006；无 checkout/pull/build。 |
-| F432 | pending | 在部署执行时解析并注入当前环境配置修订、普通变量、Secret 引用和资源连接信息，且不泄漏明文。 | Deployment input snapshot/config injection。 | AC-STG-007～013；日志和 DB 零明文。 |
-| F433 | pending | 让 Staging 启动真实工作负载并执行服务级健康检查，失败必须保留日志且不生成成功环境版本。 | Staging runtime/health adapter。 | AC-STG-014～020；可重复部署同 Manifest。 |
-| F434 | pending | 为每个 Staging DeploymentRun 增加独立日志/证据抽屉和“部署”动作，禁止重新构建。 | Staging Web only。 | AC-STG-021～027；部署次数增长、构建数不变。 |
-| F435 | pending | 把 Production 确认改成始终弹出的快照确认 Dialog，展示环境、版本、Build、Manifest、配置和策略。 | Production confirmation Web。 | AC-PROD-001～008；按钮只在生产步骤出现。 |
-| F436 | pending | 在项目上下文内完成生产审批申请、批准/拒绝、执行和状态回流，不要求用户跳到全局模块再手工返回。 | Release approval bridge/project UI。 | AC-PROD-009～016；全局审批仍保留专业入口。 |
-| F437 | pending | 让 Production 使用同一 Deployment Provider 启动真实工作负载，并消费冻结快照而非读取漂移后的当前配置。 | Production executor/transaction。 | AC-PROD-017～024；同 Manifest Staging 证明服务端强校验。 |
-| F438 | pending | 在生产部署后更新/切换真实站点路由并完成 TLS/HTTP 浏览器探测，失败不得标记发布成功。 | Route activation/probe boundary。 | AC-PROD-025～031；最终 URL 可访问。 |
-| F439 | pending | 为 Production 创建独立恢复发布申请，允许从历史成功环境版本产生新的 approval、DeploymentRun 和 EnvironmentVersion。 | Recovery ReleaseRun/API/policy。 | AC-ENVVER-011～017；不复用已消费审批。 |
-| F440 | pending | 补齐 Production ReleaseRun/DeploymentRun 的日志抽屉、审批证据和失败恢复动作。 | Production evidence Web。 | AC-PROD-032～038；每次运行不可覆盖。 |
+| ID   | Status  | Atomic TODO                                                                                                        | Context Boundary                             | Acceptance                                               |
+| ---- | ------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- | -------------------------------------------------------- |
+| F431 | pending | 定义并实现 exact-Manifest Deployment Provider port，使 DeploymentRun 能把制品交给真实目标而非只解压目录。          | Deployment provider contract/adapter。       | AC-STG-001～006；无 checkout/pull/build。                |
+| F432 | pending | 在部署执行时解析并注入当前环境配置修订、普通变量、Secret 引用和资源连接信息，且不泄漏明文。                        | Deployment input snapshot/config injection。 | AC-STG-007～013；日志和 DB 零明文。                      |
+| F433 | pending | 让 Staging 启动真实工作负载并执行服务级健康检查，失败必须保留日志且不生成成功环境版本。                            | Staging runtime/health adapter。             | AC-STG-014～020；可重复部署同 Manifest。                 |
+| F434 | pending | 为每个 Staging DeploymentRun 增加独立日志/证据抽屉和“部署”动作，禁止重新构建。                                     | Staging Web only。                           | AC-STG-021～027；部署次数增长、构建数不变。              |
+| F435 | pending | 把 Production 确认改成始终弹出的快照确认 Dialog，展示环境、版本、Build、Manifest、配置和策略。                     | Production confirmation Web。                | AC-PROD-001～008；按钮只在生产步骤出现。                 |
+| F436 | pending | 在项目上下文内完成生产审批申请、批准/拒绝、执行和状态回流，不要求用户跳到全局模块再手工返回。                      | Release approval bridge/project UI。         | AC-PROD-009～016；全局审批仍保留专业入口。               |
+| F437 | pending | 让 Production 使用同一 Deployment Provider 启动真实工作负载，并消费冻结快照而非读取漂移后的当前配置。              | Production executor/transaction。            | AC-PROD-017～024；同 Manifest Staging 证明服务端强校验。 |
+| F438 | pending | 在生产部署后更新/切换真实站点路由并完成 TLS/HTTP 浏览器探测，失败不得标记发布成功。                                | Route activation/probe boundary。            | AC-PROD-025～031；最终 URL 可访问。                      |
+| F439 | pending | 为 Production 创建独立恢复发布申请，允许从历史成功环境版本产生新的 approval、DeploymentRun 和 EnvironmentVersion。 | Recovery ReleaseRun/API/policy。             | AC-ENVVER-011～017；不复用已消费审批。                   |
+| F440 | pending | 补齐 Production ReleaseRun/DeploymentRun 的日志抽屉、审批证据和失败恢复动作。                                      | Production evidence Web。                    | AC-PROD-032～038；每次运行不可覆盖。                     |
 
 ### P3. Environment Versions And Project Governance
 
-| ID | Status | Atomic TODO | Context Boundary | Acceptance |
-| --- | --- | --- | --- | --- |
-| F441 | pending | 完善环境版本读模型，展示当前版本、来源发布单、Manifest、最近运行和完整变更历史。 | EnvironmentVersion read API/Web cards。 | AC-ENVVER-001～006。 |
-| F442 | pending | 按环境过滤可升级/可回退候选，默认推荐最新合格制品或上一次成功版本。 | EnvironmentVersion candidate policy/Web select。 | AC-ENVVER-007～010；不接受文本版本/未知镜像。 |
-| F443 | pending | 将项目设置改为独立页面和环境内子导航：部署目标、资源绑定、变量与密钥、域名与入口、保护规则。 | Settings IA/routes/layout。 | AC-SET-001～009；不再用单个超长抽屉承载全部内容。 |
-| F444 | pending | 固化 Staging/Production baseline 身份和生命周期，阻止无保护归档、重复 baseline 或 finalized 后静默换 key。 | ProjectEnvironment CRUD/policy/UI。 | AC-SET-010～016；普通显示名/配置仍按修订维护。 |
-| F445 | pending | 实现按环境绑定/替换/复用部署目标服务器或 Provider target，并给出连通性校验。 | Environment target binding。 | AC-SET-017～024。 |
-| F446 | pending | 实现按环境绑定资源实例和共享范围，区分基础设施生命周期与项目引用所有权。 | Resource binding/control-plane bridge。 | AC-SET-025～032。 |
-| F447 | pending | 完善普通变量、Secret 引用、配置 revision/CAS、导入预览和跨环境复用交互。 | Environment config governance。 | AC-SET-033～041；Secret 只保存引用。 |
-| F448 | pending | 完善站点、域名、DNS、TLS、代理目标和流量入口的真实绑定/验证状态。 | Site/route/DNS/TLS project settings。 | AC-SET-042～050；配置状态与运行状态分离。 |
-| F449 | pending | 将当前生效发布策略作为只读主视图，修改通过新修订流程；标准发布可执行，高级策略真实缺失时 fail closed。 | Release policy settings/capability。 | AC-POLICY-001～010。 |
+| ID   | Status  | Atomic TODO                                                                                                | Context Boundary                                 | Acceptance                                        |
+| ---- | ------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------- |
+| F441 | pending | 完善环境版本读模型，展示当前版本、来源发布单、Manifest、最近运行和完整变更历史。                           | EnvironmentVersion read API/Web cards。          | AC-ENVVER-001～006。                              |
+| F442 | pending | 按环境过滤可升级/可回退候选，默认推荐最新合格制品或上一次成功版本。                                        | EnvironmentVersion candidate policy/Web select。 | AC-ENVVER-007～010；不接受文本版本/未知镜像。     |
+| F443 | pending | 将项目设置改为独立页面和环境内子导航：部署目标、资源绑定、变量与密钥、域名与入口、保护规则。               | Settings IA/routes/layout。                      | AC-SET-001～009；不再用单个超长抽屉承载全部内容。 |
+| F444 | pending | 固化 Staging/Production baseline 身份和生命周期，阻止无保护归档、重复 baseline 或 finalized 后静默换 key。 | ProjectEnvironment CRUD/policy/UI。              | AC-SET-010～016；普通显示名/配置仍按修订维护。    |
+| F445 | pending | 实现按环境绑定/替换/复用部署目标服务器或 Provider target，并给出连通性校验。                               | Environment target binding。                     | AC-SET-017～024。                                 |
+| F446 | pending | 实现按环境绑定资源实例和共享范围，区分基础设施生命周期与项目引用所有权。                                   | Resource binding/control-plane bridge。          | AC-SET-025～032。                                 |
+| F447 | pending | 完善普通变量、Secret 引用、配置 revision/CAS、导入预览和跨环境复用交互。                                   | Environment config governance。                  | AC-SET-033～041；Secret 只保存引用。              |
+| F448 | pending | 完善站点、域名、DNS、TLS、代理目标和流量入口的真实绑定/验证状态。                                          | Site/route/DNS/TLS project settings。            | AC-SET-042～050；配置状态与运行状态分离。         |
+| F449 | pending | 将当前生效发布策略作为只读主视图，修改通过新修订流程；标准发布可执行，高级策略真实缺失时 fail closed。     | Release policy settings/capability。             | AC-POLICY-001～010。                              |
 
 ### P4. Visual, Interaction And Accessibility Parity
 
-| ID | Status | Atomic TODO | Context Boundary | Acceptance |
-| --- | --- | --- | --- | --- |
+| ID   | Status  | Atomic TODO                                                                                                                     | Context Boundary                     | Acceptance                             |
+| ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | -------------------------------------- |
 | F450 | pending | 统一项目目录、接入、交付首页、发布详情、环境版本和设置页的 V13 spacing、density、typography、radius、border、color 和主次动作。 | Project-delivery visual layer only。 | AC-UI-001～010；1484×1324 同状态对照。 |
-| F451 | pending | 补齐所有空态、阻断、运行中、成功、失败、审批和能力未就绪状态，并使用真实 fixture 而非页面硬编码。 | Web state components/fixtures。 | AC-UI-011～018。 |
-| F452 | pending | 完成键盘、焦点、ARIA、Dialog/Drawer、错误提示、对比度和中英文可访问名称验收。 | Accessibility only。 | AC-A11Y-001～012。 |
-| F453 | pending | 完成窄屏、常规桌面和 1484×1324 参考 viewport 的响应式与无横向溢出验收。 | Responsive/layout tests。 | AC-UI-019～025。 |
+| F451 | pending | 补齐所有空态、阻断、运行中、成功、失败、审批和能力未就绪状态，并使用真实 fixture 而非页面硬编码。                               | Web state components/fixtures。      | AC-UI-011～018。                       |
+| F452 | pending | 完成键盘、焦点、ARIA、Dialog/Drawer、错误提示、对比度和中英文可访问名称验收。                                                   | Accessibility only。                 | AC-A11Y-001～012。                     |
+| F453 | pending | 完成窄屏、常规桌面和 1484×1324 参考 viewport 的响应式与无横向溢出验收。                                                         | Responsive/layout tests。            | AC-UI-019～025。                       |
 
 ### P5. Runtime, E2E And Final Closure
 
-| ID | Status | Atomic TODO | Context Boundary | Acceptance |
-| --- | --- | --- | --- | --- |
-| F454 | pending | 建立 project/network/volume 命名空间隔离的 V13 parity Docker stack、真实示例仓库、目标工作负载、域名和 allowlist 可重复 seed/reset 工具。 | Test infrastructure only。 | AC-E2E-001～006；不污染开发/生产数据。 |
-| F455 | pending | 跑通“接入仓库→识别→配置→发布单→构建→Staging→Production→浏览器访问”正向 E2E。 | Cross-layer positive E2E。 | AC-E2E-007～015；Browser/API/DB/log 四类证据一致。 |
-| F456 | pending | 跑通同发布单多次构建、同 Manifest 多次预发、环境升级和 Staging/Production 回退 E2E。 | Version/history E2E。 | AC-E2E-016～023。 |
-| F457 | pending | 跑通权限、重复、异幂等键并发、配置漂移、门禁失败、Provider 关闭、Digest 错误、审批拒绝、探测失败和全证据凭据扫描负向 E2E。 | Negative/security E2E。 | AC-E2E-024～035。 |
-| F458 | pending | 逐页执行 V13 视觉回归，保存 Demo/实际同 viewport 对照、DOM、交互录屏或步骤证据并关闭所有结构差异。 | Browser visual acceptance only。 | AC-VIS-001～012；无近白/重复/错页截图。 |
-| F459 | pending | 独立完成产品、UX、无障碍、安全、领域一致性和数据泄漏对抗审查，并修复有效发现。 | Independent audit/review。 | AC-REVIEW-001～008；审查人与实现 worker 分离。 |
-| F460 | pending | 同步用户指南、迁移说明、TODO/progress/roadmap/board，运行全量 gate 并形成最终 parity verdict。 | Docs/full verification/final report。 | 所有 AC 均 pass；不存在未解释 partial/missing。 |
+| ID   | Status  | Atomic TODO                                                                                                                               | Context Boundary                      | Acceptance                                         |
+| ---- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------- |
+| F454 | pending | 建立 project/network/volume 命名空间隔离的 V13 parity Docker stack、真实示例仓库、目标工作负载、域名和 allowlist 可重复 seed/reset 工具。 | Test infrastructure only。            | AC-E2E-001～006；不污染开发/生产数据。             |
+| F455 | pending | 跑通“接入仓库→识别→配置→发布单→构建→Staging→Production→浏览器访问”正向 E2E。                                                              | Cross-layer positive E2E。            | AC-E2E-007～015；Browser/API/DB/log 四类证据一致。 |
+| F456 | pending | 跑通同发布单多次构建、同 Manifest 多次预发、环境升级和 Staging/Production 回退 E2E。                                                      | Version/history E2E。                 | AC-E2E-016～023。                                  |
+| F457 | pending | 跑通权限、重复、异幂等键并发、配置漂移、门禁失败、Provider 关闭、Digest 错误、审批拒绝、探测失败和全证据凭据扫描负向 E2E。                | Negative/security E2E。               | AC-E2E-024～035。                                  |
+| F458 | pending | 逐页执行 V13 视觉回归，保存 Demo/实际同 viewport 对照、DOM、交互录屏或步骤证据并关闭所有结构差异。                                        | Browser visual acceptance only。      | AC-VIS-001～012；无近白/重复/错页截图。            |
+| F459 | pending | 独立完成产品、UX、无障碍、安全、领域一致性和数据泄漏对抗审查，并修复有效发现。                                                            | Independent audit/review。            | AC-REVIEW-001～008；审查人与实现 worker 分离。     |
+| F460 | pending | 同步用户指南、迁移说明、TODO/progress/roadmap/board，运行全量 gate 并形成最终 parity verdict。                                            | Docs/full verification/final report。 | 所有 AC 均 pass；不存在未解释 partial/missing。    |
 
 ### Registered Post-Parity Hardening
 
-| ID | Status | Atomic TODO | Context Boundary | Acceptance |
-| --- | --- | --- | --- | --- |
-| F461 | pending | 建立 durable repository-analysis execution：原子 DB claim/lease（owner/attempt/expiry）、heartbeat、stale takeover、CAS terminalization、exactly-one suggestion snapshot，以及 restart/multi-replica recovery。 | Repository-analysis execution ownership only；排在既定 parity slices 之后，不在 F415 实现。 | 真实 MySQL 双 worker、cancel/timeout/retry/stale-writer 证明。 |
-| F462 | pending | 建立 repository Git egress/SSRF policy：批准 provider/self-hosted allowlist、DNS/IP resolution and pinning、拦截 loopback/link-local/private/metadata/redirect/rebinding，并规范 SSH/scp URL。 | Repository Git network boundary only；排在既定 parity slices 之后，不在 F415 实现。 | 真实负向网络与 URL 规范化测试。 |
-| F463 | pending | 建立 legacy repository identity inventory 和 collision-safe remediation：先 dry-run 报告 canonical/alias/provider/current-revision 冲突，再以可审计、幂等、可恢复事务创建 identity + initial revision 并逐项 reconcile。 | 历史 READY/connected 项目迁移 only；F416 只 fail closed，不推断或自动修复 legacy 身份。 | fresh/upgrade MySQL inventory、collision stop、idempotent apply/replay、partial-failure recovery、audit 和 post-migration build 证明。 |
+| ID   | Status  | Atomic TODO                                                                                                                                                                                                              | Context Boundary                                                                            | Acceptance                                                                                                                             |
+| ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| F461 | pending | 建立 durable repository-analysis execution：原子 DB claim/lease（owner/attempt/expiry）、heartbeat、stale takeover、CAS terminalization、exactly-one suggestion snapshot，以及 restart/multi-replica recovery。          | Repository-analysis execution ownership only；排在既定 parity slices 之后，不在 F415 实现。 | 真实 MySQL 双 worker、cancel/timeout/retry/stale-writer 证明。                                                                         |
+| F462 | pending | 建立 repository Git egress/SSRF policy：批准 provider/self-hosted allowlist、DNS/IP resolution and pinning、拦截 loopback/link-local/private/metadata/redirect/rebinding，并规范 SSH/scp URL。                           | Repository Git network boundary only；排在既定 parity slices 之后，不在 F415 实现。         | 真实负向网络与 URL 规范化测试。                                                                                                        |
+| F463 | pending | 建立 legacy repository identity inventory 和 collision-safe remediation：先 dry-run 报告 canonical/alias/provider/current-revision 冲突，再以可审计、幂等、可恢复事务创建 identity + initial revision 并逐项 reconcile。 | 历史 READY/connected 项目迁移 only；F416 只 fail closed，不推断或自动修复 legacy 身份。     | fresh/upgrade MySQL inventory、collision stop、idempotent apply/replay、partial-failure recovery、audit 和 post-migration build 证明。 |
 
 ## Worker Granularity Contract
 
