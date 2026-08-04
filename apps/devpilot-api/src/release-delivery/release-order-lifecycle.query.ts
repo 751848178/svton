@@ -9,6 +9,7 @@ import {
   releaseRunCompletionEvidenceExists,
   succeededProductionDeploymentExists,
 } from "./release-order-production-evidence.query";
+import { releaseOrderResumeStepCte } from "./release-order-resume-step.query";
 
 export function releaseOrderLifecycleCtes() {
   return Prisma.sql`
@@ -161,10 +162,12 @@ export function releaseOrderLifecycleDetailQuery(input: {
         AND ro.teamId = ${input.teamId} AND ro.projectId = ${input.projectId}
         AND p.archivedAt IS NULL
     ),
-    ${releaseOrderLifecycleCtes()}
+    ${releaseOrderLifecycleCtes()},
+    ${releaseOrderResumeStepCte()}
     SELECT persistedStatus, lifecycleStatus, lifecyclePhase,
       lifecycleSourceType, lifecycleSourceId, lifecycleSourceStatus,
-      lifecycleOccurredAt, lifecycleFailureKind
+      lifecycleOccurredAt, lifecycleFailureKind, frp.resumeStep
     FROM lifecycle_orders lo
+    INNER JOIN furthest_release_phase frp ON frp.releaseOrderId = lo.id
   `;
 }

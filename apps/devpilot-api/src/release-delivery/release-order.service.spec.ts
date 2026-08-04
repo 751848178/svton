@@ -41,6 +41,7 @@ describe("ReleaseOrderService", () => {
       sourceStatus: "created",
       occurredAt: "2026-08-03T00:00:00.000Z",
     },
+    resumeStep: "preflight",
   };
 
   beforeEach(() => {
@@ -153,12 +154,13 @@ describe("ReleaseOrderService", () => {
         sourceStatus: "succeeded",
         occurredAt: "2026-08-03T01:00:00.000Z",
       },
+      resumeStep: "staging",
     });
     await expect(
       service.get("team-1", "project-1", "order-1"),
     ).resolves.toEqual(
       expect.objectContaining({
-        resumeStep: "build",
+        resumeStep: "staging",
         preflight: expect.objectContaining({ ready: true }),
       }),
     );

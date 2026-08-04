@@ -1,6 +1,7 @@
 import { isStoredConnectionAligned } from "../repository-identity/repository-identity-policy.utils";
 import type {
   ReleaseOrderLifecycle,
+  ReleaseOrderLifecyclePhase,
   ReleaseOrderPersistedStatus,
 } from "./release-order-lifecycle.types";
 
@@ -45,6 +46,7 @@ export function presentReleaseOrderDetail(input: {
   order: DetailRecord;
   persistedStatus: ReleaseOrderPersistedStatus;
   lifecycle: ReleaseOrderLifecycle;
+  resumeStep: ReleaseOrderLifecyclePhase;
 }) {
   const { order } = input;
   const baselineRoles = new Set(
@@ -64,12 +66,7 @@ export function presentReleaseOrderDetail(input: {
     counts: order._count,
     persistedStatus: input.persistedStatus,
     lifecycle: input.lifecycle,
-    resumeStep:
-      order._count.releaseRuns > 0
-        ? "production"
-        : order._count.buildRuns > 0
-          ? "build"
-          : "preflight",
+    resumeStep: input.resumeStep,
     preflight: {
       ready:
         repositoryReady &&

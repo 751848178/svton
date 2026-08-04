@@ -113,11 +113,14 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-ORDER-003** 构建、预发、生产失败能够派生正确的发布单可见状态。
 - [x] **AC-ORDER-004** 成功生产发布后发布单进入成功/已发布状态。
 - [x] **AC-ORDER-005** 撤回/取消只影响后续动作，不覆盖历史运行。
-- [ ] **AC-ORDER-006** 无执行证据默认打开前置检查。
-- [ ] **AC-ORDER-007** 有 BuildRun、无 Staging 运行时默认打开构建制品。
-- [ ] **AC-ORDER-008** 有 Staging DeploymentRun、无 Production ReleaseRun 时默认打开预发发布。
-- [ ] **AC-ORDER-009** 有 Production ReleaseRun/DeploymentRun 时默认打开生产发布。
-- [ ] **AC-ORDER-010** 查看其他步骤不改变真实 resumeStep，刷新恢复最远执行步骤。
+- [x] **AC-ORDER-006** 无执行证据默认打开前置检查。
+- [x] **AC-ORDER-007** 有 BuildRun、无 Staging 运行时默认打开构建制品。
+- [x] **AC-ORDER-008** 有 Staging DeploymentRun、无 Production ReleaseRun 时默认打开预发发布。
+- [x] **AC-ORDER-009** 有 Production ReleaseRun/DeploymentRun 时默认打开生产发布。
+- [x] **AC-ORDER-010** 查看其他步骤不改变真实 resumeStep，刷新恢复最远执行步骤。
+
+> F421 的实现、MySQL、认证 API、Browser 与 P1 correction evidence 已通过；final independent seal review 以 P0/P1/P2/P3=0/0/0/0 通过，F422 保持 pending。
+
 - [ ] **AC-ORDER-011** 四步使用连接步进条而不是无状态普通 Tab。
 - [ ] **AC-ORDER-012** 每步显示编号、名称、证据摘要和完成/当前/等待/阻断状态。
 - [ ] **AC-ORDER-013** 步进条支持键盘导航、`aria-current`/selected 和稳定 URL。

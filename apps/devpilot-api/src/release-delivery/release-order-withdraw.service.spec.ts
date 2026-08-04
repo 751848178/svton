@@ -49,6 +49,7 @@ describe("ReleaseOrderWithdrawService", () => {
         sourceStatus: "canceled",
         occurredAt: "2026-08-04T02:00:00.000Z",
       },
+      resumeStep: "production",
     });
 
     const first = await service.withdraw(input);

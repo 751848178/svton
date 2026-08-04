@@ -8,6 +8,7 @@ import { Button, ErrorBanner, StatusTag } from '@/components/ui';
 import { useReleaseOrderDetail } from '../hooks/use-release-order-detail';
 import type { ReleaseOrderStep } from '../types/release-order.types';
 import {
+  readExplicitReleaseOrderStep,
   readReleaseOrderStep,
   releaseOrderHref,
   releaseOrderListHref,
@@ -30,14 +31,22 @@ export function ReleaseOrderDetailPanel(props: Props) {
   const searchParams = useSearchParams();
   const order = useReleaseOrderDetail(props.projectId, props.releaseOrderId);
   const step = readReleaseOrderStep(searchParams, order.detail?.resumeStep || 'preflight');
-  const rawStep = searchParams.get('step');
+  const explicitStep = readExplicitReleaseOrderStep(searchParams);
 
   useEffect(() => {
-    if (!order.detail || rawStep === step) return;
+    if (!order.detail || explicitStep === step) return;
     router.replace(releaseOrderHref(props.projectId, props.releaseOrderId, step, searchParams), {
       scroll: false,
     });
-  }, [order.detail, props.projectId, props.releaseOrderId, rawStep, router, searchParams, step]);
+  }, [
+    explicitStep,
+    order.detail,
+    props.projectId,
+    props.releaseOrderId,
+    router,
+    searchParams,
+    step,
+  ]);
 
   if (order.loading) return <LoadingState />;
   if (order.error || !order.detail) {
@@ -86,9 +95,7 @@ export function ReleaseOrderDetailPanel(props: Props) {
           <p className="mt-1 text-sm text-muted-foreground">
             {detail.note || t('releaseOrderNoNote')}
           </p>
-          {failureLabelKey && (
-            <p className="mt-1 text-xs text-destructive">{t(failureLabelKey)}</p>
-          )}
+          {failureLabelKey && <p className="mt-1 text-xs text-destructive">{t(failureLabelKey)}</p>}
         </div>
       </div>
       <Tabs

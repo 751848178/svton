@@ -2,8 +2,15 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { releaseOrderLifecycleDetailQuery } from "./release-order-lifecycle.query";
-import { presentReleaseOrderLifecycle } from "./release-order-lifecycle.presenter";
+import {
+  presentReleaseOrderLifecycle,
+  presentReleaseOrderResumeStep,
+} from "./release-order-lifecycle.presenter";
 import type { ReleaseOrderLifecycleRow } from "./release-order-lifecycle.types";
+
+type ReleaseOrderDetailLifecycleRow = ReleaseOrderLifecycleRow & {
+  resumeStep: string | null;
+};
 
 const detailInclude = {
   _count: { select: { buildRuns: true, manifests: true, releaseRuns: true } },
@@ -62,7 +69,7 @@ export class ReleaseOrderDetailRepository {
           include: detailInclude,
         });
         if (!order) return null;
-        const rows = await tx.$queryRaw<ReleaseOrderLifecycleRow[]>(
+        const rows = await tx.$queryRaw<ReleaseOrderDetailLifecycleRow[]>(
           releaseOrderLifecycleDetailQuery({
             teamId,
             projectId,
@@ -70,7 +77,11 @@ export class ReleaseOrderDetailRepository {
           }),
         );
         if (!rows[0]) return null;
-        return { order, ...presentReleaseOrderLifecycle(rows[0]) };
+        return {
+          order,
+          ...presentReleaseOrderLifecycle(rows[0]),
+          resumeStep: presentReleaseOrderResumeStep(rows[0].resumeStep),
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );

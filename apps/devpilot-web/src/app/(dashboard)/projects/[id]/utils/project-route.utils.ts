@@ -52,10 +52,16 @@ export function readReleaseOrderStep(
   searchParams: URLSearchParams,
   fallback: ReleaseOrderStep,
 ): ReleaseOrderStep {
-  const step = searchParams.get('step');
+  return readExplicitReleaseOrderStep(searchParams) || fallback;
+}
+
+export function readExplicitReleaseOrderStep(searchParams: URLSearchParams) {
+  const steps = searchParams.getAll('step');
+  if (steps.length !== 1) return null;
+  const step = steps[0];
   return ['preflight', 'build', 'staging', 'production'].includes(step || '')
-    ? step as ReleaseOrderStep
-    : fallback;
+    ? (step as ReleaseOrderStep)
+    : null;
 }
 
 export function deliveryHref(
@@ -103,10 +109,7 @@ export function releaseOrderHref(
   return route(`/projects/${encodeURIComponent(projectId)}`, next);
 }
 
-export function releaseOrderListHref(
-  projectId: string,
-  searchParams: URLSearchParams,
-) {
+export function releaseOrderListHref(projectId: string, searchParams: URLSearchParams) {
   const next = new URLSearchParams(searchParams);
   next.delete('releaseOrderId');
   next.delete('step');

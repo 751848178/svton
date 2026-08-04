@@ -39,6 +39,10 @@ export function presentReleaseOrderLifecycle(row: ReleaseOrderLifecycleRow): {
   };
 }
 
+export function presentReleaseOrderResumeStep(value: string | null) {
+  return member(PHASES, value, "resume step");
+}
+
 function lifecycle(row: ReleaseOrderLifecycleRow): ReleaseOrderLifecycle {
   const value: ReleaseOrderLifecycle = {
     status: member(
@@ -68,10 +72,10 @@ function lifecycle(row: ReleaseOrderLifecycleRow): ReleaseOrderLifecycle {
 
 function member<const T extends readonly string[]>(
   values: T,
-  value: string,
+  value: string | null,
   field: string,
 ) {
-  if (!values.includes(value)) {
+  if (value === null || !values.includes(value)) {
     throw new Error(`Unsupported release order ${field}: ${value}`);
   }
   return value as T[number];

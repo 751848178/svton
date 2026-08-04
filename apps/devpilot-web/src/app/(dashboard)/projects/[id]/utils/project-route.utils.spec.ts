@@ -43,7 +43,9 @@ describe('project route compatibility', () => {
     );
     expect(readDeliveryView(new URLSearchParams('view=unknown'))).toBe('releases');
     expect(readSettingsSection(new URLSearchParams('section=resources'))).toBe('resources');
-    expect(readSettingsSection(new URLSearchParams('section=release-policy'))).toBe('release-policy');
+    expect(readSettingsSection(new URLSearchParams('section=release-policy'))).toBe(
+      'release-policy',
+    );
     expect(readSettingsSection(new URLSearchParams('section=unknown'))).toBe('repository');
   });
 
@@ -68,9 +70,39 @@ describe('project route compatibility', () => {
       'production',
     );
     expect(readReleaseOrderStep(new URLSearchParams('step=unknown'), 'build')).toBe('build');
-    expect(releaseOrderListHref(
-      'project-1',
-      new URLSearchParams('releaseOrderId=order-1&step=build&buildRunId=build-1'),
-    )).toBe('/projects/project-1');
+    expect(
+      releaseOrderListHref(
+        'project-1',
+        new URLSearchParams('releaseOrderId=order-1&step=build&buildRunId=build-1'),
+      ),
+    ).toBe('/projects/project-1');
+  });
+
+  it.each([
+    ['', 'staging'],
+    ['step=', 'staging'],
+    ['step=unknown', 'staging'],
+    ['step=Production', 'staging'],
+    ['step=%50roduction', 'staging'],
+    ['step=unknown&step=build', 'staging'],
+    ['step=build&step=unknown', 'staging'],
+    ['step=build&step=production', 'staging'],
+    ['step=preflight', 'preflight'],
+    ['step=build', 'build'],
+    ['step=staging', 'staging'],
+    ['step=production', 'production'],
+  ])('resolves route %p against the server resume step', (query, expected) => {
+    expect(readReleaseOrderStep(new URLSearchParams(query), 'staging')).toBe(expected);
+  });
+
+  it('removes an incompatible build focus while canonicalizing a step', () => {
+    expect(
+      releaseOrderHref(
+        'project-1',
+        'order-1',
+        'production',
+        new URLSearchParams('step=unknown&buildRunId=foreign-build'),
+      ),
+    ).toBe('/projects/project-1?step=production&releaseOrderId=order-1');
   });
 });
