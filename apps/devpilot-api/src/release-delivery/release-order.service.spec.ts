@@ -4,7 +4,6 @@ import { ReleaseOrderService } from "./release-order.service";
 describe("ReleaseOrderService", () => {
   const repository = {
     findProject: jest.fn(),
-    list: jest.fn(),
     findScoped: jest.fn(),
     findByVersion: jest.fn(),
     create: jest.fn(),
@@ -25,17 +24,6 @@ describe("ReleaseOrderService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     repository.findProject.mockResolvedValue({ id: "project-1" });
-  });
-
-  it("lists only repository-scoped orders", async () => {
-    repository.list.mockResolvedValue([record]);
-    await expect(service.list("team-1", "project-1")).resolves.toEqual({
-      items: [
-        expect.objectContaining({ id: "order-1", counts: record._count }),
-      ],
-      total: 1,
-    });
-    expect(repository.list).toHaveBeenCalledWith("team-1", "project-1");
   });
 
   it("creates only a draft order and exposes zero execution records", async () => {
@@ -78,9 +66,11 @@ describe("ReleaseOrderService", () => {
 
   it("does not reveal a project outside the team scope", async () => {
     repository.findProject.mockResolvedValue(null);
-    await expect(service.list("team-2", "project-1")).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.create("team-2", "user-1", "project-1", {
+        releaseVersion: "2.4.2",
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it("returns server-derived preflight and resume state for detail", async () => {
@@ -118,7 +108,9 @@ describe("ReleaseOrderService", () => {
         ],
       },
     });
-    await expect(service.get("team-1", "project-1", "order-1")).resolves.toEqual(
+    await expect(
+      service.get("team-1", "project-1", "order-1"),
+    ).resolves.toEqual(
       expect.objectContaining({
         resumeStep: "build",
         preflight: expect.objectContaining({ ready: true }),

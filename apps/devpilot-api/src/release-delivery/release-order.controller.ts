@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Post,
   Query,
@@ -11,6 +12,7 @@ import {
 import { AuthzGuard, Roles } from "@svton/nestjs-authz";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CreateReleaseOrderDto } from "./dto/release-order.dto";
+import { ReleaseOrderListQueryDto } from "./dto/release-order-list-query.dto";
 import { DeployReleaseToStagingDto } from "./dto/release-staging.dto";
 import {
   ConfirmProductionReleaseDto,
@@ -21,6 +23,7 @@ import { ReleaseStagingService } from "./release-staging.service";
 import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderService } from "./release-order.service";
+import { ReleaseOrderListService } from "./release-order-list.service";
 
 interface AuthRequest {
   user: { id: string };
@@ -33,6 +36,7 @@ interface AuthRequest {
 export class ReleaseOrderController {
   constructor(
     private readonly orders: ReleaseOrderService,
+    private readonly orderList: ReleaseOrderListService,
     private readonly builds: ReleaseBuildService,
     private readonly staging: ReleaseStagingService,
     private readonly production: ReleaseProductionService,
@@ -40,12 +44,16 @@ export class ReleaseOrderController {
   ) {}
 
   @Get()
+  @Header("Cache-Control", "private, no-store")
+  @Header("Vary", "Authorization, X-Team-Id, Cookie")
   async list(
     @Request() req: AuthRequest,
     @Param("projectId") projectId: string,
+    @Query() query: ReleaseOrderListQueryDto,
   ) {
-    await this.access.assertRead(this.scope(req, projectId));
-    return this.orders.list(req.teamId, projectId);
+    const scope = this.scope(req, projectId);
+    await this.access.assertRead(scope);
+    return this.orderList.list(scope.teamId, scope.actorId, projectId, query);
   }
 
   @Post()

@@ -13,11 +13,6 @@ export interface ReleaseOrderItem {
   };
 }
 
-export interface ReleaseOrderListResponse {
-  items: ReleaseOrderItem[];
-  total: number;
-}
-
 export type ReleaseOrderStep = 'preflight' | 'build' | 'staging' | 'production';
 
 export interface ReleaseOrderDetail extends ReleaseOrderItem {

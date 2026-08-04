@@ -82,16 +82,17 @@ describeIntegration("ReleaseOrder integration", () => {
     ).resolves.toBe(1);
   });
 
-  it("rejects a conflicting note and isolates list by team/project", async () => {
+  it("rejects a conflicting note and isolates commands by team/project", async () => {
     await expect(
       service.create(teamId, userId, projectId, {
         releaseVersion: "2.4.1",
         note: "Changed note",
       }),
     ).rejects.toBeInstanceOf(ConflictException);
-    await expect(service.list(teamId, projectId)).resolves.toMatchObject({
-      total: 2,
-    });
-    await expect(service.list("another-team", projectId)).rejects.toThrow();
+    await expect(
+      service.create("another-team", userId, projectId, {
+        releaseVersion: "2.4.3",
+      }),
+    ).rejects.toThrow();
   });
 });

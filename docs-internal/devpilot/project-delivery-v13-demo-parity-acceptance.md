@@ -87,18 +87,20 @@ F416 evidence: canonical repository identity and append-only branch revisions ar
 - [x] **AC-HOME-003** 顶部弱摘要显示项目形态、环境就绪、资源绑定和入口状态。
 - [x] **AC-HOME-004** 顶部弱摘要显示 Staging 与 Production 当前环境版本。
 - [x] **AC-HOME-005** “创建发布单”为主操作，“管理项目”为次操作，发布规则不占高频 Tab。
-- [ ] **AC-HOME-006** 发布单列表支持版本、Commit、Build 和 Manifest 搜索。
-- [ ] **AC-HOME-007** 发布单列表支持用户可理解的状态筛选。
-- [ ] **AC-HOME-008** 列表默认按最近执行时间排序。
-- [ ] **AC-HOME-009** 每行显示发布版本号、来源主分支/Commit 和说明。
-- [ ] **AC-HOME-010** 每行显示构建次数和当前/最近成功 Manifest。
-- [ ] **AC-HOME-011** 每行显示环境发布次数和最近发布环境/结果。
-- [ ] **AC-HOME-012** 每行显示最近执行步骤和一个明确的“查看发布单”动作。
-- [ ] **AC-HOME-013** 创建发布单只输入发布版本号和可选说明，不选环境、Commit 或构建说明。
+- [x] **AC-HOME-006** 发布单列表支持版本、Commit、Build 和 Manifest 搜索。
+- [x] **AC-HOME-007** 发布单列表支持用户可理解的状态筛选。
+- [x] **AC-HOME-008** 列表默认按最近执行时间排序。
+- [x] **AC-HOME-009** 每行显示发布版本号、来源主分支/Commit 和说明。
+- [x] **AC-HOME-010** 每行显示构建次数和当前/最近成功 Manifest。
+- [x] **AC-HOME-011** 每行显示环境发布次数和最近发布环境/结果。
+- [x] **AC-HOME-012** 每行显示最近执行步骤和一个明确的“查看发布单”动作。
+- [x] **AC-HOME-013** 创建发布单只输入发布版本号和可选说明，不选环境、Commit 或构建说明。
 
 F418 evidence: the authenticated, ACL-scoped `GET /projects/:projectId/delivery/summary` derives canonical repository identity and the frozen F415 intake snapshot, validates Staging/Production current versions through the exact completed non-dry-run release-order deployment chain, and counts only same-project environment resources plus explicit Site entries. The default SSR/SWR page renders the Release Orders tab first, exposes only Release Orders and Environment Versions at the high-frequency level, and keeps Manage Project secondary to Create Release Order without loading the legacy deployment/webhook detail graph. Focused API/Web tests, both type-checks, a fresh disposable MySQL integration run, authenticated API headers and a 1484×1324 Browser capture are indexed under `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f418/`.
 
 F418 correction evidence: independent review found that the Environment Versions tab could not open the create dialog with real active-child Tabs and that intake still read the newest mutable review/config instead of frozen finalization truth. The corrected route owns one release-order hook and one always-mounted create dialog above both tab children, while shared API/directory projection accepts only the deterministically selected succeeded finalization whose team/project, completed timestamp, analysis run, review snapshot ID/hash and result snapshot all agree; missing or drifting evidence fails the whole intake summary closed without config fallback. Focused API/Web regressions, two fresh real-MySQL suites, CodeGraph affected coverage, both type-checks/builds/lints, i18n and formatting passed. An authenticated 1484×1324 Browser flow opened the two-field dialog from Environment Versions with zero console issues, and sanitized MySQL/API counts proved that the Browser flow created no release order. Accepted correction evidence is indexed under `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f418-correction/`.
+
+F419 evidence: the ACL-scoped release-order read model performs literal-safe version/note/Commit/Build/Manifest search, five persisted-status filters, stable recent-execution ordering and total/count projection in one repeatable-read snapshot with a constant two database queries. Locked repository revisions, append-only BuildRun/Manifest/DeploymentRun/ReleaseRun facts and exact team/project/environment predicates supply source identity, build/deployment counts, the current or prior successful Manifest and the latest step; awaiting approval affects the latest step without inflating deployment counts. The Web list sends search/status/take to the server, keys cached data by actor/team/project/query, clears prior-scope rows and refetches after create instead of loading or prepending a client-side full set. Focused API/Web tests, a fresh disposable MySQL 8 run, CodeGraph affected coverage, both type-checks/builds/lints, i18n and formatting passed. Authenticated API proof returned total 52 with 50 bounded rows and private no-store/Vary headers. Five accepted 1484×1324 Browser captures proved default ordering/density, normal and escaped-literal search, active status count, exact detail action and team-switch isolation with zero JavaScript console errors; the isolation probe's expected ACL summary 404 retries are recorded rather than reported as zero network errors. Accepted/rejected evidence and SHA-256 inventories are indexed under `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f419/`.
 
 ## Release Order Detail And Preflight
 

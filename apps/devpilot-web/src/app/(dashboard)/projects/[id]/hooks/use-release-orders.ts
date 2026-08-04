@@ -1,61 +1,102 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useDeferredValue, useState } from 'react';
+import useSWR from 'swr';
+import { DEFAULT_SWR_CONFIG } from '@/hooks/api/use-api';
 import { apiRequest } from '@/lib/api-client';
+import { useAuthStore, useTeamStore } from '@/store/hooks';
 import type {
-  CreateReleaseOrderInput,
-  ReleaseOrderItem,
   ReleaseOrderListResponse,
-} from '../types/release-order.types';
+  ReleaseOrderListStatus,
+} from '../types/release-order-list.types';
+import type { CreateReleaseOrderInput, ReleaseOrderItem } from '../types/release-order.types';
+
+const DEFAULT_TAKE = 50;
 
 export function useReleaseOrders(projectId: string) {
-  const [items, setItems] = useState<ReleaseOrderItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuthStore();
+  const { currentTeam } = useTeamStore();
+  const actorId = user?.id ?? null;
+  const teamId = currentTeam?.id ?? null;
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<ReleaseOrderListStatus | null>(null);
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    try {
-      const result = await apiRequest<ReleaseOrderListResponse>(
-        `GET:/projects/${projectId}/delivery/releases`,
-      );
-      setItems(result.items);
-      setError('');
-    } catch (caught) {
-      setError(errorMessage(caught));
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const [createError, setCreateError] = useState('');
+  const deferredQuery = useDeferredValue(query.trim());
+  const endpoint = buildReleaseOrderListEndpoint(projectId, {
+    query: deferredQuery,
+    status,
+    take: DEFAULT_TAKE,
+  });
+  const list = useSWR<ReleaseOrderListResponse>(
+    buildReleaseOrderListCacheKey(endpoint, projectId, actorId, teamId),
+    () => apiRequest<ReleaseOrderListResponse>(endpoint),
+    { ...DEFAULT_SWR_CONFIG, keepPreviousData: false },
+  );
 
   const create = useCallback(
     async (input: CreateReleaseOrderInput) => {
+      if (!projectId) return null;
       setCreating(true);
-      setError('');
+      setCreateError('');
       try {
-        const created = await apiRequest<ReleaseOrderItem>(
-          `POST:/projects/${projectId}/delivery/releases`,
-          input,
-        );
-        setItems((current) => [created, ...current.filter((item) => item.id !== created.id)]);
-        return created;
+        return await createReleaseOrderAndRefresh(projectId, input, list.mutate);
       } catch (caught) {
-        setError(errorMessage(caught));
+        setCreateError(errorMessage(caught));
         return null;
       } finally {
         setCreating(false);
       }
     },
-    [projectId],
+    [list.mutate, projectId],
   );
 
-  return { items, loading, creating, error, load, create };
+  return {
+    items: list.data?.items ?? [],
+    total: list.data?.total ?? 0,
+    query,
+    status,
+    setQuery,
+    setStatus,
+    loading: Boolean(projectId) && (!actorId || !teamId || list.isLoading),
+    creating,
+    error: createError || (list.error ? errorMessage(list.error) : ''),
+    load: list.mutate,
+    create,
+  };
+}
+
+export function buildReleaseOrderListEndpoint(
+  projectId: string,
+  input: { query?: string; status?: ReleaseOrderListStatus | null; take: number },
+) {
+  const params = new URLSearchParams({ take: String(input.take) });
+  const query = input.query?.trim();
+  if (query) params.set('query', query);
+  if (input.status) params.set('status', input.status);
+  return `GET:/projects/${encodeURIComponent(projectId)}/delivery/releases?${params.toString()}`;
+}
+
+export function buildReleaseOrderListCacheKey(
+  endpoint: string,
+  projectId: string,
+  actorId: string | null,
+  teamId: string | null,
+) {
+  return actorId && teamId && projectId ? ([actorId, teamId, projectId, endpoint] as const) : null;
+}
+
+export async function createReleaseOrderAndRefresh(
+  projectId: string,
+  input: CreateReleaseOrderInput,
+  refresh: () => Promise<unknown>,
+) {
+  const created = await apiRequest<ReleaseOrderItem>(
+    `POST:/projects/${encodeURIComponent(projectId)}/delivery/releases`,
+    input,
+  );
+  await refresh();
+  return created;
 }
 
 function errorMessage(error: unknown) {

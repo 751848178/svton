@@ -12,12 +12,6 @@ import { ReleaseOrderRepository } from "./release-order.repository";
 export class ReleaseOrderService {
   constructor(private readonly repository: ReleaseOrderRepository) {}
 
-  async list(teamId: string, projectId: string) {
-    await this.assertProject(teamId, projectId);
-    const items = await this.repository.list(teamId, projectId);
-    return { items: items.map(present), total: items.length };
-  }
-
   async create(
     teamId: string,
     actorId: string,
@@ -152,20 +146,26 @@ function presentDetail(order: ReleaseOrderDetailRecord) {
   );
   return {
     ...base,
-    resumeStep: order._count.releaseRuns > 0
-      ? "production"
-      : order._count.buildRuns > 0
-        ? "build"
-        : "preflight",
+    resumeStep:
+      order._count.releaseRuns > 0
+        ? "production"
+        : order._count.buildRuns > 0
+          ? "build"
+          : "preflight",
     preflight: {
-      ready: repositoryReady
-        && baselineRoles.has("staging")
-        && baselineRoles.has("production"),
+      ready:
+        repositoryReady &&
+        baselineRoles.has("staging") &&
+        baselineRoles.has("production"),
       repository: {
         ready: repositoryReady,
-        branch: order.project.repositoryIdentity?.currentRevision?.defaultBranch || null,
-        identityRevisionId: order.project.repositoryIdentity?.currentRevision?.id || null,
-        identityRevision: order.project.repositoryIdentity?.currentRevision?.revision || null,
+        branch:
+          order.project.repositoryIdentity?.currentRevision?.defaultBranch ||
+          null,
+        identityRevisionId:
+          order.project.repositoryIdentity?.currentRevision?.id || null,
+        identityRevision:
+          order.project.repositoryIdentity?.currentRevision?.revision || null,
       },
       staging: { ready: baselineRoles.has("staging") },
       production: { ready: baselineRoles.has("production") },

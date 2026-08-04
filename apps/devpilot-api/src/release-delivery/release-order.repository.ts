@@ -16,14 +16,6 @@ export class ReleaseOrderRepository {
     });
   }
 
-  list(teamId: string, projectId: string) {
-    return this.prisma.releaseOrder.findMany({
-      where: { teamId, projectId },
-      include: orderInclude,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    });
-  }
-
   findScoped(teamId: string, projectId: string, releaseOrderId: string) {
     return this.prisma.releaseOrder.findFirst({
       where: { id: releaseOrderId, teamId, projectId },

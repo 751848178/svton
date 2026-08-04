@@ -20,6 +20,8 @@ import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderController } from "./release-order.controller";
 import { ReleaseOrderRepository } from "./release-order.repository";
 import { ReleaseOrderService } from "./release-order.service";
+import { ReleaseOrderListRepository } from "./release-order-list.repository";
+import { ReleaseOrderListService } from "./release-order-list.service";
 import { EnvironmentVersionController } from "./environment-version.controller";
 import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { EnvironmentVersionService } from "./environment-version.service";
@@ -72,6 +74,8 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
   providers: [
     ReleaseOrderService,
     ReleaseOrderRepository,
+    ReleaseOrderListRepository,
+    ReleaseOrderListService,
     ReleaseOrderAccessService,
     ReleaseBuildArtifactService,
     LocalReleaseBuildExecutorService,

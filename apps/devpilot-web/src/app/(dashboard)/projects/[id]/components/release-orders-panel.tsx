@@ -1,14 +1,15 @@
 'use client';
 
+import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { EmptyState, LoadingState } from '@svton/ui';
-import { Button, ErrorBanner, StatusTag } from '@/components/ui';
-import { formatDateTime } from '@/lib/format-date';
+import { ErrorBanner } from '@/components/ui';
 import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
-import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { releaseOrderHref } from '../utils/project-route.utils';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
+import { ReleaseOrderListRow } from './release-order-list-row';
+import { ReleaseOrderListToolbar } from './release-order-list-toolbar';
 
 export function ReleaseOrdersPanel({
   projectId,
@@ -32,14 +33,20 @@ export function ReleaseOrdersPanel({
     );
   }
 
+  const filtered = Boolean(orders.query.trim() || orders.status);
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">{t('releaseOrdersTitle')}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t('releaseOrdersDescription')}</p>
-        </div>
+      <div>
+        <h2 className="text-lg font-semibold">{t('releaseOrdersTitle')}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t('releaseOrdersDescription')}</p>
       </div>
+      <ReleaseOrderListToolbar
+        query={orders.query}
+        status={orders.status}
+        total={orders.total}
+        onQueryChange={orders.setQuery}
+        onStatusChange={orders.setStatus}
+      />
       {orders.error ? (
         <ErrorBanner
           message={orders.error}
@@ -48,49 +55,27 @@ export function ReleaseOrdersPanel({
       ) : null}
       {orders.loading ? <LoadingState /> : null}
       {!orders.loading && orders.items.length === 0 ? (
-        <EmptyState text={t('releaseOrdersEmpty')} />
+        <EmptyState text={t(filtered ? 'releaseOrdersFilteredEmpty' : 'releaseOrdersEmpty')} />
       ) : null}
-      <div className="space-y-3">
-        {orders.items.map((order) => (
-          <article
-            key={order.id}
-            className="rounded-lg border p-5"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold">{order.releaseVersion}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {order.note || t('releaseOrderNoNote')}
-                </p>
-              </div>
-              <StatusTag
-                status={releaseOrderStatusTone(order.status)}
-                label={t(`releaseOrderStatus${statusKey(order.status)}`)}
-              />
-            </div>
-            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-              <span>{t('releaseOrderCreatedAt', { time: formatDateTime(order.createdAt) })}</span>
-              <span>{t('releaseOrderBuildCount', { count: order.counts.buildRuns })}</span>
-              <span>{t('releaseOrderManifestCount', { count: order.counts.manifests })}</span>
-            </div>
-            <div className="mt-4 border-t pt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  router.replace(releaseOrderHref(projectId, order.id, null, searchParams))
-                }
-              >
-                {t('openReleaseOrder')}
-              </Button>
-            </div>
-          </article>
-        ))}
-      </div>
+      {!orders.loading && orders.items.length > 0 ? (
+        <div className="overflow-hidden rounded-lg border bg-background">
+          <div className="hidden grid-cols-[minmax(240px,1.3fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(230px,1.2fr)] gap-5 bg-muted/40 px-5 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground lg:grid">
+            <span>{t('releaseOrderColumnOrder')}</span>
+            <span>{t('releaseOrderColumnBuild')}</span>
+            <span>{t('releaseOrderColumnDeployment')}</span>
+            <span>{t('releaseOrderColumnLastExecution')}</span>
+          </div>
+          {orders.items.map((item) => (
+            <ReleaseOrderListRow
+              key={item.id}
+              item={item}
+              onOpen={() =>
+                router.replace(releaseOrderHref(projectId, item.id, null, searchParams))
+              }
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
-}
-
-function statusKey(status: string) {
-  return `${status.charAt(0).toUpperCase()}${status.slice(1)}`;
 }

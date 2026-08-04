@@ -2,6 +2,7 @@ import { ReleaseOrderController } from "./release-order.controller";
 
 describe("ReleaseOrderController", () => {
   const orders = { list: jest.fn(), create: jest.fn(), get: jest.fn() };
+  const orderList = { list: jest.fn() };
   const builds = { list: jest.fn(), build: jest.fn() };
   const staging = { list: jest.fn(), deploy: jest.fn() };
   const production = {
@@ -18,6 +19,7 @@ describe("ReleaseOrderController", () => {
   };
   const controller = new ReleaseOrderController(
     orders as never,
+    orderList as never,
     builds as never,
     staging as never,
     production as never,
@@ -28,14 +30,28 @@ describe("ReleaseOrderController", () => {
   beforeEach(() => jest.clearAllMocks());
 
   it("authorizes list before reading the project orders", async () => {
-    orders.list.mockResolvedValue({ items: [], total: 0 });
-    await controller.list(request, "project-1");
+    orderList.list.mockResolvedValue({ items: [], total: 0 });
+    const query = { query: "v2", status: "active" as const, take: 20 };
+    await controller.list(request, "project-1", query);
     expect(access.assertRead).toHaveBeenCalledWith({
       teamId: "team-1",
       actorId: "user-1",
       projectId: "project-1",
     });
-    expect(orders.list).toHaveBeenCalledWith("team-1", "project-1");
+    expect(orderList.list).toHaveBeenCalledWith(
+      "team-1",
+      "user-1",
+      "project-1",
+      query,
+    );
+  });
+
+  it("does not run the read model when access is rejected", async () => {
+    access.assertRead.mockRejectedValueOnce(new Error("denied"));
+    await expect(
+      controller.list(request, "project-1", { take: 50 }),
+    ).rejects.toThrow("denied");
+    expect(orderList.list).not.toHaveBeenCalled();
   });
 
   it("authorizes create and forwards only the validated DTO", async () => {
