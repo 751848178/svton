@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReleaseOrderRepository } from "./release-order.repository";
+import { ReleaseOrderDetailRepository } from "./release-order-detail.repository";
 import { ReleaseOrderService } from "./release-order.service";
 
 const describeIntegration =
@@ -14,7 +15,10 @@ describeIntegration("ReleaseOrder integration", () => {
   const repository = new ReleaseOrderRepository(
     prisma as unknown as PrismaService,
   );
-  const service = new ReleaseOrderService(repository);
+  const detailRepository = new ReleaseOrderDetailRepository(
+    prisma as unknown as PrismaService,
+  );
+  const service = new ReleaseOrderService(repository, detailRepository);
   const suffix = randomUUID();
   const userId = `release-user-${suffix}`;
   const teamId = `release-team-${suffix}`;
@@ -51,7 +55,12 @@ describeIntegration("ReleaseOrder integration", () => {
       releaseVersion: "2.4.1",
       note: "Production release",
     });
-    expect(replay.id).toBe(first.id);
+    const detail = await service.get(teamId, projectId, first.id);
+    expect(replay).toEqual(first);
+    expect(detail).toEqual(first);
+    expect(first).not.toHaveProperty("status");
+    expect(first).toHaveProperty("persistedStatus", "draft");
+    expect(first).toHaveProperty("lifecycle.status", "draft");
     await expect(
       prisma.releaseOrder.count({ where: { projectId } }),
     ).resolves.toBe(1);
@@ -74,7 +83,7 @@ describeIntegration("ReleaseOrder integration", () => {
         note: "Concurrent release",
       }),
     ]);
-    expect(second.id).toBe(first.id);
+    expect(second).toEqual(first);
     await expect(
       prisma.releaseOrder.count({
         where: { projectId, releaseVersion: "2.4.2" },

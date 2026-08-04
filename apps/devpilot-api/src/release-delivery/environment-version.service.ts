@@ -80,6 +80,7 @@ export class EnvironmentVersionService {
       actorId: input.actorId,
       environmentId: environment.id,
       manifestId: manifest.id,
+      releaseOrderId: manifest.releaseOrderId,
       releaseRunId,
       mode: input.kind === "recovery" ? "rollback" : "deploy",
       branch: manifest.buildRun.sourceBranch,

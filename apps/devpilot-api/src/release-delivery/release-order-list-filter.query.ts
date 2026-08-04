@@ -7,7 +7,6 @@ export function releaseOrderListFilter(input: ReleaseOrderListQueryInput) {
     Prisma.sql`ro.projectId = ${input.projectId}`,
     Prisma.sql`p.archivedAt IS NULL`,
   ];
-  if (input.status) filters.push(Prisma.sql`ro.status = ${input.status}`);
   const query = input.query?.trim();
   if (query) filters.push(searchFilter(input, query));
   return Prisma.join(filters, " AND ");

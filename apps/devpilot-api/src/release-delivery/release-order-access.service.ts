@@ -66,6 +66,17 @@ export class ReleaseOrderAccessService {
     });
   }
 
+  assertWithdraw(input: ReleaseOrderAccessInput) {
+    return this.access.assertCanWrite({
+      ...input,
+      category: "release",
+      action: "project.release_order.withdraw",
+      targetType: "project",
+      targetId: input.projectId,
+      risk: "high",
+    });
+  }
+
   assertManagePolicy(input: ReleaseOrderAccessInput) {
     return this.access.assertCanWrite({
       ...input,

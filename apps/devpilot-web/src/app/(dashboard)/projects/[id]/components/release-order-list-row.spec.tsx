@@ -54,6 +54,23 @@ describe('ReleaseOrderListRow', () => {
     expect(html).toContain('releaseOrderNoManifest');
     expect(html).toContain('releaseOrderNoDeployment');
   });
+
+  it('renders the server-derived failure kind without replacing lifecycle status', () => {
+    const failed = item();
+    failed.lifecycle = {
+      ...failed.lifecycle,
+      status: 'failed',
+      failureKind: 'evidence_mismatch',
+    };
+    const html = renderToStaticMarkup(
+      <ReleaseOrderListRow
+        item={failed}
+        onOpen={() => {}}
+      />,
+    );
+    expect(html).toContain('releaseOrderStatusFailed');
+    expect(html).toContain('releaseOrderFailureEvidenceMismatch');
+  });
 });
 
 function item(): ReleaseOrderListItem {
@@ -62,7 +79,15 @@ function item(): ReleaseOrderListItem {
     projectId: 'project-1',
     releaseVersion: '2.4.1',
     note: 'failed build keeps prior manifest',
-    status: 'active',
+    persistedStatus: 'active',
+    lifecycle: {
+      status: 'awaiting_approval',
+      phase: 'production',
+      sourceType: 'release_run',
+      sourceId: 'release-run-1',
+      sourceStatus: 'awaiting_approval',
+      occurredAt: '2026-08-04T08:00:00.000Z',
+    },
     createdAt: '2026-08-04T01:00:00.000Z',
     source: {
       branch: 'main',

@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { productionPreview } from "./release-production-snapshot.utils";
 import type { ReleaseStrategy } from "./release-strategy-capability.types";
 import { loadProductionReleaseContext } from "./release-production-context.repository";
+import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 
 const releaseRunInclude = {
   operationApproval: {
@@ -27,7 +28,12 @@ export class ReleaseProductionRepository {
   ) {
     return productionPreview(
       await loadProductionReleaseContext(
-        this.prisma, teamId, projectId, orderId, manifestId, strategy,
+        this.prisma,
+        teamId,
+        projectId,
+        orderId,
+        manifestId,
+        strategy,
       ),
     );
   }
@@ -56,7 +62,7 @@ export class ReleaseProductionRepository {
     strategy?: ReleaseStrategy;
   }) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM ReleaseOrder WHERE id = ${input.releaseOrderId} FOR UPDATE`;
+      await lockActionableReleaseOrder(tx, input);
       const preview = productionPreview(
         await loadProductionReleaseContext(
           tx,
@@ -141,5 +147,4 @@ export class ReleaseProductionRepository {
       });
     });
   }
-
 }

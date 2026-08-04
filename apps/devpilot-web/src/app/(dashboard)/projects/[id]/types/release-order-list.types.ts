@@ -1,11 +1,18 @@
-export type ReleaseOrderListStatus = 'draft' | 'active' | 'succeeded' | 'failed' | 'canceled';
+import type {
+  ReleaseOrderLifecycle,
+  ReleaseOrderLifecycleStatus,
+  ReleaseOrderPersistedStatus,
+} from './release-order-lifecycle.types';
+
+export type ReleaseOrderListStatus = ReleaseOrderLifecycleStatus;
 
 export interface ReleaseOrderListItem {
   id: string;
   projectId: string;
   releaseVersion: string;
   note: string | null;
-  status: ReleaseOrderListStatus;
+  persistedStatus: ReleaseOrderPersistedStatus;
+  lifecycle: ReleaseOrderLifecycle;
   createdAt: string;
   source: {
     branch: string | null;

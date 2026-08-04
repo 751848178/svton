@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { completeVersionedDeployment } from "./environment-version-write.utils";
+import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 
 @Injectable()
 export class EnvironmentVersionRepository {
@@ -85,6 +86,7 @@ export class EnvironmentVersionRepository {
     actorId: string;
     environmentId: string;
     manifestId: string;
+    releaseOrderId: string;
     releaseRunId?: string;
     mode: "deploy" | "rollback";
     branch: string;
@@ -92,6 +94,7 @@ export class EnvironmentVersionRepository {
     params: Record<string, unknown>;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      await lockActionableReleaseOrder(tx, input);
       if (input.releaseRunId) {
         await tx.$queryRaw`SELECT id FROM ReleaseRun WHERE id = ${input.releaseRunId} FOR UPDATE`;
         const claimed = await tx.releaseRun.updateMany({

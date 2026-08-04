@@ -16,56 +16,6 @@ export class ReleaseOrderRepository {
     });
   }
 
-  findScoped(teamId: string, projectId: string, releaseOrderId: string) {
-    return this.prisma.releaseOrder.findFirst({
-      where: { id: releaseOrderId, teamId, projectId },
-      include: {
-        ...orderInclude,
-        project: {
-          select: {
-            repositoryConnection: {
-              select: {
-                repositoryUrl: true,
-                provider: true,
-                status: true,
-                defaultBranch: true,
-                selectedBranch: true,
-              },
-            },
-            repositoryIdentity: {
-              select: {
-                id: true,
-                projectId: true,
-                provider: true,
-                canonicalKey: true,
-                canonicalUrl: true,
-                lockedAt: true,
-                currentRevision: {
-                  select: {
-                    id: true,
-                    revision: true,
-                    defaultBranch: true,
-                    reason: true,
-                    createdAt: true,
-                    identityId: true,
-                    projectId: true,
-                  },
-                },
-              },
-            },
-            environments: {
-              where: {
-                status: "active",
-                baselineRole: { in: ["staging", "production"] },
-              },
-              select: { id: true, baselineRole: true },
-            },
-          },
-        },
-      },
-    });
-  }
-
   findByVersion(projectId: string, releaseVersion: string) {
     return this.prisma.releaseOrder.findUnique({
       where: { projectId_releaseVersion: { projectId, releaseVersion } },

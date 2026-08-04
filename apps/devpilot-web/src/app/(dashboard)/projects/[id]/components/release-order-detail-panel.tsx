@@ -12,7 +12,7 @@ import {
   releaseOrderHref,
   releaseOrderListHref,
 } from '../utils/project-route.utils';
-import { releaseOrderStatusTone } from '../utils/release-order.utils';
+import { releaseOrderFailureLabelKey, releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseOrderBuildStep } from './release-order-build-step';
 import { ReleaseOrderPreflightStep } from './release-order-preflight-step';
 import { ReleaseOrderStagingStep } from './release-order-staging-step';
@@ -49,6 +49,7 @@ export function ReleaseOrderDetailPanel(props: Props) {
     );
   }
   const detail = order.detail;
+  const failureLabelKey = releaseOrderFailureLabelKey(detail.lifecycle.failureKind);
   const changeStep = (next: string) =>
     router.replace(
       releaseOrderHref(
@@ -78,13 +79,16 @@ export function ReleaseOrderDetailPanel(props: Props) {
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <h2 className="text-xl font-semibold">{detail.releaseVersion}</h2>
             <StatusTag
-              status={releaseOrderStatusTone(detail.status)}
-              label={t(`releaseOrderStatus${statusKey(detail.status)}`)}
+              status={releaseOrderStatusTone(detail.lifecycle.status)}
+              label={t(`releaseOrderStatus${statusKey(detail.lifecycle.status)}`)}
             />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {detail.note || t('releaseOrderNoNote')}
           </p>
+          {failureLabelKey && (
+            <p className="mt-1 text-xs text-destructive">{t(failureLabelKey)}</p>
+          )}
         </div>
       </div>
       <Tabs
@@ -155,5 +159,8 @@ export function ReleaseOrderDetailPanel(props: Props) {
 }
 
 function statusKey(status: string) {
-  return `${status.charAt(0).toUpperCase()}${status.slice(1)}`;
+  return status
+    .split('_')
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join('');
 }

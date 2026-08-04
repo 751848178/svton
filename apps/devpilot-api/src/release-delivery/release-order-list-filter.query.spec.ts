@@ -16,7 +16,7 @@ describe("release order list SQL", () => {
       teamId: "team-1",
       projectId: "project-1",
       query: "Build #3",
-      status: "active",
+      status: "building",
       take: 20,
     });
     const text = sql.strings.join("?");

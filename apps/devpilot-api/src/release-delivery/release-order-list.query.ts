@@ -1,14 +1,25 @@
 import { Prisma } from "@prisma/client";
 import { releaseOrderListFilter } from "./release-order-list-filter.query";
 import type { ReleaseOrderListQueryInput } from "./release-order-list.types";
+import {
+  releaseOrderLifecycleCtes,
+  releaseOrderLifecycleStatusFilter,
+} from "./release-order-lifecycle.query";
 
 export function releaseOrderListCountQuery(input: ReleaseOrderListQueryInput) {
   return Prisma.sql`
+    WITH scoped_orders AS (
+      SELECT ro.id, ro.teamId, ro.projectId, ro.releaseVersion,
+        ro.note, ro.status, ro.createdAt, ro.updatedAt
+      FROM ReleaseOrder ro
+      INNER JOIN Project p
+        ON p.id = ro.projectId AND p.teamId = ro.teamId
+      WHERE ${releaseOrderListFilter(input)}
+    ),
+    ${releaseOrderLifecycleCtes()}
     SELECT COUNT(*) AS total
-    FROM ReleaseOrder ro
-    INNER JOIN Project p
-      ON p.id = ro.projectId AND p.teamId = ro.teamId
-    WHERE ${releaseOrderListFilter(input)}
+    FROM lifecycle_orders lo
+    WHERE ${releaseOrderLifecycleStatusFilter(input.status)}
   `;
 }
 
@@ -16,12 +27,13 @@ export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
   return Prisma.sql`
     WITH scoped_orders AS (
       SELECT ro.id, ro.teamId, ro.projectId, ro.releaseVersion,
-        ro.note, ro.status, ro.createdAt
+        ro.note, ro.status, ro.createdAt, ro.updatedAt
       FROM ReleaseOrder ro
       INNER JOIN Project p
         ON p.id = ro.projectId AND p.teamId = ro.teamId
       WHERE ${releaseOrderListFilter(input)}
     ),
+    ${releaseOrderLifecycleCtes()},
     deployment_events AS (
       SELECT dr.id, am.releaseOrderId, dr.environmentId,
         pe.baselineRole AS environmentRole, pe.name AS environmentName,
@@ -38,6 +50,7 @@ export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
       INNER JOIN ProjectEnvironment pe
         ON pe.id = dr.environmentId
         AND pe.teamId = dr.teamId AND pe.projectId = dr.projectId
+        AND pe.status = 'active'
         AND pe.baselineRole IN ('staging', 'production')
       INNER JOIN scoped_orders so
         ON so.id = am.releaseOrderId
@@ -62,7 +75,7 @@ export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
       FROM deployment_events de
       UNION ALL
       SELECT rr.releaseOrderId, 'release_run', rr.id, 'production', rr.status,
-        COALESCE(rr.finishedAt, rr.startedAt, rr.updatedAt, rr.createdAt), 4
+        COALESCE(rr.finishedAt, rr.startedAt, rr.createdAt), 4
       FROM ReleaseRun rr
       INNER JOIN ArtifactManifest am
         ON am.id = rr.artifactManifestId
@@ -72,7 +85,7 @@ export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
       INNER JOIN ProjectEnvironment pe
         ON pe.id = rr.environmentId
         AND pe.teamId = rr.teamId AND pe.projectId = rr.projectId
-        AND pe.baselineRole = 'production'
+        AND pe.status = 'active' AND pe.baselineRole = 'production'
       INNER JOIN scoped_orders so
         ON so.id = rr.releaseOrderId
         AND so.teamId = rr.teamId AND so.projectId = rr.projectId
@@ -120,7 +133,7 @@ export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
       COUNT(*) OVER (PARTITION BY de.releaseOrderId) AS deploymentCount
       FROM deployment_events de
     )
-    SELECT so.*, COALESCE(lb.sourceBranch, rir.defaultBranch) AS sourceBranch,
+    SELECT lo.*, COALESCE(lb.sourceBranch, rir.defaultBranch) AS sourceBranch,
       lb.sourceCommitSha, lb.id AS buildRunId, lb.revision AS buildRevision,
       lb.status AS buildStatus, COALESCE(bc.buildCount, 0) AS buildCount,
       rm.id AS manifestId, rm.digest AS manifestDigest,
@@ -134,6 +147,7 @@ export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
       le.sourceType, le.sourceId, le.step, le.status AS executionStatus,
       le.occurredAt AS lastExecutedAt
     FROM scoped_orders so
+    INNER JOIN lifecycle_orders lo ON lo.id = so.id
     LEFT JOIN ranked_builds lb ON lb.releaseOrderId = so.id AND lb.buildRank = 1
     LEFT JOIN build_counts bc ON bc.releaseOrderId = so.id
     LEFT JOIN ranked_manifests rm
@@ -147,6 +161,7 @@ export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
     LEFT JOIN ProjectRepositoryIdentityRevision rir
       ON rir.id = pri.currentRevisionId AND rir.identityId = pri.id
       AND rir.teamId = so.teamId AND rir.projectId = so.projectId
+    WHERE ${releaseOrderLifecycleStatusFilter(input.status)}
     ORDER BY le.occurredAt DESC, so.createdAt DESC, so.id DESC
     LIMIT ${input.take}
   `;

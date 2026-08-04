@@ -5,12 +5,16 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { CreateReleaseOrderDto } from "./dto/release-order.dto";
-import { isStoredConnectionAligned } from "../repository-identity/repository-identity-policy.utils";
+import { ReleaseOrderDetailRepository } from "./release-order-detail.repository";
+import { presentReleaseOrderDetail } from "./release-order-detail.presenter";
 import { ReleaseOrderRepository } from "./release-order.repository";
 
 @Injectable()
 export class ReleaseOrderService {
-  constructor(private readonly repository: ReleaseOrderRepository) {}
+  constructor(
+    private readonly repository: ReleaseOrderRepository,
+    private readonly details: ReleaseOrderDetailRepository,
+  ) {}
 
   async create(
     teamId: string,
@@ -25,17 +29,18 @@ export class ReleaseOrderService {
       projectId,
       releaseVersion,
     );
-    if (existing) return this.replayOrConflict(existing, note);
+    if (existing) {
+      return this.replayOrConflict(existing, note, teamId, projectId);
+    }
     try {
-      return present(
-        await this.repository.create({
-          teamId,
-          actorId,
-          projectId,
-          releaseVersion,
-          note,
-        }),
-      );
+      const created = await this.repository.create({
+        teamId,
+        actorId,
+        projectId,
+        releaseVersion,
+        note,
+      });
+      return this.canonicalDetail(teamId, projectId, created.id);
     } catch (error) {
       if (!isUniqueConflict(error)) throw error;
       const concurrent = await this.repository.findByVersion(
@@ -43,19 +48,13 @@ export class ReleaseOrderService {
         releaseVersion,
       );
       if (!concurrent) throw error;
-      return this.replayOrConflict(concurrent, note);
+      return this.replayOrConflict(concurrent, note, teamId, projectId);
     }
   }
 
   async get(teamId: string, projectId: string, releaseOrderId: string) {
     await this.assertProject(teamId, projectId);
-    const order = await this.repository.findScoped(
-      teamId,
-      projectId,
-      releaseOrderId,
-    );
-    if (!order) throw new NotFoundException("发布单不存在或不属于当前项目");
-    return presentDetail(order);
+    return this.canonicalDetail(teamId, projectId, releaseOrderId);
   }
 
   private async assertProject(teamId: string, projectId: string) {
@@ -64,9 +63,26 @@ export class ReleaseOrderService {
     }
   }
 
-  private replayOrConflict(existing: ReleaseOrderRecord, note: string | null) {
-    if (existing.note === note) return present(existing);
+  private replayOrConflict(
+    existing: { id: string; note: string | null },
+    note: string | null,
+    teamId: string,
+    projectId: string,
+  ) {
+    if (existing.note === note) {
+      return this.canonicalDetail(teamId, projectId, existing.id);
+    }
     throw new ConflictException("该发布版本号已存在，且说明与原请求不一致");
+  }
+
+  private async canonicalDetail(
+    teamId: string,
+    projectId: string,
+    releaseOrderId: string,
+  ) {
+    const detail = await this.details.find(teamId, projectId, releaseOrderId);
+    if (!detail) throw new NotFoundException("发布单不存在或不属于当前项目");
+    return presentReleaseOrderDetail(detail);
   }
 }
 
@@ -79,96 +95,4 @@ function isUniqueConflict(error: unknown) {
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === "P2002"
   );
-}
-
-interface ReleaseOrderRecord {
-  id: string;
-  projectId: string;
-  releaseVersion: string;
-  note: string | null;
-  status: string;
-  createdAt: Date;
-  updatedAt: Date;
-  _count: { buildRuns: number; manifests: number; releaseRuns: number };
-}
-
-interface ReleaseOrderDetailRecord extends ReleaseOrderRecord {
-  project: {
-    repositoryConnection: {
-      repositoryUrl: string;
-      provider: string;
-      status: string;
-      defaultBranch: string | null;
-      selectedBranch: string | null;
-    } | null;
-    repositoryIdentity: {
-      id: string;
-      projectId: string;
-      provider: string;
-      canonicalKey: string;
-      canonicalUrl: string;
-      lockedAt: Date | null;
-      currentRevision: {
-        id: string;
-        revision: number;
-        defaultBranch: string;
-        reason: string;
-        createdAt: Date;
-        identityId: string;
-        projectId: string;
-      } | null;
-    } | null;
-    environments: Array<{ id: string; baselineRole: string | null }>;
-  };
-}
-
-function present(order: ReleaseOrderRecord) {
-  return {
-    id: order.id,
-    projectId: order.projectId,
-    releaseVersion: order.releaseVersion,
-    note: order.note,
-    status: order.status,
-    createdAt: order.createdAt,
-    updatedAt: order.updatedAt,
-    counts: order._count,
-  };
-}
-
-function presentDetail(order: ReleaseOrderDetailRecord) {
-  const base = present(order);
-  const baselineRoles = new Set(
-    order.project.environments.map((environment) => environment.baselineRole),
-  );
-  const repositoryReady = isStoredConnectionAligned(
-    order.project.repositoryIdentity,
-    order.project.repositoryConnection,
-  );
-  return {
-    ...base,
-    resumeStep:
-      order._count.releaseRuns > 0
-        ? "production"
-        : order._count.buildRuns > 0
-          ? "build"
-          : "preflight",
-    preflight: {
-      ready:
-        repositoryReady &&
-        baselineRoles.has("staging") &&
-        baselineRoles.has("production"),
-      repository: {
-        ready: repositoryReady,
-        branch:
-          order.project.repositoryIdentity?.currentRevision?.defaultBranch ||
-          null,
-        identityRevisionId:
-          order.project.repositoryIdentity?.currentRevision?.id || null,
-        identityRevision:
-          order.project.repositoryIdentity?.currentRevision?.revision || null,
-      },
-      staging: { ready: baselineRoles.has("staging") },
-      production: { ready: baselineRoles.has("production") },
-    },
-  };
 }

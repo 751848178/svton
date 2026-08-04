@@ -18,8 +18,12 @@ import { ReleaseProductionRepository } from "./release-production.repository";
 import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderController } from "./release-order.controller";
+import { ReleaseOrderDetailRepository } from "./release-order-detail.repository";
 import { ReleaseOrderRepository } from "./release-order.repository";
 import { ReleaseOrderService } from "./release-order.service";
+import { ReleaseOrderWithdrawController } from "./release-order-withdraw.controller";
+import { ReleaseOrderWithdrawRepository } from "./release-order-withdraw.repository";
+import { ReleaseOrderWithdrawService } from "./release-order-withdraw.service";
 import { ReleaseOrderListRepository } from "./release-order-list.repository";
 import { ReleaseOrderListService } from "./release-order-list.service";
 import { EnvironmentVersionController } from "./environment-version.controller";
@@ -65,6 +69,7 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
   ],
   controllers: [
     ReleaseOrderController,
+    ReleaseOrderWithdrawController,
     EnvironmentVersionController,
     ReleaseGateCatalogController,
     ReleasePolicyController,
@@ -74,6 +79,9 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
   providers: [
     ReleaseOrderService,
     ReleaseOrderRepository,
+    ReleaseOrderDetailRepository,
+    ReleaseOrderWithdrawRepository,
+    ReleaseOrderWithdrawService,
     ReleaseOrderListRepository,
     ReleaseOrderListService,
     ReleaseOrderAccessService,

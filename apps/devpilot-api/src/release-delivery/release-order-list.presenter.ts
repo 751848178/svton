@@ -1,17 +1,16 @@
-import {
-  RELEASE_ORDER_LIST_STATUSES,
-  type ReleaseOrderListItem,
-  type ReleaseOrderListSourceType,
-  type ReleaseOrderListStatus,
-  type ReleaseOrderListStep,
+import type {
+  ReleaseOrderListItem,
+  ReleaseOrderListSourceType,
+  ReleaseOrderListStep,
 } from "./release-order-list.types";
+import { presentReleaseOrderLifecycle } from "./release-order-lifecycle.presenter";
+import type { ReleaseOrderLifecycleRow } from "./release-order-lifecycle.types";
 
-export interface ReleaseOrderListRow {
+export interface ReleaseOrderListRow extends ReleaseOrderLifecycleRow {
   id: string;
   projectId: string;
   releaseVersion: string;
   note: string | null;
-  status: string;
   createdAt: Date;
   sourceBranch: string | null;
   sourceCommitSha: string | null;
@@ -48,7 +47,7 @@ export function presentReleaseOrderListRow(
     projectId: row.projectId,
     releaseVersion: row.releaseVersion,
     note: row.note,
-    status: status(row.status),
+    ...presentReleaseOrderLifecycle(row),
     createdAt: iso(row.createdAt),
     source: {
       branch: row.sourceBranch,
@@ -134,11 +133,4 @@ function iso(value: Date) {
     throw new Error("Release order list returned an invalid timestamp");
   }
   return value.toISOString();
-}
-
-function status(value: string): ReleaseOrderListStatus {
-  if (!RELEASE_ORDER_LIST_STATUSES.includes(value as ReleaseOrderListStatus)) {
-    throw new Error(`Unsupported persisted release order status: ${value}`);
-  }
-  return value as ReleaseOrderListStatus;
 }

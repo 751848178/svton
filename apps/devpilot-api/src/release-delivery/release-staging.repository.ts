@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { completeVersionedDeployment } from "./environment-version-write.utils";
+import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 
 const deploymentSelect = {
   id: true,
@@ -84,6 +85,7 @@ export class ReleaseStagingRepository {
   create(input: {
     teamId: string;
     projectId: string;
+    releaseOrderId: string;
     actorId: string;
     environmentId: string;
     manifestId: string;
@@ -91,34 +93,37 @@ export class ReleaseStagingRepository {
     sourceCommitSha: string;
     params: Record<string, unknown>;
   }) {
-    return this.prisma.deploymentRun.create({
-      data: {
-        teamId: input.teamId,
-        projectId: input.projectId,
-        actorId: input.actorId,
-        environmentId: input.environmentId,
-        artifactManifestId: input.manifestId,
-        environment: "staging",
-        mode: "deploy",
-        source: "release_order",
-        trigger: "manual",
-        targetType: "release-artifact",
-        executorKey: "release-artifact",
-        adapterKey: "local-materialize",
-        dryRun: false,
-        status: "running",
-        branch: input.sourceBranch,
-        commitSha: input.sourceCommitSha,
-        params: input.params as Prisma.InputJsonValue,
-        commandPlan: {
-          version: 1,
-          steps: ["verify_manifest_digest", "materialize_exact_artifact"],
-          checkout: false,
-          pull: false,
-          build: false,
+    return this.prisma.$transaction(async (tx) => {
+      await lockActionableReleaseOrder(tx, input);
+      return tx.deploymentRun.create({
+        data: {
+          teamId: input.teamId,
+          projectId: input.projectId,
+          actorId: input.actorId,
+          environmentId: input.environmentId,
+          artifactManifestId: input.manifestId,
+          environment: "staging",
+          mode: "deploy",
+          source: "release_order",
+          trigger: "manual",
+          targetType: "release-artifact",
+          executorKey: "release-artifact",
+          adapterKey: "local-materialize",
+          dryRun: false,
+          status: "running",
+          branch: input.sourceBranch,
+          commitSha: input.sourceCommitSha,
+          params: input.params as Prisma.InputJsonValue,
+          commandPlan: {
+            version: 1,
+            steps: ["verify_manifest_digest", "materialize_exact_artifact"],
+            checkout: false,
+            pull: false,
+            build: false,
+          },
         },
-      },
-      select: deploymentSelect,
+        select: deploymentSelect,
+      });
     });
   }
 

@@ -9,7 +9,7 @@ import type {
   ReleaseOrderListResponse,
   ReleaseOrderListStatus,
 } from '../types/release-order-list.types';
-import type { CreateReleaseOrderInput, ReleaseOrderItem } from '../types/release-order.types';
+import type { CreateReleaseOrderInput, ReleaseOrderDetail } from '../types/release-order.types';
 
 const DEFAULT_TAKE = 50;
 
@@ -91,7 +91,7 @@ export async function createReleaseOrderAndRefresh(
   input: CreateReleaseOrderInput,
   refresh: () => Promise<unknown>,
 ) {
-  const created = await apiRequest<ReleaseOrderItem>(
+  const created = await apiRequest<ReleaseOrderDetail>(
     `POST:/projects/${encodeURIComponent(projectId)}/delivery/releases`,
     input,
   );

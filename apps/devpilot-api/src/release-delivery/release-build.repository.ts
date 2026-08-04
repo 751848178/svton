@@ -5,6 +5,7 @@ import { assertStoredConnection } from "../repository-identity/repository-identi
 import { identityConflict } from "../repository-identity/repository-identity.errors";
 import type { ReleaseBuildInputSnapshot } from "./release-build.types";
 import { releaseBuildInclude } from "./release-build.prisma";
+import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 
 @Injectable()
 export class ReleaseBuildRepository {
@@ -56,6 +57,7 @@ export class ReleaseBuildRepository {
     expectedCanonicalKey: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      await lockActionableReleaseOrder(tx, input);
       await tx.$queryRaw`SELECT id FROM Project WHERE id = ${input.projectId} FOR UPDATE`;
       const project = await tx.project.findUniqueOrThrow({
         where: { id: input.projectId },
@@ -66,16 +68,21 @@ export class ReleaseBuildRepository {
       });
       const expected = input.snapshot.repositoryIdentity;
       if (
-        !project.repositoryIdentity
-        || project.repositoryIdentity.id !== expected.id
-        || project.repositoryIdentity.currentRevisionId !== expected.revisionId
-        || project.repositoryIdentity.canonicalKey !== input.expectedCanonicalKey
-        || project.repositoryIdentity.provider !== expected.provider
-        || project.repositoryIdentity.canonicalUrl !== expected.canonicalUrl
-        || project.repositoryIdentity.currentRevision?.revision !== expected.revision
-        || project.repositoryIdentity.currentRevision?.defaultBranch !== input.snapshot.sourceBranch
-        || project.repositoryIdentity.currentRevision?.identityId !== expected.id
-        || project.repositoryIdentity.currentRevision?.projectId !== input.projectId
+        !project.repositoryIdentity ||
+        project.repositoryIdentity.id !== expected.id ||
+        project.repositoryIdentity.currentRevisionId !== expected.revisionId ||
+        project.repositoryIdentity.canonicalKey !==
+          input.expectedCanonicalKey ||
+        project.repositoryIdentity.provider !== expected.provider ||
+        project.repositoryIdentity.canonicalUrl !== expected.canonicalUrl ||
+        project.repositoryIdentity.currentRevision?.revision !==
+          expected.revision ||
+        project.repositoryIdentity.currentRevision?.defaultBranch !==
+          input.snapshot.sourceBranch ||
+        project.repositoryIdentity.currentRevision?.identityId !==
+          expected.id ||
+        project.repositoryIdentity.currentRevision?.projectId !==
+          input.projectId
       ) {
         throw identityConflict(
           "PROJECT_REPOSITORY_BUILD_SOURCE_DRIFT",
@@ -83,8 +90,10 @@ export class ReleaseBuildRepository {
           "请刷新发布单并基于当前仓库修订重新构建。",
         );
       }
-      assertStoredConnection(project.repositoryIdentity, project.repositoryConnection);
-      await tx.$queryRaw`SELECT id FROM ReleaseOrder WHERE id = ${input.releaseOrderId} FOR UPDATE`;
+      assertStoredConnection(
+        project.repositoryIdentity,
+        project.repositoryConnection,
+      );
       const latest = await tx.buildRun.findFirst({
         where: { releaseOrderId: input.releaseOrderId },
         orderBy: { revision: "desc" },

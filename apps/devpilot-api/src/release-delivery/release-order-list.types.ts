@@ -1,13 +1,12 @@
-export const RELEASE_ORDER_LIST_STATUSES = [
-  "draft",
-  "active",
-  "succeeded",
-  "failed",
-  "canceled",
-] as const;
+import {
+  RELEASE_ORDER_LIFECYCLE_STATUSES,
+  type ReleaseOrderLifecycle,
+  type ReleaseOrderLifecycleStatus,
+  type ReleaseOrderPersistedStatus,
+} from "./release-order-lifecycle.types";
 
-export type ReleaseOrderListStatus =
-  (typeof RELEASE_ORDER_LIST_STATUSES)[number];
+export const RELEASE_ORDER_LIST_STATUSES = RELEASE_ORDER_LIFECYCLE_STATUSES;
+export type ReleaseOrderListStatus = ReleaseOrderLifecycleStatus;
 export type ReleaseOrderListStep =
   | "preflight"
   | "build"
@@ -32,7 +31,8 @@ export interface ReleaseOrderListItem {
   projectId: string;
   releaseVersion: string;
   note: string | null;
-  status: ReleaseOrderListStatus;
+  persistedStatus: ReleaseOrderPersistedStatus;
+  lifecycle: ReleaseOrderLifecycle;
   createdAt: string;
   source: {
     branch: string | null;

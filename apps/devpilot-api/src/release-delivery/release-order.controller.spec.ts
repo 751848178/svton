@@ -31,7 +31,7 @@ describe("ReleaseOrderController", () => {
 
   it("authorizes list before reading the project orders", async () => {
     orderList.list.mockResolvedValue({ items: [], total: 0 });
-    const query = { query: "v2", status: "active" as const, take: 20 };
+    const query = { query: "v2", status: "building" as const, take: 20 };
     await controller.list(request, "project-1", query);
     expect(access.assertRead).toHaveBeenCalledWith({
       teamId: "team-1",

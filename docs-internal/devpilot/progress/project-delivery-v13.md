@@ -31,43 +31,45 @@
 
 ## Slice Status
 
-| Range | State | Outcome                                                                                                                    |
-| ----- | ----- | -------------------------------------------------------------------------------------------------------------------------- |
-| F386  | done  | Isolated baseline, TODO/progress/migration contract and baseline verification complete.                                    |
-| F387  | done  | Additive intake/identity/finalization/config revision schema and preflight reports complete.                               |
-| F388  | done  | Transactional intake API, duplicate guard, idempotent finalize and recovery complete.                                      |
-| F389  | done  | ACL-filtered directory read model, search/filter/baseline/Production/activity summary complete.                            |
-| F390  | done  | Product/API/MySQL acceptance passed; its three named browser screenshots are a preserved historical evidence gap.          |
-| F391  | done  | Delivery/settings hosts, two-item primary IA and legacy deep-link adapters verified.                                       |
-| F392  | done  | Additive delivery schema and conservative legacy/unverified migration report verified.                                     |
-| F393  | done  | ACL/idempotent ReleaseOrder API and default create/list Web verified with zero implicit build.                             |
-| F394  | done  | Server-resolved exact-Commit builds, isolated evidence and success-only immutable Manifests.                               |
-| F395  | done  | Four-step accessible detail, stable refresh/deep-link recovery and isolated BuildRun logs.                                 |
-| F396  | done  | Repeatable exact-Manifest Staging DeploymentRuns with no Git, checkout or implicit build.                                  |
-| F397  | done  | Production same-Manifest proof, frozen snapshots, approval and concurrent idempotency.                                     |
-| F398  | done  | Append-only environment versions, controlled upgrade and recovery rollback.                                                |
-| F399  | done  | Manage Project consolidation and ordinary/professional route reachability.                                                 |
-| F400  | done  | Audited immutable environment config and reference governance with locked identity.                                        |
-| F401  | done  | Versioned 51/15 catalog passed API/tests; its referenced browser screenshot is a preserved historical gap.                 |
-| F402  | done  | Freshness-aware M01-M05 Commit/Build provider adapters and immutable evidence drill-down.                                  |
-| F403  | done  | Environment-scoped M06-M09 Deploy providers with redaction and expiry boundaries.                                          |
-| F404  | done  | M10-M15 Promote adapters with technical/manual separation and fail-closed traffic capability.                              |
-| F405  | done  | Immutable standard release policy and explicit advanced-strategy capability gates.                                         |
-| F406  | done  | Read-only legacy compatibility, non-destructive archive and governed-path write closure.                                   |
-| F407  | done  | Bilingual runtime, terminology parity and user/migration documentation verified.                                           |
-| F408  | done  | One coherent Docker/MySQL/Redis/browser delivery lifecycle passed end to end.                                              |
-| F409  | done  | Cross-layer ACL, concurrency, failure, compatibility, provider and redaction negatives passed.                             |
-| F410  | done  | Independent review, persisted gate facts, security hardening and final delivery audit passed.                              |
-| F411  | done  | Over-limit tests split, API lint restored, historical board records repaired and PR gates rerun.                           |
-| F412  | done  | Current intake and 51-gate behavior re-proved with Browser+DOM and API+MySQL successor evidence; board/docs repaired.      |
-| F418  | done  | Project home correction now freezes intake to exact succeeded finalization evidence, and keeps one cross-tab create owner. |
-| F419  | done  | Release-order list now uses an ACL-scoped server read model, bounded rows and scope-safe Web cache/refetch behavior.       |
+| Range | State | Outcome                                                                                                                               |
+| ----- | ----- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| F386  | done  | Isolated baseline, TODO/progress/migration contract and baseline verification complete.                                               |
+| F387  | done  | Additive intake/identity/finalization/config revision schema and preflight reports complete.                                          |
+| F388  | done  | Transactional intake API, duplicate guard, idempotent finalize and recovery complete.                                                 |
+| F389  | done  | ACL-filtered directory read model, search/filter/baseline/Production/activity summary complete.                                       |
+| F390  | done  | Product/API/MySQL acceptance passed; its three named browser screenshots are a preserved historical evidence gap.                     |
+| F391  | done  | Delivery/settings hosts, two-item primary IA and legacy deep-link adapters verified.                                                  |
+| F392  | done  | Additive delivery schema and conservative legacy/unverified migration report verified.                                                |
+| F393  | done  | ACL/idempotent ReleaseOrder API and default create/list Web verified with zero implicit build.                                        |
+| F394  | done  | Server-resolved exact-Commit builds, isolated evidence and success-only immutable Manifests.                                          |
+| F395  | done  | Four-step accessible detail, stable refresh/deep-link recovery and isolated BuildRun logs.                                            |
+| F396  | done  | Repeatable exact-Manifest Staging DeploymentRuns with no Git, checkout or implicit build.                                             |
+| F397  | done  | Production same-Manifest proof, frozen snapshots, approval and concurrent idempotency.                                                |
+| F398  | done  | Append-only environment versions, controlled upgrade and recovery rollback.                                                           |
+| F399  | done  | Manage Project consolidation and ordinary/professional route reachability.                                                            |
+| F400  | done  | Audited immutable environment config and reference governance with locked identity.                                                   |
+| F401  | done  | Versioned 51/15 catalog passed API/tests; its referenced browser screenshot is a preserved historical gap.                            |
+| F402  | done  | Freshness-aware M01-M05 Commit/Build provider adapters and immutable evidence drill-down.                                             |
+| F403  | done  | Environment-scoped M06-M09 Deploy providers with redaction and expiry boundaries.                                                     |
+| F404  | done  | M10-M15 Promote adapters with technical/manual separation and fail-closed traffic capability.                                         |
+| F405  | done  | Immutable standard release policy and explicit advanced-strategy capability gates.                                                    |
+| F406  | done  | Read-only legacy compatibility, non-destructive archive and governed-path write closure.                                              |
+| F407  | done  | Bilingual runtime, terminology parity and user/migration documentation verified.                                                      |
+| F408  | done  | One coherent Docker/MySQL/Redis/browser delivery lifecycle passed end to end.                                                         |
+| F409  | done  | Cross-layer ACL, concurrency, failure, compatibility, provider and redaction negatives passed.                                        |
+| F410  | done  | Independent review, persisted gate facts, security hardening and final delivery audit passed.                                         |
+| F411  | done  | Over-limit tests split, API lint restored, historical board records repaired and PR gates rerun.                                      |
+| F412  | done  | Current intake and 51-gate behavior re-proved with Browser+DOM and API+MySQL successor evidence; board/docs repaired.                 |
+| F418  | done  | Project home correction now freezes intake to exact succeeded finalization evidence, and keeps one cross-tab create owner.            |
+| F419  | done  | Release-order list now uses an ACL-scoped server read model, bounded rows and scope-safe Web cache/refetch behavior.                  |
+| F420  | done  | Release orders expose one eight-state lifecycle projector plus audited, idempotent withdrawal boundaries; correction rereview passed. |
 
 ## Evidence
 
 - F418 project-home evidence: `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f418/` contains the baseline summary proof. Independent review then exposed an active-child cross-tab create no-op and mutable intake projection; `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f418-correction/` contains the correction's focused regressions, two fresh real-MySQL suites, type/build/lint/i18n/format/CodeGraph gates, sanitized no-create counts, zero-console Browser facts and the accepted 1484×1324 Environment Versions dialog screenshot. Intake now requires exact succeeded finalization/result/review evidence and fails closed without mutable config fallback; one always-mounted route owner serves both tabs.
 - F419 release-order list evidence: `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f419/` contains focused API/Web tests, the fresh MySQL two-query/read-snapshot integration proof, static gates, CodeGraph coverage, authenticated private-cache API results, accepted/rejected SHA-256 inventories and five accepted 1484×1324 Browser captures. The captures prove total 52/bounded 50/default tie ordering, normal plus literal-safe search, five persisted status counts, Build/Manifest/deployment/latest-step projections, exact detail navigation and no stale rows across a team switch. Browser JavaScript console errors are zero; the expected ACL summary 404 retries during the negative isolation probe remain explicit network evidence.
 - F419 independent-review correction: the SQL owner now accepts Deployment facts only through an exact Manifest↔BuildRun id/team/project/release-order join and returns only the validated BuildRun id. ReleaseRun execution events require exact Manifest team/project/release-order ownership plus frozen digest equality, retaining the exact Production baseline environment. Raw-SQL unit tests and fresh tmpfs MySQL adversarial rows for cross-order/project/team and digest drift passed without changing sort/lastExecution/deployment/latest or the two-query bound. Exact staged-tree Browser evidence under `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f419-correction/` physically separates accepted/rejected captures and binds every screenshot to raw DOM, console, network, events, fixture IDs, URL, time, viewport and artifact hashes.
+- F420 release-order lifecycle evidence: the initial independent review failed with P0=0/P1=2/P2=1 because inactive baselines could contaminate lifecycle/F419 execution facts, orphan or mismatched Production DeploymentRuns could be promoted, and create/withdraw returned divergent public shapes. The correction requires active baseline joins everywhere, keeps every newest invalid Production fact visible as `failed/production/evidence_mismatch`, restricts governance to the exact running/succeeded ReleaseRun plus reviewed approval, and uses one canonical detail presenter for create/replay/get/withdraw. Focused API tests passed 13 suites/61 tests; seven real-MySQL suites passed 34 tests, including archived Staging/Production, non-baseline, wrong-role and nine Production-linkage negatives; both API/Web type-checks, builds and lints, Web tests and i18n also passed. Exact correction source tree `6722d15d05cb1dacae7d7cee456e5084d2bd7d99` is bound by source bundle SHA-256 `4c46a2c99679c78f8e5163b0dae4d97b561043716900f6753c4d90e2c1374db8`. Correction Browser manifest SHA-256 `ab4836881c4e9064ae618d7042aa6088e99fdeeb1538e32ebb8d640b66432524` and inventory SHA-256 `e88ba6c2cbaace89666305d51699909b35b8208b205c1e03a316768ccd66a2a4` bind 16 accepted, zero rejected, unique 1484×1324 screenshots, zero hash mismatch, zero unexpected console errors and zero secret leaks; the isolation 404/two console errors remain expected. Authenticated create/replay, canonical withdraw and adversarial inventories are SHA-256 `8c7e47b07dd12df41d50d90d6fdc6c1c9a1987cd7acd6274a24ac92b9af00921`, `9940d3b41eced7afaf321ffa7bc9d7d1921175e844399ad2aedcbeb000cfacd5` and `f6642cec4bc74dfe51614194dfb9c22650970d520983553320683b5a59708109`. The old `d9f7...` Browser manifest is retained only as a superseded baseline. Independent correction rereview `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/workers/f420-correction-independent-rereview-report.md` passed P0/P1/P2=0/0/0; report SHA-256 `4ce4792e0ea2ebf6a870a11255821b5e2b3348ca1e61cf725da736530d0c5b7a`, result SHA-256 `aa84f48f9e61ae1869586f70d4380f099108080bd17655e609b1b5d1e1e25760`. F419 lastExecution still ignores `ReleaseRun.updatedAt`.
 - Long-goal board: `/tmp/codex-tool-runs/svton/long-goals/devpilot-project-delivery-v13/board.json`.
 - Phase 0 source audit: `.../artifacts/p0-source-audit.md`.
 - Architecture brief: `.../artifacts/p0-architecture-brief.md`.
@@ -132,4 +134,4 @@
 
 ## Next
 
-Continue from F420 in `../../todos/2026-08-04-devpilot-v13-demo-parity.md`. F419 completed the ACL-scoped release-order list read model and server-driven Web list with stable recent-execution ordering, literal-safe search, persisted status filters, bounded rows, exact build/Manifest/deployment/latest-step projections and team-switch cache isolation; focused tests, real MySQL, authenticated API and five accepted 1484×1324 Browser captures passed. F413-F419 preserve the frozen Demo/spec hashes and acceptance routing; F420-F460 must close the remaining release lifecycle/UX, settings governance, visual parity and independent final acceptance. F461-F463 are registered post-parity hardening/migration work only, not authorization to skip the remaining parity work. Canary, blue-green and automatic ramp-up remain unavailable until real traffic/workload/metric/pause-abort/rollback providers exist; checks without real provider evidence remain unavailable or pending rather than passed. Push, PR creation, merge and external production deployment remain outside the current authorization.
+Continue from F421 in `../../todos/2026-08-04-devpilot-v13-demo-parity.md`. F420 completed the shared eight-state ReleaseOrder lifecycle projector, exact approval/Production success evidence, failure-kind diagnostics and audited withdrawal boundary without changing F419 lastExecution semantics or entering resumeStep/stepper work. Correction tests, fresh real MySQL, authenticated API and Browser evidence passed after the initial P1/P2 review failure, and independent correction rereview passed P0/P1/P2=0/0/0. F413-F420 preserve the frozen Demo/spec hashes and acceptance routing; F421-F460 must close the remaining release resume/stepper/UX, settings governance, visual parity and independent final acceptance. F461-F463 are registered post-parity hardening/migration work only. Push, PR creation, merge and external production deployment remain outside the current authorization.

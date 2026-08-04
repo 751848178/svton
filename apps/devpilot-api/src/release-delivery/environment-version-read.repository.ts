@@ -45,7 +45,12 @@ export class EnvironmentVersionReadRepository {
 
   candidates(teamId: string, projectId: string) {
     return this.prisma.artifactManifest.findMany({
-      where: { teamId, projectId, buildRun: { status: "succeeded" } },
+      where: {
+        teamId,
+        projectId,
+        buildRun: { status: "succeeded" },
+        releaseOrder: { status: { not: "canceled" } },
+      },
       select: {
         id: true,
         digest: true,

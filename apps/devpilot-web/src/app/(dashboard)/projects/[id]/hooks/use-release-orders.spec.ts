@@ -16,15 +16,15 @@ import {
 describe('release order list client contract', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('sends query, persisted status and bounded take to the server', () => {
+  it('sends query, derived lifecycle status and bounded take to the server', () => {
     expect(
       buildReleaseOrderListEndpoint('project/1', {
         query: ' build #3 & digest ',
-        status: 'active',
+        status: 'awaiting_approval',
         take: 50,
       }),
     ).toBe(
-      'GET:/projects/project%2F1/delivery/releases?take=50&query=build+%233+%26+digest&status=active',
+      'GET:/projects/project%2F1/delivery/releases?take=50&query=build+%233+%26+digest&status=awaiting_approval',
     );
     expect(
       buildReleaseOrderListEndpoint('project-1', { query: '  ', status: null, take: 50 }),

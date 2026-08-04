@@ -57,17 +57,21 @@ export class ReleaseBuildResultRepository {
             canonicalRepositoryUrl: input.canonicalRepositoryUrl,
             inputHash: input.inputHash,
           },
-          items: { create: [{
-            componentKey: "project-bundle",
-            artifactType: "zip",
-            uri: input.uri,
-            digest: input.digest,
-            metadata: { sizeBytes: input.sizeBytes },
-          }] },
+          items: {
+            create: [
+              {
+                componentKey: "project-bundle",
+                artifactType: "zip",
+                uri: input.uri,
+                digest: input.digest,
+                metadata: { sizeBytes: input.sizeBytes },
+              },
+            ],
+          },
         },
       });
-      await tx.releaseOrder.update({
-        where: { id: input.releaseOrderId },
+      await tx.releaseOrder.updateMany({
+        where: { id: input.releaseOrderId, status: { not: "canceled" } },
         data: { status: "active" },
       });
       return tx.buildRun.findUniqueOrThrow({

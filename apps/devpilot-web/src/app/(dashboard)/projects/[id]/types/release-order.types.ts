@@ -1,3 +1,8 @@
+import type {
+  ReleaseOrderLifecycle,
+  ReleaseOrderPersistedStatus,
+} from './release-order-lifecycle.types';
+
 export interface ReleaseOrderItem {
   id: string;
   projectId: string;
@@ -15,7 +20,9 @@ export interface ReleaseOrderItem {
 
 export type ReleaseOrderStep = 'preflight' | 'build' | 'staging' | 'production';
 
-export interface ReleaseOrderDetail extends ReleaseOrderItem {
+export interface ReleaseOrderDetail extends Omit<ReleaseOrderItem, 'status'> {
+  persistedStatus: ReleaseOrderPersistedStatus;
+  lifecycle: ReleaseOrderLifecycle;
   resumeStep: ReleaseOrderStep;
   preflight: {
     ready: boolean;

@@ -44,10 +44,13 @@ export function ReleaseOrderListToolbar({
             options={[
               { value: '', label: t('releaseOrderStatusAll') },
               { value: 'draft', label: t('releaseOrderStatusDraft') },
-              { value: 'active', label: t('releaseOrderStatusActive') },
+              { value: 'building', label: t('releaseOrderStatusBuilding') },
+              { value: 'staging', label: t('releaseOrderStatusStaging') },
+              { value: 'awaiting_approval', label: t('releaseOrderStatusAwaitingApproval') },
+              { value: 'production', label: t('releaseOrderStatusProduction') },
               { value: 'succeeded', label: t('releaseOrderStatusSucceeded') },
               { value: 'failed', label: t('releaseOrderStatusFailed') },
-              { value: 'canceled', label: t('releaseOrderStatusCanceled') },
+              { value: 'withdrawn', label: t('releaseOrderStatusWithdrawn') },
             ]}
           />
         </label>

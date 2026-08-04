@@ -11,7 +11,7 @@ describe("ReleaseOrderListService", () => {
     await expect(
       service.list("team-1", "actor-1", "project-1", {
         query: "  v2  ",
-        status: "active",
+        status: "building",
         take: 12,
       }),
     ).resolves.toEqual({
@@ -23,7 +23,7 @@ describe("ReleaseOrderListService", () => {
       teamId: "team-1",
       projectId: "project-1",
       query: "v2",
-      status: "active",
+      status: "building",
       take: 12,
     });
   });

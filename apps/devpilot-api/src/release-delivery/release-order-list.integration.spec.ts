@@ -32,6 +32,8 @@ describeIntegration("release order list real MySQL integration", () => {
   const buildOneId = `f419-build-one-${suffix}`;
   const buildTwoId = `f419-build-two-${suffix}`;
   const buildThreeId = `f419-build-three-${suffix}`;
+  const richReleaseId = `f419-rich-release-${suffix}`;
+  const tieReleaseId = `f419-tie-release-${suffix}`;
   const manifestOneId = `f419-manifest-one-${suffix}`;
   const manifestTwoId = `f419-manifest-two-${suffix}`;
   const digestTwo = `sha256:${"b".repeat(64)}`;
@@ -92,6 +94,7 @@ describeIntegration("release order list real MySQL integration", () => {
       return;
     }
     await prisma.releaseRun.deleteMany({ where: { projectId } });
+    await prisma.operationApproval.deleteMany({ where: { projectId } });
     await prisma.deploymentRun.deleteMany({ where: { projectId } });
     await prisma.artifactManifest.deleteMany({ where: { projectId } });
     await prisma.buildRun.deleteMany({ where: { projectId } });
@@ -160,14 +163,14 @@ describeIntegration("release order list real MySQL integration", () => {
     expect((await list({ query: "other-team-secret" })).total).toBe(0);
   });
 
-  it("filters only the persisted five-state contract and preserves total before take", async () => {
-    const active = await list({ status: "active", take: 1 });
-    expect(active.total).toBe(3);
-    expect(active.items).toHaveLength(1);
-    expect(active.items[0].status).toBe("active");
+  it("filters the derived lifecycle contract and preserves total before take", async () => {
+    const awaiting = await list({ status: "awaiting_approval", take: 1 });
+    expect(awaiting.total).toBe(2);
+    expect(awaiting.items).toHaveLength(1);
+    expect(awaiting.items[0].lifecycle.status).toBe("awaiting_approval");
     expect(
       (await list({ status: "draft" })).items.every(
-        (item) => item.status === "draft",
+        (item) => item.lifecycle.status === "draft",
       ),
     ).toBe(true);
   });
@@ -227,6 +230,24 @@ describeIntegration("release order list real MySQL integration", () => {
       sourceType: "release_run",
       status: "awaiting_approval",
     });
+  });
+
+  it("does not treat an unrelated ReleaseRun update as execution activity", async () => {
+    const before = await list({ take: 50 });
+    const occurredAt = before.items.find(
+      (item) => item.id === richOrderId,
+    )!.lastExecutedAt;
+    await prisma.releaseRun.update({
+      where: { id: richReleaseId },
+      data: { policySnapshot: { unrelatedMaintenance: true } },
+    });
+    const after = await list({ take: 50 });
+    expect(after.items.map((item) => item.id)).toEqual(
+      before.items.map((item) => item.id),
+    );
+    expect(
+      after.items.find((item) => item.id === richOrderId)!.lastExecutedAt,
+    ).toBe(occurredAt);
   });
 
   it("uses only the exact locked identity branch when no Build exists", async () => {
@@ -609,13 +630,14 @@ describeIntegration("release order list real MySQL integration", () => {
     });
     await prisma.releaseRun.create({
       data: releaseRun(
-        `f419-rich-release-${suffix}`,
+        richReleaseId,
         richOrderId,
         manifestTwoId,
         "awaiting_approval",
         16,
       ),
     });
+    await seedPendingApproval(richReleaseId, 16);
   }
 
   async function seedRebuildExecutions() {
@@ -676,7 +698,7 @@ describeIntegration("release order list real MySQL integration", () => {
     });
     await prisma.releaseRun.create({
       data: releaseRun(
-        `f419-tie-release-${suffix}`,
+        tieReleaseId,
         tieOrderId,
         manifestId,
         "awaiting_approval",
@@ -684,6 +706,7 @@ describeIntegration("release order list real MySQL integration", () => {
         `sha256:${"f".repeat(64)}`,
       ),
     });
+    await seedPendingApproval(tieReleaseId, 18);
   }
 
   async function seedBrowserFillers() {
@@ -816,6 +839,32 @@ describeIntegration("release order list real MySQL integration", () => {
       createdAt: time(hour),
       updatedAt: time(hour),
     };
+  }
+
+  async function seedPendingApproval(releaseRunId: string, hour: number) {
+    const id = `${releaseRunId}-approval`;
+    await prisma.operationApproval.create({
+      data: {
+        id,
+        teamId,
+        requesterId: actorId,
+        projectId,
+        environmentId: productionId,
+        category: "release",
+        action: "project.release_order.deploy_production",
+        targetType: "release_run",
+        targetId: releaseRunId,
+        risk: "high",
+        status: "pending",
+        inputHash: "f".repeat(64),
+        summary: "Exact F420 pending approval",
+        requestedAt: time(hour),
+      },
+    });
+    await prisma.releaseRun.update({
+      where: { id: releaseRunId },
+      data: { operationApprovalId: id },
+    });
   }
 
   function time(hour: number) {
