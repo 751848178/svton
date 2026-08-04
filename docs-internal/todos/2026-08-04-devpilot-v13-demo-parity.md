@@ -60,7 +60,7 @@
 | ID | Status | Atomic TODO | Context Boundary | Acceptance |
 | --- | --- | --- | --- | --- |
 | F413 | done | 固化本次审计差距、Demo/spec 哈希、剩余 TODO 和逐项验收清单。 | Docs only；不改产品行为。 | AC-000～AC-006；本文件与 parity acceptance 文件存在且互相引用。 |
-| F414 | pending | 让“生成新项目”和“三步接入已有项目”最终创建同一种 READY Project、唯一 Staging/Production baseline 和首个配置修订。 | Generator/project-intake/project-environment；不改发布 UI。 | AC-PROJ-001～006；两条路径的数据库不变量一致。 |
+| F414 | done | 让“生成新项目”和“三步接入已有项目”最终创建同一种 READY Project、唯一 Staging/Production baseline 和首个配置修订。 | 单一 `ProjectGovernanceFinalizationService` owner；生成请求必须带持久 attempt key，数据库 claim 只选中一个唯一 attempt artifact，失败 sibling 不删除 winner；未改发布 UI。 | AC-PROJ-001～006；真实 MySQL 两条入口均为 READY、1+1 baseline、2 个 R1/current，响应丢失重放、异输入拒绝、artifact ownership、回滚/幂等/并发通过。 |
 | F415 | pending | 把仓库识别结果整理为项目类型、架构、部署方案、组件、路径、构建输出和运行方式的结构化可编辑合同。 | Repository-analysis apply/read model；不改项目首页。 | AC-INTAKE-001～007；真实仓库分析可核对和调整，不显示原始 JSON。 |
 | F416 | pending | 锁定 finalized 项目的 canonical repository identity，并拒绝构建来源与锁定身份漂移。 | Repository connection/intake/build source policy。 | AC-IDENTITY-001～005；设置、API、构建负例一致。 |
 | F417 | pending | 补齐项目目录的单一状态筛选语义、最近活动排序和 Demo 信息密度。 | Project-directory query/presenter/Web list。 | AC-DIR-001～010；同 viewport 对照通过。 |

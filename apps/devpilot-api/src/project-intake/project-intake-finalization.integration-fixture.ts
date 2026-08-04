@@ -1,7 +1,15 @@
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
-import { ProjectIntakeBaselineFinalizerService } from "./project-intake-baseline-finalizer.service";
+import { ProjectGovernanceBaselineService } from "../project/project-governance-baseline.service";
+import { ProjectGovernanceFinalizationService } from "../project/project-governance-finalization.service";
+import { GeneratedProjectDraftService } from "../project/generated-project-draft.service";
+import { ProjectService } from "../project/project.service";
+import { GeneratorService } from "../generator/generator.service";
+import { GeneratedProjectCreationService } from "../generator/generated-project-creation.service";
+import { GeneratedProjectArtifactClaimService } from "../generator/generated-project-artifact-claim.service";
+import { GeneratedProjectArtifactMaterializationService } from "../generator/generated-project-artifact-materialization.service";
+import { RegistryService } from "../registry/registry.service";
 import { ProjectIntakeFinalizationExecutorService } from "./project-intake-finalization-executor.service";
 import { ProjectIntakeFinalizationRecordRepository } from "./project-intake-finalization-record.repository";
 import { ProjectIntakeFinalizationService } from "./project-intake-finalization.service";
@@ -18,13 +26,39 @@ export class ProjectIntakeFinalizationIntegrationFixture {
   readonly teamId = `team-${this.suffix}`;
   readonly actorId = `user-${this.suffix}`;
   readonly service: ProjectIntakeFinalizationService;
+  readonly governance: ProjectGovernanceFinalizationService;
+  readonly generatedDrafts: GeneratedProjectDraftService;
+  readonly generatedCreation: GeneratedProjectCreationService;
+  readonly generatedClaims: GeneratedProjectArtifactClaimService;
+  readonly generator: GeneratorService;
+  readonly projects: ProjectService;
 
   constructor() {
     const prisma = this.prisma as unknown as PrismaService;
     const records = new ProjectIntakeFinalizationRecordRepository(prisma);
+    this.governance = new ProjectGovernanceFinalizationService(
+      prisma,
+      new ProjectGovernanceBaselineService(),
+    );
+    this.generatedDrafts = new GeneratedProjectDraftService(prisma);
+    const registry = new RegistryService();
+    registry.onModuleInit();
+    this.generator = new GeneratorService(registry, {} as never, {} as never, {} as never);
+    this.projects = new ProjectService(prisma, {} as never);
+    this.generatedClaims = new GeneratedProjectArtifactClaimService(prisma);
+    const materialization = new GeneratedProjectArtifactMaterializationService(
+      this.generator,
+      this.projects,
+      this.generatedClaims,
+    );
+    this.generatedCreation = new GeneratedProjectCreationService(
+      this.generatedDrafts,
+      this.governance,
+      materialization,
+    );
     const executor = new ProjectIntakeFinalizationExecutorService(
       prisma,
-      new ProjectIntakeBaselineFinalizerService(),
+      this.governance,
     );
     this.service = new ProjectIntakeFinalizationService(records, executor);
   }

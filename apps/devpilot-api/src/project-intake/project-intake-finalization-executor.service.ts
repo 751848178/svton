@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { ProjectIntakeBaselineFinalizerService } from "./project-intake-baseline-finalizer.service";
+import { ProjectGovernanceFinalizationService } from "../project/project-governance-finalization.service";
 import { intakeError } from "./project-intake-errors.utils";
 import type {
   FinalizeProjectIntakeInput,
@@ -18,7 +18,7 @@ import { normalizeRepositoryIdentity } from "./project-repository-identity.utils
 export class ProjectIntakeFinalizationExecutorService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly baselines: ProjectIntakeBaselineFinalizerService,
+    private readonly governance: ProjectGovernanceFinalizationService,
   ) {}
 
   execute(
@@ -106,28 +106,6 @@ export class ProjectIntakeFinalizationExecutorService {
       );
     }
 
-    const claimed = await tx.project.updateMany({
-      where: {
-        id: project.id,
-        teamId: input.teamId,
-        onboardingStatus: "review",
-        onboardingRevision: project.onboardingRevision,
-      },
-      data: {
-        onboardingStatus: "ready",
-        onboardingRevision: { increment: 1 },
-        onboardingFinalizedAt: new Date(),
-      },
-    });
-    if (claimed.count !== 1)
-      throw new ConflictException(
-        intakeError(
-          "PROJECT_INTAKE_CONCURRENT_FINALIZE",
-          "项目接入状态已被并发请求更新",
-          "请刷新状态；已完成时无需再次提交。",
-        ),
-      );
-
     const lockedAt = new Date();
     const identity =
       project.repositoryIdentity ??
@@ -144,14 +122,20 @@ export class ProjectIntakeFinalizationExecutorService {
           lockedAt,
         },
       }));
-    const environments = await this.baselines.ensure(tx, input);
+    const governance = await this.governance.finalizeTransaction(tx, {
+      teamId: input.teamId,
+      projectId: input.projectId,
+      actorId: input.actorId,
+      expectedStatus: "review",
+      expectedRevision: project.onboardingRevision,
+      auditAction: "project.intake.finalize",
+      auditSummary: "项目接入已完成，Staging/Production 基线已锁定",
+      auditMetadata: { repositoryIdentityId: identity.id },
+    });
 
     const result: ProjectIntakeFinalizationResult = {
-      projectId: project.id,
+      ...governance,
       repositoryIdentityId: identity.id,
-      onboardingRevision: project.onboardingRevision + 1,
-      finalizedAt: lockedAt.toISOString(),
-      environments,
     };
     await tx.projectIntakeFinalization.update({
       where: { id: input.finalizationId },
@@ -160,22 +144,7 @@ export class ProjectIntakeFinalizationExecutorService {
         resultSnapshot: result as unknown as Prisma.InputJsonValue,
         errorCode: null,
         errorMessage: null,
-        finishedAt: lockedAt,
-      },
-    });
-    await tx.auditEvent.create({
-      data: {
-        teamId: input.teamId,
-        actorId: input.actorId,
-        projectId: project.id,
-        category: "project",
-        action: "project.intake.finalize",
-        targetType: "project",
-        targetId: project.id,
-        risk: "medium",
-        status: "completed",
-        summary: "项目接入已完成，Staging/Production 基线已锁定",
-        metadata: result as unknown as Prisma.InputJsonValue,
+        finishedAt: new Date(governance.finalizedAt),
       },
     });
     return result;

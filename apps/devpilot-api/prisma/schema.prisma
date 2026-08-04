@@ -710,6 +710,7 @@ model Project {
   releasePolicyRevisions ReleasePolicyRevision[] @relation("ProjectReleasePolicyRevisionHistory")
   currentReleasePolicyRevision ReleasePolicyRevision? @relation("CurrentReleasePolicyRevision", fields: [currentReleasePolicyRevisionId], references: [id], onDelete: SetNull)
   gateEvaluations GateEvaluation[]
+  generatedArtifactClaim GeneratedProjectArtifactClaim?
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -718,6 +719,25 @@ model Project {
   @@index([createdById])
   @@index([onboardingStatus])
   @@index([archivedAt])
+}
+
+// 生成 ZIP 的并发所有权与不可变选中结果；Project 配置只引用 selected artifact。
+model GeneratedProjectArtifactClaim {
+  projectId         String   @id
+  teamId            String
+  ownerToken        String
+  status            String   @default("claimed") // claimed | selected
+  artifact          Json?
+  resolvedResources Json?
+  leaseExpiresAt    DateTime?
+  selectedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, status])
+  @@index([leaseExpiresAt])
 }
 
 // 项目级不可变发布策略；当前指针由 Project 持有，历史修订只追加不修改

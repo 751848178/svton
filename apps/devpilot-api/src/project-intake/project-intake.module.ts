@@ -1,9 +1,9 @@
 import { Module } from "@nestjs/common";
 import { ControlAccessPolicyModule } from "../control-access-policy";
 import { PrismaModule } from "../prisma/prisma.module";
+import { ProjectModule } from "../project/project.module";
 import { RepositoryAnalysisModule } from "../repository-analysis/repository-analysis.module";
 import { ProjectIntakeAccessService } from "./project-intake-access.service";
-import { ProjectIntakeBaselineFinalizerService } from "./project-intake-baseline-finalizer.service";
 import { ProjectIntakeController } from "./project-intake.controller";
 import { ProjectIntakeFinalizationExecutorService } from "./project-intake-finalization-executor.service";
 import { ProjectIntakeFinalizationRecordRepository } from "./project-intake-finalization-record.repository";
@@ -12,7 +12,12 @@ import { ProjectIntakeService } from "./project-intake.service";
 import { ProjectRepositoryDuplicateGuardService } from "./project-repository-duplicate-guard.service";
 
 @Module({
-  imports: [PrismaModule, ControlAccessPolicyModule, RepositoryAnalysisModule],
+  imports: [
+    PrismaModule,
+    ProjectModule,
+    ControlAccessPolicyModule,
+    RepositoryAnalysisModule,
+  ],
   controllers: [ProjectIntakeController],
   providers: [
     ProjectIntakeService,
@@ -20,7 +25,6 @@ import { ProjectRepositoryDuplicateGuardService } from "./project-repository-dup
     ProjectIntakeFinalizationService,
     ProjectIntakeFinalizationExecutorService,
     ProjectIntakeFinalizationRecordRepository,
-    ProjectIntakeBaselineFinalizerService,
     ProjectRepositoryDuplicateGuardService,
   ],
   exports: [ProjectIntakeService],

@@ -1,3 +1,5 @@
+import type { GovernedBaselineEnvironment } from "../project/project-governance-finalization.types";
+
 export type ProjectIntakeStatus =
   | "draft"
   | "analyzing"
@@ -15,12 +17,7 @@ export interface FinalizeProjectIntakeInput {
   finalizationId: string;
 }
 
-export interface FinalizedBaselineEnvironment {
-  id: string;
-  key: "staging" | "production";
-  baselineRole: "staging" | "production";
-  configRevisionId: string;
-}
+export type FinalizedBaselineEnvironment = GovernedBaselineEnvironment;
 
 export interface ProjectIntakeFinalizationResult {
   projectId: string;

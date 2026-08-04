@@ -47,6 +47,19 @@ describeProjectIntakeIntegration(
         finalizations: 1,
         environments: 2,
       });
+      await expect(
+        fixture.service.finalize(
+          fixture.teamId,
+          fixture.actorId,
+          project.projectId,
+          {
+            analysisRunId: `different-${project.runId}`,
+            idempotencyKey: dto.idempotencyKey,
+          },
+        ),
+      ).rejects.toMatchObject({
+        response: { code: "PROJECT_INTAKE_IDEMPOTENCY_MISMATCH" },
+      });
     });
 
     it("recovers a failed finalization record with the same input", async () => {

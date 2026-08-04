@@ -6,6 +6,9 @@ import { ProjectEnvironmentModule } from '../project-environment';
 import { ControlAccessPolicyModule } from '../control-access-policy';
 import { RepositoryAnalysisModule } from '../repository-analysis/repository-analysis.module';
 import { ProjectArchiveService } from './project-archive.service';
+import { GeneratedProjectDraftService } from './generated-project-draft.service';
+import { ProjectGovernanceFinalizationService } from './project-governance-finalization.service';
+import { ProjectGovernanceBaselineService } from './project-governance-baseline.service';
 
 @Module({
   imports: [
@@ -15,7 +18,17 @@ import { ProjectArchiveService } from './project-archive.service';
     RepositoryAnalysisModule,
   ],
   controllers: [ProjectController],
-  providers: [ProjectService, ProjectArchiveService],
-  exports: [ProjectService],
+  providers: [
+    ProjectService,
+    ProjectArchiveService,
+    GeneratedProjectDraftService,
+    ProjectGovernanceBaselineService,
+    ProjectGovernanceFinalizationService,
+  ],
+  exports: [
+    ProjectService,
+    GeneratedProjectDraftService,
+    ProjectGovernanceFinalizationService,
+  ],
 })
 export class ProjectModule {}

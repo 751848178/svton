@@ -9,6 +9,11 @@ import { ResourceRequestModule } from '../resource-request/resource-request.modu
 import { ControlAccessPolicyModule } from '../control-access-policy';
 import { AuditEventModule } from '../audit-event';
 import { GeneratedProjectArtifactCleanupSchedulerService } from './generated-project-artifact-cleanup-scheduler.service';
+import { GeneratedProjectController } from './generated-project.controller';
+import { GeneratedProjectCreationService } from './generated-project-creation.service';
+import { GeneratedProjectArtifactCleanupController } from './generated-project-artifact-cleanup.controller';
+import { GeneratedProjectArtifactClaimService } from './generated-project-artifact-claim.service';
+import { GeneratedProjectArtifactMaterializationService } from './generated-project-artifact-materialization.service';
 
 @Module({
   imports: [
@@ -20,8 +25,18 @@ import { GeneratedProjectArtifactCleanupSchedulerService } from './generated-pro
     ControlAccessPolicyModule,
     AuditEventModule,
   ],
-  controllers: [GeneratorController],
-  providers: [GeneratorService, GeneratedProjectArtifactCleanupSchedulerService],
+  controllers: [
+    GeneratorController,
+    GeneratedProjectController,
+    GeneratedProjectArtifactCleanupController,
+  ],
+  providers: [
+    GeneratorService,
+    GeneratedProjectArtifactClaimService,
+    GeneratedProjectArtifactMaterializationService,
+    GeneratedProjectCreationService,
+    GeneratedProjectArtifactCleanupSchedulerService,
+  ],
   exports: [GeneratorService],
 })
 export class GeneratorModule {}

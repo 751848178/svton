@@ -44,12 +44,14 @@
 - [ ] **AC-DIR-009** 运行状态与配置状态分别来源于真实关系，不由前端猜测。
 - [ ] **AC-DIR-010** 目录在参考 viewport 的结构、密度和主次层级与 Demo 对齐。
 
-- [ ] **AC-PROJ-001** 生成新项目和接入已有项目最终生成同一种 Project 治理对象。
-- [ ] **AC-PROJ-002** 两条路径都产生唯一活动 Staging baseline。
-- [ ] **AC-PROJ-003** 两条路径都产生唯一活动 Production baseline。
-- [ ] **AC-PROJ-004** 两条路径都产生首个不可变环境配置修订并设置 current 指针。
-- [ ] **AC-PROJ-005** finalize 事务失败后保持可恢复 draft，不产生半完成 READY 项目。
-- [ ] **AC-PROJ-006** 重复/并发创建不会产生重复仓库身份或 baseline。
+- [x] **AC-PROJ-001** 生成新项目和接入已有项目最终生成同一种 Project 治理对象。
+- [x] **AC-PROJ-002** 两条路径都产生唯一活动 Staging baseline。
+- [x] **AC-PROJ-003** 两条路径都产生唯一活动 Production baseline。
+- [x] **AC-PROJ-004** 两条路径都产生首个不可变环境配置修订并设置 current 指针。
+- [x] **AC-PROJ-005** finalize 事务失败后保持可恢复 draft，不产生半完成 READY 项目。
+- [x] **AC-PROJ-006** 重复/并发创建不会产生重复仓库身份或 baseline。
+
+F414 evidence: `f414/svton/f414-mysql-clean-integration-20260804-115818.log` records 3 suites/10 real-MySQL tests for generated and repository-intake entry paths, rollback/recovery, repeated and mismatched idempotency, and concurrent completion. `f414/svton/f414-mysql-clean-invariants-20260804-115838.log` records both converged projects as `ready`, each with exactly one active Staging, one active Production, two R1 revisions and two current pointers; the generated path has no fabricated repository identity and the imported path has exactly one locked identity. Focused unit, type-check and build evidence is in the sibling F414 logs.
 
 ## Repository Intake And Identity
 
