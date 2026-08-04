@@ -2,30 +2,32 @@ import { presentBuild } from "./release-build.presenter";
 
 describe("presentBuild", () => {
   it("presents immutable v2 snapshot provenance after joined identity mutation", () => {
-    const presented = presentBuild(record({
-      inputSnapshot: {
-        version: 2,
-        repositoryIdentity: {
-          id: "identity-1",
-          revisionId: "revision-2",
-          revision: 2,
-          provider: "github",
-          canonicalUrl: "https://github.com/example/original",
+    const presented = presentBuild(
+      record({
+        inputSnapshot: {
+          version: 2,
+          repositoryIdentity: {
+            id: "identity-1",
+            revisionId: "revision-2",
+            revision: 2,
+            provider: "github",
+            canonicalUrl: "https://github.com/example/original",
+          },
+          sourceBranch: "release",
+          sourceCommitSha: "a".repeat(40),
+          components: [],
         },
-        sourceBranch: "release",
-        sourceCommitSha: "a".repeat(40),
-        components: [],
-      },
-      repositoryIdentity: {
-        provider: "gitlab",
-        canonicalUrl: "https://gitlab.com/example/mutated",
-      },
-      repositoryIdentityRevision: {
-        id: "revision-99",
-        revision: 99,
-        defaultBranch: "mutated",
-      },
-    }));
+        repositoryIdentity: {
+          provider: "gitlab",
+          canonicalUrl: "https://gitlab.com/example/mutated",
+        },
+        repositoryIdentityRevision: {
+          id: "revision-99",
+          revision: 99,
+          defaultBranch: "mutated",
+        },
+      }),
+    );
     expect(presented).toMatchObject({
       sourceBranch: "release",
       sourceCommitSha: "a".repeat(40),
@@ -52,11 +54,24 @@ describe("presentBuild", () => {
     },
   );
 
-  it("does not rewrite malformed declared v2 provenance from mutable joins", () => {
-    expect(presentBuild(record({
+  it.each([
+    {
+      label: "malformed v2",
       inputSnapshot: { version: 2, repositoryIdentity: null },
-    })).sourceRepository).toBeNull();
-  });
+    },
+    { label: "future version", inputSnapshot: { version: 3 } },
+    { label: "missing version", inputSnapshot: {} },
+    { label: "string version", inputSnapshot: { version: "1" } },
+    { label: "array", inputSnapshot: [] },
+    { label: "undefined", inputSnapshot: undefined },
+  ])(
+    "fails closed for $label instead of borrowing mutable joins",
+    ({ inputSnapshot }) => {
+      expect(
+        presentBuild(record({ inputSnapshot })).sourceRepository,
+      ).toBeNull();
+    },
+  );
 });
 
 function record(overrides: Record<string, unknown> = {}) {

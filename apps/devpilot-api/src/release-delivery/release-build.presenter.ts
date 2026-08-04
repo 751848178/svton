@@ -26,18 +26,20 @@ interface BuildRecord {
 
 export function presentBuild(run: BuildRecord) {
   const snapshot = readSnapshotV2(run.inputSnapshot);
-  const declaredV2 = isRecord(run.inputSnapshot) && run.inputSnapshot.version === 2;
+  const legacyFallback =
+    run.inputSnapshot === null ||
+    (isRecord(run.inputSnapshot) && run.inputSnapshot.version === 1);
   const sourceRepository = snapshot
     ? {
-      provider: snapshot.provider,
-      canonicalUrl: snapshot.canonicalUrl,
-      identityRevisionId: snapshot.revisionId,
-      identityRevision: snapshot.revision,
-      branch: snapshot.branch,
-    }
-    : declaredV2
-      ? null
-      : legacySourceRepository(run);
+        provider: snapshot.provider,
+        canonicalUrl: snapshot.canonicalUrl,
+        identityRevisionId: snapshot.revisionId,
+        identityRevision: snapshot.revision,
+        branch: snapshot.branch,
+      }
+    : legacyFallback
+      ? legacySourceRepository(run)
+      : null;
   return {
     id: run.id,
     releaseOrderId: run.releaseOrderId,
@@ -71,18 +73,24 @@ function legacySourceRepository(run: BuildRecord) {
 }
 
 function readSnapshotV2(value: unknown) {
-  if (!isRecord(value) || value.version !== 2 || !isRecord(value.repositoryIdentity)) return null;
+  if (
+    !isRecord(value) ||
+    value.version !== 2 ||
+    !isRecord(value.repositoryIdentity)
+  )
+    return null;
   const identity = value.repositoryIdentity;
   if (
-    !isString(identity.provider)
-    || !isString(identity.canonicalUrl)
-    || !isString(identity.revisionId)
-    || !Number.isInteger(identity.revision)
-    || Number(identity.revision) < 1
-    || !isString(value.sourceBranch)
-    || !isString(value.sourceCommitSha)
-    || !/^[0-9a-f]{40}([0-9a-f]{24})?$/i.test(value.sourceCommitSha)
-  ) return null;
+    !isString(identity.provider) ||
+    !isString(identity.canonicalUrl) ||
+    !isString(identity.revisionId) ||
+    !Number.isInteger(identity.revision) ||
+    Number(identity.revision) < 1 ||
+    !isString(value.sourceBranch) ||
+    !isString(value.sourceCommitSha) ||
+    !/^[0-9a-f]{40}([0-9a-f]{24})?$/i.test(value.sourceCommitSha)
+  )
+    return null;
   return {
     provider: identity.provider,
     canonicalUrl: identity.canonicalUrl,

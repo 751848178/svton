@@ -64,6 +64,10 @@
   connected+verified rows with non-zero 40/64-hex commits. Real pre-F416 MySQL
   upgrade evidence leaves every null/invalid/drift fixture fail-closed; accepted
   and rejected artifacts are SHA-256 bound in the correction inventory.
+  A second independent review found that unknown/missing snapshot versions still
+  borrowed mutable joins; the bounded follow-up permits compatibility fallback
+  only for exact numeric v1 or null and fails closed for every other malformed or
+  future version.
 
 - F383 + F384 were integrated onto local `master@68aabfa7` on 2026-07-29.
   The authoritative merge-readiness source is
