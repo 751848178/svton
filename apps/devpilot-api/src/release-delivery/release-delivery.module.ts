@@ -50,6 +50,9 @@ import { ReleaseDeliveryCompatibilityController } from "./release-delivery-compa
 import { ReleaseDeliveryCompatibilityRepository } from "./release-delivery-compatibility.repository";
 import { ReleaseDeliveryCompatibilityService } from "./release-delivery-compatibility.service";
 import { GateEvaluationRepository } from "./gate-evaluation.repository";
+import { ProjectDeliverySummaryController } from "./project-delivery-summary.controller";
+import { ProjectDeliverySummaryRepository } from "./project-delivery-summary.repository";
+import { ProjectDeliverySummaryService } from "./project-delivery-summary.service";
 
 @Module({
   imports: [
@@ -64,6 +67,7 @@ import { GateEvaluationRepository } from "./gate-evaluation.repository";
     ReleaseGateCatalogController,
     ReleasePolicyController,
     ReleaseDeliveryCompatibilityController,
+    ProjectDeliverySummaryController,
   ],
   providers: [
     ReleaseOrderService,
@@ -106,6 +110,8 @@ import { GateEvaluationRepository } from "./gate-evaluation.repository";
     ReleaseGatePromoteEvidenceRepository,
     ReleaseGateCatalogService,
     GateEvaluationRepository,
+    ProjectDeliverySummaryRepository,
+    ProjectDeliverySummaryService,
     {
       provide: ReleaseBuildExecutorPort,
       useExisting: LocalReleaseBuildExecutorService,

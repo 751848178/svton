@@ -98,12 +98,15 @@ export function projectDirectoryEnvironment(
 ): ProjectDirectoryRecord["environments"][number] {
   return {
     id,
+    teamId: "team-1",
+    projectId,
     key,
     name: key,
     status: "active",
     baselineRole,
     identityLockedAt: new Date("2026-08-03T01:00:00.000Z"),
     currentConfigRevisionId: `revision-${id}`,
+    currentEnvironmentVersionId: online ? "environment-version-1" : null,
     currentEnvironmentVersion: online
       ? {
           id: "environment-version-1",
@@ -112,6 +115,7 @@ export function projectDirectoryEnvironment(
           environmentId: id,
           releaseOrderId: "release-order-1",
           artifactManifestId: "manifest-1",
+          deploymentRunId: "deployment-1",
           effectiveAt: new Date("2026-08-03T02:00:00.000Z"),
           releaseOrder: {
             id: "release-order-1",
@@ -131,6 +135,7 @@ export function projectDirectoryEnvironment(
             projectId,
             environmentId: id,
             artifactManifestId: "manifest-1",
+            source: "release_order",
             status: "completed",
             dryRun: false,
           },

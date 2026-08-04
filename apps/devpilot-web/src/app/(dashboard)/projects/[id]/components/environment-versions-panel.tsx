@@ -4,21 +4,15 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, LinkButton, StatusTag } from '@/components/ui';
 import { useEnvironmentVersions } from '../hooks/use-environment-versions';
-import type { useProjectDetail } from '../hooks/use-project-detail';
 import type {
   EnvironmentVersionCandidate,
   EnvironmentVersionEnvironment,
 } from '../types/environment-version.types';
 
-type DetailHook = ReturnType<typeof useProjectDetail>;
-
-export function EnvironmentVersionsPanel({ detail }: { detail: DetailHook }) {
+export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
   const t = useTranslations('projects');
-  const project = detail.project;
-  const versions = useEnvironmentVersions(project?.id || '');
+  const versions = useEnvironmentVersions(projectId);
   const [selection, setSelection] = useState<Record<string, string>>({});
-  if (!project) return null;
-
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">{t('environmentVersionsDescription')}</p>
@@ -67,7 +61,7 @@ export function EnvironmentVersionsPanel({ detail }: { detail: DetailHook }) {
         })}
       </div>
       <LinkButton
-        href={`/projects/${encodeURIComponent(project.id)}/settings?section=environments`}
+        href={`/projects/${encodeURIComponent(projectId)}/settings?section=environments`}
         variant="outline"
       >
         {t('manageEnvironmentConfiguration')}

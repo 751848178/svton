@@ -1,5 +1,7 @@
-import type { ProjectDirectoryRecord } from "./project-directory.repository";
-import type { ProjectDirectoryIntakeSummary } from "./project-directory.types";
+import type {
+  RepositoryIntakeSummary,
+  RepositoryIntakeSummarySource,
+} from "./repository-intake-summary.types";
 
 const PROJECT_TYPES = new Set([
   "web_application",
@@ -9,18 +11,18 @@ const PROJECT_TYPES = new Set([
 ]);
 const ARCHITECTURES = new Set(["monorepo", "single_repository"]);
 
-export function projectDirectoryIntake(
-  project: ProjectDirectoryRecord,
-): ProjectDirectoryIntakeSummary {
+export function repositoryIntakeSummary(
+  project: RepositoryIntakeSummarySource,
+): RepositoryIntakeSummary {
   const decisions = array(
     project.repositoryIntakeReviewSnapshots[0]?.decisions,
   );
-  const snapshotOverview = decisions
+  const frozenOverview = decisions
     ?.filter(isAccepted)
     .find((decision) => decision.kind === "project_repository");
   const overview =
     validOverview(
-      record(record(snapshotOverview?.reviewedValue)?.intakeContract)?.overview,
+      record(record(frozenOverview?.reviewedValue)?.intakeContract)?.overview,
     ) ??
     validOverview(
       record(record(record(project.config)?.repositoryAnalysis)?.intakeContract)
@@ -34,9 +36,7 @@ export function projectDirectoryIntake(
   };
 }
 
-function componentCount(
-  decisions: Record<string, unknown>[] | null,
-): number | null {
+function componentCount(decisions: Record<string, unknown>[] | null) {
   if (!decisions) return null;
   const components = decisions.filter(
     (decision) =>
@@ -71,7 +71,7 @@ function validComponent(value: unknown) {
   return name && path ? { name, path } : null;
 }
 
-function isAccepted(value: Record<string, unknown>): boolean {
+function isAccepted(value: Record<string, unknown>) {
   return value.decision === "accept" || value.decision === "edit";
 }
 
@@ -89,6 +89,6 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function string(value: unknown): string | null {
+function string(value: unknown) {
   return typeof value === "string" && value.trim() ? value : null;
 }

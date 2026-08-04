@@ -1,25 +1,22 @@
-import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { PrismaService } from "../prisma/prisma.service";
-import {
-  type ProjectDirectoryActivityRecord,
-  recentProjectActivity,
-} from "./project-directory-activity.repository";
 
-export const PROJECT_DIRECTORY_SELECT =
+const SCOPED_RESOURCE_SELECT = {
+  id: true,
+  teamId: true,
+  projectId: true,
+  environmentId: true,
+} as const;
+
+export const PROJECT_DELIVERY_SUMMARY_SELECT =
   Prisma.validator<Prisma.ProjectSelect>()({
     id: true,
     teamId: true,
     name: true,
     config: true,
-    onboardingStatus: true,
-    onboardingRevision: true,
-    onboardingFinalizedAt: true,
-    createdAt: true,
-    updatedAt: true,
     repositoryIdentity: {
       select: {
         id: true,
+        teamId: true,
         projectId: true,
         provider: true,
         canonicalKey: true,
@@ -28,8 +25,9 @@ export const PROJECT_DIRECTORY_SELECT =
         currentRevision: {
           select: {
             id: true,
-            identityId: true,
+            teamId: true,
             projectId: true,
+            identityId: true,
             revision: true,
             defaultBranch: true,
             reason: true,
@@ -44,17 +42,15 @@ export const PROJECT_DIRECTORY_SELECT =
         repositoryUrl: true,
         defaultBranch: true,
         selectedBranch: true,
-        commitSha: true,
         status: true,
       },
     },
     repositoryIntakeReviewSnapshots: {
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       take: 1,
-      select: { id: true, decisions: true, createdAt: true },
+      select: { decisions: true },
     },
     environments: {
-      where: { status: "active" },
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
       select: {
         id: true,
@@ -67,6 +63,14 @@ export const PROJECT_DIRECTORY_SELECT =
         identityLockedAt: true,
         currentConfigRevisionId: true,
         currentEnvironmentVersionId: true,
+        currentConfigRevision: {
+          select: {
+            id: true,
+            teamId: true,
+            projectId: true,
+            environmentId: true,
+          },
+        },
         currentEnvironmentVersion: {
           select: {
             id: true,
@@ -91,6 +95,7 @@ export const PROJECT_DIRECTORY_SELECT =
                 teamId: true,
                 projectId: true,
                 releaseOrderId: true,
+                digest: true,
               },
             },
             deploymentRun: {
@@ -109,50 +114,19 @@ export const PROJECT_DIRECTORY_SELECT =
         },
       },
     },
+    resourceInstances: { select: SCOPED_RESOURCE_SELECT },
+    managedResources: { select: SCOPED_RESOURCE_SELECT },
+    secretKeys: { select: SCOPED_RESOURCE_SELECT },
+    cdnConfigs: { select: SCOPED_RESOURCE_SELECT },
     sites: {
-      where: { status: "active" },
-      orderBy: [{ primaryDomain: "asc" }, { id: "asc" }],
       select: {
-        id: true,
-        teamId: true,
-        projectId: true,
+        ...SCOPED_RESOURCE_SELECT,
         primaryDomain: true,
         status: true,
-        environmentId: true,
       },
     },
   });
 
-type ProjectDirectoryBaseRecord = Prisma.ProjectGetPayload<{
-  select: typeof PROJECT_DIRECTORY_SELECT;
+export type ProjectDeliverySummaryRecord = Prisma.ProjectGetPayload<{
+  select: typeof PROJECT_DELIVERY_SUMMARY_SELECT;
 }>;
-export type ProjectDirectoryRecord = ProjectDirectoryBaseRecord & {
-  recentActivity: ProjectDirectoryActivityRecord;
-};
-
-@Injectable()
-export class ProjectDirectoryRepository {
-  constructor(private readonly prisma: PrismaService) {}
-
-  async list(teamId: string): Promise<ProjectDirectoryRecord[]> {
-    const [projects, activity] = await Promise.all([
-      this.prisma.project.findMany({
-        where: { teamId, archivedAt: null },
-        orderBy: [{ id: "asc" }],
-        select: PROJECT_DIRECTORY_SELECT,
-      }),
-      recentProjectActivity(this.prisma, teamId),
-    ]);
-    return projects.map((project) => ({
-      ...project,
-      recentActivity: activity.get(project.id) ?? {
-        id: project.id,
-        projectId: project.id,
-        activityType: "project",
-        status: project.onboardingStatus ?? "unknown",
-        summary: null,
-        occurredAt: project.updatedAt,
-      },
-    }));
-  }
-}

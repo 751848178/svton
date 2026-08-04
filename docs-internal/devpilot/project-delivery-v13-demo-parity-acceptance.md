@@ -82,11 +82,11 @@ F416 evidence: canonical repository identity and append-only branch revisions ar
 
 ## Project Delivery Home And Release List
 
-- [ ] **AC-HOME-001** 进入项目默认打开发布单，而不是环境进度或概览。
-- [ ] **AC-HOME-002** 高频一级只显示“发布单”和“环境版本”。
-- [ ] **AC-HOME-003** 顶部弱摘要显示项目形态、环境就绪、资源绑定和入口状态。
-- [ ] **AC-HOME-004** 顶部弱摘要显示 Staging 与 Production 当前环境版本。
-- [ ] **AC-HOME-005** “创建发布单”为主操作，“管理项目”为次操作，发布规则不占高频 Tab。
+- [x] **AC-HOME-001** 进入项目默认打开发布单，而不是环境进度或概览。
+- [x] **AC-HOME-002** 高频一级只显示“发布单”和“环境版本”。
+- [x] **AC-HOME-003** 顶部弱摘要显示项目形态、环境就绪、资源绑定和入口状态。
+- [x] **AC-HOME-004** 顶部弱摘要显示 Staging 与 Production 当前环境版本。
+- [x] **AC-HOME-005** “创建发布单”为主操作，“管理项目”为次操作，发布规则不占高频 Tab。
 - [ ] **AC-HOME-006** 发布单列表支持版本、Commit、Build 和 Manifest 搜索。
 - [ ] **AC-HOME-007** 发布单列表支持用户可理解的状态筛选。
 - [ ] **AC-HOME-008** 列表默认按最近执行时间排序。
@@ -95,6 +95,8 @@ F416 evidence: canonical repository identity and append-only branch revisions ar
 - [ ] **AC-HOME-011** 每行显示环境发布次数和最近发布环境/结果。
 - [ ] **AC-HOME-012** 每行显示最近执行步骤和一个明确的“查看发布单”动作。
 - [ ] **AC-HOME-013** 创建发布单只输入发布版本号和可选说明，不选环境、Commit 或构建说明。
+
+F418 evidence: the authenticated, ACL-scoped `GET /projects/:projectId/delivery/summary` derives canonical repository identity and the frozen F415 intake snapshot, validates Staging/Production current versions through the exact completed non-dry-run release-order deployment chain, and counts only same-project environment resources plus explicit Site entries. The default SSR/SWR page renders the Release Orders tab first, exposes only Release Orders and Environment Versions at the high-frequency level, and keeps Manage Project secondary to Create Release Order without loading the legacy deployment/webhook detail graph. Focused API/Web tests, both type-checks, a fresh disposable MySQL integration run, authenticated API headers and a 1484×1324 Browser capture are indexed under `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f418/`.
 
 ## Release Order Detail And Preflight
 

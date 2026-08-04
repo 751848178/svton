@@ -1,36 +1,26 @@
 'use client';
 
+import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Tabs } from '@svton/ui';
-import type { useProjectDetail } from '../hooks/use-project-detail';
 import { deliveryHref, readDeliveryView } from '../utils/project-route.utils';
-import { DeploymentsTab } from './tabs/deployments-tab';
 import { EnvironmentVersionsPanel } from './environment-versions-panel';
 import { ReleaseOrdersPanel } from './release-orders-panel';
-import { ReleaseDeliveryCompatibilityBanner } from './release-delivery-compatibility-banner';
 
-type DetailHook = ReturnType<typeof useProjectDetail>;
-
-export function ProjectDeliveryContent({ detail }: { detail: DetailHook }) {
+export function ProjectDeliveryContent({
+  projectId,
+  createOpen,
+  onCreateOpenChange,
+}: {
+  projectId: string;
+  createOpen: boolean;
+  onCreateOpenChange: (open: boolean) => void;
+}) {
   const t = useTranslations('projects');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const projectId = detail.project?.id ?? '';
   const view = readDeliveryView(searchParams);
-
-  if (view === 'deployments') {
-    return (
-      <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">{t('professionalDeploymentView')}</p>
-        <ReleaseDeliveryCompatibilityBanner projectId={projectId} />
-        <DeploymentsTab
-          detail={detail}
-          focusedRunId={searchParams.get('runId')?.trim() || undefined}
-        />
-      </div>
-    );
-  }
 
   return (
     <Tabs
@@ -38,12 +28,18 @@ export function ProjectDeliveryContent({ detail }: { detail: DetailHook }) {
         {
           key: 'releases',
           label: t('tabReleaseOrders'),
-          children: <ReleaseOrdersPanel projectId={projectId} />,
+          children: (
+            <ReleaseOrdersPanel
+              projectId={projectId}
+              createOpen={createOpen}
+              onCreateOpenChange={onCreateOpenChange}
+            />
+          ),
         },
         {
           key: 'environment-versions',
           label: t('tabEnvironmentVersions'),
-          children: <EnvironmentVersionsPanel detail={detail} />,
+          children: <EnvironmentVersionsPanel projectId={projectId} />,
         },
       ]}
       activeKey={view}

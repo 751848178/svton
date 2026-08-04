@@ -1,4 +1,5 @@
 import type { ProjectDirectoryRecord } from "./project-directory.repository";
+import { exactCurrentEnvironmentVersion } from "../release-delivery/current-environment-version.utils";
 import type {
   ProjectDirectoryEnvironmentSummary,
   ProjectDirectoryItem,
@@ -26,26 +27,7 @@ export function productionSummary(
   production: DirectoryEnvironment | undefined,
 ): ProjectDirectoryItem["production"] {
   if (!production) return { currentVersion: null, domain: null };
-  const version = production.currentEnvironmentVersion;
-  const deployment = version?.deploymentRun;
-  const manifest = version?.artifactManifest;
-  const versionValid =
-    version?.teamId === project.teamId &&
-    version.projectId === project.id &&
-    version.environmentId === production.id &&
-    version.releaseOrderId === version.releaseOrder.id &&
-    version.releaseOrder.teamId === project.teamId &&
-    version.releaseOrder.projectId === project.id &&
-    version.artifactManifestId === manifest?.id &&
-    manifest.teamId === project.teamId &&
-    manifest.projectId === project.id &&
-    manifest.releaseOrderId === version.releaseOrder.id &&
-    deployment?.teamId === project.teamId &&
-    deployment.projectId === project.id &&
-    deployment.environmentId === production.id &&
-    deployment.artifactManifestId === version.artifactManifestId &&
-    deployment.status === "completed" &&
-    deployment.dryRun === false;
+  const version = exactCurrentEnvironmentVersion(project, production);
   const productionSite = project.sites.find(
     (site) =>
       site.teamId === project.teamId &&
@@ -55,7 +37,7 @@ export function productionSummary(
       site.primaryDomain.trim().length > 0,
   );
   return {
-    currentVersion: versionValid ? version.releaseOrder.releaseVersion : null,
+    currentVersion: version?.releaseOrder.releaseVersion ?? null,
     domain: productionSite?.primaryDomain.trim() ?? null,
   };
 }

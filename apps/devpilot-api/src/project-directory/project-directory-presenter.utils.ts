@@ -1,6 +1,6 @@
 import { isStoredConnectionAligned } from "../repository-identity/repository-identity-policy.utils";
+import { repositoryIntakeSummary } from "../project-intake/repository-intake-summary.utils";
 import { projectDirectoryActivity } from "./project-directory-activity.utils";
-import { projectDirectoryIntake } from "./project-directory-intake.utils";
 import type { ProjectDirectoryRecord } from "./project-directory.repository";
 import {
   baselineSummary,
@@ -45,7 +45,7 @@ export function toProjectDirectoryItem(
         liveProduction.domain !== null,
     }),
     repository,
-    intake: projectDirectoryIntake(project),
+    intake: repositoryIntakeSummary(project),
     baselines: {
       staging: stagingSummary,
       production: productionBaseline,

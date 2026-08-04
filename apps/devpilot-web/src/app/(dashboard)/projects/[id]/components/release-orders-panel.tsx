@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { EmptyState, LoadingState } from '@svton/ui';
@@ -12,12 +11,19 @@ import { ReleaseOrderCreateModal } from './release-order-create-modal';
 import { releaseOrderHref } from '../utils/project-route.utils';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
 
-export function ReleaseOrdersPanel({ projectId }: { projectId: string }) {
+export function ReleaseOrdersPanel({
+  projectId,
+  createOpen,
+  onCreateOpenChange,
+}: {
+  projectId: string;
+  createOpen: boolean;
+  onCreateOpenChange: (open: boolean) => void;
+}) {
   const t = useTranslations('projects');
   const router = useRouter();
   const searchParams = useSearchParams();
   const orders = useReleaseOrders(projectId);
-  const [createOpen, setCreateOpen] = useState(false);
   const releaseOrderId = searchParams.get('releaseOrderId')?.trim();
 
   if (releaseOrderId) {
@@ -37,7 +43,6 @@ export function ReleaseOrdersPanel({ projectId }: { projectId: string }) {
           <h2 className="text-lg font-semibold">{t('releaseOrdersTitle')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{t('releaseOrdersDescription')}</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>{t('createReleaseOrder')}</Button>
       </div>
       {orders.error ? (
         <ErrorBanner
@@ -76,12 +81,9 @@ export function ReleaseOrdersPanel({ projectId }: { projectId: string }) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => router.replace(releaseOrderHref(
-                  projectId,
-                  order.id,
-                  null,
-                  searchParams,
-                ))}
+                onClick={() =>
+                  router.replace(releaseOrderHref(projectId, order.id, null, searchParams))
+                }
               >
                 {t('openReleaseOrder')}
               </Button>
@@ -91,7 +93,7 @@ export function ReleaseOrdersPanel({ projectId }: { projectId: string }) {
       </div>
       <ReleaseOrderCreateModal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => onCreateOpenChange(false)}
         orders={orders}
       />
     </div>
