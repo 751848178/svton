@@ -12,6 +12,12 @@
 
 ## Clarifications And Assumptions
 
+> Successor status (2026-08-04): F386-F412 remains the immutable record of the
+> original implementation scope. It is not the final 1:1 Demo parity verdict.
+> Strict functional, runtime and UI parity is reopened as F413-F460 in
+> `2026-08-04-devpilot-v13-demo-parity.md`, with acceptance truth in
+> `../devpilot/project-delivery-v13-demo-parity-acceptance.md`.
+
 - Confirmed: 基线为 `b6c3488743be13eacf4320f685da927488490113`。
 - Confirmed: 依次集成 `17652567`（保留分析应用前的发布配置）和 `ef1a47cb`（发布命令 workingDirectory）。
 - Confirmed: 不导入原主工作区 61 个 V13 重叠未提交文件；它们只作只读参考。

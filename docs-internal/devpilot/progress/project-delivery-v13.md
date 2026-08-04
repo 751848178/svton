@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Program state: F386-F412 complete — product acceptance and the F412 browser-evidence/board consistency repair passed; external push, PR, merge and production rollout remain out of scope.
+- Program state: the historical F386-F412 implementation/evidence scope is complete, but strict V13 Demo 1:1 functional, runtime and UI parity is active as F413-F460. Use `../project-delivery-v13-demo-parity-acceptance.md` and `../../todos/2026-08-04-devpilot-v13-demo-parity.md` for the current verdict; do not interpret this historical completion as final parity acceptance. External push, PR, merge and production rollout remain out of scope.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
@@ -124,4 +124,4 @@
 
 ## Next
 
-F386-F412 is complete in the isolated delivery branch. F412 closed the evidence-truthfulness and consistency work and fixed the route-domain gate crash it actually reproduced; this is separate from the earlier product-feature completion. Product-design boundaries remain intentional: canary, blue-green and automatic ramp-up stay unavailable until real traffic/workload/metric/pause-abort/rollback providers exist, and checks without real provider evidence remain unavailable or pending rather than passed. The 412 enabled-rule API warnings remain recorded debt, not new F412 errors. Push, PR creation, merge and external production deployment have not occurred and remain operator actions outside this implementation.
+Continue from F414 in `../../todos/2026-08-04-devpilot-v13-demo-parity.md`. F413 froze the current audit, Demo/spec hashes, remaining-work ledger and 1:1 acceptance checklist. F386-F412 remains valid historical evidence, while F414-F460 must close the real provider/runtime chain, project and release UX, settings governance, visual parity and independent final acceptance. Canary, blue-green and automatic ramp-up remain unavailable until real traffic/workload/metric/pause-abort/rollback providers exist; checks without real provider evidence remain unavailable or pending rather than passed. Push, PR creation, merge and external production deployment remain outside the current authorization.

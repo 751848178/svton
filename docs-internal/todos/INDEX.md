@@ -14,7 +14,8 @@
 
 | Area                                                              | Document                                      | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ----------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Devpilot V13 project delivery control plane                       | `2026-08-03-devpilot-project-delivery-v13.md` | **F386-F412 done（2026-08-03）**：V13 产品闭环完成；F412 保留 F390 近白截图与 F401 缺图为历史 evidence gap，用当前 Browser+DOM 与 API+MySQL 后继证据重证三步接入/51 项门禁，修复真实暴露的 route-domain 门禁崩溃并同步任务板。未 push、PR、merge 或上线。 |
+| Devpilot V13 Demo 1:1 parity closure                              | `2026-08-04-devpilot-v13-demo-parity.md`      | **Current: F413 done; F414-F460 pending**. Strict functional, real-runtime and UI parity against the frozen V13 Demo/canonical spec, with one acceptance truth source and atomic worker-sized slices. |
+| Devpilot V13 historical implementation scope                     | `2026-08-03-devpilot-project-delivery-v13.md` | **F386-F412 done（2026-08-03）**：保留原实现、测试和 F412 后继证据事实；该完成状态不是严格 Demo 1:1 parity 的最终验收结论，当前状态由 F413-F460 继任计划管理。未 push、PR、merge 或上线。 |
 | Existing project onboarding and project/environment control plane | `2026-06-25-existing-project-onboarding.md`   | Primary active ledger for F53+ environment workspace, resource/site/deployment governance, and current frontend structure slices.                                                                                                                                                                                                                                                                                                                                                                |
 | Guided project delivery experience                                | `2026-07-26-guided-project-delivery.md`       | F381 and F382 completed: guided delivery plus explicit migration, one-time initialization, fail-fast startup, and stage evidence; authenticated runtime modal regression remains a follow-up.                                                                                                                                                                                                                                                                                                    |
 | Project-level release orchestration                               | `2026-07-27-release-orchestration.md`         | **F383 done（2026-07-29）**。最终可复现证据是计划 `cms5m7z2001ow14kkg3jg0l87` 与 Picshare `master@8e7c465d56e68dafcef0dfbc480fe721044b0fb3`：真实 password SSH 六阶段 succeeded、2 条 DeploymentRun completed。第二批补齐 ServerExecutionJob/DeploymentRun 精确深链接（真实与伪造 ID 浏览器闭环）及计划级可审计零泄漏验证 API；真实容器秘密探针结果为 4 probes / 8 records / 44 fields / 0 findings，审计 `cms5o57vz000akza17koems85`。旧计划 `cms5kc2rp009z14kkn2ch9lqb` 不作为最终可复现证据。 |
@@ -29,9 +30,12 @@
 - For AI Agent Pi migration work, start with
   `../design/pi-agent-migration-architecture.md`, then read
   `2026-07-28-pi-agent-migration.md` and the runtime board referenced there.
-- For project/environment Devpilot work, start with this index, then read the
-  active V13 slice in `2026-08-03-devpilot-project-delivery-v13.md`; use
+- For current V13 project-delivery work, read
+  `2026-08-04-devpilot-v13-demo-parity.md`, then
+  `../devpilot/project-delivery-v13-demo-parity-acceptance.md` and
+  `../devpilot/progress/project-delivery-v13.md`. Read
+  `2026-08-03-devpilot-project-delivery-v13.md` only for F386-F412 history and
   `2026-06-25-existing-project-onboarding.md` only for inherited control-plane
-  history, then read `docs-internal/devpilot/progress/project-delivery-v13.md`.
+  history.
 - If a referenced progress file has not been restored yet, record that gap in
   the current slice before changing code.

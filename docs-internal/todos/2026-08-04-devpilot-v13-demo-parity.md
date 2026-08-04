@@ -1,0 +1,154 @@
+# Devpilot V13 Demo 1:1 Parity Closure
+
+## Goal
+
+在保留 F386-F412 已完成领域模型和历史证据的前提下，把当前 V13 worktree 的功能、页面结构、交互状态、真实执行链路和浏览器结果完整对齐 V13 canonical spec 与 `delivery-versions-v9.html?v=13.0`，最终让用户能够从项目接入开始，经发布单构建、Staging、Production、环境升级/回退和域名入口完成可审计、可从浏览器访问的真实闭环。
+
+## Scope
+
+- In scope: V13 项目目录/接入、项目交付首页、发布单四步、BuildRun/Manifest、Staging/Production、审批、环境版本、项目设置、51/15 门禁、真实构建/部署/路由、日志、UI/交互、无障碍、Docker/browser E2E、文档和最终验收。
+- Out of scope: 未经用户授权的 push、PR、合并 master、外部生产环境变更；伪造 Provider/部署/健康检查成功；用静态截图或 mock API 替代真实行为。
+- Protected checkout: `/Users/zhaoxingbo/Workspace/ai-driven/svton` 只读；实现只写 `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`。
+- Visual truth: V13 Demo 项目内容区、交互、状态和视觉层级 1:1 对标；平台仍可保留真实跨项目模块，但不得破坏 Demo 的项目中心 IA。
+
+## Clarifications And Assumptions
+
+- Confirmed: F386-F412 是历史实现范围完成记录，不代表本次严格 1:1 parity 验收通过。
+- Confirmed: canonical spec 优先级高于 Demo 中的旧文案或纯 mock 行为；两者冲突时记录差异并按 canonical spec 实现。
+- Confirmed: Demo HTML SHA-256 为 `523080f43d935dba737fdfc0013f5133dc140c6d19936077692dfa556b549b0a`。
+- Confirmed: canonical spec SHA-256 为 `a491e9f5e9f583bf92fc56ef804a0884f5ab65bd93156a318b809f2b5b605393`。
+- Confirmed: 当前 Docker 未配置 `RELEASE_BUILD_EXECUTION_ENABLED` 和 `RELEASE_STAGING_DEPLOYMENT_ENABLED`；当前 release-order 执行数据为 0 BuildRun/Manifest/DeploymentRun/ReleaseRun/EnvironmentVersion。
+- Confirmed: 当前 exact-artifact executor 只验证并物化 ZIP，不启动工作负载、注入配置、配置入口或执行浏览器探测。
+- Confirmed: 一个 checkout 同时只允许一个 write worker；可并行的只读审查或独立 worktree 写入必须由主会话明确调度。
+
+## Workflow Routing
+
+`routing: long-goal + orchestrator-board + atomic workers + single-writer + noisy-tools; 主会话维护目标、依赖和验收，worker 每次只处理一个 Fxxx，完整日志保存在 /tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/。`
+
+## Authoritative Inputs
+
+- V13 Demo: `/Users/zhaoxingbo/.codex/visualizations/2026/07/31/019fb7eb-9f49-77b0-af1d-f50f9c4316ce/delivery-center-html/delivery-versions-v9.html`
+- Canonical spec: `/Users/zhaoxingbo/.codex/visualizations/2026/07/31/019fb7eb-9f49-77b0-af1d-f50f9c4316ce/delivery-center-html/devpilot-project-delivery-v13-canonical-spec.md`
+- 1:1 acceptance: `../devpilot/project-delivery-v13-demo-parity-acceptance.md`
+- Historical implementation ledger: `2026-08-03-devpilot-project-delivery-v13.md`
+- Historical progress/evidence: `../devpilot/progress/project-delivery-v13.md`
+
+## Dependency Rules
+
+- F414-F419 establish project identity and project-home contracts before release UI consumes them.
+- F420-F430 establish release state, gates and immutable build behavior before real Staging/Production execution.
+- F431-F442 establish real runtime, approval and environment-version execution before positive E2E.
+- F443-F451 may proceed after the referenced backend/read-model contract exists; visual workers must not invent data contracts.
+- F452-F458 are closure gates and may not be marked done using mocked success states.
+
+## Current Parity Verdict
+
+- Verdict: **not accepted**. The current branch has the core additive domain model and
+  several usable project/release screens, but it does not yet provide the complete
+  real deployment chain or 1:1 V13 information/interaction/visual parity.
+- Remaining execution scope: 47 pending atomic slices after F413 — project entry/home
+  6, release/gates/build 11, real Staging/Production 10, environment governance 9,
+  UI/accessibility 4, and runtime/E2E/final closure 7.
+- Acceptance state at freeze: 350 checks total; 4 baseline-integrity checks recorded,
+  346 functional/UI/runtime/final checks remain open. Historical F386-F412 evidence
+  does not auto-satisfy any open check.
+
+## Functional TODO Breakdown
+
+### P0. Parity Contract And Project Entry
+
+| ID | Status | Atomic TODO | Context Boundary | Acceptance |
+| --- | --- | --- | --- | --- |
+| F413 | done | 固化本次审计差距、Demo/spec 哈希、剩余 TODO 和逐项验收清单。 | Docs only；不改产品行为。 | AC-000～AC-006；本文件与 parity acceptance 文件存在且互相引用。 |
+| F414 | pending | 让“生成新项目”和“三步接入已有项目”最终创建同一种 READY Project、唯一 Staging/Production baseline 和首个配置修订。 | Generator/project-intake/project-environment；不改发布 UI。 | AC-PROJ-001～006；两条路径的数据库不变量一致。 |
+| F415 | pending | 把仓库识别结果整理为项目类型、架构、部署方案、组件、路径、构建输出和运行方式的结构化可编辑合同。 | Repository-analysis apply/read model；不改项目首页。 | AC-INTAKE-001～007；真实仓库分析可核对和调整，不显示原始 JSON。 |
+| F416 | pending | 锁定 finalized 项目的 canonical repository identity，并拒绝构建来源与锁定身份漂移。 | Repository connection/intake/build source policy。 | AC-IDENTITY-001～005；设置、API、构建负例一致。 |
+| F417 | pending | 补齐项目目录的单一状态筛选语义、最近活动排序和 Demo 信息密度。 | Project-directory query/presenter/Web list。 | AC-DIR-001～010；同 viewport 对照通过。 |
+| F418 | pending | 增加项目首页弱摘要读模型：项目形态、环境就绪、资源、入口、Staging/Production 当前版本。 | Project delivery summary API/types；不改详情步骤。 | AC-HOME-001～005；摘要全部来自真实关系。 |
+| F419 | pending | 实现发布单列表搜索、状态筛选、最近执行排序、构建/部署计数和最后执行步骤。 | ReleaseOrder list/read model/query/Web list。 | AC-HOME-006～013；无前端全量拼接。 |
+
+### P1. Release Order State, Gates And Build
+
+| ID | Status | Atomic TODO | Context Boundary | Acceptance |
+| --- | --- | --- | --- | --- |
+| F420 | pending | 建立 ReleaseOrder 追加式生命周期派生规则，分别表达草稿、构建、预发、待审批、生产成功、失败和撤回。 | ReleaseOrder status projection only。 | AC-ORDER-001～005；状态不与环境当前版本混用。 |
+| F421 | pending | 修复 `resumeStep`，按最远真实执行证据恢复到 preflight/build/staging/production。 | ReleaseOrder detail projection/route tests。 | AC-ORDER-006～010；刷新和非法深链测试通过。 |
+| F422 | pending | 将四个普通 Tab 改为连接步进条，并展示完成、当前、等待和阻断状态。 | Release detail shell only。 | AC-ORDER-011～016；键盘、ARIA、URL 同步通过。 |
+| F423 | pending | 把“构建最新代码”放到详情页主要位置，并按是否已冻结 Production 制品控制动作。 | Release detail header/action policy。 | AC-BUILD-001～004；不要求 Commit/说明/环境。 |
+| F424 | pending | 在前置检查首屏展示 15 个 MVP 能力组摘要，并保留 51 项完整目录下钻。 | Gate catalog presenter/Web summary。 | AC-GATE-001～006；15/51 数量与状态可追溯。 |
+| F425 | pending | 将门禁结果接入 Build、Staging、Production 服务端阻断策略，区分技术阻断、业务证据、人工确认和 unavailable。 | Gate decision policy/API；不改视觉。 | AC-GATE-007～014；缺 Provider 不得通过。 |
+| F426 | pending | 为受控本地/隔离构建执行器建立明确的 runtime profile、存储卷、超时和并发配置，并在 V13 Docker 验收环境显式启用。 | Build executor/config/compose。 | AC-BUILD-005～010；默认生产仍 fail closed。 |
+| F427 | pending | 收敛环境无关制品合同，只打包声明的组件输出和 provenance，拒绝越界 symlink/特殊文件及把环境变量烘焙为伪同一 Manifest。 | Artifact packaging/build config。 | AC-BUILD-011～018；相同输入可复现、不同环境复用。 |
+| F428 | pending | 补齐构建记录的 revision、Commit、Manifest、结果、耗时和逐次日志抽屉 UI。 | Build step/read model/log drawer。 | AC-BUILD-019～025；成功/失败/重试状态与 Demo 对齐。 |
+| F429 | pending | 为发布单详情聚合 BuildRun、Manifest、DeploymentRun、ReleaseRun 证据，移除项目一级重复的制品/部署主入口。 | Release detail read model/navigation。 | AC-ORDER-017～021；专业深链保留。 |
+| F430 | pending | 统一发布相关状态和动作的中文语义，消除 raw `completed/upgrade/recovery` 与模糊词。 | Release/env-version messages and presenters。 | AC-COPY-001～008；中英文 parity 通过。 |
+
+### P2. Real Staging And Production Execution
+
+| ID | Status | Atomic TODO | Context Boundary | Acceptance |
+| --- | --- | --- | --- | --- |
+| F431 | pending | 定义并实现 exact-Manifest Deployment Provider port，使 DeploymentRun 能把制品交给真实目标而非只解压目录。 | Deployment provider contract/adapter。 | AC-STG-001～006；无 checkout/pull/build。 |
+| F432 | pending | 在部署执行时解析并注入当前环境配置修订、普通变量、Secret 引用和资源连接信息，且不泄漏明文。 | Deployment input snapshot/config injection。 | AC-STG-007～013；日志和 DB 零明文。 |
+| F433 | pending | 让 Staging 启动真实工作负载并执行服务级健康检查，失败必须保留日志且不生成成功环境版本。 | Staging runtime/health adapter。 | AC-STG-014～020；可重复部署同 Manifest。 |
+| F434 | pending | 为每个 Staging DeploymentRun 增加独立日志/证据抽屉和“部署”动作，禁止重新构建。 | Staging Web only。 | AC-STG-021～027；部署次数增长、构建数不变。 |
+| F435 | pending | 把 Production 确认改成始终弹出的快照确认 Dialog，展示环境、版本、Build、Manifest、配置和策略。 | Production confirmation Web。 | AC-PROD-001～008；按钮只在生产步骤出现。 |
+| F436 | pending | 在项目上下文内完成生产审批申请、批准/拒绝、执行和状态回流，不要求用户跳到全局模块再手工返回。 | Release approval bridge/project UI。 | AC-PROD-009～016；全局审批仍保留专业入口。 |
+| F437 | pending | 让 Production 使用同一 Deployment Provider 启动真实工作负载，并消费冻结快照而非读取漂移后的当前配置。 | Production executor/transaction。 | AC-PROD-017～024；同 Manifest Staging 证明服务端强校验。 |
+| F438 | pending | 在生产部署后更新/切换真实站点路由并完成 TLS/HTTP 浏览器探测，失败不得标记发布成功。 | Route activation/probe boundary。 | AC-PROD-025～031；最终 URL 可访问。 |
+| F439 | pending | 为 Production 创建独立恢复发布申请，允许从历史成功环境版本产生新的 approval、DeploymentRun 和 EnvironmentVersion。 | Recovery ReleaseRun/API/policy。 | AC-ENVVER-011～017；不复用已消费审批。 |
+| F440 | pending | 补齐 Production ReleaseRun/DeploymentRun 的日志抽屉、审批证据和失败恢复动作。 | Production evidence Web。 | AC-PROD-032～038；每次运行不可覆盖。 |
+
+### P3. Environment Versions And Project Governance
+
+| ID | Status | Atomic TODO | Context Boundary | Acceptance |
+| --- | --- | --- | --- | --- |
+| F441 | pending | 完善环境版本读模型，展示当前版本、来源发布单、Manifest、最近运行和完整变更历史。 | EnvironmentVersion read API/Web cards。 | AC-ENVVER-001～006。 |
+| F442 | pending | 按环境过滤可升级/可回退候选，默认推荐最新合格制品或上一次成功版本。 | EnvironmentVersion candidate policy/Web select。 | AC-ENVVER-007～010；不接受文本版本/未知镜像。 |
+| F443 | pending | 将项目设置改为独立页面和环境内子导航：部署目标、资源绑定、变量与密钥、域名与入口、保护规则。 | Settings IA/routes/layout。 | AC-SET-001～009；不再用单个超长抽屉承载全部内容。 |
+| F444 | pending | 固化 Staging/Production baseline 身份和生命周期，阻止无保护归档、重复 baseline 或 finalized 后静默换 key。 | ProjectEnvironment CRUD/policy/UI。 | AC-SET-010～016；普通显示名/配置仍按修订维护。 |
+| F445 | pending | 实现按环境绑定/替换/复用部署目标服务器或 Provider target，并给出连通性校验。 | Environment target binding。 | AC-SET-017～024。 |
+| F446 | pending | 实现按环境绑定资源实例和共享范围，区分基础设施生命周期与项目引用所有权。 | Resource binding/control-plane bridge。 | AC-SET-025～032。 |
+| F447 | pending | 完善普通变量、Secret 引用、配置 revision/CAS、导入预览和跨环境复用交互。 | Environment config governance。 | AC-SET-033～041；Secret 只保存引用。 |
+| F448 | pending | 完善站点、域名、DNS、TLS、代理目标和流量入口的真实绑定/验证状态。 | Site/route/DNS/TLS project settings。 | AC-SET-042～050；配置状态与运行状态分离。 |
+| F449 | pending | 将当前生效发布策略作为只读主视图，修改通过新修订流程；标准发布可执行，高级策略真实缺失时 fail closed。 | Release policy settings/capability。 | AC-POLICY-001～010。 |
+
+### P4. Visual, Interaction And Accessibility Parity
+
+| ID | Status | Atomic TODO | Context Boundary | Acceptance |
+| --- | --- | --- | --- | --- |
+| F450 | pending | 统一项目目录、接入、交付首页、发布详情、环境版本和设置页的 V13 spacing、density、typography、radius、border、color 和主次动作。 | Project-delivery visual layer only。 | AC-UI-001～010；1484×1324 同状态对照。 |
+| F451 | pending | 补齐所有空态、阻断、运行中、成功、失败、审批和能力未就绪状态，并使用真实 fixture 而非页面硬编码。 | Web state components/fixtures。 | AC-UI-011～018。 |
+| F452 | pending | 完成键盘、焦点、ARIA、Dialog/Drawer、错误提示、对比度和中英文可访问名称验收。 | Accessibility only。 | AC-A11Y-001～012。 |
+| F453 | pending | 完成窄屏、常规桌面和 1484×1324 参考 viewport 的响应式与无横向溢出验收。 | Responsive/layout tests。 | AC-UI-019～025。 |
+
+### P5. Runtime, E2E And Final Closure
+
+| ID | Status | Atomic TODO | Context Boundary | Acceptance |
+| --- | --- | --- | --- | --- |
+| F454 | pending | 建立 project/network/volume 命名空间隔离的 V13 parity Docker stack、真实示例仓库、目标工作负载、域名和 allowlist 可重复 seed/reset 工具。 | Test infrastructure only。 | AC-E2E-001～006；不污染开发/生产数据。 |
+| F455 | pending | 跑通“接入仓库→识别→配置→发布单→构建→Staging→Production→浏览器访问”正向 E2E。 | Cross-layer positive E2E。 | AC-E2E-007～015；Browser/API/DB/log 四类证据一致。 |
+| F456 | pending | 跑通同发布单多次构建、同 Manifest 多次预发、环境升级和 Staging/Production 回退 E2E。 | Version/history E2E。 | AC-E2E-016～023。 |
+| F457 | pending | 跑通权限、重复、异幂等键并发、配置漂移、门禁失败、Provider 关闭、Digest 错误、审批拒绝、探测失败和全证据凭据扫描负向 E2E。 | Negative/security E2E。 | AC-E2E-024～035。 |
+| F458 | pending | 逐页执行 V13 视觉回归，保存 Demo/实际同 viewport 对照、DOM、交互录屏或步骤证据并关闭所有结构差异。 | Browser visual acceptance only。 | AC-VIS-001～012；无近白/重复/错页截图。 |
+| F459 | pending | 独立完成产品、UX、无障碍、安全、领域一致性和数据泄漏对抗审查，并修复有效发现。 | Independent audit/review。 | AC-REVIEW-001～008；审查人与实现 worker 分离。 |
+| F460 | pending | 同步用户指南、迁移说明、TODO/progress/roadmap/board，运行全量 gate 并形成最终 parity verdict。 | Docs/full verification/final report。 | 所有 AC 均 pass；不存在未解释 partial/missing。 |
+
+## Worker Granularity Contract
+
+- 一个 worker 只领取一个 Fxxx；若 Fxxx 仍需要跨越两个独立上下文，先由主会话拆成 `Fxxx.a/Fxxx.b` 再启动。
+- Worker prompt 必须写明：允许路径、禁止路径、依赖、验收 AC、验证命令、结果文件、停止条件。
+- Worker 不读取旧会话，不递归创建后继 worker，不修改自己范围外的 TODO 状态。
+- 同 checkout 任意时刻只允许一个 active write worker；只读产品/领域/测试审查最多可并行三个。
+- 每个 Fxxx 的顺序固定为：标记 `in_progress` → 改动 → 聚焦验证 → 浏览器/运行时证据（如适用）→ 记录 evidence → 标记 `done` → 原子提交。
+
+## Verification Plan
+
+- 每个 Fxxx：聚焦测试、相关 type-check/build、`git diff --check`、变更文件职责检查；高噪声输出隔离到 `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/`。
+- 跨层行为：不得以 unit/type-check 替代 Docker+API+DB+Browser 证据。
+- 视觉：同 viewport、同业务状态、同数据语义比较 Demo 与实际实现；先确认页面正确再接受截图。
+- 真实发布：必须证明工作负载启动、配置注入、路由生效、HTTP/TLS 探测和浏览器访问；仅物化 ZIP 不算部署成功。
+- 安全：Secret/token/credential 不得进入日志、快照明文、页面或证据包。
+
+## Change Log
+
+- 2026-08-04: F413 完成；根据 V13 Demo/canonical spec 与当前 worktree/API/DB/Docker/browser 审计，建立严格 1:1 parity 后继计划和验收清单。三路独立只读审查确认无需新增 F-ID，并细化越界 symlink、隔离 reset、异幂等键并发和全证据凭据扫描验收。F386-F412 保留为历史完成范围，不再作为最终 parity verdict。
