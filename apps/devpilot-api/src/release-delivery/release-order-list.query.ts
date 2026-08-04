@@ -25,12 +25,16 @@ export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
     deployment_events AS (
       SELECT dr.id, am.releaseOrderId, dr.environmentId,
         pe.baselineRole AS environmentRole, pe.name AS environmentName,
-        dr.status, dr.artifactManifestId, am.buildRunId,
+        dr.status, dr.artifactManifestId, br.id AS buildRunId,
         COALESCE(dr.finishedAt, dr.startedAt, dr.createdAt) AS occurredAt
       FROM DeploymentRun dr
       INNER JOIN ArtifactManifest am
         ON am.id = dr.artifactManifestId
         AND am.teamId = dr.teamId AND am.projectId = dr.projectId
+      INNER JOIN BuildRun br
+        ON br.id = am.buildRunId
+        AND br.releaseOrderId = am.releaseOrderId
+        AND br.teamId = am.teamId AND br.projectId = am.projectId
       INNER JOIN ProjectEnvironment pe
         ON pe.id = dr.environmentId
         AND pe.teamId = dr.teamId AND pe.projectId = dr.projectId
@@ -60,6 +64,11 @@ export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
       SELECT rr.releaseOrderId, 'release_run', rr.id, 'production', rr.status,
         COALESCE(rr.finishedAt, rr.startedAt, rr.updatedAt, rr.createdAt), 4
       FROM ReleaseRun rr
+      INNER JOIN ArtifactManifest am
+        ON am.id = rr.artifactManifestId
+        AND am.releaseOrderId = rr.releaseOrderId
+        AND am.teamId = rr.teamId AND am.projectId = rr.projectId
+        AND am.digest = rr.verifiedDigest
       INNER JOIN ProjectEnvironment pe
         ON pe.id = rr.environmentId
         AND pe.teamId = rr.teamId AND pe.projectId = rr.projectId

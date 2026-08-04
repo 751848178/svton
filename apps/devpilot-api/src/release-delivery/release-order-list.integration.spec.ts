@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { randomUUID } from "crypto";
 import * as bcrypt from "bcrypt";
 import { PrismaService } from "../prisma/prisma.service";
@@ -244,6 +244,42 @@ describeIntegration("release order list real MySQL integration", () => {
     });
   });
 
+  it("fails closed for adversarial Manifest, BuildRun and ReleaseRun relations", async () => {
+    const ids = adversarialIds();
+    try {
+      await seedAdversarialRelations(ids);
+
+      const { result: bounded, queryCount } = await countedList({ take: 1 });
+      expect(queryCount).toBe(2);
+      expect(bounded.total).toBe(keepBrowserFixture ? 52 : 5);
+      expect(bounded.items).toHaveLength(1);
+      expect(bounded.items[0].id).toBe(tieOrderId);
+
+      const search = await list({ query: "2.4.1" });
+      expect(search.total).toBe(1);
+      const rich = search.items[0];
+      expect(rich.id).toBe(richOrderId);
+      expect(rich.deployment).toMatchObject({
+        count: 2,
+        latest: {
+          id: `f419-rich-deploy-2-${suffix}`,
+          buildRunId: buildTwoId,
+        },
+      });
+      expect(rich.lastExecution).toMatchObject({
+        sourceType: "release_run",
+        sourceId: `f419-rich-release-${suffix}`,
+        step: "production",
+        status: "awaiting_approval",
+      });
+      for (const untrustedId of [...ids.builds, ...ids.releaseRuns]) {
+        expect(JSON.stringify(rich)).not.toContain(untrustedId);
+      }
+    } finally {
+      if (!keepBrowserFixture) await removeAdversarialRelations(ids);
+    }
+  });
+
   function list(input: {
     query?: string;
     status?: ReleaseOrderListStatus;
@@ -253,6 +289,179 @@ describeIntegration("release order list real MySQL integration", () => {
       ...input,
       take: input.take ?? 50,
     });
+  }
+
+  async function countedList(input: {
+    query?: string;
+    status?: ReleaseOrderListStatus;
+    take?: number;
+  }) {
+    let queryCount = 0;
+    const countingPrisma = {
+      $transaction: <T>(
+        operation: (
+          transaction: Pick<Prisma.TransactionClient, "$queryRaw">,
+        ) => Promise<T>,
+        options: { isolationLevel: Prisma.TransactionIsolationLevel },
+      ) =>
+        prisma.$transaction(
+          (transaction) =>
+            operation({
+              $queryRaw: ((query: Prisma.Sql) => {
+                queryCount += 1;
+                return transaction.$queryRaw(query);
+              }) as Prisma.TransactionClient["$queryRaw"],
+            }),
+          options,
+        ),
+    } as unknown as PrismaService;
+    const countedService = new ReleaseOrderListService(
+      new ReleaseOrderListRepository(countingPrisma),
+    );
+    const result = await countedService.list(teamId, actorId, projectId, {
+      ...input,
+      take: input.take ?? 50,
+    });
+    return { result, queryCount };
+  }
+
+  function adversarialIds() {
+    return {
+      builds: [
+        `f419-drift-rr-order-build-${suffix}`,
+        `f419-drift-rr-project-build-${suffix}`,
+        `f419-drift-rr-team-build-${suffix}`,
+        `f419-drift-rr-digest-build-${suffix}`,
+        `f419-drift-deploy-order-build-${suffix}`,
+        `f419-drift-deploy-project-build-${suffix}`,
+        `f419-drift-deploy-team-build-${suffix}`,
+      ],
+      manifests: [
+        `f419-drift-rr-order-manifest-${suffix}`,
+        `f419-drift-rr-project-manifest-${suffix}`,
+        `f419-drift-rr-team-manifest-${suffix}`,
+        `f419-drift-rr-digest-manifest-${suffix}`,
+        `f419-drift-deploy-order-manifest-${suffix}`,
+        `f419-drift-deploy-project-manifest-${suffix}`,
+        `f419-drift-deploy-team-manifest-${suffix}`,
+      ],
+      deployments: [
+        `f419-drift-deploy-order-${suffix}`,
+        `f419-drift-deploy-project-${suffix}`,
+        `f419-drift-deploy-team-${suffix}`,
+      ],
+      releaseRuns: [
+        `f419-drift-rr-order-${suffix}`,
+        `f419-drift-rr-project-${suffix}`,
+        `f419-drift-rr-team-${suffix}`,
+        `f419-drift-rr-digest-${suffix}`,
+      ],
+    };
+  }
+
+  async function seedAdversarialRelations(
+    ids: ReturnType<typeof adversarialIds>,
+  ) {
+    const [
+      rrOrder,
+      rrProject,
+      rrTeam,
+      rrDigest,
+      depOrder,
+      depProject,
+      depTeam,
+    ] = ids.builds;
+    await prisma.buildRun.createMany({
+      data: [
+        build(draftOrderId, rrOrder, 101, "g", "succeeded", 0),
+        {
+          ...build(richOrderId, rrProject, 101, "h", "succeeded", 0),
+          projectId: otherProjectId,
+        },
+        {
+          ...build(richOrderId, rrTeam, 102, "i", "succeeded", 0),
+          teamId: otherTeamId,
+        },
+        build(draftOrderId, rrDigest, 102, "j", "succeeded", 0),
+        build(rebuildOrderId, depOrder, 101, "k", "succeeded", 0),
+        {
+          ...build(richOrderId, depProject, 104, "l", "succeeded", 0),
+          projectId: otherProjectId,
+        },
+        {
+          ...build(richOrderId, depTeam, 105, "m", "succeeded", 0),
+          teamId: otherTeamId,
+        },
+      ],
+    });
+    const [
+      rrOrderManifest,
+      rrProjectManifest,
+      rrTeamManifest,
+      rrDigestManifest,
+      depOrderManifest,
+      depProjectManifest,
+      depTeamManifest,
+    ] = ids.manifests;
+    const digests = ["g", "h", "i", "j", "k", "l", "m"].map(
+      (value) => `sha256:${value.repeat(64)}`,
+    );
+    await prisma.artifactManifest.createMany({
+      data: [
+        manifest(rrOrderManifest, draftOrderId, rrOrder, digests[0], 0),
+        {
+          ...manifest(rrProjectManifest, richOrderId, rrProject, digests[1], 0),
+          projectId: otherProjectId,
+        },
+        {
+          ...manifest(rrTeamManifest, richOrderId, rrTeam, digests[2], 0),
+          teamId: otherTeamId,
+        },
+        manifest(rrDigestManifest, richOrderId, rrDigest, digests[3], 0),
+        manifest(depOrderManifest, richOrderId, depOrder, digests[4], 0),
+        manifest(depProjectManifest, richOrderId, depProject, digests[5], 0),
+        manifest(depTeamManifest, richOrderId, depTeam, digests[6], 0),
+      ],
+    });
+    await prisma.deploymentRun.createMany({
+      data: ids.deployments.map((id, index) =>
+        deployment(
+          id,
+          richOrderId,
+          ids.manifests[index + 4],
+          stagingId,
+          "completed",
+          19 + index,
+        ),
+      ),
+    });
+    await prisma.releaseRun.createMany({
+      data: ids.releaseRuns.map((id, index) => ({
+        ...releaseRun(
+          id,
+          richOrderId,
+          ids.manifests[index],
+          "succeeded",
+          20 + index,
+        ),
+        verifiedDigest: index === 3 ? digestTwo : digests[index],
+      })),
+    });
+  }
+
+  async function removeAdversarialRelations(
+    ids: ReturnType<typeof adversarialIds>,
+  ) {
+    await prisma.releaseRun.deleteMany({
+      where: { id: { in: ids.releaseRuns } },
+    });
+    await prisma.deploymentRun.deleteMany({
+      where: { id: { in: ids.deployments } },
+    });
+    await prisma.artifactManifest.deleteMany({
+      where: { id: { in: ids.manifests } },
+    });
+    await prisma.buildRun.deleteMany({ where: { id: { in: ids.builds } } });
   }
 
   async function seedProjects() {
@@ -472,6 +681,7 @@ describeIntegration("release order list real MySQL integration", () => {
         manifestId,
         "awaiting_approval",
         18,
+        `sha256:${"f".repeat(64)}`,
       ),
     });
   }
@@ -589,6 +799,7 @@ describeIntegration("release order list real MySQL integration", () => {
     artifactManifestId: string,
     status: string,
     hour: number,
+    verifiedDigest = digestTwo,
   ) {
     return {
       id,
@@ -599,7 +810,7 @@ describeIntegration("release order list real MySQL integration", () => {
       artifactManifestId,
       actorId,
       status,
-      verifiedDigest: `sha256:${"b".repeat(64)}`,
+      verifiedDigest,
       inputHash: "f".repeat(64),
       idempotencyKey: `${id}-key`,
       createdAt: time(hour),
