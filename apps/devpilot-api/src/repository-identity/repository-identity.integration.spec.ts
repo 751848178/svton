@@ -188,10 +188,33 @@ describeIntegration("F416 repository identity MySQL boundaries", () => {
   });
 
   it("provides CAS, exact replay and one atomic audit per effective revision", async () => {
-    const first = await revisions.append(revisionInput("release", 1, `revise-1-${suffix}`));
+    const reason = "Promote release branch";
+    const first = await revisions.append({
+      ...revisionInput("release", 1, `revise-1-${suffix}`),
+      reason,
+    });
     expect(first.revision.revision).toBe(2);
     const replay = await revisions.append(revisionInput("release", 1, `revise-1-${suffix}`));
     expect(replay).toMatchObject({ replayed: true, revision: { id: first.revision.id } });
+    const firstAudit = await prisma.auditEvent.findFirstOrThrow({
+      where: {
+        projectId,
+        action: "project.repository_identity.branch.revise",
+        targetId: first.identity.id,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(firstAudit.summary).toContain(reason);
+    expect(firstAudit.metadata).toMatchObject({
+      revisionId: first.revision.id,
+      reason,
+    });
+    await expect(prisma.auditEvent.count({
+      where: {
+        projectId,
+        action: "project.repository_identity.branch.revise",
+      },
+    })).resolves.toBe(1);
     await expect(revisions.append({
       ...revisionInput("other", 1, `revise-1-${suffix}`),
       reason: "Different replay request",
@@ -223,6 +246,64 @@ describeIntegration("F416 repository identity MySQL boundaries", () => {
     });
     expect(identity.currentRevision?.revision).toBe(3);
     expect(identity.currentRevision?.identityId).toBe(identity.id);
+  });
+
+  it("rolls back revision, connection and current pointer when atomic audit fails", async () => {
+    const identityBefore = await prisma.projectRepositoryIdentity.findUniqueOrThrow({
+      where: { projectId },
+      include: { currentRevision: true },
+    });
+    const connectionBefore = await prisma.repositoryConnection.findUniqueOrThrow({
+      where: { projectId },
+    });
+    const revisionCount = await prisma.projectRepositoryIdentityRevision.count({
+      where: { projectId },
+    });
+    const auditCount = await prisma.auditEvent.count({
+      where: { projectId, action: "project.repository_identity.branch.revise" },
+    });
+    const failingRevisions = new RepositoryIdentityRevisionRepository({
+      run: (team: string, project: string, handler: (tx: unknown) => Promise<unknown>) =>
+        coordinator.run(team, project, (tx) => handler(new Proxy(tx, {
+          get(target, property, receiver) {
+            if (property !== "auditEvent") return Reflect.get(target, property, receiver);
+            return new Proxy(target.auditEvent, {
+              get(auditTarget, auditProperty, auditReceiver) {
+                if (auditProperty === "create") {
+                  return () => Promise.reject(new Error("forced F416 audit failure"));
+                }
+                return Reflect.get(auditTarget, auditProperty, auditReceiver);
+              },
+            });
+          },
+        }) as never)),
+    } as never);
+    await expect(failingRevisions.append({
+      ...revisionInput(
+        "atomic-failure",
+        identityBefore.currentRevision!.revision,
+        `atomic-failure-${suffix}`,
+      ),
+      commitSha: "d".repeat(40),
+      reason: "Prove audit transaction rollback",
+    })).rejects.toThrow("forced F416 audit failure");
+    await expect(prisma.projectRepositoryIdentityRevision.count({
+      where: { projectId },
+    })).resolves.toBe(revisionCount);
+    await expect(prisma.auditEvent.count({
+      where: { projectId, action: "project.repository_identity.branch.revise" },
+    })).resolves.toBe(auditCount);
+    await expect(prisma.projectRepositoryIdentity.findUniqueOrThrow({
+      where: { projectId },
+    })).resolves.toMatchObject({
+      currentRevisionId: identityBefore.currentRevisionId,
+    });
+    await expect(prisma.repositoryConnection.findUniqueOrThrow({
+      where: { projectId },
+    })).resolves.toMatchObject({
+      selectedBranch: connectionBefore.selectedBranch,
+      commitSha: connectionBefore.commitSha,
+    });
   });
 
   async function createProject(id: string, onboardingStatus: string) {

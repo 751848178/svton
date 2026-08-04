@@ -45,12 +45,32 @@ INSERT INTO `ProjectRepositoryIdentityRevision` (
 )
 SELECT
   CONCAT('identity-rev-', identity.`id`), identity.`teamId`, identity.`projectId`, identity.`id`, 1, 0,
-  COALESCE(identity.`defaultBranch`, connection.`defaultBranch`, connection.`selectedBranch`),
-  COALESCE(connection.`commitSha`, REPEAT('0', 40)),
+  identity.`defaultBranch`,
+  connection.`commitSha`,
   'Initial canonical branch recorded by F416 migration', CONCAT('migration:', identity.`id`, ':1')
 FROM `ProjectRepositoryIdentity` identity
-LEFT JOIN `RepositoryConnection` connection ON connection.`id` = identity.`repositoryConnectionId`
-WHERE COALESCE(identity.`defaultBranch`, connection.`defaultBranch`, connection.`selectedBranch`) IS NOT NULL;
+JOIN `RepositoryConnection` connection
+  ON connection.`id` = identity.`repositoryConnectionId`
+  AND connection.`teamId` = identity.`teamId`
+  AND connection.`projectId` = identity.`projectId`
+WHERE connection.`status` = 'connected'
+  AND connection.`verifiedAt` IS NOT NULL
+  AND connection.`provider` = identity.`provider`
+  AND connection.`repositoryUrl` IN (
+    identity.`canonicalUrl`,
+    CONCAT(identity.`canonicalUrl`, '.git'),
+    CONCAT(identity.`canonicalUrl`, '/'),
+    CONCAT(identity.`canonicalUrl`, '.git/')
+  )
+  AND (
+    identity.`providerRepositoryId` IS NULL
+    OR identity.`providerRepositoryId` = connection.`externalRepositoryId`
+  )
+  AND connection.`commitSha` REGEXP '^[0-9A-Fa-f]{40}([0-9A-Fa-f]{24})?$'
+  AND connection.`commitSha` NOT REGEXP '^0+$'
+  AND identity.`defaultBranch` IS NOT NULL
+  AND connection.`defaultBranch` = identity.`defaultBranch`
+  AND connection.`selectedBranch` = identity.`defaultBranch`;
 
 UPDATE `ProjectRepositoryIdentity` identity
 JOIN `ProjectRepositoryIdentityRevision` revision

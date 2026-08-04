@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { ReleaseBuildRepository } from "./release-build.repository";
 import { ReleaseBuildResultRepository } from "./release-build-result.repository";
 import { ReleaseBuildService } from "./release-build.service";
+import { presentBuild } from "./release-build.presenter";
 import type { ReleaseBuildInputSnapshot } from "./release-build.types";
 
 const describeIntegration = process.env.RUN_RELEASE_BUILD_INTEGRATION === "1"
@@ -108,6 +109,44 @@ describeIntegration("ReleaseBuild integration", () => {
     expect([first.revision, second.revision]).toEqual([1, 2]);
     expect(first.sourceCommitSha).toBe("a".repeat(40));
     expect(second.sourceCommitSha).toBe("a".repeat(40));
+  });
+
+  it("keeps historical presentation frozen after joined identity mutation", async () => {
+    const reserved = await repository.reserve(reservation());
+    await prisma.projectRepositoryIdentity.update({
+      where: { id: identityId },
+      data: {
+        provider: "mutated-provider",
+        canonicalUrl: "https://mutated.example/repository",
+      },
+    });
+    try {
+      const listed = (await repository.list(teamId, projectId, orderId))
+        .find((run) => run.id === reserved.id)!;
+      expect(listed.repositoryIdentity).toMatchObject({
+        provider: "mutated-provider",
+        canonicalUrl: "https://mutated.example/repository",
+      });
+      expect(presentBuild(listed)).toMatchObject({
+        sourceBranch: "main",
+        sourceCommitSha: "a".repeat(40),
+        sourceRepository: {
+          provider: "generic",
+          canonicalUrl: "https://example.com/repo",
+          identityRevisionId: revisionId,
+          identityRevision: 1,
+          branch: "main",
+        },
+      });
+    } finally {
+      await prisma.projectRepositoryIdentity.update({
+        where: { id: identityId },
+        data: {
+          provider: "generic",
+          canonicalUrl: "https://example.com/repo",
+        },
+      });
+    }
   });
 
   it("creates one immutable manifest only for a successful run", async () => {

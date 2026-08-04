@@ -121,7 +121,7 @@ export class RepositoryIdentityRevisionRepository {
           targetId: identity.id,
           risk: "high",
           status: "completed",
-          summary: `仓库默认分支已修订为 ${revision.defaultBranch}`,
+          summary: `仓库默认分支已修订为 ${revision.defaultBranch}：${input.reason}`,
           metadata: {
             identityId: identity.id,
             canonicalKey: identity.canonicalKey,
@@ -130,6 +130,7 @@ export class RepositoryIdentityRevisionRepository {
             revision: revision.revision,
             branch: revision.defaultBranch,
             commitSha: input.commitSha,
+            reason: input.reason,
           },
         },
       });

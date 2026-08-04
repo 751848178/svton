@@ -58,6 +58,12 @@
   `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f416/`.
   F463 registers legacy identity inventory/collision remediation and was not
   implemented by F416. **Next: F417 project-directory parity.**
+- F416 independent correction retains the exact branch-revision reason in the
+  atomic high-risk audit, freezes historical BuildRun presentation to validated
+  v2 input snapshots, and restricts migration R1 backfill to provably aligned
+  connected+verified rows with non-zero 40/64-hex commits. Real pre-F416 MySQL
+  upgrade evidence leaves every null/invalid/drift fixture fail-closed; accepted
+  and rejected artifacts are SHA-256 bound in the correction inventory.
 
 - F383 + F384 were integrated onto local `master@68aabfa7` on 2026-07-29.
   The authoritative merge-readiness source is
