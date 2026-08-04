@@ -26,6 +26,10 @@ describeIntegration("project directory real MySQL integration", () => {
   const teamA = `team-a-${suffix}`;
   const teamB = `team-b-${suffix}`;
   const onlineId = `online-${suffix}`;
+  const needsId = `needs-${suffix}`;
+  const stagingId = `staging-${suffix}`;
+  const productionId = `production-${suffix}`;
+  const siteId = `site-${suffix}`;
 
   beforeAll(async () => {
     await prisma.user.create({
@@ -38,7 +42,7 @@ describeIntegration("project directory real MySQL integration", () => {
       ],
     });
     await seedOnlineProject();
-    await seedProject(prisma, userId, teamA, `needs-${suffix}`, "Needs Setup");
+    await seedProject(prisma, userId, teamA, needsId, "Needs Setup");
     await seedProject(
       prisma,
       userId,
@@ -95,13 +99,106 @@ describeIntegration("project directory real MySQL integration", () => {
     expect(result.items.map(({ status }) => status)).toEqual(["online"]);
   });
 
+  it("requires an exact active Production Site for online and domain search", async () => {
+    const exactSite = {
+      teamId: teamA,
+      createdById: userId,
+      projectId: onlineId,
+      environmentId: productionId,
+      name: "Payments Production",
+      primaryDomain: "payments.example.com",
+      status: "active",
+    };
+    const assertNeedsConfiguration = async () => {
+      const directory = await service.list(
+        teamA,
+        userId,
+        new ProjectDirectoryQueryDto(),
+      );
+      expect(directory.items.find(({ id }) => id === onlineId)).toMatchObject({
+        status: "needs_configuration",
+        production: { currentVersion: "2.3.2", domain: null },
+      });
+      expect(directory.summary).toEqual({
+        total: 2,
+        online: 0,
+        needsConfiguration: 2,
+      });
+
+      const domainSearch = Object.assign(new ProjectDirectoryQueryDto(), {
+        query: "payments.example.com",
+      });
+      expect(
+        (await service.list(teamA, userId, domainSearch)).items,
+      ).toHaveLength(0);
+
+      const onlineFilter = Object.assign(new ProjectDirectoryQueryDto(), {
+        status: "online" as const,
+      });
+      expect(
+        (await service.list(teamA, userId, onlineFilter)).items,
+      ).toHaveLength(0);
+    };
+
+    try {
+      await prisma.site.delete({ where: { id: siteId } });
+      await assertNeedsConfiguration();
+
+      await prisma.site.create({
+        data: { id: siteId, ...exactSite, status: "pending" },
+      });
+      await assertNeedsConfiguration();
+
+      await prisma.site.update({
+        where: { id: siteId },
+        data: { status: "active", teamId: teamB },
+      });
+      await assertNeedsConfiguration();
+
+      await prisma.site.update({
+        where: { id: siteId },
+        data: { teamId: teamA, projectId: needsId },
+      });
+      await assertNeedsConfiguration();
+
+      await prisma.site.update({
+        where: { id: siteId },
+        data: { projectId: onlineId, environmentId: stagingId },
+      });
+      await assertNeedsConfiguration();
+
+      await prisma.site.update({
+        where: { id: siteId },
+        data: { environmentId: productionId, primaryDomain: "  " },
+      });
+      await assertNeedsConfiguration();
+    } finally {
+      await prisma.site.upsert({
+        where: { id: siteId },
+        create: { id: siteId, ...exactSite },
+        update: exactSite,
+      });
+    }
+
+    const restored = await service.list(
+      teamA,
+      userId,
+      new ProjectDirectoryQueryDto(),
+    );
+    expect(restored.items.find(({ id }) => id === onlineId)).toMatchObject({
+      status: "online",
+      production: {
+        currentVersion: "2.3.2",
+        domain: "payments.example.com",
+      },
+    });
+  });
+
   async function seedOnlineProject() {
     const connectionId = `connection-${suffix}`;
     const identityId = `identity-${suffix}`;
     const revisionId = `identity-revision-${suffix}`;
     const analysisId = `analysis-${suffix}`;
-    const stagingId = `staging-${suffix}`;
-    const productionId = `production-${suffix}`;
     const commit = "a".repeat(40);
     await prisma.project.create({
       data: {
@@ -296,6 +393,7 @@ describeIntegration("project directory real MySQL integration", () => {
     });
     await prisma.site.create({
       data: {
+        id: siteId,
         teamId: teamA,
         createdById: userId,
         projectId: onlineId,

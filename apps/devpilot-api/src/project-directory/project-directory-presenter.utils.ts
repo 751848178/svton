@@ -40,7 +40,9 @@ export function toProjectDirectoryItem(
       repositoryReady,
       stagingReady: stagingSummary?.ready === true,
       productionReady: productionBaseline?.ready === true,
-      productionOnline: liveProduction.currentVersion !== null,
+      productionOnline:
+        liveProduction.currentVersion !== null &&
+        liveProduction.domain !== null,
     }),
     repository,
     intake: projectDirectoryIntake(project),

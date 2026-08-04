@@ -10,6 +10,7 @@ import {
   buildDirectoryQuery,
   PROJECT_DIRECTORY_BASE_QUERY,
   shouldUseInitialDirectory,
+  shouldShowDirectoryLoading,
 } from './use-projects';
 
 describe('buildDirectoryQuery', () => {
@@ -103,5 +104,11 @@ describe('buildDirectoryQuery', () => {
     expect(
       shouldUseInitialDirectory(PROJECT_DIRECTORY_BASE_QUERY, 'user-b', null, initialScope, false),
     ).toBe(false);
+  });
+
+  it('keeps an authoritative initial directory visible on the first revalidating frame', () => {
+    expect(shouldShowDirectoryLoading(true, true)).toBe(false);
+    expect(shouldShowDirectoryLoading(true, false)).toBe(true);
+    expect(shouldShowDirectoryLoading(false, false)).toBe(false);
   });
 });

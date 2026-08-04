@@ -44,6 +44,13 @@
 - [x] **AC-DIR-009** 运行状态与配置状态分别来源于真实关系，不由前端猜测。
 - [x] **AC-DIR-010** 目录在参考 viewport 的结构、密度和主次层级与 Demo 对齐。
 
+  F417 correction：`online` 同时要求 exact current-version chain 与同
+  team/project/active Production environment 的 active、非空域名 Site；缺失、
+  inactive 或任一 scope 漂移均 fail closed。旧 filtered-empty 同 SHA 的两份
+  截图统一归为 rejected，authoritative accepted/rejected inventories 不交叉。
+  服务端 authoritative `initialDirectory` 在 SWR 首次 hydration frame 保持可见，
+  后续静默 revalidate；missing/online 两态的 1484×1324 认证截图均须 Console 0。
+
 - [x] **AC-PROJ-001** 生成新项目和接入已有项目最终生成同一种 Project 治理对象。
 - [x] **AC-PROJ-002** 两条路径都产生唯一活动 Staging baseline。
 - [x] **AC-PROJ-003** 两条路径都产生唯一活动 Production baseline。

@@ -2,6 +2,7 @@ import "reflect-metadata";
 import {
   projectDirectoryEnvironment,
   projectDirectoryRecord,
+  projectDirectorySite,
 } from "./project-directory.fixture";
 import { toProjectDirectoryItem } from "./project-directory-presenter.utils";
 
@@ -53,29 +54,48 @@ describe("project directory presenter", () => {
     const item = toProjectDirectoryItem(
       projectDirectoryRecord({
         sites: [
-          {
+          projectDirectorySite({
             id: "staging",
             primaryDomain: "staging.example.com",
-            status: "active",
             environmentId: "env-staging",
-          },
-          {
+          }),
+          projectDirectorySite({
             id: "pending",
             primaryDomain: "pending.example.com",
             status: "pending",
-            environmentId: "env-production",
-          },
-          {
+          }),
+          projectDirectorySite({
             id: "production",
             primaryDomain: "prod.example.com",
-            status: "active",
-            environmentId: "env-production",
-          },
+          }),
         ],
       }),
     );
 
     expect(item.production.domain).toBe("prod.example.com");
+  });
+
+  it.each([
+    ["no Site", []],
+    ["inactive Site", [projectDirectorySite({ status: "pending" })]],
+    ["cross-team Site", [projectDirectorySite({ teamId: "other-team" })]],
+    [
+      "cross-project Site",
+      [projectDirectorySite({ projectId: "other-project" })],
+    ],
+    [
+      "non-Production Site",
+      [projectDirectorySite({ environmentId: "env-staging" })],
+    ],
+    ["blank Site domain", [projectDirectorySite({ primaryDomain: "  " })]],
+  ])("fails online closed for %s", (_label, sites) => {
+    const item = toProjectDirectoryItem(projectDirectoryRecord({ sites }));
+
+    expect(item.status).toBe("needs_configuration");
+    expect(item.production).toEqual({
+      currentVersion: "2.3.2",
+      domain: null,
+    });
   });
 
   it("rejects a cross-team ReleaseOrder and cross-project deployment version", () => {

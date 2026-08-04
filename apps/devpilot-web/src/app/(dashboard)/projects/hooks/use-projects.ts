@@ -45,6 +45,7 @@ export function useProjects(initialDirectory?: ProjectDirectoryResponse) {
       keepPreviousData: false,
     },
   );
+  const visibleDirectory = directory.data ?? fallbackDirectory;
 
   const refresh = usePersistFn(() => void directory.mutate());
   const resetFilters = usePersistFn(() => {
@@ -53,20 +54,24 @@ export function useProjects(initialDirectory?: ProjectDirectoryResponse) {
   });
 
   return {
-    items: directory.data?.items ?? [],
-    total: directory.data?.total ?? 0,
-    summary: directory.data?.summary ?? fallbackDirectory?.summary,
+    items: visibleDirectory?.items ?? [],
+    total: visibleDirectory?.total ?? 0,
+    summary: visibleDirectory?.summary,
     search,
     setSearch,
     statusFilter,
     setStatusFilter,
     filtered: Boolean(search.trim()) || statusFilter !== 'all',
     resetFilters,
-    loading: directory.isLoading,
+    loading: shouldShowDirectoryLoading(directory.isLoading, Boolean(visibleDirectory)),
     validating: directory.isValidating,
     error: directory.error ?? null,
     refresh,
   };
+}
+
+export function shouldShowDirectoryLoading(isLoading: boolean, hasRenderableDirectory: boolean) {
+  return isLoading && !hasRenderableDirectory;
 }
 
 export function buildDirectoryCacheKey(

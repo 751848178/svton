@@ -46,14 +46,17 @@ export function productionSummary(
     deployment.artifactManifestId === version.artifactManifestId &&
     deployment.status === "completed" &&
     deployment.dryRun === false;
-  const domain =
-    project.sites.find(
-      (site) =>
-        site.environmentId === production.id && site.status === "active",
-    )?.primaryDomain ?? null;
+  const productionSite = project.sites.find(
+    (site) =>
+      site.teamId === project.teamId &&
+      site.projectId === project.id &&
+      site.environmentId === production.id &&
+      site.status === "active" &&
+      site.primaryDomain.trim().length > 0,
+  );
   return {
     currentVersion: versionValid ? version.releaseOrder.releaseVersion : null,
-    domain,
+    domain: productionSite?.primaryDomain.trim() ?? null,
   };
 }
 

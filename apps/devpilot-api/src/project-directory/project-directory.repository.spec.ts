@@ -39,7 +39,10 @@ describe("ProjectDirectoryRepository", () => {
         }),
       },
     });
-    expect(query.select.sites).toMatchObject({ where: { status: "active" } });
+    expect(query.select.sites).toMatchObject({
+      where: { status: "active" },
+      select: { teamId: true, projectId: true, environmentId: true },
+    });
     expect(JSON.stringify(query.select)).not.toContain('logs"');
     const activityQuery = (prisma.$queryRaw as jest.Mock).mock.calls[0][0] as {
       strings: string[];

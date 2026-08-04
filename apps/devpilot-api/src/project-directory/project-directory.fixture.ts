@@ -62,14 +62,7 @@ export function projectDirectoryRecord(
         projectId,
       ),
     ],
-    sites: [
-      {
-        id: "site-1",
-        primaryDomain: "payments.example.com",
-        status: "active",
-        environmentId: "env-production",
-      },
-    ],
+    sites: [projectDirectorySite({ projectId })],
     recentActivity: {
       id: projectId,
       projectId,
@@ -80,6 +73,20 @@ export function projectDirectoryRecord(
     },
     ...overrides,
   } as ProjectDirectoryRecord;
+}
+
+export function projectDirectorySite(
+  overrides: Partial<ProjectDirectoryRecord["sites"][number]> = {},
+): ProjectDirectoryRecord["sites"][number] {
+  return {
+    id: "site-1",
+    teamId: "team-1",
+    projectId: "project-1",
+    primaryDomain: "payments.example.com",
+    status: "active",
+    environmentId: "env-production",
+    ...overrides,
+  };
 }
 
 export function projectDirectoryEnvironment(

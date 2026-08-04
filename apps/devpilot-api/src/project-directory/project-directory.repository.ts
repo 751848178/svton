@@ -109,6 +109,8 @@ export const PROJECT_DIRECTORY_SELECT =
       orderBy: [{ primaryDomain: "asc" }, { id: "asc" }],
       select: {
         id: true,
+        teamId: true,
+        projectId: true,
         primaryDomain: true,
         status: true,
         environmentId: true,

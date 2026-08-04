@@ -78,6 +78,14 @@
   authenticated Browser reloads and 1484×1324 Demo/product comparisons are
   stored under
   `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f417/`.
+  The follow-up correction also requires an exact active Production Site/domain
+  before `online`, proves missing/inactive/cross-scope Site rows fail closed in
+  real MySQL and Browser states, and supersedes the overlapping filtered-empty
+  screenshot classification with disjoint accepted/rejected hash inventories
+  under `f417-correction/`.
+  The correction also keeps the authoritative server directory visible on the
+  first SWR hydration frame, then revalidates silently; fresh missing-Site and
+  restored-online captures at 1484×1324 both have zero Console errors/warnings.
   **Next: F418 project-home weak-summary parity.**
 
 - F383 + F384 were integrated onto local `master@68aabfa7` on 2026-07-29.
