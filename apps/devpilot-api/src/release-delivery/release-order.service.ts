@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { CreateReleaseOrderDto } from "./dto/release-order.dto";
+import { isStoredConnectionAligned } from "../repository-identity/repository-identity-policy.utils";
 import { ReleaseOrderRepository } from "./release-order.repository";
 
 @Injectable()
@@ -100,8 +101,28 @@ interface ReleaseOrderRecord {
 interface ReleaseOrderDetailRecord extends ReleaseOrderRecord {
   project: {
     repositoryConnection: {
+      repositoryUrl: string;
+      provider: string;
       status: string;
       defaultBranch: string | null;
+      selectedBranch: string | null;
+    } | null;
+    repositoryIdentity: {
+      id: string;
+      projectId: string;
+      provider: string;
+      canonicalKey: string;
+      canonicalUrl: string;
+      lockedAt: Date | null;
+      currentRevision: {
+        id: string;
+        revision: number;
+        defaultBranch: string;
+        reason: string;
+        createdAt: Date;
+        identityId: string;
+        projectId: string;
+      } | null;
     } | null;
     environments: Array<{ id: string; baselineRole: string | null }>;
   };
@@ -125,8 +146,10 @@ function presentDetail(order: ReleaseOrderDetailRecord) {
   const baselineRoles = new Set(
     order.project.environments.map((environment) => environment.baselineRole),
   );
-  const repositoryReady = order.project.repositoryConnection?.status === "connected"
-    && Boolean(order.project.repositoryConnection.defaultBranch);
+  const repositoryReady = isStoredConnectionAligned(
+    order.project.repositoryIdentity,
+    order.project.repositoryConnection,
+  );
   return {
     ...base,
     resumeStep: order._count.releaseRuns > 0
@@ -140,7 +163,9 @@ function presentDetail(order: ReleaseOrderDetailRecord) {
         && baselineRoles.has("production"),
       repository: {
         ready: repositoryReady,
-        branch: order.project.repositoryConnection?.defaultBranch || null,
+        branch: order.project.repositoryIdentity?.currentRevision?.defaultBranch || null,
+        identityRevisionId: order.project.repositoryIdentity?.currentRevision?.id || null,
+        identityRevision: order.project.repositoryIdentity?.currentRevision?.revision || null,
       },
       staging: { ready: baselineRoles.has("staging") },
       production: { ready: baselineRoles.has("production") },

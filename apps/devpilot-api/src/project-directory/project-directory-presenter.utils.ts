@@ -1,4 +1,5 @@
 import type { ProjectDirectoryRecord } from "./project-directory.repository";
+import { isStoredConnectionAligned } from "../repository-identity/repository-identity-policy.utils";
 import type {
   ProjectConfigurationStatus,
   ProjectDirectoryActivity,
@@ -20,18 +21,31 @@ export function toProjectDirectoryItem(
   const production = project.environments.find(
     (environment) => environment.baselineRole === "production",
   );
+  const identityAligned = isStoredConnectionAligned(
+    project.repositoryIdentity,
+    project.repositoryConnection,
+  );
+  const identityMigrationRequired = project.onboardingStatus === "ready"
+    && !project.repositoryIdentity?.currentRevision;
   const repository = project.repositoryConnection
     ? {
-        provider:
-          project.repositoryIdentity?.provider ??
-          project.repositoryConnection.provider,
+        provider: project.repositoryIdentity?.provider ?? project.repositoryConnection.provider,
         canonicalUrl: project.repositoryIdentity?.canonicalUrl ?? null,
-        defaultBranch:
-          project.repositoryIdentity?.defaultBranch ??
-          project.repositoryConnection.defaultBranch ??
-          project.repositoryConnection.selectedBranch,
-        commitSha: project.repositoryConnection.commitSha,
-        status: project.repositoryConnection.status,
+        defaultBranch: identityMigrationRequired
+          ? null
+          : project.repositoryIdentity?.currentRevision?.defaultBranch
+            ?? project.repositoryConnection.defaultBranch
+            ?? project.repositoryConnection.selectedBranch,
+        identityRevisionId: project.repositoryIdentity?.currentRevision?.id ?? null,
+        identityRevision: project.repositoryIdentity?.currentRevision?.revision ?? null,
+        commitSha: identityAligned && !identityMigrationRequired
+          ? project.repositoryConnection.commitSha
+          : null,
+        status: identityMigrationRequired
+          ? "identity_migration_required"
+          : project.repositoryIdentity && !identityAligned
+            ? "identity_drift"
+            : project.repositoryConnection.status,
       }
     : null;
 

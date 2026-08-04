@@ -3,6 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReleaseBuildRepository } from "./release-build.repository";
+import { ReleaseBuildResultRepository } from "./release-build-result.repository";
+import { ReleaseBuildService } from "./release-build.service";
 import type { ReleaseBuildInputSnapshot } from "./release-build.types";
 
 const describeIntegration = process.env.RUN_RELEASE_BUILD_INTEGRATION === "1"
@@ -14,10 +16,15 @@ describeIntegration("ReleaseBuild integration", () => {
   const repository = new ReleaseBuildRepository(
     prisma as unknown as PrismaService,
   );
+  const results = new ReleaseBuildResultRepository(
+    prisma as unknown as PrismaService,
+  );
   const suffix = randomUUID();
   const userId = `build-user-${suffix}`;
   const teamId = `build-team-${suffix}`;
   const projectId = `build-project-${suffix}`;
+  const identityId = `build-identity-${suffix}`;
+  const revisionId = `build-identity-revision-${suffix}`;
   let orderId: string;
 
   beforeAll(async () => {
@@ -33,6 +40,51 @@ describeIntegration("ReleaseBuild integration", () => {
         name: "Build Project",
         config: {},
       },
+    });
+    const connection = await prisma.repositoryConnection.create({
+      data: {
+        teamId,
+        projectId,
+        connectedById: userId,
+        provider: "generic",
+        repositoryUrl: "https://example.com/repo.git",
+        defaultBranch: "main",
+        selectedBranch: "main",
+        commitSha: "a".repeat(40),
+        status: "connected",
+      },
+    });
+    await prisma.projectRepositoryIdentity.create({
+      data: {
+        id: identityId,
+        teamId,
+        projectId,
+        repositoryConnectionId: connection.id,
+        provider: "generic",
+        canonicalKey: "example.com/repo",
+        canonicalUrl: "https://example.com/repo",
+        defaultBranch: "main",
+        lockedAt: new Date(),
+      },
+    });
+    await prisma.projectRepositoryIdentityRevision.create({
+      data: {
+        id: revisionId,
+        teamId,
+        projectId,
+        identityId,
+        createdById: userId,
+        revision: 1,
+        expectedRevision: 0,
+        defaultBranch: "main",
+        verifiedCommitSha: "a".repeat(40),
+        reason: "integration fixture",
+        idempotencyKey: `build-fixture-${suffix}`,
+      },
+    });
+    await prisma.projectRepositoryIdentity.update({
+      where: { id: identityId },
+      data: { currentRevisionId: revisionId },
     });
     orderId = (await prisma.releaseOrder.create({
       data: {
@@ -60,7 +112,7 @@ describeIntegration("ReleaseBuild integration", () => {
 
   it("creates one immutable manifest only for a successful run", async () => {
     const failed = await repository.reserve(reservation());
-    await repository.fail({
+    await results.fail({
       buildRunId: failed.id,
       code: "BUILD_COMMAND_FAILED",
       message: "failed",
@@ -73,7 +125,7 @@ describeIntegration("ReleaseBuild integration", () => {
     ).resolves.toBe(0);
 
     const succeeded = await repository.reserve(reservation());
-    await repository.succeed({
+    await results.succeed({
       buildRunId: succeeded.id,
       teamId,
       projectId,
@@ -84,6 +136,10 @@ describeIntegration("ReleaseBuild integration", () => {
       sourceBranch: "main",
       sourceCommitSha: "a".repeat(40),
       inputHash: "input-hash",
+      repositoryIdentityId: identityId,
+      repositoryIdentityRevisionId: revisionId,
+      repositoryProvider: "generic",
+      canonicalRepositoryUrl: "https://example.com/repo",
       logReference: `build-log://${succeeded.id}`,
       logSummary: { redacted: true, lines: ["ok"] },
       gateSummary: { build: { status: "passed" } },
@@ -93,10 +149,110 @@ describeIntegration("ReleaseBuild integration", () => {
     ).resolves.toBe(1);
   });
 
+  it("creates no BuildRun and never invokes executor after cross-identity pointer drift", async () => {
+    const before = await prisma.buildRun.count({ where: { projectId } });
+    const otherProjectId = `build-other-project-${suffix}`;
+    const otherIdentityId = `build-other-identity-${suffix}`;
+    const otherRevisionId = `build-other-revision-${suffix}`;
+    await prisma.project.create({
+      data: {
+        id: otherProjectId,
+        teamId,
+        createdById: userId,
+        name: "Other Build Project",
+        config: {},
+      },
+    });
+    await prisma.projectRepositoryIdentity.create({
+      data: {
+        id: otherIdentityId,
+        teamId,
+        projectId: otherProjectId,
+        provider: "generic",
+        canonicalKey: "example.com/other",
+        canonicalUrl: "https://example.com/other",
+        defaultBranch: "main",
+        lockedAt: new Date(),
+      },
+    });
+    await prisma.projectRepositoryIdentityRevision.create({
+      data: {
+        id: otherRevisionId,
+        teamId,
+        projectId: otherProjectId,
+        identityId: otherIdentityId,
+        createdById: userId,
+        revision: 1,
+        expectedRevision: 0,
+        defaultBranch: "main",
+        verifiedCommitSha: "d".repeat(40),
+        reason: "other fixture",
+        idempotencyKey: `other-build-fixture-${suffix}`,
+      },
+    });
+    const executor = { execute: jest.fn() };
+    const checkout = jest.fn();
+    const connection = await prisma.repositoryConnection.findUniqueOrThrow({
+      where: { projectId },
+    });
+    const sources = {
+      resolve: jest.fn(async () => {
+        await prisma.projectRepositoryIdentity.update({
+          where: { id: identityId },
+          data: { currentRevisionId: otherRevisionId },
+        });
+        return {
+          context: { project: { applications: [] } },
+          connection,
+          credential: { kind: "none" },
+          identity: {
+            id: identityId,
+            revisionId,
+            revision: 1,
+            provider: "generic",
+            canonicalKey: "example.com/repo",
+            canonicalUrl: "https://example.com/repo",
+            branch: "main",
+          },
+          commitSha: "a".repeat(40),
+        };
+      }),
+    };
+    const service = new ReleaseBuildService(
+      repository,
+      results,
+      { checkout } as never,
+      sources as never,
+      executor as never,
+    );
+    try {
+      await expect(service.build(teamId, userId, projectId, orderId))
+        .rejects.toMatchObject({
+          response: { code: "PROJECT_REPOSITORY_BUILD_SOURCE_DRIFT" },
+        });
+      await expect(prisma.buildRun.count({ where: { projectId } })).resolves.toBe(before);
+      expect(checkout).not.toHaveBeenCalled();
+      expect(executor.execute).not.toHaveBeenCalled();
+    } finally {
+      await prisma.projectRepositoryIdentity.update({
+        where: { id: identityId },
+        data: { currentRevisionId: revisionId },
+      });
+      await prisma.project.delete({ where: { id: otherProjectId } });
+    }
+  });
+
   function reservation() {
     const snapshot: ReleaseBuildInputSnapshot = {
-      version: 1,
+      version: 2,
       repositoryUrl: "https://example.com/repo.git",
+      repositoryIdentity: {
+        id: identityId,
+        revisionId,
+        revision: 1,
+        provider: "generic",
+        canonicalUrl: "https://example.com/repo",
+      },
       sourceBranch: "main",
       sourceCommitSha: "a".repeat(40),
       components: [{
@@ -113,6 +269,7 @@ describeIntegration("ReleaseBuild integration", () => {
       actorId: userId,
       snapshot,
       inputHash: "input-hash",
+      expectedCanonicalKey: "example.com/repo",
     };
   }
 });

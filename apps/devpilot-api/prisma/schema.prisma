@@ -74,6 +74,7 @@ model User {
   reviewedRepositorySuggestions RepositoryAnalysisSuggestion[] @relation("RepositorySuggestionReviewer")
   repositoryIntakeReviewSnapshots RepositoryIntakeReviewSnapshot[] @relation("RepositoryIntakeReviewActor")
   projectIntakeFinalizations ProjectIntakeFinalization[] @relation("ProjectIntakeFinalizationActor")
+  repositoryIdentityRevisions ProjectRepositoryIdentityRevision[] @relation("RepositoryIdentityRevisionActor")
   environmentConfigRevisions EnvironmentConfigRevision[] @relation("EnvironmentConfigRevisionActor")
   createdReleaseOrders ReleaseOrder[] @relation("ReleaseOrderCreator")
   triggeredBuildRuns BuildRun[] @relation("BuildRunActor")
@@ -148,6 +149,7 @@ model Team {
   repositoryAnalysisRuns RepositoryAnalysisRun[]
   repositoryIntakeReviewSnapshots RepositoryIntakeReviewSnapshot[]
   projectRepositoryIdentities ProjectRepositoryIdentity[]
+  projectRepositoryIdentityRevisions ProjectRepositoryIdentityRevision[]
   projectIntakeFinalizations ProjectIntakeFinalization[]
   environmentConfigRevisions EnvironmentConfigRevision[]
   releaseOrders ReleaseOrder[]
@@ -703,6 +705,7 @@ model Project {
   repositoryAnalysisRuns RepositoryAnalysisRun[]
   repositoryIntakeReviewSnapshots RepositoryIntakeReviewSnapshot[]
   repositoryIdentity ProjectRepositoryIdentity?
+  repositoryIdentityRevisions ProjectRepositoryIdentityRevision[]
   intakeFinalizations ProjectIntakeFinalization[]
   environmentConfigRevisions EnvironmentConfigRevision[]
   releaseOrders ReleaseOrder[]
@@ -871,6 +874,7 @@ model ProjectRepositoryIdentity {
   canonicalKey         String
   canonicalUrl         String   @db.Text
   defaultBranch        String?
+  currentRevisionId    String?  @unique
   lockedAt             DateTime?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -878,10 +882,43 @@ model ProjectRepositoryIdentity {
   team                 Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   project              Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   repositoryConnection RepositoryConnection? @relation(fields: [repositoryConnectionId], references: [id], onDelete: SetNull)
+  currentRevision      ProjectRepositoryIdentityRevision? @relation("CurrentRepositoryIdentityRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+  revisions            ProjectRepositoryIdentityRevision[] @relation("RepositoryIdentityRevisionHistory")
+  buildRuns            BuildRun[]
 
   @@unique([teamId, canonicalKey])
   @@index([teamId])
   @@index([provider, providerRepositoryId])
+}
+
+// 规范仓库身份的追加式生效分支修订；currentRevisionId 是唯一生效指针
+model ProjectRepositoryIdentityRevision {
+  id             String   @id @default(cuid())
+  teamId         String
+  projectId      String
+  identityId     String
+  createdById    String?
+  revision       Int
+  expectedRevision Int
+  defaultBranch  String
+  verifiedCommitSha String
+  reason         String   @db.Text
+  idempotencyKey String
+  createdAt      DateTime @default(now())
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  identity       ProjectRepositoryIdentity @relation("RepositoryIdentityRevisionHistory", fields: [identityId], references: [id], onDelete: Cascade)
+  createdBy      User?    @relation("RepositoryIdentityRevisionActor", fields: [createdById], references: [id], onDelete: SetNull)
+  currentForIdentity ProjectRepositoryIdentity? @relation("CurrentRepositoryIdentityRevision")
+  buildRuns      BuildRun[]
+
+  @@unique([identityId, revision])
+  @@unique([projectId, idempotencyKey])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([createdById])
+  @@index([createdAt])
 }
 
 // 接入最终确认记录；同一幂等键只允许一个可恢复结果
@@ -2838,6 +2875,8 @@ model BuildRun {
   projectId      String
   releaseOrderId String
   triggeredById  String?
+  repositoryIdentityId String?
+  repositoryIdentityRevisionId String?
   revision       Int
   sourceBranch   String
   sourceCommitSha String
@@ -2858,6 +2897,8 @@ model BuildRun {
   project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   releaseOrder   ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
   triggeredBy    User?    @relation("BuildRunActor", fields: [triggeredById], references: [id], onDelete: SetNull)
+  repositoryIdentity ProjectRepositoryIdentity? @relation(fields: [repositoryIdentityId], references: [id], onDelete: Restrict)
+  repositoryIdentityRevision ProjectRepositoryIdentityRevision? @relation(fields: [repositoryIdentityRevisionId], references: [id], onDelete: Restrict)
   manifest       ArtifactManifest?
   stageAttempt   ReleaseStageAttempt?
   gateEvaluations GateEvaluation[]
@@ -2866,6 +2907,8 @@ model BuildRun {
   @@index([teamId])
   @@index([projectId])
   @@index([triggeredById])
+  @@index([repositoryIdentityId])
+  @@index([repositoryIdentityRevisionId])
   @@index([sourceCommitSha])
   @@index([status])
   @@index([createdAt])

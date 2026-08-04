@@ -32,7 +32,34 @@ export class ReleaseOrderRepository {
         project: {
           select: {
             repositoryConnection: {
-              select: { status: true, defaultBranch: true },
+              select: {
+                repositoryUrl: true,
+                provider: true,
+                status: true,
+                defaultBranch: true,
+                selectedBranch: true,
+              },
+            },
+            repositoryIdentity: {
+              select: {
+                id: true,
+                projectId: true,
+                provider: true,
+                canonicalKey: true,
+                canonicalUrl: true,
+                lockedAt: true,
+                currentRevision: {
+                  select: {
+                    id: true,
+                    revision: true,
+                    defaultBranch: true,
+                    reason: true,
+                    createdAt: true,
+                    identityId: true,
+                    projectId: true,
+                  },
+                },
+              },
             },
             environments: {
               where: {

@@ -3,6 +3,7 @@ import { ControlAccessPolicyModule } from "../control-access-policy";
 import { PrismaModule } from "../prisma/prisma.module";
 import { ProjectModule } from "../project/project.module";
 import { RepositoryAnalysisModule } from "../repository-analysis/repository-analysis.module";
+import { RepositoryIdentityModule } from "../repository-identity/repository-identity.module";
 import { ProjectIntakeAccessService } from "./project-intake-access.service";
 import { ProjectIntakeController } from "./project-intake.controller";
 import { ProjectIntakeFinalizationExecutorService } from "./project-intake-finalization-executor.service";
@@ -21,6 +22,7 @@ import { RepositoryIntakeSnapshotIntegrityService } from "./repository-intake-sn
     ProjectModule,
     ControlAccessPolicyModule,
     RepositoryAnalysisModule,
+    RepositoryIdentityModule,
   ],
   controllers: [ProjectIntakeController],
   providers: [

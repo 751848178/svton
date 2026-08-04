@@ -11,9 +11,11 @@ import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApplyRepositorySuggestionsDto, StartRepositoryAnalysisDto } from './dto/repository-analysis.dto';
 import { ConnectRepositoryDto } from './dto/repository-connection.dto';
+import { ReviseRepositoryBranchDto } from './dto/repository-identity-revision.dto';
 import { RepositoryAnalysisAccessService } from './repository-analysis-access.service';
 import { RepositoryAnalysisRunService } from './repository-analysis-run.service';
 import { RepositoryConnectionService } from './repository-connection.service';
+import { RepositoryIdentityBranchService } from './repository-identity-branch.service';
 import { RepositorySuggestionApplyService } from './repository-suggestion-apply.service';
 
 interface AuthRequest {
@@ -28,6 +30,7 @@ export class RepositoryAnalysisController {
   constructor(
     private readonly access: RepositoryAnalysisAccessService,
     private readonly connections: RepositoryConnectionService,
+    private readonly identityBranches: RepositoryIdentityBranchService,
     private readonly runs: RepositoryAnalysisRunService,
     private readonly applyService: RepositorySuggestionApplyService,
   ) {}
@@ -36,6 +39,23 @@ export class RepositoryAnalysisController {
   async state(@Request() req: AuthRequest, @Param('projectId') projectId: string) {
     await this.assertRead(req, projectId, 'repository.read');
     return this.connections.getState(req.teamId, req.user.id, projectId);
+  }
+
+  @Post('identity/branch-revisions')
+  async reviseBranch(
+    @Request() req: AuthRequest,
+    @Param('projectId') projectId: string,
+    @Body() dto: ReviseRepositoryBranchDto,
+  ) {
+    await this.access.assertWrite({
+      teamId: req.teamId,
+      userId: req.user.id,
+      projectId,
+      action: 'project.repository_identity.branch.revise',
+      targetType: 'repository_identity',
+      risk: 'high',
+    });
+    return this.identityBranches.revise(req.teamId, req.user.id, projectId, dto);
   }
 
   @Post('connect')
@@ -120,7 +140,7 @@ export class RepositoryAnalysisController {
     req: AuthRequest,
     projectId: string,
     action: string,
-    targetType: 'repository_connection' | 'repository_analysis_run',
+    targetType: 'repository_connection' | 'repository_analysis_run' | 'repository_identity',
     targetId?: string,
   ) {
     return this.access.assertWrite({

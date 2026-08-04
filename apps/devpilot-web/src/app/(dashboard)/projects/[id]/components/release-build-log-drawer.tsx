@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Drawer } from '@svton/ui';
 import type { ReleaseBuildItem } from '../types/release-order.types';
@@ -23,8 +24,34 @@ export function ReleaseBuildLogDrawer({ run, onClose }: Props) {
       {run ? (
         <div className="space-y-4">
           <dl className="grid gap-2 text-sm sm:grid-cols-2">
-            <Evidence label={t('releaseBuildCommit')} value={run.sourceCommitSha} />
-            <Evidence label={t('releaseBuildLogReference')} value={run.logReference || '—'} />
+            <Evidence
+              label={t('releaseBuildCommit')}
+              value={run.sourceCommitSha}
+            />
+            <Evidence
+              label={t('releaseBuildSourceBranch')}
+              value={run.sourceBranch}
+            />
+            {run.sourceRepository ? (
+              <>
+                <Evidence
+                  label={t('releaseBuildSourceProvider')}
+                  value={run.sourceRepository.provider}
+                />
+                <Evidence
+                  label={t('releaseBuildSourceRevision')}
+                  value={`R${run.sourceRepository.identityRevision}`}
+                />
+                <Evidence
+                  label={t('releaseBuildSourceRepository')}
+                  value={run.sourceRepository.canonicalUrl}
+                />
+              </>
+            ) : null}
+            <Evidence
+              label={t('releaseBuildLogReference')}
+              value={run.logReference || '—'}
+            />
           </dl>
           <p className="text-xs text-muted-foreground">
             {summary.redacted ? t('releaseBuildLogsRedacted') : t('releaseBuildLogsUnavailable')}

@@ -66,4 +66,20 @@ describe("project directory presenter", () => {
 
     expect(item.runtimeStatus).toBe("idle");
   });
+
+  it("fails closed for a READY legacy project without an identity revision", () => {
+    const item = toProjectDirectoryItem(projectDirectoryRecord({
+      onboardingStatus: "ready",
+      repositoryIdentity: null,
+    }));
+
+    expect(item.repository).toMatchObject({
+      canonicalUrl: null,
+      defaultBranch: null,
+      identityRevisionId: null,
+      identityRevision: null,
+      commitSha: null,
+      status: "identity_migration_required",
+    });
+  });
 });

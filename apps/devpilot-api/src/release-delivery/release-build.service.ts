@@ -1,10 +1,8 @@
 import {
   Injectable,
   NotFoundException,
-  UnprocessableEntityException,
 } from "@nestjs/common";
 import { createHash } from "node:crypto";
-import { RepositoryCredentialService } from "../repository-analysis/repository-credential.service";
 import { RepositoryGitError } from "../repository-analysis/repository-git-error.utils";
 import { RepositoryGitExecutorService } from "../repository-analysis/repository-git-executor.service";
 import { redactRepositoryText } from "../repository-analysis/repository-analysis-redact.utils";
@@ -16,6 +14,9 @@ import {
   sanitizeBuildLogs,
 } from "./release-build-log.utils";
 import { ReleaseBuildRepository } from "./release-build.repository";
+import { ReleaseBuildResultRepository } from "./release-build-result.repository";
+import { presentBuild } from "./release-build.presenter";
+import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
 import {
   ReleaseBuildExecutorPort,
   ReleaseBuildFailure,
@@ -26,8 +27,9 @@ import {
 export class ReleaseBuildService {
   constructor(
     private readonly repository: ReleaseBuildRepository,
-    private readonly credentials: RepositoryCredentialService,
+    private readonly results: ReleaseBuildResultRepository,
     private readonly git: RepositoryGitExecutorService,
+    private readonly sources: ReleaseBuildSourceResolverService,
     private readonly executor: ReleaseBuildExecutorPort,
   ) {}
 
@@ -43,23 +45,20 @@ export class ReleaseBuildService {
     projectId: string,
     releaseOrderId: string,
   ) {
-    const context = await this.requireContext(teamId, projectId, releaseOrderId);
-    const connection = context.project.repositoryConnection;
-    if (!connection || connection.status !== "connected" || !connection.defaultBranch) {
-      throw new UnprocessableEntityException("项目主分支仓库连接尚未就绪");
-    }
-    const credential = await this.credentials.resolveStored(connection);
-    const ref = await this.git.resolveRef(
-      connection.repositoryUrl,
-      connection.defaultBranch,
-      credential,
-    );
+    const source = await this.sources.resolve(teamId, projectId, releaseOrderId);
     const snapshot: ReleaseBuildInputSnapshot = {
-      version: 1,
-      repositoryUrl: safeRepositoryUrl(connection.repositoryUrl),
-      sourceBranch: ref.selectedBranch,
-      sourceCommitSha: ref.commitSha,
-      components: buildComponents(context.project.applications),
+      version: 2,
+      repositoryUrl: safeRepositoryUrl(source.connection.repositoryUrl),
+      repositoryIdentity: {
+        id: source.identity.id,
+        revisionId: source.identity.revisionId,
+        revision: source.identity.revision,
+        provider: source.identity.provider,
+        canonicalUrl: source.identity.canonicalUrl,
+      },
+      sourceBranch: source.identity.branch,
+      sourceCommitSha: source.commitSha,
+      components: buildComponents(source.context.project.applications),
     };
     const buildRun = await this.repository.reserve({
       teamId,
@@ -68,14 +67,15 @@ export class ReleaseBuildService {
       releaseOrderId,
       snapshot,
       inputHash: hashSnapshot(snapshot),
+      expectedCanonicalKey: source.identity.canonicalKey,
     });
     let checkout: { root: string; cleanup: () => Promise<void> } | undefined;
     try {
       checkout = await this.git.checkout(
-        connection.repositoryUrl,
-        ref.selectedBranch,
-        ref.commitSha,
-        credential,
+        source.connection.repositoryUrl,
+        source.identity.branch,
+        source.commitSha,
+        source.credential,
       );
       const result = await this.executor.execute({
         buildRunId: buildRun.id,
@@ -84,7 +84,7 @@ export class ReleaseBuildService {
         checkoutRoot: checkout.root,
         components: snapshot.components,
       });
-      return presentBuild(await this.repository.succeed({
+      return presentBuild(await this.results.succeed({
         buildRunId: buildRun.id,
         teamId,
         projectId,
@@ -95,13 +95,17 @@ export class ReleaseBuildService {
         sourceBranch: buildRun.sourceBranch,
         sourceCommitSha: buildRun.sourceCommitSha,
         inputHash: buildRun.inputHash,
+        repositoryIdentityId: source.identity.id,
+        repositoryIdentityRevisionId: source.identity.revisionId,
+        repositoryProvider: source.identity.provider,
+        canonicalRepositoryUrl: source.identity.canonicalUrl,
         logReference: buildLogReference(buildRun.id),
         logSummary: buildLogSummary(result.logs),
         gateSummary: result.gateSummary,
       }));
     } catch (error) {
       const detail = failureDetail(error);
-      return presentBuild(await this.repository.fail({
+      return presentBuild(await this.results.fail({
         buildRunId: buildRun.id,
         code: detail.code,
         message: detail.message,
@@ -148,45 +152,5 @@ function failureDetail(error: unknown): ReleaseBuildFailure {
     message: "构建执行失败",
     logs: sanitizeBuildLogs([error instanceof Error ? error.message : String(error)]),
     gateSummary: { build: { status: "failed" }, action: "请检查运行证据后重试。" },
-  };
-}
-
-interface BuildRecord {
-  id: string;
-  releaseOrderId: string;
-  revision: number;
-  sourceBranch: string;
-  sourceCommitSha: string;
-  status: string;
-  inputHash: string;
-  logReference: string | null;
-  logSummary: unknown;
-  gateSummary: unknown;
-  errorCode: string | null;
-  errorMessage: string | null;
-  startedAt: Date | null;
-  finishedAt: Date | null;
-  createdAt: Date;
-  manifest: unknown;
-}
-
-function presentBuild(run: BuildRecord) {
-  return {
-    id: run.id,
-    releaseOrderId: run.releaseOrderId,
-    revision: run.revision,
-    sourceBranch: run.sourceBranch,
-    sourceCommitSha: run.sourceCommitSha,
-    status: run.status,
-    inputHash: run.inputHash,
-    logReference: run.logReference,
-    logSummary: run.logSummary,
-    gateSummary: run.gateSummary,
-    errorCode: run.errorCode,
-    errorMessage: run.errorMessage,
-    startedAt: run.startedAt,
-    finishedAt: run.finishedAt,
-    createdAt: run.createdAt,
-    manifest: run.manifest,
   };
 }

@@ -44,6 +44,7 @@ The current user workflow and bilingual terminology are documented in [`project-
 ## Ordered Migration
 
 1. Report canonical repository collisions, SSH/HTTPS aliases, `prod/production` conflicts, environment-role ambiguity and legacy artifacts.
+   Legacy READY/connected projects without a current repository identity revision stay fail-closed. F463 owns dry-run inventory, collision stop and audited idempotent remediation; F416 does not infer or auto-repair their identity.
 2. Add enums, new tables and nullable relations; validate new and upgrade databases.
 3. Backfill onboarding conservatively. Only consistent connection, analysis and environment evidence becomes ready; ambiguity becomes needs_configuration.
 4. Assign baseline roles without deleting dev/test/QA; ambiguous Staging/Production remains unassigned for explicit repair.

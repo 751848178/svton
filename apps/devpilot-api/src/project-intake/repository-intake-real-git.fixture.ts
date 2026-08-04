@@ -7,10 +7,15 @@ import { promisify } from 'util';
 import { AuditEventService } from '../audit-event/audit-event.service';
 import { createTestCryptoService } from '../common/crypto/crypto.test-helpers';
 import { PrismaService } from '../prisma/prisma.service';
+import { RepositoryIdentityConnectionRepository } from '../repository-identity/repository-identity-connection.repository';
+import { RepositoryIdentityCoordinatorService } from '../repository-identity/repository-identity-coordinator.service';
+import { RepositoryIdentityFinalizerService } from '../repository-identity/repository-identity-finalizer.service';
+import { RepositoryIdentityReadRepository } from '../repository-identity/repository-identity-read.repository';
 import { ProjectGovernanceBaselineService } from '../project/project-governance-baseline.service';
 import { ProjectGovernanceFinalizationService } from '../project/project-governance-finalization.service';
 import { RepositoryAnalysisAuditService } from '../repository-analysis/repository-analysis-audit.service';
 import { RepositoryAnalysisRunRepository } from '../repository-analysis/repository-analysis-run.repository';
+import { RepositoryAnalysisRunClaimRepository } from '../repository-analysis/repository-analysis-run-claim.repository';
 import { RepositoryAnalysisRunService } from '../repository-analysis/repository-analysis-run.service';
 import { RepositoryAnalysisStageRepository } from '../repository-analysis/repository-analysis-stage.repository';
 import { RepositoryAnalysisWorkerService } from '../repository-analysis/repository-analysis-worker.service';
@@ -47,8 +52,14 @@ export function createIntakeService(client: PrismaClient, localRoot: string) {
   const gitExecutor = new RepositoryGitExecutorService(
     config, new RepositoryGitCommandService(config),
   );
+  const coordinator = new RepositoryIdentityCoordinatorService(db);
   const connections = new RepositoryConnectionService(
-    new RepositoryConnectionRepository(db), credentials, gitExecutor, audit,
+    new RepositoryConnectionRepository(db),
+    new RepositoryIdentityConnectionRepository(coordinator),
+    new RepositoryIdentityReadRepository(db),
+    credentials,
+    gitExecutor,
+    audit,
   );
   const runRepository = new RepositoryAnalysisRunRepository(db);
   const worker = new RepositoryAnalysisWorkerService(
@@ -57,7 +68,10 @@ export function createIntakeService(client: PrismaClient, localRoot: string) {
     new RepositorySuggestionBuilderService(db), audit,
   );
   const runs = new RepositoryAnalysisRunService(
-    new RepositoryConnectionRepository(db), runRepository, worker, audit,
+    runRepository,
+    new RepositoryAnalysisRunClaimRepository(coordinator),
+    worker,
+    audit,
   );
   const apply = createSuggestionApplyService(client);
   const contractRepository = new RepositoryIntakeContractRepository(db);
@@ -69,7 +83,10 @@ export function createIntakeService(client: PrismaClient, localRoot: string) {
   const finalization = new ProjectIntakeFinalizationService(
     new ProjectIntakeFinalizationRecordRepository(db),
     new ProjectIntakeFinalizationExecutorService(
-      db, governance, new RepositoryIntakeSnapshotIntegrityService(),
+      db,
+      governance,
+      new RepositoryIdentityFinalizerService(),
+      new RepositoryIntakeSnapshotIntegrityService(),
     ),
   );
   return new ProjectIntakeService(

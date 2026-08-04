@@ -2,11 +2,14 @@ import { Module } from "@nestjs/common";
 import { ControlAccessPolicyModule } from "../control-access-policy";
 import { PrismaModule } from "../prisma/prisma.module";
 import { RepositoryAnalysisModule } from "../repository-analysis/repository-analysis.module";
+import { RepositoryIdentityModule } from "../repository-identity/repository-identity.module";
 import { LocalReleaseBuildExecutorService } from "./local-release-build-executor.service";
 import { LocalReleaseStagingExecutorService } from "./local-release-staging-executor.service";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
 import { ReleaseBuildRepository } from "./release-build.repository";
+import { ReleaseBuildResultRepository } from "./release-build-result.repository";
 import { ReleaseBuildService } from "./release-build.service";
+import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
 import { ReleaseBuildExecutorPort } from "./release-build.types";
 import { ReleaseStagingRepository } from "./release-staging.repository";
 import { ReleaseStagingService } from "./release-staging.service";
@@ -49,7 +52,12 @@ import { ReleaseDeliveryCompatibilityService } from "./release-delivery-compatib
 import { GateEvaluationRepository } from "./gate-evaluation.repository";
 
 @Module({
-  imports: [PrismaModule, ControlAccessPolicyModule, RepositoryAnalysisModule],
+  imports: [
+    PrismaModule,
+    ControlAccessPolicyModule,
+    RepositoryAnalysisModule,
+    RepositoryIdentityModule,
+  ],
   controllers: [
     ReleaseOrderController,
     EnvironmentVersionController,
@@ -65,7 +73,9 @@ import { GateEvaluationRepository } from "./gate-evaluation.repository";
     LocalReleaseBuildExecutorService,
     LocalReleaseStagingExecutorService,
     ReleaseBuildRepository,
+    ReleaseBuildResultRepository,
     ReleaseBuildService,
+    ReleaseBuildSourceResolverService,
     ReleaseStagingRepository,
     ReleaseStagingService,
     ReleaseProductionRepository,

@@ -47,7 +47,17 @@
   MySQL race/no-mutation and drift/no-governance regressions passed.
   F461 durable multi-replica analysis execution and F462 Git egress/SSRF policy
   are registered for post-parity hardening and were not implemented in F415.
-  **Next: F416 canonical repository identity drift enforcement.**
+
+- F416 closed on 2026-08-04: canonical repository identity is immutable after
+  finalization; append-only branch revisions own the effective branch/SHA, and
+  BuildRun reservation revalidates provider/key/URL/revision ownership under a
+  Project row lock. Fresh MySQL, real Git and authenticated Browser evidence
+  proved R1 to R2 revision, high-risk audit, successful exact R2 build, locked
+  replacement 409 with an unchanged database fingerprint, migration-required
+  fail-closed UI and zero Secret leakage. Evidence is stored under
+  `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f416/`.
+  F463 registers legacy identity inventory/collision remediation and was not
+  implemented by F416. **Next: F417 project-directory parity.**
 
 - F383 + F384 were integrated onto local `master@68aabfa7` on 2026-07-29.
   The authoritative merge-readiness source is

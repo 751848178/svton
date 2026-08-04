@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
+import { RepositoryIdentityFinalizerService } from "../repository-identity/repository-identity-finalizer.service";
 import { ProjectGovernanceBaselineService } from "../project/project-governance-baseline.service";
 import { ProjectGovernanceFinalizationService } from "../project/project-governance-finalization.service";
 import { GeneratedProjectDraftService } from "../project/generated-project-draft.service";
@@ -22,7 +23,6 @@ export interface ProjectIntakeIntegrationProject {
   reviewSnapshotHash: string;
   repositoryUrl: string;
 }
-
 export class ProjectIntakeFinalizationIntegrationFixture {
   readonly prisma = new PrismaClient();
   readonly suffix = randomUUID();
@@ -62,6 +62,7 @@ export class ProjectIntakeFinalizationIntegrationFixture {
     const executor = new ProjectIntakeFinalizationExecutorService(
       prisma,
       this.governance,
+      new RepositoryIdentityFinalizerService(),
       new RepositoryIntakeSnapshotIntegrityService(),
     );
     this.service = new ProjectIntakeFinalizationService(records, executor);

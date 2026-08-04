@@ -1,11 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { assertStoredConnection } from "../repository-identity/repository-identity-policy.utils";
+import { identityConflict } from "../repository-identity/repository-identity.errors";
 import type { ReleaseBuildInputSnapshot } from "./release-build.types";
-
-const buildInclude = {
-  manifest: { include: { items: { orderBy: { componentKey: "asc" as const } } } },
-} as const;
+import { releaseBuildInclude } from "./release-build.prisma";
 
 @Injectable()
 export class ReleaseBuildRepository {
@@ -42,7 +41,7 @@ export class ReleaseBuildRepository {
   list(teamId: string, projectId: string, releaseOrderId: string) {
     return this.prisma.buildRun.findMany({
       where: { teamId, projectId, releaseOrderId },
-      include: buildInclude,
+      include: releaseBuildInclude,
       orderBy: [{ revision: "desc" }, { id: "desc" }],
     });
   }
@@ -54,8 +53,37 @@ export class ReleaseBuildRepository {
     actorId: string;
     snapshot: ReleaseBuildInputSnapshot;
     inputHash: string;
+    expectedCanonicalKey: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${input.projectId} FOR UPDATE`;
+      const project = await tx.project.findUniqueOrThrow({
+        where: { id: input.projectId },
+        select: {
+          repositoryIdentity: { include: { currentRevision: true } },
+          repositoryConnection: true,
+        },
+      });
+      const expected = input.snapshot.repositoryIdentity;
+      if (
+        !project.repositoryIdentity
+        || project.repositoryIdentity.id !== expected.id
+        || project.repositoryIdentity.currentRevisionId !== expected.revisionId
+        || project.repositoryIdentity.canonicalKey !== input.expectedCanonicalKey
+        || project.repositoryIdentity.provider !== expected.provider
+        || project.repositoryIdentity.canonicalUrl !== expected.canonicalUrl
+        || project.repositoryIdentity.currentRevision?.revision !== expected.revision
+        || project.repositoryIdentity.currentRevision?.defaultBranch !== input.snapshot.sourceBranch
+        || project.repositoryIdentity.currentRevision?.identityId !== expected.id
+        || project.repositoryIdentity.currentRevision?.projectId !== input.projectId
+      ) {
+        throw identityConflict(
+          "PROJECT_REPOSITORY_BUILD_SOURCE_DRIFT",
+          "构建来源在提交 BuildRun 前已发生变化",
+          "请刷新发布单并基于当前仓库修订重新构建。",
+        );
+      }
+      assertStoredConnection(project.repositoryIdentity, project.repositoryConnection);
       await tx.$queryRaw`SELECT id FROM ReleaseOrder WHERE id = ${input.releaseOrderId} FOR UPDATE`;
       const latest = await tx.buildRun.findFirst({
         where: { releaseOrderId: input.releaseOrderId },
@@ -68,6 +96,8 @@ export class ReleaseBuildRepository {
           projectId: input.projectId,
           releaseOrderId: input.releaseOrderId,
           triggeredById: input.actorId,
+          repositoryIdentityId: expected.id,
+          repositoryIdentityRevisionId: expected.revisionId,
           revision: (latest?.revision || 0) + 1,
           sourceBranch: input.snapshot.sourceBranch,
           sourceCommitSha: input.snapshot.sourceCommitSha,
@@ -76,93 +106,8 @@ export class ReleaseBuildRepository {
           status: "running",
           startedAt: new Date(),
         },
-        include: buildInclude,
+        include: releaseBuildInclude,
       });
-    });
-  }
-
-  succeed(input: {
-    buildRunId: string;
-    teamId: string;
-    projectId: string;
-    releaseOrderId: string;
-    digest: string;
-    uri: string;
-    sizeBytes: number;
-    sourceBranch: string;
-    sourceCommitSha: string;
-    inputHash: string;
-    logReference: string;
-    logSummary: Record<string, unknown>;
-    gateSummary: Record<string, unknown>;
-  }) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.buildRun.update({
-        where: { id: input.buildRunId },
-        data: {
-          status: "succeeded",
-          logReference: input.logReference,
-          logSummary: input.logSummary as Prisma.InputJsonValue,
-          gateSummary: input.gateSummary as Prisma.InputJsonValue,
-          finishedAt: new Date(),
-        },
-      });
-      await tx.artifactManifest.create({
-        data: {
-          teamId: input.teamId,
-          projectId: input.projectId,
-          releaseOrderId: input.releaseOrderId,
-          buildRunId: input.buildRunId,
-          digest: input.digest,
-          provenance: {
-            source: "release_build",
-            immutable: true,
-            sourceBranch: input.sourceBranch,
-            sourceCommitSha: input.sourceCommitSha,
-            inputHash: input.inputHash,
-          },
-          items: {
-            create: [{
-              componentKey: "project-bundle",
-              artifactType: "zip",
-              uri: input.uri,
-              digest: input.digest,
-              metadata: { sizeBytes: input.sizeBytes },
-            }],
-          },
-        },
-      });
-      await tx.releaseOrder.update({
-        where: { id: input.releaseOrderId },
-        data: { status: "active" },
-      });
-      return tx.buildRun.findUniqueOrThrow({
-        where: { id: input.buildRunId },
-        include: buildInclude,
-      });
-    });
-  }
-
-  async fail(input: {
-    buildRunId: string;
-    code: string;
-    message: string;
-    logReference: string;
-    logSummary: Record<string, unknown>;
-    gateSummary: Record<string, unknown>;
-  }) {
-    return this.prisma.buildRun.update({
-      where: { id: input.buildRunId },
-      data: {
-        status: "failed",
-        errorCode: input.code,
-        errorMessage: input.message,
-        logReference: input.logReference,
-        logSummary: input.logSummary as Prisma.InputJsonValue,
-        gateSummary: input.gateSummary as Prisma.InputJsonValue,
-        finishedAt: new Date(),
-      },
-      include: buildInclude,
     });
   }
 }

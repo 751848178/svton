@@ -9,6 +9,7 @@ describe("normalizeRepositoryIdentity", () => {
     expect(normalizeRepositoryIdentity(repositoryUrl)).toEqual({
       canonicalKey: "github.com/example/service",
       canonicalUrl: "https://github.com/example/service",
+      provider: "github",
     });
   });
 
@@ -18,6 +19,7 @@ describe("normalizeRepositoryIdentity", () => {
       expect(normalizeRepositoryIdentity(repositoryUrl)).toEqual({
         canonicalKey: "local/tmp/example/service",
         canonicalUrl: "file:///tmp/example/service",
+        provider: "local",
       });
     },
   );

@@ -24,7 +24,12 @@ export interface ReleaseOrderDetail extends ReleaseOrderItem {
   resumeStep: ReleaseOrderStep;
   preflight: {
     ready: boolean;
-    repository: { ready: boolean; branch: string | null };
+    repository: {
+      ready: boolean;
+      branch: string | null;
+      identityRevisionId: string | null;
+      identityRevision: number | null;
+    };
     staging: { ready: boolean };
     production: { ready: boolean };
   };
@@ -41,6 +46,13 @@ export interface ReleaseBuildItem {
   revision: number;
   sourceBranch: string;
   sourceCommitSha: string;
+  sourceRepository: null | {
+    provider: string;
+    canonicalUrl: string;
+    identityRevisionId: string;
+    identityRevision: number;
+    branch: string;
+  };
   status: string;
   logReference: string | null;
   logSummary: unknown;

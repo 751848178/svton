@@ -30,26 +30,36 @@ describe("ReleaseBuildService", () => {
     context: jest.fn(),
     list: jest.fn(),
     reserve: jest.fn(),
-    succeed: jest.fn(),
-    fail: jest.fn(),
   };
-  const credentials = { resolveStored: jest.fn() };
+  const results = { succeed: jest.fn(), fail: jest.fn() };
   const cleanup = jest.fn();
-  const git = { resolveRef: jest.fn(), checkout: jest.fn() };
+  const git = { checkout: jest.fn() };
+  const sources = { resolve: jest.fn() };
   const executor = { execute: jest.fn() };
   const service = new ReleaseBuildService(
     repository as never,
-    credentials as never,
+    results as never,
     git as never,
+    sources as never,
     executor as never,
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
     repository.context.mockResolvedValue(context);
-    credentials.resolveStored.mockResolvedValue({ kind: "none" });
-    git.resolveRef.mockResolvedValue({
-      selectedBranch: "main",
+    sources.resolve.mockResolvedValue({
+      context,
+      connection,
+      credential: { kind: "none" },
+      identity: {
+        id: "identity-1",
+        revisionId: "revision-1",
+        revision: 1,
+        provider: "generic",
+        canonicalKey: "example.com/repo",
+        canonicalUrl: "https://example.com/repo",
+        branch: "main",
+      },
       commitSha: "b".repeat(40),
     });
     git.checkout.mockResolvedValue({ root: "/tmp/build", cleanup });
@@ -59,17 +69,13 @@ describe("ReleaseBuildService", () => {
       logs: ["build ok"],
       gateSummary: { build: { status: "passed" } },
     });
-    repository.succeed.mockResolvedValue(record(1, "succeeded", { id: "manifest-1" }));
-    repository.fail.mockResolvedValue(record(1, "failed"));
+    results.succeed.mockResolvedValue(record(1, "succeeded", { id: "manifest-1" }));
+    results.fail.mockResolvedValue(record(1, "failed"));
   });
 
   it("resolves the server-side default branch and freezes its latest commit", async () => {
     await service.build("team-1", "user-1", "project-1", "order-1");
-    expect(git.resolveRef).toHaveBeenCalledWith(
-      connection.repositoryUrl,
-      "main",
-      expect.anything(),
-    );
+    expect(sources.resolve).toHaveBeenCalledWith("team-1", "project-1", "order-1");
     expect(repository.reserve).toHaveBeenCalledWith(expect.objectContaining({
       snapshot: expect.objectContaining({
         repositoryUrl: "https://[REDACTED]@example.com/repo.git",
@@ -89,10 +95,10 @@ describe("ReleaseBuildService", () => {
   it("creates an independent reserved run for every build request", async () => {
     await service.build("team-1", "user-1", "project-1", "order-1");
     repository.reserve.mockResolvedValue(record(2, "running"));
-    repository.succeed.mockResolvedValue(record(2, "succeeded", { id: "manifest-2" }));
+    results.succeed.mockResolvedValue(record(2, "succeeded", { id: "manifest-2" }));
     await service.build("team-1", "user-1", "project-1", "order-1");
     expect(repository.reserve).toHaveBeenCalledTimes(2);
-    expect(repository.succeed).toHaveBeenCalledTimes(2);
+    expect(results.succeed).toHaveBeenCalledTimes(2);
   });
 
   it("records a failed BuildRun without creating a Manifest", async () => {
@@ -105,17 +111,14 @@ describe("ReleaseBuildService", () => {
     await expect(
       service.build("team-1", "user-1", "project-1", "order-1"),
     ).resolves.toEqual(expect.objectContaining({ status: "failed", manifest: null }));
-    expect(repository.fail).toHaveBeenCalledWith(expect.objectContaining({
+    expect(results.fail).toHaveBeenCalledWith(expect.objectContaining({
       code: "BUILD_COMMAND_FAILED",
     }));
-    expect(repository.succeed).not.toHaveBeenCalled();
+    expect(results.succeed).not.toHaveBeenCalled();
   });
 
   it("fails closed before execution when the main repository is not connected", async () => {
-    repository.context.mockResolvedValue({
-      ...context,
-      project: { ...context.project, repositoryConnection: null },
-    });
+    sources.resolve.mockRejectedValue(new UnprocessableEntityException("not ready"));
     await expect(
       service.build("team-1", "user-1", "project-1", "order-1"),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
@@ -141,5 +144,7 @@ function record(revision: number, status: string, manifest: unknown = null) {
     finishedAt: status === "running" ? null : new Date(),
     createdAt: new Date(),
     manifest,
+    repositoryIdentity: { provider: "generic", canonicalUrl: "https://example.com/repo" },
+    repositoryIdentityRevision: { id: "revision-1", revision: 1, defaultBranch: "main" },
   };
 }

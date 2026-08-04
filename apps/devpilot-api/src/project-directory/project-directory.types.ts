@@ -43,6 +43,8 @@ export interface ProjectDirectoryItem {
     provider: string;
     canonicalUrl: string | null;
     defaultBranch: string | null;
+    identityRevisionId: string | null;
+    identityRevision: number | null;
     commitSha: string | null;
     status: string;
   } | null;

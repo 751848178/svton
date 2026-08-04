@@ -14,11 +14,30 @@ export const PROJECT_DIRECTORY_SELECT =
     updatedAt: true,
     createdBy: { select: { id: true, name: true, email: true } },
     repositoryIdentity: {
-      select: { provider: true, canonicalUrl: true, defaultBranch: true },
+      select: {
+        id: true,
+        projectId: true,
+        provider: true,
+        canonicalKey: true,
+        canonicalUrl: true,
+        lockedAt: true,
+        currentRevision: {
+          select: {
+            id: true,
+            revision: true,
+            defaultBranch: true,
+            reason: true,
+            createdAt: true,
+            identityId: true,
+            projectId: true,
+          },
+        },
+      },
     },
     repositoryConnection: {
       select: {
         provider: true,
+        repositoryUrl: true,
         defaultBranch: true,
         selectedBranch: true,
         commitSha: true,

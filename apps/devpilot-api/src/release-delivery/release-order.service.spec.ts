@@ -88,7 +88,30 @@ describe("ReleaseOrderService", () => {
       ...record,
       _count: { buildRuns: 2, manifests: 1, releaseRuns: 0 },
       project: {
-        repositoryConnection: { status: "connected", defaultBranch: "main" },
+        repositoryConnection: {
+          repositoryUrl: "https://example.com/repo.git",
+          provider: "generic",
+          status: "connected",
+          defaultBranch: "main",
+          selectedBranch: "main",
+        },
+        repositoryIdentity: {
+          id: "identity-1",
+          projectId: "project-1",
+          provider: "generic",
+          canonicalKey: "example.com/repo",
+          canonicalUrl: "https://example.com/repo",
+          lockedAt: new Date(),
+          currentRevision: {
+            id: "revision-1",
+            revision: 1,
+            defaultBranch: "main",
+            reason: "initial",
+            createdAt: new Date(),
+            identityId: "identity-1",
+            projectId: "project-1",
+          },
+        },
         environments: [
           { id: "staging", baselineRole: "staging" },
           { id: "production", baselineRole: "production" },

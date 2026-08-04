@@ -62,7 +62,7 @@
 | F413 | done | 固化本次审计差距、Demo/spec 哈希、剩余 TODO 和逐项验收清单。 | Docs only；不改产品行为。 | AC-000～AC-006；本文件与 parity acceptance 文件存在且互相引用。 |
 | F414 | done | 让“生成新项目”和“三步接入已有项目”最终创建同一种 READY Project、唯一 Staging/Production baseline 和首个配置修订。 | 单一 `ProjectGovernanceFinalizationService` owner；生成请求必须带持久 attempt key，数据库 claim 只选中一个唯一 attempt artifact，失败 sibling 不删除 winner；未改发布 UI。 | AC-PROJ-001～006；真实 MySQL 两条入口均为 READY、1+1 baseline、2 个 R1/current，响应丢失重放、异输入拒绝、artifact ownership、回滚/幂等/并发通过。 |
 | F415 | done | 把仓库识别结果整理为项目类型、架构、部署方案、组件、路径、构建输出和运行方式的结构化可编辑合同。 | Repository-analysis typed read/review model + race-safe immutable review snapshot；快照后 generic apply 无副作用 409，finalize 拒绝状态漂移；不改项目首页。 | AC-INTAKE-001～007；真实仓库分析可核对和调整，不显示原始 JSON；确定性 MySQL 竞态/无变更、Git/Browser 证据完成。 |
-| F416 | pending | 锁定 finalized 项目的 canonical repository identity，并拒绝构建来源与锁定身份漂移。 | Repository connection/intake/build source policy。 | AC-IDENTITY-001～005；设置、API、构建负例一致。 |
+| F416 | done | 锁定 finalized 项目的 canonical repository identity，并拒绝构建来源与锁定身份漂移。 | Repository connection/intake/build source policy；READY legacy 无 current identity revision 时 fail closed。 | AC-IDENTITY-001～005；真实 MySQL/Git、Browser R2/BuildRun、409 无变更和零 Secret 泄漏通过。 |
 | F417 | pending | 补齐项目目录的单一状态筛选语义、最近活动排序和 Demo 信息密度。 | Project-directory query/presenter/Web list。 | AC-DIR-001～010；同 viewport 对照通过。 |
 | F418 | pending | 增加项目首页弱摘要读模型：项目形态、环境就绪、资源、入口、Staging/Production 当前版本。 | Project delivery summary API/types；不改详情步骤。 | AC-HOME-001～005；摘要全部来自真实关系。 |
 | F419 | pending | 实现发布单列表搜索、状态筛选、最近执行排序、构建/部署计数和最后执行步骤。 | ReleaseOrder list/read model/query/Web list。 | AC-HOME-006～013；无前端全量拼接。 |
@@ -139,6 +139,7 @@
 | --- | --- | --- | --- | --- |
 | F461 | pending | 建立 durable repository-analysis execution：原子 DB claim/lease（owner/attempt/expiry）、heartbeat、stale takeover、CAS terminalization、exactly-one suggestion snapshot，以及 restart/multi-replica recovery。 | Repository-analysis execution ownership only；排在既定 parity slices 之后，不在 F415 实现。 | 真实 MySQL 双 worker、cancel/timeout/retry/stale-writer 证明。 |
 | F462 | pending | 建立 repository Git egress/SSRF policy：批准 provider/self-hosted allowlist、DNS/IP resolution and pinning、拦截 loopback/link-local/private/metadata/redirect/rebinding，并规范 SSH/scp URL。 | Repository Git network boundary only；排在既定 parity slices 之后，不在 F415 实现。 | 真实负向网络与 URL 规范化测试。 |
+| F463 | pending | 建立 legacy repository identity inventory 和 collision-safe remediation：先 dry-run 报告 canonical/alias/provider/current-revision 冲突，再以可审计、幂等、可恢复事务创建 identity + initial revision 并逐项 reconcile。 | 历史 READY/connected 项目迁移 only；F416 只 fail closed，不推断或自动修复 legacy 身份。 | fresh/upgrade MySQL inventory、collision stop、idempotent apply/replay、partial-failure recovery、audit 和 post-migration build 证明。 |
 
 ## Worker Granularity Contract
 

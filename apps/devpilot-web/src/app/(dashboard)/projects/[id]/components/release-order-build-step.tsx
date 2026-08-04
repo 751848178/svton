@@ -27,11 +27,21 @@ export function ReleaseOrderBuildStep(props: Props) {
           <h3 className="font-semibold">{t('releaseStepBuildTitle')}</h3>
           <p className="mt-1 text-sm text-muted-foreground">{t('releaseStepBuildDescription')}</p>
         </div>
-        <Button onClick={() => void builds.buildLatest()} loading={builds.building}>
+        <Button
+          onClick={() => void builds.buildLatest()}
+          loading={builds.building}
+        >
           {t('buildLatestCode')}
         </Button>
       </div>
-      {builds.error ? <p className="text-sm text-destructive" role="alert">{builds.error}</p> : null}
+      {builds.error ? (
+        <p
+          className="text-sm text-destructive"
+          role="alert"
+        >
+          {builds.error}
+        </p>
+      ) : null}
       {!builds.loading && builds.items.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           {t('releaseBuildEmpty')}
@@ -39,7 +49,10 @@ export function ReleaseOrderBuildStep(props: Props) {
       ) : null}
       <div className="space-y-3">
         {builds.items.map((run) => (
-          <article key={run.id} className="rounded-md border p-4">
+          <article
+            key={run.id}
+            className="rounded-md border p-4"
+          >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="space-y-1 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
@@ -49,20 +62,42 @@ export function ReleaseOrderBuildStep(props: Props) {
                     label={t(`releaseBuildStatus${statusKey(run.status)}`)}
                   />
                 </div>
-                <p className="font-mono text-xs">{run.sourceBranch}@{run.sourceCommitSha}</p>
-                {run.manifest ? <p className="break-all font-mono text-xs">{run.manifest.digest}</p> : null}
+                <p className="font-mono text-xs">
+                  {run.sourceBranch}@{run.sourceCommitSha}
+                </p>
+                {run.sourceRepository ? (
+                  <p className="break-all text-xs text-muted-foreground">
+                    {t('releaseBuildIdentitySummary', {
+                      provider: run.sourceRepository.provider,
+                      revision: run.sourceRepository.identityRevision,
+                      url: run.sourceRepository.canonicalUrl,
+                    })}
+                  </p>
+                ) : null}
+                {run.manifest ? (
+                  <p className="break-all font-mono text-xs">{run.manifest.digest}</p>
+                ) : null}
                 {run.errorMessage ? (
-                  <p className="text-destructive">{run.errorCode}: {run.errorMessage}</p>
+                  <p className="text-destructive">
+                    {run.errorCode}: {run.errorMessage}
+                  </p>
                 ) : null}
               </div>
-              <Button variant="outline" size="sm" onClick={() => props.onOpenLog(run.id)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => props.onOpenLog(run.id)}
+              >
                 {t('viewReleaseBuildLogs')}
               </Button>
             </div>
           </article>
         ))}
       </div>
-      <ReleaseBuildLogDrawer run={focused} onClose={props.onCloseLog} />
+      <ReleaseBuildLogDrawer
+        run={focused}
+        onClose={props.onCloseLog}
+      />
     </div>
   );
 }

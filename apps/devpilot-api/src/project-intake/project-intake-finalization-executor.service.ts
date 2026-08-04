@@ -7,12 +7,12 @@ import {
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProjectGovernanceFinalizationService } from "../project/project-governance-finalization.service";
+import { RepositoryIdentityFinalizerService } from "../repository-identity/repository-identity-finalizer.service";
 import { intakeError } from "./project-intake-errors.utils";
 import type {
   FinalizeProjectIntakeInput,
   ProjectIntakeFinalizationResult,
 } from "./project-intake.types";
-import { normalizeRepositoryIdentity } from "./project-repository-identity.utils";
 import { RepositoryIntakeSnapshotIntegrityService } from "./repository-intake-snapshot-integrity.service";
 
 @Injectable()
@@ -20,6 +20,7 @@ export class ProjectIntakeFinalizationExecutorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly governance: ProjectGovernanceFinalizationService,
+    private readonly identities: RepositoryIdentityFinalizerService,
     private readonly snapshotIntegrity: RepositoryIntakeSnapshotIntegrityService,
   ) {}
 
@@ -98,44 +99,17 @@ export class ProjectIntakeFinalizationExecutorService {
     }
     this.snapshotIntegrity.assertMatches(run.suggestions, reviewSnapshot, connection);
 
-    const normalized = normalizeRepositoryIdentity(connection.repositoryUrl);
-    if (!normalized)
-      throw new BadRequestException(
-        intakeError(
-          "PROJECT_REPOSITORY_IDENTITY_INVALID",
-          "无法生成仓库规范身份",
-          "请重新连接有效的 HTTPS、SSH 或本地 Git 仓库。",
-        ),
-      );
-    if (
-      project.repositoryIdentity &&
-      project.repositoryIdentity.canonicalKey !== normalized.canonicalKey
-    ) {
-      throw new ConflictException(
-        intakeError(
-          "PROJECT_REPOSITORY_IDENTITY_LOCKED",
-          "项目仓库身份已锁定为其他仓库",
-          "请保留已锁定仓库，或创建新的项目。",
-        ),
-      );
-    }
-
-    const lockedAt = new Date();
-    const identity =
-      project.repositoryIdentity ??
-      (await tx.projectRepositoryIdentity.create({
-        data: {
-          teamId: input.teamId,
-          projectId: project.id,
-          repositoryConnectionId: connection.id,
-          provider: connection.provider,
-          providerRepositoryId: connection.externalRepositoryId,
-          canonicalKey: normalized.canonicalKey,
-          canonicalUrl: normalized.canonicalUrl,
-          defaultBranch: connection.defaultBranch,
-          lockedAt,
-        },
-      }));
+    const identity = await this.identities.lock(tx, {
+      teamId: input.teamId,
+      projectId: project.id,
+      actorId: input.actorId,
+      connectionId: connection.id,
+      repositoryUrl: connection.repositoryUrl,
+      providerRepositoryId: connection.externalRepositoryId,
+      defaultBranch: connection.defaultBranch,
+      commitSha: connection.commitSha,
+      existing: project.repositoryIdentity,
+    });
     const governance = await this.governance.finalizeTransaction(tx, {
       teamId: input.teamId,
       projectId: input.projectId,

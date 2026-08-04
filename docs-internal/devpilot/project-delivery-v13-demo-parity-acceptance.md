@@ -65,11 +65,13 @@ F414 evidence: `f414/svton/f414-mysql-clean-integration-20260804-115818.log` rec
 
 F415 evidence: real Git `main@196d1de753ea34c822d11b1a8ed0a0937bce97dc` remained at tree `76970f2180aa60c131dfce9f979441509786f48c` with a clean status after connect/analyze/retry/review/finalize. Real MySQL persisted immutable snapshot `cmseajium0017pkx6q2l1vvux` / `acbfeada48e1df4fe661b53038c09ffcd63d93c9e968387f4fcbb29dcd8586ac`, and finalization bound that exact ID/hash. Browser screenshots `01`–`09` cover private credential intake, real failure/retry, structured overview/components, dependency blocker/recovery, frozen Step 3, post-finalization project, refresh/back read-only review, and English copy. Independent review rejected baseline `c53363ce` because the legacy generic apply route could mutate a run after snapshot creation. The correction serializes both apply routes on the analysis-run row, rejects post-snapshot generic apply before side effects, renders from snapshot decisions, and rejects finalization drift. A deterministic MySQL lock-wait race, exact no-mutation comparison, deliberate drift 409 with zero governance writes, then restored successful finalization now close that P1. Accepted and rejected evidence is recorded under `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f415/`.
 
-- [ ] **AC-IDENTITY-001** finalize 后 canonical repository identity 只读可见。
-- [ ] **AC-IDENTITY-002** 修改仓库地址或 provider 不得使 connection 与 canonical identity 漂移。
-- [ ] **AC-IDENTITY-003** 主分支调整遵循显式权限、修订和审计策略。
-- [ ] **AC-IDENTITY-004** BuildRun 的 source repository/branch 必须与生效身份一致。
-- [ ] **AC-IDENTITY-005** 跨仓库、重复仓库、已锁定身份替换和活跃分析并发负例全部拒绝。
+- [x] **AC-IDENTITY-001** finalize 后 canonical repository identity 只读可见。
+- [x] **AC-IDENTITY-002** 修改仓库地址或 provider 不得使 connection 与 canonical identity 漂移。
+- [x] **AC-IDENTITY-003** 主分支调整遵循显式权限、修订和审计策略。
+- [x] **AC-IDENTITY-004** BuildRun 的 source repository/branch 必须与生效身份一致。
+- [x] **AC-IDENTITY-005** 跨仓库、重复仓库、已锁定身份替换和活跃分析并发负例全部拒绝。
+
+F416 evidence: canonical repository identity and append-only branch revisions are now the single source boundary for connection, intake, analysis and BuildRun reservation. Project-row locking, canonical key/provider/URL checks, current-revision ownership and CAS/idempotency reject replacement, duplicate, drift and active-analysis races before credentials, Git checkout or BuildRun creation. A fresh disposable MySQL database and real local Git repository passed the identity, release-build and adjacent intake regressions. The authenticated Browser flow visibly revised `main@0d18abd4...` R1 to `release@993ba4dd...` R2, emitted one high-risk audit event and produced successful Build #1 pinned to R2 with the same provider/canonical URL/branch/SHA. A direct locked replacement returned 409 with identical before/after connection, canonical identity, revision, analysis, BuildRun, audit and credential counts; the secret sentinel had zero hits in DB, API response, runtime logs and Browser DOM/HTML/console. READY legacy rows without a current identity revision fail closed; their inventory/collision-safe remediation is registered as F463 and is not claimed by F416. Evidence is indexed under `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f416/`.
 
 ## Project Delivery Home And Release List
 
