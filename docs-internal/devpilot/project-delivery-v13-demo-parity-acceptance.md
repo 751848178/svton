@@ -133,12 +133,12 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [ ] **AC-ORDER-020** 项目级专业部署深链可达，但不与发布单争夺主导航。
 - [ ] **AC-ORDER-021** 所有运行记录只追加，历史不可覆盖。
 
-- [ ] **AC-GATE-001** 前置检查首屏显示来源/CI、影响识别、Secret/安全和配置/资源等 MVP 摘要。
-- [ ] **AC-GATE-002** 显示 15 个 MVP 能力组总数和整体是否允许进入下一步。
-- [ ] **AC-GATE-003** 可下钻完整 51 项目录。
-- [ ] **AC-GATE-004** 51 项按 Commit 10、Build 11、Deploy 20、Promote 10 分组。
-- [ ] **AC-GATE-005** 每项显示状态、Provider、原因、证据引用、检查时间和过期时间。
-- [ ] **AC-GATE-006** `unavailable`、`needs_human`、warning、failed 与 passed 视觉/语义不同。
+- [x] **AC-GATE-001** 前置检查首屏显示来源/CI、影响识别、Secret/安全和配置/资源等 MVP 摘要。
+- [x] **AC-GATE-002** 显示 15 个 MVP 能力组总数和整体是否允许进入下一步。
+- [x] **AC-GATE-003** 可下钻完整 51 项目录。
+- [x] **AC-GATE-004** 51 项按 Commit 10、Build 11、Deploy 20、Promote 10 分组。
+- [x] **AC-GATE-005** 每项显示状态、Provider、原因、证据引用、检查时间和过期时间。
+- [x] **AC-GATE-006** `unavailable`、`needs_human`、warning、failed 与 passed 视觉/语义不同。
 - [ ] **AC-GATE-007** 必需来源/CI 门禁失败时服务端拒绝 Build。
 - [ ] **AC-GATE-008** 必需构建/制品门禁失败时服务端拒绝 Staging。
 - [ ] **AC-GATE-009** 必需部署/入口门禁失败时服务端拒绝 Production。

@@ -8,6 +8,13 @@ export type ReleaseGateStatus =
 
 export type ReleaseGatePhase = 'commit' | 'build' | 'deploy' | 'promote';
 export type LocalizedGateText = { zh: string; en: string };
+export type ReleaseGatePersistedStatus =
+  | 'pending'
+  | 'passed'
+  | 'warning'
+  | 'failed'
+  | 'unavailable'
+  | 'needs_human';
 
 export type ReleaseGateCheck = {
   id: string;
@@ -25,6 +32,10 @@ export type ReleaseGateCheck = {
   checkedAt: string | null;
   expiresAt: string | null;
   fresh: boolean | null;
+  evaluationId: string;
+  definitionVersion: string;
+  persistedStatus: ReleaseGatePersistedStatus;
+  persistedAt: string;
 };
 
 export type ReleaseGateCatalog = {

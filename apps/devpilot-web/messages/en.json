@@ -763,11 +763,55 @@
     "releaseGateCatalogTitle": "Full gate catalog",
     "releaseGateCatalogDescription": "The versioned 51-check catalog remains available for professional provider and evidence drill-down.",
     "releaseGateCatalogSummary": "{total} checks; {unavailable} are currently unavailable. An unconnected provider is never treated as passed.",
-    "releaseGateCatalogExpand": "View 51 checks",
+    "releaseGateCatalogExpand": "View all 51 checks",
     "releaseGateCatalogCollapse": "Collapse catalog",
     "releaseGateCapabilityCount": "{count} MVP capability groups",
     "releaseGateEvidenceChecked": "checked at {time}",
     "releaseGateEvidenceExpires": "valid until {time}",
+    "releaseGatePreflightComplete": "Preflight checks complete",
+    "releaseGatePreflightBlocked": "Preflight checks need attention",
+    "releaseGatePreflightSummaryDescription": "This summarizes source, CI, dependencies, security, configuration, and resource baselines. Build always uses the latest Commit on the project's main branch.",
+    "releaseGateCanEnterBuild": "Can enter Build",
+    "releaseGateCannotEnterBuild": "Cannot enter Build yet ({count} to resolve)",
+    "releaseGateCatalogInvalid": "Catalog facts are incomplete; Build remains unavailable",
+    "releaseGateMvpGroups": "MVP capability groups",
+    "releaseGateFullCatalog": "Full check catalog",
+    "releaseGateCurrentConclusion": "Check conclusion",
+    "releaseGateGroupCount": "{count} groups",
+    "releaseGateCheckCount": "{count} checks",
+    "releaseGatePassingCount": "{passing}/{total} ready",
+    "releaseGateCancel": "Cancel",
+    "releaseGateClose": "Close",
+    "releaseGateCatalogIntegrityError": "The gate catalog has missing, duplicate, or inconsistent facts; the conclusion is fail-closed.",
+    "releaseGateCatalogDialogTitle": "Full gate catalog · {count} checks",
+    "releaseGateCatalogDialogDescription": "Review status, Provider, reason, and evidence freshness for every Commit, Build, Deploy, and Promote check.",
+    "releaseGateCapabilityGroupsLabel": "15 capability groups",
+    "releaseGateProviderLabel": "Provider",
+    "releaseGateReasonLabel": "Reason",
+    "releaseGateEvidenceLabel": "Evidence",
+    "releaseGateCheckedAtLabel": "Checked at",
+    "releaseGateExpiresAtLabel": "Expires at",
+    "releaseGateCapabilityLabel": "Capability",
+    "releaseGateMetadataUnavailable": "Not available",
+    "releaseGateTargetCapability": "Target context",
+    "releaseGatePreview": {
+      "source": {
+        "title": "Source and required CI",
+        "description": "{passing} of {total} source and CI checks are ready"
+      },
+      "impact": {
+        "title": "Change impact",
+        "description": "{passing} of {total} impact checks are ready"
+      },
+      "security": {
+        "title": "Secrets and critical vulnerabilities",
+        "description": "{passing} of {total} security checks are ready"
+      },
+      "baseline": {
+        "title": "Configuration and resource baseline",
+        "description": "{passing} of {total} configuration and resource checks are ready"
+      }
+    },
     "releaseGatePhase": {
       "commit": "Commit Gate",
       "build": "Build Gate",
@@ -775,11 +819,11 @@
       "promote": "Promote Gate"
     },
     "releaseGateStatus": {
-      "checked": "Checked",
-      "unchecked": "Unchecked",
-      "blocked": "Blocked",
+      "checked": "Passed",
+      "unchecked": "Pending",
+      "blocked": "Failed",
       "warning": "Warning",
-      "manual": "Manual",
+      "manual": "Needs human",
       "unavailable": "Unavailable"
     },
     "retry": "Retry",

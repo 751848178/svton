@@ -763,11 +763,55 @@
     "releaseGateCatalogTitle": "完整门禁目录",
     "releaseGateCatalogDescription": "版本化保留 51 项检查；专业用户可下钻查看 Provider 与证据状态。",
     "releaseGateCatalogSummary": "共 {total} 项，当前 {unavailable} 项不可用；未接 Provider 不会被视为通过。",
-    "releaseGateCatalogExpand": "查看 51 项",
+    "releaseGateCatalogExpand": "查看全部 51 项",
     "releaseGateCatalogCollapse": "收起目录",
     "releaseGateCapabilityCount": "{count} 个 MVP 能力组",
     "releaseGateEvidenceChecked": "检查于 {time}",
     "releaseGateEvidenceExpires": "有效至 {time}",
+    "releaseGatePreflightComplete": "前置检查已完成",
+    "releaseGatePreflightBlocked": "前置检查尚未通过",
+    "releaseGatePreflightSummaryDescription": "这里汇总源码、CI、依赖、安全、配置和资源基线。构建动作固定使用项目主分支的最新 Commit。",
+    "releaseGateCanEnterBuild": "可以进入构建",
+    "releaseGateCannotEnterBuild": "暂不可进入构建（{count} 项待处理）",
+    "releaseGateCatalogInvalid": "目录事实不完整，暂不可进入构建",
+    "releaseGateMvpGroups": "MVP 能力组",
+    "releaseGateFullCatalog": "完整检查目录",
+    "releaseGateCurrentConclusion": "检查结论",
+    "releaseGateGroupCount": "{count} 组",
+    "releaseGateCheckCount": "{count} 项",
+    "releaseGatePassingCount": "{passing}/{total} 可继续",
+    "releaseGateCancel": "取消",
+    "releaseGateClose": "关闭",
+    "releaseGateCatalogIntegrityError": "门禁目录缺失、重复或数量异常；当前结论已按失败关闭。",
+    "releaseGateCatalogDialogTitle": "完整门禁目录 · {count} 项",
+    "releaseGateCatalogDialogDescription": "按 Commit、Build、Deploy、Promote 四个阶段查看每项状态、Provider、原因和证据时效。",
+    "releaseGateCapabilityGroupsLabel": "15 个能力组",
+    "releaseGateProviderLabel": "Provider",
+    "releaseGateReasonLabel": "原因",
+    "releaseGateEvidenceLabel": "证据",
+    "releaseGateCheckedAtLabel": "检查时间",
+    "releaseGateExpiresAtLabel": "有效期至",
+    "releaseGateCapabilityLabel": "能力组",
+    "releaseGateMetadataUnavailable": "暂无",
+    "releaseGateTargetCapability": "目标上下文",
+    "releaseGatePreview": {
+      "source": {
+        "title": "来源与必需 CI",
+        "description": "来源与 CI 共 {total} 项，{passing} 项可继续"
+      },
+      "impact": {
+        "title": "变更影响识别",
+        "description": "影响识别共 {total} 项，{passing} 项可继续"
+      },
+      "security": {
+        "title": "Secret 与高危漏洞",
+        "description": "安全检查共 {total} 项，{passing} 项可继续"
+      },
+      "baseline": {
+        "title": "配置与资源基线",
+        "description": "配置与资源共 {total} 项，{passing} 项可继续"
+      }
+    },
     "releaseGatePhase": {
       "commit": "Commit Gate",
       "build": "Build Gate",
@@ -775,9 +819,9 @@
       "promote": "Promote Gate"
     },
     "releaseGateStatus": {
-      "checked": "已检查",
-      "unchecked": "未检查",
-      "blocked": "阻断",
+      "checked": "通过",
+      "unchecked": "待检查",
+      "blocked": "失败",
       "warning": "警告",
       "manual": "需人工",
       "unavailable": "不可用"

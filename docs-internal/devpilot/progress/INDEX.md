@@ -34,6 +34,15 @@
   `../../todos/2026-08-03-devpilot-project-delivery-v13.md` only for the
   historical F386-F412 implementation/evidence scope.
 
+- F424 closed on 2026-08-05: the Preflight first screen now presents the real
+  15-group/51-check catalog, a fail-closed nine-Commit-check Build conclusion,
+  four frozen representative summaries and a complete accessible catalog
+  dialog. Exact 39 MVP/12 Target ownership, persisted six-state semantics,
+  scoped request races, authenticated real-MySQL Browser behavior and the
+  1484/821/820 visual boundary are verified under
+  `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f424/`.
+  **Next: F425 server-side gate enforcement.**
+
 - F415 closed on 2026-08-04: repository intake now exposes a typed three-step
   contract pinned to an exact branch/commit, structured overview and component
   fields, explicit accept/edit/reject decisions, dependency recovery, and one

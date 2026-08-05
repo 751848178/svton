@@ -1,17 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { useLocale, useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
+import React, { useId, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { useReleaseGateCatalog } from '../hooks/use-release-gate-catalog';
-import type {
-  LocalizedGateText,
-  ReleaseGatePhase,
-  ReleaseGateStatus,
-} from '../types/release-gate.types';
-
-const PHASES: ReleaseGatePhase[] = ['commit', 'build', 'deploy', 'promote'];
+import { ReleaseGateCatalogDialog } from './release-gate-catalog-dialog';
+import { ReleaseGateSummary } from './release-gate-summary';
 
 export function ReleaseGateCatalogPanel({
   projectId,
@@ -21,117 +14,50 @@ export function ReleaseGateCatalogPanel({
   releaseOrderId: string;
 }) {
   const t = useTranslations('projects');
-  const locale = useLocale();
+  const dialogId = useId();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { catalog, loading, error, load } = useReleaseGateCatalog(projectId, releaseOrderId);
-  const [expanded, setExpanded] = useState(false);
-  const localize = (text: LocalizedGateText) => locale.startsWith('zh') ? text.zh : text.en;
+
+  if (loading && !catalog) {
+    return <p className="text-sm text-muted-foreground">{t('loading')}</p>;
+  }
+
+  if (!catalog) {
+    return (
+      <div
+        role={error ? 'alert' : undefined}
+        className="rounded-lg border p-4 text-sm"
+      >
+        <p className={error ? 'text-destructive' : 'text-muted-foreground'}>
+          {error || t('releaseGateCatalogDescription')}
+        </p>
+        {error ? (
+          <button
+            type="button"
+            className="mt-2 font-medium text-primary"
+            onClick={() => void load()}
+          >
+            {t('retry')}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
-    <section className="space-y-3 rounded-md border bg-muted/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h4 className="font-medium">{t('releaseGateCatalogTitle')}</h4>
-          <p className="text-xs text-muted-foreground">
-            {catalog
-              ? t('releaseGateCatalogSummary', {
-                  total: catalog.summary.total,
-                  unavailable: catalog.summary.statusCounts.unavailable,
-                })
-              : t('releaseGateCatalogDescription')}
-          </p>
-        </div>
-        <Button variant="ghost" size="sm" onClick={() => setExpanded((value) => !value)}>
-          {expanded ? t('releaseGateCatalogCollapse') : t('releaseGateCatalogExpand')}
-        </Button>
-      </div>
-
-      {loading ? <p className="text-xs text-muted-foreground">{t('loading')}</p> : null}
-      {error ? (
-        <div className="flex items-center justify-between gap-2 text-xs text-destructive">
-          <span>{error}</span><button type="button" onClick={() => void load()}>{t('retry')}</button>
-        </div>
-      ) : null}
-
-      {expanded && catalog ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span>{catalog.catalogVersion}</span>
-            <span>·</span>
-            <span>{catalog.capabilityVersion}</span>
-            <span>·</span>
-            <span>{t('releaseGateCapabilityCount', { count: catalog.capabilities.length })}</span>
-          </div>
-          <div className="grid gap-3 lg:grid-cols-2">
-            {PHASES.map((phase) => (
-              <GatePhase
-                key={phase}
-                phase={phase}
-                checks={catalog.checks.filter((check) => check.phase === phase)}
-                localize={localize}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </section>
+    <>
+      <ReleaseGateSummary
+        catalog={catalog}
+        dialogId={dialogId}
+        dialogOpen={dialogOpen}
+        onOpenCatalog={() => setDialogOpen(true)}
+      />
+      <ReleaseGateCatalogDialog
+        catalog={catalog}
+        dialogId={dialogId}
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+      />
+    </>
   );
-}
-
-function GatePhase({
-  phase,
-  checks,
-  localize,
-}: {
-  phase: ReleaseGatePhase;
-  checks: NonNullable<ReturnType<typeof useReleaseGateCatalog>['catalog']>['checks'];
-  localize: (text: LocalizedGateText) => string;
-}) {
-  const t = useTranslations('projects');
-  const locale = useLocale();
-  return (
-    <div className="space-y-2 rounded-md border bg-background p-3">
-      <div className="flex items-center justify-between">
-        <h5 className="text-sm font-semibold">{t(`releaseGatePhase.${phase}`)}</h5>
-        <span className="text-xs text-muted-foreground">{checks.length}</span>
-      </div>
-      <div className="space-y-2">
-        {checks.map((check) => (
-          <div key={check.id} className="rounded-md border px-2 py-2 text-xs">
-            <div className="flex items-start justify-between gap-2">
-              <span><strong className="font-mono">{check.id}</strong> · {localize(check.title)}</span>
-              <StatusTag status={statusTone(check.status)} label={t(`releaseGateStatus.${check.status}`)} />
-            </div>
-            <div className="mt-1 flex flex-wrap gap-2 text-muted-foreground">
-              <span>{check.capabilityId ?? 'Target'}</span>
-              <span>·</span>
-              <span>{localize(check.reason)}</span>
-            </div>
-            {check.evidenceRef ? (
-              <div className="mt-1 break-all text-[11px] text-muted-foreground">
-                <span>{check.providerKey}</span>
-                <span> · {check.evidenceRef}</span>
-                {check.checkedAt ? (
-                  <span> · {t('releaseGateEvidenceChecked', {
-                    time: new Date(check.checkedAt).toLocaleString(locale),
-                  })}</span>
-                ) : null}
-                {check.expiresAt ? (
-                  <span> · {t('releaseGateEvidenceExpires', {
-                    time: new Date(check.expiresAt).toLocaleString(locale),
-                  })}</span>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function statusTone(status: ReleaseGateStatus) {
-  if (status === 'checked') return 'success';
-  if (status === 'blocked') return 'error';
-  if (status === 'warning' || status === 'manual') return 'warning';
-  return 'neutral';
 }
