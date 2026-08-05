@@ -119,14 +119,14 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-ORDER-009** 有 Production ReleaseRun/DeploymentRun 时默认打开生产发布。
 - [x] **AC-ORDER-010** 查看其他步骤不改变真实 resumeStep，刷新恢复最远执行步骤。
 
-> F421 的实现、MySQL、认证 API、Browser 与 P1 correction evidence 已通过；final independent seal review 以 P0/P1/P2/P3=0/0/0/0 通过，F422 保持 pending。
+> F421 的实现、MySQL、认证 API、Browser 与 P1 correction evidence 已通过；final independent seal review 以 P0/P1/P2/P3=0/0/0/0 通过。F422 的 Web-only 连接步进条、真实证据摘要、ARIA/键盘/URL 规范化及只读标题区均已完成。显式 scope identity、per-channel generation guard、卸载失效、keyed subtree 和详情/构建防御检查关闭 A→B stale-state P1；`invalidate('list')` 因果边界与 deferred L1→POST→L1 测试关闭 same-scope list-after-POST P1。完整 F422 为 9 files/61 tests；认证 Browser 10/10 与同输入 Product Design QA 通过，correction2 和 final independent reviews 均为 P0/P1/P2/P3=0/0/0/0。下列 AC-ORDER-011～016 已验收。
 
-- [ ] **AC-ORDER-011** 四步使用连接步进条而不是无状态普通 Tab。
-- [ ] **AC-ORDER-012** 每步显示编号、名称、证据摘要和完成/当前/等待/阻断状态。
-- [ ] **AC-ORDER-013** 步进条支持键盘导航、`aria-current`/selected 和稳定 URL。
-- [ ] **AC-ORDER-014** 非法 step、跨项目 order/build ID fail closed 并规范化 URL。
-- [ ] **AC-ORDER-015** 页面标题区显示发布单、发布版本号、主分支和最近执行步骤。
-- [ ] **AC-ORDER-016** 页面只保留一个上下文相关主动作，不出现三个作用近似入口。
+- [x] **AC-ORDER-011** 四步使用连接步进条而不是无状态普通 Tab。
+- [x] **AC-ORDER-012** 每步显示编号、名称、证据摘要和完成/当前/等待/阻断状态。
+- [x] **AC-ORDER-013** 步进条支持键盘导航、`aria-current`/selected 和稳定 URL。
+- [x] **AC-ORDER-014** 非法 step、跨项目 order/build ID fail closed 并规范化 URL。
+- [x] **AC-ORDER-015** 页面标题区显示发布单、发布版本号、主分支和最近执行步骤。
+- [x] **AC-ORDER-016** 页面只保留一个上下文相关主动作，不出现三个作用近似入口。
 - [ ] **AC-ORDER-017** 构建记录归属发布单详情。
 - [ ] **AC-ORDER-018** Manifest/制品证据归属对应 BuildRun。
 - [ ] **AC-ORDER-019** Staging/Production 运行归属发布单详情。

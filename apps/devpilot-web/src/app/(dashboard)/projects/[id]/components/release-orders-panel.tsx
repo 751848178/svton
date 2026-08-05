@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { EmptyState, LoadingState } from '@svton/ui';
 import { ErrorBanner } from '@/components/ui';
+import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
 import { releaseOrderHref } from '../utils/project-route.utils';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
@@ -26,6 +27,7 @@ export function ReleaseOrdersPanel({
   if (releaseOrderId) {
     return (
       <ReleaseOrderDetailPanel
+        key={scopedRequestIdentity(projectId, releaseOrderId)}
         projectId={projectId}
         releaseOrderId={releaseOrderId}
         onOrdersChanged={orders.load}

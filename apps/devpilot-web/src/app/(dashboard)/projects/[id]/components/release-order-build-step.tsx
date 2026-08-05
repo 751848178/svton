@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, StatusTag } from '@/components/ui';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
+import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseBuildLogDrawer } from './release-build-log-drawer';
 
@@ -17,8 +19,31 @@ interface Props {
 
 export function ReleaseOrderBuildStep(props: Props) {
   const t = useTranslations('projects');
+  const focusedBuildRunId = props.focusedBuildRunId;
+  const onCloseLog = props.onCloseLog;
   const builds = useReleaseBuilds(props.projectId, props.releaseOrderId, props.onChanged);
-  const focused = builds.items.find((item) => item.id === props.focusedBuildRunId) || null;
+  const scope = scopedRequestIdentity(props.projectId, props.releaseOrderId);
+  const ownsState = builds.scope === scope;
+  const items = ownsState
+    ? builds.items.filter((item) => item.releaseOrderId === props.releaseOrderId)
+    : [];
+  const focused = items.find((item) => item.id === focusedBuildRunId) || null;
+  const loadedSuccessfully = builds.successfulScope === scope;
+  const normalizedFocus = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!focusedBuildRunId) {
+      normalizedFocus.current = null;
+      return;
+    }
+    if (focused) {
+      normalizedFocus.current = null;
+      return;
+    }
+    if (!loadedSuccessfully || normalizedFocus.current === focusedBuildRunId) return;
+    normalizedFocus.current = focusedBuildRunId;
+    onCloseLog();
+  }, [focused, focusedBuildRunId, loadedSuccessfully, onCloseLog]);
 
   return (
     <div className="space-y-4">
@@ -29,12 +54,12 @@ export function ReleaseOrderBuildStep(props: Props) {
         </div>
         <Button
           onClick={() => void builds.buildLatest()}
-          loading={builds.building}
+          loading={ownsState && builds.building}
         >
           {t('buildLatestCode')}
         </Button>
       </div>
-      {builds.error ? (
+      {ownsState && builds.error ? (
         <p
           className="text-sm text-destructive"
           role="alert"
@@ -42,13 +67,13 @@ export function ReleaseOrderBuildStep(props: Props) {
           {builds.error}
         </p>
       ) : null}
-      {!builds.loading && builds.items.length === 0 ? (
+      {ownsState && !builds.loading && items.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           {t('releaseBuildEmpty')}
         </p>
       ) : null}
       <div className="space-y-3">
-        {builds.items.map((run) => (
+        {items.map((run) => (
           <article
             key={run.id}
             className="rounded-md border p-4"
