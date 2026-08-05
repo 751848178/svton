@@ -78,6 +78,25 @@ describe('project route compatibility', () => {
     ).toBe('/projects/project-1');
   });
 
+  it('owns Staging and Production focus ids only inside their exact step', () => {
+    const current = new URLSearchParams(
+      'buildRunId=old-build&deploymentRunId=old-deploy&releaseRunId=old-release',
+    );
+    expect(
+      releaseOrderHref('project-1', 'order-1', 'staging', current, {
+        deploymentRunId: 'staging-1',
+      }),
+    ).toBe('/projects/project-1?releaseOrderId=order-1&step=staging&deploymentRunId=staging-1');
+    expect(
+      releaseOrderHref('project-1', 'order-1', 'production', current, {
+        releaseRunId: 'release-1',
+        deploymentRunId: 'production-1',
+      }),
+    ).toBe(
+      '/projects/project-1?releaseOrderId=order-1&step=production&releaseRunId=release-1&deploymentRunId=production-1',
+    );
+  });
+
   it.each([
     ['', 'staging'],
     ['step=', 'staging'],

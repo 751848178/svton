@@ -11,7 +11,6 @@ import {
   type StepperProps,
 } from './release-order-detail-panel.spec-fixtures';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
-
 const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   replace: vi.fn(),
@@ -20,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   builds: {} as { building: boolean; buildLatest: ReturnType<typeof vi.fn> },
   detailHook: {} as DetailHook,
 }));
-
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mocks.replace }),
   useSearchParams: () => mocks.searchParams,
@@ -32,6 +30,14 @@ vi.mock('@/components/ui', () => ({
 }));
 vi.mock('../hooks/use-release-order-detail', () => ({
   useReleaseOrderDetail: () => mocks.detailHook,
+}));
+vi.mock('../hooks/use-release-order-evidence', () => ({
+  useReleaseOrderEvidence: () => ({
+    evidence: null,
+    loading: false,
+    error: '',
+    load: mocks.load,
+  }),
 }));
 vi.mock('../hooks/use-release-builds', () => ({
   useReleaseBuilds: () => mocks.builds,
@@ -75,11 +81,9 @@ vi.mock('./release-order-staging-step', () => ({
 vi.mock('./release-order-production-step', () => ({
   ReleaseOrderProductionStep: () => <div>production</div>,
 }));
-
 describe('ReleaseOrderDetailPanel route contract', () => {
   let container: HTMLDivElement;
   let root: Root;
-
   beforeEach(() => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
     (
@@ -151,11 +155,9 @@ describe('ReleaseOrderDetailPanel route contract', () => {
     mocks.searchParams = new URLSearchParams('releaseOrderId=order-1&step=preflight');
     mocks.detailHook = detailHook('preflight', 'order-1', 0);
     await render(root);
-
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-build-latest]')?.click(),
     );
-
     expect(mocks.replace).toHaveBeenCalledWith(
       '/projects/project-1?releaseOrderId=order-1&step=build',
       { scroll: false },
@@ -165,7 +167,6 @@ describe('ReleaseOrderDetailPanel route contract', () => {
   it('dispatches no build when the owned detail has a frozen Production artifact', async () => {
     mocks.detailHook = detailHook('production');
     await render(root);
-
     const action = container.querySelector<HTMLButtonElement>('[data-build-latest]')!;
     expect(action.disabled).toBe(true);
     await act(async () => action.click());
@@ -176,7 +177,6 @@ describe('ReleaseOrderDetailPanel route contract', () => {
     mocks.detailHook = detailHook('production', 'order-a');
     await render(root, 'order-a');
     expect(mocks.replace).not.toHaveBeenCalled();
-
     mocks.searchParams = new URLSearchParams('releaseOrderId=order-b');
     await render(root, 'order-b');
     expect(mocks.replace).not.toHaveBeenCalled();

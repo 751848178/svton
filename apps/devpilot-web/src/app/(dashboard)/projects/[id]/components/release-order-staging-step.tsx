@@ -2,22 +2,35 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, StatusTag } from '@/components/ui';
+import { LoadingState } from '@svton/ui';
+import { Button, ErrorBanner } from '@/components/ui';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
+import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
-import { releaseOrderStatusTone } from '../utils/release-order.utils';
+import { ReleaseStagingEvidenceList } from './release-staging-evidence-list';
 
 interface Props {
   projectId: string;
   releaseOrderId: string;
   onChanged: () => Promise<unknown>;
+  evidence: ReleaseOrderEvidenceHook;
+  focusedDeploymentRunId?: string;
+  onFocus: (deploymentRunId: string) => void;
 }
 
 export function ReleaseOrderStagingStep(props: Props) {
   const t = useTranslations('projects');
+  const deployments = useReleaseStagingDeployments(
+    props.projectId,
+    props.releaseOrderId,
+    props.onChanged,
+  );
   const builds = useReleaseBuilds(props.projectId, props.releaseOrderId, props.onChanged);
-  const deployments = useReleaseStagingDeployments(props.projectId, props.releaseOrderId);
-  const manifests = useMemo(() => builds.items.filter((item) => item.manifest), [builds.items]);
+  const evidence = props.evidence.evidence;
+  const manifests = useMemo(
+    () => builds.items.filter((item) => item.status === 'succeeded' && item.manifest),
+    [builds.items],
+  );
   const [requestedManifestId, setRequestedManifestId] = useState('');
   const manifestId = manifests.some((item) => item.manifest?.id === requestedManifestId)
     ? requestedManifestId
@@ -38,9 +51,14 @@ export function ReleaseOrderStagingStep(props: Props) {
             onChange={(event) => setRequestedManifestId(event.target.value)}
             disabled={builds.loading || deployments.deploying}
           >
-            {manifests.length === 0 ? <option value="">{t('releaseStagingNoManifest')}</option> : null}
+            {manifests.length === 0 ? (
+              <option value="">{t('releaseStagingNoManifest')}</option>
+            ) : null}
             {manifests.map((build) => (
-              <option key={build.manifest!.id} value={build.manifest!.id}>
+              <option
+                key={build.manifest!.id}
+                value={build.manifest!.id}
+              >
                 {t('releaseStagingManifestOption', {
                   revision: build.revision,
                   digest: build.manifest!.digest.slice(0, 19),
@@ -57,25 +75,41 @@ export function ReleaseOrderStagingStep(props: Props) {
           {t('deployManifestToStaging')}
         </Button>
       </div>
-      {deployments.error ? <p className="text-sm text-destructive" role="alert">{deployments.error}</p> : null}
-      {!deployments.loading && deployments.items.length === 0 ? (
+      {props.evidence.error ? (
+        <ErrorBanner
+          message={props.evidence.error}
+          onRetry={props.evidence.load}
+        />
+      ) : null}
+      {builds.error ? (
+        <ErrorBanner
+          message={builds.error}
+          onRetry={builds.load}
+        />
+      ) : null}
+      {deployments.error ? (
+        <p
+          className="text-sm text-destructive"
+          role="alert"
+        >
+          {deployments.error}
+        </p>
+      ) : null}
+      {props.evidence.loading && !evidence ? <LoadingState /> : null}
+      {!props.evidence.loading && evidence?.stagingDeploymentRuns.items.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           {t('releaseStepStagingEmpty')}
         </p>
       ) : null}
-      <div className="space-y-3">
-        {deployments.items.map((run, index) => (
-          <article key={run.id} className="rounded-md border p-4 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <strong>{t('releaseStagingRun', { number: deployments.items.length - index })}</strong>
-              <StatusTag status={releaseOrderStatusTone(run.status)} label={run.status} />
-            </div>
-            <p className="mt-2 break-all font-mono text-xs">Manifest {run.artifactManifestId}</p>
-            <p className="mt-1 font-mono text-xs">{run.branch}@{run.commitSha}</p>
-            {run.error ? <p className="mt-2 text-destructive">{run.error}</p> : null}
-          </article>
-        ))}
-      </div>
+      {evidence ? (
+        <ReleaseStagingEvidenceList
+          projectId={props.projectId}
+          items={evidence.stagingDeploymentRuns.items}
+          total={evidence.stagingDeploymentRuns.total}
+          focusedRunId={props.focusedDeploymentRunId}
+          onFocus={props.onFocus}
+        />
+      ) : null}
     </div>
   );
 }

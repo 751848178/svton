@@ -34,13 +34,23 @@
   `../../todos/2026-08-03-devpilot-project-delivery-v13.md` only for the
   historical F386-F412 implementation/evidence scope.
 
+- F429 closed on 2026-08-06: release-order detail now owns the scoped
+  BuildRun/Manifest/repeated Staging/governed Production evidence chain while
+  the professional deployment surface remains reachable only by canonical
+  deep link. Exact approval-snapshot proof and complete nested Production
+  history fail closed on team/project/order/environment/Manifest drift. The
+  independent rereview reported P0/P1/P2/P3=0/0/0/0; a fresh in-app Browser
+  run at 1484x1324 proved both histories, canonical plus legacy deep links,
+  scoped API 200/foreign 404, no competing project-primary artifact/deployment
+  label, and 0 console errors/warnings. **Next: F430 copy semantics.**
+
 - F428 is code/runtime ready but not accepted on 2026-08-06: private bounded
   Build history, exact per-run detail/Drawer, deep-link error/retry ownership,
   terminal log evidence and fail-closed secret redaction pass full API/Web,
   real-MySQL, authenticated HTTP, build/type/lint/i18n and CodeGraph checks.
   Two independent attempts found no available iab or Chrome surface, so
-  AC-BUILD-019～025 remain open and no old screenshot is reused. **Next: retry
-  F428 Browser acceptance when available; meanwhile audit F429 only.**
+  AC-BUILD-019～025 remain open and no old screenshot is reused. Retry that
+  separate Browser matrix before claiming F428 done.
 
 - F427 closed on 2026-08-06: Build input snapshot V4 binds only declared
   component outputs, public baked build values and stable gate input, while

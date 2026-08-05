@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiRequest } from '@/lib/api-client';
+import { useAuthStore, useTeamStore } from '@/store/hooks';
 import type { ReleaseBuildItem, ReleaseBuildListResponse } from '../types/release-order.types';
 import { isReleaseBuildActive } from '../components/release-build-view.model';
 import { scopedRequestIdentity, useScopedRequestGuard } from './use-scoped-request-guard';
@@ -23,13 +24,19 @@ export function useReleaseBuilds(
   enabled = true,
   historyLimit?: number,
 ) {
-  const scope = scopedRequestIdentity(projectId, releaseOrderId);
+  const actorId = useAuthStore().user?.id || '';
+  const teamId = useTeamStore().currentTeam?.id || '';
+  const active = enabled && Boolean(actorId && teamId);
+  const scope = scopedRequestIdentity(actorId, teamId, projectId, releaseOrderId);
   const { begin, invalidate, isCurrent } = useScopedRequestGuard(scope);
   const [state, setState] = useState<BuildsState>(() => loadingState(scope, false));
   const buildInFlight = useRef<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!enabled) return;
+    if (!active) {
+      setState(inactiveState(scope));
+      return;
+    }
     const request = begin('list');
     if (!isCurrent(request)) return;
     setState((current) =>
@@ -60,23 +67,23 @@ export function useReleaseBuilds(
         setState((current) => failedState(scope, current, errorMessage(caught)));
       }
     }
-  }, [begin, enabled, historyLimit, isCurrent, projectId, releaseOrderId, scope]);
+  }, [active, begin, historyLimit, isCurrent, projectId, releaseOrderId, scope]);
 
   useEffect(() => {
-    if (enabled) void load();
-  }, [enabled, load]);
+    void load();
+  }, [load]);
 
   const shouldPoll =
     state.scope === scope &&
     (state.building || state.items.some((item) => isReleaseBuildActive(item.status)));
   useEffect(() => {
-    if (!enabled || !shouldPoll) return;
+    if (!active || !shouldPoll) return;
     const timer = setInterval(() => void load(), 5_000);
     return () => clearInterval(timer);
-  }, [enabled, load, shouldPoll]);
+  }, [active, load, shouldPoll]);
 
   const buildLatest = useCallback(async () => {
-    if (!enabled || buildInFlight.current === scope) return null;
+    if (!active || buildInFlight.current === scope) return null;
     const request = begin('build');
     if (!isCurrent(request)) return null;
     buildInFlight.current = scope;
@@ -130,7 +137,7 @@ export function useReleaseBuilds(
     }
   }, [
     begin,
-    enabled,
+    active,
     historyLimit,
     invalidate,
     isCurrent,
@@ -167,6 +174,10 @@ function loadingState(scope: string, building: boolean): BuildsState {
     building,
     error: '',
   };
+}
+
+function inactiveState(scope: string): BuildsState {
+  return { ...loadingState(scope, false), loading: false };
 }
 
 function failedState(scope: string, current: BuildsState, error: string): BuildsState {

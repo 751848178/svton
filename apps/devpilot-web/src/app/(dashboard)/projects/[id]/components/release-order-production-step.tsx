@@ -2,22 +2,29 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, StatusTag } from '@/components/ui';
-import { useProductionReleases } from '../hooks/use-production-releases';
+import { LoadingState } from '@svton/ui';
+import { Button, ErrorBanner } from '@/components/ui';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
+import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
+import { useProductionReleases } from '../hooks/use-production-releases';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
-import { releaseOrderStatusTone } from '../utils/release-order.utils';
+import { ReleaseProductionEvidenceList } from './release-production-evidence-list';
 
 interface Props {
   projectId: string;
   releaseOrderId: string;
   onChanged: () => Promise<unknown>;
+  evidence: ReleaseOrderEvidenceHook;
+  focusedReleaseRunId?: string;
+  focusedDeploymentRunId?: string;
+  onFocus: (releaseRunId: string, deploymentRunId?: string) => void;
 }
 
 export function ReleaseOrderProductionStep(props: Props) {
   const t = useTranslations('projects');
   const builds = useReleaseBuilds(props.projectId, props.releaseOrderId, props.onChanged);
   const staging = useReleaseStagingDeployments(props.projectId, props.releaseOrderId);
+  const evidence = props.evidence.evidence;
   const provenManifestIds = useMemo(
     () =>
       new Set(
@@ -36,7 +43,12 @@ export function ReleaseOrderProductionStep(props: Props) {
   const manifestId = candidates.some((item) => item.manifest?.id === requestedManifestId)
     ? requestedManifestId
     : candidates[0]?.manifest?.id || '';
-  const production = useProductionReleases(props.projectId, props.releaseOrderId, manifestId);
+  const production = useProductionReleases(
+    props.projectId,
+    props.releaseOrderId,
+    manifestId,
+    props.onChanged,
+  );
   const snapshot = production.preview?.snapshot;
 
   return (
@@ -55,7 +67,7 @@ export function ReleaseOrderProductionStep(props: Props) {
               setRequestedManifestId(event.target.value);
               setConfirmed(false);
             }}
-            disabled={production.confirming}
+            disabled={builds.loading || staging.loading || production.confirming}
           >
             {candidates.length === 0 ? (
               <option value="">{t('releaseProductionNoManifest')}</option>
@@ -111,7 +123,7 @@ export function ReleaseOrderProductionStep(props: Props) {
           <span>{t('releaseProductionConfirmation')}</span>
         </label>
         <Button
-          onClick={() => void production.confirm().then((run) => run && props.onChanged())}
+          onClick={() => void production.confirm()}
           loading={production.confirming}
           disabled={!snapshot || !confirmed}
         >
@@ -126,30 +138,40 @@ export function ReleaseOrderProductionStep(props: Props) {
           {production.error}
         </p>
       ) : null}
-      <div className="space-y-3">
-        {production.items.map((run) => (
-          <article
-            key={run.id}
-            className="rounded-md border p-4 text-sm"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <strong>{t('releaseProductionRun')}</strong>
-              <StatusTag
-                status={releaseOrderStatusTone(run.status)}
-                label={run.status}
-              />
-              {run.operationApproval ? (
-                <StatusTag
-                  status={releaseOrderStatusTone(run.operationApproval.status)}
-                  label={`${t('releaseProductionApproval')} ${run.operationApproval.status}`}
-                />
-              ) : null}
-            </div>
-            <p className="mt-2 break-all font-mono text-xs">Manifest {run.artifactManifestId}</p>
-            <p className="mt-1 break-all font-mono text-xs">Digest {run.verifiedDigest}</p>
-          </article>
-        ))}
-      </div>
+      {builds.error ? (
+        <ErrorBanner
+          message={builds.error}
+          onRetry={builds.load}
+        />
+      ) : null}
+      {staging.error ? (
+        <ErrorBanner
+          message={staging.error}
+          onRetry={staging.load}
+        />
+      ) : null}
+      {props.evidence.error ? (
+        <ErrorBanner
+          message={props.evidence.error}
+          onRetry={props.evidence.load}
+        />
+      ) : null}
+      {props.evidence.loading && !evidence ? <LoadingState /> : null}
+      {!props.evidence.loading && evidence?.productionReleaseRuns.items.length === 0 ? (
+        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+          {t('releaseStepProductionEmpty')}
+        </p>
+      ) : null}
+      {evidence ? (
+        <ReleaseProductionEvidenceList
+          projectId={props.projectId}
+          items={evidence.productionReleaseRuns.items}
+          total={evidence.productionReleaseRuns.total}
+          focusedReleaseRunId={props.focusedReleaseRunId}
+          focusedDeploymentRunId={props.focusedDeploymentRunId}
+          onFocus={props.onFocus}
+        />
+      ) : null}
     </div>
   );
 }

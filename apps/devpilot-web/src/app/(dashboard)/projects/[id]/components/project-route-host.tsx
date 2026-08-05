@@ -94,14 +94,10 @@ function ProjectDetailRoute({
         detail={detail}
         actions={
           <LinkButton
-            href={
-              mode === 'settings'
-                ? `/projects/${encodeURIComponent(projectId)}`
-                : `/projects/${encodeURIComponent(projectId)}/settings`
-            }
+            href={`/projects/${encodeURIComponent(projectId)}`}
             variant="outline"
           >
-            {mode === 'settings' ? t('backToProjectDelivery') : t('manageProject')}
+            {t('backToProjectDelivery')}
           </LinkButton>
         }
       />

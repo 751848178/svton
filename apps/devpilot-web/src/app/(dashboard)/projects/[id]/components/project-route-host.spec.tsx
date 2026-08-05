@@ -20,14 +20,20 @@ vi.mock('@svton/ui', () => ({
 }));
 vi.mock('@/components/ui', () => ({
   ErrorBanner: () => <div>error</div>,
-  LinkButton: () => <div>link</div>,
+  LinkButton: ({ href, children }: { href: string; children: React.ReactNode }) => (
+    <a href={href}>{children}</a>
+  ),
   PageHeader: () => <div>header</div>,
 }));
 vi.mock('../hooks/use-project-detail', () => ({ useProjectDetail: mocks.useProjectDetail }));
 vi.mock('./project-delivery-route', () => ({
   ProjectDeliveryRoute: () => <div>delivery-route</div>,
 }));
-vi.mock('./project-detail-header', () => ({ ProjectDetailHeader: () => <div>detail-header</div> }));
+vi.mock('./project-detail-header', () => ({
+  ProjectDetailHeader: ({ actions }: { actions: React.ReactNode }) => (
+    <div>detail-header{actions}</div>
+  ),
+}));
 vi.mock('./project-settings-content', () => ({
   ProjectSettingsContent: () => <div>settings</div>,
 }));
@@ -47,5 +53,21 @@ describe('ProjectRouteHost', () => {
 
     expect(html).toContain('delivery-route');
     expect(mocks.useProjectDetail).not.toHaveBeenCalled();
+  });
+
+  it('keeps an exact DeploymentRun deep link secondary and read-only', () => {
+    mocks.searchParams = new URLSearchParams('view=deployments&runId=run-1');
+    mocks.useProjectDetail.mockReturnValue({
+      loading: false,
+      project: { id: 'project-1' },
+      error: '',
+    });
+    const html = renderToStaticMarkup(<ProjectRouteHost mode="delivery" />);
+
+    expect(mocks.useProjectDetail).toHaveBeenCalledWith('project-1', 'run-1');
+    expect(html).toContain('professionalDeploymentView');
+    expect(html).toContain('deployments');
+    expect(html).toContain('href="/projects/project-1"');
+    expect(html).not.toContain('/settings');
   });
 });

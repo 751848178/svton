@@ -8,6 +8,10 @@ import { useReleaseBuilds } from './use-release-builds';
 
 const mocks = vi.hoisted(() => ({ apiRequest: vi.fn(), onChanged: vi.fn() }));
 vi.mock('@/lib/api-client', () => ({ apiRequest: mocks.apiRequest }));
+vi.mock('@/store/hooks', () => ({
+  useAuthStore: () => ({ user: { id: 'actor-1' } }),
+  useTeamStore: () => ({ currentTeam: { id: 'team-1' } }),
+}));
 
 describe('useReleaseBuilds refresh behavior', () => {
   let root: Root;

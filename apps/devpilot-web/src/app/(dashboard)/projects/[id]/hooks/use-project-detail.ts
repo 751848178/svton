@@ -70,14 +70,20 @@ export function useProjectDetail(projectId: string, deploymentRunId?: string) {
     try {
       if (deploymentRunId) {
         const run = await apiRequest<DeploymentRun>(
-          `GET:/deployments/runs/${deploymentRunId}`,
+          `GET:/deployments/runs/${encodeURIComponent(deploymentRunId)}?projectId=${encodeURIComponent(projectId)}`,
         );
+        if (!ownsProjectDeploymentRun(projectId, run)) {
+          throw new Error('Deployment run scope mismatch');
+        }
         setDeploymentRuns([run]);
       } else {
-        setDeploymentRuns(await apiRequest<DeploymentRun[]>('GET:/deployments/runs', { projectId }));
+        setDeploymentRuns(
+          await apiRequest<DeploymentRun[]>('GET:/deployments/runs', { projectId }),
+        );
       }
       setDeploymentError('');
     } catch (err) {
+      setDeploymentRuns([]);
       if (shouldReportLoadError(err)) console.error('Failed to load deployment runs:', err);
       setDeploymentError(err instanceof Error ? err.message : String(err));
     }
@@ -171,4 +177,8 @@ export function useProjectDetail(projectId: string, deploymentRunId?: string) {
     loadDeploymentRuns,
     loadWebhooks,
   };
+}
+
+export function ownsProjectDeploymentRun(projectId: string, run: Pick<DeploymentRun, 'projectId'>) {
+  return run.projectId === projectId;
 }

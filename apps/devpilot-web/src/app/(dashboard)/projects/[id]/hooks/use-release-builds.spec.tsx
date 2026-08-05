@@ -9,6 +9,10 @@ import { useReleaseBuilds } from './use-release-builds';
 
 const mocks = vi.hoisted(() => ({ apiRequest: vi.fn(), onChanged: vi.fn() }));
 vi.mock('@/lib/api-client', () => ({ apiRequest: mocks.apiRequest }));
+vi.mock('@/store/hooks', () => ({
+  useAuthStore: () => ({ user: { id: 'actor-1' } }),
+  useTeamStore: () => ({ currentTeam: { id: 'team-1' } }),
+}));
 
 describe('useReleaseBuilds scope ownership', () => {
   let root: Root;
@@ -66,7 +70,9 @@ describe('useReleaseBuilds scope ownership', () => {
     await act(async () => responseB.resolve(list(build('b-1', 'order-b'))));
     await act(async () => responseA.resolve(list(build('a-1', 'order-a'))));
     expect(latest.items.map((item) => item.id)).toEqual(['b-1']);
-    expect(latest.successfulScope).toBe(scopedRequestIdentity('project-1', 'order-b'));
+    expect(latest.successfulScope).toBe(
+      scopedRequestIdentity('actor-1', 'team-1', 'project-1', 'order-b'),
+    );
   });
 
   it('ignores a late A buildLatest response after B owns the scope', async () => {

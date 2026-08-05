@@ -68,6 +68,8 @@ export class ReleaseOrderController {
   }
 
   @Get(":releaseOrderId")
+  @Header("Cache-Control", "private, no-store")
+  @Header("Vary", "Authorization, X-Team-Id, Cookie")
   async get(
     @Request() req: AuthRequest,
     @Param("projectId") projectId: string,
@@ -106,6 +108,8 @@ export class ReleaseOrderController {
   }
 
   @Get(":releaseOrderId/staging-deployments")
+  @Header("Cache-Control", "private, no-store")
+  @Header("Vary", "Authorization, X-Team-Id, Cookie")
   async listStagingDeployments(
     @Request() req: AuthRequest,
     @Param("projectId") projectId: string,
@@ -133,6 +137,8 @@ export class ReleaseOrderController {
   }
 
   @Get(":releaseOrderId/production-releases")
+  @Header("Cache-Control", "private, no-store")
+  @Header("Vary", "Authorization, X-Team-Id, Cookie")
   async listProduction(
     @Request() req: AuthRequest,
     @Param("projectId") projectId: string,
@@ -143,6 +149,8 @@ export class ReleaseOrderController {
   }
 
   @Get(":releaseOrderId/production-preview")
+  @Header("Cache-Control", "private, no-store")
+  @Header("Vary", "Authorization, X-Team-Id, Cookie")
   async previewProduction(
     @Request() req: AuthRequest,
     @Param("projectId") projectId: string,

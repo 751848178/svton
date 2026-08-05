@@ -27,6 +27,9 @@ import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderController } from "./release-order.controller";
 import { ReleaseOrderDetailRepository } from "./release-order-detail.repository";
+import { ReleaseOrderEvidenceController } from "./release-order-evidence.controller";
+import { ReleaseOrderEvidenceRepository } from "./release-order-evidence.repository";
+import { ReleaseOrderEvidenceService } from "./release-order-evidence.service";
 import { ReleaseOrderRepository } from "./release-order.repository";
 import { ReleaseOrderService } from "./release-order.service";
 import { ReleaseOrderWithdrawController } from "./release-order-withdraw.controller";
@@ -85,6 +88,7 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
   ],
   controllers: [
     ReleaseOrderController,
+    ReleaseOrderEvidenceController,
     ReleaseBuildCancellationController,
     ReleaseBuildDetailController,
     ReleaseOrderWithdrawController,
@@ -98,6 +102,8 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
     ReleaseOrderService,
     ReleaseOrderRepository,
     ReleaseOrderDetailRepository,
+    ReleaseOrderEvidenceRepository,
+    ReleaseOrderEvidenceService,
     ReleaseOrderWithdrawRepository,
     ReleaseOrderWithdrawService,
     ReleaseOrderListRepository,

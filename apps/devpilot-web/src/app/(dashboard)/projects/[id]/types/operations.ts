@@ -39,6 +39,7 @@ export interface DeploymentCommandStep {
 
 export interface DeploymentRun {
   id: string;
+  projectId: string;
   environment: string | null;
   projectEnvironment?: { id: string; key: string; name: string; status: string } | null;
   serverExecutionJobId?: string | null;

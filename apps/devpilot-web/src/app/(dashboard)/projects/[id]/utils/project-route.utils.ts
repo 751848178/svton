@@ -1,6 +1,11 @@
 import type { ReleaseOrderStep } from '../types/release-order.types';
 
 export type DeliveryView = 'releases' | 'environment-versions' | 'deployments';
+export interface ReleaseOrderFocus {
+  buildRunId?: string;
+  deploymentRunId?: string;
+  releaseRunId?: string;
+}
 export type SettingsSection =
   | 'repository'
   | 'environments'
@@ -26,6 +31,8 @@ export function resolveLegacyProjectHref(projectId: string, searchParams: URLSea
   next.delete('releaseOrderId');
   next.delete('step');
   next.delete('buildRunId');
+  next.delete('deploymentRunId');
+  next.delete('releaseRunId');
   const settingsSection = SETTINGS_TABS[tab];
   if (settingsSection) {
     next.set('section', settingsSection);
@@ -80,6 +87,8 @@ export function deliveryHref(
   next.delete('releaseOrderId');
   next.delete('step');
   next.delete('buildRunId');
+  next.delete('deploymentRunId');
+  next.delete('releaseRunId');
   if (view === 'releases') next.delete('view');
   else next.set('view', view);
   return route(`/projects/${encodeURIComponent(projectId)}`, next);
@@ -90,7 +99,7 @@ export function releaseOrderHref(
   releaseOrderId: string,
   step: ReleaseOrderStep | null,
   searchParams: URLSearchParams,
-  buildRunId?: string,
+  focus?: string | ReleaseOrderFocus,
 ) {
   const next = new URLSearchParams(searchParams);
   next.delete('tab');
@@ -104,8 +113,23 @@ export function releaseOrderHref(
   next.set('releaseOrderId', releaseOrderId);
   if (step) next.set('step', step);
   else next.delete('step');
-  if (buildRunId) next.set('buildRunId', buildRunId);
-  else next.delete('buildRunId');
+  const requestedFocus = typeof focus === 'string' ? { buildRunId: focus } : focus;
+  if (step === 'build' && requestedFocus?.buildRunId) {
+    next.set('buildRunId', requestedFocus.buildRunId);
+  } else {
+    next.delete('buildRunId');
+  }
+  next.delete('deploymentRunId');
+  next.delete('releaseRunId');
+  if (step === 'staging' && requestedFocus?.deploymentRunId) {
+    next.set('deploymentRunId', requestedFocus.deploymentRunId);
+  }
+  if (step === 'production' && requestedFocus?.releaseRunId) {
+    next.set('releaseRunId', requestedFocus.releaseRunId);
+  }
+  if (step === 'production' && requestedFocus?.deploymentRunId) {
+    next.set('deploymentRunId', requestedFocus.deploymentRunId);
+  }
   return route(`/projects/${encodeURIComponent(projectId)}`, next);
 }
 
@@ -114,6 +138,8 @@ export function releaseOrderListHref(projectId: string, searchParams: URLSearchP
   next.delete('releaseOrderId');
   next.delete('step');
   next.delete('buildRunId');
+  next.delete('deploymentRunId');
+  next.delete('releaseRunId');
   return route(`/projects/${encodeURIComponent(projectId)}`, next);
 }
 
@@ -131,6 +157,8 @@ export function settingsHref(
   next.delete('releaseOrderId');
   next.delete('step');
   next.delete('buildRunId');
+  next.delete('deploymentRunId');
+  next.delete('releaseRunId');
   if (section !== 'repository') next.delete('analysisRunId');
   if (section !== 'environments') next.delete('environmentId');
   next.set('section', section);

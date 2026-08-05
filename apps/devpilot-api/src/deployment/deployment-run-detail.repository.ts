@@ -6,9 +6,9 @@ import { PrismaService } from "../prisma/prisma.service";
 export class DeploymentRunDetailRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findById(teamId: string, id: string) {
+  findById(teamId: string, id: string, projectId?: string) {
     return this.prisma.deploymentRun.findFirst({
-      where: { id, teamId },
+      where: { id, teamId, ...(projectId ? { projectId } : {}) },
       include: {
         projectEnvironment: {
           select: { id: true, key: true, name: true, status: true },

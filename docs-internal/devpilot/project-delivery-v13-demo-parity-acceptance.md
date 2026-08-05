@@ -127,11 +127,11 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-ORDER-014** 非法 step、跨项目 order/build ID fail closed 并规范化 URL。
 - [x] **AC-ORDER-015** 页面标题区显示发布单、发布版本号、主分支和最近执行步骤。
 - [x] **AC-ORDER-016** 页面只保留一个上下文相关主动作，不出现三个作用近似入口。
-- [ ] **AC-ORDER-017** 构建记录归属发布单详情。
-- [ ] **AC-ORDER-018** Manifest/制品证据归属对应 BuildRun。
-- [ ] **AC-ORDER-019** Staging/Production 运行归属发布单详情。
-- [ ] **AC-ORDER-020** 项目级专业部署深链可达，但不与发布单争夺主导航。
-- [ ] **AC-ORDER-021** 所有运行记录只追加，历史不可覆盖。
+- [x] **AC-ORDER-017** 构建记录归属发布单详情。
+- [x] **AC-ORDER-018** Manifest/制品证据归属对应 BuildRun。
+- [x] **AC-ORDER-019** Staging/Production 运行归属发布单详情。
+- [x] **AC-ORDER-020** 项目级专业部署深链可达，但不与发布单争夺主导航。
+- [x] **AC-ORDER-021** 所有运行记录只追加，历史不可覆盖。
 
 - [x] **AC-GATE-001** 前置检查首屏显示来源/CI、影响识别、Secret/安全和配置/资源等 MVP 摘要。
 - [x] **AC-GATE-002** 显示 15 个 MVP 能力组总数和整体是否允许进入下一步。

@@ -22,7 +22,12 @@ export class ReleaseStagingService {
   async list(teamId: string, projectId: string, releaseOrderId: string) {
     await this.requireContext(teamId, projectId, releaseOrderId);
     const items = await this.repository.list(teamId, projectId, releaseOrderId);
-    return { items, total: items.length };
+    return {
+      items: items.map((item) =>
+        scopedDeployment(item, projectId, releaseOrderId),
+      ),
+      total: items.length,
+    };
   }
 
   async deploy(input: {
@@ -122,26 +127,34 @@ export class ReleaseStagingService {
         uri: item.uri,
         digest: manifest.digest,
       });
-      return this.repository.finish({
-        deploymentRunId: run.id,
-        status: "completed",
-        logs: sanitizeBuildLogs(result.logs),
-        result: {
-          ...result.evidence,
-          deploymentUri: result.deploymentUri,
-          manifestId: manifest.id,
-          manifestDigest: manifest.digest,
-        },
-      });
+      return scopedDeployment(
+        await this.repository.finish({
+          deploymentRunId: run.id,
+          status: "completed",
+          logs: sanitizeBuildLogs(result.logs),
+          result: {
+            ...result.evidence,
+            deploymentUri: result.deploymentUri,
+            manifestId: manifest.id,
+            manifestDigest: manifest.digest,
+          },
+        }),
+        input.projectId,
+        input.releaseOrderId,
+      );
     } catch (error) {
       const detail = failureDetail(error);
-      return this.repository.finish({
-        deploymentRunId: run.id,
-        status: "failed",
-        logs: detail.logs,
-        error: `${detail.code}: ${detail.message}`,
-        result: { manifestId: manifest.id, manifestDigest: manifest.digest },
-      });
+      return scopedDeployment(
+        await this.repository.finish({
+          deploymentRunId: run.id,
+          status: "failed",
+          logs: detail.logs,
+          error: `${detail.code}: ${detail.message}`,
+          result: { manifestId: manifest.id, manifestDigest: manifest.digest },
+        }),
+        input.projectId,
+        input.releaseOrderId,
+      );
     }
   }
 
@@ -169,4 +182,12 @@ function failureDetail(error: unknown) {
       error instanceof Error ? error.message : String(error),
     ]),
   };
+}
+
+function scopedDeployment<T>(
+  item: T,
+  projectId: string,
+  releaseOrderId: string,
+) {
+  return { ...item, projectId, releaseOrderId };
 }

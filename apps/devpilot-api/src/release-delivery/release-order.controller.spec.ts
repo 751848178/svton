@@ -92,6 +92,24 @@ describe("ReleaseOrderController", () => {
     );
   });
 
+  it.each([
+    "get",
+    "listStagingDeployments",
+    "listProduction",
+    "previewProduction",
+  ] as const)("marks %s evidence private and non-reusable", (method) => {
+    const headers = Reflect.getMetadata(
+      HEADERS_METADATA,
+      ReleaseOrderController.prototype[method],
+    );
+    expect(headers).toEqual(
+      expect.arrayContaining([
+        { name: "Cache-Control", value: "private, no-store" },
+        { name: "Vary", value: "Authorization, X-Team-Id, Cookie" },
+      ]),
+    );
+  });
+
   it("authorizes a stable release-order detail read", async () => {
     orders.get.mockResolvedValue({ id: "order-1" });
     await controller.get(request, "project-1", "order-1");

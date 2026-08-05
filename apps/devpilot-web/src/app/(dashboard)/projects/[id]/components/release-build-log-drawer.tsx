@@ -7,6 +7,7 @@ import { ErrorBanner, StatusTag } from '@/components/ui';
 import type { ReleaseBuildItem } from '../types/release-order.types';
 import { formatDuration, formatIso } from '../utils/release-time.utils';
 import { releaseBuildStatusLabelKey, releaseBuildStatusTone } from './release-build-view.model';
+import { ReleaseManifestEvidence } from './release-manifest-evidence';
 
 interface Props {
   run: ReleaseBuildItem | null;
@@ -111,6 +112,7 @@ export function ReleaseBuildLogDrawer({
               value={run.manifest?.digest || '—'}
             />
           </dl>
+          <ReleaseManifestEvidence manifest={run.manifest} />
           {run.errorCode ? (
             <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
               {run.errorCode}: {run.errorMessage || t('releaseBuildUnavailable')}

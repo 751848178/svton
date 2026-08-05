@@ -84,6 +84,8 @@ export interface ReleaseBuildListResponse {
 
 export interface ReleaseStagingDeploymentItem {
   id: string;
+  projectId: string;
+  releaseOrderId: string;
   environmentId: string | null;
   artifactManifestId: string | null;
   status: string;
@@ -144,6 +146,8 @@ export interface ProductionReleasePreview {
 
 export interface ProductionReleaseRun {
   id: string;
+  projectId: string;
+  releaseOrderId: string;
   environmentId: string;
   artifactManifestId: string;
   status: string;
