@@ -7,24 +7,56 @@ import type { ReleaseBuildsController } from '../hooks/use-release-builds';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import type { ReleaseBuildItem } from '../types/release-order.types';
 import { ReleaseOrderBuildStep } from './release-order-build-step';
-
 const mocks = vi.hoisted(() => ({
   hook: {} as HookResult,
+  detail: null as null | {
+    run: ReleaseBuildItem | null;
+    loaded: boolean;
+    error: string;
+    notFound: boolean;
+    retry: ReturnType<typeof vi.fn>;
+  },
 }));
-
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('@/components/ui', () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick: () => void }) => (
     <button onClick={onClick}>{children}</button>
   ),
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
+  ErrorBanner: ({ message }: { message: string }) => <div role="alert">{message}</div>,
 }));
 vi.mock('./release-build-log-drawer', () => ({
-  ReleaseBuildLogDrawer: ({ run }: { run: ReleaseBuildItem | null }) => (
-    <div data-focused-run={run?.id || ''} />
+  ReleaseBuildLogDrawer: ({
+    run,
+    requestedBuildRunId,
+    error,
+  }: {
+    run: ReleaseBuildItem | null;
+    requestedBuildRunId?: string;
+    error?: string;
+  }) => (
+    <div
+      data-focused-run={run?.id || ''}
+      data-requested-run={requestedBuildRunId || ''}
+      data-detail-error={error || ''}
+    />
   ),
 }));
-
+vi.mock('../hooks/use-release-build-detail', () => ({
+  useReleaseBuildDetail: (
+    _projectId: string,
+    _releaseOrderId: string,
+    _buildRunId: string | undefined,
+    summary: ReleaseBuildItem | null,
+  ) =>
+    mocks.detail || {
+      run: summary,
+      loaded: true,
+      error: '',
+      notFound: !summary,
+      retry: vi.fn(),
+    },
+}));
 describe('ReleaseOrderBuildStep focused build normalization', () => {
   let root: Root;
   let container: HTMLDivElement;
@@ -38,9 +70,9 @@ describe('ReleaseOrderBuildStep focused build normalization', () => {
     container = document.createElement('div');
     root = createRoot(container);
     onCloseLog = vi.fn();
+    mocks.detail = null;
     mocks.hook = hook({ loading: true, loadedSuccessfully: false });
   });
-
   afterEach(async () => act(async () => root.unmount()));
 
   it.each([
@@ -51,13 +83,31 @@ describe('ReleaseOrderBuildStep focused build normalization', () => {
     await render(root, onCloseLog);
     expect(onCloseLog).not.toHaveBeenCalled();
   });
-
+  it('shows an initial load error without also claiming the history is empty', async () => {
+    mocks.hook = hook({ loading: false, loadedSuccessfully: false, error: 'failed' });
+    await render(root, onCloseLog);
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('failed');
+    expect(container.textContent).not.toContain('releaseBuildEmpty');
+  });
+  it('keeps a deep link on a retryable exact-detail error', async () => {
+    mocks.hook = hook({ loading: false, loadedSuccessfully: true, items: [] });
+    mocks.detail = {
+      run: null,
+      loaded: true,
+      error: 'network offline',
+      notFound: false,
+      retry: vi.fn(),
+    };
+    await render(root, onCloseLog);
+    expect(onCloseLog).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-requested-run="build-1"]')).not.toBeNull();
+    expect(container.querySelector('[data-detail-error="network offline"]')).not.toBeNull();
+  });
   it('removes a foreign focus only after a successful scoped list load', async () => {
     mocks.hook = hook({ loading: false, loadedSuccessfully: true, items: [] });
     await render(root, onCloseLog);
     expect(onCloseLog).toHaveBeenCalledOnce();
   });
-
   it('keeps and opens an owned build focus after successful load', async () => {
     mocks.hook = hook({ loading: false, loadedSuccessfully: true, items: [build] });
     await render(root, onCloseLog);
@@ -108,6 +158,7 @@ interface HookResult {
   scope: string | null;
   successfulScope: string | null;
   items: ReleaseBuildItem[];
+  total: number;
   loading: boolean;
   loadedSuccessfully: boolean;
   building: boolean;
@@ -123,6 +174,7 @@ function hook(overrides: Partial<HookResult>): HookResult {
     scope,
     successfulScope: loadedSuccessfully ? scope : null,
     items: [],
+    total: 0,
     loading: false,
     loadedSuccessfully,
     building: false,
@@ -139,15 +191,10 @@ const build: ReleaseBuildItem = {
   revision: 1,
   sourceBranch: 'main',
   sourceCommitSha: 'a'.repeat(40),
-  sourceRepository: null,
   status: 'succeeded',
-  logReference: null,
-  logSummary: null,
-  gateSummary: null,
   errorCode: null,
-  errorMessage: null,
   startedAt: null,
   finishedAt: null,
   createdAt: '2026-08-05T00:00:00.000Z',
   manifest: null,
-};
+} as ReleaseBuildItem;

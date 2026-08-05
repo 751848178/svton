@@ -44,7 +44,7 @@ export function ReleaseOrderDetailPanel(props: Props) {
   const refresh = useCallback(async () => {
     await Promise.all([loadOrder(), onOrdersChanged()]);
   }, [loadOrder, onOrdersChanged]);
-  const builds = useReleaseBuilds(projectId, releaseOrderId, refresh, Boolean(detail));
+  const builds = useReleaseBuilds(projectId, releaseOrderId, refresh, Boolean(detail), 50);
 
   useEffect(() => {
     if (!detail || explicitStep === step) return;

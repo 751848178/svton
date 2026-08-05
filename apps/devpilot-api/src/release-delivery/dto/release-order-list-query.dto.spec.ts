@@ -13,13 +13,16 @@ describe("ReleaseOrderListQueryDto", () => {
     metatype: ReleaseOrderListQueryDto,
   };
 
-  it("defaults take and accepts every persisted status", async () => {
+  it("defaults take and accepts every lifecycle status", async () => {
     for (const status of [
       "draft",
-      "active",
+      "building",
+      "staging",
+      "awaiting_approval",
+      "production",
       "succeeded",
       "failed",
-      "canceled",
+      "withdrawn",
     ]) {
       await expect(pipe.transform({ status }, metadata)).resolves.toMatchObject(
         {
@@ -31,7 +34,8 @@ describe("ReleaseOrderListQueryDto", () => {
   });
 
   it.each([
-    [{ status: "building" }],
+    [{ status: "active" }],
+    [{ status: "canceled" }],
     [{ take: 0 }],
     [{ take: 101 }],
     [{ take: "2.5" }],

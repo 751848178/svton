@@ -111,6 +111,12 @@ describeRuntime("F426 authenticated HTTP Build runtime", () => {
       status: "canceled",
       errorCode: "BUILD_COMMAND_CANCELED",
       manifest: null,
+      logSummary: {
+        redacted: true,
+        lines: expect.arrayContaining([
+          expect.stringMatching(/^result canceled:/),
+        ]),
+      },
     });
     await expect(building).resolves.toMatchObject({ ok: false, status: 409 });
     await fixture.waitForCleanup();

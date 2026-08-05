@@ -23,7 +23,10 @@ describe('useReleaseBuilds scope ownership', () => {
     root = createRoot(document.createElement('div'));
   });
 
-  afterEach(async () => act(async () => root.unmount()));
+  afterEach(async () => {
+    vi.useRealTimers();
+    await act(async () => root.unmount());
+  });
 
   it('hides loaded A and keeps B empty after B and late A failures', async () => {
     const lateA = deferred<ReleaseBuildListResponse>();
@@ -132,6 +135,22 @@ describe('useReleaseBuilds scope ownership', () => {
     await expect(first).resolves.toMatchObject({ id: 'new-build' });
   });
 
+  it('polls an active BuildRun until its exact row becomes terminal', async () => {
+    vi.useFakeTimers();
+    mocks.apiRequest
+      .mockResolvedValueOnce(list(build('build-1', 'order-a', 'running')))
+      .mockResolvedValueOnce(list(build('build-1', 'order-a', 'succeeded')));
+    await render(root, 'order-a');
+    expect(latest.items[0]?.status).toBe('running');
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(2);
+    expect(latest.items[0]?.status).toBe('succeeded');
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(2);
+  });
+
   async function render(target: Root, releaseOrderId: string, keyed = false) {
     await act(async () =>
       target.render(
@@ -153,8 +172,8 @@ function list(...items: ReleaseBuildItem[]): ReleaseBuildListResponse {
   return { items, total: items.length };
 }
 
-function build(id: string, releaseOrderId: string) {
-  return { id, releaseOrderId, revision: 1, status: 'succeeded' } as ReleaseBuildItem;
+function build(id: string, releaseOrderId: string, status = 'succeeded') {
+  return { id, releaseOrderId, revision: 1, status } as ReleaseBuildItem;
 }
 
 function deferred<T>() {

@@ -53,7 +53,7 @@ describe("LocalReleaseBuildExecutorService", () => {
     const result = await executor.execute(input(checkout, "node emit.js"));
     expect(result.artifact.digest).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(result.artifact.sizeBytes).toBeGreaterThan(0);
-    expect(result.logs.join("\n")).toContain("[REDACTED_TOKEN]");
+    expect(result.logs.join("\n")).toContain("Authorization: [REDACTED]");
     expect(result.logs.join("\n")).not.toContain("ghp_12345678901234567890");
     expect(result.artifact.contentIndex.map((item) => item.path)).toEqual([
       "dist/app.js",

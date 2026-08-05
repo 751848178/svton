@@ -1,4 +1,5 @@
 import { ReleaseOrderController } from "./release-order.controller";
+import { HEADERS_METADATA } from "@nestjs/common/constants";
 
 describe("ReleaseOrderController", () => {
   const orders = { list: jest.fn(), create: jest.fn(), get: jest.fn() };
@@ -68,9 +69,27 @@ describe("ReleaseOrderController", () => {
 
   it("authorizes nested build history reads", async () => {
     builds.list.mockResolvedValue({ items: [], total: 0 });
-    await controller.listBuilds(request, "project-1", "order-1");
+    await controller.listBuilds(request, "project-1", "order-1", { take: 50 });
     expect(access.assertRead).toHaveBeenCalled();
-    expect(builds.list).toHaveBeenCalledWith("team-1", "project-1", "order-1");
+    expect(builds.list).toHaveBeenCalledWith(
+      "team-1",
+      "project-1",
+      "order-1",
+      50,
+    );
+  });
+
+  it("marks BuildRun history private and non-reusable", () => {
+    const headers = Reflect.getMetadata(
+      HEADERS_METADATA,
+      ReleaseOrderController.prototype.listBuilds,
+    );
+    expect(headers).toEqual(
+      expect.arrayContaining([
+        { name: "Cache-Control", value: "private, no-store" },
+        { name: "Vary", value: "Authorization, X-Team-Id, Cookie" },
+      ]),
+    );
   });
 
   it("authorizes a stable release-order detail read", async () => {

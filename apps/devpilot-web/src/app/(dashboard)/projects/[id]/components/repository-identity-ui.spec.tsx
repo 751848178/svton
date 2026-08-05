@@ -25,6 +25,7 @@ vi.mock('@svton/ui', () => ({
 }));
 vi.mock('@/components/ui', () => ({
   Input: (props: Record<string, unknown>) => <input {...props} />,
+  StatusTag: ({ label }: { label: ReactNode }) => <span>{label}</span>,
 }));
 
 describe('repository identity UI', () => {

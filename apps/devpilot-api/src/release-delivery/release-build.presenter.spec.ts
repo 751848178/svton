@@ -72,6 +72,37 @@ describe("presentBuild", () => {
       ).toBeNull();
     },
   );
+
+  it("fails closed for unredacted logs and re-sanitizes accepted lines", () => {
+    const rejected = presentBuild(
+      record({ logSummary: { redacted: false, lines: ["password=sentinel"] } }),
+    );
+    expect(rejected.logSummary).toBeNull();
+
+    const accepted = presentBuild(
+      record({
+        logSummary: {
+          redacted: true,
+          lines: ["token=ghp_12345678901234567890", "build complete"],
+        },
+      }),
+    );
+    expect(accepted.logSummary).toMatchObject({
+      redacted: true,
+      lines: ["token=[REDACTED]", "build complete"],
+    });
+  });
+
+  it("redacts legacy error messages while retaining their stable code", () => {
+    const presented = presentBuild(
+      record({
+        errorCode: "BUILD_COMMAND_FAILED",
+        errorMessage: "password=sentinel-error-secret",
+      }),
+    );
+    expect(presented.errorCode).toBe("BUILD_COMMAND_FAILED");
+    expect(presented.errorMessage).toBe("password=[REDACTED]");
+  });
 });
 
 function record(overrides: Record<string, unknown> = {}) {

@@ -69,7 +69,7 @@ function commandFailure(
   return new ReleaseBuildExecutionError({
     code,
     message,
-    logs: sanitizeBuildLogs(logs),
+    logs: sanitizeBuildLogs([...logs, `result ${status}: ${code} ${message}`]),
     gateSummary: { build: { status: "failed" }, action },
     status,
   });

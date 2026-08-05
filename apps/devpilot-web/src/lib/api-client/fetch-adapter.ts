@@ -47,6 +47,7 @@ export function createFetchAdapter(): HttpAdapter {
           headers: { 'Content-Type': 'application/json', ...config.headers },
           body: config.data ? JSON.stringify(config.data) : undefined,
           credentials: 'include',
+          cache: 'no-store',
           // 透传上层（如 server.ts 的 AbortController）的中止信号，超时即真正取消在途 fetch。
           signal: config.signal,
         });

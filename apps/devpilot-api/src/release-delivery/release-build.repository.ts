@@ -40,12 +40,36 @@ export class ReleaseBuildRepository {
     });
   }
 
-  list(teamId: string, projectId: string, releaseOrderId: string) {
-    return this.prisma.buildRun.findMany({
-      where: { teamId, projectId, releaseOrderId },
-      include: releaseBuildInclude,
-      orderBy: [{ revision: "desc" }, { id: "desc" }],
-    });
+  async list(
+    teamId: string,
+    projectId: string,
+    releaseOrderId: string,
+    take?: number,
+  ) {
+    const where = { teamId, projectId, releaseOrderId };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.buildRun.findMany({
+        where,
+        select: {
+          id: true,
+          releaseOrderId: true,
+          revision: true,
+          sourceBranch: true,
+          sourceCommitSha: true,
+          status: true,
+          errorCode: true,
+          errorMessage: true,
+          startedAt: true,
+          finishedAt: true,
+          createdAt: true,
+          manifest: { select: { id: true, digest: true } },
+        },
+        orderBy: [{ revision: "desc" }, { id: "desc" }],
+        take,
+      }),
+      this.prisma.buildRun.count({ where }),
+    ]);
+    return { items, total };
   }
 
   get(

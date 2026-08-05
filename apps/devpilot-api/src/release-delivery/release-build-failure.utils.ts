@@ -13,7 +13,11 @@ export function releaseBuildFailureDetail(
     return {
       code: timedOut ? "BUILD_RUN_TIMEOUT" : "BUILD_COMMAND_CANCELED",
       message: timedOut ? "构建运行超时" : "构建已取消",
-      logs: [],
+      logs: terminalLog(
+        timedOut ? "BUILD_RUN_TIMEOUT" : "BUILD_COMMAND_CANCELED",
+        timedOut ? "构建运行超时" : "构建已取消",
+        timedOut ? "failed" : "canceled",
+      ),
       status: timedOut ? "failed" : "canceled",
       gateSummary: {
         build: { status: "failed" },
@@ -26,7 +30,7 @@ export function releaseBuildFailureDetail(
     return {
       code: error.detail.code,
       message: error.detail.message,
-      logs: [],
+      logs: terminalLog(error.detail.code, error.detail.message, "failed"),
       gateSummary: {
         source: { status: "failed" },
         action: error.detail.action,
@@ -36,12 +40,22 @@ export function releaseBuildFailureDetail(
   return {
     code: "BUILD_EXECUTION_FAILED",
     message: "构建执行失败",
-    logs: sanitizeBuildLogs([
+    logs: terminalLog(
+      "BUILD_EXECUTION_FAILED",
       error instanceof Error ? error.message : String(error),
-    ]),
+      "failed",
+    ),
     gateSummary: {
       build: { status: "failed" },
       action: "请检查运行证据后重试。",
     },
   };
+}
+
+function terminalLog(
+  code: string,
+  message: string,
+  status: "failed" | "canceled",
+) {
+  return sanitizeBuildLogs([`result ${status}: ${code} ${message}`]);
 }

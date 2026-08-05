@@ -2,10 +2,12 @@
 
 import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, StatusTag } from '@/components/ui';
+import { LoadingState } from '@svton/ui';
+import { ErrorBanner } from '@/components/ui';
 import type { ReleaseBuildsController } from '../hooks/use-release-builds';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
-import { releaseOrderStatusTone } from '../utils/release-order.utils';
+import { useReleaseBuildDetail } from '../hooks/use-release-build-detail';
+import { ReleaseBuildHistoryTable } from './release-build-history-table';
 import { ReleaseBuildLogDrawer } from './release-build-log-drawer';
 
 interface Props {
@@ -27,7 +29,14 @@ export function ReleaseOrderBuildStep(props: Props) {
   const items = ownsState
     ? builds.items.filter((item) => item.releaseOrderId === props.releaseOrderId)
     : [];
-  const focused = items.find((item) => item.id === focusedBuildRunId) || null;
+  const focusedSummary = items.find((item) => item.id === focusedBuildRunId) || null;
+  const focusedDetail = useReleaseBuildDetail(
+    props.projectId,
+    props.releaseOrderId,
+    focusedBuildRunId,
+    focusedSummary,
+  );
+  const focused = focusedDetail.run;
   const loadedSuccessfully = builds.successfulScope === scope;
   const normalizedFocus = useRef<string | null>(null);
 
@@ -36,14 +45,26 @@ export function ReleaseOrderBuildStep(props: Props) {
       normalizedFocus.current = null;
       return;
     }
-    if (focused) {
+    if (focused || focusedDetail.error) {
       normalizedFocus.current = null;
       return;
     }
-    if (!loadedSuccessfully || normalizedFocus.current === focusedBuildRunId) return;
+    if (
+      !loadedSuccessfully ||
+      !focusedDetail.notFound ||
+      normalizedFocus.current === focusedBuildRunId
+    )
+      return;
     normalizedFocus.current = focusedBuildRunId;
     onCloseLog();
-  }, [focused, focusedBuildRunId, loadedSuccessfully, onCloseLog]);
+  }, [
+    focused,
+    focusedBuildRunId,
+    focusedDetail.error,
+    focusedDetail.notFound,
+    loadedSuccessfully,
+    onCloseLog,
+  ]);
 
   return (
     <div className="space-y-4">
@@ -52,73 +73,40 @@ export function ReleaseOrderBuildStep(props: Props) {
         <p className="mt-1 text-sm text-muted-foreground">{t('releaseStepBuildDescription')}</p>
       </div>
       {ownsState && builds.error ? (
-        <p
-          className="text-sm text-destructive"
-          role="alert"
-        >
-          {builds.error}
-        </p>
+        <ErrorBanner
+          message={builds.error}
+          onRetry={builds.load}
+        />
       ) : null}
-      {ownsState && !builds.loading && items.length === 0 ? (
+      {ownsState && builds.loading && items.length === 0 ? (
+        <LoadingState text={t('releaseBuildLoading')} />
+      ) : null}
+      {ownsState && loadedSuccessfully && !builds.loading && items.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           {t('releaseBuildEmpty')}
         </p>
       ) : null}
-      <div className="space-y-3">
-        {items.map((run) => (
-          <article
-            key={run.id}
-            className="rounded-md border p-4"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <strong>{t('releaseBuildRevision', { revision: run.revision })}</strong>
-                  <StatusTag
-                    status={releaseOrderStatusTone(run.status)}
-                    label={t(`releaseBuildStatus${statusKey(run.status)}`)}
-                  />
-                </div>
-                <p className="font-mono text-xs">
-                  {run.sourceBranch}@{run.sourceCommitSha}
-                </p>
-                {run.sourceRepository ? (
-                  <p className="break-all text-xs text-muted-foreground">
-                    {t('releaseBuildIdentitySummary', {
-                      provider: run.sourceRepository.provider,
-                      revision: run.sourceRepository.identityRevision,
-                      url: run.sourceRepository.canonicalUrl,
-                    })}
-                  </p>
-                ) : null}
-                {run.manifest ? (
-                  <p className="break-all font-mono text-xs">{run.manifest.digest}</p>
-                ) : null}
-                {run.errorMessage ? (
-                  <p className="text-destructive">
-                    {run.errorCode}: {run.errorMessage}
-                  </p>
-                ) : null}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => props.onOpenLog(run.id)}
-              >
-                {t('viewReleaseBuildLogs')}
-              </Button>
-            </div>
-          </article>
-        ))}
-      </div>
+      {items.length > 0 ? (
+        <>
+          {builds.total > items.length ? (
+            <p className="text-xs text-muted-foreground">
+              {t('releaseBuildHistoryLimited', { shown: items.length, total: builds.total })}
+            </p>
+          ) : null}
+          <ReleaseBuildHistoryTable
+            items={items}
+            onOpenLog={props.onOpenLog}
+          />
+        </>
+      ) : null}
       <ReleaseBuildLogDrawer
         run={focused}
+        requestedBuildRunId={focusedBuildRunId}
+        loading={Boolean(focusedBuildRunId) && !focusedDetail.loaded}
+        error={focusedDetail.error}
+        onRetry={focusedDetail.retry}
         onClose={props.onCloseLog}
       />
     </div>
   );
-}
-
-function statusKey(status: string) {
-  return `${status.charAt(0).toUpperCase()}${status.slice(1)}`;
 }

@@ -7,6 +7,7 @@ import { LocalReleaseBuildExecutorService } from "./local-release-build-executor
 import { LocalReleaseStagingExecutorService } from "./local-release-staging-executor.service";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
 import { ReleaseBuildCancellationController } from "./release-build-cancellation.controller";
+import { ReleaseBuildDetailController } from "./release-build-detail.controller";
 import { ReleaseBuildCancellationService } from "./release-build-cancellation.service";
 import { ReleaseBuildRecoveryService } from "./release-build-recovery.service";
 import { ReleaseBuildRecoveryRepository } from "./release-build-recovery.repository";
@@ -85,6 +86,7 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
   controllers: [
     ReleaseOrderController,
     ReleaseBuildCancellationController,
+    ReleaseBuildDetailController,
     ReleaseOrderWithdrawController,
     EnvironmentVersionController,
     ReleaseGateCatalogController,

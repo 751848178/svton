@@ -29,13 +29,12 @@ describeIntegration("ReleaseBuild integration", () => {
       },
     });
     try {
-      const listed = (
-        await fixture.repository.list(
-          fixture.teamId,
-          fixture.projectId,
-          fixture.orderId,
-        )
-      ).find((run) => run.id === reserved.id);
+      const listed = await fixture.repository.get(
+        fixture.teamId,
+        fixture.projectId,
+        fixture.orderId,
+        reserved.id,
+      );
       if (!listed) throw new Error("Reserved BuildRun missing from list");
       expect(listed.repositoryIdentity).toMatchObject({
         provider: "mutated-provider",

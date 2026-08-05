@@ -4,6 +4,7 @@ import { redactRepositoryText } from "../repository-analysis/repository-analysis
 import { buildComponents } from "./release-build-config.utils";
 import { admitReleaseBuild } from "./release-build-gate-admission";
 import { ReleaseBuildRepository } from "./release-build.repository";
+import { presentBuildHistory } from "./release-build-history.presenter";
 import { ReleaseBuildRunnerService } from "./release-build-runner.service";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import { ReleaseBuildRuntimeSupervisorService } from "./release-build-runtime-supervisor.service";
@@ -23,10 +24,39 @@ export class ReleaseBuildService {
     private readonly supervisor: ReleaseBuildRuntimeSupervisorService,
   ) {}
 
-  async list(teamId: string, projectId: string, releaseOrderId: string) {
+  async list(
+    teamId: string,
+    projectId: string,
+    releaseOrderId: string,
+    take?: number,
+  ) {
     await this.requireContext(teamId, projectId, releaseOrderId);
-    const items = await this.repository.list(teamId, projectId, releaseOrderId);
-    return { items: items.map(presentBuild), total: items.length };
+    const result = await this.repository.list(
+      teamId,
+      projectId,
+      releaseOrderId,
+      take,
+    );
+    return {
+      items: result.items.map(presentBuildHistory),
+      total: result.total,
+    };
+  }
+
+  async get(
+    teamId: string,
+    projectId: string,
+    releaseOrderId: string,
+    buildRunId: string,
+  ) {
+    const run = await this.repository.get(
+      teamId,
+      projectId,
+      releaseOrderId,
+      buildRunId,
+    );
+    if (!run) throw new NotFoundException("BuildRun 不存在或不属于当前发布单");
+    return presentBuild(run);
   }
 
   async build(

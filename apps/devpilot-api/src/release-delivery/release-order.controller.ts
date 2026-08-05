@@ -12,6 +12,7 @@ import {
 import { AuthzGuard, Roles } from "@svton/nestjs-authz";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CreateReleaseOrderDto } from "./dto/release-order.dto";
+import { ReleaseBuildListQueryDto } from "./dto/release-build-list-query.dto";
 import { ReleaseOrderListQueryDto } from "./dto/release-order-list-query.dto";
 import { DeployReleaseToStagingDto } from "./dto/release-staging.dto";
 import {
@@ -77,13 +78,16 @@ export class ReleaseOrderController {
   }
 
   @Get(":releaseOrderId/builds")
+  @Header("Cache-Control", "private, no-store")
+  @Header("Vary", "Authorization, X-Team-Id, Cookie")
   async listBuilds(
     @Request() req: AuthRequest,
     @Param("projectId") projectId: string,
     @Param("releaseOrderId") releaseOrderId: string,
+    @Query() query: ReleaseBuildListQueryDto,
   ) {
     await this.access.assertRead(this.scope(req, projectId));
-    return this.builds.list(req.teamId, projectId, releaseOrderId);
+    return this.builds.list(req.teamId, projectId, releaseOrderId, query.take);
   }
 
   @Post(":releaseOrderId/builds")

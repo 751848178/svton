@@ -91,7 +91,9 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
         },
         signal,
       );
-      logs.push(`artifact ${artifact.digest} (${artifact.sizeBytes} bytes)`);
+      logs.push(
+        `result succeeded: artifact ${artifact.digest} (${artifact.sizeBytes} bytes)`,
+      );
       return {
         artifact,
         logs: sanitizeBuildLogs(logs),
@@ -177,7 +179,10 @@ function failure(
   return new ReleaseBuildExecutionError({
     code,
     message,
-    logs: sanitizeBuildLogs(logs),
+    logs: sanitizeBuildLogs([
+      ...logs,
+      `result ${status === "canceled" ? "canceled" : "failed"}: ${code} ${message}`,
+    ]),
     gateSummary: { build: { status: "failed" }, action },
     status,
   });

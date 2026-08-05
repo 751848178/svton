@@ -2,6 +2,7 @@ import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertReproducibleArtifact } from "./release-build-reproducibility.repository";
+import { canceledBuildLogSummary } from "./release-build-terminal-evidence";
 import type { ReleaseBuildArtifactItem } from "./release-build.types";
 import { releaseBuildInclude } from "./release-build.prisma";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
@@ -157,7 +158,7 @@ export class ReleaseBuildResultRepository {
       code: "BUILD_COMMAND_CANCELED",
       message: "构建已取消",
       logReference: `build-log://${buildRunId}`,
-      logSummary: { redacted: true, lines: [] },
+      logSummary: canceledBuildLogSummary(),
       gateSummary: {
         build: { status: "failed" },
         action: "可重新创建 BuildRun。",

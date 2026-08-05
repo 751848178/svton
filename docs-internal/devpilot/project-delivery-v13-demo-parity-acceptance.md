@@ -176,6 +176,17 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [ ] **AC-BUILD-024** 多次构建不会覆盖旧日志、Manifest 或候选证据。
 - [ ] **AC-BUILD-025** 构建页面视觉密度、表格结构和主动作与 Demo 对齐。
 
+> F428 implementation is code/runtime ready on 2026-08-06: lightweight Build
+> history plus exact per-run detail, terminal/recovery evidence, fail-closed log
+> redaction, deep-link/error/retry state and the six-column Demo structure pass
+> API/Web unit, full regression, real MySQL and authenticated HTTP checks.
+> AC-BUILD-019～025 intentionally remain open because two independent attempts
+> found no available in-app Browser or Chrome surface, so current-tree
+> 1484x1324 screenshots, interaction, console and network evidence could not be
+> captured. The blocker is recorded in
+> `/tmp/codex-tool-runs/svton/f428/browser-evidence-final.json`; no stale
+> screenshot was reused.
+
 ## Staging Deployment
 
 - [ ] **AC-STG-001** Staging 只能选择当前发布单成功 BuildRun 的 Manifest。

@@ -72,11 +72,16 @@ describeIntegration("F426 Build runtime persistence", () => {
       data: { status: "queued", startedAt: null },
     });
     await fixture.results.cancelActive(run.id);
-    await expect(
-      fixture.prisma.buildRun.findUniqueOrThrow({ where: { id: run.id } }),
-    ).resolves.toMatchObject({
+    const canceled = await fixture.prisma.buildRun.findUniqueOrThrow({
+      where: { id: run.id },
+    });
+    expect(canceled).toMatchObject({
       status: "canceled",
       errorCode: "BUILD_COMMAND_CANCELED",
+    });
+    expect(canceled.logSummary).toMatchObject({
+      redacted: true,
+      lines: ["result canceled: BUILD_COMMAND_CANCELED 构建已取消"],
     });
   });
 
@@ -117,6 +122,13 @@ describeIntegration("F426 Build runtime persistence", () => {
     ).resolves.toMatchObject({
       status: "failed",
       errorCode: "BUILD_EXECUTOR_RESTARTED",
+      logReference: `build-log://${run.id}`,
+      logSummary: {
+        redacted: true,
+        lines: [
+          "result failed: BUILD_EXECUTOR_RESTARTED 构建执行器重启，原运行已终止",
+        ],
+      },
     });
     await expect(
       fixture.prisma.artifactManifest.count({

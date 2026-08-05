@@ -1,3 +1,6 @@
+import { redactRepositoryText } from "../repository-analysis/repository-analysis-redact.utils";
+import { presentBuildLogSummary } from "./release-build-log.utils";
+
 interface BuildRecord {
   id: string;
   releaseOrderId: string;
@@ -50,15 +53,19 @@ export function presentBuild(run: BuildRecord) {
     status: run.status,
     inputHash: run.inputHash,
     logReference: run.logReference,
-    logSummary: run.logSummary,
+    logSummary: presentBuildLogSummary(run.logSummary),
     gateSummary: run.gateSummary,
     errorCode: run.errorCode,
-    errorMessage: run.errorMessage,
+    errorMessage: presentBuildErrorMessage(run.errorMessage),
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
     createdAt: run.createdAt,
     manifest: run.manifest,
   };
+}
+
+export function presentBuildErrorMessage(value: string | null) {
+  return value === null ? null : redactRepositoryText(value);
 }
 
 function legacySourceRepository(run: BuildRecord) {
