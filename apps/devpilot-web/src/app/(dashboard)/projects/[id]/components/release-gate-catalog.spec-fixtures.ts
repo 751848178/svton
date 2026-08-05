@@ -22,6 +22,11 @@ export function releaseGateCatalogFixture(): ReleaseGateCatalog {
     capabilityVersion: 'mvp15.test',
     releaseOrder: { id: 'order-1', releaseVersion: '2.4.1' },
     summary: { total: 51, phaseCounts: PHASE_COUNTS, statusCounts: statusCounts() },
+    decisions: {
+      build: decision('build', 'commit'),
+      staging: decision('staging', 'build'),
+      production: decision('production', 'deploy'),
+    },
     capabilities: Array.from({ length: 15 }, (_, index) => ({
       id: `M${String(index + 1).padStart(2, '0')}`,
       name: { zh: `能力 ${index + 1}`, en: `Capability ${index + 1}` },
@@ -55,9 +60,30 @@ function makeCheck(phase: ReleaseGatePhase, index: number): ReleaseGateCheck {
     expiresAt: null,
     fresh: true,
     evaluationId: `evaluation-${id}`,
+    evaluationInputHash: `input-${id}`,
     definitionVersion: 'v13.test:mvp15.test',
     persistedStatus: 'passed',
     persistedAt: '2026-08-05T00:00:00.000Z',
+    waiver: null,
+    waiverExpiresAt: null,
+  };
+}
+
+function decision(stage: 'build' | 'staging' | 'production', phase: 'commit' | 'build' | 'deploy') {
+  return {
+    id: `decision-${stage}`,
+    stage,
+    phase,
+    allowed: true,
+    blockerGateIds: [],
+    manualGateIds: [],
+    confirmedManualGateIds: [],
+    warningGateIds: [],
+    deferredGateIds: [],
+    evidenceOnlyGateIds: ['P03'],
+    integrityErrors: [],
+    inputHash: `decision-input-${stage}`,
+    decidedAt: '2026-08-05T00:00:00.000Z',
   };
 }
 

@@ -91,6 +91,7 @@ export class EnvironmentVersionPolicyService {
       !approval ||
       approval.status !== "approved" ||
       approval.consumedAt ||
+      (approval.expiresAt && approval.expiresAt.getTime() < Date.now()) ||
       approval.inputHash !== run.inputHash
     ) {
       throw new UnprocessableEntityException(

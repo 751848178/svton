@@ -11,7 +11,7 @@ import {
   RELEASE_GATE_EXPECTED_PHASE_COUNTS,
   RELEASE_GATE_STATUS_TO_PERSISTED,
 } from './release-gate-contract';
-const DENY_BUILD = new Set<ReleaseGateStatus>(['unchecked', 'blocked', 'manual', 'unavailable']);
+import { hasExactBuildDecision } from './release-gate-decision-contract';
 
 export const RELEASE_GATE_PREVIEW_GROUPS = [
   { key: 'source', capabilityIds: ['M01'] },
@@ -42,13 +42,15 @@ export interface ReleaseGateSummary {
 
 export function buildReleaseGateSummary(catalog: ReleaseGateCatalog): ReleaseGateSummary {
   const valid = hasExactCatalogShape(catalog);
-  const commitMvp = catalog.checks.filter(
-    (check) => check.phase === 'commit' && check.delivery === 'mvp',
-  );
-  const blockingCount = commitMvp.filter((check) => DENY_BUILD.has(check.status)).length;
+  const decision = catalog.decisions?.build;
+  const blockingCount = decision
+    ? decision.blockerGateIds.length +
+      decision.manualGateIds.length +
+      decision.integrityErrors.length
+    : 1;
   return {
     valid,
-    canEnterBuild: valid && blockingCount === 0,
+    canEnterBuild: valid && decision.allowed,
     blockingCount: valid ? blockingCount : Math.max(1, blockingCount),
     capabilityCount: catalog.capabilities.length,
     totalChecks: catalog.checks.length,
@@ -143,7 +145,8 @@ function hasExactCatalogShape(catalog: ReleaseGateCatalog) {
       (status) =>
         catalog.summary.statusCounts[status as ReleaseGateStatus] ===
         catalog.checks.filter((check) => check.status === status).length,
-    )
+    ) &&
+    hasExactBuildDecision(catalog)
   );
 }
 

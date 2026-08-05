@@ -9,12 +9,14 @@ import {
   ReleaseStagingExecutionError,
   ReleaseStagingExecutorPort,
 } from "./release-staging.types";
+import { ReleaseGateDecisionService } from "./release-gate-decision.service";
 
 @Injectable()
 export class ReleaseStagingService {
   constructor(
     private readonly repository: ReleaseStagingRepository,
     private readonly executor: ReleaseStagingExecutorPort,
+    private readonly gates: ReleaseGateDecisionService,
   ) {}
 
   async list(teamId: string, projectId: string, releaseOrderId: string) {
@@ -60,12 +62,33 @@ export class ReleaseStagingService {
       throw new UnprocessableEntityException("Manifest 缺少可验证的项目制品");
     }
     const environment = context.project.environments[0];
+    const decision = await this.gates.assertAllowed({
+      teamId: input.teamId,
+      actorId: input.actorId,
+      projectId: input.projectId,
+      releaseOrderId: input.releaseOrderId,
+      stage: "staging",
+      target: {
+        buildRunId: manifest.buildRun.id,
+        manifestId: manifest.id,
+        environmentId: environment.id,
+        configRevisionId: environment.currentConfigRevisionId,
+      },
+      actionInput: {
+        buildRunId: manifest.buildRun.id,
+        manifestId: manifest.id,
+        manifestDigest: manifest.digest,
+        environmentId: environment.id,
+        configRevisionId: environment.currentConfigRevisionId,
+      },
+    });
     const run = await this.repository.create({
       teamId: input.teamId,
       actorId: input.actorId,
       projectId: input.projectId,
       releaseOrderId: input.releaseOrderId,
       environmentId: environment.id,
+      configRevisionId: environment.currentConfigRevisionId,
       manifestId: manifest.id,
       sourceBranch: manifest.buildRun.sourceBranch,
       sourceCommitSha: manifest.buildRun.sourceCommitSha,
@@ -76,6 +99,17 @@ export class ReleaseStagingService {
         manifestDigest: manifest.digest,
         buildRunId: manifest.buildRun.id,
         environmentId: environment.id,
+        configRevisionId: environment.currentConfigRevisionId,
+        gateDecision: {
+          id: decision.id,
+          stage: decision.stage,
+          inputHash: decision.inputHash,
+        },
+      },
+      gateDecision: {
+        id: decision.id,
+        stage: decision.stage,
+        inputHash: decision.inputHash,
       },
     });
     try {

@@ -115,6 +115,9 @@ export class ReleaseProductionRepository {
           policySnapshot: {
             releasePolicy: snapshot.releasePolicy,
             environmentPolicyReferences: snapshot.config.policySnapshot,
+            releaseProtection: releaseProtection(
+              snapshot.config.policySnapshot,
+            ),
           } as Prisma.InputJsonValue,
           inputHash: preview.inputHash,
           idempotencyKey: input.idempotencyKey,
@@ -147,4 +150,20 @@ export class ReleaseProductionRepository {
       });
     });
   }
+}
+
+function releaseProtection(value: unknown) {
+  const record =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const candidate = record.releaseProtection;
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return null;
+  }
+  const protection = candidate as Record<string, unknown>;
+  return {
+    changeWindowVerified: protection.changeWindowVerified === true,
+    freezeVerified: protection.freezeVerified === true,
+  };
 }

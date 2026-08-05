@@ -1,13 +1,11 @@
-import {
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { RepositoryGitError } from "../repository-analysis/repository-git-error.utils";
 import { RepositoryGitExecutorService } from "../repository-analysis/repository-git-executor.service";
 import { redactRepositoryText } from "../repository-analysis/repository-analysis-redact.utils";
 import { buildComponents } from "./release-build-config.utils";
 import { ReleaseBuildExecutionError } from "./release-build-execution.error";
+import { admitReleaseBuild } from "./release-build-gate-admission";
 import {
   buildLogReference,
   buildLogSummary,
@@ -17,6 +15,7 @@ import { ReleaseBuildRepository } from "./release-build.repository";
 import { ReleaseBuildResultRepository } from "./release-build-result.repository";
 import { presentBuild } from "./release-build.presenter";
 import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
+import { ReleaseGateDecisionService } from "./release-gate-decision.service";
 import {
   ReleaseBuildExecutorPort,
   ReleaseBuildFailure,
@@ -31,6 +30,7 @@ export class ReleaseBuildService {
     private readonly git: RepositoryGitExecutorService,
     private readonly sources: ReleaseBuildSourceResolverService,
     private readonly executor: ReleaseBuildExecutorPort,
+    private readonly gates: ReleaseGateDecisionService,
   ) {}
 
   async list(teamId: string, projectId: string, releaseOrderId: string) {
@@ -45,7 +45,16 @@ export class ReleaseBuildService {
     projectId: string,
     releaseOrderId: string,
   ) {
-    const source = await this.sources.resolve(teamId, projectId, releaseOrderId);
+    const { source, decision } = await admitReleaseBuild(
+      this.sources,
+      this.gates,
+      {
+        teamId,
+        actorId,
+        projectId,
+        releaseOrderId,
+      },
+    );
     const snapshot: ReleaseBuildInputSnapshot = {
       version: 2,
       repositoryUrl: safeRepositoryUrl(source.connection.repositoryUrl),
@@ -59,6 +68,11 @@ export class ReleaseBuildService {
       sourceBranch: source.identity.branch,
       sourceCommitSha: source.commitSha,
       components: buildComponents(source.context.project.applications),
+      gateDecision: {
+        id: decision.id,
+        stage: decision.stage,
+        inputHash: decision.inputHash,
+      },
     };
     const buildRun = await this.repository.reserve({
       teamId,
@@ -84,35 +98,39 @@ export class ReleaseBuildService {
         checkoutRoot: checkout.root,
         components: snapshot.components,
       });
-      return presentBuild(await this.results.succeed({
-        buildRunId: buildRun.id,
-        teamId,
-        projectId,
-        releaseOrderId,
-        digest: result.artifact.digest,
-        uri: result.artifact.uri,
-        sizeBytes: result.artifact.sizeBytes,
-        sourceBranch: buildRun.sourceBranch,
-        sourceCommitSha: buildRun.sourceCommitSha,
-        inputHash: buildRun.inputHash,
-        repositoryIdentityId: source.identity.id,
-        repositoryIdentityRevisionId: source.identity.revisionId,
-        repositoryProvider: source.identity.provider,
-        canonicalRepositoryUrl: source.identity.canonicalUrl,
-        logReference: buildLogReference(buildRun.id),
-        logSummary: buildLogSummary(result.logs),
-        gateSummary: result.gateSummary,
-      }));
+      return presentBuild(
+        await this.results.succeed({
+          buildRunId: buildRun.id,
+          teamId,
+          projectId,
+          releaseOrderId,
+          digest: result.artifact.digest,
+          uri: result.artifact.uri,
+          sizeBytes: result.artifact.sizeBytes,
+          sourceBranch: buildRun.sourceBranch,
+          sourceCommitSha: buildRun.sourceCommitSha,
+          inputHash: buildRun.inputHash,
+          repositoryIdentityId: source.identity.id,
+          repositoryIdentityRevisionId: source.identity.revisionId,
+          repositoryProvider: source.identity.provider,
+          canonicalRepositoryUrl: source.identity.canonicalUrl,
+          logReference: buildLogReference(buildRun.id),
+          logSummary: buildLogSummary(result.logs),
+          gateSummary: result.gateSummary,
+        }),
+      );
     } catch (error) {
       const detail = failureDetail(error);
-      return presentBuild(await this.results.fail({
-        buildRunId: buildRun.id,
-        code: detail.code,
-        message: detail.message,
-        logReference: buildLogReference(buildRun.id),
-        logSummary: buildLogSummary(detail.logs),
-        gateSummary: detail.gateSummary,
-      }));
+      return presentBuild(
+        await this.results.fail({
+          buildRunId: buildRun.id,
+          code: detail.code,
+          message: detail.message,
+          logReference: buildLogReference(buildRun.id),
+          logSummary: buildLogSummary(detail.logs),
+          gateSummary: detail.gateSummary,
+        }),
+      );
     } finally {
       if (checkout) await checkout.cleanup();
     }
@@ -123,7 +141,11 @@ export class ReleaseBuildService {
     projectId: string,
     releaseOrderId: string,
   ) {
-    const context = await this.repository.context(teamId, projectId, releaseOrderId);
+    const context = await this.repository.context(
+      teamId,
+      projectId,
+      releaseOrderId,
+    );
     if (!context) throw new NotFoundException("发布单不存在或不属于当前项目");
     return context;
   }
@@ -144,13 +166,21 @@ function failureDetail(error: unknown): ReleaseBuildFailure {
       code: error.detail.code,
       message: error.detail.message,
       logs: [],
-      gateSummary: { source: { status: "failed" }, action: error.detail.action },
+      gateSummary: {
+        source: { status: "failed" },
+        action: error.detail.action,
+      },
     };
   }
   return {
     code: "BUILD_EXECUTION_FAILED",
     message: "构建执行失败",
-    logs: sanitizeBuildLogs([error instanceof Error ? error.message : String(error)]),
-    gateSummary: { build: { status: "failed" }, action: "请检查运行证据后重试。" },
+    logs: sanitizeBuildLogs([
+      error instanceof Error ? error.message : String(error),
+    ]),
+    gateSummary: {
+      build: { status: "failed" },
+      action: "请检查运行证据后重试。",
+    },
   };
 }

@@ -13,6 +13,7 @@ describe('release gate summary model', () => {
     const catalog = releaseGateCatalogFixture();
     setStatus(catalog.checks.find((check) => check.id === 'C04')!, 'blocked');
     setStatus(catalog.checks.find((check) => check.id === 'C06')!, 'warning');
+    catalog.decisions.build.warningGateIds = ['C06'];
     syncStatusCounts(catalog);
 
     const summary = buildReleaseGateSummary(catalog);
@@ -37,6 +38,9 @@ describe('release gate summary model', () => {
     (status) => {
       const catalog = releaseGateCatalogFixture();
       setStatus(catalog.checks.find((check) => check.id === 'C01')!, status);
+      catalog.decisions.build.allowed = false;
+      if (status === 'manual') catalog.decisions.build.manualGateIds = ['C01'];
+      else catalog.decisions.build.blockerGateIds = ['C01'];
       syncStatusCounts(catalog);
       expect(buildReleaseGateSummary(catalog)).toMatchObject({
         valid: true,
@@ -45,6 +49,33 @@ describe('release gate summary model', () => {
       });
     },
   );
+
+  it('uses the persisted server verdict and rejects a decision/check mismatch', () => {
+    const denied = releaseGateCatalogFixture();
+    denied.decisions.build.allowed = false;
+    denied.decisions.build.blockerGateIds = ['C01'];
+    expect(buildReleaseGateSummary(denied)).toMatchObject({
+      valid: false,
+      canEnterBuild: false,
+    });
+
+    setStatus(denied.checks.find((check) => check.id === 'C01')!, 'blocked');
+    syncStatusCounts(denied);
+    expect(buildReleaseGateSummary(denied)).toMatchObject({
+      valid: true,
+      canEnterBuild: false,
+      blockingCount: 1,
+    });
+  });
+
+  it('fails closed when Build attempts a Production-only deferral', () => {
+    const catalog = releaseGateCatalogFixture();
+    catalog.decisions.build.deferredGateIds = ['C01'];
+    expect(buildReleaseGateSummary(catalog)).toMatchObject({
+      valid: false,
+      canEnterBuild: false,
+    });
+  });
 
   it('fails closed when 15/51 ownership or phase facts drift', () => {
     const missingCapability = releaseGateCatalogFixture();

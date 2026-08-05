@@ -3,6 +3,8 @@ import { EnvironmentVersionPolicyService } from "./environment-version-policy.se
 import { EnvironmentVersionReadRepository } from "./environment-version-read.repository";
 import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { EnvironmentVersionService } from "./environment-version.service";
+import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-gate-evidence.repository";
+import { productionGateTestDouble } from "./release-gate-test-decision.spec-utils";
 import type { StagingArtifactInput } from "./release-staging.types";
 import {
   cleanupProductionFixture,
@@ -35,6 +37,8 @@ describeIntegration("EnvironmentVersion integration", () => {
           evidence: { artifactVerified: true, checkout: false, build: false },
         }),
       } as never,
+      productionGateTestDouble(fixture.prisma) as never,
+      new EnvironmentVersionGateEvidenceRepository(fixture.prisma as never),
     );
   });
 

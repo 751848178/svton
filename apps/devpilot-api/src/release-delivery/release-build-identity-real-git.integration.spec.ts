@@ -20,11 +20,11 @@ import { ReleaseBuildRepository } from "./release-build.repository";
 import { ReleaseBuildResultRepository } from "./release-build-result.repository";
 import { ReleaseBuildService } from "./release-build.service";
 import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
+import { gatePolicyTestDouble } from "./release-gate-test-decision.spec-utils";
 
 const git = promisify(execFile);
-const describeIntegration = process.env.RUN_F416_IDENTITY_INTEGRATION === "1"
-  ? describe
-  : describe.skip;
+const describeIntegration =
+  process.env.RUN_F416_IDENTITY_INTEGRATION === "1" ? describe : describe.skip;
 
 describeIntegration("F416 real Git identity and build source", () => {
   const prisma = new PrismaClient();
@@ -47,7 +47,13 @@ describeIntegration("F416 real Git identity and build source", () => {
     parentRoot = await mkdtemp(join(tmpdir(), "f416-real-git-"));
     repositoryRoot = join(parentRoot, "source");
     await git("git", ["init", "-b", "main", repositoryRoot]);
-    await git("git", ["-C", repositoryRoot, "config", "user.email", "f416@example.com"]);
+    await git("git", [
+      "-C",
+      repositoryRoot,
+      "config",
+      "user.email",
+      "f416@example.com",
+    ]);
     await git("git", ["-C", repositoryRoot, "config", "user.name", "F416"]);
     await writeFile(join(repositoryRoot, "app.txt"), "main\n");
     await git("git", ["-C", repositoryRoot, "add", "."]);
@@ -65,12 +71,17 @@ describeIntegration("F416 real Git identity and build source", () => {
     });
     await prisma.team.create({ data: { id: teamId, name: "F416 Git Team" } });
     await seedDatabase();
-    const config = new ConfigService({ REPOSITORY_ANALYSIS_LOCAL_ROOTS: parentRoot });
+    const config = new ConfigService({
+      REPOSITORY_ANALYSIS_LOCAL_ROOTS: parentRoot,
+    });
     const gitExecutor = new RepositoryGitExecutorService(
       config,
       new RepositoryGitCommandService(config),
     );
-    const credentials = new RepositoryCredentialService(db, createTestCryptoService());
+    const credentials = new RepositoryCredentialService(
+      db,
+      createTestCryptoService(),
+    );
     const reads = new RepositoryIdentityReadRepository(db);
     const coordinator = new RepositoryIdentityCoordinatorService(db);
     branches = new RepositoryIdentityBranchService(
@@ -103,6 +114,7 @@ describeIntegration("F416 real Git identity and build source", () => {
           };
         },
       },
+      gatePolicyTestDouble(prisma) as never,
     );
   });
 
@@ -158,7 +170,9 @@ describeIntegration("F416 real Git identity and build source", () => {
       },
     });
     expect(executedCommits).toEqual([latestReleaseCommit]);
-    const stored = await prisma.buildRun.findUniqueOrThrow({ where: { id: build.id } });
+    const stored = await prisma.buildRun.findUniqueOrThrow({
+      where: { id: build.id },
+    });
     expect(stored.repositoryIdentityRevisionId).toBe(revised.revisionId);
     expect(stored.inputSnapshot).toMatchObject({
       repositoryIdentity: {
@@ -169,10 +183,17 @@ describeIntegration("F416 real Git identity and build source", () => {
       sourceBranch: "release",
       sourceCommitSha: latestReleaseCommit,
     });
-    await expect(prisma.auditEvent.count({
-      where: { projectId, action: "project.repository_identity.branch.revise" },
-    })).resolves.toBe(1);
-    await expect(fingerprint(repositoryRoot)).resolves.toEqual(fingerprintBefore);
+    await expect(
+      prisma.auditEvent.count({
+        where: {
+          projectId,
+          action: "project.repository_identity.branch.revise",
+        },
+      }),
+    ).resolves.toBe(1);
+    await expect(fingerprint(repositoryRoot)).resolves.toEqual(
+      fingerprintBefore,
+    );
   });
 
   async function seedDatabase() {
@@ -233,14 +254,16 @@ describeIntegration("F416 real Git identity and build source", () => {
       where: { id: identity.id },
       data: { currentRevisionId: revision.id },
     });
-    orderId = (await prisma.releaseOrder.create({
-      data: {
-        teamId,
-        projectId,
-        createdById: userId,
-        releaseVersion: "1.0.0",
-      },
-    })).id;
+    orderId = (
+      await prisma.releaseOrder.create({
+        data: {
+          teamId,
+          projectId,
+          createdById: userId,
+          releaseVersion: "1.0.0",
+        },
+      })
+    ).id;
   }
 });
 
@@ -252,6 +275,8 @@ async function fingerprint(root: string) {
   return {
     commit: await revParse(root, "refs/heads/main"),
     tree: await revParse(root, "refs/heads/main^{tree}"),
-    status: (await git("git", ["-C", root, "status", "--porcelain"])).stdout.trim(),
+    status: (
+      await git("git", ["-C", root, "status", "--porcelain"])
+    ).stdout.trim(),
   };
 }

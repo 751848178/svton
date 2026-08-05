@@ -3,6 +3,9 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { completeVersionedDeployment } from "./environment-version-write.utils";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
+import { claimReleaseGateDecision } from "./release-gate-decision.repository";
+import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
+import { startProductionReleaseExecution } from "./environment-version-production-reservation-boundary";
 
 @Injectable()
 export class EnvironmentVersionRepository {
@@ -85,6 +88,7 @@ export class EnvironmentVersionRepository {
     projectId: string;
     actorId: string;
     environmentId: string;
+    configRevisionId: string | null;
     manifestId: string;
     releaseOrderId: string;
     releaseRunId?: string;
@@ -92,22 +96,25 @@ export class EnvironmentVersionRepository {
     branch: string;
     commitSha: string;
     params: Record<string, unknown>;
+    gateDecision?: ReleaseGateDecisionReference;
   }) {
     return this.prisma.$transaction(async (tx) => {
       await lockActionableReleaseOrder(tx, input);
       if (input.releaseRunId) {
-        await tx.$queryRaw`SELECT id FROM ReleaseRun WHERE id = ${input.releaseRunId} FOR UPDATE`;
-        const claimed = await tx.releaseRun.updateMany({
-          where: { id: input.releaseRunId, status: "awaiting_approval" },
-          data: { status: "running", startedAt: new Date() },
-        });
-        if (claimed.count !== 1) {
-          throw new ConflictException(
-            "Production ReleaseRun 已被执行或状态已变化",
-          );
+        if (!input.gateDecision) {
+          throw new ConflictException("Production 执行缺少已允许的门禁决定");
         }
+        await startProductionReleaseExecution(tx, {
+          teamId: input.teamId,
+          projectId: input.projectId,
+          releaseOrderId: input.releaseOrderId,
+          environmentId: input.environmentId,
+          configRevisionId: input.configRevisionId,
+          manifestId: input.manifestId,
+          releaseRunId: input.releaseRunId,
+        });
       }
-      return tx.deploymentRun.create({
+      const run = await tx.deploymentRun.create({
         data: {
           teamId: input.teamId,
           projectId: input.projectId,
@@ -135,15 +142,52 @@ export class EnvironmentVersionRepository {
           },
         },
       });
+      if (input.gateDecision) {
+        await claimReleaseGateDecision(tx, {
+          teamId: input.teamId,
+          projectId: input.projectId,
+          releaseOrderId: input.releaseOrderId,
+          actorId: input.actorId,
+          decisionId: input.gateDecision.id,
+          stage: input.gateDecision.stage,
+          inputHash: input.gateDecision.inputHash,
+          actionRunType: "deployment_run",
+          actionRunId: run.id,
+          requireAllowed: true,
+        });
+      }
+      return run;
     });
   }
 
-  complete(input: Parameters<typeof completeVersionedDeployment>[1]) {
+  complete(
+    input: Parameters<typeof completeVersionedDeployment>[1] & {
+      teamId: string;
+      projectId: string;
+      releaseOrderId: string;
+      actorId: string;
+      gateDecision?: ReleaseGateDecisionReference;
+    },
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const version = await completeVersionedDeployment(tx, input);
       const run = await tx.deploymentRun.findUniqueOrThrow({
         where: { id: input.deploymentRunId },
       });
+      if (input.gateDecision) {
+        await claimReleaseGateDecision(tx, {
+          teamId: input.teamId,
+          projectId: input.projectId,
+          releaseOrderId: input.releaseOrderId,
+          actorId: input.actorId,
+          decisionId: input.gateDecision.id,
+          stage: input.gateDecision.stage,
+          inputHash: input.gateDecision.inputHash,
+          actionRunType: "deployment_run",
+          actionRunId: run.id,
+          requireAllowed: input.status === "completed",
+        });
+      }
       return { run, version };
     });
   }

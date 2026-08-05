@@ -1,10 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
-import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
-import { ReleaseGateEvidenceRepository } from "./release-gate-evidence.repository";
-import { ReleaseGateDeployEvidenceRepository } from "./release-gate-deploy-evidence.repository";
-import { ReleaseGatePromoteEvidenceRepository } from "./release-gate-promote-evidence.repository";
-import { GateEvaluationRepository } from "./gate-evaluation.repository";
+import { Injectable } from "@nestjs/common";
+import { previewReleaseBuildGate } from "./release-build-gate-admission";
+import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
+import { ReleaseGateDecisionService } from "./release-gate-decision.service";
 import {
   RELEASE_GATE_CAPABILITY_VERSION,
   RELEASE_GATE_CATALOG_VERSION,
@@ -18,11 +15,8 @@ const PHASES: ReleaseGatePhase[] = ["commit", "build", "deploy", "promote"];
 @Injectable()
 export class ReleaseGateCatalogService {
   constructor(
-    private readonly evidence: ReleaseGateEvidenceRepository,
-    private readonly deployEvidence: ReleaseGateDeployEvidenceRepository,
-    private readonly promoteEvidence: ReleaseGatePromoteEvidenceRepository,
-    private readonly capabilities: ReleaseGateCapabilityRegistryService,
-    private readonly evaluations: GateEvaluationRepository,
+    private readonly decisionPolicy: ReleaseGateDecisionService,
+    private readonly sources: ReleaseBuildSourceResolverService,
   ) {}
 
   async get(
@@ -31,37 +25,36 @@ export class ReleaseGateCatalogService {
     releaseOrderId: string,
     actorId: string,
   ) {
-    const order = await this.evidence.load(teamId, projectId, releaseOrderId);
-    if (!order) throw new NotFoundException("发布单不存在或不属于当前项目");
-    const context = {
-      ...order,
-      deploy: await this.deployEvidence.load(teamId, projectId, releaseOrderId),
-      promote: await this.promoteEvidence.load(teamId, projectId, releaseOrderId),
-    };
-    const now = new Date();
-    const evaluatedChecks = RELEASE_GATE_DEFINITIONS.map((definition) =>
-      this.capabilities.evaluate(definition, context, now),
-    );
-    const checks = await this.evaluations.persist({
+    const scope = {
       teamId,
       projectId,
       releaseOrderId,
       actorId,
-      buildRunId: order.buildRuns[0]?.id,
-      releaseRunId: context.promote?.releaseRun?.id,
-    }, evaluatedChecks);
+    };
+    const { evaluation, decisions } = await this.decisionPolicy.catalog(
+      scope,
+      await previewReleaseBuildGate(this.sources, scope),
+    );
+    const { order, checks, capabilities } = evaluation;
     const phaseCounts = Object.fromEntries(
-      PHASES.map((phase) => [phase, checks.filter((check) => check.phase === phase).length]),
+      PHASES.map((phase) => [
+        phase,
+        checks.filter((check) => check.phase === phase).length,
+      ]),
     );
     const statusCounts = Object.fromEntries(
-      RELEASE_GATE_STATUSES.map((status) => [status, this.countStatus(checks, status)]),
+      RELEASE_GATE_STATUSES.map((status) => [
+        status,
+        this.countStatus(checks, status),
+      ]),
     );
     return {
       catalogVersion: RELEASE_GATE_CATALOG_VERSION,
       capabilityVersion: RELEASE_GATE_CAPABILITY_VERSION,
       releaseOrder: { id: order.id, releaseVersion: order.releaseVersion },
       summary: { total: checks.length, phaseCounts, statusCounts },
-      capabilities: this.capabilities.list(context),
+      decisions,
+      capabilities,
       checks,
     };
   }

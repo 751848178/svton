@@ -139,14 +139,14 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-GATE-004** 51 项按 Commit 10、Build 11、Deploy 20、Promote 10 分组。
 - [x] **AC-GATE-005** 每项显示状态、Provider、原因、证据引用、检查时间和过期时间。
 - [x] **AC-GATE-006** `unavailable`、`needs_human`、warning、failed 与 passed 视觉/语义不同。
-- [ ] **AC-GATE-007** 必需来源/CI 门禁失败时服务端拒绝 Build。
-- [ ] **AC-GATE-008** 必需构建/制品门禁失败时服务端拒绝 Staging。
-- [ ] **AC-GATE-009** 必需部署/入口门禁失败时服务端拒绝 Production。
-- [ ] **AC-GATE-010** 业务验证可以展示为非阻断证据，不伪装技术通过。
-- [ ] **AC-GATE-011** 人工确认只满足定义为人工的门禁。
-- [ ] **AC-GATE-012** 缺失、过期或关闭 Provider 默认 unavailable/failed，不得 pass。
-- [ ] **AC-GATE-013** 门禁决定和对应输入快照持久化可审计。
-- [ ] **AC-GATE-014** 页面展示状态和服务端实际阻断决定完全一致。
+- [x] **AC-GATE-007** 必需来源/CI 门禁失败时服务端拒绝 Build。
+- [x] **AC-GATE-008** 必需构建/制品门禁失败时服务端拒绝 Staging。
+- [x] **AC-GATE-009** 必需部署/入口门禁失败时服务端拒绝 Production。
+- [x] **AC-GATE-010** 业务验证可以展示为非阻断证据，不伪装技术通过。
+- [x] **AC-GATE-011** 人工确认只满足定义为人工的门禁。
+- [x] **AC-GATE-012** 缺失、过期或关闭 Provider 默认 unavailable/failed，不得 pass。
+- [x] **AC-GATE-013** 门禁决定和对应输入快照持久化可审计。
+- [x] **AC-GATE-014** 页面展示状态和服务端实际阻断决定完全一致。
 
 ## Build And Artifact
 

@@ -110,8 +110,31 @@ function catalog(orderId: string, version: string): ReleaseGateCatalog {
       phaseCounts: { commit: 0, build: 0, deploy: 0, promote: 0 },
       statusCounts: statusCounts(),
     },
+    decisions: {
+      build: decision('build', 'commit'),
+      staging: decision('staging', 'build'),
+      production: decision('production', 'deploy'),
+    },
     capabilities: [],
     checks: [],
+  };
+}
+
+function decision(stage: 'build' | 'staging' | 'production', phase: 'commit' | 'build' | 'deploy') {
+  return {
+    id: `decision-${stage}`,
+    stage,
+    phase,
+    allowed: false,
+    blockerGateIds: [],
+    manualGateIds: [],
+    confirmedManualGateIds: [],
+    warningGateIds: [],
+    deferredGateIds: [],
+    evidenceOnlyGateIds: [],
+    integrityErrors: [],
+    inputHash: `input-${stage}`,
+    decidedAt: new Date(0).toISOString(),
   };
 }
 

@@ -5,12 +5,15 @@ import { PrismaService } from "../prisma/prisma.service";
 import { ReleaseBuildRepository } from "./release-build.repository";
 import { ReleaseBuildResultRepository } from "./release-build-result.repository";
 import { ReleaseBuildService } from "./release-build.service";
+import {
+  gatePolicyTestDouble,
+  persistAllowedTestDecision,
+} from "./release-gate-test-decision.spec-utils";
 import { presentBuild } from "./release-build.presenter";
 import type { ReleaseBuildInputSnapshot } from "./release-build.types";
 
-const describeIntegration = process.env.RUN_RELEASE_BUILD_INTEGRATION === "1"
-  ? describe
-  : describe.skip;
+const describeIntegration =
+  process.env.RUN_RELEASE_BUILD_INTEGRATION === "1" ? describe : describe.skip;
 
 describeIntegration("ReleaseBuild integration", () => {
   const prisma = new PrismaClient();
@@ -87,14 +90,16 @@ describeIntegration("ReleaseBuild integration", () => {
       where: { id: identityId },
       data: { currentRevisionId: revisionId },
     });
-    orderId = (await prisma.releaseOrder.create({
-      data: {
-        teamId,
-        projectId,
-        createdById: userId,
-        releaseVersion: "1.0.0",
-      },
-    })).id;
+    orderId = (
+      await prisma.releaseOrder.create({
+        data: {
+          teamId,
+          projectId,
+          createdById: userId,
+          releaseVersion: "1.0.0",
+        },
+      })
+    ).id;
   });
 
   afterAll(async () => {
@@ -104,15 +109,15 @@ describeIntegration("ReleaseBuild integration", () => {
   });
 
   it("allocates a monotonic revision for every independent build", async () => {
-    const first = await repository.reserve(reservation());
-    const second = await repository.reserve(reservation());
+    const first = await repository.reserve(await reservation());
+    const second = await repository.reserve(await reservation());
     expect([first.revision, second.revision]).toEqual([1, 2]);
     expect(first.sourceCommitSha).toBe("a".repeat(40));
     expect(second.sourceCommitSha).toBe("a".repeat(40));
   });
 
   it("keeps historical presentation frozen after joined identity mutation", async () => {
-    const reserved = await repository.reserve(reservation());
+    const reserved = await repository.reserve(await reservation());
     await prisma.projectRepositoryIdentity.update({
       where: { id: identityId },
       data: {
@@ -121,8 +126,9 @@ describeIntegration("ReleaseBuild integration", () => {
       },
     });
     try {
-      const listed = (await repository.list(teamId, projectId, orderId))
-        .find((run) => run.id === reserved.id)!;
+      const listed = (await repository.list(teamId, projectId, orderId)).find(
+        (run) => run.id === reserved.id,
+      )!;
       expect(listed.repositoryIdentity).toMatchObject({
         provider: "mutated-provider",
         canonicalUrl: "https://mutated.example/repository",
@@ -150,7 +156,7 @@ describeIntegration("ReleaseBuild integration", () => {
   });
 
   it("creates one immutable manifest only for a successful run", async () => {
-    const failed = await repository.reserve(reservation());
+    const failed = await repository.reserve(await reservation());
     await results.fail({
       buildRunId: failed.id,
       code: "BUILD_COMMAND_FAILED",
@@ -163,7 +169,7 @@ describeIntegration("ReleaseBuild integration", () => {
       prisma.artifactManifest.count({ where: { buildRunId: failed.id } }),
     ).resolves.toBe(0);
 
-    const succeeded = await repository.reserve(reservation());
+    const succeeded = await repository.reserve(await reservation());
     await results.succeed({
       buildRunId: succeeded.id,
       teamId,
@@ -263,13 +269,17 @@ describeIntegration("ReleaseBuild integration", () => {
       { checkout } as never,
       sources as never,
       executor as never,
+      gatePolicyTestDouble(prisma) as never,
     );
     try {
-      await expect(service.build(teamId, userId, projectId, orderId))
-        .rejects.toMatchObject({
-          response: { code: "PROJECT_REPOSITORY_BUILD_SOURCE_DRIFT" },
-        });
-      await expect(prisma.buildRun.count({ where: { projectId } })).resolves.toBe(before);
+      await expect(
+        service.build(teamId, userId, projectId, orderId),
+      ).rejects.toMatchObject({
+        response: { code: "PROJECT_REPOSITORY_BUILD_SOURCE_DRIFT" },
+      });
+      await expect(
+        prisma.buildRun.count({ where: { projectId } }),
+      ).resolves.toBe(before);
       expect(checkout).not.toHaveBeenCalled();
       expect(executor.execute).not.toHaveBeenCalled();
     } finally {
@@ -281,7 +291,14 @@ describeIntegration("ReleaseBuild integration", () => {
     }
   });
 
-  function reservation() {
+  async function reservation() {
+    const decision = await persistAllowedTestDecision(prisma, {
+      teamId,
+      actorId: userId,
+      projectId,
+      releaseOrderId: orderId,
+      stage: "build",
+    });
     const snapshot: ReleaseBuildInputSnapshot = {
       version: 2,
       repositoryUrl: "https://example.com/repo.git",
@@ -294,12 +311,19 @@ describeIntegration("ReleaseBuild integration", () => {
       },
       sourceBranch: "main",
       sourceCommitSha: "a".repeat(40),
-      components: [{
-        key: "app",
-        name: "app",
-        workingDirectory: ".",
-        buildCommand: "npm run build",
-      }],
+      components: [
+        {
+          key: "app",
+          name: "app",
+          workingDirectory: ".",
+          buildCommand: "npm run build",
+        },
+      ],
+      gateDecision: {
+        id: decision.id,
+        stage: decision.stage,
+        inputHash: decision.inputHash,
+      },
     };
     return {
       teamId,

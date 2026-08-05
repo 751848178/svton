@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReleaseStagingRepository } from "./release-staging.repository";
 import { ReleaseStagingService } from "./release-staging.service";
+import { gatePolicyTestDouble } from "./release-gate-test-decision.spec-utils";
 
 const describeIntegration =
   process.env.RUN_RELEASE_STAGING_INTEGRATION === "1"
@@ -26,7 +27,11 @@ describeIntegration("ReleaseStaging integration", () => {
       },
     })),
   };
-  const service = new ReleaseStagingService(repository, executor as never);
+  const service = new ReleaseStagingService(
+    repository,
+    executor as never,
+    gatePolicyTestDouble(prisma) as never,
+  );
   const suffix = randomUUID();
   const userId = `staging-user-${suffix}`;
   const teamId = `staging-team-${suffix}`;

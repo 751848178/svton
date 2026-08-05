@@ -12,17 +12,35 @@ describe("Commit/Build release gate providers", () => {
   it("reports positive real M01-M05 evidence with freshness metadata", () => {
     const context = evidenceContext();
     const checks = evaluate(registry, context);
-    for (const id of ["C01", "C05", "C08", "C09", "C07", "C10", "B01", "B02", "B03", "B06", "B09"]) {
+    for (const id of [
+      "C01",
+      "C05",
+      "C08",
+      "C09",
+      "C07",
+      "C10",
+      "B01",
+      "B02",
+      "B03",
+      "B06",
+      "B09",
+    ]) {
       expect(checks[id]).toMatchObject({ status: "checked", fresh: true });
       expect(checks[id].evidenceRef).toBeTruthy();
       expect(checks[id].checkedAt).toBeTruthy();
     }
     expect(checks.C01.expiresAt).toBeTruthy();
     expect(checks.B09.expiresAt).toBeNull();
-    expect(registry.list(context).filter((item) =>
-      (["M01", "M02", "M03", "M04", "M05"] as ReleaseGateCapabilityId[])
-        .includes(item.id),
-    ).every((item) => item.available)).toBe(true);
+    expect(
+      registry
+        .list(context)
+        .filter((item) =>
+          (
+            ["M01", "M02", "M03", "M04", "M05"] as ReleaseGateCapabilityId[]
+          ).includes(item.id),
+        )
+        .every((item) => item.available),
+    ).toBe(true);
   });
 
   it("blocks failed build, security, test, and corrupt Manifest evidence", () => {
@@ -51,9 +69,21 @@ describe("Commit/Build release gate providers", () => {
     context.project.repositoryAnalysisRuns[0].finishedAt = old;
     context.buildRuns[0].finishedAt = old;
     const checks = evaluate(registry, context);
-    expect(checks.C01).toMatchObject({ status: "unchecked", reasonCode: "evidence_stale", fresh: false });
-    expect(checks.C05).toMatchObject({ status: "unchecked", reasonCode: "evidence_stale", fresh: false });
-    expect(checks.C08).toMatchObject({ status: "unchecked", reasonCode: "evidence_stale", fresh: false });
+    expect(checks.C01).toMatchObject({
+      status: "unchecked",
+      reasonCode: "evidence_stale",
+      fresh: false,
+    });
+    expect(checks.C05).toMatchObject({
+      status: "unchecked",
+      reasonCode: "evidence_stale",
+      fresh: false,
+    });
+    expect(checks.C08).toMatchObject({
+      status: "unchecked",
+      reasonCode: "evidence_stale",
+      fresh: false,
+    });
   });
 
   it("keeps missing CI, merge, diff, and scanner providers unavailable", () => {
@@ -70,8 +100,22 @@ describe("Commit/Build release gate providers", () => {
     expect(checks.C07.status).toBe("unavailable");
     expect(checks.C10.status).toBe("unavailable");
     expect(checks.B06.status).toBe("unavailable");
-    expect(registry.list(context).find((item) => item.id === "M04"))
-      .toMatchObject({ available: false, providerKey: "build_quality_security" });
+    expect(
+      registry.list(context).find((item) => item.id === "M04"),
+    ).toMatchObject({
+      available: false,
+      providerKey: "build_quality_security",
+    });
+  });
+
+  it("does not reuse a historical BuildRun when current source resolution fails", () => {
+    const context = evidenceContext();
+    context.decisionTarget = { sourceResolution: "unavailable" };
+    const checks = evaluate(registry, context);
+    expect(checks.C01).toMatchObject({
+      status: "unavailable",
+      reasonCode: "repository_source_resolution_failed",
+    });
   });
 });
 
@@ -79,10 +123,16 @@ function evaluate(
   registry: ReleaseGateCapabilityRegistryService,
   context: ReleaseGateEvidenceContext,
 ) {
-  return Object.fromEntries(RELEASE_GATE_DEFINITIONS
-    .filter((definition) => definition.capabilityId
-      && ["M01", "M02", "M03", "M04", "M05"].includes(definition.capabilityId))
-    .map((definition) => [definition.id, registry.evaluate(definition, context, NOW)]));
+  return Object.fromEntries(
+    RELEASE_GATE_DEFINITIONS.filter(
+      (definition) =>
+        definition.capabilityId &&
+        ["M01", "M02", "M03", "M04", "M05"].includes(definition.capabilityId),
+    ).map((definition) => [
+      definition.id,
+      registry.evaluate(definition, context, NOW),
+    ]),
+  );
 }
 
 function evidenceContext() {
@@ -93,37 +143,77 @@ function evidenceContext() {
     releaseVersion: "2.4.1",
     project: {
       repositoryConnection: {
-        id: "connection-1", provider: "github", status: "connected",
-        defaultBranch: "main", selectedBranch: "main", commitSha: "abc123",
-        verifiedAt: at, errorCode: null, errorMessage: null, updatedAt: at,
+        id: "connection-1",
+        provider: "github",
+        status: "connected",
+        defaultBranch: "main",
+        selectedBranch: "main",
+        commitSha: "abc123",
+        verifiedAt: at,
+        errorCode: null,
+        errorMessage: null,
+        updatedAt: at,
       },
-      repositoryAnalysisRuns: [{
-        id: "analysis-1", status: "succeeded", branch: "main", commitSha: "abc123",
-        parserVersion: "f402.1", result: {
-          repository: { monorepo: false, packageManager: "pnpm", lockfiles: ["pnpm-lock.yaml"] },
-          services: [{ key: "api" }],
-          changeImpact: { highRiskDirectories: [] },
+      repositoryAnalysisRuns: [
+        {
+          id: "analysis-1",
+          status: "succeeded",
+          branch: "main",
+          commitSha: "abc123",
+          parserVersion: "f402.1",
+          result: {
+            repository: {
+              monorepo: false,
+              packageManager: "pnpm",
+              lockfiles: ["pnpm-lock.yaml"],
+            },
+            services: [{ key: "api" }],
+            changeImpact: { highRiskDirectories: [] },
+          },
+          errorCode: null,
+          errorMessage: null,
+          finishedAt: at,
+          createdAt: at,
         },
-        errorCode: null, errorMessage: null, finishedAt: at, createdAt: at,
-      }],
+      ],
     },
-    buildRuns: [{
-      id: "build-1", revision: 1, status: "succeeded", sourceBranch: "main",
-      sourceCommitSha: "abc123", inputSnapshot: {}, errorCode: null, errorMessage: null,
-      gateSummary: {
-        source: { status: "passed" }, install: { status: "passed" },
-        quality: { status: "passed" }, build: { status: "passed" },
-        tests: { status: "passed" },
-        security: {
-          secretScan: { status: "passed" }, sast: { status: "passed" },
-          vulnerabilities: { status: "passed" },
+    buildRuns: [
+      {
+        id: "build-1",
+        revision: 1,
+        status: "succeeded",
+        sourceBranch: "main",
+        sourceCommitSha: "abc123",
+        inputSnapshot: {},
+        errorCode: null,
+        errorMessage: null,
+        gateSummary: {
+          source: { status: "passed" },
+          install: { status: "passed" },
+          quality: { status: "passed" },
+          build: { status: "passed" },
+          tests: { status: "passed" },
+          security: {
+            secretScan: { status: "passed" },
+            sast: { status: "passed" },
+            vulnerabilities: { status: "passed" },
+          },
+        },
+        startedAt: at,
+        finishedAt: at,
+        createdAt: at,
+        manifest: {
+          id: "manifest-1",
+          digest,
+          provenance: {},
+          sbom: {},
+          signature: {},
+          createdAt: at,
+          items: [
+            { componentKey: "project-bundle", digest, artifactType: "zip" },
+          ],
         },
       },
-      startedAt: at, finishedAt: at, createdAt: at,
-      manifest: {
-        id: "manifest-1", digest, provenance: {}, sbom: {}, signature: {},
-        createdAt: at, items: [{ componentKey: "project-bundle", digest, artifactType: "zip" }],
-      },
-    }],
+    ],
   } as unknown as ReleaseGateEvidenceContext;
 }

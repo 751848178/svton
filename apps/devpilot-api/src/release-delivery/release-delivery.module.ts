@@ -38,6 +38,8 @@ import { ReleaseGateCatalogController } from "./release-gate-catalog.controller"
 import { ReleaseGateCatalogService } from "./release-gate-catalog.service";
 import { ReleaseGateEvidenceRepository } from "./release-gate-evidence.repository";
 import { ReleaseGateDeployEvidenceRepository } from "./release-gate-deploy-evidence.repository";
+import { ReleaseGateDeployOperationEvidenceRepository } from "./release-gate-deploy-operation-evidence.repository";
+import { ReleaseGateDeployResourceEvidenceRepository } from "./release-gate-deploy-resource-evidence.repository";
 import { ReleaseGatePromoteEvidenceRepository } from "./release-gate-promote-evidence.repository";
 import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
 import { ReleaseGateConfigCapabilityProvider } from "./release-gate-config-capability.provider";
@@ -56,9 +58,15 @@ import { ReleaseDeliveryCompatibilityController } from "./release-delivery-compa
 import { ReleaseDeliveryCompatibilityRepository } from "./release-delivery-compatibility.repository";
 import { ReleaseDeliveryCompatibilityService } from "./release-delivery-compatibility.service";
 import { GateEvaluationRepository } from "./gate-evaluation.repository";
+import { ReleaseGateDecisionRepository } from "./release-gate-decision.repository";
+import { ReleaseGateDecisionService } from "./release-gate-decision.service";
+import { ReleaseGateEvaluationService } from "./release-gate-evaluation.service";
+import { ReleaseGateManualConfirmationService } from "./release-gate-manual-confirmation.service";
 import { ProjectDeliverySummaryController } from "./project-delivery-summary.controller";
 import { ProjectDeliverySummaryRepository } from "./project-delivery-summary.repository";
 import { ProjectDeliverySummaryService } from "./project-delivery-summary.service";
+import { EnvironmentVersionProductionGateService } from "./environment-version-production-gate.service";
+import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-gate-evidence.repository";
 
 @Module({
   imports: [
@@ -105,6 +113,8 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     EnvironmentVersionService,
     EnvironmentVersionReadRepository,
     EnvironmentVersionPolicyService,
+    EnvironmentVersionProductionGateService,
+    EnvironmentVersionGateEvidenceRepository,
     ReleaseGateCapabilityRegistryService,
     ReleaseGateArtifactCapabilityProvider,
     ReleaseGateSourceCapabilityProvider,
@@ -119,9 +129,15 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     ReleaseGateRecoveryStrategyProvider,
     ReleaseGateEvidenceRepository,
     ReleaseGateDeployEvidenceRepository,
+    ReleaseGateDeployOperationEvidenceRepository,
+    ReleaseGateDeployResourceEvidenceRepository,
     ReleaseGatePromoteEvidenceRepository,
     ReleaseGateCatalogService,
     GateEvaluationRepository,
+    ReleaseGateDecisionRepository,
+    ReleaseGateDecisionService,
+    ReleaseGateEvaluationService,
+    ReleaseGateManualConfirmationService,
     ProjectDeliverySummaryRepository,
     ProjectDeliverySummaryService,
     {

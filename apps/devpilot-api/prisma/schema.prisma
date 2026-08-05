@@ -81,6 +81,7 @@ model User {
   releaseRuns ReleaseRun[] @relation("ReleaseRunActor")
   createdReleasePolicyRevisions ReleasePolicyRevision[] @relation("ReleasePolicyRevisionActor")
   gateEvaluations GateEvaluation[] @relation("GateEvaluationActor")
+  releaseGateDecisions ReleaseGateDecision[] @relation("ReleaseGateDecisionActor")
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime @updatedAt
@@ -159,6 +160,7 @@ model Team {
   environmentVersions EnvironmentVersion[]
   releasePolicyRevisions ReleasePolicyRevision[]
   gateEvaluations GateEvaluation[]
+  releaseGateDecisions ReleaseGateDecision[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -716,6 +718,7 @@ model Project {
   releasePolicyRevisions ReleasePolicyRevision[] @relation("ProjectReleasePolicyRevisionHistory")
   currentReleasePolicyRevision ReleasePolicyRevision? @relation("CurrentReleasePolicyRevision", fields: [currentReleasePolicyRevisionId], references: [id], onDelete: SetNull)
   gateEvaluations GateEvaluation[]
+  releaseGateDecisions ReleaseGateDecision[]
   generatedArtifactClaim GeneratedProjectArtifactClaim?
 
   createdAt    DateTime @default(now())
@@ -2860,6 +2863,7 @@ model ReleaseOrder {
   environmentVersions EnvironmentVersion[]
   legacyPlans    ReleasePlan[]
   gateEvaluations GateEvaluation[]
+  gateDecisions ReleaseGateDecision[]
 
   @@unique([projectId, releaseVersion])
   @@index([teamId])
@@ -3092,6 +3096,47 @@ model GateEvaluation {
   @@index([actorId])
   @@index([status])
   @@index([expiresAt])
+  @@index([createdAt])
+}
+
+// Build/Staging/Production 写边界消费的追加式聚合决定与精确门禁输入快照
+model ReleaseGateDecision {
+  id                     String   @id @default(cuid())
+  teamId                 String
+  projectId              String
+  releaseOrderId         String
+  actorId                String?
+  stage                  String // build | staging | production
+  phase                  String // commit | build | deploy
+  allowed                Boolean
+  definitionVersion      String
+  inputHash              String
+  requestKey             String?
+  inputSnapshot          Json
+  blockerGateIds         Json
+  manualGateIds          Json
+  confirmedManualGateIds Json
+  warningGateIds         Json
+  deferredGateIds        Json
+  evidenceOnlyGateIds    Json
+  integrityErrors        Json
+  actionRunType          String?
+  actionRunId            String?
+  consumedAt             DateTime?
+  createdAt              DateTime @default(now())
+
+  team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("ReleaseGateDecisionActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([releaseOrderId, stage, requestKey])
+  @@index([releaseOrderId, stage, inputHash])
+  @@index([actionRunType, actionRunId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([actorId])
+  @@index([stage, allowed])
   @@index([createdAt])
 }
 

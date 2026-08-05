@@ -33,9 +33,29 @@ export type ReleaseGateCheck = {
   expiresAt: string | null;
   fresh: boolean | null;
   evaluationId: string;
+  evaluationInputHash: string;
   definitionVersion: string;
   persistedStatus: ReleaseGatePersistedStatus;
   persistedAt: string;
+  waiver: unknown;
+  waiverExpiresAt: string | null;
+};
+
+export type ReleaseGateDecisionStage = 'build' | 'staging' | 'production';
+export type ReleaseGateDecision = {
+  id: string;
+  stage: ReleaseGateDecisionStage;
+  phase: Exclude<ReleaseGatePhase, 'promote'>;
+  allowed: boolean;
+  blockerGateIds: string[];
+  manualGateIds: string[];
+  confirmedManualGateIds: string[];
+  warningGateIds: string[];
+  deferredGateIds: string[];
+  evidenceOnlyGateIds: string[];
+  integrityErrors: string[];
+  inputHash: string;
+  decidedAt: string;
 };
 
 export type ReleaseGateCatalog = {
@@ -47,6 +67,7 @@ export type ReleaseGateCatalog = {
     phaseCounts: Record<ReleaseGatePhase, number>;
     statusCounts: Record<ReleaseGateStatus, number>;
   };
+  decisions: Record<ReleaseGateDecisionStage, ReleaseGateDecision>;
   capabilities: Array<{
     id: string;
     name: LocalizedGateText;

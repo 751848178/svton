@@ -34,6 +34,15 @@
   `../../todos/2026-08-03-devpilot-project-delivery-v13.md` only for the
   historical F386-F412 implementation/evidence scope.
 
+- F425 closed on 2026-08-05: Build, Staging and Production now consume one
+  append-only, actor-bound and exact-input gate decision policy with atomic
+  run claims, strict Provider freshness, canonical manual confirmation and
+  non-blocking P03 business evidence. Authenticated Browser and MySQL proved
+  the page and actual Build rejection share the same eight blockers and input
+  hash while no BuildRun is created. Focused, real-MySQL, Web, type, lint,
+  format, Prisma, production-build, source-structure and CodeGraph checks pass.
+  **Next: F426 controlled build runtime profile.**
+
 - F424 closed on 2026-08-05: the Preflight first screen now presents the real
   15-group/51-check catalog, a fail-closed nine-Commit-check Build conclusion,
   four frozen representative summaries and a complete accessible catalog
@@ -41,7 +50,7 @@
   scoped request races, authenticated real-MySQL Browser behavior and the
   1484/821/820 visual boundary are verified under
   `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f424/`.
-  **Next: F425 server-side gate enforcement.**
+  Succeeded by F425 server-side gate enforcement.
 
 - F415 closed on 2026-08-04: repository intake now exposes a typed three-step
   contract pinned to an exact branch/commit, structured overview and component

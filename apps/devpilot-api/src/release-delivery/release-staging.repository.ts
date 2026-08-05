@@ -1,8 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { completeVersionedDeployment } from "./environment-version-write.utils";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
+import { claimReleaseGateDecision } from "./release-gate-decision.repository";
+import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
 
 const deploymentSelect = {
   id: true,
@@ -38,7 +40,7 @@ export class ReleaseStagingRepository {
           select: {
             environments: {
               where: { status: "active", baselineRole: "staging" },
-              select: { id: true, name: true },
+              select: { id: true, name: true, currentConfigRevisionId: true },
             },
           },
         },
@@ -88,14 +90,36 @@ export class ReleaseStagingRepository {
     releaseOrderId: string;
     actorId: string;
     environmentId: string;
+    configRevisionId: string | null;
     manifestId: string;
     sourceBranch: string;
     sourceCommitSha: string;
     params: Record<string, unknown>;
+    gateDecision?: ReleaseGateDecisionReference;
   }) {
     return this.prisma.$transaction(async (tx) => {
       await lockActionableReleaseOrder(tx, input);
-      return tx.deploymentRun.create({
+      if (!input.gateDecision) {
+        throw new ConflictException("Staging 部署缺少已允许的门禁决定");
+      }
+      await tx.$queryRaw`SELECT id FROM ProjectEnvironment WHERE id = ${input.environmentId} FOR UPDATE`;
+      const environment = await tx.projectEnvironment.findFirst({
+        where: {
+          id: input.environmentId,
+          teamId: input.teamId,
+          projectId: input.projectId,
+          status: "active",
+          baselineRole: "staging",
+          currentConfigRevisionId: input.configRevisionId,
+        },
+        select: { id: true },
+      });
+      if (!environment) {
+        throw new ConflictException(
+          "Staging 环境或配置修订已漂移，请重新检查门禁",
+        );
+      }
+      const run = await tx.deploymentRun.create({
         data: {
           teamId: input.teamId,
           projectId: input.projectId,
@@ -124,6 +148,19 @@ export class ReleaseStagingRepository {
         },
         select: deploymentSelect,
       });
+      await claimReleaseGateDecision(tx, {
+        teamId: input.teamId,
+        projectId: input.projectId,
+        releaseOrderId: input.releaseOrderId,
+        actorId: input.actorId,
+        decisionId: input.gateDecision.id,
+        stage: input.gateDecision.stage,
+        inputHash: input.gateDecision.inputHash,
+        actionRunType: "deployment_run",
+        actionRunId: run.id,
+        requireAllowed: true,
+      });
+      return run;
     });
   }
 

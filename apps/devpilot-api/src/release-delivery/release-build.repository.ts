@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { assertStoredConnection } from "../repository-identity/repository-identity-policy.utils";
@@ -6,6 +6,7 @@ import { identityConflict } from "../repository-identity/repository-identity.err
 import type { ReleaseBuildInputSnapshot } from "./release-build.types";
 import { releaseBuildInclude } from "./release-build.prisma";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
+import { claimReleaseGateDecision } from "./release-gate-decision.repository";
 
 @Injectable()
 export class ReleaseBuildRepository {
@@ -58,6 +59,9 @@ export class ReleaseBuildRepository {
   }) {
     return this.prisma.$transaction(async (tx) => {
       await lockActionableReleaseOrder(tx, input);
+      if (!input.snapshot.gateDecision) {
+        throw new ConflictException("BuildRun 预留缺少已允许的门禁决定");
+      }
       await tx.$queryRaw`SELECT id FROM Project WHERE id = ${input.projectId} FOR UPDATE`;
       const project = await tx.project.findUniqueOrThrow({
         where: { id: input.projectId },
@@ -99,7 +103,7 @@ export class ReleaseBuildRepository {
         orderBy: { revision: "desc" },
         select: { revision: true },
       });
-      return tx.buildRun.create({
+      const run = await tx.buildRun.create({
         data: {
           teamId: input.teamId,
           projectId: input.projectId,
@@ -117,6 +121,19 @@ export class ReleaseBuildRepository {
         },
         include: releaseBuildInclude,
       });
+      await claimReleaseGateDecision(tx, {
+        teamId: input.teamId,
+        projectId: input.projectId,
+        releaseOrderId: input.releaseOrderId,
+        actorId: input.actorId,
+        decisionId: input.snapshot.gateDecision.id,
+        stage: input.snapshot.gateDecision.stage,
+        inputHash: input.snapshot.gateDecision.inputHash,
+        actionRunType: "build_run",
+        actionRunId: run.id,
+        requireAllowed: true,
+      });
+      return run;
     });
   }
 }

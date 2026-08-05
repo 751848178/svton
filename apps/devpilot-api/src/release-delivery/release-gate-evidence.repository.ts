@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { ReleaseGateDeployEvidence } from "./release-gate-deploy-evidence.types";
 import type { ReleaseGatePromoteEvidence } from "./release-gate-promote-evidence.types";
+import type { ReleaseGateDecisionTarget } from "./release-gate-decision.types";
 
 export const releaseGateEvidenceSelect = {
   id: true,
@@ -81,16 +82,28 @@ export type ReleaseGateEvidenceContext = Prisma.ReleaseOrderGetPayload<{
 }> & {
   deploy?: ReleaseGateDeployEvidence;
   promote?: ReleaseGatePromoteEvidence;
+  decisionTarget?: ReleaseGateDecisionTarget;
 };
 
 @Injectable()
 export class ReleaseGateEvidenceRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  load(teamId: string, projectId: string, releaseOrderId: string) {
+  load(
+    teamId: string,
+    projectId: string,
+    releaseOrderId: string,
+    buildRunId?: string,
+  ) {
     return this.prisma.releaseOrder.findFirst({
       where: { id: releaseOrderId, teamId, projectId },
-      select: releaseGateEvidenceSelect,
+      select: {
+        ...releaseGateEvidenceSelect,
+        buildRuns: {
+          ...releaseGateEvidenceSelect.buildRuns,
+          ...(buildRunId ? { where: { id: buildRunId } } : {}),
+        },
+      },
     });
   }
 }

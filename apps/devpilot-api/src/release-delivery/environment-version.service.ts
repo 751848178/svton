@@ -7,10 +7,13 @@ import { sanitizeBuildLogs } from "./release-build-log.utils";
 import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { EnvironmentVersionReadRepository } from "./environment-version-read.repository";
 import { EnvironmentVersionPolicyService } from "./environment-version-policy.service";
+import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import {
-  ReleaseStagingExecutionError,
-  ReleaseStagingExecutorPort,
-} from "./release-staging.types";
+  EnvironmentVersionProductionGateService,
+  gateDecisionReference,
+} from "./environment-version-production-gate.service";
+import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-gate-evidence.repository";
+import { environmentDeploymentFailureDetail } from "./environment-version-failure.utils";
 
 @Injectable()
 export class EnvironmentVersionService {
@@ -19,6 +22,8 @@ export class EnvironmentVersionService {
     private readonly readRepository: EnvironmentVersionReadRepository,
     private readonly policy: EnvironmentVersionPolicyService,
     private readonly executor: ReleaseStagingExecutorPort,
+    private readonly productionGates: EnvironmentVersionProductionGateService,
+    private readonly gateEvidence: EnvironmentVersionGateEvidenceRepository,
   ) {}
 
   async list(teamId: string, projectId: string) {
@@ -74,11 +79,24 @@ export class EnvironmentVersionService {
       environment,
       manifest,
     );
+    const gateContext = {
+      teamId: input.teamId,
+      actorId: input.actorId,
+      projectId: input.projectId,
+      releaseOrderId: manifest.releaseOrderId,
+      environmentId: environment.id,
+      configRevisionId: environment.currentConfigRevisionId,
+      manifestId: manifest.id,
+      buildRunId: manifest.buildRun.id,
+      releaseRunId,
+    };
+    const admissionDecision = await this.productionGates.admit(gateContext);
     const run = await this.repository.reserve({
       teamId: input.teamId,
       projectId: input.projectId,
       actorId: input.actorId,
       environmentId: environment.id,
+      configRevisionId: environment.currentConfigRevisionId,
       manifestId: manifest.id,
       releaseOrderId: manifest.releaseOrderId,
       releaseRunId,
@@ -92,7 +110,10 @@ export class EnvironmentVersionService {
         manifestId: manifest.id,
         manifestDigest: manifest.digest,
         releaseRunId,
+        configRevisionId: environment.currentConfigRevisionId,
+        gateDecision: gateDecisionReference(admissionDecision),
       },
+      gateDecision: gateDecisionReference(admissionDecision),
     });
     try {
       const result = await this.executor.deploy({
@@ -104,40 +125,61 @@ export class EnvironmentVersionService {
         uri: bundle.uri,
         digest: manifest.digest,
       });
+      const logs = sanitizeBuildLogs(result.logs);
+      const evidence = {
+        ...result.evidence,
+        deploymentUri: result.deploymentUri,
+        manifestId: manifest.id,
+        manifestDigest: manifest.digest,
+        sourceVersionId: selection.sourceVersionId,
+      };
+      await this.gateEvidence.record({
+        deploymentRunId: run.id,
+        logs,
+        result: evidence,
+      });
+      const finalDecision = await this.productionGates.finalize({
+        ...gateContext,
+        deploymentRunId: run.id,
+      });
       return this.repository.complete({
         deploymentRunId: run.id,
         status: "completed",
         kind: input.kind,
-        logs: sanitizeBuildLogs(result.logs),
+        logs,
         result: {
-          ...result.evidence,
-          deploymentUri: result.deploymentUri,
-          manifestId: manifest.id,
-          manifestDigest: manifest.digest,
-          sourceVersionId: selection.sourceVersionId,
+          ...evidence,
+          gateDecision: gateDecisionReference(finalDecision),
         },
+        teamId: input.teamId,
+        actorId: input.actorId,
+        projectId: input.projectId,
+        releaseOrderId: manifest.releaseOrderId,
+        gateDecision: gateDecisionReference(finalDecision),
       });
     } catch (error) {
-      const detail = failureDetail(error);
+      const detail = environmentDeploymentFailureDetail(error);
+      const denied = await this.productionGates.denied(error, {
+        ...gateContext,
+        deploymentRunId: run.id,
+      });
       return this.repository.complete({
         deploymentRunId: run.id,
         status: "failed",
         kind: input.kind,
         logs: detail.logs,
         error: `${detail.code}: ${detail.message}`,
-        result: { manifestId: manifest.id, manifestDigest: manifest.digest },
+        result: {
+          manifestId: manifest.id,
+          manifestDigest: manifest.digest,
+          gateDecision: gateDecisionReference(denied),
+        },
+        teamId: input.teamId,
+        actorId: input.actorId,
+        projectId: input.projectId,
+        releaseOrderId: manifest.releaseOrderId,
+        gateDecision: gateDecisionReference(denied),
       });
     }
   }
-}
-
-function failureDetail(error: unknown) {
-  if (error instanceof ReleaseStagingExecutionError) return error.detail;
-  return {
-    code: "ENVIRONMENT_DEPLOYMENT_FAILED",
-    message: "环境制品部署失败",
-    logs: sanitizeBuildLogs([
-      error instanceof Error ? error.message : String(error),
-    ]),
-  };
 }

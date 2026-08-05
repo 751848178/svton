@@ -18,6 +18,7 @@ export interface ReleaseBuildInputSnapshot {
   sourceBranch: string;
   sourceCommitSha: string;
   components: ReleaseBuildComponent[];
+  gateDecision?: import("./release-gate-decision.types").ReleaseGateDecisionReference;
 }
 
 export interface ReleaseBuildResolvedSource {
