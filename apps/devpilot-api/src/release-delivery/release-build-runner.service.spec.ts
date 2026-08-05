@@ -1,12 +1,17 @@
+import { ConflictException } from "@nestjs/common";
 import { ReleaseBuildExecutionError } from "./release-build-execution.error";
 import { ReleaseBuildRunnerService } from "./release-build-runner.service";
 import { ReleaseBuildRunTimeoutError } from "./release-build-runtime-supervisor.service";
 
 describe("ReleaseBuildRunnerService", () => {
-  const results = { succeed: jest.fn(), fail: jest.fn() };
+  const results = {
+    succeed: jest.fn(),
+    fail: jest.fn(),
+    hasCommittedArtifact: jest.fn(),
+  };
   const cleanup = jest.fn();
   const git = { checkout: jest.fn() };
-  const executor = { execute: jest.fn() };
+  const executor = { execute: jest.fn(), discardArtifact: jest.fn() };
   const runtime = { workRoot: "/tmp/f426-work" };
   const runner = new ReleaseBuildRunnerService(
     results as never,
@@ -26,12 +31,16 @@ describe("ReleaseBuildRunnerService", () => {
         digest: `sha256:${"a".repeat(64)}`,
         uri: "artifact://1",
         sizeBytes: 1,
+        items: [],
+        contentIndex: [],
       },
       logs: ["ok"],
       gateSummary: { build: { status: "passed" } },
     });
     results.succeed.mockResolvedValue(record("succeeded"));
     results.fail.mockResolvedValue(record("failed"));
+    results.hasCommittedArtifact.mockResolvedValue(false);
+    executor.discardArtifact.mockResolvedValue(undefined);
   });
 
   it("passes the controlled workspace and AbortSignal through checkout and command", async () => {
@@ -87,6 +96,32 @@ describe("ReleaseBuildRunnerService", () => {
     });
   });
 
+  it("discards a packaged artifact when Manifest persistence loses the terminal race", async () => {
+    results.succeed.mockRejectedValueOnce(
+      new ConflictException("terminal conflict"),
+    );
+    await expect(
+      runner.run(input(new AbortController().signal)),
+    ).resolves.toMatchObject({ status: "failed" });
+    expect(executor.discardArtifact).toHaveBeenCalledWith({
+      projectId: "project-1",
+      releaseOrderId: "order-1",
+      buildRunId: "run-1",
+    });
+    expect(results.fail).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains bytes when a persistence error leaves commit state uncertain", async () => {
+    results.succeed.mockRejectedValueOnce(new Error("connection lost"));
+    results.hasCommittedArtifact.mockRejectedValueOnce(
+      new Error("commit state unavailable"),
+    );
+    await expect(
+      runner.run(input(new AbortController().signal)),
+    ).resolves.toMatchObject({ status: "failed" });
+    expect(executor.discardArtifact).not.toHaveBeenCalled();
+  });
+
   it("persists the supervisor deadline before non-cooperative work settles", async () => {
     const controller = new AbortController();
     controller.abort(new ReleaseBuildRunTimeoutError());
@@ -127,7 +162,14 @@ function input(signal: AbortSignal) {
       commitSha: "b".repeat(40),
     },
     components: [
-      { key: "app", name: "app", workingDirectory: ".", buildCommand: "true" },
+      {
+        key: "app",
+        name: "app",
+        workingDirectory: ".",
+        buildCommand: "true",
+        artifactOutputs: ["dist"],
+        buildEnvironment: {},
+      },
     ],
     signal,
   } as never;

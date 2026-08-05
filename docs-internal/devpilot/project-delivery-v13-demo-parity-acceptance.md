@@ -160,14 +160,14 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-BUILD-008** 构建并发分配 revision 无重复。
 - [x] **AC-BUILD-009** 超时、取消和失败形成独立失败运行。
 - [x] **AC-BUILD-010** 构建命令在受控目录、最小环境和明确并发边界内执行。
-- [ ] **AC-BUILD-011** 成功 BuildRun 产生且只产生一个不可变 Artifact Manifest。
-- [ ] **AC-BUILD-012** 失败 BuildRun 不产生 Manifest。
-- [ ] **AC-BUILD-013** Manifest 包含组件项、URI、Digest、来源 Commit 和 provenance。
-- [ ] **AC-BUILD-014** 制品只包含声明的构建输出，不把整个仓库误当运行制品。
-- [ ] **AC-BUILD-015** `.env`、凭据、token、临时构建目录、绝对或父级越界 symlink 和特殊文件不进入制品。
-- [ ] **AC-BUILD-016** 相同 Commit/输入产生可复现 Digest，差异有明确来源。
-- [ ] **AC-BUILD-017** Staging 与 Production 复用同一 Manifest，环境差异来自配置快照。
-- [ ] **AC-BUILD-018** 前端静态环境值若烘焙进输出，必须被识别为不同制品而非伪复用。
+- [x] **AC-BUILD-011** 成功 BuildRun 产生且只产生一个不可变 Artifact Manifest。
+- [x] **AC-BUILD-012** 失败 BuildRun 不产生 Manifest。
+- [x] **AC-BUILD-013** Manifest 包含组件项、URI、Digest、来源 Commit 和 provenance。
+- [x] **AC-BUILD-014** 制品只包含声明的构建输出，不把整个仓库误当运行制品。
+- [x] **AC-BUILD-015** `.env`、凭据、token、临时构建目录、绝对或父级越界 symlink 和特殊文件不进入制品。
+- [x] **AC-BUILD-016** 相同 Commit/输入产生可复现 Digest，差异有明确来源。
+- [x] **AC-BUILD-017** Staging 与 Production 复用同一 Manifest，环境差异来自配置快照。
+- [x] **AC-BUILD-018** 前端静态环境值若烘焙进输出，必须被识别为不同制品而非伪复用。
 - [ ] **AC-BUILD-019** 构建表显示 Build ID/revision、Commit、结果、Manifest、耗时和时间。
 - [ ] **AC-BUILD-020** 成功、失败、运行中、取消状态与 Demo 语义一致。
 - [ ] **AC-BUILD-021** 每个 BuildRun 有独立“日志”入口。

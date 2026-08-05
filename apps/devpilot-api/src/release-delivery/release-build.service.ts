@@ -10,7 +10,7 @@ import { ReleaseBuildRuntimeSupervisorService } from "./release-build-runtime-su
 import { presentBuild } from "./release-build.presenter";
 import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
 import { ReleaseGateDecisionService } from "./release-gate-decision.service";
-import type { ReleaseBuildInputSnapshotV3 } from "./release-build.types";
+import type { ReleaseBuildInputSnapshotV4 } from "./release-build.types";
 
 @Injectable()
 export class ReleaseBuildService {
@@ -43,8 +43,8 @@ export class ReleaseBuildService {
         { teamId, actorId, projectId, releaseOrderId },
         scope.signal,
       );
-      const snapshot: ReleaseBuildInputSnapshotV3 = {
-        version: 3,
+      const snapshot: ReleaseBuildInputSnapshotV4 = {
+        version: 4,
         repositoryUrl: safeRepositoryUrl(source.connection.repositoryUrl),
         repositoryIdentity: {
           id: source.identity.id,
@@ -62,6 +62,11 @@ export class ReleaseBuildService {
           inputHash: decision.inputHash,
         },
         runtime: this.runtime.descriptor(),
+        artifactContract: {
+          version: 1,
+          collection: "declared-outputs-only",
+          environment: "explicit-public-build-values",
+        },
       };
       const buildRun = await this.repository.reserve({
         teamId,
@@ -102,8 +107,15 @@ export class ReleaseBuildService {
   }
 }
 
-function hashSnapshot(snapshot: ReleaseBuildInputSnapshotV3) {
-  return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+function hashSnapshot(snapshot: ReleaseBuildInputSnapshotV4) {
+  const { gateDecision, ...stable } = snapshot;
+  const input = {
+    ...stable,
+    gateDecision: gateDecision
+      ? { stage: gateDecision.stage, inputHash: gateDecision.inputHash }
+      : undefined,
+  };
+  return createHash("sha256").update(JSON.stringify(input)).digest("hex");
 }
 
 function safeRepositoryUrl(value: string) {

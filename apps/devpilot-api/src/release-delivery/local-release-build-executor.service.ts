@@ -62,6 +62,7 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
             this.runtime.commandPath,
             home,
             temporary,
+            component.buildEnvironment,
           ),
           timeoutMs: this.runtime.commandTimeoutMs,
           cancelGraceMs: this.runtime.cancelGraceMs,
@@ -86,6 +87,7 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
           projectId: input.projectId,
           releaseOrderId: input.releaseOrderId,
           buildRunId: input.buildRunId,
+          components: input.components,
         },
         signal,
       );
@@ -96,6 +98,15 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
         gateSummary: {
           source: { status: "passed", checkout: "exact_commit" },
           build: { status: "passed", components: input.components.length },
+          artifact: {
+            status: "passed",
+            contractVersion: 1,
+            collection: "declared-outputs-only",
+            components: artifact.items.length,
+            environmentBoundComponents: artifact.items.filter(
+              (item) => item.environment.mode === "baked",
+            ).length,
+          },
           tests: { status: "not_configured", blocking: false },
           security: {
             executionControls: {
@@ -118,6 +129,14 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
         () => undefined,
       );
     }
+  }
+
+  discardArtifact(input: {
+    projectId: string;
+    releaseOrderId: string;
+    buildRunId: string;
+  }) {
+    return this.artifacts.discard(input);
   }
 }
 

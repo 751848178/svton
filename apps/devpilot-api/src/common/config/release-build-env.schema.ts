@@ -16,6 +16,7 @@ export const releaseBuildEnvSchema = z.object({
     .min(1)
     .default("/usr/local/bin:/usr/bin:/bin"),
   RELEASE_BUILD_MAX_ARTIFACT_BYTES: positiveInt(1).default(262144000),
+  RELEASE_BUILD_MAX_ARTIFACT_FILES: positiveInt(1).default(10000),
   RELEASE_BUILD_ARTIFACT_ROOT: z.string().optional(),
   RELEASE_STAGING_DEPLOYMENT_ENABLED: booleanString.default("false"),
   RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: positiveInt(1).default(120000),

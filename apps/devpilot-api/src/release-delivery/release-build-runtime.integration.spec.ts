@@ -154,6 +154,8 @@ describeIntegration("F426 Build runtime persistence", () => {
       digest: `sha256:${"b".repeat(64)}`,
       uri: `release-artifact://${run.id}/bundle.zip`,
       sizeBytes: 1,
+      items: [],
+      contentIndex: [],
       sourceBranch: run.sourceBranch,
       sourceCommitSha: run.sourceCommitSha,
       inputHash: run.inputHash,

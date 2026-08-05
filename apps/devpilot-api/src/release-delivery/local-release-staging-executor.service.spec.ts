@@ -14,8 +14,8 @@ describe("LocalReleaseStagingExecutorService", () => {
   beforeEach(async () => {
     scope = await mkdtemp(join(tmpdir(), "release-staging-spec-"));
     checkout = join(scope, "checkout");
-    await mkdir(checkout);
-    await writeFile(join(checkout, "app.txt"), "immutable artifact");
+    await mkdir(join(checkout, "dist"), { recursive: true });
+    await writeFile(join(checkout, "dist", "app.txt"), "immutable artifact");
     const config = {
       get: jest.fn((key: string) => ({
         RELEASE_BUILD_ARTIFACT_ROOT: join(scope, "artifacts"),
@@ -36,6 +36,7 @@ describe("LocalReleaseStagingExecutorService", () => {
       projectId: "project-1",
       releaseOrderId: "order-1",
       buildRunId: "build-1",
+      components: [component()],
     });
     const first = await executor.deploy(input("deployment-1", artifact));
     const second = await executor.deploy(input("deployment-2", artifact));
@@ -43,7 +44,7 @@ describe("LocalReleaseStagingExecutorService", () => {
     expect(second.deploymentUri).toBe("release-deployment://deployment-2");
     await expect(readFile(join(
       scope,
-      "deployments/project-1/staging-1/deployment-1/app.txt",
+      "deployments/project-1/staging-1/deployment-1/dist/app.txt",
     ), "utf8")).resolves.toBe("immutable artifact");
   });
 
@@ -53,14 +54,26 @@ describe("LocalReleaseStagingExecutorService", () => {
       projectId: "project-1",
       releaseOrderId: "order-1",
       buildRunId: "build-1",
+      components: [component()],
     });
-    const stored = join(scope, "artifacts/project-1/order-1/build-1.zip");
+    const stored = join(scope, "artifacts/project-1/order-1/build-1/bundle.zip");
     await appendFile(stored, "tampered");
     await expect(executor.deploy(input("deployment-1", artifact))).rejects.toThrow(
       "Digest 校验失败",
     );
   });
 });
+
+function component() {
+  return {
+    key: "service-1",
+    name: "api",
+    workingDirectory: ".",
+    buildCommand: "true",
+    artifactOutputs: ["dist"],
+    buildEnvironment: {},
+  };
+}
 
 function input(deploymentRunId: string, artifact: { uri: string; digest: string }) {
   return {

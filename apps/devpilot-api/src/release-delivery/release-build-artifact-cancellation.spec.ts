@@ -32,14 +32,23 @@ describe("ReleaseBuildArtifactService cancellation", () => {
         projectId: "project-1",
         releaseOrderId: "order-1",
         buildRunId: "run-1",
+        components: [
+          {
+            key: "service-1",
+            name: "api",
+            workingDirectory: ".",
+            buildCommand: "true",
+            artifactOutputs: ["payload.bin"],
+            buildEnvironment: {},
+          },
+        ],
       },
       controller.signal,
     );
     setTimeout(() => controller.abort(reason), 10);
     await expect(packaging).rejects.toBe(reason);
-    const target = join(artifacts, "project-1", "order-1", "run-1.zip");
+    const target = join(artifacts, "project-1", "order-1", "run-1");
     await expect(access(target)).rejects.toThrow();
-    await expect(access(`${target}.tmp`)).rejects.toThrow();
   });
 });
 

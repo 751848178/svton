@@ -1,5 +1,9 @@
 import { UnprocessableEntityException } from "@nestjs/common";
 import { redactRepositoryText } from "../repository-analysis/repository-analysis-redact.utils";
+import {
+  readArtifactOutputs,
+  readBuildEnvironment,
+} from "./release-build-artifact-contract.utils";
 import type { ReleaseBuildComponent } from "./release-build.types";
 
 interface ApplicationRecord {
@@ -16,7 +20,6 @@ interface ApplicationRecord {
 export function buildComponents(
   applications: ApplicationRecord[],
 ): ReleaseBuildComponent[] {
-  const seen = new Set<string>();
   const components: ReleaseBuildComponent[] = [];
   for (const application of applications) {
     for (const service of application.services) {
@@ -28,17 +31,15 @@ export function buildComponents(
           "构建命令包含凭据或秘密字面量，已拒绝执行",
         );
       }
-      const workingDirectory = text(config.workingDirectory)
-        || application.repoPath
-        || ".";
-      const identity = `${workingDirectory}\u0000${command}`;
-      if (seen.has(identity)) continue;
-      seen.add(identity);
+      const workingDirectory =
+        text(config.workingDirectory) || application.repoPath || ".";
       components.push({
-        key: application.id,
-        name: application.name || service.name,
+        key: service.id,
+        name: `${application.name || application.id}/${service.name}`,
         workingDirectory,
         buildCommand: command,
+        artifactOutputs: readArtifactOutputs(config.artifactPaths),
+        buildEnvironment: readBuildEnvironment(config.buildEnvironment),
       });
     }
   }
@@ -47,7 +48,7 @@ export function buildComponents(
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : {};
 }
 

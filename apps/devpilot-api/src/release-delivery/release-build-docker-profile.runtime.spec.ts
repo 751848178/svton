@@ -143,6 +143,8 @@ function input(root: string, buildRunId: string, buildCommand: string) {
         name: "app",
         workingDirectory: ".",
         buildCommand,
+        artifactOutputs: ["dist"],
+        buildEnvironment: {},
       },
     ],
   };

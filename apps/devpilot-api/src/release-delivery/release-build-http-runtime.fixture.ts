@@ -1,4 +1,5 @@
 import { INestApplication } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import { readdir } from "node:fs/promises";
@@ -13,6 +14,7 @@ export class ReleaseBuildHttpRuntimeFixture {
   app!: INestApplication;
   baseUrl = "";
   token = "";
+  serviceId = "";
 
   async start() {
     const module = await Test.createTestingModule({ imports: [AppModule] })
@@ -78,6 +80,13 @@ export class ReleaseBuildHttpRuntimeFixture {
     return `/projects/${this.git.projectId}/delivery/releases/${this.git.orderId}/builds`;
   }
 
+  async configureBuild(deployConfig: Record<string, unknown>) {
+    await this.git.prisma.applicationService.update({
+      where: { id: this.serviceId },
+      data: { deployConfig: deployConfig as Prisma.InputJsonValue },
+    });
+  }
+
   private async seedBuildCommand() {
     const prisma = this.git.prisma;
     await prisma.teamMember.create({
@@ -100,7 +109,7 @@ export class ReleaseBuildHttpRuntimeFixture {
         repoPath: ".",
       },
     });
-    await prisma.applicationService.create({
+    const service = await prisma.applicationService.create({
       data: {
         teamId: this.git.teamId,
         projectId: this.git.projectId,
@@ -110,9 +119,11 @@ export class ReleaseBuildHttpRuntimeFixture {
         deployConfig: {
           workingDirectory: ".",
           buildCommand: 'node -e "setTimeout(() => {}, 30000)"',
+          artifactPaths: ["dist"],
         },
       },
     });
+    this.serviceId = service.id;
   }
 
   private async poll<T>(read: () => Promise<T | undefined>) {

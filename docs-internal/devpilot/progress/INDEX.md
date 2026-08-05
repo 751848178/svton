@@ -34,6 +34,17 @@
   `../../todos/2026-08-03-devpilot-project-delivery-v13.md` only for the
   historical F386-F412 implementation/evidence scope.
 
+- F427 closed on 2026-08-06: Build input snapshot V4 binds only declared
+  component outputs, public baked build values and stable gate input, while
+  immutable create-once aggregate/component ZIPs carry content indexes,
+  digests, source Commit and provenance. Secret-bearing names/content,
+  structured JSON/YAML keys, symlinks, special files, overlapping ownership
+  and traversal fail closed. ReleaseOrder-to-Project locking serializes both
+  reservation and Manifest publication, and same-input reproducibility is
+  enforced under real MySQL. Focused, repository, real-MySQL, hardened Docker,
+  authenticated HTTP, static and CodeGraph checks pass; independent correction
+  review reports P0/P1/P2/P3=0/0/0/0. **Next: F428 Build history/log UI.**
+
 - F426 closed on 2026-08-05: the default build executor remains disabled, while
   the explicit `v13-acceptance` overlay enables `controlled-local-v1` with a
   dedicated volume, bounded environment, whole-run and command deadlines,

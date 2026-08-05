@@ -3,6 +3,22 @@ export interface ReleaseBuildComponent {
   name: string;
   workingDirectory: string;
   buildCommand: string;
+  artifactOutputs: string[];
+  buildEnvironment: Record<string, string>;
+}
+
+export interface ReleaseBuildArtifactItem {
+  componentKey: string;
+  artifactType: "zip";
+  digest: string;
+  uri: string;
+  sizeBytes: number;
+  outputs: string[];
+  contentIndex: Array<{ path: string; digest: string; sizeBytes: number }>;
+  environment: {
+    mode: "independent" | "baked";
+    fingerprint?: string;
+  };
 }
 
 export interface ReleaseBuildRuntimeDescriptor {
@@ -40,9 +56,20 @@ export interface ReleaseBuildInputSnapshotV3 extends ReleaseBuildInputSnapshotBa
   runtime: ReleaseBuildRuntimeDescriptor;
 }
 
+export interface ReleaseBuildInputSnapshotV4 extends ReleaseBuildInputSnapshotBase {
+  version: 4;
+  runtime: ReleaseBuildRuntimeDescriptor;
+  artifactContract: {
+    version: 1;
+    collection: "declared-outputs-only";
+    environment: "explicit-public-build-values";
+  };
+}
+
 export type ReleaseBuildInputSnapshot =
   | ReleaseBuildInputSnapshotV2
-  | ReleaseBuildInputSnapshotV3;
+  | ReleaseBuildInputSnapshotV3
+  | ReleaseBuildInputSnapshotV4;
 
 export interface ReleaseBuildResolvedSource {
   context: {
@@ -82,6 +109,8 @@ export interface ReleaseBuildExecutionResult {
     digest: string;
     sizeBytes: number;
     uri: string;
+    items: ReleaseBuildArtifactItem[];
+    contentIndex: Array<{ path: string; digest: string; sizeBytes: number }>;
   };
   logs: string[];
   gateSummary: Record<string, unknown>;
@@ -92,6 +121,12 @@ export abstract class ReleaseBuildExecutorPort {
     input: ReleaseBuildExecutionInput,
     signal?: AbortSignal,
   ): Promise<ReleaseBuildExecutionResult>;
+
+  abstract discardArtifact(input: {
+    projectId: string;
+    releaseOrderId: string;
+    buildRunId: string;
+  }): Promise<void>;
 }
 
 export interface ReleaseBuildFailure {

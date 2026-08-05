@@ -26,7 +26,7 @@ export const REPOSITORY_ANALYSIS_DEFAULTS = {
 } as const;
 
 export const REPOSITORY_SECRET_KEY_PATTERN =
-  /token|password|secret|private.?key|authorization|credential/i;
+  /token|password|secret|(?:private|api|access).?key|authorization|credential/i;
 
 export const REPOSITORY_SECRET_ENV_PATTERN =
   /TOKEN|PASSWORD|SECRET|PRIVATE_KEY|ACCESS_KEY|SECRET_KEY|DATABASE_URL/i;

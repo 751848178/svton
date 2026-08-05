@@ -129,6 +129,7 @@ function serviceDraft(
     targetType: detected.container.composeFiles.length > 0 ? 'docker-compose' : 'server',
     workingDirectory: detected.path,
     buildCommand: secured.commands.build,
+    artifactPaths: detected.artifacts,
     deployCommand: secured.commands.start,
     migrationCommand: secured.commands.migrate,
     initializationCommand: secured.commands.bootstrap,

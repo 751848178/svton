@@ -109,7 +109,7 @@ export class ReleaseBuildRuntimeFixture {
     await this.prisma.$disconnect();
   }
 
-  async reservation() {
+  async reservation(inputHash: string = randomUUID()) {
     const decision = await persistAllowedTestDecision(this.prisma, {
       teamId: this.teamId,
       actorId: this.userId,
@@ -142,7 +142,7 @@ export class ReleaseBuildRuntimeFixture {
       releaseOrderId: this.orderId,
       actorId: this.userId,
       snapshot,
-      inputHash: randomUUID(),
+      inputHash,
       expectedCanonicalKey: "example.com/repo",
     };
   }

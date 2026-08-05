@@ -6,6 +6,7 @@ export function controlledBuildEnvironment(
   path: string,
   home: string,
   temporary: string,
+  declared: Record<string, string> = {},
 ) {
   return {
     PATH: path,
@@ -14,6 +15,7 @@ export function controlledBuildEnvironment(
     CI: "true",
     HOME: home,
     TMPDIR: temporary,
+    ...declared,
   };
 }
 

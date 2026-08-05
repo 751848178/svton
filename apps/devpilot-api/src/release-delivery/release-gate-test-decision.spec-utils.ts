@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+import { stableHash } from "../release-orchestration/utils/release-hash.utils";
 import type {
   ReleaseGateDecision,
   ReleaseGateDecisionStage,
@@ -14,9 +15,9 @@ type Scope = {
 
 export async function persistAllowedTestDecision(
   prisma: PrismaClient,
-  input: Scope & { stage: ReleaseGateDecisionStage },
+  input: Scope & { stage: ReleaseGateDecisionStage; inputHash?: string },
 ): Promise<ReleaseGateDecision> {
-  const inputHash = randomUUID();
+  const inputHash = input.inputHash || randomUUID();
   const phase = {
     build: "commit",
     staging: "build",
@@ -64,7 +65,10 @@ export function gatePolicyTestDouble(prisma: PrismaClient) {
   return {
     assertAllowed: jest.fn(
       (input: Scope & { stage: ReleaseGateDecisionStage }) =>
-        persistAllowedTestDecision(prisma, input),
+        persistAllowedTestDecision(prisma, {
+          ...input,
+          inputHash: stableHash(input),
+        }),
     ),
   };
 }

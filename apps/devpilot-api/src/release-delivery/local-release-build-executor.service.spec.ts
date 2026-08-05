@@ -49,11 +49,16 @@ describe("LocalReleaseBuildExecutorService", () => {
         "console.log('Authorization: Bearer ghp_12345678901234567890')",
       ].join(";"),
     );
+    await writeFile(join(checkout, "credentials.txt"), "not-packaged");
     const result = await executor.execute(input(checkout, "node emit.js"));
     expect(result.artifact.digest).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(result.artifact.sizeBytes).toBeGreaterThan(0);
     expect(result.logs.join("\n")).toContain("[REDACTED_TOKEN]");
     expect(result.logs.join("\n")).not.toContain("ghp_12345678901234567890");
+    expect(result.artifact.contentIndex.map((item) => item.path)).toEqual([
+      "dist/app.js",
+    ]);
+    expect(result.artifact.items).toHaveLength(1);
     expect(result.gateSummary).toEqual(
       expect.objectContaining({
         security: expect.objectContaining({
@@ -61,8 +66,18 @@ describe("LocalReleaseBuildExecutorService", () => {
         }),
       }),
     );
+    const replayCheckout = join(work, "replay");
+    await mkdir(replayCheckout, { recursive: true });
+    await writeFile(
+      join(replayCheckout, "emit.js"),
+      "require('fs').mkdirSync('dist', { recursive: true });require('fs').writeFileSync('dist/app.js', 'built')",
+    );
+    await writeFile(
+      join(replayCheckout, "unrelated.txt"),
+      "different checkout noise",
+    );
     const replay = await executor.execute({
-      ...input(checkout, "node emit.js"),
+      ...input(replayCheckout, "node emit.js"),
       buildRunId: "run-2",
     });
     expect(replay.artifact.digest).toBe(result.artifact.digest);
@@ -77,6 +92,34 @@ describe("LocalReleaseBuildExecutorService", () => {
     await expect(executor.execute(escaped)).rejects.toMatchObject({
       detail: { code: "BUILD_WORKDIR_OUTSIDE_CHECKOUT" },
     });
+  });
+
+  it("binds explicit public build values into a baked static artifact", async () => {
+    await writeFile(
+      join(checkout, "bake.js"),
+      "require('fs').mkdirSync('dist', { recursive: true });require('fs').writeFileSync('dist/config.js', process.env.NEXT_PUBLIC_API_URL)",
+    );
+    const staging = input(checkout, "node bake.js");
+    staging.components[0].buildEnvironment = {
+      NEXT_PUBLIC_API_URL: "https://staging.example",
+    };
+    const first = await executor.execute(staging);
+    const production = {
+      ...input(checkout, "node bake.js"),
+      buildRunId: "run-production",
+    };
+    production.components[0].buildEnvironment = {
+      NEXT_PUBLIC_API_URL: "https://production.example",
+    };
+    const second = await executor.execute(production);
+    expect(second.artifact.digest).not.toBe(first.artifact.digest);
+    expect(second.artifact.items[0].environment).toMatchObject({
+      mode: "baked",
+      fingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+    });
+    expect(second.artifact.items[0].environment).not.toEqual(
+      first.artifact.items[0].environment,
+    );
   });
 
   it("maps an AbortSignal to a distinct canceled execution", async () => {
@@ -104,6 +147,8 @@ function input(checkoutRoot: string, command: string) {
         name: "api",
         workingDirectory: ".",
         buildCommand: command,
+        artifactOutputs: ["dist"],
+        buildEnvironment: {},
       },
     ],
   };

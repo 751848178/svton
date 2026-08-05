@@ -57,7 +57,7 @@ describe("ReleaseBuildService", () => {
     expect(repository.reserve).not.toHaveBeenCalled();
   });
 
-  it("freezes exact source, gate and runtime controls in snapshot v3", async () => {
+  it("freezes source, runtime, declared outputs and public build values in snapshot v4", async () => {
     await service.build("team-1", "user-1", "project-1", "order-1");
     expect(sources.resolve).toHaveBeenCalledWith(
       "team-1",
@@ -67,7 +67,7 @@ describe("ReleaseBuildService", () => {
     );
     const reservation = repository.reserve.mock.calls[0][0];
     expect(reservation.snapshot).toMatchObject({
-      version: 3,
+      version: 4,
       repositoryUrl: "https://[REDACTED]@example.com/repo.git",
       sourceBranch: "main",
       sourceCommitSha: "b".repeat(40),
@@ -77,6 +77,18 @@ describe("ReleaseBuildService", () => {
         inputHash: "decision-hash",
       },
       runtime: descriptor(),
+      artifactContract: {
+        version: 1,
+        collection: "declared-outputs-only",
+        environment: "explicit-public-build-values",
+      },
+      components: [
+        expect.objectContaining({
+          key: "service-1",
+          artifactOutputs: ["dist"],
+          buildEnvironment: { NEXT_PUBLIC_API_URL: "https://api.example" },
+        }),
+      ],
     });
     expect(reservation.inputHash).toMatch(/^[a-f0-9]{64}$/);
     expect(bind).toHaveBeenCalledWith("run-1", expect.any(Function));
@@ -92,10 +104,28 @@ describe("ReleaseBuildService", () => {
   });
 
   it("reserves one independent run for every accepted request", async () => {
+    gates.assertAllowed
+      .mockResolvedValueOnce({
+        id: "decision-1",
+        stage: "build",
+        inputHash: "decision-hash",
+      })
+      .mockResolvedValueOnce({
+        id: "decision-2",
+        stage: "build",
+        inputHash: "decision-hash",
+      });
     await service.build("team-1", "user-1", "project-1", "order-1");
     await service.build("team-1", "user-1", "project-1", "order-1");
     expect(repository.reserve).toHaveBeenCalledTimes(2);
     expect(runner.run).toHaveBeenCalledTimes(2);
+    const [first, second] = repository.reserve.mock.calls.map(
+      ([input]) => input,
+    );
+    expect(first.snapshot.gateDecision.id).not.toBe(
+      second.snapshot.gateDecision.id,
+    );
+    expect(first.inputHash).toBe(second.inputHash);
   });
 });
 
@@ -115,6 +145,10 @@ function source() {
                 deployConfig: {
                   workingDirectory: ".",
                   buildCommand: "npm run build",
+                  artifactPaths: ["dist"],
+                  buildEnvironment: {
+                    NEXT_PUBLIC_API_URL: "https://api.example",
+                  },
                 },
               },
             ],

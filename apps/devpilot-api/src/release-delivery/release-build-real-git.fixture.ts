@@ -167,11 +167,14 @@ export class ReleaseBuildRealGitFixture {
             digest: `sha256:${"f".repeat(64)}`,
             sizeBytes: 8,
             uri: `release-artifact://${input.buildRunId}/bundle.zip`,
+            items: [],
+            contentIndex: [],
           },
           logs: ["real git checkout verified"],
           gateSummary: { build: { status: "passed" } },
         };
       },
+      discardArtifact: async () => undefined,
     };
     this.service = new ReleaseBuildService(
       new ReleaseBuildRepository(this.db),

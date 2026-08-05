@@ -1,7 +1,10 @@
 import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { assertReproducibleArtifact } from "./release-build-reproducibility.repository";
+import type { ReleaseBuildArtifactItem } from "./release-build.types";
 import { releaseBuildInclude } from "./release-build.prisma";
+import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 
 interface CompleteBuildInput {
   buildRunId: string;
@@ -11,6 +14,8 @@ interface CompleteBuildInput {
   digest: string;
   uri: string;
   sizeBytes: number;
+  items: ReleaseBuildArtifactItem[];
+  contentIndex: Array<{ path: string; digest: string; sizeBytes: number }>;
   sourceBranch: string;
   sourceCommitSha: string;
   inputHash: string;
@@ -29,6 +34,9 @@ export class ReleaseBuildResultRepository {
 
   succeed(input: CompleteBuildInput) {
     return this.prisma.$transaction(async (tx) => {
+      await lockActionableReleaseOrder(tx, input);
+      await tx.$queryRaw`SELECT id FROM Project WHERE id = ${input.projectId} FOR UPDATE`;
+      const prior = await assertReproducibleArtifact(tx, input);
       const claimed = await tx.buildRun.updateMany({
         where: { id: input.buildRunId, status: "running" },
         data: {
@@ -61,6 +69,16 @@ export class ReleaseBuildResultRepository {
             repositoryProvider: input.repositoryProvider,
             canonicalRepositoryUrl: input.canonicalRepositoryUrl,
             inputHash: input.inputHash,
+            artifactContractVersion: 1,
+            collection: "declared-outputs-only",
+            reproducibility: prior
+              ? { status: "matched", priorManifestId: prior.id }
+              : { status: "baseline" },
+            contentIndex: input.contentIndex,
+            componentEnvironments: input.items.map((item) => ({
+              componentKey: item.componentKey,
+              ...item.environment,
+            })),
           },
           items: {
             create: [
@@ -69,8 +87,31 @@ export class ReleaseBuildResultRepository {
                 artifactType: "zip",
                 uri: input.uri,
                 digest: input.digest,
-                metadata: { sizeBytes: input.sizeBytes },
+                metadata: {
+                  sizeBytes: input.sizeBytes,
+                  contentIndex: input.contentIndex,
+                  provenance: {
+                    sourceCommitSha: input.sourceCommitSha,
+                    inputHash: input.inputHash,
+                  },
+                },
               },
+              ...input.items.map((item) => ({
+                componentKey: item.componentKey,
+                artifactType: item.artifactType,
+                uri: item.uri,
+                digest: item.digest,
+                metadata: {
+                  sizeBytes: item.sizeBytes,
+                  outputs: item.outputs,
+                  contentIndex: item.contentIndex,
+                  environment: item.environment,
+                  provenance: {
+                    sourceCommitSha: input.sourceCommitSha,
+                    inputHash: input.inputHash,
+                  },
+                },
+              })),
             ],
           },
         },
@@ -84,6 +125,14 @@ export class ReleaseBuildResultRepository {
         include: releaseBuildInclude,
       });
     });
+  }
+
+  async hasCommittedArtifact(input: { buildRunId: string; digest: string }) {
+    const run = await this.prisma.buildRun.findUnique({
+      where: { id: input.buildRunId },
+      select: { status: true, manifest: { select: { digest: true } } },
+    });
+    return run?.status === "succeeded" && run.manifest?.digest === input.digest;
   }
 
   fail(input: {

@@ -75,7 +75,7 @@ function legacySourceRepository(run: BuildRecord) {
 function readKnownSnapshot(value: unknown) {
   if (
     !isRecord(value) ||
-    (value.version !== 2 && value.version !== 3) ||
+    (value.version !== 2 && value.version !== 3 && value.version !== 4) ||
     !isRecord(value.repositoryIdentity)
   )
     return null;
