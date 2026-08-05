@@ -1,16 +1,23 @@
 // @vitest-environment jsdom
 
-import React, { act, type ReactNode } from 'react';
+import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
-import type { ReleaseOrderDetail, ReleaseOrderStep } from '../types/release-order.types';
+import type { ReleaseOrderStep } from '../types/release-order.types';
+import {
+  detailHook as makeDetailHook,
+  type DetailHook,
+  type HeaderProps,
+  type StepperProps,
+} from './release-order-detail-panel.spec-fixtures';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
 
 const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   replace: vi.fn(),
   load: vi.fn(),
+  buildLatest: vi.fn(),
+  builds: {} as { building: boolean; buildLatest: ReturnType<typeof vi.fn> },
   detailHook: {} as DetailHook,
 }));
 
@@ -26,8 +33,21 @@ vi.mock('@/components/ui', () => ({
 vi.mock('../hooks/use-release-order-detail', () => ({
   useReleaseOrderDetail: () => mocks.detailHook,
 }));
+vi.mock('../hooks/use-release-builds', () => ({
+  useReleaseBuilds: () => mocks.builds,
+}));
 vi.mock('./release-order-detail-header', () => ({
-  ReleaseOrderDetailHeader: () => <header>header</header>,
+  ReleaseOrderDetailHeader: ({ detail, onBuildLatest }: HeaderProps) => (
+    <header>
+      <button
+        data-build-latest
+        disabled={detail.counts.releaseRuns > 0}
+        onClick={onBuildLatest}
+      >
+        build
+      </button>
+    </header>
+  ),
 }));
 vi.mock('./release-order-stepper', () => ({
   ReleaseOrderStepper: ({ selectedStep, onSelect, children }: StepperProps) => (
@@ -68,6 +88,8 @@ describe('ReleaseOrderDetailPanel route contract', () => {
     mocks.searchParams = new URLSearchParams();
     mocks.replace.mockReset();
     mocks.load.mockReset().mockResolvedValue(undefined);
+    mocks.buildLatest.mockReset().mockResolvedValue(null);
+    mocks.builds = { building: false, buildLatest: mocks.buildLatest };
     mocks.detailHook = { scope: null, detail: null, loading: true, error: '', load: mocks.load };
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -125,6 +147,30 @@ describe('ReleaseOrderDetailPanel route contract', () => {
     );
     expect(mocks.load).not.toHaveBeenCalled();
   });
+  it('selects canonical Build and invokes the shared controller from the header', async () => {
+    mocks.searchParams = new URLSearchParams('releaseOrderId=order-1&step=preflight');
+    mocks.detailHook = detailHook('preflight', 'order-1', 0);
+    await render(root);
+
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-build-latest]')?.click(),
+    );
+
+    expect(mocks.replace).toHaveBeenCalledWith(
+      '/projects/project-1?releaseOrderId=order-1&step=build',
+      { scroll: false },
+    );
+    expect(mocks.buildLatest).toHaveBeenCalledOnce();
+  });
+  it('dispatches no build when the owned detail has a frozen Production artifact', async () => {
+    mocks.detailHook = detailHook('production');
+    await render(root);
+
+    const action = container.querySelector<HTMLButtonElement>('[data-build-latest]')!;
+    expect(action.disabled).toBe(true);
+    await act(async () => action.click());
+    expect(mocks.buildLatest).not.toHaveBeenCalled();
+  });
   it('does not canonicalize order B from retained order A detail', async () => {
     mocks.searchParams = new URLSearchParams('releaseOrderId=order-a&step=production');
     mocks.detailHook = detailHook('production', 'order-a');
@@ -149,52 +195,6 @@ async function render(root: Root, releaseOrderId = 'order-1') {
     ),
   );
 }
-function detailHook(resumeStep: ReleaseOrderStep, releaseOrderId = 'order-1'): DetailHook {
-  return {
-    scope: scopedRequestIdentity('project-1', releaseOrderId),
-    detail: detail(resumeStep, releaseOrderId),
-    loading: false,
-    error: '',
-    load: mocks.load,
-  };
-}
-
-function detail(resumeStep: ReleaseOrderStep, releaseOrderId = 'order-1'): ReleaseOrderDetail {
-  return {
-    id: releaseOrderId,
-    projectId: 'project-1',
-    releaseVersion: '2.4.1',
-    note: null,
-    createdAt: '2026-08-05T00:00:00.000Z',
-    updatedAt: '2026-08-05T01:00:00.000Z',
-    counts: { buildRuns: 1, manifests: 1, releaseRuns: 1 },
-    persistedStatus: 'active',
-    lifecycle: {
-      status: 'production',
-      phase: 'production',
-      sourceType: 'release_run',
-      sourceId: 'release-1',
-      sourceStatus: 'running',
-      occurredAt: '2026-08-05T01:00:00.000Z',
-    },
-    resumeStep,
-    preflight: {
-      ready: true,
-      repository: { ready: true, branch: 'main', identityRevisionId: 'r1', identityRevision: 1 },
-      staging: { ready: true },
-      production: { ready: true },
-    },
-  };
-}
-interface DetailHook {
-  scope: string | null;
-  detail: ReleaseOrderDetail | null;
-  loading: boolean;
-  error: string;
-  load: () => Promise<unknown>;
-}
-interface StepperProps {
-  selectedStep: ReleaseOrderStep;
-  onSelect: (step: ReleaseOrderStep) => void;
-  children: ReactNode;
+function detailHook(resumeStep: ReleaseOrderStep, releaseOrderId = 'order-1', releaseRuns = 1) {
+  return makeDetailHook(resumeStep, mocks.load, releaseOrderId, releaseRuns);
 }

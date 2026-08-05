@@ -716,6 +716,8 @@
     "releaseOrderBuildCount": "{count} 次构建",
     "releaseOrderManifestCount": "{count} 个 Manifest",
     "buildLatestCode": "构建最新代码",
+    "releaseProductionArtifactFrozen": "生产制品已冻结",
+    "releaseBuildFrozenReason": "生产发布后不可重建当前发布单",
     "releaseBuildEmpty": "尚未构建；Commit 将由服务端从项目主分支解析。",
     "releaseBuildRevision": "Build #{revision}",
     "releaseBuildStatusQueued": "排队中",

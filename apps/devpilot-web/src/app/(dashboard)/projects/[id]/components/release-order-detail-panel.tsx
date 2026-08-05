@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
 import { ErrorBanner } from '@/components/ui';
+import { type ReleaseBuildsController, useReleaseBuilds } from '../hooks/use-release-builds';
 import { useReleaseOrderDetail } from '../hooks/use-release-order-detail';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import type { ReleaseOrderDetail, ReleaseOrderStep } from '../types/release-order.types';
@@ -29,38 +30,35 @@ interface Props {
 }
 
 export function ReleaseOrderDetailPanel(props: Props) {
+  const { projectId, releaseOrderId, onOrdersChanged } = props;
   const t = useTranslations('projects');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const order = useReleaseOrderDetail(props.projectId, props.releaseOrderId);
-  const scope = scopedRequestIdentity(props.projectId, props.releaseOrderId);
+  const order = useReleaseOrderDetail(projectId, releaseOrderId);
+  const scope = scopedRequestIdentity(projectId, releaseOrderId);
   const detail = ownsDetail(order.scope, order.detail, scope, props);
   const step = readReleaseOrderStep(searchParams, detail?.resumeStep || 'preflight');
   const explicitStep = readExplicitReleaseOrderStep(searchParams);
   const buildRunId = searchParams.get('buildRunId')?.trim() || undefined;
+  const loadOrder = order.load;
+  const refresh = useCallback(async () => {
+    await Promise.all([loadOrder(), onOrdersChanged()]);
+  }, [loadOrder, onOrdersChanged]);
+  const builds = useReleaseBuilds(projectId, releaseOrderId, refresh, Boolean(detail));
 
   useEffect(() => {
     if (!detail || explicitStep === step) return;
     router.replace(
       releaseOrderHref(
-        props.projectId,
-        props.releaseOrderId,
+        projectId,
+        releaseOrderId,
         step,
         searchParams,
         step === 'build' ? buildRunId : undefined,
       ),
       { scroll: false },
     );
-  }, [
-    buildRunId,
-    explicitStep,
-    detail,
-    props.projectId,
-    props.releaseOrderId,
-    router,
-    searchParams,
-    step,
-  ]);
+  }, [buildRunId, explicitStep, detail, projectId, releaseOrderId, router, searchParams, step]);
 
   if (order.loading) return <LoadingState />;
   if (order.error || !detail) {
@@ -72,18 +70,21 @@ export function ReleaseOrderDetailPanel(props: Props) {
     );
   }
   const changeStep = (next: ReleaseOrderStep) =>
-    router.replace(releaseOrderHref(props.projectId, props.releaseOrderId, next, searchParams), {
+    router.replace(releaseOrderHref(projectId, releaseOrderId, next, searchParams), {
       scroll: false,
     });
-  const refresh = async () => {
-    await Promise.all([order.load(), props.onOrdersChanged()]);
+  const triggerBuild = () => {
+    changeStep('build');
+    void builds.buildLatest();
   };
 
   return (
     <div className="space-y-5">
       <ReleaseOrderDetailHeader
         detail={detail}
-        onBack={() => router.replace(releaseOrderListHref(props.projectId, searchParams))}
+        building={builds.building}
+        onBack={() => router.replace(releaseOrderListHref(projectId, searchParams))}
+        onBuildLatest={triggerBuild}
       />
       <ReleaseOrderStepper
         steps={buildReleaseOrderStepViews(detail)}
@@ -92,22 +93,22 @@ export function ReleaseOrderDetailPanel(props: Props) {
       >
         <ReleaseOrderStepContent
           detail={detail}
+          builds={builds}
           step={step}
-          projectId={props.projectId}
-          releaseOrderId={props.releaseOrderId}
+          projectId={projectId}
+          releaseOrderId={releaseOrderId}
           focusedBuildRunId={buildRunId}
           onChanged={refresh}
           onOpenBuildLog={(runId) =>
             router.replace(
-              releaseOrderHref(props.projectId, props.releaseOrderId, 'build', searchParams, runId),
+              releaseOrderHref(projectId, releaseOrderId, 'build', searchParams, runId),
               { scroll: false },
             )
           }
           onCloseBuildLog={() =>
-            router.replace(
-              releaseOrderHref(props.projectId, props.releaseOrderId, 'build', searchParams),
-              { scroll: false },
-            )
+            router.replace(releaseOrderHref(projectId, releaseOrderId, 'build', searchParams), {
+              scroll: false,
+            })
           }
         />
       </ReleaseOrderStepper>
@@ -128,6 +129,7 @@ function ownsDetail(
 
 interface StepContentProps {
   detail: ReleaseOrderDetail;
+  builds: ReleaseBuildsController;
   step: ReleaseOrderStep;
   projectId: string;
   releaseOrderId: string;
@@ -144,8 +146,8 @@ function ReleaseOrderStepContent(props: StepContentProps) {
       <ReleaseOrderBuildStep
         projectId={props.projectId}
         releaseOrderId={props.releaseOrderId}
+        builds={props.builds}
         focusedBuildRunId={props.focusedBuildRunId}
-        onChanged={props.onChanged}
         onOpenLog={props.onOpenBuildLog}
         onCloseLog={props.onCloseBuildLog}
       />

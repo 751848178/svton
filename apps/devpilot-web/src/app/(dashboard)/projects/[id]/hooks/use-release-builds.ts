@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiRequest } from '@/lib/api-client';
 import type { ReleaseBuildItem, ReleaseBuildListResponse } from '../types/release-order.types';
 import { scopedRequestIdentity, useScopedRequestGuard } from './use-scoped-request-guard';
@@ -18,12 +18,15 @@ export function useReleaseBuilds(
   projectId: string,
   releaseOrderId: string,
   onChanged: () => Promise<unknown>,
+  enabled = true,
 ) {
   const scope = scopedRequestIdentity(projectId, releaseOrderId);
   const { begin, invalidate, isCurrent } = useScopedRequestGuard(scope);
   const [state, setState] = useState<BuildsState>(() => loadingState(scope, false));
+  const buildInFlight = useRef<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!enabled) return;
     const request = begin('list');
     if (!isCurrent(request)) return;
     setState((current) => loadingState(scope, current.scope === scope && current.building));
@@ -49,15 +52,17 @@ export function useReleaseBuilds(
         setState((current) => failedState(scope, current, errorMessage(caught)));
       }
     }
-  }, [begin, isCurrent, projectId, releaseOrderId, scope]);
+  }, [begin, enabled, isCurrent, projectId, releaseOrderId, scope]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (enabled) void load();
+  }, [enabled, load]);
 
   const buildLatest = useCallback(async () => {
+    if (!enabled || buildInFlight.current === scope) return null;
     const request = begin('build');
     if (!isCurrent(request)) return null;
+    buildInFlight.current = scope;
     setState((current) => ({
       ...(current.scope === scope ? current : loadingState(scope, false)),
       building: true,
@@ -92,13 +97,14 @@ export function useReleaseBuilds(
       }
       return null;
     } finally {
+      if (buildInFlight.current === scope) buildInFlight.current = null;
       if (isCurrent(request)) {
         setState((current) =>
           current.scope === scope ? { ...current, building: false } : current,
         );
       }
     }
-  }, [begin, invalidate, isCurrent, onChanged, projectId, releaseOrderId, scope]);
+  }, [begin, enabled, invalidate, isCurrent, onChanged, projectId, releaseOrderId, scope]);
 
   const ownsState = state.scope === scope;
   return {
@@ -113,6 +119,8 @@ export function useReleaseBuilds(
     buildLatest,
   };
 }
+
+export type ReleaseBuildsController = ReturnType<typeof useReleaseBuilds>;
 
 function loadingState(scope: string, building: boolean): BuildsState {
   return { scope, items: [], loading: true, loadedSuccessfully: false, building, error: '' };

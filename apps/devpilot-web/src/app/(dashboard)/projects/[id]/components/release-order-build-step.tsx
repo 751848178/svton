@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, StatusTag } from '@/components/ui';
-import { useReleaseBuilds } from '../hooks/use-release-builds';
+import type { ReleaseBuildsController } from '../hooks/use-release-builds';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseBuildLogDrawer } from './release-build-log-drawer';
@@ -11,8 +11,8 @@ import { ReleaseBuildLogDrawer } from './release-build-log-drawer';
 interface Props {
   projectId: string;
   releaseOrderId: string;
+  builds: ReleaseBuildsController;
   focusedBuildRunId?: string;
-  onChanged: () => Promise<unknown>;
   onOpenLog: (buildRunId: string) => void;
   onCloseLog: () => void;
 }
@@ -21,7 +21,7 @@ export function ReleaseOrderBuildStep(props: Props) {
   const t = useTranslations('projects');
   const focusedBuildRunId = props.focusedBuildRunId;
   const onCloseLog = props.onCloseLog;
-  const builds = useReleaseBuilds(props.projectId, props.releaseOrderId, props.onChanged);
+  const builds = props.builds;
   const scope = scopedRequestIdentity(props.projectId, props.releaseOrderId);
   const ownsState = builds.scope === scope;
   const items = ownsState
@@ -47,17 +47,9 @@ export function ReleaseOrderBuildStep(props: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold">{t('releaseStepBuildTitle')}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{t('releaseStepBuildDescription')}</p>
-        </div>
-        <Button
-          onClick={() => void builds.buildLatest()}
-          loading={ownsState && builds.building}
-        >
-          {t('buildLatestCode')}
-        </Button>
+      <div>
+        <h3 className="font-semibold">{t('releaseStepBuildTitle')}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{t('releaseStepBuildDescription')}</p>
       </div>
       {ownsState && builds.error ? (
         <p

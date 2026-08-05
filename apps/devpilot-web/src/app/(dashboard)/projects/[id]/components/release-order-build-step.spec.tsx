@@ -3,6 +3,7 @@
 import React, { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReleaseBuildsController } from '../hooks/use-release-builds';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import type { ReleaseBuildItem } from '../types/release-order.types';
 import { ReleaseOrderBuildStep } from './release-order-build-step';
@@ -18,7 +19,6 @@ vi.mock('@/components/ui', () => ({
   ),
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
 }));
-vi.mock('../hooks/use-release-builds', () => ({ useReleaseBuilds: () => mocks.hook }));
 vi.mock('./release-build-log-drawer', () => ({
   ReleaseBuildLogDrawer: ({ run }: { run: ReleaseBuildItem | null }) => (
     <div data-focused-run={run?.id || ''} />
@@ -63,6 +63,7 @@ describe('ReleaseOrderBuildStep focused build normalization', () => {
     await render(root, onCloseLog);
     expect(onCloseLog).not.toHaveBeenCalled();
     expect(container.querySelector('[data-focused-run="build-1"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('buildLatestCode');
   });
 
   it('hides order A focus and cleans only after order B succeeds', async () => {
@@ -94,8 +95,8 @@ async function render(root: Root, onCloseLog: () => void, releaseOrderId = 'orde
       <ReleaseOrderBuildStep
         projectId="project-1"
         releaseOrderId={releaseOrderId}
+        builds={mocks.hook as ReleaseBuildsController}
         focusedBuildRunId="build-1"
-        onChanged={vi.fn()}
         onOpenLog={vi.fn()}
         onCloseLog={onCloseLog}
       />,

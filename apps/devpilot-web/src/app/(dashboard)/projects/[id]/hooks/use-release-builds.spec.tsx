@@ -110,6 +110,28 @@ describe('useReleaseBuilds scope ownership', () => {
     expect(latest.items.map((item) => item.id)).toEqual(['new-build']);
   });
 
+  it('posts one empty request body and rejects duplicate activation while in flight', async () => {
+    const buildResponse = deferred<ReleaseBuildItem>();
+    mocks.apiRequest.mockImplementation((_route: string, body?: unknown) =>
+      body === undefined ? Promise.resolve(list()) : buildResponse.promise,
+    );
+    await render(root, 'order-a');
+
+    let first!: Promise<ReleaseBuildItem | null>;
+    let duplicate!: Promise<ReleaseBuildItem | null>;
+    act(() => {
+      first = latest.buildLatest();
+      duplicate = latest.buildLatest();
+    });
+    const posts = mocks.apiRequest.mock.calls.filter((call) => call[1] !== undefined);
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.[1]).toEqual({});
+    await expect(duplicate).resolves.toBeNull();
+
+    await act(async () => buildResponse.resolve(build('new-build', 'order-a')));
+    await expect(first).resolves.toMatchObject({ id: 'new-build' });
+  });
+
   async function render(target: Root, releaseOrderId: string, keyed = false) {
     await act(async () =>
       target.render(

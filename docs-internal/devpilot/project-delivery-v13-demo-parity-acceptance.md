@@ -150,10 +150,10 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 
 ## Build And Artifact
 
-- [ ] **AC-BUILD-001** “构建最新代码”位于发布单详情主要位置。
-- [ ] **AC-BUILD-002** 点击后不要求选择版本、Commit、环境或构建说明。
-- [ ] **AC-BUILD-003** 服务端每次重新解析生效主分支最新 Commit。
-- [ ] **AC-BUILD-004** Production 制品冻结后当前发布单不能静默重建替换该制品。
+- [x] **AC-BUILD-001** “构建最新代码”位于发布单详情主要位置。
+- [x] **AC-BUILD-002** 点击后不要求选择版本、Commit、环境或构建说明。
+- [x] **AC-BUILD-003** 服务端每次重新解析生效主分支最新 Commit。
+- [x] **AC-BUILD-004** Production 制品冻结后当前发布单不能静默重建替换该制品。
 - [ ] **AC-BUILD-005** 验收 Docker profile 显式启用受控构建 executor。
 - [ ] **AC-BUILD-006** 非验收/生产默认配置继续 fail closed，不因缺配置隐式执行本地命令。
 - [ ] **AC-BUILD-007** 每次构建创建独立 revision、输入快照、inputHash 和 BuildRun。

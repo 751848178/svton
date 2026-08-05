@@ -716,6 +716,8 @@
     "releaseOrderBuildCount": "{count} builds",
     "releaseOrderManifestCount": "{count} manifests",
     "buildLatestCode": "Build latest code",
+    "releaseProductionArtifactFrozen": "Production artifact frozen",
+    "releaseBuildFrozenReason": "This release order cannot be rebuilt after Production starts",
     "releaseBuildEmpty": "No builds yet. The server will resolve the project's main branch commit.",
     "releaseBuildRevision": "Build #{revision}",
     "releaseBuildStatusQueued": "Queued",
