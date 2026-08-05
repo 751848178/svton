@@ -34,6 +34,7 @@ export async function admitReleaseBuild(
   sources: ReleaseBuildSourceResolverService,
   gates: ReleaseGateDecisionService,
   scope: BuildGateScope,
+  signal?: AbortSignal,
 ): Promise<{
   source: ReleaseBuildResolvedSource;
   decision: ReleaseGateDecision;
@@ -44,6 +45,7 @@ export async function admitReleaseBuild(
       scope.teamId,
       scope.projectId,
       scope.releaseOrderId,
+      signal,
     );
   } catch (error) {
     await gates.assertAllowed({

@@ -44,6 +44,10 @@ services:
       RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED: "true"
       # Enable project-level release orchestration (F383) for local verification.
       DEVPILOT_RELEASE_ORCHESTRATION_ENABLED: "true"
+      # Build execution is a separate double-consent capability. The V13
+      # acceptance overlay is the only repository-owned profile that enables it.
+      RELEASE_BUILD_EXECUTION_ENABLED: "false"
+      RELEASE_BUILD_EXECUTOR_PROFILE: disabled
       # Local repository analysis remains default-off in production. This
       # disposable app stack exposes only the explicitly mounted read-only root.
       REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories
@@ -54,7 +58,13 @@ services:
       # container cannot write to the source checkout.
       - ${DEVPILOT_REPOSITORY_FIXTURE:-../picshare}:/read-only-repositories/picshare:ro
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3121/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3121/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 12

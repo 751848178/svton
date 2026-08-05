@@ -1,11 +1,11 @@
 import { presentBuild } from "./release-build.presenter";
 
 describe("presentBuild", () => {
-  it("presents immutable v2 snapshot provenance after joined identity mutation", () => {
+  it.each([2, 3])("presents immutable v%s snapshot provenance", (version) => {
     const presented = presentBuild(
       record({
         inputSnapshot: {
-          version: 2,
+          version,
           repositoryIdentity: {
             id: "identity-1",
             revisionId: "revision-2",
@@ -59,7 +59,7 @@ describe("presentBuild", () => {
       label: "malformed v2",
       inputSnapshot: { version: 2, repositoryIdentity: null },
     },
-    { label: "future version", inputSnapshot: { version: 3 } },
+    { label: "future version", inputSnapshot: { version: 4 } },
     { label: "missing version", inputSnapshot: {} },
     { label: "string version", inputSnapshot: { version: "1" } },
     { label: "array", inputSnapshot: [] },

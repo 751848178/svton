@@ -1,11 +1,15 @@
 import { Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { execFile } from "node:child_process";
-import { mkdir, realpath } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { mkdir, realpath, rm } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
+import {
+  assertControlledBuildCommand,
+  controlledBuildEnvironment,
+} from "./release-build-command-policy";
+import { runControlledBuildCommand } from "./release-build-command-runner";
 import { ReleaseBuildExecutionError } from "./release-build-execution.error";
 import { sanitizeBuildLogs } from "./release-build-log.utils";
+import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import {
   ReleaseBuildExecutionInput,
   ReleaseBuildExecutionResult,
@@ -14,29 +18,18 @@ import {
 
 @Injectable()
 export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
-  private readonly enabled: boolean;
-  private readonly timeoutMs: number;
-
   constructor(
-    config: ConfigService,
+    private readonly runtime: ReleaseBuildRuntimeProfileService,
     private readonly artifacts: ReleaseBuildArtifactService,
   ) {
     super();
-    this.enabled = config.get<boolean>("RELEASE_BUILD_EXECUTION_ENABLED") === true;
-    this.timeoutMs = Number(config.get("RELEASE_BUILD_COMMAND_TIMEOUT_MS")) || 600_000;
   }
 
   async execute(
     input: ReleaseBuildExecutionInput,
+    signal?: AbortSignal,
   ): Promise<ReleaseBuildExecutionResult> {
-    if (!this.enabled) {
-      throw failure(
-        "BUILD_EXECUTOR_DISABLED",
-        "本地构建执行器未启用",
-        [],
-        "请配置隔离构建执行器，或显式启用受控本地执行器。",
-      );
-    }
+    this.runtime.assertAvailable();
     if (input.components.length === 0) {
       throw failure(
         "BUILD_COMMAND_MISSING",
@@ -48,45 +41,96 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
 
     const logs: string[] = [];
     const root = await realpath(input.checkoutRoot);
-    const home = resolve(root, ".devpilot-build-home");
-    await mkdir(home, { recursive: true });
-    for (const component of input.components) {
-      const cwd = await confinedDirectory(root, component.workingDirectory);
-      logs.push(`[${component.name}] $ ${component.buildCommand}`);
-      const result = await runCommand(component.buildCommand, cwd, home, this.timeoutMs);
-      logs.push(result.stdout, result.stderr);
-      if (result.exitCode !== 0) {
+    await assertConfinedRoot(this.runtime.workRoot, root);
+    const runtimeRoot = join(
+      this.runtime.workRoot,
+      "runtime",
+      input.buildRunId,
+    );
+    const home = join(runtimeRoot, "home");
+    const temporary = join(runtimeRoot, "tmp");
+    await mkdir(home, { recursive: true, mode: 0o700 });
+    await mkdir(temporary, { recursive: true, mode: 0o700 });
+    try {
+      for (const component of input.components) {
+        const cwd = await confinedDirectory(root, component.workingDirectory);
+        logs.push(`[${component.name}] $ ${component.buildCommand}`);
+        const result = await runControlledBuildCommand({
+          command: component.buildCommand,
+          cwd,
+          env: controlledBuildEnvironment(
+            this.runtime.commandPath,
+            home,
+            temporary,
+          ),
+          timeoutMs: this.runtime.commandTimeoutMs,
+          cancelGraceMs: this.runtime.cancelGraceMs,
+          signal,
+        });
+        logs.push(result.stdout, result.stderr);
+        assertControlledBuildCommand(component.name, result, logs);
+      }
+      if (signal?.aborted) {
         throw failure(
-          "BUILD_COMMAND_FAILED",
-          `${component.name} 构建失败（exit ${result.exitCode}）`,
+          "BUILD_COMMAND_CANCELED",
+          "构建已取消",
           logs,
-          "修复构建命令后重新创建 BuildRun；失败运行不会产生 Manifest。",
+          "可重新创建 BuildRun。",
+          "canceled",
         );
       }
-    }
 
-    const artifact = await this.artifacts.package({
-      checkoutRoot: root,
-      projectId: input.projectId,
-      releaseOrderId: input.releaseOrderId,
-      buildRunId: input.buildRunId,
-    });
-    logs.push(`artifact ${artifact.digest} (${artifact.sizeBytes} bytes)`);
-    return {
-      artifact,
-      logs: sanitizeBuildLogs(logs),
-      gateSummary: {
-        source: { status: "passed", checkout: "exact_commit" },
-        build: { status: "passed", components: input.components.length },
-        tests: { status: "not_configured", blocking: false },
-        security: {
-          executionControls: {
-            status: "passed",
-            controls: ["minimal_environment", "path_confinement", "log_redaction"],
+      const artifact = await this.artifacts.package(
+        {
+          checkoutRoot: root,
+          projectId: input.projectId,
+          releaseOrderId: input.releaseOrderId,
+          buildRunId: input.buildRunId,
+        },
+        signal,
+      );
+      logs.push(`artifact ${artifact.digest} (${artifact.sizeBytes} bytes)`);
+      return {
+        artifact,
+        logs: sanitizeBuildLogs(logs),
+        gateSummary: {
+          source: { status: "passed", checkout: "exact_commit" },
+          build: { status: "passed", components: input.components.length },
+          tests: { status: "not_configured", blocking: false },
+          security: {
+            executionControls: {
+              status: "passed",
+              profile: "controlled-local-v1",
+              trustBoundary: "disposable-api-container",
+              untrustedSandbox: false,
+              controls: [
+                "minimal_environment",
+                "working_directory_confinement",
+                "bounded_process_group",
+              ],
+              limitations: ["shared_api_process", "shared_container_network"],
+            },
           },
         },
-      },
-    };
+      };
+    } finally {
+      await rm(runtimeRoot, { recursive: true, force: true }).catch(
+        () => undefined,
+      );
+    }
+  }
+}
+
+async function assertConfinedRoot(parent: string, requested: string) {
+  const root = await realpath(parent);
+  const child = relative(root, requested);
+  if (child === "" || child.startsWith("..") || child.startsWith("/")) {
+    throw failure(
+      "BUILD_WORKSPACE_OUTSIDE_ROOT",
+      "构建检出目录不属于受控工作卷",
+      [],
+      "请检查验收 runtime profile 的工作目录配置。",
+    );
   }
 }
 
@@ -104,41 +148,18 @@ async function confinedDirectory(root: string, requested: string) {
   return candidate;
 }
 
-function runCommand(command: string, cwd: string, home: string, timeout: number) {
-  return new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolvePromise) => {
-    execFile(
-      "/bin/sh",
-      ["-lc", command],
-      {
-        cwd,
-        timeout,
-        maxBuffer: 1024 * 1024,
-        env: {
-          PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
-          LANG: "C.UTF-8",
-          CI: "true",
-          HOME: home,
-        },
-      },
-      (error, stdout, stderr) => resolvePromise({
-        exitCode: typeof error?.code === "number" ? error.code : error ? 1 : 0,
-        stdout,
-        stderr: error && !stderr ? error.message : stderr,
-      }),
-    );
-  });
-}
-
 function failure(
   code: string,
   message: string,
   logs: string[],
   action: string,
+  status: "failed" | "canceled" = "failed",
 ) {
   return new ReleaseBuildExecutionError({
     code,
     message,
     logs: sanitizeBuildLogs(logs),
     gateSummary: { build: { status: "failed" }, action },
+    status,
   });
 }

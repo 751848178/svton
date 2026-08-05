@@ -5,8 +5,18 @@ export interface ReleaseBuildComponent {
   buildCommand: string;
 }
 
-export interface ReleaseBuildInputSnapshot {
-  version: 2;
+export interface ReleaseBuildRuntimeDescriptor {
+  profile: "controlled-local-v1";
+  runTimeoutMs: number;
+  commandTimeoutMs: number;
+  cancelGraceMs: number;
+  maxConcurrency: number;
+  concurrencyScope: "single-process";
+  workspacePolicy: "dedicated-build-root";
+  environmentKeys: readonly string[];
+}
+
+interface ReleaseBuildInputSnapshotBase {
   repositoryUrl: string;
   repositoryIdentity: {
     id: string;
@@ -20,6 +30,19 @@ export interface ReleaseBuildInputSnapshot {
   components: ReleaseBuildComponent[];
   gateDecision?: import("./release-gate-decision.types").ReleaseGateDecisionReference;
 }
+
+export interface ReleaseBuildInputSnapshotV2 extends ReleaseBuildInputSnapshotBase {
+  version: 2;
+}
+
+export interface ReleaseBuildInputSnapshotV3 extends ReleaseBuildInputSnapshotBase {
+  version: 3;
+  runtime: ReleaseBuildRuntimeDescriptor;
+}
+
+export type ReleaseBuildInputSnapshot =
+  | ReleaseBuildInputSnapshotV2
+  | ReleaseBuildInputSnapshotV3;
 
 export interface ReleaseBuildResolvedSource {
   context: {
@@ -67,6 +90,7 @@ export interface ReleaseBuildExecutionResult {
 export abstract class ReleaseBuildExecutorPort {
   abstract execute(
     input: ReleaseBuildExecutionInput,
+    signal?: AbortSignal,
   ): Promise<ReleaseBuildExecutionResult>;
 }
 
@@ -75,4 +99,5 @@ export interface ReleaseBuildFailure {
   message: string;
   logs: string[];
   gateSummary: Record<string, unknown>;
+  status?: "failed" | "canceled";
 }

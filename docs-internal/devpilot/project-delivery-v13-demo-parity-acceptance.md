@@ -154,12 +154,12 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-BUILD-002** 点击后不要求选择版本、Commit、环境或构建说明。
 - [x] **AC-BUILD-003** 服务端每次重新解析生效主分支最新 Commit。
 - [x] **AC-BUILD-004** Production 制品冻结后当前发布单不能静默重建替换该制品。
-- [ ] **AC-BUILD-005** 验收 Docker profile 显式启用受控构建 executor。
-- [ ] **AC-BUILD-006** 非验收/生产默认配置继续 fail closed，不因缺配置隐式执行本地命令。
-- [ ] **AC-BUILD-007** 每次构建创建独立 revision、输入快照、inputHash 和 BuildRun。
-- [ ] **AC-BUILD-008** 构建并发分配 revision 无重复。
-- [ ] **AC-BUILD-009** 超时、取消和失败形成独立失败运行。
-- [ ] **AC-BUILD-010** 构建命令在受控目录、最小环境和明确并发边界内执行。
+- [x] **AC-BUILD-005** 验收 Docker profile 显式启用受控构建 executor。
+- [x] **AC-BUILD-006** 非验收/生产默认配置继续 fail closed，不因缺配置隐式执行本地命令。
+- [x] **AC-BUILD-007** 每次构建创建独立 revision、输入快照、inputHash 和 BuildRun。
+- [x] **AC-BUILD-008** 构建并发分配 revision 无重复。
+- [x] **AC-BUILD-009** 超时、取消和失败形成独立失败运行。
+- [x] **AC-BUILD-010** 构建命令在受控目录、最小环境和明确并发边界内执行。
 - [ ] **AC-BUILD-011** 成功 BuildRun 产生且只产生一个不可变 Artifact Manifest。
 - [ ] **AC-BUILD-012** 失败 BuildRun 不产生 Manifest。
 - [ ] **AC-BUILD-013** Manifest 包含组件项、URI、Digest、来源 Commit 和 provenance。

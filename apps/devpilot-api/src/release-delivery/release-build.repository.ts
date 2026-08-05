@@ -48,6 +48,18 @@ export class ReleaseBuildRepository {
     });
   }
 
+  get(
+    teamId: string,
+    projectId: string,
+    releaseOrderId: string,
+    buildRunId: string,
+  ) {
+    return this.prisma.buildRun.findFirst({
+      where: { id: buildRunId, teamId, projectId, releaseOrderId },
+      include: releaseBuildInclude,
+    });
+  }
+
   reserve(input: {
     teamId: string;
     projectId: string;

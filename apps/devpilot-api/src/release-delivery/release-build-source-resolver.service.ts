@@ -17,8 +17,13 @@ export class ReleaseBuildSourceResolverService {
     teamId: string,
     projectId: string,
     releaseOrderId: string,
+    signal?: AbortSignal,
   ): Promise<ReleaseBuildResolvedSource> {
-    const context = await this.identities.buildContext(teamId, projectId, releaseOrderId);
+    const context = await this.identities.buildContext(
+      teamId,
+      projectId,
+      releaseOrderId,
+    );
     if (!context) throw new NotFoundException("发布单不存在或不属于当前项目");
     const identity = context.project.repositoryIdentity;
     const connection = context.project.repositoryConnection;
@@ -26,16 +31,20 @@ export class ReleaseBuildSourceResolverService {
       throw new NotFoundException("项目规范仓库身份尚未建立，构建已拒绝");
     }
     assertStoredConnection(identity, connection);
-    const revision = identity.currentRevision!;
-    const credential = await this.credentials.resolveStored(connection!);
+    const revision = identity.currentRevision;
+    if (!connection || !revision) {
+      throw new Error("Stored repository connection assertion did not narrow");
+    }
+    const credential = await this.credentials.resolveStored(connection);
     const ref = await this.git.resolveRef(
-      connection!.repositoryUrl,
+      connection.repositoryUrl,
       revision.defaultBranch,
       credential,
+      signal,
     );
     return {
       context,
-      connection: connection!,
+      connection,
       credential,
       identity: {
         id: identity.id,

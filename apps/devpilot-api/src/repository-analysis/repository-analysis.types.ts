@@ -1,11 +1,14 @@
-import type { RepositoryAnalysisRun, RepositoryConnection } from '@prisma/client';
-import type { InlineRepositoryCredentialDto } from './dto/repository-connection.dto';
+import type {
+  RepositoryAnalysisRun,
+  RepositoryConnection,
+} from "@prisma/client";
+import type { InlineRepositoryCredentialDto } from "./dto/repository-connection.dto";
 
 export type RepositoryCredentialMaterial =
-  | { kind: 'none'; source: 'none'; label: '公开仓库' }
+  | { kind: "none"; source: "none"; label: "公开仓库" }
   | {
-      kind: 'https_token';
-      source: 'git_connection' | 'team_credential' | 'inline';
+      kind: "https_token";
+      source: "git_connection" | "team_credential" | "inline";
       label: string;
       username: string;
       secret: string;
@@ -13,8 +16,8 @@ export type RepositoryCredentialMaterial =
       teamCredentialId?: string;
     }
   | {
-      kind: 'ssh_key';
-      source: 'team_credential' | 'inline';
+      kind: "ssh_key";
+      source: "team_credential" | "inline";
       label: string;
       username?: string;
       secret: string;
@@ -24,7 +27,7 @@ export type RepositoryCredentialMaterial =
 export interface ResolveCredentialInput {
   teamId: string;
   userId: string;
-  visibility: 'public' | 'private';
+  visibility: "public" | "private";
   gitProvider?: string;
   teamCredentialId?: string;
   inlineCredential?: InlineRepositoryCredentialDto;
@@ -48,6 +51,11 @@ export interface RepositoryCheckout {
   cleanup: () => Promise<void>;
 }
 
+export interface RepositoryCheckoutWorkspace {
+  root: string;
+  prefix: string;
+}
+
 export interface RepositoryRunContext {
   run: RepositoryAnalysisRun;
   connection: RepositoryConnection;
@@ -60,13 +68,13 @@ export interface RepositoryEvidence {
   kind: string;
   detail: string;
   line?: number;
-  confidence?: 'high' | 'medium' | 'low';
+  confidence?: "high" | "medium" | "low";
 }
 
 export interface RepositoryCredentialOption {
   id: string;
-  source: 'git_connection' | 'team_credential';
-  type: 'https_token' | 'ssh_key';
+  source: "git_connection" | "team_credential";
+  type: "https_token" | "ssh_key";
   label: string;
   provider?: string;
 }

@@ -25,7 +25,7 @@ interface BuildRecord {
 }
 
 export function presentBuild(run: BuildRecord) {
-  const snapshot = readSnapshotV2(run.inputSnapshot);
+  const snapshot = readKnownSnapshot(run.inputSnapshot);
   const legacyFallback =
     run.inputSnapshot === null ||
     (isRecord(run.inputSnapshot) && run.inputSnapshot.version === 1);
@@ -72,10 +72,10 @@ function legacySourceRepository(run: BuildRecord) {
   };
 }
 
-function readSnapshotV2(value: unknown) {
+function readKnownSnapshot(value: unknown) {
   if (
     !isRecord(value) ||
-    value.version !== 2 ||
+    (value.version !== 2 && value.version !== 3) ||
     !isRecord(value.repositoryIdentity)
   )
     return null;

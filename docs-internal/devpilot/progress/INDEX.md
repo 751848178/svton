@@ -34,6 +34,15 @@
   `../../todos/2026-08-03-devpilot-project-delivery-v13.md` only for the
   historical F386-F412 implementation/evidence scope.
 
+- F426 closed on 2026-08-05: the default build executor remains disabled, while
+  the explicit `v13-acceptance` overlay enables `controlled-local-v1` with a
+  dedicated volume, bounded environment, whole-run and command deadlines,
+  process-group cancellation, single-process concurrency and durable terminal
+  CAS/recovery. Real MySQL, hardened Docker process execution, authenticated
+  HTTP Build/cancel, compiled API startup, static gates and CodeGraph all pass;
+  the profile explicitly does not claim an untrusted-code sandbox. Independent
+  final review reports P0/P1/P2/P3=0/0/0/0. **Next: F427 artifact contract.**
+
 - F425 closed on 2026-08-05: Build, Staging and Production now consume one
   append-only, actor-bound and exact-input gate decision policy with atomic
   run claims, strict Provider freshness, canonical manual confirmation and
@@ -41,7 +50,7 @@
   the page and actual Build rejection share the same eight blockers and input
   hash while no BuildRun is created. Focused, real-MySQL, Web, type, lint,
   format, Prisma, production-build, source-structure and CodeGraph checks pass.
-  **Next: F426 controlled build runtime profile.**
+  Succeeded by F426 controlled build runtime profile.
 
 - F424 closed on 2026-08-05: the Preflight first screen now presents the real
   15-group/51-check catalog, a fail-closed nine-Commit-check Build conclusion,

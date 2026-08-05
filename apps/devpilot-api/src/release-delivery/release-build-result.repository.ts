@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { releaseBuildInclude } from "./release-build.prisma";
@@ -25,12 +25,12 @@ interface CompleteBuildInput {
 
 @Injectable()
 export class ReleaseBuildResultRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   succeed(input: CompleteBuildInput) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.buildRun.update({
-        where: { id: input.buildRunId },
+      const claimed = await tx.buildRun.updateMany({
+        where: { id: input.buildRunId, status: "running" },
         data: {
           status: "succeeded",
           logReference: input.logReference,
@@ -39,6 +39,11 @@ export class ReleaseBuildResultRepository {
           finishedAt: new Date(),
         },
       });
+      if (claimed.count !== 1) {
+        throw new ConflictException(
+          "BuildRun 已由其他终态占用，不能写入 Manifest",
+        );
+      }
       await tx.artifactManifest.create({
         data: {
           teamId: input.teamId,
@@ -88,11 +93,47 @@ export class ReleaseBuildResultRepository {
     logReference: string;
     logSummary: Record<string, unknown>;
     gateSummary: Record<string, unknown>;
+    status?: "failed" | "canceled";
   }) {
-    return this.prisma.buildRun.update({
-      where: { id: input.buildRunId },
+    return this.updateTerminal({
+      ...input,
+      status: input.status || "failed",
+    });
+  }
+
+  cancelActive(buildRunId: string) {
+    return this.updateTerminal({
+      buildRunId,
+      status: "canceled",
+      code: "BUILD_COMMAND_CANCELED",
+      message: "构建已取消",
+      logReference: `build-log://${buildRunId}`,
+      logSummary: { redacted: true, lines: [] },
+      gateSummary: {
+        build: { status: "failed" },
+        action: "可重新创建 BuildRun。",
+      },
+      claimStatuses: ["queued", "running"],
+    });
+  }
+
+  private async updateTerminal(input: {
+    buildRunId: string;
+    status: "failed" | "canceled";
+    code: string;
+    message: string;
+    logReference: string;
+    logSummary: Record<string, unknown>;
+    gateSummary: Record<string, unknown>;
+    claimStatuses?: Array<"queued" | "running">;
+  }) {
+    await this.prisma.buildRun.updateMany({
+      where: {
+        id: input.buildRunId,
+        status: { in: input.claimStatuses || ["running"] },
+      },
       data: {
-        status: "failed",
+        status: input.status,
         errorCode: input.code,
         errorMessage: input.message,
         logReference: input.logReference,
@@ -100,6 +141,9 @@ export class ReleaseBuildResultRepository {
         gateSummary: input.gateSummary as Prisma.InputJsonValue,
         finishedAt: new Date(),
       },
+    });
+    return this.prisma.buildRun.findUniqueOrThrow({
+      where: { id: input.buildRunId },
       include: releaseBuildInclude,
     });
   }

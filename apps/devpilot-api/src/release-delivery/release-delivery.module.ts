@@ -6,8 +6,15 @@ import { RepositoryIdentityModule } from "../repository-identity/repository-iden
 import { LocalReleaseBuildExecutorService } from "./local-release-build-executor.service";
 import { LocalReleaseStagingExecutorService } from "./local-release-staging-executor.service";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
+import { ReleaseBuildCancellationController } from "./release-build-cancellation.controller";
+import { ReleaseBuildCancellationService } from "./release-build-cancellation.service";
+import { ReleaseBuildRecoveryService } from "./release-build-recovery.service";
+import { ReleaseBuildRecoveryRepository } from "./release-build-recovery.repository";
 import { ReleaseBuildRepository } from "./release-build.repository";
 import { ReleaseBuildResultRepository } from "./release-build-result.repository";
+import { ReleaseBuildRunnerService } from "./release-build-runner.service";
+import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
+import { ReleaseBuildRuntimeSupervisorService } from "./release-build-runtime-supervisor.service";
 import { ReleaseBuildService } from "./release-build.service";
 import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
 import { ReleaseBuildExecutorPort } from "./release-build.types";
@@ -77,6 +84,7 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
   ],
   controllers: [
     ReleaseOrderController,
+    ReleaseBuildCancellationController,
     ReleaseOrderWithdrawController,
     EnvironmentVersionController,
     ReleaseGateCatalogController,
@@ -94,6 +102,12 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
     ReleaseOrderListService,
     ReleaseOrderAccessService,
     ReleaseBuildArtifactService,
+    ReleaseBuildCancellationService,
+    ReleaseBuildRecoveryRepository,
+    ReleaseBuildRecoveryService,
+    ReleaseBuildRunnerService,
+    ReleaseBuildRuntimeProfileService,
+    ReleaseBuildRuntimeSupervisorService,
     LocalReleaseBuildExecutorService,
     LocalReleaseStagingExecutorService,
     ReleaseBuildRepository,
