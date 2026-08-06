@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
 import { ErrorBanner } from '@/components/ui';
 import type { ReleaseBuildsController } from '../hooks/use-release-builds';
-import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import { useReleaseBuildDetail } from '../hooks/use-release-build-detail';
 import { ReleaseBuildHistoryTable } from './release-build-history-table';
 import { ReleaseBuildLogDrawer } from './release-build-log-drawer';
@@ -24,11 +23,7 @@ export function ReleaseOrderBuildStep(props: Props) {
   const focusedBuildRunId = props.focusedBuildRunId;
   const onCloseLog = props.onCloseLog;
   const builds = props.builds;
-  const scope = scopedRequestIdentity(props.projectId, props.releaseOrderId);
-  const ownsState = builds.scope === scope;
-  const items = ownsState
-    ? builds.items.filter((item) => item.releaseOrderId === props.releaseOrderId)
-    : [];
+  const items = builds.items.filter((item) => item.releaseOrderId === props.releaseOrderId);
   const focusedSummary = items.find((item) => item.id === focusedBuildRunId) || null;
   const focusedDetail = useReleaseBuildDetail(
     props.projectId,
@@ -37,7 +32,7 @@ export function ReleaseOrderBuildStep(props: Props) {
     focusedSummary,
   );
   const focused = focusedDetail.run;
-  const loadedSuccessfully = builds.successfulScope === scope;
+  const loadedSuccessfully = builds.loadedSuccessfully;
   const normalizedFocus = useRef<string | null>(null);
 
   useEffect(() => {
@@ -72,16 +67,16 @@ export function ReleaseOrderBuildStep(props: Props) {
         <h3 className="font-semibold">{t('releaseStepBuildTitle')}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{t('releaseStepBuildDescription')}</p>
       </div>
-      {ownsState && builds.error ? (
+      {builds.error ? (
         <ErrorBanner
           message={builds.error}
           onRetry={builds.load}
         />
       ) : null}
-      {ownsState && builds.loading && items.length === 0 ? (
+      {builds.loading && items.length === 0 ? (
         <LoadingState text={t('releaseBuildLoading')} />
       ) : null}
-      {ownsState && loadedSuccessfully && !builds.loading && items.length === 0 ? (
+      {loadedSuccessfully && !builds.loading && items.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           {t('releaseBuildEmpty')}
         </p>

@@ -122,14 +122,14 @@ describe('ReleaseOrderBuildStep focused build normalization', () => {
     mocks.hook = hook({
       scope: scopeA,
       successfulScope: scopeA,
-      loadedSuccessfully: true,
+      loadedSuccessfully: false,
       items: [{ ...build, releaseOrderId: 'order-a' }],
     });
     await render(root, onCloseLog, 'order-b');
     expect(container.querySelector('[data-focused-run="build-1"]')).toBeNull();
     expect(onCloseLog).not.toHaveBeenCalled();
 
-    mocks.hook = hook({ scope: scopeB, error: 'B failed' });
+    mocks.hook = hook({ scope: scopeB, loadedSuccessfully: false, error: 'B failed' });
     await render(root, onCloseLog, 'order-b');
     expect(onCloseLog).not.toHaveBeenCalled();
 
