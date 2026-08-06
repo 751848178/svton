@@ -70,6 +70,7 @@ export type ReleaseGatePromoteEvidence = {
     status: string;
     primaryDomain: string;
     tls: unknown;
+    dns: unknown;
     lastSyncAt: Date | null;
     updatedAt: Date;
   }>;

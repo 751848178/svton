@@ -116,6 +116,7 @@ export class ReleaseGatePromoteEvidenceRepository {
           status: true,
           primaryDomain: true,
           tls: true,
+          dns: true,
           lastSyncAt: true,
           updatedAt: true,
         },

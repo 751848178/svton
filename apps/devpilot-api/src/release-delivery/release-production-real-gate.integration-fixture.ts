@@ -50,6 +50,8 @@ import {
   releaseStagingProviderConfig,
   writeReleaseStagingFixture,
 } from "./release-staging-provider.integration-utils";
+import { SiteRouteActivationService } from "../site/site-route-activation.service";
+import { SiteFinalProbeService } from "../site/site-final-probe.service";
 
 export interface ProductionRealGateFixture {
   prisma: PrismaClient;
@@ -60,6 +62,8 @@ export interface ProductionRealGateFixture {
   manifestId: string;
   buildRunId: string;
   productionEnvironmentId: string;
+  configRevisionId: string;
+  siteId: string;
   serviceId: string;
   managedResourceId: string;
   scope: string;
@@ -426,7 +430,7 @@ export async function createProductionRealGateFixture(): Promise<ProductionRealG
     where: { id: production.id },
     data: { currentEnvironmentVersionId: versionA.id },
   });
-  await prisma.site.create({
+  const site = await prisma.site.create({
     data: {
       teamId,
       createdById: userId,
@@ -516,6 +520,8 @@ export async function createProductionRealGateFixture(): Promise<ProductionRealG
     new ReleaseProductionWorkloadService(
       new ReleaseStagingWorkloadStateRepository(db),
     ),
+    new SiteRouteActivationService(db),
+    new SiteFinalProbeService(),
   );
 
   return {
@@ -527,6 +533,8 @@ export async function createProductionRealGateFixture(): Promise<ProductionRealG
     manifestId: manifest.id,
     buildRunId: build.id,
     productionEnvironmentId: production.id,
+    configRevisionId: revision.id,
+    siteId: site.id,
     serviceId: applicationService.id,
     managedResourceId: managedResource.id,
     scope,
@@ -541,6 +549,7 @@ export async function createProductionRealGateFixture(): Promise<ProductionRealG
       await prisma.releaseRun.deleteMany({ where: { teamId } });
       await prisma.logCollectionRun.deleteMany({ where: { teamId } });
       await prisma.logStream.deleteMany({ where: { teamId } });
+      await prisma.siteRouteSwitchRun.deleteMany({ where: { teamId } });
       await prisma.site.deleteMany({ where: { teamId } });
       await prisma.resourceConnectionRun.deleteMany({ where: { teamId } });
       await prisma.resourceMetricSnapshot.deleteMany({ where: { teamId } });

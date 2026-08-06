@@ -15,6 +15,8 @@ import {
   createProductionFixture,
   ProductionFixture,
 } from "./release-production.integration-fixture";
+import { SiteRouteActivationService } from "../site/site-route-activation.service";
+import { SiteFinalProbeService } from "../site/site-final-probe.service";
 
 const describeIntegration =
   process.env.RUN_ENVIRONMENT_VERSION_INTEGRATION === "1"
@@ -39,6 +41,8 @@ describeIntegration("EnvironmentVersion integration", () => {
       new EnvironmentVersionGateEvidenceRepository(fixture.prisma as never),
       environmentVersionInputTestDouble() as never,
       productionWorkloadTestDouble() as never,
+      new SiteRouteActivationService(fixture.prisma as never),
+      new SiteFinalProbeService(),
     );
   });
 

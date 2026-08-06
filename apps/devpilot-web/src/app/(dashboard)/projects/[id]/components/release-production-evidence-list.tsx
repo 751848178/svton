@@ -12,6 +12,7 @@ import {
 import { formatDuration, formatIso } from '../utils/release-time.utils';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseDeploymentEvidenceLink } from './release-deployment-evidence-link';
+import { ReleaseSiteProbeEvidence } from './release-site-probe-evidence';
 
 interface Props {
   projectId: string;
@@ -96,6 +97,11 @@ export function ReleaseProductionEvidenceList(props: Props) {
                         runId={deployment.id}
                       />
                     </div>
+                    <ReleaseSiteProbeEvidence
+                      projectId={props.projectId}
+                      siteProbe={deployment.siteProbe}
+                      routeSwitch={deployment.routeSwitch}
+                    />
                   </div>
                 );
               })}

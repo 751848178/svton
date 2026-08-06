@@ -41,6 +41,68 @@ describe("presentReleaseOrderEvidence", () => {
     const result = presentReleaseOrderEvidence(deploymentDrift as never);
     expect(result.productionReleaseRuns.items[0].deploymentRuns).toEqual([]);
   });
+
+  it("presents siteProbe and routeSwitch blocks bound to the exact DeploymentRun", () => {
+    const input = fixture();
+    const deployment = input.productionRuns[0].deploymentRuns[0];
+    deployment.result = {
+      siteProbe: {
+        version: 1,
+        primaryDomain: "demo.f437.example",
+        finalUrl: "https://demo.f437.example",
+        probedAt: "2026-08-06T12:00:00.000Z",
+        dns: {
+          status: "unavailable",
+          hostname: "demo.f437.example",
+          error: { code: "ENOTFOUND", message: "not found" },
+          checkedAt: "2026-08-06T12:00:00.000Z",
+        },
+        tls: {
+          status: "unavailable",
+          host: "demo.f437.example",
+          port: 443,
+          servername: "demo.f437.example",
+          cert: null,
+          error: { code: "ENOTFOUND", message: "not found" },
+          checkedAt: "2026-08-06T12:00:00.000Z",
+        },
+        http: {
+          status: "passed",
+          url: "http://127.0.0.1:8080",
+          finalUrl: "https://demo.f437.example",
+          statusCode: 200,
+          bodySignature: "sha256:abc",
+          checkedAt: "2026-08-06T12:00:00.000Z",
+        },
+      },
+      routeSwitch: {
+        version: 1,
+        siteId: "site-1",
+        primaryDomain: "demo.f437.example",
+        deploymentRunId: deployment.id,
+        releaseRunId: "release-1",
+        targetRef: "filesystem-release-target",
+        proxyTarget: "http://127.0.0.1:8080",
+        domains: ["demo.f437.example"],
+        status: "switched",
+        reasonCode: "site_switched",
+        switchedAt: "2026-08-06T12:00:01.000Z",
+      },
+    };
+    const result = presentReleaseOrderEvidence(input as never);
+    const presented = result.productionReleaseRuns.items[0].deploymentRuns[0];
+    expect(presented.siteProbe).toMatchObject({
+      primaryDomain: "demo.f437.example",
+      dns: { status: "unavailable", error: { code: "ENOTFOUND" } },
+      http: { status: "passed", statusCode: 200, bodySignature: "sha256:abc" },
+    });
+    expect(presented.routeSwitch).toMatchObject({
+      deploymentRunId: deployment.id,
+      status: "switched",
+      targetRef: "filesystem-release-target",
+      domains: ["demo.f437.example"],
+    });
+  });
 });
 
 function fixture() {
@@ -95,6 +157,7 @@ function fixture() {
     startedAt: createdAt,
     finishedAt,
     createdAt,
+    result: undefined as Record<string, unknown> | undefined,
     projectEnvironment: environment,
     artifactManifest: manifest,
   });

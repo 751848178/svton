@@ -101,6 +101,7 @@ model Team {
   proxyConfigs  ProxyConfig[]
   sites         Site[]
   siteSyncRuns SiteSyncRun[]
+  siteRouteSwitchRuns SiteRouteSwitchRun[]
   cdnConfigs    CDNConfig[]
   credentials   TeamCredential[]
   projects      Project[]
@@ -464,6 +465,8 @@ model Site {
   status        String   @default("draft") // draft | pending | active | error
   lastSyncAt    DateTime?
   syncError     String?  @db.Text
+  dns           Json? // 最新真实 DNS 探测结果 { status, hostname, records, error, checkedAt }
+  routeSwitch   Json? // 最近一次 Production 路由切换指针 { version, deploymentRunId, releaseRunId, siteId, targetRef, proxyTarget, domains, status, reasonCode, switchedAt }
 
   team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy     User     @relation("SiteCreator", fields: [createdById], references: [id])
@@ -473,6 +476,7 @@ model Site {
   proxyConfig   ProxyConfig? @relation(fields: [proxyConfigId], references: [id], onDelete: SetNull)
   applicationServices ApplicationService[]
   syncRuns      SiteSyncRun[]
+  routeSwitchRuns SiteRouteSwitchRun[]
   auditEvents   AuditEvent[]
   operationApprovals OperationApproval[]
   alertRules    AlertRule[]
@@ -554,6 +558,42 @@ model SiteSyncRun {
   @@index([dryRun])
   @@index([status])
   @@index([startedAt])
+}
+
+// Production 路由切换运行记录（append-only 审计）
+model SiteRouteSwitchRun {
+  id              String   @id @default(cuid())
+  teamId          String
+  siteId          String
+  projectId       String?
+  environmentId   String?
+  deploymentRunId String?
+  releaseRunId    String?
+  targetRef       String?
+  proxyTarget     String?
+  domains         Json?
+  result          Json?
+  status          String   @default("switched") // switched | unavailable | failed
+  reasonCode      String?
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  site           Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  environment    ProjectEnvironment? @relation(fields: [environmentId], references: [id], onDelete: SetNull)
+  deploymentRun  DeploymentRun? @relation(fields: [deploymentRunId], references: [id], onDelete: SetNull)
+  releaseRun     ReleaseRun? @relation(fields: [releaseRunId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([siteId])
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([deploymentRunId])
+  @@index([releaseRunId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 // ==================== CDN 配置 ====================
@@ -674,6 +714,7 @@ model Project {
   proxyConfigs ProxyConfig[]
   sites        Site[]
   siteSyncRuns SiteSyncRun[]
+  siteRouteSwitchRuns SiteRouteSwitchRun[]
   applications Application[]
   applicationServices ApplicationService[]
   applicationServiceOperationRuns ApplicationServiceOperationRun[]
@@ -1059,6 +1100,7 @@ model ProjectEnvironment {
   applicationServiceOperationRuns ApplicationServiceOperationRun[]
   sites       Site[]
   siteSyncRuns SiteSyncRun[]
+  siteRouteSwitchRuns SiteRouteSwitchRun[]
   deploymentRuns DeploymentRun[]
   managedResources ManagedResource[]
   resourceRequests ResourceRequest[]
@@ -1440,6 +1482,7 @@ model DeploymentRun {
   logEntries       LogEntry[]
   logCollectionRuns LogCollectionRun[]
   releaseStageAttempts ReleaseStageAttempt[]
+  siteRouteSwitchRuns SiteRouteSwitchRun[]
 
   @@index([teamId])
   @@index([projectId])
@@ -3007,6 +3050,7 @@ model ReleaseRun {
   environmentVersion    EnvironmentVersion?
   stageAttempt          ReleaseStageAttempt?
   gateEvaluations       GateEvaluation[]
+  siteRouteSwitchRuns   SiteRouteSwitchRun[]
 
   @@unique([releaseOrderId, idempotencyKey])
   @@index([teamId])

@@ -16,6 +16,15 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
 import { environmentDeploymentFailureDetail } from "./environment-version-failure.utils";
 import { ReleaseDeploymentInputService } from "./release-deployment-input.service";
 import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
+import {
+  SiteRouteActivationPort,
+  SiteProbePort,
+  SiteRouteSwitchEvidence,
+} from "../site/site-route-activation.types";
+import {
+  assertSiteProbeAcceptable,
+  extractSiteEvidence,
+} from "../site/site-probe-policy";
 
 @Injectable()
 export class EnvironmentVersionService {
@@ -28,6 +37,8 @@ export class EnvironmentVersionService {
     private readonly gateEvidence: EnvironmentVersionGateEvidenceRepository,
     private readonly inputs: ReleaseDeploymentInputService,
     private readonly workloads: ReleaseProductionWorkloadService,
+    private readonly routeActivation: SiteRouteActivationPort,
+    private readonly siteProbe: SiteProbePort,
   ) {}
 
   async list(teamId: string, projectId: string) {
@@ -198,6 +209,52 @@ export class EnvironmentVersionService {
         logs,
         result: evidence,
       });
+      const targetRef =
+        frozenInput?.deploymentInput.snapshot.target.targetRef ??
+        this.executor.providerTargetRef;
+      const routeSnapshot =
+        productionRun?.routeSnapshot &&
+        typeof productionRun.routeSnapshot === "object" &&
+        !Array.isArray(productionRun.routeSnapshot)
+          ? (productionRun.routeSnapshot as Record<string, unknown>)
+          : undefined;
+      const activation = await this.routeActivation.resolve({
+        teamId: input.teamId,
+        projectId: input.projectId,
+        environmentId: environment.id,
+        routeSnapshot: routeSnapshot ?? null,
+      });
+      const probe = await this.siteProbe.probe({
+        teamId: input.teamId,
+        projectId: input.projectId,
+        environmentId: environment.id,
+        deploymentRunId: run.id,
+        primaryDomain: activation.primaryDomain,
+        tlsRequired: booleanValue(routeSnapshot?.tlsRequired),
+        proxyTarget: activation.proxyTarget,
+        targetRef,
+      });
+      const switchedAt = new Date().toISOString();
+      const routeSwitch: SiteRouteSwitchEvidence = {
+        version: 1,
+        siteId: activation.siteId,
+        primaryDomain: activation.primaryDomain,
+        deploymentRunId: run.id,
+        releaseRunId: releaseRunId ?? null,
+        targetRef,
+        proxyTarget: activation.proxyTarget,
+        domains: activation.domains,
+        status: activation.status === "matched" ? "switched" : "unavailable",
+        reasonCode:
+          activation.status === "matched"
+            ? "site_switched"
+            : activation.reasonCode,
+        switchedAt: activation.status === "matched" ? switchedAt : null,
+      };
+      assertSiteProbeAcceptable(
+        probe,
+        routeSwitch as unknown as Record<string, unknown>,
+      );
       const finalDecision = await this.productionGates.finalize({
         ...gateContext,
         deploymentRunId: run.id,
@@ -209,6 +266,8 @@ export class EnvironmentVersionService {
         logs,
         result: {
           ...evidence,
+          siteProbe: probe,
+          routeSwitch,
           gateDecision: gateDecisionReference(finalDecision),
         },
         teamId: input.teamId,
@@ -216,6 +275,22 @@ export class EnvironmentVersionService {
         projectId: input.projectId,
         releaseOrderId: manifest.releaseOrderId,
         gateDecision: gateDecisionReference(finalDecision),
+        siteRouteSwitch: activation.siteId
+          ? {
+              teamId: input.teamId,
+              projectId: input.projectId,
+              environmentId: environment.id,
+              siteId: activation.siteId,
+              deploymentRunId: run.id,
+              releaseRunId: releaseRunId ?? null,
+              targetRef,
+              proxyTarget: activation.proxyTarget,
+              domains: activation.domains,
+              result: { siteProbe: probe, routeSwitch },
+              dnsProbe: probe.dns,
+              tlsProbe: probe.tls,
+            }
+          : undefined,
       });
     } catch (error) {
       const detail = environmentDeploymentFailureDetail(error);
@@ -232,6 +307,7 @@ export class EnvironmentVersionService {
         result: {
           manifestId: manifest.id,
           manifestDigest: manifest.digest,
+          ...extractSiteEvidence(error),
           gateDecision: gateDecisionReference(denied),
         },
         teamId: input.teamId,
@@ -242,4 +318,8 @@ export class EnvironmentVersionService {
       });
     }
   }
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
 }

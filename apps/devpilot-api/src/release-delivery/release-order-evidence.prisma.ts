@@ -49,6 +49,7 @@ export const releaseEvidenceDeploymentSelect = {
   startedAt: true,
   finishedAt: true,
   createdAt: true,
+  result: true,
   projectEnvironment: { select: releaseEvidenceEnvironmentSelect },
   artifactManifest: { select: releaseEvidenceManifestSelect },
 } as const;

@@ -33,6 +33,63 @@ export interface ReleaseEvidenceBuildRun {
   manifest: ReleaseEvidenceManifest | null;
 }
 
+export interface ReleaseEvidenceProbeError {
+  code: string;
+  message: string;
+}
+
+export interface ReleaseEvidenceSiteProbe {
+  version: number | null;
+  primaryDomain: string | null;
+  finalUrl: string | null;
+  probedAt: string | null;
+  dns: {
+    status: string | null;
+    hostname: string | null;
+    records: string[] | null;
+    error: ReleaseEvidenceProbeError | null;
+    checkedAt: string | null;
+  };
+  tls: {
+    status: string | null;
+    host: string | null;
+    port: number | null;
+    servername: string | null;
+    cert: {
+      subject: string | null;
+      issuer: string | null;
+      validFrom: string | null;
+      validUntil: string | null;
+      expired: boolean | null;
+    } | null;
+    error: ReleaseEvidenceProbeError | null;
+    checkedAt: string | null;
+  };
+  http: {
+    status: string | null;
+    url: string | null;
+    finalUrl: string | null;
+    statusCode: number | null;
+    bodySignature: string | null;
+    error: ReleaseEvidenceProbeError | null;
+    checkedAt: string | null;
+  };
+}
+
+export interface ReleaseEvidenceRouteSwitch {
+  version: number | null;
+  siteId: string | null;
+  primaryDomain: string | null;
+  deploymentRunId: string | null;
+  releaseRunId: string | null;
+  targetRef: string | null;
+  proxyTarget: string | null;
+  domains: string[] | null;
+  status: string | null;
+  reasonCode: string | null;
+  switchedAt: string | null;
+}
+
 export interface ReleaseEvidenceDeploymentRun {
   id: string;
   projectId: string;
@@ -51,6 +108,8 @@ export interface ReleaseEvidenceDeploymentRun {
   createdAt: string;
   environment: { id: string; name: string; baselineRole: ReleaseEnvironmentRole | null };
   manifest: ReleaseEvidenceManifest;
+  siteProbe: ReleaseEvidenceSiteProbe | null;
+  routeSwitch: ReleaseEvidenceRouteSwitch | null;
 }
 
 export interface ReleaseEvidenceProductionRun {

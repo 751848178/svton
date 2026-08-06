@@ -6,6 +6,8 @@ import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 import { claimReleaseGateDecision } from "./release-gate-decision.repository";
 import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
 import { startProductionReleaseExecution } from "./environment-version-production-reservation-boundary";
+import { applySiteRouteSwitch } from "../site/site-route-activation.service";
+import type { SiteRouteSwitchApplyInput } from "../site/site-route-activation.types";
 
 @Injectable()
 export class EnvironmentVersionRepository {
@@ -171,6 +173,7 @@ export class EnvironmentVersionRepository {
       releaseOrderId: string;
       actorId: string;
       gateDecision?: ReleaseGateDecisionReference;
+      siteRouteSwitch?: SiteRouteSwitchApplyInput;
     },
   ) {
     return this.prisma.$transaction(async (tx) => {
@@ -178,6 +181,9 @@ export class EnvironmentVersionRepository {
       const run = await tx.deploymentRun.findUniqueOrThrow({
         where: { id: input.deploymentRunId },
       });
+      if (input.siteRouteSwitch) {
+        await applySiteRouteSwitch(tx, input.siteRouteSwitch);
+      }
       if (input.gateDecision) {
         await claimReleaseGateDecision(tx, {
           teamId: input.teamId,

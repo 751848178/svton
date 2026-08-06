@@ -59,13 +59,17 @@ describe("Promote release gate providers", () => {
     const old = new Date("2026-07-01T00:00:00.000Z");
     const promote = context.promote!;
     promote.sites[0].lastSyncAt = old;
+    (promote.sites[0].dns as { checkedAt: string }).checkedAt = old.toISOString();
     promote.releaseRun!.deploymentRuns[0].finishedAt = old;
     promote.logRuns[0].finishedAt = old;
     promote.metrics[0].sampledAt = old;
     promote.releaseRun!.operationApproval!.expiresAt = old;
     const checks = evaluate(registry, context);
     expect(checks.D13).toMatchObject({ status: "blocked", reasonCode: "approval_expired" });
-    for (const id of ["D14", "D15", "D16", "P02", "D18", "P04"]) {
+    expect(checks.D14).toMatchObject({
+      status: "unavailable", reasonCode: "dns_probe_missing",
+    });
+    for (const id of ["D15", "D16", "P02", "D18", "P04"]) {
       expect(checks[id]).toMatchObject({
         status: "unchecked", reasonCode: "evidence_stale", fresh: false,
       });
@@ -166,6 +170,10 @@ function evidenceContext() {
       sites: [{
         id: "site-1", environmentId: env, status: "active", primaryDomain: "prod.test",
         tls: { status: "valid", expiresAt: "2027-08-03T00:00:00.000Z" },
+        dns: {
+          status: "resolved", hostname: "prod.test", records: ["198.18.11.9"],
+          checkedAt: at.toISOString(),
+        },
         lastSyncAt: at, updatedAt: at,
       }],
       alerts: [],

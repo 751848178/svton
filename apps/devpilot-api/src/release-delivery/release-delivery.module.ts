@@ -82,6 +82,12 @@ import { ProjectDeliverySummaryRepository } from "./project-delivery-summary.rep
 import { ProjectDeliverySummaryService } from "./project-delivery-summary.service";
 import { EnvironmentVersionProductionGateService } from "./environment-version-production-gate.service";
 import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-gate-evidence.repository";
+import { SiteRouteActivationService } from "../site/site-route-activation.service";
+import { SiteFinalProbeService } from "../site/site-final-probe.service";
+import {
+  SiteProbePort,
+  SiteRouteActivationPort,
+} from "../site/site-route-activation.types";
 
 @Module({
   imports: [
@@ -170,6 +176,8 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
     ReleaseGateManualConfirmationService,
     ProjectDeliverySummaryRepository,
     ProjectDeliverySummaryService,
+    SiteRouteActivationService,
+    SiteFinalProbeService,
     {
       provide: ReleaseBuildExecutorPort,
       useExisting: LocalReleaseBuildExecutorService,
@@ -177,6 +185,14 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
     {
       provide: ReleaseStagingExecutorPort,
       useExisting: LocalReleaseStagingExecutorService,
+    },
+    {
+      provide: SiteRouteActivationPort,
+      useExisting: SiteRouteActivationService,
+    },
+    {
+      provide: SiteProbePort,
+      useExisting: SiteFinalProbeService,
     },
   ],
   exports: [

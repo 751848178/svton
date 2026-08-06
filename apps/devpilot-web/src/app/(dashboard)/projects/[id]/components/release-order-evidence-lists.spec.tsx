@@ -77,6 +77,79 @@ describe('release order evidence lists', () => {
     expect(html.match(/projects\.focusDeploymentRunEvidence/g)).toHaveLength(2);
     expect(html.match(/projects\.focusReleaseRunEvidence/g)).toHaveLength(1);
   });
+
+  it('renders the site/DNS/TLS/HTTP evidence section for a focused DeploymentRun', () => {
+    const production = productionRun();
+    production.deploymentRuns[0] = {
+      ...production.deploymentRuns[0],
+      siteProbe: {
+        version: 1,
+        primaryDomain: 'demo.f437.example',
+        finalUrl: 'https://demo.f437.example',
+        probedAt: '2026-08-06T12:00:00Z',
+        dns: {
+          status: 'unavailable',
+          hostname: 'demo.f437.example',
+          records: null,
+          error: { code: 'ENOTFOUND', message: 'queryA ENOTFOUND' },
+          checkedAt: '2026-08-06T12:00:00Z',
+        },
+        tls: {
+          status: 'unavailable',
+          host: 'demo.f437.example',
+          port: 443,
+          servername: 'demo.f437.example',
+          cert: null,
+          error: { code: 'ENOTFOUND', message: 'queryA ENOTFOUND' },
+          checkedAt: '2026-08-06T12:00:00Z',
+        },
+        http: {
+          status: 'passed',
+          url: 'http://127.0.0.1:23992',
+          finalUrl: 'https://demo.f437.example',
+          statusCode: 200,
+          bodySignature: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+          error: null,
+          checkedAt: '2026-08-06T12:00:00Z',
+        },
+      },
+      routeSwitch: {
+        version: 1,
+        siteId: 'site-1',
+        primaryDomain: 'demo.f437.example',
+        deploymentRunId: 'production-1',
+        releaseRunId: 'release-1',
+        targetRef: 'filesystem-release-target',
+        proxyTarget: 'http://127.0.0.1:23992',
+        domains: ['demo.f437.example'],
+        status: 'switched',
+        reasonCode: 'site_switched',
+        switchedAt: '2026-08-06T12:00:01Z',
+      },
+    };
+    const html = renderToStaticMarkup(
+      <ReleaseProductionEvidenceList
+        projectId="project-1"
+        items={[production]}
+        total={1}
+        focusedReleaseRunId="release-1"
+        focusedDeploymentRunId="production-1"
+        onFocus={vi.fn()}
+      />,
+    );
+    expect(html).toContain('projects.releaseSiteEvidenceTitle');
+    expect(html).toContain('projects.releaseSiteProbeSwitched');
+    expect(html).toContain('demo.f437.example');
+    expect(html).toContain('projects.releaseSiteDnsProbe');
+    expect(html).toContain('projects.releaseSiteProbeUnavailable');
+    expect(html).toContain('projects.releaseSiteTlsProbe');
+    expect(html).toContain('projects.releaseSiteHttpProbe');
+    expect(html).toContain('projects.releaseSiteProbePassed');
+    expect(html).toContain(
+      'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    );
+    expect(html).toContain('data-site-probe-section="true"');
+  });
 });
 
 function manifest() {
@@ -108,6 +181,8 @@ function deployment(id: string): ReleaseEvidenceDeploymentRun {
     createdAt: '2026-08-05T00:00:00Z',
     environment: { id: 'staging-env', name: 'Staging', baselineRole: 'staging' },
     manifest: manifest(),
+    siteProbe: null,
+    routeSwitch: null,
   };
 }
 

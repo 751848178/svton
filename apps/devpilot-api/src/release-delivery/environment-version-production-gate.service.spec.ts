@@ -37,6 +37,16 @@ describe("EnvironmentVersionProductionGateService", () => {
           D09: ["network_policy_provider_missing"],
           D17: ["production_deployment_missing"],
           D20: ["recovery_compatibility_provider_missing"],
+          D14: [
+            "dns_probe_missing",
+            "dns_probe_unavailable",
+            "dns_provider_missing",
+          ],
+          D15: [
+            "tls_probe_missing",
+            "tls_probe_unavailable",
+            "tls_provider_missing",
+          ],
         },
       }),
     );
@@ -61,6 +71,16 @@ describe("EnvironmentVersionProductionGateService", () => {
           D06: ["traffic_strategy_provider_missing"],
           D09: ["network_policy_provider_missing"],
           D20: ["recovery_compatibility_provider_missing"],
+          D14: [
+            "dns_probe_missing",
+            "dns_probe_unavailable",
+            "dns_provider_missing",
+          ],
+          D15: [
+            "tls_probe_missing",
+            "tls_probe_unavailable",
+            "tls_provider_missing",
+          ],
         },
       }),
     );
