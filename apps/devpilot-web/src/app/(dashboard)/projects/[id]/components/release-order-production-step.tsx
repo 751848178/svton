@@ -8,10 +8,8 @@ import { useReleaseBuilds } from '../hooks/use-release-builds';
 import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
 import { useProductionReleases } from '../hooks/use-production-releases';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
-import {
-  releaseClientErrorLabelKey,
-  releaseEnvironmentValueLabelKey,
-} from '../utils/release-copy.model';
+import { releaseClientErrorLabelKey } from '../utils/release-copy.model';
+import { ReleaseProductionConfirmDialog } from './release-production-confirm-dialog';
 import { ReleaseProductionEvidenceList } from './release-production-evidence-list';
 
 interface Props {
@@ -43,7 +41,7 @@ export function ReleaseOrderProductionStep(props: Props) {
     [builds.items, provenManifestIds],
   );
   const [requestedManifestId, setRequestedManifestId] = useState('');
-  const [confirmed, setConfirmed] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const manifestId = candidates.some((item) => item.manifest?.id === requestedManifestId)
     ? requestedManifestId
     : candidates[0]?.manifest?.id || '';
@@ -54,7 +52,6 @@ export function ReleaseOrderProductionStep(props: Props) {
     props.onChanged,
   );
   const snapshot = production.preview?.snapshot;
-  const snapshotEnvironmentKey = releaseEnvironmentValueLabelKey(snapshot?.environment.name);
   const productionErrorKey = releaseClientErrorLabelKey(production.error);
   const stagingErrorKey = releaseClientErrorLabelKey(staging.error);
 
@@ -72,7 +69,7 @@ export function ReleaseOrderProductionStep(props: Props) {
             value={manifestId}
             onChange={(event) => {
               setRequestedManifestId(event.target.value);
-              setConfirmed(false);
+              setDialogOpen(false);
             }}
             disabled={builds.loading || staging.loading || production.confirming}
           >
@@ -92,50 +89,20 @@ export function ReleaseOrderProductionStep(props: Props) {
             ))}
           </select>
         </label>
-        {snapshot ? (
-          <dl className="grid gap-3 text-sm md:grid-cols-2">
-            <SnapshotRow
-              label={t('releaseProductionEnvironment')}
-              value={snapshotEnvironmentKey ? t(snapshotEnvironmentKey) : snapshot.environment.name}
-            />
-            <SnapshotRow
-              label={t('releaseProductionVersion')}
-              value={snapshot.releaseOrder.releaseVersion}
-            />
-            <SnapshotRow
-              label={t('releaseProductionBuild')}
-              value={`#${snapshot.build.revision} ${snapshot.build.sourceCommitSha}`}
-            />
-            <SnapshotRow
-              label="Manifest"
-              value={`${snapshot.manifest.id} / ${snapshot.manifest.digest}`}
-            />
-            <SnapshotRow
-              label={t('releaseProductionConfig')}
-              value={`r${snapshot.config.revision} / ${snapshot.config.snapshotHash}`}
-            />
-            <SnapshotRow
-              label={t('releaseProductionPolicy')}
-              value={`${snapshot.releasePolicy.synthetic ? t('releasePolicySynthetic') : `R${snapshot.releasePolicy.revision}`} / ${t('releasePolicyStrategyStandard')} / ${snapshot.releasePolicy.snapshotHash}`}
-            />
-          </dl>
-        ) : null}
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(event) => setConfirmed(event.target.checked)}
-            disabled={!snapshot || production.confirming}
-          />
-          <span>{t('releaseProductionConfirmation')}</span>
-        </label>
         <Button
-          onClick={() => void production.confirm()}
-          loading={production.confirming}
-          disabled={!snapshot || !confirmed}
+          onClick={() => setDialogOpen(true)}
+          disabled={!snapshot || production.confirming}
         >
           {t('requestProductionApproval')}
         </Button>
+        <ReleaseProductionConfirmDialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          snapshot={snapshot ?? null}
+          confirming={production.confirming}
+          error={productionErrorKey ? t(productionErrorKey) : production.error}
+          onConfirm={production.confirm}
+        />
       </div>
       {production.error ? (
         <p
@@ -179,15 +146,6 @@ export function ReleaseOrderProductionStep(props: Props) {
           onFocus={props.onFocus}
         />
       ) : null}
-    </div>
-  );
-}
-
-function SnapshotRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded bg-muted/40 p-3">
-      <dt className="font-medium">{label}</dt>
-      <dd className="mt-1 break-all font-mono text-xs text-muted-foreground">{value}</dd>
     </div>
   );
 }

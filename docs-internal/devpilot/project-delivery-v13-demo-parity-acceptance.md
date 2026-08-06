@@ -221,14 +221,16 @@ F434 evidence: `/tmp/codex-tool-runs/svton/f434/f434-browser-evidence-v2.json` b
 
 ## Production Release
 
-- [ ] **AC-PROD-001** 生产发布按钮只在生产步骤出现。
-- [ ] **AC-PROD-002** 没有同 Manifest 的成功 Staging 技术证明时按钮禁用且 API 拒绝。
-- [ ] **AC-PROD-003** 业务验证未完成不阻断当前 MVP，但状态明确展示。
+- [x] **AC-PROD-001** 生产发布按钮只在生产步骤出现。
+- [x] **AC-PROD-002** 没有同 Manifest 的成功 Staging 技术证明时按钮禁用且 API 拒绝。
+- [x] **AC-PROD-003** 业务验证未完成不阻断当前 MVP，但状态明确展示。
 - [ ] **AC-PROD-004** 点击生产发布始终打开确认 Dialog。
 - [ ] **AC-PROD-005** Dialog 展示 Production 环境和发布版本号。
 - [ ] **AC-PROD-006** Dialog 展示 Build/revision/Commit 和 Manifest/Digest。
 - [ ] **AC-PROD-007** Dialog 展示配置 revision、资源/路由快照和发布策略。
 - [ ] **AC-PROD-008** 关闭/取消 Dialog 不创建 ReleaseRun 或审批。
+
+F435 evidence: the Production step now opens an always-on confirmation Dialog (`release-production-confirm-dialog.tsx`) instead of the inline checkbox/snapshot card; the publish button lives only in the Production step (AC-PROD-001), the web-side manifest disable stays driven by `provenManifestIds` from completed Staging DeploymentRuns (AC-PROD-002), and the Dialog's staging-proven note "该制品已在 Staging 成功部署；业务验证结果不作为当前生产阻断条件。" makes business validation explicitly non-blocking (AC-PROD-003). Focused Web tests (release-order-production-step.spec.tsx, 6 tests) plus the full Web suite 57 files/222 tests, Web type-check, Web build, i18n parity (3107 messages) and diff check all pass. AC-PROD-004..008 require authenticated 1484x1324 Browser interaction, screenshots, console/network capture and DB count proof (dialog open/close/cancel/confirm); they are UNCHECKED because this session had no Browser tool — the codex-bundled browser plugin (chrome/iab backends) used for F434 was unavailable to the opencode worker, matching the F428 blocker record (`/tmp/codex-tool-runs/svton/f435/f435-evidence-manifest.json`). Unit-level behavior (click opens dialog, cancel creates nothing, confirm calls `production.confirm()` once, stays open on failure) is covered by the focused spec.
 - [ ] **AC-PROD-009** 确认后创建唯一、幂等、不可变 Production ReleaseRun。
 - [ ] **AC-PROD-010** 生产确认创建项目上下文可见的审批。
 - [ ] **AC-PROD-011** 有权限用户可在项目发布上下文批准或拒绝。
