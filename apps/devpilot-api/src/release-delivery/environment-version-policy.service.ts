@@ -52,7 +52,12 @@ export class EnvironmentVersionPolicyService {
   }
 
   async validateProduction(
-    input: { releaseRunId?: string; teamId: string; projectId: string },
+    input: {
+      releaseRunId?: string;
+      teamId: string;
+      projectId: string;
+      kind?: "upgrade" | "recovery";
+    },
     environment: {
       id: string;
       baselineRole: string | null;
@@ -82,9 +87,11 @@ export class EnvironmentVersionPolicyService {
       input.releaseRunId,
     );
     const approval = run?.operationApproval;
+    const expectedMode = input.kind === "recovery" ? "recovery" : "standard";
     if (
       !run ||
       run.status !== "awaiting_approval" ||
+      run.mode !== expectedMode ||
       run.artifactManifestId !== manifest.id ||
       run.verifiedDigest !== manifest.digest ||
       run.configRevisionId !== environment.currentConfigRevisionId ||

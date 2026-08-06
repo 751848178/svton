@@ -292,13 +292,13 @@ F438 evidence (AC-PROD-025..031): `EnvironmentVersionService.execute` production
 - [ ] **AC-ENVVER-008** Production 只列出具有同 Manifest Staging 证明的候选。
 - [ ] **AC-ENVVER-009** 回退只列出该环境历史成功版本。
 - [ ] **AC-ENVVER-010** 默认推荐上一次成功版本，不接受任意文本版本或镜像。
-- [ ] **AC-ENVVER-011** Staging 升级/回退每次创建新 DeploymentRun 和 EnvironmentVersion。
-- [ ] **AC-ENVVER-012** Production 升级创建新的 Production approval/ReleaseRun。
-- [ ] **AC-ENVVER-013** Production 回退创建新的 recovery approval/ReleaseRun。
-- [ ] **AC-ENVVER-014** 不复用历史已经消费的 approval。
-- [ ] **AC-ENVVER-015** 配置漂移后必须重新确认新的快照。
-- [ ] **AC-ENVVER-016** 升级、重复部署、回退历史均不覆盖。
-- [ ] **AC-ENVVER-017** 每次环境版本变更有独立日志和证据入口。
+- [x] **AC-ENVVER-011** Staging 升级/回退每次创建新 DeploymentRun 和 EnvironmentVersion。（F439 证据：`apps/devpilot-api/src/release-delivery/environment-version.integration.spec.ts`「appends upgrade and recovery versions without overwriting history」——每次执行追加新 DeploymentRun + EnvironmentVersion，append-only，pointer 移动到最新成功。）
+- [x] **AC-ENVVER-012** Production 升级创建新的 Production approval/ReleaseRun。（F439 证据：`release-production.integration.spec.ts` confirm 每次创建新 ReleaseRun + approval（status pending、inputHash 新鲜），F437/F438 浏览器证据 ReleaseRun `cmshsghhn000bayiziipz7hqw` + approval consumed。）
+- [x] **AC-ENVVER-013** Production 回退创建新的 recovery approval/ReleaseRun。（F439 证据：recovery-confirm API `environment-version-recovery.integration.spec.ts` 5/5 + 浏览器证据——从历史成功版本创建 recovery ReleaseRun `cmshul4c30062ny7b2wkafp6m`（mode recovery、sourceReleaseRunId 链到 `cmshsek25003ngrgivf2uxcsd`）+ 新 approval `cmshul4c50064ny7boud4pgns`（action project.release_order.deploy_production_recovery、inputHash 新鲜、consumedAt null）→ 执行成功。）
+- [x] **AC-ENVVER-014** 不复用历史已经消费的 approval。（F439 证据：每次 recovery-confirm 总是创建全新 approval；`environment-version-recovery.integration.spec.ts`「rejects a recovery backed by a consumed or non-recovery ReleaseRun」——已消费/非 recovery 的 ReleaseRun 执行 recovery 被 422 拒绝；`validateProduction` 强制 mode=recovery。）
+- [x] **AC-ENVVER-015** 配置漂移后必须重新确认新的快照。（F439 证据：`environment-version-recovery.integration.spec.ts`「forces a fresh confirm when the Production config drifts」——漂移后旧 inputHash confirm 409「漂移」，执行 422，新 preview 产生新 inputHash；recovery confirm 始终基于确认时刻的当前配置快照。）
+- [x] **AC-ENVVER-016** 升级、重复部署、回退历史均不覆盖。（F439 证据：`environment-version.integration.spec.ts` + `environment-version-recovery.integration.spec.ts`——append-only，previousVersionId 链保持，count 递增，pointer 移动到最新成功版本。）
+- [x] **AC-ENVVER-017** 每次环境版本变更有独立日志和证据入口。（F439 证据：浏览器证据每个 recovery 产生独立 DeploymentRun `cmshul852007xny7bts158xs2`（mode rollback、DNS resolved、routeSwitch switched、logs/result）+ 新 EnvironmentVersion + approval consumed 行；F438 站点/DNS/TLS/HTTP 证据路径在 recovery 上原样工作。）
 
 ## Manage Project And Environment Governance
 

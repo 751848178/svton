@@ -244,6 +244,7 @@ function productionRun(): ReleaseEvidenceProductionRun {
     environmentId: 'staging-env',
     artifactManifestId: 'manifest-1',
     status: 'succeeded',
+    mode: 'standard',
     verifiedDigest: 'sha256:exact',
     errorCode: null,
     errorMessage: null,

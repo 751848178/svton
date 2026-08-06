@@ -6,9 +6,14 @@ import type {
   EnvironmentVersionEnvironment,
   EnvironmentVersionItem,
 } from '../types/environment-version.types';
+import { EnvironmentRecoveryDialog } from './environment-recovery-dialog';
 import { EnvironmentVersionsPanel } from './environment-versions-panel';
 
-const mocks = vi.hoisted(() => ({ execute: vi.fn() }));
+const mocks = vi.hoisted(() => ({ execute: vi.fn(), push: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mocks.push }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string, values?: Record<string, unknown>) =>
     values ? `${key}:${JSON.stringify(values)}` : key,
@@ -31,6 +36,22 @@ vi.mock('../hooks/use-environment-versions', () => ({
     execute: mocks.execute,
   }),
 }));
+vi.mock('@svton/ui', () => ({
+  Dialog: ({
+    children,
+    title,
+    confirmText,
+  }: {
+    children: React.ReactNode;
+    title?: string;
+    confirmText?: string;
+  }) => (
+    <div data-dialog-title={title}>
+      {children}
+      {confirmText ? <button>{confirmText}</button> : null}
+    </div>
+  ),
+}));
 
 describe('EnvironmentVersionsPanel copy', () => {
   it('uses role, Environment Version, BuildRun, Manifest and governed action copy', () => {
@@ -45,6 +66,25 @@ describe('EnvironmentVersionsPanel copy', () => {
     expect(html).toContain('environmentVersionCandidateOption');
     expect(html).toContain('environmentVersionUpgrade');
     expect(html).toContain('environmentVersionRecover');
+  });
+
+  it('renders the Production rollback dialog copy when opened', () => {
+    const environment = environments().find((item) => item.baselineRole === 'production')!;
+    const html = renderToStaticMarkup(
+      <EnvironmentRecoveryDialog
+        projectId="project-1"
+        environment={environment}
+        defaultSourceVersionId="version-production-history"
+        onClose={() => undefined}
+        onConfirmed={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('environmentVersionRecoveryDialogTitle');
+    expect(html).toContain('environmentVersionRecoveryDialogCallout');
+    expect(html).toContain('environmentVersionRecoveryTarget');
+    expect(html).toContain('environmentVersionRecoveryCreateAction');
+    expect(html).toContain('environmentVersionCurrent');
   });
 });
 

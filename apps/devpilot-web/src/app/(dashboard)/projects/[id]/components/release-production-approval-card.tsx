@@ -25,6 +25,7 @@ interface Props {
 export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Props) {
   const t = useTranslations('projects');
   const approval = run.operationApproval;
+  const isRecovery = run.mode === 'recovery';
   const { acting, error, review, execute } = useProductionApproval(projectId, run, onChanged);
   const [rejectOpen, setRejectOpen] = useState(false);
 
@@ -37,11 +38,26 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Pro
   return (
     <section
       className="space-y-3 rounded-lg border p-4"
-      aria-label={t('releaseProductionApprovalCardTitle')}
+      aria-label={t(
+        isRecovery ? 'releaseProductionRecoveryCardTitle' : 'releaseProductionApprovalCardTitle',
+      )}
       data-approval-id={approval.id}
+      data-run-mode={run.mode}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <h4 className="font-medium">{t('releaseProductionApprovalCardTitle')}</h4>
+        <h4 className="font-medium">
+          {t(
+            isRecovery
+              ? 'releaseProductionRecoveryCardTitle'
+              : 'releaseProductionApprovalCardTitle',
+          )}
+        </h4>
+        {isRecovery ? (
+          <StatusTag
+            status="default"
+            label={t('environmentVersionKindRecovery')}
+          />
+        ) : null}
         <StatusTag
           status={releaseOrderStatusTone(approval.status)}
           label={t(releaseApprovalStatusLabelKey(approval.status))}
@@ -122,7 +138,7 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Pro
             loading={acting}
             disabled={acting}
           >
-            {t('releaseProductionExecute')}
+            {t(isRecovery ? 'releaseProductionRecoveryExecute' : 'releaseProductionExecute')}
           </Button>
         ) : null}
         {approval.status === 'approved' && !approval.consumedAt && expired ? (

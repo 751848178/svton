@@ -54,13 +54,12 @@ export function useProductionApproval(
     inFlight.current = true;
     setState({ acting: true, error: '' });
     try {
+      const isRecovery = run.mode === 'recovery';
       await apiRequest(
         `POST:/projects/${projectId}/delivery/environment-versions/${run.environmentId}/actions`,
-        {
-          kind: 'upgrade',
-          manifestId: run.artifactManifestId,
-          releaseRunId: run.id,
-        },
+        isRecovery
+          ? { kind: 'recovery', releaseRunId: run.id }
+          : { kind: 'upgrade', manifestId: run.artifactManifestId, releaseRunId: run.id },
       );
       await onChanged();
       return true;

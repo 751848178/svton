@@ -108,7 +108,8 @@ export function exactProductionProof(
     approval.projectId === scope.projectId &&
     approval.environmentId === run.environmentId &&
     approval.category === "release" &&
-    approval.action === "project.release_order.deploy_production" &&
+    (approval.action === "project.release_order.deploy_production" ||
+      approval.action === "project.release_order.deploy_production_recovery") &&
     approval.targetType === "release_run" &&
     approval.targetId === run.id &&
     approval.inputHash === run.inputHash &&

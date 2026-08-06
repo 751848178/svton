@@ -78,11 +78,43 @@ export class EnvironmentVersionRepository {
   ) {
     return this.prisma.releaseRun.findFirst({
       where: { id: runId, teamId, projectId, environmentId },
-      include: {
+      select: {
+        id: true,
+        mode: true,
+        status: true,
+        artifactManifestId: true,
+        verifiedDigest: true,
+        configRevisionId: true,
+        inputHash: true,
+        resourceSnapshot: true,
+        routeSnapshot: true,
+        policySnapshot: true,
         operationApproval: true,
         environment: { select: { currentConfigRevisionId: true } },
       },
     });
+  }
+
+  recoverySourceVersionId(
+    teamId: string,
+    projectId: string,
+    environmentId: string,
+    releaseRunId: string,
+  ) {
+    return this.prisma.$queryRaw<Array<{ sourceVersionId: string | null }>>`
+      SELECT rv.id AS sourceVersionId
+      FROM EnvironmentVersion rv
+      INNER JOIN ReleaseRun rr ON rr.sourceReleaseRunId = rv.releaseRunId
+      WHERE rr.id = ${releaseRunId}
+        AND rr.teamId = ${teamId}
+        AND rr.projectId = ${projectId}
+        AND rr.environmentId = ${environmentId}
+        AND rr.mode = 'recovery'
+        AND rv.teamId = ${teamId}
+        AND rv.projectId = ${projectId}
+        AND rv.environmentId = ${environmentId}
+      LIMIT 1
+    `.then((rows) => rows[0]?.sourceVersionId ?? null);
   }
 
   reserve(input: {

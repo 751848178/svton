@@ -26,6 +26,7 @@ export function presentReleaseOrderEvidence(input: ReleaseOrderEvidenceRecord) {
       releaseOrderId: run.releaseOrderId,
       environmentId: run.environmentId,
       artifactManifestId: run.artifactManifestId,
+      mode: run.mode,
       status: run.status,
       verifiedDigest: run.verifiedDigest,
       errorCode: run.errorCode,

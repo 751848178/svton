@@ -59,3 +59,41 @@ export interface EnvironmentVersionActionResult {
   run: { id: string; status: string; artifactManifestId: string };
   version: EnvironmentVersionItem | null;
 }
+
+export interface EnvironmentVersionRecoveryPreview {
+  inputHash: string;
+  sourceVersionId: string;
+  sourceReleaseRunId: string | null;
+  sourceVersionKind: string;
+  snapshot: {
+    releaseOrder: { id: string; releaseVersion: string };
+    environment: { id: string; key: string; name: string; baselineRole: 'production' };
+    build: { id: string; revision: number; sourceBranch: string; sourceCommitSha: string };
+    manifest: { id: string; digest: string };
+    config: { revisionId: string; revision: number; snapshotHash: string };
+    releasePolicy: { revisionId: string | null; revision: number; synthetic: boolean };
+  };
+}
+
+export interface EnvironmentVersionRecoveryConfirmInput {
+  sourceVersionId: string;
+  expectedInputHash: string;
+  idempotencyKey: string;
+}
+
+export interface EnvironmentVersionRecoveryReleaseRun {
+  id: string;
+  mode: string;
+  status: string;
+  sourceReleaseRunId: string | null;
+  inputHash: string;
+  releaseOrderId: string;
+  environmentId: string;
+  artifactManifestId: string;
+  operationApproval: {
+    id: string;
+    status: string;
+    inputHash: string;
+    requestedAt: string;
+  };
+}

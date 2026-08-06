@@ -44,6 +44,7 @@ export async function loadProductionEvidence(
       releaseOrderId: true,
       environmentId: true,
       artifactManifestId: true,
+      mode: true,
       status: true,
       verifiedDigest: true,
       inputHash: true,

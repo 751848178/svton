@@ -156,6 +156,15 @@ describe('ReleaseProductionApprovalCard', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('只有待审批的操作可以审批');
   });
 
+  it('renders recovery copy and executes a production recovery run', async () => {
+    await render({ ...run('approved'), mode: 'recovery' });
+    expect(container.textContent).toContain('releaseProductionRecoveryCardTitle');
+    expect(buttonByText('releaseProductionRecoveryExecute')).not.toBeNull();
+    expect(buttonByText('releaseProductionExecute')).toBeNull();
+    act(() => buttonByText('releaseProductionRecoveryExecute')?.click());
+    expect(mocks.hook.execute).toHaveBeenCalledTimes(1);
+  });
+
   async function render(approved: ReleaseEvidenceProductionRun) {
     await act(async () =>
       root.render(
@@ -188,6 +197,7 @@ function run(
     environmentId: 'prod-env-1',
     artifactManifestId: 'manifest-1',
     status: 'awaiting_approval',
+    mode: 'standard',
     verifiedDigest: 'sha256:exact',
     errorCode: null,
     errorMessage: null,

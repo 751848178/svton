@@ -117,6 +117,7 @@ function run(): ReleaseEvidenceProductionRun {
     environmentId: 'prod-env-1',
     artifactManifestId: 'manifest-1',
     status: 'awaiting_approval',
+    mode: 'standard',
     verifiedDigest: 'sha256:exact',
     errorCode: null,
     errorMessage: null,

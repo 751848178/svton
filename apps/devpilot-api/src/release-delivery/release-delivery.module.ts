@@ -42,6 +42,8 @@ import { ReleaseOrderWithdrawService } from "./release-order-withdraw.service";
 import { ReleaseOrderListRepository } from "./release-order-list.repository";
 import { ReleaseOrderListService } from "./release-order-list.service";
 import { EnvironmentVersionController } from "./environment-version.controller";
+import { EnvironmentVersionRecoveryRepository } from "./environment-version-recovery.repository";
+import { EnvironmentVersionRecoveryService } from "./environment-version-recovery.service";
 import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { EnvironmentVersionService } from "./environment-version.service";
 import { EnvironmentVersionReadRepository } from "./environment-version-read.repository";
@@ -149,6 +151,8 @@ import {
     EnvironmentVersionService,
     EnvironmentVersionReadRepository,
     EnvironmentVersionPolicyService,
+    EnvironmentVersionRecoveryRepository,
+    EnvironmentVersionRecoveryService,
     EnvironmentVersionProductionGateService,
     EnvironmentVersionGateEvidenceRepository,
     ReleaseGateCapabilityRegistryService,

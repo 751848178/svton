@@ -118,6 +118,7 @@ export interface ReleaseEvidenceProductionRun {
   releaseOrderId: string;
   environmentId: string;
   artifactManifestId: string;
+  mode: string;
   status: ReleaseExecutionStatus;
   verifiedDigest: string;
   errorCode: string | null;

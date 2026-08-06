@@ -1,20 +1,32 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Button, LinkButton, StatusTag } from '@/components/ui';
 import { useEnvironmentVersions } from '../hooks/use-environment-versions';
+import type { RecoveryCreateResult } from '../hooks/use-recovery-confirm';
 import type {
   EnvironmentVersionCandidate,
   EnvironmentVersionEnvironment,
 } from '../types/environment-version.types';
 import { releaseEnvironmentLabelKey } from '../utils/release-copy.model';
+import { releaseOrderHref } from '../utils/project-route.utils';
+import { EnvironmentRecoveryDialog } from './environment-recovery-dialog';
 import { EnvironmentVersionSummary } from './environment-version-summary';
+
+interface RecoveryTarget {
+  environment: EnvironmentVersionEnvironment;
+  sourceVersionId: string;
+}
 
 export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
   const t = useTranslations('projects');
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const versions = useEnvironmentVersions(projectId);
   const [selection, setSelection] = useState<Record<string, string>>({});
+  const [recoveryTarget, setRecoveryTarget] = useState<RecoveryTarget | null>(null);
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">{t('environmentVersionsDescription')}</p>
@@ -48,15 +60,14 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
                     environment.baselineRole === 'production' ? releaseRunId : undefined,
                 })
               }
-              onRecovery={(sourceVersionId, manifestId) =>
+              onRecovery={(sourceVersionId) =>
                 versions.execute(environment.id, {
                   kind: 'recovery',
                   sourceVersionId,
-                  releaseRunId:
-                    environment.baselineRole === 'production'
-                      ? approvedRun(versions.candidates.find((item) => item.id === manifestId))
-                      : undefined,
                 })
+              }
+              onProductionRecovery={(sourceVersionId) =>
+                setRecoveryTarget({ environment, sourceVersionId })
               }
             />
           );
@@ -68,6 +79,26 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
       >
         {t('manageEnvironmentConfiguration')}
       </LinkButton>
+      {recoveryTarget ? (
+        <EnvironmentRecoveryDialog
+          projectId={projectId}
+          environment={recoveryTarget.environment}
+          defaultSourceVersionId={recoveryTarget.sourceVersionId}
+          onClose={() => setRecoveryTarget(null)}
+          onConfirmed={(result: RecoveryCreateResult, sourceVersionId: string) => {
+            setRecoveryTarget(null);
+            router.push(
+              releaseOrderHref(
+                projectId,
+                result.preview.snapshot.releaseOrder.id,
+                'production',
+                searchParams,
+                { releaseRunId: result.run.id },
+              ),
+            );
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -80,7 +111,8 @@ function EnvironmentCard(props: {
   productionBlocked: boolean;
   onSelect: (id: string) => void;
   onUpgrade: () => unknown;
-  onRecovery: (sourceVersionId: string, manifestId: string) => unknown;
+  onRecovery: (sourceVersionId: string) => unknown;
+  onProductionRecovery: (sourceVersionId: string) => unknown;
 }) {
   const t = useTranslations('projects');
   const env = props.environment;
@@ -146,20 +178,25 @@ function EnvironmentCard(props: {
           >
             <EnvironmentVersionSummary version={version} />
             {version.id !== env.currentEnvironmentVersionId ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={
-                  props.executing ||
-                  (env.baselineRole === 'production' &&
-                    !approvedRun(
-                      props.candidates.find((item) => item.id === version.artifactManifestId),
-                    ))
-                }
-                onClick={() => props.onRecovery(version.id, version.artifactManifestId)}
-              >
-                {t('environmentVersionRecover')}
-              </Button>
+              env.baselineRole === 'production' ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={props.executing}
+                  onClick={() => props.onProductionRecovery(version.id)}
+                >
+                  {t('environmentVersionRecover')}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={props.executing}
+                  onClick={() => props.onRecovery(version.id)}
+                >
+                  {t('environmentVersionRecover')}
+                </Button>
+              )
             ) : null}
           </div>
         ))}

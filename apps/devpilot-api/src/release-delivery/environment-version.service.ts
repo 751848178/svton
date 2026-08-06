@@ -72,8 +72,32 @@ export class EnvironmentVersionService {
     ) {
       throw new NotFoundException("目标环境缺少可部署基线角色");
     }
+    let resolvedInput = input;
+    if (
+      input.kind === "recovery" &&
+      environment.baselineRole === "production" &&
+      !input.sourceVersionId
+    ) {
+      if (!input.releaseRunId) {
+        throw new UnprocessableEntityException(
+          "Production 回退必须绑定已批准的 Recovery ReleaseRun",
+        );
+      }
+      const derived = await this.repository.recoverySourceVersionId(
+        input.teamId,
+        input.projectId,
+        environment.id,
+        input.releaseRunId,
+      );
+      if (!derived) {
+        throw new UnprocessableEntityException(
+          "Production 回退 ReleaseRun 未指向可用的历史环境版本",
+        );
+      }
+      resolvedInput = { ...input, sourceVersionId: derived };
+    }
     const selection = await this.policy.resolveSelection(
-      input,
+      resolvedInput,
       environment.currentEnvironmentVersionId,
     );
     const manifest = await this.repository.manifest(
@@ -96,7 +120,7 @@ export class EnvironmentVersionService {
       );
     }
     const productionRun = await this.policy.validateProduction(
-      input,
+      { ...input, kind: input.kind },
       environment,
       manifest,
     );
