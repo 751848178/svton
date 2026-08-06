@@ -11,6 +11,8 @@ describe("F426 V13 compose profile", () => {
     );
     expect(source).toContain('RELEASE_BUILD_EXECUTION_ENABLED: "false"');
     expect(source).toContain("RELEASE_BUILD_EXECUTOR_PROFILE: disabled");
+    expect(source).toContain('RELEASE_STAGING_DEPLOYMENT_ENABLED: "false"');
+    expect(source).toContain("RELEASE_DEPLOYMENT_PROVIDER_PROFILE: disabled");
   });
 
   it("requires the explicit acceptance profile and controlled volume", async () => {
@@ -28,6 +30,10 @@ describe("F426 V13 compose profile", () => {
       'RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"',
       'RELEASE_BUILD_CANCEL_GRACE_MS: "5000"',
       'RELEASE_BUILD_MAX_CONCURRENCY: "2"',
+      'RELEASE_STAGING_DEPLOYMENT_ENABLED: "true"',
+      "RELEASE_DEPLOYMENT_PROVIDER_PROFILE: local-filesystem-v1",
+      "RELEASE_STAGING_DEPLOYMENT_ROOT: /var/lib/devpilot/release-build/deployments",
+      'RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"',
       "devpilot-v13-release-build:/var/lib/devpilot/release-build",
       "read_only: true",
       'cap_drop: ["ALL"]',
@@ -38,5 +44,18 @@ describe("F426 V13 compose profile", () => {
     ]) {
       expect(source).toContain(expected);
     }
+  });
+
+  it("keeps the F431 password SSH fixture isolated from source and build tools", async () => {
+    const source = await readFile(
+      resolve(root, "docker-compose.deploy-target.yml"),
+      "utf8",
+    );
+    const target = source.slice(source.indexOf("  deploy-target-password:"));
+    expect(target).toContain('PASSWORD_ACCESS: "true"');
+    expect(target).toContain("devpilot-deploy-target-password-data:/config");
+    expect(target).not.toMatch(
+      /docker\.sock|picshare|deploy-target-init|source checkout/,
+    );
   });
 });

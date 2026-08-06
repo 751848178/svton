@@ -23,6 +23,10 @@ services:
       RELEASE_BUILD_CANCEL_GRACE_MS: "5000"
       RELEASE_BUILD_MAX_CONCURRENCY: "2"
       RELEASE_BUILD_COMMAND_PATH: /pnpm:/usr/local/bin:/usr/bin:/bin
+      RELEASE_STAGING_DEPLOYMENT_ENABLED: "true"
+      RELEASE_DEPLOYMENT_PROVIDER_PROFILE: local-filesystem-v1
+      RELEASE_STAGING_DEPLOYMENT_ROOT: /var/lib/devpilot/release-build/deployments
+      RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"
     volumes:
       - devpilot-v13-release-build:/var/lib/devpilot/release-build
 

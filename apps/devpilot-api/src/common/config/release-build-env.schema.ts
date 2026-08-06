@@ -19,6 +19,15 @@ export const releaseBuildEnvSchema = z.object({
   RELEASE_BUILD_MAX_ARTIFACT_FILES: positiveInt(1).default(10000),
   RELEASE_BUILD_ARTIFACT_ROOT: z.string().optional(),
   RELEASE_STAGING_DEPLOYMENT_ENABLED: booleanString.default("false"),
+  RELEASE_DEPLOYMENT_PROVIDER_PROFILE: z
+    .enum(["disabled", "local-filesystem-v1", "ssh-v1"])
+    .default("disabled"),
+  RELEASE_DEPLOYMENT_SSH_HOST: z.string().optional(),
+  RELEASE_DEPLOYMENT_SSH_PORT: positiveInt(1).default(22),
+  RELEASE_DEPLOYMENT_SSH_USERNAME: z.string().optional(),
+  RELEASE_DEPLOYMENT_SSH_PASSWORD: z.string().optional(),
+  RELEASE_DEPLOYMENT_SSH_PRIVATE_KEY: z.string().optional(),
+  RELEASE_DEPLOYMENT_SSH_ROOT: z.string().optional(),
   RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: positiveInt(1).default(120000),
   RELEASE_STAGING_DEPLOYMENT_ROOT: z.string().optional(),
 });

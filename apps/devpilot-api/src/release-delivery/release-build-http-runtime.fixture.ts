@@ -15,8 +15,15 @@ export class ReleaseBuildHttpRuntimeFixture {
   baseUrl = "";
   token = "";
   serviceId = "";
+  stagingId = "";
+  private gitStarted = false;
+  private previousLocalRoots: string | undefined;
 
   async start() {
+    await this.git.start();
+    this.gitStarted = true;
+    this.previousLocalRoots = process.env.REPOSITORY_ANALYSIS_LOCAL_ROOTS;
+    process.env.REPOSITORY_ANALYSIS_LOCAL_ROOTS = this.git.parentRoot;
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(ReleaseGateDecisionService)
       .useFactory({
@@ -29,7 +36,6 @@ export class ReleaseBuildHttpRuntimeFixture {
     await this.app.init();
     await this.app.listen(0, "127.0.0.1");
     this.baseUrl = await this.app.getUrl();
-    await this.git.start();
     await this.seedBuildCommand();
     this.token = this.app.get(JwtService).sign({
       sub: this.git.userId,
@@ -40,7 +46,24 @@ export class ReleaseBuildHttpRuntimeFixture {
 
   async stop() {
     if (this.app) await this.app.close();
-    await this.git.stop();
+    if (this.gitStarted) {
+      await this.git.prisma.projectEnvironment.updateMany({
+        where: { teamId: this.git.teamId },
+        data: { currentEnvironmentVersionId: null },
+      });
+      await this.git.prisma.environmentVersion.deleteMany({
+        where: { teamId: this.git.teamId },
+      });
+      await this.git.prisma.deploymentRun.deleteMany({
+        where: { teamId: this.git.teamId },
+      });
+      await this.git.stop();
+    }
+    if (this.previousLocalRoots === undefined) {
+      delete process.env.REPOSITORY_ANALYSIS_LOCAL_ROOTS;
+    } else {
+      process.env.REPOSITORY_ANALYSIS_LOCAL_ROOTS = this.previousLocalRoots;
+    }
   }
 
   request(path: string, init?: RequestInit) {
@@ -80,6 +103,10 @@ export class ReleaseBuildHttpRuntimeFixture {
     return `/projects/${this.git.projectId}/delivery/releases/${this.git.orderId}/builds`;
   }
 
+  stagingPath() {
+    return `/projects/${this.git.projectId}/delivery/releases/${this.git.orderId}/staging-deployments`;
+  }
+
   async configureBuild(deployConfig: Record<string, unknown>) {
     await this.git.prisma.applicationService.update({
       where: { id: this.serviceId },
@@ -96,10 +123,12 @@ export class ReleaseBuildHttpRuntimeFixture {
       data: {
         teamId: this.git.teamId,
         projectId: this.git.projectId,
-        key: "test",
-        name: "Test",
+        key: "staging",
+        name: "Staging",
+        baselineRole: "staging",
       },
     });
+    this.stagingId = environment.id;
     const application = await prisma.application.create({
       data: {
         teamId: this.git.teamId,

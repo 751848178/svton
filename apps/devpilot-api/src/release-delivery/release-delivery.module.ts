@@ -5,6 +5,7 @@ import { RepositoryAnalysisModule } from "../repository-analysis/repository-anal
 import { RepositoryIdentityModule } from "../repository-identity/repository-identity.module";
 import { LocalReleaseBuildExecutorService } from "./local-release-build-executor.service";
 import { LocalReleaseStagingExecutorService } from "./local-release-staging-executor.service";
+import { releaseDeploymentProviders } from "./release-deployment.providers";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
 import { ReleaseBuildCancellationController } from "./release-build-cancellation.controller";
 import { ReleaseBuildDetailController } from "./release-build-detail.controller";
@@ -118,6 +119,7 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
     ReleaseBuildRuntimeSupervisorService,
     LocalReleaseBuildExecutorService,
     LocalReleaseStagingExecutorService,
+    ...releaseDeploymentProviders,
     ReleaseBuildRepository,
     ReleaseBuildResultRepository,
     ReleaseBuildService,

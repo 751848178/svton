@@ -13,7 +13,11 @@ describe("ReleaseStagingService", () => {
     create: jest.fn(),
     finish: jest.fn(),
   };
-  const executor = { deploy: jest.fn() };
+  const executor = {
+    providerKey: "provider-test-v1",
+    providerTargetRef: "provider-test-target",
+    deploy: jest.fn(),
+  };
   const gates = { assertAllowed: jest.fn() };
   const service = new ReleaseStagingService(
     repository as never,
@@ -29,6 +33,9 @@ describe("ReleaseStagingService", () => {
     digest: `sha256:${"a".repeat(64)}`,
     buildRun: {
       id: "build-1",
+      teamId: "team-1",
+      projectId: "project-1",
+      releaseOrderId: "order-1",
       status: "succeeded",
       sourceBranch: "main",
       sourceCommitSha: "b".repeat(40),
@@ -73,12 +80,26 @@ describe("ReleaseStagingService", () => {
     expect(repository.create).toHaveBeenCalledWith(
       expect.objectContaining({
         manifestId: "manifest-1",
+        providerKey: "provider-test-v1",
+        params: expect.objectContaining({
+          deploymentProvider: {
+            key: "provider-test-v1",
+            targetRef: "provider-test-target",
+          },
+        }),
         sourceCommitSha: "b".repeat(40),
         gateDecision: {
           id: "decision-staging-1",
           stage: "staging",
           inputHash: "decision-hash",
         },
+      }),
+    );
+    expect(executor.deploy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: "staging",
+        manifestId: "manifest-1",
+        digest: manifest.digest,
       }),
     );
     expect(repository.finish).toHaveBeenLastCalledWith(
@@ -120,6 +141,18 @@ describe("ReleaseStagingService", () => {
     await expect(service.deploy(input())).rejects.toBeInstanceOf(
       UnprocessableEntityException,
     );
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Manifest whose related BuildRun belongs to another scope", async () => {
+    repository.manifest.mockResolvedValue({
+      ...manifest,
+      buildRun: { ...manifest.buildRun, releaseOrderId: "order-foreign" },
+    });
+    await expect(service.deploy(input())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(gates.assertAllowed).not.toHaveBeenCalled();
     expect(repository.create).not.toHaveBeenCalled();
   });
 

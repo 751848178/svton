@@ -189,12 +189,12 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 
 ## Staging Deployment
 
-- [ ] **AC-STG-001** Staging 只能选择当前发布单成功 BuildRun 的 Manifest。
-- [ ] **AC-STG-002** 部署动作名称为“部署”，不叫“再次部署”或“部署候选构建”。
-- [ ] **AC-STG-003** 重复部署同一 Manifest 每次创建新 DeploymentRun。
-- [ ] **AC-STG-004** 重复部署不执行 Git、checkout、pull 或 build。
-- [ ] **AC-STG-005** 服务端复算并验证 Manifest Digest。
-- [ ] **AC-STG-006** 跨项目、跨发布单、失败 BuildRun 和未知 Manifest 均拒绝。
+- [x] **AC-STG-001** Staging 只能选择当前发布单成功 BuildRun 的 Manifest。
+- [x] **AC-STG-002** 部署动作名称为“部署”，不叫“再次部署”或“部署候选构建”。
+- [x] **AC-STG-003** 重复部署同一 Manifest 每次创建新 DeploymentRun。
+- [x] **AC-STG-004** 重复部署不执行 Git、checkout、pull 或 build。
+- [x] **AC-STG-005** 服务端复算并验证 Manifest Digest。
+- [x] **AC-STG-006** 跨项目、跨发布单、失败 BuildRun 和未知 Manifest 均拒绝。
 - [ ] **AC-STG-007** DeploymentRun 冻结环境配置 revision ID/hash。
 - [ ] **AC-STG-008** 普通变量按目标环境注入。
 - [ ] **AC-STG-009** Secret 通过受管引用在运行时解析，明文不写入 DB/API/log。

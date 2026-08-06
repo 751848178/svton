@@ -10,6 +10,7 @@ import {
   ReleaseStagingExecutorPort,
 } from "./release-staging.types";
 import { ReleaseGateDecisionService } from "./release-gate-decision.service";
+import { requireDeployableStagingManifest } from "./release-staging-manifest.policy";
 
 @Injectable()
 export class ReleaseStagingService {
@@ -47,25 +48,15 @@ export class ReleaseStagingService {
         "项目必须有且仅有一个活动 Staging 基线",
       );
     }
-    const manifest = await this.repository.manifest(
-      input.teamId,
-      input.projectId,
-      input.releaseOrderId,
-      input.manifestId,
+    const { manifest, item } = requireDeployableStagingManifest(
+      await this.repository.manifest(
+        input.teamId,
+        input.projectId,
+        input.releaseOrderId,
+        input.manifestId,
+      ),
+      input,
     );
-    if (!manifest)
-      throw new NotFoundException("Manifest 不存在或不属于当前发布单");
-    if (manifest.buildRun.status !== "succeeded") {
-      throw new UnprocessableEntityException(
-        "只有成功 BuildRun 的 Manifest 可以部署",
-      );
-    }
-    const item = manifest.items.find(
-      (candidate) => candidate.componentKey === "project-bundle",
-    );
-    if (!item || item.digest !== manifest.digest) {
-      throw new UnprocessableEntityException("Manifest 缺少可验证的项目制品");
-    }
     const environment = context.project.environments[0];
     const decision = await this.gates.assertAllowed({
       teamId: input.teamId,
@@ -105,12 +96,17 @@ export class ReleaseStagingService {
         buildRunId: manifest.buildRun.id,
         environmentId: environment.id,
         configRevisionId: environment.currentConfigRevisionId,
+        deploymentProvider: {
+          key: this.executor.providerKey,
+          targetRef: this.executor.providerTargetRef,
+        },
         gateDecision: {
           id: decision.id,
           stage: decision.stage,
           inputHash: decision.inputHash,
         },
       },
+      providerKey: this.executor.providerKey,
       gateDecision: {
         id: decision.id,
         stage: decision.stage,
@@ -120,9 +116,11 @@ export class ReleaseStagingService {
     try {
       const result = await this.executor.deploy({
         deploymentRunId: run.id,
+        stage: "staging",
         projectId: input.projectId,
         releaseOrderId: input.releaseOrderId,
         environmentId: environment.id,
+        manifestId: manifest.id,
         buildRunId: manifest.buildRun.id,
         uri: item.uri,
         digest: manifest.digest,

@@ -48,6 +48,8 @@ services:
       # acceptance overlay is the only repository-owned profile that enables it.
       RELEASE_BUILD_EXECUTION_ENABLED: "false"
       RELEASE_BUILD_EXECUTOR_PROFILE: disabled
+      RELEASE_STAGING_DEPLOYMENT_ENABLED: "false"
+      RELEASE_DEPLOYMENT_PROVIDER_PROFILE: disabled
       # Local repository analysis remains default-off in production. This
       # disposable app stack exposes only the explicitly mounted read-only root.
       REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories

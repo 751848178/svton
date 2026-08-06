@@ -96,10 +96,14 @@ export class EnvironmentVersionRepository {
     branch: string;
     commitSha: string;
     params: Record<string, unknown>;
+    providerKey?: string;
     gateDecision?: ReleaseGateDecisionReference;
   }) {
     return this.prisma.$transaction(async (tx) => {
       await lockActionableReleaseOrder(tx, input);
+      if (!input.providerKey) {
+        throw new ConflictException("环境部署缺少 Deployment Provider");
+      }
       if (input.releaseRunId) {
         if (!input.gateDecision) {
           throw new ConflictException("Production 执行缺少已允许的门禁决定");
@@ -127,7 +131,7 @@ export class EnvironmentVersionRepository {
           trigger: "manual",
           targetType: "release-artifact",
           executorKey: "release-artifact",
-          adapterKey: "local-materialize",
+          adapterKey: input.providerKey,
           dryRun: false,
           status: "running",
           branch: input.branch,
@@ -135,7 +139,7 @@ export class EnvironmentVersionRepository {
           params: input.params as Prisma.InputJsonValue,
           commandPlan: {
             version: 1,
-            steps: ["verify_manifest_digest", "materialize_exact_artifact"],
+            steps: ["verify_manifest_digest", "deploy_exact_manifest"],
             checkout: false,
             pull: false,
             build: false,

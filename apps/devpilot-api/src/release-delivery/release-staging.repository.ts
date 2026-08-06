@@ -60,6 +60,9 @@ export class ReleaseStagingRepository {
         buildRun: {
           select: {
             id: true,
+            teamId: true,
+            projectId: true,
+            releaseOrderId: true,
             status: true,
             sourceBranch: true,
             sourceCommitSha: true,
@@ -95,10 +98,14 @@ export class ReleaseStagingRepository {
     sourceBranch: string;
     sourceCommitSha: string;
     params: Record<string, unknown>;
+    providerKey?: string;
     gateDecision?: ReleaseGateDecisionReference;
   }) {
     return this.prisma.$transaction(async (tx) => {
       await lockActionableReleaseOrder(tx, input);
+      if (!input.providerKey) {
+        throw new ConflictException("Staging 部署缺少 Deployment Provider");
+      }
       if (!input.gateDecision) {
         throw new ConflictException("Staging 部署缺少已允许的门禁决定");
       }
@@ -132,7 +139,7 @@ export class ReleaseStagingRepository {
           trigger: "manual",
           targetType: "release-artifact",
           executorKey: "release-artifact",
-          adapterKey: "local-materialize",
+          adapterKey: input.providerKey,
           dryRun: false,
           status: "running",
           branch: input.sourceBranch,
@@ -140,7 +147,7 @@ export class ReleaseStagingRepository {
           params: input.params as Prisma.InputJsonValue,
           commandPlan: {
             version: 1,
-            steps: ["verify_manifest_digest", "materialize_exact_artifact"],
+            steps: ["verify_manifest_digest", "deploy_exact_manifest"],
             checkout: false,
             pull: false,
             build: false,

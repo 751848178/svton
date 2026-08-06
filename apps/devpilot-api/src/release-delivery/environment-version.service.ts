@@ -51,6 +51,12 @@ export class EnvironmentVersionService {
     );
     if (!environment)
       throw new NotFoundException("目标环境不存在或不属于当前项目");
+    if (
+      environment.baselineRole !== "staging" &&
+      environment.baselineRole !== "production"
+    ) {
+      throw new NotFoundException("目标环境缺少可部署基线角色");
+    }
     const selection = await this.policy.resolveSelection(
       input,
       environment.currentEnvironmentVersionId,
@@ -111,16 +117,23 @@ export class EnvironmentVersionService {
         manifestDigest: manifest.digest,
         releaseRunId,
         configRevisionId: environment.currentConfigRevisionId,
+        deploymentProvider: {
+          key: this.executor.providerKey,
+          targetRef: this.executor.providerTargetRef,
+        },
         gateDecision: gateDecisionReference(admissionDecision),
       },
+      providerKey: this.executor.providerKey,
       gateDecision: gateDecisionReference(admissionDecision),
     });
     try {
       const result = await this.executor.deploy({
         deploymentRunId: run.id,
+        stage: environment.baselineRole,
         projectId: input.projectId,
         releaseOrderId: manifest.releaseOrderId,
         environmentId: environment.id,
+        manifestId: manifest.id,
         buildRunId: manifest.buildRun.id,
         uri: bundle.uri,
         digest: manifest.digest,
