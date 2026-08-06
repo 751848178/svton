@@ -13,6 +13,7 @@ import {
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import { ReleaseGateDecisionService } from "./release-gate-decision.service";
 import { requireDeployableStagingManifest } from "./release-staging-manifest.policy";
+import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
 
 @Injectable()
 export class ReleaseStagingService {
@@ -21,6 +22,7 @@ export class ReleaseStagingService {
     private readonly executor: ReleaseStagingExecutorPort,
     private readonly gates: ReleaseGateDecisionService,
     private readonly inputs: ReleaseDeploymentInputService,
+    private readonly workloads: ReleaseStagingWorkloadService,
   ) {}
 
   async list(teamId: string, projectId: string, releaseOrderId: string) {
@@ -87,6 +89,12 @@ export class ReleaseStagingService {
       environmentId: environment.id,
       providerKey: this.executor.providerKey,
     });
+    const workload = await this.workloads.prepare({
+      teamId: input.teamId,
+      projectId: input.projectId,
+      environmentId: environment.id,
+      manifestId: manifest.id,
+    });
     const run = await this.repository.create({
       teamId: input.teamId,
       actorId: input.actorId,
@@ -110,6 +118,7 @@ export class ReleaseStagingService {
           targetRef: deploymentInput.snapshot.target.targetRef,
         },
         deploymentInput: deploymentInput.snapshot,
+        workload,
         gateDecision: {
           id: decision.id,
           stage: decision.stage,
@@ -118,6 +127,7 @@ export class ReleaseStagingService {
       },
       providerKey: this.executor.providerKey,
       deploymentInput: deploymentInput.snapshot,
+      workload,
       gateDecision: {
         id: decision.id,
         stage: decision.stage,
@@ -138,6 +148,7 @@ export class ReleaseStagingService {
         deploymentInput: deploymentInput.snapshot,
         runtimeEnvironment: deploymentInput.runtimeEnvironment,
         targetConnection: deploymentInput.targetConnection,
+        workload,
       });
       return scopedStagingDeployment(
         await this.repository.finish({

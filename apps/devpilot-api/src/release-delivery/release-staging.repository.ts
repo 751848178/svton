@@ -1,13 +1,18 @@
 import { ConflictException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { completeVersionedDeployment } from "./environment-version-write.utils";
 import { assertReleaseDeploymentInputCurrent } from "./release-deployment-input-freeze.policy";
 import type { ReleaseDeploymentInputSnapshot } from "./release-deployment-input.types";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 import { claimReleaseGateDecision } from "./release-gate-decision.repository";
 import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
 import { releaseStagingDeploymentSelect as deploymentSelect } from "./release-staging-select";
+import {
+  completeReleaseStagingRun,
+  CompleteReleaseStagingInput,
+} from "./release-staging-completion.repository";
+import { assertReleaseStagingWorkloadCurrent } from "./release-staging-workload-freeze.policy";
+import type { ReleaseStagingWorkloadSnapshot } from "./release-staging-workload.types";
 
 @Injectable()
 export class ReleaseStagingRepository {
@@ -82,6 +87,7 @@ export class ReleaseStagingRepository {
     params: Record<string, unknown>;
     providerKey?: string;
     deploymentInput?: ReleaseDeploymentInputSnapshot;
+    workload?: ReleaseStagingWorkloadSnapshot;
     gateDecision?: ReleaseGateDecisionReference;
   }) {
     return this.prisma.$transaction(async (tx) => {
@@ -91,6 +97,9 @@ export class ReleaseStagingRepository {
       }
       if (!input.deploymentInput) {
         throw new ConflictException("Staging 部署缺少冻结输入快照");
+      }
+      if (!input.workload) {
+        throw new ConflictException("Staging 部署缺少工作负载快照");
       }
       if (!input.gateDecision) {
         throw new ConflictException("Staging 部署缺少已允许的门禁决定");
@@ -119,6 +128,13 @@ export class ReleaseStagingRepository {
         providerKey: input.providerKey,
         snapshot: input.deploymentInput,
       });
+      await assertReleaseStagingWorkloadCurrent(tx, {
+        teamId: input.teamId,
+        projectId: input.projectId,
+        environmentId: input.environmentId,
+        manifestId: input.manifestId,
+        snapshot: input.workload,
+      });
       const run = await tx.deploymentRun.create({
         data: {
           teamId: input.teamId,
@@ -133,6 +149,8 @@ export class ReleaseStagingRepository {
           targetType: "release-artifact",
           executorKey: "release-artifact",
           adapterKey: input.providerKey,
+          healthCheckUrl: input.workload.services.find((item) => item.health)
+            ?.health?.url,
           dryRun: false,
           status: "running",
           branch: input.sourceBranch,
@@ -140,7 +158,13 @@ export class ReleaseStagingRepository {
           params: input.params as Prisma.InputJsonValue,
           commandPlan: {
             version: 1,
-            steps: ["verify_manifest_digest", "deploy_exact_manifest"],
+            steps: [
+              "verify_manifest_digest",
+              "materialize_exact_manifest",
+              "start_workloads",
+              "probe_workloads",
+              "activate_release",
+            ],
             checkout: false,
             pull: false,
             build: false,
@@ -164,19 +188,9 @@ export class ReleaseStagingRepository {
     });
   }
 
-  finish(input: {
-    deploymentRunId: string;
-    status: "completed" | "failed";
-    logs: string[];
-    result?: Record<string, unknown>;
-    error?: string;
-  }) {
-    return this.prisma.$transaction(async (tx) => {
-      await completeVersionedDeployment(tx, { ...input, kind: "deploy" });
-      return tx.deploymentRun.findUniqueOrThrow({
-        where: { id: input.deploymentRunId },
-        select: deploymentSelect,
-      });
-    });
+  finish(input: CompleteReleaseStagingInput) {
+    return this.prisma.$transaction((tx) =>
+      completeReleaseStagingRun(tx, input),
+    );
   }
 }

@@ -5,6 +5,10 @@ import {
   cleanupF431SshTarget,
   probeF431SshTarget,
 } from "./release-staging-ssh-target.fixture";
+import type {
+  ReleaseStagingHttpBuild as Build,
+  ReleaseStagingHttpDeployment as Deployment,
+} from "./release-staging-http.runtime.types";
 
 const describeRuntime =
   process.env.RUN_F431_HTTP_RUNTIME === "1" ? describe : describe.skip;
@@ -31,8 +35,13 @@ describeRuntime(
       await fixture.configureBuild({
         workingDirectory: ".",
         buildCommand:
-          "node -e \"const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/app.txt','http exact manifest')\"",
+          "node -e \"const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.writeFileSync('dist/app.txt','http exact manifest');fs.writeFileSync('dist/server.sh',\\\"while :; do\\n  { printf 'HTTP/1.0 200 OK\\\\r\\\\n\\\\r\\\\n'; cat app.txt; } | nc -l -p 23991 -q 1\\ndone\\n\\\")\"",
         artifactPaths: ["dist"],
+        workloadExecutionMode: "managed-process-v1",
+        deployCommand: "sh dist/server.sh",
+        healthCheckUrl: "http://127.0.0.1:23991/health",
+        healthCheckAttempts: 10,
+        healthCheckIntervalMs: 200,
       });
       const buildResponse = await fixture.request(fixture.buildsPath(), {
         method: "POST",
@@ -60,6 +69,9 @@ describeRuntime(
             remoteDigestVerified: true,
             buildInvoked: false,
             gitInvoked: false,
+            workloadReady: { status: "passed", serviceCount: 1 },
+            healthProbe: { status: "passed", processChecks: 1, httpChecks: 1 },
+            httpProbe: { status: "passed", checkedServices: 1 },
           },
         });
         expect(run.params).toMatchObject({
@@ -79,6 +91,15 @@ describeRuntime(
               providerKey: "ssh-v1",
               targetRef: expect.stringContaining("127.0.0.1:2225"),
             },
+          },
+          workload: {
+            inputHash: expect.any(String),
+            services: [
+              expect.objectContaining({
+                executionMode: "managed-process-v1",
+                workingDirectory: ".",
+              }),
+            ],
           },
         });
         expect(JSON.stringify(run)).not.toContain("http-secret-sentinel-f432");
@@ -112,6 +133,7 @@ describeRuntime(
         "HTTP_PLAIN_F432=http-plain-sentinel-f432",
       );
       expect(remote.stdout).toContain("runtimeMode=600");
+      expect(remote.stdout).toContain("workloadProcess=running");
       expect(remote.stdout).not.toMatch(/forbiddenTools=\S/);
       await expectDatabaseEvidenceToBeSecretSafe();
       await verifyRejectedStagingHttpManifests(fixture);
@@ -166,21 +188,3 @@ describeRuntime(
     }
   },
 );
-
-interface Build {
-  id: string;
-  status: string;
-  errorCode: string | null;
-  errorMessage: string | null;
-  logSummary: unknown;
-  manifest: { id: string; digest: string };
-}
-
-interface Deployment {
-  id: string;
-  status: string;
-  artifactManifestId: string;
-  adapterKey: string;
-  params: Record<string, unknown>;
-  result: Record<string, unknown>;
-}

@@ -7,6 +7,7 @@ import {
   isSafeReleaseDeploymentSshRoot,
   releaseDeploymentSshTargetRef,
 } from "./release-deployment-ssh-target.utils";
+export { quoteReleaseShell as quoteSsh } from "./release-shell-quote.utils";
 
 export interface SshDeploymentTarget {
   host: string;
@@ -85,63 +86,6 @@ export function assertSshDeploymentInput(
   }
 }
 
-export function buildSshActivationScript(
-  input: ExactManifestDeploymentInput,
-  paths: { archive: string; runtime: string; release: string; active: string },
-) {
-  const temporary = `${paths.release}.tmp`;
-  const pending = `${paths.active}.${input.deploymentRunId}.tmp`;
-  const receipt = JSON.stringify({
-    version: 1,
-    providerKey: "ssh-v1",
-    providerDeploymentId: input.deploymentRunId,
-    stage: input.stage,
-    targetRef: input.targetRef,
-    projectId: input.projectId,
-    releaseOrderId: input.releaseOrderId,
-    environmentId: input.environmentId,
-    manifestId: input.manifest.id,
-    manifestDigest: input.manifest.digest,
-    buildRunId: input.manifest.buildRunId,
-  });
-  return `set -eu
-archive=${quoteSsh(paths.archive)}
-release=${quoteSsh(paths.release)}
-temporary=${quoteSsh(temporary)}
-active=${quoteSsh(paths.active)}
-pending=${quoteSsh(pending)}
-runtime=${quoteSsh(paths.runtime)}
-release_created=0
-activated=0
-cleanup() {
-  rm -rf "$temporary" "$pending" "$archive" "$runtime"
-  if [ "$release_created" = 1 ] && [ "$activated" = 0 ]; then rm -rf "$release"; fi
-}
-trap cleanup EXIT HUP INT TERM
-actual="sha256:$(sha256sum "$archive" | awk '{print $1}')"
-[ "$actual" = ${quoteSsh(input.manifest.digest)} ] || { echo 'remote Manifest Digest mismatch' >&2; exit 41; }
-runtime_mode="$(stat -c '%a' "$runtime")"
-[ "$runtime_mode" = 600 ] || { echo 'runtime input mode invalid' >&2; exit 43; }
-unzip -t "$archive" >/dev/null
-rm -rf "$temporary"
-mkdir -p "$temporary"
-unzip -qq "$archive" -d "$temporary"
-mkdir -p "$temporary/.devpilot"
-mv "$runtime" "$temporary/.devpilot/runtime.env"
-chmod 600 "$temporary/.devpilot/runtime.env"
-entries="$(find "$temporary" -type f | wc -l)"
-[ ! -e "$release" ] || { echo 'provider deployment id already exists' >&2; exit 42; }
-mv "$temporary" "$release"
-release_created=1
-printf '%s\n' ${quoteSsh(receipt)} > "$pending"
-mv "$pending" "$active"
-activated=1
-rm -f "$archive"
-trap - EXIT HUP INT TERM
-printf 'remoteDigest=%s\nentries=%s\nruntimeMode=%s\n' "$actual" "$entries" "$runtime_mode"
-`;
-}
-
 export async function requireSuccessfulSsh(
   promise: Promise<{
     exitCode: number | null;
@@ -162,10 +106,6 @@ export async function requireSuccessfulSsh(
   return result;
 }
 
-export function quoteSsh(value: string) {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
-}
-
 export function sshProviderFailure(
   code: string,
   message: string,
@@ -176,4 +116,23 @@ export function sshProviderFailure(
     message,
     logs: sanitizeBuildLogs(logs),
   });
+}
+
+export function sshProviderErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function mergeSshProviderFailure(error: unknown, cleanupLogs: string[]) {
+  if (error instanceof ReleaseDeploymentProviderError) {
+    if (cleanupLogs.length === 0) return error;
+    return sshProviderFailure(error.detail.code, error.detail.message, [
+      ...error.detail.logs,
+      ...cleanupLogs,
+    ]);
+  }
+  return sshProviderFailure(
+    "DEPLOYMENT_PROVIDER_FAILED",
+    "SSH Deployment Provider 执行失败",
+    [sshProviderErrorMessage(error), ...cleanupLogs],
+  );
 }

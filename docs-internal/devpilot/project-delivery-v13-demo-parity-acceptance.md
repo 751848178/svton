@@ -202,13 +202,13 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-STG-011** 部署目标来自当前环境生效绑定。
 - [x] **AC-STG-012** 配置/资源/目标漂移在运行前被检测或形成新快照。
 - [x] **AC-STG-013** 部署输入可审计但不包含 Secret 明文。
-- [ ] **AC-STG-014** Provider 启动真实前后端/worker/静态站点工作负载。
-- [ ] **AC-STG-015** 工作负载使用精确 Manifest，不从源码目录直接运行替代制品。
-- [ ] **AC-STG-016** 服务级进程/容器状态可读取。
-- [ ] **AC-STG-017** HTTP/进程健康检查实际执行。
-- [ ] **AC-STG-018** 健康检查失败时 DeploymentRun 失败且保留诊断日志。
-- [ ] **AC-STG-019** 只有成功运行生成新的 Staging EnvironmentVersion。
-- [ ] **AC-STG-020** 失败部署不移动 current environment version 指针。
+- [x] **AC-STG-014** Provider 启动真实前后端/worker/静态站点工作负载。
+- [x] **AC-STG-015** 工作负载使用精确 Manifest，不从源码目录直接运行替代制品。
+- [x] **AC-STG-016** 服务级进程/容器状态可读取。
+- [x] **AC-STG-017** HTTP/进程健康检查实际执行。
+- [x] **AC-STG-018** 健康检查失败时 DeploymentRun 失败且保留诊断日志。
+- [x] **AC-STG-019** 只有成功运行生成新的 Staging EnvironmentVersion。
+- [x] **AC-STG-020** 失败部署不移动 current environment version 指针。
 - [ ] **AC-STG-021** 页面显示当前选中 Build/Manifest 和累计预发部署次数。
 - [ ] **AC-STG-022** 页面显示每次 DeploymentRun、Manifest、结果、验证结论和耗时。
 - [ ] **AC-STG-023** 每次运行有独立日志 Drawer。

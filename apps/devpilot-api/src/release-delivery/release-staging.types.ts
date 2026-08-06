@@ -2,6 +2,7 @@ import type {
   ReleaseDeploymentInputSnapshot,
   ReleaseDeploymentTargetConnection,
 } from "./release-deployment-input.types";
+import type { ReleaseStagingWorkloadSnapshot } from "./release-staging-workload.types";
 
 export interface StagingArtifactInput {
   deploymentRunId: string;
@@ -16,6 +17,7 @@ export interface StagingArtifactInput {
   deploymentInput?: ReleaseDeploymentInputSnapshot;
   runtimeEnvironment?: Record<string, string>;
   targetConnection?: ReleaseDeploymentTargetConnection;
+  workload?: ReleaseStagingWorkloadSnapshot;
 }
 
 export interface StagingArtifactResult {

@@ -1,10 +1,9 @@
 import { ConflictException } from "@nestjs/common";
-import { createHash } from "node:crypto";
 import type {
   ReleaseDeploymentInputSnapshot,
   ReleaseDeploymentInputState,
 } from "./release-deployment-input.types";
-import { isRecord } from "./release-deployment-input-reference.utils";
+import { hashCanonicalReleaseValue } from "./release-canonical-hash.utils";
 import {
   isSafeReleaseDeploymentSshRoot,
   releaseDeploymentSshTargetRef,
@@ -122,22 +121,7 @@ function resourceEnvironmentKeys(template: string | null | undefined) {
     .sort();
 }
 
-function hash(value: unknown) {
-  return createHash("sha256")
-    .update(JSON.stringify(canonicalize(value)))
-    .digest("hex");
-}
-
-function canonicalize(value: unknown): unknown {
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (!isRecord(value)) return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => [key, canonicalize(entry)]),
-  );
-}
+const hash = hashCanonicalReleaseValue;
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)

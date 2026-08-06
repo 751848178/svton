@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatEnvFile } from "../deployment/deployment-env-heredoc.utils";
+import { formatReleaseRuntimeEnvironment } from "./release-runtime-environment.utils";
 
 @Injectable()
 export class ReleaseRuntimeEnvironmentFileService {
@@ -13,7 +13,13 @@ export class ReleaseRuntimeEnvironmentFileService {
     const scope = await mkdtemp(join(tmpdir(), "devpilot-runtime-env-"));
     const path = join(scope, "runtime.env");
     try {
-      await writeFile(path, `${formatEnvFile(environment)}\n`, { mode: 0o600 });
+      await writeFile(
+        path,
+        `${formatReleaseRuntimeEnvironment(environment)}\n`,
+        {
+          mode: 0o600,
+        },
+      );
       return await action(path);
     } finally {
       await rm(scope, { recursive: true, force: true });

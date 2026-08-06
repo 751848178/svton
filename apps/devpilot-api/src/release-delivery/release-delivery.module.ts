@@ -23,6 +23,8 @@ import { ReleaseBuildExecutorPort } from "./release-build.types";
 import { ReleaseStagingRepository } from "./release-staging.repository";
 import { ReleaseStagingService } from "./release-staging.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
+import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
+import { ReleaseStagingWorkloadStateRepository } from "./release-staging-workload-state.repository";
 import { ReleaseProductionRepository } from "./release-production.repository";
 import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
@@ -126,6 +128,8 @@ import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-
     ReleaseBuildSourceResolverService,
     ReleaseStagingRepository,
     ReleaseStagingService,
+    ReleaseStagingWorkloadService,
+    ReleaseStagingWorkloadStateRepository,
     ReleaseProductionRepository,
     ReleaseProductionService,
     ReleasePolicyRepository,

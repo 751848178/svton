@@ -1,5 +1,11 @@
 import { Prisma } from "@prisma/client";
 
+export class DeploymentRunTerminalConflictError extends Error {
+  constructor(readonly actualStatus: string) {
+    super(`DEPLOYMENT_RUN_ALREADY_${actualStatus.toUpperCase()}`);
+  }
+}
+
 export async function completeVersionedDeployment(
   tx: Prisma.TransactionClient,
   input: {
@@ -12,8 +18,8 @@ export async function completeVersionedDeployment(
   },
 ) {
   const finishedAt = new Date();
-  const run = await tx.deploymentRun.update({
-    where: { id: input.deploymentRunId },
+  const transitioned = await tx.deploymentRun.updateMany({
+    where: { id: input.deploymentRunId, status: "running" },
     data: {
       status: input.status,
       logs: input.logs,
@@ -21,6 +27,22 @@ export async function completeVersionedDeployment(
       error: input.error,
       finishedAt,
     },
+  });
+  if (transitioned.count === 0) {
+    const current = await tx.deploymentRun.findUniqueOrThrow({
+      where: { id: input.deploymentRunId },
+      select: { status: true },
+    });
+    if (current.status !== input.status) {
+      throw new DeploymentRunTerminalConflictError(current.status);
+    }
+    if (input.status === "failed") return null;
+    return tx.environmentVersion.findUniqueOrThrow({
+      where: { deploymentRunId: input.deploymentRunId },
+    });
+  }
+  const run = await tx.deploymentRun.findUniqueOrThrow({
+    where: { id: input.deploymentRunId },
     select: {
       id: true,
       teamId: true,

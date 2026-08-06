@@ -4,18 +4,26 @@ import { SshTransportFactory } from "../common/ssh/ssh-transport.factory";
 import { sanitizeBuildLogs } from "./release-build-log.utils";
 import {
   ExactManifestDeploymentInput,
-  ReleaseDeploymentProviderError,
   ReleaseDeploymentProviderPort,
+  releaseWorkloadCleanupWasAttempted,
 } from "./release-deployment-provider.types";
 import {
   assertSshDeploymentInput,
-  buildSshActivationScript,
+  mergeSshProviderFailure,
   quoteSsh,
   requireSuccessfulSsh,
   resolveSshDeploymentTarget,
   sshProviderFailure,
 } from "./ssh-release-deployment-provider.utils";
+import {
+  buildSshMaterializationScript,
+  buildSshPublishScript,
+} from "./ssh-release-deployment-scripts";
 import { ReleaseRuntimeEnvironmentFileService } from "./release-runtime-environment-file.service";
+import {
+  cleanupReleaseWorkloads,
+  runReleaseWorkloads,
+} from "./release-workload-runtime";
 
 @Injectable()
 export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProviderPort {
@@ -75,6 +83,7 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
     const runtime = `${base}/.incoming/${input.deploymentRunId}.env`;
     const release = `${base}/releases/${input.deploymentRunId}`;
     const active = `${base}/active.json`;
+    const pending = `${active}.${input.deploymentRunId}.tmp`;
     const transport = this.transports.create({
       host: target.host,
       port: target.port,
@@ -82,6 +91,17 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
       password: target.password,
       privateKey: target.privateKey,
     });
+    const execute = (script: string, timeoutMs: number) =>
+      transport.execScript(script, { timeoutMs });
+    const runtimeInput = input.workload
+      ? {
+          snapshot: input.workload,
+          releaseRoot: release,
+          runtimePath: `${release}/.devpilot/runtime.env`,
+          runtimeEnvironment: input.runtimeEnvironment || {},
+          execute,
+        }
+      : undefined;
     try {
       await requireSuccessfulSsh(
         transport.execScript(
@@ -106,11 +126,10 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
       });
       const result = await requireSuccessfulSsh(
         transport.execScript(
-          buildSshActivationScript(input, {
+          buildSshMaterializationScript(input, {
             archive,
             runtime,
             release,
-            active,
           }),
           {
             timeoutMs: this.timeoutMs,
@@ -118,7 +137,19 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
         ),
         "DEPLOYMENT_TARGET_ACTIVATION_FAILED",
       );
+      const workload = runtimeInput
+        ? await runReleaseWorkloads(runtimeInput)
+        : { logs: [], evidence: {} };
       const activatedAt = new Date().toISOString();
+      await requireSuccessfulSsh(
+        transport.execScript(
+          buildSshPublishScript(input, { active }, activatedAt),
+          {
+            timeoutMs: this.timeoutMs,
+          },
+        ),
+        "DEPLOYMENT_TARGET_PUBLISH_FAILED",
+      );
       return {
         providerKey: this.key,
         providerDeploymentId: input.deploymentRunId,
@@ -130,6 +161,7 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
         logs: sanitizeBuildLogs([
           `provider ${this.key} delivered exact Manifest`,
           ...result.stdout.split(/\r?\n/).filter(Boolean),
+          ...workload.logs,
         ]),
         evidence: {
           providerActivated: true,
@@ -140,6 +172,7 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
           runtimeEnvironmentKeys: Object.keys(
             input.runtimeEnvironment || {},
           ).sort(),
+          ...workload.evidence,
           checkoutInvoked: false,
           pullInvoked: false,
           buildInvoked: false,
@@ -147,23 +180,19 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
         },
       };
     } catch (error) {
+      const cleanupLogs =
+        runtimeInput && !releaseWorkloadCleanupWasAttempted(error)
+          ? await cleanupReleaseWorkloads(runtimeInput)
+          : [];
       await transport
-        .execScript(`rm -f ${quoteSsh(archive)} ${quoteSsh(runtime)}\n`, {
-          timeoutMs: this.timeoutMs,
-        })
+        .execScript(
+          `rm -f ${quoteSsh(archive)} ${quoteSsh(runtime)} ${quoteSsh(pending)}\nrm -rf ${quoteSsh(release)}\n`,
+          { timeoutMs: this.timeoutMs },
+        )
         .catch(() => undefined);
-      if (error instanceof ReleaseDeploymentProviderError) throw error;
-      throw sshProviderFailure(
-        "DEPLOYMENT_PROVIDER_FAILED",
-        "SSH Deployment Provider 执行失败",
-        [message(error)],
-      );
+      throw mergeSshProviderFailure(error, cleanupLogs);
     } finally {
       await transport.dispose?.();
     }
   }
-}
-
-function message(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
 }

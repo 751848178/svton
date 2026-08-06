@@ -8,6 +8,7 @@ import {
   selectReleaseDeploymentTarget,
 } from "./release-deployment-input-snapshot.utils";
 import type { PreparedReleaseDeploymentInput } from "./release-deployment-input.types";
+import { assertSafeReleaseWorkloadEnvironment } from "./release-workload-environment-policy";
 
 @Injectable()
 export class ReleaseDeploymentInputService {
@@ -25,6 +26,7 @@ export class ReleaseDeploymentInputService {
     const state = await loadReleaseDeploymentInputState(this.prisma, input);
     const target = selectReleaseDeploymentTarget(state, input.providerKey);
     const runtimeEnvironment = this.runtimeEnvironment(state);
+    assertSafeReleaseWorkloadEnvironment(runtimeEnvironment);
     const { snapshot, binding, root } = buildReleaseDeploymentInputSnapshot(
       state,
       input.providerKey,

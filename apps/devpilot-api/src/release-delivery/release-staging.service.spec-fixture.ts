@@ -65,3 +65,31 @@ export function deploymentInputSnapshot() {
     inputHash: "deployment-input-hash",
   };
 }
+
+export function stagingWorkloadSnapshot() {
+  return {
+    version: 1 as const,
+    environmentId: "staging-1",
+    manifestId: "manifest-1",
+    manifestDigest: releaseStagingManifest.digest,
+    services: [
+      {
+        serviceId: "service-1",
+        applicationId: "application-1",
+        componentKey: "service-1",
+        name: "api",
+        kind: "container",
+        artifactDigest: `sha256:${"c".repeat(64)}`,
+        workingDirectory: ".",
+        executionMode: "managed-command-v1" as const,
+        startCommand: "./start.sh",
+        statusCommand: "./status.sh",
+        failureCleanupCommand: "./cleanup.sh",
+        startTimeoutMs: 120_000,
+        statusTimeoutMs: 10_000,
+        stateHash: "workload-state-hash",
+      },
+    ],
+    inputHash: "workload-input-hash",
+  };
+}

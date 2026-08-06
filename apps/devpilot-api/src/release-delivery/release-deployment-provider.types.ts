@@ -1,4 +1,5 @@
 import type { ReleaseDeploymentTargetConnection } from "./release-deployment-input.types";
+import type { ReleaseStagingWorkloadSnapshot } from "./release-staging-workload.types";
 
 export type ReleaseDeploymentStage = "staging" | "production";
 
@@ -18,6 +19,7 @@ export interface ExactManifestDeploymentInput {
   artifact: { path: string; sizeBytes: number };
   runtimeEnvironment?: Record<string, string>;
   targetConnection?: ReleaseDeploymentTargetConnection;
+  workload?: ReleaseStagingWorkloadSnapshot;
 }
 
 export interface ExactManifestDeploymentReceipt {
@@ -42,9 +44,21 @@ export abstract class ReleaseDeploymentProviderPort {
 
 export class ReleaseDeploymentProviderError extends Error {
   constructor(
-    readonly detail: { code: string; message: string; logs: string[] },
+    readonly detail: {
+      code: string;
+      message: string;
+      logs: string[];
+      workloadCleanupAttempted?: boolean;
+    },
   ) {
     super(detail.message);
     this.name = "ReleaseDeploymentProviderError";
   }
+}
+
+export function releaseWorkloadCleanupWasAttempted(error: unknown) {
+  return (
+    error instanceof ReleaseDeploymentProviderError &&
+    error.detail.workloadCleanupAttempted === true
+  );
 }

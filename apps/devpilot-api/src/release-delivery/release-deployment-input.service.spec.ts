@@ -66,6 +66,25 @@ describe("ReleaseDeploymentInputService", () => {
     );
   });
 
+  it.each([
+    "PATH",
+    "NODE_OPTIONS",
+    "COMPOSE_FILE",
+    "DOCKER_CONTEXT",
+    "JDK_JAVA_OPTIONS",
+    "KUBECONFIG",
+    "_JAVA_OPTIONS",
+  ])("rejects runtime supervisor override %s", async (key) => {
+    const fixture = deploymentInputFixture();
+    Object.assign(fixture.state.plainVariables, {
+      [key]: "/workspace/source/control",
+    });
+
+    await expect(fixture.service.prepare(input)).rejects.toThrow(
+      "不得覆盖执行控制边界",
+    );
+  });
+
   it("rejects resource sharing through a foreign environment scope", async () => {
     const fixture = deploymentInputFixture();
     fixture.state.resourceReferences[0].sharedEnvironmentIds = [

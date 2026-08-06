@@ -53,7 +53,7 @@ describe("SshReleaseDeploymentProviderService", () => {
       { timeoutMs: 5_000, mode: 0o600 },
     );
     expect(scripts.join("\n")).toMatch(
-      /sha256sum.*runtime_mode.*unzip.*release_created=1.*activated=1/s,
+      /sha256sum.*runtime_mode.*unzip.*completed=1.*PUBLISHED=1/s,
     );
     expect(scripts.join("\n")).not.toMatch(
       /(^|[\n;])\s*(git|checkout|pull|npm|pnpm|yarn|build)\b/m,

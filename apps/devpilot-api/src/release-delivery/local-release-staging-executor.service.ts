@@ -53,6 +53,7 @@ export class LocalReleaseStagingExecutorService extends ReleaseStagingExecutorPo
         artifact,
         runtimeEnvironment: input.runtimeEnvironment,
         targetConnection: input.targetConnection,
+        workload: input.workload,
       });
       assertReceipt(
         input,

@@ -33,6 +33,32 @@ export async function seedReleaseStagingProviderScope(
       baselineRole: "staging",
     },
   });
+  const application = await prisma.application.create({
+    data: {
+      teamId: input.teamId,
+      projectId: input.projectId,
+      createdById: input.userId,
+      name: "Staging application",
+    },
+  });
+  const service = await prisma.applicationService.create({
+    data: {
+      id: `staging-service-${input.suffix}`,
+      teamId: input.teamId,
+      projectId: input.projectId,
+      applicationId: application.id,
+      environmentId: staging.id,
+      name: "api",
+      kind: "static",
+      deployConfig: {
+        workingDirectory: ".",
+        workloadExecutionMode: "managed-command-v1",
+        deployCommand: "test -f dist/app.txt",
+        statusCommand: "test -f dist/app.txt",
+        failureCleanupCommand: "true",
+      },
+    },
+  });
   const crypto = createTestCryptoService();
   const secret = await prisma.secretKey.create({
     data: {
@@ -155,5 +181,6 @@ export async function seedReleaseStagingProviderScope(
     resourceTypeId: resourceType.id,
     serverId: server.id,
     bindingId: binding.id,
+    serviceId: service.id,
   };
 }

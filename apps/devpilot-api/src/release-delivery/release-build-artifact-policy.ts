@@ -7,10 +7,10 @@ const TEMPORARY_DIRECTORY = /^(?:tmp|temp|\.tmp|\.temp|\.cache|\.turbo)$/i;
 
 export function assertSafeArtifactPath(path: string, directory: boolean) {
   const segments = path.split("/");
-  if (segments.includes(".git")) {
+  if (segments.includes(".git") || segments.includes(".devpilot")) {
     throw artifactFailure(
       "ARTIFACT_UNSAFE_ENTRY",
-      `制品输出包含 .git：${path}`,
+      `制品输出包含保留目录：${path}`,
     );
   }
   if (directory && TEMPORARY_DIRECTORY.test(basename(path))) {

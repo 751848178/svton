@@ -9,6 +9,7 @@ import {
   releaseStagingContext as context,
   releaseStagingInput as input,
   releaseStagingManifest as manifest,
+  stagingWorkloadSnapshot,
 } from "./release-staging.service.spec-fixture";
 
 describe("ReleaseStagingService", () => {
@@ -26,11 +27,13 @@ describe("ReleaseStagingService", () => {
   };
   const gates = { assertAllowed: jest.fn() };
   const inputs = { prepare: jest.fn() };
+  const workloads = { prepare: jest.fn() };
   const service = new ReleaseStagingService(
     repository as never,
     executor as never,
     gates as never,
     inputs as never,
+    workloads as never,
   );
   beforeEach(() => {
     jest.clearAllMocks();
@@ -51,6 +54,7 @@ describe("ReleaseStagingService", () => {
       snapshot: deploymentInputSnapshot(),
       runtimeEnvironment: {},
     });
+    workloads.prepare.mockResolvedValue(stagingWorkloadSnapshot());
     repository.finish.mockImplementation(async (input) => ({
       id: input.deploymentRunId,
       status: input.status,
@@ -73,6 +77,7 @@ describe("ReleaseStagingService", () => {
             key: "provider-test-v1",
             targetRef: "provider-test-target",
           },
+          workload: stagingWorkloadSnapshot(),
         }),
         sourceCommitSha: "b".repeat(40),
         gateDecision: {
@@ -87,6 +92,7 @@ describe("ReleaseStagingService", () => {
         stage: "staging",
         manifestId: "manifest-1",
         digest: manifest.digest,
+        workload: stagingWorkloadSnapshot(),
       }),
     );
     expect(repository.finish).toHaveBeenLastCalledWith(
@@ -111,6 +117,7 @@ describe("ReleaseStagingService", () => {
     expect(repository.create).not.toHaveBeenCalled();
     expect(executor.deploy).not.toHaveBeenCalled();
     expect(inputs.prepare).not.toHaveBeenCalled();
+    expect(workloads.prepare).not.toHaveBeenCalled();
   });
 
   it("rejects cross-order or unknown Manifests before creating a run", async () => {

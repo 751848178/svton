@@ -51,6 +51,78 @@ describeIntegration("ReleaseStaging integration", () => {
     expect(publicRows).toContain('"runtimeEnvironmentKeys"');
     expect(publicRows).not.toContain("secret-sentinel-f432");
     expect(publicRows).not.toContain("resource-sentinel-f432");
+    await expect(
+      fixture.prisma.environmentVersion.count({
+        where: { environmentId: fixture.stagingId },
+      }),
+    ).resolves.toBe(2);
+    await expect(
+      fixture.prisma.projectEnvironment.findUniqueOrThrow({
+        where: { id: fixture.stagingId },
+        select: {
+          currentEnvironmentVersion: { select: { deploymentRunId: true } },
+        },
+      }),
+    ).resolves.toEqual({
+      currentEnvironmentVersion: { deploymentRunId: second.id },
+    });
+  });
+
+  it("retains diagnostics and preserves the current version when workload startup fails", async () => {
+    const before = await fixture.prisma.projectEnvironment.findUniqueOrThrow({
+      where: { id: fixture.stagingId },
+      select: { currentEnvironmentVersionId: true },
+    });
+    const versionCount = await fixture.prisma.environmentVersion.count({
+      where: { environmentId: fixture.stagingId },
+    });
+    await fixture.prisma.applicationService.update({
+      where: { id: fixture.serviceId },
+      data: {
+        deployConfig: {
+          workingDirectory: ".",
+          workloadExecutionMode: "managed-command-v1",
+          deployCommand: "sh dist/fail.sh",
+          statusCommand: "true",
+          failureCleanupCommand: "true",
+        },
+      },
+    });
+    try {
+      const failed = await fixture.deploy();
+      expect(failed.status).toBe("failed");
+      expect(`${failed.error}\n${JSON.stringify(failed.logs)}`).toContain(
+        "WORKLOAD_START_FAILED",
+      );
+      expect(JSON.stringify(failed.logs)).toContain("diagnostic-sentinel-f433");
+      await expect(
+        fixture.prisma.environmentVersion.count({
+          where: { environmentId: fixture.stagingId },
+        }),
+      ).resolves.toBe(versionCount);
+      await expect(
+        fixture.prisma.projectEnvironment.findUniqueOrThrow({
+          where: { id: fixture.stagingId },
+          select: { currentEnvironmentVersionId: true },
+        }),
+      ).resolves.toEqual(before);
+      expect(JSON.parse(await fixture.readActiveFile())).not.toMatchObject({
+        providerDeploymentId: failed.id,
+      });
+    } finally {
+      await fixture.prisma.applicationService.update({
+        where: { id: fixture.serviceId },
+        data: {
+          deployConfig: {
+            workingDirectory: ".",
+            workloadExecutionMode: "managed-command-v1",
+            deployCommand: "test -f dist/app.txt",
+            statusCommand: "test -f dist/app.txt",
+            failureCleanupCommand: "true",
+          },
+        },
+      });
+    }
   });
 
   it.each(["config", "resource", "target"] as const)(
@@ -61,6 +133,14 @@ describeIntegration("ReleaseStaging integration", () => {
       await expect(fixture.allDeploymentCount()).resolves.toBe(before);
     },
   );
+
+  it("blocks workload drift before creating a DeploymentRun", async () => {
+    const before = await fixture.allDeploymentCount();
+    await expect(fixture.deployWithWorkloadDrift()).rejects.toThrow(
+      "工作负载或 Manifest 已漂移",
+    );
+    await expect(fixture.allDeploymentCount()).resolves.toBe(before);
+  });
 
   it("rejects a foreign target binding before decrypting managed input", async () => {
     const before = await fixture.allDeploymentCount();

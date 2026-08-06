@@ -61,6 +61,14 @@
   all 8 CodeGraph-affected suites/33 tests; independent review reported
   READY, P0/P1/P2/P3=0/0/0/0. **Next: F433 workload startup and health.**
 
+- F433 closed on 2026-08-06: Staging now starts exact-Manifest frontend,
+  backend, worker and static workloads through shared managed-process/command
+  lifecycle scripts, records real status plus target-loopback HTTP health, and
+  restores the previous workload on failed activation. Terminal CAS ensures
+  only successful runs create/advance a Staging EnvironmentVersion; real MySQL
+  10/10, SSH 2/2 and authenticated HTTP 1/1 passed, and independent review
+  reported READY, P0/P1/P2/P3=0/0/0/0. **Next: F434 Staging Web evidence.**
+
 - F428 is code/runtime ready but not accepted on 2026-08-06: private bounded
   Build history, exact per-run detail/Drawer, deep-link error/retry ownership,
   terminal log evidence and fail-closed secret redaction pass full API/Web,

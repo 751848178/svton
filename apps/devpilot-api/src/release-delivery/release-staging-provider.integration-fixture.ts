@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaService } from "../prisma/prisma.service";
@@ -21,10 +21,22 @@ import {
 import { gatePolicyTestDouble } from "./release-gate-test-decision.spec-utils";
 import { ReleaseStagingRepository } from "./release-staging.repository";
 import { ReleaseStagingService } from "./release-staging.service";
+import { withReleaseStagingWorkloadDrift } from "./release-staging-workload-drift.integration-fixture";
 import { seedReleaseStagingProviderScope } from "./release-staging-provider-db.fixture";
+import {
+  cleanupStagingProviderFixture,
+  readStagingActiveFile,
+  readStagingReleaseFile,
+  stagingBuildCount,
+  stagingDeploymentCount,
+  stagingDeploymentRows,
+} from "./release-staging-provider-inspection.fixture";
 import {
   releaseStagingProviderComponent,
   releaseStagingProviderConfig,
+  releaseStagingRepository,
+  releaseStagingWorkloadService,
+  writeReleaseStagingFixture,
 } from "./release-staging-provider.integration-utils";
 
 export class ReleaseStagingProviderIntegrationFixture {
@@ -41,9 +53,12 @@ export class ReleaseStagingProviderIntegrationFixture {
   resourceTypeId = "";
   serverId = "";
   bindingId = "";
+  serviceId = "";
   private scope = "";
   private service!: ReleaseStagingService;
+  repository!: ReleaseStagingRepository;
   private inputs!: ReleaseDeploymentInputService;
+  private workloads!: ReturnType<typeof releaseStagingWorkloadService>;
   private readonly crypto = createTestCryptoService();
 
   async start() {
@@ -61,10 +76,10 @@ export class ReleaseStagingProviderIntegrationFixture {
     this.resourceTypeId = seeded.resourceTypeId;
     this.serverId = seeded.serverId;
     this.bindingId = seeded.bindingId;
+    this.serviceId = seeded.serviceId;
     const build = seeded.build;
     const checkout = join(this.scope, "checkout");
-    await mkdir(join(checkout, "dist"), { recursive: true });
-    await writeFile(join(checkout, "dist", "app.txt"), "real provider target");
+    await writeReleaseStagingFixture(checkout);
     const config = releaseStagingProviderConfig(this.scope);
     const artifacts = new ReleaseBuildArtifactService(config);
     const artifact = await artifacts.package({
@@ -72,8 +87,13 @@ export class ReleaseStagingProviderIntegrationFixture {
       projectId: this.projectId,
       releaseOrderId: this.orderId,
       buildRunId: build.id,
-      components: [releaseStagingProviderComponent()],
+      components: [releaseStagingProviderComponent(this.serviceId)],
     });
+    const componentArtifact = artifact.items.find(
+      (item) => item.componentKey === this.serviceId,
+    );
+    if (!componentArtifact)
+      throw new Error("Staging component artifact missing");
     this.manifestId = (
       await this.prisma.artifactManifest.create({
         data: {
@@ -90,6 +110,16 @@ export class ReleaseStagingProviderIntegrationFixture {
                 uri: artifact.uri,
                 digest: artifact.digest,
               },
+              {
+                componentKey: componentArtifact.componentKey,
+                artifactType: componentArtifact.artifactType,
+                uri: componentArtifact.uri,
+                digest: componentArtifact.digest,
+                metadata: {
+                  outputs: componentArtifact.outputs,
+                  contentIndex: componentArtifact.contentIndex,
+                },
+              },
             ],
           },
         },
@@ -103,31 +133,26 @@ export class ReleaseStagingProviderIntegrationFixture {
       this.prisma as unknown as PrismaService,
       this.crypto,
     );
+    this.workloads = releaseStagingWorkloadService(this.prisma);
+    this.repository = releaseStagingRepository(this.prisma);
     this.service = new ReleaseStagingService(
-      new ReleaseStagingRepository(this.prisma as unknown as PrismaService),
+      this.repository,
       new LocalReleaseStagingExecutorService(artifacts, provider),
       gatePolicyTestDouble(this.prisma) as never,
       this.inputs,
+      this.workloads,
     );
   }
 
   async stop() {
-    await this.prisma.environmentVersion.deleteMany({
-      where: { teamId: this.teamId },
+    await cleanupStagingProviderFixture(this.prisma, {
+      teamId: this.teamId,
+      userId: this.userId,
+      resourceTypeId: this.resourceTypeId,
+      scope: this.scope,
     });
-    await this.prisma.team.delete({ where: { id: this.teamId } });
-    await this.prisma.resourceType.delete({
-      where: { id: this.resourceTypeId },
-    });
-    await this.prisma.user.delete({ where: { id: this.userId } });
-    await this.prisma.$disconnect();
-    await rm(this.scope, { recursive: true, force: true });
   }
-
-  deploy() {
-    return this.deployManifest(this.manifestId);
-  }
-
+  deploy = () => this.deployManifest(this.manifestId);
   deployManifest(manifestId: string) {
     return this.service.deploy({
       teamId: this.teamId,
@@ -137,60 +162,39 @@ export class ReleaseStagingProviderIntegrationFixture {
       manifestId,
     });
   }
-
-  async deployWithDrift(kind: ReleaseDeploymentInputDrift) {
-    return withReleaseDeploymentInputDrift(
+  deployWithDrift = (kind: ReleaseDeploymentInputDrift) =>
+    withReleaseDeploymentInputDrift(
       this.inputs,
       this.prisma,
       this,
       kind,
-      () => this.deploy(),
+      this.deploy,
     );
-  }
 
-  deployWithForeignBinding() {
-    return withForeignReleaseTargetScope(this.prisma, this.crypto, this, () =>
-      this.deploy(),
+  deployWithForeignBinding = () =>
+    withForeignReleaseTargetScope(this.prisma, this.crypto, this, this.deploy);
+
+  deployWithWorkloadDrift = () =>
+    withReleaseStagingWorkloadDrift(
+      this.workloads,
+      this.prisma,
+      this.serviceId,
+      this.deploy,
     );
-  }
-
-  buildCount() {
-    return this.prisma.buildRun.count({
-      where: { releaseOrderId: this.orderId },
-    });
-  }
-
-  allDeploymentCount() {
-    return this.prisma.deploymentRun.count({ where: { teamId: this.teamId } });
-  }
-
-  deploymentRows() {
-    return this.prisma.deploymentRun.findMany({
-      where: { artifactManifestId: this.manifestId },
-      select: {
-        commandPlan: true,
-        status: true,
-        adapterKey: true,
-        params: true,
-        logs: true,
-        result: true,
-        error: true,
-      },
-    });
-  }
+  buildCount = () => stagingBuildCount(this.prisma, this.orderId);
+  allDeploymentCount = () => stagingDeploymentCount(this.prisma, this.teamId);
+  deploymentRows = () => stagingDeploymentRows(this.prisma, this.manifestId);
 
   readReleaseFile(runId: string, relativePath: string) {
-    return readFile(
-      join(
-        this.scope,
-        "deployments",
-        this.projectId,
-        this.stagingId,
-        "releases",
-        runId,
-        relativePath,
-      ),
-      "utf8",
+    return readStagingReleaseFile(
+      this.scope,
+      this.projectId,
+      this.stagingId,
+      runId,
+      relativePath,
     );
   }
+
+  readActiveFile = () =>
+    readStagingActiveFile(this.scope, this.projectId, this.stagingId);
 }

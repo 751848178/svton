@@ -11,6 +11,7 @@ for file in $(find '${root}' -path '*/releases/${secondId}/dist/app.txt'); do ca
 for file in $(find '${root}' -name active.json); do tr -d '\n ' < "$file"; done
 printf '\nruntime='
 for file in $(find '${root}' -path '*/releases/${secondId}/.devpilot/runtime.env'); do cat "$file"; stat -c 'runtimeMode=%a' "$file"; done
+for file in $(find '${root}' -path '*/releases/${secondId}/.devpilot/workloads/*.pid'); do kill -0 "$(cat "$file")"; printf 'workloadProcess=running\n'; done
 printf '\nforbiddenTools='
 for tool in git node npm pnpm yarn; do command -v "$tool" 2>/dev/null || true; done
 printf '\n'
@@ -27,7 +28,15 @@ export async function cleanupF431SshTarget() {
   if (!root) return;
   const transport = new SshTransportFactory().create(credentials());
   try {
-    await transport.execScript(`rm -rf '${root}'\n`, { timeoutMs: 20_000 });
+    await transport.execScript(
+      `set +e
+for pid_file in '${root}'/*/*/releases/*/.devpilot/workloads/*.pid; do
+  [ -s "$pid_file" ] && kill -TERM "-$(cat "$pid_file")" 2>/dev/null || true
+done
+rm -rf '${root}'
+`,
+      { timeoutMs: 20_000 },
+    );
   } finally {
     await transport.dispose?.();
   }
