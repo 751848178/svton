@@ -9,6 +9,8 @@ export async function probeF431SshTarget(firstId: string, secondId: string) {
 for file in $(find '${root}' -path '*/releases/${firstId}/dist/app.txt'); do cat "$file"; done
 for file in $(find '${root}' -path '*/releases/${secondId}/dist/app.txt'); do cat "$file"; done
 for file in $(find '${root}' -name active.json); do tr -d '\n ' < "$file"; done
+printf '\nruntime='
+for file in $(find '${root}' -path '*/releases/${secondId}/.devpilot/runtime.env'); do cat "$file"; stat -c 'runtimeMode=%a' "$file"; done
 printf '\nforbiddenTools='
 for tool in git node npm pnpm yarn; do command -v "$tool" 2>/dev/null || true; done
 printf '\n'
@@ -41,9 +43,22 @@ function requireRemoteRoot() {
 
 function credentials() {
   return {
-    host: process.env.RELEASE_DEPLOYMENT_SSH_HOST || "127.0.0.1",
-    port: Number(process.env.RELEASE_DEPLOYMENT_SSH_PORT || 2225),
-    username: process.env.RELEASE_DEPLOYMENT_SSH_USERNAME || "deploy",
-    password: process.env.RELEASE_DEPLOYMENT_SSH_PASSWORD || "devpilot-test",
+    host:
+      process.env.F432_BOUND_SSH_HOST ||
+      process.env.RELEASE_DEPLOYMENT_SSH_HOST ||
+      "127.0.0.1",
+    port: Number(
+      process.env.F432_BOUND_SSH_PORT ||
+        process.env.RELEASE_DEPLOYMENT_SSH_PORT ||
+        2225,
+    ),
+    username:
+      process.env.F432_BOUND_SSH_USERNAME ||
+      process.env.RELEASE_DEPLOYMENT_SSH_USERNAME ||
+      "deploy",
+    password:
+      process.env.F432_BOUND_SSH_PASSWORD ||
+      process.env.RELEASE_DEPLOYMENT_SSH_PASSWORD ||
+      "devpilot-test",
   };
 }

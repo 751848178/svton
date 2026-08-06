@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { createTestCryptoService } from "../common/crypto/crypto.test-helpers";
 
 export async function seedReleaseStagingProviderScope(
   prisma: PrismaClient,
@@ -32,6 +33,97 @@ export async function seedReleaseStagingProviderScope(
       baselineRole: "staging",
     },
   });
+  const crypto = createTestCryptoService();
+  const secret = await prisma.secretKey.create({
+    data: {
+      teamId: input.teamId,
+      projectId: input.projectId,
+      environmentId: staging.id,
+      createdById: input.userId,
+      name: "deploy-secret",
+      type: "api_key",
+      value: crypto.encryptCbc("secret-sentinel-f432"),
+    },
+  });
+  const resourceType = await prisma.resourceType.create({
+    data: {
+      key: `f432-mysql-${input.suffix}`,
+      name: "F432 MySQL",
+      createdById: input.userId,
+      envTemplate: "DATABASE_HOST=${host}\nDATABASE_PASSWORD=${password}",
+    },
+  });
+  const resource = await prisma.resourceInstance.create({
+    data: {
+      teamId: input.teamId,
+      projectId: input.projectId,
+      environmentId: staging.id,
+      resourceTypeId: resourceType.id,
+      name: "F432 database",
+      status: "active",
+      delivery: { host: "mysql.staging.internal" },
+      credentials: crypto.encryptGcm(
+        JSON.stringify({ password: "resource-sentinel-f432" }),
+      ),
+    },
+  });
+  const revision = await prisma.environmentConfigRevision.create({
+    data: {
+      teamId: input.teamId,
+      projectId: input.projectId,
+      environmentId: staging.id,
+      createdById: input.userId,
+      revision: 1,
+      snapshotHash: "f432-staging-config",
+      plainVariables: { PLAIN_F432: "plain-sentinel-f432" },
+      secretReferences: [
+        { id: secret.id, name: secret.name, type: secret.type },
+      ],
+      resourceReferences: [
+        {
+          id: resource.id,
+          kind: "resource_instance",
+          name: resource.name,
+          sharedEnvironmentIds: [staging.id],
+          risk: "medium",
+          impact: "staging runtime database",
+        },
+      ],
+      routeSnapshot: {},
+      policyReferences: [],
+    },
+  });
+  const server = await prisma.server.create({
+    data: {
+      teamId: input.teamId,
+      createdById: input.userId,
+      name: "Filesystem provider target",
+      host: "local-provider",
+      username: "devpilot",
+      authType: "password",
+      credentials: "not-used-by-local-provider",
+      status: "online",
+    },
+  });
+  const binding = await prisma.projectEnvironmentServer.create({
+    data: {
+      teamId: input.teamId,
+      projectId: input.projectId,
+      environmentId: staging.id,
+      serverId: server.id,
+      role: "deployment",
+      metadata: {
+        releaseDeployment: {
+          providerKey: "local-filesystem-v1",
+          targetRef: "filesystem-release-target",
+        },
+      },
+    },
+  });
+  await prisma.projectEnvironment.update({
+    where: { id: staging.id },
+    data: { currentConfigRevisionId: revision.id },
+  });
   const order = await prisma.releaseOrder.create({
     data: {
       teamId: input.teamId,
@@ -54,5 +146,14 @@ export async function seedReleaseStagingProviderScope(
       status: "succeeded",
     },
   });
-  return { stagingId: staging.id, orderId: order.id, build };
+  return {
+    stagingId: staging.id,
+    orderId: order.id,
+    build,
+    revisionId: revision.id,
+    resourceId: resource.id,
+    resourceTypeId: resourceType.id,
+    serverId: server.id,
+    bindingId: binding.id,
+  };
 }

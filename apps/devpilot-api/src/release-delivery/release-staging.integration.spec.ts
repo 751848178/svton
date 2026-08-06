@@ -20,7 +20,11 @@ describeIntegration("ReleaseStaging integration", () => {
     expect(first.id).not.toBe(second.id);
     expect(first.artifactManifestId).toBe(fixture.manifestId);
     expect(second.artifactManifestId).toBe(fixture.manifestId);
-    await expect(fixture.deploymentCount()).resolves.toBe(2);
+    await expect(
+      fixture.prisma.deploymentRun.count({
+        where: { artifactManifestId: fixture.manifestId },
+      }),
+    ).resolves.toBe(2);
     await expect(fixture.buildCount()).resolves.toBe(beforeBuilds);
     const rows = await fixture.deploymentRows();
     expect(rows.every((row) => row.status === "completed")).toBe(true);
@@ -29,10 +33,41 @@ describeIntegration("ReleaseStaging integration", () => {
     );
     expect(JSON.stringify(rows)).toContain('"build":false');
     for (const run of [first.id, second.id]) {
-      await expect(fixture.readTargetFile(run)).resolves.toBe(
+      await expect(fixture.readReleaseFile(run, "dist/app.txt")).resolves.toBe(
         "real provider target",
       );
+      const runtime = await fixture.readReleaseFile(
+        run,
+        ".devpilot/runtime.env",
+      );
+      expect(runtime).toContain("PLAIN_F432=plain-sentinel-f432");
+      expect(runtime).toContain("DEPLOY_SECRET=secret-sentinel-f432");
+      expect(runtime).toContain("DATABASE_HOST=mysql.staging.internal");
+      expect(runtime).toContain("DATABASE_PASSWORD=resource-sentinel-f432");
     }
+    const publicRows = JSON.stringify(rows);
+    expect(publicRows).toContain('"snapshotHash":"f432-staging-config"');
+    expect(publicRows).toContain('"stateHash"');
+    expect(publicRows).toContain('"runtimeEnvironmentKeys"');
+    expect(publicRows).not.toContain("secret-sentinel-f432");
+    expect(publicRows).not.toContain("resource-sentinel-f432");
+  });
+
+  it.each(["config", "resource", "target"] as const)(
+    "blocks %s drift before creating a DeploymentRun",
+    async (kind) => {
+      const before = await fixture.allDeploymentCount();
+      await expect(fixture.deployWithDrift(kind)).rejects.toThrow("已漂移");
+      await expect(fixture.allDeploymentCount()).resolves.toBe(before);
+    },
+  );
+
+  it("rejects a foreign target binding before decrypting managed input", async () => {
+    const before = await fixture.allDeploymentCount();
+    await expect(fixture.deployWithForeignBinding()).rejects.toThrow(
+      "目标绑定缺失",
+    );
+    await expect(fixture.allDeploymentCount()).resolves.toBe(before);
   });
 
   it("rejects unknown, foreign, failed, and related-BuildRun scope drift", async () => {

@@ -4,10 +4,12 @@ import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import { readdir } from "node:fs/promises";
 import { AppModule } from "../app.module";
+import { CryptoService } from "../common/crypto/crypto.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { gatePolicyTestDouble } from "./release-gate-test-decision.spec-utils";
 import { ReleaseBuildRealGitFixture } from "./release-build-real-git.fixture";
 import { ReleaseGateDecisionService } from "./release-gate-decision.service";
+import { seedReleaseStagingHttpInput } from "./release-staging-http-input.fixture";
 
 export class ReleaseBuildHttpRuntimeFixture {
   readonly git = new ReleaseBuildRealGitFixture();
@@ -16,6 +18,7 @@ export class ReleaseBuildHttpRuntimeFixture {
   token = "";
   serviceId = "";
   stagingId = "";
+  private resourceTypeId = "";
   private gitStarted = false;
   private previousLocalRoots: string | undefined;
 
@@ -57,6 +60,14 @@ export class ReleaseBuildHttpRuntimeFixture {
       await this.git.prisma.deploymentRun.deleteMany({
         where: { teamId: this.git.teamId },
       });
+      await this.git.prisma.resourceInstance.deleteMany({
+        where: { teamId: this.git.teamId },
+      });
+      if (this.resourceTypeId) {
+        await this.git.prisma.resourceType.delete({
+          where: { id: this.resourceTypeId },
+        });
+      }
       await this.git.stop();
     }
     if (this.previousLocalRoots === undefined) {
@@ -129,6 +140,17 @@ export class ReleaseBuildHttpRuntimeFixture {
       },
     });
     this.stagingId = environment.id;
+    this.resourceTypeId = await seedReleaseStagingHttpInput(
+      prisma,
+      this.app.get(CryptoService),
+      {
+        suffix: this.git.suffix,
+        teamId: this.git.teamId,
+        projectId: this.git.projectId,
+        userId: this.git.userId,
+        environmentId: environment.id,
+      },
+    );
     const application = await prisma.application.create({
       data: {
         teamId: this.git.teamId,

@@ -5,6 +5,7 @@ import {
   SshTransportCredentials,
   SshTransportExecOptions,
   SshTransportExecResult,
+  SshTransportUploadOptions,
 } from "./ssh-transport";
 import { uploadSshFile } from "./ssh2-sftp-upload.utils";
 
@@ -180,10 +181,10 @@ export class Ssh2Transport implements SshTransport {
   async uploadFile(
     localPath: string,
     remotePath: string,
-    options: { timeoutMs: number },
+    options: SshTransportUploadOptions,
   ): Promise<void> {
     await this.ensureConnected();
-    return uploadSshFile(this.client, localPath, remotePath, options.timeoutMs);
+    return uploadSshFile(this.client, localPath, remotePath, options);
   }
 
   dispose(): void {

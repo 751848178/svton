@@ -6,6 +6,8 @@ import {
   UnzipReleaseArtifactArchiveService,
 } from "./release-artifact-archive.service";
 import { ReleaseDeploymentProviderPort } from "./release-deployment-provider.types";
+import { ReleaseDeploymentInputService } from "./release-deployment-input.service";
+import { ReleaseRuntimeEnvironmentFileService } from "./release-runtime-environment-file.service";
 import { SshReleaseDeploymentProviderService } from "./ssh-release-deployment-provider.service";
 
 export const releaseDeploymentProviders = [
@@ -14,6 +16,8 @@ export const releaseDeploymentProviders = [
   ConfiguredReleaseDeploymentProviderService,
   UnzipReleaseArtifactArchiveService,
   SshTransportFactory,
+  ReleaseDeploymentInputService,
+  ReleaseRuntimeEnvironmentFileService,
   {
     provide: ReleaseArtifactArchivePort,
     useExisting: UnzipReleaseArtifactArchiveService,

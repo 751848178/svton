@@ -1,3 +1,5 @@
+import type { ReleaseDeploymentTargetConnection } from "./release-deployment-input.types";
+
 export type ReleaseDeploymentStage = "staging" | "production";
 
 export interface ExactManifestDeploymentInput {
@@ -14,6 +16,8 @@ export interface ExactManifestDeploymentInput {
     digest: string;
   };
   artifact: { path: string; sizeBytes: number };
+  runtimeEnvironment?: Record<string, string>;
+  targetConnection?: ReleaseDeploymentTargetConnection;
 }
 
 export interface ExactManifestDeploymentReceipt {

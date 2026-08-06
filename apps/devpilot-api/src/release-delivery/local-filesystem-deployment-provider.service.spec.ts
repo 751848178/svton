@@ -1,5 +1,12 @@
 import { ConfigService } from "@nestjs/config";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
@@ -53,6 +60,7 @@ describe("LocalFilesystemDeploymentProviderService", () => {
       manifestDigest: published.digest,
       evidence: {
         providerActivated: true,
+        runtimeEnvironmentFileMode: "0600",
         buildInvoked: false,
         gitInvoked: false,
       },
@@ -82,6 +90,20 @@ describe("LocalFilesystemDeploymentProviderService", () => {
       manifestId: "manifest-1",
       manifestDigest: published.digest,
     });
+    expect(JSON.stringify(active)).not.toContain("secret-sentinel-f432");
+    const runtimePath = join(
+      scope,
+      "deployments/project-1/staging-1/releases/deployment-2/.devpilot/runtime.env",
+    );
+    await expect(readFile(runtimePath, "utf8")).resolves.toBe(
+      "API_TOKEN=secret-sentinel-f432\nNODE_ENV=staging\n",
+    );
+    expect((await stat(runtimePath)).mode & 0o777).toBe(0o600);
+    expect(second.logs.join("\n")).not.toContain("secret-sentinel-f432");
+    expect(second.evidence.runtimeEnvironmentKeys).toEqual([
+      "API_TOKEN",
+      "NODE_ENV",
+    ]);
   });
 
   it("rejects an input frozen for a different target", async () => {
@@ -147,5 +169,9 @@ function input(
       digest: published.digest,
     },
     artifact,
+    runtimeEnvironment: {
+      API_TOKEN: "secret-sentinel-f432",
+      NODE_ENV: "staging",
+    },
   };
 }

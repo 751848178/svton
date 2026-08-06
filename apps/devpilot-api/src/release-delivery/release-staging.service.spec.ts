@@ -4,6 +4,12 @@ import {
 } from "@nestjs/common";
 import { ReleaseStagingExecutionError } from "./release-staging.types";
 import { ReleaseStagingService } from "./release-staging.service";
+import {
+  deploymentInputSnapshot,
+  releaseStagingContext as context,
+  releaseStagingInput as input,
+  releaseStagingManifest as manifest,
+} from "./release-staging.service.spec-fixture";
 
 describe("ReleaseStagingService", () => {
   const repository = {
@@ -19,36 +25,13 @@ describe("ReleaseStagingService", () => {
     deploy: jest.fn(),
   };
   const gates = { assertAllowed: jest.fn() };
+  const inputs = { prepare: jest.fn() };
   const service = new ReleaseStagingService(
     repository as never,
     executor as never,
     gates as never,
+    inputs as never,
   );
-  const context = {
-    id: "order-1",
-    project: { environments: [{ id: "staging-1", name: "Staging" }] },
-  };
-  const manifest = {
-    id: "manifest-1",
-    digest: `sha256:${"a".repeat(64)}`,
-    buildRun: {
-      id: "build-1",
-      teamId: "team-1",
-      projectId: "project-1",
-      releaseOrderId: "order-1",
-      status: "succeeded",
-      sourceBranch: "main",
-      sourceCommitSha: "b".repeat(40),
-    },
-    items: [
-      {
-        componentKey: "project-bundle",
-        uri: "release-artifact://build-1/bundle.zip",
-        digest: `sha256:${"a".repeat(64)}`,
-      },
-    ],
-  };
-
   beforeEach(() => {
     jest.clearAllMocks();
     repository.context.mockResolvedValue(context);
@@ -63,6 +46,10 @@ describe("ReleaseStagingService", () => {
       id: "decision-staging-1",
       stage: "staging",
       inputHash: "decision-hash",
+    });
+    inputs.prepare.mockResolvedValue({
+      snapshot: deploymentInputSnapshot(),
+      runtimeEnvironment: {},
     });
     repository.finish.mockImplementation(async (input) => ({
       id: input.deploymentRunId,
@@ -123,6 +110,7 @@ describe("ReleaseStagingService", () => {
     );
     expect(repository.create).not.toHaveBeenCalled();
     expect(executor.deploy).not.toHaveBeenCalled();
+    expect(inputs.prepare).not.toHaveBeenCalled();
   });
 
   it("rejects cross-order or unknown Manifests before creating a run", async () => {
@@ -175,13 +163,11 @@ describe("ReleaseStagingService", () => {
     );
   });
 
-  function input() {
-    return {
-      teamId: "team-1",
-      actorId: "user-1",
-      projectId: "project-1",
-      releaseOrderId: "order-1",
-      manifestId: "manifest-1",
-    };
-  }
+  it("does not call the provider when the repository detects input drift", async () => {
+    repository.create.mockRejectedValue(
+      new UnprocessableEntityException("deployment input drift"),
+    );
+    await expect(service.deploy(input())).rejects.toThrow("input drift");
+    expect(executor.deploy).not.toHaveBeenCalled();
+  });
 });

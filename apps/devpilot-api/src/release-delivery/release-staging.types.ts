@@ -1,3 +1,8 @@
+import type {
+  ReleaseDeploymentInputSnapshot,
+  ReleaseDeploymentTargetConnection,
+} from "./release-deployment-input.types";
+
 export interface StagingArtifactInput {
   deploymentRunId: string;
   stage: "staging" | "production";
@@ -8,6 +13,9 @@ export interface StagingArtifactInput {
   buildRunId: string;
   uri: string;
   digest: string;
+  deploymentInput?: ReleaseDeploymentInputSnapshot;
+  runtimeEnvironment?: Record<string, string>;
+  targetConnection?: ReleaseDeploymentTargetConnection;
 }
 
 export interface StagingArtifactResult {

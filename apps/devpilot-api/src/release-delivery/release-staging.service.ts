@@ -4,11 +4,13 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { sanitizeBuildLogs } from "./release-build-log.utils";
+import { ReleaseDeploymentInputService } from "./release-deployment-input.service";
 import { ReleaseStagingRepository } from "./release-staging.repository";
 import {
-  ReleaseStagingExecutionError,
-  ReleaseStagingExecutorPort,
-} from "./release-staging.types";
+  scopedStagingDeployment,
+  stagingFailureDetail,
+} from "./release-staging-presentation.utils";
+import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import { ReleaseGateDecisionService } from "./release-gate-decision.service";
 import { requireDeployableStagingManifest } from "./release-staging-manifest.policy";
 
@@ -18,6 +20,7 @@ export class ReleaseStagingService {
     private readonly repository: ReleaseStagingRepository,
     private readonly executor: ReleaseStagingExecutorPort,
     private readonly gates: ReleaseGateDecisionService,
+    private readonly inputs: ReleaseDeploymentInputService,
   ) {}
 
   async list(teamId: string, projectId: string, releaseOrderId: string) {
@@ -25,7 +28,7 @@ export class ReleaseStagingService {
     const items = await this.repository.list(teamId, projectId, releaseOrderId);
     return {
       items: items.map((item) =>
-        scopedDeployment(item, projectId, releaseOrderId),
+        scopedStagingDeployment(item, projectId, releaseOrderId),
       ),
       total: items.length,
     };
@@ -78,6 +81,12 @@ export class ReleaseStagingService {
         configRevisionId: environment.currentConfigRevisionId,
       },
     });
+    const deploymentInput = await this.inputs.prepare({
+      teamId: input.teamId,
+      projectId: input.projectId,
+      environmentId: environment.id,
+      providerKey: this.executor.providerKey,
+    });
     const run = await this.repository.create({
       teamId: input.teamId,
       actorId: input.actorId,
@@ -98,8 +107,9 @@ export class ReleaseStagingService {
         configRevisionId: environment.currentConfigRevisionId,
         deploymentProvider: {
           key: this.executor.providerKey,
-          targetRef: this.executor.providerTargetRef,
+          targetRef: deploymentInput.snapshot.target.targetRef,
         },
+        deploymentInput: deploymentInput.snapshot,
         gateDecision: {
           id: decision.id,
           stage: decision.stage,
@@ -107,6 +117,7 @@ export class ReleaseStagingService {
         },
       },
       providerKey: this.executor.providerKey,
+      deploymentInput: deploymentInput.snapshot,
       gateDecision: {
         id: decision.id,
         stage: decision.stage,
@@ -124,8 +135,11 @@ export class ReleaseStagingService {
         buildRunId: manifest.buildRun.id,
         uri: item.uri,
         digest: manifest.digest,
+        deploymentInput: deploymentInput.snapshot,
+        runtimeEnvironment: deploymentInput.runtimeEnvironment,
+        targetConnection: deploymentInput.targetConnection,
       });
-      return scopedDeployment(
+      return scopedStagingDeployment(
         await this.repository.finish({
           deploymentRunId: run.id,
           status: "completed",
@@ -141,8 +155,8 @@ export class ReleaseStagingService {
         input.releaseOrderId,
       );
     } catch (error) {
-      const detail = failureDetail(error);
-      return scopedDeployment(
+      const detail = stagingFailureDetail(error);
+      return scopedStagingDeployment(
         await this.repository.finish({
           deploymentRunId: run.id,
           status: "failed",
@@ -169,23 +183,4 @@ export class ReleaseStagingService {
     if (!context) throw new NotFoundException("发布单不存在或不属于当前项目");
     return context;
   }
-}
-
-function failureDetail(error: unknown) {
-  if (error instanceof ReleaseStagingExecutionError) return error.detail;
-  return {
-    code: "STAGING_DEPLOYMENT_FAILED",
-    message: "Staging 制品部署失败",
-    logs: sanitizeBuildLogs([
-      error instanceof Error ? error.message : String(error),
-    ]),
-  };
-}
-
-function scopedDeployment<T>(
-  item: T,
-  projectId: string,
-  releaseOrderId: string,
-) {
-  return { ...item, projectId, releaseOrderId };
 }

@@ -195,13 +195,13 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-STG-004** 重复部署不执行 Git、checkout、pull 或 build。
 - [x] **AC-STG-005** 服务端复算并验证 Manifest Digest。
 - [x] **AC-STG-006** 跨项目、跨发布单、失败 BuildRun 和未知 Manifest 均拒绝。
-- [ ] **AC-STG-007** DeploymentRun 冻结环境配置 revision ID/hash。
-- [ ] **AC-STG-008** 普通变量按目标环境注入。
-- [ ] **AC-STG-009** Secret 通过受管引用在运行时解析，明文不写入 DB/API/log。
-- [ ] **AC-STG-010** 资源实例连接信息按环境绑定注入。
-- [ ] **AC-STG-011** 部署目标来自当前环境生效绑定。
-- [ ] **AC-STG-012** 配置/资源/目标漂移在运行前被检测或形成新快照。
-- [ ] **AC-STG-013** 部署输入可审计但不包含 Secret 明文。
+- [x] **AC-STG-007** DeploymentRun 冻结环境配置 revision ID/hash。
+- [x] **AC-STG-008** 普通变量按目标环境注入。
+- [x] **AC-STG-009** Secret 通过受管引用在运行时解析，明文不写入 DB/API/log。
+- [x] **AC-STG-010** 资源实例连接信息按环境绑定注入。
+- [x] **AC-STG-011** 部署目标来自当前环境生效绑定。
+- [x] **AC-STG-012** 配置/资源/目标漂移在运行前被检测或形成新快照。
+- [x] **AC-STG-013** 部署输入可审计但不包含 Secret 明文。
 - [ ] **AC-STG-014** Provider 启动真实前后端/worker/静态站点工作负载。
 - [ ] **AC-STG-015** 工作负载使用精确 Manifest，不从源码目录直接运行替代制品。
 - [ ] **AC-STG-016** 服务级进程/容器状态可读取。

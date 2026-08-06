@@ -51,8 +51,15 @@
   two fresh DeploymentRuns from one Manifest after source removal plus the full
   foreign/failed/unknown rejection matrix. All 9 CodeGraph-affected tests,
   type/build/lint/format/config gates and the 0/0/0/0 READY correction review
-  passed. **Next: F432 environment configuration and managed reference
-  injection; F433 still owns workload startup and health.**
+  passed.
+
+- F432 closed on 2026-08-06: Staging now freezes a secret-safe deployment-input
+  snapshot with configuration, Secret, resource and active target-binding
+  version hashes, resolves plaintext only after the gate, injects it through
+  0600 filesystem/SSH runtime files, and blocks scope or state drift before the
+  Provider. Real MySQL, isolated SSH and authenticated HTTP composition passed
+  all 8 CodeGraph-affected suites/33 tests; independent review reported
+  READY, P0/P1/P2/P3=0/0/0/0. **Next: F433 workload startup and health.**
 
 - F428 is code/runtime ready but not accepted on 2026-08-06: private bounded
   Build history, exact per-run detail/Drawer, deep-link error/retry ownership,

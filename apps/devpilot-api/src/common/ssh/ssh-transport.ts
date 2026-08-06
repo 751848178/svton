@@ -32,6 +32,11 @@ export interface SshCancellationSignal {
   onAbort(callback: () => void): () => void;
 }
 
+export interface SshTransportUploadOptions {
+  timeoutMs: number;
+  mode?: number;
+}
+
 export interface SshTransport {
   /**
    * 执行一段脚本：通过 stdin 写入 `script`，远端用 `bash -se` 执行，
@@ -55,7 +60,7 @@ export interface SshTransport {
   uploadFile?(
     localPath: string,
     remotePath: string,
-    options: { timeoutMs: number },
+    options: SshTransportUploadOptions,
   ): Promise<void>;
 
   /** 释放传输底层连接（如有）。 */

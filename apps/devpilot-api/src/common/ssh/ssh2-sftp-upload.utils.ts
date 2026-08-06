@@ -1,10 +1,11 @@
 import type { Client } from "ssh2";
+import type { SshTransportUploadOptions } from "./ssh-transport";
 
 export function uploadSshFile(
   client: Client,
   localPath: string,
   remotePath: string,
-  timeoutMs: number,
+  options: SshTransportUploadOptions,
 ) {
   return new Promise<void>((resolve, reject) => {
     let settled = false;
@@ -16,12 +17,15 @@ export function uploadSshFile(
       else resolve();
     };
     const timer = setTimeout(
-      () => finish(new Error(`SFTP upload timed out after ${timeoutMs}ms`)),
-      timeoutMs,
+      () =>
+        finish(new Error(`SFTP upload timed out after ${options.timeoutMs}ms`)),
+      options.timeoutMs,
     );
     client.sftp((error, sftp) => {
       if (error) return finish(error);
-      sftp.fastPut(localPath, remotePath, (uploadError) => {
+      const transferOptions =
+        options.mode === undefined ? {} : { mode: options.mode };
+      sftp.fastPut(localPath, remotePath, transferOptions, (uploadError) => {
         try {
           sftp.end();
         } catch {

@@ -1,4 +1,3 @@
-import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,6 +6,12 @@ import { SshTransportFactory } from "../common/ssh/ssh-transport.factory";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
 import { ReleaseDeploymentProviderError } from "./release-deployment-provider.types";
 import { SshReleaseDeploymentProviderService } from "./ssh-release-deployment-provider.service";
+import { ReleaseRuntimeEnvironmentFileService } from "./release-runtime-environment-file.service";
+import {
+  sshIntegrationComponent,
+  sshIntegrationCredentials,
+  sshIntegrationRuntimeConfig,
+} from "./ssh-release-deployment-provider.integration-fixture";
 
 const describeIntegration =
   process.env.RUN_F431_SSH_PROVIDER_INTEGRATION === "1"
@@ -28,18 +33,19 @@ describeIntegration("F431 SSH exact-Manifest provider", () => {
     const checkout = join(scope, "checkout");
     await mkdir(join(checkout, "dist"), { recursive: true });
     await writeFile(join(checkout, "dist", "app.txt"), "remote exact manifest");
-    const config = runtimeConfig(scope, remoteRoot);
+    const config = sshIntegrationRuntimeConfig(scope, remoteRoot);
     artifacts = new ReleaseBuildArtifactService(config);
     artifact = await artifacts.package({
       checkoutRoot: checkout,
       projectId: "project-1",
       releaseOrderId: "order-1",
       buildRunId: "build-1",
-      components: [component()],
+      components: [sshIntegrationComponent()],
     });
     provider = new SshReleaseDeploymentProviderService(
       config,
       new SshTransportFactory(),
+      new ReleaseRuntimeEnvironmentFileService(),
     );
   });
 
@@ -72,6 +78,7 @@ describeIntegration("F431 SSH exact-Manifest provider", () => {
         evidence: {
           providerActivated: true,
           remoteDigestVerified: true,
+          runtimeEnvironmentFileMode: "0600",
           checkoutInvoked: false,
           pullInvoked: false,
           buildInvoked: false,
@@ -83,26 +90,15 @@ describeIntegration("F431 SSH exact-Manifest provider", () => {
     expect(probe.exitCode).toBe(0);
     expect(probe.stdout).toContain("remote exact manifest");
     expect(probe.stdout).toContain('"providerDeploymentId":"deployment-2"');
+    expect(probe.stdout).toContain("F432_SECRET=secret-sentinel-f432");
+    expect(probe.stdout).toContain("runtimeMode=600");
     expect(probe.stdout).toContain("forbiddenTools=");
     expect(probe.stdout).not.toMatch(/forbiddenTools=\S/);
+    expect(JSON.stringify([first, second])).not.toContain(
+      "secret-sentinel-f432",
+    );
   });
 });
-
-function runtimeConfig(scope: string, remoteRoot: string) {
-  const values: Record<string, unknown> = {
-    RELEASE_BUILD_ARTIFACT_ROOT: join(scope, "artifacts"),
-    RELEASE_DEPLOYMENT_SSH_HOST: process.env.F431_SSH_HOST || "127.0.0.1",
-    RELEASE_DEPLOYMENT_SSH_PORT: Number(process.env.F431_SSH_PORT || 2225),
-    RELEASE_DEPLOYMENT_SSH_USERNAME: process.env.F431_SSH_USERNAME || "deploy",
-    RELEASE_DEPLOYMENT_SSH_PASSWORD:
-      process.env.F431_SSH_PASSWORD || "devpilot-test",
-    RELEASE_DEPLOYMENT_SSH_ROOT: remoteRoot,
-    RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: 20_000,
-  };
-  return {
-    get: jest.fn((key: string) => values[key]),
-  } as unknown as ConfigService;
-}
 
 function input(
   deploymentRunId: string,
@@ -124,17 +120,7 @@ function input(
       digest: artifact.digest,
     },
     artifact: verified,
-  };
-}
-
-function component() {
-  return {
-    key: "service-1",
-    name: "api",
-    workingDirectory: ".",
-    buildCommand: "true",
-    artifactOutputs: ["dist"],
-    buildEnvironment: {},
+    runtimeEnvironment: { F432_SECRET: "secret-sentinel-f432" },
   };
 }
 
@@ -142,12 +128,18 @@ async function remoteProbe(
   provider: SshReleaseDeploymentProviderService,
   remoteRoot: string,
 ) {
-  const transport = new SshTransportFactory().create(credentials());
+  const transport = new SshTransportFactory().create(
+    sshIntegrationCredentials(),
+  );
   try {
     return await transport.execScript(
       `set -eu
 cat '${remoteRoot}/project-1/staging-1/releases/deployment-1/dist/app.txt'
 tr -d '\n ' < '${remoteRoot}/project-1/staging-1/active.json'
+printf '\nruntime='
+cat '${remoteRoot}/project-1/staging-1/releases/deployment-2/.devpilot/runtime.env'
+printf 'runtimeMode='
+stat -c '%a' '${remoteRoot}/project-1/staging-1/releases/deployment-2/.devpilot/runtime.env'
 printf '\nforbiddenTools='
 for tool in git node npm pnpm yarn; do command -v "$tool" 2>/dev/null || true; done
 `,
@@ -162,7 +154,9 @@ async function cleanupRemote(
   _provider: SshReleaseDeploymentProviderService,
   remoteRoot: string,
 ) {
-  const transport = new SshTransportFactory().create(credentials());
+  const transport = new SshTransportFactory().create(
+    sshIntegrationCredentials(),
+  );
   try {
     await transport.execScript(`rm -rf '${remoteRoot}'\n`, {
       timeoutMs: 20_000,
@@ -170,15 +164,6 @@ async function cleanupRemote(
   } finally {
     await transport.dispose?.();
   }
-}
-
-function credentials() {
-  return {
-    host: process.env.F431_SSH_HOST || "127.0.0.1",
-    port: Number(process.env.F431_SSH_PORT || 2225),
-    username: process.env.F431_SSH_USERNAME || "deploy",
-    password: process.env.F431_SSH_PASSWORD || "devpilot-test",
-  };
 }
 
 async function deployOrExplain(

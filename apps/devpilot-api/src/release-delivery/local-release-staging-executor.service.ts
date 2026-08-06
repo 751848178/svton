@@ -42,7 +42,8 @@ export class LocalReleaseStagingExecutorService extends ReleaseStagingExecutorPo
         projectId: input.projectId,
         releaseOrderId: input.releaseOrderId,
         environmentId: input.environmentId,
-        targetRef: this.providerTargetRef,
+        targetRef:
+          input.deploymentInput?.target.targetRef || this.providerTargetRef,
         manifest: {
           id: input.manifestId,
           buildRunId: input.buildRunId,
@@ -50,8 +51,15 @@ export class LocalReleaseStagingExecutorService extends ReleaseStagingExecutorPo
           digest: input.digest,
         },
         artifact,
+        runtimeEnvironment: input.runtimeEnvironment,
+        targetConnection: input.targetConnection,
       });
-      assertReceipt(input, this.providerKey, this.providerTargetRef, receipt);
+      assertReceipt(
+        input,
+        this.providerKey,
+        input.deploymentInput?.target.targetRef || this.providerTargetRef,
+        receipt,
+      );
       return {
         deploymentUri: receipt.deploymentUri,
         logs: receipt.logs,

@@ -12,8 +12,10 @@ import {
   buildSshActivationScript,
   quoteSsh,
   requireSuccessfulSsh,
+  resolveSshDeploymentTarget,
   sshProviderFailure,
 } from "./ssh-release-deployment-provider.utils";
+import { ReleaseRuntimeEnvironmentFileService } from "./release-runtime-environment-file.service";
 
 @Injectable()
 export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProviderPort {
@@ -30,6 +32,7 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
   constructor(
     config: ConfigService,
     private readonly transports: SshTransportFactory,
+    private readonly runtimeFiles: ReleaseRuntimeEnvironmentFileService,
   ) {
     super();
     this.host = config.get<string>("RELEASE_DEPLOYMENT_SSH_HOST") || "";
@@ -48,24 +51,36 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
   }
 
   async deployExactManifest(input: ExactManifestDeploymentInput) {
-    assertSshDeploymentInput(input, {
+    return this.runtimeFiles.use(input.runtimeEnvironment || {}, (path) =>
+      this.deploy(input, path),
+    );
+  }
+
+  private async deploy(
+    input: ExactManifestDeploymentInput,
+    runtimeFile: string,
+  ) {
+    const target = resolveSshDeploymentTarget(input, {
       host: this.host,
+      port: this.port,
       username: this.username,
       password: this.password,
       privateKey: this.privateKey,
       root: this.root,
       targetRef: this.targetRef,
     });
-    const base = `${this.root}/${input.projectId}/${input.environmentId}`;
+    assertSshDeploymentInput(input, target);
+    const base = `${target.root}/${input.projectId}/${input.environmentId}`;
     const archive = `${base}/.incoming/${input.deploymentRunId}.zip`;
+    const runtime = `${base}/.incoming/${input.deploymentRunId}.env`;
     const release = `${base}/releases/${input.deploymentRunId}`;
     const active = `${base}/active.json`;
     const transport = this.transports.create({
-      host: this.host,
-      port: this.port,
-      username: this.username,
-      password: this.password,
-      privateKey: this.privateKey,
+      host: target.host,
+      port: target.port,
+      username: target.username,
+      password: target.password,
+      privateKey: target.privateKey,
     });
     try {
       await requireSuccessfulSsh(
@@ -85,9 +100,18 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
       await transport.uploadFile(input.artifact.path, archive, {
         timeoutMs: this.timeoutMs,
       });
+      await transport.uploadFile(runtimeFile, runtime, {
+        timeoutMs: this.timeoutMs,
+        mode: 0o600,
+      });
       const result = await requireSuccessfulSsh(
         transport.execScript(
-          buildSshActivationScript(input, { archive, release, active }),
+          buildSshActivationScript(input, {
+            archive,
+            runtime,
+            release,
+            active,
+          }),
           {
             timeoutMs: this.timeoutMs,
           },
@@ -98,8 +122,8 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
       return {
         providerKey: this.key,
         providerDeploymentId: input.deploymentRunId,
-        targetRef: this.targetRef,
-        deploymentUri: `ssh-release://${this.host}:${this.port}/${input.projectId}/${input.environmentId}/releases/${input.deploymentRunId}`,
+        targetRef: input.targetRef,
+        deploymentUri: `ssh-release://${target.host}:${target.port}/${input.projectId}/${input.environmentId}/releases/${input.deploymentRunId}`,
         manifestId: input.manifest.id,
         manifestDigest: input.manifest.digest,
         activatedAt,
@@ -111,7 +135,11 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
           providerActivated: true,
           targetType: "ssh-environment",
           remoteDigestVerified: true,
+          runtimeEnvironmentFileMode: "0600",
           artifactSizeBytes: input.artifact.sizeBytes,
+          runtimeEnvironmentKeys: Object.keys(
+            input.runtimeEnvironment || {},
+          ).sort(),
           checkoutInvoked: false,
           pullInvoked: false,
           buildInvoked: false,
@@ -119,6 +147,11 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
         },
       };
     } catch (error) {
+      await transport
+        .execScript(`rm -f ${quoteSsh(archive)} ${quoteSsh(runtime)}\n`, {
+          timeoutMs: this.timeoutMs,
+        })
+        .catch(() => undefined);
       if (error instanceof ReleaseDeploymentProviderError) throw error;
       throw sshProviderFailure(
         "DEPLOYMENT_PROVIDER_FAILED",

@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join, normalize, resolve } from "node:path";
+import { formatEnvFile } from "../deployment/deployment-env-heredoc.utils";
 import { sanitizeBuildLogs } from "./release-build-log.utils";
 import { ReleaseArtifactArchivePort } from "./release-artifact-archive.service";
 import {
@@ -69,6 +70,15 @@ export class LocalFilesystemDeploymentProviderService extends ReleaseDeploymentP
         temporary,
         this.timeoutMs,
       );
+      if (input.runtimeEnvironment) {
+        const runtimeDirectory = join(temporary, ".devpilot");
+        await mkdir(runtimeDirectory, { recursive: true, mode: 0o700 });
+        await writeFile(
+          join(runtimeDirectory, "runtime.env"),
+          `${formatEnvFile(input.runtimeEnvironment)}\n`,
+          { mode: 0o600 },
+        );
+      }
       await rename(temporary, releaseRoot);
       await writeFile(
         pending,
@@ -105,6 +115,10 @@ export class LocalFilesystemDeploymentProviderService extends ReleaseDeploymentP
         targetType: "filesystem-environment",
         materializedEntries: entries.length,
         artifactSizeBytes: input.artifact.sizeBytes,
+        runtimeEnvironmentFileMode: "0600",
+        runtimeEnvironmentKeys: Object.keys(
+          input.runtimeEnvironment || {},
+        ).sort(),
         checkoutInvoked: false,
         pullInvoked: false,
         buildInvoked: false,

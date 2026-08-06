@@ -3,14 +3,39 @@ import {
   ExactManifestDeploymentInput,
   ReleaseDeploymentProviderError,
 } from "./release-deployment-provider.types";
+import {
+  isSafeReleaseDeploymentSshRoot,
+  releaseDeploymentSshTargetRef,
+} from "./release-deployment-ssh-target.utils";
 
 export interface SshDeploymentTarget {
   host: string;
+  port: number;
   username: string;
   password?: string;
   privateKey?: string;
   root: string;
   targetRef: string;
+}
+
+export function resolveSshDeploymentTarget(
+  input: ExactManifestDeploymentInput,
+  configured: SshDeploymentTarget,
+): SshDeploymentTarget {
+  const connection = input.targetConnection;
+  if (!connection) return configured;
+  const targetRef = releaseDeploymentSshTargetRef(connection);
+  return {
+    host: connection.host,
+    port: connection.port,
+    username: connection.username,
+    password:
+      connection.authType === "password" ? connection.credential : undefined,
+    privateKey:
+      connection.authType === "key" ? connection.credential : undefined,
+    root: connection.root,
+    targetRef,
+  };
 }
 
 export function assertSshDeploymentInput(
@@ -28,7 +53,10 @@ export function assertSshDeploymentInput(
       [],
     );
   }
-  if (input.targetRef !== target.targetRef || !safeRoot(target.root)) {
+  if (
+    input.targetRef !== target.targetRef ||
+    !isSafeReleaseDeploymentSshRoot(target.root)
+  ) {
     throw sshProviderFailure(
       "DEPLOYMENT_TARGET_MISMATCH",
       "SSH Deployment Provider 目标引用无效",
@@ -59,7 +87,7 @@ export function assertSshDeploymentInput(
 
 export function buildSshActivationScript(
   input: ExactManifestDeploymentInput,
-  paths: { archive: string; release: string; active: string },
+  paths: { archive: string; runtime: string; release: string; active: string },
 ) {
   const temporary = `${paths.release}.tmp`;
   const pending = `${paths.active}.${input.deploymentRunId}.tmp`;
@@ -82,19 +110,25 @@ release=${quoteSsh(paths.release)}
 temporary=${quoteSsh(temporary)}
 active=${quoteSsh(paths.active)}
 pending=${quoteSsh(pending)}
+runtime=${quoteSsh(paths.runtime)}
 release_created=0
 activated=0
 cleanup() {
-  rm -rf "$temporary" "$pending" "$archive"
+  rm -rf "$temporary" "$pending" "$archive" "$runtime"
   if [ "$release_created" = 1 ] && [ "$activated" = 0 ]; then rm -rf "$release"; fi
 }
 trap cleanup EXIT HUP INT TERM
 actual="sha256:$(sha256sum "$archive" | awk '{print $1}')"
 [ "$actual" = ${quoteSsh(input.manifest.digest)} ] || { echo 'remote Manifest Digest mismatch' >&2; exit 41; }
+runtime_mode="$(stat -c '%a' "$runtime")"
+[ "$runtime_mode" = 600 ] || { echo 'runtime input mode invalid' >&2; exit 43; }
 unzip -t "$archive" >/dev/null
 rm -rf "$temporary"
 mkdir -p "$temporary"
 unzip -qq "$archive" -d "$temporary"
+mkdir -p "$temporary/.devpilot"
+mv "$runtime" "$temporary/.devpilot/runtime.env"
+chmod 600 "$temporary/.devpilot/runtime.env"
 entries="$(find "$temporary" -type f | wc -l)"
 [ ! -e "$release" ] || { echo 'provider deployment id already exists' >&2; exit 42; }
 mv "$temporary" "$release"
@@ -104,7 +138,7 @@ mv "$pending" "$active"
 activated=1
 rm -f "$archive"
 trap - EXIT HUP INT TERM
-printf 'remoteDigest=%s\nentries=%s\n' "$actual" "$entries"
+printf 'remoteDigest=%s\nentries=%s\nruntimeMode=%s\n' "$actual" "$entries" "$runtime_mode"
 `;
 }
 
@@ -142,8 +176,4 @@ export function sshProviderFailure(
     message,
     logs: sanitizeBuildLogs(logs),
   });
-}
-
-function safeRoot(value: string) {
-  return /^\/[A-Za-z0-9_./-]+$/.test(value) && !value.split("/").includes("..");
 }

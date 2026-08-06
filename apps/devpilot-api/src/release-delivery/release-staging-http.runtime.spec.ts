@@ -62,6 +62,29 @@ describeRuntime(
             gitInvoked: false,
           },
         });
+        expect(run.params).toMatchObject({
+          configRevisionId: expect.any(String),
+          deploymentInput: {
+            configRevision: {
+              snapshotHash: "f432-http-config",
+              stateHash: expect.any(String),
+            },
+            runtimeEnvironmentKeys: [
+              "DATABASE_HOST",
+              "DATABASE_PASSWORD",
+              "HTTP_DEPLOY_SECRET",
+              "HTTP_PLAIN_F432",
+            ],
+            target: {
+              providerKey: "ssh-v1",
+              targetRef: expect.stringContaining("127.0.0.1:2225"),
+            },
+          },
+        });
+        expect(JSON.stringify(run)).not.toContain("http-secret-sentinel-f432");
+        expect(JSON.stringify(run)).not.toContain(
+          "http-resource-sentinel-f432",
+        );
       }
       await expect(
         fixture.git.prisma.buildRun.count({
@@ -79,9 +102,50 @@ describeRuntime(
       }
       expect(remote.stdout).toContain("http exact manifest");
       expect(remote.stdout).toContain(`"providerDeploymentId":"${second.id}"`);
+      expect(remote.stdout).toContain(
+        "HTTP_DEPLOY_SECRET=http-secret-sentinel-f432",
+      );
+      expect(remote.stdout).toContain(
+        "DATABASE_PASSWORD=http-resource-sentinel-f432",
+      );
+      expect(remote.stdout).toContain(
+        "HTTP_PLAIN_F432=http-plain-sentinel-f432",
+      );
+      expect(remote.stdout).toContain("runtimeMode=600");
       expect(remote.stdout).not.toMatch(/forbiddenTools=\S/);
+      await expectDatabaseEvidenceToBeSecretSafe();
       await verifyRejectedStagingHttpManifests(fixture);
     });
+
+    async function expectDatabaseEvidenceToBeSecretSafe() {
+      const prisma = fixture.git.prisma;
+      const [runs, secrets, resources, servers] = await Promise.all([
+        prisma.deploymentRun.findMany({
+          where: { teamId: fixture.git.teamId },
+          select: { params: true, logs: true, result: true, error: true },
+        }),
+        prisma.secretKey.findMany({
+          where: { teamId: fixture.git.teamId },
+          select: { value: true },
+        }),
+        prisma.resourceInstance.findMany({
+          where: { teamId: fixture.git.teamId },
+          select: { credentials: true },
+        }),
+        prisma.server.findMany({
+          where: { teamId: fixture.git.teamId },
+          select: { credentials: true },
+        }),
+      ]);
+      const evidence = JSON.stringify({ runs, secrets, resources, servers });
+      for (const value of [
+        "http-secret-sentinel-f432",
+        "http-resource-sentinel-f432",
+        "devpilot-test",
+      ]) {
+        expect(evidence).not.toContain(value);
+      }
+    }
 
     async function deploy(manifestId: string) {
       const response = await fixture.request(fixture.stagingPath(), {
@@ -117,5 +181,6 @@ interface Deployment {
   status: string;
   artifactManifestId: string;
   adapterKey: string;
+  params: Record<string, unknown>;
   result: Record<string, unknown>;
 }
