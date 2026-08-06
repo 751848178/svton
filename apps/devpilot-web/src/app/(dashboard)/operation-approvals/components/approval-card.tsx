@@ -13,22 +13,24 @@ import { useTranslations } from 'next-intl';
 import { StatusTag, CodeBlock } from '@/components/ui';
 import type { OperationApproval, ApprovalDecision } from '../types';
 import { categoryLabels, statusLabels, riskLabels, actionLabels } from '../constants';
-import {
-  formatTarget,
-  formatDateTime,
-  readMetadataString,
-  humanizeAction,
-} from '../utils';
+import { formatTarget, formatDateTime, readMetadataString, humanizeAction } from '../utils';
 import { RejectReasonModal } from './reject-reason-modal';
 
 interface ApprovalCardProps {
   approval: OperationApproval;
   actingId: string;
+  focused?: boolean;
   onReview: (approval: OperationApproval, decision: ApprovalDecision, comment?: string) => void;
   onExecute: (approval: OperationApproval) => void;
 }
 
-export function ApprovalCard({ approval, actingId, onReview, onExecute }: ApprovalCardProps) {
+export function ApprovalCard({
+  approval,
+  actingId,
+  focused = false,
+  onReview,
+  onExecute,
+}: ApprovalCardProps) {
   const t = useTranslations('operationApprovals');
   const [rejectOpen, setRejectOpen] = useState(false);
   const handleApprove = usePersistFn(() => onReview(approval, 'approved'));
@@ -41,10 +43,21 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
   });
 
   const diffSummary = readMetadataString(approval.metadata, 'diffSummary');
-  const actionLabel = humanizeAction(approval.action, actionLabels);
+  const actionLabel =
+    approval.action === 'project.release_order.deploy_production'
+      ? t('actionReleaseDeployProduction')
+      : humanizeAction(approval.action, actionLabels);
+  const categoryLabel =
+    approval.category === 'release'
+      ? t('categoryRelease')
+      : categoryLabels[approval.category] || approval.category;
 
   return (
-    <div className="rounded-lg border p-4">
+    <div
+      className={`rounded-lg border p-4 ${focused ? 'ring-2 ring-primary' : ''}`}
+      data-approval-id={approval.id}
+      aria-current={focused ? 'true' : undefined}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -60,13 +73,16 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
             />
           </div>
           <div className="mt-2 text-sm text-muted-foreground">
-            {categoryLabels[approval.category] || approval.category} · {actionLabel}
+            {categoryLabel} · {actionLabel}
           </div>
-          <div className="mt-1 text-sm text-muted-foreground">{t('target', { target: formatTarget(approval) })}</div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            {t('target', { target: formatTarget(approval) })}
+          </div>
           <div className="mt-1 text-xs text-muted-foreground">
             {t('projectEnv', {
               project: approval.project?.name || t('notAssociated'),
-              environment: approval.environment?.name || approval.environment?.key || t('notAssociated'),
+              environment:
+                approval.environment?.name || approval.environment?.key || t('notAssociated'),
             })}
           </div>
           {approval.reason ? (
@@ -90,10 +106,12 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
           ) : null}
           <div className="mt-2 text-xs text-muted-foreground">
             {t('requester', { name: approval.requester?.name || approval.requester?.email || '-' })}{' '}
-            ·{' '}
-            {t('requestedAt', { date: formatDateTime(approval.requestedAt) })}
+            · {t('requestedAt', { date: formatDateTime(approval.requestedAt) })}
             {approval.reviewer
               ? ` · ${t('reviewer', { name: approval.reviewer.name || approval.reviewer.email })}`
+              : ''}
+            {approval.reviewedAt
+              ? ` · ${t('reviewedAt', { date: formatDateTime(approval.reviewedAt) })}`
               : ''}
             {approval.consumedAt
               ? ` · ${t('consumed', { date: formatDateTime(approval.consumedAt) })}`
@@ -120,13 +138,28 @@ export function ApprovalCard({ approval, actingId, onReview, onExecute }: Approv
             </>
           ) : null}
           {approval.status === 'approved' && !approval.consumedAt ? (
-            <button
-              onClick={handleExecute}
-              disabled={Boolean(actingId)}
-              className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-            >
-              {actingId === `${approval.id}:execute` ? t('executing') : t('executeApproved')}
-            </button>
+            approval.category === 'release' ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <button
+                  disabled
+                  title={t('executeReleaseInProjectContext')}
+                  className="cursor-not-allowed rounded-md border px-3 py-1.5 text-sm opacity-50"
+                >
+                  {t('executeApproved')}
+                </button>
+                <span className="text-xs text-muted-foreground">
+                  {t('executeReleaseInProjectContext')}
+                </span>
+              </span>
+            ) : (
+              <button
+                onClick={handleExecute}
+                disabled={Boolean(actingId)}
+                className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+              >
+                {actingId === `${approval.id}:execute` ? t('executing') : t('executeApproved')}
+              </button>
+            )
           ) : null}
         </div>
       </div>

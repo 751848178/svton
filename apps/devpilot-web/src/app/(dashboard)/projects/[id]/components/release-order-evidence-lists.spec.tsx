@@ -180,8 +180,17 @@ function productionRun(): ReleaseEvidenceProductionRun {
     operationApproval: {
       id: 'approval-1',
       status: 'approved',
+      risk: 'high',
+      summary: '生产发布 1.0.0 / Build #1',
+      requesterId: 'user-1',
+      reviewerId: 'reviewer-1',
+      requester: { id: 'user-1', name: 'Requester', email: 'requester@example.com' },
+      reviewer: { id: 'reviewer-1', name: 'Reviewer', email: 'reviewer@example.com' },
+      reviewComment: null,
       requestedAt: '2026-08-05T00:00:00Z',
       reviewedAt: '2026-08-05T00:01:00Z',
+      consumedAt: null,
+      expiresAt: null,
     },
     stagingProof: {
       deploymentRunId: 'staging-proof-1',

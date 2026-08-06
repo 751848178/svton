@@ -5,7 +5,7 @@ import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { EnvironmentVersionService } from "./environment-version.service";
 import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-gate-evidence.repository";
 import { productionGateTestDouble } from "./release-gate-test-decision.spec-utils";
-import type { StagingArtifactInput } from "./release-staging.types";
+import { environmentVersionExecutorTestDouble } from "./release-staging-executor.spec-utils";
 import {
   cleanupProductionFixture,
   createProductionFixture,
@@ -30,13 +30,7 @@ describeIntegration("EnvironmentVersion integration", () => {
       repository,
       new EnvironmentVersionReadRepository(fixture.prisma as never),
       new EnvironmentVersionPolicyService(repository),
-      {
-        deploy: async (input: StagingArtifactInput) => ({
-          deploymentUri: `release-deployment://${input.deploymentRunId}`,
-          logs: ["verified", "materialized"],
-          evidence: { artifactVerified: true, checkout: false, build: false },
-        }),
-      } as never,
+      environmentVersionExecutorTestDouble() as never,
       productionGateTestDouble(fixture.prisma) as never,
       new EnvironmentVersionGateEvidenceRepository(fixture.prisma as never),
     );

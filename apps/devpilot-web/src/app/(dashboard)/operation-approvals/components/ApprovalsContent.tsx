@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
@@ -12,14 +13,30 @@ import type { OperationApproval } from '../types';
  * 操作审批客户端视图。
  *
  * 接收首屏 server 数据 initialApprovals（默认 pending 视图的 SWR fallback）。
- * 状态筛选、审批决策、已批准执行等交互在此完成。
+ * 状态筛选、审批决策、已批准执行等交互在此完成。深链 ?id=<approvalId> 时
+ * 自动定位到对应卡片（initialApprovalId）。
  */
-export function ApprovalsContent({ initialApprovals }: { initialApprovals?: OperationApproval[] }) {
+export function ApprovalsContent({
+  initialApprovals,
+  initialApprovalId,
+}: {
+  initialApprovals?: OperationApproval[];
+  initialApprovalId?: string;
+}) {
   const t = useTranslations('operationApprovals');
   const tc = useTranslations('common');
   const { approvals, status, setStatus, loading, actingId, error, stats, review, execute, reload } =
-    useApprovals(initialApprovals);
+    useApprovals(initialApprovals, initialApprovalId);
   const handleRetry = usePersistFn(() => reload());
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!initialApprovalId) return;
+    const element = listRef.current?.querySelector(
+      `[data-approval-id="${CSS.escape(initialApprovalId)}"]`,
+    );
+    element?.scrollIntoView({ block: 'center' });
+  }, [initialApprovalId, approvals, loading]);
 
   const statusOptions = [
     { value: 'pending', label: t('statusPending') },
@@ -42,17 +59,34 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
           </Button>
         }
       />
-
-      {error ? <ErrorBanner message={error} onRetry={handleRetry} /> : null}
-
+      {error ? (
+        <ErrorBanner
+          message={error}
+          onRetry={handleRetry}
+        />
+      ) : null}
       <div className="grid gap-4 md:grid-cols-5">
-        <MetricCard label={t('metricCurrentList')} value={stats.total} />
-        <MetricCard label={t('metricPending')} value={stats.pending} />
-        <MetricCard label={t('metricApproved')} value={stats.approved} />
-        <MetricCard label={t('metricRejected')} value={stats.rejected} />
-        <MetricCard label={t('metricHighRisk')} value={stats.highRisk} />
+        <MetricCard
+          label={t('metricCurrentList')}
+          value={stats.total}
+        />
+        <MetricCard
+          label={t('metricPending')}
+          value={stats.pending}
+        />
+        <MetricCard
+          label={t('metricApproved')}
+          value={stats.approved}
+        />
+        <MetricCard
+          label={t('metricRejected')}
+          value={stats.rejected}
+        />
+        <MetricCard
+          label={t('metricHighRisk')}
+          value={stats.highRisk}
+        />
       </div>
-
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">{t('filterByStatus')}</span>
         <Select
@@ -62,7 +96,6 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
           options={statusOptions}
         />
       </div>
-
       {loading ? (
         <LoadingState text={tc('loading')} />
       ) : approvals.length === 0 ? (
@@ -71,17 +104,22 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
           description={t('noApprovalsHint')}
         />
       ) : (
-        <div className="grid gap-4">
+        <div
+          ref={listRef}
+          className="grid gap-4"
+        >
           {approvals.map((approval) => (
             <ApprovalCard
               key={approval.id}
               approval={approval}
               actingId={actingId}
+              focused={approval.id === initialApprovalId}
               onReview={review}
               onExecute={execute}
             />
           ))}
         </div>
-      )}    </div>
+      )}{' '}
+    </div>
   );
 }

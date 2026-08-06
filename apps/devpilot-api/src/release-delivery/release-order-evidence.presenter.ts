@@ -134,9 +134,24 @@ function presentApproval(approval: EvidenceProductionRow["operationApproval"]) {
   return {
     id: approval.id,
     status: approval.status,
+    risk: approval.risk,
+    summary: approval.summary,
+    requesterId: approval.requesterId,
+    reviewerId: approval.reviewerId,
+    requester: presentActor(approval.requester),
+    reviewer: presentActor(approval.reviewer),
+    reviewComment: approval.reviewComment,
     requestedAt: approval.requestedAt,
     reviewedAt: approval.reviewedAt,
+    consumedAt: approval.consumedAt,
+    expiresAt: approval.expiresAt,
   };
+}
+
+function presentActor(
+  actor: NonNullable<EvidenceProductionRow["operationApproval"]>["reviewer"],
+) {
+  return actor ? { id: actor.id, name: actor.name, email: actor.email } : null;
 }
 
 function group<T>(items: T[], total: number) {

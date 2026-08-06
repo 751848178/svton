@@ -69,6 +69,11 @@ vi.mock('../hooks/use-production-releases', () => ({
 vi.mock('./release-production-evidence-list', () => ({
   ReleaseProductionEvidenceList: () => null,
 }));
+vi.mock('./release-production-approval-card', () => ({
+  ReleaseProductionApprovalCard: ({ run }: { run: { id: string } }) => (
+    <div data-approval-card-for={run.id} />
+  ),
+}));
 
 describe('ReleaseOrderProductionStep confirmation dialog', () => {
   let root: Root;
@@ -186,6 +191,64 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     );
   });
 
+  it('renders the project-context approval card for the latest production ReleaseRun', async () => {
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: {
+          items: [productionRun('release-latest'), productionRun('release-old')],
+          total: 2,
+          hasMore: false,
+        },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () =>
+      root.render(
+        <ReleaseOrderProductionStep
+          {...props(evidence)}
+          focusedReleaseRunId={undefined}
+          focusedDeploymentRunId={undefined}
+          onFocus={vi.fn()}
+        />,
+      ),
+    );
+
+    expect(container.querySelector('[data-approval-card-for="release-latest"]')).not.toBeNull();
+  });
+
+  it('renders the approval card for the explicitly focused ReleaseRun', async () => {
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: {
+          items: [productionRun('release-latest'), productionRun('release-old')],
+          total: 2,
+          hasMore: false,
+        },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () =>
+      root.render(
+        <ReleaseOrderProductionStep
+          {...props(evidence)}
+          focusedReleaseRunId="release-old"
+          focusedDeploymentRunId={undefined}
+          onFocus={vi.fn()}
+        />,
+      ),
+    );
+
+    expect(container.querySelector('[data-approval-card-for="release-old"]')).not.toBeNull();
+  });
+
   function triggerButton() {
     return Array.from(container.querySelectorAll('button')).find(
       (item) => item.textContent === 'requestProductionApproval',
@@ -217,24 +280,73 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     );
   }
 
-  function props() {
+  function props(evidence?: ReleaseOrderEvidenceHook) {
     return {
       projectId: 'project-1',
       releaseOrderId: 'order-1',
       onChanged: vi.fn().mockResolvedValue(undefined),
-      evidence: {
-        evidence: {
-          buildRuns: { items: [], total: 0, hasMore: false },
-          stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
-          productionReleaseRuns: { items: [], total: 0, hasMore: false },
-        },
-        loading: false,
-        error: '',
-        load: vi.fn(),
-      } as unknown as ReleaseOrderEvidenceHook,
+      evidence:
+        evidence ||
+        ({
+          evidence: {
+            buildRuns: { items: [], total: 0, hasMore: false },
+            stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+            productionReleaseRuns: { items: [], total: 0, hasMore: false },
+          },
+          loading: false,
+          error: '',
+          load: vi.fn(),
+        } as unknown as ReleaseOrderEvidenceHook),
     };
   }
 });
+
+function productionRun(id: string) {
+  return {
+    id,
+    projectId: 'project-1',
+    releaseOrderId: 'order-1',
+    environmentId: 'prod-env-1',
+    artifactManifestId: 'manifest-1',
+    status: 'awaiting_approval',
+    verifiedDigest: 'sha256:exact',
+    errorCode: null,
+    errorMessage: null,
+    startedAt: null,
+    finishedAt: null,
+    createdAt: '2026-08-06T00:00:00.000Z',
+    environment: { id: 'prod-env-1', name: 'Production', baselineRole: 'production' },
+    manifest: {
+      id: 'manifest-1',
+      digest: 'sha256:exact',
+      createdAt: '2026-08-06T00:00:00.000Z',
+      buildRun: {
+        id: 'build-1',
+        revision: 1,
+        sourceBranch: 'main',
+        sourceCommitSha: 'a'.repeat(40),
+      },
+      items: [],
+    },
+    operationApproval: {
+      id: `approval-${id}`,
+      status: 'pending',
+      risk: 'high',
+      summary: '生产发布 1.0.0 / Build #1',
+      requesterId: 'user-1',
+      reviewerId: null,
+      requester: { id: 'user-1', name: 'Requester', email: 'requester@example.com' },
+      reviewer: null,
+      reviewComment: null,
+      requestedAt: '2026-08-06T00:00:00.000Z',
+      reviewedAt: null,
+      consumedAt: null,
+      expiresAt: null,
+    },
+    stagingProof: null,
+    deploymentRuns: [],
+  };
+}
 
 function snapshot(): ProductionReleaseSnapshot {
   return {

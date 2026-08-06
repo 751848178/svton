@@ -71,8 +71,17 @@ export interface ReleaseEvidenceProductionRun {
   operationApproval: {
     id: string;
     status: ReleaseApprovalStatus;
+    risk: string;
+    summary: string | null;
+    requesterId: string | null;
+    reviewerId: string | null;
+    requester: { id: string; name: string | null; email: string } | null;
+    reviewer: { id: string; name: string | null; email: string } | null;
+    reviewComment: string | null;
     requestedAt: string;
     reviewedAt: string | null;
+    consumedAt: string | null;
+    expiresAt: string | null;
   };
   stagingProof: {
     deploymentRunId: string;

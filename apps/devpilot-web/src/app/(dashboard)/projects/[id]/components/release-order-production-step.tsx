@@ -9,6 +9,7 @@ import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-eviden
 import { useProductionReleases } from '../hooks/use-production-releases';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
 import { releaseClientErrorLabelKey } from '../utils/release-copy.model';
+import { ReleaseProductionApprovalCard } from './release-production-approval-card';
 import { ReleaseProductionConfirmDialog } from './release-production-confirm-dialog';
 import { ReleaseProductionEvidenceList } from './release-production-evidence-list';
 
@@ -54,6 +55,14 @@ export function ReleaseOrderProductionStep(props: Props) {
   const snapshot = production.preview?.snapshot;
   const productionErrorKey = releaseClientErrorLabelKey(production.error);
   const stagingErrorKey = releaseClientErrorLabelKey(staging.error);
+  const releaseRuns = evidence?.productionReleaseRuns.items || [];
+  const approvalRun = useMemo(() => {
+    if (props.focusedReleaseRunId) {
+      const focused = releaseRuns.find((run) => run.id === props.focusedReleaseRunId);
+      if (focused) return focused;
+    }
+    return releaseRuns[0] || null;
+  }, [props.focusedReleaseRunId, releaseRuns]);
 
   return (
     <div className="space-y-4">
@@ -104,6 +113,13 @@ export function ReleaseOrderProductionStep(props: Props) {
           onConfirm={production.confirm}
         />
       </div>
+      {approvalRun ? (
+        <ReleaseProductionApprovalCard
+          projectId={props.projectId}
+          run={approvalRun}
+          onChanged={props.onChanged}
+        />
+      ) : null}
       {production.error ? (
         <p
           className="text-sm text-destructive"

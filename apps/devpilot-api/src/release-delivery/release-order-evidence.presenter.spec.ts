@@ -19,6 +19,18 @@ describe("presentReleaseOrderEvidence", () => {
       id: "release-1",
       stagingProof: { deploymentRunId: "staging-1" },
       deploymentRuns: [{ id: "production-1", releaseRunId: "release-1" }],
+      operationApproval: {
+        id: "approval-1",
+        status: "approved",
+        risk: "high",
+        reviewer: {
+          id: "reviewer-1",
+          name: "Reviewer",
+          email: "reviewer@example.com",
+        },
+        reviewComment: "ok to deploy",
+        consumedAt: new Date("2026-08-05T03:00:00Z"),
+      },
     });
   });
 
@@ -152,9 +164,26 @@ function fixture() {
           targetType: "release_run",
           targetId: "release-1",
           status: "approved",
+          risk: "high",
+          summary: "生产发布 1.0.0 / Build #1",
           inputHash: "input-1",
+          requesterId: "requester-1",
+          reviewerId: "reviewer-1",
+          requester: {
+            id: "requester-1",
+            name: "Requester",
+            email: "requester@example.com",
+          },
+          reviewer: {
+            id: "reviewer-1",
+            name: "Reviewer",
+            email: "reviewer@example.com",
+          },
+          reviewComment: "ok to deploy",
           requestedAt: createdAt,
           reviewedAt: createdAt,
+          consumedAt: new Date("2026-08-05T03:00:00Z"),
+          expiresAt: null,
         },
         stagingProof: deployment("staging-1", new Date("2026-08-05T01:30:00Z")),
         deploymentRuns: [productionDeployment],
