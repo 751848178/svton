@@ -53,7 +53,7 @@ describe('useReleaseStagingDeployments ownership', () => {
     await render('project-1', 'order-1');
 
     expect(latest.items).toEqual([]);
-    expect(latest.error).toBe('Staging deployment scope mismatch');
+    expect(latest.error).toBe('releaseStagingScopeMismatch');
   });
 
   it('keeps the current scope when an older request resolves late', async () => {

@@ -55,7 +55,7 @@ describe('useProductionReleases scope ownership', () => {
     await render();
 
     expect(latest.preview).toBeNull();
-    expect(latest.error).toBe('Production preview scope mismatch');
+    expect(latest.error).toBe('releaseProductionPreviewScopeMismatch');
   });
 
   it('submits one exact confirmation while the first request is in flight', async () => {

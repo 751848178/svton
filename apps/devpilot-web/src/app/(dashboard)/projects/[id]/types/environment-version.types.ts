@@ -1,9 +1,15 @@
+import type {
+  EnvironmentVersionKind,
+  ReleaseApprovalStatus,
+  ReleaseEnvironmentRole,
+} from './release-copy.types';
+
 export interface EnvironmentVersionItem {
   id: string;
   environmentId: string;
   artifactManifestId: string;
   previousVersionId: string | null;
-  kind: 'deploy' | 'upgrade' | 'recovery';
+  kind: EnvironmentVersionKind;
   effectiveAt: string;
   releaseOrder: { id: string; releaseVersion: string };
   artifactManifest: {
@@ -23,7 +29,7 @@ export interface EnvironmentVersionEnvironment {
   id: string;
   key: string;
   name: string;
-  baselineRole: 'staging' | 'production';
+  baselineRole: ReleaseEnvironmentRole;
   currentEnvironmentVersionId: string | null;
   environmentVersions: EnvironmentVersionItem[];
 }
@@ -38,7 +44,7 @@ export interface EnvironmentVersionCandidate {
     id: string;
     operationApproval: null | {
       id: string;
-      status: string;
+      status: ReleaseApprovalStatus;
       consumedAt: string | null;
     };
   }>;

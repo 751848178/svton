@@ -3,6 +3,7 @@ import type {
   ReleaseOrderLifecycleStatus,
   ReleaseOrderPersistedStatus,
 } from './release-order-lifecycle.types';
+import type { ReleaseEnvironmentRole, ReleaseExecutionStatus } from './release-copy.types';
 
 export type ReleaseOrderListStatus = ReleaseOrderLifecycleStatus;
 
@@ -36,9 +37,9 @@ export interface ReleaseOrderListItem {
     latest: null | {
       id: string;
       environmentId: string;
-      environmentRole: 'staging' | 'production';
+      environmentRole: ReleaseEnvironmentRole;
       environmentName: string;
-      status: string;
+      status: ReleaseExecutionStatus;
       artifactManifestId: string;
       buildRunId: string;
       occurredAt: string;
@@ -48,7 +49,7 @@ export interface ReleaseOrderListItem {
     step: 'preflight' | 'build' | 'staging' | 'production';
     sourceType: 'order_created' | 'build_run' | 'deployment_run' | 'release_run';
     sourceId: string;
-    status: string;
+    status: ReleaseExecutionStatus;
     occurredAt: string;
   };
   lastExecutedAt: string;

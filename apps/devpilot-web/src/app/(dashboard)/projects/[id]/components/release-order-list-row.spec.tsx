@@ -27,7 +27,7 @@ describe('ReleaseOrderListRow', () => {
     expect(html).toContain('releaseOrderBuildCount');
     expect(html).toContain('&quot;count&quot;:3');
     expect(html).toContain('releaseOrderRecentManifest');
-    expect(html).toContain('Staging · releaseExecutionStatusCompleted');
+    expect(html).toContain('releaseEnvironmentStaging · releaseExecutionStatusCompleted');
     expect(html).toContain('releaseOrderListStepProduction');
     expect(html).toContain('releaseExecutionStatusAwaitingApproval');
     expect(html).toContain('viewReleaseOrder');

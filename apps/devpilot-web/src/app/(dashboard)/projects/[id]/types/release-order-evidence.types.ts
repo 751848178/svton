@@ -1,3 +1,9 @@
+import type {
+  ReleaseApprovalStatus,
+  ReleaseEnvironmentRole,
+  ReleaseExecutionStatus,
+} from './release-copy.types';
+
 export interface ReleaseEvidenceManifest {
   id: string;
   digest: string;
@@ -18,7 +24,7 @@ export interface ReleaseEvidenceBuildRun {
   revision: number;
   sourceBranch: string;
   sourceCommitSha: string;
-  status: string;
+  status: ReleaseExecutionStatus;
   errorCode: string | null;
   errorMessage: string | null;
   startedAt: string | null;
@@ -34,7 +40,7 @@ export interface ReleaseEvidenceDeploymentRun {
   releaseRunId: string | null;
   environmentId: string | null;
   artifactManifestId: string | null;
-  status: string;
+  status: ReleaseExecutionStatus;
   executorKey: string;
   adapterKey: string;
   branch: string | null;
@@ -43,7 +49,7 @@ export interface ReleaseEvidenceDeploymentRun {
   startedAt: string;
   finishedAt: string | null;
   createdAt: string;
-  environment: { id: string; name: string; baselineRole: string | null };
+  environment: { id: string; name: string; baselineRole: ReleaseEnvironmentRole | null };
   manifest: ReleaseEvidenceManifest;
 }
 
@@ -53,18 +59,18 @@ export interface ReleaseEvidenceProductionRun {
   releaseOrderId: string;
   environmentId: string;
   artifactManifestId: string;
-  status: string;
+  status: ReleaseExecutionStatus;
   verifiedDigest: string;
   errorCode: string | null;
   errorMessage: string | null;
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
-  environment: { id: string; name: string; baselineRole: string | null };
+  environment: { id: string; name: string; baselineRole: ReleaseEnvironmentRole | null };
   manifest: ReleaseEvidenceManifest;
   operationApproval: {
     id: string;
-    status: string;
+    status: ReleaseApprovalStatus;
     requestedAt: string;
     reviewedAt: string | null;
   };

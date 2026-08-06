@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, LinkButton, StatusTag } from '@/components/ui';
 import { useEnvironmentVersions } from '../hooks/use-environment-versions';
@@ -8,6 +8,8 @@ import type {
   EnvironmentVersionCandidate,
   EnvironmentVersionEnvironment,
 } from '../types/environment-version.types';
+import { releaseEnvironmentLabelKey } from '../utils/release-copy.model';
+import { EnvironmentVersionSummary } from './environment-version-summary';
 
 export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
   const t = useTranslations('projects');
@@ -88,16 +90,14 @@ function EnvironmentCard(props: {
   return (
     <article className="space-y-4 rounded-lg border p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold">
-          {env.baselineRole === 'staging' ? 'Staging' : 'Production'}
-        </h2>
+        <h2 className="font-semibold">{t(releaseEnvironmentLabelKey(env.baselineRole))}</h2>
         <StatusTag
           status={current ? 'success' : 'default'}
           label={current ? t('environmentVersionCurrent') : t('environmentVersionUnavailable')}
         />
       </div>
       {current ? (
-        <VersionSummary version={current} />
+        <EnvironmentVersionSummary version={current} />
       ) : (
         <p className="text-xs text-muted-foreground">
           {t('environmentVersionUnavailableDescription')}
@@ -116,7 +116,10 @@ function EnvironmentCard(props: {
                 key={candidate.id}
                 value={candidate.id}
               >
-                {candidate.releaseOrder.releaseVersion} · Build #{candidate.buildRun.revision}
+                {t('environmentVersionCandidateOption', {
+                  version: candidate.releaseOrder.releaseVersion,
+                  revision: candidate.buildRun.revision,
+                })}
               </option>
             ))}
           </select>
@@ -141,7 +144,7 @@ function EnvironmentCard(props: {
             key={version.id}
             className="flex flex-wrap items-center justify-between gap-2 rounded border p-3 text-xs"
           >
-            <VersionSummary version={version} />
+            <EnvironmentVersionSummary version={version} />
             {version.id !== env.currentEnvironmentVersionId ? (
               <Button
                 variant="outline"
@@ -162,23 +165,6 @@ function EnvironmentCard(props: {
         ))}
       </div>
     </article>
-  );
-}
-
-function VersionSummary({
-  version,
-}: {
-  version: EnvironmentVersionEnvironment['environmentVersions'][number];
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="font-medium">
-        {version.releaseOrder.releaseVersion} · {version.kind}
-      </p>
-      <p className="break-all font-mono text-muted-foreground">
-        Build #{version.artifactManifest.buildRun.revision} · {version.artifactManifest.digest}
-      </p>
-    </div>
   );
 }
 

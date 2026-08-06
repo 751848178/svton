@@ -27,6 +27,9 @@ describe('project delivery home summary', () => {
     expect(html).toContain('projectDeliveryResourceBindingValue');
     expect(html).toContain('&quot;bound&quot;:0');
     expect(html).toContain('projectDeliverySiteEntriesValue');
+    expect(html).toContain('releaseEnvironmentStaging');
+    expect(html).toContain('releaseEnvironmentProduction');
+    expect(html.match(/projectDeliveryReleaseVersion/g)).toHaveLength(2);
     expect(html).toContain('2.4.0-rc.1');
     expect(html).toContain('2.3.2');
     expect(html).toContain('sha256:staging');

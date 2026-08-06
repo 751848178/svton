@@ -44,7 +44,7 @@ export function useProductionReleases(
         : null;
       if (!isCurrent(request)) return;
       if (preview && !ownsPreview(preview, projectId, releaseOrderId, manifestId)) {
-        setState(failedState(scope, 'Production preview scope mismatch'));
+        setState(failedState(scope, 'releaseProductionPreviewScopeMismatch'));
         return;
       }
       setState({ scope, preview, loading: false, confirming: false, error: '' });
@@ -80,7 +80,7 @@ export function useProductionReleases(
       );
       if (!isCurrent(request)) return null;
       if (run.projectId !== projectId || run.releaseOrderId !== releaseOrderId) {
-        setState(failedState(scope, 'Production release scope mismatch'));
+        setState(failedState(scope, 'releaseProductionRunScopeMismatch'));
         return null;
       }
       await onChanged();

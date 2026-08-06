@@ -38,7 +38,9 @@ describe('release order evidence lists', () => {
     expect(html).toContain('Manifest manifest-1 / sha256:exact');
     expect(html).toContain('/projects/project-1?view=deployments&amp;runId=staging-1');
     expect(html).toContain('aria-current="true"');
-    expect(html).toContain('projects.releaseEvidenceDetails');
+    expect(html).toContain('projects.runStatusCompleted');
+    expect(html).toContain('projects.releaseEnvironmentStaging');
+    expect(html.match(/projects\.focusDeploymentRunEvidence/g)).toHaveLength(2);
   });
 
   it('renders ReleaseRun, approval, staging proof and every Production DeploymentRun', () => {
@@ -54,12 +56,17 @@ describe('release order evidence lists', () => {
       />,
     );
     expect(html).toContain('ReleaseRun release-1');
-    expect(html).toContain('projects.releaseProductionApproval approved');
-    expect(html).toContain('Staging DeploymentRun staging-proof-1');
+    expect(html).toContain(
+      'projects.releaseProductionApproval · projects.releaseApprovalStatusApproved',
+    );
+    expect(html).toContain('projects.runStatusSucceeded');
+    expect(html).toContain('projects.releaseEnvironmentProduction');
+    expect(html).toContain('projects.releaseEnvironmentStaging DeploymentRun staging-proof-1');
     expect(html).toContain('DeploymentRun production-1');
     expect(html).toContain('DeploymentRun production-2');
     expect(html).toContain('/projects/project-1?view=deployments&amp;runId=production-2');
-    expect(html.match(/projects\.releaseEvidenceDetails/g)).toHaveLength(3);
+    expect(html.match(/projects\.focusDeploymentRunEvidence/g)).toHaveLength(2);
+    expect(html.match(/projects\.focusReleaseRunEvidence/g)).toHaveLength(1);
   });
 });
 

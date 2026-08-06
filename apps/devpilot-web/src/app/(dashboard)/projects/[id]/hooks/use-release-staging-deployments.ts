@@ -49,7 +49,7 @@ export function useReleaseStagingDeployments(
       );
       if (!isCurrent(request)) return;
       if (result.items.some((item) => !ownsScope(item, projectId, releaseOrderId))) {
-        setState((current) => failedState(scope, current, 'Staging deployment scope mismatch'));
+        setState((current) => failedState(scope, current, 'releaseStagingScopeMismatch'));
         return;
       }
       setState((current) => ({
@@ -89,7 +89,7 @@ export function useReleaseStagingDeployments(
         );
         if (!isCurrent(request)) return null;
         if (!ownsScope(run, projectId, releaseOrderId)) {
-          setState((current) => failedState(scope, current, 'Staging deployment scope mismatch'));
+          setState((current) => failedState(scope, current, 'releaseStagingScopeMismatch'));
           return null;
         }
         invalidate('list');

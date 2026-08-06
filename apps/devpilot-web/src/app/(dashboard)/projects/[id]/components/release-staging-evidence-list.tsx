@@ -4,6 +4,7 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, StatusTag } from '@/components/ui';
 import type { ReleaseEvidenceDeploymentRun } from '../types/release-order-evidence.types';
+import { releaseEnvironmentLabelKey, releaseRunStatusLabelKey } from '../utils/release-copy.model';
 import { formatDuration, formatIso } from '../utils/release-time.utils';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseDeploymentEvidenceLink } from './release-deployment-evidence-link';
@@ -38,7 +39,7 @@ export function ReleaseStagingEvidenceList(props: Props) {
               <strong>DeploymentRun {run.id}</strong>
               <StatusTag
                 status={releaseOrderStatusTone(run.status)}
-                label={run.status}
+                label={t(releaseRunStatusLabelKey(run.status))}
               />
             </div>
             <p className="mt-2 break-all font-mono text-xs">
@@ -48,7 +49,7 @@ export function ReleaseStagingEvidenceList(props: Props) {
               Manifest {run.manifest.id} / {run.manifest.digest}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {run.environment.name} · {run.environment.id} ·{' '}
+              {t(releaseEnvironmentLabelKey(run.environment.baselineRole))} · {run.environment.id} ·{' '}
               {formatDuration(run.startedAt, run.finishedAt) || '—'} · {formatIso(run.createdAt)}
             </p>
             {run.error ? <p className="mt-2 text-destructive">{run.error}</p> : null}
@@ -58,7 +59,7 @@ export function ReleaseStagingEvidenceList(props: Props) {
                 size="sm"
                 onClick={() => props.onFocus(run.id)}
               >
-                {t('releaseEvidenceDetails')}
+                {t('focusDeploymentRunEvidence')}
               </Button>
               <ReleaseDeploymentEvidenceLink
                 projectId={props.projectId}

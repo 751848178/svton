@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Hammer } from '@phosphor-icons/react';
 import { Button, StatusTag } from '@/components/ui';
 import type { ReleaseOrderDetail } from '../types/release-order.types';
+import { releaseOrderStatusLabelKey } from '../utils/release-copy.model';
 import { releaseOrderFailureLabelKey, releaseOrderStatusTone } from '../utils/release-order.utils';
 import { releaseOrderStepLabelKey } from './release-order-stepper.model';
 
@@ -40,7 +41,7 @@ export function ReleaseOrderDetailHeader({ detail, building, onBack, onBuildLate
             </h2>
             <StatusTag
               status={releaseOrderStatusTone(detail.lifecycle.status)}
-              label={t(`releaseOrderStatus${statusKey(detail.lifecycle.status)}`)}
+              label={t(releaseOrderStatusLabelKey(detail.lifecycle.status))}
             />
             {productionArtifactFrozen ? (
               <StatusTag
@@ -88,11 +89,4 @@ export function ReleaseOrderDetailHeader({ detail, building, onBack, onBuildLate
       </div>
     </header>
   );
-}
-
-function statusKey(status: string) {
-  return status
-    .split('_')
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join('');
 }

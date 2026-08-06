@@ -1,8 +1,15 @@
 'use client';
 
+import React from 'react';
 import { useTranslations } from 'next-intl';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import type { DeploymentRun } from '../types/operations';
+import {
+  releaseApprovalStatusLabelKey,
+  releaseEnvironmentValueLabelKey,
+  releaseRiskLabelKey,
+  releaseRunStatusLabelKey,
+} from '../utils/release-copy.model';
 import { DeployVarPreview } from './deploy-var-preview';
 import { DeploymentStageTimeline } from './deployment-stage-timeline.component';
 
@@ -10,10 +17,16 @@ const MAX_RAW_LENGTH = 12_000;
 
 export function DeploymentRunDetails({ run }: { run: DeploymentRun }) {
   const t = useTranslations('projects');
+  const environmentKey = releaseEnvironmentValueLabelKey(
+    run.projectEnvironment?.key || run.environment,
+  );
   const facts = [
     [t('runDetailMode'), run.dryRun ? t('runModePlanOnly') : t('runModeLiveRequest')],
     [t('runDetailTarget'), run.targetType || '-'],
-    [t('runDetailEnvironment'), run.projectEnvironment?.name || run.environment || '-'],
+    [
+      t('runDetailEnvironment'),
+      environmentKey ? t(environmentKey) : run.projectEnvironment?.name || run.environment || '-',
+    ],
     [t('runDetailApplication'), run.application?.name || '-'],
     [t('runDetailService'), run.applicationService?.name || '-'],
     [t('runDetailServer'), run.server ? `${run.server.name} (${run.server.host})` : '-'],
@@ -75,8 +88,8 @@ function StateEvidence({ run }: { run: DeploymentRun }) {
         <p className="mt-1 text-xs text-muted-foreground">
           {approval
             ? t('runDetailApprovalState', {
-                status: approval.status,
-                risk: approval.risk,
+                status: t(releaseApprovalStatusLabelKey(approval.status)),
+                risk: t(releaseRiskLabelKey(approval.risk)),
               })
             : t('runDetailNoApproval')}
         </p>
@@ -86,7 +99,7 @@ function StateEvidence({ run }: { run: DeploymentRun }) {
         <p className="mt-1 text-xs text-muted-foreground">
           {run.serverExecutionJob
             ? t('runDetailExecutionState', {
-                status: run.serverExecutionJob.status,
+                status: t(releaseRunStatusLabelKey(run.serverExecutionJob.status)),
                 attempt: run.serverExecutionJob.attempt,
                 max: run.serverExecutionJob.maxAttempts,
               })

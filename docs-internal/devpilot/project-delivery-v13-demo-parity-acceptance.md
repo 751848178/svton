@@ -346,14 +346,14 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 
 ## Copy, Visual And Accessibility
 
-- [ ] **AC-COPY-001** 用户可见主对象统一称“发布单”。
-- [ ] **AC-COPY-002** `releaseVersion` 统一称“发布版本号”。
-- [ ] **AC-COPY-003** `EnvironmentVersion` 统一称“环境版本”。
-- [ ] **AC-COPY-004** `BuildRun/Manifest/DeploymentRun/ReleaseRun` 在专业证据区保留准确术语。
-- [ ] **AC-COPY-005** 页面不出现“候选 xx”“默认路径”“需要处理”“正在交付”等无法指导动作的模糊词。
-- [ ] **AC-COPY-006** raw status code 不直接暴露给用户。
-- [ ] **AC-COPY-007** Staging/Production 技术名与“预发/生产”用户名组合一致。
-- [ ] **AC-COPY-008** zh/en key、ICU 参数和运行时切换 parity 通过。
+- [x] **AC-COPY-001** 用户可见主对象统一称“发布单”。
+- [x] **AC-COPY-002** `releaseVersion` 统一称“发布版本号”。
+- [x] **AC-COPY-003** `EnvironmentVersion` 统一称“环境版本”。
+- [x] **AC-COPY-004** `BuildRun/Manifest/DeploymentRun/ReleaseRun` 在专业证据区保留准确术语。
+- [x] **AC-COPY-005** 页面不出现“候选 xx”“默认路径”“需要处理”“正在交付”等无法指导动作的模糊词。
+- [x] **AC-COPY-006** raw status code 不直接暴露给用户。
+- [x] **AC-COPY-007** Staging/Production 技术名与“预发/生产”用户名组合一致。
+- [x] **AC-COPY-008** zh/en key、ICU 参数和运行时切换 parity 通过。
 
 - [ ] **AC-UI-001** 项目目录页面布局与 Demo 对齐。
 - [ ] **AC-UI-002** 三步接入页面布局与 Demo 对齐。

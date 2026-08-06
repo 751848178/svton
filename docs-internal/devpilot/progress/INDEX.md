@@ -44,6 +44,16 @@
   scoped API 200/foreign 404, no competing project-primary artifact/deployment
   label, and 0 console errors/warnings. **Next: F430 copy semantics.**
 
+- F430 closed on 2026-08-06: centralized typed presenters now keep release
+  statuses, approval, risk, environment-version kind and Staging/Production
+  roles localized without exposing raw codes, while exact
+  BuildRun/Manifest/DeploymentRun/ReleaseRun terms remain in professional
+  evidence. Final gates passed 3,060-message zh/en parity, 54 files/205 tests,
+  production build and CodeGraph coverage; fresh Browser zh→en→zh switching
+  and 7 hash-bound screenshots passed with 0 console errors/warnings. The
+  independent review reported P0/P1/P2/P3=0/0/0/0. **Next: F431 exact-Manifest
+  Deployment Provider.**
+
 - F428 is code/runtime ready but not accepted on 2026-08-06: private bounded
   Build history, exact per-run detail/Drawer, deep-link error/retry ownership,
   terminal log evidence and fail-closed secret redaction pass full API/Web,

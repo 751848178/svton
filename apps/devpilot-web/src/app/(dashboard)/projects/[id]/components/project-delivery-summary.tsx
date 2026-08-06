@@ -6,6 +6,7 @@ import type {
   ProjectDeliveryBaselineRole,
   ProjectDeliverySummary,
 } from '../types/project-delivery-summary.types';
+import { releaseEnvironmentLabelKey } from '../utils/release-copy.model';
 
 export function ProjectDeliveryWeakSummary({ summary }: { summary: ProjectDeliverySummary }) {
   const t = useTranslations('projects');
@@ -68,12 +69,14 @@ function EnvironmentVersionCard({
   const version = summary.currentVersions[role];
   return (
     <article className="rounded-lg border p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {role === 'staging' ? 'Staging' : 'Production'}
+      <p className="text-xs font-medium tracking-wide text-muted-foreground">
+        {t(releaseEnvironmentLabelKey(role))}
       </p>
       {version ? (
         <div className="mt-2">
-          <p className="text-lg font-semibold">{version.releaseVersion}</p>
+          <p className="text-lg font-semibold">
+            {t('projectDeliveryReleaseVersion', { version: version.releaseVersion })}
+          </p>
           <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
             {version.manifestDigest}
           </p>

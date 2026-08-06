@@ -8,6 +8,10 @@ import { useReleaseBuilds } from '../hooks/use-release-builds';
 import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
 import { useProductionReleases } from '../hooks/use-production-releases';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
+import {
+  releaseClientErrorLabelKey,
+  releaseEnvironmentValueLabelKey,
+} from '../utils/release-copy.model';
 import { ReleaseProductionEvidenceList } from './release-production-evidence-list';
 
 interface Props {
@@ -50,6 +54,9 @@ export function ReleaseOrderProductionStep(props: Props) {
     props.onChanged,
   );
   const snapshot = production.preview?.snapshot;
+  const snapshotEnvironmentKey = releaseEnvironmentValueLabelKey(snapshot?.environment.name);
+  const productionErrorKey = releaseClientErrorLabelKey(production.error);
+  const stagingErrorKey = releaseClientErrorLabelKey(staging.error);
 
   return (
     <div className="space-y-4">
@@ -89,7 +96,7 @@ export function ReleaseOrderProductionStep(props: Props) {
           <dl className="grid gap-3 text-sm md:grid-cols-2">
             <SnapshotRow
               label={t('releaseProductionEnvironment')}
-              value={snapshot.environment.name}
+              value={snapshotEnvironmentKey ? t(snapshotEnvironmentKey) : snapshot.environment.name}
             />
             <SnapshotRow
               label={t('releaseProductionVersion')}
@@ -135,7 +142,7 @@ export function ReleaseOrderProductionStep(props: Props) {
           className="text-sm text-destructive"
           role="alert"
         >
-          {production.error}
+          {productionErrorKey ? t(productionErrorKey) : production.error}
         </p>
       ) : null}
       {builds.error ? (
@@ -146,7 +153,7 @@ export function ReleaseOrderProductionStep(props: Props) {
       ) : null}
       {staging.error ? (
         <ErrorBanner
-          message={staging.error}
+          message={stagingErrorKey ? t(stagingErrorKey) : staging.error}
           onRetry={staging.load}
         />
       ) : null}

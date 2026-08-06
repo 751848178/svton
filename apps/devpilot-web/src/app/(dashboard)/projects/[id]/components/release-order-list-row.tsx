@@ -5,6 +5,11 @@ import { useTranslations } from 'next-intl';
 import { Button, StatusTag } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
 import type { ReleaseOrderListItem } from '../types/release-order-list.types';
+import {
+  releaseEnvironmentLabelKey,
+  releaseExecutionStatusLabelKey,
+  releaseOrderStatusLabelKey,
+} from '../utils/release-copy.model';
 import { releaseOrderFailureLabelKey, releaseOrderStatusTone } from '../utils/release-order.utils';
 
 export function ReleaseOrderListRow({
@@ -25,7 +30,7 @@ export function ReleaseOrderListRow({
           <h3 className="text-lg font-semibold">{item.releaseVersion}</h3>
           <StatusTag
             status={releaseOrderStatusTone(item.lifecycle.status)}
-            label={t(`releaseOrderStatus${statusKey(item.lifecycle.status)}`)}
+            label={t(releaseOrderStatusLabelKey(item.lifecycle.status))}
           />
         </div>
         <p className="mt-2 break-all font-mono text-xs text-muted-foreground">
@@ -34,9 +39,7 @@ export function ReleaseOrderListRow({
             : t('releaseOrderSourcePending', { branch: item.source.branch ?? '—' })}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">{item.note || t('releaseOrderNoNote')}</p>
-        {failureLabelKey && (
-          <p className="mt-1 text-xs text-destructive">{t(failureLabelKey)}</p>
-        )}
+        {failureLabelKey && <p className="mt-1 text-xs text-destructive">{t(failureLabelKey)}</p>}
       </section>
 
       <section aria-label={t('releaseOrderColumnBuild')}>
@@ -75,7 +78,7 @@ export function ReleaseOrderListRow({
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {deployment
-            ? `${deployment.environmentName} · ${executionStatus(t, deployment.status)}`
+            ? `${environmentLabel(t, deployment)} · ${t(releaseExecutionStatusLabelKey(deployment.status))}`
             : t('releaseOrderNoDeployment')}
         </p>
       </section>
@@ -88,7 +91,8 @@ export function ReleaseOrderListRow({
           {t(`releaseOrderListStep${capitalize(item.lastExecution.step)}`)}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {executionStatus(t, item.lastExecution.status)} · {formatDateTime(item.lastExecutedAt)}
+          {t(releaseExecutionStatusLabelKey(item.lastExecution.status))} ·{' '}
+          {formatDateTime(item.lastExecutedAt)}
         </p>
         <Button
           variant="outline"
@@ -103,21 +107,14 @@ export function ReleaseOrderListRow({
   );
 }
 
-function executionStatus(t: ReturnType<typeof useTranslations>, status: string) {
-  const keys: Record<string, string> = {
-    created: 'Created',
-    queued: 'Queued',
-    running: 'Running',
-    succeeded: 'Succeeded',
-    failed: 'Failed',
-    canceled: 'Canceled',
-    completed: 'Completed',
-    blocked: 'Blocked',
-    pending: 'Pending',
-    awaiting_approval: 'AwaitingApproval',
-  };
-  const key = keys[status];
-  return key ? t(`releaseExecutionStatus${key}`) : status;
+function environmentLabel(
+  t: ReturnType<typeof useTranslations>,
+  deployment: NonNullable<ReleaseOrderListItem['deployment']['latest']>,
+) {
+  const label = t(releaseEnvironmentLabelKey(deployment.environmentRole));
+  return deployment.environmentName.toLowerCase() === deployment.environmentRole
+    ? label
+    : `${label} · ${deployment.environmentName}`;
 }
 
 function shortId(value: string) {
@@ -130,8 +127,4 @@ function shortDigest(value: string) {
 
 function capitalize(value: string) {
   return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
-}
-
-function statusKey(value: string) {
-  return value.split('_').map(capitalize).join('');
 }

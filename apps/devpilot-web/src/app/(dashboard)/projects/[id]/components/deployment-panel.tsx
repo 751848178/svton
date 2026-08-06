@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { Alert, Button, ErrorBanner, StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
-import { getProjectEnvironmentLabels } from '@/lib/project-display';
+import { releaseEnvironmentValueLabelKey } from '../utils/release-copy.model';
 import { DeploymentRunDetails } from './deployment-run-details.component';
 import { DeployServiceSection } from './deploy-service-section';
 import { PanelGroup } from './panel-group';
@@ -40,9 +40,7 @@ export function DeploymentPanel({ detail, focusedRunId, onOpenDeploy }: Deployme
       subtitle={t('deploymentPanelDescription')}
     >
       {focusedRunId ? (
-        <Alert tone="info">
-          {t('focusedDeploymentRun', { id: focusedRunId.slice(-8) })}
-        </Alert>
+        <Alert tone="info">{t('focusedDeploymentRun', { id: focusedRunId.slice(-8) })}</Alert>
       ) : null}
       {detail.deploymentError ? (
         <ErrorBanner
@@ -50,7 +48,9 @@ export function DeploymentPanel({ detail, focusedRunId, onOpenDeploy }: Deployme
           onRetry={() => detail.loadDeploymentRuns()}
         />
       ) : focusedRuns.length === 0 ? (
-        <EmptyState text={focusedRunId ? t('focusedDeploymentRunNotFound') : t('noDeploymentRuns')} />
+        <EmptyState
+          text={focusedRunId ? t('focusedDeploymentRunNotFound') : t('noDeploymentRuns')}
+        />
       ) : (
         <DeploymentRunList
           runs={focusedRuns}
@@ -134,7 +134,8 @@ function DeploymentRunRow({
   const [open, setOpen] = useState(initiallyOpen);
   const sourceKey = getRunSourceLabelKey(run.source);
   const statusKey = getRunStatusLabelKey(run.status);
-  const statusLabel = statusKey ? t(statusKey) : run.status;
+  const statusLabel = t(statusKey);
+  const environmentKey = releaseEnvironmentValueLabelKey(run.environment);
   return (
     <div className="rounded-md border px-3 py-2 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -149,8 +150,7 @@ function DeploymentRunRow({
           </span>
           {run.environment ? (
             <span className="ml-2 text-xs text-muted-foreground">
-              {getProjectEnvironmentLabels({ environments: [run.environment] })[0] ??
-                run.environment}
+              {environmentKey ? t(environmentKey) : run.environment}
             </span>
           ) : null}
           {run.actor?.name ? (

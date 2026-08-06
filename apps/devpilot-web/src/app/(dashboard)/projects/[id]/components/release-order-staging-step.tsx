@@ -7,6 +7,7 @@ import { Button, ErrorBanner } from '@/components/ui';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
 import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
+import { releaseClientErrorLabelKey } from '../utils/release-copy.model';
 import { ReleaseStagingEvidenceList } from './release-staging-evidence-list';
 
 interface Props {
@@ -32,6 +33,7 @@ export function ReleaseOrderStagingStep(props: Props) {
     [builds.items],
   );
   const [requestedManifestId, setRequestedManifestId] = useState('');
+  const deploymentErrorKey = releaseClientErrorLabelKey(deployments.error);
   const manifestId = manifests.some((item) => item.manifest?.id === requestedManifestId)
     ? requestedManifestId
     : manifests[0]?.manifest?.id || '';
@@ -92,7 +94,7 @@ export function ReleaseOrderStagingStep(props: Props) {
           className="text-sm text-destructive"
           role="alert"
         >
-          {deployments.error}
+          {deploymentErrorKey ? t(deploymentErrorKey) : deployments.error}
         </p>
       ) : null}
       {props.evidence.loading && !evidence ? <LoadingState /> : null}

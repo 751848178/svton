@@ -4,6 +4,11 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, StatusTag } from '@/components/ui';
 import type { ReleaseEvidenceProductionRun } from '../types/release-order-evidence.types';
+import {
+  releaseApprovalStatusLabelKey,
+  releaseEnvironmentLabelKey,
+  releaseRunStatusLabelKey,
+} from '../utils/release-copy.model';
 import { formatDuration, formatIso } from '../utils/release-time.utils';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseDeploymentEvidenceLink } from './release-deployment-evidence-link';
@@ -39,11 +44,11 @@ export function ReleaseProductionEvidenceList(props: Props) {
               <strong>ReleaseRun {run.id}</strong>
               <StatusTag
                 status={releaseOrderStatusTone(run.status)}
-                label={run.status}
+                label={t(releaseRunStatusLabelKey(run.status))}
               />
               <StatusTag
                 status={releaseOrderStatusTone(run.operationApproval.status)}
-                label={`${t('releaseProductionApproval')} ${run.operationApproval.status}`}
+                label={`${t('releaseProductionApproval')} · ${t(releaseApprovalStatusLabelKey(run.operationApproval.status))}`}
               />
             </div>
             <p className="mt-2 break-all font-mono text-xs">
@@ -52,9 +57,13 @@ export function ReleaseProductionEvidenceList(props: Props) {
             <p className="mt-1 break-all font-mono text-xs">
               Manifest {run.manifest.id} / {run.manifest.digest}
             </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t(releaseEnvironmentLabelKey(run.environment.baselineRole))} · {run.environment.id}
+            </p>
             {run.stagingProof ? (
               <p className="mt-1 break-all font-mono text-xs">
-                Staging DeploymentRun {run.stagingProof.deploymentRunId}
+                {t(releaseEnvironmentLabelKey('staging'))} DeploymentRun{' '}
+                {run.stagingProof.deploymentRunId}
               </p>
             ) : null}
             <div className="mt-3 space-y-2">
@@ -67,7 +76,8 @@ export function ReleaseProductionEvidenceList(props: Props) {
                     data-deployment-run-id={deployment.id}
                   >
                     <p className="break-all font-mono text-xs">
-                      DeploymentRun {deployment.id} · {deployment.status}
+                      DeploymentRun {deployment.id} ·{' '}
+                      {t(releaseRunStatusLabelKey(deployment.status))}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {formatDuration(deployment.startedAt, deployment.finishedAt) || '—'} ·{' '}
@@ -79,7 +89,7 @@ export function ReleaseProductionEvidenceList(props: Props) {
                         size="sm"
                         onClick={() => props.onFocus(run.id, deployment.id)}
                       >
-                        {t('releaseEvidenceDetails')}
+                        {t('focusDeploymentRunEvidence')}
                       </Button>
                       <ReleaseDeploymentEvidenceLink
                         projectId={props.projectId}
@@ -96,7 +106,7 @@ export function ReleaseProductionEvidenceList(props: Props) {
               size="sm"
               onClick={() => props.onFocus(run.id)}
             >
-              {t('releaseEvidenceDetails')}
+              {t('focusReleaseRunEvidence')}
             </Button>
           </article>
         );
