@@ -5,7 +5,11 @@ import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { EnvironmentVersionService } from "./environment-version.service";
 import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-gate-evidence.repository";
 import { productionGateTestDouble } from "./release-gate-test-decision.spec-utils";
-import { environmentVersionExecutorTestDouble } from "./release-staging-executor.spec-utils";
+import {
+  environmentVersionExecutorTestDouble,
+  environmentVersionInputTestDouble,
+  productionWorkloadTestDouble,
+} from "./release-staging-executor.spec-utils";
 import {
   cleanupProductionFixture,
   createProductionFixture,
@@ -33,6 +37,8 @@ describeIntegration("EnvironmentVersion integration", () => {
       environmentVersionExecutorTestDouble() as never,
       productionGateTestDouble(fixture.prisma) as never,
       new EnvironmentVersionGateEvidenceRepository(fixture.prisma as never),
+      environmentVersionInputTestDouble() as never,
+      productionWorkloadTestDouble() as never,
     );
   });
 

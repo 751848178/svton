@@ -117,6 +117,7 @@ export class ReleaseProductionRepository {
             environmentPolicyReferences: snapshot.config.policySnapshot,
             releaseProtection: releaseProtection(
               snapshot.config.policySnapshot,
+              snapshot.releasePolicy.synthetic,
             ),
           } as Prisma.InputJsonValue,
           inputHash: preview.inputHash,
@@ -152,18 +153,23 @@ export class ReleaseProductionRepository {
   }
 }
 
-function releaseProtection(value: unknown) {
+function releaseProtection(value: unknown, synthetic: boolean) {
   const record =
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : {};
   const candidate = record.releaseProtection;
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
-    return null;
+  if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+    const protection = candidate as Record<string, unknown>;
+    return {
+      changeWindowVerified: protection.changeWindowVerified === true,
+      freezeVerified: protection.freezeVerified === true,
+    };
   }
-  const protection = candidate as Record<string, unknown>;
   return {
-    changeWindowVerified: protection.changeWindowVerified === true,
-    freezeVerified: protection.freezeVerified === true,
+    // Standard 发布策略的默认合成策略将变更窗口与冻结期视为已验证；
+    // 若存在真实策略行却缺少显式结论则 fail closed（两项均为 false）。
+    changeWindowVerified: synthetic === true,
+    freezeVerified: synthetic === true,
   };
 }

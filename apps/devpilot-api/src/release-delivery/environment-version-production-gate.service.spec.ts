@@ -18,7 +18,7 @@ describe("EnvironmentVersionProductionGateService", () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it("defers only D17 missing-deployment evidence before execution", async () => {
+  it("defers only capability-missing gates before execution", async () => {
     gates.assertAllowed.mockResolvedValue(decision(true));
     await service.admit(context);
     expect(gates.assertAllowed).toHaveBeenCalledWith(
@@ -33,6 +33,8 @@ describe("EnvironmentVersionProductionGateService", () => {
         },
         requestKey: "pre:release-1",
         deferredReasons: {
+          D06: ["traffic_strategy_provider_missing"],
+          D09: ["network_policy_provider_missing"],
           D17: ["production_deployment_missing"],
           D20: ["recovery_compatibility_provider_missing"],
         },
@@ -40,7 +42,7 @@ describe("EnvironmentVersionProductionGateService", () => {
     );
   });
 
-  it("requires an undeferred final decision from the exact DeploymentRun", async () => {
+  it("defers capability-missing gates but not real-evidence gates at finalize", async () => {
     gates.assertAllowed.mockResolvedValue(decision(true));
     await service.finalize({ ...context, deploymentRunId: "deployment-1" });
     expect(gates.assertAllowed).toHaveBeenCalledWith(
@@ -55,11 +57,16 @@ describe("EnvironmentVersionProductionGateService", () => {
           checkpoint: "post_execution",
           deploymentRunId: "deployment-1",
         }),
+        deferredReasons: {
+          D06: ["traffic_strategy_provider_missing"],
+          D09: ["network_policy_provider_missing"],
+          D20: ["recovery_compatibility_provider_missing"],
+        },
       }),
     );
-    expect(gates.assertAllowed.mock.calls[0][0]).not.toHaveProperty(
-      "deferredReasons",
-    );
+    expect(
+      gates.assertAllowed.mock.calls[0][0].deferredReasons,
+    ).not.toHaveProperty("D17");
   });
 
   it("preserves the persisted blocked decision when final enforcement fails", async () => {

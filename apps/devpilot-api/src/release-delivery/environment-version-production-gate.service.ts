@@ -41,6 +41,8 @@ export class EnvironmentVersionProductionGateService {
       },
       requestKey: `pre:${context.releaseRunId}`,
       deferredReasons: {
+        D06: ["traffic_strategy_provider_missing"],
+        D09: ["network_policy_provider_missing"],
         D17: ["production_deployment_missing"],
         D20: ["recovery_compatibility_provider_missing"],
       },
@@ -63,6 +65,11 @@ export class EnvironmentVersionProductionGateService {
         releaseRunId: context.releaseRunId,
       },
       requestKey: `final:${context.releaseRunId}:${context.deploymentRunId}`,
+      deferredReasons: {
+        D06: ["traffic_strategy_provider_missing"],
+        D09: ["network_policy_provider_missing"],
+        D20: ["recovery_compatibility_provider_missing"],
+      },
     });
   }
 
@@ -87,6 +94,11 @@ export class EnvironmentVersionProductionGateService {
           releaseRunId: context.releaseRunId,
         },
         requestKey: `final:${context.releaseRunId}:${context.deploymentRunId}`,
+        deferredReasons: {
+          D06: ["traffic_strategy_provider_missing"],
+          D09: ["network_policy_provider_missing"],
+          D20: ["recovery_compatibility_provider_missing"],
+        },
       });
     } catch (gateError) {
       return gateError instanceof ReleaseGateBlockedException

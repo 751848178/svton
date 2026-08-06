@@ -14,6 +14,8 @@ import {
 } from "./environment-version-production-gate.service";
 import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-gate-evidence.repository";
 import { environmentDeploymentFailureDetail } from "./environment-version-failure.utils";
+import { ReleaseDeploymentInputService } from "./release-deployment-input.service";
+import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
 
 @Injectable()
 export class EnvironmentVersionService {
@@ -24,6 +26,8 @@ export class EnvironmentVersionService {
     private readonly executor: ReleaseStagingExecutorPort,
     private readonly productionGates: EnvironmentVersionProductionGateService,
     private readonly gateEvidence: EnvironmentVersionGateEvidenceRepository,
+    private readonly inputs: ReleaseDeploymentInputService,
+    private readonly workloads: ReleaseProductionWorkloadService,
   ) {}
 
   async list(teamId: string, projectId: string) {
@@ -80,29 +84,50 @@ export class EnvironmentVersionService {
         "只能部署成功且 Digest 可验证的项目制品",
       );
     }
-    const releaseRunId = await this.policy.validateProduction(
+    const productionRun = await this.policy.validateProduction(
       input,
       environment,
       manifest,
     );
+    const releaseRunId = productionRun?.id;
+    const frozenConfigRevisionId =
+      productionRun?.configRevisionId ?? environment.currentConfigRevisionId;
     const gateContext = {
       teamId: input.teamId,
       actorId: input.actorId,
       projectId: input.projectId,
       releaseOrderId: manifest.releaseOrderId,
       environmentId: environment.id,
-      configRevisionId: environment.currentConfigRevisionId,
+      configRevisionId: frozenConfigRevisionId,
       manifestId: manifest.id,
       buildRunId: manifest.buildRun.id,
       releaseRunId,
     };
     const admissionDecision = await this.productionGates.admit(gateContext);
+    const frozenInput = releaseRunId
+      ? {
+          deploymentInput: await this.inputs.prepare({
+            teamId: input.teamId,
+            projectId: input.projectId,
+            environmentId: environment.id,
+            providerKey: this.executor.providerKey,
+            configRevisionId: frozenConfigRevisionId ?? undefined,
+            label: "Production",
+          }),
+          workload: await this.workloads.prepare({
+            teamId: input.teamId,
+            projectId: input.projectId,
+            environmentId: environment.id,
+            manifestId: manifest.id,
+          }),
+        }
+      : undefined;
     const run = await this.repository.reserve({
       teamId: input.teamId,
       projectId: input.projectId,
       actorId: input.actorId,
       environmentId: environment.id,
-      configRevisionId: environment.currentConfigRevisionId,
+      configRevisionId: frozenConfigRevisionId,
       manifestId: manifest.id,
       releaseOrderId: manifest.releaseOrderId,
       releaseRunId,
@@ -116,11 +141,24 @@ export class EnvironmentVersionService {
         manifestId: manifest.id,
         manifestDigest: manifest.digest,
         releaseRunId,
-        configRevisionId: environment.currentConfigRevisionId,
+        configRevisionId: frozenConfigRevisionId,
         deploymentProvider: {
           key: this.executor.providerKey,
-          targetRef: this.executor.providerTargetRef,
+          targetRef:
+            frozenInput?.deploymentInput.snapshot.target.targetRef ??
+            this.executor.providerTargetRef,
         },
+        ...(frozenInput
+          ? {
+              deploymentInput: frozenInput.deploymentInput.snapshot,
+              workload: frozenInput.workload,
+              productionSnapshot: {
+                resourceSnapshot: productionRun?.resourceSnapshot,
+                routeSnapshot: productionRun?.routeSnapshot,
+                policySnapshot: productionRun?.policySnapshot,
+              },
+            }
+          : {}),
         gateDecision: gateDecisionReference(admissionDecision),
       },
       providerKey: this.executor.providerKey,
@@ -137,6 +175,15 @@ export class EnvironmentVersionService {
         buildRunId: manifest.buildRun.id,
         uri: bundle.uri,
         digest: manifest.digest,
+        ...(frozenInput
+          ? {
+              deploymentInput: frozenInput.deploymentInput.snapshot,
+              runtimeEnvironment:
+                frozenInput.deploymentInput.runtimeEnvironment,
+              targetConnection: frozenInput.deploymentInput.targetConnection,
+              workload: frozenInput.workload,
+            }
+          : {}),
       });
       const logs = sanitizeBuildLogs(result.logs);
       const evidence = {

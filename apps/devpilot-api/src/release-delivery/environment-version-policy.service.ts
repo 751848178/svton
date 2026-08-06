@@ -98,7 +98,7 @@ export class EnvironmentVersionPolicyService {
         "Production ReleaseRun 未批准、已使用或输入已漂移",
       );
     }
-    return run.id;
+    return run;
   }
 }
 

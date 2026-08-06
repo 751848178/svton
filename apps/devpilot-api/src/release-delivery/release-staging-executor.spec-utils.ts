@@ -15,3 +15,46 @@ export function environmentVersionExecutorTestDouble() {
     }),
   };
 }
+
+export function environmentVersionInputTestDouble() {
+  return {
+    prepare: jest.fn(async () => ({
+      snapshot: {
+        version: 1,
+        configRevision: {
+          id: "frozen-config-revision",
+          revision: 1,
+          snapshotHash: "frozen-config-snapshot",
+          stateHash: "frozen-config-state",
+        },
+        plainVariableKeys: [],
+        secretReferences: [],
+        resourceReferences: [],
+        target: {
+          bindingId: "frozen-binding",
+          serverId: "frozen-server",
+          providerKey: "provider-test-v1",
+          targetRef: "provider-test-target",
+          versionHash: "frozen-target",
+        },
+        runtimeEnvironmentKeys: [],
+        inputHash: "frozen-input-hash",
+      },
+      runtimeEnvironment: {},
+      targetConnection: undefined,
+    })),
+  };
+}
+
+export function productionWorkloadTestDouble() {
+  return {
+    prepare: jest.fn(async () => ({
+      version: 1,
+      environmentId: "frozen-environment",
+      manifestId: "frozen-manifest",
+      manifestDigest: "sha256:frozen",
+      services: [],
+      inputHash: "frozen-workload-hash",
+    })),
+  };
+}

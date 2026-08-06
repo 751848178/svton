@@ -13,14 +13,15 @@ const TARGET_LOCAL_HEALTH_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 export function buildReleaseStagingWorkloadSnapshot(
   state: ReleaseStagingWorkloadState,
+  label = "Staging",
 ): ReleaseStagingWorkloadSnapshot {
   if (!state.environment || !state.manifest) {
     throw new UnprocessableEntityException(
-      "Staging 工作负载环境或 Manifest 已漂移",
+      `${label} 工作负载环境或 Manifest 已漂移`,
     );
   }
   if (state.environment.applicationServices.length === 0) {
-    throw new UnprocessableEntityException("Staging 没有可启动的活动服务");
+    throw new UnprocessableEntityException(`${label} 没有可启动的活动服务`);
   }
   const items = new Map(
     state.manifest.items.map((item) => [item.componentKey, item]),

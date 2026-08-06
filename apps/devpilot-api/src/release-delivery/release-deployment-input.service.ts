@@ -22,6 +22,8 @@ export class ReleaseDeploymentInputService {
     projectId: string;
     environmentId: string;
     providerKey: string;
+    configRevisionId?: string;
+    label?: string;
   }): Promise<PreparedReleaseDeploymentInput> {
     const state = await loadReleaseDeploymentInputState(this.prisma, input);
     const target = selectReleaseDeploymentTarget(state, input.providerKey);

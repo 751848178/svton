@@ -12,6 +12,7 @@ export interface ReleaseStagingWorkloadScope {
   projectId: string;
   environmentId: string;
   manifestId: string;
+  baselineRole?: "staging" | "production";
 }
 
 export async function loadReleaseStagingWorkloadState(
@@ -25,7 +26,7 @@ export async function loadReleaseStagingWorkloadState(
         teamId: scope.teamId,
         projectId: scope.projectId,
         status: "active",
-        baselineRole: "staging",
+        baselineRole: scope.baselineRole ?? "staging",
       },
       select: {
         id: true,

@@ -13,15 +13,22 @@ import {
 
 type InputDb = Pick<
   Prisma.TransactionClient,
-  "projectEnvironment" | "secretKey"
+  "projectEnvironment" | "environmentConfigRevision" | "secretKey"
 > &
   ReleaseDeploymentResourceDb;
 
 export async function loadReleaseDeploymentInputState(
   database: PrismaService | Prisma.TransactionClient,
-  input: { teamId: string; projectId: string; environmentId: string },
+  input: {
+    teamId: string;
+    projectId: string;
+    environmentId: string;
+    configRevisionId?: string;
+    label?: string;
+  },
 ): Promise<ReleaseDeploymentInputState> {
   const db = database as unknown as InputDb;
+  const label = input.label ?? "Staging";
   const environment = await db.projectEnvironment.findFirst({
     where: {
       id: input.environmentId,
@@ -74,16 +81,32 @@ export async function loadReleaseDeploymentInputState(
       },
     },
   });
-  if (!environment?.currentConfigRevision) {
-    throw new ConflictException("Staging 环境缺少当前配置修订");
+  if (!environment) {
+    throw new ConflictException(`${label} 环境不存在或已停用`);
   }
-  const revision = environment.currentConfigRevision;
+  const revision = input.configRevisionId
+    ? await db.environmentConfigRevision.findFirst({
+        where: {
+          id: input.configRevisionId,
+          teamId: input.teamId,
+          projectId: input.projectId,
+          environmentId: input.environmentId,
+        },
+      })
+    : environment.currentConfigRevision;
+  if (!revision) {
+    throw new ConflictException(
+      input.configRevisionId
+        ? "冻结配置修订已不存在或作用域漂移"
+        : `${label} 环境缺少当前配置修订`,
+    );
+  }
   if (
     revision.teamId !== input.teamId ||
     revision.projectId !== input.projectId ||
     revision.environmentId !== input.environmentId
   ) {
-    throw new ConflictException("当前配置修订作用域与 Staging 环境不一致");
+    throw new ConflictException(`${label} 配置修订作用域与环境不一致`);
   }
   if (
     environment.serverBindings.some(
@@ -94,7 +117,7 @@ export async function loadReleaseDeploymentInputState(
         binding.server.teamId !== input.teamId,
     )
   ) {
-    throw new ConflictException("部署目标绑定作用域与 Staging 环境不一致");
+    throw new ConflictException(`部署目标绑定作用域与 ${label} 环境不一致`);
   }
   const rawSecrets = revision.secretReferences;
   const secretIds = deploymentReferenceIds(rawSecrets);
