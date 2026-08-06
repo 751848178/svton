@@ -168,24 +168,33 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-BUILD-016** 相同 Commit/输入产生可复现 Digest，差异有明确来源。
 - [x] **AC-BUILD-017** Staging 与 Production 复用同一 Manifest，环境差异来自配置快照。
 - [x] **AC-BUILD-018** 前端静态环境值若烘焙进输出，必须被识别为不同制品而非伪复用。
-- [ ] **AC-BUILD-019** 构建表显示 Build ID/revision、Commit、结果、Manifest、耗时和时间。
-- [ ] **AC-BUILD-020** 成功、失败、运行中、取消状态与 Demo 语义一致。
-- [ ] **AC-BUILD-021** 每个 BuildRun 有独立“日志”入口。
-- [ ] **AC-BUILD-022** 日志使用右侧 Drawer，刷新后仍可深链到精确 BuildRun。
-- [ ] **AC-BUILD-023** 日志包含必要命令/结果且完成脱敏。
-- [ ] **AC-BUILD-024** 多次构建不会覆盖旧日志、Manifest 或候选证据。
-- [ ] **AC-BUILD-025** 构建页面视觉密度、表格结构和主动作与 Demo 对齐。
+- [x] **AC-BUILD-019** 构建表显示 Build ID/revision、Commit、结果、Manifest、耗时和时间。
+- [x] **AC-BUILD-020** 成功、失败、运行中、取消状态与 Demo 语义一致。
+- [x] **AC-BUILD-021** 每个 BuildRun 有独立“日志”入口。
+- [x] **AC-BUILD-022** 日志使用右侧 Drawer，刷新后仍可深链到精确 BuildRun。
+- [x] **AC-BUILD-023** 日志包含必要命令/结果且完成脱敏。
+- [x] **AC-BUILD-024** 多次构建不会覆盖旧日志、Manifest 或候选证据。
+- [x] **AC-BUILD-025** 构建页面视觉密度、表格结构和主动作与 Demo 对齐。
 
-> F428 implementation is code/runtime ready on 2026-08-06: lightweight Build
-> history plus exact per-run detail, terminal/recovery evidence, fail-closed log
-> redaction, deep-link/error/retry state and the six-column Demo structure pass
-> API/Web unit, full regression, real MySQL and authenticated HTTP checks.
-> AC-BUILD-019～025 intentionally remain open because two independent attempts
-> found no available in-app Browser or Chrome surface, so current-tree
-> 1484x1324 screenshots, interaction, console and network evidence could not be
-> captured. The blocker is recorded in
-> `/tmp/codex-tool-runs/svton/f428/browser-evidence-final.json`; no stale
-> screenshot was reused.
+> F428 browser evidence (worker f428-browser-evidence-resume, commit `92575cc2`,
+> 2026-08-06): authenticated captures on the running stack at 1484x1324 prove the
+> six Demo-aligned columns (BuildRun ID / revision, Commit, 结果, Manifest, 耗时 /
+> 时间, 操作) with all four states (R1 succeeded + Manifest
+> `cmshhebzv0017vwrc0p1iyl7p`, R2 failed `BUILD_COMMAND_FAILED`, R3 running,
+> R4 canceled `BUILD_CANCELED`); each row has an independent 查看日志 action; the
+> right-side drawer on succeeded run `cmshhebl10014vwrcsqghxnpa` shows exact
+> metadata, timestamps, Manifest evidence and sanitized logs (无 secret/token);
+> the `&buildRunId=` deep-link survives refresh; an invalid buildRunId fails
+> closed (URL normalized, table still renders, no crash); repeated visits did not
+> overwrite stored logs (logSummary SHA-256 unchanged) or the single Manifest;
+> at 390x844 there is no page overflow (table scrolls inside overflow-x-auto).
+> Only console error is the platform-wide missing `/favicon.ico` (also 404 on
+> /login baseline); 0 unexpected errors/warnings. Evidence manifest
+> `/tmp/codex-tool-runs/svton/f428/f428-browser-evidence.json` (SHA-256
+> `28c3a5089dd1214539480ceb976778ce8b789f9dc1969b13b5fdd05c498c35e8`) and DB
+> log `/tmp/codex-tool-runs/svton/f428/browser/f428-db-evidence.log`. The
+> 2026-08-05 blocker record in
+> `/tmp/codex-tool-runs/svton/f428/browser-evidence-final.json` is superseded.
 
 ## Staging Deployment
 
