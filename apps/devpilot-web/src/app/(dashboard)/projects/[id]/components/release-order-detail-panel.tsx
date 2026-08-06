@@ -139,6 +139,11 @@ export function ReleaseOrderDetailPanel(props: Props) {
               { scroll: false },
             )
           }
+          onCloseStaging={() =>
+            router.replace(releaseOrderHref(projectId, releaseOrderId, 'staging', searchParams), {
+              scroll: false,
+            })
+          }
           onFocusProduction={(nextReleaseRunId, nextDeploymentRunId) =>
             router.replace(
               releaseOrderHref(projectId, releaseOrderId, 'production', searchParams, {

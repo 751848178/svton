@@ -36,7 +36,10 @@ describe('useReleaseStagingDeployments ownership', () => {
     root = createRoot(document.createElement('div'));
   });
 
-  afterEach(async () => act(async () => root.unmount()));
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    vi.useRealTimers();
+  });
 
   it('loads the complete candidate history without a take limit', async () => {
     mocks.apiRequest.mockResolvedValue(list(run('run-1', 'project-1', 'order-1')));
@@ -105,6 +108,18 @@ describe('useReleaseStagingDeployments ownership', () => {
     await expect(first).resolves.toMatchObject({ id: 'new' });
     expect(latest.items.map((item) => item.id)).toEqual(['new', 'old']);
     expect(mocks.onChanged).toHaveBeenCalledOnce();
+  });
+
+  it('polls while a DeploymentRun remains active', async () => {
+    vi.useFakeTimers();
+    mocks.apiRequest.mockResolvedValue(
+      list({ ...run('active', 'project-1', 'order-1'), status: 'running' }),
+    );
+    await render('project-1', 'order-1');
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(1);
+
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(2);
   });
 
   async function render(projectId: string, releaseOrderId: string) {

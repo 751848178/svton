@@ -209,13 +209,15 @@ F420 evidence: list and detail consume one ACL-scoped lifecycle owner and expose
 - [x] **AC-STG-018** 健康检查失败时 DeploymentRun 失败且保留诊断日志。
 - [x] **AC-STG-019** 只有成功运行生成新的 Staging EnvironmentVersion。
 - [x] **AC-STG-020** 失败部署不移动 current environment version 指针。
-- [ ] **AC-STG-021** 页面显示当前选中 Build/Manifest 和累计预发部署次数。
-- [ ] **AC-STG-022** 页面显示每次 DeploymentRun、Manifest、结果、验证结论和耗时。
-- [ ] **AC-STG-023** 每次运行有独立日志 Drawer。
-- [ ] **AC-STG-024** 每条记录有明确的“部署”重复动作。
-- [ ] **AC-STG-025** 页面能区分业务验证证据和技术部署结果。
-- [ ] **AC-STG-026** 无 Manifest、失败、执行中、成功和阻断空态完整。
-- [ ] **AC-STG-027** Staging 页面结构和视觉与 Demo 同状态对齐。
+- [x] **AC-STG-021** 页面显示当前选中 Build/Manifest 和累计预发部署次数。
+- [x] **AC-STG-022** 页面显示每次 DeploymentRun、Manifest、结果、验证结论和耗时。
+- [x] **AC-STG-023** 每次运行有独立日志 Drawer。
+- [x] **AC-STG-024** 每条记录有明确的“部署”重复动作。
+- [x] **AC-STG-025** 页面能区分业务验证证据和技术部署结果。
+- [x] **AC-STG-026** 无 Manifest、失败、执行中、成功和阻断空态完整。
+- [x] **AC-STG-027** Staging 页面结构和视觉与 Demo 同状态对齐。
+
+F434 evidence: `/tmp/codex-tool-runs/svton/f434/f434-browser-evidence-v2.json` binds the complete five-state matrix (blocked/running/completed/failed plus empty no-Manifest order) with DOM assertions, 390x844 responsive containment, contextual row accessibility labels, and a frozen 1484x1324 Demo same-state comparison; `state-matrix-db-evidence.log` proves BuildRun count stayed 1 while DeploymentRun grew to 5, and `f434-demo-visual-comparison.md` records exact six-header/summary structural alignment. Independent v2 review `workers/f434-independent-v2-review-report.md` reported READY with P0/P1/P2=0 and all AC-STG-021～027 PASS.
 
 ## Production Release
 

@@ -21,7 +21,11 @@ vi.mock('../hooks/use-release-staging-deployments', () => ({
 vi.mock('../hooks/use-production-releases', () => ({
   useProductionReleases: () => mocks.production,
 }));
-vi.mock('./release-staging-evidence-list', () => ({ ReleaseStagingEvidenceList: () => null }));
+vi.mock('./release-staging-evidence-list', () => ({
+  ReleaseStagingEvidenceList: ({ onDeploy }: { onDeploy: (manifestId: string) => void }) => (
+    <button onClick={() => onDeploy('manifest-unbounded')}>row-deploy</button>
+  ),
+}));
 vi.mock('./release-production-evidence-list', () => ({
   ReleaseProductionEvidenceList: () => null,
 }));
@@ -45,7 +49,9 @@ describe('release order candidate sources', () => {
     };
     mocks.staging = {
       items: [staging('manifest-unbounded')],
+      total: 1,
       loading: false,
+      loadedSuccessfully: true,
       deploying: false,
       error: '',
       load: vi.fn(),
@@ -67,7 +73,8 @@ describe('release order candidate sources', () => {
         <ReleaseOrderStagingStep
           {...props()}
           focusedDeploymentRunId={undefined}
-          onFocus={vi.fn()}
+          onOpenLog={vi.fn()}
+          onCloseLog={vi.fn()}
         />,
       ),
     );
@@ -92,6 +99,27 @@ describe('release order candidate sources', () => {
     expect((container.querySelector('select') as HTMLSelectElement).value).toBe(
       'manifest-unbounded',
     );
+  });
+
+  it('re-deploys the exact row Manifest without invoking a Build action', async () => {
+    const deploy = vi.fn();
+    mocks.staging = { ...mocks.staging, deploy };
+    await act(async () =>
+      root.render(
+        <ReleaseOrderStagingStep
+          {...props()}
+          focusedDeploymentRunId={undefined}
+          onOpenLog={vi.fn()}
+          onCloseLog={vi.fn()}
+        />,
+      ),
+    );
+
+    const button = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'row-deploy',
+    );
+    act(() => button?.click());
+    expect(deploy).toHaveBeenCalledWith('manifest-unbounded');
   });
 });
 

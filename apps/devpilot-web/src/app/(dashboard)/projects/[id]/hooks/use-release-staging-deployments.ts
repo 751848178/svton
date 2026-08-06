@@ -7,6 +7,7 @@ import type {
   ReleaseStagingDeploymentItem,
   ReleaseStagingDeploymentListResponse,
 } from '../types/release-order.types';
+import { isReleaseStagingActive } from '../utils/release-staging-view.model';
 import { scopedRequestIdentity, useScopedRequestGuard } from './use-scoped-request-guard';
 
 interface DeploymentsState {
@@ -14,6 +15,7 @@ interface DeploymentsState {
   items: ReleaseStagingDeploymentItem[];
   total: number;
   loading: boolean;
+  loadedSuccessfully: boolean;
   deploying: boolean;
   error: string;
 }
@@ -57,6 +59,7 @@ export function useReleaseStagingDeployments(
         items: result.items,
         total: result.total,
         loading: false,
+        loadedSuccessfully: true,
         deploying: current.scope === scope && current.deploying,
         error: '',
       }));
@@ -70,6 +73,14 @@ export function useReleaseStagingDeployments(
   useEffect(() => {
     void load();
   }, [load]);
+
+  const shouldPoll =
+    state.scope === scope && state.items.some((item) => isReleaseStagingActive(item.status));
+  useEffect(() => {
+    if (!active || !shouldPoll) return;
+    const timer = setInterval(() => void load(), 5_000);
+    return () => clearInterval(timer);
+  }, [active, load, shouldPoll]);
 
   const deploy = useCallback(
     async (manifestId: string) => {
@@ -131,6 +142,7 @@ export function useReleaseStagingDeployments(
     items: ownsState ? state.items : [],
     total: ownsState ? state.total : 0,
     loading: !ownsState || state.loading,
+    loadedSuccessfully: ownsState && state.loadedSuccessfully,
     deploying: ownsState && state.deploying,
     error: ownsState ? state.error : '',
     load,
@@ -143,7 +155,15 @@ function ownsScope(item: ReleaseStagingDeploymentItem, projectId: string, releas
 }
 
 function loadingState(scope: string): DeploymentsState {
-  return { scope, items: [], total: 0, loading: true, deploying: false, error: '' };
+  return {
+    scope,
+    items: [],
+    total: 0,
+    loading: true,
+    loadedSuccessfully: false,
+    deploying: false,
+    error: '',
+  };
 }
 
 function inactiveState(scope: string): DeploymentsState {
@@ -157,6 +177,7 @@ function failedState(scope: string, current: DeploymentsState, error: string): D
     items: ownsState ? current.items : [],
     total: ownsState ? current.total : 0,
     loading: false,
+    loadedSuccessfully: ownsState && current.loadedSuccessfully,
     deploying: ownsState && current.deploying,
     error,
   };

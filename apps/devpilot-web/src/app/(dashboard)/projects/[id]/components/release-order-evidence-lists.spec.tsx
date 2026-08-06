@@ -5,6 +5,7 @@ import type {
   ReleaseEvidenceDeploymentRun,
   ReleaseEvidenceProductionRun,
 } from '../types/release-order-evidence.types';
+import type { ReleaseBuildItem, ReleaseStagingDeploymentItem } from '../types/release-order.types';
 import { ReleaseProductionEvidenceList } from './release-production-evidence-list';
 import { ReleaseStagingEvidenceList } from './release-staging-evidence-list';
 
@@ -13,7 +14,9 @@ vi.mock('next-intl', () => ({
     values ? `${namespace}.${key}:${JSON.stringify(values)}` : `${namespace}.${key}`,
 }));
 vi.mock('@/components/ui', () => ({
-  Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props}>{children}</button>
+  ),
   LinkButton: ({ href, children }: { href: string; children: React.ReactNode }) => (
     <a href={href}>{children}</a>
   ),
@@ -22,25 +25,31 @@ vi.mock('@/components/ui', () => ({
 
 describe('release order evidence lists', () => {
   it('keeps repeated Staging runs for one Manifest and exposes canonical professional links', () => {
-    const items = [deployment('staging-2'), deployment('staging-1')];
+    const items = [stagingDeployment('staging-2'), stagingDeployment('staging-1')];
     const html = renderToStaticMarkup(
       <ReleaseStagingEvidenceList
-        projectId="project-1"
         items={items}
+        builds={[stagingBuild()]}
         total={2}
         focusedRunId="staging-1"
-        onFocus={vi.fn()}
+        deploying={false}
+        onOpenLog={vi.fn()}
+        onDeploy={vi.fn()}
       />,
     );
     expect(html).toContain('DeploymentRun staging-2');
     expect(html).toContain('DeploymentRun staging-1');
-    expect(html).toContain('BuildRun build-1 / #1');
-    expect(html).toContain('Manifest manifest-1 / sha256:exact');
+    expect(html).toContain('BuildRun build-1 · R1');
+    expect(html).toContain('Manifest manifest-1');
     expect(html).toContain('/projects/project-1?view=deployments&amp;runId=staging-1');
     expect(html).toContain('aria-current="true"');
     expect(html).toContain('projects.runStatusCompleted');
-    expect(html).toContain('projects.releaseEnvironmentStaging');
-    expect(html.match(/projects\.focusDeploymentRunEvidence/g)).toHaveLength(2);
+    expect(html.match(/>projects\.viewReleaseStagingLogs<\/button>/g)).toHaveLength(2);
+    expect(html.match(/>projects\.deployExactManifest<\/button>/g)).toHaveLength(2);
+    expect(html).toContain('scope="row"');
+    expect(html).toContain('projects.viewReleaseStagingLogsForRun');
+    expect(html).toContain('projects.deployExactManifestForRun');
+    expect(html.match(/projects\.releaseStagingBusinessPending/g)).toHaveLength(2);
   });
 
   it('renders ReleaseRun, approval, staging proof and every Production DeploymentRun', () => {
@@ -100,6 +109,54 @@ function deployment(id: string): ReleaseEvidenceDeploymentRun {
     environment: { id: 'staging-env', name: 'Staging', baselineRole: 'staging' },
     manifest: manifest(),
   };
+}
+
+function stagingDeployment(id: string): ReleaseStagingDeploymentItem {
+  return {
+    id,
+    projectId: 'project-1',
+    releaseOrderId: 'order-1',
+    environmentId: 'staging-env',
+    artifactManifestId: 'manifest-1',
+    status: 'completed',
+    targetType: 'server',
+    executorKey: 'release-artifact',
+    adapterKey: 'ssh-v1',
+    dryRun: false,
+    branch: 'main',
+    commitSha: 'a'.repeat(40),
+    logs: ['health passed'],
+    result: {
+      workloadReady: { status: 'passed' },
+      healthProbe: { status: 'passed' },
+      httpProbe: { status: 'passed' },
+    },
+    error: null,
+    startedAt: '2026-08-05T00:00:00Z',
+    finishedAt: '2026-08-05T00:01:00Z',
+    createdAt: '2026-08-05T00:00:00Z',
+  };
+}
+
+function stagingBuild() {
+  return {
+    id: 'build-1',
+    releaseOrderId: 'order-1',
+    revision: 1,
+    sourceBranch: 'main',
+    sourceCommitSha: 'a'.repeat(40),
+    sourceRepository: null,
+    status: 'succeeded',
+    logReference: null,
+    logSummary: null,
+    gateSummary: null,
+    errorCode: null,
+    errorMessage: null,
+    startedAt: '2026-08-05T00:00:00Z',
+    finishedAt: '2026-08-05T00:01:00Z',
+    createdAt: '2026-08-05T00:00:00Z',
+    manifest: { id: 'manifest-1', digest: 'sha256:exact', items: [] },
+  } satisfies ReleaseBuildItem;
 }
 
 function productionRun(): ReleaseEvidenceProductionRun {
