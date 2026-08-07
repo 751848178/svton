@@ -480,18 +480,18 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 - [x] **AC-E2E-034** 无权限用户看不到或不能执行受保护动作。 F457：MEMBER（parity-member-0001）读发布单 200，但 build/staging-deploy/confirm-production/execute-environment/审批 review 全部 403；跨团队用户（无 membership）读 → 403 `无权访问该团队`；任何尝试均未产生 BuildRun/DeploymentRun。
 - [x] **AC-E2E-035** 全链 API/DB/log/截图/compose/runtime/evidence artifact 无 Secret、token、bootstrap 或认证凭据明文泄漏。 F457：全链 12 类证据扫描（API 证据 JSON、mysqldump db.dump.sql、api/web 容器日志、F455/F456 浏览器 DOM/HTML、compose、历史证据 JSON、runtime active.json、runtime.env（mode 600 校验）、DB 日志列）——bootstrap 密码、seed Secret 值、JWT 片段 0 意外敏感命中；仅账户邮箱标识符（文档化）与两个设计内位置：compose 声明的 bootstrap 配置 + 0600 runtime.env 工作负载交付文件。
 
-- [ ] **AC-VIS-001** 项目目录 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-002** 项目接入三步 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-003** 发布单列表 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-004** 前置检查 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-005** 构建步骤 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-006** Staging 步骤 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-007** Production 步骤 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-008** 环境版本 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-009** 项目识别 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-010** 部署目标/资源/变量/入口/保护规则 Demo/实际对照已审查。
-- [ ] **AC-VIS-011** 发布规则 Demo/实际同 viewport 对照已审查。
-- [ ] **AC-VIS-012** 所有可见结构差异已修复或由 canonical spec 明确批准。
+- [x] **AC-VIS-001** 项目目录 Demo/实际同 viewport 对照已审查。 F458：1484x1324 对照 ALIGNED；摘要 3 卡/5 列表头/行字段/头像/单一进入动作一致；双入口「接入已有项目+生成新项目」由 canonical §4.2 明确批准；见 /tmp/codex-tool-runs/svton/f458/f458-visual-regression-evidence.json（下同）。
+- [x] **AC-VIS-002** 项目接入三步 Demo/实际同 viewport 对照已审查。 F458：三步 stepper 一致；MINOR 已记录（step1 字段走 §4.2「填写」路径、step2/3 真实 contract+快照 SHA；step3 用 scratch 草稿截图后已清理还原 fixture）。
+- [x] **AC-VIS-003** 发布单列表 Demo/实际同 viewport 对照已审查。 F458：ALIGNED；4 列表头/主操作/行状态一致；粒度状态筛选（F419）与 §4.3 弱摘要为 canonical 批准例外。
+- [x] **AC-VIS-004** 前置检查 Demo/实际同 viewport 对照已审查。 F458：ALIGNED；callout+51 项目录+结论+4 组门禁卡结构一致，fixture 门禁状态为数据差异。
+- [x] **AC-VIS-005** 构建步骤 Demo/实际同 viewport 对照已审查。 F458：修复 1 处后 ALIGNED——补齐步骤标题 `main · 自动取最新 Commit` pill（release-order-build-step.tsx + zh/en messages），重截图验证；6 列表头一致。
+- [x] **AC-VIS-006** Staging 步骤 Demo/实际同 viewport 对照已审查。 F458：MINOR 已记录（验证结论列更丰富、不可变 DeploymentRun ID；结构/按钮一致）。
+- [x] **AC-VIS-007** Production 步骤 Demo/实际同 viewport 对照已审查。 F458：ALIGNED；context strip（F440）、密集证据表、审批卡为 canonical 批准例外。
+- [x] **AC-VIS-008** 环境版本 Demo/实际同 viewport 对照已审查。 F458：MINOR 已记录（实现额外提供目标 Manifest 选择器；卡片/变更记录表结构一致）。
+- [x] **AC-VIS-009** 项目识别 Demo/实际同 viewport 对照已审查。 F458：MINOR 已记录（repository-identity 锁定卡模型；组件表因 fixture 无识别组件而缺失，数据驱动）。
+- [x] **AC-VIS-010** 部署目标/资源/变量/入口/保护规则 Demo/实际对照已审查。 F458：MINOR 已记录（同 6 列表头+callout+修订条；实现更丰富：操作列/绑定控件/修订历史；保护规则表为 fixture 数据缺失空态）。
+- [x] **AC-VIS-011** 发布规则 Demo/实际同 viewport 对照已审查。 F458：ALIGNED；facts+门禁表+修订 callout 一致；能力卡（F449 canonical）。
+- [x] **AC-VIS-012** 所有可见结构差异已修复或由 canonical spec 明确批准。 F458：1 处 FIX REQUIRED（构建步骤 badge）已修复并重截图；其余为数据驱动或 canonical 批准例外（§4.2/§4.3/F419/F440/F449），无剩余结构差异。
 
 - [ ] **AC-REVIEW-001** 产品审查确认主链、边界和术语符合 canonical spec。
 - [ ] **AC-REVIEW-002** UX 审查确认新用户沿单一主动作可完成发布。

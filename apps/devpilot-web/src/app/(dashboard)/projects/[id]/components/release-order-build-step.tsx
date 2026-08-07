@@ -64,7 +64,12 @@ export function ReleaseOrderBuildStep(props: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="font-semibold">{t('releaseStepBuildTitle')}</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-semibold">{t('releaseStepBuildTitle')}</h3>
+          <span className="rounded-full border px-2 py-0.5 text-xs">
+            {t('releaseStepBuildLatestCommitBadge')}
+          </span>
+        </div>
         <p className="mt-1 text-sm text-muted-foreground">{t('releaseStepBuildDescription')}</p>
       </div>
       {builds.error ? (

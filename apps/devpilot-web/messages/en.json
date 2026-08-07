@@ -1081,6 +1081,7 @@
     "retry": "Retry",
     "releaseStepBuildTitle": "Build artifact",
     "releaseStepBuildDescription": "Each server-resolved main-branch commit creates an independent BuildRun and log; only a successful run produces a Manifest.",
+    "releaseStepBuildLatestCommitBadge": "main · latest commit auto-resolved",
     "releaseBuildIdentitySummary": "{provider} · identity R{revision} · {url}",
     "releaseBuildSourceBranch": "Effective branch",
     "releaseBuildSourceProvider": "Repository provider",

@@ -1081,6 +1081,7 @@
     "retry": "重试",
     "releaseStepBuildTitle": "构建制品",
     "releaseStepBuildDescription": "每次从服务端解析的主分支最新 Commit 创建独立 BuildRun 和日志；只有成功运行产生 Manifest。",
+    "releaseStepBuildLatestCommitBadge": "main · 自动取最新 Commit",
     "releaseBuildIdentitySummary": "{provider} · 身份 R{revision} · {url}",
     "releaseBuildSourceBranch": "生效分支",
     "releaseBuildSourceProvider": "仓库提供商",
