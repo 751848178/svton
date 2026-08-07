@@ -89,6 +89,16 @@ export function ReleaseOrderStagingStep(props: Props) {
             value={manifestId}
             onChange={(event) => setRequestedManifestId(event.target.value)}
             disabled={builds.loading || deployments.deploying}
+            title={
+              selectedBuild?.manifest
+                ? t('releaseStagingManifestOption', {
+                    buildId: selectedBuild.id,
+                    revision: selectedBuild.revision,
+                    manifestId: selectedBuild.manifest.id,
+                    digest: selectedBuild.manifest.digest.slice(0, 19),
+                  })
+                : undefined
+            }
           >
             {manifests.length === 0 ? (
               <option value="">{t('releaseStagingNoManifest')}</option>
@@ -99,9 +109,9 @@ export function ReleaseOrderStagingStep(props: Props) {
                 value={build.manifest!.id}
               >
                 {t('releaseStagingManifestOption', {
-                  buildId: build.id,
+                  buildId: shortId(build.id),
                   revision: build.revision,
-                  manifestId: build.manifest!.id,
+                  manifestId: shortId(build.manifest!.id),
                   digest: build.manifest!.digest.slice(0, 19),
                 })}
               </option>
@@ -186,4 +196,8 @@ function Summary(props: { label: string; value: string; detail?: string }) {
       ) : null}
     </div>
   );
+}
+
+function shortId(value: string) {
+  return value.length > 16 ? `${value.slice(0, 12)}…` : value;
 }

@@ -82,7 +82,14 @@ export function ReleaseOrderListRow({
         <p className="mt-2 font-medium">
           {t('releaseOrderDeploymentCount', { count: item.deployment.count })}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p
+          className="mt-1 truncate text-xs text-muted-foreground"
+          title={
+            deployment
+              ? `${environmentLabel(t, deployment)} · ${t(releaseExecutionStatusLabelKey(deployment.status))}`
+              : t('releaseOrderNoDeployment')
+          }
+        >
           {deployment
             ? `${environmentLabel(t, deployment)} · ${t(releaseExecutionStatusLabelKey(deployment.status))}`
             : t('releaseOrderNoDeployment')}
@@ -93,10 +100,13 @@ export function ReleaseOrderListRow({
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {t('releaseOrderColumnLastExecution')}
         </p>
-        <p className="mt-2 font-medium">
+        <p className="mt-2 truncate font-medium">
           {t(`releaseOrderListStep${capitalize(item.lastExecution.step)}`)}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p
+          className="mt-1 truncate text-xs text-muted-foreground"
+          title={`${t(releaseExecutionStatusLabelKey(item.lastExecution.status))} · ${formatDateTime(item.lastExecutedAt)}`}
+        >
           {t(releaseExecutionStatusLabelKey(item.lastExecution.status))} ·{' '}
           {formatDateTime(item.lastExecutedAt)}
         </p>

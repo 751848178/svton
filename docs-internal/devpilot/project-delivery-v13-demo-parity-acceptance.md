@@ -397,13 +397,29 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 - [x] **AC-UI-016** 失败状态保留运行并提供日志/重试。F451：失败 BuildRun 保留行 + 查看日志抽屉（f428-seed-failed-r2 真实行证据 `facts.buildStep.body`），错误走 ErrorBanner 重试。
 - [x] **AC-UI-017** 等待审批与能力未就绪状态不同。F451/F449：等待审批（warning 色调 + disabled 提交按钮）vs 能力未就绪（只读策略卡 + 缺少能力 mono 清单，F449 证据），StatusTag 六态映射区分。
 - [x] **AC-UI-018** Demo 展示的主要状态都有真实 fixture 页面证据。F451：1484x1324 证据 JSON 覆盖 目录/创建/首页/发布单列表/详情壳/构建/预发 7 页面 21 artifacts + sha256，全部真实 F434 种子数据（Console 0/failed 0）。
-- [ ] **AC-UI-019** 参考 viewport 无横向溢出、裁切或遮挡。
-- [ ] **AC-UI-020** 常规桌面宽度无横向溢出。
-- [ ] **AC-UI-021** 窄屏保持主流程和关键操作可用。
-- [ ] **AC-UI-022** 长 Commit/Digest/域名可换行或截断并可查看完整值。
-- [ ] **AC-UI-023** Drawer/Dialog 有合理宽度和滚动边界。
-- [ ] **AC-UI-024** destructive action 不与普通编辑同级误触。
-- [ ] **AC-UI-025** 页面使用现有设计系统组件，不以硬编码截图复刻。
+- [x] **AC-UI-019** 参考 viewport 无横向溢出、裁切或遮挡。
+- [x] **AC-UI-020** 常规桌面宽度无横向溢出。
+- [x] **AC-UI-021** 窄屏保持主流程和关键操作可用。
+- [x] **AC-UI-022** 长 Commit/Digest/域名可换行或截断并可查看完整值。
+- [x] **AC-UI-023** Drawer/Dialog 有合理宽度和滚动边界。
+- [x] **AC-UI-024** destructive action 不与普通编辑同级误触。
+- [x] **AC-UI-025** 页面使用现有设计系统组件，不以硬编码截图复刻。
+
+> F453 证据（本 worker 完成 F453 responsive）：认证 CDP Browser 在 1484x1324 / 1280x800 / 390x844 三 viewport 对全部 10 个页面
+> （目录 /projects、/projects/create、交付首页、发布单列表、详情壳、build、staging、production、环境版本、settings）
+> 断言 `documentElement.scrollWidth==clientWidth` —— 30/30 无页面级横向溢出（build/staging/production 表格在各自
+> `overflow-x-auto` 容器内滚动，页面不溢出，逐容器 `tableWrappers` 记录；AC-UI-019/020/021），详见
+> `/tmp/codex-tool-runs/svton/f453/f453-browser-evidence.json`（32 张截图 + sha256，web 3121/api 3131/devpilot-f434-mysql 3334，
+> login n08uxlx08cj@f416-git.example，Console 对 parity 页面 0 错误；登录后 /dashboard 一次性的 5 个 dashboard-widget 403 已注明非 parity 页面）。
+> 长值处理（AC-UI-022）：release-order-list-row 最近执行/环境发布行 `truncate`+`title`（完整值可 hover 查看），
+> staging Manifest `<select>` 选项用 shortId 截断、select `title` 保留选中项完整值（原生 select 保留，F434 候选源 spec 未动，绿色）；
+> 既有 break-all/truncate+title 全表/摘要保持。Drawer/Dialog 边界（AC-UI-023）：Drawer `min(760px,100vw)` + 内部 `overflow-auto`，
+> Modal `max-w-[calc(100vw-32px)]` + `max-h-[calc(100vh-64px)]` + 内部滚动，390x844 实测 build 日志 Drawer 与门禁目录 Dialog
+> 全宽 390px 打开且页面无溢出、内容在内部滚动。destructive 分离（AC-UI-024）：环境归档走 danger 按钮 + danger tone ConfirmDialog
+> （L3 名称键入），项目归档同；Demo 发布单列表/详情无撤回按钮（仅状态筛选 已撤回，与 Demo:653/479 一致），withdraw 仅 API+筛选，无同级别误触。
+> 设计系统（AC-UI-025）：全部页面复用 @svton/ui + @/components/ui（Button/Modal/Drawer/StatusTag/EmptyState/BlockedState/ConfirmDialog 等），
+> 无硬编码截图复刻组件。focused Web spec `f453-responsive.spec.tsx`（7 tests：truncation+title、select shortId+title、Modal/Drawer 宽度与内部滚动、
+> 目录 lg-only 网格、stepper 820px 堆叠、表格 overflow-x-auto 包裹）绿色；Web 全量 84 files/405 tests 绿、type-check、build、i18n parity 3485、diff --check 干净。
 
 - [x] **AC-A11Y-001** 页面存在唯一、正确层级的 h1。
 - [x] **AC-A11Y-002** 步进条、Tab、表格、Dialog、Drawer 使用正确语义。
