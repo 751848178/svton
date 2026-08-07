@@ -52,6 +52,23 @@ describeRuntime("F429 authenticated release evidence HTTP runtime", () => {
     });
   });
 
+  it("returns redacted logs and structured result for production deployment runs", async () => {
+    const path = `${fixture.buildsPath().replace(/\/builds$/, "")}/evidence?take=50`;
+    const response = await fixture.request(path);
+    expect(response.ok).toBe(true);
+    const body = (await response.json()) as { data: Evidence };
+    const deployment =
+      body.data.productionReleaseRuns.items[0].deploymentRuns[0];
+    expect(deployment.logs).toEqual([
+      "production exact Manifest started",
+      "health passed",
+    ]);
+    expect(deployment.result).toMatchObject({
+      workloadReady: { status: "passed" },
+      healthProbe: { status: "passed" },
+    });
+  });
+
   it("binds the professional exact run read to the route project", async () => {
     const exact = await fixture.request(
       `/deployments/runs/${stagingRunId}?projectId=${fixture.git.projectId}`,
@@ -87,6 +104,11 @@ interface Evidence {
   stagingDeploymentRuns: { total: number; items: Array<{ id: string }> };
   productionReleaseRuns: {
     total: number;
-    items: Array<Record<string, unknown>>;
+    items: Array<{
+      deploymentRuns: Array<{
+        logs?: string[];
+        result?: Record<string, unknown>;
+      }>;
+    }>;
   };
 }

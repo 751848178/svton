@@ -89,7 +89,10 @@ export function ReleaseSiteProbeEvidence(props: Props) {
   );
 }
 
-function DnsProbe(props: { siteProbe: ReleaseEvidenceSiteProbe; t: (key: string) => string }) {
+function DnsProbe(props: {
+  siteProbe: ReleaseEvidenceSiteProbe;
+  t: (key: string, values?: { [k: string]: string | number | Date }) => string;
+}) {
   const { siteProbe, t } = props;
   const dns = siteProbe.dns;
   const status = dns.status;
@@ -119,7 +122,10 @@ function DnsProbe(props: { siteProbe: ReleaseEvidenceSiteProbe; t: (key: string)
       ) : null}
       {dns.error ? (
         <p className="text-destructive">
-          {t('releaseSiteProbeError')} {dns.error.code}: {dns.error.message}
+          <span className="font-medium">{t('releaseSiteProbeUnavailable')}</span>
+          <span className="ml-1 text-muted-foreground">
+            {t('releaseSiteProbeErrorDetail', { code: dns.error.code })}
+          </span>
         </p>
       ) : null}
       <ProbeTimestamp
@@ -130,7 +136,10 @@ function DnsProbe(props: { siteProbe: ReleaseEvidenceSiteProbe; t: (key: string)
   );
 }
 
-function TlsProbe(props: { siteProbe: ReleaseEvidenceSiteProbe; t: (key: string) => string }) {
+function TlsProbe(props: {
+  siteProbe: ReleaseEvidenceSiteProbe;
+  t: (key: string, values?: { [k: string]: string | number | Date }) => string;
+}) {
   const { siteProbe, t } = props;
   const tls = siteProbe.tls;
   return (
@@ -169,7 +178,10 @@ function TlsProbe(props: { siteProbe: ReleaseEvidenceSiteProbe; t: (key: string)
       ) : null}
       {tls.error ? (
         <p className="text-destructive">
-          {t('releaseSiteProbeError')} {tls.error.code}: {tls.error.message}
+          <span className="font-medium">{t('releaseSiteProbeUnavailable')}</span>
+          <span className="ml-1 text-muted-foreground">
+            {t('releaseSiteProbeErrorDetail', { code: tls.error.code })}
+          </span>
         </p>
       ) : null}
       <ProbeTimestamp
@@ -180,7 +192,10 @@ function TlsProbe(props: { siteProbe: ReleaseEvidenceSiteProbe; t: (key: string)
   );
 }
 
-function HttpProbe(props: { siteProbe: ReleaseEvidenceSiteProbe; t: (key: string) => string }) {
+function HttpProbe(props: {
+  siteProbe: ReleaseEvidenceSiteProbe;
+  t: (key: string, values?: { [k: string]: string | number | Date }) => string;
+}) {
   const { siteProbe, t } = props;
   const http = siteProbe.http;
   return (
@@ -205,7 +220,10 @@ function HttpProbe(props: { siteProbe: ReleaseEvidenceSiteProbe; t: (key: string
       ) : null}
       {http.error ? (
         <p className="text-destructive">
-          {t('releaseSiteProbeError')} {http.error.code}: {http.error.message}
+          <span className="font-medium">{t('releaseSiteProbeUnavailable')}</span>
+          <span className="ml-1 text-muted-foreground">
+            {t('releaseSiteProbeErrorDetail', { code: http.error.code })}
+          </span>
         </p>
       ) : null}
       <ProbeTimestamp
@@ -216,7 +234,10 @@ function HttpProbe(props: { siteProbe: ReleaseEvidenceSiteProbe; t: (key: string
   );
 }
 
-function ProbeTimestamp(props: { checkedAt: string | null; t: (key: string) => string }) {
+function ProbeTimestamp(props: {
+  checkedAt: string | null;
+  t: (key: string, values?: { [k: string]: string | number | Date }) => string;
+}) {
   if (!props.checkedAt) return null;
   return (
     <p className="text-muted-foreground">
@@ -242,7 +263,10 @@ function statusTone(status: string | null): string {
   }
 }
 
-function probeStatusLabel(status: string | null, t: (key: string) => string) {
+function probeStatusLabel(
+  status: string | null,
+  t: (key: string, values?: { [k: string]: string | number | Date }) => string,
+) {
   switch (status) {
     case 'resolved':
       return t('releaseSiteProbeResolved');

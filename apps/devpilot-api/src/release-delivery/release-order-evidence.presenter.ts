@@ -97,6 +97,8 @@ function presentDeployment(
     branch: run.branch,
     commitSha: run.commitSha,
     error: presentBuildErrorMessage(run.error),
+    logs: presentDeploymentLogs(run.logs),
+    result: run.result,
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
     createdAt: run.createdAt,
@@ -191,6 +193,11 @@ function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function presentDeploymentLogs(logs: unknown): string[] {
+  if (!Array.isArray(logs)) return [];
+  return logs.filter((item): item is string => typeof item === "string");
 }
 
 function stringValue(value: unknown): string | null {

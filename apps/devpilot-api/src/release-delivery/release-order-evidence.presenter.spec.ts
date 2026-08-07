@@ -103,6 +103,27 @@ describe("presentReleaseOrderEvidence", () => {
       domains: ["demo.f437.example"],
     });
   });
+  it("exposes sanitized logs and the raw structured result for every DeploymentRun", () => {
+    const input = fixture();
+    input.productionRuns[0].deploymentRuns[0].logs = [
+      "workload exact Manifest started",
+      "health passed",
+    ];
+    input.productionRuns[0].deploymentRuns[0].result = {
+      workloadReady: { status: "passed" },
+      healthProbe: { status: "passed" },
+    };
+    const result = presentReleaseOrderEvidence(input as never);
+    const presented = result.productionReleaseRuns.items[0].deploymentRuns[0];
+    expect(presented.logs).toEqual([
+      "workload exact Manifest started",
+      "health passed",
+    ]);
+    expect(presented.result).toMatchObject({
+      workloadReady: { status: "passed" },
+      healthProbe: { status: "passed" },
+    });
+  });
 });
 
 function fixture() {
@@ -154,6 +175,7 @@ function fixture() {
     branch: "main",
     commitSha: "a".repeat(40),
     error: null,
+    logs: [] as string[],
     startedAt: createdAt,
     finishedAt,
     createdAt,

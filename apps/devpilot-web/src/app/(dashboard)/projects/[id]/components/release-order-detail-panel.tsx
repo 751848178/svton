@@ -20,6 +20,7 @@ import { ReleaseOrderDetailHeader } from './release-order-detail-header';
 import { ReleaseOrderStepContent } from './release-order-step-content';
 import { buildReleaseOrderStepViews } from './release-order-stepper.model';
 import { ReleaseOrderStepper } from './release-order-stepper';
+import { deliveryHref } from '../utils/project-route.utils';
 
 interface Props {
   projectId: string;
@@ -153,6 +154,24 @@ export function ReleaseOrderDetailPanel(props: Props) {
               { scroll: false },
             )
           }
+          onOpenProductionLog={(nextReleaseRunId, nextDeploymentRunId) =>
+            router.replace(
+              releaseOrderHref(projectId, releaseOrderId, 'production', searchParams, {
+                releaseRunId: nextReleaseRunId,
+                deploymentRunId: nextDeploymentRunId,
+              }),
+              { scroll: false },
+            )
+          }
+          onCloseProductionLog={() =>
+            router.replace(
+              releaseOrderHref(projectId, releaseOrderId, 'production', searchParams, {
+                releaseRunId: releaseRunId || undefined,
+              }),
+              { scroll: false },
+            )
+          }
+          recoveryHref={deliveryHref(projectId, 'environment-versions', searchParams)}
         />
       </ReleaseOrderStepper>
     </div>

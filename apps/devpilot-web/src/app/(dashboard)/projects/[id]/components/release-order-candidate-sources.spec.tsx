@@ -95,7 +95,6 @@ describe('release order candidate sources', () => {
         />,
       ),
     );
-
     expect((container.querySelector('select') as HTMLSelectElement).value).toBe(
       'manifest-unbounded',
     );
@@ -127,6 +126,10 @@ function props() {
   return {
     projectId: 'project-1',
     releaseOrderId: 'order-1',
+    releaseVersion: 'v1.0.0',
+    recoveryHref: '/projects/project-1?view=environment-versions',
+    onOpenLog: vi.fn(),
+    onCloseLog: vi.fn(),
     onChanged: vi.fn().mockResolvedValue(undefined),
     evidence: boundedEvidence(),
   };

@@ -140,6 +140,12 @@ export async function seedReleaseOrderEvidence(
       dryRun: false,
       status: "completed",
       finishedAt: new Date(),
+      logs: ["production exact Manifest started", "health passed"],
+      result: {
+        workloadReady: { status: "passed" },
+        healthProbe: { status: "passed" },
+        httpProbe: { status: "passed" },
+      },
     },
   });
   return stagingProof.id;

@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('@svton/ui', () => ({
   Modal: () => null,
+  Drawer: () => null,
   Dialog: ({
     open,
     title,
@@ -65,6 +66,16 @@ vi.mock('../hooks/use-release-staging-deployments', () => ({
 }));
 vi.mock('../hooks/use-production-releases', () => ({
   useProductionReleases: () => mocks.production,
+}));
+vi.mock('@/components/ui', () => ({
+  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
+  ErrorBanner: () => null,
+  LinkButton: ({ href, children }: React.PropsWithChildren<{ href: string }>) => (
+    <a href={href}>{children}</a>
+  ),
+}));
+vi.mock('./release-production-log-drawer', () => ({
+  ReleaseProductionLogDrawer: () => null,
 }));
 vi.mock('./release-production-evidence-list', () => ({
   ReleaseProductionEvidenceList: () => null,
@@ -121,20 +132,20 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     const button = triggerButton();
     expect(button).not.toBeNull();
     expect((button as HTMLButtonElement).disabled).toBe(true);
-    expect(container.querySelector('section')).toBeNull();
+    expect(dialogSection()).toBeNull();
   });
 
   it('always opens the confirmation dialog on click', async () => {
     await render();
     act(() => triggerButton()?.click());
 
-    expect(container.querySelector('section')).not.toBeNull();
+    expect(dialogSection()).not.toBeNull();
   });
 
   it('shows environment, version, build/commit, manifest, config and policy fields', async () => {
     await render();
     act(() => triggerButton()?.click());
-    const dialog = container.querySelector('section')?.textContent || '';
+    const dialog = dialogSection()?.textContent || '';
 
     expect(dialog).toContain('releaseProductionEnvironment');
     expect(dialog).toContain('releaseEnvironmentProduction');
@@ -162,7 +173,7 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     act(() => triggerButton()?.click());
 
     act(() => cancelButton()?.click());
-    expect(container.querySelector('section')).toBeNull();
+    expect(dialogSection()).toBeNull();
     expect(confirm).not.toHaveBeenCalled();
   });
 
@@ -174,7 +185,7 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
 
     await act(async () => confirmButton()?.click());
     expect(confirm).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('section')).toBeNull();
+    expect(dialogSection()).toBeNull();
   });
 
   it('keeps the dialog open and shows the error when confirm fails', async () => {
@@ -185,7 +196,7 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
 
     await act(async () => confirmButton()?.click());
     expect(confirm).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('section')).not.toBeNull();
+    expect(dialogSection()).not.toBeNull();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'releaseProductionRunScopeMismatch',
     );
@@ -249,10 +260,157 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     expect(container.querySelector('[data-approval-card-for="release-old"]')).not.toBeNull();
   });
 
+  it('keeps exactly one enabled primary action when no active ReleaseRun exists', async () => {
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: { items: [], total: 0, hasMore: false },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () =>
+      root.render(
+        <ReleaseOrderProductionStep
+          {...props(evidence)}
+          focusedReleaseRunId={undefined}
+          focusedDeploymentRunId={undefined}
+          onFocus={vi.fn()}
+        />,
+      ),
+    );
+    const primaries = Array.from(container.querySelectorAll('[data-primary="true"]')).filter(
+      (element) => !(element as HTMLButtonElement).disabled,
+    );
+    expect(primaries).toHaveLength(1);
+    expect(primaries[0]?.textContent).toContain('requestProductionApproval');
+  });
+
+  it('disables the request-approval button when an active ReleaseRun exists (single primary)', async () => {
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: {
+          items: [productionRun('release-active')],
+          total: 1,
+          hasMore: false,
+        },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () =>
+      root.render(
+        <ReleaseOrderProductionStep
+          {...props(evidence)}
+          focusedReleaseRunId={undefined}
+          focusedDeploymentRunId={undefined}
+          onFocus={vi.fn()}
+        />,
+      ),
+    );
+    const primaries = Array.from(container.querySelectorAll('[data-primary="true"]')).filter(
+      (element) => !(element as HTMLButtonElement).disabled,
+    );
+    expect(primaries).toHaveLength(0);
+    const disabledRequest = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'releaseProductionAwaitingApprovalDisabled',
+    );
+    expect(disabledRequest).not.toBeNull();
+  });
+
+  it('localizes the gate-denial error without leaking the internal stage token', async () => {
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: { items: [], total: 0, hasMore: false },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    mocks.production = {
+      preview: { inputHash: 'input-hash', snapshot: snapshot() },
+      confirming: false,
+      error: 'admit 门禁未满足，服务端已拒绝执行',
+      confirm: vi.fn(),
+    };
+    await act(async () =>
+      root.render(
+        <ReleaseOrderProductionStep
+          {...props(evidence)}
+          focusedReleaseRunId={undefined}
+          focusedDeploymentRunId={undefined}
+          onFocus={vi.fn()}
+        />,
+      ),
+    );
+    const alerts = container.querySelectorAll('[role="alert"]');
+    let leakFound = false;
+    alerts.forEach((alert) => {
+      const text = alert.textContent || '';
+      if (
+        text.includes('admit') ||
+        text.includes('finalize') ||
+        text.includes('门禁未满足，服务端已拒绝执行')
+      ) {
+        leakFound = true;
+      }
+    });
+    expect(leakFound).toBe(false);
+    expect(container.textContent).toContain('releaseProductionGateDenied');
+  });
+
+  it('renders the Demo-aligned context strip and stage summary labels', async () => {
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: {
+          items: [productionRun('release-latest')],
+          total: 1,
+          hasMore: false,
+        },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () =>
+      root.render(
+        <ReleaseOrderProductionStep
+          {...props(evidence)}
+          focusedReleaseRunId={undefined}
+          focusedDeploymentRunId={undefined}
+          onFocus={vi.fn()}
+        />,
+      ),
+    );
+    const text = container.textContent || '';
+    expect(text).toContain('releaseContextCurrentOnline');
+    expect(text).toContain('releaseContextDelivering');
+    expect(text).toContain('releaseContextTodos');
+    expect(text).toContain('releaseContextReleaseOrder');
+    expect(text).toContain('releaseStageSummaryCurrentOnline');
+    expect(text).toContain('releaseStageSummaryArtifact');
+    expect(text).toContain('releaseStageSummaryPrerequisite');
+    expect(container.querySelector('[data-context-strip="true"]')).not.toBeNull();
+    expect(container.querySelector('[data-stage-summary="true"]')).not.toBeNull();
+  });
+
   function triggerButton() {
     return Array.from(container.querySelectorAll('button')).find(
       (item) => item.textContent === 'requestProductionApproval',
     );
+  }
+
+  function dialogSection() {
+    return container.querySelector('section[aria-label="releaseProductionConfirmTitle"]') || null;
   }
 
   function cancelButton() {
@@ -284,6 +442,10 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     return {
       projectId: 'project-1',
       releaseOrderId: 'order-1',
+      releaseVersion: 'v1.3.0',
+      recoveryHref: '/projects/project-1?view=environment-versions',
+      onOpenLog: vi.fn(),
+      onCloseLog: vi.fn(),
       onChanged: vi.fn().mockResolvedValue(undefined),
       evidence:
         evidence ||

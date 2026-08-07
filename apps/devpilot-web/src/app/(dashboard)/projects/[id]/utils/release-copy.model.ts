@@ -129,3 +129,18 @@ export function releaseRiskLabelKey(risk: string) {
 export function releaseClientErrorLabelKey(error: string) {
   return CLIENT_ERROR_KEYS.has(error) ? error : null;
 }
+
+/**
+ * Production 上下文错误 → 稳定客户端错误键（AC-PROD-036）。
+ *
+ * 门禁拒绝的服务端 message 带内部 stage token（admit/finalize/production），
+ * 这里按稳定签名本地化，绝不把 decision.stage 或错误对象原始输出到 DOM。
+ * 无法识别的错误回退到通用键，仍由 i18n 渲染，避免 raw server message 泄漏。
+ */
+export function releaseProductionErrorLabelKey(error: string) {
+  if (CLIENT_ERROR_KEYS.has(error)) return error;
+  if (/门禁未满足/.test(error)) return 'releaseProductionGateDenied';
+  if (/审批已过期/.test(error)) return 'releaseProductionApprovalExpired';
+  if (/没有匹配的站点/.test(error)) return 'releaseProductionSiteMissing';
+  return 'releaseProductionActionFailed';
+}

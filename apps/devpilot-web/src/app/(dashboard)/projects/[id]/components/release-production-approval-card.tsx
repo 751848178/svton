@@ -2,11 +2,15 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, StatusTag } from '@/components/ui';
+import { Button, LinkButton, StatusTag } from '@/components/ui';
 import type { ReleaseEvidenceProductionRun } from '../types/release-order-evidence.types';
-import { releaseApprovalStatusLabelKey, releaseRiskLabelKey } from '../utils/release-copy.model';
-import { releaseOrderStatusTone } from '../utils/release-order.utils';
+import {
+  releaseApprovalStatusLabelKey,
+  releaseProductionErrorLabelKey,
+  releaseRiskLabelKey,
+} from '../utils/release-copy.model';
 import { formatIso } from '../utils/release-time.utils';
+import { releaseApprovalStateTone, releaseRunStateTone } from '../utils/release-order.utils';
 import { useProductionApproval } from '../hooks/use-production-approval';
 import { RejectReasonModal } from '../../../operation-approvals/components/reject-reason-modal';
 
@@ -14,6 +18,7 @@ interface Props {
   projectId: string;
   run: ReleaseEvidenceProductionRun;
   onChanged: () => Promise<unknown>;
+  recoveryHref: string;
 }
 
 /**
@@ -21,8 +26,9 @@ interface Props {
  *
  * 单一职责：在 Production 步骤展示当前 ReleaseRun 的审批，并就地完成
  * 批准 / 拒绝（必填理由）/ 批准后执行生产发布，无需跳到全局模块再返回。
+ * 拒绝/失败提供指向环境版本恢复的本地化补救入口（AC-PROD-035）。
  */
-export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Props) {
+export function ReleaseProductionApprovalCard({ projectId, run, onChanged, recoveryHref }: Props) {
   const t = useTranslations('projects');
   const approval = run.operationApproval;
   const isRecovery = run.mode === 'recovery';
@@ -34,6 +40,8 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Pro
     approval.expiresAt && new Date(approval.expiresAt).getTime() < Date.now(),
   );
   const canExecute = approval.status === 'approved' && !approval.consumedAt && !expired;
+  const errorKey = error ? releaseProductionErrorLabelKey(error) : null;
+  const needsRecovery = approval.status === 'rejected' || run.status === 'failed';
 
   return (
     <section
@@ -43,6 +51,7 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Pro
       )}
       data-approval-id={approval.id}
       data-run-mode={run.mode}
+      data-state={approval.status}
     >
       <div className="flex flex-wrap items-center gap-2">
         <h4 className="font-medium">
@@ -59,9 +68,15 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Pro
           />
         ) : null}
         <StatusTag
-          status={releaseOrderStatusTone(approval.status)}
+          status={releaseApprovalStateTone(approval.status)}
           label={t(releaseApprovalStatusLabelKey(approval.status))}
         />
+        {run.status === 'failed' || run.status === 'blocked' ? (
+          <StatusTag
+            status={releaseRunStateTone(run.status)}
+            label={t('releaseProductionRunFailed')}
+          />
+        ) : null}
         <StatusTag
           status="risk"
           variant="risk"
@@ -117,6 +132,7 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Pro
         {approval.status === 'pending' ? (
           <>
             <Button
+              data-primary="true"
               onClick={() => void review('approved')}
               loading={acting}
               disabled={acting}
@@ -134,6 +150,7 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Pro
         ) : null}
         {canExecute ? (
           <Button
+            data-primary="true"
             onClick={() => void execute()}
             loading={acting}
             disabled={acting}
@@ -144,14 +161,24 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Pro
         {approval.status === 'approved' && !approval.consumedAt && expired ? (
           <span className="text-xs text-amber-700">{t('releaseProductionApprovalExpired')}</span>
         ) : null}
+        {needsRecovery ? (
+          <LinkButton
+            data-primary="true"
+            href={recoveryHref}
+            variant="outline"
+            size="sm"
+          >
+            {t('releaseProductionRecoveryLink')}
+          </LinkButton>
+        ) : null}
       </div>
 
-      {error ? (
+      {errorKey ? (
         <p
           className="text-sm text-destructive"
           role="alert"
         >
-          {error}
+          {t(errorKey)}
         </p>
       ) : null}
 

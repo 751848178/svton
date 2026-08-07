@@ -103,6 +103,8 @@ export interface ReleaseEvidenceDeploymentRun {
   branch: string | null;
   commitSha: string | null;
   error: string | null;
+  logs: string[];
+  result: unknown;
   startedAt: string;
   finishedAt: string | null;
   createdAt: string;

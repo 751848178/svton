@@ -46,6 +46,7 @@ export const releaseEvidenceDeploymentSelect = {
   branch: true,
   commitSha: true,
   error: true,
+  logs: true,
   startedAt: true,
   finishedAt: true,
   createdAt: true,

@@ -59,9 +59,11 @@ describe('release order evidence lists', () => {
         projectId="project-1"
         items={[production]}
         total={1}
+        recoveryHref="/projects/project-1?view=environment-versions"
         focusedReleaseRunId="release-1"
         focusedDeploymentRunId="production-2"
         onFocus={vi.fn()}
+        onOpenLog={vi.fn()}
       />,
     );
     expect(html).toContain('ReleaseRun release-1');
@@ -74,8 +76,43 @@ describe('release order evidence lists', () => {
     expect(html).toContain('DeploymentRun production-1');
     expect(html).toContain('DeploymentRun production-2');
     expect(html).toContain('/projects/project-1?view=deployments&amp;runId=production-2');
-    expect(html.match(/projects\.focusDeploymentRunEvidence/g)).toHaveLength(2);
+    expect(html.match(/projects\.focusDeploymentRunEvidenceForRun/g)).toHaveLength(2);
     expect(html.match(/projects\.focusReleaseRunEvidence/g)).toHaveLength(1);
+    expect(html).toContain('projects.releaseProductionColumnRun');
+    expect(html).toContain('projects.releaseProductionColumnArtifact');
+    expect(html).toContain('projects.releaseProductionColumnResult');
+    expect(html).toContain('projects.releaseProductionColumnVerification');
+    expect(html).toContain('projects.releaseBuildColumnDurationTime');
+    expect(html).toContain('projects.releaseBuildColumnActions');
+    expect(html).toContain('projects.releaseRunCardRun');
+    expect(html).toContain('projects.releaseRunCardEnvironment');
+    expect(html).toContain('projects.releaseRunCardFrozenArtifact');
+    expect(html).toContain('projects.releaseRunCardStatus');
+    expect(html).toContain('projects.releaseRunCardCreatedAt');
+    expect(html.match(/projects\.viewProductionLogsForRun/g)).toHaveLength(2);
+  });
+
+  it('renders a running in-flight indicator and recovery affordance for failed ReleaseRuns', () => {
+    const running = productionRun();
+    running.status = 'running';
+    const failed = productionRun();
+    failed.id = 'release-failed';
+    failed.operationApproval.status = 'rejected';
+    failed.status = 'failed';
+    const html = renderToStaticMarkup(
+      <ReleaseProductionEvidenceList
+        projectId="project-1"
+        items={[failed, running]}
+        total={2}
+        recoveryHref="/projects/project-1?view=environment-versions"
+        onFocus={vi.fn()}
+        onOpenLog={vi.fn()}
+      />,
+    );
+    expect(html).toContain('data-running-indicator="true"');
+    expect(html).toContain('projects.releaseProductionRunningBanner');
+    expect(html.match(/projects\.releaseProductionRecoveryLink/g)).toHaveLength(1);
+    expect(html).toContain('projects.releaseRunCardStatus');
   });
 
   it('renders the site/DNS/TLS/HTTP evidence section for a focused DeploymentRun', () => {
@@ -132,9 +169,11 @@ describe('release order evidence lists', () => {
         projectId="project-1"
         items={[production]}
         total={1}
+        recoveryHref="/projects/project-1?view=environment-versions"
         focusedReleaseRunId="release-1"
         focusedDeploymentRunId="production-1"
         onFocus={vi.fn()}
+        onOpenLog={vi.fn()}
       />,
     );
     expect(html).toContain('projects.releaseSiteEvidenceTitle');
@@ -149,6 +188,9 @@ describe('release order evidence lists', () => {
       'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
     );
     expect(html).toContain('data-site-probe-section="true"');
+    expect(html).toContain('projects.releaseSiteProbeErrorDetail');
+    expect(html).toContain('ENOTFOUND');
+    expect(html).not.toContain('queryA ENOTFOUND');
   });
 });
 
@@ -176,6 +218,12 @@ function deployment(id: string): ReleaseEvidenceDeploymentRun {
     branch: 'main',
     commitSha: 'a'.repeat(40),
     error: null,
+    logs: ['health passed'],
+    result: {
+      workloadReady: { status: 'passed' },
+      healthProbe: { status: 'passed' },
+      httpProbe: { status: 'passed' },
+    },
     startedAt: '2026-08-05T00:00:00Z',
     finishedAt: '2026-08-05T00:01:00Z',
     createdAt: '2026-08-05T00:00:00Z',

@@ -33,6 +33,25 @@ vi.mock('@/components/ui', () => ({
       {children}
     </button>
   ),
+  LinkButton: ({
+    children,
+    href,
+    variant,
+    size,
+  }: {
+    children: React.ReactNode;
+    href: string;
+    variant?: string;
+    size?: string;
+  }) => (
+    <a
+      href={href}
+      data-variant={variant}
+      data-size={size}
+    >
+      {children}
+    </a>
+  ),
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
 }));
 vi.mock('@svton/ui', () => ({
@@ -53,9 +72,7 @@ vi.mock('@svton/ui', () => ({
         {footer}
       </section>
     ) : null,
-  Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
-    <textarea {...props} />
-  ),
+  Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />,
 }));
 vi.mock('@svton/hooks', () => ({ usePersistFn: (fn: unknown) => fn }));
 vi.mock('../hooks/use-production-approval', () => ({
@@ -68,8 +85,9 @@ describe('ReleaseProductionApprovalCard', () => {
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
-      true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     root = createRoot(container);
     mocks.hook = {
@@ -150,10 +168,21 @@ describe('ReleaseProductionApprovalCard', () => {
     expect(buttonByText('releaseProductionExecute')).toBeNull();
   });
 
-  it('surfaces review errors to the user', async () => {
-    mocks.hook = { ...mocks.hook, error: '只有待审批的操作可以审批' };
-    await render(run('pending'));
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain('只有待审批的操作可以审批');
+  it('localizes the execute gate-denial error instead of the raw stage token', async () => {
+    mocks.hook = { ...mocks.hook, error: 'admit 门禁未满足，服务端已拒绝执行' };
+    await render(run('approved'));
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert).not.toBeNull();
+    expect(alert?.textContent).toContain('releaseProductionGateDenied');
+    expect(alert?.textContent).not.toContain('admit');
+  });
+
+  it('shows a recovery link for a rejected approval routed to Environment Versions', async () => {
+    await render(run('rejected'));
+    const recovery = container.querySelector('a');
+    expect(recovery).not.toBeNull();
+    expect(recovery?.getAttribute('href')).toBe('/projects/project-1?view=environment-versions');
+    expect(recovery?.textContent).toContain('releaseProductionRecoveryLink');
   });
 
   it('renders recovery copy and executes a production recovery run', async () => {
@@ -172,17 +201,16 @@ describe('ReleaseProductionApprovalCard', () => {
           projectId="project-1"
           run={approved}
           onChanged={mocks.onChanged}
+          recoveryHref="/projects/project-1?view=environment-versions"
         />,
       ),
     );
   }
 
   function buttonByText(text: string) {
-    return (
-      Array.from(container.querySelectorAll('button')).find(
-        (item) => item.textContent === text,
-      ) ?? null
-    ) as HTMLButtonElement | null;
+    return (Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === text,
+    ) ?? null) as HTMLButtonElement | null;
   }
 });
 

@@ -24,6 +24,9 @@ interface Props {
   onFocusStaging: (runId: string) => void;
   onCloseStaging: () => void;
   onFocusProduction: (releaseRunId: string, deploymentRunId?: string) => void;
+  onOpenProductionLog: (releaseRunId: string, deploymentRunId: string) => void;
+  onCloseProductionLog: () => void;
+  recoveryHref: string;
 }
 
 export function ReleaseOrderStepContent(props: Props) {
@@ -56,10 +59,14 @@ export function ReleaseOrderStepContent(props: Props) {
     <ReleaseOrderProductionStep
       projectId={props.projectId}
       releaseOrderId={props.releaseOrderId}
+      releaseVersion={props.detail.releaseVersion}
       evidence={props.evidence}
       focusedReleaseRunId={props.focusedReleaseRunId}
       focusedDeploymentRunId={props.focusedDeploymentRunId}
+      recoveryHref={props.recoveryHref}
       onFocus={props.onFocusProduction}
+      onOpenLog={props.onOpenProductionLog}
+      onCloseLog={props.onCloseProductionLog}
       onChanged={props.onChanged}
     />
   );
