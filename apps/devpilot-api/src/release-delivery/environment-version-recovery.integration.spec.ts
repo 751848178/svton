@@ -183,6 +183,10 @@ describeIntegration("EnvironmentVersion production recovery integration", () => 
       }),
     ).rejects.toThrow("漂移");
     await restoreConfig(f, revision);
+    await f.prisma.releaseRun.update({
+      where: { id: drifted.id },
+      data: { status: "failed" },
+    });
   });
 
   it("rejects unknown, foreign and current source versions", async () => {
@@ -245,6 +249,88 @@ describeIntegration("EnvironmentVersion production recovery integration", () => 
         },
       }),
     ).resolves.toBe(1);
+    await f.prisma.releaseRun.update({
+      where: { id: first.id },
+      data: { status: "failed" },
+    });
+  });
+
+  it("enforces per-environment max one active release run across standard and recovery confirms", async () => {
+    const f = fixture;
+    const source = await historicalVersionId(f);
+    const recoveryPreview = await bundle.recovery.preview({
+      teamId: f.teamId,
+      projectId: f.projectId,
+      environmentId: f.productionEnvironmentId,
+      sourceVersionId: source,
+    });
+    const recoveryRun = await bundle.recovery.confirm({
+      teamId: f.teamId,
+      actorId: f.userId,
+      projectId: f.projectId,
+      environmentId: f.productionEnvironmentId,
+      sourceVersionId: source,
+      expectedInputHash: recoveryPreview.inputHash,
+      idempotencyKey: `guard-recovery-${f.suffix}`,
+    });
+    expect(recoveryRun.status).toBe("awaiting_approval");
+    await expect(
+      bundle.recovery.confirm({
+        teamId: f.teamId,
+        actorId: f.userId,
+        projectId: f.projectId,
+        environmentId: f.productionEnvironmentId,
+        sourceVersionId: source,
+        expectedInputHash: recoveryPreview.inputHash,
+        idempotencyKey: `guard-recovery-2-${f.suffix}`,
+      }),
+    ).rejects.toThrow("同一环境同时只允许一个运行");
+    const standardPreview = await f.repository.preview(
+      f.teamId,
+      f.projectId,
+      f.orderId,
+      f.manifestId,
+    );
+    await expect(
+      f.repository.confirm({
+        teamId: f.teamId,
+        projectId: f.projectId,
+        releaseOrderId: f.orderId,
+        manifestId: f.manifestId,
+        actorId: f.userId,
+        expectedInputHash: standardPreview.inputHash,
+        idempotencyKey: `guard-standard-${f.suffix}`,
+      }),
+    ).rejects.toThrow("同一环境同时只允许一个运行");
+    await f.prisma.releaseRun.update({
+      where: { id: recoveryRun.id },
+      data: { status: "failed" },
+    });
+    const standardRun = await f.repository.confirm({
+      teamId: f.teamId,
+      projectId: f.projectId,
+      releaseOrderId: f.orderId,
+      manifestId: f.manifestId,
+      actorId: f.userId,
+      expectedInputHash: standardPreview.inputHash,
+      idempotencyKey: `guard-standard-${f.suffix}`,
+    });
+    expect(standardRun.status).toBe("awaiting_approval");
+    await expect(
+      bundle.recovery.confirm({
+        teamId: f.teamId,
+        actorId: f.userId,
+        projectId: f.projectId,
+        environmentId: f.productionEnvironmentId,
+        sourceVersionId: source,
+        expectedInputHash: recoveryPreview.inputHash,
+        idempotencyKey: `guard-recovery-3-${f.suffix}`,
+      }),
+    ).rejects.toThrow("同一环境同时只允许一个运行");
+    await f.prisma.releaseRun.update({
+      where: { id: standardRun.id },
+      data: { status: "failed" },
+    });
   });
 });
 

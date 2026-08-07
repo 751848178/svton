@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { ReleasePolicyRepository } from "./release-policy.repository";
 import {
   cleanupProductionFixture,
   createProductionFixture,
@@ -111,3 +112,184 @@ describeIntegration("ReleaseProduction integration", () => {
     ).rejects.toThrow("已变化");
   });
 });
+
+describeIntegration("ReleaseProduction per-environment concurrency guard", () => {
+  let fixture: ProductionFixture;
+
+  beforeAll(async () => {
+    fixture = await createProductionFixture();
+  });
+
+  afterAll(async () => cleanupProductionFixture(fixture));
+
+  it("rejects a second confirm while the first run is still active", async () => {
+    const f = fixture;
+    const preview = await f.repository.preview(
+      f.teamId,
+      f.projectId,
+      f.orderId,
+      f.manifestId,
+    );
+    const first = await f.repository.confirm({
+      teamId: f.teamId,
+      projectId: f.projectId,
+      releaseOrderId: f.orderId,
+      manifestId: f.manifestId,
+      actorId: f.userId,
+      expectedInputHash: preview.inputHash,
+      idempotencyKey: `guard-1-${f.suffix}`,
+    });
+    await expect(
+      f.repository.confirm({
+        teamId: f.teamId,
+        projectId: f.projectId,
+        releaseOrderId: f.orderId,
+        manifestId: f.manifestId,
+        actorId: f.userId,
+        expectedInputHash: preview.inputHash,
+        idempotencyKey: `guard-2-${f.suffix}`,
+      }),
+    ).rejects.toThrow("同一环境同时只允许一个运行");
+    await f.prisma.releaseRun.update({
+      where: { id: first.id },
+      data: { status: "failed" },
+    });
+  });
+
+  it("replays the existing run by idempotency key even while an active run exists", async () => {
+    const f = fixture;
+    const preview = await f.repository.preview(
+      f.teamId,
+      f.projectId,
+      f.orderId,
+      f.manifestId,
+    );
+    const input = {
+      teamId: f.teamId,
+      projectId: f.projectId,
+      releaseOrderId: f.orderId,
+      manifestId: f.manifestId,
+      actorId: f.userId,
+      expectedInputHash: preview.inputHash,
+      idempotencyKey: `guard-replay-${f.suffix}`,
+    };
+    const [first, second] = await Promise.all([
+      f.repository.confirm(input),
+      f.repository.confirm(input),
+    ]);
+    expect(second.id).toBe(first.id);
+    await f.prisma.releaseRun.update({
+      where: { id: first.id },
+      data: { status: "failed" },
+    });
+  });
+
+  it("allows a fresh confirm after the active run resolves", async () => {
+    const f = fixture;
+    const preview = await f.repository.preview(
+      f.teamId,
+      f.projectId,
+      f.orderId,
+      f.manifestId,
+    );
+    const first = await f.repository.confirm({
+      teamId: f.teamId,
+      projectId: f.projectId,
+      releaseOrderId: f.orderId,
+      manifestId: f.manifestId,
+      actorId: f.userId,
+      expectedInputHash: preview.inputHash,
+      idempotencyKey: `guard-resolve-${f.suffix}`,
+    });
+    await f.prisma.releaseRun.update({
+      where: { id: first.id },
+      data: { status: "succeeded" },
+    });
+    const next = await f.repository.confirm({
+      teamId: f.teamId,
+      projectId: f.projectId,
+      releaseOrderId: f.orderId,
+      manifestId: f.manifestId,
+      actorId: f.userId,
+      expectedInputHash: preview.inputHash,
+      idempotencyKey: `guard-resolve-next-${f.suffix}`,
+    });
+    expect(next.id).not.toBe(first.id);
+    await f.prisma.releaseRun.update({
+      where: { id: next.id },
+      data: { status: "failed" },
+    });
+  });
+
+  it("pins the freeze/D13 protection in the run snapshot: synthetic verified, real revision fail-closed", async () => {
+    const f = fixture;
+    const preview = await f.repository.preview(
+      f.teamId,
+      f.projectId,
+      f.orderId,
+      f.manifestId,
+    );
+    const synthetic = await f.repository.confirm({
+      teamId: f.teamId,
+      projectId: f.projectId,
+      releaseOrderId: f.orderId,
+      manifestId: f.manifestId,
+      actorId: f.userId,
+      expectedInputHash: preview.inputHash,
+      idempotencyKey: `freeze-synthetic-${f.suffix}`,
+    });
+    expect(snapshotProtection(synthetic.policySnapshot)).toEqual({
+      changeWindowVerified: true,
+      freezeVerified: true,
+    });
+    await f.prisma.releaseRun.update({
+      where: { id: synthetic.id },
+      data: { status: "failed" },
+    });
+
+    const repository = new ReleasePolicyRepository(f.prisma as never);
+    const revision = await repository.create(
+      f.teamId,
+      f.projectId,
+      f.userId,
+      { strategy: "standard", requireProductionApproval: true },
+    );
+    expect(revision.snapshotHash).toMatch(/^[0-9a-f]{64}$/);
+    const realPreview = await f.repository.preview(
+      f.teamId,
+      f.projectId,
+      f.orderId,
+      f.manifestId,
+    );
+    expect(realPreview.inputHash).not.toBe(preview.inputHash);
+    const real = await f.repository.confirm({
+      teamId: f.teamId,
+      projectId: f.projectId,
+      releaseOrderId: f.orderId,
+      manifestId: f.manifestId,
+      actorId: f.userId,
+      expectedInputHash: realPreview.inputHash,
+      idempotencyKey: `freeze-real-${f.suffix}`,
+    });
+    expect(real.releasePolicyRevisionId).toBe(revision.id);
+    expect(snapshotProtection(real.policySnapshot)).toEqual({
+      changeWindowVerified: false,
+      freezeVerified: false,
+    });
+    await f.prisma.releaseRun.update({
+      where: { id: real.id },
+      data: { status: "failed" },
+    });
+  });
+});
+
+function snapshotProtection(value: unknown) {
+  const recordValue =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const protection = recordValue.releaseProtection;
+  return protection && typeof protection === "object" && !Array.isArray(protection)
+    ? (protection as Record<string, unknown>)
+    : null;
+}

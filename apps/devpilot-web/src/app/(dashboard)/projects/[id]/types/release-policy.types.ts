@@ -19,6 +19,8 @@ export interface ReleasePolicyRevision {
   requireProductionApproval: boolean;
   snapshotHash: string;
   synthetic?: boolean;
+  createdAt?: string | null;
+  createdBy?: { id: string; name: string; email: string } | null;
 }
 
 export interface ReleasePolicyResponse {

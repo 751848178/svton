@@ -357,16 +357,16 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 
 ## Release Policy And Advanced Strategies
 
-- [ ] **AC-POLICY-001** 项目设置显示当前生效策略 revision 和 snapshotHash。
-- [ ] **AC-POLICY-002** 普通发布页面不高频重复展示规则配置。
-- [ ] **AC-POLICY-003** 修改策略创建新 revision，不原地覆盖历史。
-- [ ] **AC-POLICY-004** 标准发布要求同 Manifest Staging 证明。
-- [ ] **AC-POLICY-005** Production 始终需要明确人工确认。
-- [ ] **AC-POLICY-006** 环境并发和冻结规则服务端执行。
-- [ ] **AC-POLICY-007** 回退创建新的恢复运行。
-- [ ] **AC-POLICY-008** 金丝雀/蓝绿/自动放量在缺真实 Provider 时显示具体不可用原因。
-- [ ] **AC-POLICY-009** 不可用高级策略不能被 API 或 UI 选为可执行。
-- [ ] **AC-POLICY-010** 未来高级策略从项目选择 stable/target Manifest 并进入独立运行管控，不污染普通发布单主链。
+- [x] **AC-POLICY-001** 项目设置显示当前生效策略 revision 和 snapshotHash。（F449 证据：设置 发布规则 区 Demo policySettingsV12 结构——生效徽标 `policy-r{n} · 当前生效`（无修订时为 `系统默认 · 当前生效`）+ 快照哈希 mono（真实修订为 sha256 hex，如 runtime `986e99904ce3…`，合成默认 `default-standard-policy-v1`）+ 生效条 `标准发布 · 日期 · 由 {启用人} 启用`；web spec 钉住徽标与哈希渲染，runtime 浏览器证据同页可见。）
+- [x] **AC-POLICY-002** 普通发布页面不高频重复展示规则配置。（F449 证据：发布规则只在设置 `?section=release-policy` 区展示；交付页仍只有 发布单/环境版本 视图（F443 IA 证据保持），策略仅在生产确认弹窗中引用，无重复卡片/横幅。）
+- [x] **AC-POLICY-003** 修改策略创建新 revision，不原地覆盖历史。（F449 证据：`ReleasePolicyRepository.create` append-only + serializable tx + 行锁 + `expectedCurrentRevisionId` CAS（stale → 409 发布策略已更新，请刷新后重试，不落 revision/审计）；`release-policy.integration.spec.ts` 并发双写只有 1 个成功且 revision 严格 R1→R2；runtime：真实 UI 点击 保存标准策略修订 追加 `policy-r1`（DB `ReleasePolicyRevision` 行 snapshotHash=`986e9990…` 与页面一致，项目指针更新）。）
+- [x] **AC-POLICY-004** 标准发布要求同 Manifest Staging 证明。（F449 证据：`hasVerifiedStagingProof`（environment-version-policy.service.ts:72-77,112-128）在 Production 执行路径拒绝无证明 Manifest；门禁表首行 预发验证成功=已启用；F442 candidate 过滤证据保持。）
+- [x] **AC-POLICY-005** Production 始终需要明确人工确认。（F449 证据：confirm 创建 `awaiting_approval` ReleaseRun + pending OperationApproval（risk high）；门禁表 人工审批=已启用；`environment-version-execution-policy.integration.spec.ts` 未批准/已拒绝/过期/已消费/漂移审批全部拒绝执行。）
+- [x] **AC-POLICY-006** 环境并发和冻结规则服务端执行。（F449 证据：新增 per-env max-1-run 并发守卫（`release-run-concurrency.utils.ts`，production confirm 与 recovery confirm 两写路径）——事务内先对发布单行 FOR UPDATE、再对目标环境行 FOR UPDATE 串行化，存在 `awaiting_approval|running` ReleaseRun 时 409 `生产环境已有进行中的发布运行（标准发布/恢复发布 · status），同一环境同时只允许一个运行…`；同 idempotencyKey 重放返回既有运行（并发同键归并、不同键拒绝）；集成测试钉住：活跃运行阻断第二个 confirm（standard↔recovery 互相阻断）、运行解决后新 confirm 放行。冻结规则诚实执行：changeWindow/freezePolicy 字段保持 null（无真实 Provider），D13 门禁（M10 `release-gate-approval-capability.provider.ts` 读 `policySnapshot.releaseProtection`）——合成标准策略 `{changeWindowVerified:true,freezeVerified:true}` → 审批有效即 checked；真实策略行无显式结论 → fail-closed `{false,false}` → unchecked/release_protection_incomplete（新 spec `release-gate-approval-capability.provider.spec.ts` 3 用例 + 集成 pin：synthetic vs real 修订的 releaseProtection 快照断言）；Manifest/配置经不可变修订 CAS 冻结（既有 F438 证据保持）；设置页 目标规则 区块明示 `Provider 未接入（字段保持空值，不做假装生效）` 与 `当前实际执行：D13 生产门禁 fail-closed + 不可变修订 CAS`。）
+- [x] **AC-POLICY-007** 回退创建新的恢复运行。（F449 证据：`EnvironmentVersionRecoveryRepository.confirm` 创建 mode=`recovery` 的新 ReleaseRun（sourceReleaseRunId 链到历史版本运行）+ 新 OperationApproval（`project.release_order.deploy_production_recovery`），同走 per-env max-1 守卫与幂等重放；`environment-version-recovery.integration.spec.ts` 6/6 保持（含并发收敛与新守卫交叉用例）。）
+- [x] **AC-POLICY-008** 金丝雀/蓝绿/自动放量在缺真实 Provider 时显示具体不可用原因。（F449 证据：`release-strategy-capability.service.ts` 对三个进阶策略返回具体缺失能力清单（real_traffic_provider / candidate_and_stable_workloads / metric_analysis_provider / pause_and_abort_provider / automatic_rollback_provider）与本地化原因（需要流量路由/双工作负载/指标分析/暂停与自动中止/自动回滚）；设置页策略卡渲染 能力未就绪 徽标 + 原因 + `缺少能力: …` mono 清单 + `能力未就绪的进阶策略为只读，不可选择。`；web spec 钉住；runtime 浏览器证据可见金丝雀/蓝绿/自动放量三卡。）
+- [x] **AC-POLICY-009** 不可用高级策略不能被 API 或 UI 选为可执行。（F449 证据：API `requireExecutable` 在策略 create 前抛 422（release-policy.service.spec 每策略断言 repository.create 未被调用）；生产 preview/confirm 快照只允许 standard（release-production-snapshot.utils.ts）；UI 无策略选择器（web spec 断言无 select/radio/checkbox、页面仅 1 个保存按钮）。）
+- [x] **AC-POLICY-010** 未来高级策略从项目选择 stable/target Manifest 并进入独立运行管控，不污染普通发布单主链。（F449 证据：按 canonical spec 明确记录为 **deferred**——当前无任何 advanced-strategy scaffold（ReleaseRun 无 strategy 字段、无 stable/target 选择 API），真实流量/双工作负载/指标 Provider 未接入前保持 fail-closed；settings 目标规则区块与策略卡以只读+不可用原因呈现，不做假装生效。需真实 Provider 后才实现独立运行管控。）
 
 ## Copy, Visual And Accessibility
 

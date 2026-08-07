@@ -75,6 +75,10 @@ describeIntegration("EnvironmentVersion execute-after-approval policy", () => {
     await expect(
       f.prisma.deploymentRun.count({ where: { releaseRunId: run.id } }),
     ).resolves.toBe(0);
+    await f.prisma.releaseRun.update({
+      where: { id: run.id },
+      data: { status: "failed" },
+    });
   });
 
   it("expired, consumed and input-drifted approvals cannot execute", async () => {
@@ -113,6 +117,10 @@ describeIntegration("EnvironmentVersion execute-after-approval policy", () => {
       where: { id: run.id },
     });
     expect(persisted.status).toBe("awaiting_approval");
+    await f.prisma.releaseRun.update({
+      where: { id: run.id },
+      data: { status: "failed" },
+    });
   });
 
   it("concurrent execute converges to exactly one Production DeploymentRun", async () => {

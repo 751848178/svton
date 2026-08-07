@@ -15,6 +15,10 @@ import {
   resolveRecoverySource,
   type RecoveryScope,
 } from "./environment-version-recovery.utils";
+import {
+  assertNoActiveReleaseRunForEnvironment,
+  lockProductionEnvironmentForRelease,
+} from "./release-run-concurrency.utils";
 
 @Injectable()
 export class EnvironmentVersionRecoveryRepository {
@@ -90,6 +94,16 @@ export class EnvironmentVersionRecoveryRepository {
           }
           return existing;
         }
+        await lockProductionEnvironmentForRelease(tx, {
+          teamId: input.teamId,
+          projectId: input.projectId,
+          environmentId: input.environmentId,
+        });
+        await assertNoActiveReleaseRunForEnvironment(tx, {
+          teamId: input.teamId,
+          projectId: input.projectId,
+          environmentId: input.environmentId,
+        });
         const snapshot = preview.snapshot;
         const run = await tx.releaseRun.create({
           data: {

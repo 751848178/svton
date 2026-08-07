@@ -5,6 +5,10 @@ import { productionPreview } from "./release-production-snapshot.utils";
 import type { ReleaseStrategy } from "./release-strategy-capability.types";
 import { loadProductionReleaseContext } from "./release-production-context.repository";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
+import {
+  assertNoActiveReleaseRunForEnvironment,
+  lockProductionEnvironmentForRelease,
+} from "./release-run-concurrency.utils";
 
 const releaseRunInclude = {
   operationApproval: {
@@ -97,6 +101,16 @@ export class ReleaseProductionRepository {
         return existing;
       }
       const snapshot = preview.snapshot;
+      await lockProductionEnvironmentForRelease(tx, {
+        teamId: input.teamId,
+        projectId: input.projectId,
+        environmentId: snapshot.environment.id,
+      });
+      await assertNoActiveReleaseRunForEnvironment(tx, {
+        teamId: input.teamId,
+        projectId: input.projectId,
+        environmentId: snapshot.environment.id,
+      });
       const run = await tx.releaseRun.create({
         data: {
           teamId: input.teamId,
