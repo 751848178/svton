@@ -467,18 +467,18 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 - [x] **AC-E2E-021** Production 回退经过新的恢复确认/审批并成功。F456：`production-recovery-preview`（历史版本 Vprod1 `cmsjc72za007dfq990zomamkh`）→ `production-recovery-confirm` 新 recovery ReleaseRun `cmsjc73tr00ekfq994pye13i1`（mode=recovery, awaiting_approval）+ OperationApproval `cmsjc73ts00emfq99c12xkhlo`（action project.release_order.deploy_production_recovery）→ approve → `production-recovery-execute` → Production DeploymentRun completed + 新 EnvironmentVersion `cmsjc744h00hsfq99eba317db` kind=recovery + current 指针移动；ReleaseRun succeeded、approval consumed。
 - [x] **AC-E2E-022** 所有 current/history/previousVersion 链正确。F456：`version-chains` —— Staging 链 `deploy→deploy→upgrade→recovery`（`cmsjc72me…→cmsjc73d1…→cmsjc73eg…→cmsjc73fh…`）、Production 链 `deploy→deploy→upgrade→upgrade→recovery`（`parity-env-version-prev-a…→prev-b…→cmsjc72za…→cmsjc73sc…→cmsjc744h…`）：每行 previousVersionId 指向链上前一 current（chainLinksValid=true、首版本 NULL），每个版本的 deploymentRun 均 completed，DB current 指针 == 链末，API list currentEnvironmentVersionId 与 DB 一致。
 - [x] **AC-E2E-023** 所有运行日志可从对应发布单或环境版本打开。F456：浏览器（CDP 1484x1324，authenticated，4131）—— 发布单详情显示 BuildRun #1+#2 / Manifest 2 个、Staging 步骤 4 次部署（含同一 Manifest 两次部署）、Production ReleaseRun 记录 3 个（upgrade `cmsjc73gh…` + recovery `cmsjc73tr…` 回退审批卡）；`?view=environment-versions` 变更记录表显示 Staging/Production 的 发布/升级/回退 历史链；构建日志抽屉（`step=build&buildRunId=cmsjc7367…`）、Staging 运行日志（`step=staging&deploymentRunId=cmsjc73bk…`）、Production 运行日志（`step=production&releaseRunId=cmsjc73tr…`）、环境版本变更记录均打开。已知展示差异（非链路失败）：lifecycle 读模型只把 action=project.release_order.deploy_production 的审批计为有效生产证据，recovery 审批（deploy_production_recovery，AC-PROD-035 设计）不计，故订单 stepper 显示「生产证据与发布单不匹配」——所有运行均成功、审批已消费、指针已移动。全部截图/DOM/console/network + sha256 见 /tmp/codex-tool-runs/svton/f456/browser/ 与 f456-version-history-evidence.json。
-- [ ] **AC-E2E-024** 未连接仓库或无主分支时构建拒绝。
-- [ ] **AC-E2E-025** 必需门禁失败时对应阶段服务端拒绝。
-- [ ] **AC-E2E-026** Provider 关闭时能力 unavailable 且执行拒绝。
-- [ ] **AC-E2E-027** 跨项目/发布单 Manifest 拒绝。
-- [ ] **AC-E2E-028** Digest 被篡改时部署拒绝。
-- [ ] **AC-E2E-029** 配置快照漂移时 Production 旧确认拒绝。
-- [ ] **AC-E2E-030** 审批拒绝/过期/已消费时执行拒绝。
-- [ ] **AC-E2E-031** 两个使用相同或不同幂等键的并发生产确认/执行都不会双发。
-- [ ] **AC-E2E-032** 健康检查失败不移动 current 指针。
-- [ ] **AC-E2E-033** DNS/TLS/HTTP 探测失败不标记最终成功。
-- [ ] **AC-E2E-034** 无权限用户看不到或不能执行受保护动作。
-- [ ] **AC-E2E-035** 全链 API/DB/log/截图/compose/runtime/evidence artifact 无 Secret、token、bootstrap 或认证凭据明文泄漏。
+- [x] **AC-E2E-024** 未连接仓库或无主分支时构建拒绝。 F457：`parity-negative-project-0001`（ready，无仓库连接/无主分支）`POST builds` → 422 `RELEASE_GATE_BLOCKED`（C01 `repository_not_connected`），DB BuildRun=0，ReleaseGateDecision 持久化 `allowed=false` blocker [C01]（inputSnapshot 证据）；见 /tmp/codex-tool-runs/svton/f457/f457-negative-e2e-evidence.json。
+- [x] **AC-E2E-025** 必需门禁失败时对应阶段服务端拒绝。 F457：仓库连接 status=failed/errorCode=repository_verification_failed → build 阶段 422 `RELEASE_GATE_BLOCKED`，决策持久化 `allowed=false` blocker [C01] reasonCode `repository_verification_failed`，BuildRun=0；连接行随后删除（fixture 恢复）。
+- [x] **AC-E2E-026** Provider 关闭时能力 unavailable 且执行拒绝。 F457：release-policy capabilities 列表 standard executable=true，canary/blue_green/automatic_traffic executable=false `release_strategy_capabilities_unavailable` + 5 项缺失能力；preview strategy=canary 与 confirm strategy=blue_green 均 422 同 code（能力检查先于输入校验）。
+- [x] **AC-E2E-027** 跨项目/发布单 Manifest 拒绝。 F457：跨项目 Manifest（parity-negative-manifest-0001）与跨发布单 Manifest（parity-manifest-prev-b-0001）staging 部署均 404 `Manifest 不存在或不属于当前发布单`，DeploymentRun=0。
+- [x] **AC-E2E-028** Digest 被篡改时部署拒绝。 F457：篡改 M1 project-bundle item digest → staging 部署 422 `Manifest 缺少可验证的项目制品`，DeploymentRun=0；digest 逐字节恢复。
+- [x] **AC-E2E-029** 配置快照漂移时 Production 旧确认拒绝。 F457：当前 R2 确认后再 CAS 创建 R3（配置漂移）→ 旧确认 execute 422 `Production ReleaseRun 未批准、已使用或输入已漂移`，DeploymentRun=0，current 指针未移动。
+- [x] **AC-E2E-030** 审批拒绝/过期/已消费时执行拒绝。 F457：审批 rejected → execute 422（无 DeploymentRun）；approved 后 expiresAt 置为过去 → 422；approved 后 consumedAt 置位 → 422；三次 ReleaseRun 均保持 awaiting_approval。
+- [x] **AC-E2E-031** 两个使用相同或不同幂等键的并发生产确认/执行都不会双发。 F457：两个并发 confirm 同幂等键 → 均 201 且仅 1 个 ReleaseRun（幂等重放）；不同幂等键 → 1×201 + 1×409 `生产环境已有进行中的发布运行`（环境 max-1-run 守卫）；已批准 run 的两个并发 execute → 1×201 DeploymentRun completed（ReleaseRun succeeded、审批 consumed）+ 1×409，仅 1 个 DeploymentRun。
+- [x] **AC-E2E-032** 健康检查失败不移动 current 指针。 F457：healthCheckUrl http://127.0.0.1:9/health（curl 拒绝连接）→ DeploymentRun failed `WORKLOAD_HEALTH_FAILED`，ReleaseRun failed `ENVIRONMENT_DEPLOYMENT_FAILED`，current 指针未移动（vs 031 后基线），门禁决策由失败 run 认领。
+- [x] **AC-E2E-033** DNS/TLS/HTTP 探测失败不标记最终成功。 F457：routeSnapshot R4 proxyTarget → 404 路径：siteProbe http failed/404（result.siteProbe 记录），路由切换未应用（0 SiteRouteSwitchRun），DeploymentRun failed、ReleaseRun failed、不标记最终成功、指针未移动；R4 保留在 append-only 历史，current 配置恢复 R3。
+- [x] **AC-E2E-034** 无权限用户看不到或不能执行受保护动作。 F457：MEMBER（parity-member-0001）读发布单 200，但 build/staging-deploy/confirm-production/execute-environment/审批 review 全部 403；跨团队用户（无 membership）读 → 403 `无权访问该团队`；任何尝试均未产生 BuildRun/DeploymentRun。
+- [x] **AC-E2E-035** 全链 API/DB/log/截图/compose/runtime/evidence artifact 无 Secret、token、bootstrap 或认证凭据明文泄漏。 F457：全链 12 类证据扫描（API 证据 JSON、mysqldump db.dump.sql、api/web 容器日志、F455/F456 浏览器 DOM/HTML、compose、历史证据 JSON、runtime active.json、runtime.env（mode 600 校验）、DB 日志列）——bootstrap 密码、seed Secret 值、JWT 片段 0 意外敏感命中；仅账户邮箱标识符（文档化）与两个设计内位置：compose 声明的 bootstrap 配置 + 0600 runtime.env 工作负载交付文件。
 
 - [ ] **AC-VIS-001** 项目目录 Demo/实际同 viewport 对照已审查。
 - [ ] **AC-VIS-002** 项目接入三步 Demo/实际同 viewport 对照已审查。

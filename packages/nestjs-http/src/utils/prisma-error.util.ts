@@ -35,8 +35,14 @@ export function mapPrismaError(error: PrismaClientKnownRequestError): MappedErro
   switch (code) {
     // 唯一约束冲突
     case 'P2002': {
-      const target = meta?.target as string[] | undefined;
-      const fields = target?.join(', ') || 'field';
+      // Prisma 的 meta.target 可能是字符串或字符串数组（依驱动/约束而定）；
+      // 异常过滤器内部不得抛错，否则未捕获异常会杀死整个进程。
+      const target = meta?.target;
+      const fields = Array.isArray(target)
+        ? target.join(', ')
+        : typeof target === 'string' && target.length > 0
+          ? target
+          : 'field';
       return {
         status: HttpStatus.CONFLICT,
         code: 40901,
