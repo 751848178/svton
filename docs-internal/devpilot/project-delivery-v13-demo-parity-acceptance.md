@@ -284,12 +284,12 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 
 ## Environment Versions And Recovery
 
-- [ ] **AC-ENVVER-001** Staging 和 Production 分卡显示当前环境版本。
-- [ ] **AC-ENVVER-002** 每卡显示发布版本号和来源发布单。
-- [ ] **AC-ENVVER-003** 每卡显示 Manifest/Digest 和 Build revision。
-- [ ] **AC-ENVVER-004** 每卡显示最近运行和时间。
-- [ ] **AC-ENVVER-005** 成功历史按时间倒序且保持 previous-version 链。
-- [ ] **AC-ENVVER-006** current 指针只从成功 DeploymentRun 派生。
+- [x] **AC-ENVVER-001** Staging 和 Production 分卡显示当前环境版本。（F441 证据：环境版本页重构为 Demo v9 对齐的每环境卡片——Staging/Production 分卡、卡头环境名 + 「当前部署」徽标（无 current 时 fail closed 显示「尚无可追溯环境版本」）、四事实 已部署版本/来源发布单/Artifact Manifest/最近发布时间、动作 回退+升级版本；浏览器证据 `/tmp/codex-tool-runs/svton/f441/f441-browser-evidence.json`。）
+- [x] **AC-ENVVER-002** 每卡显示发布版本号和来源发布单。（F441 证据：已部署版本=「发布版本号 {version}」，来源发布单=`releaseOrder.id · releaseVersion`（页面文本 `cmshheb5r0007vwrcaft5uhsx · 4.34.0`）；panel/summary spec 断言 来源发布单 key 与 id/版本同显。）
+- [x] **AC-ENVVER-003** 每卡显示 Manifest/Digest 和 Build revision。（F441 证据：Artifact Manifest 事实 = manifest id + 「BuildRun #{revision} · Manifest {digest}」（页面 `cmshhebzv0017vwrc0p1iyl7p` + `BuildRun #1 · Manifest sha256:124239ab…`）；API list payload 断言 artifactManifest.digest/buildRun.revision。）
+- [x] **AC-ENVVER-004** 每卡显示最近运行和时间。（F441 证据：最近发布时间 = `deploymentRun.finishedAt ?? createdAt` 本地化（页面 Staging `2026-08-06, 20:17:47` / Production `2026-08-07, 02:27:00`）；summary spec 断言 finishedAt 优先、无则 createdAt 回退。）
+- [x] **AC-ENVVER-005** 成功历史按时间倒序且保持 previous-version 链。（F441 证据：环境变更记录表（caption 最近环境版本变更，列 环境|动作|版本变化|制品|结果|时间）按 `effectiveAt desc` 渲染，版本变化列经 `previousVersionId` 解析上一版本 releaseVersion 渲染 `X → Y` 链（页面 7 行链，如 `4.34.0 → 4.34.0`、staging 首行）；API 集成测试断言 reverse-chrono 排序 + `previousVersionId` 链 + 全字段 payload。）
+- [x] **AC-ENVVER-006** current 指针只从成功 DeploymentRun 派生。（F441 证据：list 读路径用 `exactCurrentEnvironmentVersion`（completed/!dryRun/source=release_order/精确 scope）重校验指针，不可证明则 fail closed 置 null 且保留完整历史；`environment-version-read.utils.spec.ts` 8/8（非 completed/dryRun/非 release_order/foreign/mismatch → null），集成测试把指针指向 failed run → current null、历史仍完整返回；真实栈 Staging current `cmshhefxd001vvwrcbdoot2kj`、Production current `cmshul9e7009hny7b6remtdur`（recovery，completed run 背书）均通过校验。）
 - [ ] **AC-ENVVER-007** 升级只列出同项目成功且可追溯 Manifest。
 - [ ] **AC-ENVVER-008** Production 只列出具有同 Manifest Staging 证明的候选。
 - [ ] **AC-ENVVER-009** 回退只列出该环境历史成功版本。

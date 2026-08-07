@@ -9,9 +9,11 @@ import type { RecoveryCreateResult } from '../hooks/use-recovery-confirm';
 import type {
   EnvironmentVersionCandidate,
   EnvironmentVersionEnvironment,
+  EnvironmentVersionItem,
 } from '../types/environment-version.types';
-import { releaseEnvironmentLabelKey } from '../utils/release-copy.model';
+import { environmentVersionKindLabelKey } from '../utils/release-copy.model';
 import { releaseOrderHref } from '../utils/project-route.utils';
+import { formatIso } from '../utils/release-time.utils';
 import { EnvironmentRecoveryDialog } from './environment-recovery-dialog';
 import { EnvironmentVersionSummary } from './environment-version-summary';
 
@@ -28,8 +30,19 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [recoveryTarget, setRecoveryTarget] = useState<RecoveryTarget | null>(null);
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">{t('environmentVersionsDescription')}</p>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">{t('environmentVersionPageTitle')}</h2>
+          <p className="text-sm text-muted-foreground">{t('environmentVersionsDescription')}</p>
+        </div>
+        <StatusTag
+          status="success"
+          label={t('environmentVersionEnvironmentCount', {
+            count: versions.environments.length,
+          })}
+        />
+      </div>
       {versions.error ? (
         <p
           className="text-sm text-destructive"
@@ -73,6 +86,45 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
           );
         })}
       </div>
+      <p className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        {t('environmentVersionProductionCallout')}
+      </p>
+      <section className="rounded-lg border">
+        <div className="border-b p-4">
+          <h3 className="font-semibold">{t('environmentVersionChangeLog')}</h3>
+          <p className="text-xs text-muted-foreground">
+            {t('environmentVersionChangeLogHelper')}
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] table-fixed text-sm">
+            <caption className="border-b bg-muted/40 px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+              {t('environmentVersionChangeLogCaption')}
+            </caption>
+            <thead className="bg-muted/50 text-left">
+              <tr>
+                <th className="w-[14%] px-4 py-2 font-medium">{t('environmentVersionColumnEnvironment')}</th>
+                <th className="w-[10%] px-4 py-2 font-medium">{t('environmentVersionColumnAction')}</th>
+                <th className="w-[20%] px-4 py-2 font-medium">{t('environmentVersionColumnVersionChange')}</th>
+                <th className="w-[22%] px-4 py-2 font-medium">{t('environmentVersionColumnArtifact')}</th>
+                <th className="w-[14%] px-4 py-2 font-medium">{t('environmentVersionColumnResult')}</th>
+                <th className="w-[20%] px-4 py-2 font-medium">{t('environmentVersionColumnTime')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {versions.environments.flatMap((environment) =>
+                environment.environmentVersions.map((version) => (
+                  <EnvironmentChangeRow
+                    key={version.id}
+                    environment={environment}
+                    version={version}
+                  />
+                )),
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
       <LinkButton
         href={`/projects/${encodeURIComponent(projectId)}/settings?section=environments`}
         variant="outline"
@@ -119,14 +171,24 @@ function EnvironmentCard(props: {
   const current = env.environmentVersions.find(
     (item) => item.id === env.currentEnvironmentVersionId,
   );
+  const previous = current
+    ? env.environmentVersions.find((item) => item.id === current.previousVersionId)
+    : null;
   return (
     <article className="space-y-4 rounded-lg border p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold">{t(releaseEnvironmentLabelKey(env.baselineRole))}</h2>
-        <StatusTag
-          status={current ? 'success' : 'default'}
-          label={current ? t('environmentVersionCurrent') : t('environmentVersionUnavailable')}
-        />
+        <h3 className="font-semibold">{env.name}</h3>
+        {current ? (
+          <StatusTag
+            status="success"
+            label={t('environmentVersionDeployedBadge')}
+          />
+        ) : (
+          <StatusTag
+            status="default"
+            label={t('environmentVersionUnavailable')}
+          />
+        )}
       </div>
       {current ? (
         <EnvironmentVersionSummary version={current} />
@@ -161,48 +223,73 @@ function EnvironmentCard(props: {
           loading={props.executing}
           disabled={!props.selectedId || props.productionBlocked}
         >
-          {t('environmentVersionUpgrade')}
+          {t('environmentVersionUpgradeShort')}
         </Button>
       </div>
-      {props.productionBlocked ? (
-        <p className="text-xs text-amber-700">
-          {t('environmentVersionProductionApprovalRequired')}
-        </p>
-      ) : null}
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium">{t('environmentVersionHistory')}</h3>
-        {env.environmentVersions.map((version) => (
-          <div
-            key={version.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded border p-3 text-xs"
-          >
-            <EnvironmentVersionSummary version={version} />
-            {version.id !== env.currentEnvironmentVersionId ? (
-              env.baselineRole === 'production' ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={props.executing}
-                  onClick={() => props.onProductionRecovery(version.id)}
-                >
-                  {t('environmentVersionRecover')}
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={props.executing}
-                  onClick={() => props.onRecovery(version.id)}
-                >
-                  {t('environmentVersionRecover')}
-                </Button>
-              )
-            ) : null}
-          </div>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button
+          variant="outline"
+          disabled={props.executing || !previous}
+          onClick={() =>
+            previous
+              ? env.baselineRole === 'production'
+                ? props.onProductionRecovery(previous.id)
+                : props.onRecovery(previous.id)
+              : undefined
+          }
+        >
+          {t('environmentVersionRollback')}
+        </Button>
+        {props.productionBlocked ? (
+          <p className="text-xs text-amber-700">
+            {t('environmentVersionProductionApprovalRequired')}
+          </p>
+        ) : null}
       </div>
     </article>
   );
+}
+
+function EnvironmentChangeRow(props: {
+  environment: EnvironmentVersionEnvironment;
+  version: EnvironmentVersionItem;
+}) {
+  const t = useTranslations('projects');
+  const { environment, version } = props;
+  const previous = environment.environmentVersions.find(
+    (item) => item.id === version.previousVersionId,
+  );
+  const current = version.id === environment.currentEnvironmentVersionId;
+  return (
+    <tr>
+      <td className="px-4 py-3">{environment.name}</td>
+      <td className="px-4 py-3">{t(environmentVersionKindLabelKey(version.kind))}</td>
+      <td className="px-4 py-3 font-mono">
+        {previous
+          ? `${previous.releaseOrder.releaseVersion} → ${version.releaseOrder.releaseVersion}`
+          : version.releaseOrder.releaseVersion}
+      </td>
+      <td className="px-4 py-3 font-mono">{shortManifest(version.artifactManifest.id)}</td>
+      <td className="px-4 py-3">
+        {current ? (
+          <StatusTag
+            status="success"
+            label={t('environmentVersionResultSuccess')}
+          />
+        ) : (
+          <StatusTag
+            status="default"
+            label={t('environmentVersionResultHistory')}
+          />
+        )}
+      </td>
+      <td className="px-4 py-3">{formatIso(version.effectiveAt)}</td>
+    </tr>
+  );
+}
+
+function shortManifest(id: string) {
+  return id.length > 14 ? `${id.slice(0, 12)}…` : id;
 }
 
 function approvedRun(candidate?: EnvironmentVersionCandidate) {

@@ -6,6 +6,7 @@ import {
 import { sanitizeBuildLogs } from "./release-build-log.utils";
 import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { EnvironmentVersionReadRepository } from "./environment-version-read.repository";
+import { currentEnvironmentVersionId } from "./environment-version-read.utils";
 import { EnvironmentVersionPolicyService } from "./environment-version-policy.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import {
@@ -46,7 +47,14 @@ export class EnvironmentVersionService {
       this.readRepository.environments(teamId, projectId),
       this.readRepository.candidates(teamId, projectId),
     ]);
-    return { environments, candidates };
+    const project = { id: projectId, teamId };
+    return {
+      environments: environments.map((environment) => ({
+        ...environment,
+        currentEnvironmentVersionId: currentEnvironmentVersionId(project, environment),
+      })),
+      candidates,
+    };
   }
 
   async execute(input: {

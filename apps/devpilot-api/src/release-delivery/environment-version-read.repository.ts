@@ -15,6 +15,48 @@ const versionInclude = {
   },
 } as const;
 
+const exactCurrentVersionInclude = {
+  select: {
+    id: true,
+    teamId: true,
+    projectId: true,
+    environmentId: true,
+    releaseOrderId: true,
+    artifactManifestId: true,
+    deploymentRunId: true,
+    effectiveAt: true,
+    releaseOrder: {
+      select: {
+        id: true,
+        teamId: true,
+        projectId: true,
+        releaseVersion: true,
+      },
+    },
+    artifactManifest: {
+      select: {
+        id: true,
+        teamId: true,
+        projectId: true,
+        releaseOrderId: true,
+        digest: true,
+      },
+    },
+    deploymentRun: {
+      select: {
+        id: true,
+        teamId: true,
+        projectId: true,
+        environmentId: true,
+        artifactManifestId: true,
+        source: true,
+        status: true,
+        dryRun: true,
+      },
+    },
+  },
+} as const;
+
 @Injectable()
 export class EnvironmentVersionReadRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -29,10 +71,13 @@ export class EnvironmentVersionReadRepository {
       },
       select: {
         id: true,
+        teamId: true,
+        projectId: true,
         key: true,
         name: true,
         baselineRole: true,
         currentEnvironmentVersionId: true,
+        currentEnvironmentVersion: exactCurrentVersionInclude,
         environmentVersions: {
           include: versionInclude,
           orderBy: [{ effectiveAt: "desc" }, { id: "desc" }],

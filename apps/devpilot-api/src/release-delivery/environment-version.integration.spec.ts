@@ -135,6 +135,55 @@ describeIntegration("EnvironmentVersion integration", () => {
       service.execute(upgradeInput(f, f.productionEnvironmentId)),
     ).rejects.toThrow("必须绑定已批准");
   });
+
+  it("lists exact per-version payloads reverse-chronologically with the previous-version chain", async () => {
+    const f = fixture;
+    const first = await service.execute(upgradeInput(f, f.stagingEnvironmentId));
+    const second = await service.execute(upgradeInput(f, f.stagingEnvironmentId));
+    const { environments } = await service.list(f.teamId, f.projectId);
+    const staging = environments.find((item) => item.id === f.stagingEnvironmentId);
+    expect(staging).toBeDefined();
+    expect(staging!.environmentVersions.length).toBeGreaterThanOrEqual(2);
+    const [latest, older] = staging!.environmentVersions;
+    expect(latest.id).toBe(second.version!.id);
+    expect(older.id).toBe(first.version!.id);
+    expect(latest.previousVersionId).toBe(first.version!.id);
+    expect(latest.releaseOrder.id).toBe(f.orderId);
+    expect(latest.releaseOrder.releaseVersion).toBe("1.0.0");
+    expect(latest.artifactManifest.id).toBe(f.manifestId);
+    expect(latest.artifactManifest.digest).toMatch(/^sha256:/);
+    expect(latest.artifactManifest.buildRun.revision).toBe(1);
+    expect(latest.deploymentRun.id).toBe(second.run.id);
+    expect(latest.deploymentRun.status).toBe("completed");
+    expect(latest.deploymentRun.createdAt).toBeInstanceOf(Date);
+    expect(latest.deploymentRun.finishedAt).toBeInstanceOf(Date);
+    expect(new Date(latest.effectiveAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(older.effectiveAt).getTime(),
+    );
+    expect(staging!.currentEnvironmentVersionId).toBe(second.version!.id);
+  });
+
+  it("derives current from completed runs only and keeps the full history when the pointer is stale", async () => {
+    const f = fixture;
+    const first = await service.execute(upgradeInput(f, f.stagingEnvironmentId));
+    await f.prisma.deploymentRun.update({
+      where: { id: first.version!.deploymentRunId },
+      data: { status: "failed" },
+    });
+    await f.prisma.projectEnvironment.update({
+      where: { id: f.stagingEnvironmentId },
+      data: { currentEnvironmentVersionId: first.version!.id },
+    });
+    const { environments } = await service.list(f.teamId, f.projectId);
+    const staging = environments.find((item) => item.id === f.stagingEnvironmentId);
+    expect(staging!.currentEnvironmentVersionId).toBeNull();
+    expect(
+      staging!.environmentVersions.some((item) => item.id === first.version!.id),
+    ).toBe(true);
+    const stale = staging!.environmentVersions.find((item) => item.id === first.version!.id)!;
+    expect(stale.deploymentRun.status).toBe("failed");
+    expect(staging!.environmentVersions[0].id).toBe(first.version!.id);
+  });
 });
 
 function baseInput(f: ProductionFixture, environmentId: string) {
