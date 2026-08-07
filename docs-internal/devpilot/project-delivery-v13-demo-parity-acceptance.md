@@ -304,15 +304,15 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 
 ## Manage Project And Environment Governance
 
-- [ ] **AC-SET-001** 管理项目是独立页面/二级路由，不与发布单平铺。
-- [ ] **AC-SET-002** 顶层只组织项目识别、环境配置和发布规则等低频域。
-- [ ] **AC-SET-003** 环境先选择 Staging/Production，再显示该环境当前配置。
-- [ ] **AC-SET-004** 环境内容分为部署目标、资源绑定、变量与密钥、域名与入口、保护规则。
-- [ ] **AC-SET-005** 每个子区有稳定深链并在刷新后恢复。
-- [ ] **AC-SET-006** 不用单个超长 Drawer 同时承载全部配置。
-- [ ] **AC-SET-007** 配置状态、运行状态和环境版本状态分离。
-- [ ] **AC-SET-008** 常用绑定/替换在项目内完成，高级生命周期可跳专业模块。
-- [ ] **AC-SET-009** 页面结构、密度和子导航与 Demo 对齐。
+- [x] **AC-SET-001** 管理项目是独立页面/二级路由，不与发布单平铺。（F443 证据：`/projects/[id]/settings` 独立路由（`settings/page.tsx` + `ProjectRouteHost mode=settings`），页面头 项目设置 + 返回发布管理 按钮，不与发布单平铺。）
+- [x] **AC-SET-002** 顶层只组织项目识别、环境配置和发布规则等低频域。（F443 证据：`project-settings-content.tsx` 重构为三区左导航（settingsAreaIdentity/settingsAreaEnvironments/settingsAreaReleasePolicy），资源/Webhook/项目资料不再是顶层平级，仅保留深链 `?section=resources|webhooks|general` 并渲染 settingsLegacySectionHint；spec 断言三区存在且无 tabResources/tabWebhooks/settingsSectionGeneral 顶层条目。）
+- [x] **AC-SET-003** 环境先选择 Staging/Production，再显示该环境当前配置。（F443 证据：`environment-settings-area.tsx` env-switcher 先于全部配置内容，选中驱动 `?env=<key>`；浏览器证据 staging/production 按钮 pressed 互斥，切换后 env-summary/config-revision 条/子区随环境变化。）
+- [x] **AC-SET-004** 环境内容分为部署目标、资源绑定、变量与密钥、域名与入口、保护规则。（F443 证据：五个子区组件（settings-env-{targets,resources,variables,routes,protection}-tab.tsx）承载被提升的抽屉内容——部署目标=绑定服务器+绑定/解绑；资源绑定=资源计数+引用编辑器；变量与密钥=环境变量+Secret 引用+密钥变量；域名与入口=路由快照+绑定站点；保护规则=策略引用+身份锁定+写操作+复制/同步。）
+- [x] **AC-SET-005** 每个子区有稳定深链并在刷新后恢复。（F443 证据：URL 形状 `?section=environments&env=<key>&envTab=<targets|resources|variables|routes|protection>`（`readSettingsEnvKey`/`readSettingsEnvTab`/`settingsHref`），浏览器证据四个组合（staging/targets、production/resources、staging/variables、production/protection）全新加载均恢复精确环境+子区；route-utils spec 覆盖 env/envTab 只在 environments 区保留。）
+- [x] **AC-SET-006** 不用单个超长 Drawer 同时承载全部配置。（F443 证据：settings 页面不再挂载 `EnvironmentDetailDrawer`；浏览器证据全部捕获 `role=dialog` 计数 0、DOM grep 无对话框标记，`envDetailTitle` 仅存在于内嵌 i18n bundle；抽屉内容块提升为五个子区，原 EnvironmentPanel/Drawer 组件文件保留未删。）
+- [x] **AC-SET-007** 配置状态、运行状态和环境版本状态分离。（F443 证据：settings 环境区只承载配置状态（config-revision 条 当前生效配置 R{n} · date + 不可变身份）；运行状态（部署次数）在 env-summary 以 运行状态 标签 + 跨引用链接 查看环境版本（`?view=environment-versions`）/ 查看部署记录（`?view=deployments`）呈现；环境版本/部署视图未移入 settings。）
+- [x] **AC-SET-008** 常用绑定/替换在项目内完成，高级生命周期可跳专业模块。（F443 证据：部署目标子区保留 绑定服务器/解绑 与 BindServerBlock；各子区渲染专业模块链接——/servers、/resource-instances、/keys、/sites、/operation-approvals（本地化文案 前往服务器模块 等，浏览器+spec 断言 href）。）
+- [x] **AC-SET-009** 页面结构、密度和子导航与 Demo 对齐。（F443 证据：与 frozen Demo `delivery-versions-v9.html` 项目设置（line 668/562）对齐——h1 项目设置 + helper 维护项目识别、环境运行基线与当前发布规则 + 返回发布管理；management-nav 三区；env-switcher Staging·预发布验证/Production·生产上线；四事实 env-summary（环境角色/部署目标/当前版本/保护等级）；config-revision 条（当前生效配置+不可变身份 key·角色·发布顺序已锁定）；五个 subtab 导航；浏览器 1484x1324 截图结构一致，390x844 无横向溢出。）
 - [ ] **AC-SET-010** 项目始终只有一个活动 Staging baseline。
 - [ ] **AC-SET-011** 项目始终只有一个活动 Production baseline。
 - [ ] **AC-SET-012** baseline 不允许无保护归档或创建重复角色。

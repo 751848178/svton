@@ -14,6 +14,16 @@ export type SettingsSection =
   | 'release-policy'
   | 'general';
 
+/** 环境配置区的五个子区（深链 ?section=environments&env=<key>&envTab=<tab>）。 */
+export const SETTINGS_ENV_TABS = [
+  'targets',
+  'resources',
+  'variables',
+  'routes',
+  'protection',
+] as const;
+export type SettingsEnvTab = (typeof SETTINGS_ENV_TABS)[number];
+
 const SETTINGS_TABS: Record<string, SettingsSection> = {
   repository: 'repository',
   environments: 'environments',
@@ -55,6 +65,16 @@ export function readSettingsSection(searchParams: URLSearchParams): SettingsSect
     : 'repository';
 }
 
+export function readSettingsEnvKey(searchParams: URLSearchParams): string | null {
+  const env = searchParams.get('env')?.trim();
+  return env || null;
+}
+
+export function readSettingsEnvTab(searchParams: URLSearchParams): SettingsEnvTab {
+  const tab = searchParams.get('envTab') ?? '';
+  return (SETTINGS_ENV_TABS as readonly string[]).includes(tab) ? (tab as SettingsEnvTab) : 'targets';
+}
+
 export function readReleaseOrderStep(
   searchParams: URLSearchParams,
   fallback: ReleaseOrderStep,
@@ -66,14 +86,12 @@ export function readExplicitReleaseOrderStep(searchParams: URLSearchParams) {
   const steps = searchParams.getAll('step');
   if (steps.length !== 1) return null;
   const step = steps[0];
-  return ['preflight', 'build', 'staging', 'production'].includes(step || '')
-    ? (step as ReleaseOrderStep)
-    : null;
+  return ['preflight', 'build', 'staging', 'production'].includes(step || '') ? (step as ReleaseOrderStep) : null;
 }
 
 export function deliveryHref(
   projectId: string,
-  view: Exclude<DeliveryView, 'deployments'>,
+  view: DeliveryView,
   searchParams: URLSearchParams,
 ) {
   const next = new URLSearchParams(searchParams);
@@ -82,6 +100,8 @@ export function deliveryHref(
   next.delete('runId');
   next.delete('analysisRunId');
   next.delete('environmentId');
+  next.delete('env');
+  next.delete('envTab');
   next.delete('releasePlanId');
   next.delete('stageId');
   next.delete('releaseOrderId');
@@ -108,6 +128,8 @@ export function releaseOrderHref(
   next.delete('runId');
   next.delete('analysisRunId');
   next.delete('environmentId');
+  next.delete('env');
+  next.delete('envTab');
   next.delete('releasePlanId');
   next.delete('stageId');
   next.set('releaseOrderId', releaseOrderId);
@@ -140,6 +162,8 @@ export function releaseOrderListHref(projectId: string, searchParams: URLSearchP
   next.delete('buildRunId');
   next.delete('deploymentRunId');
   next.delete('releaseRunId');
+  next.delete('env');
+  next.delete('envTab');
   return route(`/projects/${encodeURIComponent(projectId)}`, next);
 }
 
@@ -160,7 +184,11 @@ export function settingsHref(
   next.delete('deploymentRunId');
   next.delete('releaseRunId');
   if (section !== 'repository') next.delete('analysisRunId');
-  if (section !== 'environments') next.delete('environmentId');
+  if (section !== 'environments') {
+    next.delete('environmentId');
+    next.delete('env');
+    next.delete('envTab');
+  }
   next.set('section', section);
   return route(`/projects/${encodeURIComponent(projectId)}/settings`, next);
 }

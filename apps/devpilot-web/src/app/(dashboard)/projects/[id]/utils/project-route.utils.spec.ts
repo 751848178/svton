@@ -2,6 +2,8 @@ import {
   deliveryHref,
   readDeliveryView,
   readReleaseOrderStep,
+  readSettingsEnvKey,
+  readSettingsEnvTab,
   releaseOrderHref,
   releaseOrderListHref,
   readSettingsSection,
@@ -59,6 +61,38 @@ describe('project route compatibility', () => {
     expect(settingsHref('project-1', 'resources', current)).toBe(
       '/projects/project-1/settings?section=resources',
     );
+  });
+
+  it('resolves the settings environment subtab deep links', () => {
+    expect(readSettingsEnvTab(new URLSearchParams('envTab=variables'))).toBe('variables');
+    expect(readSettingsEnvTab(new URLSearchParams('envTab=unknown'))).toBe('targets');
+    expect(readSettingsEnvTab(new URLSearchParams('envTab='))).toBe('targets');
+    expect(readSettingsEnvTab(new URLSearchParams())).toBe('targets');
+    expect(readSettingsEnvKey(new URLSearchParams('env=staging'))).toBe('staging');
+    expect(readSettingsEnvKey(new URLSearchParams('env='))).toBeNull();
+    expect(readSettingsEnvKey(new URLSearchParams())).toBeNull();
+  });
+
+  it('keeps env/envTab only inside the environments settings area', () => {
+    const current = new URLSearchParams('env=staging&envTab=resources&environmentId=env-1');
+    expect(settingsHref('project-1', 'environments', current)).toBe(
+      '/projects/project-1/settings?env=staging&envTab=resources&environmentId=env-1&section=environments',
+    );
+    expect(settingsHref('project-1', 'repository', current)).toBe(
+      '/projects/project-1/settings?section=repository',
+    );
+    expect(settingsHref('project-1', 'release-policy', current)).toBe(
+      '/projects/project-1/settings?section=release-policy',
+    );
+    expect(deliveryHref('project-1', 'environment-versions', current)).toBe(
+      '/projects/project-1?view=environment-versions',
+    );
+    expect(deliveryHref('project-1', 'deployments', current)).toBe(
+      '/projects/project-1?view=deployments',
+    );
+    expect(
+      releaseOrderListHref('project-1', new URLSearchParams('env=staging&envTab=routes')),
+    ).toBe('/projects/project-1');
   });
 
   it('builds stable release detail, step and log deep links', () => {
