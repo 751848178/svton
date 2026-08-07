@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, StatusTag } from '@/components/ui';
+import { Button, BlockedState, StatusTag } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
 import type { ReleaseOrderListItem } from '../types/release-order-list.types';
 import {
@@ -39,7 +39,13 @@ export function ReleaseOrderListRow({
             : t('releaseOrderSourcePending', { branch: item.source.branch ?? '—' })}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">{item.note || t('releaseOrderNoNote')}</p>
-        {failureLabelKey && <p className="mt-1 text-xs text-destructive">{t(failureLabelKey)}</p>}
+        {failureLabelKey ? (
+          <BlockedState
+            compact
+            reason={t(failureLabelKey)}
+            className="mt-2"
+          />
+        ) : null}
       </section>
 
       <section aria-label={t('releaseOrderColumnBuild')}>

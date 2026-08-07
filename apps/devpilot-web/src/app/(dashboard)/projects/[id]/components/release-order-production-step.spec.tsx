@@ -69,6 +69,7 @@ vi.mock('../hooks/use-production-releases', () => ({
 }));
 vi.mock('@/components/ui', () => ({
   Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
+  EmptyState: () => null,
   ErrorBanner: () => null,
   LinkButton: ({ href, children }: React.PropsWithChildren<{ href: string }>) => (
     <a href={href}>{children}</a>

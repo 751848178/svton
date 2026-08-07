@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { usePersistFn } from '@svton/hooks';
 import { DEFAULT_SWR_CONFIG } from '@/hooks/api/use-api';
@@ -47,6 +47,8 @@ export function useProjects(initialDirectory?: ProjectDirectoryResponse) {
   );
   const visibleDirectory = directory.data ?? fallbackDirectory;
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const refresh = usePersistFn(() => void directory.mutate());
   const resetFilters = usePersistFn(() => {
     setSearch('');
@@ -64,7 +66,7 @@ export function useProjects(initialDirectory?: ProjectDirectoryResponse) {
     filtered: Boolean(search.trim()) || statusFilter !== 'all',
     resetFilters,
     loading: shouldShowDirectoryLoading(directory.isLoading, Boolean(visibleDirectory)),
-    validating: directory.isValidating,
+    validating: mounted && directory.isValidating,
     error: directory.error ?? null,
     refresh,
   };

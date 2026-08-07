@@ -6,24 +6,23 @@ import { ProjectDirectoryEmpty } from './project-directory-empty';
 vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
-vi.mock('@svton/ui', () => ({
+vi.mock('@svton/ui', () => ({}));
+vi.mock('@/components/ui', () => ({
   EmptyState: ({
-    text,
+    title,
     description,
     action,
   }: {
-    text: ReactNode;
+    title: ReactNode;
     description?: ReactNode;
     action?: ReactNode;
   }) => (
     <section>
-      {text}
+      {title}
       {description}
       {action}
     </section>
   ),
-}));
-vi.mock('@/components/ui', () => ({
   Button: ({ children }: { children: ReactNode }) => <button>{children}</button>,
   LinkButton: ({ children, href }: { children: ReactNode; href: string }) => (
     <a href={href}>{children}</a>

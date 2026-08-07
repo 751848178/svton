@@ -3,7 +3,7 @@
 import { useMemo, useRef, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
-import { Button, ErrorBanner, LinkButton } from '@/components/ui';
+import { Button, EmptyState, ErrorBanner, LinkButton } from '@/components/ui';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
 import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
 import { useProductionReleases } from '../hooks/use-production-releases';
@@ -227,9 +227,7 @@ export function ReleaseOrderProductionStep(props: Props) {
       ) : null}
       {props.evidence.loading && !evidence ? <LoadingState /> : null}
       {!props.evidence.loading && evidence?.productionReleaseRuns.items.length === 0 ? (
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          {t('releaseStepProductionEmpty')}
-        </p>
+        <EmptyState title={t('releaseStepProductionEmpty')} />
       ) : null}
       {evidence ? (
         <ReleaseProductionEvidenceList

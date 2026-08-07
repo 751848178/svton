@@ -22,6 +22,12 @@ vi.mock('@/components/ui', () => ({
   Button: ({ children, onClick }: { children: ReactNode; onClick: () => void }) => (
     <button onClick={onClick}>{children}</button>
   ),
+  EmptyState: ({ title, action }: { title: ReactNode; action?: ReactNode }) => (
+    <div data-empty>
+      {title}
+      {action}
+    </div>
+  ),
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
   ErrorBanner: ({ message }: { message: string }) => <div role="alert">{message}</div>,
 }));

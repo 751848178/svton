@@ -28,16 +28,16 @@ export function ProjectsContent({ initialDirectory, loadFailed = false }: Projec
         actions={
           <div className="flex flex-wrap gap-2">
             <LinkButton
-              href="/projects/new"
-              variant="outline"
-            >
-              {t('generateProject')}
-            </LinkButton>
-            <LinkButton
               href="/projects/create"
               variant="primary"
             >
               {t('connectExistingProject')}
+            </LinkButton>
+            <LinkButton
+              href="/projects/new"
+              variant="outline"
+            >
+              {t('generateProject')}
             </LinkButton>
           </div>
         }

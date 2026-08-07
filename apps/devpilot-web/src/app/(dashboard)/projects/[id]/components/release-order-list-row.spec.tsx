@@ -11,6 +11,7 @@ vi.mock('next-intl', () => ({
 vi.mock('@/components/ui', () => ({
   Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
+  BlockedState: ({ reason }: { reason: React.ReactNode }) => <div data-blocked>{reason}</div>,
 }));
 
 describe('ReleaseOrderListRow', () => {

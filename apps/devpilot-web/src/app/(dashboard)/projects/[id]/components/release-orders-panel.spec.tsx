@@ -11,10 +11,13 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => mocks.searchParams,
 }));
 vi.mock('@svton/ui', () => ({
-  EmptyState: ({ text }: { text: string }) => <div>{text}</div>,
   LoadingState: () => <div>loading</div>,
 }));
-vi.mock('@/components/ui', () => ({ ErrorBanner: () => <div>error</div> }));
+vi.mock('@/components/ui', () => ({
+  Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+  EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
+  ErrorBanner: () => <div>error</div>,
+}));
 vi.mock('./release-order-detail-panel', () => ({
   ReleaseOrderDetailPanel: () => <div>detail</div>,
 }));

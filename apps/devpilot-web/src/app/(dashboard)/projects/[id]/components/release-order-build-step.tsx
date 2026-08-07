@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
-import { ErrorBanner } from '@/components/ui';
+import { Button, EmptyState, ErrorBanner } from '@/components/ui';
 import type { ReleaseBuildsController } from '../hooks/use-release-builds';
 import { useReleaseBuildDetail } from '../hooks/use-release-build-detail';
 import { ReleaseBuildHistoryTable } from './release-build-history-table';
@@ -77,9 +77,18 @@ export function ReleaseOrderBuildStep(props: Props) {
         <LoadingState text={t('releaseBuildLoading')} />
       ) : null}
       {loadedSuccessfully && !builds.loading && items.length === 0 ? (
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          {t('releaseBuildEmpty')}
-        </p>
+        <EmptyState
+          title={t('releaseBuildEmpty')}
+          action={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void builds.buildLatest()}
+            >
+              {t('buildLatestCode')}
+            </Button>
+          }
+        />
       ) : null}
       {items.length > 0 ? (
         <>

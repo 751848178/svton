@@ -17,8 +17,10 @@ vi.mock('@svton/ui', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
   ),
+  LoadingState: () => <div data-loading>loading</div>,
 }));
 vi.mock('@/components/ui', () => ({
+  BlockedState: ({ reason }: { reason: ReactNode }) => <div data-blocked>{reason}</div>,
   Modal: ({
     open,
     title,

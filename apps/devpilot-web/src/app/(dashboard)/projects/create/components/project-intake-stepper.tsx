@@ -1,3 +1,4 @@
+import { CheckCircle, Circle, CircleNotch } from '@phosphor-icons/react';
 import { useTranslations } from 'next-intl';
 
 const STEPS = ['intakeStepConnect', 'intakeStepReview', 'intakeStepBaseline'] as const;
@@ -17,14 +18,38 @@ export function ProjectIntakeStepper({ step }: { step: number }) {
           <div
             key={label}
             aria-current={current ? 'step' : undefined}
-            className={`rounded-lg border p-4 ${
+            className={`flex items-center gap-3 rounded-lg border p-3 ${
               current ? 'border-primary bg-primary/5' : completed ? 'bg-muted/40' : ''
             }`}
           >
-            <p className="text-xs text-muted-foreground">
-              {completed ? t('intakeStepCompleted') : t('intakeStepNumber', { number })}
-            </p>
-            <p className="mt-1 font-medium">{t(label)}</p>
+            <span
+              className={`shrink-0 ${completed ? 'text-green-600' : current ? 'text-indigo-600' : 'text-slate-400'}`}
+            >
+              {completed ? (
+                <CheckCircle
+                  size={20}
+                  weight="fill"
+                  aria-hidden="true"
+                />
+              ) : current ? (
+                <CircleNotch
+                  size={20}
+                  weight="bold"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Circle
+                  size={20}
+                  aria-hidden="true"
+                />
+              )}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold tracking-[0.035em] text-muted-foreground">
+                {completed ? t('intakeStepCompleted') : t('intakeStepNumber', { number })}
+              </p>
+              <p className="truncate text-sm font-medium">{t(label)}</p>
+            </div>
           </div>
         );
       })}

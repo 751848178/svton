@@ -29,14 +29,14 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
             ]}
           />
         </Field>
-        <Field label={t('nameLabel')}>
+        <Field label={t('nameLabel')} helper={t('intakeNameHelper')}>
           <Input
             value={form.name}
             onChange={(event) => updateForm({ name: event.target.value })}
             placeholder={t('intakeNamePlaceholder')}
           />
         </Field>
-        <Field label={t('branchLabel')}>
+        <Field label={t('branchLabel')} helper={t('intakeBranchHelper')}>
           <Input
             value={form.branch}
             onChange={(event) => updateForm({ branch: event.target.value })}
@@ -44,7 +44,7 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
           />
         </Field>
         <div className="sm:col-span-2">
-          <Field label={t('gitRepoLabel')}>
+          <Field label={t('gitRepoLabel')} helper={t('intakeRepositoryHelper')}>
             <Input
               required
               value={form.repositoryUrl}
@@ -139,11 +139,20 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  helper,
+  children,
+}: {
+  label: string;
+  helper?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block space-y-1.5 text-sm font-medium">
       <span>{label}</span>
       {children}
+      {helper ? <small className="block text-xs font-normal text-muted-foreground">{helper}</small> : null}
     </label>
   );
 }

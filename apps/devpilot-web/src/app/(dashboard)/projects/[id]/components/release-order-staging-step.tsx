@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
-import { Button, ErrorBanner } from '@/components/ui';
+import { Button, EmptyState, ErrorBanner } from '@/components/ui';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
 import { releaseClientErrorLabelKey } from '../utils/release-copy.model';
@@ -149,9 +149,7 @@ export function ReleaseOrderStagingStep(props: Props) {
         <LoadingState text={t('releaseStagingLoading')} />
       ) : null}
       {!deployments.loading && deployments.loadedSuccessfully && deployments.items.length === 0 ? (
-        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          {t('releaseStepStagingEmpty')}
-        </p>
+        <EmptyState title={t('releaseStepStagingEmpty')} />
       ) : null}
       {deployments.items.length > 0 ? (
         <ReleaseStagingEvidenceList

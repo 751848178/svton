@@ -1,7 +1,6 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
-import { EmptyState } from '@svton/ui';
-import { Button, LinkButton } from '@/components/ui';
+import { Button, EmptyState, LinkButton } from '@/components/ui';
 
 export function ProjectDirectoryEmpty({
   filtered,
@@ -14,16 +13,18 @@ export function ProjectDirectoryEmpty({
   if (filtered) {
     return (
       <EmptyState
-        text={t('noSearchResults')}
+        title={t('noSearchResults')}
         description={t('noSearchResultsDescription')}
+        dashed={false}
         action={<Button onClick={onReset}>{t('resetFilters')}</Button>}
       />
     );
   }
   return (
     <EmptyState
-      text={t('noProjects')}
+      title={t('noProjects')}
       description={t('noProjectsDescriptionV13')}
+      dashed={false}
       action={
         <div className="flex flex-wrap justify-center gap-2">
           <LinkButton

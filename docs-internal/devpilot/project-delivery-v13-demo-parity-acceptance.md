@@ -379,24 +379,24 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 - [x] **AC-COPY-007** Staging/Production 技术名与“预发/生产”用户名组合一致。
 - [x] **AC-COPY-008** zh/en key、ICU 参数和运行时切换 parity 通过。
 
-- [ ] **AC-UI-001** 项目目录页面布局与 Demo 对齐。
-- [ ] **AC-UI-002** 三步接入页面布局与 Demo 对齐。
-- [ ] **AC-UI-003** 项目交付首页布局与 Demo 对齐。
-- [ ] **AC-UI-004** 发布单列表布局与 Demo 对齐。
-- [ ] **AC-UI-005** 四步详情壳与 Demo 对齐。
-- [ ] **AC-UI-006** 构建步骤布局与 Demo 对齐。
-- [ ] **AC-UI-007** 预发步骤布局与 Demo 对齐。
-- [ ] **AC-UI-008** 生产步骤布局与 Demo 对齐。
-- [ ] **AC-UI-009** 环境版本布局与 Demo 对齐。
-- [ ] **AC-UI-010** 管理项目各子页布局与 Demo 对齐。
-- [ ] **AC-UI-011** 初始空态提供明确下一动作。
-- [ ] **AC-UI-012** 加载状态不闪烁错误空态。
-- [ ] **AC-UI-013** 阻断状态同时说明原因和恢复动作。
-- [ ] **AC-UI-014** 执行中状态阻止重复危险提交。
-- [ ] **AC-UI-015** 成功状态显示可追溯证据。
-- [ ] **AC-UI-016** 失败状态保留运行并提供日志/重试。
-- [ ] **AC-UI-017** 等待审批与能力未就绪状态不同。
-- [ ] **AC-UI-018** Demo 展示的主要状态都有真实 fixture 页面证据。
+- [x] **AC-UI-001** 项目目录页面布局与 Demo 对齐。F450 证据：目录 header 双入口收敛单主次（接入已有项目 primary 置首 + 生成新项目 outline，规范 §3.4 repo-first 决策）、行 project-avatar（Demo:732）、五列头 + cell-label/cell-main/cell-sub、directory-summary 紧凑形式（Demo:736）。证据 `/tmp/codex-tool-runs/svton/f450/f450-f451-browser-evidence.json` `facts.directory` + `browser/f450-directory.png`（1484x1324，Console 0）。
+- [x] **AC-UI-002** 三步接入页面布局与 Demo 对齐。F450 证据：/projects/create 第一步（Demo:744 风格 h2+form-grid+small helpers+role=alert 内联错误），Demo 式图标 stepper（Demo:740），max-w-3xl 密度；3 步语义与 F415/F416 immutable-snapshot 契约未动；遗留 5 步 import 组件已删除（rg 验证无引用）。证据 `facts.create` + `browser/f450-create-step1.png`。
+- [x] **AC-UI-003** 项目交付首页布局与 Demo 对齐。F450 证据（主会话 §4.3 裁决）：weak summary（项目形态/环境就绪/资源绑定/Site 入口）+ 发布单/环境版本 tabs + 创建发布单 primary；context strip 保持在生产步骤（F440），首页无结构变更。证据 `facts.home` + `browser/f450-delivery-home.png`。
+- [x] **AC-UI-004** 发布单列表布局与 Demo 对齐。F450 证据：列头 发布单/构建/环境发布/最近执行步骤（Demo:653），8 项粒度状态筛选保留（规范 F419 允许）且 label 用户可理解（草稿/构建中/预发（Staging）发布/等待审批/生产（Production）发布中/已发布/失败/已撤回），行密度 1484 验证。证据 `facts.releaseList` + `browser/f450-release-list.png`。
+- [x] **AC-UI-005** 四步详情壳与 Demo 对齐。F450/F451 证据：真实发布单 cmshheb5r0007vwrcaft5uhsx 四步 stepper（前置检查/构建制品/预发发布/生产发布）+ context strip + 审批卡。证据 `facts.detailShell` + `browser/f450-detail-shell.png`。
+- [x] **AC-UI-006** 构建步骤布局与 Demo 对齐。F450/F451 证据：六列构建记录表（Demo:697 同构）+ 空态带 构建最新代码 下一动作（共享 EmptyState）。证据 `facts.buildStep` + `browser/f450-build-step.png`。
+- [x] **AC-UI-007** 预发步骤布局与 Demo 对齐。F450/F451 证据：Manifest select + 部署到预发 + 五列部署记录表，空态共享 EmptyState。证据 `facts.stagingStep` + `browser/f450-staging-step.png`。
+- [x] **AC-UI-008** 生产步骤布局与 Demo 对齐。F440 已对齐（context strip + stage-callout + stage-summary + 审批卡），F450 复验：真实 ReleaseRun 10 条 + 恢复审批卡（`facts.detailShell.body`，1484 密度验证）。
+- [x] **AC-UI-009** 环境版本布局与 Demo 对齐。F441/F442 已对齐并留证据；F450 复验无回归（tabs 环境版本 在首页存在）。
+- [x] **AC-UI-010** 管理项目各子页布局与 Demo 对齐。F443-F449 已对齐并留证据（settings 三区/五子区/发布规则/路由表），F450 复验无回归。
+- [x] **AC-UI-011** 初始空态提供明确下一动作。F451：发布单列表空态新增 创建发布单 动作（打开既有 ReleaseOrderCreateModal）；build 步骤空态 构建最新代码；目录空态既有双入口。共享 `EmptyState`（action prop）。
+- [x] **AC-UI-012** 加载状态不闪烁错误空态。F451：三步骤壳空态仅在 `loadedSuccessfully && !loading` 渲染（既有契约保持），gate panel loading 换共享 LoadingState；目录页 hydration 修复（mounted 门控 validating，消除 aria-busy 首帧不匹配，Console 0）。
+- [x] **AC-UI-013** 阻断状态同时说明原因和恢复动作。F451：共享 `BlockedState`（reason + recovery action，role=alert）用于失败发布单行（原因=服务端 failureKind 本地化，恢复=查看发布单）；生产失败/拒绝态保持 恢复入口 深链（F440）。
+- [x] **AC-UI-014** 执行中状态阻止重复危险提交。F451：运行中由 StatusTag progress 呼吸点 + 提交按钮 disabled/loading（header 构建中、生产 执行中 disabled data-primary）表达，真实构建/审批运行数据验证。
+- [x] **AC-UI-015** 成功状态显示可追溯证据。F451：构建成功 Manifest、预发/生产 DeploymentRun/ReleaseRun 记录表 + 日志抽屉、审批卡证据字段，全部来自真实 hooks/SWR。
+- [x] **AC-UI-016** 失败状态保留运行并提供日志/重试。F451：失败 BuildRun 保留行 + 查看日志抽屉（f428-seed-failed-r2 真实行证据 `facts.buildStep.body`），错误走 ErrorBanner 重试。
+- [x] **AC-UI-017** 等待审批与能力未就绪状态不同。F451/F449：等待审批（warning 色调 + disabled 提交按钮）vs 能力未就绪（只读策略卡 + 缺少能力 mono 清单，F449 证据），StatusTag 六态映射区分。
+- [x] **AC-UI-018** Demo 展示的主要状态都有真实 fixture 页面证据。F451：1484x1324 证据 JSON 覆盖 目录/创建/首页/发布单列表/详情壳/构建/预发 7 页面 21 artifacts + sha256，全部真实 F434 种子数据（Console 0/failed 0）。
 - [ ] **AC-UI-019** 参考 viewport 无横向溢出、裁切或遮挡。
 - [ ] **AC-UI-020** 常规桌面宽度无横向溢出。
 - [ ] **AC-UI-021** 窄屏保持主流程和关键操作可用。

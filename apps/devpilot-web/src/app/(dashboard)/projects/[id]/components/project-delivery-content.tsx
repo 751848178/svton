@@ -12,9 +12,11 @@ import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
 export function ProjectDeliveryContent({
   projectId,
   orders,
+  onCreate,
 }: {
   projectId: string;
   orders: ReleaseOrdersHook;
+  onCreate?: () => void;
 }) {
   const t = useTranslations('projects');
   const router = useRouter();
@@ -31,6 +33,7 @@ export function ProjectDeliveryContent({
             <ReleaseOrdersPanel
               projectId={projectId}
               orders={orders}
+              onCreate={onCreate}
             />
           ),
         },

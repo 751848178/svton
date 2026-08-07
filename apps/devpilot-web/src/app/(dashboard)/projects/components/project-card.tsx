@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { Folder } from '@phosphor-icons/react';
 import { Tag } from '@svton/ui';
 import { formatDate } from '@/lib/format-date';
 import type { ProjectDirectoryItem } from '../types';
@@ -37,21 +38,32 @@ export function ProjectCard({ project }: ProjectCardProps) {
   return (
     <article className="px-4 py-4 transition-colors hover:bg-muted/20">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(11rem,.8fr)] lg:items-center">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-base font-semibold">{project.name}</h2>
-            <Tag color={project.status === 'online' ? 'green' : 'orange'}>
-              {t(project.status === 'online' ? 'statusOnline' : 'statusNeedsConfiguration')}
-            </Tag>
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"
+            aria-hidden="true"
+          >
+            <Folder
+              size={18}
+              weight="fill"
+            />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="truncate text-base font-semibold">{project.name}</h2>
+              <Tag color={project.status === 'online' ? 'green' : 'orange'}>
+                {t(project.status === 'online' ? 'statusOnline' : 'statusNeedsConfiguration')}
+              </Tag>
+            </div>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {project.repository?.canonicalUrl ?? t('repositoryUnknown')}
+            </p>
           </div>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
-            {project.repository?.canonicalUrl ?? t('repositoryUnknown')}
-          </p>
         </div>
 
         <DirectoryCell label={t('directoryType')}>
-          <p>{label(t, PROJECT_TYPE_LABELS[project.intake.projectType ?? ''])}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="font-medium">{label(t, PROJECT_TYPE_LABELS[project.intake.projectType ?? ''])}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {label(t, ARCHITECTURE_LABELS[project.intake.architecture ?? ''])}
             {' · '}
             {project.intake.componentCount === null
@@ -80,17 +92,17 @@ export function ProjectCard({ project }: ProjectCardProps) {
           <p className="font-medium">
             {project.production.currentVersion ?? t('productionNotReleased')}
           </p>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {project.production.domain ?? t('domainNotConfigured')}
           </p>
         </DirectoryCell>
 
         <div className="flex items-center justify-between gap-4 lg:block">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground lg:hidden">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {t('directoryRecentActivity')}
             </p>
-            <p className="text-sm">{t(ACTIVITY_LABELS[project.activity.type])}</p>
+            <p className="mt-0.5 text-sm">{t(ACTIVITY_LABELS[project.activity.type])}</p>
             <p className="text-xs text-muted-foreground">
               {formatDate(project.activity.occurredAt)}
             </p>
@@ -110,10 +122,10 @@ export function ProjectCard({ project }: ProjectCardProps) {
 function DirectoryCell({ label: title, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground lg:hidden">
+      <p className="text-[10px] font-bold uppercase tracking-[0.045em] text-muted-foreground">
         {title}
       </p>
-      <div className="mt-1 text-sm lg:mt-0">{children}</div>
+      <div className="mt-1 text-sm">{children}</div>
     </div>
   );
 }

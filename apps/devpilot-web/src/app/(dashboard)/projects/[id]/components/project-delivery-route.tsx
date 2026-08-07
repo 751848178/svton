@@ -67,6 +67,7 @@ export function ProjectDeliveryRoute({
       <ProjectDeliveryContent
         projectId={projectId}
         orders={orders}
+        onCreate={() => setCreateOpen(true)}
       />
       <ReleaseOrderCreateModal
         open={createOpen}

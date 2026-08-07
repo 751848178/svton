@@ -2,6 +2,7 @@
 
 import React, { useId, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { LoadingState } from '@svton/ui';
 import { useReleaseGateCatalog } from '../hooks/use-release-gate-catalog';
 import { ReleaseGateCatalogDialog } from './release-gate-catalog-dialog';
 import { ReleaseGateSummary } from './release-gate-summary';
@@ -19,7 +20,7 @@ export function ReleaseGateCatalogPanel({
   const { catalog, loading, error, load } = useReleaseGateCatalog(projectId, releaseOrderId);
 
   if (loading && !catalog) {
-    return <p className="text-sm text-muted-foreground">{t('loading')}</p>;
+    return <LoadingState text={t('loading')} />;
   }
 
   if (!catalog) {

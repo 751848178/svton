@@ -6,6 +6,7 @@
  */
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui';
 import { deriveStageActions } from '../utils/release-stage-actions.utils';
 import type { ReleaseCapability, ReleaseStage } from '../types/releases';
@@ -29,6 +30,7 @@ export function ReleaseStageActions({
   onSkip,
   onReRequestApproval,
 }: ReleaseStageActionsProps): JSX.Element {
+  const t = useTranslations('projects');
   const actions = deriveStageActions(stage, planStatus, capability);
   const canReRequest =
     capability?.enabled !== false &&
@@ -45,7 +47,7 @@ export function ReleaseStageActions({
         title={actions.retry.reason || undefined}
         loading={loadingAction === `retry:${stage.id}`}
       >
-        重试
+        {t('releaseStageActionRetry')}
       </Button>
       <Button
         size="sm"
@@ -55,17 +57,17 @@ export function ReleaseStageActions({
         title={actions.skip.reason || undefined}
         loading={loadingAction === `skip:${stage.id}`}
       >
-        跳过（可选）
+        {t('releaseStageActionSkip')}
       </Button>
       {canReRequest && onReRequestApproval && (
         <Button
           size="sm"
           variant="outline"
           onClick={() => onReRequestApproval(stage.id)}
-          title="重新生成待审批"
+          title={t('releaseStageActionReRequestTitle')}
           loading={loadingAction === `reapprove:${stage.id}`}
         >
-          重新请求审批
+          {t('releaseStageActionReRequest')}
         </Button>
       )}
     </div>

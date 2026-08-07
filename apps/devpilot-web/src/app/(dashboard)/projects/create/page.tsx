@@ -35,7 +35,7 @@ export default function CreateProjectPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
         title={t('intakeTitle')}
         description={t('intakeDescription')}
@@ -53,17 +53,20 @@ export default function CreateProjectPage() {
         onSubmit={(event) => void submit(event)}
         className="rounded-lg border bg-card"
       >
-        <div className="p-6 sm:p-8">
+        <div className="p-5 sm:p-6">
           {intake.step === 1 ? <ConnectRepositoryStep intake={intake} /> : null}
           {intake.step === 2 ? <ReviewAnalysisStep intake={intake} /> : null}
           {intake.step === 3 ? <FinalizeBaselineStep intake={intake} /> : null}
           {intake.error ? (
-            <div className="mt-5">
+            <div
+              className="mt-5"
+              role="alert"
+            >
               <ErrorBanner message={intake.error} />
             </div>
           ) : null}
         </div>
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t px-6 py-4 sm:px-8">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3 sm:px-6">
           <span className="text-sm text-muted-foreground">
             {t('intakeStepProgress', { step: intake.step })}
           </span>
