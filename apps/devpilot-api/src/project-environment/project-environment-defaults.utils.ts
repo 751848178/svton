@@ -42,7 +42,6 @@ export function buildSeedUpsertArgs(
     update: {
       name: labelForKeyUtil(key),
       sortOrder: index * 10,
-      status: 'active',
     },
   };
 }

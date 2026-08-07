@@ -146,6 +146,54 @@ describe('settings environment subtab contents', () => {
     expect(html).toContain('href="/operation-approvals"');
     expect(html).toContain('envModuleLinkApprovals');
   });
+
+  it('保护规则 identity lock label follows the server rule: any DeploymentRun locks', () => {
+    const runLocked = renderToStaticMarkup(
+      <EnvProtectionTab
+        environment={{
+          id: 'env-staging',
+          key: 'staging',
+          name: 'Staging',
+          status: 'active',
+          sortOrder: 1,
+          baselineRole: 'staging',
+          identityLockedAt: null,
+          currentConfigRevisionId: 'rev-3',
+          serverBindings: [],
+          _count: { serverBindings: 1, sites: 2, deploymentRuns: 3, managedResources: 1, resourceRequests: 0, resourceInstances: 2, cdnConfigs: 1, secretKeys: 1 },
+        } as never}
+        detail={detail()}
+        policies={[]}
+        policyIds={[]}
+        onPolicyIdsChange={() => undefined}
+      />,
+    );
+    expect(runLocked).toContain('envIdentityLocked');
+    expect(runLocked).not.toContain('envIdentityUnlocked');
+
+    const unlocked = renderToStaticMarkup(
+      <EnvProtectionTab
+        environment={{
+          id: 'env-staging',
+          key: 'staging',
+          name: 'Staging',
+          status: 'active',
+          sortOrder: 1,
+          baselineRole: 'staging',
+          identityLockedAt: null,
+          currentConfigRevisionId: 'rev-3',
+          serverBindings: [],
+          _count: { serverBindings: 1, sites: 2, deploymentRuns: 0, managedResources: 1, resourceRequests: 0, resourceInstances: 2, cdnConfigs: 1, secretKeys: 1 },
+        } as never}
+        detail={detail()}
+        policies={[]}
+        policyIds={[]}
+        onPolicyIdsChange={() => undefined}
+      />,
+    );
+    expect(unlocked).toContain('envIdentityUnlocked');
+    expect(unlocked).not.toContain('envIdentityLocked');
+  });
 });
 
 function env() {

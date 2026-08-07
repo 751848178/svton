@@ -87,7 +87,9 @@ export function EnvironmentConfigGovernanceSection({
         <div className="shrink-0 text-right text-xs">
           <div>{governance.current ? `R${governance.current.revision}` : '—'}</div>
           <div className="text-muted-foreground">
-            {environment.identityLockedAt ? t('environmentKeyLocked') : t('environmentKeyLocksAfterDeploy')}
+            {environment.identityLockedAt || (environment._count?.deploymentRuns ?? 0) > 0
+              ? t('environmentKeyLocked')
+              : t('environmentKeyLocksAfterDeploy')}
           </div>
         </div>
       </div>

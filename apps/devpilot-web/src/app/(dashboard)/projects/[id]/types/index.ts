@@ -9,6 +9,7 @@ export interface ProjectEnvironment {
   id: string;
   key: string;
   name: string;
+  description?: string | null;
   status: string;
   sortOrder: number;
   baselineRole?: 'staging' | 'production' | null;

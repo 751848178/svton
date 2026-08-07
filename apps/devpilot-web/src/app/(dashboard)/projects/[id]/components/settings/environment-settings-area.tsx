@@ -18,6 +18,7 @@ import type { useProjectDetail } from '../../hooks/use-project-detail';
 import { readSettingsEnvKey, settingsHref } from '../../utils/project-route.utils';
 import { EnvironmentCreateModal } from '../environment-create-modal';
 import { EnvironmentSettingsDetail } from './environment-settings-detail';
+import { isGovernedEnvironmentSet } from './settings-env.model';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -29,6 +30,7 @@ export function EnvironmentSettingsArea({ detail }: { detail: DetailHook }) {
   const project = detail.project;
   const projectId = project?.id ?? '';
   const environments = (project?.environments ?? []).filter((env) => env.status !== 'archived');
+  const governed = isGovernedEnvironmentSet(project?.environments ?? []);
   const requestedKey = readSettingsEnvKey(searchParams);
   const activeEnv = environments.find((env) => env.key === requestedKey) ?? environments[0] ?? null;
 
@@ -54,9 +56,11 @@ export function EnvironmentSettingsArea({ detail }: { detail: DetailHook }) {
             status="success"
             label={t('envReadyCount', { ready: readyCount, total: environments.length })}
           />
-          <Button variant="ghost" size="sm" onClick={() => setCreateOpen(true)}>
-            + {t('envCreateAction')}
-          </Button>
+          {!governed ? (
+            <Button variant="ghost" size="sm" onClick={() => setCreateOpen(true)}>
+              + {t('envCreateAction')}
+            </Button>
+          ) : null}
         </div>
       </div>
 

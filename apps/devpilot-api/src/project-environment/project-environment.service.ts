@@ -56,10 +56,11 @@ export class ProjectEnvironmentService {
   create = (teamId: string, dto: CreateProjectEnvironmentDto) =>
     this.crudService.create(teamId, dto);
 
-  update = (teamId: string, id: string, dto: UpdateProjectEnvironmentDto) =>
-    this.crudService.update(teamId, id, dto);
+  update = (teamId: string, actorId: string, id: string, dto: UpdateProjectEnvironmentDto) =>
+    this.crudService.update(teamId, actorId, id, dto);
 
-  archive = (teamId: string, id: string) => this.crudService.archive(teamId, id);
+  archive = (teamId: string, actorId: string, id: string) =>
+    this.crudService.archive(teamId, actorId, id);
 
   syncFromProject = (teamId: string, projectId: string) =>
     this.crudService.syncFromProject(teamId, projectId);

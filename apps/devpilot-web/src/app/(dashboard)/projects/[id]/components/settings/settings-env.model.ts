@@ -86,6 +86,28 @@ export function environmentRoleLabelKey(env: {
 
 export function environmentIdentityLabelKey(env: {
   identityLockedAt?: string | null;
+  _count?: { deploymentRuns?: number };
 }): string {
-  return env.identityLockedAt ? 'envIdentityLocked' : 'envIdentityUnlocked';
+  const hasRuns = (env._count?.deploymentRuns ?? 0) > 0;
+  return env.identityLockedAt || hasRuns ? 'envIdentityLocked' : 'envIdentityUnlocked';
+}
+
+/**
+ * AC-SET-016: a project is governed when it owns active Staging AND Production
+ * baseline environments; governed projects get no env-template options.
+ */
+export function isGovernedEnvironmentSet(
+  environments: Array<{ baselineRole?: 'staging' | 'production' | null; status: string }>,
+): boolean {
+  const active = environments.filter((env) => env.status !== 'archived');
+  return (
+    active.some((env) => env.baselineRole === 'staging') &&
+    active.some((env) => env.baselineRole === 'production')
+  );
+}
+
+export function isBaselineEnvironment(env: {
+  baselineRole?: 'staging' | 'production' | null;
+}): boolean {
+  return env.baselineRole === 'staging' || env.baselineRole === 'production';
 }

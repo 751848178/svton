@@ -226,7 +226,12 @@ describe('ProjectEnvironmentService sync suggestions', () => {
     const bulkBindService = new ProjectEnvironmentBulkBindService(repository, auditEventService as never);
     const defaultsService = new ProjectEnvironmentDefaultsService(repository);
     const serverBindingService = new ProjectEnvironmentServerBindingService(repository, auditEventService as never);
-    const crudService = new ProjectEnvironmentCrudService(repository, defaultsService);
+    const crudService = new ProjectEnvironmentCrudService(
+      repository,
+      defaultsService,
+      prisma as unknown as PrismaService,
+      {} as never,
+    );
     service = new ProjectEnvironmentService(
       prisma as unknown as PrismaService,
       repository,

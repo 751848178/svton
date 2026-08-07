@@ -1157,6 +1157,8 @@ model EnvironmentConfigRevision {
   resourceReferences Json?
   routeSnapshot      Json?
   policyReferences   Json?
+  displayName        String?
+  displayDescription String?   @db.Text
   source             String   @default("project_intake")
   createdAt          DateTime @default(now())
 

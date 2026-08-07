@@ -64,6 +64,10 @@ export class UpdateProjectEnvironmentDto {
   sortOrder?: number;
 
   @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
   @IsObject()
   config?: Record<string, unknown>;
 }

@@ -313,13 +313,13 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 - [x] **AC-SET-007** 配置状态、运行状态和环境版本状态分离。（F443 证据：settings 环境区只承载配置状态（config-revision 条 当前生效配置 R{n} · date + 不可变身份）；运行状态（部署次数）在 env-summary 以 运行状态 标签 + 跨引用链接 查看环境版本（`?view=environment-versions`）/ 查看部署记录（`?view=deployments`）呈现；环境版本/部署视图未移入 settings。）
 - [x] **AC-SET-008** 常用绑定/替换在项目内完成，高级生命周期可跳专业模块。（F443 证据：部署目标子区保留 绑定服务器/解绑 与 BindServerBlock；各子区渲染专业模块链接——/servers、/resource-instances、/keys、/sites、/operation-approvals（本地化文案 前往服务器模块 等，浏览器+spec 断言 href）。）
 - [x] **AC-SET-009** 页面结构、密度和子导航与 Demo 对齐。（F443 证据：与 frozen Demo `delivery-versions-v9.html` 项目设置（line 668/562）对齐——h1 项目设置 + helper 维护项目识别、环境运行基线与当前发布规则 + 返回发布管理；management-nav 三区；env-switcher Staging·预发布验证/Production·生产上线；四事实 env-summary（环境角色/部署目标/当前版本/保护等级）；config-revision 条（当前生效配置+不可变身份 key·角色·发布顺序已锁定）；五个 subtab 导航；浏览器 1484x1324 截图结构一致，390x844 无横向溢出。）
-- [ ] **AC-SET-010** 项目始终只有一个活动 Staging baseline。
-- [ ] **AC-SET-011** 项目始终只有一个活动 Production baseline。
-- [ ] **AC-SET-012** baseline 不允许无保护归档或创建重复角色。
-- [ ] **AC-SET-013** 首个 DeploymentRun 后 environment key 不可修改。
-- [ ] **AC-SET-014** 显示名、描述和配置可以按权限新建修订。
-- [ ] **AC-SET-015** baseline/key/配置修改形成审计事件。
-- [ ] **AC-SET-016** UI 不展示不适用于当前项目的环境模板选项。
+- [x] **AC-SET-010** 项目始终只有一个活动 Staging baseline。（F444 证据：`ProjectGovernanceBaselineService.ensure` 只创建/维护唯一 `baselineRole=staging` 行，`@@unique([projectId, baselineRole])` 为重复兜底；finalize 断言恰 2 个活动基线；归档守卫阻止 Staging/Production 基线进入 archived；浏览器/DB 证据 f416 项目 staging active×1（identityLockedAt 2026-08-06 12:17:43）。）
+- [x] **AC-SET-011** 项目始终只有一个活动 Production baseline。（F444 证据：同上 `ensure`+唯一约束；Production 归档/状态置 archived 均被 400 拒绝（运行时 `DELETE` 与 `PUT status=archived`）；DB 证据 production active×1。）
+- [x] **AC-SET-012** baseline 不允许无保护归档或创建重复角色。（F444 证据：`ProjectEnvironmentCrudService.assertArchiveAllowed` 三守卫——(a) baselineRole∈{staging,production} 一律拒绝（`基线环境不允许归档：Staging 是治理必需环境`）；(b) 存在 DeploymentRun/服务器绑定/EnvironmentVersion 拒绝（`环境存在运行或绑定记录，禁止直接归档`）；(c) 该角色最后一个活动环境拒绝（`该环境是该角色的最后一个活动环境，禁止归档`）；PUT `status:archived` 与 DELETE 同守卫；重复角色仍由 DB `@@unique([projectId,baselineRole])` 兜底（未削弱）；re-finalize（governance-baseline upsert update 分支不再写 name/status）与 sync-from-project 种子不再复活已归档环境。focused API 12 用例（基线/运行/绑定/版本/最后活动/成功+审计、PUT 旁路、key 审计）。）
+- [x] **AC-SET-013** 首个 DeploymentRun 后 environment key 不可修改。（F444 证据：服务端规则=存在任意 DeploymentRun（含 failed）或 identityLockedAt 即拒绝换 key（`环境已有部署历史，key 已锁定`），focused 测试含 failed-run 用例；UI 锁定指示对齐该规则——`environmentIdentityLabelKey`/env-summary/保护规则身份行按 `deploymentRunCount>0 || identityLockedAt` 显示 已锁定；运行时 PUT key 400 验证。）
+- [x] **AC-SET-014** 显示名、描述和配置可以按权限新建修订。（F444 证据：显示名/描述改为修订化身份字段——`EnvironmentConfigRevision.updateIdentity` 在 serializable 事务内追加不可变修订（复制当前配置快照、CAS expectedCurrentRevisionId 不变、`displayName`/`displayDescription` 新列承载身份，migration 20260808080000 已回填存量），环境行 name/description 与 `currentConfigRevisionId` 同步推进；配置修订路径（`create` CAS/append-only）未改，仅在新建修订时顺带快照身份；保护规则 UI 编辑表单暴露 环境名称/环境描述/变更原因（基线环境无 status 选项）；运行时验证：f444-probe 环境 PUT name/description/reason → 新修订 R1 携带 displayName/displayDescription + 环境行更新。AC-SET-010/011/012/013/015/016 依赖的浏览器证据见 f444-browser-evidence.json。）
+- [x] **AC-SET-015** baseline/key/配置修改形成审计事件。（F444 证据：同事务 AuditEvent——`project_environment.identity.update`（medium，含 reason 与 previousName/previousDescription 元数据）、`project_environment.key.update`（medium，previousKey/key）、`project_environment.archive`（high，key/baselineRole 元数据）；配置修订/治理 finalize 原有审计保留；运行时 DB 证据：identity.update + archive 两行与变更一一对应。）
+- [x] **AC-SET-016** UI 不展示不适用于当前项目的环境模板选项。（F444 证据：governed 项目（活动 Staging+Production 基线齐全）settings 环境区隐藏 + 新建环境 入口（`isGovernedEnvironmentSet`），浏览器证据 `hasCreate=false` 且仅渲染 staging/production 两个切换按钮；`syncFromProject` 对 governed 项目跳过 dev/test 默认种子（运行时验证 sync 后仍只有 2 个基线环境，无 dev/test 行）；导入向导 ENVIRONMENT_OPTIONS 为治理前可选勾选保持不动；focused Web 用例断言 governed 无 envCreateAction、非 governed 保留。）
 - [ ] **AC-SET-017** 每个环境显示当前部署 Provider/服务器/集群目标。
 - [ ] **AC-SET-018** 可以绑定、替换和解除未被运行冻结的目标。
 - [ ] **AC-SET-019** 目标绑定支持环境隔离或显式共享声明。

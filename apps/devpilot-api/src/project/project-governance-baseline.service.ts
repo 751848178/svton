@@ -42,8 +42,6 @@ export class ProjectGovernanceBaselineService {
           baselineRole: baseline.role,
         },
         update: {
-          name: baseline.name,
-          status: "active",
           sortOrder: baseline.sortOrder,
           baselineRole: baseline.role,
         },

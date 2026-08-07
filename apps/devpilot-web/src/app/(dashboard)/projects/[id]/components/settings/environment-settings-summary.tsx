@@ -39,9 +39,11 @@ export function EnvironmentSettingsSummary({
   const t = useTranslations('projects');
   const roleKey = environmentRoleLabelKey(environment);
   const bindings = environment.serverBindings ?? [];
-  const identityKey = environment.identityLockedAt
-    ? 'configOrderLocked'
-    : 'configOrderLocksAfterDeploy';
+  const hasDeploymentRun = deploymentRunCount > 0;
+  const identityKey =
+    environment.identityLockedAt || hasDeploymentRun
+      ? 'configOrderLocked'
+      : 'configOrderLocksAfterDeploy';
 
   return (
     <div className="space-y-3">

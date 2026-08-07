@@ -30,7 +30,11 @@ export function useEnvironmentActions(args: UseEnvironmentActionsArgs) {
   const [acting, setActing] = useState(false);
 
   const update = usePersistFn(
-    async (patch: Partial<Pick<ProjectEnvironment, 'name' | 'status'>>): Promise<boolean> => {
+    async (
+      patch: Partial<Pick<ProjectEnvironment, 'name' | 'description' | 'status'>> & {
+        reason?: string;
+      },
+    ): Promise<boolean> => {
       if (!environment) return false;
       setActing(true);
       try {

@@ -203,12 +203,58 @@ describe('EnvironmentSettingsArea Demo-aligned environment configuration', () =>
     );
   });
 
+  it('hides the 新建环境 create affordance for governed projects (AC-SET-016)', async () => {
+    const html = renderToStaticMarkup(
+      <EnvironmentSettingsArea detail={detail()} />,
+    );
+
+    expect(html).not.toContain('envCreateAction');
+    expect(html).not.toContain('+ ');
+  });
+
+  it('keeps the create affordance for non-governed projects', async () => {
+    const html = renderToStaticMarkup(
+      <EnvironmentSettingsArea detail={detailWithoutBaselines()} />,
+    );
+
+    expect(html).toContain('envCreateAction');
+  });
+
   async function renderArea() {
     await act(async () =>
       root.render(<EnvironmentSettingsArea detail={detail()} />),
     );
   }
 });
+
+function detailWithoutBaselines() {
+  return {
+    loading: false,
+    error: '',
+    project: {
+      id: 'project-1',
+      name: 'Picshare',
+      environments: [
+        {
+          id: 'env-preview',
+          key: 'preview',
+          name: 'Preview',
+          status: 'active',
+          sortOrder: 1,
+          baselineRole: null,
+          identityLockedAt: null,
+          currentConfigRevisionId: null,
+          serverBindings: [],
+          _count: { serverBindings: 0, sites: 0, deploymentRuns: 0, managedResources: 0, resourceRequests: 0, resourceInstances: 0, cdnConfigs: 0, secretKeys: 0 },
+        },
+      ],
+      sites: [],
+      secretKeys: [],
+    },
+    deploymentRuns: [],
+    loadProject: vi.fn(),
+  } as never;
+}
 
 function revision(id: string, revision: number, current: boolean): EnvironmentConfigRevision {
   return {
