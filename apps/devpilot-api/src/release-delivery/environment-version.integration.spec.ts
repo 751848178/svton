@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import type { Prisma } from "@prisma/client";
 import { EnvironmentVersionPolicyService } from "./environment-version-policy.service";
 import { EnvironmentVersionReadRepository } from "./environment-version-read.repository";
 import { EnvironmentVersionRepository } from "./environment-version.repository";
@@ -184,6 +185,162 @@ describeIntegration("EnvironmentVersion integration", () => {
     expect(stale.deploymentRun.status).toBe("failed");
     expect(staging!.environmentVersions[0].id).toBe(first.version!.id);
   });
+
+  it("returns the per-environment candidate arrays from list", async () => {
+    const { candidates } = await service.list(fixture.teamId, fixture.projectId);
+    expect(Array.isArray(candidates.staging)).toBe(true);
+    expect(Array.isArray(candidates.production)).toBe(true);
+    expect(candidates.staging.map((item) => item.id)).toContain(fixture.manifestId);
+    expect(candidates.production.map((item) => item.id)).toContain(fixture.manifestId);
+  });
+});
+
+describeIntegration("EnvironmentVersion candidate filtering", () => {
+  let fixture: ProductionFixture;
+  let readRepository: EnvironmentVersionReadRepository;
+
+  beforeAll(async () => {
+    fixture = await createProductionFixture();
+    readRepository = new EnvironmentVersionReadRepository(fixture.prisma as never);
+  });
+
+  afterAll(async () => cleanupProductionFixture(fixture));
+
+  it("excludes cross-project manifests, failed builds and canceled release orders", async () => {
+    const f = fixture;
+    const foreignProject = await f.prisma.project.create({
+      data: {
+        id: `foreign-project-${f.suffix}`,
+        teamId: f.teamId,
+        createdById: f.userId,
+        name: "Foreign Project",
+        config: {},
+      },
+    });
+    const foreign = await createManifest(f, "foreign", foreignProject.id);
+    const failed = await createManifest(f, "failed");
+    await f.prisma.buildRun.update({
+      where: { id: failed.buildId },
+      data: { status: "failed" },
+    });
+    const canceled = await createManifest(f, "canceled");
+    await f.prisma.releaseOrder.update({
+      where: { id: canceled.orderId },
+      data: { status: "canceled" },
+    });
+    const { staging, production } = await readRepository.candidates(
+      f.teamId,
+      f.projectId,
+    );
+    const ids = [...staging.map((item) => item.id), ...production.map((item) => item.id)];
+    expect(ids).toContain(f.manifestId);
+    expect(ids).not.toContain(foreign.manifestId);
+    expect(ids).not.toContain(failed.manifestId);
+    expect(ids).not.toContain(canceled.manifestId);
+  });
+
+  it("keeps Staging candidates unfiltered and lists Production only with a verified Staging proof", async () => {
+    const f = fixture;
+    const withoutProof = await createManifest(f, "no-proof");
+    const dryRunOnly = await createManifest(f, "dry-run");
+    const dryRunDigest = await f.prisma.artifactManifest.findUniqueOrThrow({
+      where: { id: dryRunOnly.manifestId },
+      select: { digest: true },
+    });
+    await createStagingDeployment(f, dryRunOnly.manifestId, {
+      dryRun: true,
+      result: {
+        artifactVerified: true,
+        manifestId: dryRunOnly.manifestId,
+        manifestDigest: dryRunDigest.digest,
+      },
+    });
+    const wrongDigest = await createManifest(f, "wrong-digest");
+    await createStagingDeployment(f, wrongDigest.manifestId, {
+      result: {
+        artifactVerified: true,
+        manifestId: wrongDigest.manifestId,
+        manifestDigest: "sha256:" + "e".repeat(64),
+      },
+    });
+    const { staging, production } = await readRepository.candidates(
+      f.teamId,
+      f.projectId,
+    );
+    expect(staging.map((item) => item.id)).toContain(withoutProof.manifestId);
+    expect(staging.map((item) => item.id)).toContain(dryRunOnly.manifestId);
+    expect(staging.map((item) => item.id)).toContain(wrongDigest.manifestId);
+    expect(production.map((item) => item.id)).toContain(f.manifestId);
+    expect(production.map((item) => item.id)).not.toContain(withoutProof.manifestId);
+    expect(production.map((item) => item.id)).not.toContain(dryRunOnly.manifestId);
+    expect(production.map((item) => item.id)).not.toContain(wrongDigest.manifestId);
+  });
+
+  async function createManifest(f: ProductionFixture, label: string, projectId?: string) {
+    const order = await f.prisma.releaseOrder.create({
+      data: {
+        teamId: f.teamId,
+        projectId: projectId ?? f.projectId,
+        createdById: f.userId,
+        releaseVersion: `1.0.0-${label}`,
+      },
+    });
+    const build = await f.prisma.buildRun.create({
+      data: {
+        teamId: f.teamId,
+        projectId: projectId ?? f.projectId,
+        releaseOrderId: order.id,
+        triggeredById: f.userId,
+        revision: 1,
+        sourceBranch: "main",
+        sourceCommitSha: "a".repeat(40),
+        inputSnapshot: {},
+        inputHash: `build-hash-${label}`,
+        status: "succeeded",
+      },
+    });
+    const manifest = await f.prisma.artifactManifest.create({
+      data: {
+        teamId: f.teamId,
+        projectId: projectId ?? f.projectId,
+        releaseOrderId: order.id,
+        buildRunId: build.id,
+        digest: `sha256:${label}`.padEnd(64 + 7, "f"),
+      },
+    });
+    return { orderId: order.id, buildId: build.id, manifestId: manifest.id };
+  }
+
+  async function createStagingDeployment(
+    f: ProductionFixture,
+    manifestId: string,
+    overrides: Partial<{
+      dryRun: boolean;
+      result: Record<string, unknown>;
+    }> = {},
+  ) {
+    await f.prisma.deploymentRun.create({
+      data: {
+        teamId: f.teamId,
+        projectId: f.projectId,
+        actorId: f.userId,
+        environmentId: f.stagingEnvironmentId,
+        artifactManifestId: manifestId,
+        source: "release_order",
+        targetType: "release-artifact",
+        status: "completed",
+        dryRun: overrides.dryRun ?? false,
+        finishedAt: new Date(),
+        result:
+          (overrides.result ??
+          ({
+            artifactVerified: true,
+            manifestId,
+            manifestDigest: `sha256:${manifestId}`.padEnd(64 + 7, "f"),
+          } as Record<string, unknown>)) as Prisma.InputJsonValue,
+      },
+    });
+  }
 });
 
 function baseInput(f: ProductionFixture, environmentId: string) {

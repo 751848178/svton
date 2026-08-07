@@ -109,7 +109,7 @@ export class EnvironmentVersionPolicyService {
   }
 }
 
-function hasVerifiedStagingProof(manifest: {
+export function hasVerifiedStagingProof(manifest: {
   id: string;
   digest: string;
   deploymentRuns: Array<{ result: unknown }>;

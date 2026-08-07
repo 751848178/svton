@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { hasVerifiedStagingProof } from "./environment-version-policy.service";
 
 const versionInclude = {
   releaseOrder: { select: { id: true, releaseVersion: true } },
@@ -88,8 +89,8 @@ export class EnvironmentVersionReadRepository {
     });
   }
 
-  candidates(teamId: string, projectId: string) {
-    return this.prisma.artifactManifest.findMany({
+  async candidates(teamId: string, projectId: string) {
+    const rows = await this.prisma.artifactManifest.findMany({
       where: {
         teamId,
         projectId,
@@ -107,9 +108,10 @@ export class EnvironmentVersionReadRepository {
           where: {
             source: "release_order",
             status: "completed",
+            dryRun: false,
             projectEnvironment: { baselineRole: "staging" },
           },
-          select: { id: true },
+          select: { id: true, result: true },
           take: 1,
         },
         releaseRuns: {
@@ -128,5 +130,9 @@ export class EnvironmentVersionReadRepository {
       orderBy: { createdAt: "desc" },
       take: 100,
     });
+    return {
+      staging: rows,
+      production: rows.filter(hasVerifiedStagingProof),
+    };
   }
 }

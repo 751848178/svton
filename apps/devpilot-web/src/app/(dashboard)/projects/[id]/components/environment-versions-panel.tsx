@@ -53,14 +53,15 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
       ) : null}
       <div className="grid gap-4 xl:grid-cols-2">
         {versions.environments.map((environment) => {
-          const selectedId = selection[environment.id] || versions.candidates[0]?.id || '';
-          const candidate = versions.candidates.find((item) => item.id === selectedId);
+          const candidates = versions.candidates[environment.baselineRole] ?? [];
+          const selectedId = selection[environment.id] || candidates[0]?.id || '';
+          const candidate = candidates.find((item) => item.id === selectedId);
           const releaseRunId = approvedRun(candidate);
           return (
             <EnvironmentCard
               key={environment.id}
               environment={environment}
-              candidates={versions.candidates}
+              candidates={candidates}
               selectedId={selectedId}
               executing={versions.executing}
               productionBlocked={environment.baselineRole === 'production' && !releaseRunId}
@@ -74,12 +75,6 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
                 })
               }
               onRecovery={(sourceVersionId) =>
-                versions.execute(environment.id, {
-                  kind: 'recovery',
-                  sourceVersionId,
-                })
-              }
-              onProductionRecovery={(sourceVersionId) =>
                 setRecoveryTarget({ environment, sourceVersionId })
               }
             />
@@ -137,18 +132,32 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
           environment={recoveryTarget.environment}
           defaultSourceVersionId={recoveryTarget.sourceVersionId}
           onClose={() => setRecoveryTarget(null)}
-          onConfirmed={(result: RecoveryCreateResult, sourceVersionId: string) => {
-            setRecoveryTarget(null);
-            router.push(
-              releaseOrderHref(
-                projectId,
-                result.preview.snapshot.releaseOrder.id,
-                'production',
-                searchParams,
-                { releaseRunId: result.run.id },
-              ),
-            );
-          }}
+          onConfirmed={
+            recoveryTarget.environment.baselineRole === 'production'
+              ? (result: RecoveryCreateResult, sourceVersionId: string) => {
+                  setRecoveryTarget(null);
+                  router.push(
+                    releaseOrderHref(
+                      projectId,
+                      result.preview.snapshot.releaseOrder.id,
+                      'production',
+                      searchParams,
+                      { releaseRunId: result.run.id },
+                    ),
+                  );
+                }
+              : undefined
+          }
+          onDirectConfirm={
+            recoveryTarget.environment.baselineRole === 'production'
+              ? undefined
+              : async (sourceVersionId: string) => {
+                  await versions.execute(recoveryTarget.environment.id, {
+                    kind: 'recovery',
+                    sourceVersionId,
+                  });
+                }
+          }
         />
       ) : null}
     </div>
@@ -164,10 +173,10 @@ function EnvironmentCard(props: {
   onSelect: (id: string) => void;
   onUpgrade: () => unknown;
   onRecovery: (sourceVersionId: string) => unknown;
-  onProductionRecovery: (sourceVersionId: string) => unknown;
 }) {
   const t = useTranslations('projects');
   const env = props.environment;
+  const production = env.baselineRole === 'production';
   const current = env.environmentVersions.find(
     (item) => item.id === env.currentEnvironmentVersionId,
   );
@@ -204,18 +213,24 @@ function EnvironmentCard(props: {
             className="w-full rounded-md border bg-background px-3 py-2"
             value={props.selectedId}
             onChange={(event) => props.onSelect(event.target.value)}
+            disabled={props.candidates.length === 0}
           >
-            {props.candidates.map((candidate) => (
-              <option
-                key={candidate.id}
-                value={candidate.id}
-              >
-                {t('environmentVersionCandidateOption', {
-                  version: candidate.releaseOrder.releaseVersion,
-                  revision: candidate.buildRun.revision,
-                })}
-              </option>
-            ))}
+            {props.candidates.length === 0 ? (
+              <option value="">{t('environmentVersionNoCandidates')}</option>
+            ) : (
+              props.candidates.map((candidate) => (
+                <option
+                  key={candidate.id}
+                  value={candidate.id}
+                >
+                  {t('environmentVersionCandidateOption', {
+                    version: candidate.releaseOrder.releaseVersion,
+                    revision: candidate.buildRun.revision,
+                  })}
+                  {production ? t('environmentVersionCandidateProductionSuffix') : ''}
+                </option>
+              ))
+            )}
           </select>
         </label>
         <Button
@@ -231,11 +246,7 @@ function EnvironmentCard(props: {
           variant="outline"
           disabled={props.executing || !previous}
           onClick={() =>
-            previous
-              ? env.baselineRole === 'production'
-                ? props.onProductionRecovery(previous.id)
-                : props.onRecovery(previous.id)
-              : undefined
+            previous ? props.onRecovery(previous.id) : undefined
           }
         >
           {t('environmentVersionRollback')}

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   onConfirmed: vi.fn(),
   onClose: vi.fn(),
+  onDirectConfirm: vi.fn(),
 }));
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('@/components/ui', () => ({
@@ -64,6 +65,7 @@ describe('EnvironmentRecoveryDialog', () => {
     mocks.create.mockReset();
     mocks.onConfirmed.mockReset();
     mocks.onClose.mockReset();
+    mocks.onDirectConfirm.mockReset();
   });
 
   afterEach(async () => act(async () => root.unmount()));
@@ -96,6 +98,34 @@ describe('EnvironmentRecoveryDialog', () => {
     expect((confirmButton() as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('lists only historical versions (current excluded) with the last-success default labeled', async () => {
+    await render('version-history');
+    const options = [...container.querySelectorAll('option')];
+    expect(options.map((option) => option.value)).toEqual(['version-history']);
+    expect(options[0].textContent).toContain('environmentVersionRecoveryDefaultRecommend');
+    expect(container.textContent).not.toContain('version-current');
+    expect(options[0].value).toBe('version-history');
+  });
+
+  it('defaults to the last successful version and accepts no free-text version input', async () => {
+    await render('version-history');
+    const select = container.querySelector('select') as HTMLSelectElement;
+    expect(select.value).toBe('version-history');
+    expect(container.querySelector('input')).toBeNull();
+  });
+
+  it('executes the recovery directly for Staging and closes the dialog', async () => {
+    mocks.onDirectConfirm.mockResolvedValueOnce(undefined);
+    await renderDirect('version-history');
+    await act(async () => {
+      confirmButton().click();
+    });
+    expect(mocks.onDirectConfirm).toHaveBeenCalledTimes(1);
+    expect(mocks.onDirectConfirm).toHaveBeenCalledWith('version-history');
+    expect(mocks.onClose).toHaveBeenCalledTimes(1);
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   async function render(sourceVersionId: string) {
     await act(async () =>
       root.render(
@@ -105,6 +135,20 @@ describe('EnvironmentRecoveryDialog', () => {
           defaultSourceVersionId={sourceVersionId}
           onClose={mocks.onClose}
           onConfirmed={mocks.onConfirmed}
+        />,
+      ),
+    );
+  }
+
+  async function renderDirect(sourceVersionId: string) {
+    await act(async () =>
+      root.render(
+        <EnvironmentRecoveryDialog
+          projectId="project-1"
+          environment={environment()}
+          defaultSourceVersionId={sourceVersionId}
+          onClose={mocks.onClose}
+          onDirectConfirm={mocks.onDirectConfirm}
         />,
       ),
     );

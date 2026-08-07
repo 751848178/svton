@@ -10,7 +10,7 @@ import type {
 export function useEnvironmentVersions(projectId: string) {
   const [data, setData] = useState<EnvironmentVersionsResponse>({
     environments: [],
-    candidates: [],
+    candidates: { staging: [], production: [] },
   });
   const [loading, setLoading] = useState(true);
   const [executing, setExecuting] = useState(false);

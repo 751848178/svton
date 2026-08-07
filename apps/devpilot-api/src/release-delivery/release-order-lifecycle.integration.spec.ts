@@ -344,7 +344,7 @@ describeIntegration(
             teamId,
             projectId,
           )
-        ).some((candidate) => candidate.releaseOrder.id === ids.withdrawAfter),
+        ).staging.some((candidate) => candidate.releaseOrder.id === ids.withdrawAfter),
       ).toBe(false);
 
       const beforeExecution = await withdrawals.withdraw({

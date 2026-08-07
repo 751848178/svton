@@ -50,9 +50,14 @@ export interface EnvironmentVersionCandidate {
   }>;
 }
 
+export interface EnvironmentVersionCandidates {
+  staging: EnvironmentVersionCandidate[];
+  production: EnvironmentVersionCandidate[];
+}
+
 export interface EnvironmentVersionsResponse {
   environments: EnvironmentVersionEnvironment[];
-  candidates: EnvironmentVersionCandidate[];
+  candidates: EnvironmentVersionCandidates;
 }
 
 export interface EnvironmentVersionActionResult {
