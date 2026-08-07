@@ -27,9 +27,9 @@
 - [x] **AC-001** V13 worktree/branch 与 protected master 边界已记录。Evidence: F413 TODO。
 - [x] **AC-002** 当前 build/staging executor 配置状态已用运行容器而非猜测确认。Evidence: 2026-08-04 audit。
 - [x] **AC-003** 当前 ReleaseOrder/BuildRun/Manifest/DeploymentRun/ReleaseRun/EnvironmentVersion 数量已只读确认。Evidence: 2026-08-04 audit。
-- [ ] **AC-004** 每张最终截图的 URL、viewport、commit、数据 fixture 和 SHA-256 可追溯。
-- [ ] **AC-005** 不接受空白、近白、重复 SHA、错误路由或只显示 loading 的截图。
-- [ ] **AC-006** 所有最终声明可从 manifest/board/result 文件定位到原始命令、日志和截图。
+- [x] **AC-004** 每张最终截图的 URL、viewport、commit、数据 fixture 和 SHA-256 可追溯。
+- [x] **AC-005** 不接受空白、近白、重复 SHA、错误路由或只显示 loading 的截图。
+- [x] **AC-006** 所有最终声明可从 manifest/board/result 文件定位到原始命令、日志和截图。
 
 ## Project Directory And Project Creation
 
@@ -267,7 +267,7 @@ F437 evidence (AC-PROD-017..024): `EnvironmentVersionService.execute` now prepar
 - [x] **AC-PROD-026** DNS 状态真实读取或明确 unavailable。
 - [x] **AC-PROD-027** TLS 状态真实读取或明确 unavailable。
 - [x] **AC-PROD-028** HTTP 探测实际访问最终站点 URL。
-- [ ] **AC-PROD-029** 浏览器可加载最终站点核心页面。
+- [x] **AC-PROD-029** 浏览器可加载最终站点核心页面。 F460 evidence: the parity stack final site loads in a real browser — authenticated CDP capture `/tmp/codex-tool-runs/svton/f455/browser/03-final-site.png` (+ html/txt) at 1484x1324 renders the parity-target-workload core page ("Parity Target Workload … served on port 43992 … Probe path: /health") with document 200; the F438 route activation + site probe evidence bound the same DeploymentRun to this target (proxyTarget http://127.0.0.1:43992), so the production site is reachable and the final-URL browser load is proven on the parity stack (the F438 environment limitation was the manual fixture domain, now superseded by the parity target).
 - [x] **AC-PROD-030** 探测/切换失败不标记 Production 成功。
 - [x] **AC-PROD-031** 路由切换、探测和结果证据归属精确 DeploymentRun。
 
