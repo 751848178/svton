@@ -42,6 +42,17 @@ describe("release build gate admission", () => {
       ...scope,
       stage: "build",
       ...preview,
+      // Provider-capability gates defer their not-connected `unavailable`
+      // facts with explicit reasons (mirrors the production stage F437
+      // D06/D09/D17/D20/D14/D15; see scripts/parity-switches.md, AC-E2E-005).
+      deferredReasons: {
+        C02: ["merge_state_provider_missing"],
+        C03: ["required_checks_provider_missing"],
+        C06: ["change_diff_provider_missing"],
+        C07: ["secretScan_provider_missing", "security_build_missing"],
+        C09: ["quality_evidence_missing", "build_missing"],
+        C10: ["sast_provider_missing", "security_build_missing"],
+      },
     });
     expect(admitted).toEqual({ source, decision });
   });

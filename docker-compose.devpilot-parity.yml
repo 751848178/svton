@@ -1,0 +1,203 @@
+# F454 isolated V13 parity Docker stack.
+#
+# Fully self-contained demo-parity project: own compose project name, own
+# default network (devpilot-parity_default), own named volumes, own published
+# ports, own MySQL DB name (devpilot_parity) and own Redis. Nothing here joins
+# any other staging network or non-parity volume.
+#
+# The API container enables the controlled-local build executor and the
+# local-filesystem staging deployment provider (see scripts/parity-switches.md
+# for the exact env matrix vs the fail-closed base defaults in
+# docker-compose.devpilot-app.yml).
+#
+# Ports (all host-side, isolated from the manual stack):
+#   web 4131 -> 3120 (inside container; `pnpm start` runs `next start -p 3120`)
+#   api 4132 -> 4132
+#   mysql 4334 -> 3306
+#   redis 4384 -> 6379
+#   deploy-target 4222 -> 2222 (password auth)
+#   target-workload 43992 -> 80 (static parity site workload + probe target)
+#
+# The web container's internal port is fixed by `next start -p 3120` in
+# apps/devpilot-web/package.json; the host-facing parity port is 4131 only.
+#
+# Bring up:
+#   node scripts/parity-seed.mjs up        # ensure fixture git repo, up, migrate, seed
+#   node scripts/parity-seed.mjs reset     # down + prune parity volumes/network (allowlisted) + reseed
+name: devpilot-parity
+
+volumes:
+  devpilot-parity-mysql:
+    name: devpilot-parity-mysql
+  devpilot-parity-redis:
+    name: devpilot-parity-redis
+  devpilot-parity-release-build:
+    name: devpilot-parity-release-build
+  devpilot-parity-deployments:
+    name: devpilot-parity-deployments
+  devpilot-parity-deploy-target-data:
+    name: devpilot-parity-deploy-target-data
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: parity-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: devpilot_parity
+    ports:
+      - "127.0.0.1:4334:3306"
+    volumes:
+      - devpilot-parity-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -ppassword --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: parity-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4384:6379"
+    volumes:
+      - devpilot-parity-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/devpilot-api/Dockerfile
+      target: api
+    image: devpilot-parity-api:local
+    container_name: parity-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4132:4132"
+    environment:
+      NODE_ENV: production
+      PORT: "4132"
+      # Own parity MySQL/Redis by service name on the parity network
+      DATABASE_URL: mysql://root:password@mysql:3306/devpilot_parity
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      CORS_ORIGIN: http://localhost:4131
+      JWT_SECRET: devpilot-parity-jwt-secret
+      # Pin the API encryption key to its default so the seed-side encrypted
+      # SecretKey value is decryptable by the running API (same approach as
+      # scripts/devpilot-docker-staging.mjs).
+      ENCRYPTION_KEY: default-32-char-encryption-key!
+      # Bootstrap a system-level admin on startup (see admin-bootstrap.service.ts)
+      DEVPILOT_BOOTSTRAP_ADMIN_EMAIL: admin@parity.local
+      DEVPILOT_BOOTSTRAP_ADMIN_PASSWORD: ParityDemo123!
+      # ----- Controlled-local build executor (AC-E2E-005; see parity-switches.md) -----
+      RELEASE_BUILD_EXECUTION_ENABLED: "true"
+      RELEASE_BUILD_EXECUTOR_PROFILE: controlled-local-v1
+      RELEASE_BUILD_WORK_ROOT: /var/lib/devpilot/release-build/work
+      RELEASE_BUILD_ARTIFACT_ROOT: /var/lib/devpilot/release-build/artifacts
+      RELEASE_BUILD_RUN_TIMEOUT_MS: "180000"
+      RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"
+      RELEASE_BUILD_CANCEL_GRACE_MS: "5000"
+      RELEASE_BUILD_MAX_CONCURRENCY: "2"
+      RELEASE_BUILD_COMMAND_PATH: /pnpm:/usr/local/bin:/usr/bin:/bin
+      # ----- Local-filesystem staging deployment provider (AC-E2E-005) -----
+      RELEASE_STAGING_DEPLOYMENT_ENABLED: "true"
+      RELEASE_DEPLOYMENT_PROVIDER_PROFILE: local-filesystem-v1
+      RELEASE_STAGING_DEPLOYMENT_ROOT: /var/lib/devpilot/release-build/deployments
+      RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"
+      # Allow the committed parity fixture repository (mounted read-only below)
+      # to be connected/analyzed/build through the real git executor.
+      REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories
+    volumes:
+      - devpilot-parity-release-build:/var/lib/devpilot/release-build
+      - devpilot-parity-deployments:/var/lib/devpilot/release-build/deployments
+      # The committed parity fixture monorepo (a real git repo). Materialized by
+      # scripts/parity-seed.mjs at PARITY_FIXTURE_GIT_ROOT (default below) from
+      # the committed files under fixtures/parity-app/.
+      - ${PARITY_FIXTURE_GIT_ROOT:-/tmp/codex-tool-runs/svton/f454/parity-app-git}:/read-only-repositories/parity-app:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4132/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/devpilot-web/Dockerfile
+      target: web
+    image: devpilot-parity-web:local
+    container_name: parity-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4131:3120"
+    environment:
+      # Browser hits the parity API via the host-published port
+      NEXT_PUBLIC_API_URL: http://localhost:4132
+      # SSR inside the container network hits the parity API container directly
+      INTERNAL_API_URL: http://parity-api:4132
+      NEXTAUTH_URL: http://localhost:4131
+      NEXTAUTH_SECRET: devpilot-parity-web-secret
+    depends_on:
+      - api
+
+  deploy-target:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: parity-deploy-target
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4222:2222"
+    environment:
+      # NOTE: linuxserver/openssh-server gates password auth on PASSWORD_ACCESS.
+      PASSWORD_ACCESS: "true"
+      USER_NAME: deploy
+      USER_PASSWORD: devpilot-test
+      SUDO_ACCESS: "false"
+      PUID: "1000"
+      PGID: "1000"
+    volumes:
+      # Install docker-cli/git/nginx/curl before sshd accepts connections. The
+      # parity stack is self-contained: no host docker socket is mounted.
+      - ./scripts/deploy-target-parity-init.sh:/custom-cont-init.d/99-install-tools.sh:ro
+      - devpilot-parity-deploy-target-data:/config
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 2222 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  # Tiny static site served on 43992: the parity site workload + probe target
+  # referenced by the seeded Site/routeSnapshot (proxyTarget
+  # http://127.0.0.1:43992).
+  target-workload:
+    image: nginx:alpine
+    container_name: parity-target-workload
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:43992:80"
+    volumes:
+      - ./fixtures/parity-target-site:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
