@@ -6,6 +6,7 @@
 'use client';
 
 import type { useProjectDetail } from '../../hooks/use-project-detail';
+import { useEnvironmentDeploymentTargets } from '../../hooks/use-environment-deployment-targets';
 import type { ProjectEnvironment } from '../../types';
 import type { EnvironmentConfigResourceReference } from '../../types/environment-config-revision.types';
 import type { SettingsEnvTab } from '../../utils/project-route.utils';
@@ -17,10 +18,12 @@ import { EnvTargetsTab } from './settings-env-targets-tab';
 import { EnvVariablesTab } from './settings-env-variables-tab';
 
 export type DetailHook = ReturnType<typeof useProjectDetail>;
+export type DeploymentTargetsHook = ReturnType<typeof useEnvironmentDeploymentTargets>;
 
 export interface EnvTabContext {
   detail: DetailHook;
   environment: ProjectEnvironment;
+  targets: DeploymentTargetsHook;
   secretIds: string[];
   setSecretIds: (next: string[]) => void;
   policyIds: string[];
@@ -35,7 +38,7 @@ export interface EnvTabContext {
 export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
   switch (envTab) {
     case 'targets':
-      return <EnvTargetsTab environment={ctx.environment} detail={ctx.detail} />;
+      return <EnvTargetsTab environment={ctx.environment} detail={ctx.detail} targets={ctx.targets} />;
     case 'resources':
       return (
         <EnvResourcesTab

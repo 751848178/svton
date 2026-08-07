@@ -14,6 +14,7 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { formatDateTimeMinute } from '@/lib/format-date';
 import type { EnvironmentConfigRevision } from '../../types/environment-config-revision.types';
+import type { EnvironmentDeploymentCurrentTarget } from '../../types';
 import type { ProjectEnvironment } from '../../types';
 import { environmentRoleLabelKey } from './settings-env.model';
 
@@ -26,6 +27,7 @@ interface EnvironmentSettingsSummaryProps {
   deploymentRunCount: number;
   versionsHref: string;
   deploymentsHref: string;
+  currentTarget: EnvironmentDeploymentCurrentTarget | null;
 }
 
 export function EnvironmentSettingsSummary({
@@ -35,6 +37,7 @@ export function EnvironmentSettingsSummary({
   deploymentRunCount,
   versionsHref,
   deploymentsHref,
+  currentTarget,
 }: EnvironmentSettingsSummaryProps) {
   const t = useTranslations('projects');
   const roleKey = environmentRoleLabelKey(environment);
@@ -52,9 +55,14 @@ export function EnvironmentSettingsSummary({
         <Fact
           label={t('envSummaryTarget')}
           value={
-            bindings.length > 0
-              ? t('envSummaryTargetValue', { count: bindings.length })
-              : t('envSummaryTargetEmpty')
+            currentTarget
+              ? t('envSummaryTargetActive', {
+                  provider: currentTarget.providerKey,
+                  name: currentTarget.server.name,
+                })
+              : bindings.length > 0
+                ? t('envSummaryTargetValue', { count: bindings.length })
+                : t('envSummaryTargetEmpty')
           }
         />
         <div>

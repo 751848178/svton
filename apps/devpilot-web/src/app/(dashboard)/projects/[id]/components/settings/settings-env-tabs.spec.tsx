@@ -13,6 +13,11 @@ vi.mock('next-intl', () => ({
 }));
 vi.mock('@/components/ui', () => ({
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
+  Modal: ({ open }: { open: boolean }) => (open ? <div>modal-open</div> : null),
+  Select: () => <div>select</div>,
+}));
+vi.mock('@svton/ui', () => ({
+  Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
 }));
 vi.mock('../../hooks/use-environment-actions', () => ({
   useEnvironmentActions: () => ({
@@ -21,6 +26,14 @@ vi.mock('../../hooks/use-environment-actions', () => ({
     archive: vi.fn(),
     bindServer: vi.fn(),
     unbindServer: vi.fn(),
+  }),
+}));
+vi.mock('../../hooks/use-environment-deployment-targets', () => ({
+  useEnvironmentDeploymentTargets: () => ({
+    data: null,
+    loading: true,
+    error: '',
+    reload: vi.fn(),
   }),
 }));
 vi.mock('../environment-bind-server-block', () => ({
@@ -43,15 +56,26 @@ vi.mock('../environment-sync-panel', () => ({
 }));
 
 describe('settings environment subtab contents', () => {
-  it('部署目标 lists bound servers, keeps bind actions in-project and links /servers', () => {
+  it('部署目标 shows the Demo table with the provider-matched current target and badge', () => {
     const html = renderToStaticMarkup(
-      <EnvTargetsTab environment={env()} detail={detail()} />,
+      <EnvTargetsTab environment={env()} detail={detail()} targets={targets()} />,
     );
 
     expect(html).toContain('envTabTargets');
     expect(html).toContain('envTabHelperTargets');
+    expect(html).toContain('envTargetTableComponent');
+    expect(html).toContain('envTargetTableRunTarget');
+    expect(html).toContain('envTargetTableRegionNamespace');
+    expect(html).toContain('envTargetTableScale');
+    expect(html).toContain('envTargetTableStatus');
     expect(html).toContain('stg-web');
     expect(html).toContain('10.0.0.1');
+    expect(html).toContain('ssh://deploy@10.0.0.1:22/srv/app');
+    expect(html).toContain('envTargetCurrentBadge');
+    expect(html).toContain('envTargetAdjust');
+    expect(html).toContain('envTargetIsolationDefault');
+    expect(html).toContain('envTargetVersionHashLabel');
+    expect(html).toContain('envTargetStatusOnline');
     expect(html).toContain('bind-server-block');
     expect(html).toContain('href="/servers?projectId=project-1"');
     expect(html).toContain('envModuleLinkServers');
@@ -246,5 +270,39 @@ function detail() {
     },
     deploymentRuns: [],
     loadProject: vi.fn(),
+  } as never;
+}
+
+function targets() {
+  return {
+    data: {
+      providerKey: 'ssh-v1',
+      currentTarget: {
+        bindingId: 'b1',
+        serverId: 'server-1',
+        providerKey: 'ssh-v1',
+        targetRef: 'ssh://deploy@10.0.0.1:22/srv/app',
+        root: '/srv/app',
+        server: { id: 'server-1', name: 'stg-web', host: '10.0.0.1', status: 'online' },
+        sharedEnvironmentIds: [],
+        versionHash: 'a'.repeat(64),
+      },
+      bindings: [
+        {
+          id: 'b1',
+          role: 'deploy',
+          status: 'active',
+          createdAt: '2026-07-01T00:00:00Z',
+          updatedAt: '2026-07-01T00:00:00Z',
+          providerKey: 'ssh-v1',
+          sharedEnvironmentIds: [],
+          metadata: { releaseDeployment: { providerKey: 'ssh-v1', root: '/srv/app' } },
+          server: { id: 'server-1', name: 'stg-web', host: '10.0.0.1', status: 'online' },
+        },
+      ],
+    },
+    loading: false,
+    error: '',
+    reload: vi.fn(),
   } as never;
 }

@@ -15,6 +15,7 @@ export function deploymentInputFixture() {
     serverTeamId: "team-1",
     serverHost: "target.example",
     includeBinding: true,
+    duplicateBinding: false,
   };
   const secret = {
     id: "secret-1",
@@ -69,6 +70,7 @@ function databaseDouble(
     serverTeamId: string;
     serverHost: string;
     includeBinding: boolean;
+    duplicateBinding: boolean;
   },
   secret: Record<string, unknown>,
   resource: Record<string, unknown>,
@@ -119,6 +121,33 @@ function databaseDouble(
                   updatedAt: changedAt,
                 },
               },
+              ...(state.duplicateBinding
+                ? [
+                    {
+                      id: "binding-2",
+                      teamId: state.bindingTeamId,
+                      projectId: "project-1",
+                      environmentId: "staging-1",
+                      metadata: {
+                        releaseDeployment: {
+                          providerKey: "ssh-v1",
+                          root: "/srv/duplicate",
+                        },
+                      },
+                      updatedAt: changedAt,
+                      server: {
+                        id: "server-2",
+                        teamId: state.serverTeamId,
+                        host: state.serverHost,
+                        port: 2222,
+                        username: "deploy",
+                        authType: "password",
+                        credentials: crypto.encryptGcm("ssh-sentinel-f432"),
+                        updatedAt: changedAt,
+                      },
+                    },
+                  ]
+                : []),
             ]
           : [],
       })),

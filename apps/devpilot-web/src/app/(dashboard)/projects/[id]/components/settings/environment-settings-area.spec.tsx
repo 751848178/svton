@@ -43,9 +43,13 @@ vi.mock('@/components/ui', () => ({
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
   ConfirmDialog: () => <div>confirm-dialog</div>,
   Select: () => <div>select</div>,
+  Modal: ({ open }: { open: boolean }) => (open ? <div>modal-open</div> : null),
 }));
 vi.mock('@/components/ui/feedback/feedback', () => ({
   feedback: { success: vi.fn(), error: vi.fn() },
+}));
+vi.mock('@/lib/api-client', () => ({
+  apiRequest: vi.fn().mockRejectedValue(new Error('api-client mocked')),
 }));
 vi.mock('@svton/ui', () => ({
   Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => unknown; disabled?: boolean }) => (

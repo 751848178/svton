@@ -142,6 +142,64 @@ describe("Deploy release gate providers", () => {
     expect(checks.D11.status).toBe("unavailable");
     expect(checks.D12.status).toBe("unavailable");
   });
+
+  it("D07 blocks when the provider-matched server is offline (AC-SET-022)", () => {
+    const context = evidenceContext();
+    context.deploy!.environment!.serverBindings[0].server.status = "offline";
+    context.decisionTarget = { providerKey: "ssh-v1" };
+
+    const check = evaluate(registry, context).D07;
+    expect(check).toMatchObject({
+      status: "blocked",
+      reasonCode: "server_not_online",
+      evidenceRef: expect.stringContaining("server-binding:binding-1;server:server-1;provider:ssh-v1"),
+    });
+  });
+
+  it("D07 fails closed when no provider-matched binding exists (AC-SET-022)", () => {
+    const context = evidenceContext();
+    context.deploy!.environment!.serverBindings = [];
+    context.decisionTarget = { providerKey: "ssh-v1" };
+
+    const check = evaluate(registry, context).D07;
+    expect(check).toMatchObject({
+      status: "unavailable",
+      reasonCode: "server_connectivity_provider_missing",
+    });
+  });
+
+  it("D07 fails closed when the provider-matched binding is duplicated (AC-SET-022)", () => {
+    const context = evidenceContext();
+    context.decisionTarget = { providerKey: "ssh-v1" };
+    context.deploy!.environment!.serverBindings.push({
+      ...context.deploy!.environment!.serverBindings[0],
+      id: "binding-2",
+      server: {
+        id: "server-2",
+        status: "online",
+        host: "10.0.0.2",
+        port: 22,
+        username: "deploy",
+        updatedAt: context.deploy!.environment!.serverBindings[0].server.updatedAt,
+      },
+    });
+
+    const check = evaluate(registry, context).D07;
+    expect(check).toMatchObject({
+      status: "unavailable",
+      reasonCode: "server_provider_matched_target_missing",
+    });
+  });
+
+  it("D07 evaluates the explicit decision-target provider over inferred providers", () => {
+    const context = evidenceContext();
+    context.decisionTarget = { providerKey: "ssh-v1" };
+
+    expect(evaluate(registry, context).D07).toMatchObject({
+      status: "checked",
+      reasonCode: "server_online",
+    });
+  });
 });
 
 function evaluate(
@@ -239,7 +297,17 @@ function evidenceContext() {
             id: "binding-1",
             status: "active",
             updatedAt: at,
-            server: { id: "server-1", status: "online", updatedAt: at },
+            metadata: {
+              releaseDeployment: { providerKey: "ssh-v1", root: "/srv/app" },
+            },
+            server: {
+              id: "server-1",
+              status: "online",
+              host: "10.0.0.1",
+              port: 22,
+              username: "deploy",
+              updatedAt: at,
+            },
           },
         ],
       },

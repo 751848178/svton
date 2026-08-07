@@ -33,6 +33,10 @@ export type ReleaseGateDecisionTarget = {
   deploymentRunId?: string;
   environmentId?: string;
   configRevisionId?: string | null;
+  /** Deployment provider key (ssh-v1 / local-filesystem-v1) so D07 gates
+   *  evaluate the provider-matched binding — the same resolution the deploy
+   *  path uses (AC-SET-022/023). */
+  providerKey?: string;
 };
 
 export type ReleaseGateDecisionInput = {

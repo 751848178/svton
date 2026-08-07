@@ -70,4 +70,19 @@ export class ProjectEnvironmentReadController {
     );
     return this.environmentService.listServers(req.teamId, id);
   }
+
+  @Get(":id/targets")
+  async listTargets(
+    @Request() req: ProjectEnvironmentAuthRequest,
+    @Param("id") id: string,
+  ) {
+    const scope = await this.environmentService.getAccessScope(req.teamId, id);
+    await this.accessPolicy.assertCanReadEnvironment(
+      req,
+      id,
+      scope.projectId,
+      scope.environmentId,
+    );
+    return this.environmentService.listTargets(req.teamId, id);
+  }
 }

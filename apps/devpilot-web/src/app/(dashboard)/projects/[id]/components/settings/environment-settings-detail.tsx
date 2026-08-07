@@ -13,6 +13,7 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@svton/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { useEnvironmentConfigGovernance } from '../../hooks/use-environment-config-governance';
+import { useEnvironmentDeploymentTargets } from '../../hooks/use-environment-deployment-targets';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 import type { ProjectEnvironment } from '../../types';
 import type { EnvironmentConfigResourceReference } from '../../types/environment-config-revision.types';
@@ -52,6 +53,7 @@ export function EnvironmentSettingsDetail({
   const projectId = detail.project?.id ?? '';
   const envTab = readSettingsEnvTab(searchParams);
   const governance = useEnvironmentConfigGovernance(environment, projectId, detail.loadProject);
+  const targets = useEnvironmentDeploymentTargets(environment.id);
   const [secretIds, setSecretIds] = useState<string[]>([]);
   const [policyIds, setPolicyIds] = useState<string[]>([]);
   const [resources, setResources] = useState<EnvironmentConfigResourceReference[]>([]);
@@ -92,6 +94,7 @@ export function EnvironmentSettingsDetail({
   const context: EnvTabContext = {
     detail,
     environment,
+    targets,
     secretIds,
     setSecretIds,
     policyIds,
@@ -112,6 +115,7 @@ export function EnvironmentSettingsDetail({
         deploymentRunCount={environment._count?.deploymentRuns ?? 0}
         versionsHref={deliveryHref(projectId, 'environment-versions', searchParams)}
         deploymentsHref={deliveryHref(projectId, 'deployments', searchParams)}
+        currentTarget={targets.data?.currentTarget ?? null}
       />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2">

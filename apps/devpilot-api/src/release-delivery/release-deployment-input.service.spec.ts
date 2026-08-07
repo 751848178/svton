@@ -143,6 +143,17 @@ describe("ReleaseDeploymentInputService", () => {
     expect(decryptGcm).not.toHaveBeenCalled();
   });
 
+  it("rejects a duplicated provider-matched target (fail closed on 重复)", async () => {
+    const fixture = deploymentInputFixture();
+    fixture.state.duplicateBinding = true;
+    const decryptCbc = jest.spyOn(fixture.crypto, "decryptCbc");
+
+    await expect(fixture.service.prepare(input)).rejects.toThrow(
+      "目标绑定缺失、重复或与 Provider 不匹配",
+    );
+    expect(decryptCbc).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       "configuration",

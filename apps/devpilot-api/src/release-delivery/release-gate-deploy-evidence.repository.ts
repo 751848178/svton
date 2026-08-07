@@ -62,8 +62,18 @@ export class ReleaseGateDeployEvidenceRepository {
           select: {
             id: true,
             status: true,
+            metadata: true,
             updatedAt: true,
-            server: { select: { id: true, status: true, updatedAt: true } },
+            server: {
+              select: {
+                id: true,
+                status: true,
+                host: true,
+                port: true,
+                username: true,
+                updatedAt: true,
+              },
+            },
           },
         },
       },

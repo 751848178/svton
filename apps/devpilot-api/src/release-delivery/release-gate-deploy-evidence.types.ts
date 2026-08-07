@@ -30,8 +30,16 @@ export type ReleaseGateDeployEvidence = {
     serverBindings: Array<{
       id: string;
       status: string;
+      metadata: unknown;
       updatedAt: Date;
-      server: { id: string; status: string; updatedAt: Date };
+      server: {
+        id: string;
+        status: string;
+        host: string;
+        port: number;
+        username: string | null;
+        updatedAt: Date;
+      };
     }>;
   } | null;
   secrets: Array<{

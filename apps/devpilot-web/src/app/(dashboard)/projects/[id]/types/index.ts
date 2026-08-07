@@ -37,8 +37,50 @@ export interface ProjectEnvironment {
   serverBindings?: Array<{
     id: string;
     role?: string | null;
+    metadata?: Record<string, unknown> | null;
     server: { id: string; name: string; host: string; status: string };
   }>;
+}
+
+/**
+ * GET /project-environments/:id/targets — the Demo-aligned 部署目标 payload
+ * (AC-SET-017/023/024): the provider-matched CURRENT target resolved with the
+ * same rules the deploy path uses, plus every active binding.
+ */
+export interface EnvironmentDeploymentTargetServer {
+  id: string;
+  name: string;
+  host: string;
+  status: string;
+}
+
+export interface EnvironmentDeploymentCurrentTarget {
+  bindingId: string;
+  serverId: string;
+  providerKey: string;
+  targetRef: string;
+  root: string;
+  server: EnvironmentDeploymentTargetServer;
+  sharedEnvironmentIds: string[];
+  versionHash: string;
+}
+
+export interface EnvironmentDeploymentTargetBinding {
+  id: string;
+  role: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  providerKey: string | null;
+  sharedEnvironmentIds: string[];
+  metadata: Record<string, unknown> | null;
+  server: EnvironmentDeploymentTargetServer;
+}
+
+export interface EnvironmentDeploymentTargets {
+  providerKey: string | null;
+  currentTarget: EnvironmentDeploymentCurrentTarget | null;
+  bindings: EnvironmentDeploymentTargetBinding[];
 }
 
 export interface ProjectAllocation {

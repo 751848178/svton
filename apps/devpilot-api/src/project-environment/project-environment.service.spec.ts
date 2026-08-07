@@ -17,7 +17,7 @@ import { ProjectEnvironmentCrudService } from './project-environment-crud.servic
 type PrismaMock = {
   project: { findFirst: jest.Mock };
   projectEnvironment: { findMany: jest.Mock; findFirst: jest.Mock; upsert: jest.Mock };
-  projectEnvironmentServer: { findMany: jest.Mock; findFirst: jest.Mock; upsert: jest.Mock; delete: jest.Mock };
+  projectEnvironmentServer: { findMany: jest.Mock; findFirst: jest.Mock; upsert: jest.Mock; update: jest.Mock; delete: jest.Mock };
   server: { findFirst: jest.Mock };
   teamCredential: { findFirst: jest.Mock };
   applicationService: { findMany: jest.Mock; create: jest.Mock; update: jest.Mock };
@@ -103,6 +103,7 @@ describe('ProjectEnvironmentService sync suggestions', () => {
           environment: { id: 'env-test', key: 'test', name: '测试', status: 'active' },
         }),
         delete: jest.fn().mockResolvedValue({ id: 'binding-1' }),
+        update: jest.fn().mockResolvedValue({ id: 'binding-1', status: 'archived' }),
       },
       server: {
         findFirst: jest.fn().mockResolvedValue({ id: 'server-1' }),
@@ -144,9 +145,17 @@ describe('ProjectEnvironmentService sync suggestions', () => {
         update: jest.fn().mockResolvedValue({ id: 'service-test' }),
       },
       deploymentRun: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: 'run-prod', environmentId: 'env-prod', status: 'completed' },
-        ]),
+        findMany: jest.fn().mockImplementation(
+          ({ where }: { where?: { environmentId?: string | { in?: string[] } } }) => {
+            const envs =
+              typeof where?.environmentId === 'string'
+                ? [where.environmentId]
+                : where?.environmentId?.in ?? [];
+            return envs.includes('env-prod')
+              ? [{ id: 'run-prod', environmentId: 'env-prod', status: 'completed' }]
+              : [];
+          },
+        ),
       },
       site: {
         findMany: jest.fn().mockResolvedValue([
@@ -225,7 +234,11 @@ describe('ProjectEnvironmentService sync suggestions', () => {
     const cdnCopyService = new ProjectEnvironmentCdnCopyService(repository, auditEventService as never);
     const bulkBindService = new ProjectEnvironmentBulkBindService(repository, auditEventService as never);
     const defaultsService = new ProjectEnvironmentDefaultsService(repository);
-    const serverBindingService = new ProjectEnvironmentServerBindingService(repository, auditEventService as never);
+    const serverBindingService = new ProjectEnvironmentServerBindingService(
+      repository,
+      auditEventService as never,
+      { verifyCapability: jest.fn().mockResolvedValue(capabilityOnline()) } as never,
+    );
     const crudService = new ProjectEnvironmentCrudService(
       repository,
       defaultsService,
@@ -380,7 +393,7 @@ describe('ProjectEnvironmentService sync suggestions', () => {
     }));
   });
 
-  it('unbinds a server from an environment and writes an audit event', async () => {
+  it('unbinds a server from an environment by soft-archive and writes an audit event', async () => {
     await expect(service.unbindServer('team-1', 'user-1', 'env-test', 'server-1')).resolves.toEqual({ success: true });
 
     expect(prisma.projectEnvironmentServer.findFirst).toHaveBeenCalledWith({
@@ -388,10 +401,15 @@ describe('ProjectEnvironmentService sync suggestions', () => {
       select: {
         id: true,
         role: true,
+        status: true,
         server: { select: { id: true, name: true } },
       },
     });
-    expect(prisma.projectEnvironmentServer.delete).toHaveBeenCalledWith({ where: { id: 'binding-1' } });
+    expect(prisma.projectEnvironmentServer.delete).not.toHaveBeenCalled();
+    expect(prisma.projectEnvironmentServer.update).toHaveBeenCalledWith({
+      where: { id: 'binding-1' },
+      data: { status: 'archived' },
+    });
     expect(auditEventService.create).toHaveBeenCalledWith(expect.objectContaining({
       action: 'project_environment.server.unbind',
       projectId: 'project-1',
@@ -1405,3 +1423,14 @@ describe('ProjectEnvironmentService sync suggestions', () => {
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+function capabilityOnline() {
+  return {
+    authType: 'password',
+    networkReachable: true,
+    authenticationVerified: true,
+    executorCompatible: true,
+    latency: 1,
+    message: '连接成功',
+  };
+}

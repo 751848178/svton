@@ -4,10 +4,7 @@ import type {
   ReleaseDeploymentInputState,
 } from "./release-deployment-input.types";
 import { hashCanonicalReleaseValue } from "./release-canonical-hash.utils";
-import {
-  isSafeReleaseDeploymentSshRoot,
-  releaseDeploymentSshTargetRef,
-} from "./release-deployment-ssh-target.utils";
+import { matchReleaseDeploymentTargetBindings } from "./release-deployment-target-match.utils";
 
 export function buildReleaseDeploymentInputSnapshot(
   state: ReleaseDeploymentInputState,
@@ -82,30 +79,10 @@ export function selectReleaseDeploymentTarget(
   state: ReleaseDeploymentInputState,
   providerKey: string,
 ) {
-  const matches = state.bindings.flatMap((binding) => {
-    const metadata = record(binding.metadata);
-    const deployment = record(metadata.releaseDeployment);
-    if (deployment.providerKey !== providerKey) return [];
-    if (providerKey === "ssh-v1") {
-      const root = typeof deployment.root === "string" ? deployment.root : "";
-      if (!isSafeReleaseDeploymentSshRoot(root)) return [];
-      return [
-        {
-          binding,
-          root,
-          targetRef: releaseDeploymentSshTargetRef({
-            username: binding.server.username,
-            host: binding.server.host,
-            port: binding.server.port,
-            root,
-          }),
-        },
-      ];
-    }
-    return typeof deployment.targetRef === "string"
-      ? [{ binding, root: "", targetRef: deployment.targetRef }]
-      : [];
-  });
+  const matches = matchReleaseDeploymentTargetBindings(
+    state.bindings,
+    providerKey,
+  );
   if (matches.length !== 1) {
     throw new ConflictException("部署目标绑定缺失、重复或与 Provider 不匹配");
   }

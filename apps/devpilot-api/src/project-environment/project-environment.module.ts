@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { AuditEventModule } from "../audit-event";
 import { ControlAccessPolicyModule } from "../control-access-policy";
 import { PrismaModule } from "../prisma/prisma.module";
+import { ServerModule } from "../server/server.module";
 import { SiteModule } from "../site";
 import {
   ProjectEnvironmentConfigController,
@@ -31,6 +32,7 @@ import { ProjectEnvironmentWriteAccessPolicyService } from "./project-environmen
     AuditEventModule,
     ControlAccessPolicyModule,
     SiteModule,
+    ServerModule,
   ],
   controllers: [
     ProjectEnvironmentConfigController,

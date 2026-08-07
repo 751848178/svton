@@ -7,6 +7,9 @@ import type {
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import { evaluateReleaseGateDeploymentTarget } from "./release-gate-deployment-target-evaluator";
 import {
+  matchReleaseDeploymentTargetBindings,
+} from "./release-deployment-target-match.utils";
+import {
   evaluated,
   record,
   type ReleaseGateCapabilityProvider,
@@ -55,29 +58,43 @@ export class ReleaseGateRuntimeCapabilityProvider implements ReleaseGateCapabili
 
   private server(context: ReleaseGateEvidenceContext, now: Date) {
     const environment = context.deploy?.environment;
-    const binding = environment?.serverBindings[0];
-    if (!environment || !binding) {
+    const bindings = environment?.serverBindings;
+    if (!environment || !bindings || bindings.length === 0) {
       return unavailable(
         "server_connectivity_provider_missing",
         "Staging 未绑定可提供连通证据的服务器或集群",
         "Staging has no server or cluster binding that can provide connectivity evidence",
       );
     }
+    const providerKey =
+      context.decisionTarget?.providerKey ?? inferProviderKey(bindings);
+    if (!providerKey) {
+      return unavailable(
+        "server_provider_key_unknown",
+        "无法确定 Staging 部署 Provider，服务器连通证据不可用",
+        "The Staging deployment provider is unknown, so server connectivity evidence is unavailable",
+      );
+    }
+    const matches = matchReleaseDeploymentTargetBindings(bindings, providerKey);
+    if (matches.length !== 1) {
+      return unavailable(
+        "server_provider_matched_target_missing",
+        "Provider 匹配的部署目标绑定缺失或重复，服务器连通证据不可用",
+        "The provider-matched deploy target binding is missing or duplicated, so server connectivity evidence is unavailable",
+      );
+    }
+    const binding = matches[0].binding;
+    const online = binding.server.status === "online";
     return evaluated({
-      status: binding.server.status === "online" ? "checked" : "blocked",
-      reasonCode:
-        binding.server.status === "online"
-          ? "server_online"
-          : "server_not_online",
-      zh:
-        binding.server.status === "online"
-          ? "环境绑定服务器在线"
-          : "环境绑定服务器不在线",
-      en:
-        binding.server.status === "online"
-          ? "The environment-bound server is online"
-          : "The environment-bound server is not online",
-      evidenceRef: `server-binding:${binding.id};server:${binding.server.id}`,
+      status: online ? "checked" : "blocked",
+      reasonCode: online ? "server_online" : "server_not_online",
+      zh: online
+        ? "环境绑定服务器在线"
+        : "环境绑定服务器不在线",
+      en: online
+        ? "The environment-bound server is online"
+        : "The environment-bound server is not online",
+      evidenceRef: `server-binding:${binding.id};server:${binding.server.id};provider:${providerKey}`,
       checkedAt: binding.server.updatedAt,
       ttlMs: CONNECTIVITY_TTL_MS,
       now,
@@ -193,4 +210,19 @@ export class ReleaseGateRuntimeCapabilityProvider implements ReleaseGateCapabili
       now,
     });
   }
+}
+
+function inferProviderKey(
+  bindings: Array<{
+    metadata: unknown;
+  }>,
+): string | null {
+  const keys = new Set<string>();
+  for (const binding of bindings) {
+    const deployment = record(record(binding.metadata).releaseDeployment);
+    if (typeof deployment.providerKey === "string" && deployment.providerKey) {
+      keys.add(deployment.providerKey);
+    }
+  }
+  return keys.size === 1 ? [...keys][0] : null;
 }

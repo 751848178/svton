@@ -74,6 +74,7 @@ export class ReleaseStagingService {
         manifestId: manifest.id,
         environmentId: environment.id,
         configRevisionId: environment.currentConfigRevisionId,
+        providerKey: this.executor.providerKey,
       },
       actionInput: {
         buildRunId: manifest.buildRun.id,

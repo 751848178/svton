@@ -99,6 +99,9 @@ export class ProjectEnvironmentService {
   listServers = (teamId: string, environmentId: string) =>
     this.serverBindingService.listServers(teamId, environmentId);
 
+  listTargets = (teamId: string, environmentId: string) =>
+    this.serverBindingService.listTargets(teamId, environmentId);
+
   getAccessScope = (teamId: string, environmentId: string) =>
     this.serverBindingService.getAccessScope(teamId, environmentId);
 
