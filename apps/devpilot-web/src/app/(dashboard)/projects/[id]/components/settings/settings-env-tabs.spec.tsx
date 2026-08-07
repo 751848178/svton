@@ -18,6 +18,7 @@ vi.mock('@/components/ui', () => ({
 }));
 vi.mock('@svton/ui', () => ({
   Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+  Modal: ({ open }: { open: boolean }) => (open ? <div>modal-open</div> : null),
 }));
 vi.mock('../../hooks/use-environment-actions', () => ({
   useEnvironmentActions: () => ({
@@ -201,7 +202,7 @@ describe('settings environment subtab contents', () => {
     expect(html).not.toMatch(/s3cr3t|plaintext/i);
   });
 
-  it('域名与入口 shows the route snapshot editor and bound sites, links /sites', () => {
+  it('域名与入口 shows the Demo 6-column table with per-domain rows, DNS/TLS columns, badge and callouts', () => {
     const html = renderToStaticMarkup(
       <EnvRoutesTab
         environment={env()}
@@ -211,22 +212,96 @@ describe('settings environment subtab contents', () => {
           dnsProvider: 'cloudflare',
           tlsRequired: true,
           proxyTarget: 'web:3000',
+          entries: [
+            { domain: 'staging.picshare.example.com', path: '/', component: 'web', port: 3000, tlsMode: 'managed_cert' },
+          ],
         }}
         onRouteChange={() => undefined}
+        revision={revision()}
       />,
     );
 
     expect(html).toContain('envTabRoutes');
     expect(html).toContain('envTabHelperRoutes');
-    expect(html).toContain('configRouteSnapshot');
+    expect(html).toContain('envRoutesTitle');
+    expect(html).toContain('envRoutesCurrentBadge');
+    expect(html).toContain('envRoutesAddEntry');
+    expect(html).toContain('envRoutesTableDomain');
+    expect(html).toContain('envRoutesTablePath');
+    expect(html).toContain('envRoutesTableComponent');
+    expect(html).toContain('envRoutesTableTls');
+    expect(html).toContain('envRoutesTableDns');
+    expect(html).toContain('envRoutesTableProbe');
     expect(html).toContain('staging.picshare.example.com');
-    expect(html).toContain('configTlsRequired');
+    expect(html).toContain('web : 3000');
+    expect(html).toContain('envRoutesDnsUnavailable');
+    expect(html).toContain('envRoutesTlsUnavailable');
+    expect(html).toContain('envRoutesCalloutOwnership');
+    expect(html).toContain('envRoutesCalloutFrozen');
+    expect(html).toContain('envRoutesReadinessLabel');
+    expect(html).toContain('envRoutesGateUnavailable');
     expect(html).toContain('envRoutesBoundSites');
     expect(html).toContain('picshare.example.com');
     expect(html).toContain(
       'href="/sites?projectId=project-1&amp;environmentId=env-staging"',
     );
     expect(html).toContain('envModuleLinkSites');
+  });
+
+  it('域名与入口 renders real DNS/TLS/probe states and the drill-down link from site + run evidence', () => {
+    const html = renderToStaticMarkup(
+      <EnvRoutesTab
+        environment={env()}
+        detail={detail()}
+        route={{
+          domains: 'demo.f437.example',
+          dnsProvider: '',
+          tlsRequired: true,
+          proxyTarget: 'web:3000',
+          entries: [
+            { domain: 'demo.f437.example', path: '/', component: 'web', port: 3000, tlsMode: 'managed_cert' },
+          ],
+        }}
+        onRouteChange={() => undefined}
+        revision={revision()}
+        deploymentRuns={[
+          {
+            id: 'run-1',
+            projectId: 'project-1',
+            environment: null,
+            targetType: 'release',
+            dryRun: false,
+            source: 'release_order',
+            status: 'completed',
+            branch: null,
+            commitSha: null,
+            commandPlan: {},
+            error: null,
+            startedAt: '2026-08-06T18:27:00.000Z',
+            finishedAt: '2026-08-06T18:28:00.000Z',
+            result: {
+              siteProbe: {
+                primaryDomain: 'demo.f437.example',
+                dns: { status: 'resolved', checkedAt: '2026-08-06T18:27:00.000Z' },
+                tls: { status: 'valid', checkedAt: '2026-08-06T18:27:00.000Z' },
+                http: { status: 'passed', statusCode: 200, checkedAt: '2026-08-06T18:27:00.000Z' },
+              },
+              routeSwitch: { status: 'switched' },
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(html).toContain('envRoutesDnsActive');
+    expect(html).toContain('envRoutesTlsValid');
+    expect(html).toContain('envRoutesProbeHttp');
+    expect(html).toContain('200');
+    expect(html).toContain('envRoutesGateReady');
+    expect(html).toContain(
+      'href="/projects/project-1?view=deployments&amp;runId=run-1"',
+    );
+    expect(html).toContain('envRoutesEvidenceLink');
   });
 
   it('保护规则 shows policy references, identity lock and lifecycle actions, links /operation-approvals', () => {
@@ -341,6 +416,38 @@ function detail() {
           primaryDomain: 'picshare.example.com',
           runtimeType: 'static',
           status: 'active',
+          environment: { id: 'env-staging', key: 'staging', name: 'Staging', status: 'active' },
+        },
+        {
+          id: 'site-2',
+          name: 'F437 demo site',
+          primaryDomain: 'demo.f437.example',
+          runtimeType: 'reverse_proxy',
+          status: 'active',
+          lastSyncAt: '2026-08-06T18:27:00.000Z',
+          dns: {
+            status: 'resolved',
+            records: ['198.18.11.9'],
+            hostname: 'demo.f437.example',
+            checkedAt: '2026-08-06T18:27:00.000Z',
+          },
+          tls: {
+            status: 'valid',
+            expiresAt: '2026-09-07T00:00:00.000Z',
+            probe: {
+              status: 'valid',
+              host: 'demo.f437.example',
+              port: 443,
+              checkedAt: '2026-08-06T18:27:00.000Z',
+            },
+          },
+          routeSwitch: {
+            status: 'switched',
+            domains: ['demo.f437.example'],
+            releaseRunId: 'release-1',
+            deploymentRunId: 'run-1',
+            switchedAt: '2026-08-06T18:27:00.000Z',
+          },
           environment: { id: 'env-staging', key: 'staging', name: 'Staging', status: 'active' },
         },
       ],

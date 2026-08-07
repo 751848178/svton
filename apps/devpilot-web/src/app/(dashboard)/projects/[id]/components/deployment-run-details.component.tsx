@@ -12,6 +12,8 @@ import {
 } from '../utils/release-copy.model';
 import { DeployVarPreview } from './deploy-var-preview';
 import { DeploymentStageTimeline } from './deployment-stage-timeline.component';
+import { ReleaseSiteProbeEvidence } from './release-site-probe-evidence';
+import { parseRunProbeEvidence } from './settings/settings-env-routes.model';
 
 const MAX_RAW_LENGTH = 12_000;
 
@@ -20,6 +22,7 @@ export function DeploymentRunDetails({ run }: { run: DeploymentRun }) {
   const environmentKey = releaseEnvironmentValueLabelKey(
     run.projectEnvironment?.key || run.environment,
   );
+  const probeEvidence = parseRunProbeEvidence(run);
   const facts = [
     [t('runDetailMode'), run.dryRun ? t('runModePlanOnly') : t('runModeLiveRequest')],
     [t('runDetailTarget'), run.targetType || '-'],
@@ -55,6 +58,13 @@ export function DeploymentRunDetails({ run }: { run: DeploymentRun }) {
         run={run}
         t={t}
       />
+      {probeEvidence ? (
+        <ReleaseSiteProbeEvidence
+          projectId={run.projectId}
+          siteProbe={probeEvidence.siteProbe}
+          routeSwitch={probeEvidence.routeSwitch}
+        />
+      ) : null}
       {run.error ? (
         <RawEvidence
           title={t('runDetailError')}

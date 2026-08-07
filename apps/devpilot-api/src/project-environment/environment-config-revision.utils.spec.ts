@@ -5,6 +5,7 @@ import {
   hashEnvironmentConfigSnapshot,
   normalizePlainVariables,
   normalizeResourceReferences,
+  normalizeRouteSnapshot,
 } from "./environment-config-revision.utils";
 
 describe("environment config revision governance", () => {
@@ -108,5 +109,97 @@ describe("environment config revision governance", () => {
         sharedEnvironmentIds: ["env-1", "env-2"], risk: "low", impact: "shared",
       }],
     }, null)).rejects.toThrow("风险不能为 low");
+  });
+});
+
+describe("normalizeRouteSnapshot per-entry model (F448 AC-SET-042/043/046)", () => {
+  it("round-trips structured entries with component/port/path/tlsMode", () => {
+    const result = normalizeRouteSnapshot({
+      domains: ["staging.picshare.example.com", "media.picshare.example.com"],
+      dnsProvider: "cloudflare",
+      tlsRequired: true,
+      proxyTarget: "web:3000",
+      entries: [
+        { domain: "staging.picshare.example.com", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+        { domain: "media.picshare.example.com", path: "/v1", component: "api", port: 8080, tlsMode: "existing_cert_asset" },
+      ],
+    });
+    expect(result.entries).toEqual([
+      { domain: "staging.picshare.example.com", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+      { domain: "media.picshare.example.com", path: "/v1", component: "api", port: 8080, tlsMode: "existing_cert_asset" },
+    ]);
+    expect(result.domains).toEqual(["media.picshare.example.com", "staging.picshare.example.com"]);
+    expect(result.tlsRequired).toBe(true);
+    expect(result.proxyTarget).toBe("web:3000");
+  });
+
+  it("defaults path/tlsMode and keeps the legacy flat fields for backward compat", () => {
+    const result = normalizeRouteSnapshot({
+      domains: ["demo.f437.example"],
+      proxyTarget: "web : 3000",
+      entries: [{ domain: "demo.f437.example", component: "web", port: 3000 }],
+    });
+    expect(result.entries).toEqual([
+      { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+    ]);
+    expect(result.domains).toEqual(["demo.f437.example"]);
+  });
+
+  it("derives entries from the legacy domains[] when entries are absent", () => {
+    const result = normalizeRouteSnapshot({
+      domains: ["demo.f437.example"],
+      proxyTarget: "http://127.0.0.1:23992",
+      tlsRequired: true,
+    });
+    expect(result.entries).toEqual([
+      { domain: "demo.f437.example", path: "/", component: "", port: null, tlsMode: "managed_cert" },
+    ]);
+  });
+
+  it("extracts component:port from a legacy component-style proxyTarget", () => {
+    const result = normalizeRouteSnapshot({
+      domains: ["app.example.com"],
+      proxyTarget: "api:8080",
+    });
+    expect(result.entries[0]).toMatchObject({ component: "api", port: 8080, path: "/" });
+  });
+
+  it("rejects malformed entries (missing domain / bad port / bad tlsMode / non-array)", () => {
+    expect(() => normalizeRouteSnapshot({
+      domains: ["a.example.com"], entries: [{ path: "/" }],
+    })).toThrow(BadRequestException);
+    expect(() => normalizeRouteSnapshot({
+      domains: ["a.example.com"], entries: [{ domain: "a.example.com", port: 70000 }],
+    })).toThrow(BadRequestException);
+    expect(() => normalizeRouteSnapshot({
+      domains: ["a.example.com"], entries: [{ domain: "a.example.com", tlsMode: "unknown" }],
+    })).toThrow(BadRequestException);
+    expect(() => normalizeRouteSnapshot({
+      domains: ["a.example.com"], entries: "nope",
+    })).toThrow(BadRequestException);
+  });
+
+  it("hashes differently when entries change while the legacy flat fields stay identical", () => {
+    const base = {
+      plainVariables: {}, secretReferences: [], resourceReferences: [],
+      policyReferences: [],
+    };
+    const left = {
+      ...base,
+      routeSnapshot: normalizeRouteSnapshot({
+        domains: ["a.example.com"], proxyTarget: "web:3000",
+        entries: [{ domain: "a.example.com", component: "web", port: 3000 }],
+      }),
+    };
+    const right = {
+      ...base,
+      routeSnapshot: normalizeRouteSnapshot({
+        domains: ["a.example.com"], proxyTarget: "web:3000",
+        entries: [{ domain: "a.example.com", component: "api", port: 8080 }],
+      }),
+    };
+    expect(hashEnvironmentConfigSnapshot(left)).not.toBe(
+      hashEnvironmentConfigSnapshot(right),
+    );
   });
 });

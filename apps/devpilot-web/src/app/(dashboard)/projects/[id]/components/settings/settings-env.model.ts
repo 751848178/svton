@@ -8,11 +8,20 @@
 import type { EnvironmentConfigResourceReference } from '../../types/environment-config-revision.types';
 import type { EnvironmentConfigRevision } from '../../types/environment-config-revision.types';
 
+export type SettingsRouteEntryDraft = {
+  domain: string;
+  path: string;
+  component: string;
+  port: number | null;
+  tlsMode: 'managed_cert' | 'existing_cert_asset';
+};
+
 export type SettingsRouteDraft = {
   domains: string;
   dnsProvider: string;
   tlsRequired: boolean;
   proxyTarget: string;
+  entries: SettingsRouteEntryDraft[];
 };
 
 export type SettingsEnvironmentDraft = {
@@ -27,7 +36,13 @@ export const EMPTY_SETTINGS_ENVIRONMENT_DRAFT: SettingsEnvironmentDraft = {
   secretIds: [],
   policyIds: [],
   resources: [],
-  route: { domains: '', dnsProvider: '', tlsRequired: false, proxyTarget: '' },
+  route: {
+    domains: '',
+    dnsProvider: '',
+    tlsRequired: false,
+    proxyTarget: '',
+    entries: [],
+  },
   summary: '',
 };
 
@@ -44,9 +59,40 @@ export function settingsDraftFromRevision(
       dnsProvider: revision.routeSnapshot?.dnsProvider ?? '',
       tlsRequired: revision.routeSnapshot?.tlsRequired ?? false,
       proxyTarget: revision.routeSnapshot?.proxyTarget ?? '',
+      entries: routeEntriesFromRevision(revision),
     },
     summary: '',
   };
+}
+
+/**
+ * F448 AC-SET-042 backward compat: revisions written before the structured
+ * entries existed derive one row per legacy domain (path "/", component from a
+ * legacy `component:port` proxyTarget when it matches, otherwise honest empty).
+ */
+function routeEntriesFromRevision(
+  revision: EnvironmentConfigRevision,
+): SettingsRouteEntryDraft[] {
+  const entries = revision.routeSnapshot?.entries;
+  if (Array.isArray(entries) && entries.length > 0) {
+    return entries.map((entry) => ({
+      domain: entry.domain,
+      path: entry.path || '/',
+      component: entry.component,
+      port: entry.port,
+      tlsMode: entry.tlsMode,
+    }));
+  }
+  const domains = revision.routeSnapshot?.domains ?? [];
+  const legacy = revision.routeSnapshot?.proxyTarget ?? '';
+  const match = legacy.match(/^([a-zA-Z0-9_-]+)\s*:\s*(\d+)$/);
+  return domains.map((domain) => ({
+    domain,
+    path: '/',
+    component: match ? match[1] : '',
+    port: match ? Number(match[2]) : null,
+    tlsMode: 'managed_cert' as const,
+  }));
 }
 
 export function toConfigRevisionDraft(
@@ -58,17 +104,24 @@ export function toConfigRevisionDraft(
   policyReferenceIds: string[];
   changeSummary?: string;
 } {
+  const entries = draft.route.entries
+    .map((entry) => ({
+      domain: entry.domain.trim(),
+      path: entry.path.trim() || '/',
+      component: entry.component.trim(),
+      port: entry.port,
+      tlsMode: entry.tlsMode,
+    }))
+    .filter((entry) => entry.domain);
   return {
     secretReferenceIds: draft.secretIds,
     resourceReferences: draft.resources,
     routeSnapshot: {
-      domains: draft.route.domains
-        .split(/[\n,]/)
-        .map((item) => item.trim())
-        .filter(Boolean),
+      domains: [...new Set(entries.map((entry) => entry.domain))].sort(),
       dnsProvider: draft.route.dnsProvider.trim() || undefined,
       tlsRequired: draft.route.tlsRequired,
       proxyTarget: draft.route.proxyTarget.trim() || undefined,
+      entries,
     },
     policyReferenceIds: draft.policyIds,
     changeSummary: draft.summary.trim() || undefined,

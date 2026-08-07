@@ -7,6 +7,14 @@ export type EnvironmentConfigResourceReference = {
   impact: string;
 };
 
+export type EnvironmentConfigRouteEntry = {
+  domain: string;
+  path: string;
+  component: string;
+  port: number | null;
+  tlsMode: 'managed_cert' | 'existing_cert_asset';
+};
+
 export type EnvironmentConfigRevision = {
   id: string;
   revision: number;
@@ -19,6 +27,7 @@ export type EnvironmentConfigRevision = {
     dnsProvider?: string | null;
     tlsRequired?: boolean;
     proxyTarget?: string | null;
+    entries?: EnvironmentConfigRouteEntry[];
   };
   policyReferences: Array<{ id: string; name: string; effect: string; actions: unknown }>;
   displayName?: string | null;

@@ -507,3 +507,226 @@ describe("EnvironmentConfigRevisionService.copyToEnvironments (F447 AC-SET-036)"
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe("EnvironmentConfigRevisionService per-entry route model (F448 AC-SET-042/043/046)", () => {
+  const ENTRIES = {
+    domains: ["demo.f437.example"],
+    dnsProvider: null,
+    tlsRequired: true,
+    proxyTarget: "web:3000",
+    entries: [
+      { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+    ],
+  };
+
+  function txWithEntries() {
+    const tx = txClient();
+    tx.projectEnvironment.findUniqueOrThrow.mockResolvedValue({
+      id: "env-1",
+      teamId: "team-1",
+      projectId: "project-1",
+      key: "production",
+      name: "Production",
+      description: null,
+      baselineRole: "production",
+      config: null,
+      currentConfigRevisionId: "rev-3",
+      currentConfigRevision: null,
+    });
+    return tx;
+  }
+
+  it("persists the structured entries through the revision write path", async () => {
+    const tx = txWithEntries();
+    const service = new EnvironmentConfigRevisionService(
+      prismaMock(tx),
+      { resolve: jest.fn().mockResolvedValue({
+        plainVariables: {}, secretReferences: [], resourceReferences: [],
+        routeSnapshot: ENTRIES, policyReferences: [],
+      }) } as never,
+    );
+    const result = await service.create("team-1", "user-1", "env-1", {
+      routeSnapshot: ENTRIES,
+      changeSummary: "添加 web 入口",
+    });
+    const createData = tx.environmentConfigRevision.create.mock.calls[0][0].data;
+    expect(createData.routeSnapshot).toEqual(ENTRIES);
+    expect(createData.revision).toBe(4);
+    expect(result.revision.routeSnapshot).toEqual(ENTRIES);
+    const auditData = tx.auditEvent.create.mock.calls[0][0].data;
+    expect(auditData.metadata.routeSnapshot).toEqual(ENTRIES);
+  });
+
+  it("still rejects a stale CAS write even when the route entries are valid (CAS intact)", async () => {
+    const tx = txWithEntries();
+    tx.projectEnvironment.findUniqueOrThrow.mockResolvedValue({
+      id: "env-1",
+      teamId: "team-1",
+      projectId: "project-1",
+      key: "production",
+      name: "Production",
+      description: null,
+      baselineRole: "production",
+      config: null,
+      currentConfigRevisionId: "rev-4",
+      currentConfigRevision: null,
+    });
+    const service = new EnvironmentConfigRevisionService(
+      prismaMock(tx),
+      { resolve: jest.fn() } as never,
+    );
+    await expect(
+      service.create("team-1", "user-1", "env-1", {
+        routeSnapshot: ENTRIES,
+        expectedCurrentRevisionId: "rev-3",
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.environmentConfigRevision.create).not.toHaveBeenCalled();
+    expect(tx.auditEvent.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("EnvironmentConfigRevisionService history immutability (F448 AC-SET-047)", () => {
+  it("editing routeSnapshot appends a new revision and never mutates the historical row", async () => {
+    const tx = txClient();
+    tx.projectEnvironment.findUniqueOrThrow
+      .mockResolvedValueOnce({
+        id: "env-1",
+        teamId: "team-1",
+        projectId: "project-1",
+        key: "production",
+        name: "Production",
+        description: null,
+        baselineRole: "production",
+        config: null,
+        currentConfigRevisionId: "rev-3",
+        currentConfigRevision: null,
+      })
+      .mockResolvedValueOnce({
+        id: "env-1",
+        teamId: "team-1",
+        projectId: "project-1",
+        key: "production",
+        name: "Production",
+        description: null,
+        baselineRole: "production",
+        config: null,
+        currentConfigRevisionId: "rev-4",
+        currentConfigRevision: null,
+      })
+      .mockResolvedValue({
+        id: "env-1",
+        teamId: "team-1",
+        projectId: "project-1",
+        key: "production",
+        name: "Production",
+        description: null,
+        baselineRole: "production",
+        config: null,
+        currentConfigRevisionId: "rev-4",
+        currentConfigRevision: null,
+      });
+    tx.environmentConfigRevision.findFirst
+      .mockResolvedValueOnce({ revision: 3 })
+      .mockResolvedValueOnce({ revision: 4 });
+    tx.environmentConfigRevision.create.mockImplementation(({ data }) => ({
+      ...data, id: `rev-${data.revision}`, createdAt: new Date(), createdBy: null,
+    }));
+    const first = {
+      domains: ["demo.f437.example"],
+      dnsProvider: null, tlsRequired: true, proxyTarget: "web:3000",
+      entries: [
+        { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+      ],
+    };
+    const second = {
+      domains: ["demo.f437.example", "media.demo.f437.example"],
+      dnsProvider: null, tlsRequired: true, proxyTarget: "web:3000",
+      entries: [
+        { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+        { domain: "media.demo.f437.example", path: "/v1", component: "api", port: 8080, tlsMode: "managed_cert" },
+      ],
+    };
+    const resolve = jest.fn()
+      .mockResolvedValueOnce({
+        plainVariables: {}, secretReferences: [], resourceReferences: [],
+        routeSnapshot: first, policyReferences: [],
+      })
+      .mockResolvedValueOnce({
+        plainVariables: {}, secretReferences: [], resourceReferences: [],
+        routeSnapshot: second, policyReferences: [],
+      });
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), { resolve } as never);
+
+    const firstOutcome = await service.create("team-1", "user-1", "env-1", {
+      routeSnapshot: first, expectedCurrentRevisionId: "rev-3",
+    });
+    const secondOutcome = await service.create("team-1", "user-1", "env-1", {
+      routeSnapshot: second, expectedCurrentRevisionId: "rev-4",
+    });
+
+    expect(firstOutcome.revision.revision).toBe(4);
+    expect(secondOutcome.revision.revision).toBe(5);
+    const creates = tx.environmentConfigRevision.create.mock.calls.map((call) => call[0].data);
+    expect(creates).toHaveLength(2);
+    expect(creates[0].routeSnapshot).toEqual(first);
+    expect(creates[1].routeSnapshot).toEqual(second);
+    // The historical row keeps its exact snapshot: append-only writes, no update.
+    const revisionClient = tx.environmentConfigRevision as unknown as Record<string, unknown>;
+    expect(revisionClient.update).toBeUndefined();
+    expect(revisionClient.upsert).toBeUndefined();
+    expect(revisionClient.updateMany).toBeUndefined();
+    // Revision numbering is strictly monotonic — no back-mutation possible.
+    expect(creates[0].revision).toBeLessThan(creates[1].revision);
+    // The audit chain records the exact snapshot of each revision.
+    const audits = tx.auditEvent.create.mock.calls.map((call) => call[0].data);
+    expect(audits[0].metadata.routeSnapshot).toEqual(first);
+    expect(audits[1].metadata.routeSnapshot).toEqual(second);
+    // A third stale write against the now-superseded revision still conflicts.
+    await expect(
+      service.create("team-1", "user-1", "env-1", {
+        routeSnapshot: first, expectedCurrentRevisionId: "rev-3",
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it("keeps the frozen snapshot verbatim when the identity-only revision is appended", async () => {
+    const tx = txClient();
+    tx.projectEnvironment.findUniqueOrThrow.mockResolvedValue({
+      id: "env-1",
+      teamId: "team-1",
+      projectId: "project-1",
+      key: "production",
+      name: "Production",
+      description: null,
+      currentConfigRevisionId: "rev-3",
+      currentConfigRevision: {
+        snapshotHash: "sha256:abc",
+        plainVariables: {},
+        secretReferences: [],
+        resourceReferences: [],
+        routeSnapshot: {
+          domains: ["demo.f437.example"],
+          proxyTarget: "web:3000",
+          entries: [
+            { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+          ],
+        },
+        policyReferences: [],
+      },
+    });
+    const service = revisionService(tx);
+    await service.updateIdentity("team-1", "user-1", "env-1", {
+      name: "Production 改名",
+    });
+    const createData = tx.environmentConfigRevision.create.mock.calls[0][0].data;
+    expect(createData.routeSnapshot).toEqual({
+      domains: ["demo.f437.example"],
+      proxyTarget: "web:3000",
+      entries: [
+        { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+      ],
+    });
+    expect(createData.snapshotHash).toBe("sha256:abc");
+  });
+});

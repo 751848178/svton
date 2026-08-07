@@ -77,6 +77,8 @@ export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
           detail={ctx.detail}
           route={ctx.route}
           onRouteChange={ctx.setRoute}
+          revision={ctx.revision}
+          deploymentRuns={ctx.detail.deploymentRuns}
         />
       );
     case 'protection':

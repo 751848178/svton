@@ -80,12 +80,79 @@ export function normalizeRouteSnapshot(value: unknown) {
   if (route.tlsRequired !== undefined && typeof route.tlsRequired !== "boolean") {
     throw new BadRequestException("tlsRequired 必须是布尔值");
   }
+  const normalizedDomains = [...new Set(domains.map((item) => item.trim()).filter(Boolean))].sort();
+  const entries = route.entries === undefined
+    ? normalizeLegacyRouteEntries(normalizedDomains, route.proxyTarget)
+    : normalizeRouteEntries(route.entries);
   return {
-    domains: [...new Set(domains.map((item) => item.trim()).filter(Boolean))].sort(),
+    domains: normalizedDomains,
     dnsProvider: route.dnsProvider ?? null,
     tlsRequired: route.tlsRequired ?? false,
     proxyTarget: route.proxyTarget ?? null,
+    entries,
   };
+}
+
+const ROUTE_ENTRY_TLS_MODES = new Set(["managed_cert", "existing_cert_asset"]);
+
+function normalizeRouteEntries(value: unknown) {
+  if (!Array.isArray(value)) {
+    throw new BadRequestException("入口列表必须是数组");
+  }
+  return value.map((entry, index) => normalizeRouteEntry(entry, index));
+}
+
+function normalizeRouteEntry(entry: unknown, index: number) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new BadRequestException(`入口 ${index + 1} 格式无效`);
+  }
+  const item = entry as Record<string, unknown>;
+  if (typeof item.domain !== "string" || !item.domain.trim()) {
+    throw new BadRequestException(`入口 ${index + 1} 缺少域名`);
+  }
+  if (item.path !== undefined && typeof item.path !== "string") {
+    throw new BadRequestException(`入口 ${index + 1} 的 path 必须是字符串`);
+  }
+  if (item.component !== undefined && typeof item.component !== "string") {
+    throw new BadRequestException(`入口 ${index + 1} 的目标组件必须是字符串`);
+  }
+  const port = item.port ?? null;
+  if (
+    port !== null &&
+    (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535)
+  ) {
+    throw new BadRequestException(`入口 ${index + 1} 的端口无效`);
+  }
+  const tlsMode = item.tlsMode ?? "managed_cert";
+  if (!ROUTE_ENTRY_TLS_MODES.has(tlsMode as string)) {
+    throw new BadRequestException(`入口 ${index + 1} 的 TLS 模式无效`);
+  }
+  return {
+    domain: item.domain.trim(),
+    path: typeof item.path === "string" && item.path.trim() ? item.path.trim() : "/",
+    component: typeof item.component === "string" ? item.component.trim() : "",
+    port,
+    tlsMode: tlsMode as "managed_cert" | "existing_cert_asset",
+  };
+}
+
+/**
+ * F448 AC-SET-042 backward compat: revisions written before the structured
+ * entries existed keep working — one row per legacy domain, path "/" and the
+ * legacy proxyTarget only surfaced as a hint when it matches `component:port`.
+ */
+function normalizeLegacyRouteEntries(domains: string[], proxyTarget: unknown) {
+  return domains.map((domain) => {
+    const legacy = typeof proxyTarget === "string" ? proxyTarget.trim() : "";
+    const match = legacy.match(/^([a-zA-Z0-9_-]+)\s*:\s*(\d+)$/);
+    return {
+      domain,
+      path: "/",
+      component: match ? match[1] : "",
+      port: match ? Number(match[2]) : null,
+      tlsMode: "managed_cert" as const,
+    };
+  });
 }
 
 function canonicalize(value: unknown): unknown {

@@ -345,15 +345,15 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 - [x] **AC-SET-039** 页面显示当前 revision、来源、时间和变更说明。（F447 证据：`changeSummary` 持久化到修订行（migration 20260809100000 additive，create/updateIdentity 写入，REVISION_SELECT 返回）；env-summary 修订条显示 R/来源/时间/变更说明/创建人；新增 `EnvironmentConfigRevisionHistory` 修订历史列表（R/当前徽标/来源/时间/变更说明/创建人）；web specs（summary 2 + history 2 + tabs 1）钉住。）
 - [x] **AC-SET-040** API、DB、日志和 UI 不泄漏 Secret 明文。（F447 证据：新增 `environment-config-revision.redaction.spec.ts` 4 用例——修订行 JSON、审计元数据（只含 plainVariableKeys/secretReferenceIds）、compat `config.envVars` 镜像（仅普通变量）、copy 多环境调用链 JSON 均断言不含密钥值；UI 六列表掩码 + tabs/table spec 断言 `not.toMatch(/s3cr3t|plaintext/i)`。）
 - [x] **AC-SET-041** 变量与密钥页面和 Demo 对齐。（F447 证据：变量与密钥子区 Demo 六列 键/组件作用域/来源/环境值·引用/要求/校验（`envVarsTable*` i18n）；来源严格三分类 环境值/密钥引用/资源绑定生成（示例行对齐 Demo：`DATABASE_URL` 资源绑定生成 `PostgreSQL / pg-shared-nonprod` 必填 有效、`S3_ACCESS_KEY` 密钥引用 `vault://…` 敏感、`PUBLIC_SITE_URL` 环境值）；当前生效 · 修订 R{n} 徽标；Demo 快照 callout `每次 DeploymentRun 都会引用独立配置快照，只保存普通变量摘要、密钥版本引用和资源绑定 ID。`；编辑器/导入/审查/Secret 勾选/跨环境复用编辑面保留；i18n +42 键 zh/en parity 3388。）
-- [ ] **AC-SET-042** 每个环境可管理站点和域名入口。
-- [ ] **AC-SET-043** 域名映射到明确组件、端口/路径和运行目标。
-- [ ] **AC-SET-044** DNS Provider 和验证状态真实可读。
-- [ ] **AC-SET-045** TLS 请求、证书和到期状态真实可读。
-- [ ] **AC-SET-046** 代理/Ingress 规则按 revision 保存。
-- [ ] **AC-SET-047** 路由变更不反向修改历史运行快照。
-- [ ] **AC-SET-048** 入口未就绪时对应门禁阻断 Production。
-- [ ] **AC-SET-049** 最终站点健康探测可从页面下钻。
-- [ ] **AC-SET-050** 域名与入口页面和 Demo 对齐。
+- [x] **AC-SET-042** 每个环境可管理站点和域名入口。（F448 证据：routeSnapshot 结构化 per-entry 模型 `entries[{domain,path,component,port,tlsMode}]`（`environment-config-revision.utils.ts normalizeRouteSnapshot` + `RouteEntry` 类型），保留 domains[]/proxyTarget 平铺向后兼容（无 entries 时按域名逐行派生）；settings 域名与入口子区 添加入口 弹窗（`settings-env-entry-modal.tsx`）写回草稿 entries，保存经创建配置修订 CAS 追加；runtime 证据：真实浏览器在 Production 环境用弹窗添加 `demo.f437.example → web : 3000` 并保存，config-revisions 从 R5 → R6 追加（`/tmp/codex-tool-runs/svton/f448/f448-browser-evidence.json`）。）
+- [x] **AC-SET-043** 域名映射到明确组件、端口/路径和运行目标。（F448 证据：入口条目携带 component/port/path（`web : 3000` / `api : 8080` 目标选项，Demo 对齐）；表格 目标组件 列渲染 `component : port`，无映射时诚实 未指定；API normalize 校验 domain 必填、port 1-65535、tlsMode 枚举，非法条目 400。）
+- [x] **AC-SET-044** DNS Provider 和验证状态真实可读。（F448 证据：表格 DNS 列取自真实 Site.dns 探测（F438）——`resolved → DNS 已生效 · 于 {checkedAt}`、`failed → DNS 未生效`、无探测/无站点 → 不可用；D14 门禁就绪按同一探测数据推导；web `ProjectSite` 类型补齐 `dns` 字段（API 项目详情本就返回）；runtime 证据表内 `DNS 已生效 · 于 2026-08-07 02:27`。）
+- [x] **AC-SET-045** TLS 请求、证书和到期状态真实可读。（F448 证据：表格 TLS 列取自真实 Site.tls——probe valid → 托管证书 · 有效、probe invalid → 证书无效、`tls.status valid/active` + expiresAt 未来 → 证书有效（含到期时间），已过期 → 证书已过期，无证据 → 不可用；TLS 请求模式显示 绑定托管证书/绑定已有证书资产；D15 就绪按同一证据推导；runtime 证据表内 `证书有效 · 于 2026-09-07 08:00`（fixture 真实握手 probe 不可用故诚实显示证书状态有效、D15 不可用·TLS 探测未完成）。）
+- [x] **AC-SET-046** 代理/Ingress 规则按 revision 保存。（F448 证据：entries 随 routeSnapshot 写入不可变 revision（append-only CAS 不变，spec：per-entry create 持久化 + stale CAS Conflict 不落 revision；审计 metadata 携带 routeSnapshot）；web 草稿经 `toConfigRevisionDraft` 携带 entries 走创建配置修订保存；runtime 证据：R5 → R6 追加且修订行 routeSnapshot.entries 包含 `web:3000` 条目。）
+- [x] **AC-SET-047** 路由变更不反向修改历史运行快照。（F448 证据：revision service spec `editing routeSnapshot appends a new revision and never mutates the historical row`——两次 create 各自 revision 严格单调（R4→R5）、历史行快照逐字保留、`environmentConfigRevision` 客户端无 update/upsert/updateMany 调用（append-only）、审计链逐修订携带各自快照、对已取代修订的 stale CAS 写仍 Conflict；`updateIdentity` 追加修订逐字复制冻结快照（snapshotHash 不变）；ReleaseRun.routeSnapshot 冻结语义（F437/F439 既有 release-production-snapshot 路径）未被改动。）
+- [x] **AC-SET-048** 入口未就绪时对应门禁阻断 Production。（F448 证据：每入口行渲染 D14/D15/D16 门禁就绪（就绪/阻断·原因/不可用），按与 D14/D15/D16 gate provider（release-gate-ingress-capability.provider.ts）相同的 fail-closed 策略从持久化 Site 探测数据推导（`settings-env-routes.model.ts` `dnsReadiness/tlsReadiness/routeReadiness`，无证据一律 unavailable 不视为通过）；runtime 证据表内 `D14 就绪 / D15 不可用 · TLS 探测未完成 / D16 就绪`；spec 钉住 blocked 原因（DNS 未解析/TLS 过期/TLS 无效/站点 error）与 unavailable 原因（无站点/无新鲜探测/无证书状态）。）
+- [x] **AC-SET-049** 最终站点健康探测可从页面下钻。（F448 证据：外部探测列取最新生产 DeploymentRun `result.siteProbe.http`（HTTP 200 · 时间），渲染 探测证据 深链 `?view=deployments&runId=<deploymentRunId>`；落点 DeploymentRunDetails 复用 `ReleaseSiteProbeEvidence` 组件渲染 DNS/TLS/HTTP 结构化证据（spec 钉住有 siteProbe 时渲染、无则不出）；`latestRouteProbeEvidence/parseRunProbeEvidence` 把 run.result 解析为共享证据类型；runtime 证据：点击深链跳转部署记录视图并渲染 站点 / 路由切换 完整 DNS/TLS/HTTP 探测块。）
+- [x] **AC-SET-050** 域名与入口页面和 Demo 对齐。（F448 证据：Demo 六列表 域名/Path/目标组件/TLS/DNS/外部探测（caption 域名与入口）+ 添加入口 按钮 + 当前生效 徽标 + 两条 Demo callout（供应、续期和回收由全局“站点与域名”负责… / 项目环境保留当前绑定、路由和诊断快照…）+ 添加入口 弹窗（Host/Path/目标组件与端口 select web : 3000|api : 8080/TLS select 绑定托管证书|绑定已有证书资产，Demo 对齐）；i18n +57 键 zh/en parity 3445；runtime 1484x1324 浏览器证据（6 列表头、行 `demo.f437.example / / / web : 3000 / 证书有效 / DNS 已生效 / HTTP 200 · 探测证据`、徽标、双 callout、弹窗字段、门禁行、深链落点），390x844 无横向溢出（scrollWidth=390），Console 0 / failed 0。）
 
 ## Release Policy And Advanced Strategies
 

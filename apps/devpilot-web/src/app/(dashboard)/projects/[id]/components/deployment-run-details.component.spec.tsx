@@ -10,6 +10,9 @@ vi.mock('next-intl', () => ({
 }));
 vi.mock('./deploy-var-preview', () => ({ DeployVarPreview: () => null }));
 vi.mock('./deployment-stage-timeline.component', () => ({ DeploymentStageTimeline: () => null }));
+vi.mock('./release-site-probe-evidence', () => ({
+  ReleaseSiteProbeEvidence: () => <div>site-probe-evidence-rendered</div>,
+}));
 
 describe('DeploymentRunDetails copy', () => {
   it('localizes approval, risk and executor statuses without exposing raw codes', () => {
@@ -22,6 +25,28 @@ describe('DeploymentRunDetails copy', () => {
     expect(html).not.toContain('future_executor_status');
     expect(html).not.toContain('&quot;approved&quot;');
     expect(html).not.toContain('&quot;high&quot;');
+  });
+
+  it('renders the structured site probe evidence for runs carrying result.siteProbe (AC-SET-049 drill-down landing)', () => {
+    const run = {
+      ...fixture(),
+      result: {
+        siteProbe: {
+          primaryDomain: 'demo.f437.example',
+          dns: { status: 'resolved', checkedAt: '2026-08-06T18:27:00Z' },
+          tls: { status: 'valid', checkedAt: '2026-08-06T18:27:00Z' },
+          http: { status: 'passed', statusCode: 200, checkedAt: '2026-08-06T18:27:00Z' },
+        },
+        routeSwitch: { status: 'switched' },
+      },
+    };
+    const html = renderToStaticMarkup(<DeploymentRunDetails run={run} />);
+    expect(html).toContain('site-probe-evidence-rendered');
+  });
+
+  it('does not render the probe evidence section when the run has no siteProbe', () => {
+    const html = renderToStaticMarkup(<DeploymentRunDetails run={fixture()} />);
+    expect(html).not.toContain('site-probe-evidence-rendered');
   });
 });
 

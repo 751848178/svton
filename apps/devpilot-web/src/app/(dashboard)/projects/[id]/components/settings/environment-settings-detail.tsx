@@ -28,7 +28,19 @@ import { settingsDraftFromRevision, toConfigRevisionDraft } from './settings-env
 import { renderEnvTab, type EnvTabContext } from './settings-env-tab-switch';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
-type RouteDraft = { domains: string; dnsProvider: string; tlsRequired: boolean; proxyTarget: string };
+type RouteDraft = {
+  domains: string;
+  dnsProvider: string;
+  tlsRequired: boolean;
+  proxyTarget: string;
+  entries: Array<{
+    domain: string;
+    path: string;
+    component: string;
+    port: number | null;
+    tlsMode: 'managed_cert' | 'existing_cert_asset';
+  }>;
+};
 
 const ENV_TAB_KEYS: Array<{ key: SettingsEnvTab; labelKey: string }> = [
   { key: 'targets', labelKey: 'envTabTargets' },
@@ -38,7 +50,13 @@ const ENV_TAB_KEYS: Array<{ key: SettingsEnvTab; labelKey: string }> = [
   { key: 'protection', labelKey: 'envTabProtection' },
 ];
 
-const EMPTY_ROUTE: RouteDraft = { domains: '', dnsProvider: '', tlsRequired: false, proxyTarget: '' };
+const EMPTY_ROUTE: RouteDraft = {
+  domains: '',
+  dnsProvider: '',
+  tlsRequired: false,
+  proxyTarget: '',
+  entries: [],
+};
 
 export function EnvironmentSettingsDetail({
   detail,
