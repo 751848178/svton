@@ -50,8 +50,28 @@ vi.mock('../../hooks/use-resource-connection-health', () => ({
     reload: vi.fn(),
   }),
 }));
+vi.mock('../../hooks/use-resource-instance-injections', () => ({
+  useResourceInstanceInjections: () => [
+    { key: 'DATABASE_URL', label: 'PostgreSQL / pg-shared-nonprod' },
+  ],
+}));
 vi.mock('../environment-env-vars-section', () => ({
   EnvironmentEnvVarsSection: () => <div>env-vars-section</div>,
+}));
+vi.mock('../environment-plain-vars-editor', () => ({
+  EnvironmentPlainVarsEditor: () => <div>plain-vars-editor</div>,
+}));
+vi.mock('../environment-env-import-modal', () => ({
+  EnvironmentEnvImportModal: () => <div>env-import-modal</div>,
+}));
+vi.mock('../environment-env-review-modal', () => ({
+  EnvironmentEnvReviewModal: () => <div>env-review-modal</div>,
+}));
+vi.mock('../environment-staged-banner', () => ({
+  EnvironmentStagedBanner: () => <div>staged-banner</div>,
+}));
+vi.mock('../environment-env-copy-dialog', () => ({
+  EnvironmentEnvCopyDialog: () => <div>env-copy-dialog</div>,
 }));
 vi.mock('../environment-write-actions', () => ({
   EnvironmentWriteActions: () => <div>write-actions</div>,
@@ -144,23 +164,41 @@ describe('settings environment subtab contents', () => {
     expect(html).not.toContain('/resource-instances/create');
   });
 
-  it('变量与密钥 keeps env vars editing and secret references in-project, links /keys', () => {
+  it('变量与密钥 shows the Demo 6-column table, snapshot callout, secret refs masked, history and /keys link', () => {
     const html = renderToStaticMarkup(
       <EnvVariablesTab
         environment={env()}
         detail={detail()}
         secretIds={['s1']}
         onSecretIdsChange={() => undefined}
+        revision={revision()}
+        revisions={[revision()]}
+        environments={[env()]}
       />,
     );
 
     expect(html).toContain('envTabVariables');
     expect(html).toContain('envTabHelperVariables');
-    expect(html).toContain('env-vars-section');
+    expect(html).toContain('envVarsSnapshotCallout');
+    expect(html).toContain('envVarsTableTitle');
+    expect(html).toContain('envVarsCurrentBadge');
+    expect(html).toContain('envVarsTableKey');
+    expect(html).toContain('envVarsTableScope');
+    expect(html).toContain('envVarsTableSource');
+    expect(html).toContain('envVarsTableValue');
+    expect(html).toContain('envVarsTableRequirement');
+    expect(html).toContain('envVarsTableValidation');
+    expect(html).toContain('envVarsSourcePlain');
+    expect(html).toContain('envVarsSourceSecret');
+    expect(html).toContain('envVarsSourceResource');
+    expect(html).toContain('vault://DB_PASSWORD@');
+    expect(html).toContain('••••••••');
     expect(html).toContain('configSecretReferences');
-    expect(html).toContain('DB_PASSWORD');
+    expect(html).toContain('envVarsCopyButton');
+    expect(html).toContain('configRevisionHistoryTitle');
     expect(html).toContain('href="/keys?projectId=project-1&amp;environmentId=env-staging"');
     expect(html).toContain('envModuleLinkKeys');
+    expect(html).not.toMatch(/s3cr3t|plaintext/i);
   });
 
   it('域名与入口 shows the route snapshot editor and bound sites, links /sites', () => {
@@ -275,6 +313,12 @@ function env() {
     baselineRole: 'staging',
     identityLockedAt: '2026-07-01T00:00:00Z',
     currentConfigRevisionId: 'rev-3',
+    config: {
+      envVars: {
+        NODE_ENV: 'production',
+        PUBLIC_SITE_URL: 'https://staging.picshare.example.com',
+      },
+    },
     serverBindings: [
       { id: 'b1', role: 'deploy', server: { id: 'server-1', name: 'stg-web', host: '10.0.0.1', status: 'active' } },
     ],
@@ -310,7 +354,19 @@ function detail() {
           environment: { id: 'env-staging', key: 'staging', name: 'Staging', status: 'active' },
         },
       ],
-      resourceInstances: [],
+      resourceInstances: [
+        {
+          id: 'ri-1',
+          name: 'pg-shared-nonprod',
+          status: 'active',
+          projectEnvironment: { id: 'env-staging', key: 'staging', name: 'Staging', status: 'active' },
+          resourceType: {
+            key: 'postgres',
+            name: 'PostgreSQL',
+            envTemplate: 'DATABASE_URL=postgres://shared/db',
+          },
+        },
+      ],
       managedResources: [
         {
           id: 'resource-1', sourceType: 'instance', provider: 'aws', kind: 'postgres',
@@ -331,7 +387,16 @@ function revision() {
     snapshotHash: 'abcd1234'.repeat(8),
     plainVariables: {},
     secretReferences: [],
-    resourceReferences: [],
+    resourceReferences: [
+      {
+        kind: 'resource_instance',
+        id: 'ri-1',
+        name: 'pg-shared-nonprod',
+        sharedEnvironmentIds: ['env-staging'],
+        risk: 'medium',
+        impact: 'api',
+      },
+    ],
     routeSnapshot: {},
     policyReferences: [],
     source: 'project_management',

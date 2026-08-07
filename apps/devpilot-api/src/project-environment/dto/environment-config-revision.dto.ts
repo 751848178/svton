@@ -59,3 +59,32 @@ export class CreateEnvironmentConfigRevisionDto {
   @IsString()
   changeSummary?: string;
 }
+
+export class EnvironmentConfigCopyTargetDto {
+  @IsString()
+  environmentId: string;
+
+  @IsOptional()
+  @IsString()
+  expectedCurrentRevisionId?: string;
+}
+
+export class CopyEnvironmentConfigRevisionDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EnvironmentConfigCopyTargetDto)
+  targets: EnvironmentConfigCopyTargetDto[];
+
+  @IsOptional()
+  @IsObject()
+  plainVariables?: Record<string, string>;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  secretReferenceIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  changeSummary?: string;
+}

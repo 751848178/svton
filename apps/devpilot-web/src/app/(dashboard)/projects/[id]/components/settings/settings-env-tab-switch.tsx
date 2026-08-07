@@ -38,6 +38,10 @@ export interface EnvTabContext {
   setRoute: (next: SettingsRouteDraft) => void;
   /** 当前不可变修订（资源绑定子区用于展示冻结修订号）。 */
   revision: EnvironmentConfigRevision | null;
+  /** 全部不可变修订（变量与密钥子区展示修订历史）。 */
+  revisions: EnvironmentConfigRevision[];
+  /** 项目全部环境（变量与密钥子区用于跨环境复用选择）。 */
+  environments: ProjectEnvironment[];
 }
 
 export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
@@ -61,6 +65,9 @@ export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
           detail={ctx.detail}
           secretIds={ctx.secretIds}
           onSecretIdsChange={ctx.setSecretIds}
+          revision={ctx.revision}
+          revisions={ctx.revisions}
+          environments={ctx.environments}
         />
       );
     case 'routes':

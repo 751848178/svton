@@ -23,6 +23,7 @@ export type EnvironmentConfigRevision = {
   policyReferences: Array<{ id: string; name: string; effect: string; actions: unknown }>;
   displayName?: string | null;
   displayDescription?: string | null;
+  changeSummary?: string | null;
   source: string;
   createdAt: string;
   current: boolean;

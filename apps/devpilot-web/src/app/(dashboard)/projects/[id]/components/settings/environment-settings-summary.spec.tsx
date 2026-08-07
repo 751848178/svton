@@ -59,6 +59,71 @@ describe('EnvironmentSettingsSummary target fact (F445)', () => {
   });
 });
 
+describe('EnvironmentSettingsSummary revision strip detail (F447 AC-SET-039)', () => {
+  it('shows revision, source, time, change summary and createdBy together', () => {
+    const html = renderToStaticMarkup(
+      <EnvironmentSettingsSummary
+        environment={env()}
+        revision={{
+          id: 'rev-3',
+          revision: 3,
+          snapshotHash: 'abcd'.repeat(16),
+          plainVariables: {},
+          secretReferences: [],
+          resourceReferences: [],
+          routeSnapshot: {},
+          policyReferences: [],
+          source: 'project_management',
+          createdAt: '2026-07-01T00:00:00Z',
+          current: true,
+          changeSummary: '导入 DATABASE_URL 并绑定数据库',
+          createdBy: { id: 'user-1', name: '张三', email: 'zhang@example.com' },
+        }}
+        policyCount={0}
+        deploymentRunCount={0}
+        versionsHref="/projects/p1/delivery?view=environment-versions"
+        deploymentsHref="/projects/p1/delivery?view=deployments"
+        currentTarget={null}
+      />,
+    );
+
+    expect(html).toContain('configRevisionStripLabel');
+    expect(html).toContain('R3');
+    expect(html).toContain('project_management');
+    expect(html).toContain('导入 DATABASE_URL 并绑定数据库');
+    expect(html).toContain('张三');
+  });
+
+  it('renders honest placeholders when the revision has no summary or creator name', () => {
+    const html = renderToStaticMarkup(
+      <EnvironmentSettingsSummary
+        environment={env()}
+        revision={{
+          id: 'rev-3',
+          revision: 3,
+          snapshotHash: 'abcd'.repeat(16),
+          plainVariables: {},
+          secretReferences: [],
+          resourceReferences: [],
+          routeSnapshot: {},
+          policyReferences: [],
+          source: 'project_intake',
+          createdAt: '2026-07-01T00:00:00Z',
+          current: true,
+        }}
+        policyCount={0}
+        deploymentRunCount={0}
+        versionsHref="/projects/p1/delivery?view=environment-versions"
+        deploymentsHref="/projects/p1/delivery?view=deployments"
+        currentTarget={null}
+      />,
+    );
+
+    expect(html).toContain('configRevisionNoSummary');
+    expect(html).toContain('project_intake');
+  });
+});
+
 function env() {
   return {
     id: 'env-staging',

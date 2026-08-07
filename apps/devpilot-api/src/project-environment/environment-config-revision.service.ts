@@ -1,11 +1,15 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import type { CreateEnvironmentConfigRevisionDto } from "./dto/environment-config-revision.dto";
+import type {
+  CopyEnvironmentConfigRevisionDto,
+  CreateEnvironmentConfigRevisionDto,
+} from "./dto/environment-config-revision.dto";
 import { EnvironmentConfigReferenceResolverService } from "./environment-config-reference-resolver.service";
 import { hashEnvironmentConfigSnapshot } from "./environment-config-revision.utils";
 
@@ -13,7 +17,7 @@ const REVISION_SELECT = {
   id: true, revision: true, snapshotHash: true, plainVariables: true,
   secretReferences: true, resourceReferences: true, routeSnapshot: true,
   policyReferences: true, displayName: true, displayDescription: true,
-  source: true, createdAt: true,
+  changeSummary: true, source: true, createdAt: true,
   createdBy: { select: { id: true, name: true, email: true } },
 } as const;
 
@@ -91,6 +95,7 @@ export class EnvironmentConfigRevisionService {
           policyReferences: snapshot.policyReferences as Prisma.InputJsonValue,
           displayName: environment.name,
           displayDescription: environment.description,
+          changeSummary: dto.changeSummary?.trim() || null,
           source: "project_management",
         },
         select: REVISION_SELECT,
@@ -201,6 +206,7 @@ export class EnvironmentConfigRevisionService {
           policyReferences: previous?.policyReferences as Prisma.InputJsonValue,
           displayName: name,
           displayDescription: description,
+          changeSummary: input.reason?.trim() || null,
           source: "project_management",
         },
         select: REVISION_SELECT,
@@ -238,5 +244,88 @@ export class EnvironmentConfigRevisionService {
       });
       return { environment: updatedEnvironment, revision: { ...revision, current: true } };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  /**
+   * F447 AC-SET-036: cross-env reuse of plain vars + secret refs.
+   *
+   * Copies the given payload into a NEW immutable revision per selected target
+   * environment (same project only). Every target write goes through the exact
+   * same append-only + CAS + same-transaction-audit path as `create`, with the
+   * target's current revision read fresh at copy time (stale writes conflict and
+   * are reported per-env, never silently overwritten).
+   */
+  async copyToEnvironments(
+    teamId: string,
+    actorId: string,
+    environmentId: string,
+    dto: CopyEnvironmentConfigRevisionDto,
+  ) {
+    const source = await this.prisma.projectEnvironment.findFirst({
+      where: { id: environmentId, teamId },
+      select: { id: true, projectId: true },
+    });
+    if (!source) throw new NotFoundException("项目环境不存在");
+    if (dto.targets.length === 0) {
+      throw new BadRequestException("请选择要复用的目标环境");
+    }
+
+    const uniqueTargets = [...new Map(
+      dto.targets.map((target) => [target.environmentId, target]),
+    ).values()];
+    const targetIds = uniqueTargets.map((target) => target.environmentId);
+
+    // Cross-env reuse is project-scoped: every target must belong to the same
+    // project as the source environment.
+    const targetRows = await this.prisma.projectEnvironment.findMany({
+      where: { id: { in: targetIds }, teamId, projectId: source.projectId },
+      select: { id: true, key: true, currentConfigRevisionId: true },
+    });
+    const targetMap = new Map(targetRows.map((row) => [row.id, row]));
+    for (const target of uniqueTargets) {
+      if (!targetMap.has(target.environmentId)) {
+        throw new BadRequestException(
+          `目标环境 ${target.environmentId} 无效或跨项目，无法复用`,
+        );
+      }
+    }
+
+    const results: Array<{
+      environmentId: string;
+      key: string;
+      ok: boolean;
+      revision?: { id: string; revision: number; snapshotHash: string };
+      error?: string;
+    }> = [];
+    for (const target of uniqueTargets) {
+      const row = targetMap.get(target.environmentId);
+      if (!row) continue;
+      try {
+        const outcome = await this.create(teamId, actorId, target.environmentId, {
+          plainVariables: dto.plainVariables,
+          secretReferenceIds: dto.secretReferenceIds,
+          changeSummary: dto.changeSummary,
+          expectedCurrentRevisionId: row.currentConfigRevisionId ?? undefined,
+        });
+        results.push({
+          environmentId: target.environmentId,
+          key: row.key,
+          ok: true,
+          revision: {
+            id: outcome.revision.id,
+            revision: outcome.revision.revision,
+            snapshotHash: outcome.revision.snapshotHash,
+          },
+        });
+      } catch (cause) {
+        results.push({
+          environmentId: target.environmentId,
+          key: row.key,
+          ok: false,
+          error: cause instanceof Error ? cause.message : "复制配置失败",
+        });
+      }
+    }
+    return { sourceEnvironmentId: environmentId, results };
   }
 }

@@ -104,6 +104,24 @@ export function EnvironmentSettingsSummary({
           </b>
         </div>
         <div>
+          <span className="text-muted-foreground">{t('configRevisionSource')}</span>
+          <b className="ml-2 font-medium">{revision ? revision.source : '—'}</b>
+        </div>
+        <div>
+          <span className="text-muted-foreground">{t('configChangeSummary')}</span>
+          <b className="ml-2 font-medium">
+            {revision?.changeSummary?.trim()
+              ? revision.changeSummary
+              : t('configRevisionNoSummary')}
+          </b>
+        </div>
+        <div>
+          <span className="text-muted-foreground">{t('configRevisionCreatedBy')}</span>
+          <b className="ml-2 font-medium">
+            {revision ? createdByName(revision) : '—'}
+          </b>
+        </div>
+        <div>
           <span className="text-muted-foreground">{t('configRevisionIdentityLabel')}</span>
           <b className="ml-2 font-medium">
             {environment.key} · {t(roleKey)} · {t(identityKey)}
@@ -112,6 +130,10 @@ export function EnvironmentSettingsSummary({
       </div>
     </div>
   );
+}
+
+function createdByName(revision: EnvironmentConfigRevision): string {
+  return revision.createdBy?.name || revision.createdBy?.email || '—';
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

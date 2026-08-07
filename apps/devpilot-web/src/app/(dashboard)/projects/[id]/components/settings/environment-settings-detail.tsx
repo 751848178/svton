@@ -105,6 +105,8 @@ export function EnvironmentSettingsDetail({
     route,
     setRoute,
     revision: governance.current,
+    revisions: governance.data?.revisions ?? [],
+    environments: detail.project?.environments ?? [],
   };
 
   return (

@@ -56,6 +56,18 @@ vi.mock('@svton/ui', () => ({
     <button onClick={onClick} disabled={disabled}>{children}</button>
   ),
   EmptyState: ({ text }: { text: string }) => <div>{text}</div>,
+  Modal: ({ open, title, children, footer }: { open: boolean; title?: string; children?: React.ReactNode; footer?: React.ReactNode }) =>
+    open ? (
+      <div>
+        <div>{title}</div>
+        <div>{children}</div>
+        <div>{footer}</div>
+      </div>
+    ) : null,
+  Textarea: () => <textarea readOnly />,
+}));
+vi.mock('../../hooks/use-resource-instance-injections', () => ({
+  useResourceInstanceInjections: () => [],
 }));
 vi.mock('../../hooks/use-environment-config-governance', () => ({
   useEnvironmentConfigGovernance: () => mocks.governance,
@@ -154,7 +166,9 @@ describe('EnvironmentSettingsArea Demo-aligned environment configuration', () =>
     expect(html.match(/aria-pressed="true"/g)).toHaveLength(1);
     expect(html.match(/<button[^>]*aria-pressed="true"[^>]*>production[^<]*/)).not.toBeNull();
     expect(html).toContain('envTabVariables');
-    expect(html).toContain('env-vars-section');
+    expect(html).toContain('envVarsSnapshotCallout');
+    expect(html).toContain('envVarsCopyButton');
+    expect(html).toContain('configRevisionHistoryTitle');
     expect(html).toContain('configSecretReferences');
   });
 

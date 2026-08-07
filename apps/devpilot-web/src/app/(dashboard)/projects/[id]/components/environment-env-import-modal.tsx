@@ -12,10 +12,10 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal, Textarea } from '@svton/ui';
-import { parseEnvText, isValidEnvKeyStrict } from '../utils/env-file-parser.utils';
+import { parseEnvText } from '../utils/env-file-parser.utils';
 
 type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
 
@@ -45,9 +45,8 @@ export function EnvironmentEnvImportModal({
 
   const parsed = useMemo(() => (text.trim() === '' ? null : parseEnvText(text)), [text]);
 
-  const validKeys = parsed
-    ? Object.keys(parsed.vars).filter((k) => isValidEnvKeyStrict(k)).length
-    : 0;
+  const validKeys = parsed ? Object.keys(parsed.plainVars).length : 0;
+  const sensitiveKeys = parsed ? Object.keys(parsed.sensitiveVars).length : 0;
   const dupKeys = parsed ? Object.keys(parsed.duplicates).length : 0;
   const conflictKeys = parsed && existingKeys
     ? Object.keys(parsed.vars).filter((k) => existingKeys.has(k)).length
@@ -57,13 +56,10 @@ export function EnvironmentEnvImportModal({
 
   const handleConfirm = () => {
     if (!parsed) return;
-    // 只导入合法 KEY 的项；非法 KEY 留给行内编辑修正（已在预览中提示）。
-    const clean: Record<string, string> = {};
-    for (const [k, v] of Object.entries(parsed.vars)) {
-      if (isValidEnvKeyStrict(k)) clean[k] = v;
-    }
-    if (Object.keys(clean).length === 0) return;
-    onImport(clean);
+    // 只导入「有效且非敏感」的 KEY；疑似敏感项（S3_ACCESS_KEY 等）被排除，
+    // 建议走密钥中心（AC-SET-035）；非法 KEY 留给行内编辑修正。
+    if (Object.keys(parsed.plainVars).length === 0) return;
+    onImport(parsed.plainVars);
     onClose();
   };
 
@@ -120,10 +116,14 @@ export function EnvironmentEnvImportModal({
                 {t('envImportConflicts', { count: conflictKeys })}
               </p>
             ) : null}
+            {sensitiveKeys > 0 ? (
+              <p className="text-amber-700 dark:text-amber-500">
+                {t('envImportSensitiveExcluded', { count: sensitiveKeys })}
+              </p>
+            ) : null}
             {validKeys > 0 ? (
               <ul className="mt-2 max-h-40 space-y-0.5 overflow-auto rounded-md border bg-muted/30 p-2">
-                {Object.entries(parsed.vars)
-                  .filter(([k]) => isValidEnvKeyStrict(k))
+                {Object.entries(parsed.plainVars)
                   .slice(0, 50)
                   .map(([k, v]) => (
                     <li key={k} className="flex items-baseline gap-2 font-mono">
@@ -132,6 +132,20 @@ export function EnvironmentEnvImportModal({
                       </span>
                       <span className="text-muted-foreground">=</span>
                       <span className="truncate text-muted-foreground">{v || '(empty)'}</span>
+                    </li>
+                  ))}
+              </ul>
+            ) : null}
+            {sensitiveKeys > 0 ? (
+              <ul className="mt-2 max-h-40 space-y-0.5 overflow-auto rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-700/50 dark:bg-amber-950/30">
+                {Object.entries(parsed.sensitiveVars)
+                  .slice(0, 50)
+                  .map(([k]) => (
+                    <li key={k} className="flex items-baseline gap-2 font-mono">
+                      <span className="text-amber-700 dark:text-amber-400">{k}</span>
+                      <span className="rounded bg-amber-200/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-800/60 dark:text-amber-200">
+                        {t('envImportSensitiveBadge')}
+                      </span>
                     </li>
                   ))}
               </ul>

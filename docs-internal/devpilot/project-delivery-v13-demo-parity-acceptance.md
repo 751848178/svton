@@ -336,15 +336,15 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 - [x] **AC-SET-030** 资源引用进入不可变配置修订。（F446 证据：引用只经 `EnvironmentConfigRevisionService.create` 追加式写入（serializable tx + `expectedCurrentRevisionId` CAS）；F446 spec 断言 stale create → ConflictException 且不落 revision/审计；引用解析（含 anti-share）在 revision 写路径执行；`snapshotHash` 覆盖引用。）
 - [x] **AC-SET-031** 运行冻结精确资源 snapshot。（F446 证据：新增 `release-deployment-input-snapshot.utils.spec.ts` 钉住 F432 冻结语义——`buildReleaseDeploymentInputSnapshot` 冻结 id/kind/name/status/environmentId/sharedEnvironmentIds/versionHash；stateHash 覆盖 revision 的资源引用（引用变更 → stateHash 变）；确定性排序；冻结后实例变更不影响既有快照 inputHash。）
 - [x] **AC-SET-032** 资源绑定页面与 Demo 信息结构对齐。（F446 证据：资源绑定子区 Demo 六列 资源需求/来源组件/绑定方式/资源实例/共享与隔离/校验（`envResourceTable*` i18n）；绑定方式与共享与隔离 按 Demo 选项文案（绑定已有实例/换绑到其他实例/解除绑定/使用允许共享的实例；环境专用/仅非生产共享·逻辑隔离/Production 专用（强制））；两条 Demo callout（`envResourceCalloutOwnership`/`envResourceCalloutFrozen`）；冻结修订徽标 `当前生效 · 修订 R{n} · {hash8}`；i18n +29 键 zh/en parity 3346。）
-- [ ] **AC-SET-033** 普通变量按环境维护。
-- [ ] **AC-SET-034** Secret 只保存 key ID/name/type 引用。
-- [ ] **AC-SET-035** `.env` 导入先预览和分类，再提交。
-- [ ] **AC-SET-036** 支持变量/引用按选择的环境复用。
-- [ ] **AC-SET-037** 每次保存创建不可变 revision 和 snapshotHash。
-- [ ] **AC-SET-038** 使用 expected revision/CAS 防止静默覆盖。
-- [ ] **AC-SET-039** 页面显示当前 revision、来源、时间和变更说明。
-- [ ] **AC-SET-040** API、DB、日志和 UI 不泄漏 Secret 明文。
-- [ ] **AC-SET-041** 变量与密钥页面和 Demo 对齐。
+- [x] **AC-SET-033** 普通变量按环境维护。（F447 证据：普通变量按 `ProjectEnvironment.config.envVars` 按环境维护，变量与密钥子区六列表（`EnvironmentEnvVarsTable`）来源=环境值 行来自该环境 draft/落库值，`use-environment-env-vars` 保存只提交 plainVariables；`use-environment-env-copy.spec.tsx` 钉住 payload 契约（仅普通变量+CAS）。）
+- [x] **AC-SET-034** Secret 只保存 key ID/name/type 引用。（F447 证据：`EnvironmentConfigRevision.secretReferences` 为 SafeSecretReference {id,name,type}；新增 `environment-config-revision.redaction.spec.ts` 钉住修订行/审计元数据/compat `config.envVars` 镜像永不含密钥值；UI 只渲染 `vault://name@id8 · ••••••••` 掩码与勾选引用，页面不读取或显示密钥明文。）
+- [x] **AC-SET-035** `.env` 导入先预览和分类，再提交。（F447 证据：`env-file-parser.utils` 新增 `isSensitiveEnvKey` 敏感启发式（`*_SECRET/*_PASSWORD/*_TOKEN/*_KEY/CREDENTIAL` 等），解析结果分类 plainVars/sensitiveVars；导入弹窗预览普通项+疑似敏感项（疑似敏感 · 建议密钥中心 徽标+排除横幅），确认只把 plainVars 合入暂存区，invalid/dup/conflict 行保留提示；`env-file-parser.utils.spec.ts` 12 用例 + import-modal spec。）
+- [x] **AC-SET-036** 支持变量/引用按选择的环境复用。（F447 证据：`POST /project-environments/:id/config-revisions/copy`——多选目标环境（仅同项目）逐环境创建新不可变修订，走同一 append-only+CAS+同事务审计写路径（目标 CAS 读取后传入，stale 逐环境报告不 abort 其余）；`EnvironmentEnvCopyDialog` 多选+预览将复制内容（普通变量数/密钥引用名）+逐环境结果；service spec 4 用例 + redaction 1 + web dialog spec 2 + hook spec 1。）
+- [x] **AC-SET-037** 每次保存创建不可变 revision 和 snapshotHash。（F447 证据：保存路径唯一入口 `EnvironmentConfigRevisionService.create`（serializable tx + 行锁 + snapshotHash）+ `updateIdentity`/`copyToEnvironments` 复用同一写路径；既有 create/CAS/审计 spec 全绿（project-environment 9 suites/100 tests）。）
+- [x] **AC-SET-038** 使用 expected revision/CAS 防止静默覆盖。（F447 证据：copy 逐环境读取目标当前修订作为 expected 传入，stale → 该环境 Conflict（spec `reports a stale target CAS as a per-env conflict`）；普通变量保存 `expectedCurrentRevisionId` 由 hook 传入（hook spec 断言 payload）；create stale → ConflictException 且不落 revision/审计（F446 spec 保持）。）
+- [x] **AC-SET-039** 页面显示当前 revision、来源、时间和变更说明。（F447 证据：`changeSummary` 持久化到修订行（migration 20260809100000 additive，create/updateIdentity 写入，REVISION_SELECT 返回）；env-summary 修订条显示 R/来源/时间/变更说明/创建人；新增 `EnvironmentConfigRevisionHistory` 修订历史列表（R/当前徽标/来源/时间/变更说明/创建人）；web specs（summary 2 + history 2 + tabs 1）钉住。）
+- [x] **AC-SET-040** API、DB、日志和 UI 不泄漏 Secret 明文。（F447 证据：新增 `environment-config-revision.redaction.spec.ts` 4 用例——修订行 JSON、审计元数据（只含 plainVariableKeys/secretReferenceIds）、compat `config.envVars` 镜像（仅普通变量）、copy 多环境调用链 JSON 均断言不含密钥值；UI 六列表掩码 + tabs/table spec 断言 `not.toMatch(/s3cr3t|plaintext/i)`。）
+- [x] **AC-SET-041** 变量与密钥页面和 Demo 对齐。（F447 证据：变量与密钥子区 Demo 六列 键/组件作用域/来源/环境值·引用/要求/校验（`envVarsTable*` i18n）；来源严格三分类 环境值/密钥引用/资源绑定生成（示例行对齐 Demo：`DATABASE_URL` 资源绑定生成 `PostgreSQL / pg-shared-nonprod` 必填 有效、`S3_ACCESS_KEY` 密钥引用 `vault://…` 敏感、`PUBLIC_SITE_URL` 环境值）；当前生效 · 修订 R{n} 徽标；Demo 快照 callout `每次 DeploymentRun 都会引用独立配置快照，只保存普通变量摘要、密钥版本引用和资源绑定 ID。`；编辑器/导入/审查/Secret 勾选/跨环境复用编辑面保留；i18n +42 键 zh/en parity 3388。）
 - [ ] **AC-SET-042** 每个环境可管理站点和域名入口。
 - [ ] **AC-SET-043** 域名映射到明确组件、端口/路径和运行目标。
 - [ ] **AC-SET-044** DNS Provider 和验证状态真实可读。
