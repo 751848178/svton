@@ -1,5 +1,18 @@
 import { Prisma } from "@prisma/client";
 
+export function productionApprovalEvidenceForRun(
+  approvalAlias: "oa" | "doa" | "poa",
+  runAlias: "rr" | "drr",
+) {
+  return Prisma.raw(`(
+      (${approvalAlias}.action = 'project.release_order.deploy_production'
+        AND ${runAlias}.mode = 'standard')
+      OR
+      (${approvalAlias}.action = 'project.release_order.deploy_production_recovery'
+        AND ${runAlias}.mode = 'recovery')
+    )`);
+}
+
 export function governedProductionDeploymentExists() {
   return Prisma.sql`EXISTS (
     SELECT 1 FROM ReleaseRun drr
@@ -8,7 +21,7 @@ export function governedProductionDeploymentExists() {
       AND doa.teamId = drr.teamId AND doa.projectId = drr.projectId
       AND doa.environmentId = drr.environmentId
       AND doa.category = 'release'
-      AND doa.action = 'project.release_order.deploy_production'
+      AND ${productionApprovalEvidenceForRun("doa", "drr")}
       AND doa.targetType = 'release_run' AND doa.targetId = drr.id
       AND doa.inputHash = drr.inputHash
       AND doa.status = 'approved' AND doa.reviewedAt IS NOT NULL
@@ -30,7 +43,7 @@ export function succeededProductionDeploymentExists() {
       AND doa.teamId = drr.teamId AND doa.projectId = drr.projectId
       AND doa.environmentId = drr.environmentId
       AND doa.category = 'release'
-      AND doa.action = 'project.release_order.deploy_production'
+      AND ${productionApprovalEvidenceForRun("doa", "drr")}
       AND doa.targetType = 'release_run' AND doa.targetId = drr.id
       AND doa.inputHash = drr.inputHash
       AND doa.status = 'approved' AND doa.reviewedAt IS NOT NULL
@@ -55,7 +68,7 @@ export function releaseRunCompletionEvidenceExists() {
       AND poa.teamId = rr.teamId AND poa.projectId = rr.projectId
       AND poa.environmentId = rr.environmentId
       AND poa.category = 'release'
-      AND poa.action = 'project.release_order.deploy_production'
+      AND ${productionApprovalEvidenceForRun("poa", "rr")}
       AND poa.targetType = 'release_run' AND poa.targetId = rr.id
       AND poa.inputHash = rr.inputHash
       AND poa.status = 'approved' AND poa.reviewedAt IS NOT NULL

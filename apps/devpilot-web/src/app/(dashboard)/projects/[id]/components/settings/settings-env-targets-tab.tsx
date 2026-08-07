@@ -151,7 +151,7 @@ function BindingRow({
       <td className="py-2 pr-3">
         <span className="font-medium">{binding.server.name}</span>
         {binding.role ? (
-          <span className="ml-1 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+          <span className="ml-1 rounded bg-muted px-1 py-0.5 text-[10px] text-slate-700">
             {binding.role}
           </span>
         ) : null}

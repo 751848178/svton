@@ -6,6 +6,7 @@ import {
 } from "./release-order-lifecycle-policy.query";
 import {
   governedProductionDeploymentExists,
+  productionApprovalEvidenceForRun,
   releaseRunCompletionEvidenceExists,
   succeededProductionDeploymentExists,
 } from "./release-order-production-evidence.query";
@@ -89,7 +90,7 @@ export function releaseOrderLifecycleCtes() {
         AND oa.environmentId = rr.environmentId
         AND oa.category = 'release'
         AND oa.targetType = 'release_run' AND oa.targetId = rr.id
-        AND oa.action = 'project.release_order.deploy_production'
+        AND ${productionApprovalEvidenceForRun("oa", "rr")}
         AND oa.inputHash = rr.inputHash
         AND (
           oa.status = 'pending'

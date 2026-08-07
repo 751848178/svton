@@ -493,14 +493,16 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 - [x] **AC-VIS-011** 发布规则 Demo/实际同 viewport 对照已审查。 F458：ALIGNED；facts+门禁表+修订 callout 一致；能力卡（F449 canonical）。
 - [x] **AC-VIS-012** 所有可见结构差异已修复或由 canonical spec 明确批准。 F458：1 处 FIX REQUIRED（构建步骤 badge）已修复并重截图；其余为数据驱动或 canonical 批准例外（§4.2/§4.3/F419/F440/F449），无剩余结构差异。
 
-- [ ] **AC-REVIEW-001** 产品审查确认主链、边界和术语符合 canonical spec。
-- [ ] **AC-REVIEW-002** UX 审查确认新用户沿单一主动作可完成发布。
-- [ ] **AC-REVIEW-003** 专业用户可下钻门禁、制品、日志、资源、配置和审计。
-- [ ] **AC-REVIEW-004** 领域审查确认不可变运行/快照和 current read-model 边界正确。
-- [ ] **AC-REVIEW-005** 安全审查确认权限、审批、执行、Secret 和日志边界正确。
-- [ ] **AC-REVIEW-006** 无障碍审查确认键盘、语义、焦点和对比度通过。
-- [ ] **AC-REVIEW-007** 兼容审查确认旧深链/历史数据不被破坏或伪造迁移。
-- [ ] **AC-REVIEW-008** 最终 reviewer 与主要实现 worker 分离，所有有效发现已关闭。
+- [x] **AC-REVIEW-001** 产品审查确认主链、边界和术语符合 canonical spec。
+- [x] **AC-REVIEW-002** UX 审查确认新用户沿单一主动作可完成发布。
+- [x] **AC-REVIEW-003** 专业用户可下钻门禁、制品、日志、资源、配置和审计。
+- [x] **AC-REVIEW-004** 领域审查确认不可变运行/快照和 current read-model 边界正确。
+- [x] **AC-REVIEW-005** 安全审查确认权限、审批、执行、Secret 和日志边界正确。
+- [x] **AC-REVIEW-006** 无障碍审查确认键盘、语义、焦点和对比度通过。
+- [x] **AC-REVIEW-007** 兼容审查确认旧深链/历史数据不被破坏或伪造迁移。
+- [x] **AC-REVIEW-008** 最终 reviewer 与主要实现 worker 分离，所有有效发现已关闭。
+
+F459 evidence: an independent review (this slice) separated from the F414-F458 implementers reviewed product (main chain/boundaries/terminology vs canonical spec), UX (single primary action per page), professional drill-down (51/15 gates, artifacts, logs, resources, config, audit), domain consistency (immutable runs/snapshots, current-from-successful-only, no back-mutation, frozen snapshots, no drift re-reads), security (permissions, approvals, execution, secrets, logs - zero plaintext), accessibility (keyboard, semantics, focus, contrast; axe re-run across all pages with 0 critical/0 serious), and compatibility (legacy deep links, F406 read-only). The review found and FIXED a real domain-consistency defect: the release-order lifecycle/evidence presenter only counted standard deploy_production approvals as valid production evidence, so after a successful Production recovery the stepper wrongly showed 生产证据与发布单不匹配. The fix (productionApprovalEvidenceForRun in release-order-production-evidence.query.ts) matches the approval action to the run mode (standard->deploy_production, recovery->deploy_production_recovery) across all production-evidence CTEs, with lifecycle/list/evidence spec updates (lifecycle integration 9/9 incl. recovery-evidence regression, list integration 13/13, list query spec asserting both action/mode pairs). F455+F456 chains re-ran clean on the parity stack with no mismatch, web suite 405/405, axe 0/0 across all pages, API/Web type-check + builds pass, git diff --check clean. Reviewer separation statement and per-domain findings in the F459 review report; all P0/P1/P2 findings closed (P3 notes documented).
 
 ## Final Completion Rule
 

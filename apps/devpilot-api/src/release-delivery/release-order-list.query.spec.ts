@@ -32,7 +32,10 @@ describe("releaseOrderListRowsQuery", () => {
     expect(sql).toContain("oa.targetType = 'release_run'");
     expect(sql).toContain("oa.targetId = rr.id");
     expect(sql).toContain(
-      "oa.action = 'project.release_order.deploy_production'",
+      "(oa.action = 'project.release_order.deploy_production'\n        AND rr.mode = 'standard')",
+    );
+    expect(sql).toContain(
+      "(oa.action = 'project.release_order.deploy_production_recovery'\n        AND rr.mode = 'recovery')",
     );
     expect(sql).toContain("oa.inputHash = rr.inputHash");
     expect(sql).toContain("pdr.releaseRunId = rr.id");

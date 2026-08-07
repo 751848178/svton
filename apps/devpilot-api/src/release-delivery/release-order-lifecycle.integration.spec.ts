@@ -77,6 +77,7 @@ describeIntegration(
         "raceWithdraw",
         "invalidProduction",
         "otherTeam",
+        "recoverySucceeded",
       ].map((key) => [key, `f420-${key}-${suffix}`]),
     ) as Record<string, string>;
 
@@ -141,6 +142,7 @@ describeIntegration(
         canceledRun: "failed",
         mismatch: "failed",
         approvalMismatch: "failed",
+        recoverySucceeded: "succeeded",
         legacy: "withdrawn",
       };
       const result = await orders();
@@ -289,6 +291,84 @@ describeIntegration(
           required(await details.find(teamId, projectId, ids.invalidProduction))
             .lifecycle,
         ).toEqual(item.lifecycle);
+      }
+    });
+
+    it("accepts a succeeded recovery ReleaseRun as valid production evidence", async () => {
+      const item = required(
+        (await orders()).items.find(
+          (candidate) => candidate.id === ids.recoverySucceeded,
+        ),
+      );
+      expect(item.lifecycle).toMatchObject({
+        status: "succeeded",
+        phase: "production",
+      });
+      expect(item.lifecycle).not.toHaveProperty("failureKind");
+      expect(item.lifecycle.sourceType).toBe("deployment_run");
+      expect(item.lifecycle.sourceStatus).toBe("completed");
+      expect(
+        required(await details.find(teamId, projectId, ids.recoverySucceeded))
+          .lifecycle,
+      ).toEqual(item.lifecycle);
+    });
+
+    it("keeps recovery evidence fail-closed on action/mode drift", async () => {
+      const cases = [
+        {
+          key: "recoveryApprovalOnStandardRun",
+          apply: (tx: Prisma.TransactionClient, releaseRunId: string) =>
+            tx.releaseRun.update({
+              where: { id: releaseRunId },
+              data: { mode: "standard" },
+            }),
+        },
+        {
+          key: "standardApprovalOnRecoveryRun",
+          apply: (tx: Prisma.TransactionClient, releaseRunId: string) =>
+            tx.operationApproval.updateMany({
+              where: { targetId: releaseRunId },
+              data: { action: "project.release_order.deploy_production" },
+            }),
+        },
+        {
+          key: "recoveryWithoutApprovedApproval",
+          apply: (tx: Prisma.TransactionClient, releaseRunId: string) =>
+            tx.operationApproval.updateMany({
+              where: { targetId: releaseRunId },
+              data: { status: "rejected", reviewedAt: at(16, 7) },
+            }),
+        },
+      ] as const;
+      for (const [index, testCase] of cases.entries()) {
+        const orderKey = `recoveryDrift${index}`;
+        const orderId = `f459-recovery-drift-${suffix}-${index}`;
+        (ids as Record<string, string>)[orderKey] = orderId;
+        await prisma.releaseOrder.create({
+          data: {
+            id: orderId,
+            teamId,
+            projectId,
+            createdById: actorId,
+            releaseVersion: `f459-recovery-drift-${index}`,
+            status: "draft",
+            createdAt: at(20, 0),
+          },
+        });
+        const { releaseRunId } = await seedRecoveryProduction(
+          orderKey,
+          "succeeded",
+          20 + index,
+        );
+        await testCase.apply(prisma, releaseRunId);
+        const item = required(
+          (await orders()).items.find((candidate) => candidate.id === orderId),
+        );
+        expect(item.lifecycle).toMatchObject({
+          status: "failed",
+          phase: "production",
+          failureKind: "evidence_mismatch",
+        });
       }
     });
 
@@ -727,6 +807,7 @@ describeIntegration(
         14,
       );
       await seedMismatchedApproval(approvalMismatch.releaseRunId, 14);
+      await seedRecoveryProduction("recoverySucceeded", "succeeded", 19);
       await seedBuild("raceAction", "succeeded", 10, true);
       await seedBuild("raceWithdraw", "succeeded", 11, true);
       await seedBuild("invalidProduction", "succeeded", 15, true);
@@ -944,12 +1025,87 @@ describeIntegration(
       return { manifestId, releaseRunId };
     }
 
+    async function seedRecoveryProduction(
+      key: string,
+      releaseStatus: string,
+      day: number,
+      completion: { approved: boolean; completed: boolean } = {
+        approved: true,
+        completed: true,
+      },
+    ) {
+      const releaseOrderId = ids[key];
+      const { manifestId } = await seedBuild(key, "succeeded", day, true);
+      await prisma.deploymentRun.create({
+        data: deployment(releaseOrderId, "completed", day),
+      });
+      const releaseRunId = `${releaseOrderId}-recovery`;
+      await prisma.releaseRun.create({
+        data: {
+          id: releaseRunId,
+          teamId,
+          projectId,
+          releaseOrderId,
+          environmentId: productionId,
+          artifactManifestId: manifestId,
+          actorId,
+          mode: "recovery",
+          sourceReleaseRunId: `${ids.succeeded}-release`,
+          status: releaseStatus,
+          verifiedDigest: digestFor(releaseOrderId),
+          inputHash: "r".repeat(64),
+          idempotencyKey: `${releaseOrderId}-recovery-key`,
+          startedAt: releaseStatus === "succeeded" ? at(day, 6) : null,
+          finishedAt: releaseStatus === "succeeded" ? at(day, 7) : null,
+          createdAt: at(day, 5),
+        },
+      });
+      if (completion.approved) {
+        const approvalId = `${releaseRunId}-approval`;
+        await prisma.operationApproval.create({
+          data: {
+            id: approvalId,
+            teamId,
+            requesterId: actorId,
+            reviewerId: actorId,
+            projectId,
+            environmentId: productionId,
+            category: "release",
+            action: "project.release_order.deploy_production_recovery",
+            targetType: "release_run",
+            targetId: releaseRunId,
+            risk: "high",
+            status: "approved",
+            inputHash: "r".repeat(64),
+            requestedAt: at(day, 5),
+            reviewedAt: at(day, 6),
+          },
+        });
+        await prisma.releaseRun.update({
+          where: { id: releaseRunId },
+          data: { operationApprovalId: approvalId },
+        });
+      }
+      if (completion.completed) {
+        await prisma.deploymentRun.create({
+          data: {
+            ...deployment(releaseOrderId, "completed", day, productionId),
+            id: `${releaseOrderId}-recovery-deployment`,
+            releaseRunId,
+            startedAt: at(day, 8),
+            finishedAt: at(day, 8),
+            createdAt: at(day, 8),
+          },
+        });
+      }
+      return { manifestId, releaseRunId };
+    }
+
     async function seedApproval(
       releaseRunId: string,
       status: "pending" | "approved",
       day: number,
-    ) {
-      const id = `${releaseRunId}-approval`;
+    ) {      const id = `${releaseRunId}-approval`;
       await prisma.operationApproval.create({
         data: {
           id,
