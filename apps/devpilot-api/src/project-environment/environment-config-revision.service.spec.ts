@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { EnvironmentConfigRevisionService } from "./environment-config-revision.service";
 
 function txClient() {
@@ -170,5 +170,104 @@ describe("EnvironmentConfigRevisionService.updateIdentity (AC-SET-014/015)", () 
     await expect(
       service.updateIdentity("team-1", "user-1", "missing", { name: "x" }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe("EnvironmentConfigRevisionService.create (F446 AC-SET-026/030)", () => {
+  const RESOLVED = {
+    plainVariables: {},
+    secretReferences: [],
+    resourceReferences: [{
+      kind: "managed_resource", id: "resource-1", name: "redis-prod",
+      sharedEnvironmentIds: ["env-1"], risk: "high", impact: "prod",
+    }],
+    routeSnapshot: {},
+    policyReferences: [],
+  };
+
+  function txClientWith() {
+    const tx = txClient();
+    tx.projectEnvironment.findUniqueOrThrow.mockResolvedValue({
+      id: "env-1",
+      teamId: "team-1",
+      projectId: "project-1",
+      key: "production",
+      name: "Production",
+      description: null,
+      baselineRole: "production",
+      config: null,
+      currentConfigRevisionId: "rev-3",
+      currentConfigRevision: null,
+    });
+    return { tx, service: null as never };
+  }
+
+  it("rejects a stale create with a ConflictException and appends nothing (revision CAS intact)", async () => {
+    const { tx } = txClientWith();
+    const service = new EnvironmentConfigRevisionService(
+      prismaMock(tx),
+      { resolve: jest.fn() } as never,
+    );
+    await expect(
+      service.create("team-1", "user-1", "env-1", {
+        resourceReferences: [{
+          kind: "managed_resource", id: "resource-1",
+          sharedEnvironmentIds: ["env-1"], risk: "high", impact: "prod",
+        }],
+        expectedCurrentRevisionId: "rev-2",
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.environmentConfigRevision.create).not.toHaveBeenCalled();
+    expect(tx.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("enforces the production anti-share rule at the revision write path", async () => {
+    const { tx } = txClientWith();
+    const service = new EnvironmentConfigRevisionService(
+      prismaMock(tx),
+      {
+        resolve: jest.fn().mockRejectedValue(
+          new BadRequestException("Production 环境禁止与非生产环境共享资源"),
+        ),
+      } as never,
+    );
+    await expect(
+      service.create("team-1", "user-1", "env-1", {
+        resourceReferences: [{
+          kind: "managed_resource", id: "resource-1",
+          sharedEnvironmentIds: ["env-1", "env-2"], risk: "high", impact: "prod",
+        }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.environmentConfigRevision.create).not.toHaveBeenCalled();
+    expect(tx.projectEnvironment.update).not.toHaveBeenCalled();
+  });
+
+  it("passes the environment baselineRole into the resolver scope", async () => {
+    const resolve = jest.fn().mockResolvedValue(RESOLVED);
+    const tx = txClient();
+    tx.projectEnvironment.findUniqueOrThrow.mockResolvedValue({
+      id: "env-1",
+      teamId: "team-1",
+      projectId: "project-1",
+      key: "production",
+      name: "Production",
+      description: null,
+      baselineRole: "production",
+      config: null,
+      currentConfigRevisionId: null,
+      currentConfigRevision: null,
+    });
+    const service = new EnvironmentConfigRevisionService(
+      prismaMock(tx),
+      { resolve } as never,
+    );
+    await service.create("team-1", "user-1", "env-1", {
+      resourceReferences: [{
+        kind: "managed_resource", id: "resource-1",
+        sharedEnvironmentIds: ["env-1"], risk: "high", impact: "prod",
+      }],
+    });
+    expect(resolve.mock.calls[0][1]).toMatchObject({ id: "env-1", baselineRole: "production" });
   });
 });

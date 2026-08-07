@@ -12,7 +12,13 @@ import {
   normalizeRouteSnapshot,
 } from "./environment-config-revision.utils";
 
-type EnvironmentScope = { id: string; teamId: string; projectId: string };
+type EnvironmentScope = {
+  id: string;
+  teamId: string;
+  projectId: string;
+  /** F446 AC-SET-026: production baselines must never share stateful resources. */
+  baselineRole?: "staging" | "production" | string | null;
+};
 type PreviousRevision = {
   plainVariables: unknown;
   secretReferences: unknown;
@@ -81,6 +87,11 @@ export class EnvironmentConfigReferenceResolverService {
     for (const input of inputs) {
       if (!input.sharedEnvironmentIds.includes(scope.id)) {
         throw new BadRequestException(`资源 ${input.id} 的共享环境必须包含当前环境`);
+      }
+      if (scope.baselineRole === "production" && input.sharedEnvironmentIds.length > 1) {
+        throw new BadRequestException(
+          `Production 环境禁止与非生产环境共享资源 ${input.id}，必须保持环境专用`,
+        );
       }
       if (input.sharedEnvironmentIds.length > 1 && input.risk === "low") {
         throw new BadRequestException(`共享资源 ${input.id} 的风险不能为 low`);

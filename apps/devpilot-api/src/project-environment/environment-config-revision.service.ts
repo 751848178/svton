@@ -61,6 +61,7 @@ export class EnvironmentConfigRevisionService {
         where: { id: environmentId },
         select: {
           id: true, teamId: true, projectId: true, name: true, description: true, config: true,
+          baselineRole: true,
           currentConfigRevisionId: true,
           currentConfigRevision: { select: REVISION_SELECT },
         },

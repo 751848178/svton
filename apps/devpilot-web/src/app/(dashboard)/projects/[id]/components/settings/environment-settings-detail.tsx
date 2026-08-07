@@ -104,6 +104,7 @@ export function EnvironmentSettingsDetail({
     setResources,
     route,
     setRoute,
+    revision: governance.current,
   };
 
   return (

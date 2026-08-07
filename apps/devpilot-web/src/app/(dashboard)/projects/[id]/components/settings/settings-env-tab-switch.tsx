@@ -8,7 +8,10 @@
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 import { useEnvironmentDeploymentTargets } from '../../hooks/use-environment-deployment-targets';
 import type { ProjectEnvironment } from '../../types';
-import type { EnvironmentConfigResourceReference } from '../../types/environment-config-revision.types';
+import type {
+  EnvironmentConfigResourceReference,
+  EnvironmentConfigRevision,
+} from '../../types/environment-config-revision.types';
 import type { SettingsEnvTab } from '../../utils/project-route.utils';
 import type { SettingsRouteDraft } from './settings-env.model';
 import { EnvProtectionTab } from './settings-env-protection-tab';
@@ -33,6 +36,8 @@ export interface EnvTabContext {
   setResources: (next: EnvironmentConfigResourceReference[]) => void;
   route: SettingsRouteDraft;
   setRoute: (next: SettingsRouteDraft) => void;
+  /** 当前不可变修订（资源绑定子区用于展示冻结修订号）。 */
+  revision: EnvironmentConfigRevision | null;
 }
 
 export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
@@ -46,6 +51,7 @@ export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
           detail={ctx.detail}
           resources={ctx.resources}
           onResourcesChange={ctx.setResources}
+          revision={ctx.revision}
         />
       );
     case 'variables':

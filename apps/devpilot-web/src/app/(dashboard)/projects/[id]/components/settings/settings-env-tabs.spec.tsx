@@ -42,6 +42,14 @@ vi.mock('../environment-bind-server-block', () => ({
 vi.mock('../environment-config-resource-editor', () => ({
   EnvironmentConfigResourceEditor: () => <div>resource-reference-editor</div>,
 }));
+vi.mock('../../hooks/use-resource-connection-health', () => ({
+  useResourceConnectionHealth: () => ({
+    probes: { 'resource-1': { status: 'ok', at: '2026-07-01T00:00:00Z' } },
+    loading: false,
+    error: '',
+    reload: vi.fn(),
+  }),
+}));
 vi.mock('../environment-env-vars-section', () => ({
   EnvironmentEnvVarsSection: () => <div>env-vars-section</div>,
 }));
@@ -81,22 +89,59 @@ describe('settings environment subtab contents', () => {
     expect(html).toContain('envModuleLinkServers');
   });
 
-  it('资源绑定 shows resource counts, reference editor and /resource-instances link', () => {
+  it('资源绑定 shows resource counts, frozen revision badge, reference editor and /resource-instances link', () => {
     const html = renderToStaticMarkup(
       <EnvResourcesTab
         environment={env()}
         detail={detail()}
         resources={[]}
         onResourcesChange={() => undefined}
+        revision={revision()}
       />,
     );
 
     expect(html).toContain('envTabResources');
     expect(html).toContain('envTabHelperResources');
     expect(html).toContain('envCountServers');
+    expect(html).toContain('envResourceFrozenRevision');
+    expect(html).toContain('envResourceTableEmpty');
+    expect(html).toContain('envResourceCalloutOwnership');
+    expect(html).toContain('envResourceCalloutFrozen');
     expect(html).toContain('resource-reference-editor');
     expect(html).toContain('href="/resource-instances?projectId=project-1"');
     expect(html).toContain('envModuleLinkResources');
+  });
+
+  it('资源绑定 renders the Demo 6-column table from the frozen revision refs with shared scope and health', () => {
+    const html = renderToStaticMarkup(
+      <EnvResourcesTab
+        environment={env()}
+        detail={detail()}
+        resources={[
+          {
+            kind: 'managed_resource', id: 'resource-1', name: 'pg-shared',
+            sharedEnvironmentIds: ['env-staging', 'env-preview'], risk: 'medium', impact: 'api',
+          },
+        ]}
+        onResourcesChange={() => undefined}
+        revision={revision()}
+      />,
+    );
+
+    expect(html).toContain('envResourceTableRequirement');
+    expect(html).toContain('envResourceTableSource');
+    expect(html).toContain('envResourceTableBindingMethod');
+    expect(html).toContain('envResourceTableInstance');
+    expect(html).toContain('envResourceTableSharing');
+    expect(html).toContain('envResourceTableValidation');
+    expect(html).toContain('pg-shared');
+    expect(html).toContain('api');
+    expect(html).toContain('envResourceSharingShared');
+    expect(html).toContain('envResourceUseShared');
+    expect(html).toContain('envResourceHealthOk');
+    expect(html).toContain('envResourceValidationValid');
+    expect(html).not.toMatch(/申请|创建云资源|release/i);
+    expect(html).not.toContain('/resource-instances/create');
   });
 
   it('变量与密钥 keeps env vars editing and secret references in-project, links /keys', () => {
@@ -266,10 +311,32 @@ function detail() {
         },
       ],
       resourceInstances: [],
-      managedResources: [],
+      managedResources: [
+        {
+          id: 'resource-1', sourceType: 'instance', provider: 'aws', kind: 'postgres',
+          name: 'pg-shared', externalId: 'x-1', status: 'active', endpoint: 'pg.internal:5432',
+          environment: { id: 'env-staging', key: 'staging', name: 'Staging', status: 'active' },
+        },
+      ],
     },
     deploymentRuns: [],
     loadProject: vi.fn(),
+  } as never;
+}
+
+function revision() {
+  return {
+    id: 'rev-3',
+    revision: 3,
+    snapshotHash: 'abcd1234'.repeat(8),
+    plainVariables: {},
+    secretReferences: [],
+    resourceReferences: [],
+    routeSnapshot: {},
+    policyReferences: [],
+    source: 'project_management',
+    createdAt: '2026-07-01T00:00:00Z',
+    current: true,
   } as never;
 }
 
