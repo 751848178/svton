@@ -87,6 +87,88 @@ capabilities as `unavailable` (capability truth unchanged). Pinned by
 `release-build-gate-admission.spec.ts` (extended in F454) and exercised by the
 F454 runtime build evidence.
 
+### Staging-stage gate admission (concrete gap fixed in F455)
+
+The staging stage evaluates the build-phase gates B01..B11. The controlled-local
+executor records `gateSummary` with real `build`/`artifact` evidence and
+`tests: {status:"not_configured"}` — it cannot produce install / tests /
+vulnerability-scan provider evidence. F455 mirrors the F454/F437 deferral
+pattern at staging admission (`release-staging.service.ts`, deferredReasons):
+
+| gate | deferred reason | meaning |
+| --- | --- | --- |
+| B01 | `install_evidence_missing` | clean-install evidence is not recorded by the executor |
+| B03 | `tests_not_configured` | executor reports `tests: {status:"not_configured"}` (no test-runner provider; fixture declares no tests) |
+| B06 | `vulnerabilities_provider_missing` | no vulnerability-scan provider |
+
+The real-evidence staging gates stay genuinely checked: B02 (BuildRun
+succeeded) and B09 (immutable Manifest digest bound to the exact commit) only
+pass for a real successful build. Pinned by `release-staging.service.spec.ts`
+(deferral contract test added in F455).
+
+### Production-stage gates: fixture evidence rows (F455, parity seed)
+
+The production stage evaluates the deploy-phase gates D01..D20. F437's
+production evidence came from MySQL fixture rows (capacity snapshot, managed
+resource + connection run, migration evidence, backup run, observability
+coverage, previous versions). The parity seed (`scripts/parity-seed.mjs`)
+carries the same F437-style fixture evidence so the gates evaluate genuinely
+checked rows instead of deferring:
+
+| gate | parity evidence row | checked via |
+| --- | --- | --- |
+| D05 capacity | `ResourceMetricSnapshot` `raw.capacityFit=true` | managed resource reference in the production config revision |
+| D08 connectivity | `ManagedResource` + `ResourceConnectionRun` completed | revision `managed_resource` reference |
+| D10/D11 migration | `RepositoryAnalysisRun.result.migrationEvidence` (schemaDrift=false, orderValid=true, destructiveChanges=[]) | real analysis result bound to the pinned commit |
+| D12 backup | `BackupRun` completed | managed resource |
+| D18 observability | `LogCollectionRun` completed + `raw.observability {metrics,traces,alerts}=true` | environment scope |
+| D19 previous stable | two synthetic previous `EnvironmentVersion`s (0.8.0/0.9.0) on `parity-order-prev-0001` | promote history chain |
+
+Deploy-target binding additionally requires the F445 provider match
+(`matchReleaseDeploymentTargetBindings`): each `ProjectEnvironmentServer`
+binding carries `metadata.releaseDeployment = {providerKey:
+"local-filesystem-v1", targetRef: "filesystem-release-target"}` (F455 seed
+fix — without it every deploy fails closed with `部署目标绑定缺失…`). The
+production deferral list itself is unchanged (D06/D09/D17/D20/D14/D15).
+
+### Workload + site-probe decisions (F455 runtime findings, recorded honestly)
+
+- **Application services** are environment-bound (FK) but the build components
+  derive from ALL active services, so the fixture keeps ONE web+api service
+  pair bound to the Staging baseline (same as F454 — Manifest components keyed
+  `parity-svc-web`/`parity-svc-api`). The Production workload uses the same
+  services via the F455 fallback in `loadReleaseStagingWorkloadState`
+  (`release-staging-workload-state.repository.ts`): an environment with no
+  active application services of its own loads the project's active
+  Staging-baseline services, so one Manifest drives both Staging and
+  Production workloads (pinned by `release-staging-workload-state.repository.spec.ts`).
+- **Workload execution mode**: both services run `managed-command-v1` with the
+  safe `test -f dist/{index.html,server.js}` predicates (F433/F437 pattern) —
+  the runtime genuinely verifies the materialized artifacts. A persistent
+  process (`node dist/server.js` on port 4300) was tried first and collided
+  with the same-container second deployment (`EADDRINUSE`), so no persistent
+  processes are started; reachability evidence comes from the site probe.
+- **Site probe / route reachability (F455 finding)**: the probe runs INSIDE the
+  parity-api container. `http://127.0.0.1:43992` (the brief's literal
+  proxyTarget) is NOT reachable from inside the container, and Docker's
+  embedded DNS resolves `parity.example.test` to a 502 — a definitive negative
+  that the fail-closed probe policy correctly rejects
+  (`SITE_HTTP_PROBE_FAILED`). The production config revision (R2) therefore
+  freezes `routeSnapshot = {domains:["parity.example.test"], proxyTarget:
+  "http://parity-target-workload", tlsRequired: true}`: the https:// final URL
+  is unreachable in-container, so the probe falls back to the parity-network
+  name of the target-workload container and genuinely PASSES (HTTP 200, body
+  signature `sha256:ddff5dd1…` — byte-identical to the host-side workload at
+  `http://127.0.0.1:43992`, which is what the browser pass loads for
+  AC-E2E-015). The staging routeSnapshot keeps the brief's literal
+  `proxyTarget http://127.0.0.1:43992` (staging deploys run no site probe).
+- **Fixture secret + resource scopes**: `SecretKey parity-secret-0001` and
+  `ResourceInstance parity-resource-0001` are project-wide (`environmentId
+  null`) so both the staging and the production config-revision CAS saves can
+  reference them (the resolver rejects production references to
+  non-production-scoped resources, and requires shared refs to cover the
+  resource's own environment).
+
 ## Reset/prune boundary (AC-E2E-004)
 
 `scripts/parity-seed.mjs reset` only ever touches:

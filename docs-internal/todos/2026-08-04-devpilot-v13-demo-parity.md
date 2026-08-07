@@ -127,7 +127,7 @@
 | ID   | Status  | Atomic TODO                                                                                                                               | Context Boundary                      | Acceptance                                         |
 | ---- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------- |
 | F454 | done    | 建立 project/network/volume 命名空间隔离的 V13 parity Docker stack、真实示例仓库、目标工作负载、域名和 allowlist 可重复 seed/reset 工具。 | Test infrastructure only。            | AC-E2E-001～006；不污染开发/生产数据。             |
-| F455 | pending | 跑通“接入仓库→识别→配置→发布单→构建→Staging→Production→浏览器访问”正向 E2E。                                                              | Cross-layer positive E2E。            | AC-E2E-007～015；Browser/API/DB/log 四类证据一致。 |
+| F455 | done    | 跑通“接入仓库→识别→配置→发布单→构建→Staging→Production→浏览器访问”正向 E2E。                                                              | Cross-layer positive E2E。            | AC-E2E-007～015；Browser/API/DB/log 四类证据一致。 |
 | F456 | pending | 跑通同发布单多次构建、同 Manifest 多次预发、环境升级和 Staging/Production 回退 E2E。                                                      | Version/history E2E。                 | AC-E2E-016～023。                                  |
 | F457 | pending | 跑通权限、重复、异幂等键并发、配置漂移、门禁失败、Provider 关闭、Digest 错误、审批拒绝、探测失败和全证据凭据扫描负向 E2E。                | Negative/security E2E。               | AC-E2E-024～035。                                  |
 | F458 | pending | 逐页执行 V13 视觉回归，保存 Demo/实际同 viewport 对照、DOM、交互录屏或步骤证据并关闭所有结构差异。                                        | Browser visual acceptance only。      | AC-VIS-001～012；无近白/重复/错页截图。            |

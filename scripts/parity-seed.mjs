@@ -69,10 +69,30 @@ const IDS = {
   appApi: "parity-app-api",
   svcWeb: "parity-svc-web",
   svcApi: "parity-svc-api",
+
   connection: "parity-connection-0001",
   identity: "parity-identity-0001",
   identityRevision: "parity-identity-rev-0001",
   analysisRun: "parity-analysis-0001",
+  // F455 production-gate fixture evidence (same approach as the F437 fixture:
+  // MySQL-only evidence rows that the D-gates evaluate genuinely).
+  managedResource: "parity-resource-managed-0001",
+  connectionRun: "parity-connection-run-0001",
+  metricSnapshot: "parity-metric-snapshot-0001",
+  backupRun: "parity-backup-run-0001",
+  logStream: "parity-log-stream-0001",
+  logRun: "parity-log-run-0001",
+  // Previous production releases (the parity site ran 0.8.0 -> 0.9.0 before
+  // parity-order-0001 deploys 1.0.0) — D19 needs a previous stable version.
+  orderPrev: "parity-order-prev-0001",
+  buildPrevA: "parity-build-prev-a-0001",
+  buildPrevB: "parity-build-prev-b-0001",
+  manifestPrevA: "parity-manifest-prev-a-0001",
+  manifestPrevB: "parity-manifest-prev-b-0001",
+  deployPrevA: "parity-deploy-prev-a-0001",
+  deployPrevB: "parity-deploy-prev-b-0001",
+  envVersionPrevA: "parity-env-version-prev-a-0001",
+  envVersionPrevB: "parity-env-version-prev-b-0001",
 };
 
 const command = process.argv[2] || "up";
@@ -435,13 +455,34 @@ async function seed() {
           environmentId: envId,
           serverId: server.id,
           role,
+          // F455: the deploy path resolves the provider-matched target via
+          // matchReleaseDeploymentTargetBindings (F445); a binding without
+          // metadata.releaseDeployment never matches the configured provider
+          // and the deploy fails closed with "部署目标绑定缺失…".
+          metadata: {
+            releaseDeployment: {
+              providerKey: "local-filesystem-v1",
+              targetRef: "filesystem-release-target",
+            },
+          },
         },
-        update: { role },
+        update: {
+          role,
+          metadata: {
+            releaseDeployment: {
+              providerKey: "local-filesystem-v1",
+              targetRef: "filesystem-release-target",
+            },
+          },
+        },
       });
     }
 
     // 5. SecretKey (CBC-encrypted with the API default key, see
-    //    devpilot-docker-staging.mjs encryptCbcForSeed)
+    //    devpilot-docker-staging.mjs encryptCbcForSeed). Project-wide scope
+    //    (environmentId null) so BOTH the staging and production
+    //    config-revision CAS saves can reference it (F455; a per-environment
+    //    secret cannot be referenced from the other environment).
     const secretValue = encryptCbcForSeed("parity-secret-plaintext-0001");
     await prisma.secretKey.upsert({
       where: { id: IDS.secret },
@@ -450,13 +491,13 @@ async function seed() {
         teamId: IDS.team,
         createdById: IDS.user,
         projectId: IDS.project,
-        environmentId: IDS.envProduction,
+        environmentId: null,
         name: "parity-api-key",
         type: "api_key",
         value: secretValue,
         description: "F454 parity fixture secret (CBC-encrypted)",
       },
-      update: {},
+      update: { environmentId: null },
     });
 
     // 6. ResourceType + ResourceInstance (parity target workload)
@@ -480,14 +521,21 @@ async function seed() {
         id: IDS.resourceInstance,
         teamId: IDS.team,
         projectId: IDS.project,
-        environmentId: IDS.envStaging,
+        // Project-wide scope (F455): the parity target workload is shared by
+        // BOTH routeSnapshots (staging.parity.example.test / parity.example.test
+        // -> http://127.0.0.1:43992). The config-revision resolver forbids
+        // production references to a non-production-scoped resource, and the
+        // deploy input prepare requires the reference's shared scope to cover
+        // the resource's own environment — so the fixture resource is
+        // environment-agnostic and each env references it environment-exclusively.
+        environmentId: null,
         resourceTypeId: IDS.resourceType,
         name: "parity-target-workload",
         status: "active",
         config: { endpoint: "http://127.0.0.1:43992" },
         delivery: { endpoint: "http://127.0.0.1:43992" },
       },
-      update: { status: "active" },
+      update: { status: "active", environmentId: null },
     });
 
     // 7. Site (parity.example.test, TLS valid, routeSwitch -> parity target)
@@ -628,11 +676,41 @@ async function seed() {
             { key: "api", path: "apps/api", language: "javascript" },
           ],
           changeImpact: { highRiskDirectories: [] },
+          // F455: real migration-diff evidence for the D10/D11 production
+          // gates (schemaDrift=false + orderValid=true + no destructive
+          // changes — the fixture repo declares no schema or migration).
+          migrationEvidence: {
+            schemaDrift: false,
+            orderValid: true,
+            destructiveChanges: [],
+            checkedAt: at.toISOString(),
+          },
         },
         finishedAt: at,
         startedAt: at,
       },
-      update: { commitSha: pinnedCommit, finishedAt: at },
+      update: {
+        commitSha: pinnedCommit,
+        finishedAt: at,
+        result: {
+          repository: {
+            monorepo: true,
+            packageManager: "pnpm",
+            lockfiles: ["pnpm-lock.yaml"],
+          },
+          services: [
+            { key: "web", path: "apps/web", language: "html" },
+            { key: "api", path: "apps/api", language: "javascript" },
+          ],
+          changeImpact: { highRiskDirectories: [] },
+          migrationEvidence: {
+            schemaDrift: false,
+            orderValid: true,
+            destructiveChanges: [],
+            checkedAt: at.toISOString(),
+          },
+        },
+      },
     });
 
     // 10. Applications + services with the F427 build contract
@@ -670,15 +748,40 @@ async function seed() {
         teamId: IDS.team,
         projectId: IDS.project,
         applicationId: IDS.appWeb,
+        // One env-agnostic web+api service pair (bound to the Staging
+        // baseline like F454): the workload snapshot loads services without
+        // an environment filter, so the same two components drive both the
+        // Staging and the Production workload (F455).
         environmentId: IDS.envStaging,
         name: "web",
+        status: "active",
         deployConfig: {
           workingDirectory: "apps/web",
           buildCommand: "node scripts/build.mjs",
           artifactPaths: ["apps/web/dist"],
+          // F455: managed-command-v1 (F433/F437 pattern) — the workload
+          // runtime really verifies the materialized artifact with the safe
+          // `test -f` predicate; no persistent process is started, so the
+          // same-container Staging + Production deploys cannot collide on a
+          // bound port.
+          workloadExecutionMode: "managed-command-v1",
+          deployCommand: "test -f dist/index.html",
+          statusCommand: "test -f dist/index.html",
+          failureCleanupCommand: "true",
         },
       },
-      update: { deployConfig: { workingDirectory: "apps/web", buildCommand: "node scripts/build.mjs", artifactPaths: ["apps/web/dist"] } },
+      update: {
+        status: "active",
+        deployConfig: {
+          workingDirectory: "apps/web",
+          buildCommand: "node scripts/build.mjs",
+          artifactPaths: ["apps/web/dist"],
+          workloadExecutionMode: "managed-command-v1",
+          deployCommand: "test -f dist/index.html",
+          statusCommand: "test -f dist/index.html",
+          failureCleanupCommand: "true",
+        },
+      },
     });
     await prisma.applicationService.upsert({
       where: { id: IDS.svcApi },
@@ -689,13 +792,33 @@ async function seed() {
         applicationId: IDS.appApi,
         environmentId: IDS.envStaging,
         name: "api",
+        status: "active",
         deployConfig: {
           workingDirectory: "apps/api",
           buildCommand: "node scripts/build.mjs",
           artifactPaths: ["apps/api/dist"],
+          // F455: managed-command-v1 (F433/F437 pattern) — the workload
+          // runtime really verifies the materialized api artifact
+          // (dist/server.js) with the safe `test -f` predicate.
+          workloadExecutionMode: "managed-command-v1",
+          deployCommand: "test -f dist/server.js",
+          statusCommand: "test -f dist/server.js",
+          failureCleanupCommand: "true",
         },
       },
-      update: { deployConfig: { workingDirectory: "apps/api", buildCommand: "node scripts/build.mjs", artifactPaths: ["apps/api/dist"] } },
+      update: {
+        status: "active",
+        deployConfig: {
+          workingDirectory: "apps/api",
+          buildCommand: "node scripts/build.mjs",
+          artifactPaths: ["apps/api/dist"],
+          workloadExecutionMode: "managed-process-v1",
+          deployCommand: "node dist/server.js",
+          healthCheckUrl: "http://127.0.0.1:4300/health",
+          healthCheckAttempts: 10,
+          healthCheckIntervalMs: 200,
+        },
+      },
     });
 
     // 11. Environment config revisions (envVars + secretReferences +
@@ -771,6 +894,282 @@ async function seed() {
         status: "draft",
       },
       update: {},
+    });
+
+    // 13. F455 production-gate fixture evidence. The production stage gates
+    //     (D05 capacity, D08 resource connectivity, D10/D11 migration, D12
+    //     backup, D18 observability, D19 previous stable version) evaluate
+    //     REAL evidence rows — same approach as the F437 MySQL fixture — so
+    //     the parity Production DeploymentRun shows genuinely checked gates.
+    const digestA = `sha256:${"a".repeat(64)}`;
+    const digestB = `sha256:${"b".repeat(64)}`;
+    const managed = await prisma.managedResource.upsert({
+      where: {
+        teamId_sourceType_provider_externalId: {
+          teamId: IDS.team,
+          sourceType: "manual",
+          provider: "docker",
+          externalId: "parity-target-workload",
+        },
+      },
+      create: {
+        id: IDS.managedResource,
+        teamId: IDS.team,
+        createdById: IDS.user,
+        projectId: IDS.project,
+        environmentId: IDS.envProduction,
+        sourceType: "manual",
+        provider: "docker",
+        kind: "docker_container",
+        name: "parity-target-workload-managed",
+        externalId: "parity-target-workload",
+        status: "active",
+        endpoint: "http://parity-target-workload:80",
+        metadata: { parity: true, fixture: true },
+      },
+      update: { status: "active", endpoint: "http://parity-target-workload:80" },
+    });
+    await prisma.resourceConnectionRun.upsert({
+      where: { id: IDS.connectionRun },
+      create: {
+        id: IDS.connectionRun,
+        teamId: IDS.team,
+        actorId: IDS.user,
+        resourceId: managed.id,
+        projectId: IDS.project,
+        environmentId: IDS.envProduction,
+        sourceType: "manual",
+        provider: "docker",
+        kind: "docker_container",
+        targetEndpoint: "http://parity-target-workload:80",
+        authAdapterKey: "none",
+        executorKey: "parity-fixture",
+        adapterKey: "parity-http",
+        dryRun: false,
+        status: "completed",
+        params: { target: "http://parity-target-workload:80" },
+        result: { ok: true, statusCode: 200 },
+        startedAt: at,
+        finishedAt: at,
+      },
+      update: { status: "completed", dryRun: false, finishedAt: at },
+    });
+    await prisma.resourceMetricSnapshot.upsert({
+      where: { id: IDS.metricSnapshot },
+      create: {
+        id: IDS.metricSnapshot,
+        teamId: IDS.team,
+        resourceId: managed.id,
+        projectId: IDS.project,
+        environmentId: IDS.envProduction,
+        sourceType: "manual",
+        provider: "docker",
+        kind: "docker_container",
+        metricSource: "parity-fixture",
+        status: "collected",
+        sampledAt: at,
+        raw: {
+          capacityFit: true,
+          observability: { metrics: true, traces: true, alerts: true },
+          promotionMetrics: { status: "stable" },
+        },
+      },
+      update: {
+        status: "collected",
+        raw: {
+          capacityFit: true,
+          observability: { metrics: true, traces: true, alerts: true },
+          promotionMetrics: { status: "stable" },
+        },
+      },
+    });
+    await prisma.backupRun.upsert({
+      where: { id: IDS.backupRun },
+      create: {
+        id: IDS.backupRun,
+        teamId: IDS.team,
+        actorId: IDS.user,
+        resourceId: managed.id,
+        projectId: IDS.project,
+        environmentId: IDS.envProduction,
+        trigger: "manual",
+        backupType: "logical",
+        executorKey: "parity-fixture",
+        adapterKey: "parity-script",
+        dryRun: false,
+        status: "completed",
+        destinationType: "local",
+        destination: { path: "/var/lib/devpilot/parity-backup" },
+        result: { ok: true },
+        startedAt: at,
+        finishedAt: at,
+      },
+      update: { status: "completed", dryRun: false, finishedAt: at },
+    });
+    await prisma.logStream.upsert({
+      where: { id: IDS.logStream },
+      create: {
+        id: IDS.logStream,
+        teamId: IDS.team,
+        createdById: IDS.user,
+        projectId: IDS.project,
+        environmentId: IDS.envProduction,
+        managedResourceId: managed.id,
+        name: "parity-target-workload",
+        sourceType: "manual",
+        sourceKey: "parity-target-workload",
+        status: "active",
+        retentionDays: 14,
+      },
+      update: { status: "active" },
+    });
+    await prisma.logCollectionRun.upsert({
+      where: { id: IDS.logRun },
+      create: {
+        id: IDS.logRun,
+        teamId: IDS.team,
+        streamId: IDS.logStream,
+        actorId: IDS.user,
+        projectId: IDS.project,
+        environmentId: IDS.envProduction,
+        managedResourceId: managed.id,
+        sourceType: "manual",
+        sourceKey: "parity-target-workload",
+        executorKey: "parity-fixture",
+        adapterKey: "parity-log",
+        dryRun: false,
+        tail: 200,
+        status: "completed",
+        ingestionStatus: "completed",
+        ingestedEntryCount: 12,
+        result: { ok: true },
+        startedAt: at,
+        finishedAt: at,
+      },
+      update: {
+        status: "completed",
+        dryRun: false,
+        ingestionStatus: "completed",
+        finishedAt: at,
+      },
+    });
+
+    // 13b. Previous production releases (0.8.0 -> 0.9.0) on their own release
+    //      order so parity-order-0001 keeps 0 BuildRun/0 Manifest at creation
+    //      (AC-E2E-010). D19 needs a verifiable previous stable version both
+    //      before and after the real 1.0.0 deploy.
+    await prisma.releaseOrder.upsert({
+      where: { id: IDS.orderPrev },
+      create: {
+        id: IDS.orderPrev,
+        teamId: IDS.team,
+        projectId: IDS.project,
+        createdById: IDS.user,
+        releaseVersion: "0.9.0",
+        status: "draft",
+      },
+      update: {},
+    });
+    const previousHistory = [
+      { build: IDS.buildPrevA, manifest: IDS.manifestPrevA, deploy: IDS.deployPrevA, version: IDS.envVersionPrevA, digest: digestA, at: new Date(at.getTime() - 14 * 86400_000) },
+      { build: IDS.buildPrevB, manifest: IDS.manifestPrevB, deploy: IDS.deployPrevB, version: IDS.envVersionPrevB, digest: digestB, at: new Date(at.getTime() - 7 * 86400_000) },
+    ];
+    let prevAId = null;
+    for (const entry of previousHistory) {
+      await prisma.buildRun.upsert({
+        where: { id: entry.build },
+        create: {
+          id: entry.build,
+          teamId: IDS.team,
+          projectId: IDS.project,
+          releaseOrderId: IDS.orderPrev,
+          triggeredById: IDS.user,
+          revision: entry === previousHistory[0] ? 1 : 2,
+          sourceBranch: "main",
+          sourceCommitSha: pinnedCommit,
+          inputSnapshot: { repositoryUrl: "/read-only-repositories/parity-app", branch: "main" },
+          inputHash: createHash("sha256").update(`parity-prev-${entry.build}`).digest("hex"),
+          status: "succeeded",
+          gateSummary: { build: { status: "passed", components: 2 } },
+          startedAt: entry.at,
+          finishedAt: entry.at,
+        },
+        update: { status: "succeeded", finishedAt: entry.at },
+      });
+      await prisma.artifactManifest.upsert({
+        where: { id: entry.manifest },
+        create: {
+          id: entry.manifest,
+          teamId: IDS.team,
+          projectId: IDS.project,
+          releaseOrderId: IDS.orderPrev,
+          buildRunId: entry.build,
+          digest: entry.digest,
+          provenance: { fixture: true },
+        },
+        update: { digest: entry.digest },
+      });
+      await prisma.artifactManifestItem.upsert({
+        where: { manifestId_componentKey: { manifestId: entry.manifest, componentKey: "project-bundle" } },
+        create: {
+          id: `parity-manifest-prev-item-${entry === previousHistory[0] ? "a" : "b"}-0001`,
+          manifestId: entry.manifest,
+          componentKey: "project-bundle",
+          artifactType: "static_bundle",
+          uri: `file:///var/lib/devpilot/release-build/artifacts/${entry.build}/bundle.tar.gz`,
+          digest: entry.digest,
+          metadata: { fixture: true },
+        },
+        update: { digest: entry.digest },
+      });
+      await prisma.deploymentRun.upsert({
+        where: { id: entry.deploy },
+        create: {
+          id: entry.deploy,
+          teamId: IDS.team,
+          projectId: IDS.project,
+          actorId: IDS.user,
+          environmentId: IDS.envProduction,
+          artifactManifestId: entry.manifest,
+          environment: "production",
+          mode: "deploy",
+          source: "release_order",
+          trigger: "api",
+          targetType: "server",
+          executorKey: "parity-fixture",
+          adapterKey: "parity-copy",
+          dryRun: false,
+          status: "completed",
+          branch: "main",
+          commitSha: pinnedCommit,
+          params: { version: 1, manifestId: entry.manifest },
+          result: { artifactVerified: true, providerKey: "local-filesystem-v1" },
+          startedAt: entry.at,
+          finishedAt: entry.at,
+        },
+        update: { status: "completed", dryRun: false, finishedAt: entry.at },
+      });
+      await prisma.environmentVersion.upsert({
+        where: { id: entry.version },
+        create: {
+          id: entry.version,
+          teamId: IDS.team,
+          projectId: IDS.project,
+          environmentId: IDS.envProduction,
+          releaseOrderId: IDS.orderPrev,
+          artifactManifestId: entry.manifest,
+          deploymentRunId: entry.deploy,
+          previousVersionId: prevAId,
+          kind: "deploy",
+          effectiveAt: entry.at,
+        },
+        update: { previousVersionId: prevAId },
+      });
+      prevAId = entry.version;
+    }
+    await prisma.projectEnvironment.update({
+      where: { id: IDS.envProduction },
+      data: { currentEnvironmentVersionId: IDS.envVersionPrevB },
     });
 
     console.log(`[parity-seed] seeded ${dbName} (pinned fixture commit ${pinnedCommit})`);

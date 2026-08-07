@@ -177,4 +177,19 @@ describe("ReleaseStagingService", () => {
     await expect(service.deploy(input())).rejects.toThrow("input drift");
     expect(executor.deploy).not.toHaveBeenCalled();
   });
+
+  it("defers only provider-missing staging gates (B01/B03/B06) at admission", async () => {
+    await service.deploy(input());
+    expect(gates.assertAllowed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: "staging",
+        deferredReasons: {
+          B01: ["install_evidence_missing"],
+          B03: ["tests_not_configured"],
+          B06: ["vulnerabilities_provider_missing"],
+        },
+      }),
+    );
+    expect(repository.create).toHaveBeenCalledTimes(1);
+  });
 });
