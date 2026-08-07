@@ -69,7 +69,7 @@ export function ReleaseBuildHistoryTable({ items, onOpenLog }: Props) {
                 />
                 {run.errorCode ? (
                   <span
-                    className="mt-1 block truncate text-xs text-destructive"
+                    className="mt-1 block truncate text-xs text-red-700"
                     title={`${run.errorCode}: ${run.errorMessage || t('releaseBuildUnavailable')}`}
                   >
                     {run.errorCode}: {run.errorMessage || t('releaseBuildUnavailable')}
@@ -126,7 +126,7 @@ export function ReleaseBuildHistoryTable({ items, onOpenLog }: Props) {
 }
 
 function Header({ children }: { children: ReactNode }) {
-  return <th className="px-4 py-3 font-medium">{children}</th>;
+  return <th scope="col" className="px-4 py-3 font-medium">{children}</th>;
 }
 
 function Cell({ children }: { children: ReactNode }) {

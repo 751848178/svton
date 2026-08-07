@@ -29,6 +29,8 @@ export interface DialogProps {
   loading?: boolean;
   /** 禁用确认（如未填完必填） */
   confirmDisabled?: boolean;
+  /** 关闭按钮的本地化 accessible name，透传给 Modal。 */
+  ariaCloseLabel?: string;
 }
 
 export function Dialog(props: DialogProps) {
@@ -44,6 +46,7 @@ export function Dialog(props: DialogProps) {
     hideCancel = false,
     loading = false,
     confirmDisabled = false,
+    ariaCloseLabel,
   } = props;
 
   return (
@@ -51,6 +54,7 @@ export function Dialog(props: DialogProps) {
       open={open}
       onClose={onClose}
       title={title}
+      ariaCloseLabel={ariaCloseLabel}
       width={420}
       footer={
         <div className="flex justify-end gap-2">

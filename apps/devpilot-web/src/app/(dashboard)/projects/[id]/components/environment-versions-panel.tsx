@@ -98,12 +98,12 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
             </caption>
             <thead className="bg-muted/50 text-left">
               <tr>
-                <th className="w-[14%] px-4 py-2 font-medium">{t('environmentVersionColumnEnvironment')}</th>
-                <th className="w-[10%] px-4 py-2 font-medium">{t('environmentVersionColumnAction')}</th>
-                <th className="w-[20%] px-4 py-2 font-medium">{t('environmentVersionColumnVersionChange')}</th>
-                <th className="w-[22%] px-4 py-2 font-medium">{t('environmentVersionColumnArtifact')}</th>
-                <th className="w-[14%] px-4 py-2 font-medium">{t('environmentVersionColumnResult')}</th>
-                <th className="w-[20%] px-4 py-2 font-medium">{t('environmentVersionColumnTime')}</th>
+                <th scope="col" className="w-[14%] px-4 py-2 font-medium">{t('environmentVersionColumnEnvironment')}</th>
+                <th scope="col" className="w-[10%] px-4 py-2 font-medium">{t('environmentVersionColumnAction')}</th>
+                <th scope="col" className="w-[20%] px-4 py-2 font-medium">{t('environmentVersionColumnVersionChange')}</th>
+                <th scope="col" className="w-[22%] px-4 py-2 font-medium">{t('environmentVersionColumnArtifact')}</th>
+                <th scope="col" className="w-[14%] px-4 py-2 font-medium">{t('environmentVersionColumnResult')}</th>
+                <th scope="col" className="w-[20%] px-4 py-2 font-medium">{t('environmentVersionColumnTime')}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -252,7 +252,7 @@ function EnvironmentCard(props: {
           {t('environmentVersionRollback')}
         </Button>
         {props.productionBlocked ? (
-          <p className="text-xs text-amber-700">
+          <p className="text-xs text-amber-800">
             {t('environmentVersionProductionApprovalRequired')}
           </p>
         ) : null}
@@ -273,7 +273,7 @@ function EnvironmentChangeRow(props: {
   const current = version.id === environment.currentEnvironmentVersionId;
   return (
     <tr>
-      <td className="px-4 py-3">{environment.name}</td>
+      <th scope="row" className="px-4 py-3 text-left font-medium">{environment.name}</th>
       <td className="px-4 py-3">{t(environmentVersionKindLabelKey(version.kind))}</td>
       <td className="px-4 py-3 font-mono">
         {previous

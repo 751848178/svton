@@ -68,7 +68,7 @@ export function ReleaseOrderStepper({ steps, selectedStep, onSelect, children }:
               >
                 <StepIcon state={step.state} />
                 <span className="min-w-0">
-                  <span className="block text-[9px] font-bold tracking-[0.035em] text-slate-500">
+                  <span className="block text-[9px] font-bold tracking-[0.035em] text-slate-600">
                     {t('releaseStepNumber', { number: String(step.number).padStart(2, '0') })}
                   </span>
                   <strong
@@ -80,7 +80,7 @@ export function ReleaseOrderStepper({ steps, selectedStep, onSelect, children }:
                   >
                     {t(step.labelKey)}
                   </strong>
-                  <span className="mt-0.5 block text-[9px] text-slate-400">
+                  <span className="mt-0.5 block text-[9px] text-slate-500">
                     {t(step.stateLabelKey)} <span aria-hidden="true">·</span>{' '}
                     {step.summary.values
                       ? t(step.summary.key, step.summary.values)

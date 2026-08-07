@@ -78,7 +78,7 @@ export function EnvRoutesTab({
           </div>
           <div className="flex items-center gap-2">
             {revision ? (
-              <span className="inline-block rounded bg-green-100 px-2 py-1 text-[10px] font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
+              <span className="inline-block rounded bg-green-100 px-2 py-1 text-[10px] font-medium text-green-700">
                 {t('envRoutesCurrentBadge')}
               </span>
             ) : null}

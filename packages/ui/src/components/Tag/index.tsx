@@ -5,13 +5,13 @@ import { cva, type VariantProps } from 'class-variance-authority';
 const tagVariants = cva('inline-flex items-center gap-1 px-2 py-0.5 text-xs leading-5 rounded', {
   variants: {
     color: {
-      default: 'bg-muted text-muted-foreground border border-border',
-      blue: 'bg-info/10 text-info border border-info/30',
-      green: 'bg-success/10 text-success border border-success/30',
-      red: 'bg-destructive/10 text-destructive border border-destructive/30',
-      orange: 'bg-warning/10 text-warning border border-warning/30',
-      purple: 'bg-purple-500/10 text-purple-500 border border-purple-500/30',
-      cyan: 'bg-cyan-500/10 text-cyan-500 border border-cyan-500/30',
+      default: 'bg-muted text-slate-700 border border-border',
+      blue: 'bg-info/10 text-blue-800 border border-info/30',
+      green: 'bg-success/10 text-green-800 border border-success/30',
+      red: 'bg-destructive/10 text-red-800 border border-destructive/30',
+      orange: 'bg-warning/10 text-orange-800 border border-warning/30',
+      purple: 'bg-purple-500/10 text-purple-800 border border-purple-500/30',
+      cyan: 'bg-cyan-500/10 text-cyan-800 border border-cyan-500/30',
     },
     bordered: {
       true: '',

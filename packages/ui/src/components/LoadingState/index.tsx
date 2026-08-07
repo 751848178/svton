@@ -14,6 +14,7 @@ export function LoadingState(props: LoadingStateProps) {
 
   return (
     <div
+      role="status"
       className={cn(
         'flex flex-col gap-3 p-6',
         align === 'start' && 'items-start',

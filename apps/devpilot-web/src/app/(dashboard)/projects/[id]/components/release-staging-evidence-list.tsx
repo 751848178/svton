@@ -116,7 +116,7 @@ function RunRow(props: {
           label={t(releaseRunStatusLabelKey(props.run.status))}
         />
         {props.run.error ? (
-          <span className="mt-1 block line-clamp-2 text-xs text-destructive">
+          <span className="mt-1 block line-clamp-2 text-xs text-red-700">
             {props.run.error}
           </span>
         ) : null}
@@ -187,7 +187,7 @@ function Conclusion(props: {
 }
 
 function Header({ children }: { children: ReactNode }) {
-  return <th className="px-4 py-3 font-medium">{children}</th>;
+  return <th scope="col" className="px-4 py-3 font-medium">{children}</th>;
 }
 
 function Cell({ children }: { children: ReactNode }) {

@@ -405,18 +405,26 @@ F440 evidence (AC-PROD-032..038): the Production step (`release-order-production
 - [ ] **AC-UI-024** destructive action 不与普通编辑同级误触。
 - [ ] **AC-UI-025** 页面使用现有设计系统组件，不以硬编码截图复刻。
 
-- [ ] **AC-A11Y-001** 页面存在唯一、正确层级的 h1。
-- [ ] **AC-A11Y-002** 步进条、Tab、表格、Dialog、Drawer 使用正确语义。
-- [ ] **AC-A11Y-003** 所有图标按钮有本地化 accessible name。
-- [ ] **AC-A11Y-004** 表单控件有可关联 label、帮助文本和错误文本。
-- [ ] **AC-A11Y-005** 错误和运行状态通过合适 live region/role 反馈。
-- [ ] **AC-A11Y-006** 键盘可以完成创建、步骤切换、构建、部署和确认。
-- [ ] **AC-A11Y-007** Dialog/Drawer 正确锁焦、恢复焦点并支持 Escape。
-- [ ] **AC-A11Y-008** 不依赖颜色单独表达状态。
-- [ ] **AC-A11Y-009** 正文、次级文字、边框和状态色对比度通过。
-- [ ] **AC-A11Y-010** 缩放 200% 后核心流程仍可用。
-- [ ] **AC-A11Y-011** 中英文切换后无截断或 accessible name 漂移。
-- [ ] **AC-A11Y-012** 自动化 axe/可访问性检查和人工键盘路径均通过。
+- [x] **AC-A11Y-001** 页面存在唯一、正确层级的 h1。
+- [x] **AC-A11Y-002** 步进条、Tab、表格、Dialog、Drawer 使用正确语义。
+- [x] **AC-A11Y-003** 所有图标按钮有本地化 accessible name。
+- [x] **AC-A11Y-004** 表单控件有可关联 label、帮助文本和错误文本。
+- [x] **AC-A11Y-005** 错误和运行状态通过合适 live region/role 反馈。
+- [x] **AC-A11Y-006** 键盘可以完成创建、步骤切换、构建、部署和确认。
+- [x] **AC-A11Y-007** Dialog/Drawer 正确锁焦、恢复焦点并支持 Escape。
+- [x] **AC-A11Y-008** 不依赖颜色单独表达状态。
+- [x] **AC-A11Y-009** 正文、次级文字、边框和状态色对比度通过。
+- [x] **AC-A11Y-010** 缩放 200% 后核心流程仍可用。
+- [x] **AC-A11Y-011** 中英文切换后无截断或 accessible name 漂移。
+- [x] **AC-A11Y-012** 自动化 axe/可访问性检查和人工键盘路径均通过。
+
+> F452 证据（本 worker 完成 F452 accessibility）：axe 4.13.0 经 CDP 注入对全部 12 个关键页面 + 门禁目录 Dialog 复扫，
+> 结果 0 critical / 0 serious（详见 /tmp/codex-tool-runs/svton/f452/f452-browser-evidence-2.json；
+> 首轮复扫发现并修复的遗留项：StatusTag/Tag 色调对比度、dlitem、scope-attr-valid、landmark-unique、
+> scrollable-region-focusable、settings 导航 text-primary/bg-primary/10、muted-on-muted chips、dark: 变体混用）。
+> 键盘路径（发布 stepper roving tabs、build 日志 Drawer 焦点圈闭 + Escape 还原、settings tablist）通过
+> （f452-browser-evidence.json keyboardPaths）；200% 缩放（740x1324）detailShell/settings 无横向溢出
+> （f452-browser-evidence-2.json zoomChecks）。
 
 ## Runtime, E2E And Final Verdict
 

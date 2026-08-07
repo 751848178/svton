@@ -303,7 +303,7 @@ function Conclusion(props: {
 }
 
 function Header({ children }: { children: ReactNode }) {
-  return <th className="px-4 py-3 font-medium">{children}</th>;
+  return <th scope="col" className="px-4 py-3 font-medium">{children}</th>;
 }
 
 function Cell({ children }: { children: ReactNode }) {

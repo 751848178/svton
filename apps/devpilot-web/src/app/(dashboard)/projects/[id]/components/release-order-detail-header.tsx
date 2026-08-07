@@ -50,7 +50,7 @@ export function ReleaseOrderDetailHeader({ detail, building, onBack, onBuildLate
               />
             ) : null}
           </div>
-          <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-500">
+          <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-600">
             <span>{t('releaseOrderIdentityMeta', { orderId: detail.id })}</span>
             <span aria-hidden="true">·</span>
             <span>{t('releaseOrderVersionMeta', { version: detail.releaseVersion })}</span>
@@ -59,7 +59,7 @@ export function ReleaseOrderDetailHeader({ detail, building, onBack, onBuildLate
             <span aria-hidden="true">·</span>
             <span>{t('releaseOrderLatestStepMeta', { step: latestStep })}</span>
           </p>
-          {detail.note ? <p className="mt-1 text-xs text-slate-500">{detail.note}</p> : null}
+          {detail.note ? <p className="mt-1 text-xs text-slate-600">{detail.note}</p> : null}
           {failureLabelKey ? (
             <p className="mt-1 text-xs text-destructive">{t(failureLabelKey)}</p>
           ) : null}

@@ -1037,6 +1037,7 @@
     "releaseGateCatalogDialogTitle": "完整门禁目录 · {count} 项",
     "releaseGateCatalogDialogDescription": "按 Commit、Build、Deploy、Promote 四个阶段查看每项状态、Provider、原因和证据时效。",
     "releaseGateCapabilityGroupsLabel": "15 个能力组",
+    "releaseGateCheckListLabel": "全部检查项",
     "releaseGateProviderLabel": "Provider",
     "releaseGateReasonLabel": "原因",
     "releaseGateEvidenceLabel": "证据",

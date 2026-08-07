@@ -59,7 +59,7 @@ export function ReleasePolicyTab({ projectId }: { projectId: string }) {
         <p className="mb-4 text-sm text-muted-foreground">{t('releasePolicyDescription')}</p>
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="inline-block rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
+          <span className="inline-block rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
             {revisionLabel} · {t('releasePolicyEffectiveBadge')}
           </span>
           <span className="text-sm text-muted-foreground">
@@ -92,8 +92,8 @@ export function ReleasePolicyTab({ projectId }: { projectId: string }) {
             <caption className="sr-only">{t('releasePolicyGatesTitle')}</caption>
             <thead>
               <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-                <th className="px-3 py-2 font-medium">{t('releasePolicyGateTableGate')}</th>
-                <th className="px-3 py-2 font-medium">{t('releasePolicyGateTableState')}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t('releasePolicyGateTableGate')}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t('releasePolicyGateTableState')}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -104,10 +104,10 @@ export function ReleasePolicyTab({ projectId }: { projectId: string }) {
                     <p className="mt-0.5 text-xs text-muted-foreground">{t(gate.descKey)}</p>
                   </td>
                   <td className="px-3 py-2">
-                    <span className="inline-block rounded bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">
+                    <span className="inline-block rounded bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-800">
                       {t('releasePolicyGateEnabled')}
                     </span>{' '}
-                    <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                    <span className="inline-block rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">
                       {t('releasePolicyEffectiveBadge')}
                     </span>
                   </td>
@@ -117,7 +117,7 @@ export function ReleasePolicyTab({ projectId }: { projectId: string }) {
           </table>
         </div>
 
-        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200">
+        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           {t('releasePolicyCallout')}
         </p>
       </Card>
@@ -136,7 +136,7 @@ export function ReleasePolicyTab({ projectId }: { projectId: string }) {
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-medium">{t(STRATEGY_KEYS[capability.strategy] as never)}</h3>
+                  <h2 className="font-medium">{t(STRATEGY_KEYS[capability.strategy] as never)}</h2>
                   <p className="mt-2 text-sm text-muted-foreground">
                     {locale.startsWith('zh') ? capability.reason.zh : capability.reason.en}
                   </p>
@@ -144,8 +144,8 @@ export function ReleasePolicyTab({ projectId }: { projectId: string }) {
                 <span
                   className={
                     capability.executable
-                      ? 'shrink-0 rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700'
-                      : 'shrink-0 rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground'
+                      ? 'shrink-0 rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-800'
+                      : 'shrink-0 rounded-full bg-muted px-2 py-1 text-xs text-slate-700'
                   }
                 >
                   {capability.executable ? t('releasePolicyAvailable') : t('releasePolicyUnavailable')}

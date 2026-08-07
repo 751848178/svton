@@ -31,10 +31,12 @@ export interface DrawerProps {
   mask?: boolean;
   maskClosable?: boolean;
   className?: string;
+  /** 关闭按钮的本地化 accessible name；缺省用英文 "Close"。 */
+  ariaCloseLabel?: string;
 }
 
 export const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(function Drawer(props, ref) {
-  const { open, onClose, children, title, placement = 'right', width = 300, height = 300, mask = true, maskClosable = true, className } = props;
+  const { open, onClose, children, title, placement = 'right', width = 300, height = 300, mask = true, maskClosable = true, className, ariaCloseLabel = 'Close' } = props;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -61,6 +63,34 @@ export const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(function Dra
       clearTimeout(timer);
       previousFocusRef.current?.focus();
     };
+  }, [state]);
+
+  // Focus trap: keep Tab within the drawer panel
+  useEffect(() => {
+    if (state !== 'visible') return;
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !panelRef.current) return;
+
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleTab);
+    return () => document.removeEventListener('keydown', handleTab);
   }, [state]);
 
   if (state === 'closed') return null;
@@ -98,7 +128,7 @@ export const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(function Dra
         {title && (
           <div className="px-6 py-4 border-b border-border flex items-center justify-between">
             <div className="text-base font-medium">{title}</div>
-            <button onClick={onClose} className="p-1 text-lg text-muted-foreground hover:text-foreground" aria-label="Close">×</button>
+            <button onClick={onClose} className="p-1 text-lg text-muted-foreground hover:text-foreground" aria-label={ariaCloseLabel}>×</button>
           </div>
         )}
         <div className="flex-1 p-6 overflow-auto">{children}</div>

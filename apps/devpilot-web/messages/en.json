@@ -1037,6 +1037,7 @@
     "releaseGateCatalogDialogTitle": "Full gate catalog · {count} checks",
     "releaseGateCatalogDialogDescription": "Review status, Provider, reason, and evidence freshness for every Commit, Build, Deploy, and Promote check.",
     "releaseGateCapabilityGroupsLabel": "15 capability groups",
+    "releaseGateCheckListLabel": "All checks",
     "releaseGateProviderLabel": "Provider",
     "releaseGateReasonLabel": "Reason",
     "releaseGateEvidenceLabel": "Evidence",

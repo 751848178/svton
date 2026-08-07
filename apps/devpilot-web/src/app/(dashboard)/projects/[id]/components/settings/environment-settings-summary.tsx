@@ -50,7 +50,7 @@ export function EnvironmentSettingsSummary({
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 xl:grid-cols-4">
+      <dl className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 xl:grid-cols-4">
         <Fact label={t('envSummaryRole')} value={t(roleKey)} />
         <Fact
           label={t('envSummaryTarget')}
@@ -71,7 +71,7 @@ export function EnvironmentSettingsSummary({
             <span className="text-sm font-medium">
               {t('envDeployRunCount', { count: deploymentRunCount })}
             </span>
-            <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
+            <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-slate-700">
               {t('envSummaryRuntimeHint')}
             </span>
           </dd>
@@ -92,7 +92,7 @@ export function EnvironmentSettingsSummary({
               : t('envProtectionEmpty')
           }
         />
-      </div>
+      </dl>
 
       <div className="flex flex-wrap gap-x-8 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3 text-xs">
         <div>

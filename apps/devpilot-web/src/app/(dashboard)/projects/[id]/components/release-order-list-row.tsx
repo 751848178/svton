@@ -25,7 +25,7 @@ export function ReleaseOrderListRow({
   const failureLabelKey = releaseOrderFailureLabelKey(item.lifecycle.failureKind);
   return (
     <article className="grid gap-5 border-t p-5 first:border-t-0 lg:grid-cols-[minmax(240px,1.3fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(230px,1.2fr)]">
-      <section aria-label={t('releaseOrderColumnOrder')}>
+      <section aria-label={`${t('releaseOrderColumnOrder')} ${item.releaseVersion}`}>
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-lg font-semibold">{item.releaseVersion}</h3>
           <StatusTag
@@ -48,7 +48,7 @@ export function ReleaseOrderListRow({
         ) : null}
       </section>
 
-      <section aria-label={t('releaseOrderColumnBuild')}>
+      <section aria-label={`${t('releaseOrderColumnBuild')} ${item.releaseVersion}`}>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {t('releaseOrderColumnBuild')}
         </p>
@@ -75,7 +75,7 @@ export function ReleaseOrderListRow({
         )}
       </section>
 
-      <section aria-label={t('releaseOrderColumnDeployment')}>
+      <section aria-label={`${t('releaseOrderColumnDeployment')} ${item.releaseVersion}`}>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {t('releaseOrderColumnDeployment')}
         </p>
@@ -89,7 +89,7 @@ export function ReleaseOrderListRow({
         </p>
       </section>
 
-      <section aria-label={t('releaseOrderColumnLastExecution')}>
+      <section aria-label={`${t('releaseOrderColumnLastExecution')} ${item.releaseVersion}`}>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {t('releaseOrderColumnLastExecution')}
         </p>

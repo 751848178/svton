@@ -75,7 +75,7 @@ export function ProjectSettingsContent({ detail }: { detail: DetailHook }) {
               aria-current={section === key ? 'page' : undefined}
               className={
                 section === key
-                  ? 'shrink-0 rounded-md bg-primary/10 px-3 py-2 text-left text-sm font-medium text-primary'
+                  ? 'shrink-0 rounded-md bg-primary/10 px-3 py-2 text-left text-sm font-medium text-blue-800'
                   : 'shrink-0 rounded-md px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
               }
             >

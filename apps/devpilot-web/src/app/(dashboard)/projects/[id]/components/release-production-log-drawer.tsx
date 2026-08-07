@@ -33,6 +33,7 @@ interface Props {
 
 export function ReleaseProductionLogDrawer(props: Props) {
   const t = useTranslations('projects');
+  const tc = useTranslations('common');
   const technical = props.run ? productionTechnicalConclusion(props.run) : null;
   const business = props.run ? productionBusinessConclusion(props.run) : null;
   return (
@@ -41,6 +42,7 @@ export function ReleaseProductionLogDrawer(props: Props) {
       onClose={props.onClose}
       title={t('releaseProductionLogTitle', { id: props.run?.id || props.requestedRunId || '—' })}
       width="min(760px, 100vw)"
+      ariaCloseLabel={tc('close')}
     >
       {props.loading ? <LoadingState text={t('releaseProductionDetailLoading')} /> : null}
       {props.error ? (

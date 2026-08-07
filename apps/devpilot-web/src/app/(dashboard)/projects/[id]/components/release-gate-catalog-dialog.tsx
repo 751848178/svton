@@ -63,6 +63,8 @@ export function ReleaseGateCatalogDialog({ catalog, dialogId, open, onClose }: P
           ))}
         </dl>
         <div
+          role="region"
+          tabIndex={0}
           aria-label={t('releaseGateCapabilityGroupsLabel')}
           className="flex gap-2 overflow-x-auto pb-1"
         >
@@ -92,7 +94,12 @@ export function ReleaseGateCatalogDialog({ catalog, dialogId, open, onClose }: P
             );
           })}
         </div>
-        <div className="max-h-[420px] space-y-4 overflow-y-auto pr-1">
+        <div
+          role="region"
+          tabIndex={0}
+          aria-label={t('releaseGateCheckListLabel')}
+          className="max-h-[420px] space-y-4 overflow-y-auto pr-1"
+        >
           {PHASES.map((phase) => (
             <ReleaseGatePhaseSection
               key={phase}

@@ -7,7 +7,7 @@
  */
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Button } from '@svton/ui';
@@ -70,6 +70,9 @@ export function EnvironmentSettingsDetail({
   const searchParams = useSearchParams();
   const projectId = detail.project?.id ?? '';
   const envTab = readSettingsEnvTab(searchParams);
+  const tablistId = useId();
+  const panelId = `${tablistId}-${envTab}-panel`;
+  const summaryInputId = useId();
   const governance = useEnvironmentConfigGovernance(environment, projectId, detail.loadProject);
   const targets = useEnvironmentDeploymentTargets(environment.id);
   const [secretIds, setSecretIds] = useState<string[]>([]);
@@ -95,6 +98,19 @@ export function EnvironmentSettingsDetail({
     params.set('env', environment.key);
     params.set('envTab', next);
     router.replace(settingsHref(projectId, 'environments', params), { scroll: false });
+  };
+
+  const selectTabFromKeyboard = (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    const nextIndex = keyboardTarget(event.key, index, ENV_TAB_KEYS.length);
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const next = ENV_TAB_KEYS[nextIndex];
+    if (!next) return;
+    selectTab(next.key);
+    document.getElementById(`${tablistId}-${next.key}-tab`)?.focus();
   };
 
   const save = async () => {
@@ -140,7 +156,14 @@ export function EnvironmentSettingsDetail({
       />
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2">
+        <label
+          htmlFor={summaryInputId}
+          className="sr-only"
+        >
+          {t('configChangeSummary')}
+        </label>
         <input
+          id={summaryInputId}
           className="min-w-40 flex-1 rounded-md border bg-background px-2 py-1.5 text-xs"
           value={summary}
           onChange={(event) => setSummary(event.target.value)}
@@ -154,13 +177,22 @@ export function EnvironmentSettingsDetail({
         </Button>
       </div>
 
-      <nav className="flex flex-wrap gap-1 border-b" aria-label={t('envTabNavLabel')}>
-        {ENV_TAB_KEYS.map(({ key, labelKey }) => (
+      <div
+        role="tablist"
+        aria-label={t('envTabNavLabel')}
+        className="flex flex-wrap gap-1 border-b"
+      >
+        {ENV_TAB_KEYS.map(({ key, labelKey }, index) => (
           <button
             key={key}
+            id={`${tablistId}-${key}-tab`}
             type="button"
+            role="tab"
+            tabIndex={envTab === key ? 0 : -1}
+            aria-selected={envTab === key}
+            aria-controls={panelId}
             onClick={() => selectTab(key)}
-            aria-current={envTab === key ? 'page' : undefined}
+            onKeyDown={(event) => selectTabFromKeyboard(event, index)}
             className={
               envTab === key
                 ? 'border-b-2 border-primary px-3 py-1.5 text-xs font-medium text-primary'
@@ -170,9 +202,24 @@ export function EnvironmentSettingsDetail({
             {t(labelKey)}
           </button>
         ))}
-      </nav>
+      </div>
 
-      <div className="min-w-0">{renderEnvTab(envTab, context)}</div>
+      <div
+        id={panelId}
+        role="tabpanel"
+        aria-labelledby={`${tablistId}-${envTab}-tab`}
+        className="min-w-0"
+      >
+        {renderEnvTab(envTab, context)}
+      </div>
     </div>
   );
+}
+
+function keyboardTarget(key: string, index: number, length: number) {
+  if (key === 'Home') return 0;
+  if (key === 'End') return length - 1;
+  if (key === 'ArrowRight' || key === 'ArrowDown') return (index + 1) % length;
+  if (key === 'ArrowLeft' || key === 'ArrowUp') return (index - 1 + length) % length;
+  return null;
 }

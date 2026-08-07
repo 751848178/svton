@@ -29,6 +29,7 @@ interface Props {
 
 export function ReleaseStagingLogDrawer(props: Props) {
   const t = useTranslations('projects');
+  const tc = useTranslations('common');
   const technical = props.run ? stagingTechnicalConclusion(props.run) : null;
   const business = props.run ? stagingBusinessConclusion(props.run) : null;
   return (
@@ -37,6 +38,7 @@ export function ReleaseStagingLogDrawer(props: Props) {
       onClose={props.onClose}
       title={t('releaseStagingLogTitle', { id: props.run?.id || props.requestedRunId || '—' })}
       width="min(760px, 100vw)"
+      ariaCloseLabel={tc('close')}
     >
       {props.loading ? <LoadingState text={t('releaseStagingDetailLoading')} /> : null}
       {props.error ? (

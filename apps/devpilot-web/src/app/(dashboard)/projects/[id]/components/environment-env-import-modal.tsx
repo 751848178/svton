@@ -117,7 +117,7 @@ export function EnvironmentEnvImportModal({
               </p>
             ) : null}
             {sensitiveKeys > 0 ? (
-              <p className="text-amber-700 dark:text-amber-500">
+              <p className="text-amber-800 dark:text-amber-300">
                 {t('envImportSensitiveExcluded', { count: sensitiveKeys })}
               </p>
             ) : null}
@@ -142,7 +142,7 @@ export function EnvironmentEnvImportModal({
                   .slice(0, 50)
                   .map(([k]) => (
                     <li key={k} className="flex items-baseline gap-2 font-mono">
-                      <span className="text-amber-700 dark:text-amber-400">{k}</span>
+                      <span className="text-amber-800 dark:text-amber-400">{k}</span>
                       <span className="rounded bg-amber-200/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-800/60 dark:text-amber-200">
                         {t('envImportSensitiveBadge')}
                       </span>

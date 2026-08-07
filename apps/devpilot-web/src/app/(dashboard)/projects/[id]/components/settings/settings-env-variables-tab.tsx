@@ -171,7 +171,7 @@ export function EnvVariablesTab({
             {t('envVarsTableTitle')}
           </h4>
           {revision ? (
-            <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
+            <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
               {t('envVarsCurrentBadge', { revision: revision.revision })}
             </span>
           ) : null}

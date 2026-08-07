@@ -97,7 +97,7 @@ export function EnvironmentEnvVarsTable({
                 <span
                   className={
                     row.requirementKey === 'envVarsRequirementSensitive'
-                      ? 'rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                      ? 'rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800'
                       : undefined
                   }
                 >

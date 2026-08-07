@@ -46,6 +46,7 @@ export function EnvironmentDetailDrawer({
   onEnvironmentSaved,
 }: EnvironmentDetailDrawerProps) {
   const t = useTranslations('projects');
+  const tc = useTranslations('common');
   // 保留上一次非 null 的环境，使抽屉关闭时仍能播放退出动画（Drawer 内部按 open 控制过渡）。
   const [rendered, setRendered] = useState<ProjectEnvironment | null>(null);
   useEffect(() => {
@@ -86,6 +87,7 @@ export function EnvironmentDetailDrawer({
       onClose={onClose}
       title={t('envDetailTitle', { name: rendered.name })}
       width={460}
+      ariaCloseLabel={tc('close')}
     >
       <div className="space-y-5">
         <EnvBasics environment={rendered} t={t} />

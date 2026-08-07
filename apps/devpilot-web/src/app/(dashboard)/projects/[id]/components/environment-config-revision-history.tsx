@@ -37,7 +37,7 @@ export function EnvironmentConfigRevisionHistory({
           >
             <b className="font-medium">R{revision.revision}</b>
             {revision.current ? (
-              <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
+              <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
                 {t('configRevisionCurrentBadge')}
               </span>
             ) : null}

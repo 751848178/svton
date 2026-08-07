@@ -15,10 +15,12 @@ export interface ModalProps {
   maskClosable?: boolean;
   centered?: boolean;
   className?: string;
+  /** 关闭按钮的本地化 accessible name；缺省用英文 "Close"。 */
+  ariaCloseLabel?: string;
 }
 
 export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal(props, ref) {
-  const { open, onClose, children, title, footer, width = 480, mask = true, maskClosable = true, centered = true, className } = props;
+  const { open, onClose, children, title, footer, width = 480, mask = true, maskClosable = true, centered = true, className, ariaCloseLabel = 'Close' } = props;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
@@ -116,7 +118,7 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
           {title && (
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div className="text-base font-medium">{title}</div>
-              <button onClick={onClose} className="p-1 text-xl text-muted-foreground hover:text-foreground leading-none" aria-label="Close">×</button>
+              <button onClick={onClose} className="p-1 text-xl text-muted-foreground hover:text-foreground leading-none" aria-label={ariaCloseLabel}>×</button>
             </div>
           )}
           <div className="flex-1 p-6 overflow-auto">{children}</div>

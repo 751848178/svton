@@ -27,6 +27,7 @@ export function ReleaseBuildLogDrawer({
   onClose,
 }: Props) {
   const t = useTranslations('projects');
+  const tc = useTranslations('common');
   const summary = logSummary(run?.logSummary);
 
   return (
@@ -35,6 +36,7 @@ export function ReleaseBuildLogDrawer({
       onClose={onClose}
       title={run ? t('releaseBuildLogTitle', { revision: run.revision }) : t('releaseBuildLogs')}
       width="min(720px, 100vw)"
+      ariaCloseLabel={tc('close')}
     >
       {loading ? <LoadingState text={t('releaseBuildDetailLoading')} /> : null}
       {error ? (
