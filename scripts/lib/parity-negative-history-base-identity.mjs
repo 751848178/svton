@@ -111,6 +111,13 @@ export function validateTrustedHistoryBase(step, context) {
 
 function validateContext(context) {
   requireValue(isObject(context), "context-missing");
+  requireValue(
+    sameJson(
+      Object.keys(context).sort(),
+      [...TRUSTED_BASE_CONTEXT_FIELDS].sort(),
+    ),
+    "context-fields",
+  );
   for (const field of TRUSTED_BASE_CONTEXT_FIELDS) {
     if (field !== "productionRouteSnapshot") {
       requireValue(nonEmpty(context[field]), `context-${field}`);

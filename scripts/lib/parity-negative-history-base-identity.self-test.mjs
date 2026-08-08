@@ -17,12 +17,30 @@ const anchors = validateTrustedHistoryBase(
 assert.equal(Object.isFrozen(anchors), true);
 assert.equal(Object.isFrozen(anchors.productionRouteSnapshot), true);
 assert.equal(anchors.productionReleaseRunId, "release-1");
-assert.equal(parseHistory(valid).historyContractValid, true);
+const parsed = parseHistory(valid);
+assert.equal(parsed.historyContractValid, true);
+assert.equal(parsed.sourcePath, "/explicit/history.json");
+assert.equal(parsed.status, "passed");
 
 const detached = historyDocumentFixture();
 const detachedContext = structuredClone(detached.context);
 detached.steps["base-state-rows"].result.expected.teamId = "mutated";
 assert.deepEqual(detached.context, detachedContext);
+
+for (const key of [
+  "sourcePath",
+  "sourceSha",
+  "sourceSha256",
+  "expectedSourceSha256",
+  "capturedAt",
+  "worker",
+  "objective",
+  "status",
+]) {
+  rejectHistory(`extra context key: ${key}`, (document) => {
+    document.context[key] = `untrusted-${key}`;
+  });
+}
 
 for (const field of TRUSTED_BASE_CONTEXT_FIELDS) {
   rejectHistory(`coherent base substitution: ${field}`, (document) => {

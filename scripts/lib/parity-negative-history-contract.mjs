@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { HISTORY_AC_MAPPING } from "./parity-history-e2e-evidence.mjs";
-import { validateTrustedHistoryBase } from "./parity-negative-history-base-identity.mjs";
+import {
+  TRUSTED_BASE_CONTEXT_FIELDS,
+  validateTrustedHistoryBase,
+} from "./parity-negative-history-base-identity.mjs";
 import {
   canonicalHistoryStepValid,
   sameJsonValue,
@@ -37,7 +40,12 @@ export function parseNegativeHistoryEvidence(bytes, input) {
   const baseStep = document.steps?.["base-state-rows"];
   const baseAnchors = validateTrustedHistoryBase(baseStep, context);
   requireValue(validateAcceptance(document), "history acceptance invalid");
+  const trustedContext = Object.fromEntries(
+    TRUSTED_BASE_CONTEXT_FIELDS.map((name) => [name, baseAnchors[name]]),
+  );
   return Object.freeze({
+    ...trustedContext,
+    ...manifestContext(document, baseAnchors),
     sourcePath: input.evidencePath,
     sourceSha256,
     expectedSourceSha256: input.expectedSha256,
@@ -45,8 +53,6 @@ export function parseNegativeHistoryEvidence(bytes, input) {
     worker: document.worker,
     objective: document.objective,
     status: document.status,
-    ...context,
-    ...manifestContext(document, baseAnchors),
     historyAcceptanceIds: Object.keys(document.ac).sort(),
     historyAcceptancePassed: true,
     historyContractValid: true,
