@@ -45,6 +45,7 @@ import {
 } from "./lib/parity-production-route-evidence.mjs";
 import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
 import { requireFirstEnvironmentRevision } from "./lib/parity-environment-revision-list.mjs";
+import { requireEnvironmentTargets } from "./lib/parity-environment-targets.mjs";
 import { createPositiveIntakeFlow } from "./lib/parity-positive-intake-flow.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -204,16 +205,18 @@ async function main() {
       api("GET", `/project-environments/parity-env-staging/targets`, headers),
       api("GET", `/project-environments/parity-env-production/targets`, headers),
     ]);
-    runState.productionTargetRef = productionTargets.current?.targetRef;
+    const stagingTarget = requireEnvironmentTargets(stagingTargets);
+    const productionTarget = requireEnvironmentTargets(productionTargets);
+    runState.productionTargetRef = productionTarget.current.targetRef;
     return {
-      staging: pick(stagingTargets, ["current", "bindings"]),
-      production: pick(productionTargets, ["current", "bindings"]),
+      staging: stagingTarget,
+      production: productionTarget,
       stagingMatched:
-        stagingTargets.current?.providerKey === "local-filesystem-v1" &&
-        stagingTargets.current?.targetRef === "filesystem-release-target",
+        stagingTarget.current.providerKey === "local-filesystem-v1" &&
+        stagingTarget.current.targetRef === "filesystem-release-target",
       productionMatched:
-        productionTargets.current?.providerKey === "local-filesystem-v1" &&
-        productionTargets.current?.targetRef === "filesystem-release-target",
+        productionTarget.current.providerKey === "local-filesystem-v1" &&
+        productionTarget.current.targetRef === "filesystem-release-target",
     };
   });
   let stagingR2;
