@@ -89,7 +89,10 @@ export function browserPassFixture() {
     ]),
   );
   return {
+    driver: "<cdp-driver>",
     driverExit: 0,
+    viewport: { width: 1484, height: 1324 },
+    log: "<f456-browser-driver.log>",
     requiredArtifacts: ["proof.txt"],
     artifacts: {
       "proof.txt": { kind: "text", bytes: 16, sha256: "c".repeat(64) },

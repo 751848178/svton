@@ -5,6 +5,7 @@ import {
   validateTrustedHistoryBase,
 } from "./parity-negative-history-base-identity.mjs";
 import { validateHistoryIdentityGraph } from "./parity-negative-history-identity-graph.mjs";
+import { validateHistoryResultKeys } from "./parity-negative-history-result-key-contract.mjs";
 import {
   canonicalHistoryStepValid,
   sameJsonValue,
@@ -40,6 +41,7 @@ export function parseNegativeHistoryEvidence(bytes, input) {
   );
   const baseStep = document.steps?.["base-state-rows"];
   const baseAnchors = validateTrustedHistoryBase(baseStep, context);
+  validateHistoryResultKeys(document.steps);
   requireValue(validateAcceptance(document), "history acceptance invalid");
   const graph = validateHistoryIdentityGraph(document.steps, baseAnchors);
   const trustedContext = Object.fromEntries(
