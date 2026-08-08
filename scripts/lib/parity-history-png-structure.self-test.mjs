@@ -6,13 +6,14 @@ import assert from "node:assert/strict";
 import { hasValidPngStructure } from "./parity-history-png-structure.mjs";
 import {
   PNG_SIGNATURE,
+  buildIhdrBody,
   buildPngWithoutIend,
   buildValidScreenshotPng,
   pngChunk,
   pngChunkWithBadCrc,
 } from "./parity-history-png-fixture.mjs";
 
-const IHDR = Buffer.alloc(13);
+const IHDR = buildIhdrBody();
 const IEND = Buffer.alloc(0);
 
 // A real minimal PNG (and one with intermediate chunks) must be accepted.
