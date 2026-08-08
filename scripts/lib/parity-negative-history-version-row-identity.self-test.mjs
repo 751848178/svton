@@ -89,12 +89,13 @@ for (const [step, expected] of Object.entries(CONFIGS)) {
       (r) => (r.previousVersionId = "claimed-previous"),
     ],
     ["claim false", (r) => (r[expected.claimKey] = false)],
-    ["wrong id", (r) => (r.id = "claimed-id")],
+    ["empty id", (r) => (r.id = "")],
+    ["non-string id", (r) => (r.id = 42)],
   ]) {
     assert.throws(
       () =>
         validateVersionRow(
-          { newEnvironmentVersion: mutate({ ...makeRow(expected) }) },
+          { newEnvironmentVersion: mutatedRow(expected, mutate) },
           expected,
           `${step}:${label}`,
         ),
@@ -141,4 +142,10 @@ function makeRow(expected) {
     artifactManifestId: expected.manifestId,
     deploymentRunId: expected.deploymentRunId,
   };
+}
+
+function mutatedRow(expected, mutate) {
+  const candidate = { ...makeRow(expected) };
+  mutate(candidate);
+  return candidate;
 }
