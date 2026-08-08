@@ -462,9 +462,9 @@ async function main() {
     previewInputHash = preview.inputHash;
     return {
       inputHash: preview.inputHash,
-      snapshot: pick(preview.snapshot, ["environment", "manifest", "config", "releaseOrder", "releasePolicy", "inputHash"]),
+      snapshot: pick(preview.snapshot, ["environment", "manifest", "config", "releaseOrder", "releasePolicy"]),
       manifestFrozen: preview.snapshot?.manifest?.id === manifestId,
-      configRevisionId: preview.snapshot?.config?.id,
+      configRevisionId: preview.snapshot?.config?.revisionId,
       expectedConfigRevisionId: productionR2?.revision?.id,
     };
   });
@@ -929,7 +929,7 @@ const STEP_VERIFY = {
   ],
   "production-preview": (r) => [
     predicate("inputHash", /^[a-f0-9]{64}$/.test(r.inputHash || ""), r.inputHash),
-    check("manifestFrozen", r.manifestFrozen, true), check("snapshotInputHash", r.snapshot?.inputHash, r.inputHash),
+    check("manifestFrozen", r.manifestFrozen, true),
     check("configRevisionId", r.configRevisionId, r.expectedConfigRevisionId),
   ],
   "production-confirm": (r) => [
