@@ -4,6 +4,10 @@ import {
   BROWSER_MARKER_GROUPS,
   browserMarkerGroupsValid,
 } from "./parity-history-browser-marker-contract.mjs";
+import {
+  CDP_EVIDENCE_SCHEMA,
+  CDP_EVIDENCE_VERSION,
+} from "./parity-history-cdp-capture.mjs";
 import { SUMMARY_HISTORY_STEP_CHECKS } from "./parity-history-summary-checks.mjs";
 
 const validMarkers = markerFixture();
@@ -89,8 +93,8 @@ function browserResult(markers) {
     artifacts: {
       "proof.txt": { sha256: "a".repeat(64), bytes: 16, kind: "text" },
     },
-    cdpSchema: "devpilot.parity-history.cdp-evidence",
-    cdpVersion: 1,
+    cdpSchema: CDP_EVIDENCE_SCHEMA,
+    cdpVersion: CDP_EVIDENCE_VERSION,
     consoleEvents: [],
     consoleErrors: [],
     badResponses: [],

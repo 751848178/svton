@@ -1,4 +1,8 @@
 import { BROWSER_MARKER_GROUPS } from "./parity-history-browser-marker-contract.mjs";
+import {
+  CDP_EVIDENCE_SCHEMA,
+  CDP_EVIDENCE_VERSION,
+} from "./parity-history-cdp-capture.mjs";
 
 export function versionChainsFixture(a) {
   const valid = {
@@ -90,8 +94,8 @@ export function browserPassFixture() {
     artifacts: {
       "proof.txt": { kind: "text", bytes: 16, sha256: "c".repeat(64) },
     },
-    cdpSchema: "devpilot.parity-history.cdp-evidence",
-    cdpVersion: 1,
+    cdpSchema: CDP_EVIDENCE_SCHEMA,
+    cdpVersion: CDP_EVIDENCE_VERSION,
     consoleEvents: [],
     consoleErrors: [],
     badResponses: [],

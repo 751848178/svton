@@ -9,6 +9,8 @@ import {
   summarizeBrowserFailures,
 } from "./parity-history-cdp-capture.mjs";
 
+const ACTIONS = [{ index: 0, type: "wait", milliseconds: 0 }];
+
 assertRejected([
   {
     method: "Runtime.consoleAPICalled",
@@ -74,6 +76,7 @@ assert.deepEqual(
   ],
 );
 for (const field of [
+  "actions",
   "console",
   "httpResponses",
   "failedRequests",
@@ -144,7 +147,7 @@ function markerFixture() {
 function capture(events) {
   const collector = createCdpCapture();
   events.forEach(collector.record);
-  return collector.snapshot();
+  return collector.snapshot(ACTIONS);
 }
 
 function response(type, status, pathname) {

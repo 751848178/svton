@@ -6,6 +6,8 @@ import {
   validateCdpEvidence,
 } from "./parity-history-cdp-capture.mjs";
 
+const ACTIONS = [{ index: 0, type: "wait", milliseconds: 0 }];
+
 const valid = capture([
   response("Document", 200, "https://example.test/"),
   response("Fetch", 204, "https://example.test/api"),
@@ -66,7 +68,7 @@ function rejects(mutate) {
 function capture(events) {
   const collector = createCdpCapture();
   events.forEach(collector.record);
-  return collector.snapshot();
+  return collector.snapshot(ACTIONS);
 }
 
 function response(type, status, url) {

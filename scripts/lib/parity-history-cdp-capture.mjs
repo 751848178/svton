@@ -2,11 +2,12 @@ import {
   sanitizeCdpText,
   sanitizeCdpUrl,
 } from "./parity-history-cdp-redaction.mjs";
+import { validateCdpActionDescriptors } from "./parity-history-cdp-action-evidence.mjs";
 import { validateHttpResponses } from "./parity-history-cdp-response-schema.mjs";
 
 const CAPTURED_TYPES = new Set(["Document", "Fetch", "XHR"]);
 export const CDP_EVIDENCE_SCHEMA = "devpilot.parity-history.cdp-evidence";
-export const CDP_EVIDENCE_VERSION = 1;
+export const CDP_EVIDENCE_VERSION = 2;
 
 export function createCdpCapture() {
   const consoleEvents = [];
@@ -74,9 +75,10 @@ export function createCdpCapture() {
 
   return {
     record,
-    snapshot: () => ({
+    snapshot: (actions = []) => ({
       schema: CDP_EVIDENCE_SCHEMA,
       version: CDP_EVIDENCE_VERSION,
+      actions,
       console: consoleEvents,
       runtimeExceptions,
       httpResponses,
@@ -105,6 +107,12 @@ export function validateCdpEvidence(evidence) {
   const invalid = [];
   if (evidence?.schema !== CDP_EVIDENCE_SCHEMA) invalid.push("schema");
   if (evidence?.version !== CDP_EVIDENCE_VERSION) invalid.push("version");
+  if (Object.hasOwn(evidence || {}, "rawActions")) invalid.push("rawActions");
+  try {
+    validateCdpActionDescriptors(evidence?.actions);
+  } catch {
+    invalid.push("actions");
+  }
   for (const field of [
     "console",
     "httpResponses",

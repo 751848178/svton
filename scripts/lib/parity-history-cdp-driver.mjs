@@ -3,20 +3,25 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { describeCdpActions } from "./parity-history-cdp-action-evidence.mjs";
 import { runCdpActions } from "./parity-history-cdp-actions.mjs";
-import { createCdpCapture } from "./parity-history-cdp-capture.mjs";
+import {
+  createCdpCapture,
+  validateCdpEvidence,
+} from "./parity-history-cdp-capture.mjs";
 import { connectCdp } from "./parity-history-cdp-client.mjs";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 9333;
 
 main().catch((error) => {
-  console.error("CDP_DRIVER_ERROR", error.stack || error.message);
+  process.stderr.write(`CDP_DRIVER_ERROR ${safeErrorMessage(error)}\n`);
   process.exit(1);
 });
 
 async function main() {
-  const { options, actions } = parseArgs(process.argv.slice(2));
+  const { options, rawActions } = parseArgs(process.argv.slice(2));
+  const actionDescriptors = describeCdpActions(rawActions);
   mkdirSync(options.out, { recursive: true });
   const chrome = startChrome(options.out);
   try {
@@ -29,12 +34,11 @@ async function main() {
     ]);
     const capture = createCdpCapture();
     cdp.onEvent(capture.record);
-    await runCdpActions(cdp, actions, options);
-    const evidence = {
-      actions,
+    await runCdpActions(cdp, rawActions, options);
+    const evidence = validateCdpEvidence({
       viewport: { width: options.width, height: options.height },
-      ...capture.snapshot(),
-    };
+      ...capture.snapshot(actionDescriptors),
+    });
     writeEvidence(options.out, evidence);
   } finally {
     chrome.kill("SIGTERM");
@@ -47,15 +51,15 @@ function parseArgs(args) {
     width: 1484,
     height: 1324,
   };
-  const actions = [];
+  const rawActions = [];
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index];
     if (value === "--out") options.out = args[++index];
     else if (value === "--width") options.width = Number(args[++index]);
     else if (value === "--height") options.height = Number(args[++index]);
-    else actions.push(value);
+    else rawActions.push(value);
   }
-  return { options, actions };
+  return { options, rawActions };
 }
 
 function startChrome(outDir) {
@@ -84,4 +88,11 @@ function writeEvidence(outDir, evidence) {
 
 function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
+}
+
+function safeErrorMessage(error) {
+  const message = typeof error?.message === "string" ? error.message : "";
+  return /^E2E_CDP_[A-Z_]+(?::[A-Za-z0-9_-]+)*$/.test(message)
+    ? message
+    : "E2E_CDP_DRIVER_FAILED";
 }
