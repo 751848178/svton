@@ -44,9 +44,13 @@ import {
   productionRouteEvidence,
   productionRouteEvidenceChecks,
 } from "./lib/parity-production-route-evidence.mjs";
-
+import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const outDir = "/tmp/codex-tool-runs/svton/f455";
+const outDir = historyChainOutputDirectory(
+  process.env,
+  "f455",
+  "/tmp/codex-tool-runs/svton/f455",
+);
 const apiBase = "http://127.0.0.1:4132/api";
 const teamId = "parity-team-0001";
 const projectId = "parity-project-0001";
@@ -919,7 +923,6 @@ async function main() {
   });
 
   finishEvidence(evidence, POSITIVE_AC_MAPPING);
-
   await writeEvidence();
   log("E2E chain PASSED — evidence at " + evidencePath());
 }
@@ -927,7 +930,6 @@ async function main() {
 // ----------------------------------------------------------------------------
 // helpers
 // ----------------------------------------------------------------------------
-
 function evidencePath() {
   return `${outDir}/f455-positive-e2e-evidence.json`;
 }
@@ -1320,7 +1322,6 @@ function pick(obj, keys) {
   }
   return out;
 }
-
 async function writeEvidence() {
   await mkdir(outDir, { recursive: true });
   await writeFile(evidencePath(), JSON.stringify(evidence, null, 2));
@@ -1328,7 +1329,6 @@ async function writeEvidence() {
   await writeFile(runLogPath, runLog.join("\n"));
   log(`run log written to ${runLogPath}`);
 }
-
 if (process.argv.includes("--self-test-deploy-command-proof")) {
   selfTestStagingCommandProof();
   process.stdout.write("staging deploy command proof self-test passed\n");

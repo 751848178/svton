@@ -36,11 +36,19 @@ import {
   NEGATIVE_AC_MAPPING,
   negativeStepChecks,
 } from "./lib/parity-negative-e2e-evidence.mjs";
-import { loadNegativeHistoryContext } from "./lib/parity-negative-e2e-context.mjs";
+import {
+  loadNegativeHistoryContext,
+  negativeHistoryInputFromEnvironment,
+} from "./lib/parity-negative-e2e-context.mjs";
 import { bindNegativeHistoryContext } from "./lib/parity-negative-history-db-binding.mjs";
+import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const outDir = "/tmp/codex-tool-runs/svton/f457";
+const outDir = historyChainOutputDirectory(
+  process.env,
+  "f457",
+  "/tmp/codex-tool-runs/svton/f457",
+);
 const apiBase = "http://127.0.0.1:4132/api";
 let teamId;
 let projectId;
@@ -64,18 +72,11 @@ const memberEmail = "parity-member-0001@parity.test";
 const outsiderEmail = "parity-outsider-0001@parity.test";
 const memberUserId = "parity-member-0001";
 const outsiderUserId = "parity-outsider-0001";
-
 // Loaded and validated from the checked F456 history evidence before use.
 let MANIFEST_M1;
 let MANIFEST_M2;
 let CROSS_ORDER_MANIFEST;
-const historyEvidenceInput = {
-  evidencePath: process.env.F456_EVIDENCE_PATH,
-  expectedSha256: process.env.F456_EVIDENCE_SHA256,
-  capturedNotBefore: process.env.F456_CAPTURED_NOT_BEFORE,
-  capturedNotAfter: process.env.F456_CAPTURED_NOT_AFTER,
-};
-
+const historyEvidenceInput = negativeHistoryInputFromEnvironment(process.env);
 const { PrismaClient } = createRequire(
   resolve(root, "apps/devpilot-api/package.json"),
 )("@prisma/client");
@@ -84,7 +85,6 @@ const prisma = new PrismaClient({
     db: { url: "mysql://root:password@127.0.0.1:4334/devpilot_parity" },
   },
 });
-
 const evidence = {
   worker: "f457-negative-e2e",
   objective: "AC-E2E-024..035 negative/security E2E over the parity stack",

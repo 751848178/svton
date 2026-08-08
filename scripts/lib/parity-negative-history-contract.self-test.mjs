@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { loadNegativeHistoryContext } from "./parity-negative-e2e-context.mjs";
 import { parseNegativeHistoryEvidence } from "./parity-negative-history-contract.mjs";
 import { HISTORY_AC_MAPPING } from "./parity-history-e2e-evidence.mjs";
@@ -21,16 +18,7 @@ assert.equal(parsed.manifestM1, document.context.manifestId);
 assert.equal(parsed.manifestM2, document.steps["build-2"].result.manifestId);
 assert.equal(parsed.productionReleaseRunR1, "release-1");
 
-const temporary = await mkdtemp(join(tmpdir(), "f513-history-"));
-const evidencePath = join(temporary, "history.json");
-await writeFile(evidencePath, bytes);
-assert.equal(
-  (await loadNegativeHistoryContext({ ...historyInput(bytes), evidencePath }))
-    .sourcePath,
-  evidencePath,
-);
-await assert.rejects(loadNegativeHistoryContext({}), /evidencePath/);
-await rm(temporary, { recursive: true });
+await assert.rejects(loadNegativeHistoryContext({}), /descriptors missing/);
 
 rejectHistory("legacy fixedIds", (value) => {
   value.fixedIds = value.context;

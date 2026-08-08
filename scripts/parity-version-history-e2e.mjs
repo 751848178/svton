@@ -62,9 +62,9 @@ import {
   productionRouteEvidence,
 } from "./lib/parity-production-route-evidence.mjs";
 import { productionConfirmResult } from "./lib/parity-negative-history-confirm-result.mjs";
-
+import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const outDir = "/tmp/codex-tool-runs/svton/f456";
+const outDir = historyChainOutputDirectory(process.env, "f456", "/tmp/codex-tool-runs/svton/f456");
 const browserTrustedRoot = await realpath(tmpdir());
 const apiBase = "http://127.0.0.1:4132/api";
 let teamId;
@@ -75,7 +75,7 @@ let productionEnvId;
 const adminEmail = "admin@parity.local";
 const adminPassword = "ParityDemo123!";
 const pinnedCommit = "2f0ec3246761537123c65ac415a14e503ebbfa38";
-const f455EvidenceOriginal = "/tmp/codex-tool-runs/svton/f455/f455-positive-e2e-evidence.json";
+const f455EvidenceOriginal = `${historyChainOutputDirectory(process.env, "f455", "/tmp/codex-tool-runs/svton/f455")}/f455-positive-e2e-evidence.json`;
 const cdpDriver = resolve(root, "scripts/lib/parity-history-cdp-driver.mjs");
 const webBase = "http://localhost:4131";
 const parityRouteProviderKey = process.env.DEVPILOT_PARITY_ROUTE_PROVIDER_KEY || null;
