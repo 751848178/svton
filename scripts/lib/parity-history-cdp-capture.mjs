@@ -1,4 +1,6 @@
 const CAPTURED_TYPES = new Set(["Document", "Fetch", "XHR"]);
+export const CDP_EVIDENCE_SCHEMA = "devpilot.parity-history.cdp-evidence";
+export const CDP_EVIDENCE_VERSION = 1;
 
 export function createCdpCapture() {
   const consoleEvents = [];
@@ -67,6 +69,8 @@ export function createCdpCapture() {
   return {
     record,
     snapshot: () => ({
+      schema: CDP_EVIDENCE_SCHEMA,
+      version: CDP_EVIDENCE_VERSION,
       console: consoleEvents,
       runtimeExceptions,
       httpResponses,
@@ -76,18 +80,37 @@ export function createCdpCapture() {
 }
 
 export function summarizeBrowserFailures(evidence = {}) {
+  validateCdpEvidence(evidence);
   return {
-    consoleErrors: (evidence.console || []).filter(
+    consoleErrors: evidence.console.filter(
       (event) =>
         (event.source === "runtime" && event.type === "error") ||
         (event.source === "log" && event.level === "error"),
     ),
-    badResponses: (evidence.httpResponses || []).filter(
+    badResponses: evidence.httpResponses.filter(
       (response) => Number(response.status) >= 400,
     ),
-    failedRequests: evidence.failedRequests || [],
+    failedRequests: evidence.failedRequests,
     runtimeExceptions: evidence.runtimeExceptions,
   };
+}
+
+export function validateCdpEvidence(evidence) {
+  const invalid = [];
+  if (evidence?.schema !== CDP_EVIDENCE_SCHEMA) invalid.push("schema");
+  if (evidence?.version !== CDP_EVIDENCE_VERSION) invalid.push("version");
+  for (const field of [
+    "console",
+    "httpResponses",
+    "failedRequests",
+    "runtimeExceptions",
+  ]) {
+    if (!Array.isArray(evidence?.[field])) invalid.push(field);
+  }
+  if (invalid.length > 0) {
+    throw new Error(`E2E_CDP_EVIDENCE_SCHEMA_INVALID: ${invalid.join(",")}`);
+  }
+  return evidence;
 }
 
 function sanitizeText(value) {

@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import { historyStepChecks } from "./parity-history-e2e-evidence.mjs";
 import {
+  CDP_EVIDENCE_SCHEMA,
+  CDP_EVIDENCE_VERSION,
   createCdpCapture,
   summarizeBrowserFailures,
 } from "./parity-history-cdp-capture.mjs";
@@ -61,8 +63,11 @@ const clean = capture([
   response("Document", 200, "/projects/order"),
   response("Fetch", 204, "/api/ok"),
 ]);
+assert.equal(clean.schema, CDP_EVIDENCE_SCHEMA);
+assert.equal(clean.version, CDP_EVIDENCE_VERSION);
 assert.deepEqual(clean.runtimeExceptions, []);
 assert.deepEqual(failedChecks(clean), []);
+assert.deepEqual(failedChecks(capture([])), []);
 assert.deepEqual(
   clean.httpResponses.map(({ host, type, status }) => ({ host, type, status })),
   [
@@ -70,6 +75,25 @@ assert.deepEqual(
     { host: "localhost:4131", type: "Fetch", status: 204 },
   ],
 );
+for (const field of [
+  "console",
+  "httpResponses",
+  "failedRequests",
+  "runtimeExceptions",
+]) {
+  rejectsSchema(clean, (evidence) => delete evidence[field]);
+  rejectsSchema(clean, (evidence) => {
+    evidence[field] = {};
+  });
+}
+rejectsSchema(clean, (evidence) => delete evidence.version);
+rejectsSchema(clean, (evidence) => {
+  evidence.version += 1;
+});
+rejectsSchema(clean, (evidence) => delete evidence.schema);
+rejectsSchema(clean, (evidence) => {
+  evidence.schema = "wrong";
+});
 
 process.stdout.write("history CDP capture self-test passed\n");
 
@@ -83,6 +107,9 @@ function failedChecks(evidence) {
     driverExit: 0,
     requiredArtifacts: ["proof"],
     artifacts: { proof: "a".repeat(64) },
+    cdpSchema: evidence.schema,
+    cdpVersion: evidence.version,
+    consoleEvents: evidence.console,
     consoleErrors: failures.consoleErrors,
     badResponses: failures.badResponses,
     failedRequests: failures.failedRequests,
@@ -91,6 +118,15 @@ function failedChecks(evidence) {
     releaseDetailEvidence: { marker: true },
   };
   return historyStepChecks("browser-pass", result).filter((item) => !item.pass);
+}
+
+function rejectsSchema(source, mutate) {
+  const evidence = structuredClone(source);
+  mutate(evidence);
+  assert.throws(
+    () => summarizeBrowserFailures(evidence),
+    /E2E_CDP_EVIDENCE_SCHEMA_INVALID/,
+  );
 }
 
 function capture(events) {

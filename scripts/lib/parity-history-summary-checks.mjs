@@ -1,4 +1,8 @@
 import { check, predicate } from "./parity-e2e-evidence.mjs";
+import {
+  CDP_EVIDENCE_SCHEMA,
+  CDP_EVIDENCE_VERSION,
+} from "./parity-history-cdp-capture.mjs";
 
 export const SUMMARY_HISTORY_STEP_CHECKS = {
   "version-chains": (r) => [
@@ -60,10 +64,31 @@ function browserChecks(r) {
   return [
     check("driverExit", r.driverExit, 0),
     predicate("requiredArtifacts", artifactsValid, r.artifacts),
+    check("cdpSchema", r.cdpSchema, CDP_EVIDENCE_SCHEMA),
+    check("cdpVersion", r.cdpVersion, CDP_EVIDENCE_VERSION),
+    predicate("consoleArray", Array.isArray(r.consoleEvents), r.consoleEvents),
     check("consoleErrors", r.consoleErrors?.length, 0),
     check("badResponses", r.badResponses?.length, 0),
-    check("failedRequests", r.failedRequests?.length, 0),
-    check("runtimeExceptions", r.runtimeExceptions?.length, 0),
+    predicate(
+      "failedRequestsArray",
+      Array.isArray(r.failedRequests),
+      r.failedRequests,
+    ),
+    check(
+      "failedRequests",
+      Array.isArray(r.failedRequests) ? r.failedRequests.length : null,
+      0,
+    ),
+    predicate(
+      "runtimeExceptionsArray",
+      Array.isArray(r.runtimeExceptions),
+      r.runtimeExceptions,
+    ),
+    check(
+      "runtimeExceptions",
+      Array.isArray(r.runtimeExceptions) ? r.runtimeExceptions.length : null,
+      0,
+    ),
     predicate(
       "httpResponses",
       httpResponsesPass(r.httpResponses),
@@ -73,9 +98,9 @@ function browserChecks(r) {
   ];
 }
 
-function httpResponsesPass(responses = []) {
+function httpResponsesPass(responses) {
   return (
-    responses.length > 0 &&
+    Array.isArray(responses) &&
     responses.every((item) => {
       const status = item.status ?? item.statusCode;
       return status >= 200 && status < 400;
