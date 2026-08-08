@@ -503,17 +503,15 @@ async function main() {
         status: true,
         environmentId: true,
         artifactManifestId: true,
+        adapterKey: true,
+        commandPlan: true,
         result: true,
-        logs: true,
         params: true,
       },
     });
     if (row.status !== "completed") {
       throw new Error(`staging deploy not completed: ${JSON.stringify(row)}`);
     }
-    const logs = flattenLogs(row.logs);
-    const forbidden = ["git checkout", "git pull", "git fetch", "pnpm install", "npm install", "node scripts/build.mjs"];
-    const invokedGitOrBuild = forbidden.some((token) => logs.includes(token));
     return {
       deploymentRunId: stagingRunId,
       status: row.status,
@@ -521,8 +519,11 @@ async function main() {
       artifactManifestId: row.artifactManifestId,
       sameManifest: row.artifactManifestId === manifestId,
       artifactVerified: row.result?.artifactVerified === true,
-      noGitCheckoutPullOrBuild: !invokedGitOrBuild,
-      logs: logs.slice(0, 40),
+      commandProof: stagingCommandProof(row, {
+        manifestId,
+        manifestDigest,
+        buildRunId,
+      }),
     };
   });
 
@@ -887,7 +888,7 @@ const STEP_VERIFY = {
   "staging-deploy": (r) => [
     predicate("deploymentRunId", Boolean(r.deploymentRunId), r.deploymentRunId), check("status", r.status, "completed"),
     check("environmentId", r.environmentId, "parity-env-staging"), check("sameManifest", r.sameManifest, true),
-    check("artifactVerified", r.artifactVerified, true), check("noGitCheckoutPullOrBuild", r.noGitCheckoutPullOrBuild, true),
+    check("artifactVerified", r.artifactVerified, true), ...stagingCommandProofChecks(r.commandProof),
   ],
   "production-preview": (r) => [
     predicate("inputHash", /^[a-f0-9]{64}$/.test(r.inputHash || ""), r.inputHash),
@@ -940,6 +941,75 @@ const STEP_VERIFY = {
   ],
 };
 
+const STAGING_COMMAND_STEPS = [
+  "verify_manifest_digest",
+  "materialize_exact_manifest",
+  "start_workloads",
+  "probe_workloads",
+  "activate_release",
+];
+
+function stagingCommandProof(row, expected) {
+  const result = row.result || {};
+  const params = row.params || {};
+  return {
+    commandPlan: row.commandPlan,
+    providerEvidence: pick(result, [
+      "providerActivated", "providerKey", "providerDeploymentId",
+      "providerTargetRef", "checkoutInvoked", "pullInvoked",
+      "buildInvoked", "gitInvoked", "artifactVerified", "immutableInput",
+    ]),
+    artifactContract: {
+      expected,
+      deploymentRunId: row.id,
+      adapterKey: row.adapterKey,
+      rowManifestId: row.artifactManifestId,
+      resultManifestId: result.manifestId,
+      resultManifestDigest: result.manifestDigest,
+      paramsManifestId: params.manifestId,
+      paramsManifestDigest: params.manifestDigest,
+      paramsBuildRunId: params.buildRunId,
+      paramsProviderKey: params.deploymentProvider?.key,
+      paramsTargetRef: params.deploymentProvider?.targetRef,
+    },
+  };
+}
+
+function stagingCommandProofChecks(proof = {}) {
+  const plan = proof.commandPlan || {};
+  const provider = proof.providerEvidence || {};
+  const artifact = proof.artifactContract || {};
+  const expected = artifact.expected || {};
+  return [
+    check("commandPlanVersion", plan.version, 1),
+    predicate("commandPlanStepsExact", jsonEqual(plan.steps, STAGING_COMMAND_STEPS), plan.steps),
+    check("commandPlanCheckout", plan.checkout, false), check("commandPlanPull", plan.pull, false),
+    check("commandPlanBuild", plan.build, false), predicate("commandPlanFetch", falseOrAbsent(plan.fetch), plan.fetch),
+    predicate("commandPlanGit", falseOrAbsent(plan.git), plan.git),
+    check("providerCheckoutInvoked", provider.checkoutInvoked, false),
+    check("providerPullInvoked", provider.pullInvoked, false),
+    check("providerBuildInvoked", provider.buildInvoked, false),
+    check("providerGitInvoked", provider.gitInvoked, false),
+    check("providerActivated", provider.providerActivated, true),
+    check("providerArtifactVerified", provider.artifactVerified, true),
+    check("immutableInput", provider.immutableInput, true),
+    check("rowManifestId", artifact.rowManifestId, expected.manifestId),
+    check("resultManifestId", artifact.resultManifestId, expected.manifestId),
+    check("resultManifestDigest", artifact.resultManifestDigest, expected.manifestDigest),
+    check("paramsManifestId", artifact.paramsManifestId, expected.manifestId),
+    check("paramsManifestDigest", artifact.paramsManifestDigest, expected.manifestDigest),
+    check("paramsBuildRunId", artifact.paramsBuildRunId, expected.buildRunId),
+    check("providerKey", provider.providerKey, artifact.adapterKey),
+    check("paramsProviderKey", artifact.paramsProviderKey, artifact.adapterKey),
+    check("providerDeploymentId", provider.providerDeploymentId, artifact.deploymentRunId),
+    check("providerTargetRef", provider.providerTargetRef, artifact.paramsTargetRef),
+  ];
+}
+
+function falseOrAbsent(value) {
+  return value === false || value === undefined;
+}
+
 function environmentR2Checks(result, role) {
   const production = role === "production";
   const snapshot = result.snapshot || {};
@@ -986,6 +1056,65 @@ function ids(items) {
 
 function jsonEqual(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function selfTestStagingCommandProof() {
+  const row = {
+    id: "deployment-1",
+    adapterKey: "local-filesystem-v1",
+    artifactManifestId: "manifest-1",
+    commandPlan: {
+      version: 1,
+      steps: [...STAGING_COMMAND_STEPS],
+      checkout: false,
+      pull: false,
+      build: false,
+    },
+    params: {
+      manifestId: "manifest-1",
+      manifestDigest: "sha256:artifact",
+      buildRunId: "build-1",
+      deploymentProvider: {
+        key: "local-filesystem-v1",
+        targetRef: "filesystem-release-target",
+      },
+    },
+    result: {
+      providerActivated: true,
+      providerKey: "local-filesystem-v1",
+      providerDeploymentId: "deployment-1",
+      providerTargetRef: "filesystem-release-target",
+      checkoutInvoked: false,
+      pullInvoked: false,
+      buildInvoked: false,
+      gitInvoked: false,
+      artifactVerified: true,
+      immutableInput: true,
+      manifestId: "manifest-1",
+      manifestDigest: "sha256:artifact",
+    },
+  };
+  const expected = {
+    manifestId: "manifest-1",
+    manifestDigest: "sha256:artifact",
+    buildRunId: "build-1",
+  };
+  assertProofChecksPass(stagingCommandProofChecks(stagingCommandProof(row, expected)));
+  for (const command of ["npm run build", "pnpm build", "git -C repo fetch"]) {
+    const mutated = structuredClone(row);
+    mutated.commandPlan.steps.push(command);
+    const checks = stagingCommandProofChecks(stagingCommandProof(mutated, expected));
+    if (checks.find((item) => item.name === "commandPlanStepsExact")?.pass !== false) {
+      throw new Error(`command plan fixture escaped exact allowlist: ${command}`);
+    }
+  }
+}
+
+function assertProofChecksPass(checks) {
+  const failed = checks.filter((item) => item.pass !== true);
+  if (failed.length > 0) {
+    throw new Error(`valid command proof rejected: ${failed.map((item) => item.name).join(", ")}`);
+  }
 }
 
 async function login() {
@@ -1090,11 +1219,16 @@ async function writeEvidence() {
   log(`run log written to ${runLogPath}`);
 }
 
-main()
-  .catch((error) => {
-    evidence.status = "failed";
-    evidence.error = error.stack || error.message;
-    console.error(`[f455] FAILED: ${error.stack || error.message}`);
-    return writeEvidence().then(() => process.exit(1));
-  })
-  .finally(() => prisma.$disconnect());
+if (process.argv.includes("--self-test-deploy-command-proof")) {
+  selfTestStagingCommandProof();
+  process.stdout.write("staging deploy command proof self-test passed\n");
+} else {
+  main()
+    .catch((error) => {
+      evidence.status = "failed";
+      evidence.error = error.stack || error.message;
+      console.error(`[f455] FAILED: ${error.stack || error.message}`);
+      return writeEvidence().then(() => process.exit(1));
+    })
+    .finally(() => prisma.$disconnect());
+}
