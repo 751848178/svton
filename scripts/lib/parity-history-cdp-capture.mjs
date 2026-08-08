@@ -1,7 +1,8 @@
 import {
-  sanitizeCdpText,
-  sanitizeCdpUrl,
-} from "./parity-history-cdp-redaction.mjs";
+  sanitizeConsoleArg,
+  sanitizeOptionalText,
+  sanitizeUrlWithHost,
+} from "./parity-history-cdp-event-sanitizer.mjs";
 import { validateCdpActionDescriptors } from "./parity-history-cdp-action-evidence.mjs";
 import { validateHttpResponses } from "./parity-history-cdp-response-schema.mjs";
 
@@ -22,30 +23,32 @@ export function createCdpCapture() {
       consoleEvents.push({
         source: "runtime",
         type: params.type,
-        args: (params.args || []).map(
-          (arg) => arg.value ?? arg.description ?? arg.type,
+        args: (Array.isArray(params.args) ? params.args : []).map(
+          sanitizeConsoleArg,
         ),
       });
     } else if (method === "Runtime.exceptionThrown") {
       const details = params.exceptionDetails || {};
       runtimeExceptions.push({
-        text: sanitizeCdpText(details.text),
-        url: sanitizeCdpUrl(details.url),
+        text: sanitizeOptionalText(details.text),
+        url: sanitizeUrlWithHost(details.url).url,
         line: details.lineNumber,
         column: details.columnNumber,
-        description: sanitizeCdpText(details.exception?.description),
+        description: sanitizeOptionalText(details.exception?.description),
       });
     } else if (method === "Log.entryAdded") {
       consoleEvents.push({
         source: "log",
         type: "log",
         level: params.entry?.level,
-        text: params.entry?.text,
-        url: params.entry?.url,
+        text: sanitizeOptionalText(params.entry?.text),
+        url: sanitizeUrlWithHost(params.entry?.url).url,
       });
     } else if (method === "Network.requestWillBeSent") {
+      const location = sanitizeUrlWithHost(params.request?.url);
       requests.set(params.requestId, {
-        url: params.request?.url,
+        url: location.url,
+        host: location.host,
         type: params.type,
       });
     } else if (
@@ -53,10 +56,11 @@ export function createCdpCapture() {
       CAPTURED_TYPES.has(params.type) &&
       isHttp(params.response?.url)
     ) {
+      const location = sanitizeUrlWithHost(params.response.url);
       httpResponses.push({
         requestId: params.requestId,
-        url: params.response.url,
-        host: hostOf(params.response.url),
+        url: location.url,
+        host: location.host,
         type: params.type,
         status: params.response.status,
       });
@@ -64,10 +68,10 @@ export function createCdpCapture() {
       const request = requests.get(params.requestId) || {};
       failedRequests.push({
         requestId: params.requestId,
-        url: request.url || null,
-        host: hostOf(request.url),
+        url: request.url ?? null,
+        host: request.host ?? null,
         type: params.type || request.type || null,
-        errorText: params.errorText,
+        errorText: sanitizeOptionalText(params.errorText),
         canceled: params.canceled === true,
       });
     }
@@ -136,9 +140,4 @@ export function validateCdpEvidence(evidence) {
 
 function isHttp(value) {
   return /^https?:\/\//i.test(value || "");
-}
-
-function hostOf(value) {
-  if (!isHttp(value)) return null;
-  return new URL(value).host;
 }
