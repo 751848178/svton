@@ -35,7 +35,10 @@ if (process.argv.includes("--false-fixture")) {
 
   assert.equal(Object.keys(HISTORY_AC_MAPPING).length, 8);
   const mappedSteps = new Set(Object.values(HISTORY_AC_MAPPING).flat());
-  assert.equal(mappedSteps.size, 14);
+  assert.equal(mappedSteps.size, 15);
+  assert.ok(
+    Object.values(HISTORY_AC_MAPPING).every((steps) => steps.includes("login")),
+  );
   for (const step of mappedSteps) {
     const checks = historyStepChecks(step, {});
     assert.ok(checks.length > 0, `${step} has zero checks`);
@@ -44,6 +47,24 @@ if (process.argv.includes("--false-fixture")) {
       `${step} accepts empty payload`,
     );
   }
+  assert.ok(historyStepChecks("login", {}).some((item) => !item.pass));
+  assert.ok(
+    historyStepChecks("login", {
+      status: "authenticated",
+      verified: false,
+      email: "admin@parity.local",
+      source: "bootstrap-admin-after-reset",
+    }).some((item) => !item.pass),
+  );
+  assert.deepEqual(
+    historyStepChecks("login", {
+      status: "authenticated",
+      verified: true,
+      email: "admin@parity.local",
+      source: "bootstrap-admin-after-reset",
+    }).filter((item) => !item.pass),
+    [],
+  );
 
   for (const { step, result, pairs } of identityFixtures()) {
     assert.deepEqual(
@@ -101,6 +122,9 @@ if (process.argv.includes("--false-fixture")) {
     );
   }
   assert.doesNotMatch(driver, /["']AC-E2E-\d+["']\s*:\s*\{\s*ok\s*:\s*true/);
+  assert.doesNotMatch(driver, /evidence\.steps(?:\.[\w-]+|\[[^\]]+\])\s*=/);
+  assert.doesNotMatch(driver, /\bok\s*:\s*true/);
+  assert.doesNotMatch(driver, /\b(?:token|accessToken)\s*:/);
   assert.doesNotMatch(
     driver,
     /const (projectId|orderId|stagingEnvId|productionEnvId)\s*=\s*["']/,

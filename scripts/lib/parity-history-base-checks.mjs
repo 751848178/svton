@@ -66,7 +66,12 @@ export const BASE_HISTORY_STEP_CHECKS = {
       r.environments,
     ),
   ],
-  "re-login-after-reset": (r) => [check("tokenIssued", r.tokenIssued, true)],
+  login: (r) => [
+    check("status", r.status, "authenticated"),
+    check("verified", r.verified, true),
+    check("email", r.email, "admin@parity.local"),
+    check("source", r.source, "bootstrap-admin-after-reset"),
+  ],
   "build-2": (r) => [
     predicate("buildRunId", Boolean(r.buildRunId), r.buildRunId),
     check("distinctFromB1", r.distinctFromB1, true),

@@ -113,24 +113,24 @@ async function main() {
   evidence.capturedAt = new Date().toISOString();
 
   // ---------------------------------------------------------------- preflight
-  let token = await step("preflight", async () => {
+  let token;
+  await step("preflight", async () => {
     const [health, web, target] = await Promise.all([
       httpGet(`${apiBase}/health`),
       httpGet(`${webBase}/`, { raw: true }),
       httpGet("http://127.0.0.1:43992/", { raw: true }),
     ]);
     const mysqlRows = await prisma.$queryRaw`SELECT 1 AS healthy`;
-    const t = await login();
+    token = await login();
     return {
       apiHealth: health.status === 200,
       webStatus: web.status,
       targetStatus: target.status,
       targetBodyMarker: /Parity Target Workload/.test(target.body || ""),
       mysqlOk: Array.isArray(mysqlRows) && Number(mysqlRows[0]?.healthy) === 1,
-      tokenIssued: Boolean(t),
+      tokenIssued: Boolean(token),
     };
   });
-  token = await login();
 
   // ------------------------------------------------- base state: F455 rerun
   await step("base-reset-seed", async () => {
@@ -227,15 +227,14 @@ async function main() {
 
   // The reset+seed recreated the bootstrap admin with a NEW user id, so the
   // pre-reset token is invalid (401 用户不存在). Re-login for the chain.
-  await step("re-login-after-reset", async () => {
+  await step("login", async () => {
     token = await login();
-    evidence.steps.login = {
+    return {
+      status: "authenticated",
+      verified: Boolean(token),
       email: adminEmail,
-      source: "docker-compose.devpilot-parity.yml DEVPILOT_BOOTSTRAP_ADMIN_EMAIL/PASSWORD",
-      ok: true,
-      afterReset: true,
+      source: "bootstrap-admin-after-reset",
     };
-    return { tokenIssued: Boolean(token) };
   });
 
   const headers = {
@@ -1145,7 +1144,9 @@ async function login() {
   });
   const body = await res.json();
   if (!res.ok || !body.data?.accessToken) {
-    throw new Error(`login failed: ${JSON.stringify(body)}`);
+    throw new Error(
+      `login failed: status=${res.status} tokenPresent=${Boolean(body.data?.accessToken)}`,
+    );
   }
   return body.data.accessToken;
 }
