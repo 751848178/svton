@@ -4,8 +4,13 @@ import {
 } from "./parity-history-cdp-header-redaction.mjs";
 
 const MAX_CAPTURE_LENGTH = 4_000;
+// Compound credential keys may be written with any of space, dot, hyphen or
+// underscore between words (e.g. `api key`, `api.key`, `x-api-key`, `api_key`).
+// Newlines are deliberately excluded so a key cannot match across lines. The
+// separator is zero-or-more to also keep no-separator forms (e.g. `apikey`).
+const KEY_SEPARATOR = String.raw`[-_. \t]*`;
 const COOKIE_KEY_SOURCE = String.raw`(?:cookie|set[-_]?cookie)`;
-const CREDENTIAL_KEY_SOURCE = String.raw`(?:authorization|proxy[-_]?authorization|${COOKIE_KEY_SOURCE}|session(?:[-_]?id)?|x[-_]?api[-_]?key|api[-_]?key|access[-_]?key|signature|credentials?|[a-z0-9_-]*(?:token|password|secret)[a-z0-9_-]*)`;
+const CREDENTIAL_KEY_SOURCE = String.raw`(?:authorization|proxy[-_]?authorization|${COOKIE_KEY_SOURCE}|session(?:${KEY_SEPARATOR}id)?|x${KEY_SEPARATOR}api${KEY_SEPARATOR}key|api${KEY_SEPARATOR}key|access${KEY_SEPARATOR}key|signature|credentials?|[a-z0-9_-]*(?:token|password|secret)[a-z0-9_-]*)`;
 const CREDENTIAL_KEY = new RegExp(`^${CREDENTIAL_KEY_SOURCE}$`, "i");
 const CREDENTIAL_KEY_VALUE = new RegExp(
   `(["']?\\b${CREDENTIAL_KEY_SOURCE}\\b["']?\\s*[:=]\\s*)("(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|[^\\r\\n,;}\\]]+)`,

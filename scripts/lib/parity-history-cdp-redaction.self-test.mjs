@@ -55,6 +55,26 @@ for (const [text, secret] of textCredentials) {
 assert.match(sanitizeCdpText(textCredentials[0][0]), /ordinary-cookie-text/);
 assert.match(sanitizeCdpText(textCredentials[4][0]), /"safe":"visible"/);
 
+// F545: spaced and dotted credential key forms must hit (space/dot/hyphen/underscore).
+const separatorKeyCredentials = [
+  ["api key: F545-API-SPACE-01", "F545-API-SPACE-01"],
+  ["api.key: F545-API-DOT-02", "F545-API-DOT-02"],
+  ["x api key = F545-X-SPACE-03", "F545-X-SPACE-03"],
+  ["x.api.key: F545-X-DOT-04", "F545-X-DOT-04"],
+  ["access key: F545-ACCESS-SPACE-05", "F545-ACCESS-SPACE-05"],
+  ["access.key=F545-ACCESS-DOT-06", "F545-ACCESS-DOT-06"],
+  ["session id: F545-SESSION-SPACE-07", "F545-SESSION-SPACE-07"],
+  ["session.id = F545-SESSION-DOT-08", "F545-SESSION-DOT-08"],
+];
+for (const [text, secret] of separatorKeyCredentials) {
+  const sanitized = sanitizeCdpText(text);
+  assert.equal(sanitized.includes(secret), false, text);
+  assert.equal(sanitizeCdpText(sanitized), sanitized);
+}
+// Compound keys with a newline between words must NOT match (single-line separator).
+const crossLine = sanitizeCdpText("api\nkey: F545-CROSSLINE-NOPE");
+assert.match(crossLine, /F545-CROSSLINE-NOPE/);
+
 const queryKeys = [
   "session",
   "sessionid",
@@ -64,6 +84,11 @@ const queryKeys = [
   "access_key",
   "signature",
   "credential",
+  // F545: dot-separated compound query keys must also hit.
+  "api.key",
+  "x.api.key",
+  "access.key",
+  "session.id",
 ];
 for (const [index, key] of queryKeys.entries()) {
   const secret = `F539-QUERY-${index}`;
