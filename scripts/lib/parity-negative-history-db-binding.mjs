@@ -34,6 +34,10 @@ export async function bindNegativeHistoryContext(prisma, context) {
     "history order binding mismatch",
   );
   requireValue(manifests.length === 2, "history manifests missing");
+  requireValue(
+    context.buildRunM1 !== context.buildRunM2,
+    "history manifests share build run",
+  );
   validateManifest(
     manifests.find((row) => row.id === context.manifestM1),
     context,

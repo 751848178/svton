@@ -40,6 +40,29 @@ await assert.rejects(
   /scope mismatch/,
 );
 
+const shared = historyContext();
+shared.buildRunM2 = shared.buildRunM1;
+await assert.rejects(
+  bindNegativeHistoryContext(databaseFixture(shared).client, shared),
+  /share build run/,
+);
+
+await rejectDatabase("failed manifest build", context, (value) => {
+  value.manifests[0].buildRun.status = "failed";
+});
+await rejectDatabase("manifest build order mismatch", context, (value) => {
+  value.manifests[0].buildRun.releaseOrderId = "other-order";
+});
+await rejectDatabase("manifest build project mismatch", context, (value) => {
+  value.manifests[0].buildRun.projectId = "other";
+});
+await rejectDatabase("manifest build team mismatch", context, (value) => {
+  value.manifests[0].buildRun.teamId = "other";
+});
+await rejectDatabase("missing manifest build run", context, (value) => {
+  value.manifests[0].buildRun = null;
+});
+
 process.stdout.write("negative history DB binding self-test passed\n");
 
 function historyContext() {
