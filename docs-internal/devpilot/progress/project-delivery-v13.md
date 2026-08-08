@@ -5,6 +5,7 @@
 - Program state: the historical F386-F412 implementation/evidence scope is complete, but strict V13 Demo 1:1 functional, runtime and UI parity is active as F413-F460. Use `../project-delivery-v13-demo-parity-acceptance.md` and `../../todos/2026-08-04-devpilot-v13-demo-parity.md` for the current verdict; do not interpret this historical completion as final parity acceptance. External push, PR, merge and production rollout remain out of scope.
 - Branch: `codex/devpilot-project-delivery-v13`.
 - Worktree: `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`.
+- Current independent-acceptance checkpoint: F494/F476/F518 isolated runtime code, fresh F475 intake consumers and parity-only F465 HTTP route-control apply/readback/live-proxy are implemented through `a8db392f`. Focused route/receipt/compose tests, API/Web type-check and full API/Web unit suites pass. Final C5/browser proof remains `needs_context`: Docker Desktop hit ENOSPC/containerd blob I/O during the last clean-HEAD image build and stayed unresponsive; it was not restarted because that would interrupt the existing shared parity stack. No public DNS, external provider, browser acceptance, push, PR or final parity claim is made.
 - Base: `b6c3488743be13eacf4320f685da927488490113`.
 - Integrated fixes: `17652567` then `ef1a47cb` (local cherry-pick commits `7d9d580c`, `724abfef`).
 - Original checkout protection checkpoint: `master@b6c3488`, 131 status entries, SHA-256 `1024cd00f74bfe32689bff198cdef74942ccff7b26d30f7d28a2609c52d0ab16`.

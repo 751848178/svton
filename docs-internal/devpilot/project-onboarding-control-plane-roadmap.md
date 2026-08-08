@@ -1,6 +1,8 @@
 # Devpilot 项目纳管、Webhook 与站点管控演进说明
 
 > V13 交付控制面里程碑（2026-08-03）：F386-F410 已在隔离分支完成并通过最终验收。项目高频入口现已收敛为项目目录、三步接入、发布单和环境版本；标准发布具备精确 Commit、不可变 Manifest、同制品 Staging/Production、冻结配置与审批、追加式恢复历史、51 项持久化门禁及只读兼容。金丝雀、蓝绿、自动放量和缺失 Provider 继续明确返回不可用，不作为已交付能力。
+>
+> 独立验收更新（2026-08-09）：隔离运行的 namespace/provenance/run-owned cleanup、新鲜接入消费者和 parity-only HTTP 路由控制面已实现至 `a8db392f`；普通环境仍默认 `disabled/unconfigured`。最终 C5/浏览器签收因 Docker Desktop ENOSPC/containerd I/O 为 `needs_context`，不得据此声称公网 DNS、外部 Provider 或最终 parity 已通过。
 
 ## 1. 本次产品判断
 
