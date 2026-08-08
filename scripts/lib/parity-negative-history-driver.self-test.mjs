@@ -39,10 +39,7 @@ assert.doesNotMatch(adapter, /\/tmp\/codex-tool-runs\/svton\/f456/);
 assert.match(adapter, /parseNegativeHistoryEvidence\(bytes, input\)/);
 assert.doesNotMatch(binding, /\.(create|update|upsert|delete|deleteMany)\s*\(/);
 assert.match(contract, /canonicalHistoryStepValid\(stepName, step\)/);
-assert.match(
-  contract,
-  /canonicalHistoryStepValid\("base-state-rows", baseStep\)/,
-);
+assert.match(contract, /validateTrustedHistoryBase\(baseStep, context\)/);
 assert.match(
   checkContract,
   /historyStepChecks\(name, step\?\.result \|\| \{\}\)/,

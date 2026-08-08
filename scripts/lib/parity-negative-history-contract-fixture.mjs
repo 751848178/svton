@@ -3,6 +3,11 @@ import {
   historyStepChecks,
 } from "./parity-history-e2e-evidence.mjs";
 import { identityFixtures } from "./parity-history-identity-fixtures.mjs";
+import {
+  BASE_MANIFEST_DIGEST,
+  baseContextFixture,
+  baseRowsFixture,
+} from "./parity-negative-history-base-fixture.mjs";
 import { productionActionFixture } from "./parity-negative-history-production-fixture.mjs";
 import {
   browserPassFixture,
@@ -13,11 +18,10 @@ import {
   HISTORY_WORKER,
 } from "./parity-negative-history-contract.mjs";
 
-const DIGEST_1 = `sha256:${"a".repeat(64)}`;
 const DIGEST_2 = `sha256:${"b".repeat(64)}`;
 
 export function historyDocumentFixture() {
-  const context = contextFixture();
+  const context = baseContextFixture();
   const results = resultFixtures(context);
   const steps = Object.fromEntries(
     Object.entries(results).map(([name, result]) => [
@@ -25,7 +29,7 @@ export function historyDocumentFixture() {
       passedStep(name, result),
     ]),
   );
-  return {
+  const document = {
     worker: HISTORY_WORKER,
     objective: HISTORY_OBJECTIVE,
     status: "passed",
@@ -34,6 +38,7 @@ export function historyDocumentFixture() {
     steps,
     ac: acceptanceFromSteps(steps),
   };
+  return JSON.parse(JSON.stringify(document));
 }
 
 export function acceptanceFromSteps(steps) {
@@ -59,25 +64,6 @@ function passedStep(name, result) {
   return { ok: true, status: "passed", verified: true, checks, result };
 }
 
-function contextFixture() {
-  return {
-    teamId: "team",
-    projectId: "project",
-    orderId: "order",
-    stagingEnvId: "staging",
-    productionEnvId: "production",
-    buildRunId: "build-1",
-    manifestId: "manifest-1",
-    manifestDigest: DIGEST_1,
-    stagingDeploymentRunId: "deploy-1",
-    stagingCurrentVersionId: "staging-v1",
-    productionCurrentVersionId: "production-v1",
-    productionConfigRevisionId: "config-1",
-    productionTargetRef: "target",
-    pinnedCommit: "a".repeat(40),
-  };
-}
-
 function resultFixtures(context) {
   const identity = Object.fromEntries(
     identityFixtures().map(({ step, result }) => [step, result]),
@@ -89,7 +75,7 @@ function resultFixtures(context) {
       email: "admin@parity.local",
       source: "bootstrap-admin-after-reset",
     },
-    "base-state-rows": baseRows(context),
+    "base-state-rows": baseRowsFixture(context),
     "build-2": {
       buildRunId: "build-2",
       distinctFromB1: true,
@@ -115,32 +101,6 @@ function resultFixtures(context) {
     "production-recovery-execute": productionActionFixture("recovery"),
     "version-chains": versionChainsFixture(),
     "browser-pass": browserPassFixture(),
-  };
-}
-
-function baseRows(context) {
-  return {
-    buildRuns: [{ id: context.buildRunId }],
-    manifests: [
-      {
-        id: context.manifestId,
-        digest: context.manifestDigest,
-        buildRunId: context.buildRunId,
-      },
-    ],
-    stagingVersions: [{ id: context.stagingCurrentVersionId }],
-    productionVersions: [{ id: context.productionCurrentVersionId }],
-    environments: [
-      {
-        id: context.stagingEnvId,
-        currentEnvironmentVersionId: context.stagingCurrentVersionId,
-      },
-      {
-        id: context.productionEnvId,
-        currentEnvironmentVersionId: context.productionCurrentVersionId,
-      },
-    ],
-    expected: context,
   };
 }
 
@@ -181,9 +141,9 @@ function repeatDeployment() {
       resultManifestId: "manifest-1",
       expectedManifestId: "manifest-1",
       paramsManifestId: "manifest-1",
-      resultManifestDigest: DIGEST_1,
-      expectedManifestDigest: DIGEST_1,
-      paramsManifestDigest: DIGEST_1,
+      resultManifestDigest: BASE_MANIFEST_DIGEST,
+      expectedManifestDigest: BASE_MANIFEST_DIGEST,
+      paramsManifestDigest: BASE_MANIFEST_DIGEST,
     },
   };
 }

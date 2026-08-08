@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { HISTORY_AC_MAPPING } from "./parity-history-e2e-evidence.mjs";
+import { validateTrustedHistoryBase } from "./parity-negative-history-base-identity.mjs";
 import {
   canonicalHistoryStepValid,
   sameJsonValue,
@@ -33,6 +34,8 @@ export function parseNegativeHistoryEvidence(bytes, input) {
     REQUIRED_CONTEXT.every((name) => nonEmpty(context[name])),
     "history context incomplete",
   );
+  const baseStep = document.steps?.["base-state-rows"];
+  const baseAnchors = validateTrustedHistoryBase(baseStep, context);
   requireValue(validateAcceptance(document), "history acceptance invalid");
   return Object.freeze({
     sourcePath: input.evidencePath,
@@ -43,7 +46,7 @@ export function parseNegativeHistoryEvidence(bytes, input) {
     objective: document.objective,
     status: document.status,
     ...context,
-    ...manifestContext(document, context),
+    ...manifestContext(document, baseAnchors),
     historyAcceptanceIds: Object.keys(document.ac).sort(),
     historyAcceptancePassed: true,
     historyContractValid: true,
@@ -110,51 +113,25 @@ function validateAcceptance(document) {
   });
 }
 
-function manifestContext(document, context) {
-  const baseStep = document.steps?.["base-state-rows"];
-  requireValue(
-    canonicalHistoryStepValid("base-state-rows", baseStep),
-    "history base step invalid",
-  );
-  const base = baseStep.result;
+function manifestContext(document, baseAnchors) {
   const build2 = document.steps?.["build-2"]?.result;
-  const manifest1 = base?.manifests?.[0];
-  const build1 = base?.buildRuns?.[0];
-  requireValue(
-    base?.manifests?.length === 1 && base?.buildRuns?.length === 1,
-    "history base rows invalid",
-  );
-  requireValue(
-    manifest1?.id === context.manifestId &&
-      manifest1?.digest === context.manifestDigest,
-    "history M1 mismatch",
-  );
-  requireValue(
-    manifest1?.buildRunId === context.buildRunId &&
-      build1?.id === context.buildRunId,
-    "history B1 mismatch",
-  );
-  requireValue(
-    base?.expected?.manifestId === context.manifestId &&
-      base?.expected?.manifestDigest === context.manifestDigest,
-    "history base expectation mismatch",
-  );
   requireValue(
     build2?.status === "succeeded" && nonEmpty(build2.buildRunId),
     "history B2 invalid",
   );
   requireValue(
-    nonEmpty(build2.manifestId) && build2.manifestId !== context.manifestId,
+    nonEmpty(build2.manifestId) && build2.manifestId !== baseAnchors.manifestId,
     "history M2 invalid",
   );
   requireValue(
-    digest(context.manifestDigest) && digest(build2.manifestDigest),
+    digest(baseAnchors.manifestDigest) && digest(build2.manifestDigest),
     "history digest invalid",
   );
   return {
-    manifestM1: context.manifestId,
-    manifestM1Digest: context.manifestDigest,
-    buildRunM1: context.buildRunId,
+    manifestM1: baseAnchors.manifestId,
+    manifestM1Digest: baseAnchors.manifestDigest,
+    buildRunM1: baseAnchors.buildRunId,
+    productionReleaseRunR1: baseAnchors.productionReleaseRunId,
     manifestM2: build2.manifestId,
     manifestM2Digest: build2.manifestDigest,
     buildRunM2: build2.buildRunId,

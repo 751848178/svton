@@ -206,7 +206,7 @@ async function main() {
     });
     const stagingVersions = await prisma.environmentVersion.findMany({
       where: { projectId, environmentId: stagingEnvId },
-      select: { id: true, kind: true, previousVersionId: true, artifactManifestId: true, releaseRunId: true },
+      select: { id: true, kind: true, previousVersionId: true, artifactManifestId: true, releaseRunId: true, deploymentRunId: true },
       orderBy: { effectiveAt: "asc" },
     });
     const productionVersions = await prisma.environmentVersion.findMany({
