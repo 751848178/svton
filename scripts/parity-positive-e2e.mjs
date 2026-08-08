@@ -44,6 +44,7 @@ import {
   productionRouteEvidenceChecks,
 } from "./lib/parity-production-route-evidence.mjs";
 import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
+import { requireFirstEnvironmentRevision } from "./lib/parity-environment-revision-list.mjs";
 import { createPositiveIntakeFlow } from "./lib/parity-positive-intake-flow.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -188,8 +189,8 @@ async function main() {
     `/project-environments/parity-env-production/config-revisions`,
     headers,
   );
-  const stagingR1 = firstRevision(stagingRevisionList);
-  const productionR1 = firstRevision(productionRevisionList);
+  const stagingR1 = requireFirstEnvironmentRevision(stagingRevisionList);
+  const productionR1 = requireFirstEnvironmentRevision(productionRevisionList);
   await step("env-r1-current", async () => {
     return {
       stagingR1: stagingR1?.id,
@@ -1207,11 +1208,6 @@ async function currentRevisionId(environmentId) {
     select: { currentConfigRevisionId: true },
   });
   return env?.currentConfigRevisionId;
-}
-
-function firstRevision(list) {
-  const items = Array.isArray(list) ? list : list?.items;
-  return (items || []).find((item) => item.revision === 1) || (items || [])[0];
 }
 
 function flattenLogs(logs) {
