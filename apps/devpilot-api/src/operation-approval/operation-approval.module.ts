@@ -8,6 +8,7 @@ import { OperationApprovalMatchService } from "./operation-approval-match.servic
 import { OperationApprovalRequirementRepository } from "./operation-approval-requirement.repository";
 import { OperationApprovalRequirementService } from "./operation-approval-requirement.service";
 import { OperationApprovalRepository } from "./operation-approval.repository";
+import { OperationApprovalReviewService } from "./operation-approval-review.service";
 import { OperationApprovalService } from "./operation-approval.service";
 
 @Module({
@@ -15,6 +16,7 @@ import { OperationApprovalService } from "./operation-approval.service";
   controllers: [OperationApprovalController],
   providers: [
     OperationApprovalService,
+    OperationApprovalReviewService,
     OperationApprovalRepository,
     OperationApprovalMatchService,
     OperationApprovalAuditService,

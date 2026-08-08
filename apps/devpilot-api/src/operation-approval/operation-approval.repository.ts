@@ -9,6 +9,11 @@ import { OPERATION_APPROVAL_INCLUDE } from "./operation-approval-includes.consta
 import { buildOperationApprovalWhere } from "./operation-approval-list-query.utils";
 import { CreateOperationApprovalInput } from "./operation-approval.types";
 
+// CAS 输赢类型：reviewPending 返回 winner 行（count===1）或 null（count===0 并发输家）。
+export type ReviewPendingOutcome =
+  | { kind: "won"; winner: Awaited<ReturnType<Prisma.TransactionClient["operationApproval"]["findUnique"]>> }
+  | { kind: "lost" };
+
 @Injectable()
 export class OperationApprovalRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -70,21 +75,33 @@ export class OperationApprovalRepository {
     });
   }
 
-  review(
+  // F470：唯一并发决策点。updateMany CAS 谓词同时锁定 id + teamId + status:pending。
+  // 必须运行在调用方提供的交互式事务 tx 内，使 CAS 写与 decision audit 共享同一事务边界。
+  // count===1 为胜者：事务内重读 winner（同一 include 形状）作为返回值。
+  // count===0 为并发输家：不读 winner、不写 audit，返回 { kind: 'lost' } 由调用方报 409。
+  async reviewPending(
+    tx: Prisma.TransactionClient,
+    teamId: string,
     approvalId: string,
     reviewerId: string,
     dto: ReviewOperationApprovalDto,
-  ) {
-    return this.prisma.operationApproval.update({
-      where: { id: approvalId },
+    reviewedAt: Date,
+  ): Promise<ReviewPendingOutcome> {
+    const cas = await tx.operationApproval.updateMany({
+      where: { id: approvalId, teamId, status: "pending" },
       data: {
         status: dto.decision,
         reviewerId,
         reviewComment: dto.reviewComment,
-        reviewedAt: new Date(),
+        reviewedAt,
       },
+    });
+    if (cas.count === 0) return { kind: "lost" };
+    const winner = await tx.operationApproval.findUnique({
+      where: { id: approvalId },
       include: OPERATION_APPROVAL_INCLUDE,
     });
+    return { kind: "won", winner };
   }
 
   consume(teamId: string, approvalId: string) {

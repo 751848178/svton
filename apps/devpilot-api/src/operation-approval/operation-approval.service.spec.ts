@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException } from "@nestjs/common";
 import { OperationApprovalService } from "./operation-approval.service";
 
 describe("OperationApprovalService", () => {
@@ -7,7 +7,7 @@ describe("OperationApprovalService", () => {
     findReusablePending: jest.fn(),
     create: jest.fn(),
     findByIdForTeam: jest.fn(),
-    review: jest.fn(),
+    reviewPending: jest.fn(),
     consume: jest.fn(),
   };
   const approvalMatchService = { assertMatches: jest.fn() };
@@ -18,12 +18,15 @@ describe("OperationApprovalService", () => {
     assertCanReviewApproval: jest.fn(),
     assertCanExecuteApproved: jest.fn(),
   };
+  // F470：review 现委托给 OperationApprovalReviewService（CAS + 交互式事务）。
+  const reviewService = { review: jest.fn() };
   const service = new OperationApprovalService(
     approvalRepository as any,
     approvalMatchService as any,
     approvalAuditService as any,
     approvalRequirementService as any,
     accessPolicyService as any,
+    reviewService as any,
   );
 
   beforeEach(() => {
@@ -89,103 +92,33 @@ describe("OperationApprovalService", () => {
     );
   });
 
-  it("reviews a pending approval as approved through the repository", async () => {
-    approvalRepository.findByIdForTeam.mockResolvedValue({
-      id: "approval-1",
-      status: "pending",
-    });
-    approvalRepository.review.mockImplementation(
-      async (id, reviewerId, dto) => ({
-        id,
-        status: dto.decision,
-        reviewerId,
-        reviewComment: dto.reviewComment,
-        reviewedAt: new Date(),
-      }),
-    );
+  // F470：review 是薄 facade，参数契约不变，全部委托给 OperationApprovalReviewService。
+  it("delegates review to OperationApprovalReviewService with unchanged arguments", async () => {
+    const reviewed = { id: "approval-1", status: "approved", reviewerId: "reviewer-1" };
+    reviewService.review.mockResolvedValue(reviewed);
 
-    const reviewed = await service.review(
+    const result = await service.review(
       "team-1",
       "reviewer-1",
       "approval-1",
-      {
-        decision: "approved",
-      },
+      { decision: "approved", reviewComment: "ok" },
     );
 
-    expect(approvalRepository.review).toHaveBeenCalledWith(
-      "approval-1",
+    expect(reviewService.review).toHaveBeenCalledWith(
+      "team-1",
       "reviewer-1",
-      { decision: "approved", reviewComment: undefined },
+      "approval-1",
+      { decision: "approved", reviewComment: "ok" },
     );
-    expect(approvalAuditService.writeApprovalAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "approval-1", status: "approved" }),
+    expect(result).toBe(reviewed);
+    // facade 自身不触碰 CAS/audit（由 review service 在事务内处理）。
+    expect(approvalRepository.reviewPending).not.toHaveBeenCalled();
+    expect(approvalAuditService.writeApprovalAudit).not.toHaveBeenCalledWith(
+      expect.anything(),
       "approval.approved",
-      "approved",
+      expect.anything(),
+      expect.anything(),
     );
-    expect(reviewed).toMatchObject({
-      status: "approved",
-      reviewerId: "reviewer-1",
-    });
-  });
-
-  it("rejects a pending approval with the required review comment", async () => {
-    approvalRepository.findByIdForTeam.mockResolvedValue({
-      id: "approval-1",
-      status: "pending",
-    });
-    approvalRepository.review.mockImplementation(
-      async (id, reviewerId, dto) => ({
-        id,
-        status: dto.decision,
-        reviewerId,
-        reviewComment: dto.reviewComment,
-        reviewedAt: new Date(),
-      }),
-    );
-
-    const reviewed = await service.review(
-      "team-1",
-      "reviewer-1",
-      "approval-1",
-      {
-        decision: "rejected",
-        reviewComment: "blocked by change window",
-      },
-    );
-
-    expect(approvalRepository.review).toHaveBeenCalledWith(
-      "approval-1",
-      "reviewer-1",
-      { decision: "rejected", reviewComment: "blocked by change window" },
-    );
-    expect(approvalAuditService.writeApprovalAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "approval-1", status: "rejected" }),
-      "approval.rejected",
-      "rejected",
-    );
-  });
-
-  it("rejects review of a non-pending approval", async () => {
-    approvalRepository.findByIdForTeam.mockResolvedValue({
-      id: "approval-1",
-      status: "approved",
-    });
-    await expect(
-      service.review("team-1", "reviewer-1", "approval-1", {
-        decision: "approved",
-      }),
-    ).rejects.toThrow(BadRequestException);
-    expect(approvalRepository.review).not.toHaveBeenCalled();
-  });
-
-  it("throws when the approval does not belong to the team", async () => {
-    approvalRepository.findByIdForTeam.mockResolvedValue(null);
-    await expect(
-      service.review("team-1", "reviewer-1", "approval-missing", {
-        decision: "approved",
-      }),
-    ).rejects.toThrow(NotFoundException);
   });
 
   it("resolveApproved fails closed for rejected, consumed, expired and drifted approvals", async () => {

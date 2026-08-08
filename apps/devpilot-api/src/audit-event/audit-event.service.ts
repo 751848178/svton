@@ -75,8 +75,14 @@ export class AuditEventService {
     });
   }
 
-  async create(input: CreateAuditEventInput) {
-    return this.prisma.auditEvent.create({
+  async create(
+    input: CreateAuditEventInput,
+    // F470：可选事务写客户端。传入时 audit 与决策 CAS 共享同一 Prisma 交互式事务，
+    // 审计抛错回滚审批状态；不传时回落到默认 PrismaService（保留既有非事务调用方行为）。
+    tx?: Prisma.TransactionClient,
+  ) {
+    const client = tx ?? this.prisma;
+    return client.auditEvent.create({
       data: {
         teamId: input.teamId,
         actorId: input.actorId ?? undefined,
