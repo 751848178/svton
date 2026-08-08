@@ -10,11 +10,12 @@ export function cdpHeaderValueSpans(value) {
   for (const match of value.matchAll(EXPLICIT_FIELD)) {
     const start = match.index + match[0].length;
     if (start >= value.length) continue;
+    const delimiter = match[6];
     const lineHeader =
       match[3] === "" &&
-      match[6] === ":" &&
+      delimiter === ":" &&
       (match[1] === "" || match[1] === "\r" || match[1] === "\n");
-    const end = valueEnd(value, start, lineHeader);
+    const end = valueEnd(value, start, delimiter, lineHeader);
     if (end > start) spans.push(Object.freeze({ start, end }));
   }
   return Object.freeze(spans);
@@ -31,7 +32,7 @@ export function redactCdpValueSpans(value, spans) {
   return output;
 }
 
-function valueEnd(value, start, lineHeader) {
+function valueEnd(value, start, delimiter, lineHeader) {
   if (value.startsWith("[REDACTED]", start)) {
     return start + "[REDACTED]".length;
   }
@@ -39,6 +40,11 @@ function valueEnd(value, start, lineHeader) {
     return quotedEnd(value, start);
   }
   if (lineHeader) return lineEnd(value, start);
+  // Equals-delimited fields (Authorization=..., Cookie=...) are treated as single
+  // tokens delimited by `;` or `,`. Sibling credential fields are still redacted by
+  // the generic CREDENTIAL_KEY_VALUE scanner, while non-secret siblings such as
+  // `safe=visible` are preserved instead of being fail-closed into the span.
+  const equalsDelimited = delimiter === "=";
   let quote = null;
   let escaped = false;
   for (let index = start; index < value.length; index += 1) {
@@ -58,11 +64,9 @@ function valueEnd(value, start, lineHeader) {
     if (quote) continue;
     if (character === "\r" || character === "\n") return index;
     if (CLOSE_DELIMITERS.has(character)) return index;
-    if (
-      (character === ";" || character === ",") &&
-      NEXT_HEADER.test(value.slice(index + 1))
-    ) {
-      return index;
+    if (character === ";" || character === ",") {
+      if (equalsDelimited) return index;
+      if (NEXT_HEADER.test(value.slice(index + 1))) return index;
     }
   }
   return value.length;

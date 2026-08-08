@@ -67,6 +67,42 @@ const cases = [
     secrets: ["F543-ESCAPED", "quoted", "tail"],
     preserved: ['"safe":"visible"'],
   },
+  {
+    input: "Authorization=Custom F561-SECRET, safe=visible",
+    secrets: ["F561-SECRET"],
+    preserved: ["safe=visible"],
+  },
+  {
+    input: "Cookie=sid=F561-SID; safe=visible",
+    secrets: ["F561-SID"],
+    preserved: ["safe=visible"],
+  },
+  {
+    input: "Cookie=sid=F561-SID; csrf=F561-CSRF; safe=visible",
+    secrets: ["F561-SID"],
+    preserved: ["safe=visible", "csrf=F561-CSRF"],
+  },
+  {
+    input:
+      "Set-Cookie=sid=F561-SET; Expires=Wed, 09 Jun 2027 10:18:14 GMT; safe=visible",
+    secrets: ["F561-SET"],
+    preserved: ["safe=visible"],
+  },
+  {
+    input: 'Authorization="Custom F561-QUOTED with spaces", safe=visible',
+    secrets: ["F561-QUOTED", "with spaces"],
+    preserved: ["safe=visible"],
+  },
+  {
+    input: 'Cookie="sid=F561-QSID; csrf=F561-QCSRF"; safe=visible',
+    secrets: ["F561-QSID", "F561-QCSRF"],
+    preserved: ["safe=visible"],
+  },
+  {
+    input: "Authorization=Custom F561-COMMA, token=F561-SIBLING, safe=visible",
+    secrets: ["F561-COMMA", "F561-SIBLING"],
+    preserved: ["safe=visible"],
+  },
 ];
 
 for (const { input, secrets, preserved = [] } of cases) {
@@ -77,7 +113,7 @@ for (const { input, secrets, preserved = [] } of cases) {
     assert.match(sanitized, new RegExp(escape(marker)));
   assert.equal(sanitizeCdpText(sanitized), sanitized);
   assert.doesNotMatch(sanitized, /\[REDACTED\]\]/);
-  assert.equal(markerCount(sanitized), 1, input);
+  assert.doesNotMatch(sanitized, /\[REDACTED\]\[REDACTED\]/);
 }
 
 const multiple = sanitizeCdpText(
