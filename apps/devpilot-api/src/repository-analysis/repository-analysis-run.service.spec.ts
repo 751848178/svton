@@ -1,38 +1,32 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import { REPOSITORY_ANALYSIS_PARSER_VERSION } from './repository-analysis.constants';
 import { RepositoryAnalysisRunService } from './repository-analysis-run.service';
 
 describe('RepositoryAnalysisRunService', () => {
-  const connection = {
-    id: 'connection-1',
-    status: 'connected',
+  const snapshot = {
+    connectionId: 'connection-1',
     repositoryUrl: 'https://example.com/repo.git',
-    selectedBranch: 'main',
+    branch: 'main',
     commitSha: 'a'.repeat(40),
   };
   const secretCommand = 'JWT_SECRET=sentinel-jwt node server.js';
 
   function createHarness() {
-    const connections = {
-      assertProject: jest.fn().mockResolvedValue({ id: 'project-1' }),
-      findByProject: jest.fn().mockResolvedValue(connection),
-    };
     const runs = {
-      findIdempotent: jest.fn(),
-      findActive: jest.fn(),
-      create: jest.fn(),
       list: jest.fn(),
       findScoped: jest.fn(),
       requestCancel: jest.fn(),
     };
+    const claims = { start: jest.fn(), retry: jest.fn() };
     const worker = { enqueue: jest.fn(), cancel: jest.fn() };
     const audit = { record: jest.fn().mockResolvedValue(undefined) };
     const service = new RepositoryAnalysisRunService(
-      connections as never,
       runs as never,
+      claims as never,
       worker as never,
       audit as never,
     );
-    return { service, connections, runs, worker, audit };
+    return { service, runs, claims, worker, audit };
   }
 
   it('returns the same run for a repeated project idempotency key', async () => {
@@ -42,56 +36,60 @@ describe('RepositoryAnalysisRunService', () => {
       status: 'running',
       suggestions: [{ currentValue: { deployConfig: { initializationCommand: secretCommand } } }],
     };
-    harness.runs.findIdempotent.mockResolvedValue(existing);
+    harness.claims.start.mockResolvedValue({ run: existing, replayed: true });
 
     const result = await harness.service.start('team-1', 'user-1', 'project-1', {
       idempotencyKey: 'request-1',
     });
     expect(result).toEqual(expect.objectContaining({ id: existing.id }));
     expect(JSON.stringify(result)).not.toContain('sentinel-jwt');
-    expect(harness.runs.findActive).not.toHaveBeenCalled();
-    expect(harness.runs.create).not.toHaveBeenCalled();
+    expect(harness.claims.start).toHaveBeenCalledWith(expect.objectContaining({
+      teamId: 'team-1', projectId: 'project-1', triggeredById: 'user-1',
+      idempotencyKey: 'request-1',
+    }));
+    expect(harness.audit.record).not.toHaveBeenCalled();
     expect(harness.worker.enqueue).not.toHaveBeenCalled();
   });
 
   it('rejects a second active run before creating work', async () => {
     const harness = createHarness();
-    harness.runs.findIdempotent.mockResolvedValue(null);
-    harness.runs.findActive.mockResolvedValue({ id: 'run-active' });
+    harness.claims.start.mockRejectedValue(new ConflictException('active run'));
 
     await expect(harness.service.start('team-1', 'user-1', 'project-1', {
       idempotencyKey: 'request-2',
     })).rejects.toBeInstanceOf(ConflictException);
-    expect(harness.runs.create).not.toHaveBeenCalled();
+    expect(harness.claims.start).toHaveBeenCalledWith(expect.objectContaining({
+      teamId: 'team-1', projectId: 'project-1', triggeredById: 'user-1',
+    }));
+    expect(harness.audit.record).not.toHaveBeenCalled();
+    expect(harness.worker.enqueue).not.toHaveBeenCalled();
   });
 
   it('creates exactly one immutable snapshot and enqueues it after audit', async () => {
     const harness = createHarness();
-    harness.runs.findIdempotent.mockResolvedValue(null);
-    harness.runs.findActive.mockResolvedValue(null);
-    harness.runs.create.mockResolvedValue({
+    harness.claims.start.mockResolvedValue({ replayed: false, run: {
       id: 'run-new',
-      branch: 'main',
-      commitSha: connection.commitSha,
-      parserVersion: 'repository-parser-v1',
-    });
+      ...snapshot,
+      parserVersion: REPOSITORY_ANALYSIS_PARSER_VERSION,
+    } });
 
     const result = await harness.service.start('team-1', 'user-1', 'project-1', {
       branch: 'main',
       idempotencyKey: 'request-3',
     });
 
-    expect(harness.runs.create).toHaveBeenCalledWith(expect.objectContaining({
+    expect(harness.claims.start).toHaveBeenCalledWith(expect.objectContaining({
       teamId: 'team-1',
       projectId: 'project-1',
-      connectionId: connection.id,
-      repositoryUrl: connection.repositoryUrl,
+      triggeredById: 'user-1',
       branch: 'main',
-      commitSha: connection.commitSha,
       idempotencyKey: 'request-3',
+      parserVersion: REPOSITORY_ANALYSIS_PARSER_VERSION,
     }));
     expect(harness.audit.record).toHaveBeenCalled();
     expect(harness.worker.enqueue).toHaveBeenCalledWith('run-new');
+    expect(harness.audit.record.mock.invocationCallOrder[0])
+      .toBeLessThan(harness.worker.enqueue.mock.invocationCallOrder[0]);
     expect(result.id).toBe('run-new');
   });
 
@@ -116,23 +114,27 @@ describe('RepositoryAnalysisRunService', () => {
     const harness = createHarness();
     const source = {
       id: 'run-failed',
-      connectionId: connection.id,
-      repositoryUrl: connection.repositoryUrl,
-      branch: connection.selectedBranch,
-      commitSha: connection.commitSha,
+      ...snapshot,
     };
     harness.runs.findScoped.mockResolvedValue(source);
-    harness.runs.findActive.mockResolvedValue(null);
-    harness.runs.create.mockResolvedValue({ ...source, id: 'run-retry' });
+    harness.claims.retry.mockResolvedValue({ ...source, id: 'run-retry' });
 
     await expect(
       harness.service.retry('team-1', 'user-1', 'project-1', source.id),
     ).resolves.toEqual(expect.objectContaining({ id: 'run-retry' }));
-    expect(harness.runs.create).toHaveBeenCalledWith(expect.objectContaining({
+    expect(harness.runs.findScoped).toHaveBeenCalledWith(
+      'team-1', 'project-1', source.id,
+    );
+    expect(harness.claims.retry).toHaveBeenCalledWith(expect.objectContaining({
+      teamId: 'team-1',
+      projectId: 'project-1',
+      triggeredById: 'user-1',
       retryOfId: source.id,
       repositoryUrl: source.repositoryUrl,
       branch: source.branch,
       commitSha: source.commitSha,
+      idempotencyKey: expect.stringMatching(/^retry:run-failed:/),
+      parserVersion: REPOSITORY_ANALYSIS_PARSER_VERSION,
     }));
     expect(harness.audit.record).toHaveBeenCalledWith(expect.objectContaining({
       action: 'repository.analysis.retry',
