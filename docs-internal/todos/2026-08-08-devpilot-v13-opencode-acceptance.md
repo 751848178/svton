@@ -226,6 +226,7 @@ Each row records source, affected scope, reproduction/expected/actual/root cause
 | F563 | P1 fixed | evidence/browser; F534 | browser PNG fixtures now contain compressed IDAT and the validator requires sane IHDR, successful inflate, exact scanlines and terminal IEND without `node:zlib.crc32` | PNG fixture/validator compatibility only / no visual judgment | `6536a2d8`; Node 18/20/22 focused tests pass |
 | F564 | P1 fixed | evidence/browser; F535 | stdout acceptance requires the complete exact artifact inventory, unique paths, exact receipt keys/run nonce and evidence receipt bound to actual bytes | history stdout parser and browser session contract only / no product behavior | `80ad0ee2`; missing/extra/duplicate/stale/mismatch adversarial tests pass |
 | F565 | P3 fixed | evidence/quality; F560 | generated IDs are unique within six data-model groups without requiring unrelated tables to use globally distinct strings | generated-role distinctness self-test only | `0c7e8f34`; within-model duplicate rejects and cross-model reuse accepts |
+| F566 | P3 fixed | tests; F558 | the result-key producer self-test still located the renamed `browserPassPinned` function and failed before checking its return inventory; it now binds the current `browserPass` producer | test locator only / no runtime behavior | `3778e198`; focused test and 47 affected parity Node self-tests pass |
 
 ## Final Verdict Status
 
