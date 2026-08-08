@@ -5,6 +5,7 @@ import {
   validTime,
 } from "./parity-negative-history-identity-assert.mjs";
 import { validateProductionRouteIdentity } from "./parity-negative-history-route-identity.mjs";
+import { validateVersionRow } from "./parity-negative-history-version-row-identity.mjs";
 
 export function validateProductionAction(result, roots, expected) {
   const label = `${expected.kind}-execute`;
@@ -25,18 +26,18 @@ export function validateProductionAction(result, roots, expected) {
     [expected.releaseRunId, expected.releaseRunId],
     `${label}:release`,
   );
-  const version = result.newEnvironmentVersion;
-  requireIdentity(nonEmpty(version?.id), `${label}:version`);
-  requireEqual(
-    [version.kind, version.previousVersionId, result.expectedPreviousVersionId],
-    [expected.kind, expected.previousVersionId, expected.previousVersionId],
+  const version = validateVersionRow(
+    result,
+    {
+      kind: expected.kind,
+      previousId: expected.previousVersionId,
+      claimKey:
+        expected.kind === "upgrade" ? "previousIsVprod1" : "previousIsVprod2",
+      manifestId: expected.manifestId,
+      deploymentRunId: result.deploymentRunId,
+    },
     `${label}:version-row`,
   );
-  const previousClaim =
-    expected.kind === "upgrade"
-      ? version.previousIsVprod1
-      : version.previousIsVprod2;
-  requireEqual(previousClaim, true, `${label}:previous-claim`);
   requireEqual(
     [result.currentMoved, result.artifactVerified],
     [true, true],

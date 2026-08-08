@@ -126,6 +126,8 @@ function versionActionFixture(a, kind) {
       kind,
       previousVersionId,
       [recovery ? "previousIsVst3" : "previousIsVst2"]: true,
+      artifactManifestId: manifestId,
+      deploymentRunId,
     },
     currentMoved: true,
     artifactVerified: true,

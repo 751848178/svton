@@ -62,6 +62,7 @@ import {
   productionRouteEvidence,
 } from "./lib/parity-production-route-evidence.mjs";
 import { productionConfirmResult } from "./lib/parity-negative-history-confirm-result.mjs";
+import { versionRowResult } from "./lib/parity-negative-history-version-row-result.mjs";
 import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = historyChainOutputDirectory(process.env, "f456", "/tmp/codex-tool-runs/svton/f456");
@@ -425,12 +426,7 @@ async function main() {
       expectedEnvironmentId: stagingEnvId,
       expectedManifestId: M2.id,
       expectedPreviousVersionId: Vst2.id,
-      newEnvironmentVersion: {
-        id: version.id,
-        kind: version.kind,
-        previousVersionId: version.previousVersionId,
-        previousIsVst2: version.previousVersionId === Vst2.id,
-      },
+      newEnvironmentVersion: versionRowResult(version, Vst2.id, "previousIsVst2"),
       currentMoved: stagingEnv.currentEnvironmentVersionId === version.id,
       artifactVerified: row.result?.artifactVerified === true,
     };
@@ -474,12 +470,7 @@ async function main() {
       expectedPreviousVersionId: Vst3.id,
       sourceVersionId: Vst2.id,
       restoredManifest: row.artifactManifestId === M1.id,
-      newEnvironmentVersion: {
-        id: version.id,
-        kind: version.kind,
-        previousVersionId: version.previousVersionId,
-        previousIsVst3: version.previousVersionId === Vst3.id,
-      },
+      newEnvironmentVersion: versionRowResult(version, Vst3.id, "previousIsVst3"),
       currentMoved: stagingEnv.currentEnvironmentVersionId === version.id,
       artifactVerified: row.result?.artifactVerified === true,
     };
@@ -585,12 +576,7 @@ async function main() {
       expectedManifestId: M2.id,
       expectedReleaseRunId: R2.id,
       expectedPreviousVersionId: Vprod1.id,
-      newEnvironmentVersion: {
-        id: version.id,
-        kind: version.kind,
-        previousVersionId: version.previousVersionId,
-        previousIsVprod1: version.previousVersionId === Vprod1.id,
-      },
+      newEnvironmentVersion: versionRowResult(version, Vprod1.id, "previousIsVprod1"),
       currentMoved: productionEnv.currentEnvironmentVersionId === version.id,
       releaseRun: { status: releaseRun.status, mode: releaseRun.mode, approvalStatus: releaseRun.operationApproval?.status, approvalConsumedAt: releaseRun.operationApproval?.consumedAt },
       workload: row.result?.workload,
@@ -712,12 +698,7 @@ async function main() {
       expectedManifestId: M1.id,
       expectedReleaseRunId: R3.id,
       expectedPreviousVersionId: Vprod2.id,
-      newEnvironmentVersion: {
-        id: version.id,
-        kind: version.kind,
-        previousVersionId: version.previousVersionId,
-        previousIsVprod2: version.previousVersionId === Vprod2.id,
-      },
+      newEnvironmentVersion: versionRowResult(version, Vprod2.id, "previousIsVprod2"),
       currentMoved: productionEnv.currentEnvironmentVersionId === version.id,
       releaseRun: { status: releaseRun.status, mode: releaseRun.mode, approvalStatus: releaseRun.operationApproval?.status, approvalConsumedAt: releaseRun.operationApproval?.consumedAt },
       workload: row.result?.workload,

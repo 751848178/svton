@@ -3,6 +3,7 @@ import {
   requireEqual,
   requireIdentity,
 } from "./parity-negative-history-identity-assert.mjs";
+import { validateVersionRow } from "./parity-negative-history-version-row-identity.mjs";
 
 export function validateStagingVersionAction(
   result,
@@ -23,16 +24,17 @@ export function validateStagingVersionAction(
     [manifestId, manifestId],
     `${kind}:manifest`,
   );
-  const version = result.newEnvironmentVersion;
-  requireIdentity(nonEmpty(version?.id), `${kind}:version`);
-  requireEqual(
-    [version.kind, version.previousVersionId, result.expectedPreviousVersionId],
-    [kind, previousId, previousId],
+  const version = validateVersionRow(
+    result,
+    {
+      kind,
+      previousId: previousId,
+      claimKey: kind === "upgrade" ? "previousIsVst2" : "previousIsVst3",
+      manifestId,
+      deploymentRunId: result.deploymentRunId,
+    },
     `${kind}:version-row`,
   );
-  const previousClaim =
-    kind === "upgrade" ? version.previousIsVst2 : version.previousIsVst3;
-  requireEqual(previousClaim, true, `${kind}:previous-claim`);
   requireEqual(
     [result.currentMoved, result.artifactVerified],
     [true, true],

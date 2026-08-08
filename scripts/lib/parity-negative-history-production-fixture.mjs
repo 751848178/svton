@@ -122,6 +122,8 @@ function actionFixture(a, kind) {
       kind,
       previousVersionId,
       [recovery ? "previousIsVprod2" : "previousIsVprod1"]: true,
+      artifactManifestId: action.manifestId,
+      deploymentRunId: action.deploymentRunId,
     },
     currentMoved: true,
     releaseRun: {
