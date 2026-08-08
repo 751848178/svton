@@ -4,9 +4,11 @@ This file records the EXACT env matrix that enables the controlled-local build
 executor and the local-filesystem staging deployment provider for the isolated
 `devpilot-parity` compose project, versus the fail-closed base defaults.
 
-Schema of truth: `apps/devpilot-api/src/common/config/release-build-env.schema.ts`
-(zod, fail-closed). All switches are double-consent: both the `*_ENABLED` flag
-AND the matching `*_PROFILE` must be set before any execution happens.
+Schemas of truth: `apps/devpilot-api/src/common/config/release-build-env.schema.ts`
+and `site-route-switch-env.schema.ts` (zod, fail-closed). Build/deployment
+switches are double-consent: both the `*_ENABLED` flag AND the matching
+`*_PROFILE` must be set before execution happens. Route switching stays on its
+`disabled` profile unless an exact provider endpoint and token are configured.
 
 ## Base fail-closed defaults (docker-compose.devpilot-app.yml)
 
@@ -15,6 +17,7 @@ RELEASE_BUILD_EXECUTION_ENABLED: "false"
 RELEASE_BUILD_EXECUTOR_PROFILE: disabled
 RELEASE_STAGING_DEPLOYMENT_ENABLED: "false"
 RELEASE_DEPLOYMENT_PROVIDER_PROFILE: disabled
+SITE_ROUTE_SWITCH_PROVIDER_PROFILE: disabled
 ```
 
 With these defaults the API refuses builds/deployments (`assertAvailable`),
@@ -25,34 +28,50 @@ regardless of evidence. Pinned by `release-build-compose-profile.spec.ts`
 
 ### Controlled-local build executor
 
-| env | parity value | base default | effect |
-| --- | --- | --- | --- |
-| `RELEASE_BUILD_EXECUTION_ENABLED` | `true` | `false` | master switch; without it `assertAvailable()` throws |
-| `RELEASE_BUILD_EXECUTOR_PROFILE` | `controlled-local-v1` | `disabled` | selects `LocalReleaseBuildExecutorService` |
-| `RELEASE_BUILD_WORK_ROOT` | `/var/lib/devpilot/release-build/work` (volume `devpilot-parity-release-build`) | unset → `.` | checkout + runtime dirs must live under this root |
-| `RELEASE_BUILD_ARTIFACT_ROOT` | `/var/lib/devpilot/release-build/artifacts` (same volume) | unset → `.` | artifact bundle root |
-| `RELEASE_BUILD_RUN_TIMEOUT_MS` | `180000` | `900000` | whole-run timeout |
-| `RELEASE_BUILD_COMMAND_TIMEOUT_MS` | `120000` | `600000` | per-command timeout |
-| `RELEASE_BUILD_CANCEL_GRACE_MS` | `5000` | `5000` | cancel grace |
-| `RELEASE_BUILD_MAX_CONCURRENCY` | `2` | `1` | concurrent BuildRuns |
-| `RELEASE_BUILD_COMMAND_PATH` | `/pnpm:/usr/local/bin:/usr/bin:/bin` | `/usr/local/bin:/usr/bin:/bin` | child PATH; the API image ships pnpm at `/pnpm` |
+| env                                | parity value                                                                    | base default                   | effect                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------- |
+| `RELEASE_BUILD_EXECUTION_ENABLED`  | `true`                                                                          | `false`                        | master switch; without it `assertAvailable()` throws |
+| `RELEASE_BUILD_EXECUTOR_PROFILE`   | `controlled-local-v1`                                                           | `disabled`                     | selects `LocalReleaseBuildExecutorService`           |
+| `RELEASE_BUILD_WORK_ROOT`          | `/var/lib/devpilot/release-build/work` (volume `devpilot-parity-release-build`) | unset → `.`                    | checkout + runtime dirs must live under this root    |
+| `RELEASE_BUILD_ARTIFACT_ROOT`      | `/var/lib/devpilot/release-build/artifacts` (same volume)                       | unset → `.`                    | artifact bundle root                                 |
+| `RELEASE_BUILD_RUN_TIMEOUT_MS`     | `180000`                                                                        | `900000`                       | whole-run timeout                                    |
+| `RELEASE_BUILD_COMMAND_TIMEOUT_MS` | `120000`                                                                        | `600000`                       | per-command timeout                                  |
+| `RELEASE_BUILD_CANCEL_GRACE_MS`    | `5000`                                                                          | `5000`                         | cancel grace                                         |
+| `RELEASE_BUILD_MAX_CONCURRENCY`    | `2`                                                                             | `1`                            | concurrent BuildRuns                                 |
+| `RELEASE_BUILD_COMMAND_PATH`       | `/pnpm:/usr/local/bin:/usr/bin:/bin`                                            | `/usr/local/bin:/usr/bin:/bin` | child PATH; the API image ships pnpm at `/pnpm`      |
 
 ### Local-filesystem staging deployment provider
 
-| env | parity value | base default | effect |
-| --- | --- | --- | --- |
-| `RELEASE_STAGING_DEPLOYMENT_ENABLED` | `true` | `false` | master switch |
-| `RELEASE_DEPLOYMENT_PROVIDER_PROFILE` | `local-filesystem-v1` | `disabled` | selects `LocalFilesystemDeploymentProviderService` |
-| `RELEASE_STAGING_DEPLOYMENT_ROOT` | `/var/lib/devpilot/release-build/deployments` (volume `devpilot-parity-deployments`) | unset → `storage/release-deployments` | materialized deployment root |
-| `RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS` | `120000` | `120000` | provider timeout |
+| env                                     | parity value                                                                         | base default                          | effect                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------- | -------------------------------------------------- |
+| `RELEASE_STAGING_DEPLOYMENT_ENABLED`    | `true`                                                                               | `false`                               | master switch                                      |
+| `RELEASE_DEPLOYMENT_PROVIDER_PROFILE`   | `local-filesystem-v1`                                                                | `disabled`                            | selects `LocalFilesystemDeploymentProviderService` |
+| `RELEASE_STAGING_DEPLOYMENT_ROOT`       | `/var/lib/devpilot/release-build/deployments` (volume `devpilot-parity-deployments`) | unset → `storage/release-deployments` | materialized deployment root                       |
+| `RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS` | `120000`                                                                             | `120000`                              | provider timeout                                   |
+
+### HTTP route-control provider with independent readback (F465)
+
+| env                                  | parity value                | base default | effect                                                                                               |
+| ------------------------------------ | --------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| `SITE_ROUTE_SWITCH_PROVIDER_PROFILE` | `http-route-control-v1`     | `disabled`   | selects the real parity route-control process; disabled retains the unconfigured fail-closed receipt |
+| `SITE_ROUTE_SWITCH_HTTP_ENDPOINT`    | `http://route-control:8080` | unset        | control-plane endpoint on the isolated compose network                                               |
+| `SITE_ROUTE_SWITCH_HTTP_TOKEN`       | isolated parity token       | unset        | authenticates apply and readback; never enters route evidence                                        |
+| `SITE_ROUTE_SWITCH_HTTP_TIMEOUT_MS`  | `5000`                      | `5000`       | bounds both apply and independent GET readback                                                       |
+
+The provider process owns an active route table, exposes a live `/sites/:siteId`
+data path to the frozen `proxyTarget`, and returns readback from that independent
+process. The API accepts `switched` only when the readback matches the exact
+`siteId`, `deploymentRunId`, `targetRef`, and route hash. This is isolated local
+control-plane evidence; it is not presented as public DNS or an external
+production provider.
 
 ### Repository + runtime environment (parity-only)
 
-| env | parity value | effect |
-| --- | --- | --- |
-| `REPOSITORY_ANALYSIS_LOCAL_ROOTS` | `/read-only-repositories` | allows the committed parity fixture repo mount to be connected/analyzed through the real git executor |
-| `RELEASE_BUILD_COMMAND_PATH` | includes `/pnpm` | fixture builds run under the API image's pnpm (fixture has ZERO deps → no network installs) |
-| `DEVPILOT_BOOTSTRAP_ADMIN_EMAIL` / `PASSWORD` | `admin@parity.local` / `ParityDemo123!` | bootstrap admin for the runtime API flow |
+| env                                           | parity value                            | effect                                                                                                |
+| --------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `REPOSITORY_ANALYSIS_LOCAL_ROOTS`             | `/read-only-repositories`               | allows the committed parity fixture repo mount to be connected/analyzed through the real git executor |
+| `RELEASE_BUILD_COMMAND_PATH`                  | includes `/pnpm`                        | fixture builds run under the API image's pnpm (fixture has ZERO deps → no network installs)           |
+| `DEVPILOT_BOOTSTRAP_ADMIN_EMAIL` / `PASSWORD` | `admin@parity.local` / `ParityDemo123!` | bootstrap admin for the runtime API flow                                                              |
 
 ### Build-stage gate admission (concrete gap fixed in F454)
 
@@ -68,14 +87,14 @@ F454 mirrors that production pattern at build admission:
 `release-build-gate-admission.ts` now passes `deferredReasons` for exactly the
 provider-missing `unavailable` reason codes:
 
-| gate | deferred reason | meaning |
-| --- | --- | --- |
-| C02 | `merge_state_provider_missing` | no merge/behind/conflict provider |
-| C03 | `required_checks_provider_missing` | no CI/code-review provider |
-| C06 | `change_diff_provider_missing` | no baseline-diff/high-risk-dir provider |
-| C07 | `secretScan_provider_missing` | no secret-scan tool provider |
-| C09 | `quality_evidence_missing` | no lint/type/static-quality provider |
-| C10 | `sast_provider_missing` | no SAST provider |
+| gate | deferred reason                    | meaning                                 |
+| ---- | ---------------------------------- | --------------------------------------- |
+| C02  | `merge_state_provider_missing`     | no merge/behind/conflict provider       |
+| C03  | `required_checks_provider_missing` | no CI/code-review provider              |
+| C06  | `change_diff_provider_missing`     | no baseline-diff/high-risk-dir provider |
+| C07  | `secretScan_provider_missing`      | no secret-scan tool provider            |
+| C09  | `quality_evidence_missing`         | no lint/type/static-quality provider    |
+| C10  | `sast_provider_missing`            | no SAST provider                        |
 
 The real evidence gates (C01 repo resolvable, C05 component scope, C08
 lockfile consistency) remain genuinely checked — they only pass with a
@@ -95,11 +114,11 @@ executor records `gateSummary` with real `build`/`artifact` evidence and
 vulnerability-scan provider evidence. F455 mirrors the F454/F437 deferral
 pattern at staging admission (`release-staging.service.ts`, deferredReasons):
 
-| gate | deferred reason | meaning |
-| --- | --- | --- |
-| B01 | `install_evidence_missing` | clean-install evidence is not recorded by the executor |
-| B03 | `tests_not_configured` | executor reports `tests: {status:"not_configured"}` (no test-runner provider; fixture declares no tests) |
-| B06 | `vulnerabilities_provider_missing` | no vulnerability-scan provider |
+| gate | deferred reason                    | meaning                                                                                                  |
+| ---- | ---------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| B01  | `install_evidence_missing`         | clean-install evidence is not recorded by the executor                                                   |
+| B03  | `tests_not_configured`             | executor reports `tests: {status:"not_configured"}` (no test-runner provider; fixture declares no tests) |
+| B06  | `vulnerabilities_provider_missing` | no vulnerability-scan provider                                                                           |
 
 The real-evidence staging gates stay genuinely checked: B02 (BuildRun
 succeeded) and B09 (immutable Manifest digest bound to the exact commit) only
@@ -115,14 +134,14 @@ coverage, previous versions). The parity seed (`scripts/parity-seed.mjs`)
 carries the same F437-style fixture evidence so the gates evaluate genuinely
 checked rows instead of deferring:
 
-| gate | parity evidence row | checked via |
-| --- | --- | --- |
-| D05 capacity | `ResourceMetricSnapshot` `raw.capacityFit=true` | managed resource reference in the production config revision |
-| D08 connectivity | `ManagedResource` + `ResourceConnectionRun` completed | revision `managed_resource` reference |
-| D10/D11 migration | `RepositoryAnalysisRun.result.migrationEvidence` (schemaDrift=false, orderValid=true, destructiveChanges=[]) | real analysis result bound to the pinned commit |
-| D12 backup | `BackupRun` completed | managed resource |
-| D18 observability | `LogCollectionRun` completed + `raw.observability {metrics,traces,alerts}=true` | environment scope |
-| D19 previous stable | two synthetic previous `EnvironmentVersion`s (0.8.0/0.9.0) on `parity-order-prev-0001` | promote history chain |
+| gate                | parity evidence row                                                                                          | checked via                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| D05 capacity        | `ResourceMetricSnapshot` `raw.capacityFit=true`                                                              | managed resource reference in the production config revision |
+| D08 connectivity    | `ManagedResource` + `ResourceConnectionRun` completed                                                        | revision `managed_resource` reference                        |
+| D10/D11 migration   | `RepositoryAnalysisRun.result.migrationEvidence` (schemaDrift=false, orderValid=true, destructiveChanges=[]) | real analysis result bound to the pinned commit              |
+| D12 backup          | `BackupRun` completed                                                                                        | managed resource                                             |
+| D18 observability   | `LogCollectionRun` completed + `raw.observability {metrics,traces,alerts}=true`                              | environment scope                                            |
+| D19 previous stable | two synthetic previous `EnvironmentVersion`s (0.8.0/0.9.0) on `parity-order-prev-0001`                       | promote history chain                                        |
 
 Deploy-target binding additionally requires the F445 provider match
 (`matchReleaseDeploymentTargetBindings`): each `ProjectEnvironmentServer`
@@ -152,7 +171,7 @@ production deferral list itself is unchanged (D06/D09/D17/D20/D14/D15).
   that the fail-closed probe policy correctly rejects
   (`SITE_HTTP_PROBE_FAILED`). The production config revision (R2) therefore
   freezes `routeSnapshot = {domains:["parity.example.test"], proxyTarget:
-  "http://parity-target-workload", tlsRequired: true}`: the https:// final URL
+"http://parity-target-workload", tlsRequired: true}`: the https:// final URL
   is unreachable in-container, so the probe falls back to the parity-network
   name of the target-workload container and genuinely PASSES (HTTP 200, body
   signature `sha256:ddff5dd1…` — byte-identical to the host-side workload at
@@ -161,7 +180,7 @@ production deferral list itself is unchanged (D06/D09/D17/D20/D14/D15).
   `proxyTarget http://127.0.0.1:43992` (staging deploys run no site probe).
 - **Fixture secret + resource scopes**: `SecretKey parity-secret-0001` and
   `ResourceInstance parity-resource-0001` are project-wide (`environmentId
-  null`) so both the staging and the production config-revision CAS saves can
+null`) so both the staging and the production config-revision CAS saves can
   reference them (the resolver rejects production references to
   non-production-scoped resources, and requires shared refs to cover the
   resource's own environment).

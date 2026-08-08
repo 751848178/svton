@@ -1,9 +1,17 @@
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
 import { SiteProbeResolverService } from "../site/site-probe-resolver.service";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
-import { SiteProbePort, SiteRouteActivationPort } from "../site/site-route-activation.types";
+import {
+  SiteProbePort,
+  SiteRouteActivationPort,
+} from "../site/site-route-activation.types";
 import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
-import { SiteRouteSwitchPort, UnconfiguredSiteRouteSwitchProvider } from "../site/site-route-switch.port";
+import { ConfiguredSiteRouteSwitchProvider } from "../site/configured-site-route-switch-provider.service";
+import { HttpSiteRouteSwitchProvider } from "../site/http-site-route-switch-provider.service";
+import {
+  SiteRouteSwitchPort,
+  UnconfiguredSiteRouteSwitchProvider,
+} from "../site/site-route-switch.port";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-gate-evidence.repository";
 import { EnvironmentVersionPolicyService } from "./environment-version-policy.service";
@@ -28,8 +36,13 @@ export const releaseDeliveryEnvironmentProviders = [
   SiteFinalProbeService,
   SiteProbeResolverService,
   SiteRouteSwitchEvidenceRepository,
+  HttpSiteRouteSwitchProvider,
   UnconfiguredSiteRouteSwitchProvider,
+  ConfiguredSiteRouteSwitchProvider,
   { provide: SiteRouteActivationPort, useExisting: SiteRouteActivationService },
   { provide: SiteProbePort, useExisting: SiteFinalProbeService },
-  { provide: SiteRouteSwitchPort, useExisting: UnconfiguredSiteRouteSwitchProvider },
+  {
+    provide: SiteRouteSwitchPort,
+    useExisting: ConfiguredSiteRouteSwitchProvider,
+  },
 ];

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createZodValidate } from "@svton/nestjs-config-schema";
 import { booleanString, positiveInt } from "./env-schema-primitives";
 import { releaseBuildEnvSchema } from "./release-build-env.schema";
+import { siteRouteSwitchEnvSchema } from "./site-route-switch-env.schema";
 
 /** 启动时校验关键 env；passthrough 保留尚未迁移的配置。 */
 export const envSchema = z
@@ -105,7 +106,7 @@ export const envSchema = z
 
     // ---------- 发布构建 ----------
     ...releaseBuildEnvSchema.shape,
-
+    ...siteRouteSwitchEnvSchema.shape,
     // ---------- 资源管控调度器 ----------
     RESOURCE_CONTROL_SCHEDULER_ENABLED: booleanString.default("true"),
     RESOURCE_CONTROL_SCHEDULER_INTERVAL_SECONDS: positiveInt(1).default(300),

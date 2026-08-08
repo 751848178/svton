@@ -117,6 +117,11 @@ services:
       RELEASE_DEPLOYMENT_PROVIDER_PROFILE: local-filesystem-v1
       RELEASE_STAGING_DEPLOYMENT_ROOT: /var/lib/devpilot/release-build/deployments
       RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"
+      # ----- Real route-control provider + independent readback (F465) -----
+      SITE_ROUTE_SWITCH_PROVIDER_PROFILE: http-route-control-v1
+      SITE_ROUTE_SWITCH_HTTP_ENDPOINT: http://route-control:8080
+      SITE_ROUTE_SWITCH_HTTP_TOKEN: ${PARITY_ROUTE_CONTROL_TOKEN:-devpilot-parity-route-control-token-0001}
+      SITE_ROUTE_SWITCH_HTTP_TIMEOUT_MS: "5000"
       # Allow the committed parity fixture repository (mounted read-only below)
       # to be connected/analyzed/build through the real git executor.
       REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories
@@ -132,6 +137,8 @@ services:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      route-control:
         condition: service_healthy
     healthcheck:
       test:
@@ -172,6 +179,31 @@ services:
       NEXTAUTH_SECRET: devpilot-parity-web-secret
     depends_on:
       - api
+
+  route-control:
+    image: node:22-alpine
+    restart: unless-stopped
+    labels:
+      org.opencontainers.image.revision: ${PARITY_SOURCE_REVISION:-unverified}
+      io.svton.devpilot.source-tree-sha256: ${PARITY_SOURCE_TREE_SHA256:-unverified}
+      io.svton.devpilot.runtime-id: ${PARITY_RUNTIME_ID:-default}
+    environment:
+      PORT: "8080"
+      ROUTE_CONTROL_TOKEN: ${PARITY_ROUTE_CONTROL_TOKEN:-devpilot-parity-route-control-token-0001}
+    command: ["node", "/app/scripts/parity-route-control-provider.mjs"]
+    volumes:
+      - ./scripts/parity-route-control-provider.mjs:/app/scripts/parity-route-control-provider.mjs:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   deploy-target:
     image: lscr.io/linuxserver/openssh-server:latest
