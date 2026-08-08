@@ -4,6 +4,8 @@ import {
   CDP_EVIDENCE_VERSION,
 } from "./parity-history-cdp-capture.mjs";
 import { browserArtifactsValid } from "./parity-history-browser-artifacts.mjs";
+import { browserMarkerGroupsValid } from "./parity-history-browser-marker-contract.mjs";
+import { validateHttpResponses } from "./parity-history-cdp-response-schema.mjs";
 
 export const SUMMARY_HISTORY_STEP_CHECKS = {
   "version-chains": (r) => [
@@ -49,14 +51,6 @@ function releaseRunsMatch(expected = [], actual = []) {
 }
 
 function browserChecks(r) {
-  const markers = booleanLeaves([
-    r.releaseDetailEvidence,
-    r.stagingStepEvidence,
-    r.envVersionsEvidence,
-    r.buildLogDrawer,
-    r.stagingRunLog,
-    r.productionRunLog,
-  ]);
   const artifactsValid = browserArtifactsValid(
     r.requiredArtifacts,
     r.artifacts,
@@ -94,22 +88,15 @@ function browserChecks(r) {
       httpResponsesPass(r.httpResponses),
       r.httpResponses,
     ),
-    predicate("markers", markers.length > 0 && markers.every(Boolean), markers),
+    predicate("markerGroups", browserMarkerGroupsValid(r), r),
   ];
 }
 
 function httpResponsesPass(responses) {
-  return (
-    Array.isArray(responses) &&
-    responses.every((item) => {
-      const status = item.status ?? item.statusCode;
-      return status >= 200 && status < 400;
-    })
-  );
-}
-
-function booleanLeaves(values) {
-  return values.flatMap((value) =>
-    Object.values(value || {}).filter((item) => typeof item === "boolean"),
-  );
+  try {
+    validateHttpResponses(responses);
+    return responses.every((item) => item.status >= 200 && item.status < 400);
+  } catch {
+    return false;
+  }
 }

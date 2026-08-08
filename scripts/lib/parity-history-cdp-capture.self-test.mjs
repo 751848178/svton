@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { historyStepChecks } from "./parity-history-e2e-evidence.mjs";
+import { BROWSER_MARKER_GROUPS } from "./parity-history-browser-marker-contract.mjs";
 import {
   CDP_EVIDENCE_SCHEMA,
   CDP_EVIDENCE_VERSION,
@@ -117,7 +118,7 @@ function failedChecks(evidence) {
     failedRequests: failures.failedRequests,
     runtimeExceptions: failures.runtimeExceptions,
     httpResponses: evidence.httpResponses,
-    releaseDetailEvidence: { marker: true },
+    ...markerFixture(),
   };
   return historyStepChecks("browser-pass", result).filter((item) => !item.pass);
 }
@@ -128,6 +129,15 @@ function rejectsSchema(source, mutate) {
   assert.throws(
     () => summarizeBrowserFailures(evidence),
     /E2E_CDP_EVIDENCE_SCHEMA_INVALID/,
+  );
+}
+
+function markerFixture() {
+  return Object.fromEntries(
+    Object.entries(BROWSER_MARKER_GROUPS).map(([groupName, keys]) => [
+      groupName,
+      Object.fromEntries(keys.map((key) => [key, true])),
+    ]),
   );
 }
 
