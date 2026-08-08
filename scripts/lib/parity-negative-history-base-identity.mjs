@@ -50,6 +50,11 @@ export function validateTrustedHistoryBase(step, context) {
   requireValue(build.sourceCommitSha === context.pinnedCommit, "build-commit");
   requireValue(manifest.digest === context.manifestDigest, "manifest-digest");
   requireValue(manifest.buildRunId === context.buildRunId, "manifest-build");
+  requireValue(
+    context.stagingCurrentVersionId !== context.productionCurrentVersionId,
+    "current-version-alias",
+  );
+  requireDisjointVersionRows(result.stagingVersions, result.productionVersions);
 
   const stagingVersion = uniqueRow(
     result.stagingVersions,
@@ -123,6 +128,10 @@ function validateContext(context) {
       requireValue(nonEmpty(context[field]), `context-${field}`);
     }
   }
+  requireValue(
+    context.stagingEnvId !== context.productionEnvId,
+    "environment-alias",
+  );
   requireValue(/^sha256:[a-f0-9]{64}$/.test(context.manifestDigest), "digest");
   requireValue(/^[a-f0-9]{40}$/.test(context.pinnedCommit), "commit");
   requireValue(
@@ -135,6 +144,16 @@ function validateContext(context) {
       context.productionRouteSnapshot.domains.length > 0,
     "route-snapshot",
   );
+}
+
+function requireDisjointVersionRows(staging, production) {
+  requireValue(
+    Array.isArray(staging) && Array.isArray(production),
+    "version-rows",
+  );
+  const ids = [...staging, ...production].map((row) => row?.id);
+  requireValue(ids.every(nonEmpty), "version-id");
+  requireValue(new Set(ids).size === ids.length, "cross-version-duplicate");
 }
 
 function uniqueRow(rows, id, label) {

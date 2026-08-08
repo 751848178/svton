@@ -98,6 +98,17 @@ for (const [label, mutate] of [
   });
 }
 
+for (const [label, mutate] of [
+  ["environment alias", aliasEnvironments],
+  ["current version alias", aliasCurrentVersions],
+  ["cross-array version duplicate", duplicateCrossArrayVersion],
+]) {
+  rejectHistory(label, (document) => {
+    mutate(document);
+    replayBaseChecks(document);
+  });
+}
+
 process.stdout.write("negative history base identity self-test passed\n");
 
 function parseHistory(document) {
@@ -162,6 +173,24 @@ function substituteBaseField(document, field, replacement) {
   } else if (field === "pinnedCommit") {
     base.buildRuns[0].sourceCommitSha = replacement;
   }
+}
+
+function aliasEnvironments(document) {
+  const stagingId = document.context.stagingEnvId;
+  substituteBaseField(document, "productionEnvId", stagingId);
+  document.context.productionEnvId = stagingId;
+}
+
+function aliasCurrentVersions(document) {
+  const stagingId = document.context.stagingCurrentVersionId;
+  substituteBaseField(document, "productionCurrentVersionId", stagingId);
+  document.context.productionCurrentVersionId = stagingId;
+}
+
+function duplicateCrossArrayVersion(document) {
+  const base = document.steps["base-state-rows"].result;
+  base.stagingVersions.push({ id: "cross-version" });
+  base.productionVersions.push({ id: "cross-version" });
 }
 
 function rejectHistory(label, mutate) {
