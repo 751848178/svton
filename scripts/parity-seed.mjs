@@ -69,6 +69,8 @@ const IDS = {
   appApi: "parity-app-api",
   svcWeb: "parity-svc-web",
   svcApi: "parity-svc-api",
+  svcWebProduction: "parity-svc-web-production",
+  svcApiProduction: "parity-svc-api-production",
 
   connection: "parity-connection-0001",
   identity: "parity-identity-0001",
@@ -748,10 +750,8 @@ async function seed() {
         teamId: IDS.team,
         projectId: IDS.project,
         applicationId: IDS.appWeb,
-        // One env-agnostic web+api service pair (bound to the Staging
-        // baseline like F454): the workload snapshot loads services without
-        // an environment filter, so the same two components drive both the
-        // Staging and the Production workload (F455).
+        // Staging owns its service instance; Production is seeded below with
+        // a distinct service ID and exact Manifest component.
         environmentId: IDS.envStaging,
         name: "web",
         status: "active",
@@ -820,6 +820,57 @@ async function seed() {
         },
       },
     });
+    const productionServiceSpecs = [
+      {
+        id: IDS.svcWebProduction,
+        applicationId: IDS.appWeb,
+        name: "web",
+        deployConfig: {
+          workingDirectory: "apps/web",
+          buildCommand: "node scripts/build.mjs && mkdir -p dist-production && cp -f dist/index.html dist-production/index.html",
+          artifactPaths: ["apps/web/dist-production"],
+          workloadExecutionMode: "managed-command-v1",
+          deployCommand: "test -f dist-production/index.html",
+          statusCommand: "test -f dist-production/index.html",
+          failureCleanupCommand: "true",
+        },
+      },
+      {
+        id: IDS.svcApiProduction,
+        applicationId: IDS.appApi,
+        name: "api",
+        deployConfig: {
+          workingDirectory: "apps/api",
+          buildCommand: "node scripts/build.mjs && mkdir -p dist-production && cp -f dist/server.js dist-production/server.js",
+          artifactPaths: ["apps/api/dist-production"],
+          workloadExecutionMode: "managed-command-v1",
+          deployCommand: "test -f dist-production/server.js",
+          statusCommand: "test -f dist-production/server.js",
+          failureCleanupCommand: "true",
+        },
+      },
+    ];
+    for (const serviceSpec of productionServiceSpecs) {
+      await prisma.applicationService.upsert({
+        where: { id: serviceSpec.id },
+        create: {
+          id: serviceSpec.id,
+          teamId: IDS.team,
+          projectId: IDS.project,
+          applicationId: serviceSpec.applicationId,
+          environmentId: IDS.envProduction,
+          name: serviceSpec.name,
+          status: "active",
+          deployConfig: serviceSpec.deployConfig,
+        },
+        update: {
+          status: "active",
+          applicationId: serviceSpec.applicationId,
+          environmentId: IDS.envProduction,
+          deployConfig: serviceSpec.deployConfig,
+        },
+      });
+    }
 
     // 11. Environment config revisions (envVars + secretReferences +
     //     resourceReferences + routeSnapshot entries -> parity target).

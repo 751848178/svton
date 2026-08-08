@@ -131,17 +131,14 @@ binding carries `metadata.releaseDeployment = {providerKey:
 fix — without it every deploy fails closed with `部署目标绑定缺失…`). The
 production deferral list itself is unchanged (D06/D09/D17/D20/D14/D15).
 
-### Workload + site-probe decisions (F455 runtime findings, recorded honestly)
+### Workload + site-probe decisions (F455/F469 runtime findings, recorded honestly)
 
-- **Application services** are environment-bound (FK) but the build components
-  derive from ALL active services, so the fixture keeps ONE web+api service
-  pair bound to the Staging baseline (same as F454 — Manifest components keyed
-  `parity-svc-web`/`parity-svc-api`). The Production workload uses the same
-  services via the F455 fallback in `loadReleaseStagingWorkloadState`
-  (`release-staging-workload-state.repository.ts`): an environment with no
-  active application services of its own loads the project's active
-  Staging-baseline services, so one Manifest drives both Staging and
-  Production workloads (pinned by `release-staging-workload-state.repository.spec.ts`).
+- **Application services** are environment-bound (FK). Staging uses
+  `parity-svc-web`/`parity-svc-api`; Production explicitly owns
+  `parity-svc-web-production`/`parity-svc-api-production`. Their artifact
+  outputs are distinct, so one Manifest contains exact components for both
+  environments without Production borrowing Staging services. Empty
+  Production services remain empty and the workload policy fails closed.
 - **Workload execution mode**: both services run `managed-command-v1` with the
   safe `test -f dist/{index.html,server.js}` predicates (F433/F437 pattern) —
   the runtime genuinely verifies the materialized artifacts. A persistent

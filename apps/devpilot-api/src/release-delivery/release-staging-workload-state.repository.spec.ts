@@ -26,19 +26,22 @@ function service(id: string, name: string) {
   };
 }
 
-const stagingServices = [service("parity-svc-web", "web"), service("parity-svc-api", "api")];
+const productionServices = [
+  service("parity-svc-web-production", "web"),
+  service("parity-svc-api-production", "api"),
+];
 const manifest = {
   id: "manifest-1",
   digest: "sha256:" + "a".repeat(64),
   items: [
     {
-      componentKey: "parity-svc-api",
+      componentKey: "parity-svc-api-production",
       digest: "sha256:" + "b".repeat(64),
       artifactType: "zip",
       metadata: null,
     },
     {
-      componentKey: "parity-svc-web",
+      componentKey: "parity-svc-web-production",
       digest: "sha256:" + "c".repeat(64),
       artifactType: "zip",
       metadata: null,
@@ -52,14 +55,7 @@ function client(environmentServices: unknown[]) {
     applicationServices: environmentServices,
   };
   const environmentFindFirst = jest.fn();
-  environmentFindFirst.mockImplementation((args: unknown) => {
-    const where = (args as { where: { id?: string; baselineRole?: string } }).where;
-    if (where?.id === scope.environmentId) return Promise.resolve(environment);
-    if (where?.baselineRole === "staging") {
-      return Promise.resolve({ applicationServices: stagingServices });
-    }
-    return Promise.resolve(null);
-  });
+  environmentFindFirst.mockResolvedValue(environment);
   const manifestFindFirst = jest.fn().mockResolvedValue(manifest);
   return {
     projectEnvironment: { findFirst: environmentFindFirst },
@@ -67,57 +63,37 @@ function client(environmentServices: unknown[]) {
   };
 }
 
-describe("loadReleaseStagingWorkloadState (F455 production fallback)", () => {
-  it("keeps the environment's own services when present", async () => {
-    const own = [service("parity-svc-web-prod", "web")];
-    const clientImpl = client(own);
+describe("loadReleaseStagingWorkloadState (F469 environment isolation)", () => {
+  it("loads the requested Production environment's own services", async () => {
+    const clientImpl = client(productionServices);
     const result = await loadReleaseStagingWorkloadState(
       clientImpl as never,
       scope,
     );
-    expect(result.environment?.applicationServices).toEqual(own);
+    expect(result.environment?.applicationServices).toEqual(productionServices);
     expect(clientImpl.projectEnvironment.findFirst).toHaveBeenCalledTimes(1);
+    expect(clientImpl.projectEnvironment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: scope.environmentId,
+          baselineRole: "production",
+        }),
+      }),
+    );
     expect(clientImpl.artifactManifest.findFirst).toHaveBeenCalledTimes(1);
-  });
-
-  it("falls back to the active Staging-baseline services when the environment has none", async () => {
-    const clientImpl = client([]);
-    const result = await loadReleaseStagingWorkloadState(
-      clientImpl as never,
-      scope,
-    );
-    expect(result.environment?.applicationServices).toEqual(stagingServices);
-    const fallbackCall = clientImpl.projectEnvironment.findFirst.mock.calls.find(
-      (args) =>
-        (args[0] as { where?: { baselineRole?: string } }).where
-          ?.baselineRole === "staging",
-    );
-    expect(fallbackCall).toBeDefined();
-    const where = (fallbackCall![0] as { where: { teamId: string; projectId: string; baselineRole: string } }).where;
-    expect(where).toMatchObject({
-      teamId: scope.teamId,
-      projectId: scope.projectId,
-      baselineRole: "staging",
-    });
     expect(result.manifest?.items.map((item) => item.componentKey)).toEqual([
-      "parity-svc-api",
-      "parity-svc-web",
+      "parity-svc-api-production",
+      "parity-svc-web-production",
     ]);
   });
 
-  it("returns an empty service list when no Staging baseline exists", async () => {
+  it("keeps Production empty instead of borrowing Staging services", async () => {
     const clientImpl = client([]);
-    clientImpl.projectEnvironment.findFirst.mockImplementation((args: unknown) => {
-      const where = (args as { where: { id?: string; baselineRole?: string } }).where;
-      if (where?.id === scope.environmentId) {
-        return Promise.resolve({ id: scope.environmentId, applicationServices: [] });
-      }
-      return Promise.resolve(null);
-    });
     const result = await loadReleaseStagingWorkloadState(
       clientImpl as never,
       scope,
     );
     expect(result.environment?.applicationServices).toEqual([]);
+    expect(clientImpl.projectEnvironment.findFirst).toHaveBeenCalledTimes(1);
   });
 });

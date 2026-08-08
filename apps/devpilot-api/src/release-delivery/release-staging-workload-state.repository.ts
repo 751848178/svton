@@ -44,25 +44,6 @@ export async function loadReleaseStagingWorkloadState(
       applicationServices: WORKLOAD_SERVICE_SELECT,
     },
   });
-  if (environment && environment.applicationServices.length === 0) {
-    // F455: the Manifest's components are keyed by the project's build
-    // services (bound to the active Staging baseline). An environment with no
-    // application services of its own (e.g. the Production baseline on the
-    // parity stack) deploys the SAME manifest — fall back to the Staging
-    // baseline services so the workload service keys match the manifest items
-    // (AC-E2E-012/013, one Manifest -> Staging + Production).
-    const staging = await client.projectEnvironment.findFirst({
-      where: {
-        teamId: scope.teamId,
-        projectId: scope.projectId,
-        status: "active",
-        baselineRole: "staging",
-      },
-      select: { applicationServices: WORKLOAD_SERVICE_SELECT },
-    });
-    environment.applicationServices =
-      staging?.applicationServices ?? [];
-  }
   const manifest = await client.artifactManifest.findFirst({
     where: {
       id: scope.manifestId,
