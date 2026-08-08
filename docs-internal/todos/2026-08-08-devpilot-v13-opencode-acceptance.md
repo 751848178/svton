@@ -203,6 +203,7 @@ Each row records source, affected scope, reproduction/expected/actual/root cause
 | F544 | P1 confirmed/queued | evidence/security; F530, AC-E2E-023 | sanitizer is applied to `Runtime.exceptionThrown` only; console, Log, HTTP response and failed-request evidence can persist explicit credentials unchanged | CDP capture normalization for every persisted text/URL branch only | pure Node capture repro / route all persisted fields through shared text/URL sanitizers before snapshot |
 | F545 | P2 confirmed/queued | evidence/security; F539 | spaced or dotted credential keys such as `api key` and `api.key` bypass the explicit vocabulary | credential-key normalization/self-test only | pure Node repro / normalize supported separators without broad substring matching |
 | F546 | P3 confirmed/queued | evidence/quality; F539 | substring matching over-redacts ordinary keys such as tokenizer, secretary and passwordless | credential-key boundary grammar/self-test only | pure Node repro / replace broad contains-pattern with explicit suffix/prefix vocabulary boundaries |
+| F547 | P1 confirmed/queued | evidence/security; F507, AC-E2E-023 | CDP driver writes raw `actions[]` into evidence, including the login `setValue:input[type=password]@@@...` action and its cleartext password | CDP driver action serialization/redaction + focused evidence tests only | source trace / store redacted action descriptors or omit secret-bearing action values before JSON persistence |
 
 ## Final Verdict Status
 
