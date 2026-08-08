@@ -74,7 +74,6 @@ async function guardsHardcodedAcceptance() {
   const offenders = sources.filter(({ source }) => hardcodedAcceptance(source));
   assert.deepEqual(offenders.map(({ name }) => name).sort(), [
     "parity-negative-e2e.mjs",
-    "parity-version-history-e2e.mjs",
   ]);
   assert.equal(hardcodedAcceptance(sources[0].source), false);
 }
