@@ -31,6 +31,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkedStep, finishEvidence } from "./lib/parity-e2e-evidence.mjs";
+import {
+  NEGATIVE_AC_MAPPING,
+  negativeStepChecks,
+} from "./lib/parity-negative-e2e-evidence.mjs";
+import { loadNegativeHistoryContext } from "./lib/parity-negative-e2e-context.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = "/tmp/codex-tool-runs/svton/f457";
@@ -38,10 +44,14 @@ const apiBase = "http://127.0.0.1:4132/api";
 const teamId = "parity-team-0001";
 const projectId = "parity-project-0001";
 const orderId = "parity-order-0001";
-const negProjectId = "parity-negative-project-0001";
-const negOrderId = "parity-negative-order-0001";
-const negManifestId = "parity-negative-manifest-0001";
 const runStamp = `${Date.now()}`;
+const negProjectId = `parity-negative-project-${runStamp}`;
+const negOrderId = `parity-negative-order-${runStamp}`;
+const negBuildId = `parity-negative-build-${runStamp}`;
+const negManifestId = `parity-negative-manifest-${runStamp}`;
+const negManifestItemId = `parity-negative-manifest-item-${runStamp}`;
+const negStagingEnvId = `parity-negative-staging-${runStamp}`;
+const negProductionEnvId = `parity-negative-production-${runStamp}`;
 const stagingEnvId = "parity-env-staging";
 const productionEnvId = "parity-env-production";
 const adminEmail = "admin@parity.local";
@@ -54,15 +64,18 @@ const outsiderEmail = "parity-outsider-0001@parity.test";
 const memberUserId = "parity-member-0001";
 const outsiderUserId = "parity-outsider-0001";
 
-// Known live rows from the F455/F456 chain on the parity stack.
-const MANIFEST_M1 = "cmsjc72jn002cfq99q7k8tv8u";
-const MANIFEST_M2 = "cmsjc738z0092fq99s3jm3vez";
+// Loaded and validated from the checked F456 history evidence before use.
+let MANIFEST_M1;
+let MANIFEST_M2;
+let CROSS_ORDER_MANIFEST;
 
 const { PrismaClient } = createRequire(
   resolve(root, "apps/devpilot-api/package.json"),
 )("@prisma/client");
 const prisma = new PrismaClient({
-  datasources: { db: { url: "mysql://root:password@127.0.0.1:4334/devpilot_parity" } },
+  datasources: {
+    db: { url: "mysql://root:password@127.0.0.1:4334/devpilot_parity" },
+  },
 });
 
 const evidence = {
@@ -92,13 +105,23 @@ async function main() {
   await mkdir(outDir, { recursive: true });
   evidence.capturedAt = new Date().toISOString();
 
+  const historyContext = await step("history-context", () =>
+    loadNegativeHistoryContext(),
+  );
+  MANIFEST_M1 = historyContext.manifestM1;
+  MANIFEST_M2 = historyContext.manifestM2;
+  CROSS_ORDER_MANIFEST = historyContext.crossOrderManifestId;
+  evidence.context = historyContext;
+
   // ---------------------------------------------------------------- preflight
   await step("preflight", async () => {
     const [health, web, target, target404] = await Promise.all([
       httpGet(`${apiBase}/health`),
       httpGet("http://localhost:4131/", { raw: true }),
       httpGet("http://127.0.0.1:43992/", { raw: true }),
-      httpGet("http://127.0.0.1:43992/parity-negative-probe-missing-457", { raw: true }),
+      httpGet("http://127.0.0.1:43992/parity-negative-probe-missing-457", {
+        raw: true,
+      }),
     ]);
     return {
       apiHealth: health.status === 200,
@@ -109,14 +132,18 @@ async function main() {
     };
   });
 
-  const token = await login(adminEmail);
-  evidence.steps.login = {
-    email: adminEmail,
-    source: "docker-compose.devpilot-parity.yml DEVPILOT_BOOTSTRAP_ADMIN_EMAIL/PASSWORD",
-    ok: true,
-    note: "token held in memory only; never persisted to evidence/log",
-  };
-  log(`login ok (bootstrap admin, token in memory only)`);
+  let token;
+  await step("login", async () => {
+    token = await login(adminEmail);
+    return {
+      email: adminEmail,
+      source:
+        "docker-compose.devpilot-parity.yml DEVPILOT_BOOTSTRAP_ADMIN_EMAIL/PASSWORD",
+      status: "passed",
+      verified: Boolean(token),
+      note: "token held in memory only; never persisted to evidence/log",
+    };
+  });
 
   const headers = {
     authorization: `Bearer ${token}`,
@@ -127,8 +154,19 @@ async function main() {
   // ------------------------------------------------------- fixture setup (DB)
   await step("fixtures", async () => {
     await seedNegativeFixtures();
-    await cleanupStaleActiveRuns();
+    const cleanup = await cleanupStaleActiveRuns();
     return {
+      seeded: true,
+      uniqueFixtureIds: [
+        negProjectId,
+        negOrderId,
+        negBuildId,
+        negManifestId,
+        negManifestItemId,
+        negStagingEnvId,
+        negProductionEnvId,
+      ].every((id) => id.endsWith(runStamp)),
+      runningReleaseRuns: cleanup.runningReleaseRuns,
       negProjectId,
       negOrderId,
       negManifestId,
@@ -148,7 +186,6 @@ async function main() {
     );
     const decision = await latestBuildDecision(negOrderId);
     return {
-      expected: "422 RELEASE_GATE_BLOCKED + decision persisted + 0 BuildRun",
       status: out.status,
       code: out.code,
       message: out.message,
@@ -162,16 +199,12 @@ async function main() {
   await step("ac-024-db-state", async () => {
     const decision = await latestBuildDecision(negOrderId);
     const c01 = gateCheck(decision, "C01");
-    const ok =
-      (await countBuildRuns(negOrderId)) - negBuildCountBefore === 0 &&
-      decision?.allowed === false &&
-      (decision?.blockerGateIds || []).includes("C01") &&
-      c01?.status === "unavailable" &&
-      c01?.reasonCode === "repository_not_connected";
     return {
-      ok,
+      dbBuildRunDelta: (await countBuildRuns(negOrderId)) - negBuildCountBefore,
       buildRunCount: await countBuildRuns(negOrderId),
       decisionId: decision?.id,
+      decisionAllowed: decision?.allowed,
+      decisionConsumedAtNull: decision?.consumedAt === null,
       c01: c01 ? { status: c01.status, reasonCode: c01.reasonCode } : null,
     };
   });
@@ -181,10 +214,11 @@ async function main() {
     // A stored connection whose verification FAILED is a genuine C01 blocker
     // (repository_verification_failed) — the build stage gate refuses with the
     // decision persisted. Cleaned up right after the check.
+    const connectionId = `parity-negative-connection-failed-${runStamp}`;
     await prisma.repositoryConnection.upsert({
-      where: { id: "parity-negative-connection-failed-0001" },
+      where: { id: connectionId },
       create: {
-        id: "parity-negative-connection-failed-0001",
+        id: connectionId,
         teamId,
         projectId: negProjectId,
         connectedById: "parity-user-0001",
@@ -200,9 +234,13 @@ async function main() {
         errorCode: "repository_verification_failed",
         verifiedAt: null,
       },
-      update: { status: "failed", errorCode: "repository_verification_failed", verifiedAt: null },
+      update: {
+        status: "failed",
+        errorCode: "repository_verification_failed",
+        verifiedAt: null,
+      },
     });
-    return { connectionId: "parity-negative-connection-failed-0001", status: "failed" };
+    return { connectionId, status: "failed" };
   });
   await step("ac-025-build-gate-rejected", async () => {
     const out = await apiExpect(
@@ -212,14 +250,7 @@ async function main() {
     );
     const decision = await latestBuildDecision(negOrderId);
     const c01 = gateCheck(decision, "C01");
-    const ok =
-      out.status === 422 &&
-      out.code === "RELEASE_GATE_BLOCKED" &&
-      decision?.allowed === false &&
-      (decision?.blockerGateIds || []).includes("C01") &&
-      c01?.reasonCode === "repository_verification_failed";
     return {
-      ok,
       status: out.status,
       code: out.code,
       decisionId: decision?.id,
@@ -230,32 +261,33 @@ async function main() {
     };
   });
   await step("ac-025-cleanup", async () => {
+    const connectionId = `parity-negative-connection-failed-${runStamp}`;
     await prisma.repositoryConnection.delete({
-      where: { id: "parity-negative-connection-failed-0001" },
+      where: { id: connectionId },
     });
     const leftover = await prisma.repositoryConnection.findUnique({
-      where: { id: "parity-negative-connection-failed-0001" },
+      where: { id: connectionId },
     });
-    return { cleaned: leftover === null, buildRunCount: await countBuildRuns(negOrderId) };
+    return {
+      cleaned: leftover === null,
+      dbBuildRunDelta: (await countBuildRuns(negOrderId)) - negBuildCountBefore,
+    };
   });
 
   // -------------------------------- AC-E2E-026 provider disabled capability
   await step("ac-026-capability-unavailable", async () => {
-    const policy = await api("GET", `/projects/${projectId}/release-policy`, headers);
+    const policy = await api(
+      "GET",
+      `/projects/${projectId}/release-policy`,
+      headers,
+    );
     const caps = (policy.capabilities || []).map((c) => ({
       strategy: c.strategy,
       executable: c.executable,
       reasonCode: c.reasonCode,
       missingCapabilities: c.missingCapabilities,
     }));
-    const standard = caps.find((c) => c.strategy === "standard");
-    const canary = caps.find((c) => c.strategy === "canary");
-    const ok =
-      standard?.executable === true &&
-      canary?.executable === false &&
-      canary?.reasonCode === "release_strategy_capabilities_unavailable" &&
-      canary?.missingCapabilities?.length === 5;
-    return { ok, capabilities: caps };
+    return { capabilities: caps };
   });
   await step("ac-026-preview-rejected", async () => {
     const out = await apiExpect(
@@ -264,12 +296,13 @@ async function main() {
       headers,
     );
     return {
-      expected: "422 release_strategy_capabilities_unavailable",
       status: out.status,
       code: out.code,
       message: out.message,
-      rejected: out.status === 422 && out.code === "release_strategy_capabilities_unavailable",
     };
+  });
+  const releaseCountBefore26 = await prisma.releaseRun.count({
+    where: { releaseOrderId: orderId },
   });
   await step("ac-026-confirm-rejected", async () => {
     const out = await apiExpect(
@@ -284,11 +317,13 @@ async function main() {
       },
     );
     return {
-      expected: "422 release_strategy_capabilities_unavailable (capability check precedes input validation)",
       status: out.status,
       code: out.code,
       message: out.message,
-      rejected: out.status === 422 && out.code === "release_strategy_capabilities_unavailable",
+      releaseRunDelta:
+        (await prisma.releaseRun.count({
+          where: { releaseOrderId: orderId },
+        })) - releaseCountBefore26,
     };
   });
 
@@ -302,10 +337,10 @@ async function main() {
       { manifestId: negManifestId },
     );
     return {
-      expected: "404 Manifest 不存在或不属于当前发布单 (manifest belongs to another project)",
       status: out.status,
       message: out.message,
-      rejected: out.status === 404,
+      dbDeploymentRunDelta:
+        (await countStagingDeployments(orderId)) - stagingCountBefore,
     };
   });
   await step("ac-027-cross-order-manifest", async () => {
@@ -313,16 +348,13 @@ async function main() {
       "POST",
       `/projects/${projectId}/delivery/releases/${orderId}/staging-deployments`,
       headers,
-      { manifestId: "parity-manifest-prev-b-0001" },
+      { manifestId: CROSS_ORDER_MANIFEST },
     );
     const delta = (await countStagingDeployments(orderId)) - stagingCountBefore;
     return {
-      expected: "404 Manifest 不存在或不属于当前发布单 (manifest belongs to another release order)",
       status: out.status,
       message: out.message,
-      rejected: out.status === 404,
       dbDeploymentRunDelta: delta,
-      noRunCreated: delta === 0,
     };
   });
 
@@ -334,15 +366,17 @@ async function main() {
     });
     if (!item) throw new Error("M1 project-bundle item not found");
     originalBundleDigest = item.digest;
+    const tamperedDigest = `sha256:${"deadbeef".repeat(8)}`;
     await prisma.artifactManifestItem.update({
       where: { id: item.id },
-      data: { digest: `sha256:${"deadbeef".repeat(8)}` },
+      data: { digest: tamperedDigest },
     });
     return {
       manifestId: MANIFEST_M1,
       tamperedItem: item.id,
-      originalDigestPrefix: originalBundleDigest.slice(0, 19),
-      tamperedDigestPrefix: "sha256:deadbeef…",
+      originalDigest: originalBundleDigest,
+      tamperedDigest,
+      digestChanged: originalBundleDigest !== tamperedDigest,
     };
   });
   await step("ac-028-deploy-rejected", async () => {
@@ -354,12 +388,9 @@ async function main() {
     );
     const delta = (await countStagingDeployments(orderId)) - stagingCountBefore;
     return {
-      expected: "422 Manifest 缺少可验证的项目制品 (item digest != manifest digest)",
       status: out.status,
       message: out.message,
-      rejected: out.status === 422,
       dbDeploymentRunDelta: delta,
-      noRunCreated: delta === 0,
     };
   });
   await step("ac-028-restore-digest", async () => {
@@ -370,11 +401,17 @@ async function main() {
       where: { id: item.id },
       data: { digest: originalBundleDigest },
     });
-    const restored = (await prisma.artifactManifestItem.findUnique({
-      where: { id: item.id },
-      select: { digest: true },
-    })).digest;
-    return { restored: restored === originalBundleDigest };
+    const restored = (
+      await prisma.artifactManifestItem.findUnique({
+        where: { id: item.id },
+        select: { digest: true },
+      })
+    ).digest;
+    return {
+      restored: restored === originalBundleDigest,
+      restoredDigest: restored,
+      expectedDigest: originalBundleDigest,
+    };
   });
 
   // ------------------------------------ AC-E2E-029 config drift old confirm
@@ -388,7 +425,8 @@ async function main() {
       select: { currentConfigRevisionId: true },
     });
     r2ProductionId = current.currentConfigRevisionId;
-    if (!r2ProductionId) throw new Error("production current config revision not found");
+    if (!r2ProductionId)
+      throw new Error("production current config revision not found");
     const revisions = await prisma.environmentConfigRevision.findMany({
       where: { projectId, environmentId: productionEnvId },
       orderBy: { revision: "asc" },
@@ -396,7 +434,8 @@ async function main() {
     });
     return {
       baseRevisionId: r2ProductionId,
-      baseRevisionNumber: revisions.find((r) => r.id === r2ProductionId)?.revision,
+      baseRevisionNumber: revisions.find((r) => r.id === r2ProductionId)
+        ?.revision,
       note: "base = current production config revision at test start (drift target is the next CAS save)",
     };
   });
@@ -454,7 +493,8 @@ async function main() {
             kind: "managed_resource",
             sharedEnvironmentIds: ["parity-env-production"],
             risk: "low",
-            impact: "parity target workload managed resource (production gate evidence)",
+            impact:
+              "parity target workload managed resource (production gate evidence)",
           },
         ],
         routeSnapshot: {
@@ -468,11 +508,17 @@ async function main() {
       },
     );
     r3ProductionId = r3.id;
-    const current = (await prisma.projectEnvironment.findUnique({
-      where: { id: productionEnvId },
-      select: { currentConfigRevisionId: true },
-    })).currentConfigRevisionId;
-    return { r3RevisionId: r3.id, revision: r3.revision, nowCurrent: current === r3.id };
+    const current = (
+      await prisma.projectEnvironment.findUnique({
+        where: { id: productionEnvId },
+        select: { currentConfigRevisionId: true },
+      })
+    ).currentConfigRevisionId;
+    return {
+      r3RevisionId: r3.id,
+      revision: r3.revision,
+      nowCurrent: current === r3.id,
+    };
   });
   await step("ac-029-old-confirm-execute-rejected", async () => {
     const out = await apiExpect(
@@ -487,28 +533,37 @@ async function main() {
     const pointerMoved =
       (await productionCurrentVersionId()) !== prodCurrentBefore;
     return {
-      expected: "422 Production ReleaseRun 未批准、已使用或输入已漂移 (config snapshot drift R2 != R3)",
       status: out.status,
+      code: out.code,
       message: out.message,
-      rejected: out.status === 422 && /漂移|未批准/.test(out.message || ""),
       dbDeploymentRunWithRun: deploys,
       currentPointerUnchanged: !pointerMoved,
     };
   });
   await step("ac-029-cleanup", async () => {
     await cancelReleaseRun(driftedRunId);
-    return { driftedRunCanceled: (await prisma.releaseRun.findUnique({ where: { id: driftedRunId } })).status === "canceled" };
+    return {
+      driftedRunCanceled:
+        (await prisma.releaseRun.findUnique({ where: { id: driftedRunId } }))
+          .status === "canceled",
+    };
   });
 
   // -------------------------------------- AC-E2E-030 approval state rejections
   const ac30Results = {};
   await step("ac-030-rejected-approval", async () => {
-    const { runId, approvalId } = await confirmProduction(headers, `f457-negative-approval-rejected-${runStamp}`);
+    const { runId, approvalId } = await confirmProduction(
+      headers,
+      `f457-negative-approval-rejected-${runStamp}`,
+    );
     const review = await api(
       "POST",
       `/operation-approvals/${approvalId}/review`,
       headers,
-      { decision: "rejected", reviewComment: "F457 negative e2e: reject approval" },
+      {
+        decision: "rejected",
+        reviewComment: "F457 negative e2e: reject approval",
+      },
     );
     const out = await apiExpect(
       "POST",
@@ -516,7 +571,9 @@ async function main() {
       headers,
       { kind: "upgrade", manifestId: MANIFEST_M2, releaseRunId: runId },
     );
-    const deploys = await prisma.deploymentRun.count({ where: { releaseRunId: runId } });
+    const deploys = await prisma.deploymentRun.count({
+      where: { releaseRunId: runId },
+    });
     const approval = await prisma.operationApproval.findUnique({
       where: { id: approvalId },
       select: { status: true },
@@ -526,15 +583,31 @@ async function main() {
       reviewDecision: review.decision,
       approvalStatus: approval.status,
       executeStatus: out.status,
+      code: out.code,
       message: out.message,
-      rejected: out.status === 422 && approval.status === "rejected" && deploys === 0,
       dbDeploymentRunWithRun: deploys,
+      runStatusBeforeCleanup: (
+        await prisma.releaseRun.findUnique({
+          where: { id: runId },
+          select: { status: true },
+        })
+      )?.status,
     };
     await cancelReleaseRun(runId);
+    ac30Results.rejected.runCanceled =
+      (
+        await prisma.releaseRun.findUnique({
+          where: { id: runId },
+          select: { status: true },
+        })
+      )?.status === "canceled";
     return ac30Results.rejected;
   });
   await step("ac-030-expired-approval", async () => {
-    const { runId, approvalId } = await confirmProduction(headers, `f457-negative-approval-expired-${runStamp}`);
+    const { runId, approvalId } = await confirmProduction(
+      headers,
+      `f457-negative-approval-expired-${runStamp}`,
+    );
     await api("POST", `/operation-approvals/${approvalId}/review`, headers, {
       decision: "approved",
       reviewComment: "F457 negative e2e: approve then expire",
@@ -543,13 +616,19 @@ async function main() {
       where: { id: approvalId },
       data: { expiresAt: new Date(Date.now() - 60_000) },
     });
+    const approval = await prisma.operationApproval.findUnique({
+      where: { id: approvalId },
+      select: { status: true, expiresAt: true },
+    });
     const out = await apiExpect(
       "POST",
       `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`,
       headers,
       { kind: "upgrade", manifestId: MANIFEST_M2, releaseRunId: runId },
     );
-    const deploys = await prisma.deploymentRun.count({ where: { releaseRunId: runId } });
+    const deploys = await prisma.deploymentRun.count({
+      where: { releaseRunId: runId },
+    });
     const run = await prisma.releaseRun.findUnique({
       where: { id: runId },
       select: { status: true },
@@ -557,16 +636,28 @@ async function main() {
     ac30Results.expired = {
       runId,
       executeStatus: out.status,
+      code: out.code,
       message: out.message,
-      rejected: out.status === 422 && deploys === 0 && run.status === "awaiting_approval",
       dbDeploymentRunWithRun: deploys,
-      runStatusAfter: run.status,
+      runStatusBeforeCleanup: run.status,
+      approvalStatus: approval.status,
+      approvalExpired: approval.expiresAt < new Date(),
     };
     await cancelReleaseRun(runId);
+    ac30Results.expired.runCanceled =
+      (
+        await prisma.releaseRun.findUnique({
+          where: { id: runId },
+          select: { status: true },
+        })
+      )?.status === "canceled";
     return ac30Results.expired;
   });
   await step("ac-030-consumed-approval", async () => {
-    const { runId, approvalId } = await confirmProduction(headers, `f457-negative-approval-consumed-${runStamp}`);
+    const { runId, approvalId } = await confirmProduction(
+      headers,
+      `f457-negative-approval-consumed-${runStamp}`,
+    );
     await api("POST", `/operation-approvals/${approvalId}/review`, headers, {
       decision: "approved",
       reviewComment: "F457 negative e2e: approve then mark consumed",
@@ -581,20 +672,35 @@ async function main() {
       headers,
       { kind: "upgrade", manifestId: MANIFEST_M2, releaseRunId: runId },
     );
-    const deploys = await prisma.deploymentRun.count({ where: { releaseRunId: runId } });
+    const deploys = await prisma.deploymentRun.count({
+      where: { releaseRunId: runId },
+    });
     const approval = await prisma.operationApproval.findUnique({
       where: { id: approvalId },
-      select: { consumedAt: true },
+      select: { consumedAt: true, status: true },
+    });
+    const run = await prisma.releaseRun.findUnique({
+      where: { id: runId },
+      select: { status: true },
     });
     ac30Results.consumed = {
       runId,
       executeStatus: out.status,
+      code: out.code,
       message: out.message,
-      rejected: out.status === 422 && deploys === 0 && Boolean(approval.consumedAt),
       dbDeploymentRunWithRun: deploys,
+      approvalStatus: approval.status,
       approvalConsumedAtSet: Boolean(approval.consumedAt),
+      runStatusBeforeCleanup: run.status,
     };
     await cancelReleaseRun(runId);
+    ac30Results.consumed.runCanceled =
+      (
+        await prisma.releaseRun.findUnique({
+          where: { id: runId },
+          select: { status: true },
+        })
+      )?.status === "canceled";
     return ac30Results.consumed;
   });
 
@@ -611,11 +717,23 @@ async function main() {
       idempotencyKey: `f457-negative-concurrent-same-key-${runStamp}`,
     };
     const [first, second] = await Promise.all([
-      apiExpect("POST", `/projects/${projectId}/delivery/releases/${orderId}/production-releases`, headers, payload),
-      apiExpect("POST", `/projects/${projectId}/delivery/releases/${orderId}/production-releases`, headers, payload),
+      apiExpect(
+        "POST",
+        `/projects/${projectId}/delivery/releases/${orderId}/production-releases`,
+        headers,
+        payload,
+      ),
+      apiExpect(
+        "POST",
+        `/projects/${projectId}/delivery/releases/${orderId}/production-releases`,
+        headers,
+        payload,
+      ),
     ]);
     const runs = await prisma.releaseRun.findMany({
-      where: { idempotencyKey: `f457-negative-concurrent-same-key-${runStamp}` },
+      where: {
+        idempotencyKey: `f457-negative-concurrent-same-key-${runStamp}`,
+      },
       select: { id: true, status: true },
     });
     const ok =
@@ -643,30 +761,51 @@ async function main() {
       expectedInputHash: preview.inputHash,
     };
     const [first, second] = await Promise.all([
-      apiExpect("POST", `/projects/${projectId}/delivery/releases/${orderId}/production-releases`, headers, {
-        ...base,
-        idempotencyKey: `f457-negative-concurrent-a-${runStamp}`,
-      }),
-      apiExpect("POST", `/projects/${projectId}/delivery/releases/${orderId}/production-releases`, headers, {
-        ...base,
-        idempotencyKey: `f457-negative-concurrent-b-${runStamp}`,
-      }),
+      apiExpect(
+        "POST",
+        `/projects/${projectId}/delivery/releases/${orderId}/production-releases`,
+        headers,
+        {
+          ...base,
+          idempotencyKey: `f457-negative-concurrent-a-${runStamp}`,
+        },
+      ),
+      apiExpect(
+        "POST",
+        `/projects/${projectId}/delivery/releases/${orderId}/production-releases`,
+        headers,
+        {
+          ...base,
+          idempotencyKey: `f457-negative-concurrent-b-${runStamp}`,
+        },
+      ),
     ]);
     const runs = await prisma.releaseRun.findMany({
       where: {
         releaseOrderId: orderId,
         status: "awaiting_approval",
-        idempotencyKey: { in: [`f457-negative-concurrent-a-${runStamp}`, `f457-negative-concurrent-b-${runStamp}`] },
+        idempotencyKey: {
+          in: [
+            `f457-negative-concurrent-a-${runStamp}`,
+            `f457-negative-concurrent-b-${runStamp}`,
+          ],
+        },
       },
       select: { id: true, idempotencyKey: true, operationApprovalId: true },
     });
     const winner = runs[0];
-    const loser = first.status === 200 && second.status === 200 ? null : (first.status === 200 ? second : first);
+    const loser =
+      first.status === 200 && second.status === 200
+        ? null
+        : first.status === 200
+          ? second
+          : first;
     concurrentRunId = winner?.id;
     concurrentApprovalId = winner?.operationApprovalId;
     const ok =
       runs.length === 1 &&
-      ((first.status === 200 && second.status === 409) || (second.status === 200 && first.status === 409)) &&
+      ((first.status === 200 && second.status === 409) ||
+        (second.status === 200 && first.status === 409)) &&
       /已有进行中的发布运行/.test(loser?.message || "");
     return {
       ok,
@@ -676,7 +815,10 @@ async function main() {
       effectiveReleaseRunCount: runs.length,
       winnerRunId: concurrentRunId,
       winnerApprovalId: concurrentApprovalId,
-      environmentMaxOneRunEnforced: true,
+      environmentMaxOneRunEnforced:
+        runs.length === 1 &&
+        ((first.status === 200 && second.status === 409) ||
+          (second.status === 200 && first.status === 409)),
     };
   });
   await step("ac-031-approve-winner", async () => {
@@ -684,19 +826,43 @@ async function main() {
       "POST",
       `/operation-approvals/${concurrentApprovalId}/review`,
       headers,
-      { decision: "approved", reviewComment: "F457 negative e2e: approve concurrent execute winner" },
+      {
+        decision: "approved",
+        reviewComment: "F457 negative e2e: approve concurrent execute winner",
+      },
     );
-    return { approvalId: concurrentApprovalId, decision: reviewed.decision, status: reviewed.status };
+    return {
+      approvalId: concurrentApprovalId,
+      decision: reviewed.decision,
+      status: reviewed.status,
+    };
   });
   await step("ac-031-refresh-gate-evidence", async () => {
     const refreshedAt = await refreshProductionGateEvidence();
-    return { refreshedAt, note: "D05/D07/D08/D18 fixture evidence timestamps refreshed (5-15min TTL freshness)" };
+    return {
+      refreshedAt,
+      note: "D05/D07/D08/D18 fixture evidence timestamps refreshed (5-15min TTL freshness)",
+    };
   });
   await step("ac-031-concurrent-execute", async () => {
-    const payload = { kind: "upgrade", manifestId: MANIFEST_M2, releaseRunId: concurrentRunId };
+    const payload = {
+      kind: "upgrade",
+      manifestId: MANIFEST_M2,
+      releaseRunId: concurrentRunId,
+    };
     const [first, second] = await Promise.all([
-      apiExpect("POST", `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`, headers, payload),
-      apiExpect("POST", `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`, headers, payload),
+      apiExpect(
+        "POST",
+        `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`,
+        headers,
+        payload,
+      ),
+      apiExpect(
+        "POST",
+        `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`,
+        headers,
+        payload,
+      ),
     ]);
     const deploys = await prisma.deploymentRun.findMany({
       where: { releaseRunId: concurrentRunId },
@@ -707,7 +873,8 @@ async function main() {
       select: { status: true },
     });
     const winnerBody = (first.status < 300 ? first : second).body;
-    const winnerRunId = winnerBody?.run?.id ?? winnerBody?.deploymentRunId ?? winnerBody?.id;
+    const winnerRunId =
+      winnerBody?.run?.id ?? winnerBody?.deploymentRunId ?? winnerBody?.id;
     const loser = first.status < 300 ? second : first;
     const loserRejected = loser.status === 409 || loser.status === 422;
     const ok =
@@ -725,10 +892,13 @@ async function main() {
       deploymentRunId: winnerRunId,
       deploymentRunStatus: deploys[0]?.status,
       releaseRunStatus: run?.status,
-      approvalConsumed: (await prisma.operationApproval.findUnique({
-        where: { id: concurrentApprovalId },
-        select: { consumedAt: true },
-      })).consumedAt !== null,
+      approvalConsumed:
+        (
+          await prisma.operationApproval.findUnique({
+            where: { id: concurrentApprovalId },
+            select: { consumedAt: true },
+          })
+        ).consumedAt !== null,
     };
   });
 
@@ -758,7 +928,17 @@ async function main() {
         },
       },
     });
-    return { serviceId: "parity-svc-web", healthCheckUrl: "http://127.0.0.1:9/health", attempts: 2 };
+    const persisted = await prisma.applicationService.findUnique({
+      where: { id: "parity-svc-web" },
+      select: { deployConfig: true },
+    });
+    return {
+      serviceId: "parity-svc-web",
+      healthCheckUrl: "http://127.0.0.1:9/health",
+      attempts: 2,
+      persistedBrokenHealth:
+        persisted?.deployConfig?.healthCheckUrl === "http://127.0.0.1:9/health",
+    };
   });
   let healthRunId;
   let healthDeployRunId;
@@ -783,10 +963,15 @@ async function main() {
       },
     );
     healthRunId = confirm.id;
-    await api("POST", `/operation-approvals/${confirm.operationApproval.id}/review`, headers, {
-      decision: "approved",
-      reviewComment: "F457 negative e2e: approve health-failure deploy",
-    });
+    await api(
+      "POST",
+      `/operation-approvals/${confirm.operationApproval.id}/review`,
+      headers,
+      {
+        decision: "approved",
+        reviewComment: "F457 negative e2e: approve health-failure deploy",
+      },
+    );
     const executed = await apiExpect(
       "POST",
       `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`,
@@ -802,14 +987,17 @@ async function main() {
       where: { id: healthRunId },
       select: { status: true, errorCode: true },
     });
-    const pointerMoved = (await productionCurrentVersionId()) !== prodCurrentBefore;
+    const pointerMoved =
+      (await productionCurrentVersionId()) !== pointerAfterConcurrentExecute;
     return {
       executeStatus: executed.status,
       deploymentRunStatus: deploys[0]?.status,
       deploymentRunError: deploys[0]?.error,
       releaseRunStatus: run?.status,
       releaseRunErrorCode: run?.errorCode,
-      healthFailed: deploys[0]?.status === "failed" && /WORKLOAD_HEALTH_FAILED/.test(deploys[0]?.error || ""),
+      healthFailed:
+        deploys[0]?.status === "failed" &&
+        /WORKLOAD_HEALTH_FAILED/.test(deploys[0]?.error || ""),
       currentPointerUnchanged: !pointerMoved,
     };
   });
@@ -828,17 +1016,20 @@ async function main() {
       deploy?.status === "failed" &&
       /WORKLOAD_HEALTH_FAILED/.test(deploy?.error || "") &&
       pointerUnchanged &&
-      decision?.stage === "production" && decision?.consumedAt !== null;
+      decision?.stage === "production" &&
+      decision?.consumedAt !== null;
     return {
       ok,
       deploymentRunStatus: deploy?.status,
       error: deploy?.error,
       gateDecision: decision,
       pointerUnchangedVs031Baseline: pointerUnchanged,
-      releaseRunStatus: (await prisma.releaseRun.findUnique({
-        where: { id: healthRunId },
-        select: { status: true },
-      })).status,
+      releaseRunStatus: (
+        await prisma.releaseRun.findUnique({
+          where: { id: healthRunId },
+          select: { status: true },
+        })
+      ).status,
       note: "gates may record allowed=true for a failed run when the deploy itself failed (honest: the gates allowed, the workload health check failed)",
     };
   });
@@ -847,12 +1038,15 @@ async function main() {
       where: { id: "parity-svc-web" },
       data: { deployConfig: savedWebDeployConfig },
     });
-    const restored = (await prisma.applicationService.findUnique({
-      where: { id: "parity-svc-web" },
-      select: { deployConfig: true },
-    })).deployConfig;
+    const restored = (
+      await prisma.applicationService.findUnique({
+        where: { id: "parity-svc-web" },
+        select: { deployConfig: true },
+      })
+    ).deployConfig;
     return {
-      restored: JSON.stringify(restored) === JSON.stringify(savedWebDeployConfig),
+      restored:
+        JSON.stringify(restored) === JSON.stringify(savedWebDeployConfig),
       healthCheckRemoved: !restored?.healthCheckUrl,
     };
   });
@@ -860,10 +1054,12 @@ async function main() {
   // ------------------------------------ AC-E2E-033 probe failure (HTTP 404)
   let r4ProductionId;
   await step("ac-033-create-r4-probe-404", async () => {
-    const current = (await prisma.projectEnvironment.findUnique({
-      where: { id: productionEnvId },
-      select: { currentConfigRevisionId: true },
-    })).currentConfigRevisionId;
+    const current = (
+      await prisma.projectEnvironment.findUnique({
+        where: { id: productionEnvId },
+        select: { currentConfigRevisionId: true },
+      })
+    ).currentConfigRevisionId;
     const r4 = await api(
       "POST",
       `/project-environments/${productionEnvId}/config-revisions`,
@@ -887,12 +1083,14 @@ async function main() {
             kind: "managed_resource",
             sharedEnvironmentIds: ["parity-env-production"],
             risk: "low",
-            impact: "parity target workload managed resource (production gate evidence)",
+            impact:
+              "parity target workload managed resource (production gate evidence)",
           },
         ],
         routeSnapshot: {
           domains: ["parity.example.test"],
-          proxyTarget: "http://parity-target-workload/parity-negative-probe-missing-457",
+          proxyTarget:
+            "http://parity-target-workload/parity-negative-probe-missing-457",
           tlsRequired: true,
         },
         policyReferenceIds: [],
@@ -904,11 +1102,15 @@ async function main() {
     return {
       r4RevisionId: r4.id,
       revision: r4.revision,
-      proxyTarget: "http://parity-target-workload/parity-negative-probe-missing-457",
-      nowCurrent: (await prisma.projectEnvironment.findUnique({
-        where: { id: productionEnvId },
-        select: { currentConfigRevisionId: true },
-      })).currentConfigRevisionId === r4.id,
+      proxyTarget:
+        "http://parity-target-workload/parity-negative-probe-missing-457",
+      nowCurrent:
+        (
+          await prisma.projectEnvironment.findUnique({
+            where: { id: productionEnvId },
+            select: { currentConfigRevisionId: true },
+          })
+        ).currentConfigRevisionId === r4.id,
     };
   });
   let probeRunId;
@@ -934,10 +1136,15 @@ async function main() {
       },
     );
     probeRunId = confirm.id;
-    await api("POST", `/operation-approvals/${confirm.operationApproval.id}/review`, headers, {
-      decision: "approved",
-      reviewComment: "F457 negative e2e: approve probe-failure deploy",
-    });
+    await api(
+      "POST",
+      `/operation-approvals/${confirm.operationApproval.id}/review`,
+      headers,
+      {
+        decision: "approved",
+        reviewComment: "F457 negative e2e: approve probe-failure deploy",
+      },
+    );
     const executed = await apiExpect(
       "POST",
       `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`,
@@ -959,7 +1166,8 @@ async function main() {
       deploymentRunError: deploys[0]?.error,
       releaseRunStatus: run?.status,
       releaseRunErrorCode: run?.errorCode,
-      probeFailureEvidence: "see ac-033-db-state (result.siteProbe.http failed/404)",
+      probeFailureEvidence:
+        "see ac-033-db-state (result.siteProbe.http failed/404)",
     };
   });
   await step("ac-033-db-state", async () => {
@@ -970,9 +1178,10 @@ async function main() {
     const probe = deploy?.result?.siteProbe;
     const pointerUnchanged =
       (await productionCurrentVersionId()) === pointerAfterConcurrentExecute;
-    const routeSwitchRunsForFailedDeploy = await prisma.siteRouteSwitchRun.count({
-      where: { deploymentRunId: probeDeployRunId },
-    });
+    const routeSwitchRunsForFailedDeploy =
+      await prisma.siteRouteSwitchRun.count({
+        where: { deploymentRunId: probeDeployRunId },
+      });
     const ok =
       deploy?.status === "failed" &&
       probe?.http?.status === "failed" &&
@@ -983,7 +1192,13 @@ async function main() {
       ok,
       deploymentRunStatus: deploy?.status,
       error: deploy?.error,
-      httpProbe: probe?.http ? { status: probe.http.status, statusCode: probe.http.statusCode, url: probe.http.url } : null,
+      httpProbe: probe?.http
+        ? {
+            status: probe.http.status,
+            statusCode: probe.http.statusCode,
+            url: probe.http.url,
+          }
+        : null,
       tlsProbe: probe?.tls ? { status: probe.tls.status } : null,
       dnsProbe: probe?.dns ? { status: probe.dns.status } : null,
       routeSwitchEvidenceStatus: deploy?.result?.routeSwitch?.status,
@@ -991,10 +1206,12 @@ async function main() {
       routeActuallySwitched: routeSwitchRunsForFailedDeploy > 0,
       pointerUnchangedVs031Baseline: pointerUnchanged,
       notMarkedFinalSuccess: deploy?.status !== "completed",
-      releaseRunStatus: (await prisma.releaseRun.findUnique({
-        where: { id: probeRunId },
-        select: { status: true },
-      })).status,
+      releaseRunStatus: (
+        await prisma.releaseRun.findUnique({
+          where: { id: probeRunId },
+          select: { status: true },
+        })
+      ).status,
     };
   });
   await step("ac-033-restore-config", async () => {
@@ -1003,13 +1220,17 @@ async function main() {
       data: { currentConfigRevisionId: r3ProductionId },
     });
     return {
-      restoredToR3: (await prisma.projectEnvironment.findUnique({
-        where: { id: productionEnvId },
-        select: { currentConfigRevisionId: true },
-      })).currentConfigRevisionId === r3ProductionId,
-      r4KeptInHistory: (await prisma.environmentConfigRevision.count({
-        where: { id: r4ProductionId },
-      })) === 1,
+      restoredToR3:
+        (
+          await prisma.projectEnvironment.findUnique({
+            where: { id: productionEnvId },
+            select: { currentConfigRevisionId: true },
+          })
+        ).currentConfigRevisionId === r3ProductionId,
+      r4KeptInHistory:
+        (await prisma.environmentConfigRevision.count({
+          where: { id: r4ProductionId },
+        })) === 1,
       casAppendOnlyPreserved: true,
     };
   });
@@ -1038,22 +1259,53 @@ async function main() {
     return {
       expected: "200 read is allowed for MEMBER (min role member)",
       status: out.status,
-      ok: out.status === 200,
+      bodyPresent: Boolean(out.body),
     };
   });
   await step("ac-034-member-execute-rejected", async () => {
     const calls = [];
     for (const [label, method, path, body] of [
-      ["build", "POST", `/projects/${projectId}/delivery/releases/${orderId}/builds`, undefined],
-      ["staging-deploy", "POST", `/projects/${projectId}/delivery/releases/${orderId}/staging-deployments`, { manifestId: MANIFEST_M1 }],
-      ["confirm-production", "POST", `/projects/${projectId}/delivery/releases/${orderId}/production-releases`, { manifestId: MANIFEST_M2, expectedInputHash: "f457-member", idempotencyKey: `f457-member-${Date.now()}` }],
-      ["execute-environment", "POST", `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`, { kind: "upgrade", manifestId: MANIFEST_M2 }],
+      [
+        "build",
+        "POST",
+        `/projects/${projectId}/delivery/releases/${orderId}/builds`,
+        undefined,
+      ],
+      [
+        "staging-deploy",
+        "POST",
+        `/projects/${projectId}/delivery/releases/${orderId}/staging-deployments`,
+        { manifestId: MANIFEST_M1 },
+      ],
+      [
+        "confirm-production",
+        "POST",
+        `/projects/${projectId}/delivery/releases/${orderId}/production-releases`,
+        {
+          manifestId: MANIFEST_M2,
+          expectedInputHash: "f457-member",
+          idempotencyKey: `f457-member-${Date.now()}`,
+        },
+      ],
+      [
+        "execute-environment",
+        "POST",
+        `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`,
+        { kind: "upgrade", manifestId: MANIFEST_M2 },
+      ],
     ]) {
       const out = await apiExpect(method, path, memberHeaders, body);
-      calls.push({ action: label, status: out.status, message: out.message, forbidden: out.status === 403 });
+      calls.push({
+        action: label,
+        status: out.status,
+        message: out.message,
+        forbidden: out.status === 403,
+      });
     }
     const approvals = await api("GET", `/operation-approvals`, memberHeaders);
-    const approvalId = (approvals.items || []).find((a) => a.status === "pending")?.id;
+    const approvalId = (approvals.items || []).find(
+      (a) => a.status === "pending",
+    )?.id;
     const review = await apiExpect(
       "POST",
       `/operation-approvals/${approvalId ?? "does-not-exist"}/review`,
@@ -1067,7 +1319,8 @@ async function main() {
       forbidden: review.status === 403,
     });
     const dbNoBuild = (await countBuildRuns(orderId)) === buildCountBefore34;
-    const dbNoDeploy = (await countStagingDeployments(orderId)) === deployCountBefore34;
+    const dbNoDeploy =
+      (await countStagingDeployments(orderId)) === deployCountBefore34;
     return {
       calls,
       all403: calls.every((c) => c.forbidden),
@@ -1091,11 +1344,14 @@ async function main() {
   await step("ac-034-db-state", async () => {
     return {
       buildRunUnchanged: (await countBuildRuns(orderId)) === buildCountBefore34,
-      deploymentRunUnchanged: (await countStagingDeployments(orderId)) === deployCountBefore34,
-      memberRole: (await prisma.teamMember.findUnique({
-        where: { teamId_userId: { teamId, userId: memberUserId } },
-        select: { role: true },
-      }))?.role,
+      deploymentRunUnchanged:
+        (await countStagingDeployments(orderId)) === deployCountBefore34,
+      memberRole: (
+        await prisma.teamMember.findUnique({
+          where: { teamId_userId: { teamId, userId: memberUserId } },
+          select: { role: true },
+        })
+      )?.role,
       outsiderMembership: await prisma.teamMember.count({
         where: { teamId, userId: outsiderUserId },
       }),
@@ -1106,69 +1362,16 @@ async function main() {
   await step("ac-035-secret-scan", async () => {
     evidence.secretScan = await runSecretScan();
     return {
-      artifactCount: evidence.secretScan.artifacts.length,
+      requiredArtifactCount: evidence.secretScan.requiredArtifacts.length,
+      missingRequiredArtifacts: evidence.secretScan.missingRequiredArtifacts,
       totalHits: evidence.secretScan.totalHits,
       unexpectedHits: evidence.secretScan.unexpectedHits,
       passed: evidence.secretScan.passed,
     };
   });
 
-  // ------------------------------------------------------------------- AC map
-  evidence.ac = {
-    "AC-E2E-024": {
-      ok: true,
-      note: "negative project (no repository connection / no default branch): build rejected 422 RELEASE_GATE_BLOCKED with C01 repository_not_connected; 0 BuildRun; ReleaseGateDecision persisted allowed=false (blocker C01).",
-    },
-    "AC-E2E-025": {
-      ok: true,
-      note: "required gate failure: connection status=failed -> build stage rejected 422 RELEASE_GATE_BLOCKED; decision persisted allowed=false blocker C01 reasonCode repository_verification_failed; 0 BuildRun.",
-    },
-    "AC-E2E-026": {
-      ok: true,
-      note: "provider disabled: release-policy capabilities list standard executable, canary/blue_green/automatic_traffic unavailable (release_strategy_capabilities_unavailable, 5 missing capabilities); preview strategy=canary and confirm strategy=blue_green both rejected 422.",
-    },
-    "AC-E2E-027": {
-      ok: true,
-      note: "cross-project manifest (parity-negative-manifest-0001) and cross-order manifest (parity-manifest-prev-b-0001) both rejected 404 Manifest 不存在或不属于当前发布单; 0 DeploymentRun created.",
-    },
-    "AC-E2E-028": {
-      ok: true,
-      note: "tampered M1 project-bundle item digest -> staging deploy rejected 422 Manifest 缺少可验证的项目制品; digest restored; 0 DeploymentRun created.",
-    },
-    "AC-E2E-029": {
-      ok: true,
-      note: "confirm at R2 then CAS-create R3 (config drift) -> old confirm's execute rejected 422 (Production ReleaseRun 未批准、已使用或输入已漂移); 0 DeploymentRun; current pointer unchanged.",
-    },
-    "AC-E2E-030": {
-      ok: true,
-      note: "rejected approval -> execute 422 (no DeploymentRun); approved-then-expired (expiresAt in past) -> 422; approved-then-consumed (consumedAt set) -> 422; run stays awaiting_approval in each case.",
-    },
-    "AC-E2E-031": {
-      ok: true,
-      note: "two concurrent confirms with the SAME idempotency key -> one ReleaseRun (both 200, idempotent replay); DIFFERENT keys -> one 200 + one 409 已有进行中的发布运行 (env max-1-run guard); concurrent execute of the approved run -> one DeploymentRun (completed) + one 409.",
-    },
-    "AC-E2E-032": {
-      ok: true,
-      note: "health-check failure (healthCheckUrl 127.0.0.1:9/health, curl refused) -> DeploymentRun failed WORKLOAD_HEALTH_FAILED (service web); ReleaseRun failed ENVIRONMENT_DEPLOYMENT_FAILED; production current pointer NOT moved (vs the post-031 baseline); the production gate decision is claimed by the failed run (gates allowed, workload itself failed).",
-    },
-    "AC-E2E-033": {
-      ok: true,
-      note: "routeSnapshot proxyTarget -> 404 path: site probe http failed (statusCode 404, result.siteProbe recorded), routeSwitch unavailable -> DeploymentRun failed, ReleaseRun failed, run NOT marked final success, current pointer unchanged; the generic error code is ENVIRONMENT_DEPLOYMENT_FAILED while the probe evidence carries http failed/404 (fail-closed policy).",
-    },
-    "AC-E2E-034": {
-      ok: true,
-      note: "MEMBER (parity-member-0001) can read (200) but build/staging-deploy/confirm-production/execute-environment/review-approval all 403; cross-team user (no membership) read 403 无权访问该团队; 0 BuildRun/DeploymentRun created.",
-    },
-    "AC-E2E-035": {
-      ok: evidence.secretScan?.passed === true,
-      note:
-        "full-chain scan of API evidence, DB dump, api/web container logs, browser DOM/HTML, compose, runtime env, deployment runtime.env — " +
-        (evidence.secretScan?.unexpectedHits === 0
-          ? "zero unexpected plaintext hits for seed password / secret value / tokens / bootstrap credentials"
-          : `UNEXPECTED HITS: ${evidence.secretScan?.unexpectedHits}`),
-    },
-  };
-  evidence.status = "passed";
+  // Derive each AC from every asserted setup/action/DB/restore step.
+  finishEvidence(evidence, NEGATIVE_AC_MAPPING);
 
   await writeEvidence();
   log(`F457 negative E2E PASSED — evidence at ${evidencePath()}`);
@@ -1183,22 +1386,13 @@ function evidencePath() {
 }
 
 async function step(name, fn) {
-  const startedAt = Date.now();
-  try {
-    const result = await fn();
-    evidence.steps[name] = { ok: true, ms: Date.now() - startedAt, result };
-    log(`step ${name} OK (${Date.now() - startedAt}ms)`);
-    return result;
-  } catch (error) {
-    evidence.steps[name] = {
-      ok: false,
-      ms: Date.now() - startedAt,
-      error: error.message || String(error),
-    };
-    evidence.status = "failed";
-    log(`step ${name} FAILED: ${error.message || error}`);
-    throw error;
-  }
+  return checkedStep(
+    evidence,
+    name,
+    fn,
+    (result) => negativeStepChecks(name, result),
+    log,
+  );
 }
 
 async function login(email) {
@@ -1222,7 +1416,9 @@ async function api(method, path, headers, body) {
   });
   const json = await res.json();
   if (!res.ok) {
-    const err = new Error(`API ${method} ${path} failed (${res.status}): ${JSON.stringify(json)}`);
+    const err = new Error(
+      `API ${method} ${path} failed (${res.status}): ${JSON.stringify(json)}`,
+    );
     err.status = res.status;
     err.code = json.code;
     err.message = json.message || err.message;
@@ -1253,7 +1449,9 @@ async function apiExpect(method, path, headers, body) {
 
 async function httpGet(url, options = {}) {
   const res = await fetch(url);
-  const body = options.raw ? await res.text() : await res.json().catch(() => null);
+  const body = options.raw
+    ? await res.text()
+    : await res.json().catch(() => null);
   return { status: res.status, body };
 }
 
@@ -1281,8 +1479,8 @@ async function seedNegativeFixtures() {
     update: { onboardingStatus: "ready" },
   });
   for (const [envId, key, role, sort] of [
-    ["parity-negative-env-staging", "staging", "staging", 0],
-    ["parity-negative-env-production", "production", "production", 1],
+    [negStagingEnvId, "staging", "staging", 0],
+    [negProductionEnvId, "production", "production", 1],
   ]) {
     await prisma.projectEnvironment.upsert({
       where: { id: envId },
@@ -1314,9 +1512,9 @@ async function seedNegativeFixtures() {
   // Fixture manifest that EXISTS but belongs to another project/order
   // (cross-project/cross-order staging deploy must still reject).
   await prisma.buildRun.upsert({
-    where: { id: "parity-negative-build-0001" },
+    where: { id: negBuildId },
     create: {
-      id: "parity-negative-build-0001",
+      id: negBuildId,
       teamId,
       projectId: negProjectId,
       releaseOrderId: negOrderId,
@@ -1324,8 +1522,13 @@ async function seedNegativeFixtures() {
       revision: 1,
       sourceBranch: "main",
       sourceCommitSha: pinnedCommit,
-      inputSnapshot: { repositoryUrl: "/read-only-repositories/parity-app", branch: "main" },
-      inputHash: createHash("sha256").update("parity-negative-build").digest("hex"),
+      inputSnapshot: {
+        repositoryUrl: "/read-only-repositories/parity-app",
+        branch: "main",
+      },
+      inputHash: createHash("sha256")
+        .update("parity-negative-build")
+        .digest("hex"),
       status: "succeeded",
       gateSummary: { build: { status: "passed", components: 1 } },
       startedAt: at,
@@ -1340,20 +1543,25 @@ async function seedNegativeFixtures() {
       teamId,
       projectId: negProjectId,
       releaseOrderId: negOrderId,
-      buildRunId: "parity-negative-build-0001",
+      buildRunId: negBuildId,
       digest: `sha256:${"c".repeat(64)}`,
       provenance: { fixture: true, negative: true },
     },
     update: {},
   });
   await prisma.artifactManifestItem.upsert({
-    where: { manifestId_componentKey: { manifestId: negManifestId, componentKey: "project-bundle" } },
+    where: {
+      manifestId_componentKey: {
+        manifestId: negManifestId,
+        componentKey: "project-bundle",
+      },
+    },
     create: {
-      id: "parity-negative-manifest-item-0001",
+      id: negManifestItemId,
       manifestId: negManifestId,
       componentKey: "project-bundle",
       artifactType: "static_bundle",
-      uri: "file:///var/lib/devpilot/release-build/artifacts/parity-negative-build-0001/bundle.tar.gz",
+      uri: `file:///var/lib/devpilot/release-build/artifacts/${negBuildId}/bundle.tar.gz`,
       digest: `sha256:${"c".repeat(64)}`,
       metadata: { fixture: true, negative: true },
     },
@@ -1363,8 +1571,11 @@ async function seedNegativeFixtures() {
   // MEMBER user (role member in parity-team-0001) + cross-team outsider
   // (no membership). Both log in with the bootstrap password hash (the hash is
   // copied, never the plaintext).
-  const bootstrap = await prisma.user.findUnique({ where: { email: adminEmail } });
-  if (!bootstrap?.passwordHash) throw new Error("bootstrap admin passwordHash missing");
+  const bootstrap = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  });
+  if (!bootstrap?.passwordHash)
+    throw new Error("bootstrap admin passwordHash missing");
   await prisma.user.upsert({
     where: { id: memberUserId },
     create: {
@@ -1401,7 +1612,10 @@ async function countBuildRuns(orderIdValue) {
 
 async function countStagingDeployments(orderIdValue) {
   return prisma.deploymentRun.count({
-    where: { environmentId: stagingEnvId, artifactManifest: { releaseOrderId: orderIdValue } },
+    where: {
+      environmentId: stagingEnvId,
+      artifactManifest: { releaseOrderId: orderIdValue },
+    },
   });
 }
 
@@ -1489,9 +1703,11 @@ async function cleanupStaleActiveRuns() {
     where: { environmentId: productionEnvId, status: "running" },
   });
   if (running > 0) {
-    throw new Error(`stale running ReleaseRun on production (${running}); refusing to proceed`);
+    throw new Error(
+      `stale running ReleaseRun on production (${running}); refusing to proceed`,
+    );
   }
-  return { canceledStaleRuns: stale.length };
+  return { canceledStaleRuns: stale.length, runningReleaseRuns: running };
 }
 
 // F457 fixture-evidence refresh: the parity seed stamps the production gate
@@ -1529,7 +1745,10 @@ async function refreshProductionGateEvidence() {
 // ------------------------------------------------------------ secret scan
 
 function execCapture(command, args) {
-  const out = spawnSync(command, args, { encoding: "utf8", maxBuffer: 128 * 1024 * 1024 });
+  const out = spawnSync(command, args, {
+    encoding: "utf8",
+    maxBuffer: 128 * 1024 * 1024,
+  });
   return {
     status: out.status,
     stdout: out.stdout || "",
@@ -1577,8 +1796,10 @@ async function runSecretScan() {
 
   // 2. DB dump (mysqldump of devpilot_parity).
   const dump = execCapture("docker", [
-    "exec", "parity-mysql",
-    "sh", "-lc",
+    "exec",
+    "parity-mysql",
+    "sh",
+    "-lc",
     "mysqldump -uroot -ppassword --single-transaction --routines --triggers devpilot_parity",
   ]);
   await writeFile(`${outDir}/db.dump.sql`, dump.stdout);
@@ -1589,19 +1810,39 @@ async function runSecretScan() {
   });
 
   // 3. API container logs.
-  const apiLogs = execCapture("docker", ["logs", "parity-api", "--tail", "4000"]);
-  await writeFile(`${outDir}/api-container.log`, `${apiLogs.stdout}\n---stderr---\n${apiLogs.stderr}`);
+  const apiLogs = execCapture("docker", [
+    "logs",
+    "parity-api",
+    "--tail",
+    "4000",
+  ]);
+  await writeFile(
+    `${outDir}/api-container.log`,
+    `${apiLogs.stdout}\n---stderr---\n${apiLogs.stderr}`,
+  );
   artifacts.push({
     name: "api-container.log (docker logs parity-api)",
-    hits: scanText(apiLogs.stdout, secrets).concat(scanText(apiLogs.stderr, secrets)),
+    hits: scanText(apiLogs.stdout, secrets).concat(
+      scanText(apiLogs.stderr, secrets),
+    ),
   });
 
   // 4. Web container logs.
-  const webLogs = execCapture("docker", ["logs", "parity-web", "--tail", "2000"]);
-  await writeFile(`${outDir}/web-container.log`, `${webLogs.stdout}\n---stderr---\n${webLogs.stderr}`);
+  const webLogs = execCapture("docker", [
+    "logs",
+    "parity-web",
+    "--tail",
+    "2000",
+  ]);
+  await writeFile(
+    `${outDir}/web-container.log`,
+    `${webLogs.stdout}\n---stderr---\n${webLogs.stderr}`,
+  );
   artifacts.push({
     name: "web-container.log (docker logs parity-web)",
-    hits: scanText(webLogs.stdout, secrets).concat(scanText(webLogs.stderr, secrets)),
+    hits: scanText(webLogs.stdout, secrets).concat(
+      scanText(webLogs.stderr, secrets),
+    ),
   });
 
   // 5. Browser DOM/HTML evidence from F455/F456 (screenshots DOM).
@@ -1610,8 +1851,14 @@ async function runSecretScan() {
     "/tmp/codex-tool-runs/svton/f456/browser",
   ];
   for (const dir of htmlDirs) {
-    const listing = execCapture("sh", ["-lc", `ls ${dir}/*.html 2>/dev/null | head -50`]);
-    const files = listing.stdout.split("\n").map((f) => f.trim()).filter(Boolean);
+    const listing = execCapture("sh", [
+      "-lc",
+      `ls ${dir}/*.html 2>/dev/null | head -50`,
+    ]);
+    const files = listing.stdout
+      .split("\n")
+      .map((f) => f.trim())
+      .filter(Boolean);
     let combined = "";
     for (const file of files) {
       try {
@@ -1663,23 +1910,43 @@ async function runSecretScan() {
   // 8. Runtime deployment state: active.json activation files (must not carry
   //    secret values) + the designed runtime.env delivery files (0600).
   const runtimeListing = execCapture("docker", [
-    "exec", "parity-api",
-    "sh", "-lc",
+    "exec",
+    "parity-api",
+    "sh",
+    "-lc",
     "find /var/lib/devpilot/release-build/deployments -name active.json -o -name runtime.env | sort",
   ]);
-  const runtimeFiles = runtimeListing.stdout.split("\n").map((f) => f.trim()).filter(Boolean);
+  const runtimeFiles = runtimeListing.stdout
+    .split("\n")
+    .map((f) => f.trim())
+    .filter(Boolean);
   const activeHits = [];
   const envFileInfo = [];
   for (const file of runtimeFiles) {
-    const content = execCapture("docker", ["exec", "parity-api", "sh", "-lc", `cat "${file}"`]);
+    const content = execCapture("docker", [
+      "exec",
+      "parity-api",
+      "sh",
+      "-lc",
+      `cat "${file}"`,
+    ]);
     if (file.endsWith("active.json")) {
       activeHits.push(...scanText(content.stdout, secrets));
     } else {
       const mode = execCapture("docker", [
-        "exec", "parity-api", "sh", "-lc",
+        "exec",
+        "parity-api",
+        "sh",
+        "-lc",
         `stat -c '%a' "${file}"`,
       ]).stdout.trim();
-      envFileInfo.push({ file, mode, hasSeedSecretValue: content.stdout.includes("parity-secret-plaintext-0001") });
+      envFileInfo.push({
+        file,
+        mode,
+        hasSeedSecretValue: content.stdout.includes(
+          "parity-secret-plaintext-0001",
+        ),
+      });
     }
   }
   artifacts.push({
@@ -1690,8 +1957,7 @@ async function runSecretScan() {
   artifacts.push({
     name: "runtime.env workload delivery files",
     hits: [],
-    note:
-      "DESIGNED_SECRET_DELIVERY: runtime.env delivers decrypted secret values to the workload (0600 inside the release root) — the only place plaintext secret values exist besides the compose config; all files are mode 600/700",
+    note: "DESIGNED_SECRET_DELIVERY: runtime.env delivers decrypted secret values to the workload (0600 inside the release root) — the only place plaintext secret values exist besides the compose config; all files are mode 600/700",
     files: envFileInfo,
   });
 
@@ -1740,8 +2006,28 @@ async function runSecretScan() {
       }
     }
   }
-  const passed = unexpectedHits === 0;
-  log(`secret scan: ${artifacts.length} artifacts, ${totalHits} total hits, ${unexpectedHits} unexpected sensitive hits, ${identifierHits.length} identifier hits (${passed ? "PASS" : "FAIL"})`);
+  const requiredPrefixes = [
+    "api-evidence-json",
+    "db.dump.sql",
+    "api-container.log",
+    "web-container.log",
+    "browser-dom-html",
+    "docker-compose.devpilot-parity.yml",
+    "prior-evidence",
+    "runtime active.json",
+    "runtime.env workload delivery",
+    "db DeploymentRun.logs/error",
+  ];
+  const requiredArtifacts = requiredPrefixes.filter((prefix) =>
+    artifacts.some((artifact) => artifact.name.startsWith(prefix)),
+  );
+  const missingRequiredArtifacts = requiredPrefixes.filter(
+    (prefix) => !requiredArtifacts.includes(prefix),
+  );
+  const passed = unexpectedHits === 0 && missingRequiredArtifacts.length === 0;
+  log(
+    `secret scan: ${artifacts.length} artifacts, ${totalHits} total hits, ${unexpectedHits} unexpected sensitive hits, ${identifierHits.length} identifier hits (${passed ? "PASS" : "FAIL"})`,
+  );
   return {
     passed,
     artifactCount: artifacts.length,
@@ -1749,6 +2035,8 @@ async function runSecretScan() {
     unexpectedHits,
     unexpected,
     identifierHits,
+    requiredArtifacts,
+    missingRequiredArtifacts,
     artifacts,
   };
 }
@@ -1762,10 +2050,11 @@ async function writeEvidence() {
 }
 
 main()
-  .catch((error) => {
+  .catch(async (error) => {
     evidence.status = "failed";
     evidence.error = error.stack || error.message;
     console.error(`[f457] FAILED: ${error.stack || error.message}`);
-    return writeEvidence().then(() => process.exit(1));
+    await writeEvidence();
+    process.exitCode = 1;
   })
   .finally(() => prisma.$disconnect());

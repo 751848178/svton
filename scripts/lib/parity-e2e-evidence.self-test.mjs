@@ -72,9 +72,7 @@ async function guardsHardcodedAcceptance() {
     source: await readFile(resolve(root, "scripts", name), "utf8"),
   })));
   const offenders = sources.filter(({ source }) => hardcodedAcceptance(source));
-  assert.deepEqual(offenders.map(({ name }) => name).sort(), [
-    "parity-negative-e2e.mjs",
-  ]);
+  assert.deepEqual(offenders.map(({ name }) => name).sort(), []);
   assert.equal(hardcodedAcceptance(sources[0].source), false);
 }
 
