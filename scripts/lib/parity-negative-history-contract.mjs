@@ -4,6 +4,7 @@ import {
   TRUSTED_BASE_CONTEXT_FIELDS,
   validateTrustedHistoryBase,
 } from "./parity-negative-history-base-identity.mjs";
+import { validateHistoryIdentityGraph } from "./parity-negative-history-identity-graph.mjs";
 import {
   canonicalHistoryStepValid,
   sameJsonValue,
@@ -40,12 +41,13 @@ export function parseNegativeHistoryEvidence(bytes, input) {
   const baseStep = document.steps?.["base-state-rows"];
   const baseAnchors = validateTrustedHistoryBase(baseStep, context);
   requireValue(validateAcceptance(document), "history acceptance invalid");
+  const graph = validateHistoryIdentityGraph(document.steps, baseAnchors);
   const trustedContext = Object.fromEntries(
     TRUSTED_BASE_CONTEXT_FIELDS.map((name) => [name, baseAnchors[name]]),
   );
   return Object.freeze({
     ...trustedContext,
-    ...manifestContext(document, baseAnchors),
+    ...graph,
     sourcePath: input.evidencePath,
     sourceSha256,
     expectedSourceSha256: input.expectedSha256,
@@ -117,35 +119,6 @@ function validateAcceptance(document) {
       sameJsonValue(entry.checkNames, expanded)
     );
   });
-}
-
-function manifestContext(document, baseAnchors) {
-  const build2 = document.steps?.["build-2"]?.result;
-  requireValue(
-    build2?.status === "succeeded" && nonEmpty(build2.buildRunId),
-    "history B2 invalid",
-  );
-  requireValue(
-    nonEmpty(build2.manifestId) && build2.manifestId !== baseAnchors.manifestId,
-    "history M2 invalid",
-  );
-  requireValue(
-    digest(baseAnchors.manifestDigest) && digest(build2.manifestDigest),
-    "history digest invalid",
-  );
-  return {
-    manifestM1: baseAnchors.manifestId,
-    manifestM1Digest: baseAnchors.manifestDigest,
-    buildRunM1: baseAnchors.buildRunId,
-    productionReleaseRunR1: baseAnchors.productionReleaseRunId,
-    manifestM2: build2.manifestId,
-    manifestM2Digest: build2.manifestDigest,
-    buildRunM2: build2.buildRunId,
-  };
-}
-
-function digest(value) {
-  return /^sha256:[a-f0-9]{64}$/.test(value || "");
 }
 
 function nonEmpty(value) {

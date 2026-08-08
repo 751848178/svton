@@ -1,190 +1,140 @@
-import { buildProductionRouteExpectation } from "./parity-production-route-evidence.mjs";
+import { productionProofFixture } from "./parity-negative-history-route-fixture.mjs";
 
-export function productionActionFixture(kind) {
-  const suffix = kind === "upgrade" ? "upgrade" : "recovery";
-  const identity = {
-    teamId: "team",
-    projectId: "project",
-    releaseOrderId: "order",
-    environmentId: "production",
-    deploymentRunId: `deployment-${suffix}`,
-    releaseRunId: `release-${suffix}`,
-    manifestId: `manifest-${suffix}`,
-    buildRunId: `build-${suffix}`,
-    configRevisionId: "config-1",
-  };
+export function productionResultsFixture(anchors) {
   return {
-    deploymentRunId: identity.deploymentRunId,
+    "production-preview": previewFixture(anchors, "standard"),
+    "production-confirm": confirmFixture(anchors, "standard"),
+    "production-approve": approvalFixture(anchors.productionApprovalA2),
+    "production-upgrade-execute": actionFixture(anchors, "upgrade"),
+    "production-recovery-preview": previewFixture(anchors, "recovery"),
+    "production-recovery-confirm": confirmFixture(anchors, "recovery"),
+    "production-recovery-approve": approvalFixture(
+      anchors.productionApprovalA3,
+    ),
+    "production-recovery-execute": actionFixture(anchors, "recovery"),
+  };
+}
+
+function previewFixture(a, mode) {
+  const snapshot = {
+    environment: { id: a.productionEnvId, key: "production" },
+    build: {
+      id: mode === "standard" ? a.buildRunB2 : a.buildRunId,
+      sourceCommitSha: a.pinnedCommit,
+    },
+    releaseOrder: { id: a.orderId },
+  };
+  if (mode === "standard") {
+    snapshot.build.revision = 2;
+    return {
+      inputHash: "b".repeat(64),
+      manifestFrozen: true,
+      manifestDigest: a.manifestM2Digest,
+      expectedManifestDigest: a.manifestM2Digest,
+      snapshot,
+    };
+  }
+  return {
+    inputHash: "c".repeat(64),
+    sourceVersionId: a.productionCurrentVersionId,
+    expectedSourceVersionId: a.productionCurrentVersionId,
+    sourceManifestId: a.manifestId,
+    expectedManifestId: a.manifestId,
+    sourceManifestDigest: a.manifestDigest,
+    expectedManifestDigest: a.manifestDigest,
+    sourceReleaseRunId: a.productionReleaseRunId,
+    sourceVersionKind: "upgrade",
+    snapshot,
+  };
+}
+
+function confirmFixture(a, mode) {
+  const recovery = mode === "recovery";
+  const releaseRunId = recovery
+    ? a.productionReleaseRunR3
+    : a.productionReleaseRunR2;
+  const manifestId = recovery ? a.manifestId : a.manifestM2;
+  const digest = recovery ? a.manifestDigest : a.manifestM2Digest;
+  const result = {
+    releaseRunId,
+    status: "awaiting_approval",
+    awaitingApproval: true,
+    mode,
+    approvalId: recovery ? a.productionApprovalA3 : a.productionApprovalA2,
+    approvalStatus: "pending",
+    approvalAction: recovery
+      ? "project.release_order.deploy_production_recovery"
+      : "project.release_order.deploy_production",
+    manifestId,
+    expectedManifestId: manifestId,
+    verifiedDigest: digest,
+    expectedManifestDigest: digest,
+    verifiedDigestMatches: true,
+  };
+  if (recovery) {
+    result.recoveryReleaseRunId = releaseRunId;
+    result.sourceReleaseRunId = a.productionReleaseRunId;
+  }
+  return result;
+}
+
+function approvalFixture(approvalId) {
+  return {
+    approvalId,
+    decision: "approved",
+    status: "approved",
+    reviewerId: "reviewer",
+    reviewedAt: "2026-08-08T00:00:03.000Z",
+  };
+}
+
+function actionFixture(a, kind) {
+  const recovery = kind === "recovery";
+  const action = {
+    deploymentRunId: recovery
+      ? a.productionDeploymentRunD3
+      : a.productionDeploymentRunD2,
+    releaseRunId: recovery
+      ? a.productionReleaseRunR3
+      : a.productionReleaseRunR2,
+    manifestId: recovery ? a.manifestId : a.manifestM2,
+    buildRunId: recovery ? a.buildRunId : a.buildRunB2,
+  };
+  const previousVersionId = recovery
+    ? a.productionVersionV2
+    : a.productionCurrentVersionId;
+  const proof = productionProofFixture(a, action);
+  return {
+    deploymentRunId: action.deploymentRunId,
     status: "completed",
-    environmentId: identity.environmentId,
-    expectedEnvironmentId: identity.environmentId,
-    manifestId: identity.manifestId,
-    expectedManifestId: identity.manifestId,
-    releaseRunId: identity.releaseRunId,
-    expectedReleaseRunId: identity.releaseRunId,
-    newEnvironmentVersion: { kind, previousVersionId: "production-v1" },
-    expectedPreviousVersionId: "production-v1",
+    environmentId: a.productionEnvId,
+    manifestId: action.manifestId,
+    ...(recovery ? { restoredM1: true } : {}),
+    releaseRunId: action.releaseRunId,
+    expectedEnvironmentId: a.productionEnvId,
+    expectedManifestId: action.manifestId,
+    expectedReleaseRunId: action.releaseRunId,
+    expectedPreviousVersionId: previousVersionId,
+    newEnvironmentVersion: {
+      id: recovery ? a.productionVersionV3 : a.productionVersionV2,
+      kind,
+      previousVersionId,
+      [recovery ? "previousIsVprod2" : "previousIsVprod1"]: true,
+    },
     currentMoved: true,
     releaseRun: {
       status: "succeeded",
-      mode: kind === "upgrade" ? "standard" : "recovery",
+      mode: recovery ? "recovery" : "standard",
       approvalStatus: "approved",
       approvalConsumedAt: "2026-08-08T00:00:04.000Z",
     },
-    artifactVerified: true,
     workload: { status: "running" },
     healthProbe: { status: "passed" },
-    productionGate: gateFixture(identity),
-    routeEvidence: routeFixture(identity),
-  };
-}
-
-function gateFixture(identity) {
-  const finalGateKey = `final:${identity.releaseRunId}:${identity.deploymentRunId}`;
-  const expected = {
-    ...identity,
-    finalGateKey,
-    deploymentReleaseRunId: identity.releaseRunId,
-    deploymentEnvironmentId: identity.environmentId,
-    deploymentManifestId: identity.manifestId,
-  };
-  const gate = {
-    id: `gate-${identity.deploymentRunId}`,
-    releaseOrderId: identity.releaseOrderId,
-    stage: "production",
-    phase: "deploy",
-    requestKey: finalGateKey,
-    allowed: true,
-    inputHash: "a".repeat(64),
-    inputSnapshot: {
-      version: 1,
-      stage: "production",
-      phase: "deploy",
-      actionInput: {
-        checkpoint: "post_execution",
-        deploymentRunId: identity.deploymentRunId,
-        releaseRunId: identity.releaseRunId,
-        environmentId: identity.environmentId,
-        manifestId: identity.manifestId,
-        buildRunId: identity.buildRunId,
-        configRevisionId: identity.configRevisionId,
-      },
-    },
-    blockerGateIds: [],
-    integrityErrors: [],
-    actionRunType: "deployment_run",
-    actionRunId: identity.deploymentRunId,
-    consumedAt: "2026-08-08T00:00:04.000Z",
-  };
-  return {
-    gate,
-    resultGate: { id: gate.id, stage: gate.stage, inputHash: gate.inputHash },
-    expected,
-  };
-}
-
-function routeFixture(identity) {
-  const routeSnapshot = {
-    domains: ["production.example.test"],
-    proxyTarget: "http://target-workload",
-    tlsRequired: true,
-  };
-  const expected = buildProductionRouteExpectation({
-    ...identity,
-    routeSnapshot,
-    siteId: "site-1",
-    targetRef: "target-1",
-    providerKey: "route-provider-v1",
-    receiptVersion: 1,
-  });
-  const observedAt = "2026-08-08T00:00:05.000Z";
-  const receipt = {
-    version: 1,
-    providerKey: expected.providerKey,
-    operationId: expected.operationId,
-    status: "switched",
-    reasonCode: "site_route_switched",
-    observedAt,
-    observed: {
-      siteId: expected.siteId,
-      deploymentRunId: expected.deploymentRunId,
-      targetRef: expected.targetRef,
-      routeHash: expected.routeHash,
-    },
-  };
-  const routeSwitch = {
-    version: 1,
-    operationId: expected.operationId,
-    teamId: expected.teamId,
-    projectId: expected.projectId,
-    environmentId: expected.environmentId,
-    siteId: expected.siteId,
-    deploymentRunId: expected.deploymentRunId,
-    releaseRunId: expected.releaseRunId,
-    primaryDomain: expected.primaryDomain,
-    domains: expected.domains,
-    proxyTarget: expected.proxyTarget,
-    targetRef: expected.targetRef,
-    routeHash: expected.routeHash,
-    providerKey: expected.providerKey,
-    status: "switched",
-    reasonCode: "site_route_switched",
-    switchedAt: observedAt,
-    receipt,
-  };
-  const siteProbe = {
-    primaryDomain: expected.primaryDomain,
-    finalUrl: expected.configuredFinalUrl,
-    http: {
-      url: expected.configuredFinalUrl,
-      finalUrl: expected.configuredFinalUrl,
-      status: "passed",
-      statusCode: 200,
-      bodySignature: "sha256:body",
-    },
-    tls: {
-      status: "valid",
-      host: expected.primaryDomain,
-      servername: expected.primaryDomain,
-      authorized: true,
-      authorizationErrorCode: null,
-    },
-  };
-  return {
-    expected,
-    deployment: {
-      releaseRunId: expected.releaseRunId,
-      environmentId: expected.environmentId,
-      artifactManifestId: expected.manifestId,
-      startedAt: "2026-08-08T00:00:00.000Z",
-    },
-    releaseRun: {
-      environmentId: expected.environmentId,
-      artifactManifestId: expected.manifestId,
-      configRevisionId: expected.configRevisionId,
-      routeSnapshot,
-    },
-    siteCandidateCount: 1,
-    siteCurrent: {
-      id: expected.siteId,
-      primaryDomain: expected.primaryDomain,
-      routeSwitch: structuredClone(routeSwitch),
-    },
-    routeRuns: [
-      {
-        ...identity,
-        siteId: expected.siteId,
-        targetRef: expected.targetRef,
-        proxyTarget: expected.proxyTarget,
-        domains: expected.domains,
-        status: "switched",
-        reasonCode: "site_route_switched",
-        result: { routeSwitch, siteProbe },
-        finishedAt: "2026-08-08T00:00:06.000Z",
-      },
-    ],
-    siteProbe: structuredClone(siteProbe),
-    deploymentRouteSwitch: structuredClone(routeSwitch),
-    capturedAt: "2026-08-08T00:00:07.000Z",
+    siteProbe: proof.siteProbe,
+    routeSwitch: proof.routeSwitch,
+    artifactVerified: true,
+    gateDecision: proof.gateDecision,
+    productionGate: proof.productionGate,
+    routeEvidence: proof.routeEvidence,
   };
 }

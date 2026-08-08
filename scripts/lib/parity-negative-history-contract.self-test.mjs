@@ -16,6 +16,7 @@ const document = historyDocumentFixture();
 const bytes = Buffer.from(JSON.stringify(document));
 const parsed = parseNegativeHistoryEvidence(bytes, historyInput(bytes));
 assert.equal(parsed.historyContractValid, true);
+assert.equal(parsed.historyIdentityGraphValid, true);
 assert.equal(parsed.manifestM1, document.context.manifestId);
 assert.equal(parsed.manifestM2, document.steps["build-2"].result.manifestId);
 assert.equal(parsed.productionReleaseRunR1, "release-1");
