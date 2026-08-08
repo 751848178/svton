@@ -11,7 +11,10 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readStableBrowserFile } from "./parity-history-safe-file.mjs";
+import {
+  prepareBrowserFilesForPin,
+  readStableBrowserFile,
+} from "./parity-history-safe-file.mjs";
 
 const directory = await mkdtemp(join(tmpdir(), "f533-safe-file-"));
 const path = join(directory, "proof.txt");
@@ -32,6 +35,23 @@ const fifo = join(directory, "proof.fifo");
 const fifoCreated = spawnSync("mkfifo", [fifo], { encoding: "utf8" });
 assert.equal(fifoCreated.status, 0, fifoCreated.stderr);
 await rejects(fifo, /pre-open-nonregular/);
+await prepareBrowserFilesForPin(directory, ["prepared.txt"]);
+assert.equal(
+  (await readStableBrowserFile(join(directory, "prepared.txt"))).buffer.length,
+  0,
+);
+await assert.rejects(
+  prepareBrowserFilesForPin(directory, ["proof-link.txt"]),
+  /E2E_BROWSER_FILE_INVALID/,
+);
+await assert.rejects(
+  prepareBrowserFilesForPin(directory, ["proof.fifo"]),
+  /E2E_BROWSER_FILE_INVALID/,
+);
+await assert.rejects(
+  prepareBrowserFilesForPin(directory, ["../outside.txt"]),
+  /E2E_BROWSER_FILE_INVALID/,
+);
 
 await writeFile(path, original);
 const replaced = join(directory, "proof-original.txt");

@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -9,6 +16,11 @@ import {
   browserArtifactsValid,
   readBackBrowserArtifacts,
 } from "./parity-history-browser-artifacts.mjs";
+import {
+  closePinnedBrowserOutputDirectory,
+  pinBrowserOutputDirectory,
+} from "./parity-history-safe-directory.mjs";
+import { readPinnedBrowserFile } from "./parity-history-safe-file.mjs";
 
 const buffers = {
   screenshot: Buffer.concat([
@@ -34,7 +46,9 @@ const valid = Object.fromEntries(
 );
 
 assert.equal(browserArtifactsValid(required, valid), true);
-const browserOut = await mkdtemp(join(tmpdir(), "f533-artifacts-"));
+const trustedRoot = await mkdtemp(join(tmpdir(), "f540-artifacts-"));
+const browserOut = join(trustedRoot, "browser");
+await mkdir(`${browserOut}/profile`, { recursive: true });
 const entries = Object.entries(names).map(([kind, name]) => ({
   [kind]: `${browserOut}/${name}`,
   ...valid[name],
@@ -46,10 +60,19 @@ const files = Object.fromEntries(
   ]),
 );
 await writeFixtures();
-const snapshot = await readBackBrowserArtifacts(entries, browserOut);
+await writeFile(`${browserOut}/cdp-evidence.json`, "{}");
+await writeFile(`${browserOut}/wrong.txt`, buffers.screenshot);
+const directoryPin = await pinBrowserOutputDirectory(browserOut, trustedRoot);
+const phases = [];
+const snapshot = await readBackBrowserArtifacts(entries, directoryPin, {
+  parentGuard: ({ name, phase }) => phases.push(`${name}:${phase}`),
+});
 assert.deepEqual(snapshot.artifacts, valid);
 for (const [kind, name] of Object.entries(names)) {
   assert.deepEqual(snapshot.contents[name], buffers[kind]);
+  for (const phase of ["before", "opened", "after", "complete"]) {
+    assert.ok(phases.includes(`${name}:${phase}`));
+  }
 }
 await writeFile(`${browserOut}/proof.txt`, Buffer.from("changed-path-content"));
 assert.deepEqual(snapshot.contents["proof.txt"], buffers.text);
@@ -94,6 +117,12 @@ await rejectsReadback((reported) => {
   reported[0].screenshot = "/tmp/outside/proof.png";
 });
 await rejectsReadback((reported) => {
+  reported[0].screenshot = `${browserOut}/nested/proof.png`;
+});
+await rejectsReadback((reported) => {
+  reported[0].text = `${browserOut}/proof.txt`;
+});
+await rejectsReadback((reported) => {
   reported.push(structuredClone(reported[0]));
 });
 await writeFile(`${browserOut}/wrong.txt`, buffers.screenshot);
@@ -101,7 +130,7 @@ await assert.rejects(
   () =>
     readBackBrowserArtifacts(
       [{ screenshot: `${browserOut}/wrong.txt`, ...valid["proof.png"] }],
-      browserOut,
+      directoryPin,
     ),
   /E2E_ARTIFACT_READBACK_INVALID/,
 );
@@ -151,7 +180,47 @@ assert.doesNotMatch(
   driver,
   /readFile\(`\$\{browserOut\}\/0(?:2-release-detail|2b-staging-step|3-build-log-drawer|4-staging-run-log|5-production-recovery-log|6-env-versions)\.txt/,
 );
-await rm(browserOut, { recursive: true });
+const browserSource = driver.slice(
+  driver.indexOf("async function browserPass"),
+);
+assertInOrder(browserSource, [
+  "assertBrowserOutputDirectoryForMutation(browserOut, browserTrustedRoot)",
+  "rmSync(`${browserOut}/profile`",
+  "await mkdir(`${browserOut}/profile`",
+  "prepareBrowserOutputFiles(actions)",
+  "pinBrowserOutputDirectory(",
+  "browserTrustedRoot",
+  "try {",
+  "return await browserPassPinned(actions, directoryPin)",
+  "finally {",
+  "closePinnedBrowserOutputDirectory(directoryPin)",
+]);
+const pinnedSource = browserSource.slice(
+  browserSource.indexOf("async function browserPassPinned"),
+);
+assertInOrder(pinnedSource, [
+  "assertPinnedBrowserOutputDirectory(directoryPin)",
+  "spawnSync(",
+  "assertPinnedBrowserOutputDirectory(directoryPin)",
+  "readBackBrowserArtifacts(",
+  "readPinnedBrowserFile(",
+]);
+assert.doesNotMatch(driver, /readFile\(`\$\{browserOut\}\/cdp-evidence\.json/);
+
+await writeFile(`${browserOut}/cdp-evidence.json`, '{"schema":"valid"}');
+const cdpSnapshot = await readPinnedBrowserFile(
+  directoryPin,
+  "cdp-evidence.json",
+);
+assert.match(cdpSnapshot.buffer.toString("utf8"), /valid/);
+await closePinnedBrowserOutputDirectory(directoryPin);
+await rm(trustedRoot, { recursive: true });
+
+for (const phase of ["before", "opened", "after"]) {
+  await rejectsDirectorySwap(phase);
+}
+await rejectsBetweenChildren();
+await rejectsCdpDirectorySwap();
 
 process.stdout.write("history browser artifact self-test passed\n");
 
@@ -167,9 +236,103 @@ async function rejectsReadback(mutate, changeFile = async () => {}) {
   mutate(reported);
   await changeFile();
   await assert.rejects(
-    () => readBackBrowserArtifacts(reported, browserOut),
-    /E2E_(?:ARTIFACT_(?:READBACK|CONTENT)|BROWSER_FILE)_INVALID/,
+    () => readBackBrowserArtifacts(reported, directoryPin),
+    /E2E_(?:ARTIFACT_(?:READBACK|CONTENT)|BROWSER_(?:FILE|DIRECTORY))_INVALID/,
   );
+}
+
+async function rejectsDirectorySwap(phase) {
+  const root = await mkdtemp(join(tmpdir(), `f540-artifact-swap-${phase}-`));
+  const output = join(root, "browser");
+  await mkdir(join(output, "profile"), { recursive: true });
+  await writeFile(join(output, names.text), buffers.text);
+  const pin = await pinBrowserOutputDirectory(output, root);
+  const reported = [{ text: join(output, names.text), ...valid[names.text] }];
+  let swapped = false;
+  try {
+    await assert.rejects(
+      readBackBrowserArtifacts(reported, pin, {
+        parentGuard: async (event) => {
+          if (!swapped && event.phase === phase) {
+            swapped = true;
+            await rename(output, join(root, "browser-original"));
+            await mkdir(output);
+          }
+        },
+      }),
+      /E2E_BROWSER_(?:FILE|DIRECTORY)_INVALID/,
+    );
+  } finally {
+    await closePinnedBrowserOutputDirectory(pin);
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function rejectsCdpDirectorySwap() {
+  const root = await mkdtemp(join(tmpdir(), "f540-cdp-swap-"));
+  const output = join(root, "browser");
+  await mkdir(join(output, "profile"), { recursive: true });
+  await writeFile(join(output, "cdp-evidence.json"), "{}");
+  const pin = await pinBrowserOutputDirectory(output, root);
+  try {
+    await rename(output, join(root, "browser-original"));
+    await mkdir(output);
+    await assert.rejects(
+      readPinnedBrowserFile(pin, "cdp-evidence.json"),
+      /E2E_BROWSER_DIRECTORY_INVALID/,
+    );
+  } finally {
+    await closePinnedBrowserOutputDirectory(pin);
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function rejectsBetweenChildren() {
+  const root = await mkdtemp(join(tmpdir(), "f540-between-children-"));
+  const output = join(root, "browser");
+  const first = Buffer.from("first artifact snapshot");
+  const second = Buffer.from("second artifact snapshot");
+  await mkdir(join(output, "profile"), { recursive: true });
+  await writeFile(join(output, "first.txt"), first);
+  await writeFile(join(output, "second.txt"), second);
+  const pin = await pinBrowserOutputDirectory(output, root);
+  try {
+    await assert.rejects(
+      readBackBrowserArtifacts(
+        [
+          {
+            text: join(output, "first.txt"),
+            ...artifactMetadata("text", first),
+          },
+          {
+            text: join(output, "second.txt"),
+            ...artifactMetadata("text", second),
+          },
+        ],
+        pin,
+        {
+          afterChild: async ({ name }) => {
+            if (name !== "first.txt") return;
+            await rename(output, join(root, "browser-original"));
+            await mkdir(output);
+          },
+        },
+      ),
+      /E2E_BROWSER_DIRECTORY_INVALID/,
+    );
+  } finally {
+    await closePinnedBrowserOutputDirectory(pin);
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+function assertInOrder(source, fragments) {
+  let offset = 0;
+  for (const fragment of fragments) {
+    const index = source.indexOf(fragment, offset);
+    assert.ok(index >= offset, `missing or out of order: ${fragment}`);
+    offset = index + fragment.length;
+  }
 }
 
 async function writeFixtures() {

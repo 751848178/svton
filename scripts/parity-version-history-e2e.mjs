@@ -46,6 +46,16 @@ import {
 } from "./lib/parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
 import { readBackBrowserArtifacts } from "./lib/parity-history-browser-artifacts.mjs";
+import {
+  assertBrowserOutputDirectoryForMutation,
+  assertPinnedBrowserOutputDirectory,
+  closePinnedBrowserOutputDirectory,
+  pinBrowserOutputDirectory,
+} from "./lib/parity-history-safe-directory.mjs";
+import {
+  prepareBrowserFilesForPin,
+  readPinnedBrowserFile,
+} from "./lib/parity-history-safe-file.mjs";
 import { summarizeBrowserFailures } from "./lib/parity-history-cdp-capture.mjs";
 import {
   productionGateEvidence,
@@ -58,6 +68,7 @@ import {
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = "/tmp/codex-tool-runs/svton/f456";
 const browserOut = `${outDir}/browser`;
+const browserTrustedRoot = "/tmp";
 const apiBase = "http://127.0.0.1:4132/api";
 let teamId;
 let projectId;
@@ -860,9 +871,31 @@ async function main() {
 // browser pass
 // ----------------------------------------------------------------------------
 async function browserPass(ids) {
-  const { buildRunId, stagingRunId, upgradeReleaseRunId, recoveryReleaseRunId, recoveryDeploymentRunId } = ids;
+  const actions = browserActions(ids);
+  await assertBrowserOutputDirectoryForMutation(browserOut, browserTrustedRoot);
   rmSync(`${browserOut}/profile`, { recursive: true, force: true });
-  const actions = [
+  await mkdir(`${browserOut}/profile`, { recursive: true });
+  await prepareBrowserOutputFiles(actions);
+  const directoryPin = await pinBrowserOutputDirectory(
+    browserOut,
+    browserTrustedRoot,
+  );
+  try {
+    return await browserPassPinned(actions, directoryPin);
+  } finally {
+    await closePinnedBrowserOutputDirectory(directoryPin);
+  }
+}
+
+function browserActions(ids) {
+  const {
+    buildRunId,
+    stagingRunId,
+    upgradeReleaseRunId,
+    recoveryReleaseRunId,
+    recoveryDeploymentRunId,
+  } = ids;
+  return [
     "navigate:" + webBase + "/login?redirect=%2Fteams",
     "wait:1500",
     "setValue:input[type=email]@@@" + adminEmail,
@@ -904,12 +937,23 @@ async function browserPass(ids) {
     "dom:06-env-versions.html",
     "shot:06-env-versions.png",
   ];
+}
+
+async function prepareBrowserOutputFiles(actions) {
+  const names = actions
+    .filter((action) => /^(?:shot|text|dom):/.test(action))
+    .map((action) => action.slice(action.indexOf(":") + 1));
+  await prepareBrowserFilesForPin(browserOut, ["cdp-evidence.json", ...names]);
+}
+
+async function browserPassPinned(actions, directoryPin) {
+  await assertPinnedBrowserOutputDirectory(directoryPin);
   const proc = spawnSync(
     process.execPath,
     [
       cdpDriver,
       "--out",
-      browserOut,
+      directoryPin.lexicalPath,
       "--width",
       "1484",
       "--height",
@@ -918,6 +962,7 @@ async function browserPass(ids) {
     ],
     { encoding: "utf8", timeout: 420000 },
   );
+  await assertPinnedBrowserOutputDirectory(directoryPin);
   const stdout = proc.stdout || "";
   const stderr = proc.stderr || "";
   const logPath = `${outDir}/f456-browser-driver.log`;
@@ -938,9 +983,13 @@ async function browserPass(ids) {
     .filter(Boolean);
   const { artifacts, contents } = await readBackBrowserArtifacts(
     shaLines,
-    browserOut,
+    directoryPin,
   );
-  const cdpEvidence = JSON.parse(await readFile(`${browserOut}/cdp-evidence.json`, "utf8"));
+  const cdpSnapshot = await readPinnedBrowserFile(
+    directoryPin,
+    "cdp-evidence.json",
+  );
+  const cdpEvidence = JSON.parse(cdpSnapshot.buffer.toString("utf8"));
   const browserFailures = summarizeBrowserFailures(cdpEvidence);
   const releaseText = contents["02-release-detail.txt"].toString("utf8");
   const stagingStepText = contents["02b-staging-step.txt"].toString("utf8");
