@@ -121,6 +121,45 @@ describe("Production environment route finalization", () => {
     );
     expect(productionGates.finalize).not.toHaveBeenCalled();
   });
+
+  it("attributes a provider exception to the configured identity", async () => {
+    const completion = { complete: jest.fn((input) => Promise.resolve(input)) };
+    const provider = {
+      identity: { providerKey: "failing-test-provider", receiptVersion: 1 },
+      switchRoute: jest.fn().mockRejectedValue(new Error("provider failed")),
+    };
+    await finalizeDeployedEnvironment(
+      {
+        completion,
+        productionGates: {
+          finalize: jest.fn(),
+          denied: jest.fn().mockResolvedValue(decision("denied")),
+        },
+        routeActivation: { resolve: jest.fn().mockResolvedValue(activation()) },
+        routeSwitch: provider,
+        siteProbe: { probe: jest.fn() },
+      } as never,
+      context() as never,
+      ["deployed"],
+      { deployment: "ok" },
+    );
+
+    expect(completion.complete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        routeSwitchAttempt: {
+          evidence: expect.objectContaining({
+            providerKey: provider.identity.providerKey,
+            status: "failed",
+            receipt: expect.objectContaining({
+              version: provider.identity.receiptVersion,
+              providerKey: provider.identity.providerKey,
+            }),
+          }),
+        },
+      }),
+    );
+  });
 });
 
 function activation() {

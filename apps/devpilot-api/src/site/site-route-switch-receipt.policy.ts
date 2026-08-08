@@ -3,6 +3,7 @@ import type { SiteRouteActivationResolveResult } from "./site-route-activation.t
 import type {
   SiteRouteSwitchEvidence,
   SiteRouteSwitchInput,
+  SiteRouteSwitchProviderIdentity,
   SiteRouteSwitchReceipt,
 } from "./site-route-switch.types";
 
@@ -45,8 +46,13 @@ export function createSiteRouteSwitchInput(input: {
 export function siteRouteSwitchEvidence(
   input: SiteRouteSwitchInput,
   receipt: SiteRouteSwitchReceipt,
+  expectedProvider: SiteRouteSwitchProviderIdentity,
 ): SiteRouteSwitchEvidence {
-  const validation = validateSiteRouteSwitchReceipt(input, receipt);
+  const validation = validateSiteRouteSwitchReceipt(
+    input,
+    receipt,
+    expectedProvider,
+  );
   return {
     ...input,
     providerKey: receipt.providerKey,
@@ -60,12 +66,22 @@ export function siteRouteSwitchEvidence(
 export function validateSiteRouteSwitchReceipt(
   input: SiteRouteSwitchInput,
   receipt: SiteRouteSwitchReceipt,
+  expectedProvider: SiteRouteSwitchProviderIdentity,
 ): { accepted: boolean; reasonCode: string } {
   if (receipt.status !== "switched") {
     return { accepted: false, reasonCode: receipt.reasonCode };
   }
+  if (receipt.version !== expectedProvider.receiptVersion) {
+    return {
+      accepted: false,
+      reasonCode: "route_switch_receipt_version_mismatch",
+    };
+  }
   if (!receipt.providerKey || receipt.providerKey === "unconfigured") {
     return { accepted: false, reasonCode: "route_switch_provider_invalid" };
+  }
+  if (receipt.providerKey !== expectedProvider.providerKey) {
+    return { accepted: false, reasonCode: "route_switch_provider_mismatch" };
   }
   if (receipt.operationId !== input.operationId) {
     return { accepted: false, reasonCode: "route_switch_operation_mismatch" };

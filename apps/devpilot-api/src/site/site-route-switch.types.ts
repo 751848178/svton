@@ -33,6 +33,11 @@ export interface SiteRouteSwitchReceipt {
   observed: SiteRouteSwitchObservation | null;
 }
 
+export interface SiteRouteSwitchProviderIdentity {
+  readonly providerKey: string;
+  readonly receiptVersion: SiteRouteSwitchReceipt["version"];
+}
+
 export interface SiteRouteSwitchEvidence extends SiteRouteSwitchInput {
   providerKey: string;
   status: SiteRouteSwitchReceipt["status"];

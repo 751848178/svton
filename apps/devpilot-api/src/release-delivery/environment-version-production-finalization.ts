@@ -70,7 +70,11 @@ export async function finalizeDeployedEnvironment(
         activation,
       });
       const receipt = await invokeRouteSwitch(deps.routeSwitch, request);
-      const evidence = siteRouteSwitchEvidence(request, receipt);
+      const evidence = siteRouteSwitchEvidence(
+        request,
+        receipt,
+        deps.routeSwitch.identity,
+      );
       routeSwitch = evidence as unknown as Record<string, unknown>;
       attempt = { evidence };
       if (evidence.status !== "switched") {
@@ -152,8 +156,8 @@ async function invokeRouteSwitch(
     return await provider.switchRoute(input);
   } catch {
     return {
-      version: 1,
-      providerKey: "unknown",
+      version: provider.identity.receiptVersion,
+      providerKey: provider.identity.providerKey,
       operationId: input.operationId,
       status: "failed",
       reasonCode: "route_switch_provider_failed",

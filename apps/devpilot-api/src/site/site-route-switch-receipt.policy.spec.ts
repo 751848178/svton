@@ -3,9 +3,16 @@ import {
   siteRouteSwitchEvidence,
   validateSiteRouteSwitchReceipt,
 } from "./site-route-switch-receipt.policy";
-import type { SiteRouteSwitchReceipt } from "./site-route-switch.types";
+import type {
+  SiteRouteSwitchProviderIdentity,
+  SiteRouteSwitchReceipt,
+} from "./site-route-switch.types";
 
 describe("site route switch receipt policy", () => {
+  const expectedProvider: SiteRouteSwitchProviderIdentity = {
+    providerKey: "test-provider",
+    receiptVersion: 1,
+  };
   const input = createSiteRouteSwitchInput({
     teamId: "team-1",
     projectId: "project-1",
@@ -42,11 +49,15 @@ describe("site route switch receipt policy", () => {
 
   it("accepts only an exact read-after-write receipt", () => {
     const receipt = validReceipt();
-    expect(validateSiteRouteSwitchReceipt(input, receipt)).toEqual({
+    expect(
+      validateSiteRouteSwitchReceipt(input, receipt, expectedProvider),
+    ).toEqual({
       accepted: true,
       reasonCode: "site_route_switched",
     });
-    expect(siteRouteSwitchEvidence(input, receipt)).toMatchObject({
+    expect(
+      siteRouteSwitchEvidence(input, receipt, expectedProvider),
+    ).toMatchObject({
       deploymentRunId: "deployment-1",
       targetRef: "server-1/service-1",
       routeHash: input.routeHash,
@@ -64,21 +75,71 @@ describe("site route switch receipt policy", () => {
     ["hash", { observed: { ...validReceipt().observed!, routeHash: "stale-hash" } }, "route_switch_hash_mismatch"],
     ["observedAt", { observedAt: null }, "route_switch_observed_at_invalid"],
   ])("rejects a mismatched %s", (_label, patch, reasonCode) => {
-    expect(validateSiteRouteSwitchReceipt(input, { ...validReceipt(), ...patch })).toEqual({
+    expect(
+      validateSiteRouteSwitchReceipt(
+        input,
+        { ...validReceipt(), ...patch },
+        expectedProvider,
+      ),
+    ).toEqual({ accepted: false, reasonCode });
+  });
+
+  it("rejects a receipt from a different provider identity", () => {
+    expect(
+      validateSiteRouteSwitchReceipt(
+        input,
+        { ...validReceipt(), providerKey: "other-provider" },
+        expectedProvider,
+      ),
+    ).toEqual({
       accepted: false,
-      reasonCode,
+      reasonCode: "route_switch_provider_mismatch",
+    });
+  });
+
+  it("rejects an unsupported receipt protocol version", () => {
+    const receipt = {
+      ...validReceipt(),
+      version: 2,
+    } as unknown as SiteRouteSwitchReceipt;
+    expect(
+      validateSiteRouteSwitchReceipt(input, receipt, expectedProvider),
+    ).toEqual({
+      accepted: false,
+      reasonCode: "route_switch_receipt_version_mismatch",
+    });
+  });
+
+  it("rejects switched evidence from the unconfigured provider", () => {
+    const unconfiguredIdentity: SiteRouteSwitchProviderIdentity = {
+      providerKey: "unconfigured",
+      receiptVersion: 1,
+    };
+    expect(
+      validateSiteRouteSwitchReceipt(
+        input,
+        { ...validReceipt(), providerKey: "unconfigured" },
+        unconfiguredIdentity,
+      ),
+    ).toEqual({
+      accepted: false,
+      reasonCode: "route_switch_provider_invalid",
     });
   });
 
   it("keeps an unavailable provider truthful and non-switched", () => {
-    const evidence = siteRouteSwitchEvidence(input, {
-      ...validReceipt(),
-      providerKey: "unconfigured",
-      status: "unavailable",
-      reasonCode: "route_switch_provider_unconfigured",
-      observedAt: null,
-      observed: null,
-    });
+    const evidence = siteRouteSwitchEvidence(
+      input,
+      {
+        ...validReceipt(),
+        providerKey: "unconfigured",
+        status: "unavailable",
+        reasonCode: "route_switch_provider_unconfigured",
+        observedAt: null,
+        observed: null,
+      },
+      { providerKey: "unconfigured", receiptVersion: 1 },
+    );
     expect(evidence).toMatchObject({
       status: "unavailable",
       reasonCode: "route_switch_provider_unconfigured",
