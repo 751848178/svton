@@ -10,6 +10,10 @@ import {
   historyStepChecks,
 } from "./parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./parity-history-context.mjs";
+import {
+  deletePath,
+  identityFixtures,
+} from "./parity-history-identity-fixtures.mjs";
 
 const selfPath = fileURLToPath(import.meta.url);
 const root = resolve(dirname(selfPath), "../..");
@@ -23,7 +27,9 @@ if (process.argv.includes("--false-fixture")) {
     (result) => [check("status", result.status, "succeeded")],
   );
 } else {
-  const child = spawnSync(process.execPath, [selfPath, "--false-fixture"], { encoding: "utf8" });
+  const child = spawnSync(process.execPath, [selfPath, "--false-fixture"], {
+    encoding: "utf8",
+  });
   assert.notEqual(child.status, 0);
   assert.match(child.stderr, /E2E_ASSERTION_FAILED build-2: status/);
 
@@ -33,25 +39,72 @@ if (process.argv.includes("--false-fixture")) {
   for (const step of mappedSteps) {
     const checks = historyStepChecks(step, {});
     assert.ok(checks.length > 0, `${step} has zero checks`);
-    assert.ok(checks.some((item) => item.pass !== true), `${step} accepts empty payload`);
+    assert.ok(
+      checks.some((item) => item.pass !== true),
+      `${step} accepts empty payload`,
+    );
+  }
+
+  for (const { step, result, pairs } of identityFixtures()) {
+    assert.deepEqual(
+      historyStepChecks(step, result).filter((item) => !item.pass),
+      [],
+      `${step} fixture invalid`,
+    );
+    for (const [actualPath, expectedPath] of pairs) {
+      for (const missing of [
+        [actualPath],
+        [expectedPath],
+        [actualPath, expectedPath],
+      ]) {
+        const adversarial = structuredClone(result);
+        missing.forEach((path) => deletePath(adversarial, path));
+        assert.ok(
+          historyStepChecks(step, adversarial).some((item) => !item.pass),
+          `${step} accepts missing ${missing.join("+")}`,
+        );
+      }
+    }
   }
 
   const validDocument = positiveDocument();
-  const extracted = extractPositiveHistoryContext(validDocument, "b".repeat(64));
-  assert.deepEqual(extracted.checks.filter((item) => item.pass !== true), []);
+  const extracted = extractPositiveHistoryContext(
+    validDocument,
+    "b".repeat(64),
+  );
+  assert.deepEqual(
+    extracted.checks.filter((item) => item.pass !== true),
+    [],
+  );
   const missing = structuredClone(validDocument);
   delete missing.steps.build.result.manifestId;
-  assert.ok(extractPositiveHistoryContext(missing, "b".repeat(64)).checks.some((item) => item.pass !== true));
+  assert.ok(
+    extractPositiveHistoryContext(missing, "b".repeat(64)).checks.some(
+      (item) => item.pass !== true,
+    ),
+  );
 
-  const driver = await readFile(resolve(root, "scripts/parity-version-history-e2e.mjs"), "utf8");
-  const driverSteps = [...driver.matchAll(/await step\("([^"]+)"/g)].map((match) => match[1]);
+  const driver = await readFile(
+    resolve(root, "scripts/parity-version-history-e2e.mjs"),
+    "utf8",
+  );
+  const driverSteps = [...driver.matchAll(/await step\("([^"]+)"/g)].map(
+    (match) => match[1],
+  );
   assert.equal(driverSteps.length, 20);
   assert.equal(new Set(driverSteps).size, 20);
   for (const step of driverSteps) {
-    assert.notEqual(historyStepChecks(step, {})[0]?.name, "registeredStep", `${step} is unregistered`);
+    assert.notEqual(
+      historyStepChecks(step, {})[0]?.name,
+      "registeredStep",
+      `${step} is unregistered`,
+    );
   }
   assert.doesNotMatch(driver, /["']AC-E2E-\d+["']\s*:\s*\{\s*ok\s*:\s*true/);
-  assert.doesNotMatch(driver, /const (projectId|orderId|stagingEnvId|productionEnvId)\s*=\s*["']/);
+  assert.doesNotMatch(
+    driver,
+    /const (projectId|orderId|stagingEnvId|productionEnvId)\s*=\s*["']/,
+  );
   assert.match(driver, /finishEvidence\(evidence, HISTORY_AC_MAPPING\)/);
   process.stdout.write("history e2e evidence self-test passed\n");
 }
@@ -64,19 +117,32 @@ function positiveDocument() {
     fixedIds: { teamId: "team", projectId: "project", orderId: "order" },
     ac: { "AC-E2E-007": { ok: true } },
     steps: {
-      build: { result: {
-        buildRunId: "build", manifestId: "manifest",
-        manifestDigest: `sha256:${"a".repeat(64)}`,
-      } },
+      build: {
+        result: {
+          buildRunId: "build",
+          manifestId: "manifest",
+          manifestDigest: `sha256:${"a".repeat(64)}`,
+        },
+      },
       "staging-deploy": { result: { deploymentRunId: "staging-run" } },
-      "baselines-verified": { result: { stagingId: "staging", productionId: "production" } },
-      "production-current-version": { result: {
-        stagingCurrent: "staging-version", currentEnvironmentVersionId: "production-version",
-      } },
-      "env-save-r2-production": { result: {
-        id: "config-2", snapshot: { routeSnapshot: { domains: ["example.test"] } },
-      } },
-      "env-targets": { result: { production: { current: { targetRef: "target" } } } },
+      "baselines-verified": {
+        result: { stagingId: "staging", productionId: "production" },
+      },
+      "production-current-version": {
+        result: {
+          stagingCurrent: "staging-version",
+          currentEnvironmentVersionId: "production-version",
+        },
+      },
+      "env-save-r2-production": {
+        result: {
+          id: "config-2",
+          snapshot: { routeSnapshot: { domains: ["example.test"] } },
+        },
+      },
+      "env-targets": {
+        result: { production: { current: { targetRef: "target" } } },
+      },
     },
   };
 }

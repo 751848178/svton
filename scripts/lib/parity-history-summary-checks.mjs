@@ -1,0 +1,88 @@
+import { check, predicate } from "./parity-e2e-evidence.mjs";
+
+export const SUMMARY_HISTORY_STEP_CHECKS = {
+  "version-chains": (r) => [
+    check("stagingChain", r.staging?.chainLinksValid, true),
+    check("stagingRuns", r.staging?.everyDeploymentCompleted, true),
+    check("stagingDbCurrent", r.staging?.dbCurrentMatchesLatest, true),
+    check("stagingApiCurrent", r.staging?.apiCurrentMatchesDb, true),
+    check("productionChain", r.production?.chainLinksValid, true),
+    check("productionRuns", r.production?.everyDeploymentCompleted, true),
+    check("productionDbCurrent", r.production?.dbCurrentMatchesLatest, true),
+    check("productionApiCurrent", r.production?.apiCurrentMatchesDb, true),
+    check("stagingRecoverySource", r.stagingRecoverySourcePresent, true),
+    check("productionRecoverySource", r.productionRecoverySourcePresent, true),
+    predicate(
+      "releaseRuns",
+      releaseRunsMatch(r.expectedReleaseRuns, r.releaseRuns),
+      r.releaseRuns,
+    ),
+  ],
+  "db-summary": (r) => [
+    check("buildRuns", r.buildRunsOnOrder, 2),
+    check("stagingRuns", r.stagingDeploymentRuns, 4),
+    check("productionRuns", r.productionDeploymentRuns, 3),
+    check("environmentVersions", r.environmentVersions, 7),
+    check("approvals", r.operationApprovals, 3),
+    check("releaseRuns", r.releaseRuns, 3),
+  ],
+  "browser-pass": (r) => browserChecks(r),
+};
+
+function releaseRunsMatch(expected = [], actual = []) {
+  return (
+    expected.length > 0 &&
+    expected.every((item) =>
+      actual.some(
+        (run) =>
+          run.id === item.id &&
+          run.mode === item.mode &&
+          run.status === "succeeded",
+      ),
+    )
+  );
+}
+
+function browserChecks(r) {
+  const markers = booleanLeaves([
+    r.releaseDetailEvidence,
+    r.stagingStepEvidence,
+    r.envVersionsEvidence,
+    r.buildLogDrawer,
+    r.stagingRunLog,
+    r.productionRunLog,
+  ]);
+  const artifactsValid =
+    (r.requiredArtifacts || []).length > 0 &&
+    r.requiredArtifacts.every((name) =>
+      /^[a-f0-9]{64}$/.test(r.artifacts?.[name] || ""),
+    );
+  return [
+    check("driverExit", r.driverExit, 0),
+    predicate("requiredArtifacts", artifactsValid, r.artifacts),
+    check("consoleErrors", r.console?.length, 0),
+    check("failedRequests", r.failedRequestsCount, 0),
+    predicate(
+      "documentResponses",
+      documentResponsesPass(r.documentResponses),
+      r.documentResponses,
+    ),
+    predicate("markers", markers.length > 0 && markers.every(Boolean), markers),
+  ];
+}
+
+function documentResponsesPass(responses = []) {
+  return (
+    responses.length > 0 &&
+    responses.every((item) => {
+      const status = item.status ?? item.statusCode;
+      return status >= 200 && status < 400;
+    })
+  );
+}
+
+function booleanLeaves(values) {
+  return values.flatMap((value) =>
+    Object.values(value || {}).filter((item) => typeof item === "boolean"),
+  );
+}
