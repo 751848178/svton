@@ -104,7 +104,7 @@ function acceptanceEntryValid(acId, entry, steps) {
     !entry.sourceSteps.every(nonEmptyString) ||
     new Set(entry.sourceSteps).size !== entry.sourceSteps.length ||
     !sameArray(entry.sourceSteps, canonicalSteps) ||
-    !Array.isArray(entry.checkNames)
+    !uniqueNonEmptyStrings(entry.checkNames)
   ) {
     return false;
   }
@@ -117,7 +117,7 @@ function acceptanceEntryValid(acId, entry, steps) {
     );
   }
   return (
-    expectedCheckNames.length > 0 &&
+    uniqueNonEmptyStrings(expectedCheckNames) &&
     sameArray(entry.checkNames, expectedCheckNames)
   );
 }
@@ -129,9 +129,17 @@ function verifiedStep(step) {
     step.verified === true &&
     Array.isArray(step.checks) &&
     step.checks.length > 0 &&
-    step.checks.every(
-      (item) => nonEmptyString(item?.name) && item.pass === true,
-    )
+    step.checks.every((item) => item?.pass === true) &&
+    uniqueNonEmptyStrings(step.checks.map((item) => item?.name))
+  );
+}
+
+function uniqueNonEmptyStrings(values) {
+  return (
+    Array.isArray(values) &&
+    values.length > 0 &&
+    values.every(nonEmptyString) &&
+    new Set(values).size === values.length
   );
 }
 

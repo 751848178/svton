@@ -100,6 +100,28 @@ rejects("sourceSteps extra passed step", (document) => {
   entry.sourceSteps.push("fake");
   entry.checkNames.push("fake:verified");
 });
+rejects("duplicate source step and expanded name", (document) => {
+  const entry = document.ac["AC-E2E-007"];
+  const stepName = entry.sourceSteps[0];
+  entry.sourceSteps.splice(1, 0, stepName);
+  entry.checkNames.splice(1, 0, `${stepName}:verified`);
+});
+rejects("duplicate step check name", (document) => {
+  document.steps.build.checks.push({ name: "verified", pass: true });
+  document.ac["AC-E2E-011"].checkNames.push("build:verified");
+});
+rejects("duplicate AC checkNames entry", (document) => {
+  document.ac["AC-E2E-011"].checkNames.push("build:verified");
+});
+rejects("duplicate check name with distinct payload", (document) => {
+  document.steps.build.checks.push({
+    name: "verified",
+    pass: true,
+    actual: "other",
+    expected: "other",
+  });
+  document.ac["AC-E2E-011"].checkNames.push("build:verified");
+});
 rejects("legacy coherent top-level acceptance", (document) => {
   for (const acId of POSITIVE_ACCEPTANCE_IDS) document.ac[acId] = { ok: true };
 });
