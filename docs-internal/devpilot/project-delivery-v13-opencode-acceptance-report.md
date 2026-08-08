@@ -29,7 +29,7 @@ Canonical spec defines semantics; Demo defines page structure, hierarchy, intera
 
 ## Independent Findings
 
-F464-F538 are registered in the acceptance TODO. Several first-audit P1s are now fixed in atomic commits, but current blockers remain: no real route provider/readback, missing trustworthy migration evidence, fresh-intake evidence not implemented, remaining CDP response/marker/artifact gaps, negative-history canonical-check/launcher gaps, negative-E2E false attribution and unsafe cleanup, shared-stack namespace/provenance gaps, and the retained F461/F462 production risks. Detailed source/runtime/browser and post-commit evidence lives in the worker detail reports.
+F464-F538 are registered in the acceptance TODO. Several first-audit P1s are now fixed in atomic commits; F530-F533 also close the known Runtime-redaction, response-schema, marker-completeness and artifact-snapshot false positives at the pure-evidence layer. Current blockers remain: no real route provider/readback, missing trustworthy migration evidence, fresh-intake evidence not implemented, browser artifact-content/stdout/mismatch gaps, negative-history canonical-check/launcher gaps, negative-E2E false attribution and unsafe cleanup, shared-stack namespace/provenance gaps, and the retained F461/F462 production risks. Detailed source/runtime/browser and post-commit evidence lives in the worker detail reports.
 
 ## Historical Claim Revalidation
 
