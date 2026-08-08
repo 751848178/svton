@@ -1,3 +1,8 @@
+import {
+  sanitizeCdpText,
+  sanitizeCdpUrl,
+} from "./parity-history-cdp-redaction.mjs";
+
 const CAPTURED_TYPES = new Set(["Document", "Fetch", "XHR"]);
 export const CDP_EVIDENCE_SCHEMA = "devpilot.parity-history.cdp-evidence";
 export const CDP_EVIDENCE_VERSION = 1;
@@ -22,11 +27,11 @@ export function createCdpCapture() {
     } else if (method === "Runtime.exceptionThrown") {
       const details = params.exceptionDetails || {};
       runtimeExceptions.push({
-        text: sanitizeText(details.text),
-        url: sanitizeUrl(details.url),
+        text: sanitizeCdpText(details.text),
+        url: sanitizeCdpUrl(details.url),
         line: details.lineNumber,
         column: details.columnNumber,
-        description: sanitizeText(details.exception?.description),
+        description: sanitizeCdpText(details.exception?.description),
       });
     } else if (method === "Log.entryAdded") {
       consoleEvents.push({
@@ -111,33 +116,6 @@ export function validateCdpEvidence(evidence) {
     throw new Error(`E2E_CDP_EVIDENCE_SCHEMA_INVALID: ${invalid.join(",")}`);
   }
   return evidence;
-}
-
-function sanitizeText(value) {
-  if (typeof value !== "string") return value;
-  return value
-    .replace(
-      /((?:access[_-]?token|authorization|password|secret)\s*[:=]\s*)[^\s,;]+/gi,
-      "$1[REDACTED]",
-    )
-    .slice(0, 4000);
-}
-
-function sanitizeUrl(value) {
-  if (typeof value !== "string") return value;
-  try {
-    const url = new URL(value);
-    if (url.username) url.username = "[REDACTED]";
-    if (url.password) url.password = "[REDACTED]";
-    for (const key of url.searchParams.keys()) {
-      if (/(?:token|authorization|password|secret)/i.test(key)) {
-        url.searchParams.set(key, "[REDACTED]");
-      }
-    }
-    return url.toString();
-  } catch {
-    return sanitizeText(value);
-  }
 }
 
 function isHttp(value) {

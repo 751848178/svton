@@ -21,18 +21,12 @@ assertRejected([
   },
 ]);
 const runtimeException = capture([
-  {
-    method: "Runtime.exceptionThrown",
-    params: {
-      exceptionDetails: {
-        text: "Uncaught ReferenceError",
-        url: "http://localhost:4131/app.js?token=secret",
-        lineNumber: 12,
-        columnNumber: 34,
-        exception: { description: "ReferenceError: boom password=secret" },
-      },
-    },
-  },
+  exception("Uncaught ReferenceError", {
+    url: "http://localhost:4131/app.js?token=secret",
+    lineNumber: 12,
+    columnNumber: 34,
+    description: "ReferenceError: boom password=secret",
+  }),
 ]);
 assert.ok(failedChecks(runtimeException).length > 0);
 assert.deepEqual(runtimeException.runtimeExceptions, [
@@ -155,6 +149,21 @@ function request(requestId, type, pathname) {
       requestId,
       type,
       request: { url: `http://localhost:4131${pathname}` },
+    },
+  };
+}
+
+function exception(text, options = {}) {
+  return {
+    method: "Runtime.exceptionThrown",
+    params: {
+      exceptionDetails: {
+        text,
+        url: options.url,
+        lineNumber: options.lineNumber,
+        columnNumber: options.columnNumber,
+        exception: { description: options.description },
+      },
     },
   };
 }
