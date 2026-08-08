@@ -1,8 +1,9 @@
 import { constants } from "node:fs";
-import { lstat, mkdtemp, open, realpath } from "node:fs/promises";
+import { lstat, mkdtemp, open, realpath, rmdir } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { describeCdpActions } from "./parity-history-cdp-action-evidence.mjs";
 import { pinBrowserOutputDirectory } from "./parity-history-safe-directory.mjs";
+import { assertPinnedBrowserOutputDirectory } from "./parity-history-safe-directory.mjs";
 
 const RUN_PREFIX = "svton-f456-browser-";
 
@@ -51,6 +52,15 @@ export function validateBrowserRunIntent(rawActions) {
   );
   requireValue(!outputNames.includes("cdp-evidence.json"), "reserved-output");
   return Object.freeze(outputNames);
+}
+
+export async function removePinnedBrowserRunDirectory(pin) {
+  await assertPinnedBrowserOutputDirectory(pin);
+  try {
+    await rmdir(pin.lexicalPath);
+  } catch (error) {
+    throw runError(error?.code || error?.message || "cleanup-failed");
+  }
 }
 
 async function canonicalTrustedRoot(trustedRoot) {

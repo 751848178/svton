@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   createPinnedBrowserRunDirectory,
+  removePinnedBrowserRunDirectory,
   validateBrowserRunIntent,
 } from "./parity-history-browser-run-directory.mjs";
 import {
@@ -27,6 +28,7 @@ const root = await mkdtemp(join(canonicalTemp, "f548-run-root-"));
 const actions = ["wait:0", "shot:proof.png", "text:proof.txt"];
 const seenPaths = new Set();
 const seenInodes = new Set();
+const livePins = [];
 for (let index = 0; index < 100; index += 1) {
   const { pin, outputNames } = await createPinnedBrowserRunDirectory(
     root,
@@ -43,10 +45,14 @@ for (let index = 0; index < 100; index += 1) {
   assert.equal(stats.mode & 0o777n, 0o700n);
   seenPaths.add(pin.lexicalPath);
   seenInodes.add(`${stats.dev}:${stats.ino}`);
-  await closePinnedBrowserOutputDirectory(pin);
+  livePins.push(pin);
 }
 assert.equal(seenPaths.size, 100);
 assert.equal(seenInodes.size, 100);
+for (const pin of livePins) {
+  await removePinnedBrowserRunDirectory(pin);
+  await closePinnedBrowserOutputDirectory(pin);
+}
 
 const beforeDuplicate = await readdir(root);
 await assert.rejects(
@@ -72,6 +78,7 @@ const fresh = await createPinnedBrowserRunDirectory(root, actions);
 assert.equal(await readFile(victim, "utf8"), "old evidence bytes");
 assert.equal(await readFile(oldProfile, "utf8"), "old profile bytes");
 assert.notEqual(fresh.pin.lexicalPath, fixed);
+await removePinnedBrowserRunDirectory(fresh.pin);
 await closePinnedBrowserOutputDirectory(fresh.pin);
 
 const symlinkRootTarget = await mkdtemp(join(canonicalTemp, "f548-real-root-"));
@@ -85,10 +92,11 @@ await assert.rejects(
 assert.deepEqual(await readdir(symlinkRootTarget), beforeAliasAttempt);
 
 const sourceUrls = [
-  "./parity-history-browser-output-writer.mjs",
-  "./parity-history-safe-file.mjs",
+  "./parity-history-browser-output-capability.mjs",
+  "./parity-history-browser-output-fd.mjs",
   "./parity-history-cdp-actions.mjs",
   "./parity-history-cdp-driver.mjs",
+  "./parity-history-browser-profile.mjs",
   "../parity-version-history-e2e.mjs",
 ];
 const sources = await Promise.all(
@@ -97,13 +105,12 @@ const sources = await Promise.all(
 const combined = sources.join("\n");
 assert.doesNotMatch(combined, /\bO_TRUNC\b/);
 assert.doesNotMatch(combined, /prepareBrowserFilesForPin/);
-assert.doesNotMatch(combined, /rmSync\([^\n]*browser|mkdirSync\(options\.out/);
+assert.doesNotMatch(combined, /["']--out["']|mkdirSync\(options\.out/);
 assert.match(sources[0], /O_EXCL[\s\S]*O_NOFOLLOW[\s\S]*0o600/);
-assert.match(sources[3], /writeExclusiveBrowserOutput/);
-assert.match(
-  sources[3],
-  /mkdirSync\(profile, \{ recursive: false, mode: 0o700 \}\)/,
-);
+assert.match(sources[1], /writeSync\(/);
+assert.match(sources[1], /fsyncSync\(/);
+assert.match(sources[3], /decodeBrowserOutputPlan/);
+assert.match(sources[4], /mkdtempSync/);
 
 await rm(root, { recursive: true });
 await rm(symlinkRootTarget, { recursive: true });

@@ -172,37 +172,39 @@ const driver = await readFile(
   new URL("../parity-version-history-e2e.mjs", import.meta.url),
   "utf8",
 );
-assert.match(driver, /const \{ artifacts, contents \}/);
+const session = await readFile(
+  new URL("./parity-history-browser-session.mjs", import.meta.url),
+  "utf8",
+);
+assert.match(driver, /artifacts,\n\s+contents,/);
+assert.match(driver, /runHistoryBrowserSession\(/);
 assert.match(driver, /contents\["02-release-detail\.txt"\]/);
 assert.doesNotMatch(
   driver,
   /readFile\(`\$\{browserOut\}\/0(?:2-release-detail|2b-staging-step|3-build-log-drawer|4-staging-run-log|5-production-recovery-log|6-env-versions)\.txt/,
 );
-const browserSource = driver.slice(
-  driver.indexOf("async function browserPass"),
-);
-assertInOrder(browserSource, [
+assertInOrder(session, [
   "createPinnedBrowserRunDirectory(",
-  "browserTrustedRoot",
-  "actions",
   "try {",
-  "return await browserPassPinned(actions, directoryPin, outputNames)",
+  "createBrowserOutputCapability(",
+  "return await captureSession(",
   "finally {",
-  "closePinnedBrowserOutputDirectory(directoryPin)",
+  "cleanupSession(pin, capability)",
 ]);
 assert.doesNotMatch(
-  browserSource,
+  session,
   /assertBrowserOutputDirectoryForMutation|prepareBrowserOutputFiles|rmSync\(/,
 );
-const pinnedSource = browserSource.slice(
-  browserSource.indexOf("async function browserPassPinned"),
+const captureSource = session.slice(
+  session.indexOf("async function captureSession"),
 );
-assertInOrder(pinnedSource, [
-  "assertPinnedBrowserOutputDirectory(directoryPin)",
-  "spawnSync(",
-  "assertPinnedBrowserOutputDirectory(directoryPin)",
+assertInOrder(captureSource, [
+  "assertPinnedBrowserOutputDirectory(pin)",
+  "const proc = spawn(",
+  "assertPinnedBrowserOutputDirectory(pin)",
+  "parseDriverStdout(",
   "readBackBrowserArtifacts(",
-  "readPinnedBrowserFile(",
+  "readBrowserOutputCapability(",
 ]);
 assert.doesNotMatch(driver, /readFile\(`\$\{browserOut\}\/cdp-evidence\.json/);
 

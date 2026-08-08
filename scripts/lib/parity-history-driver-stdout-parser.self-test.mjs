@@ -5,6 +5,7 @@ import { assertEvidenceReceiptMatches } from "./parity-history-driver-evidence-r
 import { parseDriverStdout } from "./parity-history-driver-stdout-parser.mjs";
 
 const SHA = "a".repeat(64);
+const NONCE = "b".repeat(64);
 const OUTPUTS = [
   "01-after-login.png",
   "01-after-login.txt",
@@ -32,7 +33,7 @@ const RECEIPTS = [
 
 const parsed = parseDriverStdout(
   ["driver log", ...RECEIPTS.map(JSON.stringify)].join("\n"),
-  OUTPUTS,
+  { artifactNames: OUTPUTS, runNonce: NONCE },
 );
 assert.equal(parsed.artifacts.length, OUTPUTS.length);
 assert.equal(parsed.logs[0], "driver log");
@@ -63,15 +64,18 @@ reject("unexpected artifact", [
 reject("kind mismatch", [JSON.stringify({ ...RECEIPTS[0], kind: "text" })]);
 reject("filename kind", [JSON.stringify(artifact("text", "/run/01.png", 16))]);
 reject("bad sha", [JSON.stringify({ ...RECEIPTS[0], sha256: "bad" })]);
+reject("stale nonce", [
+  JSON.stringify({ ...RECEIPTS[0], runNonce: "c".repeat(64) }),
+]);
 
 process.stdout.write("history driver stdout parser self-test passed\n");
 
 function artifact(type, path, bytes) {
-  return { [type]: path, kind: type, bytes, sha256: SHA };
+  return { [type]: path, kind: type, bytes, sha256: SHA, runNonce: NONCE };
 }
 
 function evidence(path) {
-  return { evidence: path, sha256: SHA };
+  return { evidence: path, sha256: SHA, runNonce: NONCE };
 }
 
 function kindForName(name) {
@@ -85,7 +89,7 @@ function reject(label, additions, outputs = OUTPUTS, base = RECEIPTS) {
     () =>
       parseDriverStdout(
         [...base.map(JSON.stringify), ...additions].join("\n"),
-        outputs,
+        { artifactNames: outputs, runNonce: NONCE },
       ),
     /E2E_DRIVER_STDOUT_INVALID/,
     label,

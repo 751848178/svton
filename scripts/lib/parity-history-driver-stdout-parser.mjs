@@ -4,9 +4,10 @@ const ARTIFACT_TYPES = Object.freeze(["screenshot", "text", "dom"]);
 const RECEIPT_TYPES = new Set([...ARTIFACT_TYPES, "evidence"]);
 const SHA256 = /^[a-f0-9]{64}$/;
 
-export function parseDriverStdout(stdout, expectedArtifacts) {
+export function parseDriverStdout(stdout, expectation) {
   requireValue(typeof stdout === "string", "not-a-string");
-  const expected = expectedInventory(expectedArtifacts);
+  const expected = expectedInventory(expectation?.artifactNames);
+  requireValue(validNonce(expectation?.runNonce), "expected-nonce");
   const artifacts = [];
   const names = new Set();
   const logs = [];
@@ -18,7 +19,7 @@ export function parseDriverStdout(stdout, expectedArtifacts) {
       logs.push(line);
       continue;
     }
-    const receipt = parseReceipt(trimmed, index + 1);
+    const receipt = parseReceipt(trimmed, index + 1, expectation.runNonce);
     if (receipt.type === "evidence") {
       requireValue(evidenceReceipt === null, "duplicate-evidence");
       evidenceReceipt = receipt.value;
@@ -57,7 +58,7 @@ function isCandidate(line) {
   return line.startsWith("{") || line.startsWith("[");
 }
 
-function parseReceipt(line, lineNumber) {
+function parseReceipt(line, lineNumber, runNonce) {
   let value;
   try {
     value = JSON.parse(line);
@@ -70,12 +71,12 @@ function parseReceipt(line, lineNumber) {
   );
   requireValue(receiptKeys.length === 1, `receipt-type:line-${lineNumber}`);
   const type = receiptKeys[0];
-  if (type === "evidence") return evidenceReceipt(value, lineNumber);
-  return artifactReceipt(value, type, lineNumber);
+  if (type === "evidence") return evidenceReceipt(value, lineNumber, runNonce);
+  return artifactReceipt(value, type, lineNumber, runNonce);
 }
 
-function artifactReceipt(value, type, lineNumber) {
-  requireKeys(value, [type, "kind", "bytes", "sha256"], lineNumber);
+function artifactReceipt(value, type, lineNumber, runNonce) {
+  requireKeys(value, [type, "kind", "bytes", "sha256", "runNonce"], lineNumber);
   requireValue(nonEmpty(value[type]), `artifact-path:line-${lineNumber}`);
   requireValue(value.kind === type, `artifact-kind:line-${lineNumber}`);
   requireValue(
@@ -83,17 +84,19 @@ function artifactReceipt(value, type, lineNumber) {
     `artifact-bytes:line-${lineNumber}`,
   );
   requireSha(value.sha256, lineNumber);
+  requireValue(value.runNonce === runNonce, `run-nonce:line-${lineNumber}`);
   return { type, value: { ...value } };
 }
 
-function evidenceReceipt(value, lineNumber) {
-  requireKeys(value, ["evidence", "sha256"], lineNumber);
+function evidenceReceipt(value, lineNumber, runNonce) {
+  requireKeys(value, ["evidence", "sha256", "runNonce"], lineNumber);
   requireValue(
     nonEmpty(value.evidence) &&
       basename(value.evidence) === "cdp-evidence.json",
     `evidence-path:line-${lineNumber}`,
   );
   requireSha(value.sha256, lineNumber);
+  requireValue(value.runNonce === runNonce, `run-nonce:line-${lineNumber}`);
   return { type: "evidence", value: { ...value } };
 }
 
@@ -111,6 +114,10 @@ function requireSha(value, lineNumber) {
     typeof value === "string" && SHA256.test(value),
     `sha:line-${lineNumber}`,
   );
+}
+
+function validNonce(value) {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 }
 
 function kindForName(name) {

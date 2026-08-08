@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync } from "node:fs";
 import { spawn } from "node:child_process";
-import path from "node:path";
 import { describeCdpActions } from "./parity-history-cdp-action-evidence.mjs";
 import { runCdpActions } from "./parity-history-cdp-actions.mjs";
-import { writeExclusiveBrowserOutput } from "./parity-history-browser-output-writer.mjs";
+import { writeBrowserOutputFd } from "./parity-history-browser-output-fd.mjs";
+import { decodeBrowserOutputPlan } from "./parity-history-browser-output-plan.mjs";
+import {
+  cleanupBrowserProfile,
+  createBrowserProfile,
+} from "./parity-history-browser-profile.mjs";
 import {
   createCdpCapture,
   validateCdpEvidence,
@@ -23,9 +26,10 @@ main().catch((error) => {
 async function main() {
   const { options, rawActions } = parseArgs(process.argv.slice(2));
   const actionDescriptors = describeCdpActions(rawActions);
-  const profile = createProfile(options.out);
-  const chrome = startChrome(profile);
+  const profile = createBrowserProfile();
+  let chrome;
   try {
+    chrome = startChrome(profile.path);
     const cdp = await connectCdp(PORT);
     await Promise.all([
       cdp.call("Page.enable"),
@@ -40,43 +44,60 @@ async function main() {
       viewport: { width: options.width, height: options.height },
       ...capture.snapshot(actionDescriptors),
     });
-    await writeEvidence(options.out, evidence);
+    await writeEvidence(options, evidence);
   } finally {
-    chrome.kill("SIGTERM");
+    await cleanupDriver(chrome, profile);
   }
+}
+
+async function cleanupDriver(chrome, profile) {
+  let failure;
+  try {
+    if (chrome) await stopChrome(chrome);
+  } catch (error) {
+    failure = error;
+  }
+  try {
+    cleanupBrowserProfile(profile);
+  } catch (error) {
+    failure ||= error;
+  }
+  if (failure) throw failure;
+}
+
+async function stopChrome(chrome) {
+  if (chrome.exitCode !== null || chrome.signalCode !== null) return;
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("E2E_CDP_CHROME_STOP_TIMEOUT")),
+      5000,
+    );
+    chrome.once("exit", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    chrome.kill("SIGTERM");
+  });
 }
 
 function parseArgs(args) {
   const options = {
-    out: null,
+    outputPlan: null,
     width: 1484,
     height: 1324,
   };
   const rawActions = [];
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index];
-    if (value === "--out") options.out = args[++index];
+    if (value === "--output-plan") options.outputPlan = args[++index];
     else if (value === "--width") options.width = Number(args[++index]);
     else if (value === "--height") options.height = Number(args[++index]);
     else rawActions.push(value);
   }
-  if (!options.out) throw new Error("E2E_CDP_DRIVER_OUT_REQUIRED");
+  const plan = decodeBrowserOutputPlan(options.outputPlan);
+  options.outputs = plan.outputs;
+  options.runNonce = plan.runNonce;
   return { options, rawActions };
-}
-
-function createProfile(outDir) {
-  const profile = path.join(outDir, "profile");
-  mkdirSync(profile, { recursive: false, mode: 0o700 });
-  const stats = lstatSync(profile, { bigint: true });
-  if (
-    !stats.isDirectory() ||
-    stats.isSymbolicLink() ||
-    stats.uid !== BigInt(process.geteuid()) ||
-    (stats.mode & 0o777n) !== 0o700n
-  ) {
-    throw new Error("E2E_CDP_PROFILE_INVALID");
-  }
-  return profile;
 }
 
 function startChrome(profile) {
@@ -95,15 +116,11 @@ function startChrome(profile) {
   );
 }
 
-async function writeEvidence(outDir, evidence) {
+async function writeEvidence(options, evidence) {
   const buffer = Buffer.from(JSON.stringify(evidence, null, 2));
-  const { file } = await writeExclusiveBrowserOutput(
-    outDir,
-    "cdp-evidence.json",
-    buffer,
-  );
+  writeBrowserOutputFd(options.outputs, "cdp-evidence.json", buffer);
   process.stdout.write(
-    `${JSON.stringify({ evidence: file, sha256: sha256(buffer) })}\n`,
+    `${JSON.stringify({ evidence: "cdp-evidence.json", sha256: sha256(buffer), runNonce: options.runNonce })}\n`,
   );
 }
 

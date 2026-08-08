@@ -33,29 +33,20 @@
 //
 // Evidence: /tmp/codex-tool-runs/svton/f456/f456-version-history-evidence.json
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
 import { checkedStep, finishEvidence } from "./lib/parity-e2e-evidence.mjs";
 import {
   HISTORY_AC_MAPPING,
   historyStepChecks,
 } from "./lib/parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
-import { readBackBrowserArtifacts } from "./lib/parity-history-browser-artifacts.mjs";
-import { parseDriverStdout } from "./lib/parity-history-driver-stdout-parser.mjs";
-import { assertEvidenceReceiptMatches } from "./lib/parity-history-driver-evidence-receipt.mjs";
-import {
-  assertPinnedBrowserOutputDirectory,
-  closePinnedBrowserOutputDirectory,
-} from "./lib/parity-history-safe-directory.mjs";
-import { createPinnedBrowserRunDirectory } from "./lib/parity-history-browser-run-directory.mjs";
-import { readPinnedBrowserFile } from "./lib/parity-history-safe-file.mjs";
-import { summarizeBrowserFailures } from "./lib/parity-history-cdp-capture.mjs";
+import { runHistoryBrowserSession } from "./lib/parity-history-browser-session.mjs";
 import {
   productionGateEvidence,
 } from "./lib/parity-production-gate-evidence.mjs";
@@ -832,109 +823,29 @@ async function main() {
 // ----------------------------------------------------------------------------
 async function browserPass(ids) {
   const actions = browserActions(ids);
-  const { pin: directoryPin, outputNames } =
-    await createPinnedBrowserRunDirectory(
-      browserTrustedRoot,
-      actions,
-    );
-  try {
-    return await browserPassPinned(actions, directoryPin, outputNames);
-  } finally {
-    await closePinnedBrowserOutputDirectory(directoryPin);
-  }
-}
-
-function browserActions(ids) {
+  const logPath = `${outDir}/f456-browser-driver.log`;
+  const {
+    artifacts,
+    contents,
+    cdpEvidence,
+    browserFailures,
+    outputNames,
+    driverExit,
+  } = await runHistoryBrowserSession({
+    actions,
+    trustedRoot: browserTrustedRoot,
+    driver: cdpDriver,
+    width: 1484,
+    height: 1324,
+    timeout: 420000,
+    logPath,
+  });
   const {
     buildRunId,
     stagingRunId,
     upgradeReleaseRunId,
     recoveryReleaseRunId,
-    recoveryDeploymentRunId,
   } = ids;
-  return [
-    "navigate:" + webBase + "/login?redirect=%2Fteams",
-    "wait:1500",
-    "setValue:input[type=email]@@@" + adminEmail,
-    "setValue:input[type=password]@@@" + adminPassword,
-    "click:button[type=submit]",
-    "waitText:Parity Team",
-    "wait:1500",
-    "shot:01-after-login.png",
-    "text:01-after-login.txt",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId,
-    "waitText:" + orderId,
-    "wait:2500",
-    "text:02-release-detail.txt",
-    "dom:02-release-detail.html",
-    "shot:02-release-detail.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=staging",
-    "wait:2500",
-    "text:02b-staging-step.txt",
-    "shot:02b-staging-step.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=build&buildRunId=" + buildRunId,
-    "waitText:" + buildRunId,
-    "wait:1500",
-    "text:03-build-log-drawer.txt",
-    "shot:03-build-log-drawer.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=staging&deploymentRunId=" + stagingRunId,
-    "waitText:" + stagingRunId,
-    "wait:1500",
-    "text:04-staging-run-log.txt",
-    "shot:04-staging-run-log.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=production&releaseRunId=" + recoveryReleaseRunId + "&deploymentRunId=" + recoveryDeploymentRunId,
-    "waitText:" + recoveryReleaseRunId,
-    "wait:1500",
-    "text:05-production-recovery-log.txt",
-    "shot:05-production-recovery-log.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?view=environment-versions",
-    "waitText:环境版本",
-    "wait:2500",
-    "text:06-env-versions.txt",
-    "dom:06-env-versions.html",
-    "shot:06-env-versions.png",
-  ];
-}
-
-async function browserPassPinned(actions, directoryPin, outputNames) {
-  await assertPinnedBrowserOutputDirectory(directoryPin);
-  const proc = spawnSync(
-    process.execPath,
-    [
-      cdpDriver,
-      "--out",
-      directoryPin.lexicalPath,
-      "--width",
-      "1484",
-      "--height",
-      "1324",
-      ...actions,
-    ],
-    { encoding: "utf8", timeout: 420000 },
-  );
-  await assertPinnedBrowserOutputDirectory(directoryPin);
-  const stdout = proc.stdout || "";
-  const stderr = proc.stderr || "";
-  const logPath = `${outDir}/f456-browser-driver.log`;
-  await writeFile(logPath, `${stdout}\n--- STDERR ---\n${stderr}`);
-  if (proc.status !== 0) {
-    throw new Error(`browser pass failed (${proc.status}): ${stderr.slice(0, 2000)}`);
-  }
-  const driverStdout = parseDriverStdout(stdout, outputNames);
-  const { artifacts, contents } = await readBackBrowserArtifacts(
-    driverStdout.artifacts,
-    directoryPin,
-  );
-  const cdpSnapshot = await readPinnedBrowserFile(
-    directoryPin,
-    "cdp-evidence.json",
-  );
-  assertEvidenceReceiptMatches(
-    driverStdout.evidenceReceipt,
-    cdpSnapshot.buffer,
-  );
-  const cdpEvidence = JSON.parse(cdpSnapshot.buffer.toString("utf8"));
-  const browserFailures = summarizeBrowserFailures(cdpEvidence);
   const releaseText = contents["02-release-detail.txt"].toString("utf8");
   const stagingStepText = contents["02b-staging-step.txt"].toString("utf8");
   const envVersionsText = contents["06-env-versions.txt"].toString("utf8");
@@ -943,7 +854,7 @@ async function browserPassPinned(actions, directoryPin, outputNames) {
   const productionLogText = contents["05-production-recovery-log.txt"].toString("utf8");
   return {
     driver: cdpDriver,
-    driverExit: proc.status,
+    driverExit,
     viewport: { width: 1484, height: 1324 },
     log: logPath,
     cdpSchema: cdpEvidence.schema,
@@ -999,6 +910,58 @@ async function browserPassPinned(actions, directoryPin, outputNames) {
       approved: /已批准/.test(productionLogText),
     },
   };
+}
+
+function browserActions(ids) {
+  const {
+    buildRunId,
+    stagingRunId,
+    upgradeReleaseRunId,
+    recoveryReleaseRunId,
+    recoveryDeploymentRunId,
+  } = ids;
+  return [
+    "navigate:" + webBase + "/login?redirect=%2Fteams",
+    "wait:1500",
+    "setValue:input[type=email]@@@" + adminEmail,
+    "setValue:input[type=password]@@@" + adminPassword,
+    "click:button[type=submit]",
+    "waitText:Parity Team",
+    "wait:1500",
+    "shot:01-after-login.png",
+    "text:01-after-login.txt",
+    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId,
+    "waitText:" + orderId,
+    "wait:2500",
+    "text:02-release-detail.txt",
+    "dom:02-release-detail.html",
+    "shot:02-release-detail.png",
+    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=staging",
+    "wait:2500",
+    "text:02b-staging-step.txt",
+    "shot:02b-staging-step.png",
+    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=build&buildRunId=" + buildRunId,
+    "waitText:" + buildRunId,
+    "wait:1500",
+    "text:03-build-log-drawer.txt",
+    "shot:03-build-log-drawer.png",
+    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=staging&deploymentRunId=" + stagingRunId,
+    "waitText:" + stagingRunId,
+    "wait:1500",
+    "text:04-staging-run-log.txt",
+    "shot:04-staging-run-log.png",
+    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=production&releaseRunId=" + recoveryReleaseRunId + "&deploymentRunId=" + recoveryDeploymentRunId,
+    "waitText:" + recoveryReleaseRunId,
+    "wait:1500",
+    "text:05-production-recovery-log.txt",
+    "shot:05-production-recovery-log.png",
+    "navigate:" + webBase + "/projects/" + projectId + "?view=environment-versions",
+    "waitText:环境版本",
+    "wait:2500",
+    "text:06-env-versions.txt",
+    "dom:06-env-versions.html",
+    "shot:06-env-versions.png",
+  ];
 }
 
 // ----------------------------------------------------------------------------

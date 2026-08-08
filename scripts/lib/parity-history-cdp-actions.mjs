@@ -1,5 +1,5 @@
 import { artifactMetadata } from "./parity-history-browser-artifacts.mjs";
-import { writeExclusiveBrowserOutput } from "./parity-history-browser-output-writer.mjs";
+import { writeBrowserOutputFd } from "./parity-history-browser-output-fd.mjs";
 
 const ACTION_TYPES = new Set([
   "wait",
@@ -20,7 +20,7 @@ export async function runCdpActions(cdp, actions, options, runtime = {}) {
     const [kind, ...rest] = action.split(":");
     const value = rest.join(":");
     try {
-      await executeAction(cdp, options.out, kind, value, pause);
+      await executeAction(cdp, options, kind, value, pause);
     } catch {
       const safeType = ACTION_TYPES.has(kind) ? kind : "unknown";
       throw new Error(`E2E_CDP_ACTION_FAILED:${index}:${safeType}`);
@@ -28,15 +28,15 @@ export async function runCdpActions(cdp, actions, options, runtime = {}) {
   }
 }
 
-async function executeAction(cdp, outDir, kind, value, pause) {
+async function executeAction(cdp, options, kind, value, pause) {
   if (kind === "wait") await pause(Number(value));
   else if (kind === "navigate") await navigate(cdp, value, pause);
   else if (kind === "setValue") await setValue(cdp, value, pause);
   else if (kind === "click") await click(cdp, value, pause);
   else if (kind === "waitText") await waitText(cdp, value, pause);
-  else if (kind === "shot") await screenshot(cdp, outDir, value, pause);
-  else if (kind === "text") await textDump(cdp, outDir, value);
-  else if (kind === "dom") await domDump(cdp, outDir, value);
+  else if (kind === "shot") await screenshot(cdp, options, value, pause);
+  else if (kind === "text") await textDump(cdp, options, value);
+  else if (kind === "dom") await domDump(cdp, options, value);
   else throw new Error("unsupported CDP action");
 }
 
@@ -90,43 +90,45 @@ async function waitText(cdp, text, pause) {
   throw new Error("text not found");
 }
 
-async function screenshot(cdp, outDir, name, pause) {
+async function screenshot(cdp, options, name, pause) {
   await pause(400);
   const shot = await cdp.call("Page.captureScreenshot", { format: "png" });
   const buffer = Buffer.from(shot.data, "base64");
-  await writeArtifact("screenshot", outDir, name, buffer);
+  await writeArtifact("screenshot", options, name, buffer);
 }
 
-async function textDump(cdp, outDir, name) {
+async function textDump(cdp, options, name) {
   const result = await cdp.call("Runtime.evaluate", {
     expression: 'document.body ? document.body.innerText : ""',
     returnByValue: true,
   });
   await writeArtifact(
     "text",
-    outDir,
+    options,
     name,
     Buffer.from(result.result.value || ""),
   );
 }
 
-async function domDump(cdp, outDir, name) {
+async function domDump(cdp, options, name) {
   const result = await cdp.call("Runtime.evaluate", {
     expression: "document.documentElement.outerHTML",
     returnByValue: true,
   });
   await writeArtifact(
     "dom",
-    outDir,
+    options,
     name,
     Buffer.from(result.result.value || ""),
   );
 }
 
-async function writeArtifact(kind, outDir, name, buffer) {
+async function writeArtifact(kind, options, name, buffer) {
   const metadata = artifactMetadata(kind, buffer);
-  const { file } = await writeExclusiveBrowserOutput(outDir, name, buffer);
-  process.stdout.write(`${JSON.stringify({ [kind]: file, ...metadata })}\n`);
+  writeBrowserOutputFd(options.outputs, name, buffer);
+  process.stdout.write(
+    `${JSON.stringify({ [kind]: name, ...metadata, runNonce: options.runNonce })}\n`,
+  );
 }
 
 function setViewport(cdp, options) {

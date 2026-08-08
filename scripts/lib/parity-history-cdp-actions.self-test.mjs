@@ -1,12 +1,29 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { constants } from "node:fs";
+import { mkdtemp, open, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCdpActions } from "./parity-history-cdp-actions.mjs";
 import { buildValidScreenshotPng } from "./parity-history-png-fixture.mjs";
 
 const outputDirectory = await mkdtemp(join(tmpdir(), "f547-actions-"));
+const handles = await Promise.all(
+  ["proof.png", "proof.txt", "proof.html"].map((name) =>
+    open(
+      join(outputDirectory, name),
+      constants.O_RDWR | constants.O_CREAT | constants.O_EXCL,
+      0o600,
+    ),
+  ),
+);
+const outputs = Object.fromEntries(
+  ["proof.png", "proof.txt", "proof.html"].map((name, index) => [
+    name,
+    handles[index].fd,
+  ]),
+);
+const runNonce = "b".repeat(64);
 const password = "F547-EXECUTION-SECRET@@@tail";
 const navigation =
   "https://alice:pw@example.test/reset/opaque?token=F547-NAV-EXECUTION#fragment";
@@ -26,7 +43,7 @@ const output = await captureStdout(() =>
   runCdpActions(
     cdp,
     actions,
-    { out: outputDirectory, width: 1200, height: 800 },
+    { outputs, runNonce, width: 1200, height: 800 },
     { sleep: async () => {} },
   ),
 );
@@ -51,6 +68,7 @@ const receipts = output
   .split("\n")
   .map((line) => JSON.parse(line));
 assert.equal(receipts.length, 3);
+assert.ok(receipts.every((receipt) => receipt.runNonce === runNonce));
 assert.deepEqual(
   receipts.map(({ kind }) => kind),
   ["screenshot", "text", "dom"],
@@ -74,7 +92,7 @@ const failureOutput = await captureStdout(async () => {
     runCdpActions(
       fakeCdp([], false),
       [`setValue:input[type=password]@@@${failureSecret}`],
-      { out: outputDirectory, width: 1, height: 1 },
+      { outputs: {}, runNonce, width: 1, height: 1 },
       { sleep: async () => {} },
     ),
     (error) => {
@@ -85,6 +103,7 @@ const failureOutput = await captureStdout(async () => {
   );
 });
 assert.doesNotMatch(failureOutput, new RegExp(failureSecret));
+await Promise.all(handles.map((handle) => handle.close()));
 await rm(outputDirectory, { recursive: true });
 
 process.stdout.write("history CDP actions self-test passed\n");

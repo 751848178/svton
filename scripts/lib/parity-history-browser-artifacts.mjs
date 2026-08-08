@@ -40,17 +40,23 @@ export async function readBackBrowserArtifacts(
     if (typeof reportedPath !== "string") throw artifactError("invalid-path");
     const name = basename(reportedPath);
     const controlledPath = resolve(outputDirectory, name);
+    const descriptorRead = typeof options.readSnapshot === "function";
     if (
-      resolve(reportedPath) !== controlledPath ||
-      dirname(controlledPath) !== outputDirectory
+      descriptorRead
+        ? reportedPath !== name
+        : resolve(reportedPath) !== controlledPath
     ) {
       throw artifactError("outside-output");
     }
+    if (dirname(controlledPath) !== outputDirectory)
+      throw artifactError("outside-output");
     if (Object.hasOwn(artifacts, name)) throw artifactError("duplicate");
     if (entry.kind !== field) throw artifactError("kind-field-mismatch");
-    const snapshot = await readPinnedBrowserFile(directoryPin, name, {
-      parentGuard: (phase) => options.parentGuard?.({ phase, name }),
-    });
+    const snapshot = descriptorRead
+      ? await options.readSnapshot(name)
+      : await readPinnedBrowserFile(directoryPin, name, {
+          parentGuard: (phase) => options.parentGuard?.({ phase, name }),
+        });
     const actual = artifactMetadata(entry.kind, snapshot.buffer);
     if (!browserArtifactsValid([name], { [name]: actual })) {
       throw artifactError("filename-kind-mismatch");
