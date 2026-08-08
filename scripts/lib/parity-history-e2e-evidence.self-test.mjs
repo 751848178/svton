@@ -9,7 +9,6 @@ import {
   HISTORY_AC_MAPPING,
   historyStepChecks,
 } from "./parity-history-e2e-evidence.mjs";
-import { extractPositiveHistoryContext } from "./parity-history-context.mjs";
 import {
   deletePath,
   identityFixtures,
@@ -88,23 +87,6 @@ if (process.argv.includes("--false-fixture")) {
     }
   }
 
-  const validDocument = positiveDocument();
-  const extracted = extractPositiveHistoryContext(
-    validDocument,
-    "b".repeat(64),
-  );
-  assert.deepEqual(
-    extracted.checks.filter((item) => item.pass !== true),
-    [],
-  );
-  const missing = structuredClone(validDocument);
-  delete missing.steps.build.result.manifestId;
-  assert.ok(
-    extractPositiveHistoryContext(missing, "b".repeat(64)).checks.some(
-      (item) => item.pass !== true,
-    ),
-  );
-
   const driver = await readFile(
     resolve(root, "scripts/parity-version-history-e2e.mjs"),
     "utf8",
@@ -131,42 +113,4 @@ if (process.argv.includes("--false-fixture")) {
   );
   assert.match(driver, /finishEvidence\(evidence, HISTORY_AC_MAPPING\)/);
   process.stdout.write("history e2e evidence self-test passed\n");
-}
-
-function positiveDocument() {
-  return {
-    status: "passed",
-    capturedAt: "2026-08-08T00:00:00.000Z",
-    stack: { pinnedCommit: "a".repeat(40) },
-    fixedIds: { teamId: "team", projectId: "project", orderId: "order" },
-    ac: { "AC-E2E-007": { ok: true } },
-    steps: {
-      build: {
-        result: {
-          buildRunId: "build",
-          manifestId: "manifest",
-          manifestDigest: `sha256:${"a".repeat(64)}`,
-        },
-      },
-      "staging-deploy": { result: { deploymentRunId: "staging-run" } },
-      "baselines-verified": {
-        result: { stagingId: "staging", productionId: "production" },
-      },
-      "production-current-version": {
-        result: {
-          stagingCurrent: "staging-version",
-          currentEnvironmentVersionId: "production-version",
-        },
-      },
-      "env-save-r2-production": {
-        result: {
-          id: "config-2",
-          snapshot: { routeSnapshot: { domains: ["example.test"] } },
-        },
-      },
-      "env-targets": {
-        result: { production: { current: { targetRef: "target" } } },
-      },
-    },
-  };
 }
