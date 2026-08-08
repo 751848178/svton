@@ -43,28 +43,9 @@ export function sanitizeCdpUrl(value) {
 }
 
 function redactFragment(url) {
-  if (!url.hash) return;
-  const parts = url.hash.slice(1).split(/[&;]/);
-  let redacted = false;
-  const safeParts = parts.map((part) => {
-    const separator = part.indexOf("=");
-    if (separator < 0) return part;
-    const key = decode(part.slice(0, separator));
-    if (!credentialKey(key)) return part;
-    redacted = true;
-    return `${part.slice(0, separator)}=[REDACTED]`;
-  });
-  if (redacted) url.hash = safeParts.join("&");
+  if (url.hash) url.hash = "[REDACTED]";
 }
 
 function credentialKey(value) {
   return CREDENTIAL_KEY.test(value);
-}
-
-function decode(value) {
-  try {
-    return decodeURIComponent(value.replace(/\+/g, " "));
-  } catch {
-    return value;
-  }
 }

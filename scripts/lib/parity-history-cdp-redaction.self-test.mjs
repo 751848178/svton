@@ -79,7 +79,13 @@ const fragmentUrl = sanitizeCdpUrl(
   `https://example.test/#api_key=${fragmentSecret}&route=history`,
 );
 assert.equal(fragmentUrl.includes(fragmentSecret), false);
-assert.match(fragmentUrl, /route=history/);
+assert.equal(fragmentUrl.includes("route=history"), false);
+assert.equal(
+  sanitizeCdpUrl("https://example.test/#opaque-fragment-secret").includes(
+    "opaque-fragment-secret",
+  ),
+  false,
+);
 const credentialUrl = sanitizeCdpUrl(
   "https://F539-USER-12:F539-PASS-13@example.test/?view=history",
 );
