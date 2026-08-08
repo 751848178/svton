@@ -45,6 +45,7 @@ import {
   historyStepChecks,
 } from "./lib/parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
+import { readBackBrowserArtifacts } from "./lib/parity-history-browser-artifacts.mjs";
 import { summarizeBrowserFailures } from "./lib/parity-history-cdp-capture.mjs";
 import {
   productionGateEvidence,
@@ -935,17 +936,7 @@ async function browserPass(ids) {
       }
     })
     .filter(Boolean);
-  const artifacts = {};
-  for (const entry of shaLines) {
-    const file = entry.screenshot || entry.dom || entry.text;
-    if (file) {
-      artifacts[file.split("/").pop()] = {
-        sha256: entry.sha256,
-        bytes: entry.bytes,
-        kind: entry.kind,
-      };
-    }
-  }
+  const artifacts = await readBackBrowserArtifacts(shaLines, browserOut, readFile);
   const cdpEvidence = JSON.parse(await readFile(`${browserOut}/cdp-evidence.json`, "utf8"));
   const browserFailures = summarizeBrowserFailures(cdpEvidence);
   const releaseText = await readFile(`${browserOut}/02-release-detail.txt`, "utf8");

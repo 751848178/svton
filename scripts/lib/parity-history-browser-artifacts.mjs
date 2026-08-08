@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { basename, dirname, resolve } from "node:path";
 
 export const ARTIFACT_MIN_BYTES = {
   screenshot: 128,
@@ -17,6 +18,44 @@ export function artifactMetadata(kind, buffer) {
     bytes: buffer.length,
     sha256: createHash("sha256").update(buffer).digest("hex"),
   };
+}
+
+export async function readBackBrowserArtifacts(entries, browserOut, readFile) {
+  const outputDirectory = resolve(browserOut);
+  const artifacts = {};
+  for (const entry of entries) {
+    const fields = ["screenshot", "dom", "text"].filter(
+      (field) => entry?.[field] !== undefined,
+    );
+    if (fields.length === 0) continue;
+    if (fields.length !== 1) throw artifactError("ambiguous-entry");
+    const field = fields[0];
+    const reportedPath = entry[field];
+    if (typeof reportedPath !== "string") throw artifactError("invalid-path");
+    const name = basename(reportedPath);
+    const controlledPath = resolve(outputDirectory, name);
+    if (
+      resolve(reportedPath) !== controlledPath ||
+      dirname(controlledPath) !== outputDirectory
+    ) {
+      throw artifactError("outside-output");
+    }
+    if (Object.hasOwn(artifacts, name)) throw artifactError("duplicate");
+    if (entry.kind !== field) throw artifactError("kind-field-mismatch");
+    const actual = artifactMetadata(entry.kind, await readFile(controlledPath));
+    if (!browserArtifactsValid([name], { [name]: actual })) {
+      throw artifactError("filename-kind-mismatch");
+    }
+    if (
+      entry.sha256 !== actual.sha256 ||
+      entry.bytes !== actual.bytes ||
+      entry.kind !== actual.kind
+    ) {
+      throw artifactError("metadata-mismatch");
+    }
+    artifacts[name] = actual;
+  }
+  return artifacts;
 }
 
 export function validateArtifactBuffer(kind, buffer) {
@@ -67,4 +106,8 @@ function hasPngSignature(buffer) {
     buffer.length >= PNG_SIGNATURE.length &&
     buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)
   );
+}
+
+function artifactError(reason) {
+  return new Error(`E2E_ARTIFACT_READBACK_INVALID: ${reason}`);
 }

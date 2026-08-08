@@ -4,6 +4,7 @@ import {
   ARTIFACT_MIN_BYTES,
   artifactMetadata,
   browserArtifactsValid,
+  readBackBrowserArtifacts,
 } from "./parity-history-browser-artifacts.mjs";
 
 const buffers = {
@@ -30,6 +31,57 @@ const valid = Object.fromEntries(
 );
 
 assert.equal(browserArtifactsValid(required, valid), true);
+const browserOut = "/tmp/f529-browser";
+const entries = Object.entries(names).map(([kind, name]) => ({
+  [kind]: `${browserOut}/${name}`,
+  ...valid[name],
+}));
+const files = Object.fromEntries(
+  Object.entries(names).map(([kind, name]) => [
+    `${browserOut}/${name}`,
+    buffers[kind],
+  ]),
+);
+assert.deepEqual(
+  await readBackBrowserArtifacts(entries, browserOut, reader(files)),
+  valid,
+);
+await rejectsReadback((reported) => {
+  reported[0].sha256 = "0".repeat(64);
+});
+await rejectsReadback((reported) => {
+  reported[0].bytes += 1;
+});
+await rejectsReadback((reported) => {
+  reported[0].kind = "text";
+});
+await rejectsReadback(() => {}, {
+  ...files,
+  [`${browserOut}/proof.txt`]: Buffer.alloc(0),
+});
+await rejectsReadback(() => {}, {
+  ...files,
+  [`${browserOut}/proof.html`]: Buffer.alloc(ARTIFACT_MIN_BYTES.dom - 1),
+});
+await rejectsReadback(() => {}, {
+  ...files,
+  [`${browserOut}/proof.png`]: Buffer.alloc(ARTIFACT_MIN_BYTES.screenshot, 1),
+});
+await rejectsReadback((reported) => {
+  reported[0].screenshot = "/tmp/outside/proof.png";
+});
+await rejectsReadback((reported) => {
+  reported.push(structuredClone(reported[0]));
+});
+await assert.rejects(
+  () =>
+    readBackBrowserArtifacts(
+      [{ screenshot: `${browserOut}/wrong.txt`, ...valid["proof.png"] }],
+      browserOut,
+      reader({ [`${browserOut}/wrong.txt`]: buffers.screenshot }),
+    ),
+  /E2E_ARTIFACT_READBACK_INVALID/,
+);
 for (const [kind, name] of Object.entries(names)) {
   assert.throws(
     () => artifactMetadata(kind, Buffer.alloc(0)),
@@ -73,4 +125,21 @@ function rejects(name, mutate) {
   const metadata = structuredClone(valid);
   mutate(metadata);
   assert.equal(browserArtifactsValid(required, metadata), false, name);
+}
+
+async function rejectsReadback(mutate, fileMap = files) {
+  const reported = structuredClone(entries);
+  mutate(reported);
+  await assert.rejects(
+    () => readBackBrowserArtifacts(reported, browserOut, reader(fileMap)),
+    /E2E_ARTIFACT_(?:READBACK|CONTENT)_INVALID/,
+  );
+}
+
+function reader(fileMap) {
+  return async (path) => {
+    if (!Object.hasOwn(fileMap, path))
+      throw new Error(`missing fixture: ${path}`);
+    return fileMap[path];
+  };
 }
