@@ -38,7 +38,7 @@ F464-F529 are registered in the acceptance TODO. Several first-audit P1s are now
 | F434-F460 all done | failed as acceptance claim | P1 production/evidence defects remain |
 | 351/351 acceptance items | failed integrity | 351 rows, 350 unique IDs; AC-PROD-025 duplicated |
 | 101 workers completed | historical metadata only | worker count does not prove outcomes |
-| Positive/history/negative E2E passed | stale/failed current provenance | positive is source-hardened; F506/F508/F509 closed, F507 core landed but F510-F512/F522-F525 remain; negative is reopened by F513-F521; no clean current-image reset rerun |
+| Positive/history/negative E2E passed | stale/failed current provenance | positive is source-hardened; history mapping/identity/CDP schema/readback are hardened but F510-F512/F525 remain; negative is reopened by F513-F521; no clean current-image reset rerun |
 | Demo parity accepted | not reproducible | protected implementation UI blocked; no downstream parity claim |
 | Secret scan clean | verified with limitation | current focused security 40/40; historical artifact scan not regenerated |
 | axe critical/serious zero | stale/not reproducible | no current signed-in axe run accepted |
