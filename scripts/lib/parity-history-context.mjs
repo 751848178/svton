@@ -1,4 +1,8 @@
 import { predicate, check } from "./parity-e2e-evidence.mjs";
+import {
+  POSITIVE_ACCEPTANCE_IDS,
+  POSITIVE_AC_MAPPING,
+} from "./parity-positive-e2e-contract.mjs";
 
 export function extractPositiveHistoryContext(document, sourceSha256) {
   const ids = document.context || document.fixedIds || {};
@@ -82,33 +86,30 @@ export function positiveContextChecks(document, context) {
   ];
 }
 
-const REQUIRED_ACCEPTANCE_IDS = Array.from(
-  { length: 9 },
-  (_, index) => `AC-E2E-${String(index + 7).padStart(3, "0")}`,
-);
-
 function positiveAcceptanceValid(document) {
   const acceptance = document.ac || {};
   const actualIds = Object.keys(acceptance).sort();
-  if (!sameArray(actualIds, REQUIRED_ACCEPTANCE_IDS)) return false;
-  return REQUIRED_ACCEPTANCE_IDS.every((acId) =>
-    acceptanceEntryValid(acceptance[acId], document.steps || {}),
+  if (!sameArray(actualIds, POSITIVE_ACCEPTANCE_IDS)) return false;
+  return POSITIVE_ACCEPTANCE_IDS.every((acId) =>
+    acceptanceEntryValid(acId, acceptance[acId], document.steps || {}),
   );
 }
 
-function acceptanceEntryValid(entry, steps) {
+function acceptanceEntryValid(acId, entry, steps) {
+  const canonicalSteps = POSITIVE_AC_MAPPING[acId];
   if (
     entry?.ok !== true ||
     !Array.isArray(entry.sourceSteps) ||
     entry.sourceSteps.length === 0 ||
     !entry.sourceSteps.every(nonEmptyString) ||
     new Set(entry.sourceSteps).size !== entry.sourceSteps.length ||
+    !sameArray(entry.sourceSteps, canonicalSteps) ||
     !Array.isArray(entry.checkNames)
   ) {
     return false;
   }
   const expectedCheckNames = [];
-  for (const stepName of entry.sourceSteps) {
+  for (const stepName of canonicalSteps) {
     const step = steps[stepName];
     if (!verifiedStep(step)) return false;
     expectedCheckNames.push(

@@ -1,40 +1,54 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { extractPositiveHistoryContext } from "./parity-history-context.mjs";
-
-const AC_MAPPING = {
-  "AC-E2E-007": [
-    "preflight",
-    "intake-draft",
-    "intake-connect",
-    "intake-analyze",
-    "intake-contract",
-    "intake-review",
-    "intake-finalize",
-  ],
-  "AC-E2E-008": ["intake-finalize", "baselines-verified"],
-  "AC-E2E-009": [
-    "env-r1-current",
-    "env-targets",
-    "env-save-r2-staging",
-    "env-save-r2-production",
-  ],
-  "AC-E2E-010": ["release-order"],
-  "AC-E2E-011": ["build"],
-  "AC-E2E-012": ["staging-deploy"],
-  "AC-E2E-013": [
-    "production-preview",
-    "production-confirm",
-    "approval-list",
-    "approval-review",
-    "production-execute",
-  ],
-  "AC-E2E-014": ["production-current-version", "release-run-final"],
-  "AC-E2E-015": ["final-site-http"],
-};
+import {
+  expectedPositiveContext,
+  passedStep,
+  positiveDocument,
+} from "./parity-history-context.fixture.mjs";
+import {
+  POSITIVE_ACCEPTANCE_IDS,
+  POSITIVE_AC_MAPPING,
+} from "./parity-positive-e2e-contract.mjs";
 
 const valid = positiveDocument();
 assert.deepEqual(failedChecks(valid), []);
+assert.deepEqual(POSITIVE_ACCEPTANCE_IDS, [
+  "AC-E2E-007",
+  "AC-E2E-008",
+  "AC-E2E-009",
+  "AC-E2E-010",
+  "AC-E2E-011",
+  "AC-E2E-012",
+  "AC-E2E-013",
+  "AC-E2E-014",
+  "AC-E2E-015",
+]);
+assert.equal(Object.isFrozen(POSITIVE_AC_MAPPING), true);
+for (const steps of Object.values(POSITIVE_AC_MAPPING)) {
+  assert.equal(Object.isFrozen(steps), true);
+  assert.ok(steps.length > 0 && new Set(steps).size === steps.length);
+}
+assert.deepEqual(
+  extractPositiveHistoryContext(valid, "b".repeat(64)).context,
+  expectedPositiveContext("b".repeat(64)),
+);
+
+for (const acId of POSITIVE_ACCEPTANCE_IDS) {
+  rejects(`coherent substitution ${acId}`, (document) => {
+    document.steps.fake = passedStep();
+    document.ac[acId].sourceSteps = ["fake"];
+    document.ac[acId].checkNames = ["fake:verified"];
+  });
+}
+rejects("all ACs use fake step", (document) => {
+  document.steps.fake = passedStep();
+  for (const entry of Object.values(document.ac)) {
+    entry.sourceSteps = ["fake"];
+    entry.checkNames = ["fake:verified"];
+  }
+});
 
 rejects("only one AC", (document) => {
   document.ac = { "AC-E2E-007": document.ac["AC-E2E-007"] };
@@ -71,9 +85,53 @@ rejects("checkNames mismatch", (document) => {
   document.ac["AC-E2E-011"].checkNames = ["build:claimed"];
 });
 rejects("sourceSteps mismatch", (document) => {
-  document.ac["AC-E2E-007"].sourceSteps.reverse();
+  const entry = document.ac["AC-E2E-007"];
+  entry.sourceSteps.reverse();
+  entry.checkNames = entry.sourceSteps.map((step) => `${step}:verified`);
 });
+rejects("sourceSteps missing canonical step", (document) => {
+  const entry = document.ac["AC-E2E-007"];
+  entry.sourceSteps = entry.sourceSteps.slice(0, -1);
+  entry.checkNames = entry.sourceSteps.map((step) => `${step}:verified`);
+});
+rejects("sourceSteps extra passed step", (document) => {
+  const entry = document.ac["AC-E2E-011"];
+  document.steps.fake = passedStep();
+  entry.sourceSteps.push("fake");
+  entry.checkNames.push("fake:verified");
+});
+rejects("legacy coherent top-level acceptance", (document) => {
+  for (const acId of POSITIVE_ACCEPTANCE_IDS) document.ac[acId] = { ok: true };
+});
+rejectsCheck(
+  "invalid capturedAt",
+  (document) => {
+    document.capturedAt = "invalid";
+  },
+  "positiveEvidenceCapturedAt",
+);
+rejectsCheck(
+  "missing required context ID",
+  (document) => {
+    delete document.context.teamId;
+  },
+  "dynamicContextIds",
+);
 assert.ok(failedChecks({}).length > 0, "empty payload must fail");
+
+const producer = await readFile(
+  new URL("../parity-positive-e2e.mjs", import.meta.url),
+  "utf8",
+);
+const consumer = await readFile(
+  new URL("./parity-history-context.mjs", import.meta.url),
+  "utf8",
+);
+for (const source of [producer, consumer]) {
+  assert.match(source, /parity-positive-e2e-contract\.mjs/);
+  assert.match(source, /POSITIVE_AC_MAPPING/);
+}
+assert.doesNotMatch(producer, /const AC_MAPPING\s*=/);
 
 process.stdout.write("history positive context self-test passed\n");
 
@@ -81,6 +139,16 @@ function rejects(label, mutate) {
   const document = structuredClone(valid);
   mutate(document);
   assert.equal(acceptanceCheck(document).pass, false, label);
+}
+
+function rejectsCheck(label, mutate, checkName) {
+  const document = structuredClone(valid);
+  mutate(document);
+  const check = extractPositiveHistoryContext(
+    document,
+    "b".repeat(64),
+  ).checks.find((item) => item.name === checkName);
+  assert.equal(check.pass, false, label);
 }
 
 function failedChecks(document) {
@@ -93,60 +161,4 @@ function acceptanceCheck(document) {
   return extractPositiveHistoryContext(document, "b".repeat(64)).checks.find(
     (item) => item.name === "positiveEvidenceAcceptance",
   );
-}
-
-function positiveDocument() {
-  const steps = {};
-  for (const name of new Set(Object.values(AC_MAPPING).flat())) {
-    steps[name] = passedStep();
-  }
-  steps.build.result = {
-    buildRunId: "build",
-    manifestId: "manifest",
-    manifestDigest: `sha256:${"a".repeat(64)}`,
-  };
-  steps["staging-deploy"].result = { deploymentRunId: "staging-run" };
-  steps["baselines-verified"].result = {
-    stagingId: "staging",
-    productionId: "production",
-  };
-  steps["production-current-version"].result = {
-    stagingCurrent: "staging-version",
-    currentEnvironmentVersionId: "production-version",
-  };
-  steps["env-save-r2-production"].result = {
-    id: "config-2",
-    snapshot: { routeSnapshot: { domains: ["example.test"] } },
-  };
-  steps["env-targets"].result = {
-    production: { current: { targetRef: "target" } },
-  };
-  const ac = Object.fromEntries(
-    Object.entries(AC_MAPPING).map(([id, sourceSteps]) => [
-      id,
-      {
-        ok: true,
-        sourceSteps,
-        checkNames: sourceSteps.map((step) => `${step}:verified`),
-      },
-    ]),
-  );
-  return {
-    status: "passed",
-    capturedAt: "2026-08-08T00:00:00.000Z",
-    stack: { pinnedCommit: "a".repeat(40) },
-    context: { teamId: "team", projectId: "project", orderId: "order" },
-    ac,
-    steps,
-  };
-}
-
-function passedStep() {
-  return {
-    ok: true,
-    status: "passed",
-    verified: true,
-    checks: [{ name: "verified", pass: true }],
-    result: {},
-  };
 }

@@ -34,6 +34,7 @@ import {
   finishEvidence,
   predicate,
 } from "./lib/parity-e2e-evidence.mjs";
+import { POSITIVE_AC_MAPPING } from "./lib/parity-positive-e2e-contract.mjs";
 import {
   productionGateEvidence,
   productionGateEvidenceChecks,
@@ -56,18 +57,6 @@ const pinnedCommit = "2f0ec3246761537123c65ac415a14e503ebbfa38";
 const PREFIX = "2f0ec324";
 const runState = {};
 const parityRouteProviderKey = process.env.DEVPILOT_PARITY_ROUTE_PROVIDER_KEY || null;
-const AC_MAPPING = {
-  "AC-E2E-007": ["preflight", "intake-draft", "intake-connect", "intake-analyze", "intake-contract", "intake-review", "intake-finalize"],
-  "AC-E2E-008": ["intake-finalize", "baselines-verified"],
-  "AC-E2E-009": ["env-r1-current", "env-targets", "env-save-r2-staging", "env-save-r2-production"],
-  "AC-E2E-010": ["release-order"],
-  "AC-E2E-011": ["build"],
-  "AC-E2E-012": ["staging-deploy"],
-  "AC-E2E-013": ["production-preview", "production-confirm", "approval-list", "approval-review", "production-execute"],
-  "AC-E2E-014": ["production-current-version", "release-run-final"],
-  "AC-E2E-015": ["final-site-http"],
-};
-
 const { PrismaClient } = createRequire(
   resolve(root, "apps/devpilot-api/package.json"),
 )("@prisma/client");
@@ -929,7 +918,7 @@ async function main() {
     };
   });
 
-  finishEvidence(evidence, AC_MAPPING);
+  finishEvidence(evidence, POSITIVE_AC_MAPPING);
 
   await writeEvidence();
   log("E2E chain PASSED — evidence at " + evidencePath());
