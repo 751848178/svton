@@ -29,7 +29,7 @@ Canonical spec defines semantics; Demo defines page structure, hierarchy, intera
 
 ## Independent Findings
 
-F464-F494 are registered in the acceptance TODO. The blocking set is: auth-session verification blocker; synthetic route switch; wrong-target final-site pass; invalid TLS acceptance; site-probe SSRF; Production borrowing Staging services; stale repository-analysis test harness; assertion-unsafe E2E; pre-finalized positive seed; and unbound image/evidence provenance. Detailed source/runtime/browser evidence lives in the three worker detail reports.
+F464-F512 are registered in the acceptance TODO. Several first-audit P1s are now fixed in atomic commits, but current blockers remain: no real route provider/readback, missing trustworthy migration evidence, fresh-intake evidence not implemented, history/browser evidence false-pass gaps, shared-stack namespace/provenance gaps, and the retained F461/F462 production risks. Detailed source/runtime/browser and post-commit evidence lives in the worker detail reports.
 
 ## Historical Claim Revalidation
 
@@ -38,7 +38,7 @@ F464-F494 are registered in the acceptance TODO. The blocking set is: auth-sessi
 | F434-F460 all done | failed as acceptance claim | P1 production/evidence defects remain |
 | 351/351 acceptance items | failed integrity | 351 rows, 350 unique IDs; AC-PROD-025 duplicated |
 | 101 workers completed | historical metadata only | worker count does not prove outcomes |
-| Positive/history/negative E2E passed | stale/verified with limitation | runners are assertion-unsafe; no clean current-image reset rerun |
+| Positive/history/negative E2E passed | stale/failed current provenance | positive and negative runners are now fail-closed at source level; history still has F506-F512 gaps; no clean current-image reset rerun |
 | Demo parity accepted | not reproducible | protected implementation UI blocked; no downstream parity claim |
 | Secret scan clean | verified with limitation | current focused security 40/40; historical artifact scan not regenerated |
 | axe critical/serious zero | stale/not reproducible | no current signed-in axe run accepted |
