@@ -2,6 +2,9 @@ import "reflect-metadata";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { PrismaClient } from "@prisma/client";
+import { probeFinalHttp } from "../site/site-final-http-probe";
+import { finalSiteUrl } from "../site/site-final-url";
+import type { SiteProbePort } from "../site/site-route-activation.types";
 import {
   approveProductionReleaseRun,
   confirmProductionRun,
@@ -23,7 +26,7 @@ describeIntegration(
     let prisma: PrismaClient;
 
     beforeAll(async () => {
-      fixture = await createProductionRealGateFixture();
+      fixture = await createProductionRealGateFixture(exactSiteProbe());
       prisma = fixture.prisma;
     });
 
@@ -33,7 +36,8 @@ describeIntegration(
       const f = fixture;
       const server = await startHttpServer(200, "f438-site-ok");
       try {
-        await pointRouteAt(prisma, f.configRevisionId, server);
+        await pointRouteAt(prisma, f.configRevisionId, f.siteId, server);
+        const domain = serverDomain(server);
         const releaseRun = await confirmProductionRun(f, `switch-${f.scope}`);
         await approveProductionReleaseRun(f, releaseRun.id);
         const executed = await f.service.execute({
@@ -54,24 +58,16 @@ describeIntegration(
         const result = run.result as Record<string, any>;
         expect(result.siteProbe).toMatchObject({
           version: 1,
-          primaryDomain: "demo.f437.example",
-          dns: { hostname: "demo.f437.example" },
+          primaryDomain: domain,
+          dns: { status: "resolved", hostname: domain },
           tls: { status: "unavailable" },
           http: {
             status: "passed",
             statusCode: 200,
-            finalUrl: "https://demo.f437.example",
+            finalUrl: serverUrl(server),
+            url: serverUrl(server),
           },
         });
-        expect(["resolved", "unavailable"]).toContain(
-          result.siteProbe.dns.status,
-        );
-        if (result.siteProbe.dns.status === "resolved") {
-          expect(result.siteProbe.dns.records.length).toBeGreaterThan(0);
-        }
-        expect(result.siteProbe.http.url).toMatch(
-          /^http:\/\/127\.0\.0\.1:\d+\/?$/,
-        );
         expect(typeof result.siteProbe.http.bodySignature).toBe("string");
         expect(result.siteProbe.http.bodySignature).toMatch(/^sha256:/);
         expect(result.routeSwitch).toMatchObject({
@@ -81,7 +77,7 @@ describeIntegration(
           status: "switched",
           reasonCode: "site_route_switched",
           targetRef: "filesystem-release-target",
-          domains: ["demo.f437.example"],
+          domains: [domain],
         });
         expect(typeof result.routeSwitch.switchedAt).toBe("string");
 
@@ -121,7 +117,7 @@ describeIntegration(
         select: { routeSwitch: true },
       });
       try {
-        await pointRouteAt(prisma, f.configRevisionId, server);
+        await pointRouteAt(prisma, f.configRevisionId, f.siteId, server);
         const releaseRun = await confirmProductionRun(
           f,
           `probe-fail-${f.scope}`,
@@ -240,16 +236,23 @@ describeIntegration(
 async function pointRouteAt(
   prisma: PrismaClient,
   configRevisionId: string,
+  siteId: string,
   server: Server,
 ) {
+  const domain = serverDomain(server);
   await prisma.environmentConfigRevision.update({
     where: { id: configRevisionId },
     data: {
       routeSnapshot: {
-        domains: ["demo.f437.example"],
-        proxyTarget: serverUrl(server),
+        domains: [domain],
+        proxyTarget: "http://127.0.0.1:1/unrelated",
+        tlsRequired: false,
       },
     },
+  });
+  await prisma.site.update({
+    where: { id: siteId },
+    data: { primaryDomain: domain },
   });
 }
 
@@ -265,7 +268,35 @@ function startHttpServer(status: number, body: string): Promise<Server> {
 
 function serverUrl(server: Server) {
   const address = server.address() as AddressInfo;
-  return `http://127.0.0.1:${address.port}`;
+  return `http://127.0.0.1:${address.port}/`;
+}
+
+function serverDomain(server: Server) {
+  const address = server.address() as AddressInfo;
+  return `127.0.0.1:${address.port}`;
+}
+
+function exactSiteProbe(): SiteProbePort {
+  return {
+    async probe(input) {
+      const finalUrl = finalSiteUrl(input.primaryDomain, input.tlsRequired);
+      const checkedAt = new Date().toISOString();
+      return {
+        version: 1,
+        primaryDomain: input.primaryDomain,
+        finalUrl,
+        probedAt: checkedAt,
+        dns: {
+          status: input.primaryDomain ? "resolved" : "unavailable",
+          hostname: input.primaryDomain,
+          records: input.primaryDomain ? ["127.0.0.1"] : [],
+          checkedAt,
+        },
+        tls: { status: "unavailable", checkedAt },
+        http: await probeFinalHttp(finalUrl, input.timeoutMs ?? 1000),
+      };
+    },
+  };
 }
 
 function closeServer(server: Server) {

@@ -42,7 +42,6 @@ export interface SiteProbeInput {
   deploymentRunId: string;
   primaryDomain: string | null;
   tlsRequired?: boolean | null;
-  proxyTarget?: string | null;
   targetRef?: string | null;
   timeoutMs?: number;
 }

@@ -52,6 +52,7 @@ import {
 } from "./release-staging-provider.integration-utils";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
+import type { SiteProbePort } from "../site/site-route-activation.types";
 import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
 import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
@@ -75,7 +76,9 @@ export interface ProductionRealGateFixture {
   stop: () => Promise<void>;
 }
 
-export async function createProductionRealGateFixture(): Promise<ProductionRealGateFixture> {
+export async function createProductionRealGateFixture(
+  siteProbe: SiteProbePort = new SiteFinalProbeService(),
+): Promise<ProductionRealGateFixture> {
   const prisma = new PrismaClient();
   const suffix = randomUUID();
   const userId = `f437-user-${suffix}`;
@@ -529,7 +532,7 @@ export async function createProductionRealGateFixture(): Promise<ProductionRealG
     ),
     new SiteRouteActivationService(db),
     siteRouteSwitchTestDouble(),
-    new SiteFinalProbeService(),
+    siteProbe,
   );
 
   return {

@@ -48,18 +48,17 @@ export async function finalizeDeployedEnvironment(
     const targetRef =
       context.frozenInput?.deploymentInput.snapshot.target.targetRef ??
       "unconfigured";
-    const routeSnapshot = routeSnapshotRecord(context.productionRun?.routeSnapshot);
+    const routeSnapshot = routeSnapshotRecord(
+      context.productionRun?.routeSnapshot,
+    );
     const activation = await deps.routeActivation.resolve({
       teamId: context.input.teamId,
       projectId: context.input.projectId,
       environmentId: context.environment.id,
       routeSnapshot: routeSnapshot ?? null,
     });
-    let routeSwitch: Record<string, unknown> = unavailableSiteRouteSwitchEvidence(
-      context,
-      activation,
-      targetRef,
-    );
+    let routeSwitch: Record<string, unknown> =
+      unavailableSiteRouteSwitchEvidence(context, activation, targetRef);
     if (context.releaseRunId && activation.siteId && activation.primaryDomain) {
       const request = createSiteRouteSwitchInput({
         teamId: context.input.teamId,
@@ -85,12 +84,16 @@ export async function finalizeDeployedEnvironment(
       deploymentRunId: context.run.id,
       primaryDomain: activation.primaryDomain,
       tlsRequired: routeBooleanValue(routeSnapshot?.tlsRequired),
-      proxyTarget: activation.proxyTarget,
       targetRef,
     });
     assertSiteProbeAcceptable(probe, routeSwitch);
     if (attempt) {
-      attempt = { ...attempt, siteProbe: probe, dnsProbe: probe.dns, tlsProbe: probe.tls };
+      attempt = {
+        ...attempt,
+        siteProbe: probe,
+        dnsProbe: probe.dns,
+        tlsProbe: probe.tls,
+      };
     }
     const decision = await deps.productionGates.finalize({
       ...context.gateContext,

@@ -1,4 +1,5 @@
 import { UnconfiguredSiteRouteSwitchProvider } from "../site/site-route-switch.port";
+import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { finalizeDeployedEnvironment } from "./environment-version-production-finalization";
 
 describe("Production environment route finalization", () => {
@@ -48,7 +49,109 @@ describe("Production environment route finalization", () => {
     );
     expect(result).toMatchObject({ status: "failed" });
   });
+
+  it.each([
+    ["missing route snapshot", "route_not_frozen"],
+    ["empty route domains", "no_route_domains"],
+  ])(
+    "never submits a completed pointer transition for %s",
+    async (_label, reasonCode) => {
+      const completion = {
+        complete: jest.fn((input) => Promise.resolve(input)),
+      };
+      const productionGates = {
+        finalize: jest.fn(),
+        denied: jest.fn().mockResolvedValue(decision("denied")),
+      };
+      const result = await finalizeDeployedEnvironment(
+        {
+          completion,
+          productionGates,
+          routeActivation: {
+            resolve: jest.fn().mockResolvedValue({
+              siteId: null,
+              primaryDomain: null,
+              domains: [],
+              proxyTarget: null,
+              status: "unavailable",
+              reasonCode,
+            }),
+          },
+          routeSwitch: siteRouteSwitchTestDouble(),
+          siteProbe: { probe: jest.fn().mockResolvedValue(probe(null)) },
+        } as never,
+        context() as never,
+        ["deployed"],
+        { deployment: "ok" },
+      );
+
+      expect(result).toMatchObject({ status: "failed" });
+      expect(completion.complete).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "failed" }),
+      );
+      expect(completion.complete).not.toHaveBeenCalledWith(
+        expect.objectContaining({ status: "completed" }),
+      );
+      expect(productionGates.finalize).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not advance completion when exact final URL HTTP proof is unavailable", async () => {
+    const completion = { complete: jest.fn((input) => Promise.resolve(input)) };
+    const productionGates = {
+      finalize: jest.fn(),
+      denied: jest.fn().mockResolvedValue(decision("denied")),
+    };
+    const result = await finalizeDeployedEnvironment(
+      {
+        completion,
+        productionGates,
+        routeActivation: { resolve: jest.fn().mockResolvedValue(activation()) },
+        routeSwitch: siteRouteSwitchTestDouble(),
+        siteProbe: { probe: jest.fn().mockResolvedValue(probe("unavailable")) },
+      } as never,
+      context() as never,
+      ["deployed"],
+      { deployment: "ok" },
+    );
+
+    expect(result).toMatchObject({ status: "failed" });
+    expect(completion.complete).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed" }),
+    );
+    expect(productionGates.finalize).not.toHaveBeenCalled();
+  });
 });
+
+function activation() {
+  return {
+    siteId: "site-1",
+    primaryDomain: "app.example.com",
+    domains: ["app.example.com"],
+    proxyTarget: "http://unrelated.internal:8080",
+    status: "matched",
+    reasonCode: "site_route_matched",
+  };
+}
+
+function probe(httpStatus: "unavailable" | null) {
+  const checkedAt = "2026-08-08T00:00:00.000Z";
+  const finalUrl = httpStatus === null ? null : "https://app.example.com/";
+  return {
+    version: 1,
+    primaryDomain: finalUrl ? "app.example.com" : null,
+    finalUrl,
+    probedAt: checkedAt,
+    dns: { status: finalUrl ? "resolved" : "unavailable", checkedAt },
+    tls: { status: finalUrl ? "valid" : "unavailable", checkedAt },
+    http: {
+      status: httpStatus ?? "unavailable",
+      url: finalUrl,
+      finalUrl,
+      checkedAt,
+    },
+  };
+}
 
 function context() {
   return {
@@ -77,7 +180,9 @@ function context() {
     gateContext: {},
     run: { id: "deployment-1" },
     frozenInput: {
-      deploymentInput: { snapshot: { target: { targetRef: "server-1/service-1" } } },
+      deploymentInput: {
+        snapshot: { target: { targetRef: "server-1/service-1" } },
+      },
     },
   };
 }
