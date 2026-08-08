@@ -4,6 +4,7 @@ import {
   requireIdentity,
   validTime,
 } from "./parity-negative-history-identity-assert.mjs";
+import { validateProductionRouteIdentity } from "./parity-negative-history-route-identity.mjs";
 
 export function validateProductionAction(result, roots, expected) {
   const label = `${expected.kind}-execute`;
@@ -59,7 +60,7 @@ export function validateProductionAction(result, roots, expected) {
     `${label}:consumed`,
   );
   validateGateRoots(result, roots, expected);
-  validateRouteRoots(result, roots, expected);
+  validateProductionRouteIdentity(result, roots, expected);
   requireEqual(
     result.gateDecision,
     result.productionGate.resultGate,
@@ -100,34 +101,5 @@ function validateGateRoots(result, roots, expected) {
       deploymentManifestId: expected.manifestId,
     },
     `${expected.kind}-execute:gate-roots`,
-  );
-}
-
-function validateRouteRoots(result, roots, expected) {
-  const route = result.routeEvidence?.expected;
-  requireEqual(
-    [
-      route?.teamId,
-      route?.projectId,
-      route?.environmentId,
-      route?.deploymentRunId,
-      route?.releaseRunId,
-      route?.manifestId,
-      route?.configRevisionId,
-      route?.targetRef,
-      route?.routeSnapshot,
-    ],
-    [
-      roots.teamId,
-      roots.projectId,
-      roots.productionEnvId,
-      result.deploymentRunId,
-      expected.releaseRunId,
-      expected.manifestId,
-      roots.productionConfigRevisionId,
-      roots.productionTargetRef,
-      roots.productionRouteSnapshot,
-    ],
-    `${expected.kind}-execute:route-roots`,
   );
 }
