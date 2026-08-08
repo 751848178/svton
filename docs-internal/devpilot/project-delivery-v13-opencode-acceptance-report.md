@@ -23,26 +23,26 @@ Canonical spec defines semantics; Demo defines page structure, hierarchy, intera
 
 | Track | Status | Result |
 | --- | --- | --- |
-| Code/architecture | queued | pending |
-| Product UI/browser | queued | pending |
-| Runtime/E2E/security | queued | pending |
+| Code/architecture | completed | REJECTED: 278/278 paths, 5 P1 + 2 P2 |
+| Product UI/browser | completed | REJECTED: auth deadlock; signed-in matrix not reproducible |
+| Runtime/E2E/security | completed | REJECTED: 8 P1 + 2 P2 + 1 P3; current test/migration evidence recorded |
 
 ## Independent Findings
 
-No F464+ finding has been confirmed yet. Initialization risks are tracked in the acceptance TODO and will not be mislabeled as defects until reproduced.
+F464-F494 are registered in the acceptance TODO. The blocking set is: auth-session verification blocker; synthetic route switch; wrong-target final-site pass; invalid TLS acceptance; site-probe SSRF; Production borrowing Staging services; stale repository-analysis test harness; assertion-unsafe E2E; pre-finalized positive seed; and unbound image/evidence provenance. Detailed source/runtime/browser evidence lives in the three worker detail reports.
 
 ## Historical Claim Revalidation
 
 | Claim | Current classification | Current-run proof |
 | --- | --- | --- |
-| F434-F460 all done | pending | |
-| 351/351 acceptance items | pending | |
-| 101 workers completed | pending | |
-| Positive/history/negative E2E passed | pending | |
-| Demo parity accepted | pending | |
-| Secret scan clean | pending | |
-| axe critical/serious zero | pending | |
-| Final site browser reachable | pending | |
+| F434-F460 all done | failed as acceptance claim | P1 production/evidence defects remain |
+| 351/351 acceptance items | failed integrity | 351 rows, 350 unique IDs; AC-PROD-025 duplicated |
+| 101 workers completed | historical metadata only | worker count does not prove outcomes |
+| Positive/history/negative E2E passed | stale/verified with limitation | runners are assertion-unsafe; no clean current-image reset rerun |
+| Demo parity accepted | not reproducible | protected implementation UI blocked; no downstream parity claim |
+| Secret scan clean | verified with limitation | current focused security 40/40; historical artifact scan not regenerated |
+| axe critical/serious zero | stale/not reproducible | no current signed-in axe run accepted |
+| Final site browser reachable | failed as final-domain proof | loopback proxy target 200 is not public final URL |
 
 ## Known Boundary Decisions
 
@@ -54,13 +54,13 @@ No F464+ finding has been confirmed yet. Initialization risks are tracked in the
 
 ## Verdicts
 
-- Demo parity: **PENDING**
-- Functional/runtime: **PENDING**
-- Security: **PENDING**
-- UI/UX/accessibility: **PENDING**
-- Evidence confidence: **PENDING**
-- Production readiness: **PENDING**
-- Master integration readiness: **PENDING**
-- Overall: **PENDING**
+- Demo parity: **NOT YET DECIDED — CURRENT AUDIT BLOCKED**
+- Functional/runtime: **REJECTED**
+- Security: **REJECTED**
+- UI/UX/accessibility: **REJECTED / NOT REPRODUCIBLE**
+- Evidence confidence: **LOW TO MEDIUM**
+- Production readiness: **REJECTED**
+- Master integration readiness: **REJECTED**
+- Overall audit checkpoint: **REJECTED**
 
 Only `ACCEPTED`, `ACCEPTED WITH LIMITATIONS`, or `REJECTED` may replace the overall placeholder after every completion gate is supported by current-run evidence.
