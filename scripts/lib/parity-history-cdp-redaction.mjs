@@ -1,27 +1,24 @@
+import {
+  cdpHeaderValueSpans,
+  redactCdpValueSpans,
+} from "./parity-history-cdp-header-redaction.mjs";
+
 const MAX_CAPTURE_LENGTH = 4_000;
 const COOKIE_KEY_SOURCE = String.raw`(?:cookie|set[-_]?cookie)`;
 const CREDENTIAL_KEY_SOURCE = String.raw`(?:authorization|proxy[-_]?authorization|${COOKIE_KEY_SOURCE}|session(?:[-_]?id)?|x[-_]?api[-_]?key|api[-_]?key|access[-_]?key|signature|credentials?|[a-z0-9_-]*(?:token|password|secret)[a-z0-9_-]*)`;
 const CREDENTIAL_KEY = new RegExp(`^${CREDENTIAL_KEY_SOURCE}$`, "i");
-const COOKIE_HEADER = new RegExp(
-  `(^|[\\r\\n])([ \\t]*${COOKIE_KEY_SOURCE}\\s*:\\s*)[^\\r\\n]*`,
-  "gim",
-);
-const AUTHORIZATION_VALUE =
-  /(["']?\bauthorization\b["']?\s*[:=]\s*)(?:"[^"\r\n]*"|'[^'\r\n]*'|(?:bearer|basic)\s+[^\s,;}\]]+|[^\s,;}\]]+)/gi;
-const AUTH_SCHEME_VALUE = /\b(?:bearer|basic)\s+[^\s,;}\]]+/gi;
 const CREDENTIAL_KEY_VALUE = new RegExp(
-  `(["']?\\b${CREDENTIAL_KEY_SOURCE}\\b["']?\\s*[:=]\\s*)(?:"(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|[^\\r\\n,;}\\]]+)`,
+  `(["']?\\b${CREDENTIAL_KEY_SOURCE}\\b["']?\\s*[:=]\\s*)("(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|[^\\r\\n,;}\\]]+)`,
   "gi",
 );
 
 export function sanitizeCdpText(value) {
   if (typeof value !== "string") return value;
-  return value
-    .replace(COOKIE_HEADER, "$1$2[REDACTED]")
-    .replace(AUTHORIZATION_VALUE, "$1[REDACTED]")
-    .replace(AUTH_SCHEME_VALUE, "[REDACTED]")
-    .replace(CREDENTIAL_KEY_VALUE, "$1[REDACTED]")
-    .slice(0, MAX_CAPTURE_LENGTH);
+  const spans = [
+    ...cdpHeaderValueSpans(value),
+    ...genericCredentialValueSpans(value),
+  ];
+  return redactCdpValueSpans(value, spans).slice(0, MAX_CAPTURE_LENGTH);
 }
 
 export function sanitizeCdpUrl(value) {
@@ -48,4 +45,15 @@ function redactFragment(url) {
 
 function credentialKey(value) {
   return CREDENTIAL_KEY.test(value);
+}
+
+function genericCredentialValueSpans(value) {
+  return [...value.matchAll(CREDENTIAL_KEY_VALUE)].map((match) => {
+    const start = match.index + match[1].length;
+    const markerEnd = start + "[REDACTED]".length;
+    const end = value.startsWith("[REDACTED]", start)
+      ? markerEnd
+      : start + match[2].length;
+    return { start, end };
+  });
 }
