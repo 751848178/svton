@@ -18,6 +18,31 @@ assertRejected([
     params: { entry: { level: "error", text: "log boom" } },
   },
 ]);
+const runtimeException = capture([
+  {
+    method: "Runtime.exceptionThrown",
+    params: {
+      exceptionDetails: {
+        text: "Uncaught ReferenceError",
+        url: "http://localhost:4131/app.js?token=secret",
+        lineNumber: 12,
+        columnNumber: 34,
+        exception: { description: "ReferenceError: boom password=secret" },
+      },
+    },
+  },
+]);
+assert.ok(failedChecks(runtimeException).length > 0);
+assert.deepEqual(runtimeException.runtimeExceptions, [
+  {
+    text: "Uncaught ReferenceError",
+    url: "http://localhost:4131/app.js?token=%5BREDACTED%5D",
+    line: 12,
+    column: 34,
+    description: "ReferenceError: boom password=[REDACTED]",
+  },
+]);
+assert.doesNotMatch(JSON.stringify(runtimeException), /secret/);
 assertRejected([response("Fetch", 500, "/api/fail")]);
 assertRejected([response("XHR", 404, "/api/missing")]);
 assertRejected([
@@ -36,6 +61,7 @@ const clean = capture([
   response("Document", 200, "/projects/order"),
   response("Fetch", 204, "/api/ok"),
 ]);
+assert.deepEqual(clean.runtimeExceptions, []);
 assert.deepEqual(failedChecks(clean), []);
 assert.deepEqual(
   clean.httpResponses.map(({ host, type, status }) => ({ host, type, status })),
@@ -60,6 +86,7 @@ function failedChecks(evidence) {
     consoleErrors: failures.consoleErrors,
     badResponses: failures.badResponses,
     failedRequests: failures.failedRequests,
+    runtimeExceptions: failures.runtimeExceptions,
     httpResponses: evidence.httpResponses,
     releaseDetailEvidence: { marker: true },
   };

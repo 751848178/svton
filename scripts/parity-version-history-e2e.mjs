@@ -958,6 +958,7 @@ async function browserPass(ids) {
     consoleErrors: browserFailures.consoleErrors.slice(0, 10),
     badResponses: browserFailures.badResponses.slice(0, 10),
     failedRequests: browserFailures.failedRequests.slice(0, 10),
+    runtimeExceptions: browserFailures.runtimeExceptions.slice(0, 10),
     artifacts,
     requiredArtifacts: [
       "01-after-login.png", "01-after-login.txt",

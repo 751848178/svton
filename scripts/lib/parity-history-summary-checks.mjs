@@ -63,6 +63,7 @@ function browserChecks(r) {
     check("consoleErrors", r.consoleErrors?.length, 0),
     check("badResponses", r.badResponses?.length, 0),
     check("failedRequests", r.failedRequests?.length, 0),
+    check("runtimeExceptions", r.runtimeExceptions?.length, 0),
     predicate(
       "httpResponses",
       httpResponsesPass(r.httpResponses),

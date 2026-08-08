@@ -2,6 +2,7 @@ const CAPTURED_TYPES = new Set(["Document", "Fetch", "XHR"]);
 
 export function createCdpCapture() {
   const consoleEvents = [];
+  const runtimeExceptions = [];
   const httpResponses = [];
   const failedRequests = [];
   const requests = new Map();
@@ -15,6 +16,15 @@ export function createCdpCapture() {
         args: (params.args || []).map(
           (arg) => arg.value ?? arg.description ?? arg.type,
         ),
+      });
+    } else if (method === "Runtime.exceptionThrown") {
+      const details = params.exceptionDetails || {};
+      runtimeExceptions.push({
+        text: sanitizeText(details.text),
+        url: sanitizeUrl(details.url),
+        line: details.lineNumber,
+        column: details.columnNumber,
+        description: sanitizeText(details.exception?.description),
       });
     } else if (method === "Log.entryAdded") {
       consoleEvents.push({
@@ -58,6 +68,7 @@ export function createCdpCapture() {
     record,
     snapshot: () => ({
       console: consoleEvents,
+      runtimeExceptions,
       httpResponses,
       failedRequests,
     }),
@@ -75,7 +86,35 @@ export function summarizeBrowserFailures(evidence = {}) {
       (response) => Number(response.status) >= 400,
     ),
     failedRequests: evidence.failedRequests || [],
+    runtimeExceptions: evidence.runtimeExceptions,
   };
+}
+
+function sanitizeText(value) {
+  if (typeof value !== "string") return value;
+  return value
+    .replace(
+      /((?:access[_-]?token|authorization|password|secret)\s*[:=]\s*)[^\s,;]+/gi,
+      "$1[REDACTED]",
+    )
+    .slice(0, 4000);
+}
+
+function sanitizeUrl(value) {
+  if (typeof value !== "string") return value;
+  try {
+    const url = new URL(value);
+    if (url.username) url.username = "[REDACTED]";
+    if (url.password) url.password = "[REDACTED]";
+    for (const key of url.searchParams.keys()) {
+      if (/(?:token|authorization|password|secret)/i.test(key)) {
+        url.searchParams.set(key, "[REDACTED]");
+      }
+    }
+    return url.toString();
+  } catch {
+    return sanitizeText(value);
+  }
 }
 
 function isHttp(value) {
