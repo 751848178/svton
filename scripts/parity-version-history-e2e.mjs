@@ -45,6 +45,7 @@ import {
   historyStepChecks,
 } from "./lib/parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
+import { summarizeBrowserFailures } from "./lib/parity-history-cdp-capture.mjs";
 import {
   productionGateEvidence,
 } from "./lib/parity-production-gate-evidence.mjs";
@@ -66,7 +67,7 @@ const adminEmail = "admin@parity.local";
 const adminPassword = "ParityDemo123!";
 const pinnedCommit = "2f0ec3246761537123c65ac415a14e503ebbfa38";
 const f455EvidenceOriginal = "/tmp/codex-tool-runs/svton/f455/f455-positive-e2e-evidence.json";
-const cdpDriver = "/tmp/codex-tool-runs/svton/browser-driver/cdp-driver.mjs";
+const cdpDriver = resolve(root, "scripts/lib/parity-history-cdp-driver.mjs");
 const webBase = "http://localhost:4131";
 const parityRouteProviderKey = process.env.DEVPILOT_PARITY_ROUTE_PROVIDER_KEY || null;
 let positiveContext;
@@ -860,7 +861,7 @@ async function main() {
 // ----------------------------------------------------------------------------
 async function browserPass(ids) {
   const { buildRunId, stagingRunId, upgradeReleaseRunId, recoveryReleaseRunId, recoveryDeploymentRunId } = ids;
-  rmSync("/tmp/codex-tool-runs/svton/browser-driver/profile", { recursive: true, force: true });
+  rmSync(`${browserOut}/profile`, { recursive: true, force: true });
   const actions = [
     "navigate:" + webBase + "/login?redirect=%2Fteams",
     "wait:1500",
@@ -941,25 +942,23 @@ async function browserPass(ids) {
     if (entry.dom) artifacts[entry.dom.split("/").pop()] = entry.sha256;
     if (entry.text) artifacts[entry.text.split("/").pop()] = entry.sha256;
   }
-  let evidence = {};
-  try {
-    evidence = JSON.parse(await readFile(`${browserOut}/cdp-evidence.json`, "utf8"));
-  } catch {
-    /* no cdp evidence */
-  }
+  const cdpEvidence = JSON.parse(await readFile(`${browserOut}/cdp-evidence.json`, "utf8"));
+  const browserFailures = summarizeBrowserFailures(cdpEvidence);
   const releaseText = await readFile(`${browserOut}/02-release-detail.txt`, "utf8");
   const stagingStepText = await readFile(`${browserOut}/02b-staging-step.txt`, "utf8");
   const envVersionsText = await readFile(`${browserOut}/06-env-versions.txt`, "utf8");
   const buildLogText = await readFile(`${browserOut}/03-build-log-drawer.txt`, "utf8");
   const stagingLogText = await readFile(`${browserOut}/04-staging-run-log.txt`, "utf8");
-  const productionLogText = await readFile(`${browserOut}/05-production-recovery-log.txt`, "utf8");  return {
+  const productionLogText = await readFile(`${browserOut}/05-production-recovery-log.txt`, "utf8");
+  return {
     driver: cdpDriver,
     driverExit: proc.status,
     viewport: { width: 1484, height: 1324 },
     log: logPath,
-    documentResponses: evidence.documentResponses || [],
-    console: (evidence.console || []).filter((e) => e.level === "error").slice(0, 10),
-    failedRequestsCount: (evidence.failedRequests || []).length,
+    httpResponses: cdpEvidence.httpResponses || [],
+    consoleErrors: browserFailures.consoleErrors.slice(0, 10),
+    badResponses: browserFailures.badResponses.slice(0, 10),
+    failedRequests: browserFailures.failedRequests.slice(0, 10),
     artifacts,
     requiredArtifacts: [
       "01-after-login.png", "01-after-login.txt",

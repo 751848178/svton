@@ -60,18 +60,19 @@ function browserChecks(r) {
   return [
     check("driverExit", r.driverExit, 0),
     predicate("requiredArtifacts", artifactsValid, r.artifacts),
-    check("consoleErrors", r.console?.length, 0),
-    check("failedRequests", r.failedRequestsCount, 0),
+    check("consoleErrors", r.consoleErrors?.length, 0),
+    check("badResponses", r.badResponses?.length, 0),
+    check("failedRequests", r.failedRequests?.length, 0),
     predicate(
-      "documentResponses",
-      documentResponsesPass(r.documentResponses),
-      r.documentResponses,
+      "httpResponses",
+      httpResponsesPass(r.httpResponses),
+      r.httpResponses,
     ),
     predicate("markers", markers.length > 0 && markers.every(Boolean), markers),
   ];
 }
 
-function documentResponsesPass(responses = []) {
+function httpResponsesPass(responses = []) {
   return (
     responses.length > 0 &&
     responses.every((item) => {
