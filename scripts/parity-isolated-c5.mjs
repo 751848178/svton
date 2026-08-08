@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { rm } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createIsolatedC5Context,
@@ -12,7 +13,10 @@ import {
 import { runHistoryChain } from "./lib/parity-history-chain-launcher.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const runtimeRoot = "/tmp/codex-tool-runs/svton/c5-runtime";
+const runtimeRoot = join(
+  await realpath(tmpdir()),
+  "codex-tool-runs/svton/c5-runtime",
+);
 const command = process.argv[2] || "run";
 
 if (command === "run") await runIsolatedAcceptance();
