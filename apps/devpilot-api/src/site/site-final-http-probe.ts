@@ -62,6 +62,7 @@ function requestFinalUrl(
       resolve(attempt);
     };
     const options: SiteProbeRequestOptions = {
+      agent: false,
       protocol: target.protocol,
       hostname: target.hostname,
       port: target.port,
