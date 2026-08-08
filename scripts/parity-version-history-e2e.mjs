@@ -47,6 +47,8 @@ import {
 } from "./lib/parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
 import { readBackBrowserArtifacts } from "./lib/parity-history-browser-artifacts.mjs";
+import { parseDriverStdout } from "./lib/parity-history-driver-stdout-parser.mjs";
+import { assertEvidenceReceiptMatches } from "./lib/parity-history-driver-evidence-receipt.mjs";
 import {
   assertPinnedBrowserOutputDirectory,
   closePinnedBrowserOutputDirectory,
@@ -918,24 +920,18 @@ async function browserPassPinned(actions, directoryPin, outputNames) {
   if (proc.status !== 0) {
     throw new Error(`browser pass failed (${proc.status}): ${stderr.slice(0, 2000)}`);
   }
-  const shaLines = stdout
-    .split("\n")
-    .filter((line) => line.startsWith("{"))
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
+  const driverStdout = parseDriverStdout(stdout, outputNames);
   const { artifacts, contents } = await readBackBrowserArtifacts(
-    shaLines,
+    driverStdout.artifacts,
     directoryPin,
   );
   const cdpSnapshot = await readPinnedBrowserFile(
     directoryPin,
     "cdp-evidence.json",
+  );
+  assertEvidenceReceiptMatches(
+    driverStdout.evidenceReceipt,
+    cdpSnapshot.buffer,
   );
   const cdpEvidence = JSON.parse(cdpSnapshot.buffer.toString("utf8"));
   const browserFailures = summarizeBrowserFailures(cdpEvidence);
