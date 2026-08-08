@@ -33,6 +33,8 @@ F464-F561 are registered in the acceptance TODO. Several first-audit P1s are now
 
 Parallel-wave checkpoint: F543 adversarial review completed and registered F561 for adjacent-safe-field over-redaction. F544 landed atomically as `a74cb34e`; syntax, per-family security fixtures, F530/F539/F543/F547/F531 self-tests, Prettier, diff, path and line-count gates passed. No F545-F560, external worktree, push, integration, deployment, or Goal terminal-state action was performed.
 
+First-batch external integration checkpoint: F470 source `69909f0f` was independently reviewed and cherry-picked as `a3164709`; exact team-scoped pending CAS, structured loser 409, one-transaction winner/audit, audit rollback and consume semantics passed focused 15/15, API type-check and a fresh disposable-MySQL barrier 4/4. F555 source `a0325487` was independently reviewed and cherry-picked as `e6c1a80f`; standard/recovery preview-confirm hash continuity, request-owned serialization, trusted Vprod1 recovery binding, producer-shaped fixtures and contract/identity regressions passed. The two integrated patches have identical source/cherry-pick patch IDs, an exact 17-path union, clean diff/topology gates and no maintained production source over 200 lines; the legacy history producer shrank to 1245 lines without increasing its 76-hunk Prettier baseline. F556-F560, F537, browser/runtime reruns and the overall Goal remain open.
+
 ## Historical Claim Revalidation
 
 | Claim | Current classification | Current-run proof |
