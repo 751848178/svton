@@ -38,6 +38,11 @@ import {
   productionGateEvidence,
   productionGateEvidenceChecks,
 } from "./lib/parity-production-gate-evidence.mjs";
+import {
+  buildProductionRouteExpectation,
+  productionRouteEvidence,
+  productionRouteEvidenceChecks,
+} from "./lib/parity-production-route-evidence.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = "/tmp/codex-tool-runs/svton/f455";
@@ -50,6 +55,7 @@ const adminPassword = "ParityDemo123!";
 const pinnedCommit = "2f0ec3246761537123c65ac415a14e503ebbfa38";
 const PREFIX = "2f0ec324";
 const runState = {};
+const parityRouteProviderKey = process.env.DEVPILOT_PARITY_ROUTE_PROVIDER_KEY || null;
 const AC_MAPPING = {
   "AC-E2E-007": ["preflight", "intake-draft", "intake-connect", "intake-analyze", "intake-contract", "intake-review", "intake-finalize"],
   "AC-E2E-008": ["intake-finalize", "baselines-verified"],
@@ -288,6 +294,7 @@ async function main() {
       api("GET", `/project-environments/parity-env-staging/targets`, headers),
       api("GET", `/project-environments/parity-env-production/targets`, headers),
     ]);
+    runState.productionTargetRef = productionTargets.current?.targetRef;
     return {
       staging: pick(stagingTargets, ["current", "bindings"]),
       production: pick(productionTargets, ["current", "bindings"]),
@@ -612,6 +619,19 @@ async function main() {
 
   // ---------------------------------------------------------------- production
   await step("production-execute", async () => {
+    const productionRouteSnapshot = productionR2?.revision?.routeSnapshot || {};
+    const primaryDomain = productionRouteSnapshot.domains?.[0];
+    const siteCandidates = primaryDomain
+      ? await prisma.site.findMany({
+          where: {
+            teamId,
+            projectId,
+            environmentId: "parity-env-production",
+            primaryDomain,
+          },
+          select: { id: true },
+        })
+      : [];
     const executed = await api(
       "POST",
       `/projects/${projectId}/delivery/environment-versions/parity-env-production/actions`,
@@ -629,7 +649,8 @@ async function main() {
         releaseRunId: true,
         params: true,
         result: true,
-        logs: true,
+        startedAt: true,
+        finishedAt: true,
       },
     });
     if (row.status !== "completed") {
@@ -637,7 +658,21 @@ async function main() {
     }
     const result = row.result || {};
     const finalGateKey = `final:${releaseRunId}:${runId}`;
-    const [productionRunCount, productionGate] = await Promise.all([
+    const expectedRoute = buildProductionRouteExpectation({
+      teamId,
+      projectId,
+      environmentId: "parity-env-production",
+      deploymentRunId: runId,
+      releaseRunId,
+      manifestId,
+      configRevisionId: productionR2?.revision?.id,
+      routeSnapshot: productionRouteSnapshot,
+      siteId: siteCandidates[0]?.id,
+      targetRef: runState.productionTargetRef,
+      providerKey: parityRouteProviderKey,
+      receiptVersion: 1,
+    });
+    const [productionRunCount, productionGate, routeRuns, releaseEvidence, siteCurrent] = await Promise.all([
       prisma.deploymentRun.count({
         where: {
           environmentId: "parity-env-production",
@@ -669,6 +704,44 @@ async function main() {
           consumedAt: true,
         },
       }),
+      prisma.siteRouteSwitchRun.findMany({
+        where: {
+          teamId,
+          projectId,
+          environmentId: "parity-env-production",
+          deploymentRunId: runId,
+          releaseRunId,
+        },
+        select: {
+          teamId: true,
+          siteId: true,
+          projectId: true,
+          environmentId: true,
+          deploymentRunId: true,
+          releaseRunId: true,
+          targetRef: true,
+          proxyTarget: true,
+          domains: true,
+          status: true,
+          reasonCode: true,
+          result: true,
+          startedAt: true,
+          finishedAt: true,
+        },
+      }),
+      prisma.releaseRun.findUnique({
+        where: { id: releaseRunId },
+        select: {
+          environmentId: true,
+          artifactManifestId: true,
+          configRevisionId: true,
+          routeSnapshot: true,
+        },
+      }),
+      prisma.site.findUnique({
+        where: { id: siteCandidates[0]?.id || "__missing_site__" },
+        select: { id: true, primaryDomain: true, routeSwitch: true },
+      }),
     ]);
     return {
       deploymentRunId: runId,
@@ -697,6 +770,23 @@ async function main() {
         deploymentReleaseRunId: row.releaseRunId,
         deploymentEnvironmentId: row.environmentId,
         deploymentManifestId: row.artifactManifestId,
+      }),
+      routeEvidence: productionRouteEvidence({
+        expected: expectedRoute,
+        deployment: {
+          releaseRunId: row.releaseRunId,
+          environmentId: row.environmentId,
+          artifactManifestId: row.artifactManifestId,
+          startedAt: row.startedAt,
+          finishedAt: row.finishedAt,
+        },
+        releaseRun: releaseEvidence,
+        siteCandidateCount: siteCandidates.length,
+        siteCurrent,
+        routeRuns,
+        siteProbe: result.siteProbe,
+        deploymentRouteSwitch: result.routeSwitch,
+        capturedAt: new Date().toISOString(),
       }),
     };
   });
@@ -1070,17 +1160,13 @@ function environmentR2Checks(result, role) {
 }
 
 function productionExecutionChecks(result) {
-  const finalUrl = result.siteProbe?.finalUrl;
-  const receipt = result.routeSwitch?.providerReceipt ?? result.routeSwitch?.receipt;
   return [
     predicate("deploymentRunId", Boolean(result.deploymentRunId), result.deploymentRunId),
     check("status", result.status, "completed"), check("environmentId", result.environmentId, "parity-env-production"),
     check("sameManifest", result.sameManifest, true), check("releaseRunId", result.releaseRunId, runState.releaseRunId),
     check("artifactVerified", result.artifactVerified, true), check("productionRunCount", result.productionRunCount, 1),
     predicate("workload", Boolean(result.workload), result.workload), check("healthProbe", result.healthProbe?.status, "passed"),
-    predicate("finalUrl", Boolean(finalUrl), finalUrl), check("siteProbeStatus", result.siteProbe?.http?.status, "passed"),
-    check("exactFinalUrl", result.siteProbe?.http?.url, finalUrl), check("tlsStatus", result.siteProbe?.tls?.status, "valid"),
-    check("routeSwitchStatus", result.routeSwitch?.status, "switched"), predicate("providerReceipt", Boolean(receipt), receipt),
+    ...productionRouteEvidenceChecks(result.routeEvidence),
     ...productionGateEvidenceChecks(result.productionGate),
   ];
 }
